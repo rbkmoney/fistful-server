@@ -22,6 +22,7 @@
 -export([identity/1]).
 -export([name/1]).
 -export([currency/1]).
+-export([account/1]).
 
 -export([create/2]).
 -export([is_accessible/1]).
@@ -42,6 +43,14 @@ identity(#{identity := V}) -> V.
 name(#{name := V})         -> V.
 currency(#{currency := V}) -> V.
 wid(#{wid := V})           -> V.
+
+-spec account(wallet()) ->
+    ff_party:account_id().
+
+account(Wallet) ->
+    {ok, Identity} = ff_identity_machine:get(identity(Wallet)),
+    {ok, Account} = ff_party:get_wallet_account(ff_identity:party(Identity), wid(Wallet)),
+    Account.
 
 %%
 

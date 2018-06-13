@@ -14,12 +14,16 @@
 -type id()          :: dmsl_domain_thrift:'PartyID'().
 -type contract_id() :: dmsl_domain_thrift:'ContractID'().
 -type wallet_id()   :: dmsl_domain_thrift:'WalletID'().
+-type account_id()  :: dmsl_domain_thrift:'AccountID'().
 
 -export_type([id/0]).
 -export_type([contract_id/0]).
 -export_type([wallet_id/0]).
+-export_type([account_id/0]).
 
 -export([is_accessible/1]).
+-export([get_wallet/2]).
+-export([get_wallet_account/2]).
 -export([is_wallet_accessible/2]).
 -export([create_contract/2]).
 -export([create_wallet/3]).
@@ -35,7 +39,7 @@
     {error, {inaccessible, suspended | blocked}}.
 
 is_accessible(ID) ->
-    case get_party(ID) of
+    case do_get_party(ID) of
         #domain_Party{blocking = {blocked, _}} ->
             {error, {inaccessible, blocked}};
         #domain_Party{suspension = {suspended, _}} ->
@@ -43,6 +47,27 @@ is_accessible(ID) ->
         #domain_Party{} ->
             {ok, accessible}
     end.
+
+-spec get_wallet(id(), wallet_id()) ->
+    {ok, _Wallet} |
+    {error, notfound}.
+
+get_wallet(ID, WalletID) ->
+    do_get_wallet(ID, WalletID).
+
+-spec get_wallet_account(id(), wallet_id()) ->
+    {ok, account_id()} |
+    {error, notfound}.
+
+get_wallet_account(ID, WalletID) ->
+    do(fun () ->
+        #domain_Wallet{
+            account = #domain_WalletAccount{
+                settlement = AccountID
+            }
+        } = unwrap(get_wallet(ID, WalletID)),
+        AccountID
+    end).
 
 -spec is_wallet_accessible(id(), wallet_id()) ->
     {ok, accessible} |
@@ -52,12 +77,12 @@ is_accessible(ID) ->
     }.
 
 is_wallet_accessible(ID, WalletID) ->
-    case get_wallet(ID, WalletID) of
-        #domain_Wallet{blocking = {blocked, _}} ->
+    case do_get_wallet(ID, WalletID) of
+        {ok, #domain_Wallet{blocking = {blocked, _}}} ->
             {error, {inaccessible, blocked}};
-        #domain_Wallet{suspension = {suspended, _}} ->
+        {ok, #domain_Wallet{suspension = {suspended, _}}} ->
             {error, {inaccessible, suspended}};
-        #domain_Wallet{} ->
+        {ok, #domain_Wallet{}} ->
             {ok, accessible};
         {error, notfound} ->
             {error, notfound}
@@ -78,8 +103,8 @@ create_contract(ID, Prototype) ->
     do(fun () ->
         ContractID = generate_contract_id(),
         Changeset  = construct_contract_changeset(ContractID, Prototype),
-        Claim      = unwrap(create_claim(ID, Changeset)),
-        accepted   = accept_claim(ID, Claim),
+        Claim      = unwrap(do_create_claim(ID, Changeset)),
+        accepted   = do_accept_claim(ID, Claim),
         ContractID
     end).
 
@@ -101,8 +126,8 @@ create_wallet(ID, ContractID, Prototype) ->
     do(fun () ->
         WalletID  = generate_wallet_id(),
         Changeset = construct_wallet_changeset(ContractID, WalletID, Prototype),
-        Claim     = unwrap(create_claim(ID, Changeset)),
-        accepted  = accept_claim(ID, Claim),
+        Claim     = unwrap(do_create_claim(ID, Changeset)),
+        accepted  = do_accept_claim(ID, Claim),
         WalletID
     end).
 
@@ -112,7 +137,7 @@ generate_wallet_id() ->
 
 %% Party management client
 
-get_party(ID) ->
+do_get_party(ID) ->
     case call('Get', [construct_userinfo(), ID]) of
         {ok, #domain_Party{} = Party} ->
             Party;
@@ -120,17 +145,17 @@ get_party(ID) ->
             error(Unexpected)
     end.
 
-get_wallet(ID, WalletID) ->
+do_get_wallet(ID, WalletID) ->
     case call('GetWallet', [construct_userinfo(), ID, WalletID]) of
         {ok, #domain_Wallet{} = Wallet} ->
-            Wallet;
+            {ok, Wallet};
         {exception, #payproc_WalletNotFound{}} ->
             {error, notfound};
         {exception, Unexpected} ->
             error(Unexpected)
     end.
 
-create_claim(ID, Changeset) ->
+do_create_claim(ID, Changeset) ->
     case call('CreateClaim', [construct_userinfo(), ID, Changeset]) of
         {ok, Claim} ->
             {ok, Claim};
@@ -140,7 +165,7 @@ create_claim(ID, Changeset) ->
             error(Unexpected)
     end.
 
-accept_claim(ID, Claim) ->
+do_accept_claim(ID, Claim) ->
     % TODO
     %  - We assume here that there's only one actor (identity machine) acting in
     %    such a way which may cause conflicts.

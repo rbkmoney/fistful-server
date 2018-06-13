@@ -2,7 +2,7 @@
 %%% Destination machine
 %%%
 
--module(ff_withdrawal_machine).
+-module(ff_destination_machine).
 
 %% API
 

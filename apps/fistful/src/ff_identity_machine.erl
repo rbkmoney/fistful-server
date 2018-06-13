@@ -7,6 +7,10 @@
 %%%     * it's better to persist only IDs / prototypes,
 %%%     * it's easier to work with rich data in runtime.
 %%%
+%%%    It seems that the more concise way will be to keep refdatas around which
+%%%    are IDs until they are materialised into ID + Data tuple any time a model
+%%%    updated with these IDs.
+%%%
 
 -module(ff_identity_machine).
 

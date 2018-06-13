@@ -1,0 +1,6 @@
+-sname fistfulsrv
+
+-setcookie fistfulsrv_cookie
+
++K true
++A 10

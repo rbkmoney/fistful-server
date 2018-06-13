@@ -1,0 +1,3 @@
+[submodule "build-utils"]
+	path = build-utils
+	url = git+ssh://github.com/rbkmoney/build_utils

@@ -4,9 +4,11 @@
 -module(ff_adpt_session_machine).
 -behaviour(machinery).
 
+-define(NS, adpt_session).
+
 %% API
--export([create/5]).
--export([get/3]).
+-export([create/4]).
+-export([get/2]).
 
 %% machinery
 -export([init/4]).
@@ -68,24 +70,23 @@
 %% API
 %%
 
--spec create(Ns, Id, Adapter, Withdrawal, Be) -> {ok, session()} | Error when
-    Ns :: namespace(),
+-spec create(Id, Adapter, Withdrawal, Be) -> {ok, session()} | Error when
     Id :: id(),
     Adapter :: adapter(),
     Withdrawal :: withdrawal(),
     Be :: backend(),
     Error :: {error, exists}.
-create(Ns, Id, Adapter, Withdrawal, Be) ->
+create(Id, Adapter, Withdrawal, Be) ->
     Session = create_session(Id, Adapter, Withdrawal),
     do(fun () ->
-        ok = unwrap(machinery:start(Ns, Id, Session, Be)),
-        unwrap(get(Ns, Id, Be))
+        ok = unwrap(machinery:start(?NS, Id, Session, Be)),
+        unwrap(get(Id, Be))
     end).
 
--spec get(namespace(), id(), backend()) -> {ok, session()} | {error, any()}.
-get(Ns, Id, Be) ->
+-spec get(id(), backend()) -> {ok, session()} | {error, any()}.
+get(Id, Be) ->
     do(fun () ->
-        session(collapse(unwrap(machinery:get(Ns, Id, Be))))
+        session(collapse(unwrap(machinery:get(?NS, Id, Be))))
     end).
 
 %%

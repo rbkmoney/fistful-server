@@ -21,8 +21,8 @@
 
 -export_type([id/0]).
 
--export([create/6]).
--export([get/3]).
+-export([create/5]).
+-export([get/2]).
 
 %% Machinery
 
@@ -44,29 +44,30 @@ wallet(#{wallet := Wallet}) -> Wallet.
 
 %%
 
--type namespace() :: machinery:namespace().
--type backend()   :: machinery:backend(_).
+-define(NS, wallet).
 
--spec create(namespace(), id(), ff_identity:id(), _Prototype, ctx(), backend()) ->
+-type backend() :: machinery:backend(_).
+
+-spec create(id(), ff_identity:id(), _Prototype, ctx(), backend()) ->
     {ok, wallet()} |
     {error,
         _WalletError |
         exists
     }.
 
-create(NS, ID, IdentityID, Prototype, Ctx, Be) ->
+create(ID, IdentityID, Prototype, Ctx, Be) ->
     do(fun () ->
         Wallet = unwrap(ff_wallet:create(IdentityID, Prototype)),
-        ok     = unwrap(machinery:start(NS, ID, {Wallet, Ctx}, Be)),
-        unwrap(get(NS, ID, Be))
+        ok     = unwrap(machinery:start(?NS, ID, {Wallet, Ctx}, Be)),
+        unwrap(get(ID, Be))
     end).
 
--spec get(namespace(), id(), backend()) ->
+-spec get(id(), backend()) ->
     wallet().
 
-get(NS, ID, Be) ->
+get(ID, Be) ->
     do(fun () ->
-        wallet(collapse(unwrap(machinery:get(NS, ID, Be))))
+        wallet(collapse(unwrap(machinery:get(?NS, ID, Be))))
     end).
 
 %% machinery

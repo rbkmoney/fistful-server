@@ -36,9 +36,9 @@
 -export([identity/1]).
 -export([ctx/1]).
 
--export([create/6]).
--export([get/3]).
--export([ctx/3]).
+-export([create/5]).
+-export([get/2]).
+-export([ctx/2]).
 
 %% Machinery
 
@@ -62,17 +62,18 @@ ctx(#{ctx := V})           -> V.
 
 %%
 
--type namespace() :: machinery:namespace().
--type backend()   :: machinery:backend(_).
+-define(NS, identity).
 
--spec create(namespace(), id(), ff_party:id(), ff_identity:prototype(), ctx(), backend()) ->
+-type backend() :: machinery:backend(_).
+
+-spec create(id(), ff_party:id(), ff_identity:prototype(), ctx(), backend()) ->
     {ok, st()} |
     {error,
         _IdentityError |
         exists
     }.
 
-create(NS, ID, PartyID, Prototype, Ctx, Be) ->
+create(ID, PartyID, Prototype, Ctx, Be) ->
     do(fun () ->
         Identity        = unwrap(ff_identity:create(PartyID, Prototype)),
         ProviderID      = ff_identity:provider(Identity),
@@ -84,26 +85,26 @@ create(NS, ID, PartyID, Prototype, Ctx, Be) ->
             contract_template => ff_identity:contract_template(IdentityClass)
         }),
         Identity1       = unwrap(ff_identity:set_contract(Contract, Identity)),
-        ok              = unwrap(machinery:start(NS, ID, {Identity1, Ctx}, Be)),
-        unwrap(get(NS, ID, Be))
+        ok              = unwrap(machinery:start(?NS, ID, {Identity1, Ctx}, Be)),
+        unwrap(get(ID, Be))
     end).
 
--spec get(namespace(), id(), backend()) ->
+-spec get(id(), backend()) ->
     {ok, identity()} |
     {error, notfound}.
 
-get(NS, ID, Be) ->
+get(ID, Be) ->
     do(fun () ->
-        identity(collapse(unwrap(machinery:get(NS, ID, Be))))
+        identity(collapse(unwrap(machinery:get(?NS, ID, Be))))
     end).
 
--spec ctx(namespace(), id(), backend()) ->
+-spec ctx(id(), backend()) ->
     {ok, ctx()} |
     {error, notfound}.
 
-ctx(NS, ID, Be) ->
+ctx(ID, Be) ->
     do(fun () ->
-        ctx(collapse(unwrap(machinery:get(NS, ID, {undefined, 0, forward}, Be))))
+        ctx(collapse(unwrap(machinery:get(?NS, ID, {undefined, 0, forward}, Be))))
     end).
 
 %% Machinery

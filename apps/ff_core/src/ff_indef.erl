@@ -4,6 +4,10 @@
 -module(ff_indef).
 
 -export([new/1]).
+-export([new/3]).
+-export([current/1]).
+-export([expmin/1]).
+-export([expmax/1]).
 -export([account/2]).
 -export([confirm/2]).
 -export([reject/2]).
@@ -25,6 +29,17 @@
 -spec new(T) ->
     indef(T).
 
+-spec new(T, T, T) ->
+    indef(T).
+
+-spec current(indef(T)) ->
+    T.
+
+-spec expmin(indef(T)) ->
+    T.
+
+-spec expmax(indef(T)) ->
+    T.
 -spec account(T, indef(T)) ->
     indef(T).
 
@@ -40,6 +55,22 @@ new(Seed) ->
         current      => Seed,
         expected_max => Seed
     }.
+
+new(ExpMin, Current, ExpMax) ->
+    #{
+        expected_min => ExpMin,
+        current      => Current,
+        expected_max => ExpMax
+    }.
+
+current(#{current := V}) ->
+    V.
+
+expmin(#{expected_min := V}) ->
+    V.
+
+expmax(#{expected_max := V}) ->
+    V.
 
 account(Delta, Indef = #{expected_min := ExpMin, expected_max := ExpMax}) ->
     Indef#{

@@ -1,7 +1,7 @@
 %%%
 %%% Withdrawal session machine
 %%%
--module(ff_wth_session_machine).
+-module(ff_adpt_session_machine).
 -behaviour(machinery).
 
 %% API
@@ -20,11 +20,11 @@
 -type session() :: #{
     id => id(),
     status => session_status(),
-    withdrawal => ff_wthadpt:withdrawal(),
+    withdrawal => withdrawal(),
     adapter => adapter()
 }.
 
--type session_result() :: {success, trx_info()} | {failed, ff_wthadpt:failure()}.
+-type session_result() :: {success, trx_info()} | {failed, ff_adpt:failure()}.
 
 -type session_status() :: new
     | active
@@ -32,10 +32,10 @@
 
 -type ev() :: {created, session()}
     | started
-    | {next_state, ff_wthadpt:adapter_state()}
+    | {next_state, ff_adpt:adapter_state()}
     | {finished, session_result()}.
 
--type adapter() :: {ff_wthadpt:adapter(), map()}.
+-type adapter() :: {ff_adpt:adapter(), map()}.
 
 %%
 %% Internal types
@@ -47,6 +47,7 @@
 
 -type auxst()        :: #{}.
 
+-type withdrawal() :: ff_adpt_withdrawal:withdrawal().
 -type machine() :: machinery:machine(ev(), auxst()).
 -type result() :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts().
@@ -56,7 +57,7 @@
 
 -type st() :: #{
     session => session(),
-    adapter_state => ff_wthadpt:adapter_state()
+    adapter_state => ff_adpt:adapter_state()
 }.
 
 %% Pipeline
@@ -71,7 +72,7 @@
     Ns :: namespace(),
     Id :: id(),
     Adapter :: adapter(),
-    Withdrawal :: ff_wthadpt:withdrawal(),
+    Withdrawal :: withdrawal(),
     Be :: backend(),
     Error :: {error, exists}.
 create(Ns, Id, Adapter, Withdrawal, Be) ->
@@ -121,7 +122,7 @@ process_session(#{session := #{status := active} = Session} = St) ->
         withdrawal := Withdrawal
     } = Session,
     ASt = maps:get(adapter_state, St, []),
-    case ff_wthadpt_client:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
+    case ff_adpt_client:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
         {ok, Intent, NextState} ->
             process_intent(Intent, NextState);
         {ok, Intent} ->
@@ -145,7 +146,7 @@ process_intent({sleep, Timer}) ->
 
 %%
 
--spec create_session(id(), adapter(), ff_wthadpt:withdrawal()) -> session().
+-spec create_session(id(), adapter(), ff_adpt:withdrawal()) -> session().
 create_session(Id, Adapter, Withdrawal) ->
     #{
         id => Id,

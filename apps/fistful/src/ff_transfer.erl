@@ -32,6 +32,7 @@
 }.
 
 -export_type([transfer/0]).
+-export_type([posting/0]).
 -export_type([status/0]).
 
 -export([trxid/1]).

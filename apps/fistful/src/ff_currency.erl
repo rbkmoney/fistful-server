@@ -19,6 +19,7 @@
 }.
 
 -export_type([id/0]).
+-export_type([currency/0]).
 
 -export([get/1]).
 

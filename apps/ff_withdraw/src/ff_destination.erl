@@ -26,7 +26,8 @@
 -type destination() :: #{
     wallet   := wallet(),
     resource := resource(),
-    status   := status()
+    status   := status(),
+    masked_pan := binary()
 }.
 
 -export_type([destination/0]).

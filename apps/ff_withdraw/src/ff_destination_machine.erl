@@ -24,8 +24,8 @@
     ctx           => ctx()
 }.
 
--export([create/7]).
--export([get/3]).
+-export([create/4]).
+-export([get/2]).
 
 %% Machinery
 
@@ -37,34 +37,46 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %%
 
--type namespace() :: machinery:namespace().
--type backend()   :: machinery:backend(_).
+-define(NS, destination).
 
--spec create(namespace(), id(), ff_identity:id(), ff_wallet:prototype(), ff_destination:resource(), ctx(), backend()) ->
-    {ok, st()} |
+-type backend() :: machinery:backend(_).
+
+-type params() :: #{
+    identity => ff_identity:id(),
+    name     => binary(),
+    currency => ff_currency:id(),
+    resource => ff_destination:resource()
+}.
+
+-spec create(id(), params(), ctx(), backend()) ->
+    {ok, destination()} |
     {error,
+        {identity, notfound} |
+        {currency, notfound} |
         _DestinationError |
         exists
     }.
 
-create(NS, ID, IdentityID, Prototype, Resource, Ctx, Be) ->
+create(ID, #{identity := IdentityID, name := Name, currency := Currency, resource := Resource}, Ctx, Be) ->
     do(fun () ->
-        Destination = ff_destination:create(IdentityID, Prototype, Resource),
-        ok = unwrap(machinery:start(NS, ID, {Destination, Ctx}, Be)),
-        unwrap(get(NS, ID, Be))
+        Identity    = unwrap(identity, ff_identity_machine:get(IdentityID)),
+        _           = unwrap(currency, ff_currency:get(Currency)),
+        Destination = unwrap(ff_destination:create(Identity, Name, Currency, Resource)),
+        ok          = unwrap(machinery:start(?NS, ID, {Destination, Ctx}, Be)),
+        unwrap(get(ID, Be))
     end).
 
--spec get(namespace(), id(), backend()) ->
+-spec get(id(), backend()) ->
     {ok, destination()} |
     {error, notfound}.
 
-get(NS, ID, Be) ->
+get(ID, Be) ->
     do(fun () ->
-        destination(collapse(unwrap(machinery:get(NS, ID, Be))))
+        destination(collapse(unwrap(machinery:get(?NS, ID, Be))))
     end).
 
 %% Machinery

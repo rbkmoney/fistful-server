@@ -39,7 +39,7 @@
 
 -export([set_status/2]).
 
--export([create/3]).
+-export([create/4]).
 -export([authorize/1]).
 
 %% Pipeline
@@ -62,13 +62,13 @@ set_status(V, D = #{})        -> D#{status := V}.
 
 %%
 
--spec create(ff_identity:id(), ff_wallet:prototype(), resource()) ->
+-spec create(ff_identity:identity(), binary(), ff_currency:id(), resource()) ->
     {ok, destination()} |
     {error, _WalletError}.
 
-create(IdentityID, Prototype, Resource) ->
+create(Identity, Name, Currency, Resource) ->
     do(fun () ->
-        Wallet = unwrap(ff_wallet:create(IdentityID, Prototype)),
+        Wallet = unwrap(ff_wallet:create(Identity, Name, Currency)),
         #{
             wallet   => Wallet,
             resource => Resource,

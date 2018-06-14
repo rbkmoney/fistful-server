@@ -5,7 +5,8 @@
 -include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 %% API
--export([process_withdrawal/5]).
+
+-export([process_withdrawal/4]).
 
 %%
 %% Internal types
@@ -14,16 +15,27 @@
 -type id() :: machinery:id().
 -type identity_id() :: id().
 
--type withdrawal() :: ff_adpt_withdrawal:withdrawal().
--type destination() :: ff_adpt_withdrawal:destination().
--type cash() :: ff_adpt_withdrawal:cash().
+-type destination() :: ff_destination:destination().
+-type identity() :: ff_identity:identity().
+-type cash() :: ff_transfer:body().
 
--type adapter() :: ff_wthadpt:adapter().
+-type withdrawal() :: #{
+    id => binary(),
+    destination => destination(),
+    cash => cash(),
+    sender => identity() | undefined,
+    receiver => identity() | undefined
+}.
+
+-export_type([withdrawal/0]).
+
+-type adapter() :: ff_adapter:adapter().
 -type intent() :: {finish, status()} | {sleep, timer()}.
--type status() :: {success, trx_info()} | {failure, ff_adpt:failure()}.
+-type status() :: {success, trx_info()} | {failure, failure()}.
 -type timer() :: dmsl_base_thrift:'Timer'().
 -type trx_info() :: dmsl_domain_thrift:'TransactionInfo'().
--type adapter_state() :: ff_adpt:adapter_state().
+-type failure() :: dmsl_domain_thrift:'Failure'().
+-type adapter_state() :: ff_adapter:state().
 -type process_result() :: {ok, intent(), adapter_state()} | {ok, intent()}.
 
 -type domain_withdrawal() :: dmsl_withdrawals_provider_adapter_thrift:'Withdrawal'().
@@ -31,22 +43,22 @@
 -type domain_currency() :: dmsl_domain_thrift:'Currency'().
 -type domain_destination() :: dmsl_withdrawals_provider_adapter_thrift:'Destination'().
 -type domain_identity() :: dmsl_withdrawals_provider_adapter_thrift:'Identity'().
-
--type backend() :: machinery:backend(_).
+-type domain_internal_state() :: dmsl_withdrawals_provider_adapter_thrift:'InternalState'().
 
 %%
 %% API
 %%
 
--spec process_withdrawal(Adapter, Withdrawal, ASt, AOpt, Be) -> process_result() when
-    Adapter :: adapter(),
-    Withdrawal :: withdrawal(),
-    ASt :: adapter_state(),
-    AOpt :: map(),
-    Be :: backend().
-process_withdrawal(Adapter, Withdrawal, ASt, AOpt, Be) ->
-    DomainWithdrawal = build_and_encode_withdrawal(Withdrawal, Be),
-    {ok, Result} = call(Adapter, 'ProcessWithdrawal', [DomainWithdrawal, ASt, AOpt]),
+-spec process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
+    process_result() when
+        Adapter :: adapter(),
+        Withdrawal :: withdrawal(),
+        ASt :: adapter_state(),
+        AOpt :: map().
+
+process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
+    DomainWithdrawal = encode_withdrawal(Withdrawal),
+    {ok, Result} = call(Adapter, 'ProcessWithdrawal', [DomainWithdrawal, encode_adapter_state(ASt), AOpt]),
     decode_result(Result).
 
 %%
@@ -59,28 +71,27 @@ call(Adapter, Function, Args) ->
 
 %% Encoders
 
--spec build_and_encode_withdrawal(Withdrawal, Be) -> domain_withdrawal() when
-    Withdrawal :: withdrawal(),
-    Be :: backend().
-build_and_encode_withdrawal(Withdrawal, Be) ->
+-spec encode_withdrawal(Withdrawal) -> domain_withdrawal() when
+    Withdrawal :: withdrawal().
+encode_withdrawal(Withdrawal) ->
     #{
-        id := WId,
+        id := ID,
         cash := Cash,
         destination := Dest,
         sender := Sender,
         receiver := Receiver
     } = Withdrawal,
     #wthadpt_Withdrawal{
-        id = WId,
+        id = ID,
         body = encode_body(Cash),
         destination = encode_destination(Dest),
-        sender = fetch_and_encode_identity(Sender, Be),
-        receiver = fetch_and_encode_identity(Receiver, Be)
+        sender = encode_identity(Sender),
+        receiver = encode_identity(Receiver)
     }.
 
 -spec encode_body(cash()) -> domain_cash().
-encode_body({Amount, CurrencyId}) ->
-    Currency = ff_currency:get(CurrencyId),
+encode_body({Amount, CurrencyID}) ->
+    Currency = ff_currency:get(CurrencyID),
     DomainCurrency = encode_currency(Currency),
     #wthadpt_Cash{amount = Amount, currency = DomainCurrency}.
 
@@ -114,17 +125,22 @@ encode_destination(Destination) ->
         masked_pan = MaskedPan
     }}.
 
--spec fetch_and_encode_identity
-    (identity_id(), backend()) -> domain_identity();
-    (undefined, backend()) -> undefined.
-fetch_and_encode_identity(undefined, _Be) ->
+-spec encode_identity
+    (identity_id()) -> domain_identity();
+    (undefined) -> undefined.
+encode_identity(undefined) ->
     undefined;
-fetch_and_encode_identity(IdentityId, _Be) ->
-    % {ok, Identity} = ff_identity:get(IdentityId, Be),
+encode_identity(IdentityID) ->
     % TODO: Add documents and contract fields
     #wthdm_Identity{
-        id = IdentityId
+        id = IdentityID
     }.
+
+-spec encode_adapter_state(adapter_state()) -> domain_internal_state().
+encode_adapter_state(undefined) ->
+    {nl, #msgpack_Nil{}};
+encode_adapter_state(ASt) ->
+    ASt.
 
 -spec decode_result(dmsl_withdrawals_provider_adapter_thrift:'ProcessResult'()) -> process_result().
 decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = undefined}) ->

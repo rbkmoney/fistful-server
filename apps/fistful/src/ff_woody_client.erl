@@ -56,8 +56,10 @@ new(Url) when is_binary(Url); is_list(Url) ->
     {ok, woody:result()}                      |
     {exception, woody_error:business_error()}.
 
-call(ServiceID, Request) ->
+call(ServiceID, Request) when is_atom(ServiceID) ->
     Client = get_service_client(ServiceID),
+    woody_client:call(Request, Client, ff_woody_ctx:get());
+call(Client, Request) when is_map(Client) ->
     woody_client:call(Request, Client, ff_woody_ctx:get()).
 
 %%

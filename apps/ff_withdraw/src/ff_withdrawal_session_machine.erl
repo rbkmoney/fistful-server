@@ -1,10 +1,10 @@
 %%%
 %%% Withdrawal session machine
 %%%
--module(ff_adpt_session_machine).
+-module(ff_withdrawal_session_machine).
 -behaviour(machinery).
 
--define(NS, adpt_session).
+-define(NS, 'withdrawal/session').
 
 %% API
 -export([create/4]).
@@ -28,16 +28,14 @@
 
 -type session_result() :: {success, trx_info()} | {failed, ff_adpt:failure()}.
 
--type session_status() :: new
-    | active
+-type session_status() :: active
     | {finished, session_result()}.
 
 -type ev() :: {created, session()}
-    | started
     | {next_state, ff_adpt:adapter_state()}
     | {finished, session_result()}.
 
--type adapter() :: {ff_adpt:adapter(), map()}.
+-type adapter() :: {ff_adapter:adapter(), Opts :: #{binary() => binary()}}.
 
 %%
 %% Internal types
@@ -49,7 +47,7 @@
 
 -type auxst()        :: #{}.
 
--type withdrawal() :: ff_adpt_withdrawal:withdrawal().
+-type withdrawal() :: ff_adapter_withdrawal:withdrawal().
 -type machine() :: machinery:machine(ev(), auxst()).
 -type result() :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts().
@@ -58,7 +56,7 @@
 
 -type st() :: #{
     session => session(),
-    adapter_state => ff_adpt:adapter_state()
+    adapter_state => ff_adapter:state()
 }.
 
 %% Pipeline
@@ -69,23 +67,22 @@
 %% API
 %%
 
--spec create(Id, Adapter, Withdrawal, Be) -> {ok, session()} | Error when
-    Id :: id(),
+-spec create(ID, Adapter, Withdrawal, Be) -> ok | Error when
+    ID :: id(),
     Adapter :: adapter(),
     Withdrawal :: withdrawal(),
     Be :: backend(),
     Error :: {error, exists}.
-create(Id, Adapter, Withdrawal, Be) ->
-    Session = create_session(Id, Adapter, Withdrawal),
+create(ID, Adapter, Withdrawal, Be) ->
+    Session = create_session(ID, Adapter, Withdrawal),
     do(fun () ->
-        ok = unwrap(machinery:start(?NS, Id, Session, Be)),
-        unwrap(get(Id, Be))
+        unwrap(machinery:start(?NS, ID, Session, Be))
     end).
 
--spec get(id(), backend()) -> {ok, session()} | {error, any()}.
-get(Id, Be) ->
+-spec get(id(), backend()) -> {ok, session()} | {error, notfound}.
+get(ID, Be) ->
     do(fun () ->
-        session(collapse(unwrap(machinery:get(?NS, Id, Be))))
+        session(collapse(unwrap(machinery:get(?NS, ID, Be))))
     end).
 
 %%
@@ -97,7 +94,7 @@ get(Id, Be) ->
 init(Session, #{}, _, _Opts) ->
     #{
         events => emit_ts_event({created, Session}),
-        action => timer_action({timeout, 0})
+        action => continue
     }.
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) ->
@@ -121,8 +118,8 @@ process_session(#{session := #{status := active} = Session} = St) ->
         adapter := {Adapter, AdapterOpts},
         withdrawal := Withdrawal
     } = Session,
-    ASt = maps:get(adapter_state, St, []),
-    case ff_adpt_client:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
+    ASt = maps:get(adapter_state, St, undefined),
+    case ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
         {ok, Intent, NextState} ->
             process_intent(Intent, NextState);
         {ok, Intent} ->
@@ -147,12 +144,12 @@ process_intent({sleep, Timer}) ->
 %%
 
 -spec create_session(id(), adapter(), ff_adpt:withdrawal()) -> session().
-create_session(Id, Adapter, Withdrawal) ->
+create_session(ID, Adapter, Withdrawal) ->
     #{
-        id => Id,
+        id => ID,
         withdrawal => Withdrawal,
         adapter => Adapter,
-        status => new
+        status => active
     }.
 
 -spec set_session_status(session_status(), session()) -> session().
@@ -181,8 +178,6 @@ merge_event({_ID, _Ts, {ev, _Ts, EvBody}}, St) ->
 -spec merge_event_body(ev(), st()) -> st().
 merge_event_body({created, Session}, St) ->
     St#{session => Session};
-merge_event_body(started, #{session := Session} = St) ->
-    St#{session => set_session_status(active, Session)};
 merge_event_body({next_state, AdapterState}, St) ->
     St#{adapter_state => AdapterState};
 merge_event_body({finished, Result}, #{session := Session} = St) ->

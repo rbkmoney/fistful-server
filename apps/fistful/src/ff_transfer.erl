@@ -14,11 +14,10 @@
 
 -module(ff_transfer).
 
--include_lib("dmsl/include/dmsl_accounter_thrift.hrl").
-
--type body()           :: {integer(), ff_currency:id()}.
--type wallet_id()      :: ff_wallet_machine:id().
--type transaction_id() :: binary().
+-type wallet()   :: ff_wallet:wallet().
+-type body()     :: ff_transaction:body().
+-type trxid()    :: ff_transaction:id().
+-type posting()  :: {wallet(), wallet(), body()}.
 
 -type status() ::
     created   |
@@ -27,25 +26,19 @@
     cancelled .
 
 -type transfer() :: #{
-    source      := wallet_id(),
-    destination := wallet_id(),
-    trxid       := transaction_id(),
-    body        := body(),
+    trxid       := trxid(),
+    postings    := [posting()],
     status      := status()
 }.
 
--export_type([body/0]).
 -export_type([transfer/0]).
 -export_type([status/0]).
 
--export([source/1]).
--export([destination/1]).
 -export([trxid/1]).
--export([body/1]).
+-export([postings/1]).
 -export([status/1]).
 
--export([create/4]).
-
+-export([create/2]).
 -export([prepare/1]).
 -export([commit/1]).
 
@@ -55,62 +48,68 @@
 
 %%
 
--spec source(transfer()) -> wallet_id().
--spec destination(transfer()) -> wallet_id().
--spec trxid(transfer()) -> transaction_id().
--spec body(transfer()) -> body().
+-spec trxid(transfer()) -> trxid().
+-spec postings(transfer()) -> [posting()].
 -spec status(transfer()) -> status().
 
-source(#{source := V}) -> V.
-destination(#{destination := V}) -> V.
 trxid(#{trxid := V}) -> V.
-body(#{body := V}) -> V.
+postings(#{postings := V}) -> V.
 status(#{status := V}) -> V.
 
 %%
 
--spec create(wallet_id(), wallet_id(), transaction_id(), body()) ->
+-spec create(trxid(), [posting()]) ->
     {ok, transfer()} |
     {error,
-        {source | destination,
-            notfound |
+        empty |
+        {wallet,
             {inaccessible, blocked | suspended} |
             {currency, invalid} |
             {provider, invalid}
         }
     }.
 
-create(SourceID, DestinationID, TrxID, Body = {_, Currency}) ->
+create(TrxID, Postings = [_ | _]) ->
     do(fun () ->
-        Source            = unwrap(source, get_wallet(SourceID)),
-        valid             = unwrap(source, validate_currency(Source, Currency)),
-        Destination       = unwrap(destination, get_wallet(DestinationID)),
-        valid             = unwrap(destination, validate_currency(Destination, Currency)),
-        {ok, SrcIdentity} = ff_identity_machine:get(ff_wallet:identity(Source)),
-        {ok, DstIdentity} = ff_identity_machine:get(ff_wallet:identity(Destination)),
-        Provider          = ff_identity:provider(SrcIdentity),
-        valid             = unwrap(destination, do(fun () ->
-            unwrap(provider, validate(Provider, ff_identity:provider(DstIdentity)))
-        end)),
+        Wallets = gather_wallets(Postings),
+        accessible = unwrap(wallet, validate_accessible(Wallets)),
+        valid      = unwrap(wallet, validate_currencies(Wallets)),
+        valid      = unwrap(wallet, validate_identities(Wallets)),
         #{
-            source      => SourceID,
-            destination => DestinationID,
-            body        => Body,
             trxid       => TrxID,
+            postings    => Postings,
             status      => created
         }
+    end);
+create(_TrxID, []) ->
+    {error, empty}.
+
+gather_wallets(Postings) ->
+    lists:usort(lists:flatten([[S, D] || {S, D, _} <- Postings])).
+
+validate_accessible(Wallets) ->
+    do(fun () ->
+        _ = [accessible = unwrap(ff_wallet:is_accessible(W)) || W <- Wallets],
+        accessible
     end).
 
-get_wallet(WalletID) ->
+validate_currencies([W0 | Wallets]) ->
     do(fun () ->
-        Wallet     = unwrap(ff_wallet_machine:get(WalletID)),
-        accessible = unwrap(ff_wallet:is_accessible(Wallet)),
-        Wallet
+        Currency = ff_wallet:currency(W0),
+        _ = [valid = unwrap(currency, validate(Currency, ff_wallet:currency(W))) || W <- Wallets],
+        valid
     end).
 
-validate_currency(Wallet, Currency) ->
+validate_identities([W0 | Wallets]) ->
     do(fun () ->
-        valid = unwrap(currency, validate(Currency, ff_wallet:currency(Wallet)))
+        {ok, Identity} = ff_identity_machine:get(ff_wallet:identity(W0)),
+        Provider       = ff_identity:provider(Identity),
+        _ = [
+            valid = unwrap(provider, validate(Provider, ff_identity:provider(I))) ||
+                W       <- Wallets,
+                {ok, I} <- [ff_identity_machine:get(ff_wallet:identity(W))]
+        ],
+        valid
     end).
 
 validate(Currency, Currency) ->
@@ -124,24 +123,32 @@ validate(_, _) ->
     {ok, transfer()} |
     {error,
         status() |
+        balance |
         {source | destination,
-            notfound |
             {inaccessible, blocked | suspended}
         }
     }.
 
 prepare(Transfer = #{status := created}) ->
     do(fun () ->
-        Source      = unwrap(source, get_wallet(source(Transfer))),
-        Destination = unwrap(destination, get_wallet(destination(Transfer))),
-        PlanChange  = construct_plan_change(Source, Destination, trxid(Transfer), body(Transfer)),
-        _Affected   = hold(PlanChange),
-        Transfer#{status := prepared}
+        Postings   = postings(Transfer),
+        accessible = unwrap(wallet, validate_accessible(gather_wallets(Postings))),
+        Affected   = ff_transaction:prepare(trxid(Transfer), construct_trx_postings(Postings)),
+        case validate_balances(Affected) of
+            {ok, valid} ->
+                Transfer#{status := prepared};
+            {error, invalid} ->
+                throw(balance)
+        end
     end);
 prepare(Transfer = #{status := prepared}) ->
     {ok, Transfer};
 prepare(#{status := Status}) ->
     {error, Status}.
+
+validate_balances(Affected) ->
+    % TODO
+    {ok, valid}.
 
 %%
 
@@ -151,10 +158,8 @@ prepare(#{status := Status}) ->
 
 commit(Transfer = #{status := prepared}) ->
     do(fun () ->
-        {ok, Source}      = ff_wallet_machine:get_wallet(source(Transfer)),
-        {ok, Destination} = ff_wallet_machine:get_wallet(destination(Transfer)),
-        Plan              = construct_plan(Source, Destination, trxid(Transfer), body(Transfer)),
-        _Affected         = commit_plan(Plan),
+        Postings   = postings(Transfer),
+        _Affected  = ff_transaction:commit(trxid(Transfer), construct_trx_postings(Postings)),
         Transfer#{status := committed}
     end);
 commit(Transfer = #{status := committed}) ->
@@ -162,51 +167,10 @@ commit(Transfer = #{status := committed}) ->
 commit(#{status := Status}) ->
     {error, Status}.
 
-%% Woody stuff
+%%
 
-hold(PlanChange) ->
-    case call('Hold', [PlanChange]) of
-        {ok, #accounter_PostingPlanLog{affected_accounts = Affected}} ->
-            {ok, Affected};
-        {error, Unexpected} ->
-            error(Unexpected)
-    end.
-
-commit_plan(Plan) ->
-    case call('CommitPlan', [Plan]) of
-        {ok, #accounter_PostingPlanLog{affected_accounts = Affected}} ->
-            {ok, Affected};
-        {error, Unexpected} ->
-            error(Unexpected)
-    end.
-
-call(Function, Args) ->
-    Service = {dmsl_accounter_thrift, 'Accounter'},
-    ff_woody_client:call(accounter, {Service, Function, Args}).
-
-construct_plan_change(Source, Destination, Body, TrxID) ->
-    #accounter_PostingPlanChange{
-        id    = TrxID,
-        batch = construct_batch(Source, Destination, Body)
-    }.
-
-construct_plan(Source, Destination, Body, TrxID) ->
-    #accounter_PostingPlan{
-        id         = TrxID,
-        batch_list = [construct_batch(Source, Destination, Body)]
-    }.
-
-construct_batch(Source, Destination, Body) ->
-    #accounter_PostingBatch{
-        id       = 1, % TODO
-        postings = [construct_posting(Source, Destination, Body)]
-    }.
-
-construct_posting(Source, Destination, {Amount, Currency}) ->
-    #accounter_Posting{
-        from_id           = ff_wallet:account(Source),
-        to_id             = ff_wallet:account(Destination),
-        amount            = Amount,
-        currency_sym_code = Currency,
-        description       = <<"TODO">>
-    }.
+construct_trx_postings(Postings) ->
+    [
+        {ff_wallet:account(Source), ff_wallet:account(Destination), Body} ||
+            {Source, Destination, Body} <- Postings
+    ].

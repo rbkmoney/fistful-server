@@ -20,20 +20,27 @@
 
 -export([prepare/2]).
 -export([commit/2]).
+-export([cancel/2]).
 
 %%
 
 -spec prepare(id(), [posting()]) ->
-    affected().
+    {ok, affected()}.
 
 prepare(ID, Postings) ->
     hold(encode_plan_change(ID, Postings)).
 
 -spec commit(id(), [posting()]) ->
-    affected().
+    {ok, affected()}.
 
 commit(ID, Postings) ->
     commit_plan(encode_plan(ID, Postings)).
+
+-spec cancel(id(), [posting()]) ->
+    {ok, affected()}.
+
+cancel(ID, Postings) ->
+    rollback_plan(encode_plan(ID, Postings)).
 
 %% Woody stuff
 
@@ -47,6 +54,14 @@ hold(PlanChange) ->
 
 commit_plan(Plan) ->
     case call('CommitPlan', [Plan]) of
+        {ok, #accounter_PostingPlanLog{affected_accounts = Affected}} ->
+            {ok, decode_affected(Affected)};
+        {error, Unexpected} ->
+            error(Unexpected)
+    end.
+
+rollback_plan(Plan) ->
+    case call('RollbackPlan', [Plan]) of
         {ok, #accounter_PostingPlanLog{affected_accounts = Affected}} ->
             {ok, decode_affected(Affected)};
         {error, Unexpected} ->

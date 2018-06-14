@@ -31,6 +31,12 @@
     status      := status()
 }.
 
+-type ev() ::
+    {status_changed, status()}.
+
+-type outcome() ::
+    {[ev()], transfer()}.
+
 -export_type([transfer/0]).
 -export_type([posting/0]).
 -export_type([status/0]).
@@ -42,6 +48,11 @@
 -export([create/2]).
 -export([prepare/1]).
 -export([commit/1]).
+-export([cancel/1]).
+
+%% Event source
+
+-export([apply_event/2]).
 
 %% Pipeline
 
@@ -116,29 +127,31 @@ validate_identities([W0 | Wallets]) ->
 %%
 
 -spec prepare(transfer()) ->
-    {ok, transfer()} |
+    {ok, outcome()} |
     {error,
-        status() |
         balance |
+        {status, committed | cancelled} |
         {wallet, {inaccessible, blocked | suspended}}
     }.
 
 prepare(Transfer = #{status := created}) ->
-    do(fun () ->
-        Postings   = postings(Transfer),
+    TrxID = trxid(Transfer),
+    Postings = construct_trx_postings(postings(Transfer)),
+    roll(Transfer, do(fun () ->
         accessible = unwrap(wallet, validate_accessible(gather_wallets(Postings))),
-        Affected   = ff_transaction:prepare(trxid(Transfer), construct_trx_postings(Postings)),
+        Affected   = unwrap(ff_transaction:prepare(TrxID, Postings)),
         case validate_balances(Affected) of
             {ok, valid} ->
-                Transfer#{status := prepared};
+                [{status_changed, prepared}];
             {error, invalid} ->
+                _ = ff_transaction:cancel(TrxID, Postings),
                 throw(balance)
         end
-    end);
+    end));
 prepare(Transfer = #{status := prepared}) ->
     {ok, Transfer};
 prepare(#{status := Status}) ->
-    {error, Status}.
+    {error, {status, Status}}.
 
 validate_balances(Affected) ->
     % TODO
@@ -147,19 +160,57 @@ validate_balances(Affected) ->
 %%
 
 -spec commit(transfer()) ->
-    {ok, transfer()} |
-    {error, status()}.
+    {ok, outcome()} |
+    {error, {status, created | cancelled}}.
 
 commit(Transfer = #{status := prepared}) ->
-    do(fun () ->
-        Postings   = postings(Transfer),
-        _Affected  = ff_transaction:commit(trxid(Transfer), construct_trx_postings(Postings)),
-        Transfer#{status := committed}
-    end);
+    roll(Transfer, do(fun () ->
+        Postings  = construct_trx_postings(postings(Transfer)),
+        _Affected = unwrap(ff_transaction:commit(trxid(Transfer), Postings)),
+        [{status_changed, committed}]
+    end));
 commit(Transfer = #{status := committed}) ->
-    {ok, Transfer};
+    {ok, roll(Transfer)};
 commit(#{status := Status}) ->
     {error, Status}.
+
+%%
+
+-spec cancel(transfer()) ->
+    {ok, outcome()} |
+    {error, {status, created | committed}}.
+
+cancel(Transfer = #{status := prepared}) ->
+    roll(Transfer, do(fun () ->
+        Postings  = construct_trx_postings(postings(Transfer)),
+        _Affected = unwrap(ff_transaction:cancel(trxid(Transfer), Postings)),
+        [{status_changed, cancelled}]
+    end));
+cancel(Transfer = #{status := cancelled}) ->
+    {ok, roll(Transfer)};
+cancel(#{status := Status}) ->
+    {error, {status, Status}}.
+
+%%
+
+apply_event({status_changed, S}, Transfer) ->
+    Transfer#{status := S}.
+
+%% TODO
+
+-type result(V, R) :: {ok, V} | {error, R}.
+
+-spec roll(St, result(Evs, Reason)) ->
+    result({Evs, St}, Reason) when
+        Evs :: [_].
+
+roll(St, {ok, Events}) when is_list(Events) ->
+    {ok, {Events, lists:foldl(fun apply_event/2, St, Events)}};
+roll(_St, {error, _} = Error) ->
+    Error.
+
+roll(St) ->
+    {[], St}.
 
 %%
 

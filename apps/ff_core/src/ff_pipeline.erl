@@ -7,6 +7,7 @@
 -export([do/1]).
 -export([unwrap/1]).
 -export([unwrap/2]).
+-export([valid/2]).
 
 %%
 
@@ -43,3 +44,11 @@ unwrap(_, {ok, V}) ->
     V;
 unwrap(Tag, {error, E}) ->
     throw({Tag, E}).
+
+-spec valid(T, T) ->
+    {ok, T} | {error, T}.
+
+valid(V, V) ->
+    {ok, V};
+valid(_, V) ->
+    {error, V}.

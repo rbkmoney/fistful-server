@@ -54,7 +54,6 @@
 -type result() :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts().
 -type handler_args() :: machinery:handler_args(_).
--type namespace() :: machinery:namespace().
 -type backend() :: machinery:backend(_).
 
 -type st() :: #{

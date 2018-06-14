@@ -68,7 +68,7 @@ set_status(V, D = #{})        -> D#{status := V}.
 
 create(IdentityID, Prototype, Resource) ->
     do(fun () ->
-        Wallet = ff_wallet:create(IdentityID, Prototype),
+        Wallet = unwrap(ff_wallet:create(IdentityID, Prototype)),
         #{
             wallet   => Wallet,
             resource => Resource,

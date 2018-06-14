@@ -2,6 +2,10 @@
 [{<<"certifi">>,{pkg,<<"certifi">>,<<"0.7.0">>},2},
  {<<"cowboy">>,{pkg,<<"cowboy">>,<<"1.0.4">>},1},
  {<<"cowlib">>,{pkg,<<"cowlib">>,<<"1.0.2">>},2},
+ {<<"dmsl">>,
+  {git,"git@github.com:rbkmoney/damsel.git",
+       {ref,"62d932bc3984301a6394aa8addade6f2892ac79f"}},
+  0},
  {<<"dmt_client">>,
   {git,"git@github.com:rbkmoney/dmt_client.git",
        {ref,"2d122747132c6c1d158ea0fb4c84068188541eff"}},
@@ -29,7 +33,7 @@
  {<<"lager">>,{pkg,<<"lager">>,<<"3.6.1">>},0},
  {<<"machinery">>,
   {git,"git@github.com:rbkmoney/machinery.git",
-       {ref,"4b582b951e6bf998bd7244148fc1738a6ea6a5ad"}},
+       {ref,"df59ff3a3f4bdd7738d5c5fd97e5c6a4401a770f"}},
   0},
  {<<"metrics">>,{pkg,<<"metrics">>,<<"1.0.1">>},2},
  {<<"mg_proto">>,
@@ -54,7 +58,6 @@
        {ref,"240bbc842f6e9b90d01bd07838778cf48752b510"}},
   1},
  {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.7.3">>},0},
- {<<"uuid_erl">>,{pkg,<<"uuid_erl">>,<<"1.7.3">>},0},
  {<<"woody">>,
   {git,"git@github.com:rbkmoney/woody_erlang.git",
        {ref,"06ef3d63c0b6777e7cfa4b4f949eb34008291c0e"}},
@@ -79,6 +82,5 @@
  {<<"ranch">>, <<"F04166F456790FEE2AC1AA05A02745CC75783C2BFB26D39FAF6AEFC9A3D3A58A">>},
  {<<"rfc3339">>, <<"1552DF616ACA368D982E9F085A0E933B6688A3F4938A671798978EC2C0C58730">>},
  {<<"ssl_verify_fun">>, <<"28A4D65B7F59893BC2C7DE786DEC1E1555BD742D336043FE644AE956C3497FBE">>},
- {<<"uuid">>, <<"C5DF97D1A3D626235C2415E74053C47B2138BB863C5CD802AB5CAECB8ECC019F">>},
- {<<"uuid_erl">>, <<"C5DF97D1A3D626235C2415E74053C47B2138BB863C5CD802AB5CAECB8ECC019F">>}]}
+ {<<"uuid">>, <<"C5DF97D1A3D626235C2415E74053C47B2138BB863C5CD802AB5CAECB8ECC019F">>}]}
 ].

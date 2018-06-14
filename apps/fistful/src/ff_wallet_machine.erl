@@ -21,7 +21,7 @@
 
 -export_type([id/0]).
 
--export([create/5]).
+-export([create/4]).
 -export([get/2]).
 
 %% Machinery
@@ -34,7 +34,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %%
 
@@ -48,17 +48,28 @@ wallet(#{wallet := Wallet}) -> Wallet.
 
 -type backend() :: machinery:backend(_).
 
--spec create(id(), ff_identity:id(), _Prototype, ctx(), backend()) ->
+-type params() :: #{
+    identity   := ff_identity:id(),
+    name       := binary(),
+    currency   := ff_currency:id()
+}.
+
+-spec create(id(), params(), ctx(), backend()) ->
     {ok, wallet()} |
     {error,
+        {identity, notfound} |
+        {currency, notfound} |
         _WalletError |
         exists
     }.
 
-create(ID, IdentityID, Prototype, Ctx, Be) ->
+create(ID, #{identity := IdentityID, name := Name, currency := Currency}, Ctx, Be) ->
     do(fun () ->
-        Wallet = unwrap(ff_wallet:create(IdentityID, Prototype)),
-        ok     = unwrap(machinery:start(?NS, ID, {Wallet, Ctx}, Be)),
+        Identity = unwrap(identity, ff_identity_machine:get(IdentityID, Be)),
+        _        = unwrap(currency, ff_currency:get(Currency)),
+        Wallet0  = unwrap(ff_wallet:create(Identity, Name, Currency)),
+        Wallet1  = unwrap(ff_wallet:setup_wallet(Wallet0)),
+        ok       = unwrap(machinery:start(?NS, ID, {Wallet1, Ctx}, Be)),
         unwrap(get(ID, Be))
     end).
 

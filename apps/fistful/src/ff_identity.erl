@@ -15,23 +15,17 @@
 
 %% API
 
--type provider_id() :: ff_provider:id().
--type party_id()    :: ff_party:id().
--type contract_id() :: ff_party:contract_id().
+-type party()       :: ff_party:id().
+-type provider()    :: ff_provider:provider().
+-type contract()    :: ff_party:contract().
 
 -type identity() :: #{
-    party        := party_id(),
-    provider     := provider_id(),
-    class        := class_id(),
-    contract     => contract_id()
+    party        := party(),
+    provider     := provider(),
+    class        := class(),
+    contract     => contract()
 }.
 
--type prototype() :: #{
-    provider := provider_id(),
-    class    := class_id()
-}.
-
--export_type([prototype/0]).
 -export_type([identity/0]).
 
 %% TODO
@@ -51,10 +45,12 @@
 -export([class/1]).
 -export([contract/1]).
 
+-export([set_contract/2]).
+
 -export([is_accessible/1]).
 
--export([create/2]).
--export([set_contract/2]).
+-export([create/3]).
+-export([setup_contract/1]).
 
 %%
 
@@ -62,27 +58,31 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/1]).
 
 %% Accessors
 
--spec provider(identity()) -> provider_id().
+-spec provider(identity()) -> provider().
 provider(#{provider := V}) -> V.
 
--spec class(identity()) -> class_id().
+-spec class(identity()) -> class().
 class(#{class := V})    -> V.
 
--spec party(identity()) -> party_id().
+-spec party(identity()) -> party().
 party(#{party := V})    -> V.
 
 -spec contract(identity()) ->
-    {ok, ff_contract:id()} |
+    {ok, contract()} |
     {error, notfound}.
 
-contract(#{contract := ContractID}) ->
-    {ok, ContractID};
-contract(#{}) ->
-    {error, notfound}.
+contract(V) ->
+    ff_map:find(contract, V).
+
+-spec set_contract(ff_contract:id(), identity()) ->
+    identity().
+
+set_contract(ContractID, Identity = #{}) ->
+    Identity#{contract => ContractID}.
 
 -spec is_accessible(identity()) ->
     {ok, accessible} |
@@ -101,34 +101,31 @@ contract_template(#{contract_template_ref := V}) ->
 
 %% Constructor
 
--spec create(party_id(), prototype()) ->
-    {ok, identity()} |
-    {error,
-        {party, {inaccessible, blocked | suspended}} |
-        {provider, notfound}                          |
-        {identity_class, notfound}
-    }.
+-spec create(party(), provider(), class()) ->
+    {ok, identity()}.
 
-create(PartyID, #{
-    provider := ProviderID,
-    class    := ClassID
-}) ->
+create(Party, Provider, Class) ->
     do(fun () ->
-        accessible = unwrap(party, ff_party:is_accessible(PartyID)),
-        Provider   = unwrap(provider, ff_provider:get(ProviderID)),
-        _Class     = unwrap(identity_class, ff_provider:get_identity_class(ClassID, Provider)),
         #{
-            party    => PartyID,
-            provider => ProviderID,
-            class    => ClassID
+            party    => Party,
+            provider => Provider,
+            class    => Class
         }
     end).
 
--spec set_contract(ff_contract:id(), identity()) ->
+-spec setup_contract(identity()) ->
     {ok, identity()} |
-    {error, exists}.
+    {error,
+        {inaccessible, blocked | suspended} |
+        invalid
+    }.
 
-set_contract(_ContractID, #{contract := _}) ->
-    {error, exists};
-set_contract(ContractID, Identity = #{}) ->
-    {ok, Identity#{contract => ContractID}}.
+setup_contract(Identity) ->
+    do(fun () ->
+        accessible = unwrap(is_accessible(Identity)),
+        Contract   = unwrap(ff_party:create_contract(party(Identity), #{
+            payinst           => ff_provider:payinst(provider(Identity)),
+            contract_template => contract_template(class(Identity))
+        })),
+        ff_identity:set_contract(Contract, Identity)
+    end).

@@ -44,7 +44,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
 
 %%
 
@@ -96,7 +96,7 @@ validate_accessible(Wallets) ->
 validate_currencies([W0 | Wallets]) ->
     do(fun () ->
         Currency = ff_wallet:currency(W0),
-        _ = [valid = unwrap(currency, validate(Currency, ff_wallet:currency(W))) || W <- Wallets],
+        _ = [Currency = unwrap(currency, valid(Currency, ff_wallet:currency(W))) || W <- Wallets],
         valid
     end).
 
@@ -105,17 +105,12 @@ validate_identities([W0 | Wallets]) ->
         {ok, Identity} = ff_identity_machine:get(ff_wallet:identity(W0)),
         Provider       = ff_identity:provider(Identity),
         _ = [
-            valid = unwrap(provider, validate(Provider, ff_identity:provider(I))) ||
+            Provider = unwrap(provider, valid(Provider, ff_identity:provider(I))) ||
                 W       <- Wallets,
                 {ok, I} <- [ff_identity_machine:get(ff_wallet:identity(W))]
         ],
         valid
     end).
-
-validate(Currency, Currency) ->
-    {ok, valid};
-validate(_, _) ->
-    {error, invalid}.
 
 %%
 
@@ -124,9 +119,7 @@ validate(_, _) ->
     {error,
         status() |
         balance |
-        {source | destination,
-            {inaccessible, blocked | suspended}
-        }
+        {wallet, {inaccessible, blocked | suspended}}
     }.
 
 prepare(Transfer = #{status := created}) ->

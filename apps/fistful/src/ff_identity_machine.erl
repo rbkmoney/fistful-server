@@ -36,7 +36,7 @@
 -export([identity/1]).
 -export([ctx/1]).
 
--export([create/5]).
+-export([create/4]).
 -export([get/2]).
 -export([ctx/2]).
 
@@ -66,25 +66,27 @@ ctx(#{ctx := V})           -> V.
 
 -type backend() :: machinery:backend(_).
 
--spec create(id(), ff_party:id(), ff_identity:prototype(), ctx(), backend()) ->
+-type params() :: #{
+    party    := ff_party:id(),
+    provider := ff_provider:id(),
+    class    := ff_identity:class_id()
+}.
+
+-spec create(id(), params(), ctx(), backend()) ->
     {ok, st()} |
     {error,
-        _IdentityError |
+        {provider, notfound} |
+        {identity_class, notfound} |
+        _SetupContractError |
         exists
     }.
 
-create(ID, PartyID, Prototype, Ctx, Be) ->
+create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, Ctx, Be) ->
     do(fun () ->
-        Identity        = unwrap(ff_identity:create(PartyID, Prototype)),
-        ProviderID      = ff_identity:provider(Identity),
         Provider        = unwrap(provider, ff_provider:get(ProviderID)),
-        IdentityClassID = ff_identity:class(Identity),
         IdentityClass   = unwrap(identity_class, ff_provider:get_identity_class(IdentityClassID, Provider)),
-        {ok, Contract}  = ff_party:create_contract(PartyID, #{
-            payinst           => ff_provider:payinst(Provider),
-            contract_template => ff_identity:contract_template(IdentityClass)
-        }),
-        Identity1       = unwrap(ff_identity:set_contract(Contract, Identity)),
+        Identity0       = unwrap(ff_identity:create(Party, Provider, IdentityClass)),
+        Identity1       = unwrap(ff_identity:setup_contract(Identity0)),
         ok              = unwrap(machinery:start(?NS, ID, {Identity1, Ctx}, Be)),
         unwrap(get(ID, Be))
     end).
@@ -110,7 +112,7 @@ ctx(ID, Be) ->
 %% Machinery
 
 -type ev() ::
-    {created      , identity()}.
+    {created, identity()}.
 
 -type machine()      :: machinery:machine(ev()).
 -type result()       :: machinery:result(ev()).
@@ -122,7 +124,6 @@ ctx(ID, Be) ->
 init({Identity, Ctx}, #{}, _, _Opts) ->
     #{
         events    => emit_ts_event({created, Identity}),
-        action    => continue,
         aux_state => #{ctx => Ctx}
     }.
 

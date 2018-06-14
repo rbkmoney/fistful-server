@@ -4,11 +4,15 @@
 
 -module(ff_wallet).
 
+-type identity() :: ff_identity:identity().
+-type currency() :: ff_currency:id().
+-type wid()      :: ff_party:wallet_id().
+
 -type wallet() :: #{
-    identity := ff_identity:id(),
+    identity := identity(),
     name     := binary(),
-    currency := ff_currency:id(),
-    wid      := ff_party:wallet_id()
+    currency := currency(),
+    wid      := wid()
 }.
 
 -type prototype() :: #{
@@ -24,7 +28,8 @@
 -export([currency/1]).
 -export([account/1]).
 
--export([create/2]).
+-export([create/3]).
+-export([setup_wallet/1]).
 -export([is_accessible/1]).
 -export([close/1]).
 
@@ -44,47 +49,55 @@ name(#{name := V})         -> V.
 currency(#{currency := V}) -> V.
 wid(#{wid := V})           -> V.
 
+-spec set_wid(wid(), wallet()) -> wallet().
+
+set_wid(V, W = #{}) -> W#{wid => V}.
+
 -spec account(wallet()) ->
-    ff_party:account_id().
+    {ok, ff_party:account_id()} |
+    {error, notfound}.
 
 account(Wallet) ->
-    {ok, Identity} = ff_identity_machine:get(identity(Wallet)),
-    {ok, Account} = ff_party:get_wallet_account(ff_identity:party(Identity), wid(Wallet)),
-    Account.
+    do(fun () ->
+        unwrap(ff_party:get_wallet_account(
+            ff_identity:party(identity(Wallet)),
+            wid(Wallet)
+        ))
+    end).
 
 %%
 
--spec create(ff_identity:id(), prototype()) ->
+-spec create(identity(), binary(), currency()) ->
+    {ok, wallet()}.
+
+create(Identity, Name, Currency) ->
+    do(fun () ->
+        #{
+            identity => Identity,
+            name     => Name,
+            currency => Currency
+        }
+    end).
+
+-spec setup_wallet(wallet()) ->
     {ok, wallet()} |
     {error,
-        {identity,
-            notfound |
-            {inaccessible, blocked | suspended}
-        } |
-        {contract,
-            notfound
-        } |
+        {inaccessible, blocked | suspended} |
+        {contract, notfound} |
         invalid
     }.
 
-create(IdentityID, Prototype) ->
+setup_wallet(Wallet) ->
     do(fun () ->
-        #{
-            name     := Name,
-            currency := CurrencyID
-        } = Prototype,
-        Identity   = unwrap(identity, ff_identity_machine:get(IdentityID)),
-        accessible = unwrap(identity, ff_identity:is_accessible(Identity)),
-        _Currency  = unwrap(currency, ff_currency:get(CurrencyID)),
-        PartyID    = ff_identity:party(Identity),
-        ContractID = unwrap(contract, ff_identity:contract(Identity)),
-        WalletID   = unwrap(ff_party:create_wallet(PartyID, ContractID, Prototype)),
-        #{
-            identity => IdentityID,
-            name     => Name,
-            currency => CurrencyID,
-            wid      => WalletID
-        }
+        Identity   = identity(Wallet),
+        accessible = unwrap(ff_identity:is_accessible(Identity)),
+        Contract   = unwrap(contract, ff_identity:contract(Identity)),
+        Prototype  = #{
+            name     => name(Wallet),
+            currency => currency(Wallet)
+        },
+        WID        = unwrap(ff_party:create_wallet(ff_identity:party(Identity), Contract, Prototype)),
+        set_wid(WID, Wallet)
     end).
 
 -spec is_accessible(wallet()) ->

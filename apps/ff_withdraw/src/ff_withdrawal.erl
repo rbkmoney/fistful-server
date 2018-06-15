@@ -8,13 +8,11 @@
     source      := ff_wallet:wallet(),
     destination := ff_destination:destination(),
     trxid       := ff_transaction:id(),
-    body        := ff_transfer:body(),
+    body        := ff_transaction:body(),
     provider    := ff_provider:provider(),
     transfer    => ff_transfer:transfer(),
     session     => session()
 }.
-
--export_type([withdrawal/0]).
 
 -type session() ::
     {_ID, session_status()}.
@@ -28,6 +26,9 @@
     {transfer, ff_transfer:ev()}                  |
     {session_created, session()}                  |
     {session, {status_changed, session_status()}} .
+
+-export_type([withdrawal/0]).
+-export_type([ev/0]).
 
 -export([source/1]).
 -export([destination/1]).

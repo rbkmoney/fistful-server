@@ -47,7 +47,7 @@ wallet(#{wallet := Wallet}) -> Wallet.
 -define(NS, wallet).
 
 -type params() :: #{
-    identity   := ff_identity:id(),
+    identity   := ff_identity_machine:id(),
     name       := binary(),
     currency   := ff_currency:id()
 }.
@@ -71,7 +71,8 @@ create(ID, #{identity := IdentityID, name := Name, currency := Currency}, Ctx) -
     end).
 
 -spec get(id()) ->
-    wallet().
+    {ok, wallet()}    |
+    {error, notfound} .
 
 get(ID) ->
     do(fun () ->
@@ -86,7 +87,8 @@ backend() ->
 -type ev()           ::
     {created, wallet()}.
 
--type auxst()        :: #{ctx => ctx()}.
+-type auxst() ::
+    #{ctx => ctx()}.
 
 -type machine()      :: machinery:machine(ev(), auxst()).
 -type result()       :: machinery:result(ev(), auxst()).
@@ -108,8 +110,8 @@ init({Wallet, Ctx}, #{}, _, _Opts) ->
 process_timeout(#{}, _, _Opts) ->
     #{}.
 
--spec process_call(none(), machine(), handler_args(), handler_opts()) ->
-    {_, result()}.
+-spec process_call(_CallArgs, machine(), handler_args(), handler_opts()) ->
+    {ok, result()}.
 
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.

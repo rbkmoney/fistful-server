@@ -40,6 +40,7 @@
 -export_type([transfer/0]).
 -export_type([posting/0]).
 -export_type([status/0]).
+-export_type([ev/0]).
 
 -export([trxid/1]).
 -export([postings/1]).
@@ -114,12 +115,10 @@ validate_currencies([W0 | Wallets]) ->
 
 validate_identities([W0 | Wallets]) ->
     do(fun () ->
-        {ok, Identity} = ff_identity_machine:get(ff_wallet:identity(W0)),
-        Provider       = ff_identity:provider(Identity),
+        Provider = ff_identity:provider(ff_wallet:identity(W0)),
         _ = [
-            Provider = unwrap(provider, valid(Provider, ff_identity:provider(I))) ||
-                W       <- Wallets,
-                {ok, I} <- [ff_identity_machine:get(ff_wallet:identity(W))]
+            Provider = unwrap(provider, valid(Provider, ff_identity:provider(ff_wallet:identity(W)))) ||
+                W <- Wallets
         ],
         valid
     end).

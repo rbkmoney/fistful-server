@@ -104,8 +104,11 @@ backend() ->
 -type ev() ::
     {created, identity()}.
 
--type machine()      :: machinery:machine(ev()).
--type result()       :: machinery:result(ev()).
+-type auxst() ::
+    #{ctx => ctx()}.
+
+-type machine()      :: machinery:machine(ev(), auxst()).
+-type result()       :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts().
 
 -spec init({identity(), ctx()}, machine(), _, handler_opts()) ->

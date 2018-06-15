@@ -48,7 +48,7 @@ hold(PlanChange) ->
     case call('Hold', [PlanChange]) of
         {ok, #accounter_PostingPlanLog{affected_accounts = Affected}} ->
             {ok, decode_affected(Affected)};
-        {error, Unexpected} ->
+        {exception, Unexpected} ->
             error(Unexpected)
     end.
 
@@ -56,7 +56,7 @@ commit_plan(Plan) ->
     case call('CommitPlan', [Plan]) of
         {ok, #accounter_PostingPlanLog{affected_accounts = Affected}} ->
             {ok, decode_affected(Affected)};
-        {error, Unexpected} ->
+        {exception, Unexpected} ->
             error(Unexpected)
     end.
 
@@ -64,7 +64,7 @@ rollback_plan(Plan) ->
     case call('RollbackPlan', [Plan]) of
         {ok, #accounter_PostingPlanLog{affected_accounts = Affected}} ->
             {ok, decode_affected(Affected)};
-        {error, Unexpected} ->
+        {exception, Unexpected} ->
             error(Unexpected)
     end.
 

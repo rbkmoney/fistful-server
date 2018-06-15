@@ -11,6 +11,8 @@
         ff_core,
         machinery,
         machinery_extra,
+        woody_user_identity,
+        uuid,
         dmsl,
         dmt_client,
         id_proto

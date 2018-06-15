@@ -8,6 +8,8 @@
 -export([get/0]).
 -export([unset/0]).
 
+-export([get_user_identity/0]).
+
 %%
 
 -type context() :: woody_context:ctx().
@@ -31,3 +33,11 @@ get() ->
 unset() ->
     true = gproc:unreg({p, l, ?MODULE}),
     ok.
+
+%%
+
+-spec get_user_identity() ->
+    woody_user_identity:user_identity().
+
+get_user_identity() ->
+    woody_user_identity:get(?MODULE:get()).

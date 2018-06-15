@@ -15,13 +15,7 @@
     wid      := wid()
 }.
 
--type prototype() :: #{
-    name     := binary(),
-    currency := ff_currency:id()
-}.
-
 -export_type([wallet/0]).
--export_type([prototype/0]).
 
 -export([identity/1]).
 -export([name/1]).
@@ -39,10 +33,10 @@
 
 %% Accessors
 
--spec identity(wallet())   -> binary().
+-spec identity(wallet())   -> identity().
 -spec name(wallet())       -> binary().
--spec currency(wallet())   -> ff_currency:id().
--spec wid(wallet())        -> ff_party:wallet_id().
+-spec currency(wallet())   -> currency().
+-spec wid(wallet())        -> wid().
 
 identity(#{identity := V}) -> V.
 name(#{name := V})         -> V.
@@ -106,9 +100,9 @@ setup_wallet(Wallet) ->
 
 is_accessible(Wallet) ->
     do(fun () ->
-        {ok, Identity} = ff_identity_machine:get(identity(Wallet)),
-        accessible     = unwrap(ff_identity:is_accessible(identity(Wallet))),
-        accessible     = unwrap(ff_party:is_wallet_accessible(ff_identity:party(Identity), wid(Wallet))),
+        Identity   = identity(Wallet),
+        accessible = unwrap(ff_identity:is_accessible(Identity)),
+        accessible = unwrap(ff_party:is_wallet_accessible(ff_identity:party(Identity), wid(Wallet))),
         accessible
     end).
 

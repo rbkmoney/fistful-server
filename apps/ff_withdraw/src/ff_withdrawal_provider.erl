@@ -38,4 +38,4 @@ choose(_Destination, _Body) ->
 
 create_session(ID, Withdrawal, Provider) ->
     Adapter = {adapter(Provider), adapter_opts(Provider)},
-    ff_withdrawal_session_machine:create(ID, Withdrawal, Adapter).
+    ff_withdrawal_session_machine:create(ID, Adapter, Withdrawal).

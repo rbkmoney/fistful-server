@@ -30,13 +30,13 @@
     adapter => adapter()
 }.
 
--type session_result() :: {success, trx_info()} | {failed, ff_adpt:failure()}.
+-type session_result() :: {success, trx_info()} | {failed, ff_adapter:failure()}.
 
 -type session_status() :: active
     | {finished, session_result()}.
 
 -type ev() :: {created, session()}
-    | {next_state, ff_adpt:adapter_state()}
+    | {next_state, ff_adapter:state()}
     | {finished, session_result()}.
 
 -type adapter() :: {ff_adapter:adapter(), ff_adapter:opts()}.
@@ -152,7 +152,7 @@ process_intent({sleep, Timer}) ->
 
 %%
 
--spec create_session(id(), adapter(), ff_adpt:withdrawal()) -> session().
+-spec create_session(id(), adapter(), ff_adapter:withdrawal()) -> session().
 create_session(ID, Adapter, Withdrawal) ->
     #{
         id => ID,

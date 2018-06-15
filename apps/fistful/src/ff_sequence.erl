@@ -32,17 +32,17 @@
 -spec get(namespace(), id(), machinery:backend(_)) ->
     sequence().
 
-next(NS, ID, Backend) ->
-    case machinery:call(NS, ID, {undefined, 0, forward}, {increment, 1}, Backend) of
+next(NS, ID, Be) ->
+    case machinery:call(NS, ID, {undefined, 0, forward}, {increment, 1}, Be) of
         {ok, Seq} ->
             Seq;
         {error, notfound} ->
-            _ = machinery:start(NS, ID, 0, Backend),
-            next(NS, ID, Backend)
+            _ = machinery:start(NS, ID, 0, Be),
+            next(NS, ID, Be)
     end.
 
-get(NS, ID, Backend) ->
-    case machinery:get(NS, ID, {undefined, 0, forward}, Backend) of
+get(NS, ID, Be) ->
+    case machinery:get(NS, ID, {undefined, 0, forward}, Be) of
         {ok, #{aux_state := Seq}} ->
             Seq;
         {error, notfound} ->
@@ -53,10 +53,14 @@ get(NS, ID, Backend) ->
 
 -type increment()    :: pos_integer().
 
--type ev()           :: {increment, increment()}.
+-type ev() ::
+    {increment, increment()}.
 
--type machine()      :: machinery:machine(ev()).
--type result()       :: machinery:result(ev()).
+-type auxst() ::
+    increment().
+
+-type machine()      :: machinery:machine(ev(), auxst()).
+-type result()       :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts().
 
 -spec init(increment(), machine(), _, handler_opts()) ->

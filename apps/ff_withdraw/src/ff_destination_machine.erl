@@ -24,6 +24,8 @@
     ctx           => ctx()
 }.
 
+-export_type([id/0]).
+
 -export([create/3]).
 -export([get/1]).
 
@@ -85,8 +87,11 @@ backend() ->
     {created, destination()} |
     {status_changed, destination_status()}.
 
--type machine()      :: machinery:machine(ev()).
--type result()       :: machinery:result(ev()).
+-type auxst() ::
+    #{ctx => ctx()}.
+
+-type machine()      :: machinery:machine(ev(), auxst()).
+-type result()       :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts().
 
 -spec init({destination(), ctx()}, machine(), _, handler_opts()) ->
@@ -114,8 +119,8 @@ process_timeout(#{activity := authorize} = St) ->
             }
     end.
 
--spec process_call(none(), machine(), _, handler_opts()) ->
-    {_, result()}.
+-spec process_call(_CallArgs, machine(), _, handler_opts()) ->
+    {ok, result()}.
 
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.

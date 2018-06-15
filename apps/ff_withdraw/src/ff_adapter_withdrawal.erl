@@ -12,37 +12,38 @@
 %% Internal types
 %%
 
--type id() :: machinery:id().
+-type id()          :: machinery:id().
 -type identity_id() :: id().
 
 -type destination() :: ff_destination:destination().
--type identity() :: ff_identity:identity().
--type cash() :: ff_transfer:body().
+-type resource()    :: ff_destination:resource().
+-type identity()    :: ff_identity:identity().
+-type cash()        :: ff_transaction:body().
 
 -type withdrawal() :: #{
-    id => binary(),
+    id          => binary(),
     destination => destination(),
-    cash => cash(),
-    sender => identity() | undefined,
-    receiver => identity() | undefined
+    cash        => cash(),
+    sender      => identity() | undefined,
+    receiver    => identity() | undefined
 }.
 
 -export_type([withdrawal/0]).
 
--type adapter() :: ff_adapter:adapter().
--type intent() :: {finish, status()} | {sleep, timer()}.
--type status() :: {success, trx_info()} | {failure, failure()}.
--type timer() :: dmsl_base_thrift:'Timer'().
--type trx_info() :: dmsl_domain_thrift:'TransactionInfo'().
--type failure() :: dmsl_domain_thrift:'Failure'().
--type adapter_state() :: ff_adapter:state().
--type process_result() :: {ok, intent(), adapter_state()} | {ok, intent()}.
+-type adapter()               :: ff_adapter:adapter().
+-type intent()                :: {finish, status()} | {sleep, timer()}.
+-type status()                :: {success, trx_info()} | {failure, failure()}.
+-type timer()                 :: dmsl_base_thrift:'Timer'().
+-type trx_info()              :: dmsl_domain_thrift:'TransactionInfo'().
+-type failure()               :: dmsl_domain_thrift:'Failure'().
+-type adapter_state()         :: ff_adapter:state().
+-type process_result()        :: {ok, intent(), adapter_state()} | {ok, intent()}.
 
--type domain_withdrawal() :: dmsl_withdrawals_provider_adapter_thrift:'Withdrawal'().
--type domain_cash() :: dmsl_withdrawals_provider_adapter_thrift:'Cash'().
--type domain_currency() :: dmsl_domain_thrift:'Currency'().
--type domain_destination() :: dmsl_withdrawals_provider_adapter_thrift:'Destination'().
--type domain_identity() :: dmsl_withdrawals_provider_adapter_thrift:'Identity'().
+-type domain_withdrawal()     :: dmsl_withdrawals_provider_adapter_thrift:'Withdrawal'().
+-type domain_cash()           :: dmsl_withdrawals_provider_adapter_thrift:'Cash'().
+-type domain_currency()       :: dmsl_domain_thrift:'Currency'().
+-type domain_destination()    :: dmsl_withdrawals_provider_adapter_thrift:'Destination'().
+-type domain_identity()       :: dmsl_withdrawals_provider_adapter_thrift:'Identity'().
 -type domain_internal_state() :: dmsl_withdrawals_provider_adapter_thrift:'InternalState'().
 
 %%
@@ -91,7 +92,7 @@ encode_withdrawal(Withdrawal) ->
 
 -spec encode_body(cash()) -> domain_cash().
 encode_body({Amount, CurrencyID}) ->
-    Currency = ff_currency:get(CurrencyID),
+    {ok, Currency} = ff_currency:get(CurrencyID),
     DomainCurrency = encode_currency(Currency),
     #wthadpt_Cash{amount = Amount, currency = DomainCurrency}.
 
@@ -111,18 +112,23 @@ encode_currency(#{
 
 -spec encode_destination(destination()) -> domain_destination().
 encode_destination(Destination) ->
-    #{resource := Resource} = Destination,
-    #{
-        token := Token,
+    Resource = ff_destination:resource(Destination),
+    encode_destination_resource(Resource).
+
+-spec encode_destination_resource(resource()) -> domain_destination().
+encode_destination_resource(
+    {bank_card, #{
+        token          := Token,
         payment_system := PaymentSystem,
-        bin := Bin,
-        masked_pan := MaskedPan
-    } = Resource,
+        bin            := BIN,
+        masked_pan     := MaskedPan
+    }}
+) ->
     {bank_card, #domain_BankCard{
-        token = Token,
-        payment_system = PaymentSystem,
-        bin = Bin,
-        masked_pan = MaskedPan
+        token           = Token,
+        payment_system  = PaymentSystem,
+        bin             = BIN,
+        masked_pan      = MaskedPan
     }}.
 
 -spec encode_identity

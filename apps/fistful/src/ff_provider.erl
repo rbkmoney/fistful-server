@@ -21,6 +21,7 @@
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
 
 -export_type([id/0]).
+-export_type([provider/0]).
 
 -export([name/1]).
 -export([residences/1]).

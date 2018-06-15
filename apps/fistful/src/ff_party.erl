@@ -249,9 +249,9 @@ construct_userinfo() ->
     #payproc_UserInfo{id = ID, type = construct_usertype(Realm)}.
 
 construct_usertype(<<"external">>) ->
-    #payproc_ExternalUser{};
+    {external_user, #payproc_ExternalUser{}};
 construct_usertype(<<"internal">>) ->
-    #payproc_InternalUser{}.
+    {internal_user, #payproc_InternalUser{}}.
 
 %% Woody stuff
 

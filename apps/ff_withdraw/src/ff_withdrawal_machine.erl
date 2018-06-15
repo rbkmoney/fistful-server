@@ -31,6 +31,8 @@
     ctx           := ctx()
 }.
 
+-export_type([id/0]).
+
 -export([create/3]).
 -export([get/1]).
 
@@ -101,8 +103,11 @@ backend() ->
     ff_withdrawal:ev()
 ).
 
--type machine()      :: machinery:machine(ev()).
--type result()       :: machinery:result(ev()).
+-type auxst() ::
+    #{ctx => ctx()}.
+
+-type machine()      :: machinery:machine(ev(), auxst()).
+-type result()       :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts().
 
 -spec init({[ev()], ctx()}, machine(), _, handler_opts()) ->
@@ -163,8 +168,8 @@ process_activity(cancel_transfer, St) ->
         events => emit_events(Events ++ [{status_changed, failed}])
     }.
 
--spec process_call(none(), machine(), _, handler_opts()) ->
-    {_, result()}.
+-spec process_call(_CallArgs, machine(), _, handler_opts()) ->
+    {ok, result()}.
 
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
@@ -201,9 +206,9 @@ deduce_activity({transfer, {status_changed, prepared}}) ->
     create_session;
 deduce_activity({session_created, _}) ->
     await_session_completion;
-deduce_activity({session, _, {status_changed, succeeded}}) ->
+deduce_activity({session, {status_changed, succeeded}}) ->
     commit_transfer;
-deduce_activity({session, _, {status_changed, {failed, _}}}) ->
+deduce_activity({session, {status_changed, {failed, _}}}) ->
     cancel_transfer;
 deduce_activity({transfer, {status_changed, committed}}) ->
     undefined;

@@ -36,9 +36,8 @@
 -export([identity/1]).
 -export([ctx/1]).
 
--export([create/4]).
--export([get/2]).
--export([ctx/2]).
+-export([create/3]).
+-export([get/1]).
 
 %% Machinery
 
@@ -64,16 +63,14 @@ ctx(#{ctx := V})           -> V.
 
 -define(NS, identity).
 
--type backend() :: machinery:backend(_).
-
 -type params() :: #{
     party    := ff_party:id(),
     provider := ff_provider:id(),
     class    := ff_identity:class_id()
 }.
 
--spec create(id(), params(), ctx(), backend()) ->
-    {ok, st()} |
+-spec create(id(), params(), ctx()) ->
+    ok |
     {error,
         {provider, notfound} |
         {identity_class, notfound} |
@@ -81,33 +78,26 @@ ctx(#{ctx := V})           -> V.
         exists
     }.
 
-create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, Ctx, Be) ->
+create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
     do(fun () ->
         Provider        = unwrap(provider, ff_provider:get(ProviderID)),
         IdentityClass   = unwrap(identity_class, ff_provider:get_identity_class(IdentityClassID, Provider)),
         Identity0       = unwrap(ff_identity:create(Party, Provider, IdentityClass)),
         Identity1       = unwrap(ff_identity:setup_contract(Identity0)),
-        ok              = unwrap(machinery:start(?NS, ID, {Identity1, Ctx}, Be)),
-        unwrap(get(ID, Be))
+        unwrap(machinery:start(?NS, ID, {Identity1, Ctx}, backend()))
     end).
 
--spec get(id(), backend()) ->
+-spec get(id()) ->
     {ok, identity()} |
     {error, notfound}.
 
-get(ID, Be) ->
+get(ID) ->
     do(fun () ->
-        identity(collapse(unwrap(machinery:get(?NS, ID, Be))))
+        identity(collapse(unwrap(machinery:get(?NS, ID, backend()))))
     end).
 
--spec ctx(id(), backend()) ->
-    {ok, ctx()} |
-    {error, notfound}.
-
-ctx(ID, Be) ->
-    do(fun () ->
-        ctx(collapse(unwrap(machinery:get(?NS, ID, {undefined, 0, forward}, Be))))
-    end).
+backend() ->
+    fistful:backend(?NS).
 
 %% Machinery
 

@@ -21,8 +21,8 @@
 
 -export_type([id/0]).
 
--export([create/4]).
--export([get/2]).
+-export([create/3]).
+-export([get/1]).
 
 %% Machinery
 
@@ -46,16 +46,14 @@ wallet(#{wallet := Wallet}) -> Wallet.
 
 -define(NS, wallet).
 
--type backend() :: machinery:backend(_).
-
 -type params() :: #{
     identity   := ff_identity:id(),
     name       := binary(),
     currency   := ff_currency:id()
 }.
 
--spec create(id(), params(), ctx(), backend()) ->
-    {ok, wallet()} |
+-spec create(id(), params(), ctx()) ->
+    ok |
     {error,
         {identity, notfound} |
         {currency, notfound} |
@@ -63,23 +61,25 @@ wallet(#{wallet := Wallet}) -> Wallet.
         exists
     }.
 
-create(ID, #{identity := IdentityID, name := Name, currency := Currency}, Ctx, Be) ->
+create(ID, #{identity := IdentityID, name := Name, currency := Currency}, Ctx) ->
     do(fun () ->
-        Identity = unwrap(identity, ff_identity_machine:get(IdentityID, Be)),
+        Identity = unwrap(identity, ff_identity_machine:get(IdentityID)),
         _        = unwrap(currency, ff_currency:get(Currency)),
         Wallet0  = unwrap(ff_wallet:create(Identity, Name, Currency)),
         Wallet1  = unwrap(ff_wallet:setup_wallet(Wallet0)),
-        ok       = unwrap(machinery:start(?NS, ID, {Wallet1, Ctx}, Be)),
-        unwrap(get(ID, Be))
+        unwrap(machinery:start(?NS, ID, {Wallet1, Ctx}, backend()))
     end).
 
--spec get(id(), backend()) ->
+-spec get(id()) ->
     wallet().
 
-get(ID, Be) ->
+get(ID) ->
     do(fun () ->
-        wallet(collapse(unwrap(machinery:get(?NS, ID, Be))))
+        wallet(collapse(unwrap(machinery:get(?NS, ID, backend()))))
     end).
+
+backend() ->
+    fistful:backend(?NS).
 
 %% machinery
 

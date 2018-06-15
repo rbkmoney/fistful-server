@@ -24,8 +24,8 @@
     ctx           => ctx()
 }.
 
--export([create/4]).
--export([get/2]).
+-export([create/3]).
+-export([get/1]).
 
 %% Machinery
 
@@ -43,8 +43,6 @@
 
 -define(NS, destination).
 
--type backend() :: machinery:backend(_).
-
 -type params() :: #{
     identity => ff_identity:id(),
     name     => binary(),
@@ -52,8 +50,8 @@
     resource => ff_destination:resource()
 }.
 
--spec create(id(), params(), ctx(), backend()) ->
-    {ok, destination()} |
+-spec create(id(), params(), ctx()) ->
+    ok |
     {error,
         {identity, notfound} |
         {currency, notfound} |
@@ -61,23 +59,25 @@
         exists
     }.
 
-create(ID, #{identity := IdentityID, name := Name, currency := Currency, resource := Resource}, Ctx, Be) ->
+create(ID, #{identity := IdentityID, name := Name, currency := Currency, resource := Resource}, Ctx) ->
     do(fun () ->
         Identity    = unwrap(identity, ff_identity_machine:get(IdentityID)),
         _           = unwrap(currency, ff_currency:get(Currency)),
         Destination = unwrap(ff_destination:create(Identity, Name, Currency, Resource)),
-        ok          = unwrap(machinery:start(?NS, ID, {Destination, Ctx}, Be)),
-        unwrap(get(ID, Be))
+        unwrap(machinery:start(?NS, ID, {Destination, Ctx}, backend()))
     end).
 
--spec get(id(), backend()) ->
+-spec get(id()) ->
     {ok, destination()} |
     {error, notfound}.
 
-get(ID, Be) ->
+get(ID) ->
     do(fun () ->
-        destination(collapse(unwrap(machinery:get(?NS, ID, Be))))
+        destination(collapse(unwrap(machinery:get(?NS, ID, backend()))))
     end).
+
+backend() ->
+    ff_withdraw:backend(?NS).
 
 %% Machinery
 

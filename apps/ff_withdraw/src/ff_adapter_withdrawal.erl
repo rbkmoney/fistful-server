@@ -1,5 +1,5 @@
 %%% Client for adapter for withdrawal provider
--module(ff_adpt_client).
+-module(ff_adapter_withdrawal).
 
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").

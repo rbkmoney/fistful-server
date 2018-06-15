@@ -13,12 +13,15 @@
 -type withdrawal() :: ff_withdrawal:withdrawal().
 -type status()     ::
     succeeded |
-    {failed, _}.
+    failed    .
 
 -type activity() ::
-    prepare_destination_transfer |
-    commit_destination_transfer  |
-    idle                         .
+    prepare_transfer         |
+    create_session           |
+    await_session_completion |
+    commit_transfer          |
+    cancel_transfer          |
+    undefined                .
 
 -type st()        :: #{
     activity      := activity(),
@@ -28,8 +31,8 @@
     ctx           := ctx()
 }.
 
--export([create/4]).
--export([get/2]).
+-export([create/3]).
+-export([get/1]).
 
 %% Machinery
 
@@ -47,16 +50,14 @@
 
 -define(NS, withdrawal).
 
--type backend() :: machinery:backend(_).
-
 -type params() :: #{
     source      := ff_wallet_machine:id(),
     destination := ff_destination_machine:id(),
     body        := ff_transaction:body()
 }.
 
--spec create(id(), params(), ctx(), backend()) ->
-    {ok, withdrawal()} |
+-spec create(id(), params(), ctx()) ->
+    ok |
     {error,
         {source, notfound} |
         {destination, notfound | unauthorized} |
@@ -65,26 +66,29 @@
         exists
     }.
 
-create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ctx, Be) ->
+create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ctx) ->
     do(fun () ->
-        Source      = unwrap(source, ff_wallet_machine:get(SourceID, Be)),
-        Destination = unwrap(destination, ff_destination_machine:get(DestinationID, Be)),
-        authorized  = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
-        Provider    = unwrap(provider, ff_withdrawal_provider:choose(Destination, Body)),
-        Withdrawal0 = unwrap(ff_withdrawal:create(Source, Destination, ID, Body, Provider)),
-        Withdrawal1 = unwrap(ff_withdrawal:setup_transfer(Withdrawal0)),
-        ok          = unwrap(machinery:start(?NS, ID, {Withdrawal1, Ctx}, Be)),
-        unwrap(get(ID, Be))
+        Source       = unwrap(source, ff_wallet_machine:get(SourceID)),
+        Destination  = unwrap(destination, ff_destination_machine:get(DestinationID)),
+        authorized   = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
+        Provider     = unwrap(provider, ff_withdrawal_provider:choose(Destination, Body)),
+        Withdrawal   = unwrap(ff_withdrawal:create(Source, Destination, ID, Body, Provider)),
+        {Events1, _} = unwrap(ff_withdrawal:create_transfer(Withdrawal)),
+        Events       = [{created, Withdrawal} | Events1],
+        unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
--spec get(id(), backend()) ->
+-spec get(id()) ->
     {ok, withdrawal()} |
     {error, notfound}.
 
-get(ID, Be) ->
+get(ID) ->
     do(fun () ->
-        withdrawal(collapse(unwrap(machinery:get(?NS, ID, Be))))
+        withdrawal(collapse(unwrap(machinery:get(?NS, ID, backend()))))
     end).
+
+backend() ->
+    ff_withdraw:backend(?NS).
 
 %% Machinery
 
@@ -92,25 +96,21 @@ get(ID, Be) ->
     {ev, timestamp(), T}.
 
 -type ev() :: ts_ev(
-    {created, withdrawal()}                               |
-    {status_changed, status()}                            |
-    transfer_prepared                                     |
-    transfer_committed                                    |
-    {session_created, session()}                          |
-    {session_started, session()}                          |
-    {session_status_changed, session(), session_status()}
+    {created, withdrawal()}    |
+    {status_changed, status()} |
+    ff_withdrawal:ev()
 ).
 
 -type machine()      :: machinery:machine(ev()).
 -type result()       :: machinery:result(ev()).
 -type handler_opts() :: machinery:handler_opts().
 
--spec init({withdrawal(), ctx()}, machine(), _, handler_opts()) ->
+-spec init({[ev()], ctx()}, machine(), _, handler_opts()) ->
     result().
 
-init({Withdrawal, Ctx}, #{}, _, _Opts) ->
+init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => emit_ts_event({created, Withdrawal}),
+        events    => emit_events(Events),
         action    => continue,
         aux_state => #{ctx => Ctx}
     }.
@@ -120,37 +120,57 @@ init({Withdrawal, Ctx}, #{}, _, _Opts) ->
 
 process_timeout(Machine, _, _Opts) ->
     St = collapse(Machine),
-    process_activity(activity(St), withdrawal(St)).
+    process_activity(activity(St), St).
 
-process_activity(prepare_destination_transfer, W0) ->
-    case ff_withdrawal:prepare_destination_transfer(W0) of
-        {ok, _W1} ->
-            #{
-                events => emit_ts_event({transfer_status_changed, prepared}),
-                action => continue
-            };
+process_activity(prepare_transfer, St) ->
+    case ff_withdrawal:prepare_transfer(withdrawal(St)) of
+        {ok, {Events, _W1}} ->
+            #{events => emit_events(Events), action => continue};
         {error, Reason} ->
-            #{
-                events => emit_ts_event({status_changed, {failed, {transfer, Reason}}})
-            }
+            #{events => emit_failure(Reason)}
     end;
 
-process_activity(commit_destination_transfer, W0) ->
-    {ok, T0} = ff_withdrawal:transfer(W0),
-    {ok, T1} = ff_transfer:commit(T0),
+process_activity(create_session, St) ->
+    case ff_withdrawal:create_session(withdrawal(St)) of
+        {ok, Session} ->
+            #{
+                events => emit_event({session_created, Session}),
+                action => {set_timer, {timeout, 1}}
+            };
+        {error, Reason} ->
+            #{events => emit_failure(Reason)}
+    end;
+
+process_activity(await_session_completion, St) ->
+    case ff_withdrawal:poll_session_completion(withdrawal(St)) of
+        {ok, {Events, _W1}} when length(Events) > 0 ->
+            #{events => emit_events(Events), action => continue};
+        {ok, {[], _W0}} ->
+            Now     = machinery_time:now(),
+            Timeout = erlang:max(1, machinery_time:interval(Now, updated(St))),
+            #{action => {set_timer, {timeout, Timeout}}}
+    end;
+
+process_activity(commit_transfer, St) ->
+    {ok, {Events, _W1}} = ff_withdrawal:commit_transfer(withdrawal(St)),
     #{
-        events => emit_ts_event({transfer_status_changed, ff_transfer:status(T1)}),
-        action => continue
+        events => emit_events(Events ++ [{status_changed, succeeded}])
     };
 
-process_activity(create_withdrawal_session, W0) ->
-    ok.
+process_activity(cancel_transfer, St) ->
+    {ok, {Events, _W1}} = ff_withdrawal:cancel_transfer(withdrawal(St)),
+    #{
+        events => emit_events(Events ++ [{status_changed, failed}])
+    }.
 
 -spec process_call(none(), machine(), _, handler_opts()) ->
     {_, result()}.
 
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
+
+emit_failure(Reason) ->
+    emit_event({status_changed, {failed, Reason}}).
 
 %%
 
@@ -162,24 +182,35 @@ collapse_history(History, St) ->
 
 merge_event({_ID, _Ts, TsEv}, St0) ->
     {EvBody, St1} = merge_ts_event(TsEv, St0),
-    merge_event_body(EvBody, St1).
+    apply_event(EvBody, St1).
 
-merge_event_body({created, Withdrawal}, St) ->
+apply_event({created, Withdrawal}, St) ->
+    St#{withdrawal => Withdrawal};
+apply_event({status_changed, Status}, St) ->
+    St#{status => Status};
+apply_event(Ev, St) ->
+    W1 = ff_withdrawal:apply_event(Ev, withdrawal(St)),
     St#{
-        activity   => prepare_destination_transfer,
-        withdrawal => Withdrawal
-    };
-
-merge_event_body({transfer_status_changed, S}, St) ->
-    W0 = withdrawal(St),
-    W1 = ff_withdrawal:mod_transfer(fun (T) -> ff_transfer:set_status(S, T) end, W0),
-    St#{
-        activity => case S of
-            prepared  -> commit_destination_transfer;
-            committed -> create_withdrawal_session
-        end,
+        activity   => deduce_activity(Ev),
         withdrawal => W1
     }.
+
+deduce_activity({transfer_created, _}) ->
+    prepare_transfer;
+deduce_activity({transfer, {status_changed, prepared}}) ->
+    create_session;
+deduce_activity({session_created, _}) ->
+    await_session_completion;
+deduce_activity({session, _, {status_changed, succeeded}}) ->
+    commit_transfer;
+deduce_activity({session, _, {status_changed, {failed, _}}}) ->
+    cancel_transfer;
+deduce_activity({transfer, {status_changed, committed}}) ->
+    undefined;
+deduce_activity({transfer, {status_changed, cancelled}}) ->
+    undefined;
+deduce_activity({status_changed, _}) ->
+    undefined.
 
 activity(#{activity := V}) ->
     V.
@@ -187,15 +218,18 @@ activity(#{activity := V}) ->
 withdrawal(#{withdrawal := V}) ->
     V.
 
+updated(#{times := {_, V}}) ->
+    V.
+
 %%
 
-emit_ts_event(E) ->
-    emit_ts_events([E]).
+emit_event(E) ->
+    emit_events([E]).
 
-emit_ts_events(Es) ->
-    emit_ts_events(Es, machinery_time:now()).
+emit_events(Es) ->
+    emit_events(Es, machinery_time:now()).
 
-emit_ts_events(Es, Ts) ->
+emit_events(Es, Ts) ->
     [{ev, Ts, Body} || Body <- Es].
 
 merge_ts_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->

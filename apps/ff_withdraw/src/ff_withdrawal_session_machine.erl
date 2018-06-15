@@ -7,10 +7,14 @@
 -define(NS, 'withdrawal/session').
 
 %% API
--export([create/4]).
--export([get/2]).
+
+-export([status/1]).
+
+-export([create/3]).
+-export([get/1]).
 
 %% machinery
+
 -export([init/4]).
 -export([process_timeout/3]).
 -export([process_call/4]).
@@ -35,7 +39,7 @@
     | {next_state, ff_adpt:adapter_state()}
     | {finished, session_result()}.
 
--type adapter() :: {ff_adapter:adapter(), Opts :: #{binary() => binary()}}.
+-type adapter() :: {ff_adapter:adapter(), ff_adapter:opts()}.
 
 %%
 %% Internal types
@@ -45,14 +49,13 @@
 
 -type trx_info() :: dmsl_domain_thrift:'TransactionInfo'().
 
--type auxst()        :: #{}.
+-type auxst()        :: undefined.
 
 -type withdrawal() :: ff_adapter_withdrawal:withdrawal().
 -type machine() :: machinery:machine(ev(), auxst()).
 -type result() :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts().
 -type handler_args() :: machinery:handler_args(_).
--type backend() :: machinery:backend(_).
 
 -type st() :: #{
     session => session(),
@@ -67,23 +70,29 @@
 %% API
 %%
 
--spec create(ID, Adapter, Withdrawal, Be) -> ok | Error when
+status(#{status := V}) -> V.
+
+%%
+
+-spec create(ID, Adapter, Withdrawal) -> ok | Error when
     ID :: id(),
     Adapter :: adapter(),
     Withdrawal :: withdrawal(),
-    Be :: backend(),
     Error :: {error, exists}.
-create(ID, Adapter, Withdrawal, Be) ->
+create(ID, Adapter, Withdrawal) ->
     Session = create_session(ID, Adapter, Withdrawal),
     do(fun () ->
-        unwrap(machinery:start(?NS, ID, Session, Be))
+        unwrap(machinery:start(?NS, ID, Session, backend()))
     end).
 
--spec get(id(), backend()) -> {ok, session()} | {error, notfound}.
-get(ID, Be) ->
+-spec get(id()) -> {ok, session()} | {error, notfound}.
+get(ID) ->
     do(fun () ->
-        session(collapse(unwrap(machinery:get(?NS, ID, Be))))
+        session(collapse(unwrap(machinery:get(?NS, ID, backend()))))
     end).
+
+backend() ->
+    ff_withdraw:backend(?NS).
 
 %%
 %% machinery callbacks

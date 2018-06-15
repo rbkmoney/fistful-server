@@ -10,10 +10,24 @@
     trxid       := ff_transaction:id(),
     body        := ff_transfer:body(),
     provider    := ff_provider:provider(),
-    transfer    => ff_transfer:transfer()
+    transfer    => ff_transfer:transfer(),
+    session     => session()
 }.
 
 -export_type([withdrawal/0]).
+
+-type session() ::
+    {_ID, session_status()}.
+
+-type session_status() ::
+    succeeded       |
+    {failed, _TODO} .
+
+-type ev() ::
+    {transfer_created, ff_transfer:transfer()}    |
+    {transfer, ff_transfer:ev()}                  |
+    {session_created, session()}                  |
+    {session, {status_changed, session_status()}} .
 
 -export([source/1]).
 -export([destination/1]).
@@ -23,9 +37,16 @@
 -export([transfer/1]).
 
 -export([create/5]).
--export([setup_transfer/1]).
+-export([create_transfer/1]).
 -export([prepare_transfer/1]).
 -export([commit_transfer/1]).
+-export([cancel_transfer/1]).
+-export([create_session/1]).
+-export([poll_session_completion/1]).
+
+%% Event source
+
+-export([apply_event/2]).
 
 %% Pipeline
 
@@ -40,9 +61,6 @@ body(#{body := V}) -> V.
 provider(#{provider := V}) -> V.
 transfer(W) -> ff_map:find(transfer, W).
 
-set_transfer(V, W = #{}) -> W#{transfer => V}.
-mod_transfer(F, W = #{}) -> W#{transfer := F(transfer(W))}.
-
 %%
 
 create(Source, Destination, TrxID, Body, Provider) ->
@@ -56,92 +74,97 @@ create(Source, Destination, TrxID, Body, Provider) ->
         }
     end).
 
-setup_transfer(Withdrawal) ->
-    do(fun () ->
-        Source = source(Withdrawal),
-        Destination = ff_destination:wallet(destination(Withdrawal)),
-        Transfer = unwrap(ff_transfer:create(
-            construct_transfer_id(trxid(Withdrawal)),
-            [{Source, Destination, body(Withdrawal)}]
-        )),
-        set_transfer(Transfer, Withdrawal)
-    end).
+create_transfer(Withdrawal) ->
+    Source = source(Withdrawal),
+    Destination = ff_destination:wallet(destination(Withdrawal)),
+    TrxID = construct_transfer_id(trxid(Withdrawal)),
+    Posting = {Source, Destination, body(Withdrawal)},
+    roll(Withdrawal, do(fun () ->
+        Transfer = unwrap(transfer, ff_transfer:create(TrxID, [Posting])),
+        [{transfer_created, Transfer}]
+    end)).
 
 construct_transfer_id(TrxID) ->
     ff_string:join($/, [TrxID, transfer]).
 
-prepare_transfer(W0) ->
-    do(fun () ->
-        T0 = transfer(W0),
-        T1 = unwrap(transfer, ff_transfer:prepare(T0)),
-        W0#{transfer := T1}
-    end).
+prepare_transfer(Withdrawal) ->
+    with(transfer, Withdrawal, fun ff_transfer:prepare/1).
 
-commit_transfer(W0) ->
-    do(fun () ->
-        T0 = transfer(W0),
-        T1 = unwrap(transfer, ff_transfer:commit(T0)),
-        W0#{transfer := T1}
+commit_transfer(Withdrawal) ->
+    with(transfer, Withdrawal, fun ff_transfer:commit/1).
+
+cancel_transfer(Withdrawal) ->
+    with(transfer, Withdrawal, fun ff_transfer:cancel/1).
+
+create_session(Withdrawal) ->
+    SID         = construct_session_id(trxid(Withdrawal)),
+    Source      = source(Withdrawal),
+    Destination = destination(Withdrawal),
+    Provider    = provider(Withdrawal),
+    WithdrawalParams = #{
+        id          => SID,
+        destination => Destination,
+        cash        => body(Withdrawal),
+        sender      => ff_wallet:identity(Source),
+        receiver    => ff_wallet:identity(ff_destination:wallet(Destination))
+    },
+    roll(Withdrawal, do(fun () ->
+        ok = unwrap(ff_withdrawal_provider:create_session(SID, WithdrawalParams, Provider)),
+        [{session_created, {SID, active}}]
+    end)).
+
+construct_session_id(TrxID) ->
+    TrxID.
+
+poll_session_completion(Withdrawal) ->
+    with(session, Withdrawal, fun
+        ({SID, active}) ->
+            {ok, Session} = ff_withdrawal_session_machine:get(SID),
+            case ff_withdrawal_session_machine:status(Session) of
+                active ->
+                    {ok, []};
+                {finished, {success, _}} ->
+                    {ok, [{status_changed, succeeded}]};
+                {finished, {failed, Failure}} ->
+                    {ok, [{status_changed, {failed, Failure}}]}
+            end;
+        ({_SID, _Completed}) ->
+            {ok, []}
     end).
 
 %%
 
-create_provider_withdrawal(W0) ->
-    Provider = provider(W0),
-    Body     = body(W0),
-    PW       = ff_withdrawal_provider:create(Body, Provider),
-    {ok, W0#{
-        provider_withdrawal => PW,
-        status              => provider_withdrawal_created
-    }}.
+apply_event({transfer_created, T}, W) ->
+    maps:put(transfer, T, W);
+apply_event({transfer, Ev}, W) ->
+    maps:update(transfer, fun (T) -> ff_transfer:apply_event(Ev, T) end, W);
+apply_event({session_created, S}, W) ->
+    maps:put(session, S, W);
+apply_event({session, {status_changed, S}}, W) ->
+    maps:update(session, fun ({SID, _}) -> {SID, S} end, W).
 
-start_provider_withdrawal(W0) ->
-    PW0 = provider_withdrawal(W0),
-    PW1 = ff_withdrawal_provider:prepare(ff_destination:wallet(destination(W0)), PW0),
-    {ok, W0#{
-        provider_withdrawal => PW1,
-        status              => provider_withdrawal_started
-    }}.
+%% TODO too complex
 
-await_provider_withdrawal_prepare(W0) ->
-    PW = provider_withdrawal(W0),
-    case ff_withdrawal_provider:status(PW) of
-        prepared ->
-            {ok, W0#{
-                status => provider_withdrawal_prepared
-            }};
-        pending ->
-            {ok, W0}
+-type result(V, R) :: {ok, V} | {error, R}.
+
+-spec with(Sub, St, fun((SubSt | undefined) -> result({[SubEv], SubSt}, Reason))) ->
+    result({[{Sub, SubEv}], St}, {Sub, Reason}) when
+        Sub :: atom().
+
+with(Model, St, F) ->
+    case F(maps:get(Model, St, undefined)) of
+        {ok, {Events0, _}} when is_list(Events0) ->
+            Events1 = [{Model, Ev} || Ev <- Events0],
+            roll(St, {ok, Events1});
+        {error, Reason} ->
+            {error, {Model, Reason}}
     end.
 
-create_withdrawal_session(W0) ->
-    Provider    = provider(W0),
-    Body        = body(W0),
-    Destination = destination(W0),
-    Session     = ff_withdrawal_session:start(Provider, Destination, Body),
-    {ok, W0#{
-        session => Session,
-        status  => withdrawal_session_started
-    }}.
+-spec roll(St, result(Evs, Reason)) ->
+    result({Evs, St}, Reason) when
+        Evs :: [_].
 
-await_withdrawal_session_complete(W0) ->
-    Session = session(W0),
-    case ff_withdrawal_session:status(Session) of
-        succeeded ->
-            {ok, W0#{
-                status => withdrawal_session_succeeded
-            }};
-        pending ->
-            {ok, W0}
-    end.
-
-commit(W0) ->
-    PW0       = provider_withdrawal(W0),
-    T0        = transfer(W0),
-    {ok, PW1} = ff_withdrawal_provider:commit(PW0),
-    {ok, T1}  = ff_transfer:commit(T0),
-    {ok, W0#{
-        provider_withdrawal => PW1,
-        transfer            => T1,
-        status              => succeeded
-    }}.
+roll(St, {ok, Events}) when is_list(Events) ->
+    {ok, {Events, lists:foldl(fun apply_event/2, St, Events)}};
+roll(_St, {error, _} = Error) ->
+    Error.

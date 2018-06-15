@@ -8,9 +8,19 @@
 
 -module(ff_withdrawal_provider).
 
--type provider() :: {ff_party:id(), ff_party:shop_id()}.
+-type provider() :: #{
+    % TODO
+}.
 
 -export([choose/2]).
+-export([create_session/3]).
+
+%%
+
+adapter(#{adapter := V}) -> V.
+adapter_opts(P) -> maps:get(adapter_opts, P, #{}).
+
+%%
 
 -spec choose(ff_destination:destination(), ff_transaction:body()) ->
     {ok, provider()} |
@@ -23,3 +33,9 @@ choose(_Destination, _Body) ->
         undefined ->
             {error, notfound}
     end.
+
+%%
+
+create_session(ID, Withdrawal, Provider) ->
+    Adapter = {adapter(Provider), adapter_opts(Provider)},
+    ff_withdrawal_session_machine:create(ID, Withdrawal, Adapter).

@@ -11,7 +11,7 @@
 -type namespace()       :: machinery:namespace().
 -type id()              :: machinery:id().
 -type range()           :: machinery:range().
--type machine(T)        :: machinery:machine(T).
+-type machine(E, A)     :: machinery:machine(E, A).
 -type args(T)           :: machinery:args(T).
 -type response(T)       :: machinery:response(T).
 -type logic_handler(T)  :: machinery:logic_handler(T).
@@ -39,9 +39,8 @@
 -export([call/5]).
 -export([get/4]).
 
-%% Gen Server + Supervisor
+%% Gen Server
 
--behaviour(supervisor).
 -behaviour(gen_server).
 
 -export([start_machine_link/4]).
@@ -62,9 +61,10 @@ new(Opts = #{name := _}) ->
     supervisor:child_spec().
 child_spec(Handler0, Opts) ->
     Handler = machinery_utils:get_handler(Handler0),
+    MFA = {?MODULE, start_machine_link, [Handler]},
     #{
         id    => get_sup_name(Opts),
-        start => {supervisor, start_link, [get_sup_ref(Opts), ?MODULE, {supervisor, Handler}]},
+        start => {machinery_gensrv_backend_sup, start_link, [get_sup_ref(Opts), MFA]},
         type  => supervisor
     }.
 
@@ -100,7 +100,7 @@ call(NS, ID, Range, Args, _Opts) ->
     end.
 
 -spec get(namespace(), id(), range(), backend_opts()) ->
-    {ok, machine(_)} | {error, notfound}.
+    {ok, machine(_, _)} | {error, notfound}.
 get(NS, ID, Range, _Opts) ->
     _ = lager:debug("[machinery/gensrv][client][~s:~s] getting with range: ~p", [NS, ID, Range]),
     try gen_server:call(get_machine_ref(NS, ID), {get, Range}) of
@@ -130,30 +130,15 @@ report_notfound(NS, ID) ->
 start_machine_link(Handler, NS, ID, Args) ->
     gen_server:start_link(get_machine_ref(NS, ID), ?MODULE, {machine, Handler, NS, ID, Args}, []).
 
--type st(T, A) :: #{
-    machine  := machine(T),
-    handler  := logic_handler(A),
+-type st(E, Aux, Args) :: #{
+    machine  := machine(E, Aux),
+    handler  := logic_handler(Args),
     deadline => timestamp()
 }.
 
--spec init
-    ({supervisor, logic_handler(_), backend_opts()}) ->
-        {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}};
-    ({machine, namespace(), id(), args(_), logic_handler(A)}) ->
-        {ok, st(_, A), timeout()}.
-
-init({supervisor, Handler}) -> % Supervisor
-    {ok, {
-        #{strategy => simple_one_for_one},
-        [
-            #{
-                id      => machine,
-                start   => {?MODULE, start_machine_link, [Handler]},
-                type    => worker,
-                restart => temporary
-            }
-        ]
-    }};
+-spec init({machine, logic_handler(Args), namespace(), id(), args(_)}) ->
+    ignore |
+    {ok, st(_, _, Args), timeout()}.
 
 init({machine, Handler, NS, ID, Args}) -> % Gen Server
     St0 = #{machine => construct_machine(NS, ID), handler => Handler},
@@ -176,6 +161,10 @@ construct_machine(NS, ID) ->
         aux_state => undefined
     }.
 
+-spec handle_call({call, range(), args(_)}, {pid(), reference()}, st(E, Aux, Args)) ->
+    {reply, response(_), st(E, Aux, Args), timeout()} |
+    {stop, normal, st(E, Aux, Args)}.
+
 handle_call({call, Range, Args}, _From, St0 = #{machine := #{namespace := NS, id := ID}}) ->
     St1 = apply_range(Range, St0),
     _ = lager:debug("[machinery/gensrv][server][~s:~s] dispatching call: ~p with state: ~p", [NS, ID, Args, St1]),
@@ -193,15 +182,15 @@ handle_call({get, Range}, _From, St = #{machine := M}) ->
 handle_call(Call, _From, _St) ->
     error({badcall, Call}).
 
--spec handle_cast(_Cast, st(_, _)) ->
+-spec handle_cast(_Cast, st(_, _, _)) ->
     no_return().
 
 handle_cast(Cast, _St) ->
     error({badcast, Cast}).
 
--spec handle_info(timeout(), st(E, A)) ->
-    {noreply, st(E, A), timeout()} |
-    {stop, normal, st(E, A)}.
+-spec handle_info(timeout, st(E, Aux, Args)) ->
+    {noreply, st(E, Aux, Args), timeout()} |
+    {stop, normal, st(E, Aux, Args)}.
 
 handle_info(timeout, St0 = #{machine := #{namespace := NS, id := ID}}) ->
     _ = lager:debug("[machinery/gensrv][server][~s:~s] dispatching timeout with state: ~p", [NS, ID, St0]),

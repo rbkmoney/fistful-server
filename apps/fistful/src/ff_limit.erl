@@ -158,7 +158,7 @@ find_bucket({Y, _, _}, year) ->
 
 -type machine(T)      :: machinery:machine(ev(T), auxst(T)).
 -type result(T)       :: machinery:result(ev(T), auxst(T)).
--type handler_opts()  :: machinery:handler_opts().
+-type handler_opts()  :: machinery:handler_opts(_).
 
 -spec init(ord(T), machine(T), _, handler_opts()) ->
     result(T).

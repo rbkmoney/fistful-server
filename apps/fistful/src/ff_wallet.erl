@@ -6,7 +6,7 @@
 
 -type identity() :: ff_identity:identity().
 -type currency() :: ff_currency:id().
--type wid()      :: ff_party:wallet_id().
+-type wid()      :: ff_party:wallet().
 
 -type wallet() :: #{
     identity := identity(),
@@ -48,7 +48,7 @@ wid(#{wid := V})           -> V.
 set_wid(V, W = #{}) -> W#{wid => V}.
 
 -spec account(wallet()) ->
-    {ok, ff_party:account_id()} |
+    {ok, ff_transaction:account()} |
     {error, notfound}.
 
 account(Wallet) ->
@@ -107,7 +107,7 @@ is_accessible(Wallet) ->
     end).
 
 -spec close(wallet()) ->
-    {ok, wallet()} |
+    ok |
     {error,
         {inaccessible, blocked | suspended} |
         {account, pending}
@@ -117,5 +117,5 @@ close(Wallet) ->
     do(fun () ->
         accessible = unwrap(is_accessible(Wallet)),
         % TODO
-        unwrap({error, pending})
+        ok
     end).

@@ -52,7 +52,7 @@ new(Url) when is_binary(Url); is_list(Url) ->
         url => genlib:to_binary(Url)
     }).
 
--spec call(service_id(), woody:request()) ->
+-spec call(service_id() | client(), woody:request()) ->
     {ok, woody:result()}                      |
     {exception, woody_error:business_error()}.
 

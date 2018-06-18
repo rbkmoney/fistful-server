@@ -16,7 +16,8 @@
 -type resource_bank_card() :: #{
     token          := binary(),
     payment_system => atom(), % TODO
-    bin            => binary()
+    bin            => binary(),
+    masked_pan     => binary()
 }.
 
 -type status() ::
@@ -26,8 +27,7 @@
 -type destination() :: #{
     wallet   := wallet(),
     resource := resource(),
-    status   := status(),
-    masked_pan := binary()
+    status   := status()
 }.
 
 -export_type([destination/0]).

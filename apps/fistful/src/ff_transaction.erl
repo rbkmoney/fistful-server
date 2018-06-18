@@ -17,6 +17,7 @@
 
 -export_type([id/0]).
 -export_type([body/0]).
+-export_type([account/0]).
 
 -export([prepare/2]).
 -export([commit/2]).

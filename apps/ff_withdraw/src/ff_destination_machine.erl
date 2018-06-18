@@ -46,10 +46,10 @@
 -define(NS, destination).
 
 -type params() :: #{
-    identity => ff_identity:id(),
-    name     => binary(),
-    currency => ff_currency:id(),
-    resource => ff_destination:resource()
+    identity := ff_identity_machine:id(),
+    name     := binary(),
+    currency := ff_currency:id(),
+    resource := ff_destination:resource()
 }.
 
 -spec create(id(), params(), ctx()) ->
@@ -92,7 +92,7 @@ backend() ->
 
 -type machine()      :: machinery:machine(ev(), auxst()).
 -type result()       :: machinery:result(ev(), auxst()).
--type handler_opts() :: machinery:handler_opts().
+-type handler_opts() :: machinery:handler_opts(_).
 
 -spec init({destination(), ctx()}, machine(), _, handler_opts()) ->
     result().

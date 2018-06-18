@@ -92,10 +92,9 @@ backend() ->
 
 -type machine()      :: machinery:machine(ev(), auxst()).
 -type result()       :: machinery:result(ev(), auxst()).
--type handler_opts() :: machinery:handler_opts().
--type handler_args() :: machinery:handler_args(_).
+-type handler_opts() :: machinery:handler_opts(_).
 
--spec init({wallet(), ctx()}, machine(), handler_args(), handler_opts()) ->
+-spec init({wallet(), ctx()}, machine(), _, handler_opts()) ->
     result().
 
 init({Wallet, Ctx}, #{}, _, _Opts) ->
@@ -104,13 +103,13 @@ init({Wallet, Ctx}, #{}, _, _Opts) ->
         aux_state => #{ctx => Ctx}
     }.
 
--spec process_timeout(machine(), handler_args(), handler_opts()) ->
+-spec process_timeout(machine(), _, handler_opts()) ->
     result().
 
 process_timeout(#{}, _, _Opts) ->
     #{}.
 
--spec process_call(_CallArgs, machine(), handler_args(), handler_opts()) ->
+-spec process_call(_CallArgs, machine(), _, handler_opts()) ->
     {ok, result()}.
 
 process_call(_CallArgs, #{}, _, _Opts) ->

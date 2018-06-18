@@ -28,8 +28,6 @@
     receiver    => identity() | undefined
 }.
 
--export_type([withdrawal/0]).
-
 -type adapter()               :: ff_adapter:adapter().
 -type intent()                :: {finish, status()} | {sleep, timer()}.
 -type status()                :: {success, trx_info()} | {failure, failure()}.
@@ -45,6 +43,9 @@
 -type domain_destination()    :: dmsl_withdrawals_provider_adapter_thrift:'Destination'().
 -type domain_identity()       :: dmsl_withdrawals_provider_adapter_thrift:'Identity'().
 -type domain_internal_state() :: dmsl_withdrawals_provider_adapter_thrift:'InternalState'().
+
+-export_type([withdrawal/0]).
+-export_type([failure/0]).
 
 %%
 %% API

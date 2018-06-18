@@ -8,7 +8,7 @@
 
 %% API
 
--type sequence() :: pos_integer().
+-type sequence() :: non_neg_integer().
 
 -export([next/3]).
 -export([get/3]).
@@ -57,11 +57,11 @@ get(NS, ID, Be) ->
     {increment, increment()}.
 
 -type auxst() ::
-    increment().
+    sequence().
 
 -type machine()      :: machinery:machine(ev(), auxst()).
 -type result()       :: machinery:result(ev(), auxst()).
--type handler_opts() :: machinery:handler_opts().
+-type handler_opts() :: machinery:handler_opts(_).
 
 -spec init(increment(), machine(), _, handler_opts()) ->
     result().
@@ -69,10 +69,11 @@ get(NS, ID, Be) ->
 -spec process_timeout(machine(), _, handler_opts()) ->
     result().
 
--type call()         :: {increment, increment()}.
+-type call() ::
+    {increment, increment()}.
 
 -spec process_call(call(), machine(), _, handler_opts()) ->
-    {ok, result()}.
+    {sequence(), result()}.
 
 init(Inc, #{}, _, _Opts) ->
     #{

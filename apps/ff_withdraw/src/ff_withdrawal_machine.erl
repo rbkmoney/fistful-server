@@ -108,7 +108,7 @@ backend() ->
 
 -type machine()      :: machinery:machine(ev(), auxst()).
 -type result()       :: machinery:result(ev(), auxst()).
--type handler_opts() :: machinery:handler_opts().
+-type handler_opts() :: machinery:handler_opts(_).
 
 -spec init({[ev()], ctx()}, machine(), _, handler_opts()) ->
     result().

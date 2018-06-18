@@ -33,7 +33,7 @@
  {<<"lager">>,{pkg,<<"lager">>,<<"3.6.1">>},0},
  {<<"machinery">>,
   {git,"git@github.com:rbkmoney/machinery.git",
-       {ref,"df59ff3a3f4bdd7738d5c5fd97e5c6a4401a770f"}},
+       {ref,"eb1beed9a287d8b6ab8c68b782b2143ef574c99d"}},
   0},
  {<<"metrics">>,{pkg,<<"metrics">>,<<"1.0.1">>},2},
  {<<"mg_proto">>,

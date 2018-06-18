@@ -78,7 +78,7 @@ party(#{party := V})    -> V.
 contract(V) ->
     ff_map:find(contract, V).
 
--spec set_contract(ff_contract:id(), identity()) ->
+-spec set_contract(contract(), identity()) ->
     identity().
 
 set_contract(ContractID, Identity = #{}) ->

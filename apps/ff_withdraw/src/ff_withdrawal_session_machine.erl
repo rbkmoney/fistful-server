@@ -30,7 +30,7 @@
     adapter => adapter()
 }.
 
--type session_result() :: {success, trx_info()} | {failed, ff_adapter:failure()}.
+-type session_result() :: {success, trx_info()} | {failed, ff_adapter_withdrawal:failure()}.
 
 -type session_status() :: active
     | {finished, session_result()}.
@@ -54,8 +54,7 @@
 -type withdrawal() :: ff_adapter_withdrawal:withdrawal().
 -type machine() :: machinery:machine(ev(), auxst()).
 -type result() :: machinery:result(ev(), auxst()).
--type handler_opts() :: machinery:handler_opts().
--type handler_args() :: machinery:handler_args(_).
+-type handler_opts() :: machinery:handler_opts(_).
 
 -type st() :: #{
     session => session(),
@@ -98,7 +97,7 @@ backend() ->
 %% machinery callbacks
 %%
 
--spec init(session(), machine(), handler_args(), handler_opts()) ->
+-spec init(session(), machine(), _, handler_opts()) ->
     result().
 init(Session, #{}, _, _Opts) ->
     #{
@@ -106,13 +105,13 @@ init(Session, #{}, _, _Opts) ->
         action => continue
     }.
 
--spec process_timeout(machine(), handler_args(), handler_opts()) ->
+-spec process_timeout(machine(), _, handler_opts()) ->
     result().
 process_timeout(Machine, _, _Opts) ->
     State = collapse(Machine),
     process_session(State).
 
--spec process_call(any(), machine(), handler_args(), handler_opts()) ->
+-spec process_call(any(), machine(), _, handler_opts()) ->
     {_, result()}.
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
@@ -152,7 +151,7 @@ process_intent({sleep, Timer}) ->
 
 %%
 
--spec create_session(id(), adapter(), ff_adapter:withdrawal()) -> session().
+-spec create_session(id(), adapter(), ff_adapter_withdrawal:withdrawal()) -> session().
 create_session(ID, Adapter, Withdrawal) ->
     #{
         id => ID,

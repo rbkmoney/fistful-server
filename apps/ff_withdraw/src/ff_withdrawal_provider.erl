@@ -9,7 +9,7 @@
 -module(ff_withdrawal_provider).
 
 -type provider() :: #{
-    % TODO
+    _ => _ % TODO
 }.
 
 -export([choose/2]).

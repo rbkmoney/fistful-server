@@ -12,14 +12,12 @@
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 
 -type id()          :: dmsl_domain_thrift:'PartyID'().
--type contract_id() :: dmsl_domain_thrift:'ContractID'().
--type wallet_id()   :: dmsl_domain_thrift:'WalletID'().
--type account_id()  :: dmsl_domain_thrift:'AccountID'().
+-type contract()    :: dmsl_domain_thrift:'ContractID'().
+-type wallet()      :: dmsl_domain_thrift:'WalletID'().
 
 -export_type([id/0]).
--export_type([contract_id/0]).
--export_type([wallet_id/0]).
--export_type([account_id/0]).
+-export_type([contract/0]).
+-export_type([wallet/0]).
 
 -export([is_accessible/1]).
 -export([get_wallet/2]).
@@ -48,15 +46,15 @@ is_accessible(ID) ->
             {ok, accessible}
     end.
 
--spec get_wallet(id(), wallet_id()) ->
+-spec get_wallet(id(), wallet()) ->
     {ok, _Wallet} |
     {error, notfound}.
 
 get_wallet(ID, WalletID) ->
     do_get_wallet(ID, WalletID).
 
--spec get_wallet_account(id(), wallet_id()) ->
-    {ok, account_id()} |
+-spec get_wallet_account(id(), wallet()) ->
+    {ok, ff_transaction:account()} |
     {error, notfound}.
 
 get_wallet_account(ID, WalletID) ->
@@ -69,7 +67,7 @@ get_wallet_account(ID, WalletID) ->
         AccountID
     end).
 
--spec is_wallet_accessible(id(), wallet_id()) ->
+-spec is_wallet_accessible(id(), wallet()) ->
     {ok, accessible} |
     {error,
         notfound |
@@ -96,7 +94,7 @@ is_wallet_accessible(ID, WalletID) ->
 }.
 
 -spec create_contract(id(), contract_prototype()) ->
-    {ok, contract_id()} |
+    {ok, contract()} |
     {error, invalid}.
 
 create_contract(ID, Prototype) ->
@@ -118,8 +116,8 @@ generate_contract_id() ->
     currency := ff_currency:id()
 }.
 
--spec create_wallet(id(), contract_id(), wallet_prototype()) ->
-    {ok, wallet_id()} |
+-spec create_wallet(id(), contract(), wallet_prototype()) ->
+    {ok, wallet()} |
     {error, invalid}.
 
 create_wallet(ID, ContractID, Prototype) ->
@@ -172,7 +170,7 @@ do_accept_claim(ID, Claim) ->
     ClaimID  = Claim#payproc_Claim.id,
     Revision = Claim#payproc_Claim.revision,
     case call('AcceptClaim', [construct_userinfo(), ID, ClaimID, Revision]) of
-        ok ->
+        {ok, ok} ->
             accepted;
         {exception, #payproc_InvalidClaimStatus{status = {accepted, _}}} ->
             accepted;

@@ -8,8 +8,8 @@
 
 %%
 
--spec find(_Key, #{}) ->
-    {ok, _Value} |
+-spec find(Key, #{Key => Value}) ->
+    {ok, Value} |
     {error, notfound}.
 
 find(Key, Map) ->

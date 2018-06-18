@@ -109,7 +109,7 @@ backend() ->
 
 -type machine()      :: machinery:machine(ev(), auxst()).
 -type result()       :: machinery:result(ev(), auxst()).
--type handler_opts() :: machinery:handler_opts().
+-type handler_opts() :: machinery:handler_opts(_).
 
 -spec init({identity(), ctx()}, machine(), _, handler_opts()) ->
     result().
@@ -126,8 +126,8 @@ init({Identity, Ctx}, #{}, _, _Opts) ->
 process_timeout(_Machine, _, _Opts) ->
     #{}.
 
--spec process_call(none(), machine(), _, handler_opts()) ->
-    {_, result()}.
+-spec process_call(_, machine(), _, handler_opts()) ->
+    {ok, result()}.
 
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.

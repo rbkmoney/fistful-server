@@ -58,8 +58,8 @@ start_app(lager = AppName) ->
         {async_threshold, 1},
         {async_threshold_window, 0},
         {error_logger_hwm, 600},
-        {suppress_application_start_stop, true},
-        {suppress_supervisor_start_stop, true},
+        {suppress_application_start_stop, false},
+        {suppress_supervisor_start_stop, false},
         {handlers, [
             {lager_common_test_backend, debug}
         ]}
@@ -74,6 +74,9 @@ start_app(woody = AppName) ->
     {start_app_with(AppName, [
         {acceptors_pool_size, 4}
     ]), #{}};
+
+start_app({AppName, AppEnv}) ->
+    {start_app_with(AppName, AppEnv), #{}};
 
 start_app(AppName) ->
     {start_app_with(AppName, []), #{}}.

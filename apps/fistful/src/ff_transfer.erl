@@ -138,23 +138,17 @@ prepare(Transfer = #{status := created}) ->
     Postings = construct_trx_postings(postings(Transfer)),
     roll(Transfer, do(fun () ->
         accessible = unwrap(wallet, validate_accessible(gather_wallets(Postings))),
-        Affected   = unwrap(ff_transaction:prepare(TrxID, Postings)),
-        case validate_balances(Affected) of
-            {ok, valid} ->
-                [{status_changed, prepared}];
-            {error, invalid} ->
-                _ = ff_transaction:cancel(TrxID, Postings),
-                throw(balance)
-        end
+        _Affected  = unwrap(ff_transaction:prepare(TrxID, Postings)),
+        [{status_changed, prepared}]
     end));
 prepare(Transfer = #{status := prepared}) ->
     {ok, Transfer};
 prepare(#{status := Status}) ->
     {error, {status, Status}}.
 
-validate_balances(Affected) ->
-    % TODO
-    {ok, valid}.
+%% TODO
+% validate_balances(Affected) ->
+%     {ok, valid}.
 
 %%
 

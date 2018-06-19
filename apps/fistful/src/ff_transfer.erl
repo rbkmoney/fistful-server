@@ -35,7 +35,7 @@
     {status_changed, status()}.
 
 -type outcome() ::
-    {[ev()], transfer()}.
+    [ev()].
 
 -export_type([transfer/0]).
 -export_type([posting/0]).
@@ -136,13 +136,13 @@ validate_identities([W0 | Wallets]) ->
 prepare(Transfer = #{status := created}) ->
     TrxID = trxid(Transfer),
     Postings = construct_trx_postings(postings(Transfer)),
-    roll(Transfer, do(fun () ->
+    do(fun () ->
         accessible = unwrap(wallet, validate_accessible(gather_wallets(Postings))),
         _Affected  = unwrap(ff_transaction:prepare(TrxID, Postings)),
         [{status_changed, prepared}]
-    end));
-prepare(Transfer = #{status := prepared}) ->
-    {ok, Transfer};
+    end);
+prepare(_Transfer = #{status := prepared}) ->
+    {ok, []};
 prepare(#{status := Status}) ->
     {error, {status, Status}}.
 
@@ -157,13 +157,13 @@ prepare(#{status := Status}) ->
     {error, {status, created | cancelled}}.
 
 commit(Transfer = #{status := prepared}) ->
-    roll(Transfer, do(fun () ->
+    do(fun () ->
         Postings  = construct_trx_postings(postings(Transfer)),
         _Affected = unwrap(ff_transaction:commit(trxid(Transfer), Postings)),
         [{status_changed, committed}]
-    end));
-commit(Transfer = #{status := committed}) ->
-    {ok, roll(Transfer)};
+    end);
+commit(_Transfer = #{status := committed}) ->
+    {ok, []};
 commit(#{status := Status}) ->
     {error, Status}.
 
@@ -174,13 +174,13 @@ commit(#{status := Status}) ->
     {error, {status, created | committed}}.
 
 cancel(Transfer = #{status := prepared}) ->
-    roll(Transfer, do(fun () ->
+    do(fun () ->
         Postings  = construct_trx_postings(postings(Transfer)),
         _Affected = unwrap(ff_transaction:cancel(trxid(Transfer), Postings)),
         [{status_changed, cancelled}]
-    end));
-cancel(Transfer = #{status := cancelled}) ->
-    {ok, roll(Transfer)};
+    end);
+cancel(_Transfer = #{status := cancelled}) ->
+    {ok, []};
 cancel(#{status := Status}) ->
     {error, {status, Status}}.
 
@@ -188,22 +188,6 @@ cancel(#{status := Status}) ->
 
 apply_event({status_changed, S}, Transfer) ->
     Transfer#{status := S}.
-
-%% TODO
-
--type result(V, R) :: {ok, V} | {error, R}.
-
--spec roll(St, result(Evs, Reason)) ->
-    result({Evs, St}, Reason) when
-        Evs :: [_].
-
-roll(St, {ok, Events}) when is_list(Events) ->
-    {ok, {Events, lists:foldl(fun apply_event/2, St, Events)}};
-roll(_St, {error, _} = Error) ->
-    Error.
-
-roll(St) ->
-    {[], St}.
 
 %%
 

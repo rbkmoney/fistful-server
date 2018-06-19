@@ -129,7 +129,7 @@ process_timeout(Machine, _, _Opts) ->
 
 process_activity(prepare_transfer, St) ->
     case ff_withdrawal:prepare_transfer(withdrawal(St)) of
-        {ok, {Events, _W1}} ->
+        {ok, Events} ->
             #{events => emit_events(Events), action => continue};
         {error, Reason} ->
             #{events => emit_failure(Reason)}
@@ -148,22 +148,22 @@ process_activity(create_session, St) ->
 
 process_activity(await_session_completion, St) ->
     case ff_withdrawal:poll_session_completion(withdrawal(St)) of
-        {ok, {Events, _W1}} when length(Events) > 0 ->
+        {ok, Events} when length(Events) > 0 ->
             #{events => emit_events(Events), action => continue};
-        {ok, {[], _W0}} ->
+        {ok, []} ->
             Now     = machinery_time:now(),
             Timeout = erlang:max(1, machinery_time:interval(Now, updated(St))),
             #{action => {set_timer, {timeout, Timeout}}}
     end;
 
 process_activity(commit_transfer, St) ->
-    {ok, {Events, _W1}} = ff_withdrawal:commit_transfer(withdrawal(St)),
+    {ok, Events} = ff_withdrawal:commit_transfer(withdrawal(St)),
     #{
         events => emit_events(Events ++ [{status_changed, succeeded}])
     };
 
 process_activity(cancel_transfer, St) ->
-    {ok, {Events, _W1}} = ff_withdrawal:cancel_transfer(withdrawal(St)),
+    {ok, Events} = ff_withdrawal:cancel_transfer(withdrawal(St)),
     #{
         events => emit_events(Events ++ [{status_changed, failed}])
     }.

@@ -80,10 +80,10 @@ create_transfer(Withdrawal) ->
     Destination = ff_destination:wallet(destination(Withdrawal)),
     TrxID = construct_transfer_id(trxid(Withdrawal)),
     Posting = {Source, Destination, body(Withdrawal)},
-    roll(Withdrawal, do(fun () ->
+    do(fun () ->
         Transfer = unwrap(transfer, ff_transfer:create(TrxID, [Posting])),
         [{transfer_created, Transfer}]
-    end)).
+    end).
 
 construct_transfer_id(TrxID) ->
     ff_string:join($/, [TrxID, transfer]).
@@ -109,10 +109,10 @@ create_session(Withdrawal) ->
         sender      => ff_wallet:identity(Source),
         receiver    => ff_wallet:identity(ff_destination:wallet(Destination))
     },
-    roll(Withdrawal, do(fun () ->
+    do(fun () ->
         ok = unwrap(ff_withdrawal_provider:create_session(SID, WithdrawalParams, Provider)),
         [{session_created, {SID, active}}]
-    end)).
+    end).
 
 construct_session_id(TrxID) ->
     TrxID.
@@ -148,24 +148,17 @@ apply_event({session, {status_changed, S}}, W) ->
 
 -type result(V, R) :: {ok, V} | {error, R}.
 
--spec with(Sub, St, fun((SubSt | undefined) -> result({[SubEv], SubSt}, Reason))) ->
-    result({[{Sub, SubEv}], St}, {Sub, Reason}) when
-        Sub :: atom().
+-spec with(Sub, St, fun((SubSt | undefined) -> result([SubEv], Reason))) ->
+    result([{Sub, SubEv}], {Sub, Reason}) when
+        Sub   :: atom(),
+        St    :: #{Sub => SubSt},
+        SubSt :: _.
 
 with(Model, St, F) ->
     case F(maps:get(Model, St, undefined)) of
-        {ok, {Events0, _}} when is_list(Events0) ->
+        {ok, Events0} when is_list(Events0) ->
             Events1 = [{Model, Ev} || Ev <- Events0],
-            roll(St, {ok, Events1});
+            {ok, Events1};
         {error, Reason} ->
             {error, {Model, Reason}}
     end.
-
--spec roll(St, result(Evs, Reason)) ->
-    result({Evs, St}, Reason) when
-        Evs :: [_].
-
-roll(St, {ok, Events}) when is_list(Events) ->
-    {ok, {Events, lists:foldl(fun apply_event/2, St, Events)}};
-roll(_St, {error, _} = Error) ->
-    Error.

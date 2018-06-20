@@ -13,11 +13,16 @@
 
 -type thrown(_E) :: no_return().
 
--spec do(fun(() -> T | thrown(E))) ->
-    {ok, T} | {error, E}.
+-spec do(fun(() -> ok | T | thrown(E))) ->
+    ok | {ok, T} | {error, E}.
 
 do(Fun) ->
-    try {ok, Fun()} catch
+    try Fun() of
+        ok ->
+            ok;
+        R ->
+            {ok, R}
+    catch
         Thrown -> {error, Thrown}
     end.
 

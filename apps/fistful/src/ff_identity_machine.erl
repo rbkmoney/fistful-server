@@ -80,10 +80,10 @@ ctx(#{ctx := V})           -> V.
 
 create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
     do(fun () ->
-        Provider        = unwrap(provider, ff_provider:get(ProviderID)),
-        IdentityClass   = unwrap(identity_class, ff_provider:get_identity_class(IdentityClassID, Provider)),
-        Identity0       = unwrap(ff_identity:create(Party, Provider, IdentityClass)),
-        Identity1       = unwrap(ff_identity:setup_contract(Identity0)),
+        Provider      = unwrap(provider, ff_provider:get(ProviderID)),
+        IdentityClass = unwrap(identity_class, ff_provider:get_identity_class(IdentityClassID, Provider)),
+        Identity0     = unwrap(ff_identity:create(Party, Provider, IdentityClass)),
+        Identity1     = unwrap(ff_identity:setup_contract(Identity0)),
         unwrap(machinery:start(?NS, ID, {Identity1, Ctx}, backend()))
     end).
 

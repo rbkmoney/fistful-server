@@ -19,6 +19,7 @@
 -export_type([contract/0]).
 -export_type([wallet/0]).
 
+-export([create/1]).
 -export([is_accessible/1]).
 -export([get_wallet/2]).
 -export([get_wallet_account/2]).
@@ -31,6 +32,13 @@
 -import(ff_pipeline, [do/1, unwrap/1]).
 
 %%
+
+-spec create(id()) ->
+    ok |
+    {error, exists}.
+
+create(ID) ->
+    do_create_party(ID).
 
 -spec is_accessible(id()) ->
     {ok, accessible} |
@@ -107,7 +115,7 @@ create_contract(ID, Prototype) ->
     end).
 
 generate_contract_id() ->
-    uuid:get_v4().
+    generate_uuid().
 
 %%
 
@@ -130,10 +138,24 @@ create_wallet(ID, ContractID, Prototype) ->
     end).
 
 generate_wallet_id() ->
-    uuid:get_v4().
+    generate_uuid().
 
+generate_uuid() ->
+    % TODO
+    %  - Snowflake, anyone?
+    uuid:uuid_to_string(uuid:get_v4(), binary_nodash).
 
 %% Party management client
+
+do_create_party(ID) ->
+    case call('Create', [construct_userinfo(), ID, construct_party_params()]) of
+        {ok, ok} ->
+            ok;
+        {exception, #payproc_PartyExists{}} ->
+            {error, exists};
+        {exception, Unexpected} ->
+            error(Unexpected)
+    end.
 
 do_get_party(ID) ->
     case call('Get', [construct_userinfo(), ID]) of
@@ -194,6 +216,13 @@ do_accept_claim(ID, Claim) ->
     {wallet_modification,
         #payproc_WalletModificationUnit{id = ID, modification = Mod}}
 ).
+
+construct_party_params() ->
+    #payproc_PartyParams{
+        contact_info = #domain_PartyContactInfo{
+            email = <<"bob@example.org">>
+        }
+    }.
 
 construct_contract_changeset(ContractID, #{
     payinst           := PayInstRef,

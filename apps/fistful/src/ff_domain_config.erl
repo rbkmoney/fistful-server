@@ -25,7 +25,7 @@ object(ObjectRef) ->
     object(head(), ObjectRef).
 
 object(Ref, {Type, ObjectRef}) ->
-    try dmt_client:checkout_object(Ref, ObjectRef) of
+    try dmt_client:checkout_object(Ref, {Type, ObjectRef}) of
         #'VersionedObject'{object = Object} ->
             {Type, {_RecordName, ObjectRef, ObjectData}} = Object,
             {ok, ObjectData}

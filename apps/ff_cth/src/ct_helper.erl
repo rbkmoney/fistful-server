@@ -30,8 +30,13 @@
 cfg(Key, Config) ->
     case lists:keyfind(Key, 1, Config) of
         {Key, V} -> V;
-        _        -> error({undefined, Key, Config})
+        _        -> error({'ct config entry missing', Key})
     end.
+
+-spec cfg(atom(), _, config()) -> config().
+
+cfg(Key, Value, Config) ->
+    lists:keystore(Key, 1, Config, {Key, Value}).
 
 %%
 
@@ -133,7 +138,7 @@ makeup_cfg(CMFs, C0) ->
 -spec woody_ctx() -> config_mut_fun().
 
 woody_ctx() ->
-    fun (C) -> [{'$woody_ctx', construct_woody_ctx(C)} | C] end.
+    fun (C) -> cfg('$woody_ctx', construct_woody_ctx(C), C) end.
 
 construct_woody_ctx(C) ->
     woody_context:new(construct_rpc_id(get_test_case_name(C))).
@@ -155,7 +160,7 @@ get_woody_ctx(C) ->
 -spec test_case_name(test_case_name()) -> config_mut_fun().
 
 test_case_name(TestCaseName) ->
-    fun (C) -> [{'$test_case_name', TestCaseName} | C] end.
+    fun (C) -> cfg('$test_case_name', TestCaseName, C) end.
 
 -spec get_test_case_name(config()) -> test_case_name().
 

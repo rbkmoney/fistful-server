@@ -14,5 +14,5 @@
 -spec backend(namespace()) ->
     backend().
 
-backend(_NS) ->
-    genlib_app:env(?MODULE, backend).
+backend(NS) ->
+    maps:get(NS, genlib_app:env(?MODULE, backends, #{})).

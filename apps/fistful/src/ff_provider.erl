@@ -9,12 +9,17 @@
 %%%
 
 -module(ff_provider).
+
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("ff_cth/include/ct_domain.hrl").
 
 -type id()       :: binary().
 -type provider() :: #{
-    payinst_ref := payinst_ref(),
-    payinst     := payinst()
+    payinst_ref      := payinst_ref(),
+    payinst          := payinst(),
+    identity_classes := #{
+        ff_identity:class_id() => ff_identity:class()
+    }
 }.
 
 -type payinst()     :: dmsl_domain_thrift:'PaymentInstitution'().
@@ -57,28 +62,28 @@ get(ID) ->
         % TODO
         %  - We need to somehow expose these things in the domain config.
         %  - Possibly inconsistent view of domain config.
-        Config = unwrap(get_provider_config(ID)),
-        PaymentInstitutionRef = #domain_PaymentInstitutionRef{id = maps:get(payment_institution_id, Config)},
-        PaymentInstitution    = unwrap(ff_domain_config:object({payment_institution, PaymentInstitutionRef})),
-        IdentityClassesConfig = maps:get(identity_classes, Config),
-        IdentityClasses       = maps:map(
+        C = unwrap(get_provider_config(ID)),
+        PaymentInstitutionRef = ?payinst(maps:get(payment_institution_id, C)),
+        {ok, PaymentInstitution} = ff_domain_config:object({payment_institution, PaymentInstitutionRef}),
+        IdentityClasses = maps:map(
             fun (IdentityClassID, ICC) ->
-                Name                 = maps:get(name, ICC, IdentityClassID),
-                ContractTemplateRef  = #domain_ContractTemplateRef{id = maps:get(contact_template_id, ICC)},
-                IdentityLevelsConfig = maps:get(levels, ICC, #{}),
-                IdentityLevels       = maps:map(
-                    fun (IdentityLevelID, ILC) ->
-                        error(noimpl)
-                    end,
-                    IdentityLevelsConfig
-                ),
+                Name = maps:get(name, ICC, IdentityClassID),
+                ContractTemplateRef = ?tmpl(maps:get(contract_template_id, ICC)),
+                {ok, _} = ff_domain_config:object({contract_template, ContractTemplateRef}),
+                % IdentityLevelsConfig = maps:get(levels, ICC, #{}),
+                % IdentityLevels       = maps:map(
+                %     fun (IdentityLevelID, ILC) ->
+                %         error(noimpl)
+                %     end,
+                %     IdentityLevelsConfig
+                % ),
                 #{
                     name                  => Name,
-                    contract_template_ref => ContractTemplateRef,
-                    levels                => IdentityLevels
+                    contract_template_ref => ContractTemplateRef
+                    % levels                => IdentityLevels
                 }
             end,
-            IdentityClassesConfig
+            maps:get(identity_classes, C)
         ),
         #{
             payinst_ref      => PaymentInstitutionRef,

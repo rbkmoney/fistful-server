@@ -243,13 +243,10 @@ construct_wallet_changeset(ContractID, WalletID, #{
     ].
 
 construct_userinfo() ->
-    #{id := ID, realm := Realm} = ff_woody_ctx:get_user_identity(),
-    #payproc_UserInfo{id = ID, type = construct_usertype(Realm)}.
+    #payproc_UserInfo{id = <<"fistful">>, type = construct_usertype()}.
 
-construct_usertype(<<"external">>) ->
-    {external_user, #payproc_ExternalUser{}};
-construct_usertype(<<"internal">>) ->
-    {internal_user, #payproc_InternalUser{}}.
+construct_usertype() ->
+    {service_user, #payproc_ServiceUser{}}.
 
 %% Woody stuff
 

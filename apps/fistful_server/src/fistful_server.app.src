@@ -1,0 +1,38 @@
+{application, fistful_server, [
+    {description,
+        "Wallet processing entrypoint"
+    },
+    {vsn, "1"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        genlib,
+        dmsl,
+        %% fistful,
+
+        %% wapi deps
+        woody,
+        dmsl,
+        swag_server_wallet,
+        swag_server_payres,
+        swag_server_privdoc,
+        jose,
+        cowboy_cors,
+        cowboy_access_log,
+        rfc3339,
+        base64url,
+        snowflake,
+        woody_user_identity,
+        payproc_errors,
+        erl_health,
+        wapi
+    ]},
+    {env, []},
+    {modules, []},
+    {maintainers, [
+        "Andrey Mayorov <a.mayorov@rbkmoney.com>"
+    ]},
+    {licenses, []},
+    {links, ["https://github.com/rbkmoney/fistful-server"]}
+]}.

@@ -1,3 +1,7 @@
 [submodule "build-utils"]
 	path = build-utils
 	url = git+ssh://github.com/rbkmoney/build_utils
+[submodule "schemes/swag"]
+	path = schemes/swag
+	url = git@github.com:rbkmoney/swag-wallets.git
+	branch = release/v0

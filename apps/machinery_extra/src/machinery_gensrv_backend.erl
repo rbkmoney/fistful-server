@@ -49,6 +49,8 @@
 -export([handle_call/3]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
+-export([terminate/2]).
+-export([code_change/3]).
 
 %% API
 
@@ -130,6 +132,8 @@ report_notfound(NS, ID) ->
 start_machine_link(Handler, NS, ID, Args) ->
     gen_server:start_link(get_machine_ref(NS, ID), ?MODULE, {machine, Handler, NS, ID, Args}, []).
 
+%%
+
 -type st(E, Aux, Args) :: #{
     machine  := machine(E, Aux),
     handler  := logic_handler(Args),
@@ -205,6 +209,20 @@ handle_info(timeout, St0 = #{machine := #{namespace := NS, id := ID}}) ->
     end;
 handle_info(Info, _St) ->
     error({badinfo, Info}).
+
+-spec terminate(_Reason, st(_, _, _)) ->
+    ok.
+
+terminate(_Reason, _St) ->
+    ok.
+
+-spec code_change(_OldVsn, st(E, Aux, Args), _Extra) ->
+    {ok, st(E, Aux, Args)}.
+
+code_change(_OldVsn, St, _Extra) ->
+    {ok, St}.
+
+%%
 
 apply_range(Range, St = #{machine := M}) ->
     St#{machine := apply_range(Range, M)};

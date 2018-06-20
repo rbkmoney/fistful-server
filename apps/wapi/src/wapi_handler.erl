@@ -88,8 +88,8 @@ reply_5xx(Code) when Code >= 500 andalso Code < 600 ->
     woody_context:ctx().
 create_woody_context(#{'X-Request-ID' := RequestID}, AuthContext) ->
     RpcID = #{trace_id := TraceID} = woody_context:new_rpc_id(genlib:to_binary(RequestID)),
-    ok = scoper:add_meta(#{request_id => RequestID}),
-    _ = lager:debug("Created TraceID:~p for RequestID:~p", [TraceID , RequestID]),
+    ok = scoper:add_meta(#{request_id => RequestID, trace_id => TraceID}),
+    _ = lager:debug("Created TraceID for the request"),
     woody_user_identity:put(collect_user_identity(AuthContext), woody_context:new(RpcID)).
 
 collect_user_identity(AuthContext) ->

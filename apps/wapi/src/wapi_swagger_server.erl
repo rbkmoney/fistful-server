@@ -9,7 +9,6 @@
 -define(DEFAULT_IP_ADDR, "::").
 -define(DEFAULT_PORT, 8080).
 
--define(START_TIME_TAG, processing_start_time).
 -define(SWAG_HANDLER_SCOPE, swag_handler).
 
 -type params() :: {cowboy_router:routes(), #{atom() => module()}}.
@@ -46,7 +45,7 @@ get_cowboy_config(HealthRoutes, LogicHandlers) ->
             cowboy_cors,
             cowboy_handler
         ]},
-        {onrequest, cowboy_access_log:get_request_hook()},
+        {onrequest, fun ?MODULE:request_hook/1},
         {onresponse, fun ?MODULE:response_hook/4}
     ].
 
@@ -62,7 +61,8 @@ squash_routes(Routes) ->
 
 request_hook(Req) ->
     ok = scoper:add_scope(?SWAG_HANDLER_SCOPE),
-    cowboy_req:set_meta(?START_TIME_TAG, genlib_time:ticks(), Req).
+    HookFun = cowboy_access_log:get_request_hook(),
+    HookFun(Req).
 
 -spec response_hook(cowboy:http_status(), cowboy:http_headers(), iodata(), cowboy_req:req()) ->
     cowboy_req:req().

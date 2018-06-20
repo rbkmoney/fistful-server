@@ -333,6 +333,6 @@ limit_range(N, backward, {A, B}) ->
 query_range({A, B}, _, _) when A > B ->
     [];
 query_range({A, B}, forward, H) ->
-    lists:sublist(H, A, B - A);
+    lists:sublist(H, A, B - A + 1);
 query_range({A, B}, backward, H) ->
-    lists:reverse(lists:sublist(H, A, B - A)).
+    lists:reverse(lists:sublist(H, A, B - A + 1)).

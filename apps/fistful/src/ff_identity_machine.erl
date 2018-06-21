@@ -82,9 +82,9 @@ create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, 
     do(fun () ->
         Provider      = unwrap(provider, ff_provider:get(ProviderID)),
         IdentityClass = unwrap(identity_class, ff_provider:get_identity_class(IdentityClassID, Provider)),
-        Identity0     = unwrap(ff_identity:create(Party, Provider, IdentityClass)),
-        Identity1     = unwrap(ff_identity:setup_contract(Identity0)),
-        unwrap(machinery:start(?NS, ID, {Identity1, Ctx}, backend()))
+        Identity      = unwrap(ff_identity:create(Party, Provider, IdentityClass)),
+        Events        = unwrap(ff_identity:setup_contract(Identity)),
+        unwrap(machinery:start(?NS, ID, {[{created, Identity}] ++ Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
@@ -101,22 +101,26 @@ backend() ->
 
 %% Machinery
 
+-type ts_ev(T) ::
+    {ev, timestamp(), T}.
+
 -type ev() ::
-    {created, identity()}.
+    {created, identity()} |
+    ff_identity:ev().
 
 -type auxst() ::
     #{ctx => ctx()}.
 
--type machine()      :: machinery:machine(ev(), auxst()).
--type result()       :: machinery:result(ev(), auxst()).
+-type machine()      :: machinery:machine(ts_ev(ev()), auxst()).
+-type result()       :: machinery:result(ts_ev(ev()), auxst()).
 -type handler_opts() :: machinery:handler_opts(_).
 
--spec init({identity(), ctx()}, machine(), _, handler_opts()) ->
+-spec init({[ev()], ctx()}, machine(), _, handler_opts()) ->
     result().
 
-init({Identity, Ctx}, #{}, _, _Opts) ->
+init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => emit_ts_event({created, Identity}),
+        events    => emit_ts_events(Events),
         aux_state => #{ctx => Ctx}
     }.
 
@@ -148,12 +152,11 @@ merge_event_body({created, Identity}, St) ->
     St#{
         activity => idle,
         identity => Identity
-    }.
+    };
+merge_event_body(IdentityEv, St = #{identity := Identity}) ->
+    St#{identity := ff_identity:apply_event(IdentityEv, Identity)}.
 
 %%
-
-emit_ts_event(E) ->
-    emit_ts_events([E]).
 
 emit_ts_events(Es) ->
     emit_ts_events(Es, machinery_time:now()).

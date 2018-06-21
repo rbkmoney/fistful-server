@@ -26,7 +26,14 @@
     contract     => contract()
 }.
 
+-type ev() ::
+    {contract_set, contract()}.
+
+-type outcome() ::
+    [ev()].
+
 -export_type([identity/0]).
+-export_type([ev/0]).
 
 %% TODO
 %%  - Factor out into dedicated module
@@ -45,12 +52,13 @@
 -export([class/1]).
 -export([contract/1]).
 
--export([set_contract/2]).
-
 -export([is_accessible/1]).
 
 -export([create/3]).
 -export([setup_contract/1]).
+% -export([start_challenge/2]).
+
+-export([apply_event/2]).
 
 %%
 
@@ -77,12 +85,6 @@ party(#{party := V})    -> V.
 
 contract(V) ->
     ff_map:find(contract, V).
-
--spec set_contract(contract(), identity()) ->
-    identity().
-
-set_contract(ContractID, Identity = #{}) ->
-    Identity#{contract => ContractID}.
 
 -spec is_accessible(identity()) ->
     {ok, accessible} |
@@ -114,7 +116,7 @@ create(Party, Provider, Class) ->
     end).
 
 -spec setup_contract(identity()) ->
-    {ok, identity()} |
+    {ok, outcome()} |
     {error,
         {inaccessible, blocked | suspended} |
         invalid
@@ -127,5 +129,13 @@ setup_contract(Identity) ->
             payinst           => ff_provider:payinst(provider(Identity)),
             contract_template => contract_template(class(Identity))
         })),
-        ff_identity:set_contract(Contract, Identity)
+        [{contract_set, Contract}]
     end).
+
+%%
+
+-spec apply_event(ev(), identity()) ->
+    identity().
+
+apply_event({contract_set, C}, Identity) ->
+    Identity#{contract => C}.

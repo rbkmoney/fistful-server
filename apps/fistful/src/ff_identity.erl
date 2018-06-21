@@ -118,13 +118,11 @@ create(Party, Provider, Class) ->
 -spec setup_contract(identity()) ->
     {ok, outcome()} |
     {error,
-        {inaccessible, blocked | suspended} |
         invalid
     }.
 
 setup_contract(Identity) ->
     do(fun () ->
-        accessible = unwrap(is_accessible(Identity)),
         Contract   = unwrap(ff_party:create_contract(party(Identity), #{
             payinst           => ff_provider:payinst(provider(Identity)),
             contract_template => contract_template(class(Identity))

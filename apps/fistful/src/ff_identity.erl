@@ -37,15 +37,39 @@
 
 %% TODO
 %%  - Factor out into dedicated module
+
 -type class_id()              :: binary().
 -type contract_template_ref() :: dmsl_domain_thrift:'ContractTemplateRef'().
 
--type class()    :: #{
-    contract_template_ref := contract_template_ref()
+-type class() :: #{
+    contract_template_ref := contract_template_ref(),
+    initial_level_id      := level_id(),
+    levels                := #{level_id() => level()},
+    challenges            := #{challenge_id() => challenge()}
+}.
+
+-type level_id()         :: binary().
+-type contractor_level() :: dmsl_domain_thrift:'ContractorIdentificationLevel'().
+
+-type level() :: #{
+    name             := binary(),
+    contractor_level := contractor_level()
+}.
+
+-type challenge_id() :: binary().
+
+-type challenge() :: #{
+    name             := binary(),
+    base_level_id    := level_id(),
+    target_level_id  := level_id()
 }.
 
 -export_type([class_id/0]).
 -export_type([class/0]).
+-export_type([level_id/0]).
+-export_type([level/0]).
+-export_type([challenge_id/0]).
+-export_type([challenge/0]).
 
 -export([provider/1]).
 -export([party/1]).
@@ -56,13 +80,14 @@
 
 -export([create/3]).
 -export([setup_contract/1]).
-% -export([start_challenge/2]).
+-export([start_challenge/2]).
 
 -export([apply_event/2]).
 
 %%
 
 -export([contract_template/1]).
+-export([initial_level/1]).
 
 %% Pipeline
 
@@ -93,13 +118,29 @@ contract(V) ->
 is_accessible(Identity) ->
     ff_party:is_accessible(party(Identity)).
 
-%%
+%% Class
 
--spec contract_template(class()) ->
-    _ContractTemplateRef.
+-spec contract_template(class()) -> contract_template_ref().
+contract_template(#{contract_template_ref := V}) -> V.
 
-contract_template(#{contract_template_ref := V}) ->
-    V.
+-spec initial_level(class()) ->
+    level().
+
+initial_level(#{initial_level_id := V} = Identity) ->
+    {ok, Level} = level(V, Identity),
+    Level.
+
+-spec level(level_id(), class()) ->
+    {ok, level()} |
+    {error, notfound}.
+
+level(ID, #{levels := Levels}) ->
+    ff_map:find(ID, Levels).
+
+%% Level
+
+-spec contractor_level(level()) -> contractor_level().
+contractor_level(#{contractor_level := V}) -> V.
 
 %% Constructor
 
@@ -123,12 +164,23 @@ create(Party, Provider, Class) ->
 
 setup_contract(Identity) ->
     do(fun () ->
-        Contract   = unwrap(ff_party:create_contract(party(Identity), #{
+        Class    = class(Identity),
+        Contract = unwrap(ff_party:create_contract(party(Identity), #{
             payinst           => ff_provider:payinst(provider(Identity)),
-            contract_template => contract_template(class(Identity))
+            contract_template => contract_template(Class),
+            contractor_level  => contractor_level(initial_level(Class))
         })),
         [{contract_set, Contract}]
     end).
+
+-spec start_challenge(level(), identity()) ->
+    {ok, outcome()} |
+    {error,
+        {level, invalid}
+    }.
+
+start_challenge(Level, Identity) ->
+    oops.
 
 %%
 

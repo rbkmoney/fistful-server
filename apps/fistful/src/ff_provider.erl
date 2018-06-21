@@ -60,8 +60,8 @@ payinst(#{payinst_ref := V}) -> V.
 get(ID) ->
     do(fun () ->
         % TODO
-        %  - We need to somehow expose these things in the domain config.
-        %  - Possibly inconsistent view of domain config.
+        %  - We need to somehow expose these things in the domain config
+        %  - Possibly inconsistent view of domain config
         C = unwrap(get_provider_config(ID)),
         PaymentInstitutionRef = ?payinst(maps:get(payment_institution_id, C)),
         {ok, PaymentInstitution} = ff_domain_config:object({payment_institution, PaymentInstitutionRef}),
@@ -70,17 +70,40 @@ get(ID) ->
                 Name = maps:get(name, ICC, IdentityClassID),
                 ContractTemplateRef = ?tmpl(maps:get(contract_template_id, ICC)),
                 {ok, _} = ff_domain_config:object({contract_template, ContractTemplateRef}),
-                % IdentityLevelsConfig = maps:get(levels, ICC, #{}),
-                % IdentityLevels       = maps:map(
-                %     fun (IdentityLevelID, ILC) ->
-                %         error(noimpl)
-                %     end,
-                %     IdentityLevelsConfig
-                % ),
+                Levels = maps:map(
+                    fun (LevelID, LC) ->
+                        LName = maps:get(name, LC, LevelID),
+                        ContractorLevel = maps:get(contractor_level, LC),
+                        % TODO
+                        %  - `ok = assert_contractor_level(ContractorLevel)`
+                        #{
+                            name             => LName,
+                            contractor_level => ContractorLevel
+                        }
+                    end,
+                    maps:get(levels, ICC)
+                ),
+                Challenges = maps:map(
+                    fun (ChallengeID, CC) ->
+                        CName         = maps:get(name, CC, ChallengeID),
+                        BaseLevelID   = maps:get(base, CC),
+                        TargetLevelID = maps:get(target, CC),
+                        {ok, _}       = maps:find(BaseLevelID, Levels),
+                        {ok, _}       = maps:find(TargetLevelID, Levels),
+                        #{
+                            name            => CName,
+                            base_level_id   => BaseLevelID,
+                            target_level_id => TargetLevelID
+                        }
+                    end,
+                    maps:get(challenges, ICC, #{})
+                ),
                 #{
                     name                  => Name,
-                    contract_template_ref => ContractTemplateRef
-                    % levels                => IdentityLevels
+                    contract_template_ref => ContractTemplateRef,
+                    initial_level_id      => maps:get(initial_level, ICC),
+                    levels                => Levels,
+                    challenges            => Challenges
                 }
             end,
             maps:get(identity_classes, C)

@@ -181,7 +181,14 @@ get_provider_config() ->
             identity_classes => #{
                 <<"person">> => #{
                     name => <<"Well, a person">>,
-                    contract_template_id => 1
+                    contract_template_id => 1,
+                    initial_level => <<"peasant">>,
+                    levels => #{
+                        <<"peasant">> => #{
+                            name => <<"Well, a peasant">>,
+                            contractor_level => none
+                        }
+                    }
                 }
             }
         }

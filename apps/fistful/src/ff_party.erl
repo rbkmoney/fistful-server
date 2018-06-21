@@ -98,7 +98,8 @@ is_wallet_accessible(ID, WalletID) ->
 
 -type contract_prototype() :: #{
     payinst           := _PaymentInstitutionRef,
-    contract_template := _ContractTemplateRef
+    contract_template := dmsl_domain_thrift:'ContractTemplateRef'(),
+    contractor_level  := dmsl_domain_thrift:'ContractorIdentificationLevel'()
 }.
 
 -spec create_contract(id(), contract_prototype()) ->
@@ -226,7 +227,8 @@ construct_party_params() ->
 
 construct_contract_changeset(ContractID, #{
     payinst           := PayInstRef,
-    contract_template := ContractTemplateRef
+    contract_template := ContractTemplateRef,
+    contractor_level  := ContractorLevel
 }) ->
     [
         ?contractor_mod(
@@ -240,6 +242,10 @@ construct_contract_changeset(ContractID, #{
                     contact_info = #domain_ContactInfo{}
                 }
             }}}
+        ),
+        ?contractor_mod(
+            ContractID,
+            {identification_level_modification, ContractorLevel}
         ),
         ?contract_mod(
             ContractID,

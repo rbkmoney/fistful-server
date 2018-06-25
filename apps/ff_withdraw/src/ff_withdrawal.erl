@@ -51,7 +51,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2, with/3]).
 
 %%
 
@@ -143,22 +143,3 @@ apply_event({session_created, S}, W) ->
     maps:put(session, S, W);
 apply_event({session, {status_changed, S}}, W) ->
     maps:update(session, fun ({SID, _}) -> {SID, S} end, W).
-
-%% TODO too complex
-
--type result(V, R) :: {ok, V} | {error, R}.
-
--spec with(Sub, St, fun((SubSt | undefined) -> result([SubEv], Reason))) ->
-    result([{Sub, SubEv}], {Sub, Reason}) when
-        Sub   :: atom(),
-        St    :: #{Sub => SubSt},
-        SubSt :: _.
-
-with(Model, St, F) ->
-    case F(maps:get(Model, St, undefined)) of
-        {ok, Events0} when is_list(Events0) ->
-            Events1 = [{Model, Ev} || Ev <- Events0],
-            {ok, Events1};
-        {error, Reason} ->
-            {error, {Model, Reason}}
-    end.

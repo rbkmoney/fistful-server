@@ -109,7 +109,7 @@ validate_accessible(Wallets) ->
 validate_currencies([W0 | Wallets]) ->
     do(fun () ->
         Currency = ff_wallet:currency(W0),
-        _ = [Currency = unwrap(currency, valid(Currency, ff_wallet:currency(W))) || W <- Wallets],
+        _ = [ok = unwrap(currency, valid(Currency, ff_wallet:currency(W))) || W <- Wallets],
         valid
     end).
 
@@ -117,7 +117,7 @@ validate_identities([W0 | Wallets]) ->
     do(fun () ->
         Provider = ff_identity:provider(ff_wallet:identity(W0)),
         _ = [
-            Provider = unwrap(provider, valid(Provider, ff_identity:provider(ff_wallet:identity(W)))) ||
+            ok = unwrap(provider, valid(Provider, ff_identity:provider(ff_wallet:identity(W)))) ||
                 W <- Wallets
         ],
         valid

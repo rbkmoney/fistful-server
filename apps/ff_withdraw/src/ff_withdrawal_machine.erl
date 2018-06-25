@@ -97,17 +97,16 @@ backend() ->
 -type ts_ev(T) ::
     {ev, timestamp(), T}.
 
--type ev() :: ts_ev(
+-type ev() ::
     {created, withdrawal()}    |
     {status_changed, status()} |
-    ff_withdrawal:ev()
-).
+    ff_withdrawal:ev()         .
 
 -type auxst() ::
     #{ctx => ctx()}.
 
--type machine()      :: machinery:machine(ev(), auxst()).
--type result()       :: machinery:result(ev(), auxst()).
+-type machine()      :: machinery:machine(ts_ev(ev()), auxst()).
+-type result()       :: machinery:result(ts_ev(ev()), auxst()).
 -type handler_opts() :: machinery:handler_opts(_).
 
 -spec init({[ev()], ctx()}, machine(), _, handler_opts()) ->

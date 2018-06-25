@@ -22,7 +22,8 @@
 -type ctx()       :: ff_ctx:ctx().
 
 -type activity() ::
-    idle.
+    {challenge, challenge_id()} |
+    undefined                   .
 
 -type st()        :: #{
     activity      := activity(),
@@ -31,6 +32,9 @@
     ctx           => ctx()
 }.
 
+-type challenge_id() ::
+    machinery:id().
+
 -export_type([id/0]).
 
 -export([identity/1]).
@@ -38,6 +42,7 @@
 
 -export([create/3]).
 -export([get/1]).
+-export([start_challenge/2]).
 
 %% Machinery
 
@@ -49,7 +54,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(ff_pipeline, [do/1, do/2, unwrap/1, unwrap/2]).
 
 %%
 
@@ -96,6 +101,26 @@ get(ID) ->
         identity(collapse(unwrap(machinery:get(?NS, ID, backend()))))
     end).
 
+-type challenge_params() :: #{
+    id     := challenge_id(),
+    class  := ff_identity_class:challenge_class_id(),
+    proofs := [ff_identity:proof()]
+}.
+
+-spec start_challenge(id(), challenge_params()) ->
+    ok |
+    {error,
+        notfound |
+        {challenge,
+            {pending, challenge_id()} |
+            {class, notfound} |
+            _IdentityChallengeError
+        }
+    }.
+
+start_challenge(ID, Params) ->
+    machinery:call(?NS, ID, {start_challenge, Params}, backend()).
+
 backend() ->
     fistful:backend(?NS).
 
@@ -124,17 +149,63 @@ init({Events, Ctx}, #{}, _, _Opts) ->
         aux_state => #{ctx => Ctx}
     }.
 
+%%
+
 -spec process_timeout(machine(), _, handler_opts()) ->
     result().
 
-process_timeout(_Machine, _, _Opts) ->
-    #{}.
+process_timeout(Machine, _, _Opts) ->
+    process_activity(collapse(Machine)).
 
--spec process_call(_, machine(), _, handler_opts()) ->
-    {ok, result()}.
+process_activity(#{activity := {challenge, ChallengeID}} = St) ->
+    Identity = identity(St),
+    {ok, Events} = ff_identity:poll_challenge_completion(ChallengeID, Identity),
+    case Events of
+        [] ->
+            #{action => set_poll_timer(St)};
+        _Some ->
+            #{events => emit_ts_events(Events)}
+    end.
 
-process_call(_CallArgs, #{}, _, _Opts) ->
-    {ok, #{}}.
+set_poll_timer(St) ->
+    Now = machinery_time:now(),
+    Timeout = erlang:max(1, machinery_time:interval(Now, updated(St))),
+    {set_timer, {timeout, Timeout}}.
+
+%%
+
+-type call() ::
+    {start_challenge, challenge_params()}.
+
+-spec process_call(call(), machine(), _, handler_opts()) ->
+    {_TODO, result()}.
+
+process_call({start_challenge, Params}, Machine, _, _Opts) ->
+    do_start_challenge(Params, collapse(Machine)).
+
+do_start_challenge(Params, #{activity := undefined} = St) ->
+    Identity = identity(St),
+    handle_result(do(challenge, fun () ->
+        #{
+            id     := ChallengeID,
+            class  := ChallengeClassID,
+            proofs := Proofs
+        } = Params,
+        Class          = ff_identity:class(Identity),
+        ChallengeClass = unwrap(class, ff_identity_class:challenge_class(ChallengeClassID, Class)),
+        Events         = unwrap(ff_identity:start_challenge(ChallengeID, ChallengeClass, Proofs, Identity)),
+        #{
+            events => emit_ts_events(Events),
+            action => continue
+        }
+    end));
+do_start_challenge(_Params, #{activity := {challenge, ChallengeID}}) ->
+    handle_result({error, {challenge, {pending, ChallengeID}}}).
+
+handle_result({ok, R}) ->
+    {ok, R};
+handle_result({error, _} = Error) ->
+    {Error, #{}}.
 
 %%
 
@@ -154,7 +225,22 @@ merge_event_body({created, Identity}, St) ->
         identity => Identity
     };
 merge_event_body(IdentityEv, St = #{identity := Identity}) ->
-    St#{identity := ff_identity:apply_event(IdentityEv, Identity)}.
+    St#{
+        activity := deduce_activity(IdentityEv),
+        identity := ff_identity:apply_event(IdentityEv, Identity)
+    }.
+
+deduce_activity({contract_set, _}) ->
+    undefined;
+deduce_activity({level_changed, _}) ->
+    undefined;
+deduce_activity({challenge_created, ChallengeID, _}) ->
+    {challenge, ChallengeID};
+deduce_activity({challenge, _ChallengeID, {status_changed, _}}) ->
+    undefined.
+
+updated(#{times := {_, V}}) ->
+    V.
 
 %%
 

@@ -27,7 +27,7 @@
  {<<"hackney">>,{pkg,<<"hackney">>,<<"1.6.2">>},1},
  {<<"id_proto">>,
   {git,"git@github.com:rbkmoney/identification-proto.git",
-       {ref,"dd6fd5dff0c241a756fcd4790579bb95250b76d4"}},
+       {ref,"2da2c4717afd7fd7ef7caba3ef9013a9eb557250"}},
   0},
  {<<"idna">>,{pkg,<<"idna">>,<<"1.2.0">>},2},
  {<<"lager">>,{pkg,<<"lager">>,<<"3.6.1">>},0},

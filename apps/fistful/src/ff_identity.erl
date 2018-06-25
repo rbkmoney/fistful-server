@@ -16,7 +16,6 @@
 %% API
 
 -type id(T)             :: T.
--type timestamp()       :: machinery:timestamp().
 -type party()           :: ff_party:id().
 -type provider()        :: ff_provider:provider().
 -type contract()        :: ff_party:contract().
@@ -34,37 +33,14 @@
     challenges   => #{id(_) => challenge()}
 }.
 
--type challenge() :: #{
-    identity     := id(_),
-    class        := challenge_class(),
-    proofs       := [proof()],
-    status       := challenge_status()
-}.
-
--type proof() ::
-    _TODO.
-
--type challenge_status() ::
-    pending                              |
-    {completed , challenge_completion()} |
-    {failed    , challenge_failure()}    |
-    cancelled                            .
-
--type challenge_completion() :: #{
-    valid_until  => timestamp()
-}.
-
--type challenge_failure() ::
-    _TODO.
+-type challenge() ::
+    ff_identity_challenge:challenge().
 
 -type ev() ::
-    {contract_set      , contract()}            |
-    {level_changed     , level()}               |
-    {challenge_started , id(_), challenge()}    |
-    {challenge         , id(_), challenge_ev()} .
-
--type challenge_ev() ::
-    {status_changed    , challenge_status()}.
+    {contract_set      , contract()}                        |
+    {level_changed     , level()}                           |
+    {challenge_started , id(_), challenge()}                |
+    {challenge         , id(_), ff_identity_challenge:ev()} .
 
 -type outcome() ::
     [ev()].
@@ -77,16 +53,14 @@
 -export([party/1]).
 -export([class/1]).
 -export([contract/1]).
+-export([challenge/2]).
 
 -export([is_accessible/1]).
 
--export([create/3]).
+-export([create/4]).
 -export([setup_contract/1]).
+
 -export([start_challenge/4]).
-
--export([challenge/2]).
--export([challenge_status/1]).
-
 -export([poll_challenge_completion/2]).
 
 -export([apply_event/2]).
@@ -113,11 +87,16 @@ level(#{level := V})    -> V.
 party(#{party := V})    -> V.
 
 -spec contract(identity()) ->
-    {ok, contract()} |
-    {error, notfound}.
+    ff_map:result(contract()).
 
 contract(V) ->
     ff_map:find(contract, V).
+
+-spec challenge(id(_), identity()) ->
+    ff_map:result(challenge()).
+
+challenge(ChallengeID, #{challenges := Challenges}) ->
+    ff_map:find(ChallengeID, Challenges).
 
 -spec is_accessible(identity()) ->
     {ok, accessible} |
@@ -128,12 +107,13 @@ is_accessible(Identity) ->
 
 %% Constructor
 
--spec create(party(), provider(), class()) ->
+-spec create(id(_), party(), provider(), class()) ->
     {ok, identity()}.
 
-create(Party, Provider, Class) ->
+create(ID, Party, Provider, Class) ->
     do(fun () ->
         #{
+            id       => ID,
             party    => Party,
             provider => Provider,
             class    => Class,
@@ -160,69 +140,41 @@ setup_contract(Identity) ->
 
 %%
 
--spec start_challenge(id(_), challenge_class(), [proof()], identity()) ->
+-spec start_challenge(id(_), challenge_class(), [ff_identity_challenge:proof()], identity()) ->
     {ok, outcome()} |
     {error,
         exists |
         {level, ff_identity_class:level()} |
-        _IdentityClassError
+        _CreateChallengeError
     }.
 
 start_challenge(ChallengeID, ChallengeClass, Proofs, Identity) ->
     do(fun () ->
-        Class     = class(Identity),
-        BaseLevel = ff_identity_class:base_level(ChallengeClass, Class),
+        BaseLevel = ff_identity_class:base_level(ChallengeClass),
         notfound  = expect(exists, flip(challenge(ChallengeID, Identity))),
         ok        = unwrap(level, valid(BaseLevel, level(Identity))),
-        Challenge = unwrap(create_challenge(ChallengeID, id(Identity), ChallengeClass, Proofs)),
+        Challenge = unwrap(ff_identity_challenge:create(id(Identity), ChallengeClass, Proofs)),
         [{challenge_started, ChallengeID, Challenge}]
     end).
 
-create_challenge(_ID, IdentityID, Class, Proofs) ->
-    do(fun () ->
-        #{
-            identity => IdentityID,
-            class    => Class,
-            proofs   => Proofs,
-            status   => pending
-        }
-    end).
-
--spec challenge(id(_), identity()) ->
-    {ok, challenge()} |
-    {error, notfound}.
-
-challenge(ChallengeID, #{challenges := Challenges}) ->
-    ff_map:find(ChallengeID, Challenges).
-
--spec challenge_status(challenge()) ->
-    challenge_status().
-
-challenge_status(#{challenge_status := V}) ->
-    V.
-
--spec challenge_class(challenge()) ->
-    challenge_class().
-
-challenge_class(#{class := V}) ->
-    V.
-
--spec poll_challenge_completion(id(_), challenge()) ->
+-spec poll_challenge_completion(id(_), identity()) ->
     {ok, outcome()} |
     {error,
         notfound |
-        challenge_status()
+        ff_identity_challenge:status()
     }.
 
 poll_challenge_completion(ID, Identity) ->
     do(fun () ->
-        Challenge   = unwrap(challenge(ID, Identity)),
-        ok          = unwrap(valid(pending, challenge_status(Challenge))),
-        TargetLevel = ff_identity_class:target_level(challenge_class(Challenge)),
-        [
-            {challenge, ID, {status_changed, {completed, #{}}}},
-            {level_changed, TargetLevel}
-        ]
+        Challenge = unwrap(challenge(ID, Identity)),
+        case unwrap(ff_identity_challenge:poll_completion(Challenge)) of
+            [] ->
+                [];
+            Events = [_ | _] ->
+                TargetLevel = ff_identity_class:target_level(ff_identity_challenge:class(Challenge)),
+                [{challenge, ID, Ev} || Ev <- Events] ++
+                    [{level_changed, TargetLevel}]
+        end
     end).
 
 %%
@@ -242,9 +194,6 @@ apply_event({challenge_started, ID, C}, Identity) ->
 apply_event({challenge, ID, Ev}, Identity = #{challenges := Cs}) ->
     Identity#{
         challenges := Cs#{
-            ID := apply_challenge_event(Ev, maps:get(ID, Cs))
+            ID := ff_identity_challenge:apply_event(Ev, maps:get(ID, Cs))
         }
     }.
-
-apply_challenge_event({status_changed, S}, Challenge) ->
-    Challenge#{status := S}.

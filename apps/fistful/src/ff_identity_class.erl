@@ -9,8 +9,9 @@
 -type id() :: binary().
 
 -type class() :: #{
+    name                  := binary(),
     contract_template_ref := contract_template_ref(),
-    initial_level_id      := level_id(),
+    initial_level         := level(),
     levels                := #{level_id() => level()},
     challenge_classes     := #{challenge_class_id() => challenge_class()}
 }.
@@ -34,9 +35,9 @@
 -type challenge_class_id() :: binary().
 
 -type challenge_class() :: #{
-    name             := binary(),
-    base_level_id    := level_id(),
-    target_level_id  := level_id()
+    name         := binary(),
+    base_level   := level(),
+    target_level := level()
 }.
 
 -export([name/1]).
@@ -46,8 +47,8 @@
 -export([level_name/1]).
 -export([contractor_level/1]).
 -export([challenge_class/2]).
--export([base_level/2]).
--export([target_level/2]).
+-export([base_level/1]).
+-export([target_level/1]).
 -export([challenge_class_name/1]).
 
 -export_type([id/0]).
@@ -74,8 +75,8 @@ contract_template(#{contract_template_ref := V}) ->
 -spec initial_level(class()) ->
     level().
 
-initial_level(#{initial_level_id := V} = Class) ->
-    {ok, Level} = level(V, Class), Level.
+initial_level(#{initial_level := V}) ->
+    V.
 
 -spec level(level_id(), class()) ->
     {ok, level()} |
@@ -88,7 +89,7 @@ level(ID, #{levels := Levels}) ->
     {ok, challenge_class()} |
     {error, notfound}.
 
-challenge_class(ID, #{challenge_classs := ChallengeClasses}) ->
+challenge_class(ID, #{challenge_classes := ChallengeClasses}) ->
     ff_map:find(ID, ChallengeClasses).
 
 %% Level
@@ -113,15 +114,14 @@ contractor_level(#{contractor_level := V}) ->
 challenge_class_name(#{name := V}) ->
     V.
 
--spec base_level(challenge_class(), class()) ->
+-spec base_level(challenge_class()) ->
     level().
 
-base_level(#{base_level_id := ID}, Class) ->
-    {ok, Level} = level(ID, Class), Level.
+base_level(#{base_level := V}) ->
+    V.
 
--spec target_level(challenge_class(), class()) ->
+-spec target_level(challenge_class()) ->
     level().
 
-target_level(#{target_level_id := ID}, Class) ->
-    {ok, Level} = level(ID, Class),
-    Level.
+target_level(#{target_level := V}) ->
+    V.

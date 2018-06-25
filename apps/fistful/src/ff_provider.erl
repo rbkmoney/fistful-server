@@ -88,20 +88,22 @@ get(ID) ->
                         CCName        = maps:get(name, CCC, ChallengeClassID),
                         BaseLevelID   = maps:get(base, CCC),
                         TargetLevelID = maps:get(target, CCC),
-                        {ok, _}       = maps:find(BaseLevelID, Levels),
-                        {ok, _}       = maps:find(TargetLevelID, Levels),
+                        {ok, BaseLevel} = maps:find(BaseLevelID, Levels),
+                        {ok, TargetLevel} = maps:find(TargetLevelID, Levels),
                         #{
-                            name            => CCName,
-                            base_level_id   => BaseLevelID,
-                            target_level_id => TargetLevelID
+                            name         => CCName,
+                            base_level   => BaseLevel,
+                            target_level => TargetLevel
                         }
                     end,
                     maps:get(challenges, ICC, #{})
                 ),
+                InitialLevelID = maps:get(initial_level, ICC),
+                {ok, InitialLevel} = maps:find(InitialLevelID, Levels),
                 #{
                     name                  => Name,
                     contract_template_ref => ContractTemplateRef,
-                    initial_level_id      => maps:get(initial_level, ICC),
+                    initial_level         => InitialLevel,
                     levels                => Levels,
                     challenge_classes     => ChallengeClasses
                 }

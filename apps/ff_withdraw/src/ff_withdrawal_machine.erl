@@ -72,7 +72,7 @@ create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ct
     do(fun () ->
         Source       = unwrap(source, ff_wallet_machine:get(SourceID)),
         Destination  = unwrap(destination, ff_destination_machine:get(DestinationID)),
-        authorized   = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
+        ok           = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
         Provider     = unwrap(provider, ff_withdrawal_provider:choose(Destination, Body)),
         Withdrawal   = unwrap(ff_withdrawal:create(Source, Destination, ID, Body, Provider)),
         {Events1, _} = unwrap(ff_withdrawal:create_transfer(Withdrawal)),

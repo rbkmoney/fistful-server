@@ -1,4 +1,4 @@
--module(ff_wallet_SUITE).
+-module(ff_identity_SUITE).
 
 -export([all/0]).
 -export([init_per_suite/1]).
@@ -7,14 +7,8 @@
 -export([end_per_testcase/2]).
 
 -export([get_missing_fails/1]).
--export([create_missing_identity_fails/1]).
--export([create_missing_currency_fails/1]).
--export([create_wallet_ok/1]).
-
--spec get_missing_fails(config()) -> test_return().
--spec create_missing_identity_fails(config()) -> test_return().
--spec create_missing_currency_fails(config()) -> test_return().
--spec create_wallet_ok(config()) -> test_return().
+-export([create_missing_fails/1]).
+-export([create_ok/1]).
 
 %%
 
@@ -30,16 +24,18 @@
 all() ->
     [
         get_missing_fails,
-        create_missing_identity_fails,
-        create_missing_currency_fails,
-        create_wallet_ok
+        create_missing_fails,
+        create_ok
     ].
+
+-spec get_missing_fails(config()) -> test_return().
+-spec create_missing_fails(config()) -> test_return().
+-spec create_ok(config()) -> test_return().
 
 -spec init_per_suite(config()) -> config().
 
 init_per_suite(C) ->
     IBO = #{name => {?MODULE, identities}},
-    WBO = #{name => {?MODULE, wallets}},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
         lager,
         scoper,
@@ -54,12 +50,10 @@ init_per_suite(C) ->
         ]},
         {fistful, [
             {services, #{
-                'partymgmt' => ff_woody_client:new("http://hellgate:8022/v1/processing/partymgmt"),
-                'accounter' => ff_woody_client:new("http://shumway:8022/accounter")
+                'partymgmt' => ff_woody_client:new("http://hellgate:8022/v1/processing/partymgmt")
             }},
             {backends, #{
-                'identity'  => machinery_gensrv_backend:new(IBO),
-                'wallet'    => machinery_gensrv_backend:new(WBO)
+                'identity'  => machinery_gensrv_backend:new(IBO)
             }},
             {providers,
                 get_provider_config()
@@ -68,7 +62,6 @@ init_per_suite(C) ->
     ]),
     SuiteSup = ct_sup:start(),
     {ok, _} = supervisor:start_child(SuiteSup, machinery_gensrv_backend:child_spec(ff_identity_machine, IBO)),
-    {ok, _} = supervisor:start_child(SuiteSup, machinery_gensrv_backend:child_spec(ff_wallet_machine, WBO)),
     C1 = ct_helper:makeup_cfg(
         [ct_helper:test_case_name(init), ct_helper:woody_ctx()],
         [
@@ -106,78 +99,63 @@ end_per_testcase(_Name, _C) ->
 %%
 
 get_missing_fails(_C) ->
-    {error, notfound} = ff_wallet_machine:get(genlib:unique()).
-
-create_missing_identity_fails(_C) ->
     ID = genlib:unique(),
-    {error, {identity, notfound}} = ff_wallet_machine:create(
+    {error, notfound} = ff_identity_machine:get(ID).
+
+create_missing_fails(_C) ->
+    ID = genlib:unique(),
+    {error, {provider, notfound}} = ff_identity_machine:create(
         ID,
         #{
-            identity => genlib:unique(),
-            name     => <<"HAHA NO">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ).
-
-create_missing_currency_fails(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
-    IdentityID = create_identity(Party, C),
-    {error, {currency, notfound}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"EOS">>
-        },
-        ff_ctx:new()
-    ).
-
-create_wallet_ok(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
-    IdentityID = create_identity(Party, C),
-    ok = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
+            party    => <<"party">>,
+            provider => <<"who">>,
+            class    => <<"person">>
         },
         ff_ctx:new()
     ),
-    {ok, W} = ff_wallet_machine:get(ID),
-    {ok, accessible} = ff_wallet:is_accessible(W),
-    {ok, Account} = ff_wallet:account(W),
-    {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
-    0 = ff_indef:current(Amount),
-    ok.
+    {error, {identity_class, notfound}} = ff_identity_machine:create(
+        ID,
+        #{
+            party    => <<"party">>,
+            provider => <<"good-one">>,
+            class    => <<"nosrep">>
+        },
+        ff_ctx:new()
+    ).
 
-%%
-
--include_lib("ff_cth/include/ct_domain.hrl").
+create_ok(C) ->
+    ID = genlib:unique(),
+    Party = create_party(C),
+    ok = ff_identity_machine:create(
+        ID,
+        #{
+            party    => Party,
+            provider => <<"good-one">>,
+            class    => <<"person">>
+        },
+        ff_ctx:new()
+    ),
+    {ok, I1} = ff_identity_machine:get(ID),
+    {ok, accessible} = ff_identity:is_accessible(I1),
+    ICID = genlib:unique(),
+    ok = ff_identity_machine:start_challenge(
+        ID, #{
+            id     => ICID,
+            class  => <<"sword-initiation">>,
+            proofs => []
+        }
+    ),
+    {ok, I2} = ff_identity_machine:get(ID),
+    {ok, IC} = ff_identity:challenge(ICID, I2).
 
 create_party(_C) ->
     ID = genlib:unique(),
     _ = ff_party:create(ID),
     ID.
 
-create_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
+%%
 
-create_identity(Party, ProviderID, ClassID, _C) ->
-    ID = genlib:unique(),
-    ok = ff_identity_machine:create(
-        ID,
-        #{
-            party    => Party,
-            provider => ProviderID,
-            class    => ClassID
-        },
-        ff_ctx:new()
-    ),
-    ID.
+-include_lib("ff_cth/include/ct_domain.hrl").
 
 get_provider_config() ->
     #{
@@ -192,6 +170,17 @@ get_provider_config() ->
                         <<"peasant">> => #{
                             name => <<"Well, a peasant">>,
                             contractor_level => none
+                        },
+                        <<"nobleman">> => #{
+                            name => <<"Well, a nobleman">>,
+                            contractor_level => partial
+                        }
+                    },
+                    challenges => #{
+                        <<"sword-initiation">> => #{
+                            name   => <<"Initiation by sword">>,
+                            base   => <<"peasant">>,
+                            target => <<"nobleman">>
                         }
                     }
                 }
@@ -235,10 +224,7 @@ get_domain_config(C) ->
         {term_set_hierarchy, #domain_TermSetHierarchyObject{
             ref = ?trms(1),
             data = #domain_TermSetHierarchy{
-                term_sets = [#domain_TimedTermSet{
-                    action_time = #'TimestampInterval'{},
-                    terms = get_default_termset()
-                }]
+                term_sets = []
             }
         }},
 
@@ -251,36 +237,3 @@ get_domain_config(C) ->
         ct_domain:payment_method(?pmt(bank_card, mastercard))
 
     ].
-
-get_default_termset() ->
-    #domain_TermSet{
-        payments = #domain_PaymentsServiceTerms{
-            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
-            categories = {value, ?ordset([?cat(1)])},
-            payment_methods = {value, ?ordset([
-                ?pmt(bank_card, visa),
-                ?pmt(bank_card, mastercard)
-            ])},
-            cash_limit = {decisions, [
-                #domain_CashLimitDecision{
-                    if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                    then_ = {value, ?cashrng(
-                        {inclusive, ?cash(       0, <<"RUB">>)},
-                        {exclusive, ?cash(10000000, <<"RUB">>)}
-                    )}
-                }
-            ]},
-            fees = {decisions, [
-                #domain_CashFlowDecision{
-                    if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                    then_ = {value, [
-                        ?cfpost(
-                            {merchant, settlement},
-                            {system, settlement},
-                            ?share(3, 100, operation_amount)
-                        )
-                    ]}
-                }
-            ]}
-        }
-    }.

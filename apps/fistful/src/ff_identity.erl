@@ -95,8 +95,8 @@ contract(V) ->
 -spec challenge(id(_), identity()) ->
     ff_map:result(challenge()).
 
-challenge(ChallengeID, #{challenges := Challenges}) ->
-    ff_map:find(ChallengeID, Challenges).
+challenge(ChallengeID, Identity) ->
+    ff_map:find(ChallengeID, maps:get(challenges, Identity, #{})).
 
 -spec is_accessible(identity()) ->
     {ok, accessible} |

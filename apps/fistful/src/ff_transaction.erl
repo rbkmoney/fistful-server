@@ -13,17 +13,28 @@
 -type amount()   :: dmsl_domain_thrift:'Amount'().
 -type body()     :: {amount(), ff_currency:id()}.
 -type posting()  :: {account(), account(), body()}.
--type affected() :: #{account() => {ff_indef:indef(amount()), ff_currency:id()}}.
+-type balance()  :: {ff_indef:indef(amount()), ff_currency:id()}.
+-type affected() :: #{account() => balance()}.
 
 -export_type([id/0]).
 -export_type([body/0]).
 -export_type([account/0]).
+
+%% TODO
+%%  - Module name is misleading then
+-export([balance/1]).
 
 -export([prepare/2]).
 -export([commit/2]).
 -export([cancel/2]).
 
 %%
+
+-spec balance(account()) ->
+    {ok, balance()}.
+
+balance(Account) ->
+    get_account_by_id(Account).
 
 -spec prepare(id(), [posting()]) ->
     {ok, affected()}.
@@ -44,6 +55,14 @@ cancel(ID, Postings) ->
     rollback_plan(encode_plan(ID, Postings)).
 
 %% Woody stuff
+
+get_account_by_id(ID) ->
+    case call('GetAccountByID', [ID]) of
+        {ok, Account} ->
+            {ok, decode_account_balance(Account)};
+        {exception, Unexpected} ->
+            error(Unexpected)
+    end.
 
 hold(PlanChange) ->
     case call('Hold', [PlanChange]) of
@@ -104,9 +123,9 @@ encode_posting(Source, Destination, {Amount, Currency}) ->
     }.
 
 decode_affected(M) ->
-    maps:map(fun (_, A) -> decode_affected_account(A) end, M).
+    maps:map(fun (_, A) -> decode_account_balance(A) end, M).
 
-decode_affected_account(#accounter_Account{
+decode_account_balance(#accounter_Account{
     own_amount = Own,
     max_available_amount = MaxAvail,
     min_available_amount = MinAvail,

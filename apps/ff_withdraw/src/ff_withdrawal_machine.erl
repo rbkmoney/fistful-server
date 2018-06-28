@@ -35,6 +35,7 @@
 
 -export([create/3]).
 -export([get/1]).
+-export([get_state/1]).
 
 %% Machinery
 
@@ -69,12 +70,13 @@
     }.
 
 create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ctx) ->
+    TrxID = woody_context:new_req_id(),
     do(fun () ->
         Source       = unwrap(source, ff_wallet_machine:get(SourceID)),
         Destination  = unwrap(destination, ff_destination_machine:get(DestinationID)),
         ok           = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
         Provider     = unwrap(provider, ff_withdrawal_provider:choose(Destination, Body)),
-        Withdrawal   = unwrap(ff_withdrawal:create(Source, Destination, ID, Body, Provider)),
+        Withdrawal   = unwrap(ff_withdrawal:create(ID, Source, Destination, TrxID, Body, Provider)),
         {Events1, _} = unwrap(ff_withdrawal:create_transfer(Withdrawal)),
         Events       = [{created, Withdrawal} | Events1],
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
@@ -86,8 +88,20 @@ create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ct
 
 get(ID) ->
     do(fun () ->
-        withdrawal(collapse(unwrap(machinery:get(?NS, ID, backend()))))
+        do_get_state(ID)
     end).
+
+-spec get_state(id()) ->
+    {ok, st()}    |
+    {error, notfound} .
+
+get_state(ID) ->
+    do(fun () ->
+        do_get_state(ID)
+    end).
+
+do_get_state(ID) ->
+    collapse(unwrap(machinery:get(?NS, ID, backend()))).
 
 backend() ->
     ff_withdraw:backend(?NS).

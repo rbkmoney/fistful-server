@@ -42,6 +42,7 @@
 
 -export([create/3]).
 -export([get/1]).
+-export([get_state/1]).
 -export([start_challenge/2]).
 
 %% Machinery
@@ -98,8 +99,20 @@ create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, 
 
 get(ID) ->
     do(fun () ->
-        identity(collapse(unwrap(machinery:get(?NS, ID, backend()))))
+        identity(do_get_state(ID))
     end).
+
+-spec get_state(id()) ->
+    {ok, st()}    |
+    {error, notfound} .
+
+get_state(ID) ->
+    do(fun () ->
+        do_get_state(ID)
+    end).
+
+do_get_state(ID) ->
+    collapse(unwrap(machinery:get(?NS, ID, backend()))).
 
 -type challenge_params() :: #{
     id     := challenge_id(),

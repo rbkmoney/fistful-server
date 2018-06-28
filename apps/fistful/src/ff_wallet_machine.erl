@@ -23,6 +23,7 @@
 
 -export([create/3]).
 -export([get/1]).
+-export([get_state/1]).
 
 %% Machinery
 
@@ -65,7 +66,7 @@ create(ID, #{identity := IdentityID, name := Name, currency := Currency}, Ctx) -
     do(fun () ->
         Identity = unwrap(identity, ff_identity_machine:get(IdentityID)),
         _        = unwrap(currency, ff_currency:get(Currency)),
-        Wallet0  = unwrap(ff_wallet:create(Identity, Name, Currency)),
+        Wallet0  = unwrap(ff_wallet:create(ID, Identity, Name, Currency)),
         Wallet1  = unwrap(ff_wallet:setup_wallet(Wallet0)),
         unwrap(machinery:start(?NS, ID, {Wallet1, Ctx}, backend()))
     end).
@@ -76,8 +77,20 @@ create(ID, #{identity := IdentityID, name := Name, currency := Currency}, Ctx) -
 
 get(ID) ->
     do(fun () ->
-        wallet(collapse(unwrap(machinery:get(?NS, ID, backend()))))
+        wallet(do_get_state(ID))
     end).
+
+-spec get_state(id()) ->
+    {ok, st()}    |
+    {error, notfound} .
+
+get_state(ID) ->
+    do(fun () ->
+        do_get_state(ID)
+    end).
+
+do_get_state(ID) ->
+    collapse(unwrap(machinery:get(?NS, ID, backend()))).
 
 backend() ->
     fistful:backend(?NS).

@@ -9,6 +9,7 @@
 
 -module(ff_destination).
 
+-type id()       :: machinery:id().
 -type wallet()   :: ff_wallet:wallet().
 -type resource() ::
     {bank_card, resource_bank_card()}.
@@ -25,6 +26,7 @@
     authorized.
 
 -type destination() :: #{
+    id       := id(),
     wallet   := wallet(),
     resource := resource(),
     status   := status()
@@ -34,13 +36,14 @@
 -export_type([status/0]).
 -export_type([resource/0]).
 
+-export([id/1]).
 -export([wallet/1]).
 -export([resource/1]).
 -export([status/1]).
 
 -export([set_status/2]).
 
--export([create/4]).
+-export([create/5]).
 -export([authorize/1]).
 
 %% Pipeline
@@ -49,10 +52,12 @@
 
 %% Accessors
 
+-spec id(destination())       -> id().
 -spec wallet(destination())   -> wallet().
 -spec resource(destination()) -> resource().
 -spec status(destination())   -> status().
 
+id(#{id := V})                -> V.
 wallet(#{wallet := V})        -> V.
 resource(#{resource := V})    -> V.
 status(#{status := V})        -> V.
@@ -63,14 +68,16 @@ set_status(V, D = #{})        -> D#{status := V}.
 
 %%
 
--spec create(ff_identity:identity(), binary(), ff_currency:id(), resource()) ->
+-spec create(id(), ff_identity:identity(), binary(), ff_currency:id(), resource()) ->
     {ok, destination()} |
     {error, _WalletError}.
 
-create(Identity, Name, Currency, Resource) ->
+create(ID, Identity, Name, Currency, Resource) ->
+    WalletID = woody_context:new_req_id(),
     do(fun () ->
-        Wallet = unwrap(ff_wallet:create(Identity, Name, Currency)),
+        Wallet = unwrap(ff_wallet:create(WalletID, Identity, Name, Currency)),
         #{
+            id       => ID,
             wallet   => Wallet,
             resource => Resource,
             status   => unauthorized

@@ -1,0 +1,27 @@
+{application, fistful, [
+    {description,
+        "Wallet processing"
+    },
+    {vsn, "1"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        genlib,
+        ff_core,
+        machinery,
+        machinery_extra,
+        woody_user_identity,
+        uuid,
+        dmsl,
+        dmt_client,
+        id_proto
+    ]},
+    {env, []},
+    {modules, []},
+    {maintainers, [
+        "Andrey Mayorov <a.mayorov@rbkmoney.com>"
+    ]},
+    {licenses, []},
+    {links, ["https://github.com/rbkmoney/fistful-server"]}
+]}.

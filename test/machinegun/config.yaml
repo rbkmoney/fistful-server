@@ -1,0 +1,23 @@
+namespaces:
+
+  # Hellgate
+  invoice:
+      processor:
+          url: http://hellgate:8022/v1/stateproc/invoice
+  party:
+      processor:
+          url: http://hellgate:8022/v1/stateproc/party
+  domain-config:
+      processor:
+          url: http://dominant:8022/v1/stateproc
+
+  # Fistful
+  identity:
+      processor:
+          url: http://fistful:8022/v1/stateproc/identity
+  wallet:
+      processor:
+          url: http://fistful:8022/v1/stateproc/wallet
+
+storage:
+    type: memory

@@ -140,7 +140,7 @@ external_account_set(Ref, Name, ?cur(SymCode), C) ->
     }}.
 
 account(SymCode, C) ->
-    Client = maps:get(accounter, ct_helper:cfg(clients, C)),
+    Client = maps:get('accounter', ct_helper:cfg(services, C)),
     WoodyCtx = ct_helper:get_woody_ctx(C),
     Prototype = #accounter_AccountPrototype{
         currency_sym_code = SymCode,

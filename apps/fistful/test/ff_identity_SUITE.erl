@@ -9,6 +9,7 @@
 -export([get_missing_fails/1]).
 -export([create_missing_fails/1]).
 -export([create_ok/1]).
+-export([identify_ok/1]).
 
 %%
 
@@ -26,12 +27,14 @@ all() ->
     [
         get_missing_fails,
         create_missing_fails,
-        create_ok
+        create_ok,
+        identify_ok
     ].
 
 -spec get_missing_fails(config()) -> test_return().
 -spec create_missing_fails(config()) -> test_return().
 -spec create_ok(config()) -> test_return().
+-spec identify_ok(config()) -> test_return().
 
 -spec init_per_suite(config()) -> config().
 
@@ -51,10 +54,11 @@ init_per_suite(C) ->
         ]},
         {fistful, [
             {services, #{
-                'partymgmt' => ff_woody_client:new("http://hellgate:8022/v1/processing/partymgmt")
+                'partymgmt'      => ff_woody_client:new("http://hellgate:8022/v1/processing/partymgmt"),
+                'identification' => ff_woody_client:new("http://identification:8022/v1/identification")
             }},
             {backends, #{
-                'identity'  => machinery_gensrv_backend:new(IBO)
+                'identity'  => {fistful, machinery_gensrv_backend:new(IBO)}
             }},
             {providers,
                 get_provider_config()
@@ -62,14 +66,16 @@ init_per_suite(C) ->
         ]}
     ]),
     SuiteSup = ct_sup:start(),
-    {ok, _} = supervisor:start_child(SuiteSup, machinery_gensrv_backend:child_spec(ff_identity_machine, IBO)),
+    IBCS = machinery_gensrv_backend:child_spec({fistful, ff_identity_machine}, IBO),
+    {ok, _} = supervisor:start_child(SuiteSup, IBCS),
     C1 = ct_helper:makeup_cfg(
         [ct_helper:test_case_name(init), ct_helper:woody_ctx()],
         [
             {started_apps , StartedApps},
             {suite_sup    , SuiteSup},
-            {clients      , #{
-                'accounter' => ff_woody_client:new("http://shumway:8022/accounter")
+            {services     , #{
+                'accounter'     => ff_woody_client:new("http://shumway:8022/accounter"),
+                'identdocstore' => ff_woody_client:new("http://cds:8022/v1/identity_document_storage")
             }}
         | C]
     ),
@@ -138,16 +144,51 @@ create_ok(C) ->
     ),
     I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
     {ok, accessible} = ff_identity:is_accessible(I1),
+    Party = ff_identity:party(I1),
+    Party = ff_identity:party(I1).
+
+identify_ok(C) ->
+    ID = genlib:unique(),
+    Party = create_party(C),
+    ok = ff_identity_machine:create(
+        ID,
+        #{
+            party    => Party,
+            provider => <<"good-one">>,
+            class    => <<"person">>
+        },
+        ff_ctx:new()
+    ),
     ICID = genlib:unique(),
-    ok = ff_identity_machine:start_challenge(
+    {ok, S1} = ff_identity_machine:get(ID),
+    I1 = ff_identity_machine:identity(S1),
+    {error, notfound} = ff_identity:challenge(ICID, I1),
+    D1 = ct_identdocstore:rus_retiree_insurance_cert(C),
+    D2 = ct_identdocstore:rus_domestic_passport(C),
+    {error, {proof, insufficient}} = ff_identity_machine:start_challenge(
         ID, #{
             id     => ICID,
             class  => <<"sword-initiation">>,
             proofs => []
         }
     ),
-    I2 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
-    {ok, _IC} = ff_identity:challenge(ICID, I2).
+    {error, {proof, insufficient}} = ff_identity_machine:start_challenge(
+        ID, #{
+            id     => ICID,
+            class  => <<"sword-initiation">>,
+            proofs => [D1]
+        }
+    ),
+    ok = ff_identity_machine:start_challenge(
+        ID, #{
+            id     => ICID,
+            class  => <<"sword-initiation">>,
+            proofs => [D1, D2]
+        }
+    ),
+    {ok, S2} = ff_identity_machine:get(ID),
+    I2 = ff_identity_machine:identity(S2),
+    {ok, IC} = ff_identity:challenge(ICID, I2).
 
 create_party(_C) ->
     ID = genlib:unique(),

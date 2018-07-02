@@ -114,7 +114,12 @@ get(ID) ->
     }.
 
 start_challenge(ID, Params) ->
-    machinery:call(?NS, ID, {start_challenge, Params}, backend()).
+    case machinery:call(?NS, ID, {start_challenge, Params}, backend()) of
+        {ok, Reply} ->
+            Reply;
+        Error ->
+            Error
+    end.
 
 backend() ->
     fistful:backend(?NS).

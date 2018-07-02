@@ -11,6 +11,14 @@ namespaces:
       processor:
           url: http://dominant:8022/v1/stateproc
 
+  # Identification
+  identity:
+      processor:
+          url: http://identification:8022/v1/stateproc/identity
+  identity-claim:
+      processor:
+          url: http://identification:8022/v1/stateproc/identity-claim
+
   # Fistful
   identity:
       processor:

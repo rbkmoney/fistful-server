@@ -197,14 +197,15 @@ encode(level, Level) ->
     % TODO
     Level;
 
-encode(identity_document, #{type := Type, token := Token}) ->
+encode(identity_document, {Type, Token}) ->
     #identity_IdentityDocument{
         type  = encode(identity_document_type, Type),
         token = encode(string, Token)
     };
-encode(identity_document_type, Type) ->
-    % TODO
-    Type;
+encode(identity_document_type, rus_domestic_passport) ->
+    {rus_domestic_passport, #identity_RUSDomesticPassport{}};
+encode(identity_document_type, rus_retiree_insurance_cert) ->
+    {rus_retiree_insurance_cert, #identity_RUSRetireeInsuranceCert{}};
 
 encode(identity_claim_id, V) ->
     encode(string, V);

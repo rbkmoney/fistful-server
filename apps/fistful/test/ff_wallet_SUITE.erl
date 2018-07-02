@@ -75,7 +75,7 @@ init_per_suite(C) ->
         [
             {started_apps , StartedApps},
             {suite_sup    , SuiteSup},
-            {clients      , #{
+            {services     , #{
                 'accounter' => ff_woody_client:new("http://shumway:8022/accounter")
             }}
         | C]

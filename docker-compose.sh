@@ -9,7 +9,11 @@ services:
       - .:$PWD
       - $HOME/.cache:/home/$UNAME/.cache
     working_dir: $PWD
-    command: /sbin/init
+    command: |
+      bash -c '{
+        woorl -s _checkouts/dmsl/proto/cds.thrift http://cds:8022/v1/keyring Keyring Init 1 1 || true;
+        exec /sbin/init
+      }'
     depends_on:
       hellgate:
         condition: service_healthy

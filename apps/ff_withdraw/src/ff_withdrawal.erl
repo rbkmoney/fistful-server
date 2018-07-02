@@ -4,13 +4,22 @@
 
 -module(ff_withdrawal).
 
+-type id()          :: machinery:id().
+-type wallet()      :: ff_wallet:wallet().
+-type destination() :: ff_destination:destination().
+-type trxid()       :: ff_transaction:id().
+-type body()        :: ff_transaction:body().
+-type provider()    :: ff_provider:provider().
+-type transfer()    :: ff_transfer:transfer().
+
 -type withdrawal() :: #{
-    source      := ff_wallet:wallet(),
-    destination := ff_destination:destination(),
-    trxid       := ff_transaction:id(),
-    body        := ff_transaction:body(),
-    provider    := ff_provider:provider(),
-    transfer    => ff_transfer:transfer(),
+    id          := id(),
+    source      := wallet(),
+    destination := destination(),
+    trxid       := trxid(),
+    body        := body(),
+    provider    := provider(),
+    transfer    => transfer(),
     session     => session()
 }.
 
@@ -22,7 +31,7 @@
     {failed, _TODO} .
 
 -type ev() ::
-    {transfer_created, ff_transfer:transfer()}    |
+    {transfer_created, transfer()}                |
     {transfer, ff_transfer:ev()}                  |
     {session_created, session()}                  |
     {session, {status_changed, session_status()}} .
@@ -30,6 +39,7 @@
 -export_type([withdrawal/0]).
 -export_type([ev/0]).
 
+-export([id/1]).
 -export([source/1]).
 -export([destination/1]).
 -export([trxid/1]).
@@ -37,7 +47,7 @@
 -export([provider/1]).
 -export([transfer/1]).
 
--export([create/5]).
+-export([create/6]).
 -export([create_transfer/1]).
 -export([prepare_transfer/1]).
 -export([commit_transfer/1]).
@@ -53,20 +63,33 @@
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2, with/3]).
 
-%%
+%% Accessors
 
-source(#{source := V}) -> V.
+-spec id(withdrawal())          -> id().
+-spec source(withdrawal())      -> wallet().
+-spec destination(withdrawal()) -> destination().
+-spec trxid(withdrawal())       -> trxid().
+-spec body(withdrawal())        -> body().
+-spec provider(withdrawal())    -> provider().
+-spec transfer(withdrawal())    -> {ok, transfer()} | {error | notfound}.
+
+id(#{id := V})                  -> V.
+source(#{source := V})           -> V.
 destination(#{destination := V}) -> V.
-trxid(#{trxid := V}) -> V.
-body(#{body := V}) -> V.
-provider(#{provider := V}) -> V.
-transfer(W) -> ff_map:find(transfer, W).
+trxid(#{trxid := V})             -> V.
+body(#{body := V})               -> V.
+provider(#{provider := V})       -> V.
+transfer(W)                      -> ff_map:find(transfer, W).
 
 %%
 
-create(Source, Destination, TrxID, Body, Provider) ->
+-spec create(id(), wallet(), destination(), trxid(), body(), provider()) ->
+    {ok, withdrawal()}.
+
+create(ID, Source, Destination, TrxID, Body, Provider) ->
     do(fun () ->
         #{
+            id          => ID,
             source      => Source,
             destination => Destination,
             trxid       => TrxID,

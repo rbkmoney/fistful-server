@@ -28,8 +28,8 @@
 -type st()        :: #{
     activity      := activity(),
     identity      := identity(),
-    times         => {timestamp(), timestamp()},
-    ctx           => ctx()
+    ctx           := ctx(),
+    times         => {timestamp(), timestamp()}
 }.
 
 -type challenge_id() ::
@@ -37,12 +37,17 @@
 
 -export_type([id/0]).
 
--export([identity/1]).
--export([ctx/1]).
-
 -export([create/3]).
 -export([get/1]).
 -export([start_challenge/2]).
+
+%% Accessors
+
+-export([identity/1]).
+-export([activity/1]).
+-export([ctx/1]).
+-export([created/1]).
+-export([updated/1]).
 
 %% Machinery
 
@@ -55,16 +60,6 @@
 %% Pipeline
 
 -import(ff_pipeline, [do/1, do/2, unwrap/1, unwrap/2]).
-
-%%
-
--spec identity(st()) -> identity().
--spec ctx(st())      -> ctx().
-
-identity(#{identity := V}) -> V.
-ctx(#{ctx := V})           -> V.
-
-%%
 
 -define(NS, identity).
 
@@ -93,12 +88,12 @@ create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, 
     end).
 
 -spec get(id()) ->
-    {ok, identity()} |
-    {error, notfound}.
+    {ok, st()}        |
+    {error, notfound} .
 
 get(ID) ->
     do(fun () ->
-        identity(collapse(unwrap(machinery:get(?NS, ID, backend()))))
+        collapse(unwrap(machinery:get(?NS, ID, backend())))
     end).
 
 -type challenge_params() :: #{
@@ -123,6 +118,23 @@ start_challenge(ID, Params) ->
 
 backend() ->
     fistful:backend(?NS).
+
+%% Accessors
+
+-spec identity(st()) -> identity().
+-spec activity(st()) -> activity().
+-spec ctx(st())      -> ctx().
+-spec created(st())  -> timestamp() | undefined.
+-spec updated(st())  -> timestamp() | undefined.
+
+identity(#{identity := V}) -> V.
+activity(#{activity := V}) -> V.
+ctx(#{ctx := V})           -> V.
+created(St)                -> erlang:element(1, times(St)).
+updated(St)                -> erlang:element(2, times(St)).
+
+times(St) ->
+    genlib_map:get(times, St, {undefined, undefined}).
 
 %% Machinery
 
@@ -238,9 +250,6 @@ deduce_activity({challenge_created, ChallengeID, _}) ->
     {challenge, ChallengeID};
 deduce_activity({challenge, _ChallengeID, {status_changed, _}}) ->
     undefined.
-
-updated(#{times := {_, V}}) ->
-    V.
 
 %%
 

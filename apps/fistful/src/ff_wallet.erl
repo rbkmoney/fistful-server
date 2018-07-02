@@ -7,8 +7,10 @@
 -type identity() :: ff_identity:identity().
 -type currency() :: ff_currency:id().
 -type wid()      :: ff_party:wallet().
+-type id()       :: machinery:id().
 
 -type wallet() :: #{
+    id       := id(),
     identity := identity(),
     name     := binary(),
     currency := currency(),
@@ -17,12 +19,13 @@
 
 -export_type([wallet/0]).
 
+-export([id/1]).
 -export([identity/1]).
 -export([name/1]).
 -export([currency/1]).
 -export([account/1]).
 
--export([create/3]).
+-export([create/4]).
 -export([setup_wallet/1]).
 -export([is_accessible/1]).
 -export([close/1]).
@@ -33,11 +36,13 @@
 
 %% Accessors
 
+-spec id(wallet())         -> id().
 -spec identity(wallet())   -> identity().
 -spec name(wallet())       -> binary().
 -spec currency(wallet())   -> currency().
 -spec wid(wallet())        -> wid().
 
+id(#{id := V})             -> V.
 identity(#{identity := V}) -> V.
 name(#{name := V})         -> V.
 currency(#{currency := V}) -> V.
@@ -61,12 +66,13 @@ account(Wallet) ->
 
 %%
 
--spec create(identity(), binary(), currency()) ->
+-spec create(id(), identity(), binary(), currency()) ->
     {ok, wallet()}.
 
-create(Identity, Name, Currency) ->
+create(ID, Identity, Name, Currency) ->
     do(fun () ->
         #{
+            id       => ID,
             identity => Identity,
             name     => Name,
             currency => Currency

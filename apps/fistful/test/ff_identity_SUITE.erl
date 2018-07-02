@@ -13,6 +13,7 @@
 %%
 
 -import(ct_helper, [cfg/2]).
+-import(ff_pipeline, [unwrap/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -135,7 +136,7 @@ create_ok(C) ->
         },
         ff_ctx:new()
     ),
-    {ok, I1} = ff_identity_machine:get(ID),
+    I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
     {ok, accessible} = ff_identity:is_accessible(I1),
     ICID = genlib:unique(),
     ok = ff_identity_machine:start_challenge(
@@ -145,8 +146,8 @@ create_ok(C) ->
             proofs => []
         }
     ),
-    {ok, I2} = ff_identity_machine:get(ID),
-    {ok, IC} = ff_identity:challenge(ICID, I2).
+    I2 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
+    {ok, _IC} = ff_identity:challenge(ICID, I2).
 
 create_party(_C) ->
     ID = genlib:unique(),

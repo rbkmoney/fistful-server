@@ -20,14 +20,22 @@
 -type st()        :: #{
     activity      := activity(),
     destination   := destination(),
-    times         => {timestamp(), timestamp()},
-    ctx           => ctx()
+    ctx           := ctx(),
+    times         => {timestamp(), timestamp()}
 }.
 
 -export_type([id/0]).
 
 -export([create/3]).
 -export([get/1]).
+
+%% Accessors
+
+-export([destination/1]).
+-export([activity/1]).
+-export([ctx/1]).
+-export([created/1]).
+-export([updated/1]).
 
 %% Machinery
 
@@ -63,23 +71,40 @@
 
 create(ID, #{identity := IdentityID, name := Name, currency := Currency, resource := Resource}, Ctx) ->
     do(fun () ->
-        Identity    = unwrap(identity, ff_identity_machine:get(IdentityID)),
+        Identity    = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         _           = unwrap(currency, ff_currency:get(Currency)),
-        Destination = unwrap(ff_destination:create(Identity, Name, Currency, Resource)),
+        Destination = unwrap(ff_destination:create(ID, Identity, Name, Currency, Resource)),
         unwrap(machinery:start(?NS, ID, {Destination, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
-    {ok, destination()} |
-    {error, notfound}.
+    {ok, st()}        |
+    {error, notfound} .
 
 get(ID) ->
     do(fun () ->
-        destination(collapse(unwrap(machinery:get(?NS, ID, backend()))))
+        collapse(unwrap(machinery:get(?NS, ID, backend())))
     end).
 
 backend() ->
     ff_withdraw:backend(?NS).
+
+%% Accessors
+
+-spec destination(st()) -> destination().
+-spec activity(st())    -> activity().
+-spec ctx(st())         -> ctx().
+-spec created(st())     -> timestamp() | undefined.
+-spec updated(st())     -> timestamp() | undefined.
+
+destination(#{destination := V}) -> V.
+activity(#{activity := V})       -> V.
+ctx(#{ctx := V})                 -> V.
+created(St)                      -> erlang:element(1, times(St)).
+updated(St)                      -> erlang:element(2, times(St)).
+
+times(St) ->
+    genlib_map:get(times, St, {undefined, undefined}).
 
 %% Machinery
 
@@ -147,9 +172,6 @@ merge_event_body({status_changed, Status}, St) ->
         activity    := idle,
         destination := ff_destination:set_status(Status, destination(St))
     }.
-
-destination(#{destination := V}) ->
-    V.
 
 %%
 

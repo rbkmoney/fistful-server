@@ -12,8 +12,8 @@
 
 -type withdrawal() :: ff_withdrawal:withdrawal().
 -type status()     ::
-    succeeded |
-    failed    .
+    succeeded        |
+    {failed, _Reason}.
 
 -type activity() ::
     prepare_transfer         |
@@ -25,16 +25,26 @@
 
 -type st()        :: #{
     activity      := activity(),
-    status        => status(),
     withdrawal    := withdrawal(),
-    times         := {timestamp(), timestamp()},
-    ctx           := ctx()
+    ctx           := ctx(),
+    status        => status(),
+    times         => {timestamp(), timestamp()}
 }.
 
 -export_type([id/0]).
 
 -export([create/3]).
 -export([get/1]).
+-export([get_status_events/2]).
+
+%% Accessors
+
+-export([withdrawal/1]).
+-export([activity/1]).
+-export([ctx/1]).
+-export([status/1]).
+-export([created/1]).
+-export([updated/1]).
 
 %% Machinery
 
@@ -69,28 +79,61 @@
     }.
 
 create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ctx) ->
+    TrxID = woody_context:new_req_id(),
     do(fun () ->
-        Source       = unwrap(source, ff_wallet_machine:get(SourceID)),
-        Destination  = unwrap(destination, ff_destination_machine:get(DestinationID)),
+        Source       = ff_wallet_machine:wallet(unwrap(source,ff_wallet_machine:get(SourceID))),
+        Destination  = ff_destination_machine:destination(
+            unwrap(destination, ff_destination_machine:get(DestinationID))
+        ),
         ok           = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
         Provider     = unwrap(provider, ff_withdrawal_provider:choose(Destination, Body)),
-        Withdrawal   = unwrap(ff_withdrawal:create(Source, Destination, ID, Body, Provider)),
+        Withdrawal   = unwrap(ff_withdrawal:create(ID, Source, Destination, TrxID, Body, Provider)),
         {Events1, _} = unwrap(ff_withdrawal:create_transfer(Withdrawal)),
         Events       = [{created, Withdrawal} | Events1],
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
-    {ok, withdrawal()} |
+    {ok, st()} |
     {error, notfound}.
 
 get(ID) ->
     do(fun () ->
-        withdrawal(collapse(unwrap(machinery:get(?NS, ID, backend()))))
+        collapse(unwrap(machinery:get(?NS, ID, backend())))
+    end).
+
+-type event_cursor() :: non_neg_integer() | undefined.
+
+-spec get_status_events(id(), event_cursor()) ->
+    {ok, [ev()]}      |
+    {error, notfound} .
+
+get_status_events(ID, Cursor) ->
+    do(fun () ->
+        unwrap(machinery:get(?NS, ID, {Cursor, undefined, forward}, backend()))
     end).
 
 backend() ->
     ff_withdraw:backend(?NS).
+
+%% Accessors
+
+-spec withdrawal(st()) -> withdrawal().
+-spec activity(st())   -> activity().
+-spec ctx(st())        -> ctx().
+-spec status(st())     -> status()    | undefined.
+-spec created(st())    -> timestamp() | undefined.
+-spec updated(st())    -> timestamp() | undefined.
+
+withdrawal(#{withdrawal := V}) -> V.
+activity(#{activity := V})     -> V.
+ctx(#{ctx := V})               -> V.
+status(St)                     -> genlib_map:get(status, St).
+created(St)                    -> erlang:element(1, times(St)).
+updated(St)                    -> erlang:element(2, times(St)).
+
+times(St) ->
+    genlib_map:get(times, St, {undefined, undefined}).
 
 %% Machinery
 
@@ -164,7 +207,7 @@ process_activity(commit_transfer, St) ->
 process_activity(cancel_transfer, St) ->
     {ok, Events} = ff_withdrawal:cancel_transfer(withdrawal(St)),
     #{
-        events => emit_events(Events ++ [{status_changed, failed}])
+        events => emit_events(Events ++ [{status_changed, {failed, <<"transfer cancelled">>}}])
     }.
 
 -spec process_call(_CallArgs, machine(), _, handler_opts()) ->
@@ -215,15 +258,6 @@ deduce_activity({transfer, {status_changed, cancelled}}) ->
     undefined;
 deduce_activity({status_changed, _}) ->
     undefined.
-
-activity(#{activity := V}) ->
-    V.
-
-withdrawal(#{withdrawal := V}) ->
-    V.
-
-updated(#{times := {_, V}}) ->
-    V.
 
 %%
 

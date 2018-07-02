@@ -57,7 +57,7 @@
 -type handler_opts() :: machinery:handler_opts(_).
 
 -type st() :: #{
-    session => session(),
+    session       => session(),
     adapter_state => ff_adapter:state()
 }.
 

@@ -15,14 +15,21 @@
 
 -type st()        :: #{
     wallet        := wallet(),
-    times         => {timestamp(), timestamp()},
-    ctx           => ctx()
+    ctx           := ctx(),
+    times         => {timestamp(), timestamp()}
 }.
 
 -export_type([id/0]).
 
 -export([create/3]).
 -export([get/1]).
+
+%% Accessors
+
+-export([wallet/1]).
+-export([ctx/1]).
+-export([created/1]).
+-export([updated/1]).
 
 %% Machinery
 
@@ -36,11 +43,20 @@
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
-%%
+%% Accessors
 
--spec wallet(st()) -> wallet().
+-spec wallet(st())  -> wallet().
+-spec ctx(st())     -> ctx().
+-spec created(st()) -> timestamp() | undefined.
+-spec updated(st()) -> timestamp() | undefined.
 
-wallet(#{wallet := Wallet}) -> Wallet.
+wallet(#{wallet := V}) -> V.
+ctx(#{ctx := V})       -> V.
+created(St)            -> erlang:element(1, times(St)).
+updated(St)            -> erlang:element(2, times(St)).
+
+times(St) ->
+    genlib_map:get(times, St, {undefined, undefined}).
 
 %%
 
@@ -63,20 +79,20 @@ wallet(#{wallet := Wallet}) -> Wallet.
 
 create(ID, #{identity := IdentityID, name := Name, currency := Currency}, Ctx) ->
     do(fun () ->
-        Identity = unwrap(identity, ff_identity_machine:get(IdentityID)),
+        Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         _        = unwrap(currency, ff_currency:get(Currency)),
-        Wallet0  = unwrap(ff_wallet:create(Identity, Name, Currency)),
+        Wallet0  = unwrap(ff_wallet:create(ID, Identity, Name, Currency)),
         Wallet1  = unwrap(ff_wallet:setup_wallet(Wallet0)),
         unwrap(machinery:start(?NS, ID, {Wallet1, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
-    {ok, wallet()}    |
+    {ok, st()}        |
     {error, notfound} .
 
 get(ID) ->
     do(fun () ->
-        wallet(collapse(unwrap(machinery:get(?NS, ID, backend()))))
+        collapse(unwrap(machinery:get(?NS, ID, backend())))
     end).
 
 backend() ->

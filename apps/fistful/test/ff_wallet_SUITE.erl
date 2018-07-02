@@ -19,6 +19,7 @@
 %%
 
 -import(ct_helper, [cfg/2]).
+-import(ff_pipeline, [unwrap/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -147,7 +148,7 @@ create_wallet_ok(C) ->
         },
         ff_ctx:new()
     ),
-    {ok, W} = ff_wallet_machine:get(ID),
+    W = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
     {ok, accessible} = ff_wallet:is_accessible(W),
     {ok, Account} = ff_wallet:account(W),
     {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),

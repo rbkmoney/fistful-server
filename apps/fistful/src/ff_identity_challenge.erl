@@ -22,7 +22,14 @@
 }.
 
 -type proof() ::
-    _TODO.
+    {proof_type(), identdoc_token()}.
+
+-type proof_type() ::
+    rus_domestic_passport |
+    rus_retiree_insurance_cert.
+
+-type identdoc_token() ::
+    binary().
 
 -type status() ::
     pending                    |
@@ -43,6 +50,7 @@
     _TODO.
 
 -type ev() ::
+    {created, challenge()} |
     {status_changed, status()}.
 
 -type outcome() ::
@@ -111,14 +119,16 @@ create(IdentityID, Class, Proofs) ->
         TargetLevel = ff_identity_class:target_level(Class),
         MasterID = unwrap(deduce_identity_id(Proofs)),
         ClaimID  = unwrap(create_claim(MasterID, TargetLevel, IdentityID, Proofs)),
-        #{
-            class     => Class,
-            proofs    => Proofs,
-            status    => pending,
-            claimant  => IdentityID,
-            master_id => MasterID,
-            claim_id  => ClaimID
-        }
+        [
+            {created, #{
+                class     => Class,
+                proofs    => Proofs,
+                status    => pending,
+                claimant  => IdentityID,
+                master_id => MasterID,
+                claim_id  => ClaimID
+            }}
+        ]
     end).
 
 -spec poll_completion(challenge()) ->
@@ -146,9 +156,11 @@ poll_completion(Challenge) ->
 
 %%
 
--spec apply_event(ev(), challenge()) ->
+-spec apply_event(ev(), undefined | challenge()) ->
     challenge().
 
+apply_event({created, Challenge}, undefined) ->
+    Challenge;
 apply_event({status_changed, S}, Challenge) ->
     Challenge#{status := S}.
 

@@ -28,7 +28,7 @@
     party        := party(),
     provider     := provider(),
     class        := class(),
-    level        := level(),
+    level        => level(),
     contract     => contract(),
     challenges   => #{id(_) => challenge()}
 }.
@@ -37,9 +37,9 @@
     ff_identity_challenge:challenge().
 
 -type ev() ::
+    {created           , identity()}                        |
     {contract_set      , contract()}                        |
     {level_changed     , level()}                           |
-    {challenge_started , id(_), challenge()}                |
     {challenge         , id(_), ff_identity_challenge:ev()} .
 
 -type outcome() ::
@@ -63,7 +63,12 @@
 -export([start_challenge/4]).
 -export([poll_challenge_completion/2]).
 
+-export([collapse_events/1]).
+-export([apply_events/2]).
 -export([apply_event/2]).
+
+% -export([hydrate/1]).
+% -export([dehydrate/1]).
 
 %% Pipeline
 
@@ -108,17 +113,21 @@ is_accessible(Identity) ->
 %% Constructor
 
 -spec create(id(_), party(), provider(), class()) ->
-    {ok, identity()}.
+    {ok, outcome()}.
 
 create(ID, Party, Provider, Class) ->
     do(fun () ->
-        #{
-            id       => ID,
-            party    => Party,
-            provider => Provider,
-            class    => Class,
-            level    => ff_identity_class:initial_level(Class)
-        }
+        [
+            {created, #{
+                id       => ID,
+                party    => Party,
+                provider => Provider,
+                class    => Class
+            }},
+            {level_changed,
+                ff_identity_class:initial_level(Class)
+            }
+        ]
     end).
 
 -spec setup_contract(identity()) ->
@@ -179,13 +188,27 @@ poll_challenge_completion(ID, Identity) ->
 
 %%
 
--spec apply_event(ev(), identity()) ->
+-spec collapse_events([ev(), ...]) ->
     identity().
 
+collapse_events(Evs) when length(Evs) > 0 ->
+    apply_events(Evs, undefined).
+
+-spec apply_events([ev()], undefined | identity()) ->
+    undefined | identity().
+
+apply_events(Evs, Identity) ->
+    lists:foldl(fun apply_event/2, Identity, Evs).
+
+-spec apply_event(ev(), undefined | identity()) ->
+    identity().
+
+apply_event({created, Identity}, undefined) ->
+    Identity;
 apply_event({contract_set, C}, Identity) ->
     Identity#{contract => C};
 apply_event({level_changed, L}, Identity) ->
-    Identity#{level := L};
+    Identity#{level => L};
 apply_event({challenge_started, ID, C}, Identity) ->
     Cs = maps:get(challenges, Identity, #{}),
     Identity#{
@@ -197,3 +220,6 @@ apply_event({challenge, ID, Ev}, Identity = #{challenges := Cs}) ->
             ID := ff_identity_challenge:apply_event(Ev, maps:get(ID, Cs))
         }
     }.
+
+% -spec dehydrate(ev()) ->
+%     term().

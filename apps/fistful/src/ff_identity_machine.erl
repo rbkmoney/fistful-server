@@ -82,9 +82,10 @@ create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, 
     do(fun () ->
         Provider      = unwrap(provider, ff_provider:get(ProviderID)),
         IdentityClass = unwrap(identity_class, ff_provider:get_identity_class(IdentityClassID, Provider)),
-        Identity      = unwrap(ff_identity:create(ID, Party, Provider, IdentityClass)),
-        Events        = unwrap(ff_identity:setup_contract(Identity)),
-        unwrap(machinery:start(?NS, ID, {[{created, Identity}] ++ Events, Ctx}, backend()))
+        Events0       = unwrap(ff_identity:create(ID, Party, Provider, IdentityClass)),
+        Identity      = ff_identity:collapse_events(Events0),
+        Events1       = unwrap(ff_identity:setup_contract(Identity)),
+        unwrap(machinery:start(?NS, ID, {Events0 ++ Events1, Ctx}, backend()))
     end).
 
 -spec get(id()) ->

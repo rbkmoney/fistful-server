@@ -13,12 +13,12 @@
 -type claim_id()  :: id(binary()).
 
 -type challenge() :: #{
-    identity  := id(_),
     class     := class(),
+    claimant  := id(_),
     proofs    := [proof()],
-    status    := status(),
     master_id := master_id(),
-    claim_id  := claim_id()
+    claim_id  := claim_id(),
+    status    => status()
 }.
 
 -type proof() ::
@@ -59,15 +59,21 @@
 -export_type([challenge/0]).
 -export_type([ev/0]).
 
+-export([claimant/1]).
 -export([status/1]).
 -export([class/1]).
 -export([resolution/1]).
 -export([claim_id/1]).
+-export([master_id/1]).
 
 -export([create/3]).
 -export([poll_completion/1]).
 
+-export([apply_events/2]).
 -export([apply_event/2]).
+
+-export([dehydrate/1]).
+-export([hydrate/2]).
 
 %% Pipeline
 
@@ -79,6 +85,12 @@
     status().
 
 status(#{status := V}) ->
+    V.
+
+-spec claimant(challenge()) ->
+    id(_).
+
+claimant(#{claimant := V}) ->
     V.
 
 -spec class(challenge()) ->
@@ -99,6 +111,12 @@ resolution(Challenge) ->
             {error, undefined}
     end.
 
+-spec master_id(challenge()) ->
+    id(_).
+
+master_id(#{master_id := V}) ->
+    V.
+
 -spec claim_id(challenge()) ->
     id(_).
 
@@ -114,20 +132,22 @@ claim_id(#{claim_id := V}) ->
         _StartError
     }.
 
-create(IdentityID, Class, Proofs) ->
+create(Claimant, Class, Proofs) ->
     do(fun () ->
         TargetLevel = ff_identity_class:target_level(Class),
         MasterID = unwrap(deduce_identity_id(Proofs)),
-        ClaimID  = unwrap(create_claim(MasterID, TargetLevel, IdentityID, Proofs)),
+        ClaimID  = unwrap(create_claim(MasterID, TargetLevel, Claimant, Proofs)),
         [
             {created, #{
                 class     => Class,
+                claimant  => Claimant,
                 proofs    => Proofs,
-                status    => pending,
-                claimant  => IdentityID,
                 master_id => MasterID,
                 claim_id  => ClaimID
-            }}
+            }},
+            {status_changed,
+                pending
+            }
         ]
     end).
 
@@ -143,6 +163,8 @@ poll_completion(Challenge) ->
         ok = unwrap(valid(pending, status(Challenge))),
         Status = unwrap(get_claim_status(claim_id(Challenge))),
         case Status of
+            created ->
+                [];
             approved ->
                 [{status_changed, {completed, #{resolution => approved}}}];
             denied ->
@@ -156,13 +178,31 @@ poll_completion(Challenge) ->
 
 %%
 
+-spec apply_events([ev()], undefined | challenge()) ->
+    undefined | challenge().
+
+apply_events(Evs, Challenge) ->
+    lists:foldl(fun apply_event/2, Challenge, Evs).
+
 -spec apply_event(ev(), undefined | challenge()) ->
     challenge().
 
 apply_event({created, Challenge}, undefined) ->
     Challenge;
 apply_event({status_changed, S}, Challenge) ->
-    Challenge#{status := S}.
+    Challenge#{status => S}.
+
+-spec dehydrate(ev()) ->
+    term().
+
+-spec hydrate(term(), undefined | challenge()) ->
+    ev().
+
+dehydrate(Ev) ->
+    Ev.
+
+hydrate(Ev, _) ->
+    Ev.
 
 %%
 
@@ -184,6 +224,8 @@ create_claim(MasterID, TargetLevel, Claimant, Proofs) ->
             {ok, decode(identity_claim_id, ID)};
         {exception, #identity_ClaimPending{}} ->
             {error, pending};
+        {exception, #identity_InsufficientIdentityDocuments{}} ->
+            {error, {proof, insufficient}};
         {exception, #identity_IdentityOwnershipConflict{}} ->
             {error, conflict};
         {exception, Unexpected} ->

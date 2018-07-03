@@ -58,7 +58,7 @@ init_per_suite(C) ->
                 'identification' => ff_woody_client:new("http://identification:8022/v1/identification")
             }},
             {backends, #{
-                'identity'  => {fistful, machinery_gensrv_backend:new(IBO)}
+                'ff/identity' => {fistful, machinery_gensrv_backend:new(IBO)}
             }},
             {providers,
                 get_provider_config()
@@ -163,16 +163,16 @@ identify_ok(C) ->
     {ok, S1} = ff_identity_machine:get(ID),
     I1 = ff_identity_machine:identity(S1),
     {error, notfound} = ff_identity:challenge(ICID, I1),
-    D1 = ct_identdocstore:rus_retiree_insurance_cert(C),
+    D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
     D2 = ct_identdocstore:rus_domestic_passport(C),
-    {error, {proof, insufficient}} = ff_identity_machine:start_challenge(
+    {error, {challenge, {proof, insufficient}}} = ff_identity_machine:start_challenge(
         ID, #{
             id     => ICID,
             class  => <<"sword-initiation">>,
             proofs => []
         }
     ),
-    {error, {proof, insufficient}} = ff_identity_machine:start_challenge(
+    {error, {challenge, {proof, insufficient}}} = ff_identity_machine:start_challenge(
         ID, #{
             id     => ICID,
             class  => <<"sword-initiation">>,

@@ -1,7 +1,7 @@
 -module(ct_identdocstore).
 
 -export([rus_domestic_passport/1]).
--export([rus_retiree_insurance_cert/1]).
+-export([rus_retiree_insurance_cert/2]).
 
 %%
 
@@ -31,11 +31,11 @@ rus_domestic_passport(C) ->
             {rus_domestic_passport, Token}
     end.
 
-rus_retiree_insurance_cert(C) ->
+rus_retiree_insurance_cert(Number, C) ->
     Document = {
         russian_retiree_insurance_certificate,
         #identdocstore_RussianRetireeInsuranceCertificate{
-            number = <<"123-456-789 01">>
+            number = Number
         }
     },
     Client = maps:get('identdocstore', ct_helper:cfg(services, C)),

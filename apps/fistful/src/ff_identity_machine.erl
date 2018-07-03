@@ -61,7 +61,7 @@
 
 -import(ff_pipeline, [do/1, do/2, unwrap/1, unwrap/2]).
 
--define(NS, identity).
+-define(NS, 'ff/identity').
 
 -type params() :: #{
     party    := ff_party:id(),
@@ -148,7 +148,6 @@ times(St) ->
     {ev, timestamp(), T}.
 
 -type ev() ::
-    {created, identity()} |
     ff_identity:ev().
 
 -type auxst() ::
@@ -228,31 +227,30 @@ handle_result({error, _} = Error) ->
 %%
 
 collapse(#{history := History, aux_state := #{ctx := Ctx}}) ->
-    collapse_history(History, #{ctx => Ctx}).
+    apply_events(History, #{ctx => Ctx}).
 
-collapse_history(History, St) ->
-    lists:foldl(fun merge_event/2, St, History).
+apply_events(History, St) ->
+    lists:foldl(fun apply_event/2, St, History).
 
-merge_event({_ID, _Ts, TsEv}, St0) ->
-    {EvBody, St1} = merge_ts_event(TsEv, St0),
-    merge_event_body(EvBody, St1).
+apply_event({_ID, _Ts, TsEv}, St0) ->
+    {EvBody, St1} = apply_ts_event(TsEv, St0),
+    apply_event_body(ff_identity:hydrate(EvBody, maps:get(identity, St1, undefined)), St1).
 
-merge_event_body({created, Identity}, St) ->
+apply_event_body(IdentityEv, St) ->
     St#{
-        activity => idle,
-        identity => Identity
-    };
-merge_event_body(IdentityEv, St = #{identity := Identity}) ->
-    St#{
-        activity := deduce_activity(IdentityEv),
-        identity := ff_identity:apply_event(IdentityEv, Identity)
+        activity => deduce_activity(IdentityEv),
+        identity => ff_identity:apply_event(IdentityEv, maps:get(identity, St, undefined))
     }.
 
+deduce_activity({created, _}) ->
+    undefined;
 deduce_activity({contract_set, _}) ->
     undefined;
 deduce_activity({level_changed, _}) ->
     undefined;
-deduce_activity({challenge_created, ChallengeID, _}) ->
+deduce_activity({challenge, _ChallengeID, {created, _}}) ->
+    undefined;
+deduce_activity({challenge, ChallengeID, {status_changed, pending}}) ->
     {challenge, ChallengeID};
 deduce_activity({challenge, _ChallengeID, {status_changed, _}}) ->
     undefined.
@@ -263,9 +261,9 @@ emit_ts_events(Es) ->
     emit_ts_events(Es, machinery_time:now()).
 
 emit_ts_events(Es, Ts) ->
-    [{ev, Ts, Body} || Body <- Es].
+    [{ev, Ts, ff_identity:dehydrate(Body)} || Body <- Es].
 
-merge_ts_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
+apply_ts_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
     {Body, St#{times => {Created, Ts}}};
-merge_ts_event({ev, Ts, Body}, St = #{}) ->
+apply_ts_event({ev, Ts, Body}, St = #{}) ->
     {Body, St#{times => {Ts, Ts}}}.

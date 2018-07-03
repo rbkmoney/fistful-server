@@ -67,8 +67,8 @@
 -export([apply_events/2]).
 -export([apply_event/2]).
 
-% -export([hydrate/1]).
-% -export([dehydrate/1]).
+-export([dehydrate/1]).
+-export([hydrate/2]).
 
 %% Pipeline
 
@@ -162,8 +162,8 @@ start_challenge(ChallengeID, ChallengeClass, Proofs, Identity) ->
         BaseLevel = ff_identity_class:base_level(ChallengeClass),
         notfound  = expect(exists, flip(challenge(ChallengeID, Identity))),
         ok        = unwrap(level, valid(BaseLevel, level(Identity))),
-        Challenge = unwrap(ff_identity_challenge:create(id(Identity), ChallengeClass, Proofs)),
-        [{challenge_started, ChallengeID, Challenge}]
+        Events    = unwrap(ff_identity_challenge:create(id(Identity), ChallengeClass, Proofs)),
+        [{challenge, ChallengeID, Ev} || Ev <- Events]
     end).
 
 -spec poll_challenge_completion(id(_), identity()) ->
@@ -209,17 +209,60 @@ apply_event({contract_set, C}, Identity) ->
     Identity#{contract => C};
 apply_event({level_changed, L}, Identity) ->
     Identity#{level => L};
-apply_event({challenge_started, ID, C}, Identity) ->
-    Cs = maps:get(challenges, Identity, #{}),
-    Identity#{
-        challenges => Cs#{ID => C}
-    };
-apply_event({challenge, ID, Ev}, Identity = #{challenges := Cs}) ->
-    Identity#{
-        challenges := Cs#{
-            ID := ff_identity_challenge:apply_event(Ev, maps:get(ID, Cs))
-        }
-    }.
+apply_event({challenge, ID, Ev}, Identity) ->
+    with_challenges(
+        fun (Cs) ->
+            with_challenge(
+                ID,
+                fun (C) -> ff_identity_challenge:apply_event(Ev, C) end,
+                Cs
+            )
+        end,
+        Identity
+    ).
 
-% -spec dehydrate(ev()) ->
-%     term().
+with_challenges(Fun, Identity) ->
+    maps:update_with(challenges, Fun, maps:merge(#{challenges => #{}}, Identity)).
+
+with_challenge(ID, Fun, Challenges) ->
+    maps:update_with(ID, Fun, maps:merge(#{ID => undefined}, Challenges)).
+
+%%
+
+-spec dehydrate(ev()) ->
+    term().
+
+-spec hydrate(term(), undefined | identity()) ->
+    ev().
+
+dehydrate({created, I}) ->
+    {created, #{
+        id       => id(I),
+        party    => party(I),
+        provider => ff_provider:id(provider(I)),
+        class    => ff_identity_class:id(class(I))
+    }};
+dehydrate({contract_set, C}) ->
+    {contract_set, C};
+dehydrate({level_changed, L}) ->
+    {level_changed, ff_identity_class:level_id(L)};
+dehydrate({challenge, ID, Ev}) ->
+    {challenge, ID, ff_identity_challenge:dehydrate(Ev)}.
+
+hydrate({created, I}, undefined) ->
+    {ok, Provider} = ff_provider:get(maps:get(provider, I)),
+    {ok, Class} = ff_provider:get_identity_class(maps:get(class, I), Provider),
+    {created, #{
+        id       => maps:get(id, I),
+        party    => maps:get(party, I),
+        provider => Provider,
+        class    => Class
+    }};
+hydrate({contract_set, C}, _) ->
+    {contract_set, C};
+hydrate({level_changed, L}, Identity) ->
+    {ok, Level} = ff_identity_class:level(L, class(Identity)),
+    {level_changed, Level};
+hydrate({challenge, ID, Ev}, Identity) ->
+    Challenge = ff_maybe:from_result(challenge(ID, Identity)),
+    {challenge, ID, ff_identity_challenge:hydrate(Ev, Challenge)}.

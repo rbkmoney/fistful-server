@@ -18,8 +18,15 @@
 %%
 
 -include_lib("ff_cth/include/ct_domain.hrl").
-
 -include_lib("dmsl/include/dmsl_accounter_thrift.hrl").
+
+-define(dtp(Type), dmsl_domain_thrift:Type()).
+
+-type object() ::
+    dmsl_domain_thrift:'DomainObject'().
+
+-spec currency(?dtp('CurrencyRef')) ->
+    object().
 
 currency(?cur(<<"RUB">> = SymCode) = Ref) ->
     {currency, #domain_CurrencyObject{
@@ -42,6 +49,9 @@ currency(?cur(<<"USD">> = SymCode) = Ref) ->
         }
     }}.
 
+-spec category(?dtp('CategoryRef'), binary(), ?dtp('CategoryType')) ->
+    object().
+
 category(Ref, Name, Type) ->
     {category, #domain_CategoryObject{
         ref = Ref,
@@ -51,6 +61,9 @@ category(Ref, Name, Type) ->
             type        = Type
         }
     }}.
+
+-spec payment_method(?dtp('PaymentMethodRef')) ->
+    object().
 
 payment_method(?pmt(_Type, Name) = Ref) when is_atom(Name) ->
     payment_method(Name, Ref).
@@ -63,6 +76,9 @@ payment_method(Name, Ref) ->
             description = <<>>
         }
     }}.
+
+-spec contract_template(?dtp('ContractTemplateRef'), ?dtp('TermSetHierarchyRef')) ->
+    object().
 
 contract_template(Ref, TermsRef) ->
     contract_template(Ref, TermsRef, undefined, undefined).
@@ -77,8 +93,14 @@ contract_template(Ref, TermsRef, ValidSince, ValidUntil) ->
         }
     }}.
 
+-spec inspector(?dtp('InspectorRef'), binary(), ?dtp('ProxyRef')) ->
+    object().
+
 inspector(Ref, Name, ProxyRef) ->
     inspector(Ref, Name, ProxyRef, #{}).
+
+-spec inspector(?dtp('InspectorRef'), binary(), ?dtp('ProxyRef'), ?dtp('ProxyOptions')) ->
+    object().
 
 inspector(Ref, Name, ProxyRef, Additional) ->
     {inspector, #domain_InspectorObject{
@@ -93,8 +115,14 @@ inspector(Ref, Name, ProxyRef, Additional) ->
         }
     }}.
 
+-spec proxy(?dtp('ProxyRef'), binary()) ->
+    object().
+
 proxy(Ref, Name) ->
     proxy(Ref, Name, #{}).
+
+-spec proxy(?dtp('ProxyRef'), binary(), ?dtp('ProxyOptions')) ->
+    object().
 
 proxy(Ref, Name, Opts) ->
     {proxy, #domain_ProxyObject{
@@ -106,6 +134,9 @@ proxy(Ref, Name, Opts) ->
             options     = Opts
         }
     }}.
+
+-spec system_account_set(?dtp('SystemAccountSetRef'), binary(), ?dtp('CurrencyRef'), ct_helper:config()) ->
+    object().
 
 system_account_set(Ref, Name, ?cur(SymCode), C) ->
     AccountID = account(SymCode, C),
@@ -121,6 +152,9 @@ system_account_set(Ref, Name, ?cur(SymCode), C) ->
             }
         }
     }}.
+
+-spec external_account_set(?dtp('ExternalAccountSetRef'), binary(), ?dtp('CurrencyRef'), ct_helper:config()) ->
+    object().
 
 external_account_set(Ref, Name, ?cur(SymCode), C) ->
     AccountID1 = account(SymCode, C),
@@ -138,6 +172,9 @@ external_account_set(Ref, Name, ?cur(SymCode), C) ->
             }
         }
     }}.
+
+-spec account(binary(), ct_helper:config()) ->
+    dmsl_accounter_thrift:'AccountID'().
 
 account(SymCode, C) ->
     Client = maps:get('accounter', ct_helper:cfg(services, C)),

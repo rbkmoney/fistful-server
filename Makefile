@@ -60,3 +60,6 @@ distclean:
 
 test: submodules
 	$(REBAR) ct
+
+test.%: apps/fistful/test/ff_%_SUITE.erl submodules
+	$(REBAR) ct --suite=$<

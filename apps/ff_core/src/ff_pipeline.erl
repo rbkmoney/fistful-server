@@ -42,7 +42,7 @@ do(Fun) ->
     ok | result(T, {Tag, E}).
 
 do(Tag, Fun) ->
-    do(fun () -> unwrap(Tag, Fun()) end).
+    do(fun () -> unwrap(Tag, do(Fun)) end).
 
 -spec unwrap
     (ok)         -> ok;

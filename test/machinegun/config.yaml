@@ -20,10 +20,10 @@ namespaces:
           url: http://identification:8022/v1/stateproc/identity-claim
 
   # Fistful
-  identity:
+  ff/identity:
       processor:
           url: http://fistful:8022/v1/stateproc/identity
-  wallet:
+  ff/wallet:
       processor:
           url: http://fistful:8022/v1/stateproc/wallet
 

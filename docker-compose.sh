@@ -80,7 +80,7 @@ services:
       retries: 10
 
   identification:
-    image: dr.rbkmoney.com/rbkmoney/identification:228727f0a0e7eb8874977921d340fd56e6b5d472
+    image: dr.rbkmoney.com/rbkmoney/identification:ff4ef447327d81882c0ee618b622e5e04e771881
     command: /opt/identification/bin/identification foreground
     volumes:
       - ./test/identification/sys.config:/opt/identification/releases/0.1/sys.config

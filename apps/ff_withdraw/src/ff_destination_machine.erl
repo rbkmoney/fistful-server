@@ -51,7 +51,7 @@
 
 %%
 
--define(NS, destination).
+-define(NS, 'ff/destination').
 
 -type params() :: #{
     identity := ff_identity_machine:id(),

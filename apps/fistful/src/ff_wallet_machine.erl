@@ -60,7 +60,7 @@ times(St) ->
 
 %%
 
--define(NS, wallet).
+-define(NS, 'ff/wallet').
 
 -type params() :: #{
     identity   := ff_identity_machine:id(),

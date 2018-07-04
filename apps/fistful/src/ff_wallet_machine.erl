@@ -3,7 +3,8 @@
 %%%
 %%% TODOs
 %%%
-%%%  - Pattern `NS, ID, Backend` repeats everytime.
+%%%  - ~~Pattern `NS, ID, Backend` repeats everytime.~~ Well, there's just `NS`
+%%%    instead but it looks not so bright still.
 %%%
 
 -module(ff_wallet_machine).
@@ -81,9 +82,9 @@ create(ID, #{identity := IdentityID, name := Name, currency := Currency}, Ctx) -
     do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         _        = unwrap(currency, ff_currency:get(Currency)),
-        Wallet0  = unwrap(ff_wallet:create(ID, Identity, Name, Currency)),
-        Wallet1  = unwrap(ff_wallet:setup_wallet(Wallet0)),
-        unwrap(machinery:start(?NS, ID, {Wallet1, Ctx}, backend()))
+        Events0  = unwrap(ff_wallet:create(ID, Identity, Name, Currency)),
+        Events1  = unwrap(ff_wallet:setup_wallet(ff_wallet:collapse_events(Events0))),
+        unwrap(machinery:start(?NS, ID, {Events0 ++ Events1, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
@@ -100,22 +101,23 @@ backend() ->
 
 %% machinery
 
--type ev()           ::
-    {created, wallet()}.
+-type ev() ::
+    ff_wallet:ev().
 
 -type auxst() ::
     #{ctx => ctx()}.
 
--type machine()      :: machinery:machine(ev(), auxst()).
--type result()       :: machinery:result(ev(), auxst()).
+-type ts_ev(T)       :: {ev, timestamp(), T}.
+-type machine()      :: machinery:machine(ts_ev(ev()), auxst()).
+-type result()       :: machinery:result(ts_ev(ev()), auxst()).
 -type handler_opts() :: machinery:handler_opts(_).
 
--spec init({wallet(), ctx()}, machine(), _, handler_opts()) ->
+-spec init({[ev()], ctx()}, machine(), _, handler_opts()) ->
     result().
 
-init({Wallet, Ctx}, #{}, _, _Opts) ->
+init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => emit_ts_event({created, Wallet}),
+        events    => emit_ts_events(Events),
         aux_state => #{ctx => Ctx}
     }.
 
@@ -141,23 +143,23 @@ collapse_history(History, St) ->
 
 merge_event({_ID, _Ts, TsEv}, St0) ->
     {EvBody, St1} = merge_ts_event(TsEv, St0),
-    merge_event_body(EvBody, St1).
+    merge_event_body(ff_wallet:hydrate(EvBody, maybe(wallet, St1)), St1).
 
-merge_event_body({created, Wallet}, St) ->
+merge_event_body(Ev, St) ->
     St#{
-        wallet => Wallet
+        wallet => ff_wallet:apply_event(Ev, maybe(wallet, St))
     }.
 
-%%
+maybe(wallet, St) ->
+    maps:get(wallet, St, undefined).
 
-emit_ts_event(E) ->
-    emit_ts_events([E]).
+%%
 
 emit_ts_events(Es) ->
     emit_ts_events(Es, machinery_time:now()).
 
 emit_ts_events(Es, Ts) ->
-    [{ev, Ts, Body} || Body <- Es].
+    [{ev, Ts, ff_wallet:dehydrate(Body)} || Body <- Es].
 
 merge_ts_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
     {Body, St#{times => {Created, Ts}}};

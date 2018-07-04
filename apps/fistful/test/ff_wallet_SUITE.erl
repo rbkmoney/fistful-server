@@ -39,11 +39,14 @@ all() ->
 -spec init_per_suite(config()) -> config().
 
 init_per_suite(C) ->
-    IBO = #{name => {?MODULE, identities}},
-    WBO = #{name => {?MODULE, wallets}},
+    BeConf = #{schema => machinery_mg_schema_generic},
+    Be = {machinery_mg_backend, BeConf#{
+        client => ff_woody_client:new("http://machinegun:8022/v1/automaton")
+    }},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
         lager,
         scoper,
+        woody,
         {dmt_client, [
             {max_cache_size, #{
                 elements => 1
@@ -59,8 +62,8 @@ init_per_suite(C) ->
                 'accounter' => ff_woody_client:new("http://shumway:8022/accounter")
             }},
             {backends, #{
-                'identity'  => machinery_gensrv_backend:new(IBO),
-                'wallet'    => machinery_gensrv_backend:new(WBO)
+                'ff/identity'  => Be,
+                'ff/wallet'    => Be
             }},
             {providers,
                 get_provider_config()
@@ -68,8 +71,25 @@ init_per_suite(C) ->
         ]}
     ]),
     SuiteSup = ct_sup:start(),
-    {ok, _} = supervisor:start_child(SuiteSup, machinery_gensrv_backend:child_spec(ff_identity_machine, IBO)),
-    {ok, _} = supervisor:start_child(SuiteSup, machinery_gensrv_backend:child_spec(ff_wallet_machine, WBO)),
+    BeOpts = #{event_handler => scoper_woody_event_handler},
+    Routes = machinery_mg_backend:get_routes(
+        [
+            {{fistful, ff_identity_machine},
+                #{path => <<"/v1/stateproc/identity">>, backend_config => BeConf}},
+            {{fistful, ff_wallet_machine},
+                #{path => <<"/v1/stateproc/wallet">>, backend_config => BeConf}}
+        ],
+        BeOpts
+    ),
+    {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
+        ?MODULE,
+        BeOpts#{
+            ip                => {0, 0, 0, 0},
+            port              => 8022,
+            handlers          => [],
+            additional_routes => Routes
+        }
+    )),
     C1 = ct_helper:makeup_cfg(
         [ct_helper:test_case_name(init), ct_helper:woody_ctx()],
         [
@@ -81,6 +101,7 @@ init_per_suite(C) ->
         | C]
     ),
     ok = ct_domain_config:upsert(get_domain_config(C1)),
+    ok = timer:sleep(1000),
     C1.
 
 -spec end_per_suite(config()) -> _.
@@ -255,6 +276,9 @@ get_domain_config(C) ->
 
 get_default_termset() ->
     #domain_TermSet{
+        % TODO
+        %  - Strangely enough, hellgate checks wallet currency against _payments_
+        %    terms.
         payments = #domain_PaymentsServiceTerms{
             currencies = {value, ?ordset([?cur(<<"RUB">>)])},
             categories = {value, ?ordset([?cat(1)])},

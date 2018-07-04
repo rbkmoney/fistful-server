@@ -22,10 +22,10 @@ namespaces:
   # Fistful
   ff/identity:
       processor:
-          url: http://fistful:8022/v1/stateproc/identity
+          url: http://fistful-server:8022/v1/stateproc/identity
   ff/wallet:
       processor:
-          url: http://fistful:8022/v1/stateproc/wallet
+          url: http://fistful-server:8022/v1/stateproc/wallet
 
 storage:
     type: memory

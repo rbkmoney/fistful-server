@@ -22,6 +22,7 @@
 -type class()           :: ff_identity_class:class().
 -type level()           :: ff_identity_class:level().
 -type challenge_class() :: ff_identity_class:challenge_class().
+-type challenge_id()    :: id(_).
 
 -type identity() :: #{
     id           := id(_),
@@ -30,7 +31,8 @@
     class        := class(),
     level        => level(),
     contract     => contract(),
-    challenges   => #{id(_) => challenge()}
+    challenges   => #{challenge_id() => challenge()},
+    effective    => challenge_id()
 }.
 
 -type challenge() ::
@@ -40,7 +42,8 @@
     {created           , identity()}                        |
     {contract_set      , contract()}                        |
     {level_changed     , level()}                           |
-    {challenge         , id(_), ff_identity_challenge:ev()} .
+    {effective_challenge_changed, challenge_id()}           |
+    {challenge         , challenge_id(), ff_identity_challenge:ev()} .
 
 -type outcome() ::
     [ev()].
@@ -54,6 +57,7 @@
 -export([class/1]).
 -export([contract/1]).
 -export([challenge/2]).
+-export([effective_challenge/1]).
 
 -export([is_accessible/1]).
 
@@ -97,7 +101,13 @@ party(#{party := V})    -> V.
 contract(V) ->
     ff_map:find(contract, V).
 
--spec challenge(id(_), identity()) ->
+-spec effective_challenge(identity()) ->
+    ff_map:result(challenge_id()).
+
+effective_challenge(Identity) ->
+    ff_map:find(effective, Identity).
+
+-spec challenge(challenge_id(), identity()) ->
     ff_map:result(challenge()).
 
 challenge(ChallengeID, Identity) ->
@@ -149,7 +159,7 @@ setup_contract(Identity) ->
 
 %%
 
--spec start_challenge(id(_), challenge_class(), [ff_identity_challenge:proof()], identity()) ->
+-spec start_challenge(challenge_id(), challenge_class(), [ff_identity_challenge:proof()], identity()) ->
     {ok, outcome()} |
     {error,
         exists |
@@ -166,23 +176,26 @@ start_challenge(ChallengeID, ChallengeClass, Proofs, Identity) ->
         [{challenge, ChallengeID, Ev} || Ev <- Events]
     end).
 
--spec poll_challenge_completion(id(_), identity()) ->
+-spec poll_challenge_completion(challenge_id(), identity()) ->
     {ok, outcome()} |
     {error,
         notfound |
         ff_identity_challenge:status()
     }.
 
-poll_challenge_completion(ID, Identity) ->
+poll_challenge_completion(ChallengeID, Identity) ->
     do(fun () ->
-        Challenge = unwrap(challenge(ID, Identity)),
+        Challenge = unwrap(challenge(ChallengeID, Identity)),
         case unwrap(ff_identity_challenge:poll_completion(Challenge)) of
             [] ->
                 [];
             Events = [_ | _] ->
                 TargetLevel = ff_identity_class:target_level(ff_identity_challenge:class(Challenge)),
-                [{challenge, ID, Ev} || Ev <- Events] ++
-                    [{level_changed, TargetLevel}]
+                [{challenge, ChallengeID, Ev} || Ev <- Events] ++
+                [
+                    {level_changed, TargetLevel},
+                    {effective_challenge_changed, ChallengeID}
+                ]
         end
     end).
 
@@ -209,6 +222,8 @@ apply_event({contract_set, C}, Identity) ->
     Identity#{contract => C};
 apply_event({level_changed, L}, Identity) ->
     Identity#{level => L};
+apply_event({effective_challenge_changed, ID}, Identity) ->
+    Identity#{effective => ID};
 apply_event({challenge, ID, Ev}, Identity) ->
     with_challenges(
         fun (Cs) ->
@@ -246,6 +261,8 @@ dehydrate({contract_set, C}) ->
     {contract_set, C};
 dehydrate({level_changed, L}) ->
     {level_changed, ff_identity_class:level_id(L)};
+dehydrate({effective_challenge_changed, ID}) ->
+    {effective_challenge_changed, ID};
 dehydrate({challenge, ID, Ev}) ->
     {challenge, ID, ff_identity_challenge:dehydrate(Ev)}.
 
@@ -263,6 +280,8 @@ hydrate({contract_set, C}, _) ->
 hydrate({level_changed, L}, Identity) ->
     {ok, Level} = ff_identity_class:level(L, class(Identity)),
     {level_changed, Level};
+hydrate({effective_challenge_changed, ID}, _) ->
+    {effective_challenge_changed, ID};
 hydrate({challenge, ID, Ev}, Identity) ->
     Challenge = ff_maybe:from_result(challenge(ID, Identity)),
     {challenge, ID, ff_identity_challenge:hydrate(Ev, Challenge)}.

@@ -11,6 +11,8 @@
 %%%    are IDs until they are materialised into ID + Data tuple any time a model
 %%%    updated with these IDs.
 %%%
+%%%  - We do not handle challenge expiration yet.
+%%%
 
 -module(ff_identity_machine).
 
@@ -186,7 +188,7 @@ process_activity(#{activity := {challenge, ChallengeID}} = St) ->
 
 set_poll_timer(St) ->
     Now = machinery_time:now(),
-    Timeout = erlang:max(1, machinery_time:interval(Now, updated(St))),
+    Timeout = erlang:max(1, machinery_time:interval(Now, updated(St)) div 1000),
     {set_timer, {timeout, Timeout}}.
 
 %%
@@ -247,6 +249,8 @@ deduce_activity({created, _}) ->
 deduce_activity({contract_set, _}) ->
     undefined;
 deduce_activity({level_changed, _}) ->
+    undefined;
+deduce_activity({effective_challenge_changed, _}) ->
     undefined;
 deduce_activity({challenge, _ChallengeID, {created, _}}) ->
     undefined;

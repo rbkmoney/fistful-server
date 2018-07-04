@@ -8,7 +8,7 @@
 -behaviour(machinery_backend).
 
 -type namespace() :: machinery:namespace().
--type backend()   :: machinery:backend(_).
+-type backend()   :: machinery:backend(machinery:backend(_)).
 
 -export([backend/1]).
 
@@ -26,7 +26,7 @@
     backend().
 
 backend(NS) ->
-    maps:get(NS, genlib_app:env(?MODULE, backends, #{})).
+    {?MODULE, maps:get(NS, genlib_app:env(?MODULE, backends, #{}))}.
 
 %%
 
@@ -37,57 +37,54 @@ backend(NS) ->
 -type result(E, A)  :: machinery:result(E, A).
 -type response(T)   :: machinery:response(T).
 
--spec get(namespace(), id(), range(), backend()) ->
+-spec get(namespace(), id(), range(), machinery:backend(_)) ->
     {ok, machine(_, _)} | {error, notfound}.
 
 get(NS, ID, Range, Backend) ->
-    machinery:get(NS, ID, Range, Backend).
+    {Mod, Opts} = machinery_utils:get_backend(Backend),
+    machinery:get(NS, ID, Range, {Mod, Opts#{woody_ctx => ff_woody_ctx:get()}}).
 
--spec start(namespace(), id(), args(_), backend()) ->
+-spec start(namespace(), id(), args(_), machinery:backend(_)) ->
     ok | {error, exists}.
 
 start(NS, ID, Args, Backend) ->
-    WoodyCtx = woody_context:new_child(ff_woody_ctx:get()),
-    machinery:start(NS, ID, {Args, WoodyCtx}, Backend).
+    {Mod, Opts} = machinery_utils:get_backend(Backend),
+    machinery:start(NS, ID, Args, {Mod, Opts#{woody_ctx => ff_woody_ctx:get()}}).
 
--spec call(namespace(), id(), range(), args(_), backend()) ->
+-spec call(namespace(), id(), range(), args(_), machinery:backend(_)) ->
     {ok, response(_)} | {error, notfound}.
 
 call(NS, ID, Range, Args, Backend) ->
-    WoodyCtx = woody_context:new_child(ff_woody_ctx:get()),
-    machinery:call(NS, ID, Range, {Args, WoodyCtx}, Backend).
+    {Mod, Opts} = machinery_utils:get_backend(Backend),
+    machinery:call(NS, ID, Range, Args, {Mod, Opts#{woody_ctx => ff_woody_ctx:get()}}).
 
 %%
 
--type wctx()         :: woody_context:ctx().
 -type handler_opts() :: _.
 
--spec init({args(_), wctx()}, machine(E, A), machinery:modopts(_), handler_opts()) ->
+-spec init(args(_), machine(E, A), machinery:modopts(_), handler_opts()) ->
     result(E, A).
 
-init({Args, WoodyCtx}, Machine, Handler, Opts) ->
+init(Args, Machine, Handler, #{woody_ctx := WoodyCtx}) ->
     ok = ff_woody_ctx:set(WoodyCtx),
-    {Module, HandlerArgs} = machinery_utils:get_handler(Handler),
-    try Module:init(Args, Machine, HandlerArgs, Opts) after
+    try machinery:dispatch_signal({init, Args}, Machine, machinery_utils:get_handler(Handler), #{}) after
         ff_woody_ctx:unset()
     end.
 
 -spec process_timeout(machine(E, A), module(), handler_opts()) ->
     result(E, A).
 
-process_timeout(Machine, Handler, Opts) ->
-    ok = ff_woody_ctx:set(woody_context:new()),
-    {Module, HandlerArgs} = machinery_utils:get_handler(Handler),
-    try Module:process_timeout(Machine, HandlerArgs, Opts) after
+process_timeout(Machine, Handler, #{woody_ctx := WoodyCtx}) ->
+    ok = ff_woody_ctx:set(WoodyCtx),
+    try machinery:dispatch_signal(timeout, Machine, machinery_utils:get_handler(Handler), #{}) after
         ff_woody_ctx:unset()
     end.
 
--spec process_call({args(_), wctx()}, machine(E, A), machinery:modopts(_), handler_opts()) ->
+-spec process_call(args(_), machine(E, A), machinery:modopts(_), handler_opts()) ->
     {response(_), result(E, A)}.
 
-process_call({Args, WoodyCtx}, Machine, Handler, Opts) ->
+process_call(Args, Machine, Handler, #{woody_ctx := WoodyCtx}) ->
     ok = ff_woody_ctx:set(WoodyCtx),
-    {Module, HandlerArgs} = machinery_utils:get_handler(Handler),
-    try Module:process_call(Args, Machine, HandlerArgs, Opts) after
+    try machinery:dispatch_call(Args, Machine, machinery_utils:get_handler(Handler), #{}) after
         ff_woody_ctx:unset()
     end.

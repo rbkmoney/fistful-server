@@ -39,7 +39,10 @@ all() ->
 -spec init_per_suite(config()) -> config().
 
 init_per_suite(C) ->
-    IBO = #{name => {?MODULE, identities}},
+    BeConf = #{schema => machinery_mg_schema_generic},
+    Be = {machinery_mg_backend, BeConf#{
+        client => ff_woody_client:new("http://machinegun:8022/v1/automaton")
+    }},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
         lager,
         scoper,
@@ -58,7 +61,7 @@ init_per_suite(C) ->
                 'identification' => ff_woody_client:new("http://identification:8022/v1/identification")
             }},
             {backends, #{
-                'ff/identity' => {fistful, machinery_gensrv_backend:new(IBO)}
+                'ff/identity' => Be
             }},
             {providers,
                 get_provider_config()
@@ -66,8 +69,23 @@ init_per_suite(C) ->
         ]}
     ]),
     SuiteSup = ct_sup:start(),
-    IBCS = machinery_gensrv_backend:child_spec({fistful, ff_identity_machine}, IBO),
-    {ok, _} = supervisor:start_child(SuiteSup, IBCS),
+    BeOpts = #{event_handler => scoper_woody_event_handler},
+    Routes = machinery_mg_backend:get_routes(
+        [
+            {{fistful, ff_identity_machine},
+                #{path => <<"/v1/stateproc/identity">>, backend_config => BeConf}}
+        ],
+        BeOpts
+    ),
+    {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
+        ?MODULE,
+        BeOpts#{
+            ip                => {0, 0, 0, 0},
+            port              => 8022,
+            handlers          => [],
+            additional_routes => Routes
+        }
+    )),
     C1 = ct_helper:makeup_cfg(
         [ct_helper:test_case_name(init), ct_helper:woody_ctx()],
         [
@@ -165,30 +183,54 @@ identify_ok(C) ->
     {error, notfound} = ff_identity:challenge(ICID, I1),
     D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
     D2 = ct_identdocstore:rus_domestic_passport(C),
+    ChallengeParams = #{
+        id     => ICID,
+        class  => <<"sword-initiation">>
+    },
     {error, {challenge, {proof, insufficient}}} = ff_identity_machine:start_challenge(
-        ID, #{
-            id     => ICID,
-            class  => <<"sword-initiation">>,
-            proofs => []
-        }
+        ID, ChallengeParams#{proofs => []}
     ),
     {error, {challenge, {proof, insufficient}}} = ff_identity_machine:start_challenge(
-        ID, #{
-            id     => ICID,
-            class  => <<"sword-initiation">>,
-            proofs => [D1]
-        }
+        ID, ChallengeParams#{proofs => [D1]}
     ),
     ok = ff_identity_machine:start_challenge(
-        ID, #{
-            id     => ICID,
-            class  => <<"sword-initiation">>,
-            proofs => [D1, D2]
-        }
+        ID, ChallengeParams#{proofs => [D1, D2]}
+    ),
+    {error, {challenge, {pending, ICID}}} = ff_identity_machine:start_challenge(
+        ID, ChallengeParams#{proofs => [D1, D2]}
     ),
     {ok, S2} = ff_identity_machine:get(ID),
     I2 = ff_identity_machine:identity(S2),
-    {ok, IC} = ff_identity:challenge(ICID, I2).
+    {ok, IC1} = ff_identity:challenge(ICID, I2),
+    pending = ff_identity_challenge:status(IC1),
+    {completed, _} = await(
+        {completed, #{resolution => approved}},
+        fun () ->
+            {ok, S}  = ff_identity_machine:get(ID),
+            {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
+            ff_identity_challenge:status(IC)
+        end
+    ),
+    {ok, S3}  = ff_identity_machine:get(ID),
+    I3 = ff_identity_machine:identity(S3),
+    {ok, ICID} = ff_identity:effective_challenge(I3).
+
+await(Expect, Compute) ->
+    await(Expect, Compute, genlib_retry:linear(3, 1000)).
+
+await(Expect, Compute, Retry0) ->
+    case Compute() of
+        Expect ->
+            Expect;
+        NotYet ->
+            case genlib_retry:next_step(Retry0) of
+                {wait, To, Retry1} ->
+                    ok = timer:sleep(To),
+                    await(Expect, Compute, Retry1);
+                finish ->
+                    error({'await failed', NotYet})
+            end
+    end.
 
 create_party(_C) ->
     ID = genlib:unique(),

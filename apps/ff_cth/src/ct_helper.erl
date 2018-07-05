@@ -83,6 +83,17 @@ start_app(woody = AppName) ->
         {acceptors_pool_size, 4}
     ]), #{}};
 
+start_app(dmt_client = AppName) ->
+    {start_app_with(AppName, [
+        {max_cache_size, #{
+            elements => 1
+        }},
+        {service_urls, #{
+            'Repository'       => <<"http://dominant:8022/v1/domain/repository">>,
+            'RepositoryClient' => <<"http://dominant:8022/v1/domain/repository_client">>
+        }}
+    ]), #{}};
+
 start_app({AppName, AppEnv}) ->
     {start_app_with(AppName, AppEnv), #{}};
 

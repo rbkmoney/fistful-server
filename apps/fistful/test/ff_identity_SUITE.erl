@@ -47,15 +47,7 @@ init_per_suite(C) ->
         lager,
         scoper,
         woody,
-        {dmt_client, [
-            {max_cache_size, #{
-                elements => 1
-            }},
-            {service_urls, #{
-                'Repository'       => <<"http://dominant:8022/v1/domain/repository">>,
-                'RepositoryClient' => <<"http://dominant:8022/v1/domain/repository_client">>
-            }}
-        ]},
+        dmt_client,
         {fistful, [
             {services, #{
                 'partymgmt'      => ff_woody_client:new("http://hellgate:8022/v1/processing/partymgmt"),
@@ -260,14 +252,7 @@ get_provider_config() ->
 get_domain_config(C) ->
     [
 
-        {globals, #domain_GlobalsObject{
-            ref = ?glob(),
-            data = #domain_Globals{
-                external_account_set = {value, ?eas(1)},
-                payment_institutions = ?ordset([?payinst(1)])
-            }
-        }},
-
+        ct_domain:globals(?eas(1), [?payinst(1)]),
         ct_domain:external_account_set(?eas(1), <<"Default">>, ?cur(<<"RUB">>), C),
 
         {payment_institution, #domain_PaymentInstitutionObject{
@@ -289,13 +274,7 @@ get_domain_config(C) ->
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
-
-        {term_set_hierarchy, #domain_TermSetHierarchyObject{
-            ref = ?trms(1),
-            data = #domain_TermSetHierarchy{
-                term_sets = []
-            }
-        }},
+        ct_domain:term_set_hierarchy(?trms(1)),
 
         ct_domain:currency(?cur(<<"RUB">>)),
         ct_domain:currency(?cur(<<"USD">>)),

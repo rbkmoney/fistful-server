@@ -14,6 +14,11 @@
 -export([proxy/3]).
 -export([system_account_set/4]).
 -export([external_account_set/4]).
+-export([term_set_hierarchy/1]).
+-export([term_set_hierarchy/2]).
+-export([term_set_hierarchy/3]).
+-export([timed_term_set/1]).
+-export([globals/2]).
 
 %%
 
@@ -170,6 +175,52 @@ external_account_set(Ref, Name, ?cur(SymCode), C) ->
                     outcome = AccountID2
                 }
             }
+        }
+    }}.
+
+-spec term_set_hierarchy(?dtp('TermSetHierarchyRef')) ->
+    object().
+
+term_set_hierarchy(Ref) ->
+    term_set_hierarchy(Ref, []).
+
+-spec term_set_hierarchy(?dtp('TermSetHierarchyRef'), ?dtp('TermSetHierarchyRef')) ->
+    object().
+
+term_set_hierarchy(Ref, TermSets) ->
+    term_set_hierarchy(Ref, undefined, TermSets).
+
+-spec term_set_hierarchy(Ref, ff_maybe:maybe(Ref), [?dtp('TimedTermSet')]) ->
+    object() when
+        Ref :: ?dtp('TermSetHierarchyRef').
+
+term_set_hierarchy(Ref, ParentRef, TermSets) ->
+    {term_set_hierarchy, #domain_TermSetHierarchyObject{
+        ref = Ref,
+        data = #domain_TermSetHierarchy{
+            parent_terms = ParentRef,
+            term_sets = TermSets
+        }
+    }}.
+
+-spec timed_term_set(?dtp('TermSet')) ->
+    ?dtp('TimedTermSet').
+
+timed_term_set(TermSet) ->
+    #domain_TimedTermSet{
+        action_time = #'TimestampInterval'{},
+        terms = TermSet
+    }.
+
+-spec globals(?dtp('ExternalAccountSetRef'), [?dtp('PaymentInstitutionRef')]) ->
+    object().
+
+globals(EASRef, PIRefs) ->
+    {globals, #domain_GlobalsObject{
+        ref = ?glob(),
+        data = #domain_Globals{
+            external_account_set = {value, EASRef},
+            payment_institutions = ?ordset(PIRefs)
         }
     }}.
 

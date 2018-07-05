@@ -15,6 +15,9 @@
 -export([test_case_name/1]).
 -export([get_test_case_name/1]).
 
+-export([await/2]).
+-export([await/3]).
+
 -type test_case_name() :: atom().
 -type group_name() :: atom().
 -type config() :: [{atom(), term()}].
@@ -166,3 +169,28 @@ test_case_name(TestCaseName) ->
 
 get_test_case_name(C) ->
     cfg('$test_case_name', C).
+
+%%
+
+-spec await(Expect, fun(() -> Expect | _)) ->
+    Expect.
+
+await(Expect, Compute) ->
+    await(Expect, Compute, genlib_retry:linear(3, 1000)).
+
+-spec await(Expect, fun(() -> Expect | _), genlib_retry:strategy()) ->
+    Expect.
+
+await(Expect, Compute, Retry0) ->
+    case Compute() of
+        Expect ->
+            Expect;
+        NotYet ->
+            case genlib_retry:next_step(Retry0) of
+                {wait, To, Retry1} ->
+                    ok = timer:sleep(To),
+                    await(Expect, Compute, Retry1);
+                finish ->
+                    error({'await failed', NotYet})
+            end
+    end.

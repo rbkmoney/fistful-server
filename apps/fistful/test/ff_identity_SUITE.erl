@@ -46,6 +46,7 @@ init_per_suite(C) ->
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
         lager,
         scoper,
+        woody,
         {dmt_client, [
             {max_cache_size, #{
                 elements => 1
@@ -98,6 +99,7 @@ init_per_suite(C) ->
         | C]
     ),
     ok = ct_domain_config:upsert(get_domain_config(C1)),
+    ok = timer:sleep(1000),
     C1.
 
 -spec end_per_suite(config()) -> _.
@@ -203,7 +205,7 @@ identify_ok(C) ->
     I2 = ff_identity_machine:identity(S2),
     {ok, IC1} = ff_identity:challenge(ICID, I2),
     pending = ff_identity_challenge:status(IC1),
-    {completed, _} = await(
+    {completed, _} = ct_helper:await(
         {completed, #{resolution => approved}},
         fun () ->
             {ok, S}  = ff_identity_machine:get(ID),
@@ -214,23 +216,6 @@ identify_ok(C) ->
     {ok, S3}  = ff_identity_machine:get(ID),
     I3 = ff_identity_machine:identity(S3),
     {ok, ICID} = ff_identity:effective_challenge(I3).
-
-await(Expect, Compute) ->
-    await(Expect, Compute, genlib_retry:linear(3, 1000)).
-
-await(Expect, Compute, Retry0) ->
-    case Compute() of
-        Expect ->
-            Expect;
-        NotYet ->
-            case genlib_retry:next_step(Retry0) of
-                {wait, To, Retry1} ->
-                    ok = timer:sleep(To),
-                    await(Expect, Compute, Retry1);
-                finish ->
-                    error({'await failed', NotYet})
-            end
-    end.
 
 create_party(_C) ->
     ID = genlib:unique(),

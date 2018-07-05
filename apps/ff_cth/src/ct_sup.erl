@@ -19,9 +19,8 @@ start() ->
 
 -spec stop(pid()) -> ok.
 
-stop(PID) ->
-    true = exit(PID, shutdown),
-    ok.
+stop(Pid) ->
+    gen_server:stop(Pid).
 
 %%
 

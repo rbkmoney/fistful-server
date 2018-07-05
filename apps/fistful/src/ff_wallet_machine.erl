@@ -150,8 +150,8 @@ merge_event_body(Ev, St) ->
         wallet => ff_wallet:apply_event(Ev, maybe(wallet, St))
     }.
 
-maybe(wallet, St) ->
-    maps:get(wallet, St, undefined).
+maybe(Key, St) ->
+    maps:get(Key, St, undefined).
 
 %%
 

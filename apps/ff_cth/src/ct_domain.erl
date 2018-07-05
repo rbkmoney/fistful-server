@@ -184,7 +184,7 @@ external_account_set(Ref, Name, ?cur(SymCode), C) ->
 term_set_hierarchy(Ref) ->
     term_set_hierarchy(Ref, []).
 
--spec term_set_hierarchy(?dtp('TermSetHierarchyRef'), ?dtp('TermSetHierarchyRef')) ->
+-spec term_set_hierarchy(?dtp('TermSetHierarchyRef'), [?dtp('TimedTermSet')]) ->
     object().
 
 term_set_hierarchy(Ref, TermSets) ->

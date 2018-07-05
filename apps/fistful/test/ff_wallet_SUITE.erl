@@ -50,8 +50,8 @@ init_per_suite(C) ->
         dmt_client,
         {fistful, [
             {services, #{
-                'partymgmt' => ff_woody_client:new("http://hellgate:8022/v1/processing/partymgmt"),
-                'accounter' => ff_woody_client:new("http://shumway:8022/accounter")
+                'partymgmt' => "http://hellgate:8022/v1/processing/partymgmt",
+                'accounter' => "http://shumway:8022/accounter"
             }},
             {backends, #{
                 'ff/identity'  => Be,

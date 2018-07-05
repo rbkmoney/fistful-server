@@ -66,8 +66,8 @@ call(Client, Request) when is_map(Client) ->
 
 get_service_client(ServiceID) ->
     case maps:find(ServiceID, genlib_app:env(fistful, services, #{})) of
-        {ok, Client} ->
-            Client;
+        {ok, V} ->
+            new(V);
         error ->
-            error({'woody client undefined', ServiceID})
+            error({'woody service undefined', ServiceID})
     end.

@@ -3,7 +3,7 @@ cat <<EOF
 FROM ${BASE_IMAGE}
 MAINTAINER Andrey Mayorov <a.mayorov@rbkmoney.com>
 COPY ./_build/prod/rel/${SERVICE_NAME} /opt/${SERVICE_NAME}
-CMD /opt/payproc-server/bin/payproc-server foreground
+CMD /opt/${SERVICE_NAME}/bin/${SERVICE_NAME} foreground
 EXPOSE 8022
 # A bit of magic below to get a proper branch name
 # even when the HEAD is detached (Hey Jenkins!

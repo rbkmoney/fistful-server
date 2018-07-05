@@ -1,6 +1,12 @@
 %%%
 %%% Server startup
 %%%
+%%% TODOs
+%%%
+%%%  - We should probably most of what is hardcoded here to the application
+%%%    environment.
+%%%  - Provide healthcheck.
+%%%
 
 -module(ff_server).
 
@@ -49,25 +55,63 @@ stop(_State) ->
 init([]) ->
     % TODO
     %  - Make it palatable
-    {Backends1, ChildSpecs1} = lists:unzip([
-        contruct_backend_childspec('identity'           , ff_identity_machine),
-        contruct_backend_childspec('wallet'             , ff_wallet_machine)
+    {Backends, Handlers} = lists:unzip([
+        contruct_backend_childspec('ff/identity'           , ff_identity_machine),
+        contruct_backend_childspec('ff/wallet'             , ff_wallet_machine),
+        contruct_backend_childspec('ff/destination'        , ff_destination_machine),
+        contruct_backend_childspec('ff/withdrawal'         , ff_withdrawal_machine),
+        contruct_backend_childspec('ff/withdrawal/session' , ff_withdrawal_session_machine)
     ]),
-    {Backends2, ChildSpecs2} = lists:unzip([
-        contruct_backend_childspec('destination'        , ff_destination_machine),
-        contruct_backend_childspec('withdrawal'         , ff_withdrawal_machine),
-        contruct_backend_childspec('withdrawal/session' , ff_withdrawal_session_machine)
-    ]),
-    ok = application:set_env(fistful, backends, Backends1),
-    ok = application:set_env(ff_withdraw, backends, Backends2),
-    {ok,
+    ok = application:set_env(fistful, backends, Backends),
+    {ok, IP} = inet:parse_address(genlib_app:env(?MODULE, ip, "::0")),
+    {ok, {
+        % TODO
+        %  - Zero thoughts given while defining this strategy.
         #{strategy => one_for_one},
-        ChildSpecs1 ++ ChildSpecs2
-    }.
+        [
+            woody_server:child_spec(
+                ?MODULE,
+                maps:merge(
+                    maps:with([net_opts, handler_limits], genlib_app:env(?MODULE, woody_opts, #{})),
+                    #{
+                        ip                => IP,
+                        port              => genlib_app:env(?MODULE, port, 8022),
+                        handlers          => [],
+                        event_handler     => scoper_woody_event_handler,
+                        additional_routes => machinery_mg_backend:get_routes(
+                            Handlers,
+                            maps:merge(
+                                genlib_app:env(?MODULE, route_opts, #{}),
+                                #{
+                                    event_handler => scoper_woody_event_handler
+                                }
+                            )
+                        )
+                    }
+                )
+            )
+        ]
+    }}.
 
 contruct_backend_childspec(NS, Handler) ->
-    Opts = #{name => NS},
+    Be = {machinery_mg_backend, #{
+        schema => machinery_mg_schema_generic,
+        client => get_service_client('automaton')
+    }},
     {
-        {NS, machinery_gensrv_backend:new(Opts)},
-        machinery_gensrv_backend:child_spec(Handler, Opts)
+        {NS, Be},
+        {{fistful, Handler},
+            #{
+                path           => ff_string:join(["/v1/stateproc/", NS]),
+                backend_config => #{schema => machinery_mg_schema_generic}
+            }
+        }
     }.
+
+get_service_client(ServiceID) ->
+    case genlib_app:env(?MODULE, services, #{}) of
+        #{ServiceID := V} ->
+            ff_woody_client:new(V);
+        #{} ->
+            error({'woody service undefined', ServiceID})
+    end.

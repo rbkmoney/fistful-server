@@ -1,6 +1,6 @@
--sname fistfulsrv
+-sname ffsrv
 
--setcookie fistfulsrv_cookie
+-setcookie ffsrv
 
 +K true
 +A 10

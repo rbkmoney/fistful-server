@@ -61,5 +61,13 @@ distclean:
 test: submodules
 	$(REBAR) ct
 
-test.%: apps/fistful/test/ff_%_SUITE.erl submodules
-	$(REBAR) ct --suite=$<
+TESTSUITES = $(wildcard apps/*/test/*_SUITE.erl)
+
+define testsuite
+
+test.$(patsubst ff_%_SUITE.erl,%,$(notdir $(1))): $(1) submodules
+	$(REBAR) ct --suite=$$<
+
+endef
+
+$(foreach suite,$(TESTSUITES),$(eval $(call testsuite,$(suite))))

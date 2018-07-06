@@ -190,7 +190,10 @@ poll_challenge_completion(ChallengeID, Identity) ->
             [] ->
                 [];
             Events = [_ | _] ->
-                TargetLevel = ff_identity_class:target_level(ff_identity_challenge:class(Challenge)),
+                {ok, Contract}  = contract(Identity),
+                TargetLevel     = ff_identity_class:target_level(ff_identity_challenge:class(Challenge)),
+                ContractorLevel = ff_identity_class:contractor_level(TargetLevel),
+                ok              = unwrap(ff_party:change_contractor_level(party(Identity), Contract, ContractorLevel)),
                 [{challenge, ChallengeID, Ev} || Ev <- Events] ++
                 [
                     {level_changed, TargetLevel},

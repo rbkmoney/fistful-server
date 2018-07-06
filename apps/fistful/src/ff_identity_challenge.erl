@@ -62,6 +62,7 @@
 -export([claimant/1]).
 -export([status/1]).
 -export([class/1]).
+-export([proofs/1]).
 -export([resolution/1]).
 -export([claim_id/1]).
 -export([master_id/1]).
@@ -97,6 +98,12 @@ claimant(#{claimant := V}) ->
     class().
 
 class(#{class := V}) ->
+    V.
+
+-spec proofs(challenge()) ->
+    [proof()].
+
+proofs(#{proofs := V}) ->
     V.
 
 -spec resolution(challenge()) ->

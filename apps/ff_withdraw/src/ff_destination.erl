@@ -27,24 +27,32 @@
 
 -type destination() :: #{
     id       := id(),
-    wallet   := wallet(),
     resource := resource(),
-    status   := status()
+    wallet   => wallet(),
+    status   => status()
 }.
+
+-type ev() ::
+    {created, destination()} |
+    {wallet, ff_wallet:ev()} |
+    {status_changed, status()}.
+
+-type outcome() :: [ev()].
 
 -export_type([destination/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
+-export_type([ev/0]).
 
 -export([id/1]).
 -export([wallet/1]).
 -export([resource/1]).
 -export([status/1]).
 
--export([set_status/2]).
-
 -export([create/5]).
 -export([authorize/1]).
+
+-export([apply_event/2]).
 
 %% Pipeline
 
@@ -62,37 +70,43 @@ wallet(#{wallet := V})        -> V.
 resource(#{resource := V})    -> V.
 status(#{status := V})        -> V.
 
--spec set_status(status(), destination()) -> destination().
-
-set_status(V, D = #{})        -> D#{status := V}.
-
 %%
 
--define(DESTINATION_WALLET_ID, <<"TechnicalWalletForDestination">>).
-
 -spec create(id(), ff_identity:identity(), binary(), ff_currency:id(), resource()) ->
-    {ok, destination()} |
+    {ok, outcome()} |
     {error, _WalletError}.
 
 create(ID, Identity, Name, Currency, Resource) ->
-    WalletID = ?DESTINATION_WALLET_ID,
     do(fun () ->
-        Wallet = unwrap(ff_wallet:create(WalletID, Identity, Name, Currency)),
-        #{
-            id       => ID,
-            wallet   => Wallet,
-            resource => Resource,
-            status   => unauthorized
-        }
+        WalletEvents1 = unwrap(ff_wallet:create(ID, Identity, Name, Currency)),
+        WalletEvents2 = unwrap(ff_wallet:setup_wallet(ff_wallet:collapse_events(WalletEvents1))),
+        [
+            {created, #{
+                id       => ID,
+                resource => Resource
+            }}
+        ] ++
+        [{wallet, Ev} || Ev <- WalletEvents1 ++ WalletEvents2] ++
+        [{status_changed, unauthorized}]
     end).
 
 -spec authorize(destination()) ->
-    {ok, destination()} |
+    {ok, outcome()} |
     {error, _TODO}.
 
-authorize(Destination = #{status := unauthorized}) ->
+authorize(#{status := unauthorized}) ->
     % TODO
     %  - Do the actual authorization
-    {ok, set_status(authorized, Destination)};
-authorize(Destination = #{status := authorized}) ->
-    {ok, Destination}.
+    {ok, [{status_changed, authorized}]};
+authorize(#{status := authorized}) ->
+    {ok, []}.
+
+-spec apply_event(ev(), undefined | destination()) ->
+    destination().
+
+apply_event({created, D}, undefined) ->
+    D;
+apply_event({status_changed, S}, D) ->
+    D#{status => S};
+apply_event({wallet, Ev}, D) ->
+    D#{wallet => ff_wallet:apply_event(Ev, maps:get(wallet, D, undefined))}.

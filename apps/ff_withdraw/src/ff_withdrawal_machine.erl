@@ -9,11 +9,7 @@
 -type id()        :: machinery:id().
 -type timestamp() :: machinery:timestamp().
 -type ctx()       :: ff_ctx:ctx().
-
 -type withdrawal() :: ff_withdrawal:withdrawal().
--type status()     ::
-    succeeded        |
-    {failed, _Reason}.
 
 -type activity() ::
     prepare_transfer         |
@@ -27,7 +23,6 @@
     activity      := activity(),
     withdrawal    := withdrawal(),
     ctx           := ctx(),
-    status        => status(),
     times         => {timestamp(), timestamp()}
 }.
 
@@ -79,7 +74,6 @@
     }.
 
 create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ctx) ->
-    TrxID = woody_context:new_req_id(),
     do(fun () ->
         Source       = ff_wallet_machine:wallet(unwrap(source,ff_wallet_machine:get(SourceID))),
         Destination  = ff_destination_machine:destination(
@@ -87,10 +81,9 @@ create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ct
         ),
         ok           = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
         Provider     = unwrap(provider, ff_withdrawal_provider:choose(Destination, Body)),
-        Withdrawal   = unwrap(ff_withdrawal:create(ID, Source, Destination, TrxID, Body, Provider)),
-        {Events1, _} = unwrap(ff_withdrawal:create_transfer(Withdrawal)),
-        Events       = [{created, Withdrawal} | Events1],
-        unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
+        Events1      = unwrap(ff_withdrawal:create(ID, Source, Destination, Body, Provider)),
+        Events2      = unwrap(ff_withdrawal:create_transfer(ff_withdrawal:collapse_events(Events1))),
+        unwrap(machinery:start(?NS, ID, {Events1 ++ Events2, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
@@ -114,14 +107,13 @@ get_status_events(ID, Cursor) ->
     end).
 
 backend() ->
-    ff_withdraw:backend(?NS).
+    fistful:backend(?NS).
 
 %% Accessors
 
 -spec withdrawal(st()) -> withdrawal().
 -spec activity(st())   -> activity().
 -spec ctx(st())        -> ctx().
--spec status(st())     -> status()    | undefined.
 -spec created(st())    -> timestamp() | undefined.
 -spec updated(st())    -> timestamp() | undefined.
 
@@ -141,9 +133,7 @@ times(St) ->
     {ev, timestamp(), T}.
 
 -type ev() ::
-    {created, withdrawal()}    |
-    {status_changed, status()} |
-    ff_withdrawal:ev()         .
+    ff_withdrawal:ev().
 
 -type auxst() ::
     #{ctx => ctx()}.
@@ -167,6 +157,7 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 
 process_timeout(Machine, _, _Opts) ->
     St = collapse(Machine),
+    lager:log(info, self(), "process_activity:~p w/ ~p", [activity(St), St]),
     process_activity(activity(St), St).
 
 process_activity(prepare_transfer, St) ->
@@ -179,10 +170,10 @@ process_activity(prepare_transfer, St) ->
 
 process_activity(create_session, St) ->
     case ff_withdrawal:create_session(withdrawal(St)) of
-        {ok, Session} ->
+        {ok, Events} ->
             #{
-                events => emit_event({session_created, Session}),
-                action => {set_timer, {timeout, 1}}
+                events => emit_events(Events),
+                action => set_poll_timer(St)
             };
         {error, Reason} ->
             #{events => emit_failure(Reason)}
@@ -193,9 +184,7 @@ process_activity(await_session_completion, St) ->
         {ok, Events} when length(Events) > 0 ->
             #{events => emit_events(Events), action => continue};
         {ok, []} ->
-            Now     = machinery_time:now(),
-            Timeout = erlang:max(1, machinery_time:interval(Now, updated(St))),
-            #{action => {set_timer, {timeout, Timeout}}}
+            #{action => set_poll_timer(St)}
     end;
 
 process_activity(commit_transfer, St) ->
@@ -209,6 +198,11 @@ process_activity(cancel_transfer, St) ->
     #{
         events => emit_events(Events ++ [{status_changed, {failed, <<"transfer cancelled">>}}])
     }.
+
+set_poll_timer(St) ->
+    Now = machinery_time:now(),
+    Timeout = erlang:max(1, machinery_time:interval(Now, updated(St)) div 1000),
+    {set_timer, {timeout, Timeout}}.
 
 -spec process_call(_CallArgs, machine(), _, handler_opts()) ->
     {ok, result()}.
@@ -229,28 +223,30 @@ collapse_history(History, St) ->
 
 merge_event({_ID, _Ts, TsEv}, St0) ->
     {EvBody, St1} = merge_ts_event(TsEv, St0),
-    apply_event(EvBody, St1).
+    apply_event(ff_withdrawal:hydrate(EvBody, maps:get(withdrawal, St1, undefined)), St1).
 
-apply_event({created, Withdrawal}, St) ->
-    St#{withdrawal => Withdrawal};
-apply_event({status_changed, Status}, St) ->
-    St#{status => Status};
 apply_event(Ev, St) ->
-    W1 = ff_withdrawal:apply_event(Ev, withdrawal(St)),
+    W1 = ff_withdrawal:apply_event(Ev, maps:get(withdrawal, St, undefined)),
     St#{
         activity   => deduce_activity(Ev),
         withdrawal => W1
     }.
 
-deduce_activity({transfer_created, _}) ->
+deduce_activity({created, _}) ->
+    undefined;
+deduce_activity({transfer, {created, _}}) ->
+    undefined;
+deduce_activity({transfer, {status_changed, created}}) ->
     prepare_transfer;
 deduce_activity({transfer, {status_changed, prepared}}) ->
     create_session;
-deduce_activity({session_created, _}) ->
+deduce_activity({session_started, _}) ->
     await_session_completion;
-deduce_activity({session, {status_changed, succeeded}}) ->
+deduce_activity({session_finished, _}) ->
+    undefined;
+deduce_activity({status_changed, succeeded}) ->
     commit_transfer;
-deduce_activity({session, {status_changed, {failed, _}}}) ->
+deduce_activity({status_changed, {failed, _}}) ->
     cancel_transfer;
 deduce_activity({transfer, {status_changed, committed}}) ->
     undefined;
@@ -268,7 +264,7 @@ emit_events(Es) ->
     emit_events(Es, machinery_time:now()).
 
 emit_events(Es, Ts) ->
-    [{ev, Ts, Body} || Body <- Es].
+    [{ev, Ts, ff_withdrawal:dehydrate(Body)} || Body <- Es].
 
 merge_ts_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
     {Body, St#{times => {Created, Ts}}};

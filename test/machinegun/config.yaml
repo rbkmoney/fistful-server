@@ -26,6 +26,15 @@ namespaces:
   ff/wallet:
       processor:
           url: http://fistful-server:8022/v1/stateproc/wallet
+  ff/destination:
+      processor:
+          url: http://fistful-server:8022/v1/stateproc/destination
+  ff/withdrawal:
+      processor:
+          url: http://fistful-server:8022/v1/stateproc/withdrawal
+  ff/withdrawal/session:
+      processor:
+          url: http://fistful-server:8022/v1/stateproc/withdrawal/session
 
 storage:
     type: memory

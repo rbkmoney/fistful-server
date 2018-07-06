@@ -1,6 +1,13 @@
 %%%
 %%% Withdrawal session machine
 %%%
+%%% TODOs
+%%%
+%%%  - The way we ask `fistful` for a machinery backend smells like a circular
+%%%    dependency injection.
+%%%  - Dehydrate events upon saving.
+%%%
+
 -module(ff_withdrawal_session_machine).
 -behaviour(machinery).
 
@@ -91,7 +98,7 @@ get(ID) ->
     end).
 
 backend() ->
-    ff_withdraw:backend(?NS).
+    fistful:backend(?NS).
 
 %%
 %% machinery callbacks
@@ -180,7 +187,7 @@ collapse(#{history := History}) ->
 collapse_history(History, St) ->
     lists:foldl(fun merge_event/2, St, History).
 
-merge_event({_ID, _Ts, {ev, _Ts, EvBody}}, St) ->
+merge_event({_ID, _, {ev, _Ts, EvBody}}, St) ->
     merge_event_body(EvBody, St).
 
 -spec merge_event_body(ev(), st()) -> st().

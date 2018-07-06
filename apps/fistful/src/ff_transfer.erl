@@ -28,10 +28,11 @@
 -type transfer() :: #{
     trxid       := trxid(),
     postings    := [posting()],
-    status      := status()
+    status      => status()
 }.
 
 -type ev() ::
+    {created, transfer()} |
     {status_changed, status()}.
 
 -type outcome() ::
@@ -72,7 +73,7 @@ status(#{status := V}) -> V.
 %%
 
 -spec create(trxid(), [posting()]) ->
-    {ok, transfer()} |
+    {ok, outcome()} |
     {error,
         empty |
         {wallet,
@@ -88,11 +89,16 @@ create(TrxID, Postings = [_ | _]) ->
         accessible = unwrap(wallet, validate_accessible(Wallets)),
         valid      = unwrap(wallet, validate_currencies(Wallets)),
         valid      = unwrap(wallet, validate_identities(Wallets)),
-        #{
-            trxid       => TrxID,
-            postings    => Postings,
-            status      => created
-        }
+        [
+            {created, #{
+                trxid       => TrxID,
+                postings    => Postings,
+                status      => created
+            }},
+            {status_changed,
+                created
+            }
+        ]
     end);
 create(_TrxID, []) ->
     {error, empty}.
@@ -135,10 +141,10 @@ validate_identities([W0 | Wallets]) ->
 
 prepare(Transfer = #{status := created}) ->
     TrxID = trxid(Transfer),
-    Postings = construct_trx_postings(postings(Transfer)),
+    Postings = postings(Transfer),
     do(fun () ->
         accessible = unwrap(wallet, validate_accessible(gather_wallets(Postings))),
-        _Affected  = unwrap(ff_transaction:prepare(TrxID, Postings)),
+        _Affected  = unwrap(ff_transaction:prepare(TrxID, construct_trx_postings(Postings))),
         [{status_changed, prepared}]
     end);
 prepare(_Transfer = #{status := prepared}) ->
@@ -157,9 +163,10 @@ prepare(#{status := Status}) ->
     {error, {status, created | cancelled}}.
 
 commit(Transfer = #{status := prepared}) ->
+    TrxID = trxid(Transfer),
+    Postings  = postings(Transfer),
     do(fun () ->
-        Postings  = construct_trx_postings(postings(Transfer)),
-        _Affected = unwrap(ff_transaction:commit(trxid(Transfer), Postings)),
+        _Affected = unwrap(ff_transaction:commit(TrxID, construct_trx_postings(Postings))),
         [{status_changed, committed}]
     end);
 commit(_Transfer = #{status := committed}) ->
@@ -186,6 +193,8 @@ cancel(#{status := Status}) ->
 
 %%
 
+apply_event({created, Transfer}, undefined) ->
+    Transfer;
 apply_event({status_changed, S}, Transfer) ->
     Transfer#{status := S}.
 
@@ -193,6 +202,6 @@ apply_event({status_changed, S}, Transfer) ->
 
 construct_trx_postings(Postings) ->
     [
-        {ff_wallet:account(Source), ff_wallet:account(Destination), Body} ||
+        {unwrap(ff_wallet:account(Source)), unwrap(ff_wallet:account(Destination)), Body} ||
             {Source, Destination, Body} <- Postings
     ].

@@ -25,11 +25,12 @@
 -export([get_wallet_account/2]).
 -export([is_wallet_accessible/2]).
 -export([create_contract/2]).
+-export([change_contractor_level/3]).
 -export([create_wallet/3]).
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %%
 
@@ -120,6 +121,20 @@ generate_contract_id() ->
 
 %%
 
+-spec change_contractor_level(id(), contract(), dmsl_domain_thrift:'ContractorIdentificationLevel'()) ->
+    ok |
+    {error, invalid}.
+
+change_contractor_level(ID, ContractID, ContractorLevel) ->
+    do(fun () ->
+        Changeset  = construct_level_changeset(ContractID, ContractorLevel),
+        Claim      = unwrap(do_create_claim(ID, Changeset)),
+        accepted   = do_accept_claim(ID, Claim),
+        ok
+    end).
+
+%%
+
 -type wallet_prototype() :: #{
     name     := binary(),
     currency := ff_currency:id()
@@ -165,6 +180,16 @@ do_get_party(ID) ->
         {exception, Unexpected} ->
             error(Unexpected)
     end.
+
+% do_get_contract(ID, ContractID) ->
+%     case call('GetContract', [construct_userinfo(), ID, ContractID]) of
+%         {ok, #domain_Contract{} = Contract} ->
+%             Contract;
+%         {exception, #payproc_ContractNotFound{}} ->
+%             {error, notfound};
+%         {exception, Unexpected} ->
+%             error(Unexpected)
+%     end.
 
 do_get_wallet(ID, WalletID) ->
     case call('GetWallet', [construct_userinfo(), ID, WalletID]) of
@@ -257,6 +282,14 @@ construct_contract_changeset(ContractID, #{
         )
     ].
 
+construct_level_changeset(ContractID, ContractorLevel) ->
+    [
+        ?contractor_mod(
+            ContractID,
+            {identification_level_modification, ContractorLevel}
+        )
+    ].
+
 construct_wallet_changeset(ContractID, WalletID, #{
     name     := Name,
     currency := Currency
@@ -282,6 +315,9 @@ construct_userinfo() ->
 
 construct_usertype() ->
     {service_user, #payproc_ServiceUser{}}.
+
+get_contractor(#domain_Contract{contractor = ContractorID}) ->
+    ContractorID.
 
 %% Woody stuff
 

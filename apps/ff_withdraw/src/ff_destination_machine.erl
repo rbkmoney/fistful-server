@@ -9,12 +9,10 @@
 -type id()          :: machinery:id().
 -type timestamp()   :: machinery:timestamp().
 -type ctx()         :: ff_ctx:ctx().
-
--type destination()        :: ff_destination:destination().
--type destination_status() :: ff_destination:status().
+-type destination() :: ff_destination:destination().
 
 -type activity() ::
-    idle      |
+    undefined      |
     authorize .
 
 -type st()        :: #{
@@ -71,10 +69,10 @@
 
 create(ID, #{identity := IdentityID, name := Name, currency := Currency, resource := Resource}, Ctx) ->
     do(fun () ->
-        Identity    = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
-        _           = unwrap(currency, ff_currency:get(Currency)),
-        Destination = unwrap(ff_destination:create(ID, Identity, Name, Currency, Resource)),
-        unwrap(machinery:start(?NS, ID, {Destination, Ctx}, backend()))
+        Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
+        _        = unwrap(currency, ff_currency:get(Currency)),
+        Events   = unwrap(ff_destination:create(ID, Identity, Name, Currency, Resource)),
+        unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
@@ -87,7 +85,7 @@ get(ID) ->
     end).
 
 backend() ->
-    ff_withdraw:backend(?NS).
+    fistful:backend(?NS).
 
 %% Accessors
 
@@ -108,23 +106,25 @@ times(St) ->
 
 %% Machinery
 
+-type ts_ev(T) ::
+    {ev, timestamp(), T}.
+
 -type ev() ::
-    {created, destination()} |
-    {status_changed, destination_status()}.
+    ff_destination:ev().
 
 -type auxst() ::
     #{ctx => ctx()}.
 
--type machine()      :: machinery:machine(ev(), auxst()).
--type result()       :: machinery:result(ev(), auxst()).
+-type machine()      :: machinery:machine(ts_ev(ev()), auxst()).
+-type result()       :: machinery:result(ts_ev(ev()), auxst()).
 -type handler_opts() :: machinery:handler_opts(_).
 
--spec init({destination(), ctx()}, machine(), _, handler_opts()) ->
+-spec init({[ev()], ctx()}, machine(), _, handler_opts()) ->
     result().
 
-init({Destination, Ctx}, #{}, _, _Opts) ->
+init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => emit_ts_event({created, Destination}),
+        events    => emit_ts_events(Events),
         action    => continue,
         aux_state => #{ctx => Ctx}
     }.
@@ -138,9 +138,9 @@ process_timeout(Machine, _, _Opts) ->
 process_timeout(#{activity := authorize} = St) ->
     D0 = destination(St),
     case ff_destination:authorize(D0) of
-        {ok, D1} ->
+        {ok, Events} ->
             #{
-                events => emit_ts_event({status_changed, ff_destination:status(D1)})
+                events => emit_ts_events(Events)
             }
     end.
 
@@ -162,21 +162,22 @@ merge_event({_ID, _Ts, TsEv}, St0) ->
     {EvBody, St1} = merge_ts_event(TsEv, St0),
     merge_event_body(EvBody, St1).
 
-merge_event_body({created, Destination}, St) ->
+merge_event_body(Ev, St) ->
     St#{
-        activity    => authorize,
-        destination => Destination
-    };
-merge_event_body({status_changed, Status}, St) ->
-    St#{
-        activity    := idle,
-        destination := ff_destination:set_status(Status, destination(St))
+        activity    => deduce_activity(Ev),
+        destination => ff_destination:apply_event(Ev, maps:get(destination, St, undefined))
     }.
 
-%%
+deduce_activity({created, _}) ->
+    undefined;
+deduce_activity({wallet, _}) ->
+    undefined;
+deduce_activity({status_changed, unauthorized}) ->
+    authorize;
+deduce_activity({status_changed, authorized}) ->
+    undefined.
 
-emit_ts_event(E) ->
-    emit_ts_events([E]).
+%%
 
 emit_ts_events(Es) ->
     emit_ts_events(Es, machinery_time:now()).

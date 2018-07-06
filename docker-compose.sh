@@ -45,6 +45,42 @@ services:
       timeout: 1s
       retries: 10
 
+  adapter-vtb:
+    depends_on:
+      - cds
+    image: dr.rbkmoney.com/rbkmoney/proxy-vtb-mpi-vtb:e28626d5f6fa07c08c71bde1e8089acad2b18d6d
+    command: |
+      java
+      -Xms64m -Xmx256m
+      -jar /opt/proxy-vtb-mpi-vtb/proxy-vtb-mpi-vtb.jar
+      --logging.file=/var/log/proxy-vtb-mpi-vtb/proxy-vtb-mpi-vtb.json
+      --server.secondary.ports=8080
+      --server.port=8022
+      --cds.url.storage=http://cds:8022/v1/storage
+      --cds.url.idStorage=http://cds:8022/v1/identity_document_storage
+      --hellgate.url=http://hellgate:8022/v1/proxyhost/provider
+      --vtb.paymentUrl=null
+      --vtb.p2pUrl=https://mishop02.multicarta.ru:7070/extproc/posdh_p2p_visapit.php
+      --vtb.callbackUrl=http://proxy-vtb-mpi-vtb:8080
+      --vtb.pathCallbackUrl=/vtb-mpi-vtb/term_url{?termination_uri}
+    environment:
+      - KEYSTORE_PAYMENT_CERTIFICATE=file:/opt/proxy-vtb-mpi-vtb/cert/cert.p12
+      - KEYSTORE_PAYMENT_PASSWORD=12345
+      - KEYSTORE_PAYMENT_TYPE=pkcs12
+      - KEYSTORE_P2P_CERTIFICATE=file:/opt/proxy-vtb-mpi-vtb/cert/p2p.p12
+      - KEYSTORE_P2P_PASSWORD=12345
+      - KEYSTORE_P2P_TYPE=pkcs12
+    volumes:
+      - ./test/adapter-vtb/cert.p12:/opt/proxy-vtb-mpi-vtb/cert/cert.p12
+      - ./test/adapter-vtb/p2p.p12:/opt/proxy-vtb-mpi-vtb/cert/p2p.p12
+      - ./test/log/adapter-vtb:/var/log/proxy-vtb-mpi-vtb
+    working_dir: /opt/proxy-vtb-mpi-vtb
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 20
+
   dominant:
     image: dr.rbkmoney.com/rbkmoney/dominant:1756bbac6999fa46fbe44a72c74c02e616eda0f6
     command: /opt/dominant/bin/dominant foreground

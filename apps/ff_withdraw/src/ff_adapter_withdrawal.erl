@@ -137,11 +137,30 @@ encode_destination_resource(
     (undefined) -> undefined.
 encode_identity(undefined) ->
     undefined;
-encode_identity(IdentityID) ->
-    % TODO: Add documents and contract fields
+encode_identity(Identity) ->
+    % TODO: Add real contact fields
     #wthdm_Identity{
-        id = IdentityID
+        id        = ff_identity:id(Identity),
+        documents = encode_identity_documents(Identity),
+        contact   = [{phone_number, <<"9876543210">>}]
     }.
+
+encode_identity_documents(Identity) ->
+    case ff_identity:effective_challenge(Identity) of
+        {ok, ChallengeID} ->
+            {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
+            encode_challenge_documents(Challenge);
+        {error, notfound} ->
+            []
+    end.
+
+encode_challenge_documents(Challenge) ->
+    lists:foldl(fun try_encode_proof_document/2, [], ff_identity_challenge:proofs(Challenge)).
+
+try_encode_proof_document({rus_domestic_passport, Token}, Acc) ->
+    [{rus_domestic_passport, #wthdm_RUSDomesticPassport{token = Token}} | Acc];
+try_encode_proof_document(_, Acc) ->
+    Acc.
 
 -spec encode_adapter_state(adapter_state()) -> domain_internal_state().
 encode_adapter_state(undefined) ->

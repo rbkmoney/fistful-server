@@ -280,9 +280,12 @@ validate_claims(Claims, [{Name, Claim, Validator} | Rest], Acc) ->
 validate_claims(Claims, [], Acc) ->
     {Acc, Claims}.
 
-get_result(SubjectID, {Roles, Claims}) ->
+get_result(SubjectID, {_Roles, Claims}) ->
     try
-        Subject = {SubjectID, wapi_acl:decode(Roles)},
+        %% TODO use the real acl decode as soon as wapi roles/scopes are clearly defined
+        %% Subject = {SubjectID, wapi_acl:decode(Roles)},
+
+        Subject = {SubjectID, wapi_acl:new()},
         {ok, {Subject, Claims}}
     catch
         error:{badarg, _} = Reason ->
@@ -338,9 +341,11 @@ encode_roles(Roles) ->
         }
     }.
 
+%% TODO common-api is not a typo here.
+%% Set the correct resources as soon as defined.
 decode_roles(Claims = #{
     <<"resource_access">> := #{
-        <<"wallet-api">> := #{
+        <<"common-api">> := #{
             <<"roles">> := Roles
         }
     }

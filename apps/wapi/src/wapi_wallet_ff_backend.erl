@@ -3,6 +3,7 @@
 -module(wapi_wallet_ff_backend).
 
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 
 %% API
 -export([get_providers/2]).
@@ -102,13 +103,14 @@ get_identity(IdentityId, _Context) ->
     end.
 
 -spec create_identity(_, _) -> _.
-create_identity(Params, Context) ->
+create_identity(Params = #{<<"party">> := PartyId}, Context) ->
     IdentityId = genlib:unique(),
-    case ff_identity_machine:create(IdentityId, from_swag(identity_params, Params), make_ctx(Params, [<<"name">>])) of
-        ok                 -> get_identity(IdentityId, Context);
-        {error, exists}    -> create_identity(Params, Context);
-        Error = {error, _} -> Error
-    end.
+    with_party(PartyId, fun() ->
+        case ff_identity_machine:create(IdentityId, from_swag(identity_params, Params), make_ctx(Params, [<<"name">>])) of
+            ok                 -> get_identity(IdentityId, Context);
+            Error = {error, _} -> Error
+        end
+    end).
 
 -spec get_identity_challengies(_, _) -> no_return().
 get_identity_challengies(_Params, _Context) ->
@@ -174,22 +176,22 @@ get_destination(DestinationId, _Context) ->
     end.
 
 -spec create_destination(_, _) -> _.
-create_destination(Params, Context) ->
+create_destination(Params = #{<<"party">> := PartyId}, Context) ->
     DestinationId = genlib:unique(),
-    case ff_destination_machine:create(
-        DestinationId, from_swag(destination_params, Params), make_ctx(Params, [<<"name">>])
-    ) of
-        ok                 -> get_destination(DestinationId, Context);
-        {error, exists}    -> create_destination(Params, Context);
-        Error = {error, _} -> Error
-    end.
+    with_party(PartyId, fun() ->
+        case ff_destination_machine:create(
+            DestinationId, from_swag(destination_params, Params), make_ctx(Params, [<<"name">>])
+        ) of
+            ok                 -> get_destination(DestinationId, Context);
+            Error = {error, _} -> Error
+        end
+    end).
 
 -spec create_withdrawal(_, _) -> _.
 create_withdrawal(Params, Context) ->
     WithdrawalId = genlib:unique(),
     case ff_withdrawal_machine:create(WithdrawalId, from_swag(withdrawal_params, Params), make_ctx(Params, [])) of
         ok                 -> get_withdrawal(WithdrawalId, Context);
-        {error, exists}    -> create_withdrawal(Params, Context);
         Error = {error, _} -> Error
     end.
 
@@ -233,6 +235,14 @@ make_ctx(Params, WapiKeys) ->
         MD        -> Ctx0#{<<"md">> => MD}
     end,
     #{?NS => Ctx1}.
+
+with_party(PartyId, Fun) ->
+    try Fun()
+    catch
+        error:#'payproc_PartyNotFound'{} ->
+            _ = ff_party:create(PartyId),
+            Fun()
+    end.
 
 filter_status_events(Events) ->
     filter_status_events(Events, undefined).

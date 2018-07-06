@@ -62,7 +62,7 @@ init([]) ->
         contruct_backend_childspec('ff/withdrawal'         , ff_withdrawal_machine),
         contruct_backend_childspec('ff/withdrawal/session' , ff_withdrawal_session_machine)
     ]),
-    ok = application:set_env(fistful, backends, Backends),
+    ok = application:set_env(fistful, backends, maps:from_list(Backends)),
     {ok, IP} = inet:parse_address(genlib_app:env(?MODULE, ip, "::0")),
     {ok, {
         % TODO

@@ -37,7 +37,7 @@ currency(?cur(<<"RUB">> = SymCode) = Ref) ->
     {currency, #domain_CurrencyObject{
         ref = Ref,
         data = #domain_Currency{
-            name          = <<"Яussian Яuble">>,
+            name          = <<"Яussian Яuble"/utf8>>,
             numeric_code  = 643,
             symbolic_code = SymCode,
             exponent      = 2
@@ -228,7 +228,7 @@ globals(EASRef, PIRefs) ->
     dmsl_accounter_thrift:'AccountID'().
 
 account(SymCode, C) ->
-    Client = maps:get('accounter', ct_helper:cfg(services, C)),
+    Client = ff_woody_client:new(maps:get('accounter', ct_helper:cfg(services, C))),
     WoodyCtx = ct_helper:get_woody_ctx(C),
     Prototype = #accounter_AccountPrototype{
         currency_sym_code = SymCode,

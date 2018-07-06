@@ -82,7 +82,10 @@ create_woody_context(#{'X-Request-ID' := RequestID}, AuthContext, Opts) ->
     RpcID = #{trace_id := TraceID} = woody_context:new_rpc_id(genlib:to_binary(RequestID)),
     ok = scoper:add_meta(#{request_id => RequestID, trace_id => TraceID}),
     _ = lager:debug("Created TraceID for the request"),
-    woody_user_identity:put(collect_user_identity(AuthContext, Opts), woody_context:new(RpcID)).
+    Ctx = woody_user_identity:put(collect_user_identity(AuthContext, Opts), woody_context:new(RpcID)),
+    %% TODO remove this fistful specific step, when separating the wapi service.
+    ok = ff_woody_ctx:set(Ctx),
+    Ctx.
 
 -define(APP, wapi).
 

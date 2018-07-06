@@ -41,6 +41,7 @@
 
 -export([create/3]).
 -export([get/1]).
+-export([events/2]).
 -export([start_challenge/2]).
 
 %% Accessors
@@ -97,6 +98,16 @@ create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, 
 get(ID) ->
     do(fun () ->
         collapse(unwrap(machinery:get(?NS, ID, backend())))
+    end).
+
+-spec events(id(), machinery:range()) ->
+    {ok, [{integer(), ts_ev(ev())}]} |
+    {error, notfound}.
+
+events(ID, Range) ->
+    do(fun () ->
+        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
+        [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 
 -type challenge_params() :: #{

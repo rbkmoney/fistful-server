@@ -20,7 +20,7 @@
 -export([create_identity_challenge/3]).
 -export([get_identity_challenge/3]).
 -export([cancel_identity_challenge/3]).
--export([get_identity_challenge_events/2]).
+-export([get_identity_challenge_events/5]).
 -export([get_identity_challenge_event/4]).
 
 -export([get_destinations/2]).
@@ -40,6 +40,8 @@
 %% API
 
 -type wctx() :: woody_context:ctx().
+-type result(T)    :: result(T, notfound).
+-type result(T, E) :: {ok, T} | {error, E}.
 
 %% Providers
 
@@ -158,10 +160,45 @@ get_identity_challenge(IdentityId, ChallengeId, Context) ->
 cancel_identity_challenge(_IdentityId, _ChallengeId, _Context) ->
     not_implemented().
 
--spec get_identity_challenge_events(_, _) -> no_return().
-get_identity_challenge_events(Params = #{'identityID' := _IdentityId, 'challengeID' := _ChallengeId, 'limit' := _Limit}, _Context) ->
-    _ = genlib_map:get('eventCursor', Params),
-    not_implemented().
+-spec get_identity_challenge_events(binary(), binary(), undefined | integer(), pos_integer(), wctx()) ->
+    {ok, [map()]} |
+    {error, _}.
+get_identity_challenge_events(Id, ChallengeId, Cursor, Limit, _Context) ->
+    do(fun () ->
+        _ = unwrap(ff_identity_machine:get(Id)),
+        to_swag(
+            {list, {event, challenge}},
+            collect_events(
+                fun (C, L) ->
+                    unwrap(ff_identity_machine:events(Id, {C, L, forward}))
+                end,
+                fun
+                    ({ID, {ev, Ts, {challenge, I, Body = {status_changed, _}}}}) when I =:= ChallengeId ->
+                        {true, {ID, Ts, Body}};
+                    (_) ->
+                        false
+                end,
+                Cursor,
+                Limit
+            )
+        )
+    end).
+
+collect_events(Collector, Filter, Cursor, Limit) ->
+    collect_events(Collector, Filter, Cursor, Limit, []).
+
+collect_events(Collector, Filter, Cursor, Limit, Acc) when Limit > 0 ->
+    case Collector(Cursor, Limit) of
+        Events1 when length(Events1) > 0 ->
+            {CursorNext, Events2} = filter_events(Filter, Events1),
+            collect_events(Collector, Filter, CursorNext, Limit - length(Events2), Acc ++ Events2);
+        [] ->
+            Acc
+    end.
+
+filter_events(Filter, Events) ->
+    {Cursor, _} = lists:last(Events),
+    {Cursor, lists:filtermap(Filter, Events)}.
 
 -spec get_identity_challenge_event(_, _, _, _) -> no_return().
 get_identity_challenge_event(_IdentityId, _ChallengeId, _EventId, _Context) ->
@@ -225,20 +262,16 @@ get_withdrawal_event(WithdrawalId, EventId, _Context) ->
         Error = {error, _} -> Error
     end.
 
--spec get_currency(binary(), wctx()) -> map().
+-spec get_currency(binary(), wctx()) -> result(map()).
 get_currency(CurrencyId, _Context) ->
-    ff_pipeline:do(fun () ->
-        to_swag(currency_object,
-            ff_pipeline:unwrap(ff_currency:get(from_swag(currency, CurrencyId)))
-        )
+    do(fun () ->
+        to_swag(currency_object, unwrap(ff_currency:get(from_swag(currency, CurrencyId))))
     end).
 
--spec get_residence(binary(), wctx()) -> map().
+-spec get_residence(binary(), wctx()) -> result(map()).
 get_residence(Residence, _Context) ->
-    ff_pipeline:do(fun () ->
-        to_swag(residence_object,
-            ff_pipeline:unwrap(ff_residence:get(from_swag(residence, Residence)))
-        )
+    do(fun () ->
+        to_swag(residence_object, unwrap(ff_residence:get(from_swag(residence, Residence))))
     end).
 
 %% Helper API
@@ -248,6 +281,12 @@ not_implemented() ->
     wapi_handler:throw_result(wapi_handler_utils:reply_error(501)).
 
 %% Internal functions
+
+do(Fun) ->
+    ff_pipeline:do(Fun).
+
+unwrap(Res) ->
+    ff_pipeline:unwrap(Res).
 
 make_ctx(Params, WapiKeys) ->
     Ctx0 = maps:with(WapiKeys, Params),
@@ -335,7 +374,7 @@ from_swag(withdrawal_body, Body) ->
 from_swag(currency, V) ->
     V;
 from_swag(residence, V) ->
-    try erlang:binary_to_existing_atom(genlib_string:to_lower(V)) catch
+    try erlang:binary_to_existing_atom(genlib_string:to_lower(V), latin1) catch
         error:badarg ->
             % TODO
             %  - Essentially this is incorrect, we should reply with 400 instead
@@ -389,38 +428,39 @@ to_swag(identity_effective_challenge, {error, notfound}) ->
     undefined;
 to_swag(identity_challenge, {ChallengeId, Challenge, Proofs}) ->
     ChallengeClass = ff_identity_challenge:class(Challenge),
-    to_swag(map,#{
-        <<"id">>            => ChallengeId,
-        <<"createdAt">>     => <<"TODO">>,
-        <<"level">>         => ff_identity_class:level_id(ff_identity_class:target_level(ChallengeClass)),
-        <<"type">>          => ff_identity_class:challenge_class_id(ChallengeClass),
-        <<"proofs">>        => Proofs,
-        <<"status">>        => to_swag(challenge_status,
-            {ff_identity_challenge:status(Challenge), ff_identity_challenge:resolution(Challenge)}
-        ),
-        <<"validUntil">>    => to_swag(idenification_expiration, ff_identity_challenge:status(Challenge)),
-        <<"failureReason">> => to_swag(identity_challenge_failure_reason, ff_identity_challenge:status(Challenge))
+    maps:merge(
+        to_swag(map, #{
+            <<"id">>            => ChallengeId,
+            % <<"createdAt">>     => <<"TODO">>,
+            <<"level">>         => ff_identity_class:level_id(ff_identity_class:target_level(ChallengeClass)),
+            <<"type">>          => ff_identity_class:challenge_class_id(ChallengeClass),
+            <<"proofs">>        => Proofs
+        }),
+        to_swag(challenge_status,
+            ff_identity_challenge:status(Challenge)
+        )
+    );
+to_swag(challenge_status, pending) ->
+    #{<<"status">>      => <<"Pending">>};
+to_swag(challenge_status, {completed, C = #{resolution := approved}}) ->
+    to_swag(map, #{
+    <<"status">>        => <<"Completed">>,
+    <<"validUntil">>    => to_swag(timestamp, genlib_map:get(valid_until, C))
     });
-to_swag(challenge_status, {pending, _}) ->
-    <<"Pending">>;
-to_swag(challenge_status, {completed, {ok, approved}}) ->
-    <<"Completed">>;
-to_swag(challenge_status, {completed, {ok, denied}}) ->
-    <<"Failed">>;
-to_swag(challenge_status, {failed, _}) ->
-    <<"Failed">>;
+to_swag(challenge_status, {completed, #{resolution := denied}}) ->
+    #{
+    <<"status">>        => <<"Failed">>,
+    <<"failureReason">> => <<"Denied">>
+    };
+to_swag(challenge_status, {failed, Reason}) ->
+    % TODO
+    %  - Well, what if Reason is not scalar?
+    #{
+    <<"status">>        => <<"Failed">>,
+    <<"failureReason">> => genlib:to_binary(Reason)
+    };
 to_swag(challenge_status, cancelled) ->
-    <<"Cancelled">>;
-to_swag(idenification_expiration, {completed, #{resolution := approved, valid_until := Timestamp}}) ->
-    to_swag(timestamp, Timestamp);
-to_swag(idenification_expiration, _) ->
-    undefined;
-to_swag(identity_challenge_failure_reason, {completed, #{resolution := denied}}) ->
-    <<"Denied">>;
-to_swag(identity_challenge_failure_reason, {failed, Reason}) ->
-    genlib:to_binary(Reason);
-to_swag(identity_challenge_failure_reason, _) ->
-    undefined;
+    #{<<"status">>      => <<"Cancelled">>};
 to_swag(destination, #{destination := Destination, times := {CreatedAt, _}, ctx := Ctx}) ->
     {ok, WapiCtx} = ff_ctx:get(?NS, Ctx),
     Wallet  = ff_destination:wallet(Destination),
@@ -497,6 +537,17 @@ to_swag(withdrawal_event, {EventId, Ts, Status}) ->
             <<"failure">> => to_swag(withdrawal_failure, Status)
         }]
     });
+to_swag({event, Type}, {ID, Ts, V}) ->
+    #{
+        <<"eventID">>   => ID,
+        <<"occuredAt">> => to_swag(timestamp, Ts),
+        <<"changes">>   => [to_swag({change, Type}, V)]
+    };
+to_swag({change, challenge}, {status_changed, S}) ->
+    maps:merge(
+        #{<<"type">> => <<"IdentityChallengeStatusChanged">>},
+        to_swag(challenge_status, S)
+    );
 to_swag(timestamp, {{Date, Time}, Usec}) ->
     rfc3339:format({Date, Time, Usec, undefined});
 to_swag(currency, Currency) ->

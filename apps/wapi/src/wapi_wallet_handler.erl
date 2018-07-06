@@ -135,8 +135,13 @@ process_request('CancelIdentityChallenge', #{
     'challengeID' := ChallengeId
 }, #{woody_context := Context}, _Opts) ->
     wapi_wallet_ff_backend:cancel_identity_challenge(IdentityId, ChallengeId, Context);
-process_request('PollIdentityChallengeEvents', Params, #{woody_context := Context}, _Opts) ->
-    case wapi_wallet_ff_backend:get_identity_challenge_events(Params, Context) of
+process_request('PollIdentityChallengeEvents', #{
+    'identityID'  := IdentityId,
+    'challengeID' := ChallengeId,
+    'eventCursor' := Cursor,
+    'eventLimit'  := Limit
+}, #{woody_context := Context}, _Opts) ->
+    case wapi_wallet_ff_backend:get_identity_challenge_events(IdentityId, ChallengeId, Cursor, Limit, Context) of
         {ok, Events}      -> wapi_handler_utils:reply_ok(200, Events);
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
     end;

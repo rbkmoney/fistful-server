@@ -9,8 +9,9 @@
 
 %%
 
--type id()        :: atom().
+-type id()        :: dmsl_domain_thrift:'Residence'().
 -type residence() :: #{
+    id            := id(),
     name          := binary(),
     flag          => binary()
 }.
@@ -23,10 +24,13 @@
 %%
 
 -spec get(id()) ->
-    residence().
+    ff_map:result(residence()).
 
-get('rus') ->
-    #{
+get(ID = 'rus') ->
+    {ok, #{
+        id   => ID,
         name => <<"Российская федерация">>,
         flag => <<"🇷🇺">>
-    }.
+    }};
+get(_) ->
+    {error, notfound}.

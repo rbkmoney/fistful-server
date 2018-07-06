@@ -30,10 +30,15 @@
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
 
+-export([get_currency/2]).
+-export([get_residence/2]).
+
 %% Helper API
 -export([not_implemented/0]).
 
 %% API
+
+-type wctx() :: woody_context:ctx().
 
 %% Providers
 
@@ -218,6 +223,22 @@ get_withdrawal_event(WithdrawalId, EventId, _Context) ->
         Error = {error, _} -> Error
     end.
 
+-spec get_currency(binary(), wctx()) -> map().
+get_currency(CurrencyId, _Context) ->
+    ff_pipeline:do(fun () ->
+        to_swag(currency_object,
+            ff_pipeline:unwrap(ff_currency:get(from_swag(currency, CurrencyId)))
+        )
+    end).
+
+-spec get_residence(binary(), wctx()) -> map().
+get_residence(Residence, _Context) ->
+    ff_pipeline:do(fun () ->
+        to_swag(residence_object,
+            ff_pipeline:unwrap(ff_residence:get(from_swag(residence, Residence)))
+        )
+    end).
+
 %% Helper API
 
 -spec not_implemented() -> no_return().
@@ -301,6 +322,16 @@ from_swag(withdrawal_params, Params) ->
     };
 from_swag(withdrawal_body, Body) ->
     {maps:get(<<"amount">>, Body), maps:get(<<"currency">>, Body)};
+from_swag(currency, V) ->
+    V;
+from_swag(residence, V) ->
+    try erlang:binary_to_existing_atom(genlib_string:to_lower(V)) catch
+        error:badarg ->
+            % TODO
+            %  - Essentially this is incorrect, we should reply with 400 instead
+            undefined
+    end;
+
 from_swag(list, {Type, List}) ->
     lists:map(fun(V) -> from_swag(Type, V) end, List).
 
@@ -319,6 +350,12 @@ to_swag(provider, {Id, Provider}) ->
      });
 to_swag(residence, Residence) ->
     genlib_string:to_upper(genlib:to_binary(Residence));
+to_swag(residence_object, V) ->
+    to_swag(map, #{
+        <<"id">>   => to_swag(residence, maps:get(id, V)),
+        <<"name">> => maps:get(name, V),
+        <<"flag">> => maps:get(flag, V, undefined)
+    });
 to_swag(identity_class, Class) ->
     to_swag(map, maps:with([id, name], Class));
 to_swag(identity, #{identity := Identity, times := {CreatedAt, _}, ctx := Ctx}) ->
@@ -454,10 +491,19 @@ to_swag(timestamp, {{Date, Time}, Usec}) ->
     rfc3339:format({Date, Time, Usec, undefined});
 to_swag(currency, Currency) ->
     genlib_string:to_upper(genlib:to_binary(Currency));
+to_swag(currency_object, V) ->
+    to_swag(map, #{
+        <<"id">>          => to_swag(currency, maps:get(id, V)),
+        <<"name">>        => maps:get(name, V),
+        <<"numericCode">> => maps:get(numcode, V),
+        <<"exponent">>    => maps:get(exponent, V),
+        <<"sign">>        => maps:get(sign, V, undefined)
+    });
 to_swag(is_blocked, {ok, accessible}) ->
     false;
 to_swag(is_blocked, _) ->
     true;
+
 to_swag(_Type, V) when is_map(V) ->
     to_swag(map, V);
 to_swag(list, {Type, List}) ->

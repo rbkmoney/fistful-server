@@ -11,6 +11,7 @@
 -type id()        :: symcode().
 -type symcode()   :: binary().
 -type currency()  :: #{
+    id            := id(),
     name          := binary(),
     symcode       := symcode(),
     numcode       := integer(),
@@ -37,6 +38,7 @@ get(ID) ->
     do(fun () ->
         Currency = unwrap(ff_domain_config:object({currency, #domain_CurrencyRef{symbolic_code = ID}})),
         #{
+            id       => ID,
             name     => Currency#domain_Currency.name,
             symcode  => Currency#domain_Currency.symbolic_code,
             numcode  => Currency#domain_Currency.numeric_code,

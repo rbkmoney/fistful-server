@@ -241,12 +241,22 @@ process_request('GetWithdrawalEvents', #{
     end;
 
 %% Residences
-process_request('GetResidence', _Req, _Context, _Opts) ->
-    wapi_wallet_ff_backend:not_implemented();
+process_request('GetResidence', #{
+    'residence' := Residence
+}, #{woody_context := Context}, _Opts) ->
+    case wapi_wallet_ff_backend:get_residence(Residence, Context) of
+        {ok, Currency}    -> wapi_handler_utils:reply_ok(200, Currency);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
 
 %% Currencies
-process_request('GetCurrency', _Req, _Context, _Opts) ->
-    wapi_wallet_ff_backend:not_implemented().
+process_request('GetCurrency', #{
+    'currencyID' := CurrencyId
+}, #{woody_context := Context}, _Opts) ->
+    case wapi_wallet_ff_backend:get_currency(CurrencyId, Context) of
+        {ok, Currency}    -> wapi_handler_utils:reply_ok(200, Currency);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end.
 
 %% Internal functions
 

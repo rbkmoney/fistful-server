@@ -157,7 +157,6 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 
 process_timeout(Machine, _, _Opts) ->
     St = collapse(Machine),
-    lager:log(info, self(), "process_activity:~p w/ ~p", [activity(St), St]),
     process_activity(activity(St), St).
 
 process_activity(prepare_transfer, St) ->

@@ -316,9 +316,6 @@ construct_userinfo() ->
 construct_usertype() ->
     {service_user, #payproc_ServiceUser{}}.
 
-get_contractor(#domain_Contract{contractor = ContractorID}) ->
-    ContractorID.
-
 %% Woody stuff
 
 call(Function, Args) ->

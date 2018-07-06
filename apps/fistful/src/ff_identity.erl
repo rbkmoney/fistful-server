@@ -55,6 +55,7 @@
 -export([provider/1]).
 -export([party/1]).
 -export([class/1]).
+-export([level/1]).
 -export([contract/1]).
 -export([challenge/2]).
 -export([effective_challenge/1]).

@@ -5,6 +5,10 @@ MAINTAINER Andrey Mayorov <a.mayorov@rbkmoney.com>
 COPY ./_build/prod/rel/${SERVICE_NAME} /opt/${SERVICE_NAME}
 CMD /opt/${SERVICE_NAME}/bin/${SERVICE_NAME} foreground
 EXPOSE 8022
+
+# wapi
+EXPOSE 8080
+
 # A bit of magic below to get a proper branch name
 # even when the HEAD is detached (Hey Jenkins!
 # BRANCH_NAME is available in Jenkins env).

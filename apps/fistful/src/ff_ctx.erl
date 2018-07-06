@@ -20,6 +20,7 @@
 -export_type([ctx/0]).
 
 -export([new/0]).
+-export([get/2]).
 
 %%
 
@@ -28,3 +29,10 @@
 
 new() ->
     #{}.
+
+-spec get(namespace(), ctx()) ->
+    {ok, md()}       |
+    {error, notfound}.
+
+get(Ns, Ctx) ->
+    ff_map:find(Ns, Ctx).

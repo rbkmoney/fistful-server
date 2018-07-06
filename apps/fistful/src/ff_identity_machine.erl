@@ -102,7 +102,7 @@ get(ID) ->
 -type challenge_params() :: #{
     id     := challenge_id(),
     class  := ff_identity_class:challenge_class_id(),
-    proofs := [ff_identity:proof()]
+    proofs := [ff_identity_challenge:proof()]
 }.
 
 -spec start_challenge(id(), challenge_params()) ->

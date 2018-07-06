@@ -98,12 +98,12 @@ get(ID) ->
 -type event_cursor() :: non_neg_integer() | undefined.
 
 -spec get_status_events(id(), event_cursor()) ->
-    {ok, [ev()]}      |
-    {error, notfound} .
+    {ok, [{integer(), machinery:timestamp(), ev()}]} |
+    {error, notfound}                                .
 
 get_status_events(ID, Cursor) ->
     do(fun () ->
-        unwrap(machinery:get(?NS, ID, {Cursor, undefined, forward}, backend()))
+        maps:get(history, unwrap(machinery:get(?NS, ID, {Cursor, undefined, forward}, backend())))
     end).
 
 backend() ->

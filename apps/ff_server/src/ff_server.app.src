@@ -10,7 +10,8 @@
         stdlib,
         woody,
         fistful,
-        ff_withdraw
+        ff_withdraw,
+        wapi
     ]},
     {env, []},
     {modules, []},

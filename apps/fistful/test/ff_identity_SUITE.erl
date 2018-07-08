@@ -66,7 +66,7 @@ init_per_suite(C) ->
     Routes = machinery_mg_backend:get_routes(
         [
             {{fistful, ff_identity_machine},
-                #{path => <<"/v1/stateproc/identity">>, backend_config => BeConf}}
+                #{path => <<"/v1/stateproc/ff/identity">>, backend_config => BeConf}}
         ],
         BeOpts
     ),

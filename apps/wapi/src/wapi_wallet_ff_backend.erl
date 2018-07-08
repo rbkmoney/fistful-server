@@ -2,7 +2,6 @@
 
 -module(wapi_wallet_ff_backend).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 
 %% API
@@ -20,8 +19,12 @@
 -export([create_identity_challenge/3]).
 -export([get_identity_challenge/3]).
 -export([cancel_identity_challenge/3]).
--export([get_identity_challenge_events/5]).
--export([get_identity_challenge_event/4]).
+-export([get_identity_challenge_events/2]).
+-export([get_identity_challenge_event/2]).
+
+-export([get_wallet/2]).
+-export([create_wallet/2]).
+-export([get_wallet_account/2]).
 
 -export([get_destinations/2]).
 -export([get_destination/2]).
@@ -31,11 +34,8 @@
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
 
--export([get_currency/2]).
 -export([get_residence/2]).
-
-%% Helper API
--export([not_implemented/0]).
+-export([get_currency/2]).
 
 %% API
 
@@ -51,38 +51,24 @@ get_providers(_Params, _Context) ->
 
 -spec get_provider(_, _) -> _.
 get_provider(ProviderId, _Context) ->
-    case ff_provider:get(ProviderId) of
-        {ok, Provider}      -> {ok, to_swag(provider, {ProviderId, ff_provider:payinst(Provider)})};
-        Error = {error, _}  -> Error
-    end.
+    do(fun() -> to_swag(provider, unwrap(ff_provider:get(ProviderId))) end).
 
 -spec get_provider_identity_classes(_, _) -> _.
 get_provider_identity_classes(Id, _Context) ->
-    case ff_provider:get(Id) of
-        {ok, Provider} ->
-            {ok, lists:map(
-                fun(ClassId) ->
-                    {ok, Class} = do_get_provider_identity_class(ClassId, Provider),
-                    Class
-                end,
-                ff_provider:list_identity_classes(Provider)
-            )};
-        Error = {error, _} ->
-            Error
-    end.
+    do(fun() ->
+        Provider = unwrap(ff_provider:get(Id)),
+        lists:map(
+            fun(ClassId) -> get_provider_identity_class(ClassId, Provider) end,
+            ff_provider:list_identity_classes(Provider)
+        )
+    end).
 
 -spec get_provider_identity_class(_, _, _) -> _.
 get_provider_identity_class(ProviderId, ClassId, _Context) ->
-    case ff_provider:get(ProviderId) of
-        {ok, Provider}     -> do_get_provider_identity_class(ClassId, Provider);
-        Error = {error, _} -> Error
-    end.
+    do(fun() -> get_provider_identity_class(ClassId, unwrap(ff_provider:get(ProviderId))) end).
 
-do_get_provider_identity_class(ClassId, Provider) ->
-    case ff_provider:get_identity_class(ClassId, Provider) of
-        {ok, Class}        -> {ok, to_swag(identity_class, Class)};
-        Error = {error, _} -> Error
-    end.
+get_provider_identity_class(ClassId, Provider) ->
+    to_swag(identity_class, unwrap(ff_provider:get_identity_class(ClassId, Provider))).
 
 -spec get_provider_identity_class_levels(_, _, _) -> no_return().
 get_provider_identity_class_levels(_ProviderId, _ClassId, _Context) ->
@@ -98,24 +84,21 @@ get_provider_identity_class_level(_ProviderId, _ClassId, _LevelId, _Context) ->
 get_identities(_Params, _Context) ->
     not_implemented().
 
--define(NS, <<"com.rbkmoney.wapi">>).
-
 -spec get_identity(_, _) -> _.
 get_identity(IdentityId, _Context) ->
-    case ff_identity_machine:get(IdentityId) of
-        {ok, IdentityState} ->
-            {ok, to_swag(identity, IdentityState)};
-        Error = {error, _} ->
-            Error
-    end.
+    do(fun() -> to_swag(identity, unwrap(ff_identity_machine:get(IdentityId))) end).
 
 -spec create_identity(_, _) -> _.
 create_identity(Params = #{<<"party">> := PartyId}, Context) ->
     IdentityId = genlib:unique(),
     with_party(PartyId, fun() ->
         case ff_identity_machine:create(IdentityId, from_swag(identity_params, Params), make_ctx(Params, [<<"name">>])) of
-            ok                 -> get_identity(IdentityId, Context);
-            Error = {error, _} -> Error
+            ok ->
+                ok = scoper:add_meta(#{identity_id => IdentityId}),
+                ok = lager:info("Identity created"),
+                get_identity(IdentityId, Context);
+            Error = {error, _} ->
+                Error
         end
     end).
 
@@ -140,7 +123,7 @@ create_identity_challenge(IdentityId, Params, Context) ->
 
 -spec get_identity_challenge(_, _, _) -> _.
 get_identity_challenge(IdentityId, ChallengeId, Context) ->
-    case get_identity(IdentityId, Context) of
+    case ff_identity_machine:get(IdentityId) of
         {ok, IdentityState} ->
              case ff_identity:challenge(ChallengeId, ff_identity_machine:identity(IdentityState)) of
                  {ok, Challenge} ->
@@ -160,34 +143,177 @@ get_identity_challenge(IdentityId, ChallengeId, Context) ->
 cancel_identity_challenge(_IdentityId, _ChallengeId, _Context) ->
     not_implemented().
 
--spec get_identity_challenge_events(binary(), binary(), undefined | integer(), pos_integer(), wctx()) ->
+-spec get_identity_challenge_events(_, wctx()) ->
     {ok, [map()]} |
     {error, _}.
-get_identity_challenge_events(Id, ChallengeId, Cursor, Limit, _Context) ->
+get_identity_challenge_events(Params = #{
+    'identityID'  := IdentityId,
+    'challengeID' := ChallengeId,
+    'limit'  := Limit
+}, _Context) ->
+    Cursor = genlib_map:get('eventCursor', Params),
+    Filter = fun
+        ({ID, {ev, Ts, {challenge, I, Body = {status_changed, _}}}}) when I =:= ChallengeId ->
+            {true, {ID, Ts, Body}};
+        (_) ->
+            false
+    end,
+    do_get_identity_challenge_events(IdentityId, Limit, Cursor, Filter).
+
+-spec get_identity_challenge_event(_, _) -> _.
+get_identity_challenge_event(#{
+    'identityID'  := IdentityId,
+    'challengeID' := ChallengeId,
+    'eventID'     := EventId
+}, _Context) ->
+    Limit  = undefined,
+    Cursor = undefined,
+    Filter = fun
+        ({ID, {ev, Ts, {challenge, I, Body = {status_changed, _}}}}) when I =:= ChallengeId andalso ID =:= EventId ->
+            {true, {ID, Ts, Body}};
+        (_) ->
+            false
+    end,
+    case do_get_identity_challenge_events(IdentityId, Limit, Cursor, Filter) of
+        {ok, [Event]} -> {ok, Event};
+        _             -> {error, notfound}
+    end.
+
+%% Wallets
+
+-spec get_wallet(_, _) -> _.
+get_wallet(WalletId, _Context) ->
+    do(fun() -> to_swag(wallet, unwrap(ff_wallet_machine:get(WalletId))) end).
+
+-spec create_wallet(_, _) -> _.
+create_wallet(Params , Context) ->
+    WalletId = genlib:unique(),
+    case ff_wallet_machine:create(WalletId, from_swag(wallet_params, Params), make_ctx(Params, [])) of
+        ok                 -> get_wallet(WalletId, Context);
+        Error = {error, _} -> Error
+    end.
+
+-spec get_wallet_account(_, _) -> _.
+get_wallet_account(WalletId, _Context) ->
     do(fun () ->
-        _ = unwrap(ff_identity_machine:get(Id)),
-        to_swag(
-            {list, {event, challenge}},
-            collect_events(
-                fun (C, L) ->
-                    unwrap(ff_identity_machine:events(Id, {C, L, forward}))
-                end,
-                fun
-                    ({ID, {ev, Ts, {challenge, I, Body = {status_changed, _}}}}) when I =:= ChallengeId ->
-                        {true, {ID, Ts, Body}};
-                    (_) ->
-                        false
-                end,
-                Cursor,
-                Limit
-            )
-        )
+        {Amounts, Currency} = unwrap(ff_transaction:balance(
+            unwrap(ff_wallet:account(ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(WalletId)))))
+        )),
+        to_swag(wallet_account, {ff_indef:current(Amounts), ff_indef:expmin(Amounts), Currency})
+    end).
+
+%% Withdrawals
+
+-spec get_destinations(_, _) -> no_return().
+get_destinations(_Params, _Context) ->
+    not_implemented().
+
+-spec get_destination(_, _) -> _.
+get_destination(DestinationId, _Context) ->
+    do(fun() -> to_swag(destination, unwrap(ff_destination_machine:get(DestinationId))) end).
+
+-spec create_destination(_, _) -> _.
+create_destination(Params, Context) ->
+    DestinationId = genlib:unique(),
+    case ff_destination_machine:create(DestinationId, from_swag(destination_params, Params), make_ctx(Params, [])) of
+        ok                 -> get_destination(DestinationId, Context);
+        Error = {error, _} -> Error
+    end.
+
+-spec create_withdrawal(_, _) -> _.
+create_withdrawal(Params, Context) ->
+    WithdrawalId = genlib:unique(),
+    case ff_withdrawal_machine:create(WithdrawalId, from_swag(withdrawal_params, Params), make_ctx(Params, [])) of
+        ok                 -> get_withdrawal(WithdrawalId, Context);
+        Error = {error, _} -> Error
+    end.
+
+-spec get_withdrawal(_, _) -> _.
+get_withdrawal(WithdrawalId, _Context) ->
+    do(fun() -> to_swag(withdrawal, unwrap(ff_withdrawal_machine:get(WithdrawalId))) end).
+
+-spec get_withdrawal_events(_, _) -> _.
+get_withdrawal_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, _Context) ->
+    Cursor = genlib_map:get('eventCursor', Params),
+    Filter = fun
+        ({ID, {ev, Ts, Body = {status_changed, _}}}) ->
+            {true, {ID, Ts, Body}};
+        (_) ->
+            false
+    end,
+    do_get_withdrawal_events(WithdrawalId, Limit, Cursor, Filter).
+
+-spec get_withdrawal_event(_, _, _) -> _.
+get_withdrawal_event(WithdrawalId, EventId, _Context) ->
+    Limit  = undefined,
+    Cursor = undefined,
+    Filter = fun
+        ({ID, {ev, Ts, Body = {status_changed, _}}}) when ID =:= EventId ->
+            {true, {ID, Ts, Body}};
+        (_) ->
+            false
+    end,
+    case do_get_withdrawal_events(WithdrawalId, Limit, Cursor, Filter) of
+        {ok, [Event]} -> {ok, Event};
+        _             -> {error, notfound}
+    end.
+
+%% Residences
+
+-spec get_residence(binary(), wctx()) -> result(map()).
+get_residence(Residence, _Context) ->
+    do(fun () ->
+        to_swag(residence_object, unwrap(ff_residence:get(from_swag(residence, Residence))))
+    end).
+
+%% Currencies
+
+-spec get_currency(binary(), wctx()) -> result(map()).
+get_currency(CurrencyId, _Context) ->
+    do(fun () ->
+        to_swag(currency_object, unwrap(ff_currency:get(from_swag(currency, CurrencyId))))
+    end).
+
+%% Internal functions
+
+do_get_withdrawal_events(WithdrawalId, Limit, Cursor, Filter) ->
+    do(fun () ->
+        _ = unwrap(ff_withdrawal_machine:get(WithdrawalId)),
+        to_swag(withdrawal_events, collect_events(
+            fun (C, L) ->
+                unwrap(ff_withdrawal_machine:events(WithdrawalId, {C, L, forward}))
+            end,
+            Filter,
+            Cursor,
+            Limit
+        ))
+    end).
+
+do_get_identity_challenge_events(IdentityId, Limit, Cursor, Filter) ->
+    do(fun () ->
+        _ = unwrap(ff_identity_machine:get(IdentityId)),
+        to_swag(list, {identity_challenge_event, collect_events(
+            fun (C, L) ->
+                unwrap(ff_identity_machine:events(IdentityId, {C, L, forward}))
+            end,
+            Filter,
+            Cursor,
+            Limit
+        )})
     end).
 
 collect_events(Collector, Filter, Cursor, Limit) ->
     collect_events(Collector, Filter, Cursor, Limit, []).
 
-collect_events(Collector, Filter, Cursor, Limit, Acc) when Limit > 0 ->
+collect_events(Collector, Filter, Cursor, Limit, Acc) when Limit =:= undefined ->
+    case Collector(Cursor, Limit) of
+        Events1 when length(Events1) > 0 ->
+            {_, Events2} = filter_events(Filter, Events1),
+            Acc ++ Events2;
+        [] ->
+            Acc
+    end;
+collect_events(Collector, Filter, Cursor, Limit, Acc) ->
     case Collector(Cursor, Limit) of
         Events1 when length(Events1) > 0 ->
             {CursorNext, Events2} = filter_events(Filter, Events1),
@@ -200,93 +326,7 @@ filter_events(Filter, Events) ->
     {Cursor, _} = lists:last(Events),
     {Cursor, lists:filtermap(Filter, Events)}.
 
--spec get_identity_challenge_event(_, _, _, _) -> no_return().
-get_identity_challenge_event(_IdentityId, _ChallengeId, _EventId, _Context) ->
-    not_implemented().
-
-%% Withdrawals
-
--spec get_destinations(_, _) -> no_return().
-get_destinations(_Params, _Context) ->
-    not_implemented().
-
--spec get_destination(_, _) -> _.
-get_destination(DestinationId, _Context) ->
-    case ff_destination_machine:get(DestinationId) of
-        {ok, DestinationState} -> {ok, to_swag(destination, DestinationState)};
-        Error = {error, _}     -> Error
-    end.
-
--spec create_destination(_, _) -> _.
-create_destination(Params = #{<<"party">> := PartyId}, Context) ->
-    DestinationId = genlib:unique(),
-    with_party(PartyId, fun() ->
-        case ff_destination_machine:create(
-            DestinationId, from_swag(destination_params, Params), make_ctx(Params, [<<"name">>])
-        ) of
-            ok                 -> get_destination(DestinationId, Context);
-            Error = {error, _} -> Error
-        end
-    end).
-
--spec create_withdrawal(_, _) -> _.
-create_withdrawal(Params, Context) ->
-    WithdrawalId = genlib:unique(),
-    case ff_withdrawal_machine:create(WithdrawalId, from_swag(withdrawal_params, Params), make_ctx(Params, [])) of
-        ok                 -> get_withdrawal(WithdrawalId, Context);
-        Error = {error, _} -> Error
-    end.
-
--spec get_withdrawal(_, _) -> _.
-get_withdrawal(WithdrawalId, _Context) ->
-    case ff_withdrawal_machine:get(WithdrawalId) of
-        {ok, State}        -> {ok, to_swag(withdrawal, State)};
-        Error = {error, _} -> Error
-    end.
-
--spec get_withdrawal_events(_, _) -> _.
-get_withdrawal_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, _Context) ->
-    case ff_withdrawal_machine:get_status_events(WithdrawalId, genlib_map:get('eventCursor', Params)) of
-        {ok, Events}       -> {ok, to_swag(withdrawal_events, filter_status_events(Events, Limit))};
-        Error = {error, _} -> Error
-    end.
-
--spec get_withdrawal_event(_, _, _) -> _.
-get_withdrawal_event(WithdrawalId, EventId, _Context) ->
-    case ff_withdrawal_machine:get_status_events(WithdrawalId, undefined) of
-        {ok, Events} ->
-            case lists:keyfind(EventId, 1, filter_status_events(Events)) of
-                false -> {error, {event, notfound}};
-                Event -> {ok, to_swag(withdrawal_event, Event)}
-            end;
-        Error = {error, _} -> Error
-    end.
-
--spec get_currency(binary(), wctx()) -> result(map()).
-get_currency(CurrencyId, _Context) ->
-    do(fun () ->
-        to_swag(currency_object, unwrap(ff_currency:get(from_swag(currency, CurrencyId))))
-    end).
-
--spec get_residence(binary(), wctx()) -> result(map()).
-get_residence(Residence, _Context) ->
-    do(fun () ->
-        to_swag(residence_object, unwrap(ff_residence:get(from_swag(residence, Residence))))
-    end).
-
-%% Helper API
-
--spec not_implemented() -> no_return().
-not_implemented() ->
-    wapi_handler:throw_result(wapi_handler_utils:reply_error(501)).
-
-%% Internal functions
-
-do(Fun) ->
-    ff_pipeline:do(Fun).
-
-unwrap(Res) ->
-    ff_pipeline:unwrap(Res).
+-define(CTX_NS, <<"com.rbkmoney.wapi">>).
 
 make_ctx(Params, WapiKeys) ->
     Ctx0 = maps:with(WapiKeys, Params),
@@ -294,7 +334,7 @@ make_ctx(Params, WapiKeys) ->
         undefined -> Ctx0;
         MD        -> Ctx0#{<<"md">> => MD}
     end,
-    #{?NS => Ctx1}.
+    #{?CTX_NS => Ctx1}.
 
 with_party(PartyId, Fun) ->
     try Fun()
@@ -304,22 +344,18 @@ with_party(PartyId, Fun) ->
             Fun()
     end.
 
-filter_status_events(Events) ->
-    filter_status_events(Events, undefined).
+get_ctx(Ctx) ->
+    unwrap(ff_ctx:get(?CTX_NS, Ctx)).
 
-filter_status_events(Events, Limit) ->
-    filter_status_events(Events, [], Limit).
+-spec not_implemented() -> no_return().
+not_implemented() ->
+    wapi_handler_utils:throw_not_implemented().
 
-filter_status_events(_, Acc, Limit) when is_integer(Limit) andalso length(Acc) >= Limit ->
-    Acc;
-filter_status_events([], Acc, _) ->
-    Acc;
-filter_status_events([{ID, Ts, {created, _}} | Rest], Acc, Limit) ->
-    filter_status_events(Rest, [{ID, Ts, undefined} | Acc], Limit);
-filter_status_events([{ID, Ts, {status_changed, Status}} | Rest], Acc, Limit) ->
-    filter_status_events(Rest, [{ID, Ts, Status} | Acc], Limit);
-filter_status_events([_ | Rest], Acc, Limit) ->
-    filter_status_events(Rest, Acc, Limit).
+do(Fun) ->
+    ff_pipeline:do(Fun).
+
+unwrap(Res) ->
+    ff_pipeline:unwrap(Res).
 
 %% Marshalling
 from_swag(identity_params, Params) ->
@@ -348,8 +384,15 @@ from_swag(proof, #{<<"token">> := WapiToken}) ->
     end;
 from_swag(proof_type, <<"RUSDomesticPassport">>) ->
     rus_domestic_passport;
-from_swag(proof_type, <<"RUSRetireeInsuranceCertificateData">>) ->
+from_swag(proof_type, <<"RUSRetireeInsuranceCertificate">>) ->
     rus_retiree_insurance_cert;
+
+from_swag(wallet_params, Params) ->
+    #{
+        identity => maps:get(<<"identity">>, Params),
+        currency => maps:get(<<"currency">>, Params),
+        name     => maps:get(<<"name">>    , Params)
+    };
 from_swag(destination_params, Params) ->
     #{
         identity => maps:get(<<"identity">>, Params),
@@ -361,8 +404,13 @@ from_swag(destination_resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
     <<"token">> := WapiToken
 }) ->
-    #{<<"token">> := CdsToken} = wapi_utils:base64url_to_map(WapiToken),
-    {bank_card, #{token => CdsToken}};
+    BankCard = wapi_utils:base64url_to_map(WapiToken),
+    {bank_card, #{
+        token          => maps:get(<<"token">>, BankCard),
+        payment_system => maps:get(<<"paymentSystem">>, BankCard),
+        bin            => maps:get(<<"bin">>, BankCard),
+        masked_pan     => maps:get(<<"maskedPan">>, BankCard)
+    }};
 from_swag(withdrawal_params, Params) ->
     #{
         source      => maps:get(<<"wallet">>     , Params),
@@ -370,7 +418,7 @@ from_swag(withdrawal_params, Params) ->
         body        => from_swag(withdrawal_body , maps:get(<<"body">>, Params))
     };
 from_swag(withdrawal_body, Body) ->
-    {maps:get(<<"amount">>, Body), maps:get(<<"currency">>, Body)};
+    {genlib:to_int(maps:get(<<"amount">>, Body)), maps:get(<<"currency">>, Body)};
 from_swag(currency, V) ->
     V;
 from_swag(residence, V) ->
@@ -389,12 +437,12 @@ to_swag(_, undefined) ->
     undefined;
 to_swag(providers, Providers) ->
     to_swag(list, {provider, Providers});
-to_swag(provider, {Id, Provider}) ->
+to_swag(provider, Provider) ->
     to_swag(map, #{
-       <<"id">> => Id,
-       <<"name">> => Provider#'domain_PaymentInstitution'.name,
+       <<"id">> => ff_provider:id(Provider),
+       <<"name">> => ff_provider:name(Provider),
        <<"residences">> => to_swag(list, {residence,
-           ordsets:to_list(Provider#'domain_PaymentInstitution'.residences)
+           ordsets:to_list(ff_provider:residences(Provider))
        })
      });
 to_swag(residence, Residence) ->
@@ -407,20 +455,19 @@ to_swag(residence_object, V) ->
     });
 to_swag(identity_class, Class) ->
     to_swag(map, maps:with([id, name], Class));
-to_swag(identity, #{identity := Identity, times := {CreatedAt, _}, ctx := Ctx}) ->
-    {ok, WapiCtx}    = ff_ctx:get(?NS, Ctx),
-    ProviderId       = ff_provider:id(ff_identity:provider(Identity)),
-    #{id := ClassId} = ff_identity:class(Identity),
+to_swag(identity, State) ->
+    Identity = ff_identity_machine:identity(State),
+    WapiCtx  = get_ctx(ff_identity_machine:ctx(State)),
     to_swag(map, #{
         <<"id">>                 => ff_identity:id(Identity),
         <<"name">>               => maps:get(<<"name">>, WapiCtx),
-        <<"metadata">>           => maps:get(<<"md">>, WapiCtx, undefined),
-        <<"createdAt">>          => to_swag(timestamp, CreatedAt),
-        <<"provider">>           => ProviderId,
-        <<"class">>              => ClassId,
+        <<"createdAt">>          => to_swag(timestamp, ff_identity_machine:created(State)),
+        <<"provider">>           => ff_provider:id(ff_identity:provider(Identity)),
+        <<"class">>              => ff_identity_class:id(ff_identity:class(Identity)),
         <<"level">>              => ff_identity_class:level_id(ff_identity:level(Identity)),
         <<"effectiveChallenge">> => to_swag(identity_effective_challenge, ff_identity:effective_challenge(Identity)),
-        <<"isBlocked">>          => to_swag(is_blocked, ff_identity:is_accessible(Identity))
+        <<"isBlocked">>          => to_swag(is_blocked, ff_identity:is_accessible(Identity)),
+        <<"metadata">>           => maps:get(<<"md">>, WapiCtx, undefined)
     });
 to_swag(identity_effective_challenge, {ok, ChallegeId}) ->
     ChallegeId;
@@ -428,63 +475,96 @@ to_swag(identity_effective_challenge, {error, notfound}) ->
     undefined;
 to_swag(identity_challenge, {ChallengeId, Challenge, Proofs}) ->
     ChallengeClass = ff_identity_challenge:class(Challenge),
-    maps:merge(
-        to_swag(map, #{
-            <<"id">>            => ChallengeId,
-            % <<"createdAt">>     => <<"TODO">>,
-            <<"level">>         => ff_identity_class:level_id(ff_identity_class:target_level(ChallengeClass)),
-            <<"type">>          => ff_identity_class:challenge_class_id(ChallengeClass),
-            <<"proofs">>        => Proofs
-        }),
-        to_swag(challenge_status,
-            ff_identity_challenge:status(Challenge)
-        )
-    );
+    to_swag(map, maps:merge(#{
+        <<"id">>            => ChallengeId,
+        %% TODO add createdAt when it is available on the backend
+        %% <<"createdAt">>     => _,
+        <<"type">>          => ff_identity_class:challenge_class_id(ChallengeClass),
+        <<"proofs">>        => Proofs
+    }, to_swag(challenge_status, ff_identity_challenge:status(Challenge))));
 to_swag(challenge_status, pending) ->
-    #{<<"status">>      => <<"Pending">>};
+    #{<<"status">>  => <<"Pending">>};
 to_swag(challenge_status, {completed, C = #{resolution := approved}}) ->
     to_swag(map, #{
-    <<"status">>        => <<"Completed">>,
-    <<"validUntil">>    => to_swag(timestamp, genlib_map:get(valid_until, C))
+        <<"status">>        => <<"Completed">>,
+        <<"validUntil">>    => to_swag(timestamp, genlib_map:get(valid_until, C))
     });
 to_swag(challenge_status, {completed, #{resolution := denied}}) ->
     #{
-    <<"status">>        => <<"Failed">>,
-    <<"failureReason">> => <<"Denied">>
+        <<"status">>        => <<"Failed">>,
+        <<"failureReason">> => <<"Denied">>
     };
 to_swag(challenge_status, {failed, Reason}) ->
-    % TODO
-    %  - Well, what if Reason is not scalar?
+    %% TODO
+    %%  - Well, what if Reason is not scalar?
     #{
-    <<"status">>        => <<"Failed">>,
-    <<"failureReason">> => genlib:to_binary(Reason)
+        <<"status">>        => <<"Failed">>,
+        <<"failureReason">> => genlib:to_binary(Reason)
     };
+to_swag(identity_challenge_event, {ID, Ts, V}) ->
+    #{
+        <<"eventID">>   => ID,
+        <<"occuredAt">> => to_swag(timestamp, Ts),
+        <<"changes">>   => [to_swag(identity_challenge_event_change, V)]
+    };
+
+to_swag(identity_challenge_event_change, {status_changed, S}) ->
+    to_swag(map, maps:merge(
+        #{<<"type">> => <<"IdentityChallengeStatusChanged">>},
+        to_swag(challenge_status, S)
+    ));
 to_swag(challenge_status, cancelled) ->
     #{<<"status">>      => <<"Cancelled">>};
-to_swag(destination, #{destination := Destination, times := {CreatedAt, _}, ctx := Ctx}) ->
-    {ok, WapiCtx} = ff_ctx:get(?NS, Ctx),
-    Wallet  = ff_destination:wallet(Destination),
+
+to_swag(wallet, State) ->
+    Wallet = ff_wallet_machine:wallet(State),
     to_swag(map, #{
-        <<"id">>         => ff_destination:id(Destination),
-        <<"name">>       => maps:get(<<"name">>, WapiCtx),
-        <<"metadata">>   => maps:get(<<"md">>, WapiCtx, undefined),
-        <<"createdAt">>  => to_swag(timestamp, CreatedAt),
-        %% TODO
-        <<"isBlocked">>  => to_swag(is_blocked, {ok, accessible}), %% ff_destination:is_accessible(Destination)),
+        <<"id">>         => ff_wallet:id(Wallet),
+        <<"name">>       => ff_wallet:name(Wallet),
+        <<"createdAt">>  => to_swag(timestamp, ff_wallet_machine:created(State)),
+        <<"isBlocked">>  => to_swag(is_blocked, ff_wallet:is_accessible(Wallet)),
         <<"identity">>   => ff_identity:id(ff_wallet:identity(Wallet)),
         <<"currency">>   => to_swag(currency, ff_wallet:currency(Wallet)),
-        <<"resource">>   => to_swag(destination_resource, ff_destination:resource(Destination)),
-        <<"status">>     => to_swag(destination_status, ff_destination:status(Destination)),
-        <<"validUntil">> => to_swag(destination_expiration, Destination)
+        <<"metadata">>   => genlib_map:get(<<"md">>, get_ctx(ff_wallet_machine:ctx(State)))
     });
+to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
+    EncodedCurrency = to_swag(currency, Currency),
+    #{
+        <<"own">> => #{
+            <<"amount">>   => OwnAmount,
+            <<"currency">> => EncodedCurrency
+        },
+        <<"available">> => #{
+            <<"amount">>   => AvailableAmount,
+            <<"currency">> => EncodedCurrency
+        }
+    };
+to_swag(destination, State) ->
+    Destination = ff_destination_machine:destination(State),
+    Wallet      = ff_destination:wallet(Destination),
+    to_swag(map, maps:merge(
+        #{
+            <<"id">>         => ff_destination:id(Destination),
+            <<"name">>       => ff_wallet:name(Wallet),
+            <<"createdAt">>  => to_swag(timestamp, ff_destination_machine:created(State)),
+            <<"isBlocked">>  => to_swag(is_blocked, ff_wallet:is_accessible(Wallet)),
+            <<"identity">>   => ff_identity:id(ff_wallet:identity(Wallet)),
+            <<"currency">>   => to_swag(currency, ff_wallet:currency(Wallet)),
+            <<"resource">>   => to_swag(destination_resource, ff_destination:resource(Destination)),
+            <<"metadata">>   => genlib_map:get(<<"md">>, get_ctx(ff_destination_machine:ctx(State)))
+        },
+        to_swag(destination_status, ff_destination:status(Destination))
+    ));
+%% TODO: add validUntil when it is supported by the ff_destination
+%% to_swag(destination_status, {authorized, Timeout}) ->
+%%     #{
+%%         <<"status">>     => <<"Authorized">>,
+%%         <<"validUntil">> => to_swag(timestamp, Timeout)
+%%     };
 to_swag(destination_status, authorized) ->
-    <<"Authorized">>;
+    #{<<"status">> => <<"Authorized">>};
 to_swag(destination_status, unauthorized) ->
-    <<"Unauthorized">>;
-to_swag(destination_expiration, #{status := authorized, timeout := Timeout}) ->
-    Timeout;
-to_swag(destination_expiration, _) ->
-    undefined;
+    #{<<"status">> => <<"Unauthorized">>};
 to_swag(destination_resource, {bank_card, BankCard}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardDestinationResource">>,
@@ -495,61 +575,50 @@ to_swag(destination_resource, {bank_card, BankCard}) ->
     });
 to_swag(pan_last_digits, MaskedPan) ->
     wapi_utils:get_last_pan_digits(MaskedPan);
-to_swag(withdrawal, St = #{withdrawal := W, times := {CreatedAt, _}, ctx := Ctx}) ->
-    {ok, WapiCtx} = ff_ctx:get(?NS, Ctx),
-    Status = genlib_map:get(status, St),
+to_swag(withdrawal, State) ->
+    Withdrawal = ff_withdrawal_machine:withdrawal(State),
+    to_swag(map, maps:merge(
+        #{
+            <<"id">>          => ff_withdrawal:id(Withdrawal),
+            <<"createdAt">>   => to_swag(timestamp, ff_withdrawal_machine:created(State)),
+            <<"metadata">>    => genlib_map:get(<<"md">>, get_ctx(ff_withdrawal_machine:ctx(State))),
+            <<"wallet">>      => ff_wallet:id(ff_withdrawal:source(Withdrawal)),
+            <<"destination">> => ff_destination:id(ff_withdrawal:destination(Withdrawal)),
+            <<"body">>        => to_swag(withdrawal_body, ff_withdrawal:body(Withdrawal))
+        },
+        to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))
+    ));
+to_swag(withdrawal_body, {Amount, Currency}) ->
     to_swag(map, #{
-        <<"id">>          => ff_withdrawal:id(W),
-        <<"createdAt">>   => to_swag(timestamp, CreatedAt),
-        <<"metadata">>    => maps:get(<<"md">>, WapiCtx, undefined),
-        <<"wallet">>      => ff_wallet:id(ff_withdrawal:source(W)),
-        <<"destination">> => ff_destination:id(ff_withdrawal:destination(W)),
-        <<"body">>        => to_swag(withdrawal_body, ff_withdrawal:body(W)),
-        <<"status">>      => to_swag(withdrawal_status, Status),
-        <<"failure">>     => to_swag(withdrawal_failure, Status)
+        <<"amount">>   => Amount,
+        <<"currency">> => to_swag(currency, Currency)
     });
-to_swag(withdrawal_body, Body) ->
-    to_swag(map, #{
-        <<"amount">>   => maps:get(amount, Body),
-        <<"currency">> => to_swag(currency, maps:get(currency, Body))
-    });
+to_swag(withdrawal_status, pending) ->
+    #{<<"status">> => <<"Pending">>};
 to_swag(withdrawal_status, succeeded) ->
-    <<"Succeeded">>;
-to_swag(withdrawal_status, failed) ->
-    <<"Failed">>;
-to_swag(withdrawal_status, {failed, _Reason}) ->
-    <<"Failed">>;
-to_swag(withdrawal_status, _) ->
-    <<"Pending">>;
-to_swag(withdrawal_failure, {failed, Reason}) ->
-    genlib:to_binary(Reason);
-to_swag(withdrawal_failure, _) ->
-    undefined;
+    #{<<"status">> => <<"Succeeded">>};
+to_swag(withdrawal_status, {failed, Reason}) ->
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => #{
+            <<"code">> => genlib:to_binary(Reason)
+        }
+    };
 to_swag(withdrawal_events, Events) ->
     to_swag(list, {withdrawal_event, Events});
-to_swag(withdrawal_event, {EventId, Ts, Status}) ->
+to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{
-        <<"eventID">>   => EventId,
+        <<"eventID">> => EventId,
         <<"occuredAt">> => to_swag(timestamp, Ts),
-        <<"changes">> => [#{
-            <<"type">>    => <<"WithdrawalStatusChanged">>,
-            <<"status">>  => to_swag(withdrawal_status, Status),
-            <<"failure">> => to_swag(withdrawal_failure, Status)
-        }]
+        <<"changes">> => [maps:merge(
+            #{<<"type">>    => <<"WithdrawalStatusChanged">>},
+            to_swag(withdrawal_status, Status)
+        )]
     });
-to_swag({event, Type}, {ID, Ts, V}) ->
-    #{
-        <<"eventID">>   => ID,
-        <<"occuredAt">> => to_swag(timestamp, Ts),
-        <<"changes">>   => [to_swag({change, Type}, V)]
-    };
-to_swag({change, challenge}, {status_changed, S}) ->
-    maps:merge(
-        #{<<"type">> => <<"IdentityChallengeStatusChanged">>},
-        to_swag(challenge_status, S)
-    );
+
 to_swag(timestamp, {{Date, Time}, Usec}) ->
-    rfc3339:format({Date, Time, Usec, undefined});
+    {ok, Timestamp} = rfc3339:format({Date, Time, Usec, undefined}),
+    Timestamp;
 to_swag(currency, Currency) ->
     genlib_string:to_upper(genlib:to_binary(Currency));
 to_swag(currency_object, V) ->
@@ -565,9 +634,9 @@ to_swag(is_blocked, {ok, accessible}) ->
 to_swag(is_blocked, _) ->
     true;
 
-to_swag(_Type, V) when is_map(V) ->
-    to_swag(map, V);
 to_swag(list, {Type, List}) ->
     lists:map(fun(V) -> to_swag(Type, V) end, List);
 to_swag(map, Map) ->
-    genlib_map:compact(Map).
+    genlib_map:compact(Map);
+to_swag(_, V) ->
+    V.

@@ -101,14 +101,17 @@ to_swag(bank_card, #domain_BankCard{
     'bin'            = Bin,
     'masked_pan'     = MaskedPan
 }) ->
-    BankCard = genlib_map:compact(#{
+    BankCardData = genlib_map:compact(#{
         <<"token">>          => Token,
         <<"paymentSystem">>  => genlib:to_binary(PaymentSystem),
         <<"bin">>            => Bin,
+        <<"maskedPan">>      => MaskedPan,
         <<"lastDigits">>     => wapi_utils:get_last_pan_digits(MaskedPan)
     }),
-    BankCard#{<<"token">> => encode_token(BankCard)};
-
+    maps:with(
+        [<<"token">>, <<"paymentSystem">>, <<"bin">>, <<"lastDigits">>],
+        BankCardData#{<<"token">> => encode_token(BankCardData)}
+    );
 to_swag(auth_data, PaymentSessionID) ->
     #{<<"authData">> => genlib:to_binary(PaymentSessionID)}.
 

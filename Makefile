@@ -103,7 +103,7 @@ SWAG_SERVER_APP_TARGET_WALLET  := $(SWAG_SERVER_APP_PATH)_wallet/rebar.config
 SWAG_SERVER_APP_TARGET_PAYRES  := $(SWAG_SERVER_APP_PATH)_payres/rebar.config
 SWAG_SERVER_APP_TARGET_PRIVDOC := $(SWAG_SERVER_APP_PATH)_privdoc/rebar.config
 
-$(SWAG_SERVER_APP_PATH)_%/rebar.config: $(SWAGGER_SCHEME_BASE_PATH)/.git
+$(SWAG_SERVER_APP_PATH)_%/rebar.config: $(SWAGGER_SCHEME_API_PATH)/$*
 	$(SWAGGER_CODEGEN) generate \
 		-i $(SWAGGER_SCHEME_API_PATH)/$*/$(SWAG_SPEC_FILE) \
 		-l erlang-server \
@@ -130,7 +130,7 @@ SWAG_CLIENT_APP_TARGET_WALLET  := $(SWAG_CLIENT_APP_PATH)_wallet/rebar.config
 SWAG_CLIENT_APP_TARGET_PAYRES  := $(SWAG_CLIENT_APP_PATH)_payres/rebar.config
 SWAG_CLIENT_APP_TARGET_PRIVDOC := $(SWAG_CLIENT_APP_PATH)_privdoc/rebar.config
 
-$(SWAG_CLIENT_APP_PATH)_%/rebar.config: $(SWAGGER_SCHEME_BASE_PATH)/.git
+$(SWAG_CLIENT_APP_PATH)_%/rebar.config: $(SWAGGER_SCHEME_API_PATH)/$*
 	$(SWAGGER_CODEGEN) generate \
 		-i $(SWAGGER_SCHEME_API_PATH)/$*/$(SWAG_SPEC_FILE) \
 		-l erlang-client \

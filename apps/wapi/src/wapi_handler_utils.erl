@@ -10,6 +10,8 @@
 -export([reply_error/2]).
 -export([reply_error/3]).
 
+-export([throw_not_implemented/0]).
+
 -export([get_party_id/1]).
 -export([get_auth_context/1]).
 
@@ -78,6 +80,11 @@ reply_error(Code, Data, Headers) ->
 
 reply(Status, Code, Data, Headers) ->
     {Status, {Code, Headers, Data}}.
+
+-spec throw_not_implemented() ->
+    no_return().
+throw_not_implemented() ->
+    wapi_handler:throw_result(reply_error(501)).
 
 -spec get_location(cowboy_router:route_match(), [binary()], handler_opts()) ->
     headers().

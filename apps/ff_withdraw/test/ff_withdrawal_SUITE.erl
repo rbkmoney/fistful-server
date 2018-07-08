@@ -96,7 +96,7 @@ init_per_suite(C) ->
 
 construct_handler(Module, Suffix, BeConf) ->
     {{fistful, Module},
-        #{path => ff_string:join(["/v1/stateproc/", Suffix]), backend_config => BeConf}}.
+        #{path => ff_string:join(["/v1/stateproc/ff/", Suffix]), backend_config => BeConf}}.
 
 -spec end_per_suite(config()) -> _.
 

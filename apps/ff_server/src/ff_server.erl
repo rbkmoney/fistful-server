@@ -64,6 +64,7 @@ init([]) ->
     ]),
     ok = application:set_env(fistful, backends, maps:from_list(Backends)),
     {ok, IP} = inet:parse_address(genlib_app:env(?MODULE, ip, "::0")),
+    HealthCheckers = genlib_app:env(?MODULE, health_checkers, []),
     {ok, {
         % TODO
         %  - Zero thoughts given while defining this strategy.
@@ -86,7 +87,7 @@ init([]) ->
                                     event_handler => scoper_woody_event_handler
                                 }
                             )
-                        )
+                        ) ++ [erl_health_handle:get_route(HealthCheckers)]
                     }
                 )
             )

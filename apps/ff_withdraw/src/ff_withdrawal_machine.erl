@@ -30,14 +30,13 @@
 
 -export([create/3]).
 -export([get/1]).
--export([get_status_events/2]).
+-export([events/2]).
 
 %% Accessors
 
 -export([withdrawal/1]).
 -export([activity/1]).
 -export([ctx/1]).
--export([status/1]).
 -export([created/1]).
 -export([updated/1]).
 
@@ -87,7 +86,7 @@ create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ct
     end).
 
 -spec get(id()) ->
-    {ok, st()} |
+    {ok, st()}       |
     {error, notfound}.
 
 get(ID) ->
@@ -95,15 +94,14 @@ get(ID) ->
         collapse(unwrap(machinery:get(?NS, ID, backend())))
     end).
 
--type event_cursor() :: non_neg_integer() | undefined.
+-spec events(id(), machinery:range()) ->
+    {ok, [{integer(), ts_ev(ev())}]} |
+    {error, notfound}.
 
--spec get_status_events(id(), event_cursor()) ->
-    {ok, [{integer(), machinery:timestamp(), ev()}]} |
-    {error, notfound}                                .
-
-get_status_events(ID, Cursor) ->
+events(ID, Range) ->
     do(fun () ->
-        maps:get(history, unwrap(machinery:get(?NS, ID, {Cursor, undefined, forward}, backend())))
+        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
+        [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 
 backend() ->
@@ -120,7 +118,6 @@ backend() ->
 withdrawal(#{withdrawal := V}) -> V.
 activity(#{activity := V})     -> V.
 ctx(#{ctx := V})               -> V.
-status(St)                     -> genlib_map:get(status, St).
 created(St)                    -> erlang:element(1, times(St)).
 updated(St)                    -> erlang:element(2, times(St)).
 
@@ -153,7 +150,10 @@ init({Events, Ctx}, #{}, _, _Opts) ->
     }.
 
 -spec process_timeout(machine(), _, handler_opts()) ->
-    result().
+    %% result().
+    %% The return type is result(), but we run into a very strange dialyzer behaviour here
+    %% so meet a crappy workaround:
+    machinery:result(ts_ev(ev()), auxst()).
 
 process_timeout(Machine, _, _Opts) ->
     St = collapse(Machine),

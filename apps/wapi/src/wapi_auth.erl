@@ -48,10 +48,6 @@ authorize_api_key(OperationID, ApiKey, _Opts) ->
             false
     end.
 
-    %% Subject = {<<"notimplemented">>, wapi_acl:new()},
-    %% Claims  = #{},
-    %% {true, {Subject, Claims}}.
-
 log_auth_error(OperationID, Error) ->
     lager:info("API Key authorization failed for ~p due to ~p", [OperationID, Error]).
 

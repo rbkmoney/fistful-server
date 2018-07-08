@@ -22,19 +22,19 @@ namespaces:
   # Fistful
   ff/identity:
       processor:
-          url: http://fistful-server:8022/v1/stateproc/identity
+          url: http://fistful-server:8022/v1/stateproc/ff/identity
   ff/wallet:
       processor:
-          url: http://fistful-server:8022/v1/stateproc/wallet
+          url: http://fistful-server:8022/v1/stateproc/ff/wallet
   ff/destination:
       processor:
-          url: http://fistful-server:8022/v1/stateproc/destination
+          url: http://fistful-server:8022/v1/stateproc/ff/destination
   ff/withdrawal:
       processor:
-          url: http://fistful-server:8022/v1/stateproc/withdrawal
+          url: http://fistful-server:8022/v1/stateproc/ff/withdrawal
   ff/withdrawal/session:
       processor:
-          url: http://fistful-server:8022/v1/stateproc/withdrawal/session
+          url: http://fistful-server:8022/v1/stateproc/ff/withdrawal/session
 
 storage:
     type: memory

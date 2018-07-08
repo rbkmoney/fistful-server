@@ -9,6 +9,7 @@
         kernel,
         stdlib,
         woody,
+        erl_health,
         fistful,
         ff_withdraw,
         wapi

@@ -36,6 +36,7 @@
 -export([residences/1]).
 -export([payinst/1]).
 
+-export([list/0]).
 -export([get/1]).
 -export([list_identity_classes/1]).
 -export([get_identity_class/2]).
@@ -59,6 +60,15 @@ residences(#{payinst := PI}) -> PI#domain_PaymentInstitution.residences.
 payinst(#{payinst_ref := V}) -> V.
 
 %%
+
+-spec list() ->
+    [provider()].
+
+list() ->
+    [Provider ||
+        ID             <- list_providers(),
+        {ok, Provider} <- [ff_provider:get(ID)]
+    ].
 
 -spec get(id()) ->
     {ok, provider()} |
@@ -154,3 +164,9 @@ get_provider_config(ID) ->
         #{} ->
             {error, notfound}
     end.
+
+-spec list_providers() ->
+    [id()].
+
+list_providers() ->
+    maps:keys(genlib_app:env(fistful, providers, #{})).

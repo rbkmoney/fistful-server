@@ -37,12 +37,10 @@ handle_request(OperationID, Req, SwagContext, Opts) ->
 %% Providers
 -spec process_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
     request_result().
-process_request('ListProviders', _Req, #{woody_context := _Context}, _Opts) ->
-    %% case wapi_wallet_ff_backend:get_providers(maps:with(['residence'], Req), Context) of
-    %%     {ok, Providers}   -> wapi_handler_utils:reply_ok(200, Providers);
-    %%     {error, notfound} -> wapi_handler_utils:reply_ok(200, [])
-    %% end;
-    not_implemented();
+process_request('ListProviders', Req, #{woody_context := Context}, _Opts) ->
+    Residences = ff_maybe:to_list(maps:get('residence', Req)),
+    Providers = wapi_wallet_ff_backend:get_providers(Residences, Context),
+    wapi_handler_utils:reply_ok(200, Providers);
 process_request('GetProvider', #{'providerID' := Id}, #{woody_context := Context}, _Opts) ->
     case wapi_wallet_ff_backend:get_provider(Id, Context) of
         {ok, Provider}    -> wapi_handler_utils:reply_ok(200, Provider);

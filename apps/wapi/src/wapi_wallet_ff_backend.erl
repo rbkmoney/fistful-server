@@ -46,8 +46,15 @@
 %% Providers
 
 -spec get_providers(_, _) -> no_return().
-get_providers(_Params, _Context) ->
-    not_implemented().
+get_providers(Residences, _Context) ->
+    ResidenceSet = ordsets:from_list(from_swag(list, {residence, Residences})),
+    to_swag(list, {provider, [P ||
+        P <- ff_provider:list(),
+        ordsets:is_subset(
+            ResidenceSet,
+            ordsets:from_list(ff_provider:residences(P))
+        )
+    ]}).
 
 -spec get_provider(_, _) -> _.
 get_provider(ProviderId, _Context) ->

@@ -36,5 +36,9 @@ namespaces:
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/withdrawal/session
 
+  ff/sequence:
+      processor:
+          url: http://fistful-server:8022/v1/stateproc/ff/sequence
+
 storage:
     type: memory

@@ -90,7 +90,7 @@ get_identity(IdentityId, _Context) ->
 
 -spec create_identity(_, _) -> _.
 create_identity(Params = #{<<"party">> := PartyId}, Context) ->
-    IdentityId = genlib:unique(),
+    IdentityId = next_id('identity'),
     with_party(PartyId, fun() ->
         case ff_identity_machine:create(IdentityId, from_swag(identity_params, Params), make_ctx(Params, [<<"name">>])) of
             ok ->
@@ -108,7 +108,7 @@ get_identity_challengies(_Params, _Context) ->
 
 -spec create_identity_challenge(_, _, _) -> _.
 create_identity_challenge(IdentityId, Params, Context) ->
-    ChallengeId = genlib:unique(),
+    ChallengeId = next_id('identity-challenge'),
     case ff_identity_machine:start_challenge(
         IdentityId,
         maps:merge(#{id => ChallengeId}, from_swag(identity_challenge_params, Params))
@@ -187,7 +187,7 @@ get_wallet(WalletId, _Context) ->
 
 -spec create_wallet(_, _) -> _.
 create_wallet(Params , Context) ->
-    WalletId = genlib:unique(),
+    WalletId = next_id('wallet'),
     case ff_wallet_machine:create(WalletId, from_swag(wallet_params, Params), make_ctx(Params, [])) of
         ok                 -> get_wallet(WalletId, Context);
         Error = {error, _} -> Error
@@ -214,7 +214,7 @@ get_destination(DestinationId, _Context) ->
 
 -spec create_destination(_, _) -> _.
 create_destination(Params, Context) ->
-    DestinationId = genlib:unique(),
+    DestinationId = next_id('destination'),
     case ff_destination_machine:create(DestinationId, from_swag(destination_params, Params), make_ctx(Params, [])) of
         ok                 -> get_destination(DestinationId, Context);
         Error = {error, _} -> Error
@@ -222,7 +222,7 @@ create_destination(Params, Context) ->
 
 -spec create_withdrawal(_, _) -> _.
 create_withdrawal(Params, Context) ->
-    WithdrawalId = genlib:unique(),
+    WithdrawalId = next_id('withdrawal'),
     case ff_withdrawal_machine:create(WithdrawalId, from_swag(withdrawal_params, Params), make_ctx(Params, [])) of
         ok                 -> get_withdrawal(WithdrawalId, Context);
         Error = {error, _} -> Error
@@ -356,6 +356,13 @@ do(Fun) ->
 
 unwrap(Res) ->
     ff_pipeline:unwrap(Res).
+
+%% ID Gen
+next_id(Type) ->
+    NS = 'ff/sequence',
+    erlang:integer_to_binary(
+        ff_sequence:next(NS, ff_string:join($/, [Type, id]), fistful:backend(NS))
+    ).
 
 %% Marshalling
 from_swag(identity_params, Params) ->

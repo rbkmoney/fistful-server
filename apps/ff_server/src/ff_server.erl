@@ -56,6 +56,7 @@ init([]) ->
     % TODO
     %  - Make it palatable
     {Backends, Handlers} = lists:unzip([
+        contruct_backend_childspec('ff/sequence'           , ff_sequence),
         contruct_backend_childspec('ff/identity'           , ff_identity_machine),
         contruct_backend_childspec('ff/wallet'             , ff_wallet_machine),
         contruct_backend_childspec('ff/destination'        , ff_destination_machine),

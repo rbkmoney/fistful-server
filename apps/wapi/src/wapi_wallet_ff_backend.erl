@@ -15,7 +15,7 @@
 -export([get_identities/2]).
 -export([get_identity/2]).
 -export([create_identity/2]).
--export([get_identity_challengies/2]).
+-export([get_identity_challenges/3]).
 -export([create_identity_challenge/3]).
 -export([get_identity_challenge/3]).
 -export([cancel_identity_challenge/3]).
@@ -109,9 +109,24 @@ create_identity(Params = #{<<"party">> := PartyId}, Context) ->
         end
     end).
 
--spec get_identity_challengies(_, _) -> no_return().
-get_identity_challengies(_Params, _Context) ->
-    not_implemented().
+-spec get_identity_challenges(_, _, _) -> no_return().
+get_identity_challenges(IdentityId, Statuses, Context) ->
+    do(fun() ->
+        IdentitySt = unwrap(ff_identity_machine:get(IdentityId)),
+        Challenges0 = maps:to_list(ff_identity:challenges(ff_identity_machine:identity(IdentitySt))),
+        to_swag(list, {identity_challenge, [
+            {Id, C, enrich_proofs(ff_identity_challenge:proofs(C), Context)} ||
+                {Id, C} <- Challenges0,
+                Status  <- [ff_identity_challenge:status(C)],
+                lists:all(
+                    fun (F) -> filter_identity_challenge_status(F, Status) end,
+                    Statuses
+                )
+        ]})
+    end).
+
+filter_identity_challenge_status(Filter, Status) ->
+    maps:get(<<"status">>, to_swag(challenge_status, Status)) =:= Filter.
 
 -spec create_identity_challenge(_, _, _) -> _.
 create_identity_challenge(IdentityId, Params, Context) ->
@@ -134,17 +149,20 @@ get_identity_challenge(IdentityId, ChallengeId, Context) ->
         {ok, IdentityState} ->
              case ff_identity:challenge(ChallengeId, ff_identity_machine:identity(IdentityState)) of
                  {ok, Challenge} ->
-                     Proofs = [
-                         wapi_privdoc_handler:get_proof(Token, Context) ||
-                         {_, Token} <- ff_identity_challenge:proofs(Challenge)
-                     ],
-                     {ok, to_swag(identity_challenge, {ChallengeId, Challenge, Proofs})};
+                    Proofs = enrich_proofs(ff_identity_challenge:proofs(Challenge), Context),
+                    {ok, to_swag(identity_challenge, {ChallengeId, Challenge, Proofs})};
                  Error = {error, notfound} ->
-                     Error
+                    Error
              end;
         Error = {error, notfound} ->
             Error
     end.
+
+enrich_proofs(Proofs, Context) ->
+    [enrich_proof(P, Context) || P <- Proofs].
+
+enrich_proof({_, Token}, Context) ->
+    wapi_privdoc_handler:get_proof(Token, Context).
 
 -spec cancel_identity_challenge(_, _, _) -> no_return().
 cancel_identity_challenge(_IdentityId, _ChallengeId, _Context) ->
@@ -498,6 +516,8 @@ to_swag(identity_challenge, {ChallengeId, Challenge, Proofs}) ->
     }, to_swag(challenge_status, ff_identity_challenge:status(Challenge))));
 to_swag(challenge_status, pending) ->
     #{<<"status">>  => <<"Pending">>};
+to_swag(challenge_status, cancelled) ->
+    #{<<"status">>  => <<"Cancelled">>};
 to_swag(challenge_status, {completed, C = #{resolution := approved}}) ->
     to_swag(map, #{
         <<"status">>        => <<"Completed">>,
@@ -527,8 +547,6 @@ to_swag(identity_challenge_event_change, {status_changed, S}) ->
         #{<<"type">> => <<"IdentityChallengeStatusChanged">>},
         to_swag(challenge_status, S)
     ));
-to_swag(challenge_status, cancelled) ->
-    #{<<"status">>      => <<"Cancelled">>};
 
 to_swag(wallet, State) ->
     Wallet = ff_wallet_machine:wallet(State),

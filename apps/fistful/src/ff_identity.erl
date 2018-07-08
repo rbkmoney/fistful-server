@@ -57,6 +57,7 @@
 -export([class/1]).
 -export([level/1]).
 -export([contract/1]).
+-export([challenges/1]).
 -export([challenge/2]).
 -export([effective_challenge/1]).
 
@@ -102,6 +103,12 @@ party(#{party := V})    -> V.
 contract(V) ->
     ff_map:find(contract, V).
 
+-spec challenges(identity()) ->
+    #{challenge_id() => challenge()}.
+
+challenges(Identity) ->
+    maps:get(challenges, Identity, #{}).
+
 -spec effective_challenge(identity()) ->
     ff_map:result(challenge_id()).
 
@@ -112,7 +119,7 @@ effective_challenge(Identity) ->
     ff_map:result(challenge()).
 
 challenge(ChallengeID, Identity) ->
-    ff_map:find(ChallengeID, maps:get(challenges, Identity, #{})).
+    ff_map:find(ChallengeID, challenges(Identity)).
 
 -spec is_accessible(identity()) ->
     {ok, accessible} |

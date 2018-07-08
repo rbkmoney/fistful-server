@@ -37,9 +37,8 @@ handle_request(OperationID, Req, SwagContext, Opts) ->
 %% Providers
 -spec process_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
     request_result().
-process_request('ListProviders', Req, #{woody_context := Context}, _Opts) ->
-    Residences = ff_maybe:to_list(maps:get('residence', Req)),
-    Providers = wapi_wallet_ff_backend:get_providers(Residences, Context),
+process_request('ListProviders', #{'residence' := Residence}, #{woody_context := Context}, _Opts) ->
+    Providers = wapi_wallet_ff_backend:get_providers(ff_maybe:to_list(Residence), Context),
     wapi_handler_utils:reply_ok(200, Providers);
 process_request('GetProvider', #{'providerID' := Id}, #{woody_context := Context}, _Opts) ->
     case wapi_wallet_ff_backend:get_provider(Id, Context) of
@@ -100,12 +99,11 @@ process_request('CreateIdentity', #{'Identity' := Params}, C = #{woody_context :
         {error, {identity_class, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity class">>))
     end;
-process_request('ListIdentityChallenges', _Req, #{woody_context := _Context}, _Opts) ->
-    %% case wapi_wallet_ff_backend:get_identity_challengies(maps:with(['status', 'identityID'], Req), Context) of
-    %%     {ok, Challengies}  -> wapi_handler_utils:reply_ok(200, Challengies);
-    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
-    %% end;
-    not_implemented();
+process_request('ListIdentityChallenges', #{'identityID' := Id, 'status' := Status}, #{woody_context := Context}, _Opts) ->
+    case wapi_wallet_ff_backend:get_identity_challenges(Id, ff_maybe:to_list(Status), Context) of
+        {ok, Challenges}  -> wapi_handler_utils:reply_ok(200, Challenges);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
 process_request('StartIdentityChallenge', #{
     'identityID'        := IdentityId,
     'IdentityChallenge' := Params

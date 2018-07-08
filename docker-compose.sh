@@ -11,7 +11,7 @@ services:
     working_dir: $PWD
     command: |
       bash -c '{
-        woorl -s _checkouts/dmsl/proto/cds.thrift http://cds:8022/v1/keyring Keyring Init 1 1 || true;
+        woorl -s _build/default/lib/dmsl/proto/cds.thrift http://cds:8022/v1/keyring Keyring Init 1 1 || true;
         exec /sbin/init
       }'
     depends_on:

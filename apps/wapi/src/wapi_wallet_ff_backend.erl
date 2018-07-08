@@ -625,7 +625,7 @@ to_swag(currency_object, V) ->
     to_swag(map, #{
         <<"id">>          => to_swag(currency, maps:get(id, V)),
         <<"name">>        => maps:get(name, V),
-        <<"numericCode">> => maps:get(numcode, V),
+        <<"numericCode">> => genlib:to_binary(maps:get(numcode, V)),
         <<"exponent">>    => maps:get(exponent, V),
         <<"sign">>        => maps:get(sign, V, undefined)
     });

@@ -269,7 +269,7 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, #{woody
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, #{woody_context := Context}, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of
         {ok, Withdrawal}  -> wapi_handler_utils:reply_ok(200, Withdrawal);
-        {error, notfound} -> wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such withdrawal">>))
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('PollWithdrawalEvents', Params, #{woody_context := Context}, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal_events(Params, Context) of

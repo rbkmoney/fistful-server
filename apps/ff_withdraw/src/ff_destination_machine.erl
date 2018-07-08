@@ -163,9 +163,10 @@ merge_event({_ID, _Ts, TsEv}, St0) ->
     merge_event_body(EvBody, St1).
 
 merge_event_body(Ev, St) ->
+    Destination = genlib_map:get(destination, St),
     St#{
         activity    => deduce_activity(Ev),
-        destination => ff_destination:apply_event(Ev, maps:get(destination, St, undefined))
+        destination => ff_destination:apply_event(ff_destination:hydrate(Ev, Destination), Destination)
     }.
 
 deduce_activity({created, _}) ->
@@ -183,7 +184,7 @@ emit_ts_events(Es) ->
     emit_ts_events(Es, machinery_time:now()).
 
 emit_ts_events(Es, Ts) ->
-    [{ev, Ts, Body} || Body <- Es].
+    [{ev, Ts, ff_destination:dehydrate(Body)} || Body <- Es].
 
 merge_ts_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
     {Body, St#{times => {Created, Ts}}};

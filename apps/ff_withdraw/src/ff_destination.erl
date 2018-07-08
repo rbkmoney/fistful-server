@@ -54,6 +54,9 @@
 
 -export([apply_event/2]).
 
+-export([dehydrate/1]).
+-export([hydrate/2]).
+
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
@@ -101,6 +104,8 @@ authorize(#{status := unauthorized}) ->
 authorize(#{status := authorized}) ->
     {ok, []}.
 
+%%
+
 -spec apply_event(ev(), undefined | destination()) ->
     destination().
 
@@ -109,4 +114,30 @@ apply_event({created, D}, undefined) ->
 apply_event({status_changed, S}, D) ->
     D#{status => S};
 apply_event({wallet, Ev}, D) ->
-    D#{wallet => ff_wallet:apply_event(Ev, maps:get(wallet, D, undefined))}.
+    D#{wallet => ff_wallet:apply_event(Ev, genlib_map:get(wallet, D))}.
+
+-spec dehydrate(ev()) ->
+    term().
+
+-spec hydrate(term(), undefined | destination()) ->
+    ev().
+
+dehydrate({created, D}) ->
+    {created, #{
+        id       => id(D),
+        resource => resource(D)
+    }};
+dehydrate({wallet, Ev}) ->
+    {wallet, ff_wallet:dehydrate(Ev)};
+dehydrate({status_changed, S}) ->
+    {status_changed, S}.
+
+hydrate({created, V}, undefined) ->
+    {created, #{
+        id       => maps:get(id, V),
+        resource => maps:get(resource, V)
+    }};
+hydrate({wallet, Ev}, D) ->
+    {wallet, ff_wallet:hydrate(Ev, genlib_map:get(wallet, D))};
+hydrate({status_changed, S}, _) ->
+    {status_changed, S}.

@@ -439,7 +439,7 @@ from_swag(destination_resource, #{
     BankCard = wapi_utils:base64url_to_map(WapiToken),
     {bank_card, #{
         token          => maps:get(<<"token">>, BankCard),
-        payment_system => maps:get(<<"paymentSystem">>, BankCard),
+        payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"maskedPan">>, BankCard)
     }};

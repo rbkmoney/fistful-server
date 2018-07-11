@@ -19,13 +19,9 @@ build('fistful-server', 'docker-host', finalHook) {
     withWsCache = load("${env.JENKINS_LIB}/withWsCache.groovy")
   }
 
-  def masterlike() {
-    return (env.BRANCH_NAME == 'master' || env.BRANCH_NAME.startsWith('epic'))
-  }
-
   pipeDefault() {
 
-    if (!masterlike()) {
+    if (!masterlikeBranch()) {
 
       runStage('compile') {
         withGithubPrivkey {

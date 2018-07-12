@@ -18,6 +18,7 @@
     #{md() => md()}    .
 
 -export_type([ctx/0]).
+-export_type([md/0]).
 
 -export([new/0]).
 -export([get/2]).

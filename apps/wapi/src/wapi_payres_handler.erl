@@ -15,7 +15,7 @@
 %% Types
 
 -type req_data()        :: wapi_handler:req_data().
--type handler_context() :: wapi_handler:handler_context().
+-type handler_context() :: wapi_handler:context().
 -type request_result()  :: wapi_handler:request_result().
 -type operation_id()    :: swag_server_payres:operation_id().
 -type api_key()         :: swag_server_payres:api_key().

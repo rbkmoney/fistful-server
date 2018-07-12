@@ -12,15 +12,15 @@
 
 -export([throw_not_implemented/0]).
 
--export([get_party_id/1]).
+-export([get_owner/1]).
 -export([get_auth_context/1]).
 
 -export([get_location/3]).
 
 -define(APP, wapi).
 
--type handler_context() :: wapi_handler:handler_context().
--type handler_opts()    :: wapi_handler:handler_opts().
+-type handler_context() :: wapi_handler:context().
+-type handler_opts()    :: wapi_handler:opts().
 
 -type error_message() :: binary() | io_lib:chars().
 
@@ -28,14 +28,14 @@
 -type headers()       :: wapi_handler:headers().
 -type response_data() :: wapi_handler:response_data().
 
--type party_id() :: binary().
--export_type([party_id/0]).
+-type owner() :: binary().
+-export_type([owner/0]).
 
 %% API
 
--spec get_party_id(handler_context()) ->
-    party_id().
-get_party_id(Context) ->
+-spec get_owner(handler_context()) ->
+    owner().
+get_owner(Context) ->
     wapi_auth:get_subject_id(get_auth_context(Context)).
 
 -spec get_auth_context(handler_context()) ->

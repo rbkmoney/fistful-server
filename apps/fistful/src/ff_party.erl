@@ -15,11 +15,17 @@
 -type contract()    :: dmsl_domain_thrift:'ContractID'().
 -type wallet()      :: dmsl_domain_thrift:'WalletID'().
 
+-type party_params() :: #{
+    email := binary()
+}.
+
 -export_type([id/0]).
 -export_type([contract/0]).
 -export_type([wallet/0]).
+-export_type([party_params/0]).
 
 -export([create/1]).
+-export([create/2]).
 -export([is_accessible/1]).
 -export([get_wallet/2]).
 -export([get_wallet_account/2]).
@@ -39,7 +45,13 @@
     {error, exists}.
 
 create(ID) ->
-    do_create_party(ID).
+    create(ID, #{email => <<"bob@example.org">>}).
+
+-spec create(id(), party_params()) ->
+    ok |
+    {error, exists}.
+create(ID, Params) ->
+    do_create_party(ID, Params).
 
 -spec is_accessible(id()) ->
     {ok, accessible} |
@@ -163,8 +175,8 @@ generate_uuid() ->
 
 %% Party management client
 
-do_create_party(ID) ->
-    case call('Create', [construct_userinfo(), ID, construct_party_params()]) of
+do_create_party(ID, Params) ->
+    case call('Create', [construct_userinfo(), ID, construct_party_params(Params)]) of
         {ok, ok} ->
             ok;
         {exception, #payproc_PartyExists{}} ->
@@ -243,10 +255,10 @@ do_accept_claim(ID, Claim) ->
         #payproc_WalletModificationUnit{id = ID, modification = Mod}}
 ).
 
-construct_party_params() ->
+construct_party_params(#{email := Email}) ->
     #payproc_PartyParams{
         contact_info = #domain_PartyContactInfo{
-            email = <<"bob@example.org">>
+            email = Email
         }
     }.
 

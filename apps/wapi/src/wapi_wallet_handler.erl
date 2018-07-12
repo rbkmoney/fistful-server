@@ -13,7 +13,7 @@
 %% Types
 
 -type req_data()        :: wapi_handler:req_data().
--type handler_context() :: wapi_handler:handler_context().
+-type handler_context() :: wapi_handler:context().
 -type request_result()  :: wapi_handler:request_result().
 -type operation_id()    :: swag_server_wallet:operation_id().
 -type api_key()         :: swag_server_wallet:api_key().
@@ -37,15 +37,15 @@ handle_request(OperationID, Req, SwagContext, Opts) ->
 %% Providers
 -spec process_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
     request_result().
-process_request('ListProviders', #{'residence' := Residence}, #{woody_context := Context}, _Opts) ->
+process_request('ListProviders', #{'residence' := Residence}, Context, _Opts) ->
     Providers = wapi_wallet_ff_backend:get_providers(ff_maybe:to_list(Residence), Context),
     wapi_handler_utils:reply_ok(200, Providers);
-process_request('GetProvider', #{'providerID' := Id}, #{woody_context := Context}, _Opts) ->
+process_request('GetProvider', #{'providerID' := Id}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_provider(Id, Context) of
         {ok, Provider}    -> wapi_handler_utils:reply_ok(200, Provider);
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
     end;
-process_request('ListProviderIdentityClasses', #{'providerID' := Id}, #{woody_context := Context}, _Opts) ->
+process_request('ListProviderIdentityClasses', #{'providerID' := Id}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_provider_identity_classes(Id, Context) of
         {ok, Classes}     -> wapi_handler_utils:reply_ok(200, Classes);
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
@@ -53,7 +53,7 @@ process_request('ListProviderIdentityClasses', #{'providerID' := Id}, #{woody_co
 process_request('GetProviderIdentityClass', #{
     'providerID'      := ProviderId,
     'identityClassID' := ClassId
-}, #{woody_context := Context}, _Opts) ->
+}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_provider_identity_class(ProviderId, ClassId, Context) of
         {ok, Class}       -> wapi_handler_utils:reply_ok(200, Class);
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
@@ -61,7 +61,7 @@ process_request('GetProviderIdentityClass', #{
 process_request('ListProviderIdentityLevels', #{
     'providerID'      := _ProviderId,
     'identityClassID' := _ClassId
-}, #{woody_context := _Context}, _Opts) ->
+}, _Context, _Opts) ->
     %% case wapi_wallet_ff_backend:get_provider_identity_class_levels(ProviderId, ClassId, Context) of
     %%     {ok, Levels}      -> wapi_handler_utils:reply_ok(200, Levels);
     %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
@@ -71,7 +71,7 @@ process_request('GetProviderIdentityLevel', #{
     'providerID'      := _ProviderId,
     'identityClassID' := _ClassId,
     'identityLevelID' := _LevelId
-}, #{woody_context := _Context}, _Opts) ->
+}, _Context, _Opts) ->
     %% case wapi_wallet_ff_backend:get_provider_identity_class_level(ProviderId, ClassId, LevelId, Context) of
     %%     {ok, Level}       -> wapi_handler_utils:reply_ok(200, Level);
     %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
@@ -79,40 +79,52 @@ process_request('GetProviderIdentityLevel', #{
     not_implemented();
 
 %% Identities
-process_request('ListIdentities', _Req, #{woody_context := _Context}, _Opts) ->
+process_request('ListIdentities', _Req, _Context, _Opts) ->
     %% case wapi_wallet_ff_backend:get_identities(maps:with(['provider', 'class', 'level'], Req), Context) of
     %%     {ok, Identities}  -> wapi_handler_utils:reply_ok(200, Identities);
     %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
     %% end;
     not_implemented();
-process_request('GetIdentity', #{'identityID' := IdentityId}, #{woody_context := Context}, _Opts) ->
+process_request('GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity(IdentityId, Context) of
-        {ok, Identity}    -> wapi_handler_utils:reply_ok(200, Identity);
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, Identity}                    -> wapi_handler_utils:reply_ok(200, Identity);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-process_request('CreateIdentity', #{'Identity' := Params}, C = #{woody_context := Context}, Opts) ->
-    case wapi_wallet_ff_backend:create_identity(Params#{<<"party">> => wapi_handler_utils:get_party_id(C)}, Context) of
+process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
+    case wapi_wallet_ff_backend:create_identity(Params, Context) of
         {ok, Identity = #{<<"id">> := IdentityId}} ->
             wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Opts));
         {error, {provider, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {identity_class, notfound}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity class">>))
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity class">>));
+        {error, {email, notfound}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => <<"email">>,
+                <<"description">> => <<"No email in JWT">>
+            })
     end;
-process_request('ListIdentityChallenges', #{'identityID' := Id, 'status' := Status}, #{woody_context := Context}, _Opts) ->
+process_request('ListIdentityChallenges', #{'identityID' := Id, 'status' := Status}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenges(Id, ff_maybe:to_list(Status), Context) of
-        {ok, Challenges}  -> wapi_handler_utils:reply_ok(200, Challenges);
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, Challenges}                  -> wapi_handler_utils:reply_ok(200, Challenges);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('StartIdentityChallenge', #{
     'identityID'        := IdentityId,
     'IdentityChallenge' := Params
-}, #{woody_context := Context}, Opts) ->
+}, Context, Opts) ->
     case wapi_wallet_ff_backend:create_identity_challenge(IdentityId, Params, Context) of
         {ok, Challenge = #{<<"id">> := ChallengeId}} ->
             wapi_handler_utils:reply_ok(202, Challenge, get_location('GetIdentityChallenge', [ChallengeId], Opts));
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {challenge, conflict}} ->
+            wapi_handler_utils:reply_ok(409);
         {error, {challenge, {pending, _}}} ->
             wapi_handler_utils:reply_ok(409);
         {error, {challenge, {class, notfound}}} ->
@@ -122,47 +134,52 @@ process_request('StartIdentityChallenge', #{
         {error, {challenge, {proof, insufficient}}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Insufficient proof">>));
         {error,{challenge, {level, _}}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Illegal identification type for current identity level">>));
-        {error, {challenge, conflict}} ->
-            wapi_handler_utils:reply_ok(409)
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Illegal identification type for current identity level">>))
         %% TODO any other possible errors here?
     end;
 process_request('GetIdentityChallenge', #{
     'identityID'  := IdentityId,
     'challengeID' := ChallengeId
-}, #{woody_context := Context}, _Opts) ->
+}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenge(IdentityId, ChallengeId, Context) of
-        {ok, Challenge}   -> wapi_handler_utils:reply_ok(200, Challenge);
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, Challenge}                   -> wapi_handler_utils:reply_ok(200, Challenge);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('CancelIdentityChallenge', #{
     'identityID'  := _IdentityId,
     'challengeID' := _ChallengeId
-}, #{woody_context := _Context}, _Opts) ->
+}, _Context, _Opts) ->
     not_implemented();
-process_request('PollIdentityChallengeEvents', Params, #{woody_context := Context}, _Opts) ->
+process_request('PollIdentityChallengeEvents', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenge_events(Params, Context) of
-        {ok, Events}      -> wapi_handler_utils:reply_ok(200, Events);
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, Events}                     -> wapi_handler_utils:reply_ok(200, Events);
+        {error, {identity, notfound}}    -> wapi_handler_utils:reply_ok(404);
+        {error, {identity,unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-process_request('GetIdentityChallengeEvent', Params, #{woody_context := Context}, _Opts) ->
+process_request('GetIdentityChallengeEvent', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenge_event(Params, Context) of
-        {ok, Event}       -> wapi_handler_utils:reply_ok(200, Event);
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, Event}                       -> wapi_handler_utils:reply_ok(200, Event);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404);
+        {error, {event, notfound}}        -> wapi_handler_utils:reply_ok(404)
     end;
 
 %% Wallets
 process_request('ListWallets', _Req, _Context, _Opts) ->
     not_implemented();
-process_request('GetWallet', #{'walletID' := WalletId}, #{woody_context := Context}, _Opts) ->
+process_request('GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_wallet(WalletId, Context) of
-        {ok, Wallet}      -> wapi_handler_utils:reply_ok(200, Wallet);
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, Wallet}                    -> wapi_handler_utils:reply_ok(200, Wallet);
+        {error, {wallet, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-process_request('CreateWallet', #{'Wallet' := Params}, #{woody_context := Context}, Opts) ->
+process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
     case wapi_wallet_ff_backend:create_wallet(Params, Context) of
         {ok, Wallet = #{<<"id">> := WalletId}} ->
             wapi_handler_utils:reply_ok(201, Wallet, get_location('GetWallet', [WalletId], Opts));
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, {currency, notfound}} ->
@@ -172,16 +189,17 @@ process_request('CreateWallet', #{'Wallet' := Params}, #{woody_context := Contex
         {error, invalid} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>))
     end;
-process_request('GetWalletAccount', #{'walletID' := WalletId}, #{woody_context := Context}, _Opts) ->
+process_request('GetWalletAccount', #{'walletID' := WalletId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_wallet_account(WalletId, Context) of
-        {ok, WalletAccount} -> wapi_handler_utils:reply_ok(200, WalletAccount);
-        {error, notfound}   -> wapi_handler_utils:reply_ok(404)
+        {ok, WalletAccount}             -> wapi_handler_utils:reply_ok(200, WalletAccount);
+        {error, {wallet, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 
 process_request('IssueWalletGrant', #{
     'walletID'           := WalletId,
     'WalletGrantRequest' := #{<<"validUntil">> := Expiration, <<"asset">> := Asset}
-}, #{woody_context := Context}, _Opts) ->
+}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_wallet(WalletId, Context) of
         {ok, _} ->
             %% TODO issue token properly
@@ -190,7 +208,9 @@ process_request('IssueWalletGrant', #{
                 <<"validUntil">> => Expiration,
                 <<"asset">>      => Asset
             });
-        {error, notfound} ->
+        {error, {wallet, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {wallet, unauthorized}} ->
             wapi_handler_utils:reply_ok(404)
     end;
 
@@ -204,21 +224,24 @@ process_request(O, _Req, _Context, _Opts) when
     not_implemented();
 
 %% Withdrawals
-process_request('ListDestinations', _Req, #{woody_context := _Context}, _Opts) ->
+process_request('ListDestinations', _Req, _Context, _Opts) ->
     %% case wapi_wallet_ff_backend:get_destinations(maps:with(['identity', 'currency'], Req), Context) of
     %%     {ok, Destinations} -> wapi_handler_utils:reply_ok(200, Destinations);
     %%     {error, notfound}  -> wapi_handler_utils:reply_ok(200, [])
     %% end;
     not_implemented();
-process_request('GetDestination', #{'destinationID' := DestinationId}, #{woody_context := Context}, _Opts) ->
+process_request('GetDestination', #{'destinationID' := DestinationId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_destination(DestinationId, Context) of
-        {ok, Destination} -> wapi_handler_utils:reply_ok(200, Destination);
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, Destination}                    -> wapi_handler_utils:reply_ok(200, Destination);
+        {error, {destination, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {destination, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-process_request('CreateDestination', #{'Destination' := Params}, #{woody_context := Context}, Opts) ->
+process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) ->
     case wapi_wallet_ff_backend:create_destination(Params, Context) of
         {ok, Destination = #{<<"id">> := DestinationId}} ->
             wapi_handler_utils:reply_ok(201, Destination, get_location('GetDestination', [DestinationId], Opts));
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, {currency, notfound}} ->
@@ -231,7 +254,7 @@ process_request('CreateDestination', #{'Destination' := Params}, #{woody_context
 process_request('IssueDestinationGrant', #{
     'destinationID'           := DestinationId,
     'DestinationGrantRequest' := #{<<"validUntil">> := Expiration}
-}, #{woody_context := Context}, _Opts) ->
+}, Context, _Opts) ->
     %% TODO issue token properly
     case wapi_wallet_ff_backend:get_destination(DestinationId, Context) of
         {ok, _} ->
@@ -239,10 +262,12 @@ process_request('IssueDestinationGrant', #{
                 <<"token">> => issue_grant_token(destinations, DestinationId, Expiration, #{}),
                 <<"validUntil">> => Expiration
             });
-        {error, notfound} ->
+        {error, {destination, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(404)
     end;
-process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, #{woody_context := Context}, Opts) ->
+process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context, Opts) ->
     %% TODO: properly check authorization tokens here
     case wapi_wallet_ff_backend:create_withdrawal(Params, Context) of
         {ok, Withdrawal = #{<<"id">> := WithdrawalId}} ->
@@ -262,34 +287,38 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, #{woody
         {error, {wallet, {provider, invalid}}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>))
     end;
-process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, #{woody_context := Context}, _Opts) ->
+process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of
-        {ok, Withdrawal}  -> wapi_handler_utils:reply_ok(200, Withdrawal);
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, Withdrawal}                    -> wapi_handler_utils:reply_ok(200, Withdrawal);
+        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-process_request('PollWithdrawalEvents', Params, #{woody_context := Context}, _Opts) ->
+process_request('PollWithdrawalEvents', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal_events(Params, Context) of
-        {ok, Events}      -> wapi_handler_utils:reply_ok(200, Events);
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, Events}                        -> wapi_handler_utils:reply_ok(200, Events);
+        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('GetWithdrawalEvents', #{
     'withdrawalID' := WithdrawalId,
     'eventID'      := EventId
-}, #{woody_context := Context}, _Opts) ->
+}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal_event(WithdrawalId, EventId, Context) of
-        {ok, Event}       -> wapi_handler_utils:reply_ok(200, Event);
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, Event}           -> wapi_handler_utils:reply_ok(200, Event);
+        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} -> wapi_handler_utils:reply_ok(404);
+        {error, {event, notfound}}          -> wapi_handler_utils:reply_ok(404)
     end;
 
 %% Residences
-process_request('GetResidence', #{'residence' := Residence}, #{woody_context := Context}, _Opts) ->
+process_request('GetResidence', #{'residence' := Residence}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_residence(Residence, Context) of
         {ok, Currency}    -> wapi_handler_utils:reply_ok(200, Currency);
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
     end;
 
 %% Currencies
-process_request('GetCurrency', #{'currencyID' := CurrencyId}, #{woody_context := Context}, _Opts) ->
+process_request('GetCurrency', #{'currencyID' := CurrencyId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_currency(CurrencyId, Context) of
         {ok, Currency}    -> wapi_handler_utils:reply_ok(200, Currency);
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
@@ -319,7 +348,7 @@ issue_grant_token(Type, Id, Expiration, Meta) when is_map(Meta) ->
 %% issue_grant_token(destinations, Id, Expiration, _Meta, Context) ->
 %%     {ok, {Date, Time, Usec, _Tz}} = rfc3339:parse(Expiration),
 %%     wapi_auth:issue_access_token(
-%%         wapi_handler_utils:get_party_id(Context),
+%%         wapi_handler_utils:get_owner(Context),
 %%         {destinations, Id},
 %%         {deadline, {{Date, Time}, Usec}}
 %%     ).

@@ -28,7 +28,7 @@
     swag_payres_server:api_key() |
     swag_privdoc_server:api_key().
 
--type handler_opts() :: wapi_handler:handler_opts().
+-type handler_opts() :: wapi_handler:opts().
 
 -spec authorize_api_key(operation_id(), api_key(), handler_opts()) ->
     {true, context()}. %% | false.

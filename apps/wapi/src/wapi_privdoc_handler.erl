@@ -19,7 +19,7 @@
 %% Types
 
 -type req_data()        :: wapi_handler:req_data().
--type handler_context() :: wapi_handler:handler_context().
+-type handler_context() :: wapi_handler:context().
 -type request_result()  :: wapi_handler:request_result().
 -type operation_id()    :: swag_server_privdoc:operation_id().
 -type api_key()         :: swag_server_privdoc:api_key().
@@ -49,7 +49,7 @@ process_doc_data(Params, Context) ->
     {ok, Token} = put_doc_data_to_cds(to_thrift(doc_data, Params), Context),
     to_swag(doc, {Params, Token}).
 
--spec get_proof(binary(), woody_context:ctx()) -> map().
+-spec get_proof(binary(), handler_context()) -> map().
 get_proof(Token, Context) ->
     {ok, DocData} = service_call({identdoc_storage, 'Get', [Token]}, Context),
     to_swag(doc_data, {DocData, Token}).
@@ -110,10 +110,10 @@ to_swag(doc_data, {{russian_retiree_insurance_certificate, D}, Token}) ->
         Token
     }).
 
-put_doc_data_to_cds(IdentityDoc, #{woody_context := Context}) ->
+put_doc_data_to_cds(IdentityDoc, Context) ->
     service_call({identdoc_storage, 'Put', [IdentityDoc]}, Context).
 
-service_call({ServiceName, Function, Args}, WoodyContext) ->
+service_call({ServiceName, Function, Args}, #{woody_context := WoodyContext}) ->
     wapi_woody_client:call_service(ServiceName, Function, Args, WoodyContext).
 
 -define(PATTERN_DIGIT, [<<"0">>, <<"1">>, <<"2">>, <<"3">>, <<"4">>, <<"5">>, <<"6">>, <<"7">>, <<"8">>, <<"9">>]).

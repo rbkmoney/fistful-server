@@ -16,12 +16,12 @@
     swag_server_wallet:request_context() |
     swag_server_privdoc:request_context().
 
--type handler_context() :: #{
+-type context() :: #{
     woody_context   := woody_context:ctx(),
     swagger_context := swagger_context()
 }.
 
--type handler_opts() ::
+-type opts() ::
     swag_server_wallet:handler_opts() |
     swag_server_payres:handler_opts() |
     swag_server_privdoc:handler_opts().
@@ -32,13 +32,13 @@
 -type response_data()    :: map() | [map()] | undefined.
 -type request_result()   :: {ok | error, {status_code(), headers(), response_data()}}.
 
--callback process_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
+-callback process_request(operation_id(), req_data(), context(), opts()) ->
     request_result() | no_return().
 
 -export_type([operation_id/0]).
 -export_type([swagger_context/0]).
--export_type([handler_context/0]).
--export_type([handler_opts/0]).
+-export_type([context/0]).
+-export_type([opts/0]).
 -export_type([req_data/0]).
 -export_type([status_code/0]).
 -export_type([response_data/0]).
@@ -49,7 +49,7 @@
 
 -define(request_result, wapi_req_result).
 
--spec handle_request(operation_id(), req_data(), swagger_context(), module(), handler_opts()) ->
+-spec handle_request(operation_id(), req_data(), swagger_context(), module(), opts()) ->
     request_result().
 handle_request(OperationID, Req, SwagContext = #{auth_context := AuthContext}, Handler, Opts) ->
     _ = lager:info("Processing request ~p", [OperationID]),
@@ -76,7 +76,7 @@ handle_request(OperationID, Req, SwagContext = #{auth_context := AuthContext}, H
 throw_result(Res) ->
     erlang:throw({?request_result, Res}).
 
--spec create_woody_context(req_data(), wapi_auth:context(), handler_opts()) ->
+-spec create_woody_context(req_data(), wapi_auth:context(), opts()) ->
     woody_context:ctx().
 create_woody_context(#{'X-Request-ID' := RequestID}, AuthContext, Opts) ->
     RpcID = #{trace_id := TraceID} = woody_context:new_rpc_id(genlib:to_binary(RequestID)),
@@ -99,7 +99,7 @@ collect_user_identity(AuthContext, _Opts) ->
     }).
 
 -spec create_handler_context(swagger_context(), woody_context:ctx()) ->
-    handler_context().
+    context().
 create_handler_context(SwagContext, WoodyContext) ->
     #{
         woody_context   => WoodyContext,

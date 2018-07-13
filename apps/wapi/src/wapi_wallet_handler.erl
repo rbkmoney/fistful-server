@@ -146,11 +146,6 @@ process_request('GetIdentityChallenge', #{
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-process_request('CancelIdentityChallenge', #{
-    'identityID'  := _IdentityId,
-    'challengeID' := _ChallengeId
-}, _Context, _Opts) ->
-    not_implemented();
 process_request('PollIdentityChallengeEvents', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenge_events(Params, Context) of
         {ok, Events}                     -> wapi_handler_utils:reply_ok(200, Events);
@@ -213,15 +208,6 @@ process_request('IssueWalletGrant', #{
         {error, {wallet, unauthorized}} ->
             wapi_handler_utils:reply_ok(404)
     end;
-
-%% Deposits
-process_request(O, _Req, _Context, _Opts) when
-    O =:= 'CreateDeposit'     orelse
-    O =:= 'GetDeposit'        orelse
-    O =:= 'PollDepositEvents' orelse
-    O =:= 'GetDepositEvents'
-->
-    not_implemented();
 
 %% Withdrawals
 process_request('ListDestinations', _Req, _Context, _Opts) ->

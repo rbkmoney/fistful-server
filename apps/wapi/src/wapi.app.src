@@ -7,15 +7,12 @@
         kernel,
         stdlib,
         public_key,
-        lager,
-        %% lager_logstash_formatter,
         genlib,
         woody,
-        scoper,
+        erl_health,
         dmsl,
+        identdocstore_proto,
         swag_server_wallet,
-        swag_server_payres,
-        swag_server_privdoc,
         jose,
         cowboy_cors,
         cowboy_access_log,
@@ -23,9 +20,7 @@
         base64url,
         snowflake,
         woody_user_identity,
-        payproc_errors,
-        erl_health,
-        identdocstore_proto
+        payproc_errors
     ]},
     {env, []}
 ]}.

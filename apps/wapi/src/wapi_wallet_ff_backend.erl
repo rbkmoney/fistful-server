@@ -156,7 +156,7 @@ create_identity_challenge(IdentityId, Params, Context) ->
     ChallengeId = next_id('identity-challenge'),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
-        ok = unwrap(identity, ff_identity_machine:start_challenge(IdentityId,
+        ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
             maps:merge(#{id => ChallengeId}, from_swag(identity_challenge_params, Params)
         ))),
         unwrap(get_identity_challenge(IdentityId, ChallengeId, Context))
@@ -164,11 +164,12 @@ create_identity_challenge(IdentityId, Params, Context) ->
 
 -spec get_identity_challenge(id(), id(), ctx()) -> result(map(),
     {identity, notfound}     |
-    {identity, unauthorized}
+    {identity, unauthorized} |
+    {challenge, notfound}
 ).
 get_identity_challenge(IdentityId, ChallengeId, Context) ->
     do(fun() ->
-        Challenge = unwrap(ff_identity:challenge(
+        Challenge = unwrap(challenge, ff_identity:challenge(
             ChallengeId, ff_identity_machine:identity(get_state(identity, IdentityId, Context))
         )),
         Proofs = enrich_proofs(ff_identity_challenge:proofs(Challenge), Context),
@@ -403,7 +404,7 @@ enrich_proofs(Proofs, Context) ->
     [enrich_proof(P, Context) || P <- Proofs].
 
 enrich_proof({_, Token}, Context) ->
-    wapi_privdoc_handler:get_proof(Token, Context).
+    wapi_privdoc_backend:get_proof(Token, Context).
 
 get_state(Resource, Id, Context) ->
     State = unwrap(Resource, do_get_state(Resource, Id)),

@@ -100,8 +100,6 @@ SWAG_SERVER_APP_TARGET := $(APP_PATH)/$(SWAG_SERVER_PREFIX)
 SWAG_SERVER_APP_PATH := $(APP_PATH)/$(SWAG_SERVER_PREFIX)
 
 SWAG_SERVER_APP_TARGET_WALLET  := $(SWAG_SERVER_APP_PATH)_wallet/rebar.config
-SWAG_SERVER_APP_TARGET_PAYRES  := $(SWAG_SERVER_APP_PATH)_payres/rebar.config
-SWAG_SERVER_APP_TARGET_PRIVDOC := $(SWAG_SERVER_APP_PATH)_privdoc/rebar.config
 
 $(SWAG_SERVER_APP_PATH)_%/rebar.config: $(SWAGGER_SCHEME_API_PATH)/$*
 	$(SWAGGER_CODEGEN) generate \
@@ -111,9 +109,9 @@ $(SWAG_SERVER_APP_PATH)_%/rebar.config: $(SWAGGER_SCHEME_API_PATH)/$*
 		--additional-properties \
 			packageName=$(SWAG_SERVER_PREFIX)_$*
 
-swag_server.generate: $(SWAG_SERVER_APP_TARGET_WALLET) $(SWAG_SERVER_APP_TARGET_PAYRES) $(SWAG_SERVER_APP_TARGET_PRIVDOC)
+swag_server.generate: $(SWAG_SERVER_APP_TARGET_WALLET)
 
-swag_server.distclean: swag_server.distclean_wallet swag_server.distclean_payres swag_server.distclean_privdoc
+swag_server.distclean: swag_server.distclean_wallet
 
 swag_server.distclean_%:
 	rm -rf $(SWAG_SERVER_APP_PATH)_$*
@@ -127,8 +125,6 @@ SWAG_CLIENT_APP_TARGET := $(APP_PATH)/$(SWAG_CLIENT_PREFIX)
 SWAG_CLIENT_APP_PATH := $(APP_PATH)/$(SWAG_CLIENT_PREFIX)
 
 SWAG_CLIENT_APP_TARGET_WALLET  := $(SWAG_CLIENT_APP_PATH)_wallet/rebar.config
-SWAG_CLIENT_APP_TARGET_PAYRES  := $(SWAG_CLIENT_APP_PATH)_payres/rebar.config
-SWAG_CLIENT_APP_TARGET_PRIVDOC := $(SWAG_CLIENT_APP_PATH)_privdoc/rebar.config
 
 $(SWAG_CLIENT_APP_PATH)_%/rebar.config: $(SWAGGER_SCHEME_API_PATH)/$*
 	$(SWAGGER_CODEGEN) generate \
@@ -138,9 +134,9 @@ $(SWAG_CLIENT_APP_PATH)_%/rebar.config: $(SWAGGER_SCHEME_API_PATH)/$*
 		--additional-properties \
 			packageName=$(SWAG_CLIENT_PREFIX)_$*
 
-swag_client.generate: $(SWAG_CLIENT_APP_TARGET_WALLET) $(SWAG_CLIENT_APP_TARGET_PAYRES) $(SWAG_CLIENT_APP_TARGET_PRIVDOC)
+swag_client.generate: $(SWAG_CLIENT_APP_TARGET_WALLET)
 
-swag_client.distclean: swag_client.distclean_wallet swag_client.distclean_payres swag_client.distclean_privdoc
+swag_client.distclean: swag_client.distclean_wallet
 
 swag_client.distclean_%:
 	rm -rf $(SWAG_CLIENT_APP_PATH)_$*

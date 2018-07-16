@@ -23,16 +23,14 @@ child_spec({HealthRoutes, LogicHandlers}) ->
 get_socket_transport() ->
     {ok, IP} = inet:parse_address(genlib_app:env(?APP, ip, ?DEFAULT_IP_ADDR)),
     Port     = genlib_app:env(?APP, port, ?DEFAULT_PORT),
-    NumAcceptors = genlib_app:env(?APP, acceptors_poolsize, ?DEFAULT_ACCEPTORS_POOLSIZE),
-    {ranch_tcp, [{ip, IP}, {port, Port}, {num_acceptors, NumAcceptors}]}.
+    AcceptorsPool = genlib_app:env(?APP, acceptors_poolsize, ?DEFAULT_ACCEPTORS_POOLSIZE),
+    {ranch_tcp, [{ip, IP}, {port, Port}, {num_acceptors, AcceptorsPool}]}.
 
 get_cowboy_config(HealthRoutes, LogicHandlers) ->
     Dispatch =
         cowboy_router:compile(squash_routes(
             HealthRoutes ++
-            swag_server_wallet_router:get_paths(maps:get(wallet, LogicHandlers)) ++
-            swag_server_payres_router:get_paths(maps:get(payres, LogicHandlers)) ++
-            swag_server_privdoc_router:get_paths(maps:get(privdoc, LogicHandlers))
+            swag_server_wallet_router:get_paths(maps:get(wallet, LogicHandlers))
         )),
     [
         {env, [

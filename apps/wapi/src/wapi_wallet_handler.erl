@@ -144,7 +144,8 @@ process_request('GetIdentityChallenge', #{
     case wapi_wallet_ff_backend:get_identity_challenge(IdentityId, ChallengeId, Context) of
         {ok, Challenge}                   -> wapi_handler_utils:reply_ok(200, Challenge);
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
-        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404);
+        {error, {challenge, notfound}}     -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('PollIdentityChallengeEvents', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenge_events(Params, Context) of
@@ -297,9 +298,9 @@ process_request('GetWithdrawalEvents', #{
     end;
 
 %% Residences
-process_request('GetResidence', #{'residence' := Residence}, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_residence(Residence, Context) of
-        {ok, Currency}    -> wapi_handler_utils:reply_ok(200, Currency);
+process_request('GetResidence', #{'residence' := ResidenceId}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_residence(ResidenceId, Context) of
+        {ok, Residence}    -> wapi_handler_utils:reply_ok(200, Residence);
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
     end;
 

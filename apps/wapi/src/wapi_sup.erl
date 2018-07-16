@@ -48,7 +48,5 @@ get_authorizer_child_spec(jwt, Options) ->
 
 get_logic_handler_info() ->
     {#{
-        wallet  => wapi_wallet_handler,
-        payres  => wapi_payres_handler,
-        privdoc => wapi_privdoc_handler
+        wallet  => wapi_wallet_handler
     }, []}.

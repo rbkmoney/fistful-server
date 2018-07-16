@@ -24,6 +24,11 @@
 -export_type([wallet/0]).
 -export_type([party_params/0]).
 
+-type inaccessiblity() ::
+    {inaccessible, blocked | suspended}.
+
+-export_type([inaccessiblity/0]).
+
 -export([create/1]).
 -export([create/2]).
 -export([is_accessible/1]).
@@ -36,7 +41,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/1]).
 
 %%
 
@@ -55,7 +60,7 @@ create(ID, Params) ->
 
 -spec is_accessible(id()) ->
     {ok, accessible} |
-    {error, {inaccessible, suspended | blocked}}.
+    {error, inaccessiblity()}.
 
 is_accessible(ID) ->
     case do_get_party(ID) of
@@ -117,6 +122,7 @@ is_wallet_accessible(ID, WalletID) ->
 
 -spec create_contract(id(), contract_prototype()) ->
     {ok, contract()} |
+    {error, inaccessiblity()} |
     {error, invalid}.
 
 create_contract(ID, Prototype) ->
@@ -135,6 +141,7 @@ generate_contract_id() ->
 
 -spec change_contractor_level(id(), contract(), dmsl_domain_thrift:'ContractorIdentificationLevel'()) ->
     ok |
+    {error, inaccessiblity()} |
     {error, invalid}.
 
 change_contractor_level(ID, ContractID, ContractorLevel) ->
@@ -154,6 +161,7 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
 
 -spec create_wallet(id(), contract(), wallet_prototype()) ->
     {ok, wallet()} |
+    {error, inaccessiblity()} |
     {error, invalid}.
 
 create_wallet(ID, ContractID, Prototype) ->
@@ -217,8 +225,12 @@ do_create_claim(ID, Changeset) ->
     case call('CreateClaim', [construct_userinfo(), ID, Changeset]) of
         {ok, Claim} ->
             {ok, Claim};
-        {exception, #payproc_InvalidChangeset{reason = _Reason}} ->
+        {exception, #payproc_InvalidChangeset{
+            reason = {invalid_wallet, #payproc_InvalidWallet{reason = {contract_terms_violated, _}}}
+        }} ->
             {error, invalid};
+        {exception, #payproc_InvalidPartyStatus{status = Status}} ->
+            {error, construct_inaccessibilty(Status)};
         {exception, Unexpected} ->
             error(Unexpected)
     end.
@@ -237,6 +249,11 @@ do_accept_claim(ID, Claim) ->
         {exception, Unexpected} ->
             error(Unexpected)
     end.
+
+construct_inaccessibilty({blocking, _}) ->
+    {inaccessible, blocked};
+construct_inaccessibilty({suspension, _}) ->
+    {inaccessible, suspended}.
 
 %%
 

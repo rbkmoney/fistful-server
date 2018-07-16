@@ -76,6 +76,9 @@
 %% API
 %%
 
+-spec status(session()) ->
+    session_status().
+
 status(#{status := V}) -> V.
 
 %%
@@ -91,7 +94,8 @@ create(ID, Adapter, Withdrawal) ->
         unwrap(machinery:start(?NS, ID, Session, backend()))
     end).
 
--spec get(id()) -> {ok, session()} | {error, notfound}.
+-spec get(id()) ->
+    ff_map:result(session()).
 get(ID) ->
     do(fun () ->
         session(collapse(unwrap(machinery:get(?NS, ID, backend()))))

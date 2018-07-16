@@ -27,7 +27,7 @@ services:
         condition: service_healthy
 
   hellgate:
-    image: dr.rbkmoney.com/rbkmoney/hellgate:88abe5c9c3febf567e7269e81b2b808c01500b43
+    image: dr.rbkmoney.com/rbkmoney/hellgate:eae821f2a1f3f2b948390d922c5eb3cde885757d
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -82,7 +82,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr.rbkmoney.com/rbkmoney/dominant:1756bbac6999fa46fbe44a72c74c02e616eda0f6
+    image: dr.rbkmoney.com/rbkmoney/dominant:4e296b03cd4adba4bd0f1cf85425b9514728107c
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:

@@ -295,11 +295,17 @@ get_domain_config(C) ->
 
 get_default_termset() ->
     #domain_TermSet{
-        % TODO
-        %  - Strangely enough, hellgate checks wallet currency against _payments_
-        %    terms.
-        payments = #domain_PaymentsServiceTerms{
-            currencies = {value, ?ordset([?cur(<<"RUB">>)])}
+        wallets = #domain_WalletServiceTerms{
+            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+            cash_limit = {decisions, [
+                #domain_CashLimitDecision{
+                    if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                    then_ = {value, ?cashrng(
+                        {inclusive, ?cash(       0, <<"RUB">>)},
+                        {exclusive, ?cash(10000000, <<"RUB">>)}
+                    )}
+                }
+            ]}
         }
     }.
 

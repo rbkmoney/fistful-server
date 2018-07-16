@@ -47,17 +47,23 @@
 
 %%
 
--spec id(provider()) -> id().
-id(#{id := ID}) -> ID.
+-spec id(provider()) ->
+    id().
+-spec name(provider()) ->
+    binary().
+-spec residences(provider()) ->
+    [ff_residence:id()].
+-spec payinst(provider()) ->
+    payinst_ref().
 
--spec name(provider()) -> binary().
-name(#{payinst := PI}) -> PI#domain_PaymentInstitution.name.
-
--spec residences(provider()) -> [ff_residence:id()].
-residences(#{payinst := PI}) -> PI#domain_PaymentInstitution.residences.
-
--spec payinst(provider()) -> payinst_ref().
-payinst(#{payinst_ref := V}) -> V.
+id(#{id := ID}) ->
+    ID.
+name(#{payinst := PI}) ->
+    PI#domain_PaymentInstitution.name.
+residences(#{payinst := PI}) ->
+    PI#domain_PaymentInstitution.residences.
+payinst(#{payinst_ref := V}) ->
+    V.
 
 %%
 
@@ -106,24 +112,24 @@ get(ID) ->
                         CCName        = maps:get(name, CCC, CCID),
                         BaseLevelID   = maps:get(base, CCC),
                         TargetLevelID = maps:get(target, CCC),
-                        {ok, BaseLevel} = maps:find(BaseLevelID, Levels),
-                        {ok, TargetLevel} = maps:find(TargetLevelID, Levels),
+                        {ok, _} = maps:find(BaseLevelID, Levels),
+                        {ok, _} = maps:find(TargetLevelID, Levels),
                         #{
                             id           => CCID,
                             name         => CCName,
-                            base_level   => BaseLevel,
-                            target_level => TargetLevel
+                            base_level   => BaseLevelID,
+                            target_level => TargetLevelID
                         }
                     end,
                     maps:get(challenges, ICC, #{})
                 ),
                 InitialLevelID = maps:get(initial_level, ICC),
-                {ok, InitialLevel} = maps:find(InitialLevelID, Levels),
+                {ok, _} = maps:find(InitialLevelID, Levels),
                 #{
                     id                    => ICID,
                     name                  => Name,
                     contract_template_ref => ContractTemplateRef,
-                    initial_level         => InitialLevel,
+                    initial_level         => InitialLevelID,
                     levels                => Levels,
                     challenge_classes     => ChallengeClasses
                 }

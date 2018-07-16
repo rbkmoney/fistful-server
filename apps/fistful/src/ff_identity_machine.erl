@@ -20,19 +20,9 @@
 
 -type id()        :: machinery:id().
 -type identity()  :: ff_identity:identity().
--type timestamp() :: machinery:timestamp().
 -type ctx()       :: ff_ctx:ctx().
 
--type activity() ::
-    {challenge, challenge_id()} |
-    undefined                   .
-
--type st()        :: #{
-    activity      := activity(),
-    identity      := identity(),
-    ctx           := ctx(),
-    times         => {timestamp(), timestamp()}
-}.
+-type st() :: ff_machine:st(identity()).
 
 -type challenge_id() ::
     machinery:id().
@@ -42,15 +32,12 @@
 -export([create/3]).
 -export([get/1]).
 -export([events/2]).
+
 -export([start_challenge/2]).
 
 %% Accessors
 
 -export([identity/1]).
--export([activity/1]).
--export([ctx/1]).
--export([created/1]).
--export([updated/1]).
 
 %% Machinery
 
@@ -62,7 +49,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, do/2, unwrap/1, unwrap/2]).
+-import(ff_pipeline, [do/1, do/2, unwrap/1]).
 
 -define(NS, 'ff/identity').
 
@@ -75,20 +62,14 @@
 -spec create(id(), params(), ctx()) ->
     ok |
     {error,
-        {provider, notfound} |
-        {identity_class, notfound} |
-        _SetupContractError |
+        _IdentityCreateError |
         exists
     }.
 
 create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
     do(fun () ->
-        Provider      = unwrap(provider, ff_provider:get(ProviderID)),
-        IdentityClass = unwrap(identity_class, ff_provider:get_identity_class(IdentityClassID, Provider)),
-        Events0       = unwrap(ff_identity:create(ID, Party, Provider, IdentityClass)),
-        Identity      = ff_identity:collapse_events(Events0),
-        Events1       = unwrap(ff_identity:setup_contract(Identity)),
-        unwrap(machinery:start(?NS, ID, {Events0 ++ Events1, Ctx}, backend()))
+        Events = unwrap(ff_identity:create(ID, Party, ProviderID, IdentityClassID)),
+        unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
@@ -96,12 +77,10 @@ create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, 
     {error, notfound} .
 
 get(ID) ->
-    do(fun () ->
-        collapse(unwrap(machinery:get(?NS, ID, backend())))
-    end).
+    ff_machine:get(ff_identity, ?NS, ID).
 
 -spec events(id(), machinery:range()) ->
-    {ok, [{integer(), ts_ev(ev())}]} |
+    {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
     {error, notfound}.
 
 events(ID, Range) ->
@@ -120,11 +99,7 @@ events(ID, Range) ->
     ok |
     {error,
         notfound |
-        {challenge,
-            {pending, challenge_id()} |
-            {class, notfound} |
-            _IdentityChallengeError
-        }
+        _IdentityChallengeError
     }.
 
 start_challenge(ID, Params) ->
@@ -140,42 +115,27 @@ backend() ->
 
 %% Accessors
 
--spec identity(st()) -> identity().
--spec activity(st()) -> activity().
--spec ctx(st())      -> ctx().
--spec created(st())  -> timestamp() | undefined.
--spec updated(st())  -> timestamp() | undefined.
+-spec identity(st()) ->
+    identity().
 
-identity(#{identity := V}) -> V.
-activity(#{activity := V}) -> V.
-ctx(#{ctx := V})           -> V.
-created(St)                -> erlang:element(1, times(St)).
-updated(St)                -> erlang:element(2, times(St)).
-
-times(St) ->
-    genlib_map:get(times, St, {undefined, undefined}).
+identity(St) ->
+    ff_machine:model(St).
 
 %% Machinery
 
--type ts_ev(T) ::
-    {ev, timestamp(), T}.
+-type event() ::
+    ff_identity:event().
 
--type ev() ::
-    ff_identity:ev().
-
--type auxst() ::
-    #{ctx => ctx()}.
-
--type machine()      :: machinery:machine(ts_ev(ev()), auxst()).
--type result()       :: machinery:result(ts_ev(ev()), auxst()).
+-type machine()      :: ff_machine:machine(event()).
+-type result()       :: ff_machine:result(event()).
 -type handler_opts() :: machinery:handler_opts(_).
 
--spec init({[ev()], ctx()}, machine(), _, handler_opts()) ->
+-spec init({[event()], ctx()}, machine(), _, handler_opts()) ->
     result().
 
 init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => emit_ts_events(Events),
+        events    => ff_machine:emit_events(Events),
         aux_state => #{ctx => Ctx}
     }.
 
@@ -185,21 +145,22 @@ init({Events, Ctx}, #{}, _, _Opts) ->
     result().
 
 process_timeout(Machine, _, _Opts) ->
-    process_activity(collapse(Machine)).
+    St = ff_machine:collapse(ff_identity, Machine),
+    process_activity(deduce_activity(identity(St)), St).
 
-process_activity(#{activity := {challenge, ChallengeID}} = St) ->
+process_activity({challenge, ChallengeID}, St) ->
     Identity = identity(St),
     {ok, Events} = ff_identity:poll_challenge_completion(ChallengeID, Identity),
     case Events of
         [] ->
             #{action => set_poll_timer(St)};
         _Some ->
-            #{events => emit_ts_events(Events)}
+            #{events => ff_machine:emit_events(Events)}
     end.
 
 set_poll_timer(St) ->
     Now = machinery_time:now(),
-    Timeout = erlang:max(1, machinery_time:interval(Now, updated(St)) div 1000),
+    Timeout = erlang:max(1, machinery_time:interval(Now, ff_machine:updated(St)) div 1000),
     {set_timer, {timeout, Timeout}}.
 
 %%
@@ -211,9 +172,15 @@ set_poll_timer(St) ->
     {_TODO, result()}.
 
 process_call({start_challenge, Params}, Machine, _, _Opts) ->
-    do_start_challenge(Params, collapse(Machine)).
+    St = ff_machine:collapse(ff_identity, Machine),
+    case deduce_activity(identity(St)) of
+        undefined ->
+            do_start_challenge(Params, St);
+        {challenge, ChallengeID} ->
+            handle_result({error, {challenge, {pending, ChallengeID}}})
+    end.
 
-do_start_challenge(Params, #{activity := undefined} = St) ->
+do_start_challenge(Params, St) ->
     Identity = identity(St),
     handle_result(do(challenge, fun () ->
         #{
@@ -221,16 +188,12 @@ do_start_challenge(Params, #{activity := undefined} = St) ->
             class  := ChallengeClassID,
             proofs := Proofs
         } = Params,
-        Class          = ff_identity:class(Identity),
-        ChallengeClass = unwrap(class, ff_identity_class:challenge_class(ChallengeClassID, Class)),
-        Events         = unwrap(ff_identity:start_challenge(ChallengeID, ChallengeClass, Proofs, Identity)),
+        Events = unwrap(ff_identity:start_challenge(ChallengeID, ChallengeClassID, Proofs, Identity)),
         #{
-            events => emit_ts_events(Events),
+            events => ff_machine:emit_events(Events),
             action => continue
         }
-    end));
-do_start_challenge(_Params, #{activity := {challenge, ChallengeID}}) ->
-    handle_result({error, {challenge, {pending, ChallengeID}}}).
+    end)).
 
 handle_result({ok, R}) ->
     {ok, R};
@@ -239,46 +202,13 @@ handle_result({error, _} = Error) ->
 
 %%
 
-collapse(#{history := History, aux_state := #{ctx := Ctx}}) ->
-    apply_events(History, #{ctx => Ctx}).
-
-apply_events(History, St) ->
-    lists:foldl(fun apply_event/2, St, History).
-
-apply_event({_ID, _Ts, TsEv}, St0) ->
-    {EvBody, St1} = apply_ts_event(TsEv, St0),
-    apply_event_body(ff_identity:hydrate(EvBody, maps:get(identity, St1, undefined)), St1).
-
-apply_event_body(IdentityEv, St) ->
-    St#{
-        activity => deduce_activity(IdentityEv),
-        identity => ff_identity:apply_event(IdentityEv, maps:get(identity, St, undefined))
-    }.
-
-deduce_activity({created, _}) ->
-    undefined;
-deduce_activity({contract_set, _}) ->
-    undefined;
-deduce_activity({level_changed, _}) ->
-    undefined;
-deduce_activity({effective_challenge_changed, _}) ->
-    undefined;
-deduce_activity({challenge, _ChallengeID, {created, _}}) ->
-    undefined;
-deduce_activity({challenge, ChallengeID, {status_changed, pending}}) ->
-    {challenge, ChallengeID};
-deduce_activity({challenge, _ChallengeID, {status_changed, _}}) ->
+deduce_activity(#{challenges := Challenges}) ->
+    Filter = fun (_, Challenge) -> ff_identity_challenge:status(Challenge) == pending end,
+    case maps:keys(maps:filter(Filter, Challenges)) of
+        [ChallengeID] ->
+            {challenge, ChallengeID};
+        [] ->
+            undefined
+    end;
+deduce_activity(#{}) ->
     undefined.
-
-%%
-
-emit_ts_events(Es) ->
-    emit_ts_events(Es, machinery_time:now()).
-
-emit_ts_events(Es, Ts) ->
-    [{ev, Ts, ff_identity:dehydrate(Body)} || Body <- Es].
-
-apply_ts_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
-    {Body, St#{times => {Created, Ts}}};
-apply_ts_event({ev, Ts, Body}, St = #{}) ->
-    {Body, St#{times => {Ts, Ts}}}.

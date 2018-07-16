@@ -49,12 +49,10 @@
 -export([initial_level/1]).
 -export([level/2]).
 
--export([level_id/1]).
 -export([level_name/1]).
 -export([contractor_level/1]).
 -export([challenge_class/2]).
 
--export([challenge_class_id/1]).
 -export([base_level/1]).
 -export([target_level/1]).
 -export([challenge_class_name/1]).
@@ -87,7 +85,7 @@ contract_template(#{contract_template_ref := V}) ->
     V.
 
 -spec initial_level(class()) ->
-    level().
+    level_id().
 
 initial_level(#{initial_level := V}) ->
     V.
@@ -108,12 +106,6 @@ challenge_class(ID, #{challenge_classes := ChallengeClasses}) ->
 
 %% Level
 
--spec level_id(level()) ->
-    level_id().
-
-level_id(#{id := V}) ->
-    V.
-
 -spec level_name(level()) ->
     binary().
 
@@ -128,12 +120,6 @@ contractor_level(#{contractor_level := V}) ->
 
 %% Challenge
 
--spec challenge_class_id(challenge_class()) ->
-    challenge_class_id().
-
-challenge_class_id(#{id := V}) ->
-    V.
-
 -spec challenge_class_name(challenge_class()) ->
     binary().
 
@@ -141,13 +127,13 @@ challenge_class_name(#{name := V}) ->
     V.
 
 -spec base_level(challenge_class()) ->
-    level().
+    level_id().
 
 base_level(#{base_level := V}) ->
     V.
 
 -spec target_level(challenge_class()) ->
-    level().
+    level_id().
 
 target_level(#{target_level := V}) ->
     V.

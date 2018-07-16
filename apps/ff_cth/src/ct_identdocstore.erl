@@ -7,6 +7,9 @@
 
 -include_lib("identdocstore_proto/include/identdocstore_identity_document_storage_thrift.hrl").
 
+-spec rus_domestic_passport(ct_helper:config()) ->
+    {rus_domestic_passport, binary()}.
+
 rus_domestic_passport(C) ->
     Document = {
         russian_domestic_passport,
@@ -30,6 +33,9 @@ rus_domestic_passport(C) ->
         {ok, Token} ->
             {rus_domestic_passport, Token}
     end.
+
+-spec rus_retiree_insurance_cert(_Number :: binary(), ct_helper:config()) ->
+    {rus_retiree_insurance_cert, binary()}.
 
 rus_retiree_insurance_cert(Number, C) ->
     Document = {

@@ -1,24 +1,36 @@
 %%%
 %%% Identity challenge activity
 %%%
+%%% TODOs
+%%%
+%%%  - `ProviderID` + `IdentityClassID` + `ChallengeClassID` easily replaceable
+%%%    with a _single_ identifier if we drop strictly hierarchical provider
+%%%    definition.
+%%%
 
 -module(ff_identity_challenge).
 
 %% API
 
 -type id(T)       :: T.
+-type claimant() :: id(binary()).
 -type timestamp() :: machinery:timestamp().
--type class()     :: ff_identity_class:challenge_class().
+-type provider()     :: ff_provider:id().
+-type identity_class() :: ff_identity_class:id().
+-type challenge_class() :: ff_identity_class:challenge_class_id().
 -type master_id() :: id(binary()).
 -type claim_id()  :: id(binary()).
 
 -type challenge() :: #{
-    class     := class(),
-    claimant  := id(_),
-    proofs    := [proof()],
-    master_id := master_id(),
-    claim_id  := claim_id(),
-    status    => status()
+    id              := id(_),
+    claimant        := claimant(),
+    provider        := provider(),
+    identity_class  := identity_class(),
+    challenge_class := challenge_class(),
+    proofs          := [proof()],
+    master_id       := master_id(),
+    claim_id        := claim_id(),
+    status          => status()
 }.
 
 -type proof() ::
@@ -49,15 +61,12 @@
 -type failure() ::
     _TODO.
 
--type ev() ::
+-type event() ::
     {created, challenge()} |
     {status_changed, status()}.
 
--type outcome() ::
-    [ev()].
-
 -export_type([challenge/0]).
--export_type([ev/0]).
+-export_type([event/0]).
 
 -export([claimant/1]).
 -export([status/1]).
@@ -67,14 +76,10 @@
 -export([claim_id/1]).
 -export([master_id/1]).
 
--export([create/3]).
+-export([create/6]).
 -export([poll_completion/1]).
 
--export([apply_events/2]).
 -export([apply_event/2]).
-
--export([dehydrate/1]).
--export([hydrate/2]).
 
 %% Pipeline
 
@@ -89,15 +94,15 @@ status(#{status := V}) ->
     V.
 
 -spec claimant(challenge()) ->
-    id(_).
+    claimant().
 
 claimant(#{claimant := V}) ->
     V.
 
 -spec class(challenge()) ->
-    class().
+    challenge_class().
 
-class(#{class := V}) ->
+class(#{challenge_class := V}) ->
     V.
 
 -spec proofs(challenge()) ->
@@ -132,25 +137,32 @@ claim_id(#{claim_id := V}) ->
 
 %%
 
--spec create(id(_), class(), [proof()]) ->
-    {ok, outcome()} |
+-spec create(id(_), claimant(), provider(), identity_class(), challenge_class(), [proof()]) ->
+    {ok, [event()]} |
     {error,
         {proof, notfound | insufficient} |
         _StartError
     }.
 
-create(Claimant, Class, Proofs) ->
+create(ID, Claimant, ProviderID, IdentityClassID, ChallengeClassID, Proofs) ->
     do(fun () ->
-        TargetLevel = ff_identity_class:target_level(Class),
+        Provider = unwrap(provider, ff_provider:get(ProviderID)),
+        IdentityClass = unwrap(identity_class, ff_provider:get_identity_class(IdentityClassID, Provider)),
+        ChallengeClass = unwrap(challenge_class, ff_identity_class:challenge_class(ChallengeClassID, IdentityClass)),
+        TargetLevelID = ff_identity_class:target_level(ChallengeClass),
+        {ok, TargetLevel} = ff_identity_class:level(TargetLevelID, IdentityClass),
         MasterID = unwrap(deduce_identity_id(Proofs)),
-        ClaimID  = unwrap(create_claim(MasterID, TargetLevel, Claimant, Proofs)),
+        ClaimID = unwrap(create_claim(MasterID, TargetLevel, Claimant, Proofs)),
         [
             {created, #{
-                class     => Class,
-                claimant  => Claimant,
-                proofs    => Proofs,
-                master_id => MasterID,
-                claim_id  => ClaimID
+                id              => ID,
+                claimant        => Claimant,
+                provider        => ProviderID,
+                identity_class  => IdentityClassID,
+                challenge_class => ChallengeClassID,
+                proofs          => Proofs,
+                master_id       => MasterID,
+                claim_id        => ClaimID
             }},
             {status_changed,
                 pending
@@ -159,7 +171,7 @@ create(Claimant, Class, Proofs) ->
     end).
 
 -spec poll_completion(challenge()) ->
-    {ok, outcome()} |
+    {ok, [event()]} |
     {error,
         notfound |
         status()
@@ -185,31 +197,13 @@ poll_completion(Challenge) ->
 
 %%
 
--spec apply_events([ev()], undefined | challenge()) ->
-    undefined | challenge().
-
-apply_events(Evs, Challenge) ->
-    lists:foldl(fun apply_event/2, Challenge, Evs).
-
--spec apply_event(ev(), undefined | challenge()) ->
+-spec apply_event(event(), ff_maybe:maybe(challenge())) ->
     challenge().
 
 apply_event({created, Challenge}, undefined) ->
     Challenge;
 apply_event({status_changed, S}, Challenge) ->
     Challenge#{status => S}.
-
--spec dehydrate(ev()) ->
-    term().
-
--spec hydrate(term(), undefined | challenge()) ->
-    ev().
-
-dehydrate(Ev) ->
-    Ev.
-
-hydrate(Ev, _) ->
-    Ev.
 
 %%
 

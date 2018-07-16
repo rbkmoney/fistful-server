@@ -5,19 +5,19 @@
 -module(ff_withdrawal).
 
 -type id(T)         :: T.
--type wallet()      :: ff_wallet:wallet().
--type destination() :: ff_destination:destination().
+-type wallet()      :: ff_wallet:id(_).
+-type destination() :: ff_destination:id(_).
 -type body()        :: ff_transaction:body().
--type provider()    :: ff_withdrawal_provider:provider().
+-type provider()    :: ff_withdrawal_provider:id().
 -type transfer()    :: ff_transfer:transfer().
 
 -type withdrawal() :: #{
-    id          := id(_),
+    id          := id(binary()),
     source      := wallet(),
     destination := destination(),
     body        := body(),
     provider    := provider(),
-    transfer    => transfer(),
+    transfer    := ff_maybe:maybe(transfer()),
     session     => session(),
     status      => status()
 }.
@@ -30,17 +30,15 @@
     succeeded       |
     {failed, _TODO} .
 
--type ev() ::
+-type event() ::
     {created, withdrawal()}         |
     {transfer, ff_transfer:ev()}    |
     {session_started, session()}    |
     {session_finished, session()}   |
     {status_changed, status()}      .
 
--type outcome() :: [ev()].
-
 -export_type([withdrawal/0]).
--export_type([ev/0]).
+-export_type([event/0]).
 
 -export([id/1]).
 -export([source/1]).
@@ -50,8 +48,7 @@
 -export([transfer/1]).
 -export([status/1]).
 
--export([create/5]).
--export([create_transfer/1]).
+-export([create/4]).
 -export([prepare_transfer/1]).
 -export([commit_transfer/1]).
 -export([cancel_transfer/1]).
@@ -60,25 +57,21 @@
 
 %% Event source
 
--export([collapse_events/1]).
 -export([apply_event/2]).
-
--export([dehydrate/1]).
--export([hydrate/2]).
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2, with/3]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2, with/3, valid/2]).
 
 %% Accessors
 
--spec id(withdrawal())          -> id(_).
+-spec id(withdrawal())          -> id(binary()).
 -spec source(withdrawal())      -> wallet().
 -spec destination(withdrawal()) -> destination().
 -spec body(withdrawal())        -> body().
 -spec provider(withdrawal())    -> provider().
 -spec status(withdrawal())      -> status().
--spec transfer(withdrawal())    -> {ok, transfer()} | {error | notfound}.
+-spec transfer(withdrawal())    -> transfer().
 
 id(#{id := V})                  -> V.
 source(#{source := V})           -> V.
@@ -86,70 +79,98 @@ destination(#{destination := V}) -> V.
 body(#{body := V})               -> V.
 provider(#{provider := V})       -> V.
 status(#{status := V})           -> V.
-transfer(W)                      -> ff_map:find(transfer, W).
+transfer(#{transfer := V})       -> V.
 
 %%
 
--spec create(id(_), wallet(), destination(), body(), provider()) ->
-    {ok, outcome()}.
+-spec create(id(_), wallet(), destination(), body()) ->
+    {ok, [event()]} |
+    {error,
+        {source, notfound} |
+        {destination, notfound | unauthorized} |
+        {provider, notfound} |
+        _TransferError
+    }.
 
-create(ID, Source, Destination, Body, Provider) ->
+create(ID, SourceID, DestinationID, Body) ->
     do(fun () ->
-        [
-            {created, #{
-                id          => ID,
-                source      => Source,
-                destination => Destination,
-                body        => Body,
-                provider    => Provider
-            }},
-            {status_changed,
-                pending
-            }
-        ]
+        Source = ff_wallet_machine:wallet(
+            unwrap(source, ff_wallet_machine:get(SourceID))
+        ),
+        Destination = ff_destination_machine:destination(
+            unwrap(destination, ff_destination_machine:get(DestinationID))
+        ),
+        ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
+        ProviderID = unwrap(provider, ff_withdrawal_provider:choose(Source, Destination, Body)),
+        TransferEvents = unwrap(ff_transfer:create(
+            construct_transfer_id(ID),
+            [{{wallet, SourceID}, {destination, DestinationID}, Body}]
+        )),
+        [{created, #{
+            id          => ID,
+            source      => SourceID,
+            destination => DestinationID,
+            body        => Body,
+            provider    => ProviderID
+        }}] ++
+        [{transfer, Ev} || Ev <- TransferEvents] ++
+        [{status_changed, pending}]
     end).
 
-create_transfer(Withdrawal) ->
-    Source = source(Withdrawal),
-    Destination = ff_destination:wallet(destination(Withdrawal)),
-    TrxID = construct_transfer_id(id(Withdrawal)),
-    Posting = {Source, Destination, body(Withdrawal)},
-    do(fun () ->
-        Events = unwrap(transfer, ff_transfer:create(TrxID, [Posting])),
-        [{transfer, Ev} || Ev <- Events]
-    end).
+construct_transfer_id(ID) ->
+    ID.
 
-construct_transfer_id(TrxID) ->
-    ff_string:join($/, [TrxID, transfer]).
+-spec prepare_transfer(withdrawal()) ->
+    {ok, [event()]} |
+    {error, _TransferError}.
 
 prepare_transfer(Withdrawal) ->
     with(transfer, Withdrawal, fun ff_transfer:prepare/1).
 
+-spec commit_transfer(withdrawal()) ->
+    {ok, [event()]} |
+    {error, _TransferError}.
+
 commit_transfer(Withdrawal) ->
     with(transfer, Withdrawal, fun ff_transfer:commit/1).
+
+-spec cancel_transfer(withdrawal()) ->
+    {ok, [event()]} |
+    {error, _TransferError}.
 
 cancel_transfer(Withdrawal) ->
     with(transfer, Withdrawal, fun ff_transfer:cancel/1).
 
+-spec create_session(withdrawal()) ->
+    {ok, [event()]} |
+    {error, _SessionError}.
+
 create_session(Withdrawal) ->
-    SID         = construct_session_id(id(Withdrawal)),
-    Source      = source(Withdrawal),
-    Destination = destination(Withdrawal),
-    Provider    = provider(Withdrawal),
+    ID = construct_session_id(id(Withdrawal)),
+    {ok, SourceSt} = ff_wallet_machine:get(source(Withdrawal)),
+    Source = ff_wallet_machine:wallet(SourceSt),
+    {ok, DestinationSt} = ff_destination_machine:get(destination(Withdrawal)),
+    Destination = ff_destination_machine:destination(DestinationSt),
+    {ok, Provider} = ff_withdrawal_provider:get(provider(Withdrawal)),
+    {ok, SenderSt} = ff_identity_machine:get(ff_wallet:identity(Source)),
+    {ok, ReceiverSt} = ff_identity_machine:get(ff_destination:identity(Destination)),
     WithdrawalParams = #{
-        id          => SID,
+        id          => ID,
         destination => Destination,
         cash        => body(Withdrawal),
-        sender      => ff_wallet:identity(Source),
-        receiver    => ff_wallet:identity(ff_destination:wallet(Destination))
+        sender      => ff_identity_machine:identity(SenderSt),
+        receiver    => ff_identity_machine:identity(ReceiverSt)
     },
     do(fun () ->
-        ok = unwrap(ff_withdrawal_provider:create_session(SID, WithdrawalParams, Provider)),
-        [{session_started, SID}]
+        ok = unwrap(ff_withdrawal_provider:create_session(ID, WithdrawalParams, Provider)),
+        [{session_started, ID}]
     end).
 
-construct_session_id(TrxID) ->
-    TrxID.
+construct_session_id(ID) ->
+    ID.
+
+-spec poll_session_completion(withdrawal()) ->
+    {ok, [event()]}.
 
 poll_session_completion(_Withdrawal = #{session := SID}) ->
     {ok, Session} = ff_withdrawal_session_machine:get(SID),
@@ -174,77 +195,18 @@ poll_session_completion(_Withdrawal) ->
 
 %%
 
--spec collapse_events([ev(), ...]) ->
-    withdrawal().
-
-collapse_events(Evs) when length(Evs) > 0 ->
-    apply_events(Evs, undefined).
-
--spec apply_events([ev()], undefined | withdrawal()) ->
-    undefined | withdrawal().
-
-apply_events(Evs, Identity) ->
-    lists:foldl(fun apply_event/2, Identity, Evs).
-
--spec apply_event(ev(), undefined | withdrawal()) ->
+-spec apply_event(event(), ff_maybe:maybe(withdrawal())) ->
     withdrawal().
 
 apply_event({created, W}, undefined) ->
     W;
 apply_event({status_changed, S}, W) ->
     maps:put(status, S, W);
+apply_event({transfer, Ev}, W = #{transfer := T}) ->
+    W#{transfer := ff_transfer:apply_event(Ev, T)};
 apply_event({transfer, Ev}, W) ->
-    maps:update_with(transfer, fun (T) -> ff_transfer:apply_event(Ev, T) end, maps:merge(#{transfer => undefined}, W));
+    apply_event({transfer, Ev}, W#{transfer => undefined});
 apply_event({session_started, S}, W) ->
     maps:put(session, S, W);
 apply_event({session_finished, S}, W = #{session := S}) ->
     maps:remove(session, W).
-
-%%
-
--spec dehydrate(ev()) ->
-    term().
-
--spec hydrate(term(), undefined | withdrawal()) ->
-    ev().
-
-dehydrate({created, W}) ->
-    {created, #{
-        id          => id(W),
-        source      => ff_wallet:id(source(W)),
-        destination => ff_destination:id(destination(W)),
-        body        => body(W),
-        provider    => ff_withdrawal_provider:id(provider(W))
-    }};
-dehydrate({status_changed, S}) ->
-    {status_changed, S};
-dehydrate({transfer, Ev}) ->
-    % TODO
-    %  - `ff_transfer:dehydrate(Ev)`
-    {transfer, Ev};
-dehydrate({session_started, SID}) ->
-    {session_started, SID};
-dehydrate({session_finished, SID}) ->
-    {session_finished, SID}.
-
-hydrate({created, V}, undefined) ->
-    {ok, SourceSt}      = ff_wallet_machine:get(maps:get(source, V)),
-    {ok, DestinationSt} = ff_destination_machine:get(maps:get(destination, V)),
-    {ok, Provider}      = ff_withdrawal_provider:get(maps:get(provider, V)),
-    {created, #{
-        id          => maps:get(id, V),
-        source      => ff_wallet_machine:wallet(SourceSt),
-        destination => ff_destination_machine:destination(DestinationSt),
-        body        => maps:get(body, V),
-        provider    => Provider
-    }};
-hydrate({status_changed, S}, _) ->
-    {status_changed, S};
-hydrate({transfer, Ev}, _) ->
-    % TODO
-    %  - `ff_transfer:hydrate(Ev)`
-    {transfer, Ev};
-hydrate({session_started, SID}, _) ->
-    {session_started, SID};
-hydrate({session_finished, SID}, _) ->
-    {session_finished, SID}.

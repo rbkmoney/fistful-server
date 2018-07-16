@@ -161,9 +161,9 @@ create_wallet_ok(C) ->
         },
         ff_ctx:new()
     ),
-    W = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
-    {ok, accessible} = ff_wallet:is_accessible(W),
-    {ok, Account} = ff_wallet:account(W),
+    Wallet = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
+    {ok, accessible} = ff_wallet:is_accessible(Wallet),
+    Account = ff_account:pm_account(ff_wallet:account(Wallet)),
     {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
     0 = ff_indef:current(Amount),
     ok.
@@ -252,16 +252,8 @@ get_domain_config(C) ->
 
 get_default_termset() ->
     #domain_TermSet{
-        % TODO
-        %  - Strangely enough, hellgate checks wallet currency against _payments_
-        %    terms.
-        payments = #domain_PaymentsServiceTerms{
+        wallets = #domain_WalletServiceTerms{
             currencies = {value, ?ordset([?cur(<<"RUB">>)])},
-            categories = {value, ?ordset([?cat(1)])},
-            payment_methods = {value, ?ordset([
-                ?pmt(bank_card, visa),
-                ?pmt(bank_card, mastercard)
-            ])},
             cash_limit = {decisions, [
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
@@ -269,18 +261,6 @@ get_default_termset() ->
                         {inclusive, ?cash(       0, <<"RUB">>)},
                         {exclusive, ?cash(10000000, <<"RUB">>)}
                     )}
-                }
-            ]},
-            fees = {decisions, [
-                #domain_CashFlowDecision{
-                    if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                    then_ = {value, [
-                        ?cfpost(
-                            {merchant, settlement},
-                            {system, settlement},
-                            ?share(3, 100, operation_amount)
-                        )
-                    ]}
                 }
             ]}
         }

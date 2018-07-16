@@ -1,6 +1,8 @@
 %%%
 %%% Financial transaction between accounts
 %%%
+%%%  - Rename to `ff_posting_plan`?
+%%%
 
 -module(ff_transaction).
 

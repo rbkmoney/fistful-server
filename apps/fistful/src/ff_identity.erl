@@ -17,11 +17,11 @@
 
 -type id(T)             :: T.
 -type party()           :: ff_party:id().
--type provider()        :: ff_provider:provider().
+-type provider()        :: ff_provider:id().
 -type contract()        :: ff_party:contract().
--type class()           :: ff_identity_class:class().
--type level()           :: ff_identity_class:level().
--type challenge_class() :: ff_identity_class:challenge_class().
+-type class()           :: ff_identity_class:id().
+-type level()           :: ff_identity_class:level_id().
+-type challenge_class() :: ff_identity_class:challenge_class_id().
 -type challenge_id()    :: id(_).
 
 -type identity() :: #{
@@ -38,18 +38,14 @@
 -type challenge() ::
     ff_identity_challenge:challenge().
 
--type ev() ::
+-type event() ::
     {created           , identity()}                        |
-    {contract_set      , contract()}                        |
     {level_changed     , level()}                           |
     {effective_challenge_changed, challenge_id()}           |
     {challenge         , challenge_id(), ff_identity_challenge:ev()} .
 
--type outcome() ::
-    [ev()].
-
 -export_type([identity/0]).
--export_type([ev/0]).
+-export_type([event/0]).
 
 -export([id/1]).
 -export([provider/1]).
@@ -64,17 +60,11 @@
 -export([is_accessible/1]).
 
 -export([create/4]).
--export([setup_contract/1]).
 
 -export([start_challenge/4]).
 -export([poll_challenge_completion/2]).
 
--export([collapse_events/1]).
--export([apply_events/2]).
 -export([apply_event/2]).
-
--export([dehydrate/1]).
--export([hydrate/2]).
 
 %% Pipeline
 
@@ -82,26 +72,37 @@
 
 %% Accessors
 
--spec id(identity()) -> id(_).
-id(#{id := V}) -> V.
-
--spec provider(identity()) -> provider().
-provider(#{provider := V}) -> V.
-
--spec class(identity()) -> class().
-class(#{class := V})    -> V.
-
--spec level(identity()) -> level().
-level(#{level := V})    -> V.
-
--spec party(identity()) -> party().
-party(#{party := V})    -> V.
+-spec id(identity()) ->
+    id(_).
+-spec provider(identity()) ->
+    provider().
+-spec class(identity()) ->
+    class().
+-spec level(identity()) ->
+    level().
+-spec party(identity()) ->
+    party().
 
 -spec contract(identity()) ->
-    ff_map:result(contract()).
+    contract().
 
-contract(V) ->
-    ff_map:find(contract, V).
+id(#{id := V}) ->
+    V.
+
+provider(#{provider := V}) ->
+    V.
+
+class(#{class := V})    ->
+    V.
+
+level(#{level := V})    ->
+    V.
+
+party(#{party := V})    ->
+    V.
+
+contract(#{contract := V}) ->
+    V.
 
 -spec challenges(identity()) ->
     #{challenge_id() => challenge()}.
@@ -123,7 +124,7 @@ challenge(ChallengeID, Identity) ->
 
 -spec is_accessible(identity()) ->
     {ok, accessible} |
-    {error, {inaccessible, suspended | blocked}}.
+    {error, ff_party:inaccessibility()}.
 
 is_accessible(Identity) ->
     ff_party:is_accessible(party(Identity)).
@@ -131,61 +132,72 @@ is_accessible(Identity) ->
 %% Constructor
 
 -spec create(id(_), party(), provider(), class()) ->
-    {ok, outcome()}.
+    {ok, [event()]} |
+    {error,
+        {provider, notfound} |
+        {identity_class, notfound} |
+        ff_party:inaccessibility() |
+        invalid
+    }.
 
-create(ID, Party, Provider, Class) ->
+create(ID, Party, ProviderID, ClassID) ->
     do(fun () ->
+        Provider = unwrap(provider, ff_provider:get(ProviderID)),
+        Class = unwrap(identity_class, ff_provider:get_identity_class(ClassID, Provider)),
+        LevelID = ff_identity_class:initial_level(Class),
+        {ok, Level} = ff_identity_class:level(LevelID, Class),
+        Contract = unwrap(ff_party:create_contract(Party, #{
+            payinst           => ff_provider:payinst(Provider),
+            contract_template => ff_identity_class:contract_template(Class),
+            contractor_level  => ff_identity_class:contractor_level(Level)
+        })),
         [
             {created, #{
                 id       => ID,
                 party    => Party,
-                provider => Provider,
-                class    => Class
+                provider => ProviderID,
+                class    => ClassID,
+                contract => Contract
             }},
             {level_changed,
-                ff_identity_class:initial_level(Class)
+                LevelID
             }
         ]
-    end).
-
--spec setup_contract(identity()) ->
-    {ok, outcome()} |
-    {error,
-        invalid
-    }.
-
-setup_contract(Identity) ->
-    do(fun () ->
-        Class    = class(Identity),
-        Contract = unwrap(ff_party:create_contract(party(Identity), #{
-            payinst           => ff_provider:payinst(provider(Identity)),
-            contract_template => ff_identity_class:contract_template(Class),
-            contractor_level  => ff_identity_class:contractor_level(level(Identity))
-        })),
-        [{contract_set, Contract}]
     end).
 
 %%
 
 -spec start_challenge(challenge_id(), challenge_class(), [ff_identity_challenge:proof()], identity()) ->
-    {ok, outcome()} |
+    {ok, [event()]} |
     {error,
         exists |
+        {challenge_class, notfound} |
         {level, ff_identity_class:level()} |
         _CreateChallengeError
     }.
 
-start_challenge(ChallengeID, ChallengeClass, Proofs, Identity) ->
+start_challenge(ChallengeID, ChallengeClassID, Proofs, Identity) ->
     do(fun () ->
-        BaseLevel = ff_identity_class:base_level(ChallengeClass),
-        notfound  = expect(exists, flip(challenge(ChallengeID, Identity))),
-        ok        = unwrap(level, valid(BaseLevel, level(Identity))),
-        Events    = unwrap(ff_identity_challenge:create(id(Identity), ChallengeClass, Proofs)),
-        [{challenge, ChallengeID, Ev} || Ev <- Events]
+        notfound = expect(exists, flip(challenge(ChallengeID, Identity))),
+        IdentityClass = get_identity_class(Identity),
+        ChallengeClass = unwrap(challenge_class, ff_identity_class:challenge_class(
+            ChallengeClassID,
+            IdentityClass
+        )),
+        ok = unwrap(level, valid(ff_identity_class:base_level(ChallengeClass), level(Identity))),
+        Events = unwrap(ff_identity_challenge:create(
+            ChallengeID,
+            id(Identity),
+            provider(Identity),
+            class(Identity),
+            ChallengeClassID,
+            Proofs
+        )),
+        [{{challenge, ChallengeID}, Ev} || Ev <- Events]
     end).
 
 -spec poll_challenge_completion(challenge_id(), identity()) ->
-    {ok, outcome()} |
+    {ok, [event()]} |
     {error,
         notfound |
         ff_identity_challenge:status()
@@ -198,44 +210,49 @@ poll_challenge_completion(ChallengeID, Identity) ->
             [] ->
                 [];
             Events = [_ | _] ->
-                {ok, Contract}  = contract(Identity),
-                TargetLevel     = ff_identity_class:target_level(ff_identity_challenge:class(Challenge)),
-                ContractorLevel = ff_identity_class:contractor_level(TargetLevel),
-                ok              = unwrap(ff_party:change_contractor_level(party(Identity), Contract, ContractorLevel)),
-                [{challenge, ChallengeID, Ev} || Ev <- Events] ++
+                Contract  = contract(Identity),
+                IdentityClass = get_identity_class(Identity),
+                ChallengeClass = get_challenge_class(Challenge, Identity),
+                TargetLevelID = ff_identity_class:target_level(ChallengeClass),
+                {ok, Level} = ff_identity_class:level(TargetLevelID, IdentityClass),
+                ok = unwrap(ff_party:change_contractor_level(
+                    party(Identity),
+                    Contract,
+                    ff_identity_class:contractor_level(Level)
+                )),
+                [{{challenge, ChallengeID}, Ev} || Ev <- Events] ++
                 [
-                    {level_changed, TargetLevel},
+                    {level_changed, TargetLevelID},
                     {effective_challenge_changed, ChallengeID}
                 ]
         end
     end).
 
+get_provider(Identity) ->
+    {ok, V} = ff_provider:get(provider(Identity)), V.
+
+get_identity_class(Identity) ->
+    {ok, V} = ff_provider:get_identity_class(class(Identity), get_provider(Identity)), V.
+
+get_challenge_class(Challenge, Identity) ->
+    {ok, V} = ff_identity_class:challenge_class(
+        ff_identity_challenge:class(Challenge),
+        get_identity_class(Identity)
+    ),
+    V.
+
 %%
 
--spec collapse_events([ev(), ...]) ->
-    identity().
-
-collapse_events(Evs) when length(Evs) > 0 ->
-    apply_events(Evs, undefined).
-
--spec apply_events([ev()], undefined | identity()) ->
-    undefined | identity().
-
-apply_events(Evs, Identity) ->
-    lists:foldl(fun apply_event/2, Identity, Evs).
-
--spec apply_event(ev(), undefined | identity()) ->
+-spec apply_event(event(), ff_maybe:maybe(identity())) ->
     identity().
 
 apply_event({created, Identity}, undefined) ->
     Identity;
-apply_event({contract_set, C}, Identity) ->
-    Identity#{contract => C};
 apply_event({level_changed, L}, Identity) ->
     Identity#{level => L};
 apply_event({effective_challenge_changed, ID}, Identity) ->
     Identity#{effective => ID};
-apply_event({challenge, ID, Ev}, Identity) ->
+apply_event({{challenge, ID}, Ev}, Identity) ->
     with_challenges(
         fun (Cs) ->
             with_challenge(
@@ -252,47 +269,3 @@ with_challenges(Fun, Identity) ->
 
 with_challenge(ID, Fun, Challenges) ->
     maps:update_with(ID, Fun, maps:merge(#{ID => undefined}, Challenges)).
-
-%%
-
--spec dehydrate(ev()) ->
-    term().
-
--spec hydrate(term(), undefined | identity()) ->
-    ev().
-
-dehydrate({created, I}) ->
-    {created, #{
-        id       => id(I),
-        party    => party(I),
-        provider => ff_provider:id(provider(I)),
-        class    => ff_identity_class:id(class(I))
-    }};
-dehydrate({contract_set, C}) ->
-    {contract_set, C};
-dehydrate({level_changed, L}) ->
-    {level_changed, ff_identity_class:level_id(L)};
-dehydrate({effective_challenge_changed, ID}) ->
-    {effective_challenge_changed, ID};
-dehydrate({challenge, ID, Ev}) ->
-    {challenge, ID, ff_identity_challenge:dehydrate(Ev)}.
-
-hydrate({created, I}, undefined) ->
-    {ok, Provider} = ff_provider:get(maps:get(provider, I)),
-    {ok, Class} = ff_provider:get_identity_class(maps:get(class, I), Provider),
-    {created, #{
-        id       => maps:get(id, I),
-        party    => maps:get(party, I),
-        provider => Provider,
-        class    => Class
-    }};
-hydrate({contract_set, C}, _) ->
-    {contract_set, C};
-hydrate({level_changed, L}, Identity) ->
-    {ok, Level} = ff_identity_class:level(L, class(Identity)),
-    {level_changed, Level};
-hydrate({effective_challenge_changed, ID}, _) ->
-    {effective_challenge_changed, ID};
-hydrate({challenge, ID, Ev}, Identity) ->
-    Challenge = ff_maybe:from_result(challenge(ID, Identity)),
-    {challenge, ID, ff_identity_challenge:hydrate(Ev, Challenge)}.

@@ -9,10 +9,13 @@
 
 -module(ff_destination).
 
--type id()       :: machinery:id().
--type wallet()   :: ff_wallet:wallet().
+-type account()  :: ff_account:account().
 -type resource() ::
     {bank_card, resource_bank_card()}.
+
+-type id(T) :: T.
+-type identity() :: ff_identity:id().
+-type currency() :: ff_currency:id().
 
 -type resource_bank_card() :: #{
     token          := binary(),
@@ -26,75 +29,92 @@
     authorized.
 
 -type destination() :: #{
-    id       := id(),
+    account  := account() | undefined,
     resource := resource(),
-    wallet   => wallet(),
-    status   => status()
+    name     := binary(),
+    status   := status()
 }.
 
--type ev() ::
+-type event() ::
     {created, destination()} |
-    {wallet, ff_wallet:ev()} |
+    {account, ff_account:ev()} |
     {status_changed, status()}.
-
--type outcome() :: [ev()].
 
 -export_type([destination/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
--export_type([ev/0]).
+-export_type([event/0]).
+
+-export([account/1]).
 
 -export([id/1]).
--export([wallet/1]).
+-export([name/1]).
+-export([identity/1]).
+-export([currency/1]).
 -export([resource/1]).
 -export([status/1]).
 
 -export([create/5]).
 -export([authorize/1]).
 
--export([apply_event/2]).
+-export([is_accessible/1]).
 
--export([dehydrate/1]).
--export([hydrate/2]).
+-export([apply_event/2]).
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/1]).
 
 %% Accessors
 
--spec id(destination())       -> id().
--spec wallet(destination())   -> wallet().
--spec resource(destination()) -> resource().
--spec status(destination())   -> status().
+-spec account(destination()) ->
+    account().
 
-id(#{id := V})                -> V.
-wallet(#{wallet := V})        -> V.
-resource(#{resource := V})    -> V.
-status(#{status := V})        -> V.
+account(#{account := V}) ->
+    V.
+
+-spec id(destination()) ->
+    id(_).
+-spec name(destination()) ->
+    binary().
+-spec identity(destination()) ->
+    identity().
+-spec currency(destination()) ->
+    currency().
+-spec resource(destination()) ->
+    resource().
+-spec status(destination()) ->
+    status().
+
+id(Destination) ->
+    ff_account:id(account(Destination)).
+name(#{name := V}) ->
+    V.
+identity(Destination) ->
+    ff_account:identity(account(Destination)).
+currency(Destination) ->
+    ff_account:currency(account(Destination)).
+resource(#{resource := V}) ->
+    V.
+status(#{status := V}) ->
+    V.
 
 %%
 
--spec create(id(), ff_identity:identity(), binary(), ff_currency:id(), resource()) ->
-    {ok, outcome()} |
+-spec create(id(_), identity(), binary(), currency(), resource()) ->
+    {ok, [event()]} |
     {error, _WalletError}.
 
-create(ID, Identity, Name, Currency, Resource) ->
+create(ID, IdentityID, Name, CurrencyID, Resource) ->
     do(fun () ->
-        WalletEvents1 = unwrap(ff_wallet:create(ID, Identity, Name, Currency)),
-        WalletEvents2 = unwrap(ff_wallet:setup_wallet(ff_wallet:collapse_events(WalletEvents1))),
-        [
-            {created, #{
-                id       => ID,
-                resource => Resource
-            }}
-        ] ++
-        [{wallet, Ev} || Ev <- WalletEvents1 ++ WalletEvents2] ++
+        Events = unwrap(ff_account:create(ID, IdentityID, CurrencyID)),
+        [{created, #{name => Name, resource => Resource}}] ++
+        [{account, Ev} || Ev <- Events] ++
         [{status_changed, unauthorized}]
     end).
 
 -spec authorize(destination()) ->
-    {ok, outcome()} |
+    {ok, [event()]} |
     {error, _TODO}.
 
 authorize(#{status := unauthorized}) ->
@@ -104,40 +124,23 @@ authorize(#{status := unauthorized}) ->
 authorize(#{status := authorized}) ->
     {ok, []}.
 
+-spec is_accessible(destination()) ->
+    {ok, accessible} |
+    {error, ff_party:inaccessibility()}.
+
+is_accessible(Destination) ->
+    ff_account:is_accessible(account(Destination)).
+
 %%
 
--spec apply_event(ev(), undefined | destination()) ->
+-spec apply_event(event(), ff_maybe:maybe(destination())) ->
     destination().
 
-apply_event({created, D}, undefined) ->
-    D;
-apply_event({status_changed, S}, D) ->
-    D#{status => S};
-apply_event({wallet, Ev}, D) ->
-    D#{wallet => ff_wallet:apply_event(Ev, genlib_map:get(wallet, D))}.
-
--spec dehydrate(ev()) ->
-    term().
-
--spec hydrate(term(), undefined | destination()) ->
-    ev().
-
-dehydrate({created, D}) ->
-    {created, #{
-        id       => id(D),
-        resource => resource(D)
-    }};
-dehydrate({wallet, Ev}) ->
-    {wallet, ff_wallet:dehydrate(Ev)};
-dehydrate({status_changed, S}) ->
-    {status_changed, S}.
-
-hydrate({created, V}, undefined) ->
-    {created, #{
-        id       => maps:get(id, V),
-        resource => maps:get(resource, V)
-    }};
-hydrate({wallet, Ev}, D) ->
-    {wallet, ff_wallet:hydrate(Ev, genlib_map:get(wallet, D))};
-hydrate({status_changed, S}, _) ->
-    {status_changed, S}.
+apply_event({created, Destination}, undefined) ->
+    Destination;
+apply_event({status_changed, S}, Destination) ->
+    Destination#{status => S};
+apply_event({account, Ev}, Destination = #{account := Account}) ->
+    Destination#{account => ff_account:apply_event(Ev, Account)};
+apply_event({account, Ev}, Destination) ->
+    apply_event({account, Ev}, Destination#{account => undefined}).

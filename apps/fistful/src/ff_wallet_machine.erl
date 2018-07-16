@@ -10,15 +10,10 @@
 -module(ff_wallet_machine).
 
 -type id()        :: machinery:id().
--type timestamp() :: machinery:timestamp().
 -type wallet()    :: ff_wallet:wallet().
 -type ctx()       :: ff_ctx:ctx().
 
--type st()        :: #{
-    wallet        := wallet(),
-    ctx           := ctx(),
-    times         => {timestamp(), timestamp()}
-}.
+-type st()        :: ff_machine:st(wallet()).
 
 -export_type([id/0]).
 
@@ -28,9 +23,6 @@
 %% Accessors
 
 -export([wallet/1]).
--export([ctx/1]).
--export([created/1]).
--export([updated/1]).
 
 %% Machinery
 
@@ -42,22 +34,14 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/1]).
 
 %% Accessors
 
 -spec wallet(st())  -> wallet().
--spec ctx(st())     -> ctx().
--spec created(st()) -> timestamp() | undefined.
--spec updated(st()) -> timestamp() | undefined.
 
-wallet(#{wallet := V}) -> V.
-ctx(#{ctx := V})       -> V.
-created(St)            -> erlang:element(1, times(St)).
-updated(St)            -> erlang:element(2, times(St)).
-
-times(St) ->
-    genlib_map:get(times, St, {undefined, undefined}).
+wallet(St) ->
+    ff_machine:model(St).
 
 %%
 
@@ -72,19 +56,14 @@ times(St) ->
 -spec create(id(), params(), ctx()) ->
     ok |
     {error,
-        {identity, notfound} |
-        {currency, notfound} |
-        _WalletError |
+        _WalletCreateError |
         exists
     }.
 
-create(ID, #{identity := IdentityID, name := Name, currency := Currency}, Ctx) ->
+create(ID, #{identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
     do(fun () ->
-        Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
-        _        = unwrap(currency, ff_currency:get(Currency)),
-        Events0  = unwrap(ff_wallet:create(ID, Identity, Name, Currency)),
-        Events1  = unwrap(ff_wallet:setup_wallet(ff_wallet:collapse_events(Events0))),
-        unwrap(machinery:start(?NS, ID, {Events0 ++ Events1, Ctx}, backend()))
+        Events = unwrap(ff_wallet:create(ID, IdentityID, Name, CurrencyID)),
+        unwrap(machinery:start(?NS, ID, {Events, Ctx}, fistful:backend(?NS)))
     end).
 
 -spec get(id()) ->
@@ -92,32 +71,23 @@ create(ID, #{identity := IdentityID, name := Name, currency := Currency}, Ctx) -
     {error, notfound} .
 
 get(ID) ->
-    do(fun () ->
-        collapse(unwrap(machinery:get(?NS, ID, backend())))
-    end).
-
-backend() ->
-    fistful:backend(?NS).
+    ff_machine:get(ff_wallet, ?NS, ID).
 
 %% machinery
 
--type ev() ::
-    ff_wallet:ev().
+-type event() ::
+    ff_wallet:event().
 
--type auxst() ::
-    #{ctx => ctx()}.
-
--type ts_ev(T)       :: {ev, timestamp(), T}.
--type machine()      :: machinery:machine(ts_ev(ev()), auxst()).
--type result()       :: machinery:result(ts_ev(ev()), auxst()).
+-type machine()      :: ff_machine:machine(event()).
+-type result()       :: ff_machine:result(event()).
 -type handler_opts() :: machinery:handler_opts(_).
 
--spec init({[ev()], ctx()}, machine(), _, handler_opts()) ->
+-spec init({[event()], ctx()}, machine(), _, handler_opts()) ->
     result().
 
 init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => emit_ts_events(Events),
+        events    => ff_machine:emit_events(Events),
         aux_state => #{ctx => Ctx}
     }.
 
@@ -132,36 +102,3 @@ process_timeout(#{}, _, _Opts) ->
 
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
-
-%%
-
-collapse(#{history := History, aux_state := #{ctx := Ctx}}) ->
-    collapse_history(History, #{ctx => Ctx}).
-
-collapse_history(History, St) ->
-    lists:foldl(fun merge_event/2, St, History).
-
-merge_event({_ID, _Ts, TsEv}, St0) ->
-    {EvBody, St1} = merge_ts_event(TsEv, St0),
-    merge_event_body(ff_wallet:hydrate(EvBody, maybe(wallet, St1)), St1).
-
-merge_event_body(Ev, St) ->
-    St#{
-        wallet => ff_wallet:apply_event(Ev, maybe(wallet, St))
-    }.
-
-maybe(Key, St) ->
-    maps:get(Key, St, undefined).
-
-%%
-
-emit_ts_events(Es) ->
-    emit_ts_events(Es, machinery_time:now()).
-
-emit_ts_events(Es, Ts) ->
-    [{ev, Ts, ff_wallet:dehydrate(Body)} || Body <- Es].
-
-merge_ts_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
-    {Body, St#{times => {Created, Ts}}};
-merge_ts_event({ev, Ts, Body}, St = #{}) ->
-    {Body, St#{times => {Ts, Ts}}}.

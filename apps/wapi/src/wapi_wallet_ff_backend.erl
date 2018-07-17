@@ -187,7 +187,7 @@ get_identity_challenge_events(Params = #{
 }, Context) ->
     Cursor = genlib_map:get('eventCursor', Params),
     Filter = fun
-        ({ID, {ev, Ts, {challenge, I, Body = {status_changed, _}}}}) when I =:= ChallengeId ->
+        ({ID, {ev, Ts, {{challenge, I}, Body = {status_changed, _}}}}) when I =:= ChallengeId ->
             {true, {ID, Ts, Body}};
         (_) ->
             false

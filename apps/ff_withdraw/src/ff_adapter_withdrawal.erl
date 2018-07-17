@@ -180,6 +180,6 @@ decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = NextState}) -
 decode_intent({finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = TrxInfo}}}}) ->
     {finish, {success, TrxInfo}};
 decode_intent({finish, #wthadpt_FinishIntent{status = {failure, Failure}}}) ->
-    {finish, {failure, Failure}};
+    {finish, {failed, Failure}};
 decode_intent({sleep, #wthadpt_SleepIntent{timer = Timer}}) ->
     {sleep, Timer}.

@@ -544,7 +544,7 @@ from_swag(destination_resource, #{
         token          => maps:get(<<"token">>, BankCard),
         payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
         bin            => maps:get(<<"bin">>, BankCard),
-        masked_pan     => maps:get(<<"maskedPan">>, BankCard)
+        masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }};
 from_swag(withdrawal_params, Params) ->
     #{

@@ -76,69 +76,39 @@ endef
 
 $(foreach suite,$(TESTSUITES),$(eval $(call testsuite,$(suite))))
 
+# Swagger
+
+.PHONY: generate
+generate: swagger.generate.server.wallet swagger.generate.client.wallet
+
+.PHONY: regenerate
+regenerate: swagger.regenerate.server.wallet swagger.regenerate.client.wallet
 
 #
-# wapi
-#
 
-.PHONY: generate regenerate swag_server.generate swag_server.regenerate swag_client.generate swag_client.regenerate
+SWAGGER_CODEGEN        = $(call which, swagger-codegen)
+SWAGGER_SPEC_BASE_PATH = schemes/swag/api
 
-generate: swag_server.generate swag_client.generate
+swagger-spec-path = $(SWAGGER_SPEC_BASE_PATH)/$(1)/swagger.yaml
+swagger-app-target = apps/swag_$(1)_$(2)
 
-regenerate: swag_server.regenerate swag_client.regenerate
+__swagger_role = $(word 1,$(subst ., ,$*))
+__swagger_spec = $(word 2,$(subst ., ,$*))
 
-SWAGGER_CODEGEN = $(call which, swagger-codegen)
-SWAGGER_SCHEME_BASE_PATH := schemes/swag
-APP_PATH := apps
-SWAGGER_SCHEME_API_PATH := $(SWAGGER_SCHEME_BASE_PATH)/api
-SWAG_SPEC_FILE := swagger.yaml
+swagger.generate.%:
+	@$(MAKE) \
+		SWAGGER_APP_ROLE=$(__swagger_role) \
+		SWAGGER_APP_SPEC=$(__swagger_spec) \
+		$(call swagger-app-target,$(__swagger_role),$(__swagger_spec))
 
-# Swagger server
+swagger.distclean.%:
+	rm -rf $(call swagger-app-target,$(__swagger_role),$(__swagger_spec))
 
-SWAG_SERVER_PREFIX := swag_server
-SWAG_SERVER_APP_TARGET := $(APP_PATH)/$(SWAG_SERVER_PREFIX)
-SWAG_SERVER_APP_PATH := $(APP_PATH)/$(SWAG_SERVER_PREFIX)
+swagger.regenerate.%:
+	@$(MAKE) swagger.distclean.$* swagger.generate.$*
 
-SWAG_SERVER_APP_TARGET_WALLET  := $(SWAG_SERVER_APP_PATH)_wallet/rebar.config
-
-$(SWAG_SERVER_APP_PATH)_%/rebar.config: $(SWAGGER_SCHEME_API_PATH)/$*
+apps/swag_$(SWAGGER_APP_ROLE)_%: $(call swagger-spec-path,%)
 	$(SWAGGER_CODEGEN) generate \
-		-i $(SWAGGER_SCHEME_API_PATH)/$*/$(SWAG_SPEC_FILE) \
-		-l erlang-server \
-		-o $(SWAG_SERVER_APP_PATH)_$* \
-		--additional-properties \
-			packageName=$(SWAG_SERVER_PREFIX)_$*
-
-swag_server.generate: $(SWAG_SERVER_APP_TARGET_WALLET)
-
-swag_server.distclean: swag_server.distclean_wallet
-
-swag_server.distclean_%:
-	rm -rf $(SWAG_SERVER_APP_PATH)_$*
-
-swag_server.regenerate: swag_server.distclean swag_server.generate
-
-# Swagger client
-
-SWAG_CLIENT_PREFIX := swag_client
-SWAG_CLIENT_APP_TARGET := $(APP_PATH)/$(SWAG_CLIENT_PREFIX)
-SWAG_CLIENT_APP_PATH := $(APP_PATH)/$(SWAG_CLIENT_PREFIX)
-
-SWAG_CLIENT_APP_TARGET_WALLET  := $(SWAG_CLIENT_APP_PATH)_wallet/rebar.config
-
-$(SWAG_CLIENT_APP_PATH)_%/rebar.config: $(SWAGGER_SCHEME_API_PATH)/$*
-	$(SWAGGER_CODEGEN) generate \
-		-i $(SWAGGER_SCHEME_API_PATH)/$*/$(SWAG_SPEC_FILE) \
-		-l erlang-client \
-		-o $(SWAG_CLIENT_APP_PATH)_$* \
-		--additional-properties \
-			packageName=$(SWAG_CLIENT_PREFIX)_$*
-
-swag_client.generate: $(SWAG_CLIENT_APP_TARGET_WALLET)
-
-swag_client.distclean: swag_client.distclean_wallet
-
-swag_client.distclean_%:
-	rm -rf $(SWAG_CLIENT_APP_PATH)_$*
-
-swag_client.regenerate: swag_client.distclean swag_client.generate
+		-i $< -l erlang-$(SWAGGER_APP_ROLE) -o $@ \
+		--additional-properties packageName=swag_$(SWAGGER_APP_ROLE)_$(SWAGGER_APP_SPEC)
+	touch $@

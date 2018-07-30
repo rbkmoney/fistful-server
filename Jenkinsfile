@@ -60,7 +60,7 @@ build('fistful-server', 'docker-host', finalHook) {
     }
 
     try {
-      if (masterlike()) {
+      if (masterlikeBranch()) {
         runStage('push image') {
           sh "make push_image"
         }

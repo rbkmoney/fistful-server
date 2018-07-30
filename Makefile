@@ -49,10 +49,10 @@ xref: submodules
 lint:
 	elvis rock
 
-dialyze: submodules
+dialyze: submodules generate
 	$(REBAR) dialyzer
 
-release: submodules
+release: submodules generate
 	$(REBAR) as prod release
 
 clean:

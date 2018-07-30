@@ -1,4 +1,4 @@
-REBAR = $(or $(shell which rebar3), $(error "`rebar3' executable missing"))
+REBAR := $(shell which rebar3 2>/dev/null || which ./rebar3)
 SUBMODULES = build-utils
 
 # wapi

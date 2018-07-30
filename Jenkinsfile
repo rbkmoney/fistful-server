@@ -9,7 +9,7 @@ def finalHook = {
 
 build('fistful-server', 'docker-host', finalHook) {
   checkoutRepo()
-  loadBuildUtils()
+  loadBuildUtils('build-utils')
 
   def pipeDefault
   def withWsCache

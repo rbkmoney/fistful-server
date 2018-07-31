@@ -1,0 +1,26 @@
+{application, wapi , [
+    {description, "Wallet API service adapter"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {mod, {wapi , []}},
+    {applications, [
+        kernel,
+        stdlib,
+        public_key,
+        genlib,
+        woody,
+        erl_health,
+        dmsl,
+        identdocstore_proto,
+        swag_server_wallet,
+        jose,
+        cowboy_cors,
+        cowboy_access_log,
+        rfc3339,
+        base64url,
+        snowflake,
+        woody_user_identity,
+        payproc_errors
+    ]},
+    {env, []}
+]}.

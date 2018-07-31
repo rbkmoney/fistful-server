@@ -1,0 +1,22 @@
+{application, machinery_extra, [
+    {description,
+        "Machinery extra backends / utilities"
+    },
+    {vsn, "1"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        genlib,
+        machinery,
+        gproc,
+        lager
+    ]},
+    {env, []},
+    {modules, []},
+    {maintainers, [
+        "Andrey Mayorov <a.mayorov@rbkmoney.com>"
+    ]},
+    {licenses, []},
+    {links, ["https://github.com/rbkmoney/fistful-server"]}
+]}.

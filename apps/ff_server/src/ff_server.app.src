@@ -1,0 +1,26 @@
+{application, ff_server, [
+    {description,
+        "Wallet processing server"
+    },
+    {vsn, "1"},
+    {registered, []},
+    {mod, {ff_server, []}},
+    {applications, [
+        kernel,
+        stdlib,
+        woody,
+        erl_health,
+        lager,
+        scoper,
+        fistful,
+        ff_withdraw,
+        wapi
+    ]},
+    {env, []},
+    {modules, []},
+    {maintainers, [
+        "Andrey Mayorov <a.mayorov@rbkmoney.com>"
+    ]},
+    {licenses, []},
+    {links, ["https://github.com/rbkmoney/fistful-server"]}
+]}.

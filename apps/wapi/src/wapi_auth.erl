@@ -81,36 +81,109 @@ do_authorize_api_key(_OperationID, bearer, Token) ->
 % We need shared type here, exported somewhere in swagger app
 -type request_data() :: #{atom() | binary() => term()}.
 
--spec authorize_operation(
-    OperationID :: operation_id(),
-    Req :: request_data(),
-    Auth :: wapi_authorizer_jwt:t()
-) ->
+-spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
     ok | {error, unauthorized}.
 
-%% TODO
+authorize_operation('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context) ->
+    authorize_withdrawal(Params, Context);
 authorize_operation(_OperationID, _Req, _) ->
     ok.
+%% TODO: implement authorization
 %% authorize_operation(OperationID, Req, {{_SubjectID, ACL}, _}) ->
-    %% Access = get_operation_access(OperationID, Req),
-    %% _ = case lists:all(
-    %%     fun ({Scope, Permission}) ->
-    %%         lists:member(Permission, wapi_acl:match(Scope, ACL))
-    %%     end,
-    %%     Access
-    %% ) of
-    %%     true ->
-    %%         ok;
-    %%     false ->
-    %%         {error, unauthorized}
-    %% end.
+%%     Access = get_operation_access(OperationID, Req),
+%%     try authorize(Access, ACL)
+%%     catch
+%%         throw:unauthorized ->
+%%             {error, unauthorized}
+%%     end.
 
 %%
+
+authorize_withdrawal(Params, Context) ->
+    case {
+        authorize_withdrawal_by_grants(Params),
+        authorize_withdrawal_by_owner(Params, Context)
+    } of
+        {ok, _} -> ok;
+        {_, ok} -> ok;
+        _       -> {error, unauthorized}
+    end.
+
+authorize_withdrawal_by_owner(#{<<"destination">> := DestinationID, <<"wallet">> := WalletID}, Context) ->
+    case {
+        wapi_wallet_ff_backend:get_destination(DestinationID, Context),
+        wapi_wallet_ff_backend:get_wallet(WalletID, Context)
+    } of
+        {{ok, _}, {ok, _}} -> ok;
+        _                  -> error
+    end.
+
+authorize_withdrawal_by_grants(Params = #{
+    <<"destination">> := DestinationID,
+    <<"wallet">>      := WalletID,
+    <<"body">>        := Body
+}) ->
+    try
+        ok = authorize_destination(DestinationID, genlib_map:get(<<"destinationGrant">>, Params)),
+        ok = authorize_wallet(WalletID, Body, genlib_map:get(<<"walletGrant">>, Params))
+    catch
+        throw:unauthorized -> error
+    end.
+
+authorize_destination(_ID, undefined) ->
+    erlang:throw(unauthorized);
+authorize_destination(ID, Grant) ->
+    case wapi_authorizer_jwt:verify(Grant) of
+        {ok, {{ID, ACL}, _Claims}} ->
+            authorize(get_resource_accesses(destination, ID, write), ACL);
+        {ok, _} ->
+            erlang:throw(unauthorized);
+        {error, Error} ->
+            ok = lager:info("Invalid withdrawal destination grant: ~p", [Error]),
+            erlang:throw(unauthorized)
+    end.
+
+authorize_wallet(_ID, undefined, _) ->
+    erlang:throw(unauthorized);
+authorize_wallet(ID, Grant, _Body) ->
+    case wapi_authorizer_jwt:verify(Grant) of
+        {ok, {{ID, _ACL}, _Claims}} ->
+            %% TODO: properly authorize via wallet grant
+            %% authorize(get_resource_accesses(wallet, ID, write), ACL);
+            ok;
+        {ok, _} ->
+            erlang:throw(unauthorized);
+        {error, Error} ->
+            ok = lager:info("Invalid withdrawal wallet grant: ~p", [Error]),
+            erlang:throw(unauthorized)
+    end.
+
+get_resource_accesses(Resource, ID, Permission) ->
+    [{get_resource_accesses(Resource, ID), Permission}].
+
+get_resource_accesses(destination, ID) ->
+    [party, {destinations, ID}].
+%% get_resource_accesses(wallet, ID) ->
+%%     [party, {wallets, ID}].
+%% TODO: properly authorize via wallet grant
+
+authorize(Access, ACL) ->
+    case lists:all(
+        fun ({Scope, Permission}) ->
+            lists:member(Permission, wapi_acl:match(Scope, ACL))
+        end,
+        Access
+    ) of
+        true ->
+            ok;
+        false ->
+            erlang:throw(unauthorized)
+    end.
 
 -type token_spec() ::
     {destinations, DestinationID :: binary()}.
 
--spec issue_access_token(wapi_handler_utils:party_id(), token_spec()) ->
+-spec issue_access_token(wapi_handler_utils:owner(), token_spec()) ->
     wapi_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec) ->
     issue_access_token(PartyID, TokenSpec, unlimited).
@@ -120,7 +193,7 @@ issue_access_token(PartyID, TokenSpec) ->
     {lifetime, Seconds :: pos_integer()}              |
     unlimited                                         .
 
--spec issue_access_token(wapi_handler_utils:party_id(), token_spec(), expiration()) ->
+-spec issue_access_token(wapi_handler_utils:owner(), token_spec(), expiration()) ->
     wapi_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec, Expiration0) ->
     Expiration = get_expiration(Expiration0),
@@ -176,12 +249,12 @@ get_claim(ClaimName, {_Subject, Claims}, Default) ->
 %% -spec get_operation_access(operation_id(), request_data()) ->
 %%     [{wapi_acl:scope(), wapi_acl:permission()}].
 
-%% get_operation_access('StoreBankCard'     , _) ->
+%% get_operation_access('CreateWithdrawal'     , #{'WithdrawalParameters' := #{<<"walletGrant">> => }}) ->
 %%     [{[payment_resources], write}].
 
 -spec get_resource_hierarchy() -> #{atom() => map()}.
 
-%% TODO add some sence in here
+%% TODO put some sense in here
 get_resource_hierarchy() ->
     #{
         party => #{

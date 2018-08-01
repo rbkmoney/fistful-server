@@ -191,24 +191,25 @@ process_request('GetWalletAccount', #{'walletID' := WalletId}, Context, _Opts) -
         {error, {wallet, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-
-process_request('IssueWalletGrant', #{
-    'walletID'           := WalletId,
-    'WalletGrantRequest' := #{<<"validUntil">> := Expiration, <<"asset">> := Asset}
-}, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_wallet(WalletId, Context) of
-        {ok, _} ->
-            %% TODO issue token properly
-            wapi_handler_utils:reply_ok(201, #{
-                <<"token">>      => issue_grant_token(wallets, WalletId, Expiration, #{<<"asset">> => Asset}),
-                <<"validUntil">> => Expiration,
-                <<"asset">>      => Asset
-            });
-        {error, {wallet, notfound}} ->
-            wapi_handler_utils:reply_ok(404);
-        {error, {wallet, unauthorized}} ->
-            wapi_handler_utils:reply_ok(404)
-    end;
+%% process_request('IssueWalletGrant', #{
+%%     'walletID'           := WalletId,
+%%     'WalletGrantRequest' := #{<<"validUntil">> := Expiration, <<"asset">> := Asset}
+%% }, Context, _Opts) ->
+%%     case wapi_wallet_ff_backend:get_wallet(WalletId, Context) of
+%%         {ok, _} ->
+%%             %% TODO issue token properly
+%%             wapi_handler_utils:reply_ok(201, #{
+%%                 <<"token">>      => issue_grant_token(wallets, WalletId, Expiration, #{<<"asset">> => Asset}),
+%%                 <<"validUntil">> => Expiration,
+%%                 <<"asset">>      => Asset
+%%             });
+%%         {error, {wallet, notfound}} ->
+%%             wapi_handler_utils:reply_ok(404);
+%%         {error, {wallet, unauthorized}} ->
+%%             wapi_handler_utils:reply_ok(404)
+%%     end;
+process_request('IssueWalletGrant', _Params, _Context, _Opts) ->
+    not_implemented();
 
 %% Withdrawals
 process_request('ListDestinations', _Req, _Context, _Opts) ->

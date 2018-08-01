@@ -67,7 +67,9 @@ redact_match([Capture], Message) ->
 %%     mask(Dir, MaskLen, string:length(Str), MaskChar, Str).
 
 %% mask(Dir, KeepStart, KeepLen, MaskChar, Str) ->
-%%     unicode:characters_to_binary(string:pad(string:slice(Str, KeepStart, KeepLen), string:length(Str), Dir, MaskChar)).
+%%     unicode:characters_to_binary(
+%%         string:pad(string:slice(Str, KeepStart, KeepLen), string:length(Str), Dir, MaskChar)
+%%     ).
 
 -spec mask_and_keep(leading|trailing, non_neg_integer(), char(), binary()) ->
     binary().

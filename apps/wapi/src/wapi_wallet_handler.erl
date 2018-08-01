@@ -133,8 +133,10 @@ process_request('StartIdentityChallenge', #{
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Proof not found">>));
         {error, {challenge, {proof, insufficient}}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Insufficient proof">>));
-        {error,{challenge, {level, _}}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Illegal identification type for current identity level">>))
+        {error, {challenge, {level, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Illegal identification type for current identity level">>)
+            )
         %% TODO any other possible errors here?
     end;
 process_request('GetIdentityChallenge', #{
@@ -145,13 +147,13 @@ process_request('GetIdentityChallenge', #{
         {ok, Challenge}                   -> wapi_handler_utils:reply_ok(200, Challenge);
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404);
-        {error, {challenge, notfound}}     -> wapi_handler_utils:reply_ok(404)
+        {error, {challenge, notfound}}    -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('PollIdentityChallengeEvents', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenge_events(Params, Context) of
-        {ok, Events}                     -> wapi_handler_utils:reply_ok(200, Events);
-        {error, {identity, notfound}}    -> wapi_handler_utils:reply_ok(404);
-        {error, {identity,unauthorized}} -> wapi_handler_utils:reply_ok(404)
+        {ok, Events}                      -> wapi_handler_utils:reply_ok(200, Events);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('GetIdentityChallengeEvent', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenge_event(Params, Context) of
@@ -269,11 +271,17 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {provider, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {wallet, {inaccessible, _}}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Inaccessible source or destination">>));
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Inaccessible source or destination">>)
+            );
         {error, {wallet, {currency, invalid}}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency for source or destination">>));
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid currency for source or destination">>)
+            );
         {error, {wallet, {provider, invalid}}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>))
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>)
+                )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of

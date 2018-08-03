@@ -80,9 +80,10 @@ do_authorize_api_key(_OperationID, bearer, Token) ->
 % TODO
 % We need shared type here, exported somewhere in swagger app
 -type request_data() :: #{atom() | binary() => term()}.
+-type auth_error() :: atom() | {atom(), auth_error()}.
 
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
-    ok | {error, unauthorized}.
+    ok | {error, auth_error()}.
 
 authorize_operation('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context) ->
     authorize_withdrawal(Params, Context);
@@ -104,9 +105,14 @@ authorize_withdrawal(Params, Context) ->
         authorize_withdrawal_by_grants(Params),
         authorize_withdrawal_by_owner(Params, Context)
     } of
-        {ok, _} -> ok;
-        {_, ok} -> ok;
-        _       -> {error, unauthorized}
+        {ok, _} ->
+            ok = lager:info("Withdrawal authorized via grants"),
+            ok;
+        {_, ok} ->
+            ok = lager:info("Withdrawal authorized via owner bearer token"),
+            ok;
+        {Error = {error, _}, _} ->
+            Error
     end.
 
 authorize_withdrawal_by_owner(#{<<"destination">> := DestinationID, <<"wallet">> := WalletID}, Context) ->
@@ -114,58 +120,53 @@ authorize_withdrawal_by_owner(#{<<"destination">> := DestinationID, <<"wallet">>
         wapi_wallet_ff_backend:get_destination(DestinationID, Context),
         wapi_wallet_ff_backend:get_wallet(WalletID, Context)
     } of
-        {{ok, _}, {ok, _}} -> ok;
-        _                  -> error
+        {{ok, _}, {ok, _}}      -> ok;
+        {Error = {error, _}, _} -> Error
     end.
 
+%% TODO: properly authorize via wallet grant
 authorize_withdrawal_by_grants(Params = #{
-    <<"destination">> := DestinationID,
-    <<"wallet">>      := WalletID,
-    <<"body">>        := Body
+    <<"destination">> := DestinationID
+    %% <<"wallet">>      := WalletID,
+    %% <<"body">>        := Body
 }) ->
     try
-        ok = authorize_destination(DestinationID, genlib_map:get(<<"destinationGrant">>, Params)),
-        ok = authorize_wallet(WalletID, Body, genlib_map:get(<<"walletGrant">>, Params))
+        ok = authorize_destination(DestinationID, genlib_map:get(<<"destinationGrant">>, Params))
+
+        %% ok = authorize_wallet(WalletID, Body, genlib_map:get(<<"walletGrant">>, Params))
     catch
-        throw:unauthorized -> error
+        throw:{unauthorized, Error} -> {error, Error}
     end.
 
 authorize_destination(_ID, undefined) ->
-    erlang:throw(unauthorized);
+    erlang:throw({unauthorized, {destination_grant, missing}});
 authorize_destination(ID, Grant) ->
     case wapi_authorizer_jwt:verify(Grant) of
-        {ok, {{ID, ACL}, _Claims}} ->
+        {ok, {{_, ACL}, _Claims}} ->
             authorize(get_resource_accesses(destination, ID, write), ACL);
-        {ok, _} ->
-            erlang:throw(unauthorized);
         {error, Error} ->
-            ok = lager:info("Invalid withdrawal destination grant: ~p", [Error]),
-            erlang:throw(unauthorized)
+            erlang:throw({unauthorized, {destination_grant, Error}})
     end.
 
-authorize_wallet(_ID, undefined, _) ->
-    erlang:throw(unauthorized);
-authorize_wallet(ID, Grant, _Body) ->
-    case wapi_authorizer_jwt:verify(Grant) of
-        {ok, {{ID, _ACL}, _Claims}} ->
-            %% TODO: properly authorize via wallet grant
-            %% authorize(get_resource_accesses(wallet, ID, write), ACL);
-            ok;
-        {ok, _} ->
-            erlang:throw(unauthorized);
-        {error, Error} ->
-            ok = lager:info("Invalid withdrawal wallet grant: ~p", [Error]),
-            erlang:throw(unauthorized)
-    end.
+%% TODO: properly authorize via wallet grant
+%% authorize_wallet(_ID, undefined, _) ->
+%%     erlang:throw({unauthorized, {wallet_grant, missing}});
+%% authorize_wallet(ID, Grant, _Body) ->
+%%     case wapi_authorizer_jwt:verify(Grant) of
+%%         {ok, {{_, _ACL}, _Claims}} ->
+%%             %% authorize(get_resource_accesses(wallet, ID, write), ACL);
+%%         {error, Error} ->
+%%             erlang:throw({unauthorized, {wallet_grant, Error}})
+%%     end.
 
 get_resource_accesses(Resource, ID, Permission) ->
     [{get_resource_accesses(Resource, ID), Permission}].
 
 get_resource_accesses(destination, ID) ->
     [party, {destinations, ID}].
+%% TODO: properly authorize via wallet grant
 %% get_resource_accesses(wallet, ID) ->
 %%     [party, {wallets, ID}].
-%% TODO: properly authorize via wallet grant
 
 authorize(Access, ACL) ->
     case lists:all(
@@ -177,7 +178,7 @@ authorize(Access, ACL) ->
         true ->
             ok;
         false ->
-            erlang:throw(unauthorized)
+            erlang:throw({unauthorized, no_permissions})
     end.
 
 -type token_spec() ::
@@ -205,7 +206,7 @@ issue_access_token(PartyID, TokenSpec, Expiration0) ->
 get_expiration(Exp = unlimited) ->
     Exp;
 get_expiration({deadline, {DateTime, Usec}}) ->
-    {deadline, genlib_time:to_unixtime(DateTime) + Usec div 1000000};
+    {deadline, genlib_time:daytime_to_unixtime(DateTime) + Usec div 1000000};
 get_expiration(Exp = {deadline, _Sec}) ->
     Exp;
 get_expiration(Exp = {lifetime, _Sec}) ->
@@ -218,7 +219,6 @@ get_expiration(Exp = {lifetime, _Sec}) ->
 resolve_token_spec({destinations, DestinationId}) ->
     Claims = #{},
     ACL = [
-        {[party, {destinations, DestinationId}], read},
         {[party, {destinations, DestinationId}], write}
     ],
     {Claims, ACL}.
@@ -258,9 +258,13 @@ get_claim(ClaimName, {_Subject, Claims}, Default) ->
 get_resource_hierarchy() ->
     #{
         party => #{
-            wallets      => #{},
-            destinations => #{}
-        }
+            invoice_templates => #{invoice_template_invoices => #{}},
+            wallets           => #{},
+            destinations      => #{}
+        },
+        customers         => #{bindings => #{}},
+        invoices          => #{payments => #{}},
+        payment_resources => #{}
     }.
 
 -spec get_consumer(claims()) ->

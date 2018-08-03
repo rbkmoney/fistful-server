@@ -153,9 +153,14 @@ decode(V) ->
 decode_entry(V, ACL) ->
     case binary:split(V, <<":">>, [global]) of
         [V1, V2] ->
-            Scope = decode_scope(V1),
-            Permission = decode_permission(V2),
-            insert_scope(Scope, Permission, ACL);
+            %% Skip entries, which are not in wapi hierarchy
+            try
+                Scope = decode_scope(V1),
+                Permission = decode_permission(V2),
+                insert_scope(Scope, Permission, ACL)
+            catch
+                error:{badarg, {resource, _}} -> ACL
+            end;
         _ ->
             error({badarg, {role, V}})
     end.

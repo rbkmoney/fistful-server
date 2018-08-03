@@ -55,7 +55,7 @@ handle_request(OperationID, Req, SwagContext = #{auth_context := AuthContext}, H
     _ = lager:info("Processing request ~p", [OperationID]),
     try
         WoodyContext = create_woody_context(Req, AuthContext, Opts),
-        Context = create_handler_context(SwagContext, WoodyContext),
+        Context      = create_handler_context(SwagContext, WoodyContext),
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
             ok ->
                 %% WoodyContext = create_woody_context(Req, AuthContext, Opts),

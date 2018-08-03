@@ -249,7 +249,7 @@ process_request('IssueDestinationGrant', #{
     case wapi_wallet_ff_backend:get_destination(DestinationId, Context) of
         {ok, _} ->
             wapi_handler_utils:reply_ok(201, #{
-                <<"token">> => issue_grant_token(destinations, DestinationId, Expiration, #{}),
+                <<"token">> => issue_grant_token(destinations, DestinationId, Expiration, #{}, Context),
                 <<"validUntil">> => Expiration
             });
         {error, {destination, notfound}} ->
@@ -331,23 +331,22 @@ not_implemented() ->
     wapi_handler_utils:throw_not_implemented().
 
 
-issue_grant_token(Type, Id, Expiration, Meta) when is_map(Meta) ->
-    wapi_utils:map_to_base64url(#{
-        <<"resourceType">> => Type,
-        <<"resourceID">>   => Id,
-        <<"validUntil">>   => Expiration,
-        <<"metadata">>     => Meta
-    }).
+%% issue_grant_token(Type, Id, Expiration, Meta) when is_map(Meta) ->
+%%     wapi_utils:map_to_base64url(#{
+%%         <<"resourceType">> => Type,
+%%         <<"resourceID">>   => Id,
+%%         <<"validUntil">>   => Expiration,
+%%         <<"metadata">>     => Meta
+%%     }).
 
 %% TODO issue token properly
 %%
-%% issue_grant_token(destinations, Id, Expiration, _Meta, Context) ->
-%%     {ok, {Date, Time, Usec, _Tz}} = rfc3339:parse(Expiration),
-%%     wapi_auth:issue_access_token(
-%%         wapi_handler_utils:get_owner(Context),
-%%         {destinations, Id},
-%%         {deadline, {{Date, Time}, Usec}}
-%%     ).
+issue_grant_token(destinations, Id, Expiration, _Meta, Context) ->
+    wapi_auth:issue_access_token(
+        wapi_handler_utils:get_owner(Context),
+        {destinations, Id},
+        {deadline, woody_deadline:from_binary(wapi_utils:to_universal_time(Expiration))}
+    ).
 %%
 %% is_expired(Expiration) ->
 %%     {ok, ExpirationSec} = rfc3339:to_time(Expiration, second),

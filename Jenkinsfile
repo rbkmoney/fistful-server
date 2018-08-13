@@ -29,9 +29,9 @@ build('fistful-server', 'docker-host', finalHook) {
         }
       }
 
-      runStage('lint') {
-        sh 'make wc_lint'
-      }
+      // runStage('lint') {
+      //   sh 'make wc_lint'
+      // }
 
       runStage('xref') {
         sh 'make wc_xref'

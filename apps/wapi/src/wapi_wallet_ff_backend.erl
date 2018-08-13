@@ -232,7 +232,8 @@ create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     WalletId = next_id('wallet'),
     do(fun() ->
         _ = check_resource(identity, IdenityId, Context),
-        ok = unwrap(ff_wallet_machine:create(WalletId, from_swag(wallet_params, Params), make_ctx(Params, [], Context))),
+        Ctx = make_ctx(Params, [], Context),
+        ok = unwrap(ff_wallet_machine:create(WalletId, from_swag(wallet_params, Params), Ctx)),
         unwrap(get_wallet(WalletId, Context))
     end).
 

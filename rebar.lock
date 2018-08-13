@@ -65,7 +65,7 @@
   0},
  {<<"machinery">>,
   {git,"git@github.com:rbkmoney/machinery.git",
-       {ref,"eb1beed9a287d8b6ab8c68b782b2143ef574c99d"}},
+       {ref,"ef24b4fff41b88981e0441b4097cbaa016e8e1b5"}},
   0},
  {<<"metrics">>,{pkg,<<"metrics">>,<<"1.0.1">>},1},
  {<<"mg_proto">>,

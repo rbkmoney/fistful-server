@@ -23,10 +23,17 @@
 -export_type([currency/0]).
 
 -export([get/1]).
+-export([symcode/1]).
 
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1]).
+
+%% Accessors
+
+-spec symcode(currency()) -> symcode().
+symcode(#{symcode := SymCode}) ->
+    SymCode.
 
 %%
 

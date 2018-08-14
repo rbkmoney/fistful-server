@@ -163,7 +163,7 @@ create_wallet_ok(C) ->
     ),
     Wallet = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
     {ok, accessible} = ff_wallet:is_accessible(Wallet),
-    Account = ff_account:pm_account(ff_wallet:account(Wallet)),
+    Account = ff_account:accounter_id(ff_wallet:account(Wallet)),
     {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
     0 = ff_indef:current(Amount),
     ok.

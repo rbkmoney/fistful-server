@@ -13,9 +13,6 @@
 
 -module(ff_transfer).
 
--type id()       :: ff_transaction:id().
--type account()  :: ff_account:id().
--type body()     :: ff_transaction:body().
 -type posting()  :: {account(), account(), body()}.
 
 -type status() ::
@@ -55,6 +52,12 @@
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
+
+%% Internal types
+
+-type id()       :: ff_transaction:id().
+-type account()  :: {Tag :: atom(), ff_wallet:id() | ff_destination:id()}.
+-type body()     :: ff_transaction:body().
 
 %%
 
@@ -215,6 +218,6 @@ construct_trx_postings(Postings) ->
     [
         {SourceAccount, DestinationAccount, Body} ||
             {Source, Destination, Body} <- Postings,
-            SourceAccount               <- [ff_account:pm_account(maps:get(Source, Accounts))],
-            DestinationAccount          <- [ff_account:pm_account(maps:get(Destination, Accounts))]
+            SourceAccount               <- [ff_account:accounter_id(maps:get(Source, Accounts))],
+            DestinationAccount          <- [ff_account:accounter_id(maps:get(Destination, Accounts))]
     ].

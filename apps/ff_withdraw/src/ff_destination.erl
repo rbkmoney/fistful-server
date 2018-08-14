@@ -13,7 +13,7 @@
 -type resource() ::
     {bank_card, resource_bank_card()}.
 
--type id(T) :: T.
+-type id() :: binary().
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
 
@@ -40,6 +40,7 @@
     {account, ff_account:ev()} |
     {status_changed, status()}.
 
+-export_type([id/0]).
 -export_type([destination/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
@@ -74,7 +75,7 @@ account(#{account := V}) ->
     V.
 
 -spec id(destination()) ->
-    id(_).
+    id().
 -spec name(destination()) ->
     binary().
 -spec identity(destination()) ->
@@ -101,7 +102,7 @@ status(#{status := V}) ->
 
 %%
 
--spec create(id(_), identity(), binary(), currency(), resource()) ->
+-spec create(id(), identity(), binary(), currency(), resource()) ->
     {ok, [event()]} |
     {error, _WalletError}.
 

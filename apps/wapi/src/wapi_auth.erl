@@ -124,16 +124,15 @@ authorize_withdrawal_by_owner(#{<<"destination">> := DestinationID, <<"wallet">>
         {Error = {error, _}, _} -> Error
     end.
 
-%% TODO: properly authorize via wallet grant
 authorize_withdrawal_by_grants(Params = #{
-    <<"destination">> := DestinationID
-    %% <<"wallet">>      := WalletID,
-    %% <<"body">>        := Body
+    <<"destination">> := DestinationID,
+    <<"wallet">>      := WalletID,
+    <<"body">>        := WithdrawalBody
 }) ->
     try
-        ok = authorize_destination(DestinationID, genlib_map:get(<<"destinationGrant">>, Params))
+        ok = authorize_destination(DestinationID, genlib_map:get(<<"destinationGrant">>, Params)),
 
-        %% ok = authorize_wallet(WalletID, Body, genlib_map:get(<<"walletGrant">>, Params))
+        ok = authorize_wallet(WalletID, genlib_map:get(<<"walletGrant">>, Params), WithdrawalBody)
     catch
         throw:{unauthorized, Error} -> {error, Error}
     end.
@@ -148,25 +147,25 @@ authorize_destination(ID, Grant) ->
             erlang:throw({unauthorized, {destination_grant, Error}})
     end.
 
-%% TODO: properly authorize via wallet grant
-%% authorize_wallet(_ID, undefined, _) ->
-%%     erlang:throw({unauthorized, {wallet_grant, missing}});
-%% authorize_wallet(ID, Grant, _Body) ->
-%%     case wapi_authorizer_jwt:verify(Grant) of
-%%         {ok, {{_, _ACL}, _Claims}} ->
-%%             %% authorize(get_resource_accesses(wallet, ID, write), ACL);
-%%         {error, Error} ->
-%%             erlang:throw({unauthorized, {wallet_grant, Error}})
-%%     end.
+authorize_wallet(_ID, undefined, _) ->
+    erlang:throw({unauthorized, {wallet_grant, missing}});
+authorize_wallet(ID, Grant, #{<<"amount">> := ReqAmount, <<"currency">> := Currency}) ->
+    case wapi_authorizer_jwt:verify(Grant) of
+        {ok, {{_, ACL}, #{<<"amount">> := GrantAmount, <<"currency">> := Currency}}} when GrantAmount >= ReqAmount ->
+            authorize(get_resource_accesses(wallet, ID, write), ACL);
+        {ok, _} ->
+            erlang:throw({unauthorized, {wallet_grant, insufficient_claims}});
+        {error, Error} ->
+            erlang:throw({unauthorized, {wallet_grant, Error}})
+    end.
 
 get_resource_accesses(Resource, ID, Permission) ->
     [{get_resource_accesses(Resource, ID), Permission}].
 
 get_resource_accesses(destination, ID) ->
-    [party, {destinations, ID}].
-%% TODO: properly authorize via wallet grant
-%% get_resource_accesses(wallet, ID) ->
-%%     [party, {wallets, ID}].
+    [party, {destinations, ID}];
+get_resource_accesses(wallet, ID) ->
+    [party, {wallets, ID}].
 
 authorize(Access, ACL) ->
     case lists:all(
@@ -182,35 +181,19 @@ authorize(Access, ACL) ->
     end.
 
 -type token_spec() ::
-    {destinations, DestinationID :: binary()}.
+    {destinations, DestinationID :: binary()} |
+    {wallets, WalletID :: binary(), Asset :: map()}.
 
 -spec issue_access_token(wapi_handler_utils:owner(), token_spec()) ->
     wapi_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec) ->
     issue_access_token(PartyID, TokenSpec, unlimited).
 
--type expiration() ::
-    {deadline, machinery:timestamp() | pos_integer()} |
-    {lifetime, Seconds :: pos_integer()}              |
-    unlimited                                         .
-
--spec issue_access_token(wapi_handler_utils:owner(), token_spec(), expiration()) ->
+-spec issue_access_token(wapi_handler_utils:owner(), token_spec(), wapi_authorizer_jwt:expiration()) ->
     wapi_authorizer_jwt:token().
-issue_access_token(PartyID, TokenSpec, Expiration0) ->
-    Expiration = get_expiration(Expiration0),
+issue_access_token(PartyID, TokenSpec, Expiration) ->
     {Claims, ACL} = resolve_token_spec(TokenSpec),
     wapi_utils:unwrap(wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, Expiration)).
-
--spec get_expiration(expiration()) ->
-    wapi_authorizer_jwt:expiration().
-get_expiration(Exp = unlimited) ->
-    Exp;
-get_expiration({deadline, {DateTime, Usec}}) ->
-    {deadline, genlib_time:daytime_to_unixtime(DateTime) + Usec div 1000000};
-get_expiration(Exp = {deadline, _Sec}) ->
-    Exp;
-get_expiration(Exp = {lifetime, _Sec}) ->
-    Exp.
 
 -type acl() :: [{wapi_acl:scope(), wapi_acl:permission()}].
 
@@ -218,9 +201,11 @@ get_expiration(Exp = {lifetime, _Sec}) ->
     {claims(), acl()}.
 resolve_token_spec({destinations, DestinationId}) ->
     Claims = #{},
-    ACL = [
-        {[party, {destinations, DestinationId}], write}
-    ],
+    ACL = [{[party, {destinations, DestinationId}], write}],
+    {Claims, ACL};
+resolve_token_spec({wallets, WalletId, #{<<"amount">> := Amount, <<"currency">> := Currency}}) ->
+    Claims = #{<<"amount">> => Amount, <<"currency">> => Currency},
+    ACL    = [{[party, {wallets, WalletId}], write}],
     {Claims, ACL}.
 
 -spec get_subject_id(context()) -> binary().

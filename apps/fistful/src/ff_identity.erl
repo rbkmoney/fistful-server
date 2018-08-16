@@ -39,10 +39,10 @@
     ff_identity_challenge:challenge().
 
 -type event() ::
-    {created           , identity()}                        |
-    {level_changed     , level()}                           |
-    {effective_challenge_changed, challenge_id()}           |
-    {challenge         , challenge_id(), ff_identity_challenge:ev()} .
+    {created           , identity()}                                 |
+    {level_changed     , level()}                                    |
+    {effective_challenge_changed, challenge_id()}                    |
+    {{challenge        , challenge_id()}, ff_identity_challenge:ev()}.
 
 -export_type([identity/0]).
 -export_type([event/0]).

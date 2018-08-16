@@ -205,7 +205,7 @@ get_identity_challenge_event(#{
     'eventID'     := EventId
 }, Context) ->
     Mapper = fun
-        ({ID, {ev, Ts, {challenge, I, Body = {status_changed, _}}}}) when I =:= ChallengeId andalso ID =:= EventId ->
+        ({ID, {ev, Ts, {{challenge, I}, Body = {status_changed, _}}}}) when I =:= ChallengeId andalso ID =:= EventId ->
             {true, {ID, Ts, Body}};
         (_) ->
             false

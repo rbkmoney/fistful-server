@@ -108,6 +108,8 @@ authorize_withdrawal(Params, Context) ->
     ).
 
 authorize_resource(Resource, Params, Context) ->
+    %% TODO
+    %%  - ff_pipeline:do/1 would make the code rather more clear here.
     authorize_resource_by_bearer(authorize_resource_by_grant(Resource, Params), Resource, Params, Context).
 
 authorize_resource_by_bearer(ok, _Resource, _Params, _Context) ->

@@ -79,42 +79,45 @@ do_authorize_api_key(_OperationID, bearer, Token) ->
 % TODO
 % We need shared type here, exported somewhere in swagger app
 -type request_data() :: #{atom() | binary() => term()}.
--type auth_error() :: atom() | {atom(), auth_error() | [auth_error()]}.
+-type auth_method()  :: bearer_token | grant.
+-type resource()     :: wallet | destination.
+-type auth_details() :: auth_method() | [{resource(), auth_details()}].
+-type auth_error()   :: [{resource(), [{auth_method(), atom()}]}].
 
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
-    ok | {error, auth_error()}.
+    {ok, auth_details()}  | {error, auth_error()}.
 
 authorize_operation('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context) ->
     authorize_withdrawal(Params, Context);
 %% TODO: implement authorization
 authorize_operation(_OperationID, _Req, _) ->
-    ok.
+    {ok, bearer_token}.
 
 authorize_withdrawal(Params, Context) ->
     lists:foldl(
         fun(R, AuthState) ->
-            case authorize_resource(R, Params, Context) of
-                ok                 -> AuthState;
-                Error = {error, _} -> Error
+            case {authorize_resource(R, Params, Context), AuthState} of
+                {{ok, AuthMethod}, {ok, AuthData}}   -> {ok, [{R, AuthMethod} | AuthData]};
+                {{ok, _}, {error, _}}                -> AuthState;
+                {{error, Error}, {error, ErrorData}} -> {error, [{R, Error} | ErrorData]};
+                {{error, Error}, {ok, _}}            -> {error, [{R, Error}]}
             end
         end,
-        ok,
+        {ok, []},
         [destination, wallet]
     ).
 
 authorize_resource(Resource, Params, Context) ->
-    authorize_resource_by_owner(authorize_resource_by_grant(Resource, Params), Resource, Params, Context).
+    authorize_resource_by_bearer(authorize_resource_by_grant(Resource, Params), Resource, Params, Context).
 
-authorize_resource_by_owner(ok, Resource, _Params, _Context) ->
-    ok = lager:info("~p authorized via grants", [Resource]),
-    ok;
-authorize_resource_by_owner({error, GrantError}, Resource, Params, Context) ->
+authorize_resource_by_bearer(ok, _Resource, _Params, _Context) ->
+    {ok, grant};
+authorize_resource_by_bearer({error, GrantError}, Resource, Params, Context) ->
     case get_resource(Resource, maps:get(genlib:to_binary(Resource), Params), Context) of
         {ok, _} ->
-            ok = lager:info("~p authorized via owner bearer token", [Resource]),
-            ok;
-        {error, OwnerError} ->
-            {error, {Resource, [{owner, OwnerError}, {grant, GrantError}]}}
+            {ok, bearer_token};
+        {error, BearerError} ->
+            {error, [{bearer_token, BearerError}, {grant, GrantError}]}
     end.
 
 get_resource(destination, ID, Context) ->

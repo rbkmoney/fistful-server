@@ -57,10 +57,11 @@ handle_request(OperationID, Req, SwagContext = #{auth_context := AuthContext}, H
         WoodyContext = create_woody_context(Req, AuthContext, Opts),
         Context      = create_handler_context(SwagContext, WoodyContext),
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
-            ok ->
+            {ok, AuthDetails} ->
+                ok = lager:info("Operation ~p authorized via ~p", [OperationID, AuthDetails]),
                 Handler:process_request(OperationID, Req, Context, Opts);
             {error, Error} ->
-                _ = lager:info("Operation ~p authorization failed due to ~p", [OperationID, Error]),
+                ok = lager:info("Operation ~p authorization failed due to ~p", [OperationID, Error]),
                 wapi_handler_utils:reply_error(401, wapi_handler_utils:get_error_msg(<<"Unauthorized operation">>))
         end
     catch

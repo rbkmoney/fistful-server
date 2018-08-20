@@ -290,7 +290,7 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {wallet, {provider, invalid}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>)
-                )
+            )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of

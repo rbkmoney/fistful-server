@@ -184,7 +184,7 @@ generate_uuid() ->
 %% Party management client
 
 do_create_party(ID, Params) ->
-    case call('Create', [construct_userinfo(), ID, construct_party_params(Params)]) of
+    case call('Create', [ID, construct_party_params(Params)]) of
         {ok, ok} ->
             ok;
         {exception, #payproc_PartyExists{}} ->
@@ -194,7 +194,7 @@ do_create_party(ID, Params) ->
     end.
 
 do_get_party(ID) ->
-    case call('Get', [construct_userinfo(), ID]) of
+    case call('Get', [ID]) of
         {ok, #domain_Party{} = Party} ->
             Party;
         {exception, Unexpected} ->
@@ -202,7 +202,7 @@ do_get_party(ID) ->
     end.
 
 % do_get_contract(ID, ContractID) ->
-%     case call('GetContract', [construct_userinfo(), ID, ContractID]) of
+%     case call('GetContract', [ID, ContractID]) of
 %         {ok, #domain_Contract{} = Contract} ->
 %             Contract;
 %         {exception, #payproc_ContractNotFound{}} ->
@@ -212,7 +212,7 @@ do_get_party(ID) ->
 %     end.
 
 do_get_wallet(ID, WalletID) ->
-    case call('GetWallet', [construct_userinfo(), ID, WalletID]) of
+    case call('GetWallet', [ID, WalletID]) of
         {ok, #domain_Wallet{} = Wallet} ->
             {ok, Wallet};
         {exception, #payproc_WalletNotFound{}} ->
@@ -222,7 +222,7 @@ do_get_wallet(ID, WalletID) ->
     end.
 
 do_create_claim(ID, Changeset) ->
-    case call('CreateClaim', [construct_userinfo(), ID, Changeset]) of
+    case call('CreateClaim', [ID, Changeset]) of
         {ok, Claim} ->
             {ok, Claim};
         {exception, #payproc_InvalidChangeset{
@@ -241,7 +241,7 @@ do_accept_claim(ID, Claim) ->
     %    such a way which may cause conflicts.
     ClaimID  = Claim#payproc_Claim.id,
     Revision = Claim#payproc_Claim.revision,
-    case call('AcceptClaim', [construct_userinfo(), ID, ClaimID, Revision]) of
+    case call('AcceptClaim', [ID, ClaimID, Revision]) of
         {ok, ok} ->
             accepted;
         {exception, #payproc_InvalidClaimStatus{status = {accepted, _}}} ->
@@ -345,10 +345,27 @@ construct_userinfo() ->
 construct_usertype() ->
     {service_user, #payproc_ServiceUser{}}.
 
+construct_useridentity() ->
+    #{
+        id    => <<"fistful">>,
+        realm => <<"service">>
+    }.
+
 %% Woody stuff
 
-call(Function, Args) ->
+get_woody_ctx() ->
+    % TODO
+    %  - Move auth logic from hellgate to capi the same way as it works
+    %    in wapi & fistful. Then the following dirty user_identity hack
+    %    will not be necessary anymore.
+    reset_useridentity(ff_woody_ctx:get()).
+
+reset_useridentity(Ctx) ->
+    woody_user_identity:put(construct_useridentity(), maps:without([meta], Ctx)).
+
+call(Function, Args0) ->
     % TODO
     %  - Ideally, we should provide `Client` here explicitly.
-    Service = {dmsl_payment_processing_thrift, 'PartyManagement'},
-    ff_woody_client:call(partymgmt, {Service, Function, Args}).
+    Service  = {dmsl_payment_processing_thrift, 'PartyManagement'},
+    Args     = [construct_userinfo() | Args0],
+    ff_woody_client:call(partymgmt, {Service, Function, Args}, get_woody_ctx()).

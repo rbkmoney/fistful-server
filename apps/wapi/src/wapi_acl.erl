@@ -150,12 +150,21 @@ match_scope(_, _) ->
 decode(V) ->
     lists:foldl(fun decode_entry/2, new(), V).
 
+%% TODO
+%%  - Keycloak utilizes string ACLs and so do we for now. Nicer way to handle ACLs
+%%    is to use json instead for wapi issued tokens. That would require providing
+%%    similar routines for ACL normalization as we have for string ACLs.
 decode_entry(V, ACL) ->
     case binary:split(V, <<":">>, [global]) of
         [V1, V2] ->
-            Scope = decode_scope(V1),
-            Permission = decode_permission(V2),
-            insert_scope(Scope, Permission, ACL);
+            %% Skip entries, which are not in wapi hierarchy
+            try
+                Scope = decode_scope(V1),
+                Permission = decode_permission(V2),
+                insert_scope(Scope, Permission, ACL)
+            catch
+                error:{badarg, {resource, _}} -> ACL
+            end;
         _ ->
             error({badarg, {role, V}})
     end.

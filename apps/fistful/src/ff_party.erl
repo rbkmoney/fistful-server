@@ -122,7 +122,10 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
 validate_wallet_terms(ID, Contract, WalletID, Currency, Timestamp) ->
     case get_contract_terms(ID, Contract, WalletID, Currency, Timestamp) of
         {ok, #domain_TermSet{wallets = Terms}} ->
-            validate_terms_is_reduced(Terms);
+            do(fun () ->
+                valid = unwrap(validate_terms_is_reduced(Terms)),
+                valid = unwrap(validate_currency(Terms, Currency))
+            end);
         {error, _Reason} = Error ->
             Error
     end.
@@ -340,3 +343,17 @@ selector_is_reduced({value, _Value}) ->
     true;
 selector_is_reduced({decisions, _Decisions}) ->
     false.
+
+-spec validate_currency(wallet_terms(), currency()) ->
+    {ok, valid} | {error, invalid_terms}.
+
+validate_currency(Terms, Currency) ->
+    #domain_WalletServiceTerms{
+        currencies = {value, Currencies}
+    } = Terms,
+    case ordsets:is_element(Currency, Currencies) of
+        true ->
+            {ok, valid};
+        false ->
+            {error, invalid_terms}
+    end.

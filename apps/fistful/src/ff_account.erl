@@ -16,7 +16,7 @@
     id := id(),
     identity := identity_id(),
     currency := currency_id(),
-    accounter_id := accounter_id()
+    accounter_account_id := accounter_account_id()
 }.
 
 -type event() ::
@@ -29,7 +29,7 @@
 -export([id/1]).
 -export([identity/1]).
 -export([currency/1]).
--export([accounter_id/1]).
+-export([accounter_account_id/1]).
 
 -export([create/3]).
 -export([is_accessible/1]).
@@ -46,7 +46,7 @@
 -type currency() :: ff_currency:currency().
 -type identity_id() :: ff_identity:id().
 -type currency_id() :: ff_currency:id().
--type accounter_id() :: dmsl_accounter_thrift:'AccountID'().
+-type accounter_account_id() :: dmsl_accounter_thrift:'AccountID'().
 
 %% Accessors
 
@@ -56,8 +56,8 @@
     identity_id().
 -spec currency(account()) ->
     currency_id().
--spec accounter_id(account()) ->
-    accounter_id().
+-spec accounter_account_id(account()) ->
+    accounter_account_id().
 
 id(#{id := ID}) ->
     ID.
@@ -65,7 +65,7 @@ identity(#{identity := IdentityID}) ->
     IdentityID.
 currency(#{currency := CurrencyID}) ->
     CurrencyID.
-accounter_id(#{accounter_id := AccounterID}) ->
+accounter_account_id(#{accounter_account_id := AccounterID}) ->
     AccounterID.
 
 %% Actuators
@@ -93,7 +93,7 @@ create(ID, Identity, CurrencyID) ->
             id       => ID,
             identity => ff_identity:id(Identity),
             currency => CurrencyID,
-            accounter_id => AccounterID
+            accounter_account_id => AccounterID
         }}]
     end).
 
@@ -122,7 +122,7 @@ apply_event({created, Account}, undefined) ->
 %% Accounter client
 
 -spec create_account(id(), currency()) ->
-    {ok, accounter_id()} |
+    {ok, accounter_account_id()} |
     {error, {exception, any()}}.
 
 create_account(ID, Currency) ->

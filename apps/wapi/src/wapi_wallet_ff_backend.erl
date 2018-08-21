@@ -245,8 +245,9 @@ create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
 ).
 get_wallet_account(WalletId, Context) ->
     do(fun () ->
+        Account = ff_wallet:account(ff_wallet_machine:wallet(get_state(wallet, WalletId, Context))),
         {Amounts, Currency} = unwrap(ff_transaction:balance(
-            ff_account:accounter_id(ff_wallet:account(ff_wallet_machine:wallet(get_state(wallet, WalletId, Context))))
+            ff_account:accounter_account_id(Account)
         )),
         to_swag(wallet_account, {ff_indef:current(Amounts), ff_indef:expmin(Amounts), Currency})
     end).

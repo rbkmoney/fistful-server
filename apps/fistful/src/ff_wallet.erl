@@ -9,9 +9,7 @@
 -type wallet() :: #{
     name       := binary(),
     contract   := contract(),
-    created_at := timestamp(),
     blocking   := blocking(),
-    suspension := suspension(),
     account    => account()
 }.
 
@@ -24,7 +22,7 @@
 -export_type([event/0]).
 
 -type inaccessibility() ::
-    {inaccessible, blocked | suspended}.
+    {inaccessible, blocked}.
 
 -export_type([inaccessibility/0]).
 
@@ -33,9 +31,7 @@
 -export([identity/1]).
 -export([name/1]).
 -export([currency/1]).
--export([created_at/1]).
 -export([blocking/1]).
--export([suspension/1]).
 
 -export([create/4]).
 -export([is_accessible/1]).
@@ -49,14 +45,7 @@
 -type contract() :: ff_party:contract().
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
-
--type timestamp() :: ff_time:timestamp_ms().
--type blocking() ::
-    {unblocked, {Reason :: binary(), Since :: timestamp()}} |
-    {blocked, {Reason :: binary(), Since :: timestamp()}}.
--type suspension() ::
-    {active, Since :: timestamp()} |
-    {suspended, Since :: timestamp()}.
+-type blocking() :: unblocked | blocked.
 
 %% Pipeline
 
@@ -74,12 +63,8 @@
     binary().
 -spec currency(wallet()) ->
     currency().
--spec created_at(wallet()) ->
-    timestamp().
 -spec blocking(wallet()) ->
     blocking().
--spec suspension(wallet()) ->
-    suspension().
 
 account(#{account := V}) ->
     V.
@@ -92,12 +77,8 @@ name(Wallet) ->
     maps:get(name, Wallet, <<>>).
 currency(Wallet) ->
     ff_account:currency(account(Wallet)).
-created_at(#{created_at := CreatedAt}) ->
-    CreatedAt.
 blocking(#{blocking := Blocking}) ->
     Blocking.
-suspension(#{suspension := Suspension}) ->
-    Suspension.
 
 %%
 
@@ -109,13 +90,10 @@ create(ID, IdentityID, Name, CurrencyID) ->
     do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Contract = ff_identity:contract(Identity),
-        CreatedAt = ff_time:now(),
         Wallet = #{
             name => Name,
             contract => Contract,
-            created_at => CreatedAt,
-            suspension => {active, CreatedAt},
-            blocking => {unblocked, {<<"init">>, CreatedAt}}
+            blocking => unblocked
         },
         [{created, Wallet}] ++
         [{account, Ev} || Ev <- unwrap(account, ff_account:create(ID, Identity, CurrencyID))]
@@ -163,32 +141,9 @@ apply_event({account, Ev}, Wallet) ->
     {error, inaccessibility()}.
 
 check_accessible(Wallet) ->
-    do(fun () ->
-        accessible = unwrap(check_active(Wallet)),
-        accessible = unwrap(check_unblocked(Wallet))
-    end).
-
--spec check_active(wallet()) ->
-    {ok, accessible} |
-    {error, suspended}.
-
-check_active(Wallet) ->
-    case suspension(Wallet) of
-        {active, _Details} ->
-            {ok, accessible};
-        {suspended, _Details} ->
-            {error, suspended}
-    end.
-
--spec check_unblocked(wallet()) ->
-    {ok, accessible} |
-    {error, blocked}.
-
-check_unblocked(Wallet) ->
     case blocking(Wallet) of
-        {unblocked, _Details} ->
+        unblocked ->
             {ok, accessible};
-        {blocked, _Details} ->
+        blocked ->
             {error, blocked}
     end.
-

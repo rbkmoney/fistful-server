@@ -218,6 +218,6 @@ construct_trx_postings(Postings) ->
     [
         {SourceAccount, DestinationAccount, Body} ||
             {Source, Destination, Body} <- Postings,
-            SourceAccount               <- [ff_account:accounter_id(maps:get(Source, Accounts))],
-            DestinationAccount          <- [ff_account:accounter_id(maps:get(Destination, Accounts))]
+            SourceAccount               <- [ff_account:accounter_account_id(maps:get(Source, Accounts))],
+            DestinationAccount          <- [ff_account:accounter_account_id(maps:get(Destination, Accounts))]
     ].

@@ -45,7 +45,7 @@
  {<<"hackney">>,{pkg,<<"hackney">>,<<"1.6.2">>},0},
  {<<"id_proto">>,
   {git,"git@github.com:rbkmoney/identification-proto.git",
-       {ref,"1ccb06388c9d717e942046facaf32c0c816d6f69"}},
+       {ref,"dfbc90257aae02be20f946df9ef910082321764b"}},
   0},
  {<<"identdocstore_proto">>,
   {git,"git@github.com:rbkmoney/identdocstore-proto.git",

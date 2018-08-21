@@ -151,7 +151,7 @@ create(ID, Claimant, ProviderID, IdentityClassID, ChallengeClassID, Proofs) ->
         ChallengeClass = unwrap(challenge_class, ff_identity_class:challenge_class(ChallengeClassID, IdentityClass)),
         TargetLevelID = ff_identity_class:target_level(ChallengeClass),
         {ok, TargetLevel} = ff_identity_class:level(TargetLevelID, IdentityClass),
-        MasterID = unwrap(deduce_identity_id(Proofs)),
+        MasterID = unwrap(deduce_identity_id(ff_identity_class:id(IdentityClass), Claimant, Proofs)),
         ClaimID = unwrap(create_claim(MasterID, TargetLevel, Claimant, Proofs)),
         [
             {created, #{
@@ -209,8 +209,8 @@ apply_event({status_changed, S}, Challenge) ->
 
 -include_lib("id_proto/include/id_proto_identification_thrift.hrl").
 
-deduce_identity_id(Proofs) ->
-    case call('GetIdentityID', [encode({list, identity_document}, Proofs)]) of
+deduce_identity_id(IdentityClassId, Claimant, Proofs) ->
+    case call('GetIdentityID', [encode({list, identity_document}, Proofs), IdentityClassId, Claimant]) of
         {ok, IdentityID} ->
             {ok, decode(identity_id, IdentityID)};
         {exception, #identity_IdentityDocumentNotFound{}} ->

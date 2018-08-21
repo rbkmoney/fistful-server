@@ -1,6 +1,7 @@
 -module(wapi_wallet_ff_backend).
 
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 
 %% API
 -export([get_providers/2]).
@@ -205,7 +206,7 @@ get_identity_challenge_event(#{
     'eventID'     := EventId
 }, Context) ->
     Mapper = fun
-        ({ID, {ev, Ts, {challenge, I, Body = {status_changed, _}}}}) when I =:= ChallengeId andalso ID =:= EventId ->
+        ({ID, {ev, Ts, {{challenge, I}, Body = {status_changed, _}}}}) when I =:= ChallengeId andalso ID =:= EventId ->
             {true, {ID, Ts, Body}};
         (_) ->
             false
@@ -232,7 +233,9 @@ create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     WalletId = next_id('wallet'),
     do(fun() ->
         _ = check_resource(identity, IdenityId, Context),
-        ok = unwrap(ff_wallet_machine:create(WalletId, from_swag(wallet_params, Params), make_ctx(Params, [], Context))),
+        ok = unwrap(
+            ff_wallet_machine:create(WalletId, from_swag(wallet_params, Params), make_ctx(Params, [], Context))
+        ),
         unwrap(get_wallet(WalletId, Context))
     end).
 
@@ -629,17 +632,16 @@ to_swag(challenge_status, {completed, C = #{resolution := approved}}) ->
         <<"validUntil">>    => to_swag(timestamp, genlib_map:get(valid_until, C))
     });
 to_swag(challenge_status, {completed, #{resolution := denied}}) ->
-    #{
-        <<"status">>        => <<"Failed">>,
-        <<"failureReason">> => <<"Denied">>
-    };
+    to_swag(challenge_status, {failed, <<"Denied">>});
 to_swag(challenge_status, {failed, Reason}) ->
-    %% TODO
-    %%  - Well, what if Reason is not scalar?
     #{
         <<"status">>        => <<"Failed">>,
-        <<"failureReason">> => genlib:to_binary(Reason)
+        <<"failureReason">> => to_swag(challenge_failure_reason, Reason)
     };
+to_swag(challenge_failure_reason, Failure = #domain_Failure{}) ->
+    to_swag(domain_failure, Failure);
+to_swag(challenge_failure_reason, Reason) ->
+    genlib:to_binary(Reason);
 to_swag(identity_challenge_event, {ID, Ts, V}) ->
     #{
         <<"eventID">>   => ID,
@@ -733,13 +735,17 @@ to_swag(withdrawal_status, pending) ->
     #{<<"status">> => <<"Pending">>};
 to_swag(withdrawal_status, succeeded) ->
     #{<<"status">> => <<"Succeeded">>};
-to_swag(withdrawal_status, {failed, Reason}) ->
+to_swag(withdrawal_status, {failed, Failure}) ->
     #{
         <<"status">> => <<"Failed">>,
         <<"failure">> => #{
-            <<"code">> => genlib:to_binary(Reason)
+            <<"code">> => to_swag(withdrawal_status_failure, Failure)
         }
     };
+to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
+    to_swag(domain_failure, Failure);
+to_swag(withdrawal_status_failure, Failure) ->
+    genlib:to_binary(Failure);
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{
         <<"eventID">> => EventId,
@@ -763,6 +769,8 @@ to_swag(currency_object, V) ->
         <<"exponent">>    => maps:get(exponent, V),
         <<"sign">>        => maps:get(sign, V, undefined)
     });
+to_swag(domain_failure, Failure = #domain_Failure{}) ->
+    erlang:list_to_binary(payproc_errors:format_raw(Failure));
 to_swag(is_blocked, {ok, accessible}) ->
     false;
 to_swag(is_blocked, _) ->

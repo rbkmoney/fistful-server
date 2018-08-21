@@ -58,7 +58,7 @@ release: submodules generate
 clean:
 	$(REBAR) clean
 
-distclean: swag_server.distclean swag_client.distclean
+distclean: swagger.distclean.server.wallet swagger.distclean.client.wallet
 	$(REBAR) clean -a
 	rm -rf _build
 

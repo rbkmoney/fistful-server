@@ -133,8 +133,10 @@ process_request('StartIdentityChallenge', #{
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Proof not found">>));
         {error, {challenge, {proof, insufficient}}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Insufficient proof">>));
-        {error,{challenge, {level, _}}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Illegal identification type for current identity level">>))
+        {error, {challenge, {level, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Illegal identification type for current identity level">>)
+            )
         %% TODO any other possible errors here?
     end;
 process_request('GetIdentityChallenge', #{
@@ -145,13 +147,13 @@ process_request('GetIdentityChallenge', #{
         {ok, Challenge}                   -> wapi_handler_utils:reply_ok(200, Challenge);
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404);
-        {error, {challenge, notfound}}     -> wapi_handler_utils:reply_ok(404)
+        {error, {challenge, notfound}}    -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('PollIdentityChallengeEvents', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenge_events(Params, Context) of
-        {ok, Events}                     -> wapi_handler_utils:reply_ok(200, Events);
-        {error, {identity, notfound}}    -> wapi_handler_utils:reply_ok(404);
-        {error, {identity,unauthorized}} -> wapi_handler_utils:reply_ok(404)
+        {ok, Events}                      -> wapi_handler_utils:reply_ok(200, Events);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('GetIdentityChallengeEvent', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenge_event(Params, Context) of
@@ -191,19 +193,24 @@ process_request('GetWalletAccount', #{'walletID' := WalletId}, Context, _Opts) -
         {error, {wallet, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-
 process_request('IssueWalletGrant', #{
     'walletID'           := WalletId,
     'WalletGrantRequest' := #{<<"validUntil">> := Expiration, <<"asset">> := Asset}
 }, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_wallet(WalletId, Context) of
         {ok, _} ->
-            %% TODO issue token properly
-            wapi_handler_utils:reply_ok(201, #{
-                <<"token">>      => issue_grant_token(wallets, WalletId, Expiration, #{<<"asset">> => Asset}),
-                <<"validUntil">> => Expiration,
-                <<"asset">>      => Asset
-            });
+            case issue_grant_token({wallets, WalletId, Asset}, Expiration, Context) of
+                {ok, Token} ->
+                    wapi_handler_utils:reply_ok(201, #{
+                        <<"token">>      => Token,
+                        <<"validUntil">> => Expiration,
+                        <<"asset">>      => Asset
+                    });
+                {error, expired} ->
+                    wapi_handler_utils:reply_ok(422,
+                        wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)
+                    )
+            end;
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(404);
         {error, {wallet, unauthorized}} ->
@@ -242,20 +249,25 @@ process_request('IssueDestinationGrant', #{
     'destinationID'           := DestinationId,
     'DestinationGrantRequest' := #{<<"validUntil">> := Expiration}
 }, Context, _Opts) ->
-    %% TODO issue token properly
     case wapi_wallet_ff_backend:get_destination(DestinationId, Context) of
         {ok, _} ->
-            wapi_handler_utils:reply_ok(201, #{
-                <<"token">> => issue_grant_token(destinations, DestinationId, Expiration, #{}),
-                <<"validUntil">> => Expiration
-            });
+            case issue_grant_token({destinations, DestinationId}, Expiration, Context) of
+                {ok, Token} ->
+                    wapi_handler_utils:reply_ok(201, #{
+                        <<"token">>      => Token,
+                        <<"validUntil">> => Expiration
+                    });
+                {error, expired} ->
+                    wapi_handler_utils:reply_ok(422,
+                        wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)
+                    )
+            end;
         {error, {destination, notfound}} ->
             wapi_handler_utils:reply_ok(404);
         {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(404)
     end;
 process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context, Opts) ->
-    %% TODO: properly check authorization tokens here
     case wapi_wallet_ff_backend:create_withdrawal(Params, Context) of
         {ok, Withdrawal = #{<<"id">> := WithdrawalId}} ->
             wapi_handler_utils:reply_ok(202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Opts));
@@ -268,11 +280,17 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {provider, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {wallet, {inaccessible, _}}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Inaccessible source or destination">>));
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Inaccessible source or destination">>)
+            );
         {error, {wallet, {currency, invalid}}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency for source or destination">>));
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid currency for source or destination">>)
+            );
         {error, {wallet, {provider, invalid}}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>))
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>)
+            )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of
@@ -321,25 +339,20 @@ get_location(OperationId, Params, Opts) ->
 not_implemented() ->
     wapi_handler_utils:throw_not_implemented().
 
+issue_grant_token(TokenSpec, Expiration, Context) ->
+    case get_expiration_deadline(Expiration) of
+        {ok, Deadline} ->
+            {ok, wapi_auth:issue_access_token(wapi_handler_utils:get_owner(Context), TokenSpec, {deadline, Deadline})};
+        Error = {error, _} ->
+            Error
+    end.
 
-issue_grant_token(Type, Id, Expiration, Meta) when is_map(Meta) ->
-    wapi_utils:map_to_base64url(#{
-        <<"resourceType">> => Type,
-        <<"resourceID">>   => Id,
-        <<"validUntil">>   => Expiration,
-        <<"metadata">>     => Meta
-    }).
-
-%% TODO issue token properly
-%%
-%% issue_grant_token(destinations, Id, Expiration, _Meta, Context) ->
-%%     {ok, {Date, Time, Usec, _Tz}} = rfc3339:parse(Expiration),
-%%     wapi_auth:issue_access_token(
-%%         wapi_handler_utils:get_owner(Context),
-%%         {destinations, Id},
-%%         {deadline, {{Date, Time}, Usec}}
-%%     ).
-%%
-%% is_expired(Expiration) ->
-%%     {ok, ExpirationSec} = rfc3339:to_time(Expiration, second),
-%%     (genlib_time:unow() -  ExpirationSec) >= 0.
+get_expiration_deadline(Expiration) ->
+    {DateTime, MilliSec} = woody_deadline:from_binary(wapi_utils:to_universal_time(Expiration)),
+    Deadline = genlib_time:daytime_to_unixtime(DateTime) + MilliSec div 1000,
+    case genlib_time:unow() - Deadline < 0 of
+        true ->
+            {ok, Deadline};
+        false ->
+            {error, expired}
+    end.

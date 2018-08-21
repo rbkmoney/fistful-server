@@ -280,12 +280,9 @@ validate_claims(Claims, [{Name, Claim, Validator} | Rest], Acc) ->
 validate_claims(Claims, [], Acc) ->
     {Acc, Claims}.
 
-get_result(SubjectID, {_Roles, Claims}) ->
+get_result(SubjectID, {Roles, Claims}) ->
     try
-        %% TODO use the real acl decode as soon as wapi roles/scopes are clearly defined
-        %% Subject = {SubjectID, wapi_acl:decode(Roles)},
-
-        Subject = {SubjectID, wapi_acl:new()},
+        Subject = {SubjectID, wapi_acl:decode(Roles)},
         {ok, {Subject, Claims}}
     catch
         error:{badarg, _} = Reason ->
@@ -346,6 +343,14 @@ encode_roles(Roles) ->
 decode_roles(Claims = #{
     <<"resource_access">> := #{
         <<"common-api">> := #{
+            <<"roles">> := Roles
+        }
+    }
+}) when is_list(Roles) ->
+    {Roles, maps:remove(<<"resource_access">>, Claims)};
+decode_roles(Claims = #{
+    <<"resource_access">> := #{
+        <<"wallet-api">> := #{
             <<"roles">> := Roles
         }
     }

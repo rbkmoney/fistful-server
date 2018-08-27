@@ -180,7 +180,7 @@ withdrawal_ok(C) ->
             {ok, WS} = ff_withdrawal_machine:get(WID),
             ff_withdrawal:status(ff_withdrawal_machine:withdrawal(WS))
         end,
-        genlib_retry:linear(3, 3000)
+        genlib_retry:linear(3, 5000)
     ).
 
 create_party(_C) ->

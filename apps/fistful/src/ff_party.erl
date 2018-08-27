@@ -12,32 +12,36 @@
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 
 -type id()          :: dmsl_domain_thrift:'PartyID'().
--type contract()    :: dmsl_domain_thrift:'ContractID'().
--type wallet()      :: dmsl_domain_thrift:'WalletID'().
+-type contract_id() :: dmsl_domain_thrift:'ContractID'().
+-type wallet_id()   :: dmsl_domain_thrift:'WalletID'().
 
 -type party_params() :: #{
     email := binary()
 }.
 
 -export_type([id/0]).
--export_type([contract/0]).
--export_type([wallet/0]).
+-export_type([contract_id/0]).
+-export_type([wallet_id/0]).
 -export_type([party_params/0]).
 
--type inaccessiblity() ::
+-type inaccessibility() ::
     {inaccessible, blocked | suspended}.
 
--export_type([inaccessiblity/0]).
+-export_type([inaccessibility/0]).
 
 -export([create/1]).
 -export([create/2]).
 -export([is_accessible/1]).
--export([get_wallet/2]).
--export([get_wallet_account/2]).
--export([is_wallet_accessible/2]).
 -export([create_contract/2]).
 -export([change_contractor_level/3]).
--export([create_wallet/3]).
+-export([validate_account_creation/5]).
+
+%% Internal types
+
+-type terms() :: dmsl_domain_thrift:'TermSet'().
+-type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'() | undefined.
+-type currency() :: ff_currency:currency().
+-type timestamp() :: ff_time:timestamp_ms().
 
 %% Pipeline
 
@@ -60,7 +64,7 @@ create(ID, Params) ->
 
 -spec is_accessible(id()) ->
     {ok, accessible} |
-    {error, inaccessiblity()}.
+    {error, inaccessibility()}.
 
 is_accessible(ID) ->
     case do_get_party(ID) of
@@ -72,46 +76,6 @@ is_accessible(ID) ->
             {ok, accessible}
     end.
 
--spec get_wallet(id(), wallet()) ->
-    {ok, _Wallet} |
-    {error, notfound}.
-
-get_wallet(ID, WalletID) ->
-    do_get_wallet(ID, WalletID).
-
--spec get_wallet_account(id(), wallet()) ->
-    {ok, ff_transaction:account()} |
-    {error, notfound}.
-
-get_wallet_account(ID, WalletID) ->
-    do(fun () ->
-        #domain_Wallet{
-            account = #domain_WalletAccount{
-                settlement = AccountID
-            }
-        } = unwrap(get_wallet(ID, WalletID)),
-        AccountID
-    end).
-
--spec is_wallet_accessible(id(), wallet()) ->
-    {ok, accessible} |
-    {error,
-        notfound |
-        {inaccessible, suspended | blocked}
-    }.
-
-is_wallet_accessible(ID, WalletID) ->
-    case do_get_wallet(ID, WalletID) of
-        {ok, #domain_Wallet{blocking = {blocked, _}}} ->
-            {error, {inaccessible, blocked}};
-        {ok, #domain_Wallet{suspension = {suspended, _}}} ->
-            {error, {inaccessible, suspended}};
-        {ok, #domain_Wallet{}} ->
-            {ok, accessible};
-        {error, notfound} ->
-            {error, notfound}
-    end.
-
 %%
 
 -type contract_prototype() :: #{
@@ -121,8 +85,8 @@ is_wallet_accessible(ID, WalletID) ->
 }.
 
 -spec create_contract(id(), contract_prototype()) ->
-    {ok, contract()} |
-    {error, inaccessiblity()} |
+    {ok, contract_id()} |
+    {error, inaccessibility()} |
     {error, invalid}.
 
 create_contract(ID, Prototype) ->
@@ -134,14 +98,11 @@ create_contract(ID, Prototype) ->
         ContractID
     end).
 
-generate_contract_id() ->
-    generate_uuid().
-
 %%
 
--spec change_contractor_level(id(), contract(), dmsl_domain_thrift:'ContractorIdentificationLevel'()) ->
+-spec change_contractor_level(id(), contract_id(), dmsl_domain_thrift:'ContractorIdentificationLevel'()) ->
     ok |
-    {error, inaccessiblity()} |
+    {error, inaccessibility()} |
     {error, invalid}.
 
 change_contractor_level(ID, ContractID, ContractorLevel) ->
@@ -154,26 +115,29 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
 
 %%
 
--type wallet_prototype() :: #{
-    name     := binary(),
-    currency := ff_currency:id()
-}.
+-spec validate_account_creation(id(), contract_id(), wallet_id(), currency(), timestamp()) -> Result when
+    Result :: {ok, valid} | {error, Error},
+    Error ::
+        {invalid_terms, _Details} |
+        {party_not_found, id()} |
+        {party_not_exists_yet, id()} |
+        {exception, any()}.
 
--spec create_wallet(id(), contract(), wallet_prototype()) ->
-    {ok, wallet()} |
-    {error, inaccessiblity()} |
-    {error, invalid}.
+validate_account_creation(ID, Contract, WalletID, Currency, Timestamp) ->
+    case get_contract_terms(ID, Contract, WalletID, Currency, Timestamp) of
+        {ok, #domain_TermSet{wallets = Terms}} ->
+            do(fun () ->
+                valid = unwrap(validate_wallet_creation_terms_is_reduced(Terms)),
+                valid = unwrap(validate_currency(Terms, Currency))
+            end);
+        {error, _Reason} = Error ->
+            Error
+    end.
 
-create_wallet(ID, ContractID, Prototype) ->
-    do(fun () ->
-        WalletID  = generate_wallet_id(),
-        Changeset = construct_wallet_changeset(ContractID, WalletID, Prototype),
-        Claim     = unwrap(do_create_claim(ID, Changeset)),
-        accepted  = do_accept_claim(ID, Claim),
-        WalletID
-    end).
 
-generate_wallet_id() ->
+%% Internal functions
+
+generate_contract_id() ->
     generate_uuid().
 
 generate_uuid() ->
@@ -210,16 +174,6 @@ do_get_party(ID) ->
 %         {exception, Unexpected} ->
 %             error(Unexpected)
 %     end.
-
-do_get_wallet(ID, WalletID) ->
-    case call('GetWallet', [ID, WalletID]) of
-        {ok, #domain_Wallet{} = Wallet} ->
-            {ok, Wallet};
-        {exception, #payproc_WalletNotFound{}} ->
-            {error, notfound};
-        {exception, Unexpected} ->
-            error(Unexpected)
-    end.
 
 do_create_claim(ID, Changeset) ->
     case call('CreateClaim', [ID, Changeset]) of
@@ -319,26 +273,6 @@ construct_level_changeset(ContractID, ContractorLevel) ->
         )
     ].
 
-construct_wallet_changeset(ContractID, WalletID, #{
-    name     := Name,
-    currency := Currency
-}) ->
-    [
-        ?wallet_mod(
-            WalletID,
-            {creation, #payproc_WalletParams{
-                name        = Name,
-                contract_id = ContractID
-            }}
-        ),
-        ?wallet_mod(
-            WalletID,
-            {account_creation, #payproc_WalletAccountParams{
-                currency    = #domain_CurrencyRef{symbolic_code = Currency}
-            }}
-        )
-    ].
-
 construct_userinfo() ->
     #payproc_UserInfo{id = <<"fistful">>, type = construct_usertype()}.
 
@@ -369,3 +303,67 @@ call(Function, Args0) ->
     Service  = {dmsl_payment_processing_thrift, 'PartyManagement'},
     Args     = [construct_userinfo() | Args0],
     ff_woody_client:call(partymgmt, {Service, Function, Args}, get_woody_ctx()).
+
+
+%% Terms stuff
+
+-spec get_contract_terms(id(), contract_id(), wallet_id(), currency(), timestamp()) -> Result when
+    Result :: {ok, terms()} | {error, Error},
+    Error :: {party_not_found, id()} | {party_not_exists_yet, id()} | {exception, any()}.
+
+get_contract_terms(ID, ContractID, WalletID, Currency, Timestamp) ->
+    CurrencyRef = #domain_CurrencyRef{symbolic_code = ff_currency:symcode(Currency)},
+    Args = [ID, ContractID, WalletID, CurrencyRef, ff_time:to_rfc3339(Timestamp)],
+    case call('ComputeWalletTerms', Args) of
+        {ok, Terms} ->
+            {ok, Terms};
+        {exception, #payproc_PartyNotFound{}} ->
+            {error, {party_not_found, ID}};
+        {exception, #payproc_PartyNotExistsYet{}} ->
+            {error, {party_not_exists_yet, ID}};
+        {exception, Unexpected} ->
+            {error, {exception, Unexpected}}
+    end.
+
+-spec validate_wallet_creation_terms_is_reduced(wallet_terms()) ->
+    {ok, valid} | {error, {invalid_terms, _Details}}.
+
+validate_wallet_creation_terms_is_reduced(undefined) ->
+    {error, {invalid_terms, undefined_wallet_terms}};
+validate_wallet_creation_terms_is_reduced(Terms) ->
+    #domain_WalletServiceTerms{
+        currencies = CurrenciesSelector
+    } = Terms,
+    do_validate_terms_is_reduced([{currencies, CurrenciesSelector}]).
+
+do_validate_terms_is_reduced([]) ->
+    {ok, valid};
+do_validate_terms_is_reduced([{Name, Terms} | TermsTail]) ->
+    case selector_is_reduced(Terms) of
+        Result when Result =:= reduced orelse Result =:= is_undefined ->
+            do_validate_terms_is_reduced(TermsTail);
+        not_reduced ->
+            {error, {invalid_terms, {not_reduced, {Name, Terms}}}}
+    end.
+
+selector_is_reduced(undefined) ->
+    is_undefined;
+selector_is_reduced({value, _Value}) ->
+    reduced;
+selector_is_reduced({decisions, _Decisions}) ->
+    not_reduced.
+
+-spec validate_currency(wallet_terms(), currency()) ->
+    {ok, valid} | {error, {invalid_terms, {not_allowed_currency, _Details}}}.
+
+validate_currency(Terms, Currency) ->
+    #domain_WalletServiceTerms{
+        currencies = {value, Currencies}
+    } = Terms,
+    CurrencyRef = #domain_CurrencyRef{symbolic_code = ff_currency:symcode(Currency)},
+    case ordsets:is_element(CurrencyRef, Currencies) of
+        true ->
+            {ok, valid};
+        false ->
+            {error, {invalid_terms, {not_allowed_currency, {CurrencyRef, Currencies}}}}
+    end.

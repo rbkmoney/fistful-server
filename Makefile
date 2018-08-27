@@ -63,7 +63,8 @@ distclean: swagger.distclean.server.wallet swagger.distclean.client.wallet
 	rm -rf _build
 
 test: submodules
-	$(REBAR) eunit ct
+	$(REBAR) eunit
+	$(REBAR) ct
 
 TESTSUITES = $(wildcard apps/*/test/*_SUITE.erl)
 

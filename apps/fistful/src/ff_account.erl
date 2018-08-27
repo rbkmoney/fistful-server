@@ -9,29 +9,27 @@
 
 -module(ff_account).
 
--type id(T) :: T.
--type identity() :: ff_identity:id().
--type currency() :: ff_currency:id().
+-include_lib("dmsl/include/dmsl_accounter_thrift.hrl").
 
+-type id() :: binary().
 -type account() :: #{
-    id := id(binary()),
-    identity := identity(),
-    currency := currency(),
-    pm_wallet := ff_party:wallet_id()
+    id := id(),
+    identity := identity_id(),
+    currency := currency_id(),
+    accounter_account_id := accounter_account_id()
 }.
 
 -type event() ::
     {created, account()}.
 
+-export_type([id/0]).
 -export_type([account/0]).
 -export_type([event/0]).
 
 -export([id/1]).
 -export([identity/1]).
 -export([currency/1]).
--export([pm_wallet/1]).
-
--export([pm_account/1]).
+-export([accounter_account_id/1]).
 
 -export([create/3]).
 -export([is_accessible/1]).
@@ -42,16 +40,24 @@
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
+%% Internal types
+
+-type identity() :: ff_identity:identity().
+-type currency() :: ff_currency:currency().
+-type identity_id() :: ff_identity:id().
+-type currency_id() :: ff_currency:id().
+-type accounter_account_id() :: dmsl_accounter_thrift:'AccountID'().
+
 %% Accessors
 
 -spec id(account()) ->
-    id(binary()).
+    id().
 -spec identity(account()) ->
-    identity().
+    identity_id().
 -spec currency(account()) ->
-    currency().
--spec pm_wallet(account()) ->
-    ff_party:wallet_id().
+    currency_id().
+-spec accounter_account_id(account()) ->
+    accounter_account_id().
 
 id(#{id := ID}) ->
     ID.
@@ -59,49 +65,37 @@ identity(#{identity := IdentityID}) ->
     IdentityID.
 currency(#{currency := CurrencyID}) ->
     CurrencyID.
-pm_wallet(#{pm_wallet := PMWalletID}) ->
-    PMWalletID.
-
--spec pm_account(account()) ->
-    ff_transaction:account().
-
-pm_account(Account) ->
-    {ok, Identity} = ff_identity_machine:get(identity(Account)),
-    {ok, PMAccount} = ff_party:get_wallet_account(
-        ff_identity:party(ff_identity_machine:identity(Identity)),
-        pm_wallet(Account)
-    ),
-    PMAccount.
+accounter_account_id(#{accounter_account_id := AccounterID}) ->
+    AccounterID.
 
 %% Actuators
 
--spec create(id(_), identity(), currency()) ->
+-spec create(id(), identity(), currency()) ->
     {ok, [event()]} |
     {error,
         {identity, notfound} |
         {currency, notfound} |
         {contract, notfound} |
-        ff_party:inaccessibility() |
+        {accounter, any()} |
+        {party, ff_party:inaccessibility()} |
         invalid
     }.
 
-create(ID, IdentityID, CurrencyID) ->
+create(ID, Identity, Currency) ->
     do(fun () ->
-        Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
-        _Currency = unwrap(currency, ff_currency:get(CurrencyID)),
-        PMWalletID = unwrap(ff_party:create_wallet(
-            ff_identity:party(Identity),
-            ff_identity:contract(Identity),
-            #{
-                name     => ff_string:join($/, [<<"ff/account">>, ID]),
-                currency => CurrencyID
-            }
+        Contract = ff_identity:contract(Identity),
+        Party = ff_identity:party(Identity),
+        Contract = ff_identity:contract(Identity),
+        accessible = unwrap(party, ff_party:is_accessible(Party)),
+        valid = unwrap(contract, ff_party:validate_account_creation(
+            Party, Contract, ID, Currency, ff_time:now()
         )),
+        AccounterID = unwrap(accounter, create_account(ID, Currency)),
         [{created, #{
             id       => ID,
-            identity => IdentityID,
-            currency => CurrencyID,
-            pm_wallet => PMWalletID
+            identity => ff_identity:id(Identity),
+            currency => ff_currency:id(Currency),
+            accounter_account_id => AccounterID
         }}]
     end).
 
@@ -112,8 +106,7 @@ create(ID, IdentityID, CurrencyID) ->
 is_accessible(Account) ->
     do(fun () ->
         Identity   = get_identity(Account),
-        accessible = unwrap(ff_identity:is_accessible(Identity)),
-        accessible = unwrap(ff_party:is_wallet_accessible(ff_identity:party(Identity), pm_wallet(Account)))
+        accessible = unwrap(ff_identity:is_accessible(Identity))
     end).
 
 get_identity(Account) ->
@@ -127,3 +120,29 @@ get_identity(Account) ->
 
 apply_event({created, Account}, undefined) ->
     Account.
+
+%% Accounter client
+
+-spec create_account(id(), currency()) ->
+    {ok, accounter_account_id()} |
+    {error, {exception, any()}}.
+
+create_account(ID, Currency) ->
+    CurrencyCode = ff_currency:symcode(Currency),
+    Description = ff_string:join($/, [<<"ff/account">>, ID]),
+    case call_accounter('CreateAccount', [construct_prototype(CurrencyCode, Description)]) of
+        {ok, Result} ->
+            {ok, Result};
+        {exception, Exception} ->
+            {error, {exception, Exception}}
+    end.
+
+construct_prototype(CurrencyCode, Description) ->
+    #accounter_AccountPrototype{
+        currency_sym_code = CurrencyCode,
+        description = Description
+    }.
+
+call_accounter(Function, Args) ->
+    Service = {dmsl_accounter_thrift, 'Accounter'},
+    ff_woody_client:call(accounter, {Service, Function, Args}).

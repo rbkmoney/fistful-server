@@ -4,29 +4,34 @@
 
 -module(ff_wallet).
 
--type account() :: ff_account:id().
-
--type id(T) :: T.
--type identity() :: ff_identity:id().
--type currency() :: ff_currency:id().
+-type id() :: ff_account:id().
 
 -type wallet() :: #{
-    account  := account(),
-    name     := binary()
+    name       := binary(),
+    contract   := contract(),
+    blocking   := blocking(),
+    account    => account()
 }.
 
 -type event() ::
     {created, wallet()} |
     {account, ff_account:event()}.
 
+-export_type([id/0]).
 -export_type([wallet/0]).
 -export_type([event/0]).
+
+-type inaccessibility() ::
+    {inaccessible, blocked}.
+
+-export_type([inaccessibility/0]).
 
 -export([account/1]).
 -export([id/1]).
 -export([identity/1]).
 -export([name/1]).
 -export([currency/1]).
+-export([blocking/1]).
 
 -export([create/4]).
 -export([is_accessible/1]).
@@ -34,22 +39,32 @@
 
 -export([apply_event/2]).
 
+%% Internal types
+
+-type account() :: ff_account:account().
+-type contract() :: ff_party:contract().
+-type identity() :: ff_identity:id().
+-type currency() :: ff_currency:id().
+-type blocking() :: unblocked | blocked.
+
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
 
 -spec account(wallet()) -> account().
 
 -spec id(wallet()) ->
-    id(_).
+    id().
 -spec identity(wallet()) ->
     identity().
 -spec name(wallet()) ->
     binary().
 -spec currency(wallet()) ->
     currency().
+-spec blocking(wallet()) ->
+    blocking().
 
 account(#{account := V}) ->
     V.
@@ -62,29 +77,44 @@ name(Wallet) ->
     maps:get(name, Wallet, <<>>).
 currency(Wallet) ->
     ff_account:currency(account(Wallet)).
+blocking(#{blocking := Blocking}) ->
+    Blocking.
 
 %%
 
--spec create(id(_), identity(), binary(), currency()) ->
-    {ok, [event()]}.
+-spec create(id(), identity(), binary(), currency()) ->
+    {ok, [event()]} |
+    {error, _Reason}.
 
 create(ID, IdentityID, Name, CurrencyID) ->
     do(fun () ->
-        [{created, #{name => Name}}] ++
-        [{account, Ev} || Ev <- unwrap(ff_account:create(ID, IdentityID, CurrencyID))]
+        Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
+        Contract = ff_identity:contract(Identity),
+        Contract = ff_identity:contract(Identity),
+        Currency = unwrap(currency, ff_currency:get(CurrencyID)),
+        Wallet = #{
+            name => Name,
+            contract => Contract,
+            blocking => unblocked
+        },
+        [{created, Wallet}] ++
+        [{account, Ev} || Ev <- unwrap(ff_account:create(ID, Identity, Currency))]
     end).
 
 -spec is_accessible(wallet()) ->
     {ok, accessible} |
-    {error, ff_party:inaccessibility()}.
+    {error, inaccessibility()}.
 
 is_accessible(Wallet) ->
-    ff_account:is_accessible(account(Wallet)).
+    do(fun () ->
+        accessible = unwrap(check_accessible(Wallet)),
+        accessible = unwrap(ff_account:is_accessible(account(Wallet)))
+    end).
 
 -spec close(wallet()) ->
     {ok, [event()]} |
     {error,
-        ff_party:inaccessibility() |
+        inaccessibility() |
         {account, pending}
     }.
 
@@ -102,7 +132,20 @@ close(Wallet) ->
 
 apply_event({created, Wallet}, undefined) ->
     Wallet;
-apply_event({account, Ev}, Wallet = #{account := Account}) ->
-    Wallet#{account := ff_account:apply_event(Ev, Account)};
 apply_event({account, Ev}, Wallet) ->
-    apply_event({account, Ev}, Wallet#{account => undefined}).
+    Account = maps:get(account, Wallet, undefined),
+    Wallet#{account => ff_account:apply_event(Ev, Account)}.
+
+%% Internal functions
+
+-spec check_accessible(wallet()) ->
+    {ok, accessible} |
+    {error, inaccessibility()}.
+
+check_accessible(Wallet) ->
+    case blocking(Wallet) of
+        unblocked ->
+            {ok, accessible};
+        blocked ->
+            {error, blocked}
+    end.

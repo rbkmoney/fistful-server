@@ -27,7 +27,7 @@ services:
         condition: service_healthy
 
   hellgate:
-    image: dr.rbkmoney.com/rbkmoney/hellgate:eae821f2a1f3f2b948390d922c5eb3cde885757d
+    image: dr.rbkmoney.com/rbkmoney/hellgate:152732ac4a3121c836b352354a29bcb7a87ab61c
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:

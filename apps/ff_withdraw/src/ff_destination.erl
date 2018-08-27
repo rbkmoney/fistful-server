@@ -13,7 +13,7 @@
 -type resource() ::
     {bank_card, resource_bank_card()}.
 
--type id(T) :: T.
+-type id() :: binary().
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
 
@@ -40,6 +40,7 @@
     {account, ff_account:ev()} |
     {status_changed, status()}.
 
+-export_type([id/0]).
 -export_type([destination/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
@@ -63,7 +64,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
 
@@ -74,7 +75,7 @@ account(#{account := V}) ->
     V.
 
 -spec id(destination()) ->
-    id(_).
+    id().
 -spec name(destination()) ->
     binary().
 -spec identity(destination()) ->
@@ -101,13 +102,15 @@ status(#{status := V}) ->
 
 %%
 
--spec create(id(_), identity(), binary(), currency(), resource()) ->
+-spec create(id(), identity(), binary(), currency(), resource()) ->
     {ok, [event()]} |
     {error, _WalletError}.
 
 create(ID, IdentityID, Name, CurrencyID, Resource) ->
     do(fun () ->
-        Events = unwrap(ff_account:create(ID, IdentityID, CurrencyID)),
+        Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
+        Currency = unwrap(currency, ff_currency:get(CurrencyID)),
+        Events = unwrap(ff_account:create(ID, Identity, Currency)),
         [{created, #{name => Name, resource => Resource}}] ++
         [{account, Ev} || Ev <- Events] ++
         [{status_changed, unauthorized}]

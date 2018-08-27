@@ -29,8 +29,8 @@
     party        := party(),
     provider     := provider(),
     class        := class(),
+    contract     := contract(),
     level        => level(),
-    contract     => contract(),
     challenges   => #{challenge_id() => challenge()},
     effective    => challenge_id()
 }.

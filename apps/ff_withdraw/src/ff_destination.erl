@@ -64,7 +64,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
 
@@ -108,7 +108,15 @@ status(#{status := V}) ->
 
 create(ID, IdentityID, Name, CurrencyID, Resource) ->
     do(fun () ->
-        Events = unwrap(ff_account:create(ID, IdentityID, CurrencyID)),
+        Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
+        Party = ff_identity:party(Identity),
+        Contract = ff_identity:contract(Identity),
+        Currency = unwrap(currency, ff_currency:get(CurrencyID)),
+        accessible = unwrap(party, ff_party:is_accessible(Party)),
+        valid = unwrap(contract, ff_party:validate_wallet_creation(
+            Party, Contract, ID, Currency, ff_time:now()
+        )),
+        Events = unwrap(ff_account:create(ID, Identity, Currency)),
         [{created, #{name => Name, resource => Resource}}] ++
         [{account, Ev} || Ev <- Events] ++
         [{status_changed, unauthorized}]

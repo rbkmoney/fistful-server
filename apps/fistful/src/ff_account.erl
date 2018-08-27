@@ -70,7 +70,7 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
 
 %% Actuators
 
--spec create(id(), identity(), currency_id()) ->
+-spec create(id(), identity(), currency()) ->
     {ok, [event()]} |
     {error,
         {identity, notfound} |
@@ -81,18 +81,13 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
         invalid
     }.
 
-create(ID, Identity, CurrencyID) ->
+create(ID, Identity, Currency) ->
     do(fun () ->
-        Party = ff_identity:party(Identity),
-        Contract = ff_identity:contract(Identity),
-        Currency = unwrap(currency, ff_currency:get(CurrencyID)),
-        accessible = unwrap(party, ff_party:is_accessible(Party)),
-        valid = unwrap(contract, ff_party:validate_wallet_terms(Party, Contract, ID, Currency, ff_time:now())),
         AccounterID = unwrap(accounter, create_account(ID, Currency)),
         [{created, #{
             id       => ID,
             identity => ff_identity:id(Identity),
-            currency => CurrencyID,
+            currency => ff_currency:symcode(Currency),
             accounter_account_id => AccounterID
         }}]
     end).

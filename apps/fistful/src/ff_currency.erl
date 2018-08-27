@@ -24,6 +24,7 @@
 
 -export([get/1]).
 -export([symcode/1]).
+-export([id/1]).
 
 %% Pipeline
 
@@ -34,6 +35,10 @@
 -spec symcode(currency()) -> symcode().
 symcode(#{symcode := SymCode}) ->
     SymCode.
+
+-spec id(currency()) -> id().
+id(#{id := ID}) ->
+    ID.
 
 %%
 

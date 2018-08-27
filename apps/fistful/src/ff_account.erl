@@ -87,7 +87,7 @@ create(ID, Identity, Currency) ->
         [{created, #{
             id       => ID,
             identity => ff_identity:id(Identity),
-            currency => ff_currency:symcode(Currency),
+            currency => ff_currency:id(Currency),
             accounter_account_id => AccounterID
         }}]
     end).

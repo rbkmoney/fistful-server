@@ -34,7 +34,7 @@
 -export([is_accessible/1]).
 -export([create_contract/2]).
 -export([change_contractor_level/3]).
--export([validate_wallet_creation/5]).
+-export([validate_account_creation/5]).
 
 %% Internal types
 
@@ -115,7 +115,7 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
 
 %%
 
--spec validate_wallet_creation(id(), contract_id(), wallet_id(), currency(), timestamp()) -> Result when
+-spec validate_account_creation(id(), contract_id(), wallet_id(), currency(), timestamp()) -> Result when
     Result :: {ok, valid} | {error, Error},
     Error ::
         {invalid_terms, _Details} |
@@ -123,7 +123,7 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
         {party_not_exists_yet, id()} |
         {exception, any()}.
 
-validate_wallet_creation(ID, Contract, WalletID, Currency, Timestamp) ->
+validate_account_creation(ID, Contract, WalletID, Currency, Timestamp) ->
     case get_contract_terms(ID, Contract, WalletID, Currency, Timestamp) of
         {ok, #domain_TermSet{wallets = Terms}} ->
             do(fun () ->

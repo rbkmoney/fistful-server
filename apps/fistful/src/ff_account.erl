@@ -83,6 +83,13 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
 
 create(ID, Identity, Currency) ->
     do(fun () ->
+        Contract = ff_identity:contract(Identity),
+        Party = ff_identity:party(Identity),
+        Contract = ff_identity:contract(Identity),
+        accessible = unwrap(party, ff_party:is_accessible(Party)),
+        valid = unwrap(contract, ff_party:validate_account_creation(
+            Party, Contract, ID, Currency, ff_time:now()
+        )),
         AccounterID = unwrap(accounter, create_account(ID, Currency)),
         [{created, #{
             id       => ID,

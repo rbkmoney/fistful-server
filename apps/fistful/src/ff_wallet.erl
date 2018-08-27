@@ -90,13 +90,8 @@ create(ID, IdentityID, Name, CurrencyID) ->
     do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Contract = ff_identity:contract(Identity),
-        Party = ff_identity:party(Identity),
         Contract = ff_identity:contract(Identity),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
-        accessible = unwrap(party, ff_party:is_accessible(Party)),
-        valid = unwrap(contract, ff_party:validate_wallet_creation(
-            Party, Contract, ID, Currency, ff_time:now()
-        )),
         Wallet = #{
             name => Name,
             contract => Contract,

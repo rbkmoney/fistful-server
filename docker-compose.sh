@@ -48,7 +48,7 @@ services:
   adapter-vtb:
     depends_on:
       - cds
-    image: dr.rbkmoney.com/rbkmoney/proxy-vtb-mpi-vtb:e28626d5f6fa07c08c71bde1e8089acad2b18d6d
+    image: dr.rbkmoney.com/rbkmoney/proxy-vtb-mpi-vtb:80eb990920d34ee74c41c39168357dab9e42bd70
     command: |
       java
       -Xms64m -Xmx256m
@@ -82,7 +82,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr.rbkmoney.com/rbkmoney/dominant:4e296b03cd4adba4bd0f1cf85425b9514728107c
+    image: dr.rbkmoney.com/rbkmoney/dominant:2c4c8aef2de8b55dfe6ea43e919b967ca649d98d
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -97,7 +97,7 @@ services:
       retries: 10
 
   shumway:
-    image: dr.rbkmoney.com/rbkmoney/shumway:7a5f95ee1e8baa42fdee9c08cc0ae96cd7187d55
+    image: dr.rbkmoney.com/rbkmoney/shumway:862509b10a637d9b7ea739abd56bc6b18cf25296
     restart: always
     entrypoint:
       - java
@@ -116,7 +116,7 @@ services:
       retries: 10
 
   identification:
-    image: dr.rbkmoney.com/rbkmoney/identification:ff4ef447327d81882c0ee618b622e5e04e771881
+    image: dr.rbkmoney.com/rbkmoney/identification:0578a5f76a88c7c2e9b5a3043641c028779c8921
     command: /opt/identification/bin/identification foreground
     volumes:
       - ./test/identification/sys.config:/opt/identification/releases/0.1/sys.config
@@ -130,7 +130,7 @@ services:
       retries: 10
 
   cds:
-    image: dr.rbkmoney.com/rbkmoney/cds:a02376ae8a30163a6177d41edec9d8ce2ff85e4f
+    image: dr.rbkmoney.com/rbkmoney/cds:dcefbd80df9ac9b240ce3033b55e87b0cd85abba
     command: /opt/cds/bin/cds foreground
     volumes:
       - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config
@@ -142,7 +142,7 @@ services:
       retries: 10
 
   machinegun:
-    image: dr.rbkmoney.com/rbkmoney/machinegun:5756aa3070f9beebd4b20d7076c8cdc079286090
+    image: dr.rbkmoney.com/rbkmoney/machinegun:27df9e276102d5c9faf8d1121374c7355d8e2d1b
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml

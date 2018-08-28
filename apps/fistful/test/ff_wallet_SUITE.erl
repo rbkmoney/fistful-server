@@ -55,7 +55,7 @@ init_per_suite(C) ->
             }},
             {backends, #{
                 'ff/identity'  => Be,
-                'ff/wallet'    => Be
+                'ff/wallet_v2' => Be
             }},
             {providers,
                 get_provider_config()

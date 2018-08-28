@@ -43,11 +43,11 @@ init_per_suite(C) ->
                 'identification' => "http://identification:8022/v1/identification"
             }},
             {backends, maps:from_list([{NS, Be} || NS <- [
-                'ff/identity'           ,
-                'ff/wallet'             ,
-                'ff/destination'        ,
-                'ff/withdrawal'         ,
-                'ff/withdrawal/session'
+                'ff/identity'              ,
+                'ff/wallet_v2'             ,
+                'ff/destination_v2'        ,
+                'ff/withdrawal_v2'         ,
+                'ff/withdrawal/session_v2'
             ]])},
             {providers,
                 get_provider_config()

@@ -11,7 +11,7 @@
 -module(ff_withdrawal_session_machine).
 -behaviour(machinery).
 
--define(NS, 'ff/withdrawal/session').
+-define(NS, 'ff/withdrawal/session_v2').
 
 %% API
 

@@ -45,7 +45,7 @@
 
 %%
 
--define(NS, 'ff/withdrawal').
+-define(NS, 'ff/withdrawal_v2').
 
 -type params() :: #{
     source      := ff_wallet_machine:id(),

@@ -56,12 +56,12 @@ init([]) ->
     % TODO
     %  - Make it palatable
     {Backends, Handlers} = lists:unzip([
-        contruct_backend_childspec('ff/sequence'           , ff_sequence),
-        contruct_backend_childspec('ff/identity'           , ff_identity_machine),
-        contruct_backend_childspec('ff/wallet'             , ff_wallet_machine),
-        contruct_backend_childspec('ff/destination'        , ff_destination_machine),
-        contruct_backend_childspec('ff/withdrawal'         , ff_withdrawal_machine),
-        contruct_backend_childspec('ff/withdrawal/session' , ff_withdrawal_session_machine)
+        contruct_backend_childspec('ff/sequence'              , ff_sequence),
+        contruct_backend_childspec('ff/identity'              , ff_identity_machine),
+        contruct_backend_childspec('ff/wallet_v2'             , ff_wallet_machine),
+        contruct_backend_childspec('ff/destination_v2'        , ff_destination_machine),
+        contruct_backend_childspec('ff/withdrawal_v2'         , ff_withdrawal_machine),
+        contruct_backend_childspec('ff/withdrawal/session_v2' , ff_withdrawal_session_machine)
     ]),
     ok = application:set_env(fistful, backends, maps:from_list(Backends)),
     {ok, IP} = inet:parse_address(genlib_app:env(?MODULE, ip, "::0")),

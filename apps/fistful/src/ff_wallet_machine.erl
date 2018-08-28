@@ -45,7 +45,7 @@ wallet(St) ->
 
 %%
 
--define(NS, 'ff/wallet').
+-define(NS, 'ff/wallet_v2').
 
 -type params() :: #{
     identity   := ff_identity_machine:id(),

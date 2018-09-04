@@ -6,6 +6,8 @@
 
 %% Behaviour definition
 
+-type tag() :: wallet | payres | privdoc.
+
 -type operation_id() ::
     swag_server_payres:operation_id() |
     swag_server_wallet:operation_id() |
@@ -49,13 +51,14 @@
 
 -define(request_result, wapi_req_result).
 
--spec handle_request(operation_id(), req_data(), swagger_context(), module(), opts()) ->
+-spec handle_request(tag(), operation_id(), req_data(), swagger_context(), opts()) ->
     request_result().
-handle_request(OperationID, Req, SwagContext = #{auth_context := AuthContext}, Handler, Opts) ->
+handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContext}, Opts) ->
     _ = lager:info("Processing request ~p", [OperationID]),
     try
-        WoodyContext = create_woody_context(Req, AuthContext, Opts),
+        WoodyContext = create_woody_context(Tag, Req, AuthContext, Opts),
         Context      = create_handler_context(SwagContext, WoodyContext),
+        Handler      = get_handler(Tag),
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
             {ok, AuthDetails} ->
                 ok = lager:info("Operation ~p authorized via ~p", [OperationID, AuthDetails]),
@@ -76,16 +79,32 @@ handle_request(OperationID, Req, SwagContext = #{auth_context := AuthContext}, H
 throw_result(Res) ->
     erlang:throw({?request_result, Res}).
 
--spec create_woody_context(req_data(), wapi_auth:context(), opts()) ->
+get_handler(wallet)  -> wapi_wallet_handler;
+get_handler(payres)  -> wapi_payres_handler;
+get_handler(privdoc) -> wapi_privdoc_handler.
+
+-spec create_woody_context(tag(), req_data(), wapi_auth:context(), opts()) ->
     woody_context:ctx().
-create_woody_context(#{'X-Request-ID' := RequestID}, AuthContext, Opts) ->
+create_woody_context(Tag, #{'X-Request-ID' := RequestID}, AuthContext, Opts) ->
     RpcID = #{trace_id := TraceID} = woody_context:new_rpc_id(genlib:to_binary(RequestID)),
     ok = scoper:add_meta(#{request_id => RequestID, trace_id => TraceID}),
     _ = lager:debug("Created TraceID for the request"),
-    Ctx = woody_user_identity:put(collect_user_identity(AuthContext, Opts), woody_context:new(RpcID)),
+    Ctx = woody_user_identity:put(
+        collect_user_identity(AuthContext, Opts),
+        woody_context:new(RpcID, undefined, get_deadline(Tag))
+    ),
     %% TODO remove this fistful specific step, when separating the wapi service.
     ok = ff_woody_ctx:set(Ctx),
     Ctx.
+
+get_deadline(Tag) ->
+    ApiDeadlines = genlib_app:env(wapi, api_deadlines, #{}),
+    case maps:get(Tag, ApiDeadlines, undefined) of
+        Timeout when is_integer(Timeout) andalso Timeout >= 0 ->
+            woody_deadline:from_timeout(Timeout);
+        undefined ->
+            undefined
+    end.
 
 -define(APP, wapi).
 

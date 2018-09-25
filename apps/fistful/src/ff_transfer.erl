@@ -56,7 +56,7 @@
 %% Internal types
 
 -type id()       :: ff_transaction:id().
--type account()  :: {Tag :: atom(), ff_wallet:id() | ff_destination:id()}.
+-type account()  :: ff_account:account().
 -type body()     :: ff_transaction:body().
 
 %%
@@ -89,7 +89,7 @@ status(#{status := V}) ->
 
 create(ID, Postings = [_ | _]) ->
     do(fun () ->
-        Accounts = maps:values(gather_accounts(Postings)),
+        Accounts   = gather_accounts(Postings),
         valid      = validate_currencies(Accounts),
         valid      = validate_identities(Accounts),
         accessible = validate_accessible(Accounts),
@@ -107,19 +107,7 @@ create(_TrxID, []) ->
     {error, empty}.
 
 gather_accounts(Postings) ->
-    maps:from_list([
-        {AccountID, get_account(AccountID)} ||
-            AccountID <- lists:usort(lists:flatten([[S, D] || {S, D, _} <- Postings]))
-    ]).
-
-%% TODO
-%%  - Not the right place.
-get_account({wallet, ID}) ->
-    St = unwrap(account, ff_wallet_machine:get(ID)),
-    ff_wallet:account(ff_wallet_machine:wallet(St));
-get_account({destination, ID}) ->
-    St = unwrap(account, ff_destination_machine:get(ID)),
-    ff_destination:account(ff_destination_machine:destination(St)).
+    lists:usort(lists:flatten([[S, D] || {S, D, _} <- Postings])).
 
 validate_accessible(Accounts) ->
     _ = [accessible = unwrap(account, ff_account:is_accessible(A)) || A <- Accounts],
@@ -214,10 +202,9 @@ apply_event({status_changed, S}, Transfer) ->
 %%
 
 construct_trx_postings(Postings) ->
-    Accounts = gather_accounts(Postings),
     [
         {SourceAccount, DestinationAccount, Body} ||
             {Source, Destination, Body} <- Postings,
-            SourceAccount               <- [ff_account:accounter_account_id(maps:get(Source, Accounts))],
-            DestinationAccount          <- [ff_account:accounter_account_id(maps:get(Destination, Accounts))]
+            SourceAccount               <- [ff_account:accounter_account_id(Source)],
+            DestinationAccount          <- [ff_account:accounter_account_id(Destination)]
     ].

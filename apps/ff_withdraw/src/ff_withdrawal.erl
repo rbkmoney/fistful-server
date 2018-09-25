@@ -104,7 +104,7 @@ create(ID, SourceID, DestinationID, Body) ->
         ProviderID = unwrap(provider, ff_withdrawal_provider:choose(Source, Destination, Body)),
         TransferEvents = unwrap(ff_transfer:create(
             construct_transfer_id(ID),
-            [{{wallet, SourceID}, {destination, DestinationID}, Body}]
+            [{ff_wallet:account(Source), ff_destination:account(Destination), Body}]
         )),
         [{created, #{
             id          => ID,

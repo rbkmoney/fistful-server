@@ -20,6 +20,7 @@
     id               := id(),
     payinst_ref      := payinst_ref(),
     payinst          := payinst(),
+    routes           := routes(),
     identity_classes := #{
         ff_identity:class_id() => ff_identity:class()
     }
@@ -27,14 +28,17 @@
 
 -type payinst()     :: dmsl_domain_thrift:'PaymentInstitution'().
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
+-type routes()      :: [ff_withdrowal_provider:id()].
 
 -export_type([id/0]).
 -export_type([provider/0]).
+-export_type([routes/0]).
 
 -export([id/1]).
 -export([name/1]).
 -export([residences/1]).
 -export([payinst/1]).
+-export([routes/1]).
 
 -export([list/0]).
 -export([get/1]).
@@ -55,6 +59,8 @@
     [ff_residence:id()].
 -spec payinst(provider()) ->
     payinst_ref().
+-spec routes(provider()) ->
+    routes().
 
 id(#{id := ID}) ->
     ID.
@@ -63,6 +69,8 @@ name(#{payinst := PI}) ->
 residences(#{payinst := PI}) ->
     PI#domain_PaymentInstitution.residences.
 payinst(#{payinst_ref := V}) ->
+    V.
+routes(#{routes := V}) ->
     V.
 
 %%
@@ -87,6 +95,7 @@ get(ID) ->
         %  - Possibly inconsistent view of domain config
         C = unwrap(get_provider_config(ID)),
         PaymentInstitutionRef = ?payinst(maps:get(payment_institution_id, C)),
+        Routes = maps:get(routes, C),
         {ok, PaymentInstitution} = ff_domain_config:object({payment_institution, PaymentInstitutionRef}),
         IdentityClasses = maps:map(
             fun (ICID, ICC) ->
@@ -140,7 +149,8 @@ get(ID) ->
             id               => ID,
             payinst_ref      => PaymentInstitutionRef,
             payinst          => PaymentInstitution,
-            identity_classes => IdentityClasses
+            identity_classes => IdentityClasses,
+            routes           => Routes
         }
     end).
 

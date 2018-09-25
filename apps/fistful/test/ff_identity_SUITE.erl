@@ -222,6 +222,7 @@ get_provider_config() ->
     #{
         <<"good-one">> => #{
             payment_institution_id => 1,
+            routes => [<<"thebank">>],
             identity_classes => #{
                 <<"person">> => #{
                     name => <<"Well, a person">>,

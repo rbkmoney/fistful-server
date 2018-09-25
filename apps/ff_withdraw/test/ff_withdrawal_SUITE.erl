@@ -229,6 +229,7 @@ get_provider_config() ->
     #{
         <<"good-one">> => #{
             payment_institution_id => 1,
+            routes => [<<"mocketbank">>],
             identity_classes => #{
                 <<"person">> => #{
                     name => <<"Well, a person">>,
@@ -311,13 +312,7 @@ get_default_termset() ->
 
 get_withdrawal_provider_config() ->
     #{
-        adapter      => ff_woody_client:new("http://adapter-vtb:8022/proxy/vtb-mpi-vtb/p2p-credit"),
-        adapter_opts => #{
-            <<"merchant_id">>   => <<"mcpitmpitest">>,
-            <<"merchant_cn">>   => <<"rbkmoneyP2P9999">>,
-            <<"merchant_name">> => <<"RBKMoney P2P">>,
-            <<"version">>       => <<"109">>,
-            <<"term_id">>       => <<"30001018">>,
-            <<"FPTTI">>         => <<"PPP">>
+        <<"mocketbank">> => #{
+            adapter => ff_woody_client:new("http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit")
         }
     }.

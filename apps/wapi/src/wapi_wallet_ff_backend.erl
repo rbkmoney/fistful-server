@@ -556,6 +556,10 @@ from_swag(withdrawal_params, Params) ->
         destination => maps:get(<<"destination">>, Params),
         body        => from_swag(withdrawal_body , maps:get(<<"body">>, Params))
     };
+%% TODO
+%%  - remove this clause when we fix negative accounts and turn on validation in swag
+from_swag(withdrawal_body, #{<<"amount">> := Amount}) when Amount < 0 ->
+    wapi_handler:throw_result(wapi_handler_utils:reply_error(400, #{<<"errorType">> => <<"WrongSize">>}));
 from_swag(withdrawal_body, Body) ->
     {genlib:to_int(maps:get(<<"amount">>, Body)), maps:get(<<"currency">>, Body)};
 from_swag(currency, V) ->

@@ -1,14 +1,21 @@
 %%%
-%%% Withdrawal machine
+%%% Transfer machine
+%%%
+%%% TODO
+%%%  - add support for custom activity callbacls for
+%%%    particular tranfer machines (withdrawal, deposit, etc).
 %%%
 
--module(ff_withdrawal_machine).
+-module(ff_transfer_machine).
 
 %% API
 
 -type id()        :: machinery:id().
+-type ns()        :: machinery:namespace().
 -type ctx()       :: ff_ctx:ctx().
--type withdrawal() :: ff_withdrawal:withdrawal().
+-type transfer(T) :: ff_transfer:transfer(T).
+-type account()   :: ff_account:account().
+-type events() :: [{integer(), ff_machine:timestamped_event(event())}].
 
 -type activity() ::
     prepare_transfer         |
@@ -18,18 +25,21 @@
     cancel_transfer          |
     undefined                .
 
--type st() ::
-    ff_machine:st(withdrawal()).
+-type st(T) ::
+    ff_machine:st(transfer(T)).
 
 -export_type([id/0]).
+-export_type([ns/0]).
+-export_type([st/1]).
+-export_type([events/0]).
 
--export([create/3]).
--export([get/1]).
--export([events/2]).
+-export([create/4]).
+-export([get/2]).
+-export([events/3]).
 
 %% Accessors
 
--export([withdrawal/1]).
+-export([transfer/1]).
 
 %% Machinery
 
@@ -45,59 +55,59 @@
 
 %%
 
--define(NS, 'ff/withdrawal_v2').
-
 -type params() :: #{
-    source      := ff_wallet_machine:id(),
-    destination := ff_destination_machine:id(),
-    body        := ff_transaction:body()
+    type        := ff_transfer:type(),
+    source      := account(),
+    destination := account(),
+    body        := ff_transaction:body(),
+    params      := ff_transfer:params()
 }.
 
--spec create(id(), params(), ctx()) ->
+-spec create(ns(), id(), params(), ctx()) ->
     ok |
     {error,
-        _WithdrawalError |
+        _TransferError |
         exists
     }.
 
-create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ctx) ->
+create(NS, ID, #{type := Type, source := Source, destination := Destination, body := Body, params := Params}, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_withdrawal:create(ID, SourceID, DestinationID, Body)),
-        unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
+        Events = unwrap(ff_transfer:create(Type, ID, Source, Destination, Body, Params)),
+        unwrap(machinery:start(NS, ID, {Events, Ctx}, backend(NS)))
     end).
 
--spec get(id()) ->
-    {ok, st()}       |
+-spec get(ns(), id()) ->
+    {ok, st(_)}      |
     {error, notfound}.
 
-get(ID) ->
-    ff_machine:get(ff_withdrawal, ?NS, ID).
+get(NS, ID) ->
+    ff_machine:get(ff_transfer, NS, ID).
 
--spec events(id(), machinery:range()) ->
-    {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
+-spec events(ns(), id(), machinery:range()) ->
+    {ok, events()} |
     {error, notfound}.
 
-events(ID, Range) ->
+events(NS, ID, Range) ->
     do(fun () ->
-        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
+        #{history := History} = unwrap(machinery:get(NS, ID, Range, backend(NS))),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 
-backend() ->
-    fistful:backend(?NS).
+backend(NS) ->
+    fistful:backend(NS).
 
 %% Accessors
 
--spec withdrawal(st()) ->
-    withdrawal().
+-spec transfer(st(T)) ->
+    transfer(T).
 
-withdrawal(St) ->
+transfer(St) ->
     ff_machine:model(St).
 
 %% Machinery
 
 -type event() ::
-    ff_withdrawal:event().
+    ff_transfer:event().
 
 -type machine()      :: ff_machine:machine(event()).
 -type result()       :: ff_machine:result(event()).
@@ -117,11 +127,11 @@ init({Events, Ctx}, #{}, _, _Opts) ->
     result().
 
 process_timeout(Machine, _, _Opts) ->
-    St = ff_machine:collapse(ff_withdrawal, Machine),
-    process_activity(deduce_activity(withdrawal(St)), St).
+    St = ff_machine:collapse(ff_transfer, Machine),
+    process_activity(deduce_activity(transfer(St)), St).
 
 process_activity(prepare_transfer, St) ->
-    case ff_withdrawal:prepare_transfer(withdrawal(St)) of
+    case ff_transfer:prepare(transfer(St)) of
         {ok, Events} ->
             #{
                 events => ff_machine:emit_events(Events),
@@ -134,7 +144,7 @@ process_activity(prepare_transfer, St) ->
     end;
 
 process_activity(create_session, St) ->
-    case ff_withdrawal:create_session(withdrawal(St)) of
+    case ff_transfer:create_session(transfer(St)) of
         {ok, Events} ->
             #{
                 events => ff_machine:emit_events(Events),
@@ -147,7 +157,7 @@ process_activity(create_session, St) ->
     end;
 
 process_activity(await_session_completion, St) ->
-    case ff_withdrawal:poll_session_completion(withdrawal(St)) of
+    case ff_transfer:poll_session_completion(transfer(St)) of
         {ok, Events} when length(Events) > 0 ->
             #{
                 events => ff_machine:emit_events(Events),
@@ -160,13 +170,13 @@ process_activity(await_session_completion, St) ->
     end;
 
 process_activity(commit_transfer, St) ->
-    {ok, Events} = ff_withdrawal:commit_transfer(withdrawal(St)),
+    {ok, Events} = ff_transfer:commit(transfer(St)),
     #{
         events => ff_machine:emit_events(Events)
     };
 
 process_activity(cancel_transfer, St) ->
-    {ok, Events} = ff_withdrawal:cancel_transfer(withdrawal(St)),
+    {ok, Events} = ff_transfer:cancel(transfer(St)),
     #{
         events => ff_machine:emit_events(Events)
     }.
@@ -187,7 +197,7 @@ emit_failure(Reason) ->
 
 %%
 
--spec deduce_activity(withdrawal()) ->
+-spec deduce_activity(transfer(_)) ->
     activity().
 
 deduce_activity(#{status := {failed, _}}) ->
@@ -196,9 +206,9 @@ deduce_activity(#{status := succeeded}) ->
     commit_transfer;
 deduce_activity(#{session := _}) ->
     await_session_completion;
-deduce_activity(#{transfer := #{status := prepared}}) ->
+deduce_activity(#{p_transfer := #{status := prepared}}) ->
     create_session;
-deduce_activity(#{transfer := #{status := created}}) ->
+deduce_activity(#{p_transfer := #{status := created}}) ->
     prepare_transfer;
 deduce_activity(_) ->
     undefined.

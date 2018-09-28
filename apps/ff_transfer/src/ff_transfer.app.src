@@ -1,6 +1,6 @@
-{application, ff_withdraw, [
+{application, ff_transfer, [
     {description,
-        "Withdrawal processing"
+        "Transfer processing"
     },
     {vsn, "1"},
     {registered, []},
@@ -17,7 +17,8 @@
     {env, []},
     {modules, []},
     {maintainers, [
-        "Andrey Mayorov <a.mayorov@rbkmoney.com>"
+        "Andrey Mayorov <a.mayorov@rbkmoney.com>",
+        "Anton Belyaev <a.belyaev@rbkmoney.com>"
     ]},
     {licenses, []},
     {links, ["https://github.com/rbkmoney/fistful-server"]}

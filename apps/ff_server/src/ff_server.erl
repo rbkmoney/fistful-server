@@ -60,7 +60,7 @@ init([]) ->
         contruct_backend_childspec('ff/identity'              , ff_identity_machine),
         contruct_backend_childspec('ff/wallet_v2'             , ff_wallet_machine),
         contruct_backend_childspec('ff/destination_v2'        , ff_destination_machine),
-        contruct_backend_childspec('ff/withdrawal_v2'         , ff_withdrawal_machine),
+        contruct_backend_childspec('ff/withdrawal_v2'         , ff_transfer_machine),
         contruct_backend_childspec('ff/withdrawal/session_v2' , ff_withdrawal_session_machine)
     ]),
     ok = application:set_env(fistful, backends, maps:from_list(Backends)),

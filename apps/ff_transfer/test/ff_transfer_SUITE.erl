@@ -1,4 +1,4 @@
--module(ff_withdrawal_SUITE).
+-module(ff_transfer_SUITE).
 
 -export([all/0]).
 -export([init_per_suite/1]).
@@ -53,8 +53,10 @@ init_per_suite(C) ->
                 get_provider_config()
             }
         ]},
-        {ff_withdraw, [
-            {provider, get_withdrawal_provider_config()}
+        {ff_transfer, [
+            {withdrawal,
+                #{provider => get_withdrawal_provider_config()}
+            }
         ]}
     ]),
     SuiteSup = ct_sup:start(),
@@ -64,7 +66,7 @@ init_per_suite(C) ->
             construct_handler(ff_identity_machine           , "identity"           , BeConf),
             construct_handler(ff_wallet_machine             , "wallet"             , BeConf),
             construct_handler(ff_destination_machine        , "destination"        , BeConf),
-            construct_handler(ff_withdrawal_machine         , "withdrawal"         , BeConf),
+            construct_handler(ff_transfer_machine           , "withdrawal"         , BeConf),
             construct_handler(ff_withdrawal_session_machine , "withdrawal/session" , BeConf)
         ],
         BeOpts
@@ -126,7 +128,7 @@ end_per_testcase(_Name, _C) ->
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
-    {error, notfound} = ff_withdrawal_machine:get(ID).
+    {error, notfound} = ff_withdrawal:get_machine(ID).
 
 withdrawal_ok(C) ->
     Party = create_party(C),
@@ -166,19 +168,18 @@ withdrawal_ok(C) ->
     ),
     % Process withdrawal
     WID = generate_id(),
-    ok = ff_withdrawal_machine:create(
+    ok = ff_withdrawal:create(
         WID,
         #{source => SID, destination => DID, body => {4242, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, WS1} = ff_withdrawal_machine:get(WID),
-    W1 = ff_withdrawal_machine:withdrawal(WS1),
-    pending = ff_withdrawal:status(W1),
+    {ok, WS1} = ff_withdrawal:get_machine(WID),
+    pending = ff_withdrawal:status(ff_withdrawal:get(WS1)),
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
-            {ok, WS} = ff_withdrawal_machine:get(WID),
-            ff_withdrawal:status(ff_withdrawal_machine:withdrawal(WS))
+            {ok, WS} = ff_withdrawal:get_machine(WID),
+            ff_withdrawal:status(ff_withdrawal:get(WS))
         end,
         genlib_retry:linear(3, 5000)
     ).

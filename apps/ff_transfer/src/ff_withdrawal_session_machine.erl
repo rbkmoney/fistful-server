@@ -13,12 +13,13 @@
 
 -define(NS, 'ff/withdrawal/session_v2').
 
-%% API
+%% ff_transfer behaviour
 
--export([status/1]).
+-behaviour(ff_transfer_session).
 
 -export([create/3]).
 -export([get/1]).
+-export([status/1]).
 
 %% machinery
 
@@ -29,38 +30,39 @@
 %%
 %% Types
 %%
+-type id() :: machinery:id().
 
--type session() :: #{
-    id => id(),
-    status => session_status(),
+-type session() :: ff_transfer_session:session(#{
+    id         => id(),
+    status     => session_status(),
     withdrawal => withdrawal(),
-    adapter => adapter()
-}.
+    provider   => ff_withdrawal_provider:provider(),
+    adapter    => ff_withdrawal_provider:adapter()
+}).
 
 -type session_result() :: {success, trx_info()} | {failed, ff_adapter_withdrawal:failure()}.
 
--type session_status() :: active
-    | {finished, session_result()}.
+-type session_status() :: ff_transfer_session:status().
+
 
 -type ev() :: {created, session()}
     | {next_state, ff_adapter:state()}
     | {finished, session_result()}.
 
--type adapter() :: {ff_adapter:adapter(), ff_adapter:opts()}.
+-type data()   :: ff_transfer_session:data().
+-type params() :: ff_transfer_session:params(ff_withdrawal:transfer_params()).
 
 %%
 %% Internal types
 %%
 
--type id() :: machinery:id().
-
 -type trx_info() :: dmsl_domain_thrift:'TransactionInfo'().
 
 -type auxst()        :: undefined.
 
--type withdrawal() :: ff_adapter_withdrawal:withdrawal().
--type machine() :: machinery:machine(ev(), auxst()).
--type result() :: machinery:result(ev(), auxst()).
+-type withdrawal()   :: ff_adapter_withdrawal:withdrawal().
+-type machine()      :: machinery:machine(ev(), auxst()).
+-type result()       :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts(_).
 
 -type st() :: #{
@@ -83,13 +85,10 @@ status(#{status := V}) -> V.
 
 %%
 
--spec create(ID, Adapter, Withdrawal) -> ok | Error when
-    ID :: id(),
-    Adapter :: adapter(),
-    Withdrawal :: withdrawal(),
-    Error :: {error, exists}.
-create(ID, Adapter, Withdrawal) ->
-    Session = create_session(ID, Adapter, Withdrawal),
+-spec create(id(), data(), params()) ->
+    ok | {error, exists}.
+create(ID, Data, Params) ->
+    Session = create_session(ID, Data, Params),
     do(fun () ->
         unwrap(machinery:start(?NS, ID, Session, backend()))
     end).
@@ -162,14 +161,30 @@ process_intent({sleep, Timer}) ->
 
 %%
 
--spec create_session(id(), adapter(), ff_adapter_withdrawal:withdrawal()) -> session().
-create_session(ID, Adapter, Withdrawal) ->
+-spec create_session(id(), data(), params()) ->
+    session().
+create_session(ID, Data = #{cash := Cash}, #{destination := DestinationID}) ->
+    {ok, DestinationSt} = ff_destination_machine:get(DestinationID),
+    Destination = ff_destination_machine:destination(DestinationSt),
+    ProviderID = get_provider(Destination, Cash),
     #{
-        id => ID,
-        withdrawal => Withdrawal,
-        adapter => Adapter,
-        status => active
+        id         => ID,
+        withdrawal => create_adapter_withdrawal(Data, Destination),
+        provider   => ProviderID,
+        adapter    => get_adapter(ProviderID),
+        status     => active
     }.
+
+get_provider(Destination, Cash) ->
+    {ok, ProviderID} = ff_withdrawal_provider:choose(Destination, Cash),
+    ProviderID.
+
+get_adapter(ProviderID) ->
+    {ok, Adapter} = ff_withdrawal_provider:get_adapter(ProviderID),
+    Adapter.
+
+create_adapter_withdrawal(Data, Destination) ->
+    Data#{destination => Destination}.
 
 -spec set_session_status(session_status(), session()) -> session().
 set_session_status(SessionState, Session) ->

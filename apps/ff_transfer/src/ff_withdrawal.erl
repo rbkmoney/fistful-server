@@ -68,7 +68,7 @@ status(T)          -> ff_transfer:status(T).
 -type ctx()    :: ff_ctx:ctx().
 -type params() :: #{
     source      := ff_wallet_machine:id(),
-    destination := ff_destination_machine:id(),
+    destination := ff_destination:id(),
     body        := ff_transaction:body()
 }.
 
@@ -86,8 +86,8 @@ status(T)          -> ff_transfer:status(T).
 create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ctx) ->
     do(fun() ->
         Source = ff_wallet_machine:wallet(unwrap(source, ff_wallet_machine:get(SourceID))),
-        Destination = ff_destination_machine:destination(
-            unwrap(destination, ff_destination_machine:get(DestinationID))
+        Destination = ff_destination:get(
+            unwrap(destination, ff_destination:get_machine(DestinationID))
         ),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
         Params = #{

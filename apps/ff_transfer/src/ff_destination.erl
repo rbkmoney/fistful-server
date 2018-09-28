@@ -9,13 +9,15 @@
 
 -module(ff_destination).
 
+-type ctx()      :: ff_ctx:ctx().
+-type id()       :: ff_instrument:id().
+-type name()     :: ff_instrument:name().
 -type account()  :: ff_account:account().
--type resource() ::
-    {bank_card, resource_bank_card()}.
-
--type id() :: binary().
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
+-type status()   :: ff_identity:status().
+-type resource() ::
+    {bank_card, resource_bank_card()}.
 
 -type resource_bank_card() :: #{
     token          := binary(),
@@ -24,30 +26,18 @@
     masked_pan     => binary()
 }.
 
--type status() ::
-    unauthorized |
-    authorized.
-
--type destination() :: #{
-    account  := account() | undefined,
-    resource := resource(),
-    name     := binary(),
-    status   := status()
-}.
-
--type event() ::
-    {created, destination()} |
-    {account, ff_account:ev()} |
-    {status_changed, status()}.
+-type destination() :: ff_instrument:instrument(resource()).
+-type params()      :: ff_instrument_machine:params(resource()).
+-type machine()     :: ff_instrument_machine:st(resource()).
 
 -export_type([id/0]).
 -export_type([destination/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
--export_type([event/0]).
+
+%% Accessors
 
 -export([account/1]).
-
 -export([id/1]).
 -export([name/1]).
 -export([identity/1]).
@@ -55,95 +45,59 @@
 -export([resource/1]).
 -export([status/1]).
 
--export([create/5]).
--export([authorize/1]).
+%% API
 
+-export([create/3]).
+-export([get_machine/1]).
+-export([get/1]).
 -export([is_accessible/1]).
-
--export([apply_event/2]).
-
-%% Pipeline
-
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
 
--spec account(destination()) ->
-    account().
+-spec id(destination())       -> id().
+-spec name(destination())     -> name().
+-spec account(destination())  -> account().
+-spec identity(destination()) -> identity().
+-spec currency(destination()) -> currency().
+-spec resource(destination()) -> resource().
+-spec status(destination())   -> status().
 
-account(#{account := V}) ->
-    V.
+id(Destination)       -> ff_instrument:id(Destination).
+name(Destination)     -> ff_instrument:name(Destination).
+identity(Destination) -> ff_instrument:identity(Destination).
+currency(Destination) -> ff_instrument:currency(Destination).
+resource(Destination) -> ff_instrument:resource(Destination).
+status(Destination)   -> ff_instrument:status(Destination).
+account(Destination)  -> ff_instrument:account(Destination).
 
--spec id(destination()) ->
-    id().
--spec name(destination()) ->
-    binary().
--spec identity(destination()) ->
-    identity().
--spec currency(destination()) ->
-    currency().
--spec resource(destination()) ->
-    resource().
--spec status(destination()) ->
-    status().
+%% API
 
-id(Destination) ->
-    ff_account:id(account(Destination)).
-name(#{name := V}) ->
-    V.
-identity(Destination) ->
-    ff_account:identity(account(Destination)).
-currency(Destination) ->
-    ff_account:currency(account(Destination)).
-resource(#{resource := V}) ->
-    V.
-status(#{status := V}) ->
-    V.
+-define(NS, 'ff/destination_v2').
 
-%%
+-spec create(id(), params(), ctx()) ->
+    ok |
+    {error,
+        _InstrumentCreateError |
+        exists
+    }.
 
--spec create(id(), identity(), binary(), currency(), resource()) ->
-    {ok, [event()]} |
-    {error, _WalletError}.
+create(ID, Params, Ctx) ->
+    ff_instrument_machine:create(?NS, ID, Params, Ctx).
 
-create(ID, IdentityID, Name, CurrencyID, Resource) ->
-    do(fun () ->
-        Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
-        Currency = unwrap(currency, ff_currency:get(CurrencyID)),
-        Events = unwrap(ff_account:create(ID, Identity, Currency)),
-        [{created, #{name => Name, resource => Resource}}] ++
-        [{account, Ev} || Ev <- Events] ++
-        [{status_changed, unauthorized}]
-    end).
+-spec get_machine(id()) ->
+    {ok, machine()}       |
+    {error, notfound} .
+get_machine(ID) ->
+    ff_instrument_machine:get(?NS, ID).
 
--spec authorize(destination()) ->
-    {ok, [event()]} |
-    {error, _TODO}.
-
-authorize(#{status := unauthorized}) ->
-    % TODO
-    %  - Do the actual authorization
-    {ok, [{status_changed, authorized}]};
-authorize(#{status := authorized}) ->
-    {ok, []}.
+-spec get(machine()) ->
+    destination().
+get(Machine) ->
+    ff_instrument_machine:instrument(Machine).
 
 -spec is_accessible(destination()) ->
     {ok, accessible} |
     {error, ff_party:inaccessibility()}.
 
 is_accessible(Destination) ->
-    ff_account:is_accessible(account(Destination)).
-
-%%
-
--spec apply_event(event(), ff_maybe:maybe(destination())) ->
-    destination().
-
-apply_event({created, Destination}, undefined) ->
-    Destination;
-apply_event({status_changed, S}, Destination) ->
-    Destination#{status => S};
-apply_event({account, Ev}, Destination = #{account := Account}) ->
-    Destination#{account => ff_account:apply_event(Ev, Account)};
-apply_event({account, Ev}, Destination) ->
-    apply_event({account, Ev}, Destination#{account => undefined}).
+    ff_instrument:is_accessible(Destination).

@@ -66,6 +66,6 @@ status(Type, Session) ->
 %%
 
 dispatch_session(withdrawal) ->
-    ff_withdrawal_session_machine.
-%% dispatch_session(deposit) ->
-%%     ff_deposit_session_machine.
+    ff_withdrawal_session_machine;
+dispatch_session(deposit) ->
+    ff_deposit_session_machine.

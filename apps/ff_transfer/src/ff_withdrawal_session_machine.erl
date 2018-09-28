@@ -164,8 +164,8 @@ process_intent({sleep, Timer}) ->
 -spec create_session(id(), data(), params()) ->
     session().
 create_session(ID, Data = #{cash := Cash}, #{destination := DestinationID}) ->
-    {ok, DestinationSt} = ff_destination_machine:get(DestinationID),
-    Destination = ff_destination_machine:destination(DestinationSt),
+    {ok, DestinationSt} = ff_destination:get_machine(DestinationID),
+    Destination = ff_destination:get(DestinationSt),
     ProviderID = get_provider(Destination, Cash),
     #{
         id         => ID,

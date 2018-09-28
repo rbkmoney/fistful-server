@@ -5,7 +5,7 @@
 -module(ff_transfer).
 
 -type id(T)         :: T.
--type type()        :: withdrawal. %% | deposit | transfer.
+-type type()        :: withdrawal | deposit. %% | transfer.
 -type account()     :: ff_account:account().
 -type body()        :: ff_transaction:body().
 -type params(T)     :: T.
@@ -207,8 +207,8 @@ migrate(T = #{version := 1}) ->
     T;
 migrate(T) ->
     DestinationID = maps:get(destination, T),
-    {ok, DestinationSt} = ff_destination_machine:get(DestinationID),
-    DestinationAcc = ff_destination:account(ff_destination_machine:destination(DestinationSt)),
+    {ok, DestinationSt} = ff_destination:get_machine(DestinationID),
+    DestinationAcc = ff_destination:account(ff_destination:get(DestinationSt)),
     SourceID = maps:get(source, T),
     {ok, SourceSt} = ff_wallet_machine:get(SourceID),
     SourceAcc = ff_wallet:account(ff_wallet_machine:wallet(SourceSt)),

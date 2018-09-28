@@ -276,7 +276,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     DestinationId = next_id('destination'),
     do(fun() ->
         _ = check_resource(identity, IdenityId, Context),
-        ok = unwrap(ff_destination_machine:create(
+        ok = unwrap(ff_destination:create(
             DestinationId, from_swag(destination_params, Params), make_ctx(Params, [], Context)
         )),
         unwrap(get_destination(DestinationId, Context))
@@ -417,7 +417,7 @@ get_state(Resource, Id, Context) ->
 
 do_get_state(identity,    Id) -> ff_identity_machine:get(Id);
 do_get_state(wallet,      Id) -> ff_wallet_machine:get(Id);
-do_get_state(destination, Id) -> ff_destination_machine:get(Id);
+do_get_state(destination, Id) -> ff_destination:get_machine(Id);
 do_get_state(withdrawal,  Id) -> ff_withdrawal:get_machine(Id).
 
 check_resource(Resource, Id, Context) ->
@@ -684,7 +684,7 @@ to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
         }
     };
 to_swag(destination, State) ->
-    Destination = ff_destination_machine:destination(State),
+    Destination = ff_destination:get(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>         => ff_destination:id(Destination),

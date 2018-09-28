@@ -65,7 +65,7 @@ init_per_suite(C) ->
         [
             construct_handler(ff_identity_machine           , "identity"           , BeConf),
             construct_handler(ff_wallet_machine             , "wallet"             , BeConf),
-            construct_handler(ff_destination_machine        , "destination"        , BeConf),
+            construct_handler(ff_instrument_machine         , "destination"        , BeConf),
             construct_handler(ff_transfer_machine           , "withdrawal"         , BeConf),
             construct_handler(ff_withdrawal_session_machine , "withdrawal/session" , BeConf)
         ],
@@ -138,14 +138,14 @@ withdrawal_ok(C) ->
     SID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     % Create destination
     DID = create_destination(IID, <<"XDDD">>, <<"RUB">>, Resource, C),
-    {ok, DS1} = ff_destination_machine:get(DID),
-    D1 = ff_destination_machine:destination(DS1),
+    {ok, DS1} = ff_destination:get_machine(DID),
+    D1 = ff_destination:get(DS1),
     unauthorized = ff_destination:status(D1),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, DS} = ff_destination_machine:get(DID),
-            ff_destination:status(ff_destination_machine:destination(DS))
+            {ok, DS} = ff_destination:get_machine(DID),
+            ff_destination:status(ff_destination:get(DS))
         end
     ),
     % Pass identification
@@ -212,7 +212,7 @@ create_wallet(IdentityID, Name, Currency, _C) ->
 
 create_destination(IdentityID, Name, Currency, Resource, _C) ->
     ID = genlib:unique(),
-    ok = ff_destination_machine:create(
+    ok = ff_destination:create(
         ID,
         #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
         ff_ctx:new()

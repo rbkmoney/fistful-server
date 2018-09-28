@@ -106,7 +106,7 @@ create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ct
 -spec get(machine()) ->
     withdrawal().
 
-get(St = #{model := _}) ->
+get(St) ->
     ff_transfer_machine:transfer(St).
 
 -spec get_machine(id()) ->

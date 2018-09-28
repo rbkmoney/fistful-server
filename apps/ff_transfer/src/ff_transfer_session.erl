@@ -1,5 +1,5 @@
 %%%
-%%% Transfer between 2 accounts
+%%% Transfer session behaviour
 %%%
 
 -module(ff_transfer_session).

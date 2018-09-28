@@ -1,5 +1,5 @@
 %%%
-%%% Withdrawal
+%%% Deposit
 %%%
 
 -module(ff_deposit).

@@ -3,8 +3,7 @@
 %%%
 %%% TODOs
 %%%
-%%%  - We must consider withdrawal provider terms ensure that the provided
-%%%    Resource is ok to withdraw to.
+%%%  - Implement a generic source instead of a current dummy one.
 %%%
 
 -module(ff_source).

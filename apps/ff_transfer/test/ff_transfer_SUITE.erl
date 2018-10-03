@@ -1,12 +1,18 @@
 -module(ff_transfer_SUITE).
 
+-include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+
 -export([all/0]).
+-export([groups/0]).
 -export([init_per_suite/1]).
 -export([end_per_suite/1]).
+-export([init_per_group/2]).
+-export([end_per_group/2]).
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
 -export([get_missing_fails/1]).
+-export([deposit_via_admin_ok/1]).
 -export([deposit_withdrawal_ok/1]).
 
 -import(ct_helper, [cfg/2]).
@@ -19,9 +25,17 @@
 -spec all() -> [test_case_name() | {group, group_name()}].
 
 all() ->
+    [{group, default}].
+
+-spec groups() -> [{group_name(), list(), [test_case_name()]}].
+
+groups() ->
     [
-        get_missing_fails,
-        deposit_withdrawal_ok
+        {default, [parallel], [
+            get_missing_fails,
+            deposit_via_admin_ok,
+            deposit_withdrawal_ok
+        ]}
     ].
 
 -spec init_per_suite(config()) -> config().
@@ -77,13 +91,14 @@ init_per_suite(C) ->
         ],
         BeOpts
     ),
+    AdminRoutes = get_admin_routes(),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
         BeOpts#{
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => Routes
+            additional_routes => AdminRoutes ++ Routes
         }
     )),
     C1 = ct_helper:makeup_cfg(
@@ -106,6 +121,13 @@ construct_handler(Module, Suffix, BeConf) ->
     {{fistful, Module},
         #{path => ff_string:join(["/v1/stateproc/ff/", Suffix]), backend_config => BeConf}}.
 
+get_admin_routes() ->
+    Path = <<"/v1/admin">>,
+    woody_server_thrift_http_handler:get_routes(#{
+        handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
+        event_handler => scoper_woody_event_handler
+    }).
+
 -spec end_per_suite(config()) -> _.
 
 end_per_suite(C) ->
@@ -113,6 +135,17 @@ end_per_suite(C) ->
     ok = ct_helper:stop_apps(cfg(started_apps, C)),
     ok.
 
+%%
+
+-spec init_per_group(group_name(), config()) -> config().
+
+init_per_group(_, C) ->
+    C.
+
+-spec end_per_group(group_name(), config()) -> _.
+
+end_per_group(_, _) ->
+    ok.
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -130,11 +163,57 @@ end_per_testcase(_Name, _C) ->
 %%
 
 -spec get_missing_fails(config()) -> test_return().
+-spec deposit_via_admin_ok(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
     {error, notfound} = ff_withdrawal:get_machine(ID).
+
+deposit_via_admin_ok(C) ->
+    Party = create_party(C),
+    IID = create_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    {0, <<"RUB">>} = get_wallet_balance(WalID),
+
+    % Create source
+    {ok, Src1} = admin_call('CreateSource', [#fistful_SourceParams{
+        name     = <<"HAHA NO">>,
+        identity_id = IID,
+        currency = #fistful_CurrencyRef{symbolic_code = <<"RUB">>},
+        resource = #fistful_SourceResource{details = <<"Infinite source of cash">>}
+    }]),
+    unauthorized = Src1#fistful_Source.status,
+    SrcID = Src1#fistful_Source.id,
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, Src} = admin_call('GetSource', [SrcID]),
+            Src#fistful_Source.status
+        end
+    ),
+
+    % Process deposit
+    {ok, Dep1} = admin_call('CreateDeposit', [#fistful_DepositParams{
+            source      = SrcID,
+            destination = WalID,
+            body        = #fistful_DepositBody{
+                amount   = 20000,
+                currency = #fistful_CurrencyRef{symbolic_code = <<"RUB">>}
+            }
+    }]),
+    DepID = Dep1#fistful_Deposit.id,
+    {pending, _} = Dep1#fistful_Deposit.status,
+    succeeded = ct_helper:await(
+        succeeded,
+        fun () ->
+            {ok, Dep} = admin_call('GetDeposit', [DepID]),
+             {Status, _} = Dep#fistful_Deposit.status,
+             Status
+        end,
+        genlib_retry:linear(3, 5000)
+    ),
+    {20000, <<"RUB">>} = get_wallet_balance(WalID).
 
 deposit_withdrawal_ok(C) ->
     Party = create_party(C),
@@ -144,7 +223,7 @@ deposit_withdrawal_ok(C) ->
     {0, <<"RUB">>} = get_wallet_balance(WalID),
 
     % Create source
-    SrcResource = #{type => internal, details => "Infinite source of cash"},
+    SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
     SrcID = create_instrument(source, IID, <<"XSource">>, <<"RUB">>, SrcResource, C),
     {ok, SrcM1} = ff_source:get_machine(SrcID),
     Src1 = ff_source:get(SrcM1),
@@ -224,7 +303,7 @@ deposit_withdrawal_ok(C) ->
             {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
             ff_withdrawal:status(ff_withdrawal:get(WdrM))
         end,
-        genlib_retry:linear(3, 5000)
+        genlib_retry:linear(5, 5000)
     ),
     {10000 - 4242, <<"RUB">>} = get_wallet_balance(WalID).
 
@@ -278,6 +357,15 @@ create_instrument(source, ID, Params, Ctx, _C) ->
 
 generate_id() ->
     genlib:to_binary(genlib_time:ticks() div 1000).
+
+admin_call(Fun, Args) ->
+    Service = {ff_proto_fistful_thrift, 'FistfulAdmin'},
+    Request = {Service, Fun, Args},
+    Client  = ff_woody_client:new(#{
+        url           => <<"http://localhost:8022/v1/admin">>,
+        event_handler => woody_event_handler_default
+    }),
+    ff_woody_client:call(Client, Request).
 
 %%
 

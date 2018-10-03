@@ -14,6 +14,7 @@
         scoper,
         fistful,
         ff_transfer,
+        fistful_proto,
         wapi
     ]},
     {env, []},

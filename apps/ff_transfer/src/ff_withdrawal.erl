@@ -151,7 +151,7 @@ create_session(Withdrawal) ->
     },
     do(fun () ->
         ok = unwrap(ff_withdrawal_session_machine:create(ID, TransferData, #{destination => destination(Withdrawal)})),
-        [{session, {ID, started}}]
+        [{session_started, ID}]
     end).
 
 construct_session_id(ID) ->
@@ -165,12 +165,12 @@ poll_session_completion(#{session := SID}) ->
                 poll;
             {finished, {success, _}} ->
                 [
-                    {session, {SID, finished}},
+                    {session_finished, SID},
                     {status_changed, succeeded}
                 ];
             {finished, {failed, Failure}} ->
                 [
-                    {session, {SID, finished}},
+                    {session_finished, SID},
                     {status_changed, {failed, Failure}}
                 ]
         end

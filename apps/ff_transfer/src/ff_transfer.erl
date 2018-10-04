@@ -35,8 +35,8 @@
 -type event() ::
     {created, transfer(_)}                  |
     {p_transfer, ff_postings_transfer:ev()} |
-    {session, {session(), started}}         |
-    {session, {session(), finished}}        |
+    {session_started, session()}            |
+    {session_finished, session()}           |
     {status_changed, status()}              .
 
 -export_type([transfer/1]).
@@ -163,9 +163,9 @@ apply_event({p_transfer, Ev}, T = #{p_transfer := PT}) ->
     T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
 apply_event({p_transfer, Ev}, T) ->
     apply_event({p_transfer, Ev}, T#{p_transfer => undefined});
-apply_event({session, {S, started}}, T) ->
+apply_event({session_started, S}, T) ->
     maps:put(session, S, T);
-apply_event({session, {S, finished}}, T = #{session := S}) ->
+apply_event({session_finished, S}, T = #{session := S}) ->
     maps:remove(session, T).
 
 %%

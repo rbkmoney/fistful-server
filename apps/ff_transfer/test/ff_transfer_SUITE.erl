@@ -174,7 +174,7 @@ deposit_via_admin_ok(C) ->
     Party = create_party(C),
     IID = create_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
-    {0, <<"RUB">>} = get_wallet_balance(WalID),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
 
     % Create source
     {ok, Src1} = admin_call('CreateSource', [#fistful_SourceParams{
@@ -213,14 +213,14 @@ deposit_via_admin_ok(C) ->
         end,
         genlib_retry:linear(3, 5000)
     ),
-    {20000, <<"RUB">>} = get_wallet_balance(WalID).
+    ok = await_wallet_balance({20000, <<"RUB">>}, WalID).
 
 deposit_withdrawal_ok(C) ->
     Party = create_party(C),
     IID = create_identity(Party, C),
     ICID = genlib:unique(),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
-    {0, <<"RUB">>} = get_wallet_balance(WalID),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
 
     % Create source
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
@@ -253,7 +253,7 @@ deposit_withdrawal_ok(C) ->
         end,
         genlib_retry:linear(3, 5000)
     ),
-    {10000, <<"RUB">>} = get_wallet_balance(WalID),
+    ok = await_wallet_balance({10000, <<"RUB">>}, WalID),
 
     % Create destination
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
@@ -305,7 +305,7 @@ deposit_withdrawal_ok(C) ->
         end,
         genlib_retry:linear(5, 5000)
     ),
-    {10000 - 4242, <<"RUB">>} = get_wallet_balance(WalID).
+    ok = await_wallet_balance({10000 - 4242, <<"RUB">>}, WalID).
 
 create_party(_C) ->
     ID = genlib:unique(),
@@ -332,6 +332,14 @@ create_wallet(IdentityID, Name, Currency, _C) ->
         ff_ctx:new()
     ),
     ID.
+
+await_wallet_balance(Balance, ID) ->
+    Balance = ct_helper:await(
+        Balance,
+        fun () -> get_wallet_balance(ID) end,
+        genlib_retry:linear(3, 500)
+    ),
+    ok.
 
 get_wallet_balance(ID) ->
     {ok, Machine} = ff_wallet_machine:get(ID),

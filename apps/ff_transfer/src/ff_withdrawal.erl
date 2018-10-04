@@ -22,6 +22,10 @@
 -export_type([transfer_params/0]).
 -export_type([events/0]).
 
+%% ff_transfer_machine behaviour
+-behaviour(ff_transfer_machine).
+-export([process_transfer/1]).
+
 %% Accessors
 
 -export([source/1]).
@@ -91,12 +95,11 @@ create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ct
         ),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
         Params = #{
-            type        => withdrawal,
+            handler     => ?MODULE,
             source      => ff_wallet:account(Source),
             destination => ff_destination:account(Destination),
             body        => Body,
             params      => #{
-                source      => SourceID,
                 destination => DestinationID
             }
         },
@@ -122,3 +125,53 @@ get_machine(ID) ->
 
 events(ID, Range) ->
     ff_transfer_machine:events(?NS, ID, Range).
+
+%% ff_transfer_machine behaviour
+
+-spec process_transfer(withdrawal()) ->
+    {ok, [ff_transfer_machine:event(ff_transfer:event())]} |
+    {error, _Reason}.
+
+process_transfer(Transfer = #{status := pending, session := _}) ->
+    poll_session_completion(Transfer);
+process_transfer(Transfer = #{status := pending, p_transfer := #{status := prepared}}) ->
+    create_session(Transfer);
+process_transfer(Transfer) ->
+    ff_transfer:process_transfer(Transfer).
+
+create_session(Withdrawal) ->
+    ID = construct_session_id(id(Withdrawal)),
+    {ok, SenderSt} = ff_identity_machine:get(ff_account:identity(ff_transfer:source(Withdrawal))),
+    {ok, ReceiverSt} = ff_identity_machine:get(ff_account:identity(ff_transfer:destination(Withdrawal))),
+    TransferData = #{
+        id          => ID,
+        cash        => body(Withdrawal),
+        sender      => ff_identity_machine:identity(SenderSt),
+        receiver    => ff_identity_machine:identity(ReceiverSt)
+    },
+    do(fun () ->
+        ok = unwrap(ff_withdrawal_session_machine:create(ID, TransferData, #{destination => destination(Withdrawal)})),
+        [{session, {ID, started}}]
+    end).
+
+construct_session_id(ID) ->
+    ID.
+
+poll_session_completion(#{session := SID}) ->
+    {ok, Session} = ff_withdrawal_session_machine:get(SID),
+    do(fun () ->
+        case ff_withdrawal_session_machine:status(Session) of
+            active ->
+                poll;
+            {finished, {success, _}} ->
+                [
+                    {session, {SID, finished}},
+                    {status_changed, succeeded}
+                ];
+            {finished, {failed, Failure}} ->
+                [
+                    {session, {SID, finished}},
+                    {status_changed, {failed, Failure}}
+                ]
+        end
+    end).

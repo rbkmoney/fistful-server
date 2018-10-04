@@ -22,6 +22,10 @@
 -export_type([transfer_params/0]).
 -export_type([events/0]).
 
+%% ff_transfer_machine behaviour
+-behaviour(ff_transfer_machine).
+-export([process_transfer/1]).
+
 %% Accessors
 
 -export([source/1]).
@@ -60,7 +64,6 @@ destination_acc(T) -> ff_transfer:destination(T).
 body(T)            -> ff_transfer:body(T).
 status(T)          -> ff_transfer:status(T).
 
-
 %%
 
 -define(NS, 'ff/deposit_v1').
@@ -88,7 +91,7 @@ create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ct
         Destination = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(DestinationID))),
         ok = unwrap(source, valid(authorized, ff_source:status(Source))),
         Params = #{
-            type        => deposit,
+            handler     => ?MODULE,
             source      => ff_source:account(Source),
             destination => ff_wallet:account(Destination),
             body        => Body,
@@ -119,3 +122,13 @@ get_machine(ID) ->
 
 events(ID, Range) ->
     ff_transfer_machine:events(?NS, ID, Range).
+
+%% ff_transfer_machine behaviour
+
+-spec process_transfer(deposit()) ->
+    {ok, [ff_transfer_machine:event(ff_transfer:event())]} |
+    {error, _Reason}.
+process_transfer(#{status := pending, p_transfer := #{status := prepared}}) ->
+    {ok, [{status_changed, succeeded}]};
+process_transfer(Transfer) ->
+    ff_transfer:process_transfer(Transfer).

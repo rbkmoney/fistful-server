@@ -100,6 +100,7 @@ create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ct
             destination => ff_destination:account(Destination),
             body        => Body,
             params      => #{
+                source      => SourceID,
                 destination => DestinationID
             }
         },

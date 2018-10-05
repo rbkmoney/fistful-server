@@ -155,31 +155,32 @@ process_activity(cancel_transfer, Transfer) ->
 -spec apply_event(event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
 
-apply_event({created, T}, undefined) ->
-    migrate(T);
-apply_event({status_changed, S}, T) ->
+apply_event(Ev, T) ->
+    apply_event_(maybe_migrate(Ev), T).
+
+apply_event_({created, T}, undefined) ->
+    T;
+apply_event_({status_changed, S}, T) ->
     maps:put(status, S, T);
-apply_event({p_transfer, Ev}, T = #{p_transfer := PT}) ->
+apply_event_({p_transfer, Ev}, T = #{p_transfer := PT}) ->
     T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
-apply_event({p_transfer, Ev}, T) ->
+apply_event_({p_transfer, Ev}, T) ->
     apply_event({p_transfer, Ev}, T#{p_transfer => undefined});
-apply_event({session_started, S}, T) ->
+apply_event_({session_started, S}, T) ->
     maps:put(session, S, T);
-apply_event({session_finished, S}, T = #{session := S}) ->
+apply_event_({session_finished, S}, T = #{session := S}) ->
     maps:remove(session, T).
 
-%%
-
-migrate(T = #{version := 1}) ->
-    T;
-migrate(T) ->
+maybe_migrate(Ev = {created, #{version := 1}}) ->
+    Ev;
+maybe_migrate({created, T}) ->
     DestinationID = maps:get(destination, T),
     {ok, DestinationSt} = ff_destination:get_machine(DestinationID),
     DestinationAcc = ff_destination:account(ff_destination:get(DestinationSt)),
     SourceID = maps:get(source, T),
     {ok, SourceSt} = ff_wallet_machine:get(SourceID),
     SourceAcc = ff_wallet:account(ff_wallet_machine:wallet(SourceSt)),
-    T#{
+    {created, T#{
         version     => 1,
         handler     => ff_withdrawal,
         source      => SourceAcc,
@@ -188,4 +189,8 @@ migrate(T) ->
             destination => DestinationID,
             source      => SourceID
         }
-    }.
+    }};
+maybe_migrate({transfer, PTransferEv}) ->
+    {p_transfer, PTransferEv};
+maybe_migrate(Ev) ->
+    Ev.

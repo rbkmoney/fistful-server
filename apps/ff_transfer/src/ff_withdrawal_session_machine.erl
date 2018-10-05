@@ -13,9 +13,7 @@
 
 -define(NS, 'ff/withdrawal/session_v2').
 
-%% ff_transfer behaviour
-
--behaviour(ff_transfer_session).
+%% API
 
 -export([create/3]).
 -export([get/1]).
@@ -32,25 +30,34 @@
 %%
 -type id() :: machinery:id().
 
--type session() :: ff_transfer_session:session(#{
+-type session() :: #{
     id         => id(),
-    status     => session_status(),
+    status     => status(),
     withdrawal => withdrawal(),
     provider   => ff_withdrawal_provider:provider(),
     adapter    => ff_withdrawal_provider:adapter()
-}).
+}.
 
 -type session_result() :: {success, trx_info()} | {failed, ff_adapter_withdrawal:failure()}.
 
--type session_status() :: ff_transfer_session:status().
+-type status() :: active
+    | {finished, {success, _} | {failed, _}}.
 
 
 -type ev() :: {created, session()}
     | {next_state, ff_adapter:state()}
     | {finished, session_result()}.
 
--type data()   :: ff_transfer_session:data().
--type params() :: ff_transfer_session:params(ff_withdrawal:transfer_params()).
+-type data() :: #{
+    id       := id(),
+    cash     := ff_transaction:body(),
+    sender   := ff_identity:identity(),
+    receiver := ff_identity:identity()
+}.
+
+-type params() :: #{
+    destination := ff_destination:id(_)
+}.
 
 %%
 %% Internal types
@@ -79,7 +86,7 @@
 %%
 
 -spec status(session()) ->
-    session_status().
+    status().
 
 status(#{status := V}) -> V.
 
@@ -186,7 +193,7 @@ get_adapter(ProviderID) ->
 create_adapter_withdrawal(Data, Destination) ->
     Data#{destination => Destination}.
 
--spec set_session_status(session_status(), session()) -> session().
+-spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->
     Session#{status => SessionState}.
 
@@ -227,4 +234,3 @@ emit_ts_events(Es) ->
 
 emit_ts_events(Es, Ts) ->
     [{ev, Ts, Body} || Body <- Es].
-

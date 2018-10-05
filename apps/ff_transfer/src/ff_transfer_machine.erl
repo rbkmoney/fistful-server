@@ -1,10 +1,6 @@
 %%%
 %%% Transfer machine
 %%%
-%%% TODO
-%%%  - add support for custom activity callbacls for
-%%%    particular tranfer machines (withdrawal, deposit, etc).
-%%%
 
 -module(ff_transfer_machine).
 
@@ -15,23 +11,30 @@
 -type ctx()       :: ff_ctx:ctx().
 -type transfer(T) :: ff_transfer:transfer(T).
 -type account()   :: ff_account:account().
--type events() :: [{integer(), ff_machine:timestamped_event(event())}].
+-type event(T)    :: T.
+-type events(T)   :: [{integer(), ff_machine:timestamped_event(event(T))}].
 
--type activity() ::
-    prepare_transfer         |
-    create_session           |
-    await_session_completion |
-    commit_transfer          |
-    cancel_transfer          |
-    undefined                .
+%% Behaviour definition
 
--type st(T) ::
-    ff_machine:st(transfer(T)).
+-type st(T) :: ff_machine:st(transfer(T)).
 
 -export_type([id/0]).
 -export_type([ns/0]).
 -export_type([st/1]).
--export_type([events/0]).
+-export_type([event/1]).
+-export_type([events/1]).
+
+-callback process_transfer(transfer(_)) ->
+    {ok, [event(_)] | poll} |
+    {error, _Reason}.
+
+-callback process_call(_CallArgs, transfer(_)) ->
+    {ok, [event(_)] | poll} |
+    {error, _Reason}.
+
+-optional_callbacks([process_call/2]).
+
+%% API
 
 -export([create/4]).
 -export([get/2]).
@@ -56,7 +59,7 @@
 %%
 
 -type params() :: #{
-    type        := ff_transfer:type(),
+    handler     := ff_transfer:handler(),
     source      := account(),
     destination := account(),
     body        := ff_transaction:body(),
@@ -70,9 +73,12 @@
         exists
     }.
 
-create(NS, ID, #{type := Type, source := Source, destination := Destination, body := Body, params := Params}, Ctx) ->
+create(NS, ID,
+    #{handler := Handler, source := Source, destination := Destination, body := Body, params := Params},
+Ctx)
+->
     do(fun () ->
-        Events = unwrap(ff_transfer:create(Type, ID, Source, Destination, Body, Params)),
+        Events = unwrap(ff_transfer:create(Handler, ID, Source, Destination, Body, Params)),
         unwrap(machinery:start(NS, ID, {Events, Ctx}, backend(NS)))
     end).
 
@@ -84,7 +90,7 @@ get(NS, ID) ->
     ff_machine:get(ff_transfer, NS, ID).
 
 -spec events(ns(), id(), machinery:range()) ->
-    {ok, events()} |
+    {ok, events(_)} |
     {error, notfound}.
 
 events(NS, ID, Range) ->
@@ -106,14 +112,11 @@ transfer(St) ->
 
 %% Machinery
 
--type event() ::
-    ff_transfer:event().
-
--type machine()      :: ff_machine:machine(event()).
--type result()       :: ff_machine:result(event()).
+-type machine()      :: ff_machine:machine(event(_)).
+-type result()       :: ff_machine:result(event(_)).
 -type handler_opts() :: machinery:handler_opts(_).
 
--spec init({[event()], ctx()}, machine(), _, handler_opts()) ->
+-spec init({[event(_)], ctx()}, machine(), _, handler_opts()) ->
     result().
 
 init({Events, Ctx}, #{}, _, _Opts) ->
@@ -128,57 +131,29 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 
 process_timeout(Machine, _, _Opts) ->
     St = ff_machine:collapse(ff_transfer, Machine),
-    process_activity(deduce_activity(transfer(St)), St).
+    Transfer = transfer(St),
+    process_result((ff_transfer:handler(Transfer)):process_transfer(Transfer), St).
 
-process_activity(prepare_transfer, St) ->
-    case ff_transfer:prepare(transfer(St)) of
-        {ok, Events} ->
-            #{
-                events => ff_machine:emit_events(Events),
-                action => continue
-            };
-        {error, Reason} ->
-            #{
-                events => emit_failure(Reason)
-            }
-    end;
+-spec process_call(_CallArgs, machine(), _, handler_opts()) ->
+    {ok, result()}.
 
-process_activity(create_session, St) ->
-    case ff_transfer:create_session(transfer(St)) of
-        {ok, Events} ->
-            #{
-                events => ff_machine:emit_events(Events),
-                action => set_poll_timer(St)
-            };
-        {error, Reason} ->
-            #{
-                events => emit_failure(Reason)
-            }
-    end;
+process_call(CallArgs, Machine, _, _Opts) ->
+    St = ff_machine:collapse(ff_transfer, Machine),
+    Transfer = transfer(St),
+    {ok, process_result((ff_transfer:handler(Transfer)):process_call(CallArgs, Transfer), St)}.
 
-process_activity(await_session_completion, St) ->
-    case ff_transfer:poll_session_completion(transfer(St)) of
-        {ok, Events} when length(Events) > 0 ->
-            #{
-                events => ff_machine:emit_events(Events),
-                action => continue
-            };
-        {ok, []} ->
-            #{
-                action => set_poll_timer(St)
-            }
-    end;
-
-process_activity(commit_transfer, St) ->
-    {ok, Events} = ff_transfer:commit(transfer(St)),
+process_result({ok, poll}, St) ->
     #{
-        events => ff_machine:emit_events(Events)
+        action => set_poll_timer(St)
     };
-
-process_activity(cancel_transfer, St) ->
-    {ok, Events} = ff_transfer:cancel(transfer(St)),
+process_result({ok, Events}, _St) ->
     #{
-        events => ff_machine:emit_events(Events)
+        events => ff_machine:emit_events(Events),
+        action => continue
+    };
+process_result({error, Reason}, _St) ->
+    #{
+        events => emit_failure(Reason)
     }.
 
 set_poll_timer(St) ->
@@ -186,29 +161,5 @@ set_poll_timer(St) ->
     Timeout = erlang:max(1, machinery_time:interval(Now, ff_machine:updated(St)) div 1000),
     {set_timer, {timeout, Timeout}}.
 
--spec process_call(_CallArgs, machine(), _, handler_opts()) ->
-    {ok, result()}.
-
-process_call(_CallArgs, #{}, _, _Opts) ->
-    {ok, #{}}.
-
 emit_failure(Reason) ->
     ff_machine:emit_event({status_changed, {failed, Reason}}).
-
-%%
-
--spec deduce_activity(transfer(_)) ->
-    activity().
-
-deduce_activity(#{status := {failed, _}}) ->
-    cancel_transfer;
-deduce_activity(#{status := succeeded}) ->
-    commit_transfer;
-deduce_activity(#{session := _}) ->
-    await_session_completion;
-deduce_activity(#{p_transfer := #{status := prepared}}) ->
-    create_session;
-deduce_activity(#{p_transfer := #{status := created}}) ->
-    prepare_transfer;
-deduce_activity(_) ->
-    undefined.

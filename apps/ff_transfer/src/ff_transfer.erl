@@ -5,7 +5,7 @@
 -module(ff_transfer).
 
 -type id(T)         :: T.
--type type()        :: withdrawal | deposit. %% | transfer.
+-type handler()     :: module().
 -type account()     :: ff_account:account().
 -type body()        :: ff_transaction:body().
 -type params(T)     :: T.
@@ -14,7 +14,7 @@
 -type transfer(T) :: #{
     version     := non_neg_integer(),
     id          := id(binary()),
-    type        := type(),
+    handler     := handler(),
     source      := account(),
     destination := account(),
     body        := body(),
@@ -40,12 +40,12 @@
     {status_changed, status()}              .
 
 -export_type([transfer/1]).
--export_type([type/0]).
+-export_type([handler/0]).
 -export_type([params/1]).
 -export_type([event/0]).
 
 -export([id/1]).
--export([type/1]).
+-export([handler/1]).
 -export([source/1]).
 -export([destination/1]).
 -export([body/1]).
@@ -54,11 +54,10 @@
 -export([status/1]).
 
 -export([create/6]).
--export([prepare/1]).
--export([create_session/1]).
--export([poll_session_completion/1]).
--export([commit/1]).
--export([cancel/1]).
+
+%% ff_transfer_machine behaviour
+-behaviour(ff_transfer_machine).
+-export([process_transfer/1]).
 
 %% Event source
 
@@ -71,7 +70,7 @@
 %% Accessors
 
 -spec id(transfer(_))          -> id(binary()).
--spec type(transfer(_))        -> type().
+-spec handler(transfer(_))     -> handler().
 -spec source(transfer(_))      -> account().
 -spec destination(transfer(_)) -> account().
 -spec body(transfer(_))        -> body().
@@ -80,7 +79,7 @@
 -spec p_transfer(transfer(_))  -> p_transfer().
 
 id(#{id := V})                   -> V.
-type(#{type := V})               -> V.
+handler(#{handler := V})         -> V.
 source(#{source := V})           -> V.
 destination(#{destination := V}) -> V.
 body(#{body := V})               -> V.
@@ -90,20 +89,20 @@ p_transfer(#{p_transfer := V})   -> V.
 
 %%
 
--spec create(type(), id(_), account(), account(), body(), params(_)) ->
+-spec create(handler(), id(_), account(), account(), body(), params(_)) ->
     {ok, [event()]} |
     {error,
         _PostingsTransferError
     }.
 
-create(Type, ID, Source, Destination, Body, Params) ->
+create(Handler, ID, Source, Destination, Body, Params) ->
     do(fun () ->
         PTransferID = construct_p_transfer_id(ID),
         PostingsTransferEvents = unwrap(ff_postings_transfer:create(PTransferID, [{Source, Destination, Body}])),
         [{created, #{
             version     => 1,
             id          => ID,
-            type        => Type,
+            handler     => Handler,
             source      => Source,
             destination => Destination,
             body        => Body,
@@ -116,72 +115,40 @@ create(Type, ID, Source, Destination, Body, Params) ->
 construct_p_transfer_id(ID) ->
     ID.
 
--spec prepare(transfer(_)) ->
-    {ok, [event()]} |
-    {error, _PostingsTransferError}.
+%% ff_transfer_machine behaviour
 
-prepare(Transfer) ->
-    with(p_transfer, Transfer, fun ff_postings_transfer:prepare/1).
+-spec process_transfer(transfer(_)) ->
+    {ok, [ff_transfer_machine:event(event())] | poll} |
+    {error, _Reason}.
 
--spec commit(transfer(_)) ->
-    {ok, [event()]} |
-    {error, _PostingsTransferError}.
+process_transfer(Transfer) ->
+    process_activity(deduce_activity(Transfer), Transfer).
 
-commit(Transfer) ->
-    with(p_transfer, Transfer, fun ff_postings_transfer:commit/1).
+-type activity() ::
+    prepare_transfer         |
+    commit_transfer          |
+    cancel_transfer          |
+    undefined                .
 
--spec cancel(transfer(_)) ->
-    {ok, [event()]} |
-    {error, _PostingsTransferError}.
+-spec deduce_activity(transfer(_)) ->
+    activity().
+deduce_activity(#{status := {failed, _}, p_transfer := #{status := prepared}}) ->
+    cancel_transfer;
+deduce_activity(#{status := succeeded, p_transfer := #{status := prepared}}) ->
+    commit_transfer;
+deduce_activity(#{status := pending, p_transfer := #{status := created}}) ->
+    prepare_transfer;
+deduce_activity(_) ->
+    undefined.
 
-cancel(Transfer) ->
+process_activity(prepare_transfer, Transfer) ->
+    with(p_transfer, Transfer, fun ff_postings_transfer:prepare/1);
+
+process_activity(commit_transfer, Transfer) ->
+    with(p_transfer, Transfer, fun ff_postings_transfer:commit/1);
+
+process_activity(cancel_transfer, Transfer) ->
     with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1).
-
--spec create_session(transfer(_)) ->
-    {ok, [event()]} |
-    {error, _SessionError}.
-
-create_session(Transfer) ->
-    ID = construct_session_id(id(Transfer)),
-    {ok, SenderSt} = ff_identity_machine:get(ff_account:identity(source(Transfer))),
-    {ok, ReceiverSt} = ff_identity_machine:get(ff_account:identity(destination(Transfer))),
-    TransferData = #{
-        id          => ID,
-        cash        => body(Transfer),
-        sender      => ff_identity_machine:identity(SenderSt),
-        receiver    => ff_identity_machine:identity(ReceiverSt)
-    },
-    do(fun () ->
-        ok = unwrap(ff_transfer_session:create(type(Transfer), ID, TransferData, params(Transfer))),
-        [{session_started, ID}]
-    end).
-
-construct_session_id(ID) ->
-    ID.
-
--spec poll_session_completion(transfer(_)) ->
-    {ok, [event()]}.
-
-poll_session_completion(_Transfer = #{type := Type, session := SID}) ->
-    {ok, Session} = ff_transfer_session:get(Type, SID),
-    do(fun () ->
-        case ff_transfer_session:status(Type, Session) of
-            active ->
-                [];
-            {finished, {success, _}} ->
-                [
-                    {session_finished, SID},
-                    {status_changed, succeeded}
-                ];
-            {finished, {failed, Failure}} ->
-                [
-                    {session_finished, SID},
-                    {status_changed, {failed, Failure}}
-                ]
-        end
-    end);
-poll_session_completion(_Transfer) ->
-    {error, {session, notfound}}.
 
 %%
 
@@ -214,7 +181,7 @@ migrate(T) ->
     SourceAcc = ff_wallet:account(ff_wallet_machine:wallet(SourceSt)),
     T#{
         version     => 1,
-        type        => withdrawal,
+        handler     => ff_withdrawal,
         source      => SourceAcc,
         destination => DestinationAcc,
         params => #{

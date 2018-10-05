@@ -80,15 +80,18 @@ init([]) ->
                         port              => genlib_app:env(?MODULE, port, 8022),
                         handlers          => [],
                         event_handler     => scoper_woody_event_handler,
-                        additional_routes => machinery_mg_backend:get_routes(
-                            Handlers,
-                            maps:merge(
-                                genlib_app:env(?MODULE, route_opts, #{}),
-                                #{
-                                    event_handler => scoper_woody_event_handler
-                                }
-                            )
-                        ) ++ [erl_health_handle:get_route(HealthCheckers)]
+                        additional_routes =>
+                            machinery_mg_backend:get_routes(
+                                Handlers,
+                                maps:merge(
+                                    genlib_app:env(?MODULE, route_opts, #{}),
+                                    #{
+                                        event_handler => scoper_woody_event_handler
+                                    }
+                                )
+                            ) ++
+                            get_admin_routes() ++
+                            [erl_health_handle:get_route(HealthCheckers)]
                     }
                 )
             )
@@ -117,3 +120,13 @@ get_service_client(ServiceID) ->
         #{} ->
             error({'woody service undefined', ServiceID})
     end.
+
+get_admin_routes() ->
+    Opts = genlib_app:env(?MODULE, admin, #{}),
+    Path = maps:get(path, Opts, <<"/v1/admin">>),
+    Limits = genlib_map:get(handler_limits, Opts),
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
+        event_handler => scoper_woody_event_handler,
+        handler_limits => Limits
+    })).

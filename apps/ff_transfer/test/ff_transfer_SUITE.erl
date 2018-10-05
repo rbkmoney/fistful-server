@@ -58,6 +58,7 @@ init_per_suite(C) ->
             }},
             {backends, maps:from_list([{NS, Be} || NS <- [
                 'ff/identity'              ,
+                'ff/sequence'              ,
                 'ff/wallet_v2'             ,
                 'ff/source_v1'             ,
                 'ff/deposit_v1'            ,
@@ -81,6 +82,7 @@ init_per_suite(C) ->
     Routes = machinery_mg_backend:get_routes(
         [
             construct_handler(ff_identity_machine           , "identity"           , BeConf),
+            construct_handler(ff_sequence                   , "sequence"           , BeConf),
             construct_handler(ff_wallet_machine             , "wallet"             , BeConf),
             construct_handler(ff_instrument_machine         , "source"             , BeConf),
             construct_handler(ff_transfer_machine           , "deposit"            , BeConf),

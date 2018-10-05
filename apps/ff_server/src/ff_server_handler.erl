@@ -29,7 +29,7 @@ handle_function(Func, Args, Context, Opts) ->
 %%
 
 handle_function_('CreateSource', [Params], Context, Opts) ->
-    SourceID = genlib:unique(),
+    SourceID = next_id('source'),
     case ff_source:create(SourceID, #{
             identity => Params#fistful_SourceParams.identity_id,
             name     => Params#fistful_SourceParams.name,
@@ -54,7 +54,7 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
             woody_error:raise(business, #fistful_SourceNotFound{})
     end;
 handle_function_('CreateDeposit', [Params], Context, Opts) ->
-    DepositID = genlib:unique(),
+    DepositID = next_id('deposit'),
     case ff_deposit:create(DepositID, #{
             source      => Params#fistful_DepositParams.source,
             destination => Params#fistful_DepositParams.destination,
@@ -136,3 +136,9 @@ encode(context, #{}) ->
     undefined;
 encode(context, Ctx) ->
     Ctx.
+
+next_id(Type) ->
+    NS = 'ff/sequence',
+    erlang:integer_to_binary(
+        ff_sequence:next(NS, ff_string:join($/, [Type, id]), fistful:backend(NS))
+    ).

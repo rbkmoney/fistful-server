@@ -78,7 +78,7 @@ init_per_suite(C) ->
         ]}
     ]),
     SuiteSup = ct_sup:start(),
-    BeOpts = #{event_handler => scoper_woody_event_handler},
+    BeOpts = #{event_handler => woody_event_handler_default},
     Routes = machinery_mg_backend:get_routes(
         [
             construct_handler(ff_identity_machine           , "identity"           , BeConf),
@@ -127,7 +127,7 @@ get_admin_routes() ->
     Path = <<"/v1/admin">>,
     woody_server_thrift_http_handler:get_routes(#{
         handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
-        event_handler => scoper_woody_event_handler
+        event_handler => woody_event_handler_default
     }).
 
 -spec end_per_suite(config()) -> _.

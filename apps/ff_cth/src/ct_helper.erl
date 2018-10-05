@@ -69,7 +69,7 @@ start_app(lager = AppName) ->
         {suppress_application_start_stop, false},
         {suppress_supervisor_start_stop, false},
         {handlers, [
-            {lager_common_test_backend, debug}
+            {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
         ]}
     ]), #{}};
 

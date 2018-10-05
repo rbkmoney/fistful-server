@@ -13,7 +13,8 @@
         lager,
         scoper,
         fistful,
-        ff_withdraw,
+        ff_transfer,
+        fistful_proto,
         wapi
     ]},
     {env, []},

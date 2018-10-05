@@ -11,7 +11,7 @@
 %%%    rid of the `wallet closed` failure but I see no way to do so.
 %%%
 
--module(ff_transfer).
+-module(ff_postings_transfer).
 
 -type posting()  :: {account(), account(), body()}.
 

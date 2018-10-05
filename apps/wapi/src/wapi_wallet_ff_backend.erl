@@ -276,7 +276,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     DestinationId = next_id('destination'),
     do(fun() ->
         _ = check_resource(identity, IdenityId, Context),
-        ok = unwrap(ff_destination_machine:create(
+        ok = unwrap(ff_destination:create(
             DestinationId, from_swag(destination_params, Params), make_ctx(Params, [], Context)
         )),
         unwrap(get_destination(DestinationId, Context))
@@ -294,7 +294,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
 create_withdrawal(Params, Context) ->
     WithdrawalId = next_id('withdrawal'),
     do(fun() ->
-        ok = unwrap(ff_withdrawal_machine:create(
+        ok = unwrap(ff_withdrawal:create(
             WithdrawalId, from_swag(withdrawal_params, Params), make_ctx(Params, [], Context)
         )),
         unwrap(get_withdrawal(WithdrawalId, Context))
@@ -378,7 +378,7 @@ get_event_type({withdrawal, event})         -> withdrawal_event.
 get_collector({identity, challenge_event}, Id) ->
     fun(C, L) -> unwrap(ff_identity_machine:events(Id, {C, L, forward})) end;
 get_collector({withdrawal, event}, Id) ->
-    fun(C, L) -> unwrap(ff_withdrawal_machine:events(Id, {C, L, forward})) end.
+    fun(C, L) -> unwrap(ff_withdrawal:events(Id, {C, L, forward})) end.
 
 collect_events(Collector, Filter, Cursor, Limit) ->
     collect_events(Collector, Filter, Cursor, Limit, []).
@@ -417,8 +417,8 @@ get_state(Resource, Id, Context) ->
 
 do_get_state(identity,    Id) -> ff_identity_machine:get(Id);
 do_get_state(wallet,      Id) -> ff_wallet_machine:get(Id);
-do_get_state(destination, Id) -> ff_destination_machine:get(Id);
-do_get_state(withdrawal,  Id) -> ff_withdrawal_machine:get(Id).
+do_get_state(destination, Id) -> ff_destination:get_machine(Id);
+do_get_state(withdrawal,  Id) -> ff_withdrawal:get_machine(Id).
 
 check_resource(Resource, Id, Context) ->
     _ = get_state(Resource, Id, Context),
@@ -684,7 +684,7 @@ to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
         }
     };
 to_swag(destination, State) ->
-    Destination = ff_destination_machine:destination(State),
+    Destination = ff_destination:get(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>         => ff_destination:id(Destination),
@@ -719,7 +719,7 @@ to_swag(destination_resource, {bank_card, BankCard}) ->
 to_swag(pan_last_digits, MaskedPan) ->
     wapi_utils:get_last_pan_digits(MaskedPan);
 to_swag(withdrawal, State) ->
-    Withdrawal = ff_withdrawal_machine:withdrawal(State),
+    Withdrawal = ff_withdrawal:get(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>          => ff_withdrawal:id(Withdrawal),

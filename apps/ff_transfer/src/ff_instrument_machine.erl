@@ -1,26 +1,28 @@
 %%%
-%%% Destination machine
+%%% Instrument machine
 %%%
 
--module(ff_destination_machine).
+-module(ff_instrument_machine).
 
 %% API
 
 -type id()          :: machinery:id().
+-type ns()          :: machinery:ns().
 -type ctx()         :: ff_ctx:ctx().
--type destination() :: ff_destination:destination().
+-type instrument(T) :: ff_instrument:instrument(T).
 
--type st() ::
-    ff_machine:st(destination()).
+-type st(T) ::
+    ff_machine:st(instrument(T)).
 
 -export_type([id/0]).
+-export_type([st/1]).
 
--export([create/3]).
--export([get/1]).
+-export([create/4]).
+-export([get/2]).
 
 %% Accessors
 
--export([destination/1]).
+-export([instrument/1]).
 
 %% Machinery
 
@@ -36,53 +38,51 @@
 
 %%
 
--define(NS, 'ff/destination_v2').
-
--type params() :: #{
+-type params(T) :: #{
     identity := ff_identity:id(),
     name     := binary(),
     currency := ff_currency:id(),
-    resource := ff_destination:resource()
+    resource := ff_instrument:resource(T)
 }.
 
--spec create(id(), params(), ctx()) ->
+-spec create(ns(), id(), params(_), ctx()) ->
     ok |
     {error,
-        _DestinationCreateError |
+        _InstrumentCreateError |
         exists
     }.
 
-create(ID, #{identity := IdentityID, name := Name, currency := CurrencyID, resource := Resource}, Ctx) ->
+create(NS, ID, #{identity := IdentityID, name := Name, currency := CurrencyID, resource := Resource}, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_destination:create(ID, IdentityID, Name, CurrencyID, Resource)),
-        unwrap(machinery:start(?NS, ID, {Events, Ctx}, fistful:backend(?NS)))
+        Events = unwrap(ff_instrument:create(ID, IdentityID, Name, CurrencyID, Resource)),
+        unwrap(machinery:start(NS, ID, {Events, Ctx}, fistful:backend(NS)))
     end).
 
--spec get(id()) ->
-    {ok, st()}        |
+-spec get(ns(), id()) ->
+    {ok, st(_)}       |
     {error, notfound} .
 
-get(ID) ->
-    ff_machine:get(ff_destination, ?NS, ID).
+get(NS, ID) ->
+    ff_machine:get(ff_instrument, NS, ID).
 
 %% Accessors
 
--spec destination(st()) ->
-    destination().
+-spec instrument(st(T)) ->
+    instrument(T).
 
-destination(St) ->
+instrument(St) ->
     ff_machine:model(St).
 
 %% Machinery
 
--type event() ::
-    ff_destination:event().
+-type event(T) ::
+    ff_instrument:event(T).
 
--type machine()      :: ff_machine:machine(event()).
--type result()       :: ff_machine:result(event()).
+-type machine()      :: ff_machine:machine(event(_)).
+-type result()       :: ff_machine:result(event(_)).
 -type handler_opts() :: machinery:handler_opts(_).
 
--spec init({[event()], ctx()}, machine(), _, handler_opts()) ->
+-spec init({[event(_)], ctx()}, machine(), _, handler_opts()) ->
     result().
 
 init({Events, Ctx}, #{}, _, _Opts) ->
@@ -98,12 +98,12 @@ init({Events, Ctx}, #{}, _, _Opts) ->
     result().
 
 process_timeout(Machine, _, _Opts) ->
-    St = ff_machine:collapse(ff_destination, Machine),
+    St = ff_machine:collapse(ff_instrument, Machine),
     process_timeout(deduce_activity(ff_machine:model(St)), St).
 
 process_timeout(authorize, St) ->
-    D0 = destination(St),
-    case ff_destination:authorize(D0) of
+    D0 = instrument(St),
+    case ff_instrument:authorize(D0) of
         {ok, Events} ->
             #{
                 events => ff_machine:emit_events(Events)

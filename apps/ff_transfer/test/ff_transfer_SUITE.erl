@@ -373,7 +373,7 @@ admin_call(Fun, Args) ->
     Request = {Service, Fun, Args},
     Client  = ff_woody_client:new(#{
         url           => <<"http://localhost:8022/v1/admin">>,
-        event_handler => woody_event_handler_default
+        event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).
 

@@ -4,6 +4,9 @@
 
 -module(ff_transfer).
 
+%% TODO
+%%  - actually T in id(T) is supposed to be a binary, see construct_p_transfer_id/2 below.
+
 -type id(T)         :: T.
 -type handler()     :: module().
 -type account()     :: ff_account:account().
@@ -113,7 +116,7 @@ create(Handler, ID, Source, Destination, Body, Params) ->
     end).
 
 construct_p_transfer_id(ID, Handler) ->
-    <<"ff/", (atom_to_binary(Handler, utf8))/binary, "/", ID>>.
+    <<"ff/", (atom_to_binary(Handler, utf8))/binary, "/", ID/binary>>.
 
 %% ff_transfer_machine behaviour
 

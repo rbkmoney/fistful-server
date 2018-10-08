@@ -69,7 +69,7 @@ init_per_suite(C) ->
             {{fistful, ff_identity_machine},
                 #{path => <<"/v1/stateproc/ff/identity">>, backend_config => BeConf}},
             {{fistful, ff_wallet_machine},
-                #{path => <<"/v1/stateproc/ff/wallet">>, backend_config => BeConf}}
+                #{path => <<"/v1/stateproc/ff/wallet_v2">>, backend_config => BeConf}}
         ],
         BeOpts
     ),

@@ -113,7 +113,7 @@ create(Handler, ID, Source, Destination, Body, Params) ->
     end).
 
 construct_p_transfer_id(ID, Handler) ->
-    <<(atom_to_binary(Handler, utf8))/binary, "/", ID>>.
+    <<"ff/", (atom_to_binary(Handler, utf8))/binary, "/", ID>>.
 
 %% ff_transfer_machine behaviour
 

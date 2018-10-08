@@ -4,6 +4,9 @@
 
 -module(ff_transfer).
 
+%% TODO
+%%  - actually T in id(T) is supposed to be a binary, see construct_p_transfer_id/2 below.
+
 -type id(T)         :: T.
 -type handler()     :: module().
 -type account()     :: ff_account:account().
@@ -97,7 +100,7 @@ p_transfer(#{p_transfer := V})   -> V.
 
 create(Handler, ID, Source, Destination, Body, Params) ->
     do(fun () ->
-        PTransferID = construct_p_transfer_id(ID),
+        PTransferID = construct_p_transfer_id(ID, Handler),
         PostingsTransferEvents = unwrap(ff_postings_transfer:create(PTransferID, [{Source, Destination, Body}])),
         [{created, #{
             version     => 1,
@@ -112,8 +115,8 @@ create(Handler, ID, Source, Destination, Body, Params) ->
         [{status_changed, pending}]
     end).
 
-construct_p_transfer_id(ID) ->
-    ID.
+construct_p_transfer_id(ID, Handler) ->
+    <<"ff/", (atom_to_binary(Handler, utf8))/binary, "/", ID/binary>>.
 
 %% ff_transfer_machine behaviour
 

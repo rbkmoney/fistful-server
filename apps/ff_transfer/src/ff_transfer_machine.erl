@@ -16,20 +16,22 @@
 
 %% Behaviour definition
 
--type st(T) :: ff_machine:st(transfer(T)).
+-type st(T)    :: ff_machine:st(transfer(T)).
+-type action() :: poll | continue | undefined.
 
 -export_type([id/0]).
 -export_type([ns/0]).
+-export_type([action/0]).
 -export_type([st/1]).
 -export_type([event/1]).
 -export_type([events/1]).
 
 -callback process_transfer(transfer(_)) ->
-    {ok, [event(_)] | poll} |
+    {ok, {action(), [event(_)]}} |
     {error, _Reason}.
 
 -callback process_call(_CallArgs, transfer(_)) ->
-    {ok, [event(_)] | poll} |
+    {ok, {action(), [event(_)]}} |
     {error, _Reason}.
 
 -optional_callbacks([process_call/2]).
@@ -142,21 +144,26 @@ process_call(CallArgs, Machine, _, _Opts) ->
     Transfer = transfer(St),
     {ok, process_result((ff_transfer:handler(Transfer)):process_call(CallArgs, Transfer), St)}.
 
-process_result({ok, poll}, St) ->
-    #{
-        action => set_poll_timer(St)
-    };
-process_result({ok, Events}, _St) ->
-    #{
-        events => ff_machine:emit_events(Events),
-        action => continue
-    };
+process_result({ok, {Action, Events}}, St) ->
+    genlib_map:compact(#{
+        events => set_events(Events),
+        action => set_action(Action, St)
+    });
 process_result({error, Reason}, _St) ->
     #{
         events => emit_failure(Reason)
     }.
 
-set_poll_timer(St) ->
+set_events([]) ->
+    undefined;
+set_events(Events) ->
+    ff_machine:emit_events(Events).
+
+set_action(continue, _St) ->
+    continue;
+set_action(undefined, _St) ->
+    undefined;
+set_action(poll, St) ->
     Now = machinery_time:now(),
     Timeout = erlang:max(1, machinery_time:interval(Now, ff_machine:updated(St)) div 1000),
     {set_timer, {timeout, Timeout}}.

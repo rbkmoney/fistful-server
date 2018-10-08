@@ -126,9 +126,9 @@ events(ID, Range) ->
 %% ff_transfer_machine behaviour
 
 -spec process_transfer(deposit()) ->
-    {ok, [ff_transfer_machine:event(ff_transfer:event())]} |
+    {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(ff_transfer:event())]}} |
     {error, _Reason}.
 process_transfer(#{status := pending, p_transfer := #{status := prepared}}) ->
-    {ok, [{status_changed, succeeded}]};
+    {ok, {continue, [{status_changed, succeeded}]}};
 process_transfer(Transfer) ->
     ff_transfer:process_transfer(Transfer).

@@ -130,7 +130,7 @@ events(ID, Range) ->
 %% ff_transfer_machine behaviour
 
 -spec process_transfer(withdrawal()) ->
-    {ok, [ff_transfer_machine:event(ff_transfer:event())]} |
+    {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(ff_transfer:event())]}} |
     {error, _Reason}.
 
 process_transfer(Transfer = #{status := pending, session := _}) ->
@@ -152,7 +152,7 @@ create_session(Withdrawal) ->
     },
     do(fun () ->
         ok = unwrap(ff_withdrawal_session_machine:create(ID, TransferData, #{destination => destination(Withdrawal)})),
-        [{session_started, ID}]
+        {continue, [{session_started, ID}]}
     end).
 
 construct_session_id(ID) ->
@@ -163,16 +163,16 @@ poll_session_completion(#{session := SID}) ->
     do(fun () ->
         case ff_withdrawal_session_machine:status(Session) of
             active ->
-                poll;
+                {poll, []};
             {finished, {success, _}} ->
-                [
+                {continue, [
                     {session_finished, SID},
                     {status_changed, succeeded}
-                ];
+                ]};
             {finished, {failed, Failure}} ->
-                [
+                {continue, [
                     {session_finished, SID},
                     {status_changed, {failed, Failure}}
-                ]
+                ]}
         end
     end).

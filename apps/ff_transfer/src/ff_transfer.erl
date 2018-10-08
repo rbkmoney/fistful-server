@@ -118,7 +118,7 @@ construct_p_transfer_id(ID) ->
 %% ff_transfer_machine behaviour
 
 -spec process_transfer(transfer(_)) ->
-    {ok, [ff_transfer_machine:event(event())] | poll} |
+    {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(event())]}} |
     {error, _Reason}.
 
 process_transfer(Transfer) ->
@@ -142,13 +142,19 @@ deduce_activity(_) ->
     undefined.
 
 process_activity(prepare_transfer, Transfer) ->
-    with(p_transfer, Transfer, fun ff_postings_transfer:prepare/1);
+    do(fun () ->
+        {continue, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:prepare/1))}
+    end);
 
 process_activity(commit_transfer, Transfer) ->
-    with(p_transfer, Transfer, fun ff_postings_transfer:commit/1);
+    do(fun () ->
+        {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:commit/1))}
+    end);
 
 process_activity(cancel_transfer, Transfer) ->
-    with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1).
+    do(fun () ->
+        {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))}
+    end).
 
 %%
 

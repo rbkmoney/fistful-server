@@ -62,7 +62,6 @@ init_per_suite(C) ->
                 'ff/wallet_v2'             ,
                 'ff/source_v1'             ,
                 'ff/deposit_v1'            ,
-                'ff/deposit/session_v1'    ,
                 'ff/destination_v2'        ,
                 'ff/withdrawal_v2'         ,
                 'ff/withdrawal/session_v2'
@@ -86,7 +85,6 @@ init_per_suite(C) ->
             construct_handler(ff_wallet_machine             , "wallet"             , BeConf),
             construct_handler(ff_instrument_machine         , "source"             , BeConf),
             construct_handler(ff_transfer_machine           , "deposit"            , BeConf),
-            construct_handler(ff_deposit_session_machine    , "deposit/session"    , BeConf),
             construct_handler(ff_instrument_machine         , "destination"        , BeConf),
             construct_handler(ff_transfer_machine           , "withdrawal"         , BeConf),
             construct_handler(ff_withdrawal_session_machine , "withdrawal/session" , BeConf)

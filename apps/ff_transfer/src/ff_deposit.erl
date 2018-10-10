@@ -85,19 +85,28 @@ status(T)          -> ff_transfer:status(T).
         _TransferError
     }.
 
-create(ID, #{source := SourceID, destination := DestinationID, body := Body}, Ctx) ->
+create(ID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
     do(fun() ->
         Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
-        Destination = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(DestinationID))),
+        Wallet = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(WalletID))),
         ok = unwrap(source, valid(authorized, ff_source:status(Source))),
         Params = #{
             handler     => ?MODULE,
-            source      => ff_source:account(Source),
-            destination => ff_wallet:account(Destination),
             body        => Body,
             params      => #{
-                source      => SourceID,
-                destination => DestinationID
+                wallet_id             => WalletID,
+                source_id             => SourceID,
+                wallet_account        => ff_wallet:account(Wallet),
+                source_account        => ff_source:account(Source),
+                wallet_cash_flow_plan => #{
+                    postings => [
+                        #{
+                            sender   => {wallet, sender_source},
+                            receiver => {wallet, receiver_settlement},
+                            volume   => {share, {{1, 1}, operation_amount, default}}
+                        }
+                    ]
+                }
             }
         },
         unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))

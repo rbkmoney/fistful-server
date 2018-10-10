@@ -11,6 +11,7 @@
 -export([id/1]).
 -export([get/1]).
 -export([get_adapter/1]).
+-export([get_account/1]).
 -export([choose/2]).
 
 %%
@@ -21,6 +22,7 @@
 }.
 
 -type adapter() :: {ff_adapter:adapter(), ff_adapter:opts()}.
+-type account() :: ff_account:account().
 -export_type([adapter/0]).
 
 
@@ -55,6 +57,18 @@ get_adapter(ID) ->
             Error
     end.
 
+-spec get_account(id()) ->
+    {ok, account()} |
+    {error, notfound}.
+
+get_account(ID) ->
+    case ?MODULE:get(ID) of
+        {ok, Provider} ->
+            {ok, {adapter(Provider), adapter_opts(Provider)}};
+        Error = {error, _} ->
+            Error
+    end.
+
 -spec choose(ff_destination:destination(), ff_transaction:body()) ->
     {ok, id()} |
     {error, notfound}.
@@ -75,6 +89,9 @@ route(Destination, _Body) ->
     ID.
 
 adapter(#{adapter := V}) ->
+    V.
+
+account(#{account := V}) ->
     V.
 
 adapter_opts(P) ->

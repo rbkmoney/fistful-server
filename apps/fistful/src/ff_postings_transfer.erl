@@ -13,7 +13,7 @@
 
 -module(ff_postings_transfer).
 
--type posting()  :: {account(), account(), body()}.
+-type cash_flow()  :: ff_cash_flow:final_cash_flow().
 
 -type status() ::
     created   |
@@ -23,7 +23,7 @@
 
 -type transfer() :: #{
     id          := id(),
-    postings    := [posting()],
+    cash_flow   := cash_flow(),
     status      => status()
 }.
 
@@ -32,12 +32,12 @@
     {status_changed, status()}.
 
 -export_type([transfer/0]).
--export_type([posting/0]).
+-export_type([cash_flow/0]).
 -export_type([status/0]).
 -export_type([event/0]).
 
 -export([id/1]).
--export([postings/1]).
+-export([cash_flow/1]).
 -export([status/1]).
 
 -export([create/2]).
@@ -48,6 +48,7 @@
 %% Event source
 
 -export([apply_event/2]).
+-export([maybe_migrate/1]).
 
 %% Pipeline
 
@@ -63,21 +64,21 @@
 
 -spec id(transfer()) ->
     id().
--spec postings(transfer()) ->
-    [posting()].
+-spec cash_flow(transfer()) ->
+    [cash_flow()].
 -spec status(transfer()) ->
     status().
 
 id(#{id := V}) ->
     V.
-postings(#{postings := V}) ->
+cash_flow(#{cash_flow := V}) ->
     V.
 status(#{status := V}) ->
     V.
 
 %%
 
--spec create(id(), [posting()]) ->
+-spec create(id(), cash_flow()) ->
     {ok, [event()]} |
     {error,
         empty |
@@ -87,16 +88,16 @@ status(#{status := V}) ->
         {provider, invalid}
     }.
 
-create(ID, Postings = [_ | _]) ->
+create(ID, CashFlow) ->
     do(fun () ->
-        Accounts   = gather_accounts(Postings),
+        Accounts   = ff_cash_flow:gather_used_accounts(CashFlow),
         valid      = validate_currencies(Accounts),
         valid      = validate_identities(Accounts),
         accessible = validate_accessible(Accounts),
         [
             {created, #{
-                id       => ID,
-                postings    => Postings
+                id        => ID,
+                cash_flow => CashFlow
             }},
             {status_changed,
                 created
@@ -105,9 +106,6 @@ create(ID, Postings = [_ | _]) ->
     end);
 create(_TrxID, []) ->
     {error, empty}.
-
-gather_accounts(Postings) ->
-    lists:usort(lists:flatten([[S, D] || {S, D, _} <- Postings])).
 
 validate_accessible(Accounts) ->
     _ = [accessible = unwrap(account, ff_account:is_accessible(A)) || A <- Accounts],
@@ -139,9 +137,9 @@ validate_identities([A0 | Accounts]) ->
 
 prepare(Transfer = #{status := created}) ->
     ID = id(Transfer),
-    Postings = postings(Transfer),
+    CashFlow = cash_flow(Transfer),
     do(fun () ->
-        _Affected = unwrap(ff_transaction:prepare(ID, construct_trx_postings(Postings))),
+        _Affected = unwrap(ff_transaction:prepare(ID, construct_trx_postings(CashFlow))),
         [{status_changed, prepared}]
     end);
 prepare(#{status := prepared}) ->
@@ -161,9 +159,9 @@ prepare(#{status := Status}) ->
 
 commit(Transfer = #{status := prepared}) ->
     ID = id(Transfer),
-    Postings = postings(Transfer),
+    CashFlow = cash_flow(Transfer),
     do(fun () ->
-        _Affected = unwrap(ff_transaction:commit(ID, construct_trx_postings(Postings))),
+        _Affected = unwrap(ff_transaction:commit(ID, construct_trx_postings(CashFlow))),
         [{status_changed, committed}]
     end);
 commit(#{status := committed}) ->
@@ -179,9 +177,9 @@ commit(#{status := Status}) ->
 
 cancel(Transfer = #{status := prepared}) ->
     ID = id(Transfer),
-    Postings = postings(Transfer),
+    CashFlow = cash_flow(Transfer),
     do(fun () ->
-        _Affected = unwrap(ff_transaction:cancel(ID, construct_trx_postings(Postings))),
+        _Affected = unwrap(ff_transaction:cancel(ID, construct_trx_postings(CashFlow))),
         [{status_changed, cancelled}]
     end);
 cancel(#{status := cancelled}) ->
@@ -201,10 +199,46 @@ apply_event({status_changed, S}, Transfer) ->
 
 %%
 
-construct_trx_postings(Postings) ->
-    [
-        {SourceAccount, DestinationAccount, Body} ||
-            {Source, Destination, Body} <- Postings,
-            SourceAccount               <- [ff_account:accounter_account_id(Source)],
-            DestinationAccount          <- [ff_account:accounter_account_id(Destination)]
-    ].
+-spec construct_trx_postings(cash_flow()) ->
+    [ff_transaction:posting()].
+
+construct_trx_postings(#{postings := Postings}) ->
+    lists:map(fun construct_trx_posting/1, Postings).
+
+-spec construct_trx_posting(ff_cash_flow:final_posting()) ->
+    ff_transaction:posting().
+
+construct_trx_posting(Posting) ->
+    #{
+        sender := #{account := Sender},
+        receiver := #{account := Receiver},
+        volume := Volume
+    } = Posting,
+    SenderAccount = ff_account:accounter_account_id(Sender),
+    ReceiverAccount = ff_account:accounter_account_id(Receiver),
+    {SenderAccount, ReceiverAccount, Volume}.
+
+%% Event migrations
+-spec maybe_migrate(any()) -> event().
+% Actual events
+maybe_migrate({created, #{cash_flow := _CashFlow}} = Ev) ->
+    Ev;
+% Old events
+maybe_migrate({created, #{postings := Postings} = Transfer}) ->
+    #{
+        id := ID,
+        postings := Postings
+    } = Transfer,
+    CashFlowPostings = [
+        #{sender => #{account => S}, receiver => #{account => D}, volume => B}
+        || {S, D, B} <- Postings
+    ],
+    maybe_migrate({created, #{
+        id        => ID,
+        cash_flow => #{
+            postings => CashFlowPostings
+        }
+    }});
+% Other evnts
+maybe_migrate(Ev) ->
+    Ev.

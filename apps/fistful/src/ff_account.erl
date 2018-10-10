@@ -88,7 +88,7 @@ create(ID, Identity, Currency) ->
         Contract = ff_identity:contract(Identity),
         accessible = unwrap(party, ff_party:is_accessible(Party)),
         valid = unwrap(contract, ff_party:validate_account_creation(
-            Party, Contract, ID, Currency, ff_time:now()
+            Party, Contract, ID, ff_currency:id(Currency), ff_time:now()
         )),
         AccounterID = unwrap(accounter, create_account(ID, Currency)),
         [{created, #{

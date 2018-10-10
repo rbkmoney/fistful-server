@@ -4,59 +4,55 @@
 
 -module(ff_transfer).
 
-%% TODO
-%%  - actually T in id(T) is supposed to be a binary, see construct_p_transfer_id/2 below.
-
--type id(T)         :: T.
 -type handler()     :: module().
--type account()     :: ff_account:account().
--type body()        :: ff_transaction:body().
--type params(T)     :: T.
--type p_transfer()  :: ff_postings_transfer:transfer().
 
--type transfer(T) :: #{
-    version     := non_neg_integer(),
-    id          := id(binary()),
-    handler     := handler(),
-    source      := account(),
-    destination := account(),
-    body        := body(),
-    params      := params(T),
-    p_transfer  := ff_maybe:maybe(p_transfer()),
-    session     => session(),
-    status      => status()
+-opaque transfer(T) :: #{
+    version       := 2,
+    id            := id(),
+    transfer_type := transfer_type(),
+    body          := body(),
+    params        := params(T),
+    p_transfer    => maybe(p_transfer()),
+    session_id    => session_id(),
+    route         => any(),
+    status        => status()
 }.
 
--type session() ::
-    id(_).
+-type route(T) :: T.
 
 -type status() ::
     pending         |
     succeeded       |
     {failed, _TODO} .
 
--type event() ::
-    {created, transfer(_)}                  |
+-type event(Params, Route) ::
+    {created, transfer(Params)}             |
+    {route_changed, route(Route)}           |
     {p_transfer, ff_postings_transfer:ev()} |
-    {session_started, session()}            |
-    {session_finished, session()}           |
+    {session_started, session_id()}         |
+    {session_finished, session_id()}        |
     {status_changed, status()}              .
+
+-type event() :: event(Params :: any(), Route :: any()).
 
 -export_type([transfer/1]).
 -export_type([handler/0]).
 -export_type([params/1]).
 -export_type([event/0]).
+-export_type([event/2]).
+-export_type([status/0]).
+-export_type([route/1]).
 
 -export([id/1]).
--export([handler/1]).
--export([source/1]).
--export([destination/1]).
+-export([transfer_type/1]).
 -export([body/1]).
 -export([params/1]).
 -export([p_transfer/1]).
 -export([status/1]).
+-export([session_id/1]).
+-export([route/1]).
 
--export([create/6]).
+-export([create/4]).
 
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
@@ -70,57 +66,84 @@
 
 -import(ff_pipeline, [do/1, unwrap/1, with/3]).
 
+%% Internal types
+
+-type id() :: binary().
+-type body() :: ff_transaction:body().
+-type route() :: route(any()).
+-type maybe(T) :: ff_maybe:maybe(T).
+-type params() :: params(any()).
+-type params(T) :: T.
+-type transfer() :: transfer(any()).
+-type session_id() :: id().
+-type p_transfer() :: ff_postings_transfer:transfer().
+-type transfer_type() :: atom().
+
 %% Accessors
 
--spec id(transfer(_))          -> id(binary()).
--spec handler(transfer(_))     -> handler().
--spec source(transfer(_))      -> account().
--spec destination(transfer(_)) -> account().
--spec body(transfer(_))        -> body().
--spec params(transfer(T))      -> params(T).
--spec status(transfer(_))      -> status().
--spec p_transfer(transfer(_))  -> p_transfer().
+-spec id(transfer()) -> id().
+id(#{id := V}) ->
+    V.
 
-id(#{id := V})                   -> V.
-handler(#{handler := V})         -> V.
-source(#{source := V})           -> V.
-destination(#{destination := V}) -> V.
-body(#{body := V})               -> V.
-params(#{params := V})           -> V.
-status(#{status := V})           -> V.
-p_transfer(#{p_transfer := V})   -> V.
+-spec transfer_type(transfer()) -> transfer_type().
+transfer_type(#{transfer_type := V}) ->
+    V.
 
-%%
+-spec body(transfer()) -> body().
+body(#{body := V}) ->
+    V.
 
--spec create(handler(), id(_), account(), account(), body(), params(_)) ->
+-spec params(transfer(T)) -> params(T).
+params(#{params := V}) ->
+    V.
+
+-spec status(transfer()) -> status().
+status(#{status := V}) ->
+    V.
+
+-spec p_transfer(transfer())  -> maybe(p_transfer()).
+p_transfer(#{p_transfer := V}) ->
+    V;
+p_transfer(_Other) ->
+    undefined.
+
+-spec session_id(transfer())  -> maybe(session_id()).
+session_id(#{session_id := V}) ->
+    V;
+session_id(_Other) ->
+    undefined.
+
+-spec route(transfer())  -> maybe(route()).
+route(#{route := V}) ->
+    V;
+route(_Other) ->
+    undefined.
+
+%% API
+
+-spec create(handler(), id(), body(), params()) ->
     {ok, [event()]} |
     {error,
         _PostingsTransferError
     }.
 
-create(Handler, ID, Source, Destination, Body, Params) ->
+create(TransferType, ID, Body, Params) ->
     do(fun () ->
-        PTransferID = construct_p_transfer_id(ID, Handler),
-        PostingsTransferEvents = unwrap(ff_postings_transfer:create(PTransferID, [{Source, Destination, Body}])),
-        [{created, #{
-            version     => 1,
-            id          => ID,
-            handler     => Handler,
-            source      => Source,
-            destination => Destination,
-            body        => Body,
-            params      => Params
-        }}] ++
-        [{p_transfer, Ev} || Ev <- PostingsTransferEvents] ++
-        [{status_changed, pending}]
+        [
+            {created, #{
+                version       => 1,
+                id            => ID,
+                transfer_type => TransferType,
+                body          => Body,
+                params        => Params
+            }},
+            {status_changed, pending}
+        ]
     end).
-
-construct_p_transfer_id(ID, Handler) ->
-    <<"ff/", (atom_to_binary(Handler, utf8))/binary, "/", ID/binary>>.
 
 %% ff_transfer_machine behaviour
 
--spec process_transfer(transfer(_)) ->
+-spec process_transfer(transfer()) ->
     {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(event())]}} |
     {error, _Reason}.
 
@@ -133,7 +156,7 @@ process_transfer(Transfer) ->
     cancel_transfer          |
     undefined                .
 
--spec deduce_activity(transfer(_)) ->
+-spec deduce_activity(transfer()) ->
     activity().
 deduce_activity(#{status := {failed, _}, p_transfer := #{status := prepared}}) ->
     cancel_transfer;
@@ -148,12 +171,10 @@ process_activity(prepare_transfer, Transfer) ->
     do(fun () ->
         {continue, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:prepare/1))}
     end);
-
 process_activity(commit_transfer, Transfer) ->
     do(fun () ->
         {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:commit/1))}
     end);
-
 process_activity(cancel_transfer, Transfer) ->
     do(fun () ->
         {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))}
@@ -176,12 +197,86 @@ apply_event_({p_transfer, Ev}, T = #{p_transfer := PT}) ->
 apply_event_({p_transfer, Ev}, T) ->
     apply_event({p_transfer, Ev}, T#{p_transfer => undefined});
 apply_event_({session_started, S}, T) ->
-    maps:put(session, S, T);
-apply_event_({session_finished, S}, T = #{session := S}) ->
-    maps:remove(session, T).
+    maps:put(session_id, S, T);
+apply_event_({session_finished, S}, T = #{session_id := S}) ->
+    maps:remove(session_id, T).
 
-maybe_migrate(Ev = {created, #{version := 1}}) ->
+-spec maybe_migrate(any()) ->
+    event().
+% Actual events
+maybe_migrate(Ev = {created, #{version := 2}}) ->
     Ev;
+maybe_migrate({p_transfer, PEvent}) ->
+    {p_transfer, ff_postings_transfer:maybe_migrate(PEvent)};
+% Old events
+maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
+    #{
+        version     := 1,
+        id          := ID,
+        handler     := ff_withdrawal,
+        source      := SourceAccount,
+        destination := DestinationAccount,
+        body        := Body,
+        params      := #{
+            destination := DestinationID,
+            source      := SourceID
+        }
+    } = T,
+    maybe_migrate({created, #{
+        version       => 2,
+        id            => ID,
+        transfer_type => withdrawal,
+        body          => Body,
+        params        => #{
+            wallet_id             => SourceID,
+            destination_id        => DestinationID,
+            wallet_account        => SourceAccount,
+            destination_account   => DestinationAccount,
+            wallet_cash_flow_plan => #{
+                postings => [
+                    #{
+                        sender   => {wallet, sender_settlement},
+                        receiver => {wallet, receiver_destination},
+                        volume   => {share, {{1, 1}, operation_amount, default}}
+                    }
+                ]
+            }
+        }
+    }});
+maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
+    #{
+        version     := 1,
+        id          := ID,
+        handler     := ff_deposit,
+        source      := SourceAccount,
+        destination := DestinationAccount,
+        body        := Body,
+        params      := #{
+            destination := DestinationID,
+            source      := SourceID
+        }
+    } = T,
+    maybe_migrate({created, #{
+        version       => 2,
+        id            => ID,
+        transfer_type => deposit,
+        body          => Body,
+        params        => #{
+            wallet_id             => DestinationID,
+            source_id             => SourceID,
+            wallet_account        => DestinationAccount,
+            source_account        => SourceAccount,
+            wallet_cash_flow_plan => #{
+                postings => [
+                    #{
+                        sender   => {wallet, sender_source},
+                        receiver => {wallet, receiver_settlement},
+                        volume   => {share, {{1, 1}, operation_amount, default}}
+                    }
+                ]
+            }
+        }
+    }});
 maybe_migrate({created, T}) ->
     DestinationID = maps:get(destination, T),
     {ok, DestinationSt} = ff_destination:get_machine(DestinationID),
@@ -189,7 +284,7 @@ maybe_migrate({created, T}) ->
     SourceID = maps:get(source, T),
     {ok, SourceSt} = ff_wallet_machine:get(SourceID),
     SourceAcc = ff_wallet:account(ff_wallet_machine:wallet(SourceSt)),
-    {created, T#{
+    maybe_migrate({created, T#{
         version     => 1,
         handler     => ff_withdrawal,
         source      => SourceAcc,
@@ -198,8 +293,9 @@ maybe_migrate({created, T}) ->
             destination => DestinationID,
             source      => SourceID
         }
-    }};
+    }});
 maybe_migrate({transfer, PTransferEv}) ->
-    {p_transfer, PTransferEv};
+    maybe_migrate({p_transfer, PTransferEv});
+% Other events
 maybe_migrate(Ev) ->
     Ev.

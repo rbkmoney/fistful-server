@@ -35,12 +35,14 @@
 -export([create_contract/2]).
 -export([change_contractor_level/3]).
 -export([validate_account_creation/5]).
+-export([get_withdrawal_terms/5]).
 
 %% Internal types
 
 -type terms() :: dmsl_domain_thrift:'TermSet'().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'() | undefined.
--type currency() :: ff_currency:currency().
+-type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
+-type currency_id() :: ff_currency:id().
 -type timestamp() :: ff_time:timestamp_ms().
 
 %% Pipeline
@@ -115,7 +117,7 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
 
 %%
 
--spec validate_account_creation(id(), contract_id(), wallet_id(), currency(), timestamp()) -> Result when
+-spec validate_account_creation(id(), contract_id(), wallet_id(), currency_id(), timestamp()) -> Result when
     Result :: {ok, valid} | {error, Error},
     Error ::
         {invalid_terms, _Details} |
@@ -123,17 +125,38 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
         {party_not_exists_yet, id()} |
         {exception, any()}.
 
-validate_account_creation(ID, Contract, WalletID, Currency, Timestamp) ->
-    case get_contract_terms(ID, Contract, WalletID, Currency, Timestamp) of
+validate_account_creation(ID, ContractID, WalletID, CurrencyID, Timestamp) ->
+    case get_contract_terms(ID, ContractID, WalletID, CurrencyID, Timestamp) of
         {ok, #domain_TermSet{wallets = Terms}} ->
             do(fun () ->
                 valid = unwrap(validate_wallet_creation_terms_is_reduced(Terms)),
-                valid = unwrap(validate_currency(Terms, Currency))
+                valid = unwrap(validate_wallet_currency(Terms, CurrencyID))
             end);
         {error, _Reason} = Error ->
             Error
     end.
 
+-spec get_withdrawal_terms(id(), contract_id(), wallet_id(), currency_id(), timestamp()) -> Result when
+    Result :: {ok, withdrawal_terms()} | {error, Error},
+    Error ::
+        {invalid_terms, _Details} |
+        {party_not_found, id()} |
+        {party_not_exists_yet, id()} |
+        {exception, any()}.
+
+get_withdrawal_terms(ID, ContractID, WalletID, CurrencyID, Timestamp) ->
+    case get_contract_terms(ID, ContractID, WalletID, CurrencyID, Timestamp) of
+        {ok, #domain_TermSet{wallets = Terms}} ->
+            do(fun () ->
+                valid = unwrap(validate_withdrawal_terms_is_reduced(Terms)),
+                valid = unwrap(validate_wallet_currency(Terms, CurrencyID)),
+                #domain_WalletServiceTerms{withdrawals = WithdrawalTerms} = Terms,
+                valid = unwrap(validate_withdrawal_currency(WithdrawalTerms, CurrencyID)),
+                WithdrawalTerms
+            end);
+        {error, _Reason} = Error ->
+            Error
+    end.
 
 %% Internal functions
 
@@ -307,13 +330,12 @@ call(Function, Args0) ->
 
 %% Terms stuff
 
--spec get_contract_terms(id(), contract_id(), wallet_id(), currency(), timestamp()) -> Result when
+-spec get_contract_terms(id(), contract_id(), wallet_id(), currency_id(), timestamp()) -> Result when
     Result :: {ok, terms()} | {error, Error},
     Error :: {party_not_found, id()} | {party_not_exists_yet, id()} | {exception, any()}.
 
-get_contract_terms(ID, ContractID, WalletID, Currency, Timestamp) ->
-    CurrencyRef = #domain_CurrencyRef{symbolic_code = ff_currency:symcode(Currency)},
-    Args = [ID, ContractID, WalletID, CurrencyRef, ff_time:to_rfc3339(Timestamp)],
+get_contract_terms(ID, ContractID, WalletID, CurrencyID, Timestamp) ->
+    Args = [ID, ContractID, WalletID, CurrencyID, ff_time:to_rfc3339(Timestamp)],
     case call('ComputeWalletTerms', Args) of
         {ok, Terms} ->
             {ok, Terms};
@@ -336,6 +358,29 @@ validate_wallet_creation_terms_is_reduced(Terms) ->
     } = Terms,
     do_validate_terms_is_reduced([{currencies, CurrenciesSelector}]).
 
+-spec validate_withdrawal_terms_is_reduced(wallet_terms()) ->
+    {ok, valid} | {error, {invalid_terms, _Details}}.
+validate_withdrawal_terms_is_reduced(undefined) ->
+    {error, {invalid_terms, undefined_wallet_terms}};
+validate_withdrawal_terms_is_reduced(#domain_WalletServiceTerms{withdrawals = undefined}) ->
+    {error, {invalid_terms, undefined_withdrawal_terms}};
+validate_withdrawal_terms_is_reduced(Terms) ->
+    #domain_WalletServiceTerms{
+        currencies = WalletCurrenciesSelector,
+        withdrawals = WithdrawalTerms
+    } = Terms,
+    #domain_WithdrawalServiceTerms{
+        currencies = WithdrawalCurrenciesSelector,
+        cash_limit = CashLimitSelector,
+        cash_flow = CashFlowSelector
+    } = WithdrawalTerms,
+    do(fun () ->
+        valid = unwrap(do_validate_terms_is_reduced([{wallet_currencies, WalletCurrenciesSelector}])),
+        valid = unwrap(do_validate_terms_is_reduced([{withdrawal_currencies, WithdrawalCurrenciesSelector}])),
+        valid = unwrap(do_validate_terms_is_reduced([{withdrawal_cash_limit, CashLimitSelector}])),
+        valid = unwrap(do_validate_terms_is_reduced([{withdrawal_cash_flow, CashFlowSelector}]))
+    end).
+
 do_validate_terms_is_reduced([]) ->
     {ok, valid};
 do_validate_terms_is_reduced([{Name, Terms} | TermsTail]) ->
@@ -353,17 +398,28 @@ selector_is_reduced({value, _Value}) ->
 selector_is_reduced({decisions, _Decisions}) ->
     not_reduced.
 
--spec validate_currency(wallet_terms(), currency()) ->
+-spec validate_wallet_currency(wallet_terms(), currency_id()) ->
     {ok, valid} | {error, {invalid_terms, {not_allowed_currency, _Details}}}.
-
-validate_currency(Terms, Currency) ->
+validate_wallet_currency(Terms, CurrencyID) ->
     #domain_WalletServiceTerms{
         currencies = {value, Currencies}
     } = Terms,
-    CurrencyRef = #domain_CurrencyRef{symbolic_code = ff_currency:symcode(Currency)},
-    case ordsets:is_element(CurrencyRef, Currencies) of
+    validate_currency(Currencies, CurrencyID).
+
+-spec validate_withdrawal_currency(withdrawal_terms(), currency_id()) ->
+    {ok, valid} | {error, {invalid_terms, {not_allowed_currency, _Details}}}.
+validate_withdrawal_currency(Terms, CurrencyID) ->
+    #domain_WithdrawalServiceTerms{
+        currencies = {value, Currencies}
+    } = Terms,
+    validate_currency(Currencies, CurrencyID).
+
+-spec validate_currency(ordsets:ordset(currency_id()), currency_id()) ->
+    {ok, valid} | {error, {invalid_terms, {not_allowed_currency, _Details}}}.
+validate_currency(CurrencyID, Currencies) ->
+    case ordsets:is_element(CurrencyID, Currencies) of
         true ->
             {ok, valid};
         false ->
-            {error, {invalid_terms, {not_allowed_currency, {CurrencyRef, Currencies}}}}
+            {error, {invalid_terms, {not_allowed_currency, {CurrencyID, Currencies}}}}
     end.

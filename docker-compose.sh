@@ -7,6 +7,7 @@ services:
     image: ${BUILD_IMAGE}
     volumes:
       - .:$PWD
+      - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/config/private.pem
       - $HOME/.cache:/home/$UNAME/.cache
     working_dir: $PWD
     command: |

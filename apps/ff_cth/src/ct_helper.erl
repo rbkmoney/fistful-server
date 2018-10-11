@@ -94,6 +94,38 @@ start_app(dmt_client = AppName) ->
         }}
     ]), #{}};
 
+start_app(wapi = AppName) ->
+    {start_app_with(AppName, [
+        {ip, "::"},
+        {port, 8080},
+        {realm, <<"external">>},
+        {public_endpoint, <<"localhost:8080">>},
+        {authorizers, #{
+            jwt => #{
+                signee => wapi,
+                keyset => #{
+                    wapi     => {pem_file, "/opt/wapi/config/private.pem"}
+                }
+            }
+        }},
+        {service_urls, #{
+            cds_storage         => "http://cds:8022/v1/storage",
+            identdoc_storage    => "http://cds:8022/v1/identity_document_storage"
+        }}
+    ]), #{}};
+
+start_app(ff_server = AppName) ->
+    {start_app_with(AppName, [
+        {ip, "::"},
+        {port, 8022},
+        {services, #{
+            'automaton' => "http://machinegun:8022/v1/automaton"
+        }},
+        {admin, #{
+            path => <<"/v1/admin">>
+        }}
+    ]), #{}};
+
 start_app({AppName, AppEnv}) ->
     {start_app_with(AppName, AppEnv), #{}};
 

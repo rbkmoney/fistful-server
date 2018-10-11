@@ -55,8 +55,11 @@
     request_result().
 handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContext}, Opts) ->
     _ = lager:info("Processing request ~p", [OperationID]),
+    WoodyContext = create_woody_context(Tag, Req, AuthContext, Opts),
+    %% TODO remove this fistful specific step, when separating the wapi service.
+    ok = ff_woody_ctx:set(WoodyContext),
     try
-        WoodyContext = create_woody_context(Tag, Req, AuthContext, Opts),
+
         Context      = create_handler_context(SwagContext, WoodyContext),
         Handler      = get_handler(Tag),
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
@@ -72,6 +75,8 @@ handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContex
             Result;
         error:{woody_error, {Source, Class, Details}} ->
             process_woody_error(Source, Class, Details)
+    after
+        ff_woody_ctx:unset()
     end.
 
 -spec throw_result(request_result()) ->
@@ -89,13 +94,10 @@ create_woody_context(Tag, #{'X-Request-ID' := RequestID}, AuthContext, Opts) ->
     RpcID = #{trace_id := TraceID} = woody_context:new_rpc_id(genlib:to_binary(RequestID)),
     ok = scoper:add_meta(#{request_id => RequestID, trace_id => TraceID}),
     _ = lager:debug("Created TraceID for the request"),
-    Ctx = woody_user_identity:put(
+    woody_user_identity:put(
         collect_user_identity(AuthContext, Opts),
         woody_context:new(RpcID, undefined, get_deadline(Tag))
-    ),
-    %% TODO remove this fistful specific step, when separating the wapi service.
-    ok = ff_woody_ctx:set(Ctx),
-    Ctx.
+    ).
 
 get_deadline(Tag) ->
     ApiDeadlines = genlib_app:env(wapi, api_deadlines, #{}),

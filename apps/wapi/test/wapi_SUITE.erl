@@ -15,6 +15,10 @@
 -export([get_identity/1]).
 -export([create_wallet/1]).
 -export([get_wallet/1]).
+-export([store_bank_card/1]).
+-export([get_bank_card/1]).
+-export([create_desination/1]).
+-export([get_destination/1]).
 
 -import(ct_helper, [cfg/2]).
 
@@ -36,7 +40,11 @@ groups() ->
             create_identity,
             get_identity,
             create_wallet,
-            get_wallet
+            get_wallet,
+            store_bank_card,
+            get_bank_card,
+            create_desination,
+            get_destination
         ]}
     ].
 
@@ -125,6 +133,10 @@ end_per_testcase(_Name, _C) ->
 -spec get_identity(config()) -> test_return().
 -spec create_wallet(config()) -> test_return().
 -spec get_wallet(config()) -> test_return().
+-spec store_bank_card(config()) -> test_return().
+-spec get_bank_card(config()) -> test_return().
+-spec create_desination(config()) -> test_return().
+-spec get_destination(config()) -> test_return().
 
 create_identity(C) ->
     {ok, Identity} = call_api(
@@ -173,6 +185,62 @@ get_wallet(C) ->
     {ok, _Wallet} = call_api(
         fun swag_client_wallet_wallets_api:get_wallet/3,
         #{binding => #{<<"walletID">> => ct_helper:cfg(wallet, Cfg)}},
+        ct_helper:cfg(context, C)
+    ),
+    {save_config, Cfg}.
+
+store_bank_card(C) ->
+    {get_wallet, Cfg} = ct_helper:cfg(saved_config, C),
+    {ok, Res} = call_api(
+        fun swag_client_payres_payment_resources_api:store_bank_card/3,
+        #{body => #{
+            <<"type">>       => <<"BankCard">>,
+            <<"cardNumber">> => <<"4150399999000900">>,
+            <<"expDate">>    => <<"12/25">>,
+            <<"cardHolder">> => <<"LEXA SVOTIN">>
+        }},
+        ct_helper:cfg(context_pcidss, C)
+    ),
+    CardToken = maps:get(<<"token">>, Res),
+    {save_config, [{card_token, CardToken} | Cfg]}.
+
+get_bank_card(C) ->
+    {store_bank_card, Cfg} = ct_helper:cfg(saved_config, C),
+    {store_bank_card, CardToken} = ct_helper:cfg(saved_config, C),
+    {ok, _Card} = call_api(
+        fun swag_client_payres_payment_resources_api:get_bank_card/3,
+        #{binding => #{<<"token">> => ct_helper:cfg(card_token, Cfg)}},
+        ct_helper:cfg(context, C)
+    ),
+    {save_config, Cfg}.
+
+
+create_desination(C) ->
+    {get_bank_card, Cfg} = ct_helper:cfg(saved_config, C),
+    {ok, Dest} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_destination/3,
+        #{body => #{
+            <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
+            <<"identity">> => IdentityID,
+            <<"currency">> => <<"RUB">>,
+            <<"resource">> => #{
+                <<"type">>  => <<"BankCardDestinationResource">>,
+                <<"token">> => ct_helper:cfg(card_token, Cfg)
+            },
+            <<"metadata">> => #{
+                ?STRING => ?STRING
+             }
+        }},
+        ct_helper:cfg(context, C)
+    ),
+    DestID = maps:get(<<"id">>, Dest),
+    {save_config, [{dest, DestID} | Cfg]}.
+
+get_destination(C) ->
+    {create_desination, Cfg} = ct_helper:cfg(saved_config, C),
+    {ok, _Wallet} = call_api(
+        fun swag_client_wallet_withdrawals_api:get_destination/3,
+        #{binding => #{<<"destinationID">> => ct_helper:cfg(dest, Cfg)}},
         ct_helper:cfg(context, C)
     ),
     {save_config, Cfg}.

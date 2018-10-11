@@ -16,6 +16,8 @@ services:
         exec /sbin/init
       }'
     depends_on:
+      wapi-pcidss:
+        condition: service_healthy
       hellgate:
         condition: service_healthy
       identification:
@@ -28,6 +30,20 @@ services:
         condition: service_healthy
       adapter-mocketbank:
         condition: service_healthy
+
+  wapi-pcidss:
+    image: dr.rbkmoney.com/rbkmoney/wapi:6d70c867f78f9fd7ae6db1d624dbb962a5736932
+    command: /opt/wapi/bin/wapi foreground
+    volumes:
+      - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/var/keys/wapi/private.pem
+    depends_on:
+      cds:
+        condition: service_healthy
+    healthcheck:
+      test: "curl http://localhost:8080/"
+      interval: 5s
+      timeout: 1s
+      retries: 10
 
   hellgate:
     image: dr.rbkmoney.com/rbkmoney/hellgate:152732ac4a3121c836b352354a29bcb7a87ab61c

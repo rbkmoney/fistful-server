@@ -31,8 +31,6 @@
 -export([source/1]).
 -export([destination/1]).
 -export([id/1]).
--export([source_acc/1]).
--export([destination_acc/1]).
 -export([body/1]).
 -export([status/1]).
 
@@ -51,16 +49,12 @@
 -spec source(deposit())          -> source().
 -spec destination(deposit())     -> wallet().
 -spec id(deposit())              -> ff_transfer:id().
--spec source_acc(deposit())      -> ff_account:account().
--spec destination_acc(deposit()) -> ff_account:account().
 -spec body(deposit())            -> ff_transfer:body().
 -spec status(deposit())          -> ff_transfer:status().
 
 source(T)          -> maps:get(source, ff_transfer:params(T)).
 destination(T)     -> maps:get(destination, ff_transfer:params(T)).
 id(T)              -> ff_transfer:id(T).
-source_acc(T)      -> ff_transfer:source(T).
-destination_acc(T) -> ff_transfer:destination(T).
 body(T)            -> ff_transfer:body(T).
 status(T)          -> ff_transfer:status(T).
 
@@ -70,8 +64,8 @@ status(T)          -> ff_transfer:status(T).
 
 -type ctx()    :: ff_ctx:ctx().
 -type params() :: #{
-    source      := ff_source:id(),
-    destination := ff_wallet_machine:id(),
+    source_id   := ff_source:id(),
+    wallet_id   := ff_wallet_machine:id(),
     body        := ff_transaction:body()
 }.
 

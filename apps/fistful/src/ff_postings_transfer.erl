@@ -13,7 +13,7 @@
 
 -module(ff_postings_transfer).
 
--type cash_flow()  :: ff_cash_flow:final_cash_flow().
+-type final_cash_flow()  :: ff_cash_flow:final_cash_flow().
 
 -type status() ::
     created   |
@@ -22,9 +22,9 @@
     cancelled .
 
 -type transfer() :: #{
-    id          := id(),
-    cash_flow   := cash_flow(),
-    status      => status()
+    id                := id(),
+    final_cash_flow   := final_cash_flow(),
+    status            => status()
 }.
 
 -type event() ::
@@ -32,12 +32,12 @@
     {status_changed, status()}.
 
 -export_type([transfer/0]).
--export_type([cash_flow/0]).
+-export_type([final_cash_flow/0]).
 -export_type([status/0]).
 -export_type([event/0]).
 
 -export([id/1]).
--export([cash_flow/1]).
+-export([final_cash_flow/1]).
 -export([status/1]).
 
 -export([create/2]).
@@ -58,27 +58,26 @@
 
 -type id()       :: ff_transaction:id().
 -type account()  :: ff_account:account().
--type body()     :: ff_transaction:body().
 
 %%
 
 -spec id(transfer()) ->
     id().
--spec cash_flow(transfer()) ->
-    [cash_flow()].
+-spec final_cash_flow(transfer()) ->
+    final_cash_flow().
 -spec status(transfer()) ->
     status().
 
 id(#{id := V}) ->
     V.
-cash_flow(#{cash_flow := V}) ->
+final_cash_flow(#{final_cash_flow := V}) ->
     V.
 status(#{status := V}) ->
     V.
 
 %%
 
--spec create(id(), cash_flow()) ->
+-spec create(id(), final_cash_flow()) ->
     {ok, [event()]} |
     {error,
         empty |
@@ -88,6 +87,8 @@ status(#{status := V}) ->
         {provider, invalid}
     }.
 
+create(_TrxID, #{postings := []}) ->
+    {error, empty};
 create(ID, CashFlow) ->
     do(fun () ->
         Accounts   = ff_cash_flow:gather_used_accounts(CashFlow),
@@ -103,9 +104,7 @@ create(ID, CashFlow) ->
                 created
             }
         ]
-    end);
-create(_TrxID, []) ->
-    {error, empty}.
+    end).
 
 validate_accessible(Accounts) ->
     _ = [accessible = unwrap(account, ff_account:is_accessible(A)) || A <- Accounts],
@@ -137,7 +136,7 @@ validate_identities([A0 | Accounts]) ->
 
 prepare(Transfer = #{status := created}) ->
     ID = id(Transfer),
-    CashFlow = cash_flow(Transfer),
+    CashFlow = final_cash_flow(Transfer),
     do(fun () ->
         _Affected = unwrap(ff_transaction:prepare(ID, construct_trx_postings(CashFlow))),
         [{status_changed, prepared}]
@@ -159,7 +158,7 @@ prepare(#{status := Status}) ->
 
 commit(Transfer = #{status := prepared}) ->
     ID = id(Transfer),
-    CashFlow = cash_flow(Transfer),
+    CashFlow = final_cash_flow(Transfer),
     do(fun () ->
         _Affected = unwrap(ff_transaction:commit(ID, construct_trx_postings(CashFlow))),
         [{status_changed, committed}]
@@ -177,7 +176,7 @@ commit(#{status := Status}) ->
 
 cancel(Transfer = #{status := prepared}) ->
     ID = id(Transfer),
-    CashFlow = cash_flow(Transfer),
+    CashFlow = final_cash_flow(Transfer),
     do(fun () ->
         _Affected = unwrap(ff_transaction:cancel(ID, construct_trx_postings(CashFlow))),
         [{status_changed, cancelled}]
@@ -199,7 +198,7 @@ apply_event({status_changed, S}, Transfer) ->
 
 %%
 
--spec construct_trx_postings(cash_flow()) ->
+-spec construct_trx_postings(final_cash_flow()) ->
     [ff_transaction:posting()].
 
 construct_trx_postings(#{postings := Postings}) ->
@@ -221,7 +220,7 @@ construct_trx_posting(Posting) ->
 %% Event migrations
 -spec maybe_migrate(any()) -> event().
 % Actual events
-maybe_migrate({created, #{cash_flow := _CashFlow}} = Ev) ->
+maybe_migrate({created, #{final_cash_flow := _CashFlow}} = Ev) ->
     Ev;
 % Old events
 maybe_migrate({created, #{postings := Postings} = Transfer}) ->
@@ -234,8 +233,8 @@ maybe_migrate({created, #{postings := Postings} = Transfer}) ->
         || {S, D, B} <- Postings
     ],
     maybe_migrate({created, #{
-        id        => ID,
-        cash_flow => #{
+        id              => ID,
+        final_cash_flow => #{
             postings => CashFlowPostings
         }
     }});

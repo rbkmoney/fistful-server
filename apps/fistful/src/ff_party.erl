@@ -130,7 +130,7 @@ validate_account_creation(ID, ContractID, WalletID, CurrencyID, Timestamp) ->
         {ok, #domain_TermSet{wallets = Terms}} ->
             do(fun () ->
                 valid = unwrap(validate_wallet_creation_terms_is_reduced(Terms)),
-                valid = unwrap(validate_wallet_currency(Terms, CurrencyID))
+                valid = unwrap(validate_wallet_currency(CurrencyID, Terms))
             end);
         {error, _Reason} = Error ->
             Error
@@ -149,9 +149,9 @@ get_withdrawal_terms(ID, ContractID, WalletID, CurrencyID, Timestamp) ->
         {ok, #domain_TermSet{wallets = Terms}} ->
             do(fun () ->
                 valid = unwrap(validate_withdrawal_terms_is_reduced(Terms)),
-                valid = unwrap(validate_wallet_currency(Terms, CurrencyID)),
+                valid = unwrap(validate_wallet_currency(CurrencyID, Terms)),
                 #domain_WalletServiceTerms{withdrawals = WithdrawalTerms} = Terms,
-                valid = unwrap(validate_withdrawal_currency(WithdrawalTerms, CurrencyID)),
+                valid = unwrap(validate_withdrawal_currency(CurrencyID, WithdrawalTerms)),
                 WithdrawalTerms
             end);
         {error, _Reason} = Error ->
@@ -398,23 +398,23 @@ selector_is_reduced({value, _Value}) ->
 selector_is_reduced({decisions, _Decisions}) ->
     not_reduced.
 
--spec validate_wallet_currency(wallet_terms(), currency_id()) ->
+-spec validate_wallet_currency(currency_id(), wallet_terms()) ->
     {ok, valid} | {error, {invalid_terms, {not_allowed_currency, _Details}}}.
-validate_wallet_currency(Terms, CurrencyID) ->
+validate_wallet_currency(CurrencyID, Terms) ->
     #domain_WalletServiceTerms{
         currencies = {value, Currencies}
     } = Terms,
-    validate_currency(Currencies, CurrencyID).
+    validate_currency(CurrencyID, Currencies).
 
--spec validate_withdrawal_currency(withdrawal_terms(), currency_id()) ->
+-spec validate_withdrawal_currency(currency_id(), withdrawal_terms()) ->
     {ok, valid} | {error, {invalid_terms, {not_allowed_currency, _Details}}}.
-validate_withdrawal_currency(Terms, CurrencyID) ->
+validate_withdrawal_currency(CurrencyID, Terms) ->
     #domain_WithdrawalServiceTerms{
         currencies = {value, Currencies}
     } = Terms,
-    validate_currency(Currencies, CurrencyID).
+    validate_currency(CurrencyID, Currencies).
 
--spec validate_currency(ordsets:ordset(currency_id()), currency_id()) ->
+-spec validate_currency(currency_id(), ordsets:ordset(currency_id())) ->
     {ok, valid} | {error, {invalid_terms, {not_allowed_currency, _Details}}}.
 validate_currency(CurrencyID, Currencies) ->
     case ordsets:is_element(CurrencyID, Currencies) of

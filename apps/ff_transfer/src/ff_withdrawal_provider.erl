@@ -64,7 +64,7 @@ get_adapter(ID) ->
 get_account(ID) ->
     case ?MODULE:get(ID) of
         {ok, Provider} ->
-            {ok, {adapter(Provider), adapter_opts(Provider)}};
+            {ok, account(Provider)};
         Error = {error, _} ->
             Error
     end.

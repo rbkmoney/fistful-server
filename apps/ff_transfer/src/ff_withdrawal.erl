@@ -8,9 +8,11 @@
 
 -type withdrawal() :: ff_transfer:transfer(transfer_params()).
 -type transfer_params() :: #{
-    source      := wallet_id(),
-    destination := destination_id(),
-    body        := body()
+    wallet_id := wallet_id(),
+    destination_id := destination_id(),
+    wallet_account := account(),
+    destination_account := account(),
+    wallet_cash_flow_plan := cash_flow_plan()
 }.
 
 -type machine() :: ff_transfer_machine:st(transfer_params()).
@@ -39,6 +41,7 @@
 -export([body/1]).
 -export([status/1]).
 -export([params/1]).
+-export([route/1]).
 
 %% API
 -export([create/3]).
@@ -61,6 +64,7 @@
 -type wallet_id() :: ff_wallet:id().
 -type timestamp() :: ff_time:timestamp_ms().
 -type destination_id() :: ff_destination:id().
+-type process_result() :: {ff_transfer_machine:action(), [event()]}.
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
 
 %% Accessors
@@ -87,9 +91,9 @@ route(T)           -> ff_transfer:route(T).
 
 -type ctx()    :: ff_ctx:ctx().
 -type params() :: #{
-    source      := ff_wallet_machine:id(),
-    destination := ff_destination:id(),
-    body        := ff_transaction:body()
+    wallet_id      := ff_wallet_machine:id(),
+    destination_id := ff_destination:id(),
+    body           := ff_transaction:body()
 }.
 
 -spec create(id(), params(), ctx()) ->
@@ -149,7 +153,7 @@ events(ID, Range) ->
 %% ff_transfer_machine behaviour
 
 -spec process_transfer(withdrawal()) ->
-    {ok, {ff_transfer_machine:action(), [event()]}} |
+    {ok, process_result()} |
     {error, _Reason}.
 
 process_transfer(Transfer) ->
@@ -199,32 +203,42 @@ do_process_transfer(session_polling, Transfer) ->
 do_process_transfer(all_done, Transfer) ->
     ff_transfer:process_transfer(Transfer).
 
--spec create_route(withdrawal()) -> [event()].
+-spec create_route(withdrawal()) ->
+    {ok, process_result()} |
+    {error, _Reason}.
 create_route(Withdrawal) ->
     #{
         destination_id := DestinationID
     } = params(Withdrawal),
-    {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
-    Destination = ff_destination:get(DestinationMachine),
-    {ok, ProviderID} = ff_withdrawal_provider:choose(Destination, body(Withdrawal)),
-    [{route_changed, #{provider_id => ProviderID}}].
+    do(fun () ->
+        DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
+        Destination = ff_destination:get(DestinationMachine),
+        ProviderID = unwrap(route, ff_withdrawal_provider:choose(Destination, body(Withdrawal))),
+        {continue, [{route_changed, #{provider_id => ProviderID}}]}
+    end).
 
--spec create_p_transfer(withdrawal()) -> [event()].
+-spec create_p_transfer(withdrawal()) ->
+    {ok, process_result()} |
+    {error, _Reason}.
 create_p_transfer(Withdrawal) ->
     #{
         wallet_account := WalletAccount,
         destination_account := DestinationAccount,
         wallet_cash_flow_plan := CashFlowPlan
     } = params(Withdrawal),
-    {ok, SystemAccount, ProviderAccount} = get_route_accounts(route(Withdrawal)),
-    {ok, FinalCashFlow} = finalize_cash_flow(
-        CashFlowPlan, WalletAccount, DestinationAccount, SystemAccount, ProviderAccount, body(Withdrawal)
-    ),
-    PTransferID = construct_p_transfer_id(id(Withdrawal)),
-    PostingsTransferEvents = unwrap(ff_postings_transfer:create(PTransferID, FinalCashFlow)),
-    [{p_transfer, Ev} || Ev <- PostingsTransferEvents].
+    do(fun () ->
+        {SystemAccount, ProviderAccount} = unwrap(route_accounts, get_route_accounts(route(Withdrawal))),
+        FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
+            CashFlowPlan, WalletAccount, DestinationAccount, SystemAccount, ProviderAccount, body(Withdrawal)
+        )),
+        PTransferID = construct_p_transfer_id(id(Withdrawal)),
+        PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
+        {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}
+    end).
 
--spec create_session(withdrawal()) -> [event()].
+-spec create_session(withdrawal()) ->
+    {ok, process_result()} |
+    {error, _Reason}.
 create_session(Withdrawal) ->
     ID = construct_session_id(id(Withdrawal)),
     #{
@@ -240,7 +254,8 @@ create_session(Withdrawal) ->
         receiver    => ff_identity_machine:identity(ReceiverSt)
     },
     do(fun () ->
-        ok = unwrap(ff_withdrawal_session_machine:create(ID, TransferData, #{destination => destination_id(Withdrawal)})),
+        SessionParams = #{destination => destination_id(Withdrawal)},
+        ok = unwrap(ff_withdrawal_session_machine:create(ID, TransferData, SessionParams)),
         {continue, [{session_started, ID}]}
     end).
 
@@ -251,20 +266,21 @@ construct_session_id(ID) ->
 construct_p_transfer_id(ID) ->
     <<"ff/withdrawal/", ID/binary>>.
 
-poll_session_completion(#{session := SID}) ->
-    {ok, Session} = ff_withdrawal_session_machine:get(SID),
+poll_session_completion(Transfer) ->
+    SessionID = ff_transfer:session_id(Transfer),
+    {ok, Session} = ff_withdrawal_session_machine:get(SessionID),
     do(fun () ->
         case ff_withdrawal_session_machine:status(Session) of
             active ->
                 {poll, []};
             {finished, {success, _}} ->
                 {continue, [
-                    {session_finished, SID},
+                    {session_finished, SessionID},
                     {status_changed, succeeded}
                 ]};
             {finished, {failed, Failure}} ->
                 {continue, [
-                    {session_finished, SID},
+                    {session_finished, SessionID},
                     {status_changed, {failed, Failure}}
                 ]}
         end
@@ -285,12 +301,13 @@ get_withdrawal_terms(Wallet, Body, Timestamp) ->
     {_Amount, CurrencyID} = Body,
     ff_party:get_withdrawal_terms(PartyID, ContractID, WalletID, CurrencyID, Timestamp).
 
--spec get_route_accounts(route()) -> {ok, System :: account(), Provider :: account()}.
+-spec get_route_accounts(route()) -> {ok, {System :: account(), Provider :: account()}}.
 get_route_accounts(#{provider_id := ProviderID}) ->
-    ProviderAccount = ff_withdrawal_provider:get_account(ProviderID),
+    {ok, ProviderAccount} = ff_withdrawal_provider:get_account(ProviderID),
     % TODO: Read system account from domain config
-    SystemAccount = genlib_map:get(account, genlib_map:get(system, genlib_app:env(ff_transfer, withdrawal, #{}))),
-    {ok, ProviderAccount, SystemAccount}.
+    SystemConfig = maps:get(system, genlib_app:env(ff_transfer, withdrawal, #{})),
+    SystemAccount = maps:get(account, SystemConfig),
+    {ok, {ProviderAccount, SystemAccount}}.
 
 -spec construct_cash_flow_plan(withdrawal_terms()) ->
     {ok, cash_flow_plan()} | {error, _Error}.

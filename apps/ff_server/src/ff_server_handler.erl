@@ -56,8 +56,8 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
 handle_function_('CreateDeposit', [Params], Context, Opts) ->
     DepositID = next_id('deposit'),
     case ff_deposit:create(DepositID, #{
-            source      => Params#fistful_DepositParams.source,
-            destination => Params#fistful_DepositParams.destination,
+            source_id   => Params#fistful_DepositParams.source,
+            wallet_id   => Params#fistful_DepositParams.destination,
             body        => decode({deposit, body}, Params#fistful_DepositParams.body)
         }, decode(context, Params#fistful_DepositParams.context))
     of

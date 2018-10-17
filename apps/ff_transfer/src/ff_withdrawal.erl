@@ -114,7 +114,7 @@ create(ID, #{wallet_id := WalletID, destination_id := DestinationID, body := Bod
             unwrap(destination, ff_destination:get_machine(DestinationID))
         ),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
-        Terms = unwrap(withdrawal_terms, get_withdrawal_terms(Wallet, Body, ff_time:now())),
+        Terms = unwrap(contract_terms, get_creation_terms(Wallet, Body, ff_time:now())),
         CashFlowPlan = unwrap(cash_flow_plan, construct_cash_flow_plan(Terms)),
         Params = #{
             handler     => ?MODULE,
@@ -167,7 +167,7 @@ process_transfer(Transfer) ->
     p_transfer_start         |
     session_starting         |
     session_polling          |
-    all_done                 .
+    nothing                  .
 
 % TODO: Move activity to ff_transfer
 -spec deduce_activity(withdrawal()) ->
@@ -185,12 +185,12 @@ do_deduce_activity(#{route := undefined}) ->
     routing;
 do_deduce_activity(#{p_transfer := undefined}) ->
     p_transfer_start;
-do_deduce_activity(#{session_id := undefined}) ->
+do_deduce_activity(#{p_transfer := #{status := prepared}, session_id := undefined}) ->
     session_starting;
-do_deduce_activity(#{status := pending}) ->
+do_deduce_activity(#{session_id := SessionID, status := pending}) when SessionID =/= undefined ->
     session_polling;
 do_deduce_activity(_Other) ->
-    all_done.
+    nothing.
 
 do_process_transfer(routing, Transfer) ->
     create_route(Transfer);
@@ -200,7 +200,7 @@ do_process_transfer(session_starting, Transfer) ->
     create_session(Transfer);
 do_process_transfer(session_polling, Transfer) ->
     poll_session_completion(Transfer);
-do_process_transfer(all_done, Transfer) ->
+do_process_transfer(nothing, Transfer) ->
     ff_transfer:process_transfer(Transfer).
 
 -spec create_route(withdrawal()) ->
@@ -286,20 +286,25 @@ poll_session_completion(Transfer) ->
         end
     end).
 
--spec get_withdrawal_terms(wallet(), body(), timestamp()) -> Result when
+-spec get_creation_terms(wallet(), body(), timestamp()) -> Result when
     Result :: {ok, withdrawal_terms()} | {error, Error},
     Error ::
         {invalid_terms, _Details} |
         {party_not_found, id()} |
         {party_not_exists_yet, id()} |
         {exception, any()}.
-get_withdrawal_terms(Wallet, Body, Timestamp) ->
+get_creation_terms(Wallet, Body, Timestamp) ->
     WalletID = ff_wallet:id(Wallet),
     Identity = ff_wallet:identity(Wallet),
     ContractID = ff_identity:contract(Identity),
     PartyID = ff_identity:party(Identity),
     {_Amount, CurrencyID} = Body,
-    ff_party:get_withdrawal_terms(PartyID, ContractID, WalletID, CurrencyID, Timestamp).
+    do(fun() ->
+        Terms = unwrap(ff_party:get_contract_terms(PartyID, ContractID, WalletID, CurrencyID, Timestamp)),
+        valid = unwrap(ff_party:validate_withdrawal_creation(Terms, CurrencyID)),
+        #domain_TermSet{wallets = #domain_WalletServiceTerms{withdrawals = WithdrawalTerms}} = Terms,
+        WithdrawalTerms
+    end).
 
 -spec get_route_accounts(route()) -> {ok, {System :: account(), Provider :: account()}}.
 get_route_accounts(#{provider_id := ProviderID}) ->

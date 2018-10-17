@@ -4,7 +4,6 @@
 
 -export([gather_used_accounts/1]).
 -export([finalize/3]).
--export([decode_plan/1]).
 
 %% Domain types
 -type plan_posting() :: #{
@@ -24,7 +23,7 @@
     {min_of, [plan_volume()]} |
     {max_of, [plan_volume()]}.
 
--type rational() :: {P :: integer(), Q :: integer()}.
+-type rational() :: genlib_rational:t().
 -type rounding_method() ::
     default |
     round_half_towards_zero |  % https://en.wikipedia.org/wiki/Rounding#Round_half_towards_zero
@@ -80,7 +79,6 @@
 %% Internal types
 -type cash() :: ff_transaction:body().
 -type account() :: ff_account:account().
--type domain_plan_postings() :: dmsl_domain_thrift:'CashFlow'().
 -type genlib_rounding_method() :: round_half_towards_zero | round_half_away_from_zero.
 
 -type finalize_error() :: {postings, posting_finalize_error()}.
@@ -91,7 +89,8 @@
     {not_mapped_plan_account, plan_account(), account_mapping()}.
 -type volume_finalize_error() ::
     {not_mapped_constant, plan_constant(), constant_mapping()} |
-    {incomparable, {currency_mismatch, {cash(), cash()}}}.
+    {incomparable, {currency_mismatch, {cash(), cash()}}} |
+    {operation_failed, {empty_list, plan_operation()}}.
 
 %% API
 -spec gather_used_accounts(final_cash_flow()) -> [account()].
@@ -107,12 +106,6 @@ finalize(Plan, Accounts, Constants) ->
         Postings = unwrap(postings, compute_postings(Plan, Accounts, Constants)),
         #{postings => Postings}
     end).
-
--spec decode_plan(domain_plan_postings()) ->
-    {ok, cash_flow_plan()} | {error, _Error}.
-decode_plan(DomainPostings) ->
-    Postings = decode_domain_postings(DomainPostings),
-    {ok, #{postings => Postings}}.
 
 %% Internals
 
@@ -149,13 +142,13 @@ construct_final_posting(PlanPosting, Accounts, Constants) ->
 -spec construct_final_account(plan_account(), account_mapping()) ->
     {ok, final_account()} | {error, account_finalize_error()}.
 construct_final_account(PlanAccount, Accounts) ->
-    case maps:is_key(PlanAccount, Accounts) of
-        true ->
+    case maps:find(PlanAccount, Accounts) of
+        {ok, Account} ->
             {ok, #{
                 type => PlanAccount,
-                account => maps:get(PlanAccount, Accounts)
+                account => Account
             }};
-        false ->
+        error ->
             {error, {not_mapped_plan_account, PlanAccount, Accounts}}
     end.
 
@@ -176,15 +169,10 @@ compute_volume({share, {Rational, Constant, RoundingMethod}}, Constants) ->
         ),
         {ResultAmount, Currency}
     end);
-compute_volume({product, {min_of, Volumes}}, Constants) ->
+compute_volume({product, {Operation, Volumes}}, Constants) ->
     do(fun () ->
-        [Cash| CTail] = unwrap(compute_volumes(Volumes, Constants)),
-        unwrap(do_foldl(fun cash_min/2, Cash, CTail))
-    end);
-compute_volume({product, {max_of, Volumes}}, Constants) ->
-    do(fun () ->
-        [Cash| CTail] = unwrap(compute_volumes(Volumes, Constants)),
-        unwrap(do_foldl(fun cash_max/2, Cash, CTail))
+        Volumes = unwrap(compute_volumes(Volumes, Constants)),
+        unwrap(foldl_cash(Operation, Volumes))
     end).
 
 -spec compute_volumes([plan_volume()], constant_mapping()) ->
@@ -197,10 +185,10 @@ compute_volumes(Volumes, Constants) ->
 -spec get_constant_value(plan_constant(), constant_mapping()) ->
     {ok, cash()} | {error, {not_mapped_constant, plan_constant(), constant_mapping()}}.
 get_constant_value(Constant, Constants) ->
-    case maps:is_key(Constant, Constants) of
-        true ->
-            {ok, maps:get(Constant, Constants)};
-        false ->
+    case maps:find(Constant, Constants) of
+        {ok, _Value} = Result ->
+            Result;
+        error ->
             {error, {not_mapped_constant, Constant, Constants}}
     end.
 
@@ -212,17 +200,19 @@ get_genlib_rounding_method(round_half_towards_zero) ->
 get_genlib_rounding_method(round_half_away_from_zero) ->
     round_half_away_from_zero.
 
+foldl_cash(Operation, []) ->
+    {error, {operation_failed, {empty_list, {Operation, []}}}};
+foldl_cash(min_of, [Cash| CTail]) ->
+    do_foldl(fun cash_min/2, Cash, CTail);
+foldl_cash(max_of, [Cash| CTail]) ->
+    do_foldl(fun cash_max/2, Cash, CTail).
+
 -spec do_foldl(Fun, Acc, [T]) -> {ok, Acc} | {error, Reason} when
     Fun :: fun((T, Acc) -> {ok, Acc} | {error, Reason}).
-do_foldl(_Fun, Acc, []) ->
-    {ok, Acc};
-do_foldl(Fun, Acc0, [H | Tail]) ->
-    case Fun(H, Acc0) of
-        {ok, Acc1} ->
-            do_foldl(Fun, Acc1, Tail);
-        {error, _Reason} = Error ->
-            Error
-    end.
+do_foldl(Fun, Acc0, List) ->
+    do(fun() ->
+        lists:foldl(fun(H, Acc) -> unwrap(Fun(H, Acc)) end, Acc0, List)
+    end).
 
 -spec cash_min(cash(), cash()) ->
     {ok, cash()} | {error, {incomparable, {currency_mismatch, {cash(), cash()}}}}.
@@ -237,58 +227,3 @@ cash_max({Amount1, Currency1}, {Amount2, Currency2}) when Currency1 =:= Currency
     {ok, {erlang:max(Amount1, Amount2), Currency1}};
 cash_max({_Amount1, Currency1} = Cash1, {_Amount2, Currency2} = Cash2) when Currency1 =/= Currency2 ->
     {error, {incomparable, {currency_mismatch, {Cash1, Cash2}}}}.
-
-%% Domain cash flow unmarshalling
-
--spec decode_domain_postings(domain_plan_postings()) ->
-    [plan_posting()].
-decode_domain_postings(DomainPostings) ->
-    [decode_domain_posting(P) || P <- DomainPostings].
-
--spec decode_domain_posting(dmsl_domain_thrift:'CashFlowPosting'()) ->
-    plan_posting().
-decode_domain_posting(
-    #domain_CashFlowPosting{
-        source = Source,
-        destination = Destination,
-        volume = Volume,
-        details = Details
-    }
-) ->
-    #{
-        sender => decode_domain_plan_account(Source),
-        receiver => decode_domain_plan_account(Destination),
-        volume => decode_domain_plan_volume(Volume),
-        details => Details
-    }.
-
--spec decode_domain_plan_account(dmsl_domain_thrift:'CashFlowAccount'()) ->
-    plan_account().
-decode_domain_plan_account({_AccountNS, _AccountType} = Account) ->
-    Account.
-
--spec decode_domain_plan_volume(dmsl_domain_thrift:'CashVolume'()) ->
-    plan_volume().
-decode_domain_plan_volume({fixed, #domain_CashVolumeFixed{cash = Cash}}) ->
-    {fixed, decode_domain_cash(Cash)};
-decode_domain_plan_volume({share, Share}) ->
-    #domain_CashVolumeShare{
-        parts = #'Rational'{p = P, q = Q},
-        'of' = Of,
-        rounding_method = RoundingMethod
-    } = Share,
-    {share, {{P, Q}, Of, RoundingMethod}};
-decode_domain_plan_volume({product, {Fun, CVs}}) ->
-    {product, {Fun, lists:map(fun decode_domain_plan_volume/1, CVs)}}.
-
--spec decode_domain_cash(dmsl_domain_thrift:'Cash'()) ->
-    cash().
-decode_domain_cash(
-    #domain_Cash{
-        amount = Amount,
-        currency = #domain_CurrencyRef{
-            symbolic_code = SymbolicCode
-        }
-    }
-) ->
-    {Amount, SymbolicCode}.

@@ -6,8 +6,10 @@
 
 -type handler()     :: module().
 
+-define(ACTUAL_FORMAT_VERSION, 2).
+
 -opaque transfer(T) :: #{
-    version       := 2,
+    version       := ?ACTUAL_FORMAT_VERSION,
     id            := id(),
     transfer_type := transfer_type(),
     body          := body(),
@@ -77,6 +79,7 @@
 -type transfer() :: transfer(any()).
 -type session_id() :: id().
 -type p_transfer() :: ff_postings_transfer:transfer().
+-type legacy_event() :: any().
 -type transfer_type() :: atom().
 
 %% Accessors
@@ -131,7 +134,7 @@ create(TransferType, ID, Body, Params) ->
     do(fun () ->
         [
             {created, #{
-                version       => 1,
+                version       => ?ACTUAL_FORMAT_VERSION,
                 id            => ID,
                 transfer_type => TransferType,
                 body          => Body,
@@ -182,12 +185,13 @@ process_activity(cancel_transfer, Transfer) ->
 
 %%
 
--spec apply_event(event(), ff_maybe:maybe(transfer(T))) ->
+-spec apply_event(event() | legacy_event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
-
 apply_event(Ev, T) ->
     apply_event_(maybe_migrate(Ev), T).
 
+-spec apply_event_(event(), ff_maybe:maybe(transfer(T))) ->
+    transfer(T).
 apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
@@ -201,10 +205,10 @@ apply_event_({session_started, S}, T) ->
 apply_event_({session_finished, S}, T = #{session_id := S}) ->
     maps:remove(session_id, T).
 
--spec maybe_migrate(any()) ->
+-spec maybe_migrate(event() | legacy_event()) ->
     event().
 % Actual events
-maybe_migrate(Ev = {created, #{version := 2}}) ->
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
     Ev;
 maybe_migrate({p_transfer, PEvent}) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent)};

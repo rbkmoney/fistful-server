@@ -315,7 +315,7 @@ construct_cash_flow_plan(Terms) ->
     #domain_WithdrawalServiceTerms{
         cash_flow = {value, EncodedCashFlowPlan}
     } = Terms,
-    ff_cash_flow:decode_plan(EncodedCashFlowPlan).
+    ff_party:decode_cash_flow_plan(EncodedCashFlowPlan).
 
 -spec finalize_cash_flow(cash_flow_plan(), account(), account(), account(), account(), body()) ->
     {ok, final_cash_flow()} | {error, _Error}.

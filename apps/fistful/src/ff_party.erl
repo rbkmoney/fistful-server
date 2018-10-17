@@ -36,6 +36,7 @@
 -export([change_contractor_level/3]).
 -export([validate_account_creation/5]).
 -export([get_withdrawal_terms/5]).
+-export([decode_cash_flow_plan/1]).
 
 %% Internal types
 
@@ -157,6 +158,12 @@ get_withdrawal_terms(ID, ContractID, WalletID, CurrencyID, Timestamp) ->
         {error, _Reason} = Error ->
             Error
     end.
+
+-spec decode_cash_flow_plan(dmsl_domain_thrift:'CashFlow'()) ->
+    {ok, ff_cash_flow:cash_flow_plan()}.
+decode_cash_flow_plan(DomainPostings) ->
+    Postings = decode_domain_postings(DomainPostings),
+    {ok, #{postings => Postings}}.
 
 %% Internal functions
 
@@ -423,3 +430,58 @@ validate_currency(CurrencyID, Currencies) ->
         false ->
             {error, {invalid_terms, {not_allowed_currency, {CurrencyID, Currencies}}}}
     end.
+
+%% Domain cash flow unmarshalling
+
+-spec decode_domain_postings(ff_cash_flow:domain_plan_postings()) ->
+    [ff_cash_flow:plan_posting()].
+decode_domain_postings(DomainPostings) ->
+    [decode_domain_posting(P) || P <- DomainPostings].
+
+-spec decode_domain_posting(dmsl_domain_thrift:'CashFlowPosting'()) ->
+    ff_cash_flow:plan_posting().
+decode_domain_posting(
+    #domain_CashFlowPosting{
+        source = Source,
+        destination = Destination,
+        volume = Volume,
+        details = Details
+    }
+) ->
+    #{
+        sender => decode_domain_plan_account(Source),
+        receiver => decode_domain_plan_account(Destination),
+        volume => decode_domain_plan_volume(Volume),
+        details => Details
+    }.
+
+-spec decode_domain_plan_account(dmsl_domain_thrift:'CashFlowAccount'()) ->
+    ff_cash_flow:plan_account().
+decode_domain_plan_account({_AccountNS, _AccountType} = Account) ->
+    Account.
+
+-spec decode_domain_plan_volume(dmsl_domain_thrift:'CashVolume'()) ->
+    ff_cash_flow:plan_volume().
+decode_domain_plan_volume({fixed, #domain_CashVolumeFixed{cash = Cash}}) ->
+    {fixed, decode_domain_cash(Cash)};
+decode_domain_plan_volume({share, Share}) ->
+    #domain_CashVolumeShare{
+        parts = #'Rational'{p = P, q = Q},
+        'of' = Of,
+        rounding_method = RoundingMethod
+    } = Share,
+    {share, {{P, Q}, Of, RoundingMethod}};
+decode_domain_plan_volume({product, {Fun, CVs}}) ->
+    {product, {Fun, lists:map(fun decode_domain_plan_volume/1, CVs)}}.
+
+-spec decode_domain_cash(dmsl_domain_thrift:'Cash'()) ->
+    ff_cash_flow:cash().
+decode_domain_cash(
+    #domain_Cash{
+        amount = Amount,
+        currency = #domain_CurrencyRef{
+            symbolic_code = SymbolicCode
+        }
+    }
+) ->
+    {Amount, SymbolicCode}.

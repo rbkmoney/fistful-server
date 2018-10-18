@@ -37,7 +37,7 @@
 -export([validate_account_creation/2]).
 -export([validate_withdrawal_creation/2]).
 -export([get_contract_terms/5]).
--export([decode_cash_flow_plan/1]).
+-export([get_withdrawal_cash_flow_plan/1]).
 
 %% Internal types
 
@@ -168,9 +168,16 @@ validate_withdrawal_creation(Terms, CurrencyID) ->
         valid = unwrap(validate_withdrawal_currency(CurrencyID, WithdrawalTerms))
     end).
 
--spec decode_cash_flow_plan(dmsl_domain_thrift:'CashFlow'()) ->
-    {ok, ff_cash_flow:cash_flow_plan()}.
-decode_cash_flow_plan(DomainPostings) ->
+-spec get_withdrawal_cash_flow_plan(terms()) ->
+    {ok, ff_cash_flow:cash_flow_plan()} | {error, _Error}.
+get_withdrawal_cash_flow_plan(Terms) ->
+    #domain_TermSet{
+        wallets = #domain_WalletServiceTerms{
+            withdrawals = #domain_WithdrawalServiceTerms{
+                cash_flow = {value, DomainPostings}
+            }
+        }
+    } = Terms,
     Postings = decode_domain_postings(DomainPostings),
     {ok, #{postings => Postings}}.
 

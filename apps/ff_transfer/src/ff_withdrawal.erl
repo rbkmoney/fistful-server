@@ -108,14 +108,16 @@ route(T)           -> ff_transfer:route(T).
     }.
 
 create(ID, #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->
+    {_Amount, CurrencyID} = Body,
     do(fun() ->
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
         Destination = ff_destination:get(
             unwrap(destination, ff_destination:get_machine(DestinationID))
         ),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
-        Terms = unwrap(contract_terms, get_creation_terms(Wallet, Body, ff_time:now())),
-        CashFlowPlan = unwrap(cash_flow_plan, construct_cash_flow_plan(Terms)),
+        Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
+        valid = unwrap(terms, ff_party:validate_withdrawal_creation(Terms, CurrencyID)),
+        CashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
         Params = #{
             handler     => ?MODULE,
             body        => Body,
@@ -286,15 +288,13 @@ poll_session_completion(Transfer) ->
         end
     end).
 
--spec get_creation_terms(wallet(), body(), timestamp()) -> Result when
+-spec get_contract_terms(wallet(), body(), timestamp()) -> Result when
     Result :: {ok, withdrawal_terms()} | {error, Error},
     Error ::
-        {invalid_terms, _Details} |
-        {terms_violation, _Details} |
         {party_not_found, id()} |
         {party_not_exists_yet, id()} |
         {exception, any()}.
-get_creation_terms(Wallet, Body, Timestamp) ->
+get_contract_terms(Wallet, Body, Timestamp) ->
     WalletID = ff_wallet:id(Wallet),
     IdentityID = ff_wallet:identity(Wallet),
     do(fun() ->
@@ -303,10 +303,7 @@ get_creation_terms(Wallet, Body, Timestamp) ->
         ContractID = ff_identity:contract(Identity),
         PartyID = ff_identity:party(Identity),
         {_Amount, CurrencyID} = Body,
-        Terms = unwrap(ff_party:get_contract_terms(PartyID, ContractID, WalletID, CurrencyID, Timestamp)),
-        valid = unwrap(ff_party:validate_withdrawal_creation(Terms, CurrencyID)),
-        #domain_TermSet{wallets = #domain_WalletServiceTerms{withdrawals = WithdrawalTerms}} = Terms,
-        WithdrawalTerms
+        unwrap(ff_party:get_contract_terms(PartyID, ContractID, WalletID, CurrencyID, Timestamp))
     end).
 
 -spec get_route_accounts(route()) -> {ok, {System :: account(), Provider :: account()}}.
@@ -316,14 +313,6 @@ get_route_accounts(#{provider_id := ProviderID}) ->
     SystemConfig = maps:get(system, genlib_app:env(ff_transfer, withdrawal, #{})),
     SystemAccount = maps:get(account, SystemConfig),
     {ok, {ProviderAccount, SystemAccount}}.
-
--spec construct_cash_flow_plan(withdrawal_terms()) ->
-    {ok, cash_flow_plan()} | {error, _Error}.
-construct_cash_flow_plan(Terms) ->
-    #domain_WithdrawalServiceTerms{
-        cash_flow = {value, EncodedCashFlowPlan}
-    } = Terms,
-    ff_party:decode_cash_flow_plan(EncodedCashFlowPlan).
 
 -spec finalize_cash_flow(cash_flow_plan(), account(), account(), account(), account(), body()) ->
     {ok, final_cash_flow()} | {error, _Error}.

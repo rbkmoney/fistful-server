@@ -303,7 +303,12 @@ get_contract_terms(Wallet, Body, Timestamp) ->
         ContractID = ff_identity:contract(Identity),
         PartyID = ff_identity:party(Identity),
         {_Amount, CurrencyID} = Body,
-        unwrap(ff_party:get_contract_terms(PartyID, ContractID, WalletID, CurrencyID, Timestamp))
+        TermVarset = #{
+            amount => Body,
+            wallet_id => WalletID,
+            currency_id => CurrencyID
+        },
+        unwrap(ff_party:get_contract_terms(PartyID, ContractID, TermVarset, Timestamp))
     end).
 
 -spec get_route_accounts(route()) -> {ok, {System :: account(), Provider :: account()}}.

@@ -19,6 +19,12 @@
     email := binary()
 }.
 
+-type term_varset() :: #{
+    amount => cash(),
+    wallet_id => wallet_id(),
+    currency_id => currency_id()
+}.
+
 -export_type([id/0]).
 -export_type([contract_id/0]).
 -export_type([wallet_id/0]).
@@ -36,11 +42,12 @@
 -export([change_contractor_level/3]).
 -export([validate_account_creation/2]).
 -export([validate_withdrawal_creation/2]).
--export([get_contract_terms/5]).
+-export([get_contract_terms/4]).
 -export([get_withdrawal_cash_flow_plan/1]).
 
 %% Internal types
 
+-type cash() :: ff_transaction:body().
 -type terms() :: dmsl_domain_thrift:'TermSet'().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'() | undefined.
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
@@ -122,14 +129,14 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
 
 %%
 
--spec get_contract_terms(id(), contract_id(), wallet_id(), currency_id(), timestamp()) -> Result when
+-spec get_contract_terms(id(), contract_id(), term_varset(), timestamp()) -> Result when
     Result :: {ok, terms()} | {error, Error},
     Error :: {party_not_found, id()} | {party_not_exists_yet, id()} | {exception, any()}.
 
-get_contract_terms(ID, ContractID, WalletID, CurrencyID, Timestamp) ->
-    CurrencyRef = #domain_CurrencyRef{symbolic_code = CurrencyID},
-    Args = [ID, ContractID, WalletID, CurrencyRef, ff_time:to_rfc3339(Timestamp)],
-    case call('ComputeWalletTerms', Args) of
+get_contract_terms(ID, ContractID, Varset, Timestamp) ->
+    DomainVarset = encode_varset(Varset),
+    Args = [ID, ContractID, ff_time:to_rfc3339(Timestamp), DomainVarset],
+    case call('ComputeWalletTermsNew', Args) of
         {ok, Terms} ->
             {ok, Terms};
         {exception, #payproc_PartyNotFound{}} ->
@@ -500,3 +507,33 @@ decode_domain_cash(
     }
 ) ->
     {Amount, SymbolicCode}.
+
+%% Varset stuff
+
+-spec encode_varset(term_varset()) ->
+    dmsl_payment_processing_thrift:'Varset'().
+encode_varset(Varset) ->
+    #payproc_Varset{
+        currency = encode_currency(genlib_map:get(currency_id, Varset)),
+        amount = encode_cash(genlib_map:get(amount, Varset)),
+        wallet_id = genlib_map:get(wallet_id, Varset)
+    }.
+
+-spec encode_currency(currency_id() | undefined) ->
+    currency_ref() | undefined.
+encode_currency(undefined) ->
+    undefined;
+encode_currency(CurrencyID) ->
+    #domain_CurrencyRef{symbolic_code = CurrencyID}.
+
+-spec encode_cash(cash() | undefined) ->
+    dmsl_domain_thrift:'Cash'() | undefined.
+encode_cash(undefined) ->
+    undefined;
+encode_cash({Amount, CurrencyID}) ->
+    #domain_Cash{
+        amount = Amount,
+        currency = #domain_CurrencyRef{
+            symbolic_code = CurrencyID
+        }
+    }.

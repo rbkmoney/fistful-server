@@ -147,9 +147,9 @@ events(ID, Range) ->
     {ok, process_result()} |
     {error, _Reason}.
 
-process_transfer(Transfer) ->
-    Activity = deduce_activity(Transfer),
-    do_process_transfer(Activity, Transfer).
+process_transfer(Deposit) ->
+    Activity = deduce_activity(Deposit),
+    do_process_transfer(Activity, Deposit).
 
 %% Internals
 
@@ -161,10 +161,10 @@ process_transfer(Transfer) ->
 % TODO: Move activity to ff_transfer
 -spec deduce_activity(deposit()) ->
     activity().
-deduce_activity(Transfer) ->
+deduce_activity(Deposit) ->
     Params = #{
-        p_transfer => ff_transfer:p_transfer(Transfer),
-        status => status(Transfer)
+        p_transfer => ff_transfer:p_transfer(Deposit),
+        status => status(Deposit)
     },
     do_deduce_activity(Params).
 
@@ -175,32 +175,32 @@ do_deduce_activity(#{status := pending, p_transfer := #{status := prepared}}) ->
 do_deduce_activity(_Other) ->
     idle.
 
-do_process_transfer(p_transfer_start, Transfer) ->
-    create_p_transfer(Transfer);
-do_process_transfer(finish_him, Transfer) ->
-    finish_transfer(Transfer);
-do_process_transfer(idle, Transfer) ->
-    ff_transfer:process_transfer(Transfer).
+do_process_transfer(p_transfer_start, Deposit) ->
+    create_p_transfer(Deposit);
+do_process_transfer(finish_him, Deposit) ->
+    finish_transfer(Deposit);
+do_process_transfer(idle, Deposit) ->
+    ff_transfer:process_transfer(Deposit).
 
 -spec create_p_transfer(deposit()) ->
     {ok, process_result()} |
     {error, _Reason}.
-create_p_transfer(Transfer) ->
+create_p_transfer(Deposit) ->
     #{
         wallet_account := WalletAccount,
         source_account := SourceAccount,
         wallet_cash_flow_plan := CashFlowPlan
-    } = params(Transfer),
+    } = params(Deposit),
     do(fun () ->
         Constants = #{
-            operation_amount => body(Transfer)
+            operation_amount => body(Deposit)
         },
         Accounts = #{
             {wallet, sender_source} => SourceAccount,
             {wallet, receiver_settlement} => WalletAccount
         },
         FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
-        PTransferID = construct_p_transfer_id(id(Transfer)),
+        PTransferID = construct_p_transfer_id(id(Deposit)),
         PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
         {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}
     end).
@@ -208,7 +208,7 @@ create_p_transfer(Transfer) ->
 -spec finish_transfer(deposit()) ->
     {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(ff_transfer:event())]}} |
     {error, _Reason}.
-finish_transfer(_Transfer) ->
+finish_transfer(_Deposit) ->
     {ok, {continue, [{status_changed, succeeded}]}}.
 
 -spec construct_p_transfer_id(id()) -> id().

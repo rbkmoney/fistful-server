@@ -158,9 +158,9 @@ events(ID, Range) ->
     {ok, process_result()} |
     {error, _Reason}.
 
-process_transfer(Transfer) ->
-    Activity = deduce_activity(Transfer),
-    do_process_transfer(Activity, Transfer).
+process_transfer(Withdrawal) ->
+    Activity = deduce_activity(Withdrawal),
+    do_process_transfer(Activity, Withdrawal).
 
 %% Internals
 
@@ -174,12 +174,12 @@ process_transfer(Transfer) ->
 % TODO: Move activity to ff_transfer
 -spec deduce_activity(withdrawal()) ->
     activity().
-deduce_activity(Transfer) ->
+deduce_activity(Withdrawal) ->
     Params = #{
-        route => ff_transfer:route(Transfer),
-        p_transfer => ff_transfer:p_transfer(Transfer),
-        session_id => ff_transfer:session_id(Transfer),
-        status => status(Transfer)
+        route => ff_transfer:route(Withdrawal),
+        p_transfer => ff_transfer:p_transfer(Withdrawal),
+        session_id => ff_transfer:session_id(Withdrawal),
+        status => status(Withdrawal)
     },
     do_deduce_activity(Params).
 
@@ -194,16 +194,16 @@ do_deduce_activity(#{session_id := SessionID, status := pending}) when SessionID
 do_deduce_activity(_Other) ->
     idle.
 
-do_process_transfer(routing, Transfer) ->
-    create_route(Transfer);
-do_process_transfer(p_transfer_start, Transfer) ->
-    create_p_transfer(Transfer);
-do_process_transfer(session_starting, Transfer) ->
-    create_session(Transfer);
-do_process_transfer(session_polling, Transfer) ->
-    poll_session_completion(Transfer);
-do_process_transfer(idle, Transfer) ->
-    ff_transfer:process_transfer(Transfer).
+do_process_transfer(routing, Withdrawal) ->
+    create_route(Withdrawal);
+do_process_transfer(p_transfer_start, Withdrawal) ->
+    create_p_transfer(Withdrawal);
+do_process_transfer(session_starting, Withdrawal) ->
+    create_session(Withdrawal);
+do_process_transfer(session_polling, Withdrawal) ->
+    poll_session_completion(Withdrawal);
+do_process_transfer(idle, Withdrawal) ->
+    ff_transfer:process_transfer(Withdrawal).
 
 -spec create_route(withdrawal()) ->
     {ok, process_result()} |
@@ -268,8 +268,8 @@ construct_session_id(ID) ->
 construct_p_transfer_id(ID) ->
     <<"ff/withdrawal/", ID/binary>>.
 
-poll_session_completion(Transfer) ->
-    SessionID = ff_transfer:session_id(Transfer),
+poll_session_completion(Withdrawal) ->
+    SessionID = ff_transfer:session_id(Withdrawal),
     {ok, Session} = ff_withdrawal_session_machine:get(SessionID),
     do(fun () ->
         case ff_withdrawal_session_machine:status(Session) of

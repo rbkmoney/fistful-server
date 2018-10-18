@@ -8,31 +8,58 @@
 
 -module(ff_withdrawal_provider).
 
--export([id/1]).
 -export([get/1]).
--export([get_adapter/1]).
--export([get_account/1]).
 -export([choose/2]).
 
-%%
+-export([id/1]).
+-export([adapter/1]).
+-export([account/1]).
+-export([adapter_opts/1]).
+
+%% Types
 
 -type id() :: binary().
--type provider() :: #{
-    _ => _ % TODO
+-opaque provider() :: #{
+    id           := id(),
+    adapter      := adapter(),
+    adapter_opts := adapter_opts(),
+    account      := account()
 }.
+-type adapter() :: ff_adapter:adapter().
+-type adapter_opts() :: map().
 
--type adapter() :: {ff_adapter:adapter(), ff_adapter:opts()}.
--type account() :: ff_account:account().
+-export_type([id/0]).
 -export_type([adapter/0]).
+-export_type([provider/0]).
+-export_type([adapter_opts/0]).
 
+%% Internal types
 
-%%
+-type account() :: ff_account:account().
+
+%% Accessors
 
 -spec id(provider()) ->
     id().
+id(#{id := V}) ->
+    V.
 
-id(_) ->
-    <<>>.
+-spec adapter(provider()) ->
+    adapter().
+adapter(#{adapter := V}) ->
+    V.
+
+-spec account(provider()) ->
+    account().
+account(#{account := V}) ->
+    V.
+
+-spec adapter_opts(provider()) ->
+    adapter_opts().
+adapter_opts(P) ->
+    maps:get(adapter_opts, P, #{}).
+
+%% API
 
 -spec get(id()) ->
     ff_map:result(provider()).
@@ -43,30 +70,6 @@ get(ID) ->
             {ok, V};
         undefined ->
             {error, notfound}
-    end.
-
--spec get_adapter(id()) ->
-    {ok, adapter()} |
-    {error, notfound}.
-
-get_adapter(ID) ->
-    case ?MODULE:get(ID) of
-        {ok, Provider} ->
-            {ok, {adapter(Provider), adapter_opts(Provider)}};
-        Error = {error, _} ->
-            Error
-    end.
-
--spec get_account(id()) ->
-    {ok, account()} |
-    {error, notfound}.
-
-get_account(ID) ->
-    case ?MODULE:get(ID) of
-        {ok, Provider} ->
-            {ok, account(Provider)};
-        Error = {error, _} ->
-            Error
     end.
 
 -spec choose(ff_destination:destination(), ff_transaction:body()) ->
@@ -87,12 +90,3 @@ route(Destination, _Body) ->
     {ok, Provider} = ff_provider:get(ff_identity:provider(ff_identity_machine:identity(IdentitySt))),
     [ID | _] = ff_provider:routes(Provider),
     ID.
-
-adapter(#{adapter := V}) ->
-    V.
-
-account(#{account := V}) ->
-    V.
-
-adapter_opts(P) ->
-    maps:get(adapter_opts, P, #{}).

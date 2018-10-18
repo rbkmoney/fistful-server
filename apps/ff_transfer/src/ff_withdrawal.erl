@@ -308,7 +308,8 @@ get_contract_terms(Wallet, Body, Timestamp) ->
 
 -spec get_route_accounts(route()) -> {ok, {System :: account(), Provider :: account()}}.
 get_route_accounts(#{provider_id := ProviderID}) ->
-    {ok, ProviderAccount} = ff_withdrawal_provider:get_account(ProviderID),
+    {ok, Provider} = ff_withdrawal_provider:get(ProviderID),
+    ProviderAccount = ff_withdrawal_provider:account(Provider),
     % TODO: Read system account from domain config
     SystemConfig = maps:get(system, genlib_app:env(ff_transfer, withdrawal, #{})),
     SystemAccount = maps:get(account, SystemConfig),

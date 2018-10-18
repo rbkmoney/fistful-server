@@ -34,8 +34,8 @@
     id         => id(),
     status     => status(),
     withdrawal => withdrawal(),
-    provider   => ff_withdrawal_provider:provider(),
-    adapter    => ff_withdrawal_provider:adapter()
+    provider   => ff_withdrawal_provider:id(),
+    adapter    => adapter_with_opts()
 }.
 
 -type session_result() :: {success, trx_info()} | {failed, ff_adapter_withdrawal:failure()}.
@@ -71,6 +71,7 @@
 -type machine()      :: machinery:machine(ev(), auxst()).
 -type result()       :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts(_).
+-type adapter_with_opts() :: {ff_withdrawal_provider:adapter(), ff_withdrawal_provider:adapter_opts()}.
 
 -type st() :: #{
     session       => session(),
@@ -178,7 +179,7 @@ create_session(ID, Data = #{cash := Cash}, #{destination := DestinationID}) ->
         id         => ID,
         withdrawal => create_adapter_withdrawal(Data, Destination),
         provider   => ProviderID,
-        adapter    => get_adapter(ProviderID),
+        adapter    => get_adapter_with_opts(ProviderID),
         status     => active
     }.
 
@@ -186,9 +187,10 @@ get_provider(Destination, Cash) ->
     {ok, ProviderID} = ff_withdrawal_provider:choose(Destination, Cash),
     ProviderID.
 
-get_adapter(ProviderID) ->
-    {ok, Adapter} = ff_withdrawal_provider:get_adapter(ProviderID),
-    Adapter.
+-spec get_adapter_with_opts(ff_withdrawal_provider:id()) -> adapter_with_opts().
+get_adapter_with_opts(ProviderID) ->
+    {ok, Provider} = ff_withdrawal_provider:get(ProviderID),
+    {ff_withdrawal_provider:adapter(Provider), ff_withdrawal_provider:adapter_opts(Provider)}.
 
 create_adapter_withdrawal(Data, Destination) ->
     Data#{destination => Destination}.

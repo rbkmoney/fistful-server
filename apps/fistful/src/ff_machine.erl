@@ -43,7 +43,7 @@
 -export([created/1]).
 -export([updated/1]).
 
-%%
+%% API
 
 -export([get/3]).
 
@@ -52,15 +52,36 @@
 -export([emit_event/1]).
 -export([emit_events/1]).
 
-%%
+%% Machinery helpers
 
 -export([init/4]).
 -export([process_timeout/3]).
 -export([process_call/4]).
 
-%%
+%% Model callbacks
+
+-callback init(machinery:args(_)) ->
+    [event()].
+
+-callback apply_event(event(), model()) ->
+    model().
+
+-callback process_call(st()) ->
+    {machinery:response(_), [event()]}.
+
+-callback process_timeout(st()) ->
+    [event()].
+
+%% Pipeline helpers
 
 -import(ff_pipeline, [do/1, unwrap/1]).
+
+%% Internal types
+
+-type model()   :: any().
+-type event()   :: any().
+-type st()      :: st(model()).
+-type machine() :: machine(model()).
 
 %%
 
@@ -88,7 +109,7 @@ times(St) ->
 %%
 
 -spec get(module(), namespace(), id()) ->
-    {ok, st(_)} |
+    {ok, st()} |
     {error, notfound}.
 
 get(Mod, NS, ID) ->
@@ -96,8 +117,8 @@ get(Mod, NS, ID) ->
         collapse(Mod, unwrap(machinery:get(NS, ID, fistful:backend(NS))))
     end).
 
--spec collapse(module(), machine(_)) ->
-    st(_).
+-spec collapse(module(), machine()) ->
+    st().
 
 collapse(Mod, #{history := History, aux_state := #{ctx := Ctx}}) ->
     collapse_history(Mod, History, #{ctx => Ctx}).

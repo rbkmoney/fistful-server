@@ -135,7 +135,7 @@ construct_final_posting(PlanPosting, Accounts, Constants) ->
             sender => unwrap(construct_final_account(PlanSender, Accounts)),
             receiver => unwrap(construct_final_account(PlanReceiver, Accounts)),
             volume => unwrap(compute_volume(PlanVolume, Constants)),
-            details => PlanDetails 
+            details => PlanDetails
         })
     end).
 

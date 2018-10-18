@@ -469,11 +469,11 @@ decode_domain_plan_volume({fixed, #domain_CashVolumeFixed{cash = Cash}}) ->
     {fixed, decode_domain_cash(Cash)};
 decode_domain_plan_volume({share, Share}) ->
     #domain_CashVolumeShare{
-        parts = #'Rational'{p = P, q = Q},
+        parts = Parts,
         'of' = Of,
         rounding_method = RoundingMethod
     } = Share,
-    {share, {{P, Q}, Of, decode_rounding_method(RoundingMethod)}};
+    {share, {decode_rational(Parts), Of, decode_rounding_method(RoundingMethod)}};
 decode_domain_plan_volume({product, {Fun, CVs}}) ->
     {product, {Fun, lists:map(fun decode_domain_plan_volume/1, CVs)}}.
 
@@ -483,6 +483,11 @@ decode_rounding_method(undefined) ->
     default;
 decode_rounding_method(RoundingMethod) ->
     RoundingMethod.
+
+-spec decode_rational(dmsl_base_thrift:'Rational'()) ->
+    genlib_rational:t().
+decode_rational(#'Rational'{p = P, q = Q}) ->
+    genlib_rational:new(P, Q).
 
 -spec decode_domain_cash(dmsl_domain_thrift:'Cash'()) ->
     ff_cash_flow:cash().

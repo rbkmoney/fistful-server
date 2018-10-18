@@ -79,7 +79,6 @@
 %% Internal types
 -type cash() :: ff_transaction:body().
 -type account() :: ff_account:account().
--type genlib_rounding_method() :: round_half_towards_zero | round_half_away_from_zero.
 
 -type finalize_error() :: {postings, posting_finalize_error()}.
 -type posting_finalize_error() ::
@@ -159,11 +158,10 @@ compute_volume({fixed, Cash}, _Constants) ->
 compute_volume({share, {Rational, Constant, RoundingMethod}}, Constants) ->
     do(fun () ->
         {Amount, Currency} = unwrap(get_constant_value(Constant, Constants)),
-        {P, Q} = Rational,
         ResultAmount = genlib_rational:round(
             genlib_rational:mul(
                 genlib_rational:new(Amount),
-                genlib_rational:new(P, Q)
+                Rational
             ),
             get_genlib_rounding_method(RoundingMethod)
         ),
@@ -192,7 +190,7 @@ get_constant_value(Constant, Constants) ->
             {error, {not_mapped_constant, Constant, Constants}}
     end.
 
--spec get_genlib_rounding_method(rounding_method()) -> genlib_rounding_method().
+-spec get_genlib_rounding_method(rounding_method()) -> genlib_rational:rounding_method().
 get_genlib_rounding_method(default) ->
     round_half_away_from_zero;
 get_genlib_rounding_method(round_half_towards_zero) ->

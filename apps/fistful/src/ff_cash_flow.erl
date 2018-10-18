@@ -96,7 +96,7 @@
 -spec gather_used_accounts(final_cash_flow()) -> [account()].
 gather_used_accounts(#{postings := Postings}) ->
     lists:usort(lists:flatten([
-        [S, D] || #{source := #{account := S}, destination := #{account := D}} <- Postings
+        [S, D] || #{sender := #{account := S}, receiver := #{account := D}} <- Postings
     ])).
 
 -spec finalize(cash_flow_plan(), account_mapping(), constant_mapping()) ->
@@ -111,13 +111,13 @@ finalize(Plan, Accounts, Constants) ->
 
 %% Finalizing
 
--spec compute_postings([plan_posting()], account_mapping(), constant_mapping()) ->
+-spec compute_postings(cash_flow_plan(), account_mapping(), constant_mapping()) ->
     {ok, [final_posting()]} | {error, posting_finalize_error()}.
-compute_postings(Plan, Accounts, Constants) ->
+compute_postings(#{postings := PlanPostings}, Accounts, Constants) ->
     do(fun () ->
         [
             unwrap(construct_final_posting(PlanPosting, Accounts, Constants))
-            || PlanPosting <- Plan
+            || PlanPosting <- PlanPostings
         ]
     end).
 
@@ -127,16 +127,16 @@ construct_final_posting(PlanPosting, Accounts, Constants) ->
     #{
         sender := PlanSender,
         receiver := PlanReceiver,
-        volume := PlanVolume,
-        details := PlanDetails
+        volume := PlanVolume
     } = PlanPosting,
+    PlanDetails = genlib_map:get(details, PlanPosting),
     do(fun () ->
-        #{
+        genlib_map:compact(#{
             sender => unwrap(construct_final_account(PlanSender, Accounts)),
             receiver => unwrap(construct_final_account(PlanReceiver, Accounts)),
             volume => unwrap(compute_volume(PlanVolume, Constants)),
             details => PlanDetails 
-        }
+        })
     end).
 
 -spec construct_final_account(plan_account(), account_mapping()) ->

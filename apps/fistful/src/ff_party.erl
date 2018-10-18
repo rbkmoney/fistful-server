@@ -45,9 +45,10 @@
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'() | undefined.
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
 -type currency_id() :: ff_currency:id().
+-type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
 -type timestamp() :: ff_time:timestamp_ms().
 
--type currency_validation_error() :: {invalid_terms, {not_allowed_currency, _Details}}.
+-type currency_validation_error() :: {terms_violation, {not_allowed_currency, _Details}}.
 
 %% Pipeline
 
@@ -126,7 +127,8 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
     Error :: {party_not_found, id()} | {party_not_exists_yet, id()} | {exception, any()}.
 
 get_contract_terms(ID, ContractID, WalletID, CurrencyID, Timestamp) ->
-    Args = [ID, ContractID, WalletID, CurrencyID, ff_time:to_rfc3339(Timestamp)],
+    CurrencyRef = #domain_CurrencyRef{symbolic_code = CurrencyID},
+    Args = [ID, ContractID, WalletID, CurrencyRef, ff_time:to_rfc3339(Timestamp)],
     case call('ComputeWalletTerms', Args) of
         {ok, Terms} ->
             {ok, Terms};
@@ -359,8 +361,8 @@ validate_wallet_creation_terms_is_reduced(Terms) ->
     {ok, valid} | {error, {invalid_terms, _Details}}.
 validate_withdrawal_terms_is_reduced(undefined) ->
     {error, {invalid_terms, undefined_wallet_terms}};
-validate_withdrawal_terms_is_reduced(#domain_WalletServiceTerms{withdrawals = undefined}) ->
-    {error, {invalid_terms, undefined_withdrawal_terms}};
+validate_withdrawal_terms_is_reduced(#domain_WalletServiceTerms{withdrawals = undefined} = WalletTerms) ->
+    {error, {invalid_terms, {undefined_withdrawal_terms, WalletTerms}}};
 validate_withdrawal_terms_is_reduced(Terms) ->
     #domain_WalletServiceTerms{
         currencies = WalletCurrenciesSelector,
@@ -399,7 +401,7 @@ selector_is_reduced({decisions, _Decisions}) ->
     not_reduced.
 
 -spec validate_wallet_currency(currency_id(), wallet_terms()) ->
-    {ok, valid} | {error, {invalid_terms, {not_allowed_currency, _Details}}}.
+    {ok, valid} | {error, currency_validation_error()}.
 validate_wallet_currency(CurrencyID, Terms) ->
     #domain_WalletServiceTerms{
         currencies = {value, Currencies}
@@ -407,17 +409,18 @@ validate_wallet_currency(CurrencyID, Terms) ->
     validate_currency(CurrencyID, Currencies).
 
 -spec validate_withdrawal_currency(currency_id(), withdrawal_terms()) ->
-    {ok, valid} | {error, {invalid_terms, {not_allowed_currency, _Details}}}.
+    {ok, valid} | {error, currency_validation_error()}.
 validate_withdrawal_currency(CurrencyID, Terms) ->
     #domain_WithdrawalServiceTerms{
         currencies = {value, Currencies}
     } = Terms,
     validate_currency(CurrencyID, Currencies).
 
--spec validate_currency(currency_id(), ordsets:ordset(currency_id())) ->
+-spec validate_currency(currency_id(), ordsets:ordset(currency_ref())) ->
     {ok, valid} | {error, currency_validation_error()}.
 validate_currency(CurrencyID, Currencies) ->
-    case ordsets:is_element(CurrencyID, Currencies) of
+    CurrencyRef = #domain_CurrencyRef{symbolic_code = CurrencyID},
+    case ordsets:is_element(CurrencyRef, Currencies) of
         true ->
             {ok, valid};
         false ->
@@ -463,9 +466,16 @@ decode_domain_plan_volume({share, Share}) ->
         'of' = Of,
         rounding_method = RoundingMethod
     } = Share,
-    {share, {{P, Q}, Of, RoundingMethod}};
+    {share, {{P, Q}, Of, decode_rounding_method(RoundingMethod)}};
 decode_domain_plan_volume({product, {Fun, CVs}}) ->
     {product, {Fun, lists:map(fun decode_domain_plan_volume/1, CVs)}}.
+
+-spec decode_rounding_method(dmsl_domain_thrift:'RoundingMethod'() | undefined) ->
+    ff_cash_flow:rounding_method().
+decode_rounding_method(undefined) ->
+    default;
+decode_rounding_method(RoundingMethod) ->
+    RoundingMethod.
 
 -spec decode_domain_cash(dmsl_domain_thrift:'Cash'()) ->
     ff_cash_flow:cash().

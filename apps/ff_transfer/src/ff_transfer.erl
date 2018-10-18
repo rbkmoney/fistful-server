@@ -156,8 +156,7 @@ process_transfer(Transfer) ->
 -type activity() ::
     prepare_transfer         |
     commit_transfer          |
-    cancel_transfer          |
-    undefined                .
+    cancel_transfer          .
 
 -spec deduce_activity(transfer()) ->
     activity().
@@ -166,9 +165,7 @@ deduce_activity(#{status := {failed, _}, p_transfer := #{status := prepared}}) -
 deduce_activity(#{status := succeeded, p_transfer := #{status := prepared}}) ->
     commit_transfer;
 deduce_activity(#{status := pending, p_transfer := #{status := created}}) ->
-    prepare_transfer;
-deduce_activity(_) ->
-    undefined.
+    prepare_transfer.
 
 process_activity(prepare_transfer, Transfer) ->
     do(fun () ->
@@ -203,7 +200,9 @@ apply_event_({p_transfer, Ev}, T) ->
 apply_event_({session_started, S}, T) ->
     maps:put(session_id, S, T);
 apply_event_({session_finished, S}, T = #{session_id := S}) ->
-    maps:remove(session_id, T).
+    T;
+apply_event_({route_changed, R}, T) ->
+    maps:put(route, R, T).
 
 -spec maybe_migrate(event() | legacy_event()) ->
     event().

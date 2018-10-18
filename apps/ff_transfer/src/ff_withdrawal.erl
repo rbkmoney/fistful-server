@@ -167,7 +167,7 @@ process_transfer(Transfer) ->
     p_transfer_start         |
     session_starting         |
     session_polling          |
-    nothing                  .
+    idle                     .
 
 % TODO: Move activity to ff_transfer
 -spec deduce_activity(withdrawal()) ->
@@ -190,7 +190,7 @@ do_deduce_activity(#{p_transfer := #{status := prepared}, session_id := undefine
 do_deduce_activity(#{session_id := SessionID, status := pending}) when SessionID =/= undefined ->
     session_polling;
 do_deduce_activity(_Other) ->
-    nothing.
+    idle.
 
 do_process_transfer(routing, Transfer) ->
     create_route(Transfer);
@@ -200,7 +200,7 @@ do_process_transfer(session_starting, Transfer) ->
     create_session(Transfer);
 do_process_transfer(session_polling, Transfer) ->
     poll_session_completion(Transfer);
-do_process_transfer(nothing, Transfer) ->
+do_process_transfer(idle, Transfer) ->
     ff_transfer:process_transfer(Transfer).
 
 -spec create_route(withdrawal()) ->
@@ -290,16 +290,19 @@ poll_session_completion(Transfer) ->
     Result :: {ok, withdrawal_terms()} | {error, Error},
     Error ::
         {invalid_terms, _Details} |
+        {terms_violation, _Details} |
         {party_not_found, id()} |
         {party_not_exists_yet, id()} |
         {exception, any()}.
 get_creation_terms(Wallet, Body, Timestamp) ->
     WalletID = ff_wallet:id(Wallet),
-    Identity = ff_wallet:identity(Wallet),
-    ContractID = ff_identity:contract(Identity),
-    PartyID = ff_identity:party(Identity),
-    {_Amount, CurrencyID} = Body,
+    IdentityID = ff_wallet:identity(Wallet),
     do(fun() ->
+        IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
+        Identity = ff_identity_machine:identity(IdentityMachine),
+        ContractID = ff_identity:contract(Identity),
+        PartyID = ff_identity:party(Identity),
+        {_Amount, CurrencyID} = Body,
         Terms = unwrap(ff_party:get_contract_terms(PartyID, ContractID, WalletID, CurrencyID, Timestamp)),
         valid = unwrap(ff_party:validate_withdrawal_creation(Terms, CurrencyID)),
         #domain_TermSet{wallets = #domain_WalletServiceTerms{withdrawals = WithdrawalTerms}} = Terms,

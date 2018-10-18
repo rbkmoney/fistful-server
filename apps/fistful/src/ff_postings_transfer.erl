@@ -98,7 +98,7 @@ create(ID, CashFlow) ->
         [
             {created, #{
                 id        => ID,
-                cash_flow => CashFlow
+                final_cash_flow => CashFlow
             }},
             {status_changed,
                 created

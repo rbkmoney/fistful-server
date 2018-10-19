@@ -725,8 +725,8 @@ to_swag(withdrawal, State) ->
             <<"id">>          => ff_withdrawal:id(Withdrawal),
             <<"createdAt">>   => to_swag(timestamp, ff_machine:created(State)),
             <<"metadata">>    => genlib_map:get(<<"metadata">>, get_ctx(State)),
-            <<"wallet">>      => ff_withdrawal:source(Withdrawal),
-            <<"destination">> => ff_withdrawal:destination(Withdrawal),
+            <<"wallet">>      => ff_withdrawal:wallet_id(Withdrawal),
+            <<"destination">> => ff_withdrawal:destination_id(Withdrawal),
             <<"body">>        => to_swag(withdrawal_body, ff_withdrawal:body(Withdrawal))
         },
         to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))

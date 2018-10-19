@@ -8,11 +8,14 @@
 
 -type id()        :: machinery:id().
 -type ns()        :: machinery:namespace().
--type ctx()       :: ff_ctx:ctx().
 -type transfer(T) :: ff_transfer:transfer(T).
--type account()   :: ff_account:account().
 -type event(T)    :: T.
 -type events(T)   :: [{integer(), ff_machine:timestamped_event(event(T))}].
+-type params() :: #{
+    handler     := ff_transfer:handler(),
+    body        := ff_transaction:body(),
+    params      := ff_transfer:params()
+}.
 
 %% Behaviour definition
 
@@ -25,6 +28,7 @@
 -export_type([st/1]).
 -export_type([event/1]).
 -export_type([events/1]).
+-export_type([params/0]).
 
 -callback process_transfer(transfer(_)) ->
     {ok, {action(), [event(_)]}} |
@@ -58,15 +62,13 @@
 
 -import(ff_pipeline, [do/1, unwrap/1]).
 
-%%
+%% Internal types
 
--type params() :: #{
-    handler     := ff_transfer:handler(),
-    source      := account(),
-    destination := account(),
-    body        := ff_transaction:body(),
-    params      := ff_transfer:params()
-}.
+-type ctx()           :: ff_ctx:ctx().
+-type transfer()      :: ff_transfer:transfer().
+-type transfer_type() :: ff_transfer:transfer_type().
+
+%% API
 
 -spec create(ns(), id(), params(), ctx()) ->
     ok |
@@ -76,11 +78,11 @@
     }.
 
 create(NS, ID,
-    #{handler := Handler, source := Source, destination := Destination, body := Body, params := Params},
+    #{handler := Handler, body := Body, params := Params},
 Ctx)
 ->
     do(fun () ->
-        Events = unwrap(ff_transfer:create(Handler, ID, Source, Destination, Body, Params)),
+        Events = unwrap(ff_transfer:create(handler_to_type(Handler), ID, Body, Params)),
         unwrap(machinery:start(NS, ID, {Events, Ctx}, backend(NS)))
     end).
 
@@ -134,7 +136,7 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 process_timeout(Machine, _, _Opts) ->
     St = ff_machine:collapse(ff_transfer, Machine),
     Transfer = transfer(St),
-    process_result((ff_transfer:handler(Transfer)):process_transfer(Transfer), St).
+    process_result(handler_process_transfer(Transfer), St).
 
 -spec process_call(_CallArgs, machine(), _, handler_opts()) ->
     {ok, result()}.
@@ -142,7 +144,7 @@ process_timeout(Machine, _, _Opts) ->
 process_call(CallArgs, Machine, _, _Opts) ->
     St = ff_machine:collapse(ff_transfer, Machine),
     Transfer = transfer(St),
-    {ok, process_result((ff_transfer:handler(Transfer)):process_call(CallArgs, Transfer), St)}.
+    {ok, process_result(handler_process_call(CallArgs, Transfer), St)}.
 
 process_result({ok, {Action, Events}}, St) ->
     genlib_map:compact(#{
@@ -170,3 +172,35 @@ set_action(poll, St) ->
 
 emit_failure(Reason) ->
     ff_machine:emit_event({status_changed, {failed, Reason}}).
+
+%% Handler convertors
+
+-spec handler_to_type(module()) ->
+    transfer_type().
+handler_to_type(ff_deposit) ->
+    deposit;
+handler_to_type(ff_withdrawal) ->
+    withdrawal.
+
+-spec type_to_handler(transfer_type()) ->
+    module().
+type_to_handler(deposit) ->
+    ff_deposit;
+type_to_handler(withdrawal) ->
+    ff_withdrawal.
+
+-spec transfer_handler(transfer()) ->
+    module().
+transfer_handler(Transfer) ->
+    TransferType = ff_transfer:transfer_type(Transfer),
+    type_to_handler(TransferType).
+
+%% Handler calls
+
+handler_process_call(CallArgs, Transfer) ->
+    Handler = transfer_handler(Transfer),
+    Handler:process_call(CallArgs, Transfer).
+
+handler_process_transfer(Transfer) ->
+    Handler = transfer_handler(Transfer),
+    Handler:process_transfer(Transfer).

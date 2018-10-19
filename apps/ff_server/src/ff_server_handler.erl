@@ -56,8 +56,8 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
 handle_function_('CreateDeposit', [Params], Context, Opts) ->
     DepositID = next_id('deposit'),
     case ff_deposit:create(DepositID, #{
-            source      => Params#fistful_DepositParams.source,
-            destination => Params#fistful_DepositParams.destination,
+            source_id   => Params#fistful_DepositParams.source,
+            wallet_id   => Params#fistful_DepositParams.destination,
             body        => decode({deposit, body}, Params#fistful_DepositParams.body)
         }, decode(context, Params#fistful_DepositParams.context))
     of
@@ -113,8 +113,8 @@ encode(deposit, {ID, Machine}) ->
     Deposit = ff_deposit:get(Machine),
     #fistful_Deposit{
         id          = ID,
-        source      = ff_deposit:source(Deposit),
-        destination = ff_deposit:destination(Deposit),
+        source      = ff_deposit:source_id(Deposit),
+        destination = ff_deposit:wallet_id(Deposit),
         body        = encode({deposit, body}, ff_deposit:body(Deposit)),
         status      = encode({deposit, status}, ff_deposit:status(Deposit)),
         context     = encode(context, ff_machine:ctx(Machine))

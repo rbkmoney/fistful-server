@@ -252,6 +252,7 @@ create_session(Withdrawal) ->
         wallet_account := WalletAccount,
         destination_account := DestinationAccount
     } = params(Withdrawal),
+    #{provider_id := ProviderID} = route(Withdrawal),
     {ok, SenderSt} = ff_identity_machine:get(ff_account:identity(WalletAccount)),
     {ok, ReceiverSt} = ff_identity_machine:get(ff_account:identity(DestinationAccount)),
     TransferData = #{
@@ -261,7 +262,10 @@ create_session(Withdrawal) ->
         receiver    => ff_identity_machine:identity(ReceiverSt)
     },
     do(fun () ->
-        SessionParams = #{destination => destination_id(Withdrawal)},
+        SessionParams = #{
+            destination => destination_id(Withdrawal),
+            provider_id => ProviderID
+        },
         ok = unwrap(ff_withdrawal_session_machine:create(ID, TransferData, SessionParams)),
         {continue, [{session_started, ID}]}
     end).

@@ -56,7 +56,8 @@
 }.
 
 -type params() :: #{
-    destination := ff_destination:id(_)
+    destination := ff_destination:id(),
+    provider_id := ff_withdrawal_provider:id()
 }.
 
 %%
@@ -171,10 +172,9 @@ process_intent({sleep, Timer}) ->
 
 -spec create_session(id(), data(), params()) ->
     session().
-create_session(ID, Data = #{cash := Cash}, #{destination := DestinationID}) ->
+create_session(ID, Data, #{destination := DestinationID, provider_id := ProviderID}) ->
     {ok, DestinationSt} = ff_destination:get_machine(DestinationID),
     Destination = ff_destination:get(DestinationSt),
-    ProviderID = get_provider(Destination, Cash),
     #{
         id         => ID,
         withdrawal => create_adapter_withdrawal(Data, Destination),
@@ -182,10 +182,6 @@ create_session(ID, Data = #{cash := Cash}, #{destination := DestinationID}) ->
         adapter    => get_adapter_with_opts(ProviderID),
         status     => active
     }.
-
-get_provider(Destination, Cash) ->
-    {ok, ProviderID} = ff_withdrawal_provider:choose(Destination, Cash),
-    ProviderID.
 
 -spec get_adapter_with_opts(ff_withdrawal_provider:id()) -> adapter_with_opts().
 get_adapter_with_opts(ProviderID) ->

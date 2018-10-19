@@ -125,7 +125,7 @@ deposit_via_admin_ok(C) ->
              {Status, _} = Dep#fistful_Deposit.status,
              Status
         end,
-        genlib_retry:linear(3, 15000)
+        genlib_retry:linear(15, 1000)
     ),
     ok = await_wallet_balance({20000, <<"RUB">>}, WalID).
 
@@ -165,7 +165,7 @@ deposit_withdrawal_ok(C) ->
             {ok, DepM} = ff_deposit:get_machine(DepID),
             ff_deposit:status(ff_deposit:get(DepM))
         end,
-        genlib_retry:linear(3, 15000)
+        genlib_retry:linear(15, 1000)
     ),
     ok = await_wallet_balance({10000, <<"RUB">>}, WalID),
 
@@ -206,7 +206,7 @@ deposit_withdrawal_ok(C) ->
     WdrID = generate_id(),
     ok = ff_withdrawal:create(
         WdrID,
-        #{wallet_id => WalID, destination_id => DestID, body => {4242, <<"RUB">>}},
+        #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
         ff_ctx:new()
     ),
     {ok, WdrM1} = ff_withdrawal:get_machine(WdrID),
@@ -217,9 +217,10 @@ deposit_withdrawal_ok(C) ->
             {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
             ff_withdrawal:status(ff_withdrawal:get(WdrM))
         end,
-        genlib_retry:linear(5, 15000)
+        genlib_retry:linear(15, 1000)
     ),
-    ok = await_wallet_balance({10000 - 4242, <<"RUB">>}, WalID).
+    ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
+    ok = await_destination_balance({4240 - 424, <<"RUB">>}, DestID).
 
 create_party(_C) ->
     ID = genlib:unique(),
@@ -255,9 +256,23 @@ await_wallet_balance(Balance, ID) ->
     ),
     ok.
 
+await_destination_balance(Balance, ID) ->
+    Balance = ct_helper:await(
+        Balance,
+        fun () -> get_destination_balance(ID) end,
+        genlib_retry:linear(3, 500)
+    ),
+    ok.
+
 get_wallet_balance(ID) ->
     {ok, Machine} = ff_wallet_machine:get(ID),
-    Account = ff_wallet:account(ff_wallet_machine:wallet(Machine)),
+    get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
+
+get_destination_balance(ID) ->
+    {ok, Machine} = ff_destination:get_machine(ID),
+    get_account_balance(ff_destination:account(ff_destination:get(Machine))).
+
+get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
     {ff_indef:current(Amounts), Currency}.
 

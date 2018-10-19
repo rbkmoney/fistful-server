@@ -4,6 +4,7 @@
 
 -export([gather_used_accounts/1]).
 -export([finalize/3]).
+-export([add_fee/2]).
 
 %% Domain types
 -type plan_posting() :: #{
@@ -30,6 +31,9 @@
     round_half_away_from_zero. % https://en.wikipedia.org/wiki/Rounding#Round_half_away_from_zero
 
 -type cash_flow_plan() :: #{
+    postings := [plan_posting()]
+}.
+-type cash_flow_fee() :: #{
     postings := [plan_posting()]
 }.
 -type account_mapping() :: #{
@@ -67,6 +71,7 @@
 -export_type([rational/0]).
 -export_type([rounding_method/0]).
 -export_type([cash_flow_plan/0]).
+-export_type([cash_flow_fee/0]).
 -export_type([account_mapping/0]).
 -export_type([constant_mapping/0]).
 -export_type([final_posting/0]).
@@ -105,6 +110,11 @@ finalize(Plan, Accounts, Constants) ->
         Postings = unwrap(postings, compute_postings(Plan, Accounts, Constants)),
         #{postings => Postings}
     end).
+
+-spec add_fee(cash_flow_plan(), cash_flow_fee()) ->
+    {ok, cash_flow_plan()}.
+add_fee(#{postings := PlanPostings} = Plan, #{postings := FeePostings}) ->
+    {ok, Plan#{postings => PlanPostings ++ FeePostings}}.
 
 %% Internals
 
@@ -167,9 +177,9 @@ compute_volume({share, {Rational, Constant, RoundingMethod}}, Constants) ->
         ),
         {ResultAmount, Currency}
     end);
-compute_volume({product, {Operation, Volumes}}, Constants) ->
+compute_volume({product, {Operation, PlanVolumes}}, Constants) ->
     do(fun () ->
-        Volumes = unwrap(compute_volumes(Volumes, Constants)),
+        Volumes = unwrap(compute_volumes(PlanVolumes, Constants)),
         unwrap(foldl_cash(Operation, Volumes))
     end).
 

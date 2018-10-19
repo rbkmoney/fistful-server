@@ -59,12 +59,13 @@
 -type body() :: ff_transfer:body().
 -type wallet() :: ff_wallet:wallet().
 -type account() :: ff_account:account().
--type final_cash_flow() :: ff_cash_flow:final_cash_flow().
--type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
+-type provider() :: ff_withdrawal_provider:provider().
 -type wallet_id() :: ff_wallet:id().
 -type timestamp() :: ff_time:timestamp_ms().
+-type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
 -type destination_id() :: ff_destination:id().
 -type process_result() :: {ff_transfer_machine:action(), [event()]}.
+-type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
 
 %% Accessors
@@ -226,10 +227,14 @@ create_p_transfer(Withdrawal) ->
     #{
         wallet_account := WalletAccount,
         destination_account := DestinationAccount,
-        wallet_cash_flow_plan := CashFlowPlan
+        wallet_cash_flow_plan := WalletCashFlowPlan
     } = params(Withdrawal),
     do(fun () ->
-        {SystemAccount, ProviderAccount} = unwrap(route_accounts, get_route_accounts(route(Withdrawal))),
+        Provider = unwrap(provider, get_route_provider(route(Withdrawal))),
+        ProviderAccount = ff_withdrawal_provider:account(Provider),
+        ProviderFee = ff_withdrawal_provider:fee(Provider),
+        SystemAccount = unwrap(system, get_system_account()),
+        CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
         FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
             CashFlowPlan, WalletAccount, DestinationAccount, SystemAccount, ProviderAccount, body(Withdrawal)
         )),
@@ -311,14 +316,16 @@ get_contract_terms(Wallet, Body, Timestamp) ->
         unwrap(ff_party:get_contract_terms(PartyID, ContractID, TermVarset, Timestamp))
     end).
 
--spec get_route_accounts(route()) -> {ok, {System :: account(), Provider :: account()}}.
-get_route_accounts(#{provider_id := ProviderID}) ->
-    {ok, Provider} = ff_withdrawal_provider:get(ProviderID),
-    ProviderAccount = ff_withdrawal_provider:account(Provider),
+-spec get_route_provider(route()) -> {ok, provider()}.
+get_route_provider(#{provider_id := ProviderID}) ->
+    ff_withdrawal_provider:get(ProviderID).
+
+-spec get_system_account() -> {ok, account()}.
+get_system_account() ->
     % TODO: Read system account from domain config
     SystemConfig = maps:get(system, genlib_app:env(ff_transfer, withdrawal, #{})),
     SystemAccount = maps:get(account, SystemConfig),
-    {ok, {ProviderAccount, SystemAccount}}.
+    {ok, SystemAccount}.
 
 -spec finalize_cash_flow(cash_flow_plan(), account(), account(), account(), account(), body()) ->
     {ok, final_cash_flow()} | {error, _Error}.

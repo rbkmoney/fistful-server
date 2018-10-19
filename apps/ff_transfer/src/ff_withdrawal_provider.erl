@@ -12,6 +12,7 @@
 -export([choose/2]).
 
 -export([id/1]).
+-export([fee/1]).
 -export([adapter/1]).
 -export([account/1]).
 -export([adapter_opts/1]).
@@ -22,11 +23,13 @@
 -opaque provider() :: #{
     id           := id(),
     adapter      := adapter(),
-    adapter_opts := adapter_opts(),
-    account      := account()
+    account      := account(),
+    fee          := provider_fee(),
+    adapter_opts => adapter_opts()
 }.
 -type adapter() :: ff_adapter:adapter().
 -type adapter_opts() :: map().
+-type provider_fee() :: ff_cash_flow:cash_flow_fee().
 
 -export_type([id/0]).
 -export_type([adapter/0]).
@@ -58,6 +61,11 @@ account(#{account := V}) ->
     adapter_opts().
 adapter_opts(P) ->
     maps:get(adapter_opts, P, #{}).
+
+-spec fee(provider()) ->
+    provider_fee().
+fee(#{fee := V}) ->
+    V.
 
 %% API
 

@@ -10,6 +10,7 @@
     machinery_backend_config => map(),
     machinery_backend_options => map(),
     identity_provider_config => map(),
+    withdrawal_provider_config => #{id() => ff_withdrawal_provider:provider()},
     services => map(),
     domain_config => list(),
     default_termset => dmsl_domain_thrift:'TermSet'(),
@@ -25,6 +26,7 @@
 
 %% Internal types
 
+-type id() :: binary().
 -type config() :: ct_helper:config().
 
 %% API
@@ -225,6 +227,8 @@ identity_provider_config(Options) ->
     },
     maps:get(identity_provider_config, Options, Default).
 
+-spec withdrawal_provider_config(options()) ->
+    #{id() => ff_withdrawal_provider:provider()}.
 withdrawal_provider_config(Options) ->
     Default = #{
         <<"mocketbank">> => #{
@@ -234,6 +238,18 @@ withdrawal_provider_config(Options) ->
                 identity => <<"some_other_id">>,
                 currency => <<"RUB">>,
                 accounter_account_id => <<"some_third_id">>
+            },
+            fee => #{
+                postings => [
+                    #{
+                        sender => {system, settlement},
+                        receiver => {provider, settlement},
+                        volume => {product, {min_of, [
+                            {fixed, {10, <<"RUB">>}},
+                            {share, {genlib_rational:new(5, 100), operation_amount, round_half_towards_zero}}
+                        ]}}
+                    }
+                ]
             }
         }
     },
@@ -325,6 +341,11 @@ default_termset(Options) ->
                                 {wallet, sender_settlement},
                                 {wallet, receiver_destination},
                                 ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
                             )
                         ]}
                     }

@@ -93,6 +93,7 @@ init([]) ->
                                 )
                             ) ++
                             get_admin_routes() ++
+                            get_eventsink_routes() ++
                             [erl_health_handle:get_route(HealthCheckers)]
                     }
                 )
@@ -129,6 +130,24 @@ get_admin_routes() ->
     Limits = genlib_map:get(handler_limits, Opts),
     woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
         handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
+        event_handler => scoper_woody_event_handler,
+        handler_limits => Limits
+    })).
+
+get_eventsink_routes() ->
+    get_eventsink_route({<<"/v1/identity_eventsink">>,
+        {{ff_proto_identity_thrift, 'IdentityEventsink'}, {ff_identity_eventsink_handler, []}}}) ++
+    get_eventsink_route({<<"/v1/wallet_eventsink">>,
+        {{ff_proto_wallet_thrift, 'WalletEventsink'}, {ff_wallet_eventsink_handler, []}}}) ++
+    get_eventsink_route({<<"/v1/withdrawal_eventsink">>,
+        {{ff_proto_withdrawal_thrift, 'WithdrawalEventsink'}, {ff_withdrawal_eventsink_handler, []}}}).
+
+get_eventsink_route(Handler = {DefPath, {{_, OptTag}, _}}) ->
+    Opts = genlib_app:env(?MODULE, OptTag, #{}),
+    Path = maps:get(path, Opts, DefPath),
+    Limits = genlib_map:get(handler_limits, Opts),
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [erlang:setelement(1, Handler, Path)],
         event_handler => scoper_woody_event_handler,
         handler_limits => Limits
     })).

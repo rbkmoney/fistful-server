@@ -94,7 +94,7 @@ deposit_via_admin_ok(C) ->
     {ok, Src1} = admin_call('CreateSource', [#fistful_SourceParams{
         name     = <<"HAHA NO">>,
         identity_id = IID,
-        currency = #fistful_CurrencyRef{symbolic_code = <<"RUB">>},
+        currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         resource = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
     unauthorized = Src1#fistful_Source.status,
@@ -111,9 +111,9 @@ deposit_via_admin_ok(C) ->
     {ok, Dep1} = admin_call('CreateDeposit', [#fistful_DepositParams{
             source      = SrcID,
             destination = WalID,
-            body        = #fistful_DepositBody{
+            body        = #'Cash'{
                 amount   = 20000,
-                currency = #fistful_CurrencyRef{symbolic_code = <<"RUB">>}
+                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
             }
     }]),
     DepID = Dep1#fistful_Deposit.id,

@@ -23,8 +23,8 @@
 -opaque provider() :: #{
     id           := id(),
     adapter      := adapter(),
+    accounts     := accounts(),
     fee          := provider_fee(),
-    accounts     := #{currency_id() => account()},
     adapter_opts => adapter_opts()
 }.
 -type adapter() :: ff_adapter:adapter().

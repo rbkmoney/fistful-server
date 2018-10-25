@@ -23,6 +23,7 @@
 %% Accessors
 
 -export([wallet/1]).
+-export([get_ns/0]).
 
 %% Machinery
 
@@ -36,6 +37,8 @@
 
 -import(ff_pipeline, [do/1, unwrap/1]).
 
+-define(NS, 'ff/wallet_v2').
+
 %% Accessors
 
 -spec wallet(st())  -> wallet().
@@ -43,9 +46,12 @@
 wallet(St) ->
     ff_machine:model(St).
 
-%%
+-spec get_ns()  -> binary().
 
--define(NS, 'ff/wallet_v2').
+get_ns() ->
+    atom_to_binary(?NS, utf8).
+
+%%
 
 -type params() :: #{
     identity   := ff_identity_machine:id(),

@@ -38,6 +38,7 @@
 %% Accessors
 
 -export([identity/1]).
+-export([get_ns/0]).
 
 %% Machinery
 
@@ -120,6 +121,12 @@ backend() ->
 
 identity(St) ->
     ff_machine:model(St).
+
+-spec get_ns() ->
+    binary().
+
+get_ns() ->
+    atom_to_binary(?NS, utf8).
 
 %% Machinery
 

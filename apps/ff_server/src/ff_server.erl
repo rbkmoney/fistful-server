@@ -135,19 +135,19 @@ get_admin_routes() ->
     })).
 
 get_eventsink_routes() ->
-    get_eventsink_route({<<"/v1/identity_eventsink">>,
-        {{ff_proto_identity_thrift, 'IdentityEventsink'}, {ff_identity_eventsink_handler, []}}}) ++
-    get_eventsink_route({<<"/v1/wallet_eventsink">>,
-        {{ff_proto_wallet_thrift, 'WalletEventsink'}, {ff_wallet_eventsink_handler, []}}}) ++
-    get_eventsink_route({<<"/v1/withdrawal_eventsink">>,
-        {{ff_proto_withdrawal_thrift, 'WithdrawalEventsink'}, {ff_withdrawal_eventsink_handler, []}}}).
+    get_eventsink_route({<<"/v1/eventsink/identity">>,
+        {{ff_proto_identity_thrift, 'identity'}, {ff_identity_eventsink_handler, []}}}) ++
+    get_eventsink_route({<<"/v1/eventsink/wallet">>,
+        {{ff_proto_wallet_thrift, 'wallet'}, {ff_wallet_eventsink_handler, []}}}) ++
+    get_eventsink_route({<<"/v1/eventsink/withdrawal">>,
+        {{ff_proto_withdrawal_thrift, 'withdrawal'}, {ff_withdrawal_eventsink_handler, []}}}).
 
-get_eventsink_route(Handler = {DefPath, {{_, OptTag}, _}}) ->
-    Opts = genlib_app:env(?MODULE, OptTag, #{}),
+get_eventsink_route({DefPath, Route = {{_, OptTag}, _}}) ->
+    Opts = genlib_app:env(eventsinks, OptTag, #{}),
     Path = maps:get(path, Opts, DefPath),
     Limits = genlib_map:get(handler_limits, Opts),
     woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [erlang:setelement(1, Handler, Path)],
+        handlers => [{Path, Route}],
         event_handler => scoper_woody_event_handler,
         handler_limits => Limits
     })).

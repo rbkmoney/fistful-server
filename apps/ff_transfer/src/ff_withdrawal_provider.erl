@@ -14,7 +14,7 @@
 -export([id/1]).
 -export([fee/1]).
 -export([adapter/1]).
--export([account/1]).
+-export([accounts/1]).
 -export([adapter_opts/1]).
 
 %% Types
@@ -23,22 +23,25 @@
 -opaque provider() :: #{
     id           := id(),
     adapter      := adapter(),
-    account      := account(),
     fee          := provider_fee(),
+    accounts     := #{currency_id() => account()},
     adapter_opts => adapter_opts()
 }.
 -type adapter() :: ff_adapter:adapter().
+-type accounts() :: #{currency_id() => account()}.
 -type adapter_opts() :: map().
 -type provider_fee() :: ff_cash_flow:cash_flow_fee().
 
 -export_type([id/0]).
 -export_type([adapter/0]).
+-export_type([accounts/0]).
 -export_type([provider/0]).
 -export_type([adapter_opts/0]).
 
 %% Internal types
 
 -type account() :: ff_account:account().
+-type currency_id() :: ff_currency:id().
 
 %% Accessors
 
@@ -52,9 +55,9 @@ id(#{id := V}) ->
 adapter(#{adapter := V}) ->
     V.
 
--spec account(provider()) ->
-    account().
-account(#{account := V}) ->
+-spec accounts(provider()) ->
+    accounts().
+accounts(#{accounts := V}) ->
     V.
 
 -spec adapter_opts(provider()) ->

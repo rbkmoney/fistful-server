@@ -123,8 +123,14 @@ setup_dominant(Options, C) ->
     ok = ct_domain_config:upsert(domain_config(Options, C)).
 
 configure_processing_apps(_Options) ->
-    ok = set_app_env([ff_transfer, withdrawal, system, account], create_company_account()),
-    ok = set_app_env([ff_transfer, withdrawal, provider, <<"mocketbank">>, account], create_company_account()).
+    ok = set_app_env(
+        [ff_transfer, withdrawal, system, accounts, <<"RUB">>],
+        create_company_account()
+    ),
+    ok = set_app_env(
+        [ff_transfer, withdrawal, provider, <<"mocketbank">>, accounts, <<"RUB">>],
+        create_company_account()
+    ).
 
 construct_handler(Module, Suffix, BeConf) ->
     {{fistful, Module},
@@ -233,12 +239,7 @@ withdrawal_provider_config(Options) ->
     Default = #{
         <<"mocketbank">> => #{
             adapter => ff_woody_client:new(<<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
-            account => #{
-                id => <<"some_id">>,
-                identity => <<"some_other_id">>,
-                currency => <<"RUB">>,
-                accounter_account_id => <<"some_third_id">>
-            },
+            accounts => #{},
             fee => #{
                 postings => [
                     #{

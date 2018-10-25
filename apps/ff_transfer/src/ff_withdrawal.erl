@@ -229,11 +229,14 @@ create_p_transfer(Withdrawal) ->
         destination_account := DestinationAccount,
         wallet_cash_flow_plan := WalletCashFlowPlan
     } = params(Withdrawal),
+    {_Amount, CurrencyID} = body(Withdrawal),
     do(fun () ->
         Provider = unwrap(provider, get_route_provider(route(Withdrawal))),
-        ProviderAccount = ff_withdrawal_provider:account(Provider),
+        ProviderAccounts = ff_withdrawal_provider:accounts(Provider),
+        ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
         ProviderFee = ff_withdrawal_provider:fee(Provider),
-        SystemAccount = unwrap(system, get_system_account()),
+        SystemAccounts = unwrap(system, get_system_accounts()),
+        SystemAccount = maps:get(CurrencyID, SystemAccounts, undefined),
         CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
         FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
             CashFlowPlan, WalletAccount, DestinationAccount, SystemAccount, ProviderAccount, body(Withdrawal)
@@ -324,12 +327,12 @@ get_contract_terms(Wallet, Body, Timestamp) ->
 get_route_provider(#{provider_id := ProviderID}) ->
     ff_withdrawal_provider:get(ProviderID).
 
--spec get_system_account() -> {ok, account()}.
-get_system_account() ->
+-spec get_system_accounts() -> {ok, ff_withdrawal_provider:accounts()}.
+get_system_accounts() ->
     % TODO: Read system account from domain config
     SystemConfig = maps:get(system, genlib_app:env(ff_transfer, withdrawal, #{})),
-    SystemAccount = maps:get(account, SystemConfig),
-    {ok, SystemAccount}.
+    SystemAccounts = maps:get(accounts, SystemConfig, undefined),
+    {ok, SystemAccounts}.
 
 -spec finalize_cash_flow(cash_flow_plan(), account(), account(), account(), account(), body()) ->
     {ok, final_cash_flow()} | {error, _Error}.
@@ -337,10 +340,10 @@ finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount, SystemAccoun
     Constants = #{
         operation_amount => Body
     },
-    Accounts = #{
+    Accounts = genlib_map:compact(#{
         {wallet, sender_settlement} => WalletAccount,
         {wallet, receiver_destination} => DestinationAccount,
         {system, settlement} => SystemAccount,
         {provider, settlement} => ProviderAccount
-    },
+    }),
     ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants).

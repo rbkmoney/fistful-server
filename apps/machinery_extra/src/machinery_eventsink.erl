@@ -41,19 +41,10 @@ marshal(id, V) ->
     marshal(string, V);
 marshal(history_range, {After, Limit, Direction}) ->
     #'mg_stateproc_HistoryRange'{
-        'after'     = marshal(id, After),
-        'limit'     = marshal(timestamp, Limit),
-        'direction' = marshal(atom, Direction)
+        'after'     = After,
+        'limit'     = Limit,
+        'direction' = Direction
     };
-marshal(timestamp, {{Date, Time}, USec} = V) ->
-    case rfc3339:format({Date, Time, USec, 0}) of
-        {ok, R} when is_binary(R) ->
-            R;
-        Error ->
-            error(badarg, {timestamp, V, Error})
-    end;
-marshal(atom, V) when is_atom(V) ->
-    atom_to_binary(V, utf8);
 marshal(string, V) when is_binary(V) ->
     V.
 %%

@@ -98,8 +98,6 @@ marshal(timestamp, {{Date, Time}, USec} = V) ->
         Error ->
             error(badarg, {timestamp, V, Error})
     end;
-marshal(atom, V) when is_atom(V) ->
-    atom_to_binary(V, utf8);
 marshal(string, V) when is_binary(V) ->
     V;
 marshal(integer, V) when is_integer(V) ->

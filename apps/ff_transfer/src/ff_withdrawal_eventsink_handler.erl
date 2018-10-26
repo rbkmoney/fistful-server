@@ -9,6 +9,19 @@
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
 
+%% Data transform
+
+-define(transaction_body_to_cash(Amount, SymCode),
+    #{amount => Amount, currency => #{symbolic_code => SymCode}}).
+
+final_account_to_final_cash_flow_account(#{
+    account := #{id := AccountID},
+    type := AccountType}) ->
+    #{account_type => AccountType, account_id => AccountID}.
+
+-define(to_session_event(SessionID, Payload),
+    #{id => SessionID, payload => Payload}).
+
 %%
 %% woody_server_thrift_handler callbacks
 %%
@@ -68,30 +81,38 @@ marshal(event, {created, Withdrawal}) ->
     {created, marshal(withdrawal, Withdrawal)};
 marshal(event, {status_changed, WithdrawalStatus}) ->
     {status_changed, marshal(withdrawal_status_changed, WithdrawalStatus)};
-marshal(event, {transfer, TransferChange}) ->
+marshal(event, {p_transfer, TransferChange}) ->
     {transfer, marshal(withdrawal_transfer_change, TransferChange)};
+marshal(event, {session_started, SessionID}) ->
+    marshal(session, ?to_session_event(SessionID, started));
+marshal(event, {session_finished, SessionID}) ->
+    marshal(session, ?to_session_event(SessionID, finished));
 marshal(event, {session, SessionChange}) ->
     {session, marshal(withdrawal_session_change, SessionChange)};
+marshal(event, {route_changed, Route}) ->
+    {session, marshal(withdrawal_route_changed, Route)};
 
 marshal(withdrawal, Withdrawal = #{
-        body := Body
+        body := {Amount, SymCode}
     }) ->
-    WalletID = maps:get(source, Withdrawal, undefined),
-    DestinationID = maps:get(destination, Withdrawal, undefined),
+    WalletID = maps:get(wallet_id, Withdrawal, undefined),
+    DestinationID = maps:get(destination_id, Withdrawal, undefined),
     #'wthd_Withdrawal'{
-        body = marshal(cash, Body),
+        body = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
         source = marshal(id, WalletID),
         destination = marshal(id, DestinationID)
 };
 
-marshal(withdrawal_status_changed, {pending, _}) ->
+marshal(withdrawal_status_changed, pending) ->
     {pending, #'wthd_WithdrawalPending'{}};
-marshal(withdrawal_status_changed, {succeeded, _}) ->
+marshal(withdrawal_status_changed, succeeded) ->
     {succeeded, #'wthd_WithdrawalSucceeded'{}};
-marshal(withdrawal_status_changed, {failed, #{
-        failure := Failure
-    }}) ->
-    {failed, #'wthd_WithdrawalFailed'{failure = marshal(failure, Failure)}};
+% marshal(withdrawal_status_changed, {failed, #{
+%         failure := Failure
+%     }}) ->
+%     {failed, #'wthd_WithdrawalFailed'{failure = marshal(failure, Failure)}};
+marshal(withdrawal_status_changed, {failed, _}) ->
+    {failed, #'wthd_WithdrawalFailed'{failure = marshal(failure, dummy)}};
 marshal(failure, _) ->
     #'wthd_Failure'{};
 
@@ -100,7 +121,7 @@ marshal(withdrawal_transfer_change, {created, Transfer}) ->
 marshal(withdrawal_transfer_change, {status_changed, TransferStatus}) ->
     {status_changed, marshal(transfer_status, TransferStatus)};
 marshal(transfer, #{
-        cashflow := Cashflow
+        final_cash_flow := Cashflow
     }) ->
     #'wthd_Transfer'{
         cashflow = marshal(cashflow, Cashflow)
@@ -112,15 +133,17 @@ marshal(cashflow, #{
         postings = marshal(postings, Postings)
 };
 marshal(postings, Postings = #{
-        source := Source,
-        destination := Destination,
-        volume := Volume
+        sender := Source,
+        receiver := Destination,
+        volume := {Amount, SymCode}
     }) ->
     Details = maps:get(details, Postings, undefined),
     #'cashflow_FinalCashFlowPosting'{
-        source      = marshal(final_cash_flow_account, Source),
-        destination = marshal(final_cash_flow_account, Destination),
-        volume      = marshal(cash, Volume),
+        source      = marshal(final_cash_flow_account,
+            final_account_to_final_cash_flow_account(Source)),
+        destination = marshal(final_cash_flow_account,
+            final_account_to_final_cash_flow_account(Destination)),
+        volume      = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
         details     = marshal(string, Details)
 };
 marshal(final_cash_flow_account, #{
@@ -131,23 +154,33 @@ marshal(final_cash_flow_account, #{
         account_type   = marshal(account_type, AccountType),
         account_id     = marshal(id, AccountID)
 };
-marshal(account_type, {merchant, Merchant}) ->
-    {merchant, marshal(atom, Merchant)};
+
 marshal(account_type, {provider, Provider}) ->
-    {provider, marshal(atom, Provider)};
+    {provider, marshal(provider, Provider)};
 marshal(account_type, {system, System}) ->
-    {system, marshal(atom, System)};
-marshal(account_type, {external, External}) ->
-    {external, marshal(atom, External)};
+    {system, marshal(system, System)};
 marshal(account_type, {wallet, Wallet}) ->
-    {wallet, marshal(atom, Wallet)};
-marshal(transfer_status, {created, _}) ->
+    {wallet, marshal(wallet, Wallet)};
+marshal(provider, settlement) ->
+    settlement;
+marshal(system, settlement) ->
+    settlement;
+% How to convert here?
+marshal(wallet, sender_source) ->
+    payout;
+marshal(wallet, sender_settlement) ->
+    settlement;
+marshal(wallet, receiver_settlement) ->
+    settlement;
+marshal(wallet, receiver_destination) ->
+    payout;
+marshal(transfer_status, created) ->
     {created, #'wthd_TransferCreated'{}};
-marshal(transfer_status, {prepared, _}) ->
+marshal(transfer_status, prepared) ->
     {prepared, #'wthd_TransferPrepared'{}};
-marshal(transfer_status, {committed, _}) ->
+marshal(transfer_status, committed) ->
     {committed, #'wthd_TransferCommitted'{}};
-marshal(transfer_status, {cancelled, _}) ->
+marshal(transfer_status, cancelled) ->
     {cancelled, #'wthd_TransferCancelled'{}};
 
 marshal(withdrawal_session_change, #{
@@ -158,10 +191,17 @@ marshal(withdrawal_session_change, #{
         id      = marshal(id, SessionID),
         payload = marshal(withdrawal_session_payload, Payload)
 };
-marshal(transfer_status, {started, _}) ->
+marshal(withdrawal_session_payload, started) ->
     {started, #'wthd_SessionStarted'{}};
-marshal(transfer_status, {finished, _}) ->
+marshal(withdrawal_session_payload, finished) ->
     {finished, #'wthd_SessionFinished'{}};
+
+marshal(withdrawal_route_changed, #{
+        provider_id := ProviderID
+    }) ->
+    #'wthd_RouteChange'{
+        provider_id = marshal(id, ProviderID)
+};
 
 marshal(cash, #{
         amount   := Amount,
@@ -177,6 +217,8 @@ marshal(currency_ref, #{
     #'CurrencyRef'{
         symbolic_code    = marshal(string, SymbolicCode)
 };
+marshal(amount, V) ->
+    marshal(integer, V);
 
 marshal(timestamp, {{Date, Time}, USec} = V) ->
     case rfc3339:format({Date, Time, USec, 0}) of

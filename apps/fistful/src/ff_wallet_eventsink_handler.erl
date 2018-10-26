@@ -81,7 +81,7 @@ marshal(account, #{
         currency := Currency
         }) ->
     #'wlt_Account'{
-        identity = marshal(identity, Identity),
+        identity = ff_identity_eventsink_handler:marshal(identity, Identity),
         currency = marshal(currency_ref, Currency)
 };
 marshal(currency_ref, #{

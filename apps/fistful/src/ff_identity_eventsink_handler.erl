@@ -3,6 +3,7 @@
 -behaviour(woody_server_thrift_handler).
 
 -export([handle_function/4]).
+-export([marshal/2]).
 
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
@@ -66,15 +67,18 @@ marshal(event, {created, Identity}) ->
     {created, marshal(identity, Identity)};
 marshal(event, {level_changed, LevelID}) ->
     {level_changed, marshal(id, LevelID)};
-marshal(event, {identity_challenge, ChallengeChange}) ->
-    {identity_challenge, marshal(challenge_change, ChallengeChange)};
+marshal(event, {{challenge, ChallengeID}, ChallengeChange}) ->
+    {identity_challenge, marshal(challenge_change, #{
+        id => ChallengeID,
+        payload => ChallengeChange
+    })};
 marshal(event, {effective_challenge_changed, ChallengeID}) ->
     {effective_challenge_changed, marshal(id, ChallengeID)};
 
 marshal(identity, Identity = #{
         party       := PartyID,
         provider    := ProviderID,
-        cls         := ClassID
+        class       := ClassID
         }) ->
     ContractID = maps:get(contract, Identity, undefined),
     #'idnt_Identity'{
@@ -97,7 +101,7 @@ marshal(challenge_payload, {created, Challenge}) ->
 marshal(challenge_payload, {status_changed, ChallengeStatus}) ->
     {status_changed, marshal(challenge_payload_status_changed, ChallengeStatus)};
 marshal(challenge_payload_created, Challenge = #{
-        cls   := ID
+        id   := ID
         }) ->
     Proofs = maps:get(proofs, Challenge, undefined),
     #'idnt_Challenge'{
@@ -106,21 +110,25 @@ marshal(challenge_payload_created, Challenge = #{
 };
 marshal(challenge_proofs, _) ->
     #'idnt_ChallengeProof'{};
-marshal(challenge_payload_status_changed, {pending, _Status}) ->
+marshal(challenge_payload_status_changed, pending) ->
     {pending, #'idnt_ChallengePending'{}};
-marshal(challenge_payload_status_changed, {cancelled, _Status}) ->
+marshal(challenge_payload_status_changed, cancelled) ->
     {cancelled, #'idnt_ChallengeCancelled'{}};
 marshal(challenge_payload_status_changed, {completed, Status = #{
         resolution := Resolution
     }}) ->
     ValidUntil = maps:get(valid_until, Status, undefined),
     NewStatus = #'idnt_ChallengeCompleted'{
-        resolution = marshal(atom, Resolution),
+        resolution = marshal(resolution, Resolution),
         valid_until = marshal(timestamp, ValidUntil)
     },
     {completed, NewStatus};
 marshal(challenge_payload_status_changed, {failed, _Status}) ->
     {failed, #'idnt_ChallengeFailed'{}};
+marshal(resolution, approved) ->
+    approved;
+marshal(resolution, denied) ->
+    denied;
 
 marshal(timestamp, {{Date, Time}, USec} = V) ->
     case rfc3339:format({Date, Time, USec, 0}) of

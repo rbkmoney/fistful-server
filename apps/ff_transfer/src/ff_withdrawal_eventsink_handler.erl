@@ -90,7 +90,7 @@ marshal(event, {session_finished, SessionID}) ->
 marshal(event, {session, SessionChange}) ->
     {session, marshal(withdrawal_session_change, SessionChange)};
 marshal(event, {route_changed, Route}) ->
-    {session, marshal(withdrawal_route_changed, Route)};
+    {route, marshal(withdrawal_route_changed, Route)};
 
 marshal(withdrawal, Withdrawal = #{
         body := {Amount, SymCode}
@@ -200,7 +200,7 @@ marshal(withdrawal_route_changed, #{
         provider_id := ProviderID
     }) ->
     #'wthd_RouteChange'{
-        provider_id = marshal(id, ProviderID)
+        id = marshal(id, ProviderID)
 };
 
 marshal(cash, #{

@@ -503,31 +503,18 @@ validate_cash_range(Cash, CashRange) ->
             {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
     end.
 
-is_inside(Cash, CashRange = #domain_CashRange{lower = Lower, upper = Upper}) ->
-    case {
-        compare_cash(fun erlang:'>'/2, Cash, Lower),
-        compare_cash(fun erlang:'<'/2, Cash, Upper)
-    } of
-        {true, true} ->
-            true;
-        {false, true} ->
-            false;
-        {true, false} ->
-            false;
-        {error, currency_missmatch} ->
-            {error, currency_missmatch}
-    end.
+is_inside(Cash, #domain_CashRange{lower = Lower, upper = Upper}) ->
+    compare_cash(fun erlang:'>'/2, Cash, Lower) andalso
+        compare_cash(fun erlang:'<'/2, Cash, Upper).
 
-compare_cash(_, V, {inclusive, V}) ->
+compare_cash(_Fun, V, {inclusive, V}) ->
     true;
 compare_cash(
-    F,
+    Fun,
     #domain_Cash{amount = A, currency = C},
     {_, #domain_Cash{amount = Am, currency = C}}
 ) ->
-    F(A, Am);
-compare_cash(_, _, _) ->
-    {error, currency_missmatch}.
+    Fun(A, Am).
 
 %% Domain cash flow unmarshalling
 

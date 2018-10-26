@@ -163,7 +163,7 @@ validate_account_creation(Terms, CurrencyID) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
         valid = unwrap(validate_wallet_creation_terms_is_reduced(WalletTerms)),
-        valid = unwrap(validate_wallet_currency(CurrencyID, WalletTerms))
+        valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 
 -spec validate_withdrawal_creation(terms(), cash(), ff_account:account()) -> Result when
@@ -177,10 +177,10 @@ validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
         valid = unwrap(validate_withdrawal_terms_is_reduced(WalletTerms)),
-        valid = unwrap(validate_wallet_currency(CurrencyID, WalletTerms)),
+        valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms)),
         #domain_WalletServiceTerms{withdrawals = WithdrawalTerms} = WalletTerms,
         valid = unwrap(validate_withdrawal_wallet_currency(CurrencyID, Account)),
-        valid = unwrap(validate_withdrawal_currency(CurrencyID, WithdrawalTerms)),
+        valid = unwrap(validate_withdrawal_terms_currency(CurrencyID, WithdrawalTerms)),
         valid = unwrap(validate_withdrawal_cash_limit(Cash, WithdrawalTerms))
     end).
 
@@ -422,9 +422,9 @@ selector_is_reduced({value, _Value}) ->
 selector_is_reduced({decisions, _Decisions}) ->
     not_reduced.
 
--spec validate_wallet_currency(currency_id(), wallet_terms()) ->
+-spec validate_wallet_terms_currency(currency_id(), wallet_terms()) ->
     {ok, valid} | {error, currency_validation_error()}.
-validate_wallet_currency(CurrencyID, Terms) ->
+validate_wallet_terms_currency(CurrencyID, Terms) ->
     #domain_WalletServiceTerms{
         currencies = {value, Currencies}
     } = Terms,
@@ -468,9 +468,9 @@ validate_withdrawal_wallet_currency(CurrencyID, Account) ->
             {error, {invalid_withdrawal_currency, CurrencyID, {wallet_currency, OtherCurrencyID}}}
     end.
 
--spec validate_withdrawal_currency(currency_id(), withdrawal_terms()) ->
+-spec validate_withdrawal_terms_currency(currency_id(), withdrawal_terms()) ->
     {ok, valid} | {error, currency_validation_error()}.
-validate_withdrawal_currency(CurrencyID, Terms) ->
+validate_withdrawal_terms_currency(CurrencyID, Terms) ->
     #domain_WithdrawalServiceTerms{
         currencies = {value, Currencies}
     } = Terms,

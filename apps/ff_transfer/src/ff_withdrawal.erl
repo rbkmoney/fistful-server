@@ -256,10 +256,10 @@ create_session(Withdrawal) ->
         destination_account := DestinationAccount
     } = params(Withdrawal),
     do(fun () ->
-        valid = validate_wallet_limit(WalletID, Body, WalletAccount),
+        valid = validate_wallet_limits(WalletID, Body, WalletAccount),
         #{provider_id := ProviderID} = route(Withdrawal),
-        {ok, SenderSt} = ff_identity_machine:get(ff_account:identity(WalletAccount)),
-        {ok, ReceiverSt} = ff_identity_machine:get(ff_account:identity(DestinationAccount)),
+        SenderSt = unwrap(ff_identity_machine:get(ff_account:identity(WalletAccount))),
+        ReceiverSt = unwrap(ff_identity_machine:get(ff_account:identity(DestinationAccount))),
         TransferData = #{
             id          => ID,
             cash        => body(Withdrawal),
@@ -349,7 +349,7 @@ finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount, SystemAccoun
     },
     ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants).
 
-validate_wallet_limit(WalletID, Body, Account) ->
+validate_wallet_limits(WalletID, Body, Account) ->
     Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
     Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
-    unwrap(wallet_limit, ff_party:validate_wallet_limit(Account, Terms)).
+    unwrap(wallet_limit, ff_party:validate_wallet_limits(Account, Terms)).

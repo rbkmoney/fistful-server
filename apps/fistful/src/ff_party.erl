@@ -42,9 +42,7 @@
 -export([change_contractor_level/3]).
 -export([validate_account_creation/2]).
 -export([validate_withdrawal_creation/3]).
-
-%% TODO pfffff can't check it on creation :(
--export([validate_wallet_limit/2]).
+-export([validate_wallet_limits/2]).
 
 -export([get_contract_terms/4]).
 -export([get_withdrawal_cash_flow_plan/1]).
@@ -177,6 +175,7 @@ validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
         valid = unwrap(validate_withdrawal_terms_is_reduced(WalletTerms)),
+        valid = unwrap(validate_wallet_currency(CurrencyID, WalletTerms)),
         #domain_WalletServiceTerms{withdrawals = WithdrawalTerms} = WalletTerms,
         valid = unwrap(validate_withdrawal_wallet_currency(CurrencyID, Account)),
         valid = unwrap(validate_withdrawal_currency(CurrencyID, WithdrawalTerms)),
@@ -375,12 +374,10 @@ validate_wallet_creation_terms_is_reduced(undefined) ->
     {error, {invalid_terms, undefined_wallet_terms}};
 validate_wallet_creation_terms_is_reduced(Terms) ->
     #domain_WalletServiceTerms{
-        currencies = CurrenciesSelector,
-        wallet_limit = WalletLimitSelector
+        currencies = CurrenciesSelector
     } = Terms,
     do_validate_terms_is_reduced([
-        {wallet_currencies, CurrenciesSelector},
-        {wallet_limit, WalletLimitSelector}
+        {wallet_currencies, CurrenciesSelector}
     ]).
 
 -spec validate_withdrawal_terms_is_reduced(wallet_terms()) ->
@@ -431,11 +428,12 @@ validate_wallet_currency(CurrencyID, Terms) ->
     } = Terms,
     validate_currency(CurrencyID, Currencies).
 
--spec validate_wallet_limit(ff_account:account(), terms()) ->
+-spec validate_wallet_limits(ff_account:account(), terms()) ->
     {ok, valid} | {error, cash_range_validation_error()}.
-validate_wallet_limit(Account, #domain_TermSet{wallets = WalletTerms}) ->
+validate_wallet_limits(Account, #domain_TermSet{wallets = WalletTerms}) ->
+    %% TODO add turnover validation here
     do(fun () ->
-        valid = unwrap(validate_wallet_creation_terms_is_reduced(WalletTerms)),
+        valid = unwrap(validate_wallet_limits_terms_is_reduced(WalletTerms)),
         #domain_WalletServiceTerms{
             wallet_limit = {value, CashRange}
         } = WalletTerms,
@@ -447,6 +445,16 @@ validate_wallet_limit(Account, #domain_TermSet{wallets = WalletTerms}) ->
         valid = unwrap(validate_cash_range(ExpMinCash, CashRange)),
         valid = unwrap(validate_cash_range(ExpMaxCash, CashRange))
     end).
+
+-spec validate_wallet_limits_terms_is_reduced(wallet_terms()) ->
+    {ok, valid} | {error, {invalid_terms, _Details}}.
+validate_wallet_limits_terms_is_reduced(Terms) ->
+    #domain_WalletServiceTerms{
+        wallet_limit = WalletLimitSelector
+    } = Terms,
+    do_validate_terms_is_reduced([
+        {wallet_limit, WalletLimitSelector}
+    ]).
 
 -spec validate_withdrawal_wallet_currency(currency_id(), ff_account:account()) ->
     {ok, valid} | {error, {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}}.

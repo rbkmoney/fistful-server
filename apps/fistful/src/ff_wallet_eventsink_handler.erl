@@ -82,7 +82,7 @@ marshal(account, #{
         }) ->
     #'wlt_Account'{
         identity = ff_identity_eventsink_handler:marshal(identity, Identity),
-        currency = marshal(currency_ref, Currency)
+        currency = marshal(currency_ref, #{symbolic_code => Currency})
 };
 marshal(currency_ref, #{
         symbolic_code   := SymbolicCode

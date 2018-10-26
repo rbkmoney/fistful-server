@@ -60,6 +60,7 @@
 -type timestamp() :: ff_time:timestamp_ms().
 
 -type currency_validation_error() :: {terms_violation, {not_allowed_currency, _Details}}.
+-type withdrawal_currency_error() :: {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}.
 -type cash_range_validation_error() :: {terms_violation, {cash_range, {domain_cash(), cash_range()}}}.
 
 %% Pipeline
@@ -169,7 +170,8 @@ validate_account_creation(Terms, CurrencyID) ->
     Result :: {ok, valid} | {error, Error},
     Error ::
         {invalid_terms, _Details} |
-        currency_validation_error().
+        currency_validation_error() |
+        withdrawal_currency_error().
 
 validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
@@ -457,7 +459,7 @@ validate_wallet_limits_terms_is_reduced(Terms) ->
     ]).
 
 -spec validate_withdrawal_wallet_currency(currency_id(), ff_account:account()) ->
-    {ok, valid} | {error, {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}}.
+    {ok, valid} | {error, withdrawal_currency_error()}.
 validate_withdrawal_wallet_currency(CurrencyID, Account) ->
     case ff_account:currency(Account) of
         CurrencyID ->

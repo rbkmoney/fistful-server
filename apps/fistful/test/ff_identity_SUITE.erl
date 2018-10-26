@@ -10,6 +10,7 @@
 -export([create_missing_fails/1]).
 -export([create_ok/1]).
 -export([identify_ok/1]).
+-export([get_create_events_ok/1]).
 
 %%
 
@@ -28,13 +29,15 @@ all() ->
         get_missing_fails,
         create_missing_fails,
         create_ok,
-        identify_ok
+        identify_ok,
+        get_create_events_ok
     ].
 
 -spec get_missing_fails(config()) -> test_return().
 -spec create_missing_fails(config()) -> test_return().
 -spec create_ok(config()) -> test_return().
 -spec identify_ok(config()) -> test_return().
+-spec get_create_events_ok(config()) -> test_return().
 
 -spec init_per_suite(config()) -> config().
 
@@ -50,6 +53,7 @@ init_per_suite(C) ->
         dmt_client,
         {fistful, [
             {services, #{
+                'eventsink'      => "http://machinegun:8022/v1/event_sink",
                 'partymgmt'      => "http://hellgate:8022/v1/processing/partymgmt",
                 'identification' => "http://identification:8022/v1/identification"
             }},
@@ -213,6 +217,24 @@ create_party(_C) ->
     ID = genlib:unique(),
     _ = ff_party:create(ID),
     ID.
+
+get_create_events_ok(C) ->
+    ID = genlib:unique(),
+    Party = create_party(C),
+    ok = ff_identity_machine:create(
+        ID,
+        #{
+            party    => Party,
+            provider => <<"good-one">>,
+            class    => <<"person">>
+        },
+        ff_ctx:new()
+    ),
+    I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
+    {ok, accessible} = ff_identity:is_accessible(I1),
+    Party = ff_identity:party(I1),
+    {ok, _} = machinery_eventsink:get_events(ff_identity_machine:get_ns(),
+        undefined, undefined, machinery_mg_schema_generic).
 
 %%
 

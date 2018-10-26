@@ -35,8 +35,8 @@ handle_function_('GetEvents', [#'evsink_EventRange'{'after' = After, limit = Lim
     {ok, Events} = machinery_eventsink:get_events(ff_identity_machine:get_ns(),
         After, Limit, Schema),
     publish_events(Events);
-handle_function_('GetLastEventID', _Params, _Context, _Opts) ->
-    case machinery_eventsink:get_last_event_id(ff_identity_machine:get_ns()) of
+handle_function_('GetLastEventID', _Params, _Context, #{schema := Schema}) ->
+    case machinery_eventsink:get_last_event_id(ff_identity_machine:get_ns(), Schema) of
         {ok, ID} ->
             ID;
         {error, no_last_event} ->
@@ -55,6 +55,8 @@ publish_event({ID, _Ns, SourceID, {_EventID, Dt, Payload}}) ->
     }.
 
 %%
+
+-spec marshal(term(), term()) -> term().
 
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];

@@ -1,7 +1,7 @@
 -module(machinery_eventsink).
 
 -export([get_events/4]).
--export([get_last_event_id/1]).
+-export([get_last_event_id/2]).
 
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
 
@@ -13,10 +13,10 @@
 get_events(EventSinkID, After, Limit, Schema) ->
     {ok, get_history_range(EventSinkID, After, Limit, Schema)}.
 
--spec get_last_event_id(event_sink_id()) ->
+-spec get_last_event_id(event_sink_id(), atom()) ->
     {ok, event_id()} | {error, no_last_event}.
-get_last_event_id(EventSinkID) ->
-    case get_history_range(EventSinkID, undefined, 1, backward) of
+get_last_event_id(EventSinkID, Schema) ->
+    case get_history_range(EventSinkID, undefined, 1, backward, Schema) of
         [{ID, _, _, _}] ->
             {ok, ID};
         [] ->
@@ -74,7 +74,7 @@ unmarshal(
     }
 ) ->
     #'mg_stateproc_Event'{id = EventID, created_at = CreatedAt, event_payload = Payload} = Event,
-    {unmarshal(id, ID), unmarshal(namespace, Ns), unmarshal(id, SourceID),
+    {unmarshal(event_id, ID), unmarshal(namespace, Ns), unmarshal(id, SourceID),
         {
             unmarshal(event_id, EventID),
             unmarshal(timestamp, CreatedAt),
@@ -91,4 +91,5 @@ unmarshal(atom, V) when is_binary(V) ->
 unmarshal(integer, V) when is_integer(V) ->
     V;
 unmarshal(T, V) ->
+    io:format("Type - ~p, val - ~p~n", [T, V]),
     error(badarg, {T, V}).

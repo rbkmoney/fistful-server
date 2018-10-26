@@ -10,11 +10,13 @@
 -export([create_missing_identity_fails/1]).
 -export([create_missing_currency_fails/1]).
 -export([create_wallet_ok/1]).
+-export([get_create_wallet_events_ok/1]).
 
 -spec get_missing_fails(config()) -> test_return().
 -spec create_missing_identity_fails(config()) -> test_return().
 -spec create_missing_currency_fails(config()) -> test_return().
 -spec create_wallet_ok(config()) -> test_return().
+-spec get_create_wallet_events_ok(config()) -> test_return().
 
 %%
 
@@ -33,7 +35,8 @@ all() ->
         get_missing_fails,
         create_missing_identity_fails,
         create_missing_currency_fails,
-        create_wallet_ok
+        create_wallet_ok,
+        get_create_wallet_events_ok
     ].
 
 -spec init_per_suite(config()) -> config().
@@ -50,6 +53,7 @@ init_per_suite(C) ->
         dmt_client,
         {fistful, [
             {services, #{
+                'eventsink' => "http://machinegun:8022/v1/event_sink",
                 'partymgmt' => "http://hellgate:8022/v1/processing/partymgmt",
                 'accounter' => "http://shumway:8022/accounter"
             }},
@@ -167,6 +171,36 @@ create_wallet_ok(C) ->
     {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
     0 = ff_indef:current(Amount),
     ok.
+
+get_create_wallet_events_ok(C) ->
+    ID = genlib:unique(),
+    Party = create_party(C),
+    IdentityID = create_identity(Party, C),
+    LastEvent =
+        case machinery_eventsink:get_last_event_id(
+            ff_wallet_machine:get_ns(),
+            machinery_mg_schema_generic) of
+        {ok, EventID} ->
+            EventID;
+        {error, _} ->
+            0
+    end,
+    ok = ff_wallet_machine:create(
+        ID,
+        #{
+            identity => IdentityID,
+            name     => <<"EVENTS TEST">>,
+            currency => <<"RUB">>
+        },
+        ff_ctx:new()
+    ),
+    Wallet = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
+    {ok, accessible} = ff_wallet:is_accessible(Wallet),
+    Account = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
+    {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
+    0 = ff_indef:current(Amount),
+    {ok, _} = machinery_eventsink:get_events(ff_wallet_machine:get_ns(),
+        LastEvent, 2, machinery_mg_schema_generic).
 
 %%
 

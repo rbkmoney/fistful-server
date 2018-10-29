@@ -221,6 +221,9 @@ create_party(_C) ->
 get_create_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
+    LastEvent = ct_helper:unwrap_last_sinkevent_id(machinery_eventsink:get_last_event_id(
+        ff_identity_machine:get_ns(),
+        machinery_mg_schema_generic)),
     ok = ff_identity_machine:create(
         ID,
         #{
@@ -233,8 +236,10 @@ get_create_events_ok(C) ->
     I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
     {ok, accessible} = ff_identity:is_accessible(I1),
     Party = ff_identity:party(I1),
-    {ok, _} = machinery_eventsink:get_events(ff_identity_machine:get_ns(),
-        undefined, undefined, machinery_mg_schema_generic).
+    {ok, Events} = machinery_eventsink:get_events(ff_identity_machine:get_ns(),
+        LastEvent, 2, machinery_mg_schema_generic),
+    MaxID = ct_helper:get_max_sinkevent_id(Events),
+    MaxID = LastEvent + 2.
 
 %%
 

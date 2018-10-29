@@ -46,11 +46,11 @@ handle_function(Func, Args, Context, Opts) ->
 
 handle_function_('GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
     _Context, #{schema := Schema}) ->
-    {ok, Events} = machinery_eventsink:get_events(ff_withdrawal_session_machine:get_ns(),
+    {ok, Events} = machinery_eventsink:get_events(ff_withdrawal:get_ns(),
         After, Limit, Schema),
     publish_events(Events);
 handle_function_('GetLastEventID', _Params, _Context, #{schema := Schema}) ->
-    case machinery_eventsink:get_last_event_id(ff_withdrawal_session_machine:get_ns(), Schema) of
+    case machinery_eventsink:get_last_event_id(ff_withdrawal:get_ns(), Schema) of
         {ok, ID} ->
             ID;
         {error, no_last_event} ->

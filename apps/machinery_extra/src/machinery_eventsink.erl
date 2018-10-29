@@ -91,5 +91,4 @@ unmarshal(atom, V) when is_binary(V) ->
 unmarshal(integer, V) when is_integer(V) ->
     V;
 unmarshal(T, V) ->
-    io:format("Type - ~p, val - ~p~n", [T, V]),
     error(badarg, {T, V}).

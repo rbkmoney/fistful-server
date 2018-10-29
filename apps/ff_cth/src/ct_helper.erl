@@ -18,6 +18,9 @@
 -export([await/2]).
 -export([await/3]).
 
+-export([get_max_sinkevent_id/1]).
+-export([unwrap_last_sinkevent_id/1]).
+
 -type test_case_name() :: atom().
 -type group_name() :: atom().
 -type config() :: [{atom(), term()}].
@@ -206,3 +209,17 @@ await(Expect, Compute, Retry0) ->
                     error({'await failed', NotYet})
             end
     end.
+
+%%
+
+-spec get_max_sinkevent_id(list()) -> integer().
+
+get_max_sinkevent_id(Events) ->
+    lists:foldl(fun ({ID, _, _, _}, Max) -> erlang:max(ID, Max) end, 0, Events).
+
+-spec unwrap_last_sinkevent_id({ok | error, integer()}) -> integer().
+
+unwrap_last_sinkevent_id({ok, EventID}) ->
+    EventID;
+unwrap_last_sinkevent_id({error, _}) ->
+    0.

@@ -19,10 +19,6 @@
 -export([get/1]).
 -export([status/1]).
 
-%% Accessors
-
--export([get_ns/0]).
-
 %% machinery
 
 -export([init/4]).
@@ -95,14 +91,6 @@
     status().
 
 status(#{status := V}) -> V.
-
-%% Accessors
-
--spec get_ns() ->
-    binary().
-
-get_ns() ->
-    atom_to_binary(?NS, utf8).
 
 %%
 

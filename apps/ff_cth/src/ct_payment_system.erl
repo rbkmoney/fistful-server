@@ -260,6 +260,7 @@ services(Options) ->
         accounter      => "http://shumway:8022/accounter",
         cds            => "http://cds:8022/v1/storage",
         identdocstore  => "http://cds:8022/v1/identity_document_storage",
+        'eventsink'    => "http://machinegun:8022/v1/event_sink",
         partymgmt      => "http://hellgate:8022/v1/processing/partymgmt",
         identification => "http://identification:8022/v1/identification"
     },

@@ -49,6 +49,10 @@
 -export([get_machine/1]).
 -export([events/2]).
 
+%% Accessors
+
+-export([get_ns/0]).
+
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
@@ -162,6 +166,14 @@ events(ID, Range) ->
 process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
     do_process_transfer(Activity, Withdrawal).
+
+%% Accessors
+
+-spec get_ns() ->
+    binary().
+
+get_ns() ->
+    atom_to_binary(?NS, utf8).
 
 %% Internals
 

@@ -242,7 +242,7 @@ create_instrument(source, ID, Params, Ctx, _C) ->
     ff_source:create(ID, Params, Ctx).
 
 generate_id() ->
-    genlib:to_binary(genlib_time:ticks() div 1000).
+    genlib:to_binary(genlib_time:ticks()).
 
 admin_call(Fun, Args) ->
     Service = {ff_proto_fistful_thrift, 'FistfulAdmin'},

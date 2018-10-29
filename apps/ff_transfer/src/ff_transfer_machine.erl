@@ -60,7 +60,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1]).
 
 %% Internal types
 
@@ -81,7 +82,7 @@ create(NS, ID,
     #{handler := Handler, body := Body, params := Params},
 Ctx)
 ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Events = unwrap(ff_transfer:create(handler_to_type(Handler), ID, Body, Params)),
         unwrap(machinery:start(NS, ID, {Events, Ctx}, backend(NS)))
     end).
@@ -98,7 +99,7 @@ get(NS, ID) ->
     {error, notfound}.
 
 events(NS, ID, Range) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         #{history := History} = unwrap(machinery:get(NS, ID, Range, backend(NS))),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).

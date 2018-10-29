@@ -34,7 +34,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1]).
 
 %% Accessors
 
@@ -61,7 +62,7 @@ wallet(St) ->
     }.
 
 create(ID, #{identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Events = unwrap(ff_wallet:create(ID, IdentityID, Name, CurrencyID)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, fistful:backend(?NS)))
     end).

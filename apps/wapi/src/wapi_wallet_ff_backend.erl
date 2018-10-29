@@ -244,7 +244,7 @@ create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     {wallet, unauthorized}
 ).
 get_wallet_account(WalletId, Context) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Account = ff_wallet:account(ff_wallet_machine:wallet(get_state(wallet, WalletId, Context))),
         {Amounts, Currency} = unwrap(ff_transaction:balance(
             ff_account:accounter_account_id(Account)
@@ -339,7 +339,7 @@ get_withdrawal_event(WithdrawalId, EventId, Context) ->
 
 -spec get_residence(binary(), ctx()) -> result().
 get_residence(Residence, _Context) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         to_swag(residence_object, unwrap(ff_residence:get(from_swag(residence, Residence))))
     end).
 
@@ -347,7 +347,7 @@ get_residence(Residence, _Context) ->
 
 -spec get_currency(binary(), ctx()) -> result().
 get_currency(CurrencyId, _Context) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         to_swag(currency_object, unwrap(ff_currency:get(from_swag(currency, CurrencyId))))
     end).
 

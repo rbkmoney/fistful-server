@@ -49,7 +49,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1, unwrap/2, valid/2]).
 
 %% Internal types
 
@@ -95,7 +96,7 @@ params(T)          -> ff_transfer:params(T).
     }.
 
 create(ID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
         Wallet = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(WalletID))),
         ok = unwrap(source, valid(authorized, ff_source:status(Source))),
@@ -191,7 +192,7 @@ create_p_transfer(Deposit) ->
         source_account := SourceAccount,
         wallet_cash_flow_plan := CashFlowPlan
     } = params(Deposit),
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Constants = #{
             operation_amount => body(Deposit)
         },

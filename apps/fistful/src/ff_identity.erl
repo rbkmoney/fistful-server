@@ -68,7 +68,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2, expect/2, flip/1, valid/2]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1, unwrap/2, expect/2, flip/1, valid/2]).
 
 %% Accessors
 
@@ -141,7 +142,7 @@ is_accessible(Identity) ->
     }.
 
 create(ID, Party, ProviderID, ClassID) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Provider = unwrap(provider, ff_provider:get(ProviderID)),
         Class = unwrap(identity_class, ff_provider:get_identity_class(ClassID, Provider)),
         LevelID = ff_identity_class:initial_level(Class),
@@ -177,7 +178,7 @@ create(ID, Party, ProviderID, ClassID) ->
     }.
 
 start_challenge(ChallengeID, ChallengeClassID, Proofs, Identity) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         notfound = expect(exists, flip(challenge(ChallengeID, Identity))),
         IdentityClass = get_identity_class(Identity),
         ChallengeClass = unwrap(challenge_class, ff_identity_class:challenge_class(
@@ -204,7 +205,7 @@ start_challenge(ChallengeID, ChallengeClassID, Proofs, Identity) ->
     }.
 
 poll_challenge_completion(ChallengeID, Identity) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Challenge = unwrap(challenge(ChallengeID, Identity)),
         case unwrap(ff_identity_challenge:poll_completion(Challenge)) of
             [] ->

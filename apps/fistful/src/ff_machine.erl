@@ -74,7 +74,8 @@
 
 %% Pipeline helpers
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1]).
 
 %% Internal types
 
@@ -113,7 +114,7 @@ times(St) ->
     {error, notfound}.
 
 get(Mod, NS, ID) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         collapse(Mod, unwrap(machinery:get(NS, ID, fistful:backend(NS))))
     end).
 

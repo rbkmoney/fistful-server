@@ -51,7 +51,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1, unwrap/2, valid/2]).
 
 %% Internal types
 
@@ -110,7 +111,7 @@ route(T)           -> ff_transfer:route(T).
 
 create(ID, #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->
     {_Amount, CurrencyID} = Body,
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
         Destination = ff_destination:get(
             unwrap(destination, ff_destination:get_machine(DestinationID))
@@ -213,7 +214,7 @@ create_route(Withdrawal) ->
     #{
         destination_id := DestinationID
     } = params(Withdrawal),
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
         Destination = ff_destination:get(DestinationMachine),
         ProviderID = unwrap(route, ff_withdrawal_provider:choose(Destination, body(Withdrawal))),
@@ -230,7 +231,7 @@ create_p_transfer(Withdrawal) ->
         wallet_cash_flow_plan := WalletCashFlowPlan
     } = params(Withdrawal),
     {_Amount, CurrencyID} = body(Withdrawal),
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Provider = unwrap(provider, get_route_provider(route(Withdrawal))),
         ProviderAccounts = ff_withdrawal_provider:accounts(Provider),
         ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
@@ -264,7 +265,7 @@ create_session(Withdrawal) ->
         sender      => ff_identity_machine:identity(SenderSt),
         receiver    => ff_identity_machine:identity(ReceiverSt)
     },
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         SessionParams = #{
             destination => destination_id(Withdrawal),
             provider_id => ProviderID
@@ -283,7 +284,7 @@ construct_p_transfer_id(ID) ->
 poll_session_completion(Withdrawal) ->
     SessionID = ff_transfer:session_id(Withdrawal),
     {ok, Session} = ff_withdrawal_session_machine:get(SessionID),
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         case ff_withdrawal_session_machine:status(Session) of
             active ->
                 {poll, []};
@@ -309,7 +310,7 @@ poll_session_completion(Withdrawal) ->
 get_contract_terms(Wallet, Body, Timestamp) ->
     WalletID = ff_wallet:id(Wallet),
     IdentityID = ff_wallet:identity(Wallet),
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
         Identity = ff_identity_machine:identity(IdentityMachine),
         ContractID = ff_identity:contract(Identity),

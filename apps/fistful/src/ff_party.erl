@@ -59,7 +59,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1]).
 
 %%
 
@@ -104,7 +105,7 @@ is_accessible(ID) ->
     {error, invalid}.
 
 create_contract(ID, Prototype) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         ContractID = generate_contract_id(),
         Changeset  = construct_contract_changeset(ContractID, Prototype),
         Claim      = unwrap(do_create_claim(ID, Changeset)),
@@ -120,7 +121,7 @@ create_contract(ID, Prototype) ->
     {error, invalid}.
 
 change_contractor_level(ID, ContractID, ContractorLevel) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Changeset  = construct_level_changeset(ContractID, ContractorLevel),
         Claim      = unwrap(do_create_claim(ID, Changeset)),
         accepted   = do_accept_claim(ID, Claim),
@@ -155,7 +156,7 @@ get_contract_terms(ID, ContractID, Varset, Timestamp) ->
 
 validate_account_creation(Terms, CurrencyID) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         valid = unwrap(validate_wallet_creation_terms_is_reduced(WalletTerms)),
         valid = unwrap(validate_wallet_currency(CurrencyID, WalletTerms))
     end).
@@ -168,7 +169,7 @@ validate_account_creation(Terms, CurrencyID) ->
 
 validate_withdrawal_creation(Terms, CurrencyID) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         valid = unwrap(validate_withdrawal_terms_is_reduced(WalletTerms)),
         valid = unwrap(validate_wallet_currency(CurrencyID, WalletTerms)),
         #domain_WalletServiceTerms{withdrawals = WithdrawalTerms} = WalletTerms,
@@ -393,7 +394,7 @@ validate_withdrawal_terms_is_reduced(Terms) ->
         {withdrawal_cash_limit, CashLimitSelector},
         {withdrawal_cash_flow, CashFlowSelector}
     ],
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         valid = unwrap(do_validate_terms_is_reduced(Selectors))
     end).
 

@@ -83,7 +83,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1, unwrap/2, valid/2]).
 
 %%
 
@@ -145,7 +146,7 @@ claim_id(#{claim_id := V}) ->
     }.
 
 create(ID, Claimant, ProviderID, IdentityClassID, ChallengeClassID, Proofs) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Provider = unwrap(provider, ff_provider:get(ProviderID)),
         IdentityClass = unwrap(identity_class, ff_provider:get_identity_class(IdentityClassID, Provider)),
         ChallengeClass = unwrap(challenge_class, ff_identity_class:challenge_class(ChallengeClassID, IdentityClass)),
@@ -178,7 +179,7 @@ create(ID, Claimant, ProviderID, IdentityClassID, ChallengeClassID, Proofs) ->
     }.
 
 poll_completion(Challenge) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         ok = unwrap(valid(pending, status(Challenge))),
         Status = unwrap(get_claim_status(claim_id(Challenge))),
         case Status of

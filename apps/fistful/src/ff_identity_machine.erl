@@ -49,7 +49,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, do/2, unwrap/1]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1]).
 
 -define(NS, 'ff/identity').
 
@@ -67,7 +68,7 @@
     }.
 
 create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Events = unwrap(ff_identity:create(ID, Party, ProviderID, IdentityClassID)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
@@ -84,7 +85,7 @@ get(ID) ->
     {error, notfound}.
 
 events(ID, Range) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
@@ -182,7 +183,7 @@ process_call({start_challenge, Params}, Machine, _, _Opts) ->
 
 do_start_challenge(Params, St) ->
     Identity = identity(St),
-    handle_result(do(challenge, fun () ->
+    handle_result(ff_pipeline:do(challenge, fun () ->
         #{
             id     := ChallengeID,
             class  := ChallengeClassID,

@@ -49,7 +49,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1, unwrap/2]).
 
 %% Accessors
 
@@ -87,7 +88,7 @@ blocking(#{blocking := Blocking}) ->
     {error, _Reason}.
 
 create(ID, IdentityID, Name, CurrencyID) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Contract = ff_identity:contract(Identity),
         Contract = ff_identity:contract(Identity),
@@ -106,7 +107,7 @@ create(ID, IdentityID, Name, CurrencyID) ->
     {error, inaccessibility()}.
 
 is_accessible(Wallet) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         accessible = unwrap(check_accessible(Wallet)),
         accessible = unwrap(ff_account:is_accessible(account(Wallet)))
     end).
@@ -119,7 +120,7 @@ is_accessible(Wallet) ->
     }.
 
 close(Wallet) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         accessible = unwrap(is_accessible(Wallet)),
         % TODO
         []

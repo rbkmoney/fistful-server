@@ -38,7 +38,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1, unwrap/2]).
 
 %% Internal types
 
@@ -83,7 +84,7 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
     }.
 
 create(ID, Identity, Currency) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Contract = ff_identity:contract(Identity),
         Party = ff_identity:party(Identity),
         Contract = ff_identity:contract(Identity),
@@ -111,7 +112,7 @@ create(ID, Identity, Currency) ->
     {error, ff_party:inaccessibility()}.
 
 is_accessible(Account) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Identity   = get_identity(Account),
         accessible = unwrap(ff_identity:is_accessible(Identity))
     end).

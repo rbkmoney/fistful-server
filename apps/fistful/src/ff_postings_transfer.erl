@@ -52,7 +52,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1, unwrap/2, valid/2]).
 
 %% Internal types
 
@@ -90,7 +91,7 @@ status(#{status := V}) ->
 create(_TrxID, #{postings := []}) ->
     {error, empty};
 create(ID, CashFlow) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Accounts   = ff_cash_flow:gather_used_accounts(CashFlow),
         valid      = validate_currencies(Accounts),
         valid      = validate_identities(Accounts),
@@ -137,7 +138,7 @@ validate_identities([A0 | Accounts]) ->
 prepare(Transfer = #{status := created}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         _Affected = unwrap(ff_transaction:prepare(ID, construct_trx_postings(CashFlow))),
         [{status_changed, prepared}]
     end);
@@ -159,7 +160,7 @@ prepare(#{status := Status}) ->
 commit(Transfer = #{status := prepared}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         _Affected = unwrap(ff_transaction:commit(ID, construct_trx_postings(CashFlow))),
         [{status_changed, committed}]
     end);
@@ -177,7 +178,7 @@ commit(#{status := Status}) ->
 cancel(Transfer = #{status := prepared}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         _Affected = unwrap(ff_transaction:cancel(ID, construct_trx_postings(CashFlow))),
         [{status_changed, cancelled}]
     end);

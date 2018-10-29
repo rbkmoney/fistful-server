@@ -47,7 +47,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1]).
 
 %%
 
@@ -89,7 +90,7 @@ list() ->
     {error, notfound}.
 
 get(ID) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         % TODO
         %  - We need to somehow expose these things in the domain config
         %  - Possibly inconsistent view of domain config

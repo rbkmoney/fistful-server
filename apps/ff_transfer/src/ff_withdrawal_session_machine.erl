@@ -81,7 +81,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1]).
 
 %%
 %% API
@@ -98,14 +99,14 @@ status(#{status := V}) -> V.
     ok | {error, exists}.
 create(ID, Data, Params) ->
     Session = create_session(ID, Data, Params),
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         unwrap(machinery:start(?NS, ID, Session, backend()))
     end).
 
 -spec get(id()) ->
     ff_map:result(session()).
 get(ID) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         session(collapse(unwrap(machinery:get(?NS, ID, backend()))))
     end).
 

@@ -55,7 +55,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1, unwrap/2]).
 
 %% Accessors
 
@@ -98,7 +99,7 @@ status(#{status := V}) ->
     {error, _WalletError}.
 
 create(ID, IdentityID, Name, CurrencyID, Resource) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Events = unwrap(ff_account:create(ID, Identity, Currency)),

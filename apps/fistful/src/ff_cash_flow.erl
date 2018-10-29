@@ -79,7 +79,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1, unwrap/2]).
 
 %% Internal types
 -type cash() :: ff_transaction:body().
@@ -106,7 +107,7 @@ gather_used_accounts(#{postings := Postings}) ->
 -spec finalize(cash_flow_plan(), account_mapping(), constant_mapping()) ->
     {ok, final_cash_flow()} | {error, finalize_error()}.
 finalize(Plan, Accounts, Constants) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Postings = unwrap(postings, compute_postings(Plan, Accounts, Constants)),
         #{postings => Postings}
     end).
@@ -123,7 +124,7 @@ add_fee(#{postings := PlanPostings} = Plan, #{postings := FeePostings}) ->
 -spec compute_postings(cash_flow_plan(), account_mapping(), constant_mapping()) ->
     {ok, [final_posting()]} | {error, posting_finalize_error()}.
 compute_postings(#{postings := PlanPostings}, Accounts, Constants) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         [
             unwrap(construct_final_posting(PlanPosting, Accounts, Constants))
             || PlanPosting <- PlanPostings
@@ -139,7 +140,7 @@ construct_final_posting(PlanPosting, Accounts, Constants) ->
         volume := PlanVolume
     } = PlanPosting,
     PlanDetails = genlib_map:get(details, PlanPosting),
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         genlib_map:compact(#{
             sender => unwrap(construct_final_account(PlanSender, Accounts)),
             receiver => unwrap(construct_final_account(PlanReceiver, Accounts)),
@@ -166,7 +167,7 @@ construct_final_account(PlanAccount, Accounts) ->
 compute_volume({fixed, Cash}, _Constants) ->
     {ok, Cash};
 compute_volume({share, {Rational, Constant, RoundingMethod}}, Constants) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         {Amount, Currency} = unwrap(get_constant_value(Constant, Constants)),
         ResultAmount = genlib_rational:round(
             genlib_rational:mul(
@@ -178,7 +179,7 @@ compute_volume({share, {Rational, Constant, RoundingMethod}}, Constants) ->
         {ResultAmount, Currency}
     end);
 compute_volume({product, {Operation, PlanVolumes}}, Constants) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Volumes = unwrap(compute_volumes(PlanVolumes, Constants)),
         unwrap(foldl_cash(Operation, Volumes))
     end).
@@ -186,7 +187,7 @@ compute_volume({product, {Operation, PlanVolumes}}, Constants) ->
 -spec compute_volumes([plan_volume()], constant_mapping()) ->
     {ok, [cash()]} | {error, volume_finalize_error()}.
 compute_volumes(Volumes, Constants) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         [unwrap(compute_volume(V, Constants)) || V <- Volumes]
     end).
 
@@ -218,7 +219,7 @@ foldl_cash(max_of, [Cash| CTail]) ->
 -spec do_foldl(Fun, Acc, [T]) -> {ok, Acc} | {error, Reason} when
     Fun :: fun((T, Acc) -> {ok, Acc} | {error, Reason}).
 do_foldl(Fun, Acc0, List) ->
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         lists:foldl(fun(H, Acc) -> unwrap(Fun(H, Acc)) end, Acc0, List)
     end).
 

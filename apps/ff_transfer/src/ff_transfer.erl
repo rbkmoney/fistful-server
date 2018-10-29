@@ -66,7 +66,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, with/3]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1, with/3]).
 
 %% Internal types
 
@@ -131,7 +132,7 @@ route(_Other) ->
     }.
 
 create(TransferType, ID, Body, Params) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         [
             {created, #{
                 version       => ?ACTUAL_FORMAT_VERSION,
@@ -168,15 +169,15 @@ deduce_activity(#{status := pending, p_transfer := #{status := created}}) ->
     prepare_transfer.
 
 process_activity(prepare_transfer, Transfer) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         {continue, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:prepare/1))}
     end);
 process_activity(commit_transfer, Transfer) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:commit/1))}
     end);
 process_activity(cancel_transfer, Transfer) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))}
     end).
 

@@ -28,7 +28,8 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [unwrap/1]).
 
 %% Accessors
 
@@ -47,7 +48,7 @@ id(#{id := ID}) ->
     {error, notfound}.
 
 get(ID) ->
-    do(fun () ->
+    ff_pipeline:do(fun () ->
         Currency = unwrap(ff_domain_config:object({currency, #domain_CurrencyRef{symbolic_code = ID}})),
         #{
             id       => ID,

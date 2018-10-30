@@ -1,6 +1,8 @@
 -module(ff_transfer_SUITE).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+
 
 -export([all/0]).
 -export([groups/0]).
@@ -216,6 +218,45 @@ deposit_withdrawal_ok(C) ->
         fun () ->
             {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
             ff_withdrawal:status(ff_withdrawal:get(WdrM))
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
+    ok = await_destination_balance({4240 - 424, <<"RUB">>}, DestID),
+
+    % Fail withdrawal because of limits
+    WdrID2 = generate_id(),
+    ok = ff_withdrawal:create(
+        WdrID2,
+        #{wallet_id => WalID, destination_id => DestID, body => {10000 - 4240 + 1, <<"RUB">>}},
+        ff_ctx:new()
+    ),
+    {ok, WdrM2} = ff_withdrawal:get_machine(WdrID2),
+    pending = ff_withdrawal:status(ff_withdrawal:get(WdrM2)),
+
+    FailedDueToLimit = {failed, {wallet_limit, {terms_violation,
+        {cash_range, {
+            #domain_Cash{
+                amount = -1,
+                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+            },
+            #domain_CashRange{
+                lower = {inclusive, #domain_Cash{
+                    amount = 0,
+                    currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+                }},
+                upper = {exclusive, #domain_Cash{
+                    amount = 10000001,
+                    currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+                }}
+            }
+        }}
+    }}},
+    FailedDueToLimit = ct_helper:await(
+        FailedDueToLimit,
+        fun () ->
+            {ok, TmpWdrM} = ff_withdrawal:get_machine(WdrID2),
+            ff_withdrawal:status(ff_withdrawal:get(TmpWdrM))
         end,
         genlib_retry:linear(15, 1000)
     ),

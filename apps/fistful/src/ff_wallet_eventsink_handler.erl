@@ -19,7 +19,10 @@ handle_function(Func, Args, Context, Opts) ->
         fun() ->
             ok = ff_woody_ctx:set(Context),
             try
-                handle_function_(Func, Args, Context, Opts)
+                Opts = genlib_app:env(eventsinks, 'wallet', #{}),
+                NS = maps:get(namespace, Opts, ff_wallet_machine:get_ns()),
+                Client = ff_woody_client:get_service_client(eventsink),
+                handle_function_(Func, Args, {NS, Client, Context}, Opts)
             after
                 ff_woody_ctx:unset()
             end
@@ -31,12 +34,13 @@ handle_function(Func, Args, Context, Opts) ->
 %%
 
 handle_function_('GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
-    _Context, #{schema := Schema}) ->
-    {ok, Events} = machinery_eventsink:get_events(ff_wallet_machine:get_ns(),
-        After, Limit, Schema),
+    {NS, Client, Context}, #{schema := Schema}) ->
+    {ok, Events} = machinery_mg_eventsink:get_events(NS, After, Limit,
+        #{client => {Client, Context}, schema => Schema}),
     publish_events(Events);
-handle_function_('GetLastEventID', _Params, _Context, #{schema := Schema}) ->
-    case machinery_eventsink:get_last_event_id(ff_wallet_machine:get_ns(), Schema) of
+handle_function_('GetLastEventID', _Params, {NS, Client, Context}, #{schema := Schema}) ->
+    case machinery_mg_eventsink:get_last_event_id(NS,
+        #{client => {Client, Context}, schema => Schema}) of
         {ok, ID} ->
             ID;
         {error, no_last_event} ->

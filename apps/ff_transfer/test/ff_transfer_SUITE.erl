@@ -151,7 +151,7 @@ deposit_withdrawal_ok(C) ->
 
 get_withdrawal_events_ok(C) ->
 
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(machinery_eventsink:get_last_event_id(
+    LastEvent = ct_helper:unwrap_last_sinkevent_id(machinery_mg_eventsink:get_last_event_id(
         ff_withdrawal:get_ns(),
         machinery_mg_schema_generic)),
 
@@ -166,8 +166,8 @@ get_withdrawal_events_ok(C) ->
     pass_identification(ICID, IID, C),
     process_withdrawal(WalID, DestID),
 
-    {ok, Events} = machinery_eventsink:get_events(ff_withdrawal:get_ns(),
-        LastEvent, 2, machinery_mg_schema_generic),
+    {ok, Events} = machinery_mg_eventsink:get_events(ff_withdrawal:get_ns(),
+        LastEvent, undefined, machinery_mg_schema_generic),
     MaxID = ct_helper:get_max_sinkevent_id(Events),
     MaxID = LastEvent + 2.
 

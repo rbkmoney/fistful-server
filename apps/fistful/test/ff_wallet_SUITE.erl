@@ -176,7 +176,7 @@ get_create_wallet_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
     IdentityID = create_identity(Party, C),
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(machinery_eventsink:get_last_event_id(
+    LastEvent = ct_helper:unwrap_last_sinkevent_id(machinery_mg_eventsink:get_last_event_id(
         ff_wallet_machine:get_ns(),
         machinery_mg_schema_generic)),
     ok = ff_wallet_machine:create(
@@ -193,8 +193,8 @@ get_create_wallet_events_ok(C) ->
     Account = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
     {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
     0 = ff_indef:current(Amount),
-    {ok, Events} = machinery_eventsink:get_events(ff_wallet_machine:get_ns(),
-        LastEvent, 2, machinery_mg_schema_generic),
+    {ok, Events} = machinery_mg_eventsink:get_events(ff_wallet_machine:get_ns(),
+        LastEvent, undefined, machinery_mg_schema_generic),
     MaxID = ct_helper:get_max_sinkevent_id(Events),
     MaxID = LastEvent + 2.
 

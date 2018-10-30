@@ -1,5 +1,7 @@
 -module(ff_identity_SUITE).
 
+-include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
+
 -export([all/0]).
 -export([init_per_suite/1]).
 -export([end_per_suite/1]).
@@ -74,13 +76,20 @@ init_per_suite(C) ->
         ],
         BeOpts
     ),
+
+    Path = <<"/v1/eventsink/identity">>,
+    IdentityRoute = woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_handler, BeConf}}}],
+        event_handler => scoper_woody_event_handler
+    })),
+
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
         BeOpts#{
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => Routes
+            additional_routes => Routes ++ IdentityRoute
         }
     )),
     C1 = ct_helper:makeup_cfg(
@@ -221,9 +230,10 @@ create_party(_C) ->
 get_create_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(machinery_mg_eventsink:get_last_event_id(
-        ff_identity_machine:get_ns(),
-        machinery_mg_schema_generic)),
+    Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
+    LastEvent = ct_helper:unwrap_last_sinkevent_id(
+        ct_helper:call_eventsink_handler('GetLastEventID',Service, [])),
+
     ok = ff_identity_machine:create(
         ID,
         #{
@@ -236,8 +246,8 @@ get_create_events_ok(C) ->
     I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
     {ok, accessible} = ff_identity:is_accessible(I1),
     Party = ff_identity:party(I1),
-    {ok, Events} = machinery_mg_eventsink:get_events(ff_identity_machine:get_ns(),
-        LastEvent, undefined, machinery_mg_schema_generic),
+    {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
+        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
     MaxID = ct_helper:get_max_sinkevent_id(Events),
     MaxID = LastEvent + 2.
 

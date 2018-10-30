@@ -135,19 +135,25 @@ get_admin_routes() ->
     })).
 
 get_eventsink_routes() ->
-    get_eventsink_route({<<"/v1/eventsink/identity">>,
-        {{ff_proto_identity_thrift, 'identity'}, {ff_identity_eventsink_handler, []}}}) ++
-    get_eventsink_route({<<"/v1/eventsink/wallet">>,
-        {{ff_proto_wallet_thrift, 'wallet'}, {ff_wallet_eventsink_handler, []}}}) ++
-    get_eventsink_route({<<"/v1/eventsink/withdrawal">>,
-        {{ff_proto_withdrawal_thrift, 'withdrawal'}, {ff_withdrawal_eventsink_handler, []}}}).
+    Cfg = #{schema => machinery_mg_schema_generic},
+    get_eventsink_route(identity, {<<"/v1/eventsink/identity">>,
+        {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_handler, Cfg}}}) ++
+    get_eventsink_route(wallet, {<<"/v1/eventsink/wallet">>,
+        {{ff_proto_wallet_thrift, 'EventSink'}, {ff_wallet_eventsink_handler, Cfg}}}) ++
+    get_eventsink_route(withdrawal, {<<"/v1/eventsink/withdrawal">>,
+        {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_withdrawal_eventsink_handler, Cfg}}}).
 
-get_eventsink_route({DefPath, Route = {{_, OptTag}, _}}) ->
-    Opts = genlib_app:env(eventsinks, OptTag, #{}),
-    Path = maps:get(path, Opts, DefPath),
-    Limits = genlib_map:get(handler_limits, Opts),
-    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, Route}],
-        event_handler => scoper_woody_event_handler,
-        handler_limits => Limits
-    })).
+get_eventsink_route(RouteType, {DefPath, Route}) ->
+    RouteList = genlib_app:env(?MODULE, eventsink, []),
+    case lists:keyfind(RouteType, 1, RouteList) of
+        false ->
+            erlang:error(bad_config);
+        Opts ->
+            Path = maps:get(path, Opts, DefPath),
+            Limits = genlib_map:get(handler_limits, Opts),
+            woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+                handlers => [{Path, Route}],
+                event_handler => scoper_woody_event_handler,
+                handler_limits => Limits
+            }))
+    end.

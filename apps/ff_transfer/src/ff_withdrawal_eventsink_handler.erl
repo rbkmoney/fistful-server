@@ -20,7 +20,7 @@ final_account_to_final_cash_flow_account(#{
     #{account_type => AccountType, account_id => AccountID}.
 
 -define(to_session_event(SessionID, Payload),
-    #{id => SessionID, payload => Payload}).
+    {session, #{id => SessionID, payload => Payload}}).
 
 %%
 %% woody_server_thrift_handler callbacks
@@ -29,12 +29,11 @@ final_account_to_final_cash_flow_account(#{
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Context, Opts) ->
-    scoper:scope(fistful, #{function => Func},
+    scoper:scope(ff_transfer, #{function => Func},
         fun() ->
             ok = ff_woody_ctx:set(Context),
             try
-                Opts = genlib_app:env(eventsinks, 'withdrawal', #{}),
-                NS = maps:get(namespace, Opts, ff_withdrawal:get_ns()),
+                NS = get_ns(ff_withdrawal:get_ns()),
                 Client = ff_woody_client:get_service_client(eventsink),
                 handle_function_(Func, Args, {NS, Client, Context}, Opts)
             after
@@ -42,6 +41,15 @@ handle_function(Func, Args, Context, Opts) ->
             end
         end
     ).
+
+get_ns(DefNS) ->
+    RouteList = genlib_app:env(ff_server, eventsink, []),
+    case lists:keyfind('withdrawal', 1, RouteList) of
+        false ->
+            DefNS;
+        Opts ->
+            maps:get(namespace, Opts, DefNS)
+    end.
 
 %%
 %% Internals
@@ -51,30 +59,34 @@ handle_function_('GetEvents', [#'evsink_EventRange'{'after' = After, limit = Lim
     {NS, Client, Context}, #{schema := Schema}) ->
     {ok, Events} = machinery_mg_eventsink:get_events(NS, After, Limit,
         #{client => {Client, Context}, schema => Schema}),
-    publish_events(Events);
+    {ok, publish_events(Events)};
 handle_function_('GetLastEventID', _Params, {NS, Client, Context}, #{schema := Schema}) ->
     case machinery_mg_eventsink:get_last_event_id(NS,
         #{client => {Client, Context}, schema => Schema}) of
-        {ok, ID} ->
-            ID;
+        {ok, _} = Result ->
+            Result;
         {error, no_last_event} ->
-            throw(#'evsink_NoLastEvent'{})
+            woody_error:raise(business, #'evsink_NoLastEvent'{})
     end.
 
 publish_events(Events) ->
     [publish_event(Event) || Event <- Events].
 
-publish_event({ID, _Ns, SourceID, {_EventID, Dt, Payload}}) ->
+publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, _, Payload}}}) ->
     #'wthd_SinkEvent'{
         'sequence'      = marshal(event_id, ID),
         'created_at'    = marshal(timestamp, Dt),
         'source'        = marshal(id, SourceID),
-        'payload'       = marshal({list, event}, Payload)
+        'payload'        = #'wthd_Event'{
+            'id'         = marshal(event_id, EventID),
+            'occured_at' = marshal(timestamp, Dt),
+            'changes'    = [marshal(event, Payload)]
+        }
     }.
 
 %%
 
-marshal({list, T}, V) ->
+marshal(T, V) when is_list(V) ->
     [marshal(T, E) || E <- V];
 
 marshal(id, V) ->
@@ -91,7 +103,7 @@ marshal(event, {session_started, SessionID}) ->
     marshal(session, ?to_session_event(SessionID, started));
 marshal(event, {session_finished, SessionID}) ->
     marshal(session, ?to_session_event(SessionID, finished));
-marshal(event, {session, SessionChange}) ->
+marshal(session, {session, SessionChange}) ->
     {session, marshal(withdrawal_session_change, SessionChange)};
 marshal(event, {route_changed, Route}) ->
     {route, marshal(withdrawal_route_changed, Route)};

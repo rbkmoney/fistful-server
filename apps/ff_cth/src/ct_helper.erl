@@ -20,6 +20,7 @@
 
 -export([get_max_sinkevent_id/1]).
 -export([unwrap_last_sinkevent_id/1]).
+-export([call_eventsink_handler/3]).
 
 -type test_case_name() :: atom().
 -type group_name() :: atom().
@@ -215,11 +216,24 @@ await(Expect, Compute, Retry0) ->
 -spec get_max_sinkevent_id(list()) -> integer().
 
 get_max_sinkevent_id(Events) ->
-    lists:foldl(fun ({ID, _, _, _}, Max) -> erlang:max(ID, Max) end, 0, Events).
+    lists:foldl(fun ({_, ID, _, _, _}, Max) -> erlang:max(ID, Max) end, 0, Events).
 
 -spec unwrap_last_sinkevent_id({ok | error, integer()}) -> integer().
 
 unwrap_last_sinkevent_id({ok, EventID}) ->
     EventID;
-unwrap_last_sinkevent_id({error, _}) ->
+unwrap_last_sinkevent_id({exception,{evsink_NoLastEvent}}) ->
     0.
+
+-spec call_eventsink_handler(atom(), tuple(), list()) ->
+    {ok, woody:result()} |
+    {exception, woody_error:business_error()}.
+
+call_eventsink_handler(Function, {Service, Path}, Args) ->
+    Request = {Service, Function, Args},
+    Client  = ff_woody_client:new(#{
+        url           => [<<"http://localhost:8022">>, Path],
+        event_handler => scoper_woody_event_handler
+    }),
+    ff_woody_client:call(Client, Request).
+

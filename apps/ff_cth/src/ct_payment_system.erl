@@ -103,6 +103,13 @@ start_processing_apps(Options) ->
         ],
         BeOpts
     ),
+
+    Path = <<"/v1/eventsink/withdrawal">>,
+    WithdrawalRoute = woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_withdrawal_eventsink_handler, BeConf}}}],
+        event_handler => scoper_woody_event_handler
+    })),
+
     AdminRoutes = get_admin_routes(),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
@@ -110,7 +117,7 @@ start_processing_apps(Options) ->
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => AdminRoutes ++ Routes
+            additional_routes => AdminRoutes ++ Routes ++ WithdrawalRoute
         }
     )),
     Processing = #{

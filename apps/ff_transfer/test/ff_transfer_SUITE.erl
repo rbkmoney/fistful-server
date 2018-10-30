@@ -1,6 +1,7 @@
 -module(ff_transfer_SUITE).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -151,9 +152,9 @@ deposit_withdrawal_ok(C) ->
 
 get_withdrawal_events_ok(C) ->
 
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(machinery_mg_eventsink:get_last_event_id(
-        ff_withdrawal:get_ns(),
-        machinery_mg_schema_generic)),
+    Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
+    LastEvent = ct_helper:unwrap_last_sinkevent_id(
+        ct_helper:call_eventsink_handler('GetLastEventID',Service, [])),
 
     Party = create_party(C),
     IID = create_person_identity(Party, C),
@@ -166,10 +167,10 @@ get_withdrawal_events_ok(C) ->
     pass_identification(ICID, IID, C),
     process_withdrawal(WalID, DestID),
 
-    {ok, Events} = machinery_mg_eventsink:get_events(ff_withdrawal:get_ns(),
-        LastEvent, undefined, machinery_mg_schema_generic),
+    {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
+        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
     MaxID = ct_helper:get_max_sinkevent_id(Events),
-    MaxID = LastEvent + 2.
+    MaxID = LastEvent + 10.
 
 create_party(_C) ->
     ID = genlib:unique(),

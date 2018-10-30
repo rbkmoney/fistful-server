@@ -1,5 +1,7 @@
 -module(ff_wallet_SUITE).
 
+-include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+
 -export([all/0]).
 -export([init_per_suite/1]).
 -export([end_per_suite/1]).
@@ -77,13 +79,20 @@ init_per_suite(C) ->
         ],
         BeOpts
     ),
+
+    Path = <<"/v1/eventsink/wallet">>,
+    WalletRoute = woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, {{ff_proto_wallet_thrift, 'EventSink'}, {ff_wallet_eventsink_handler, BeConf}}}],
+        event_handler => scoper_woody_event_handler
+    })),
+
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
         BeOpts#{
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => Routes
+            additional_routes => Routes ++ WalletRoute
         }
     )),
     C1 = ct_helper:makeup_cfg(
@@ -176,9 +185,11 @@ get_create_wallet_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
     IdentityID = create_identity(Party, C),
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(machinery_mg_eventsink:get_last_event_id(
-        ff_wallet_machine:get_ns(),
-        machinery_mg_schema_generic)),
+
+    Service = {{ff_proto_wallet_thrift, 'EventSink'}, <<"/v1/eventsink/wallet">>},
+    LastEvent = ct_helper:unwrap_last_sinkevent_id(
+        ct_helper:call_eventsink_handler('GetLastEventID',Service, [])),
+
     ok = ff_wallet_machine:create(
         ID,
         #{
@@ -193,8 +204,9 @@ get_create_wallet_events_ok(C) ->
     Account = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
     {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
     0 = ff_indef:current(Amount),
-    {ok, Events} = machinery_mg_eventsink:get_events(ff_wallet_machine:get_ns(),
-        LastEvent, undefined, machinery_mg_schema_generic),
+
+    {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
+        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
     MaxID = ct_helper:get_max_sinkevent_id(Events),
     MaxID = LastEvent + 2.
 

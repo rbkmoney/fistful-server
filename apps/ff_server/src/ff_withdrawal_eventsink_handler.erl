@@ -67,6 +67,10 @@ handle_function_(
 publish_events(Events) ->
     [publish_event(Event) || Event <- Events].
 
+-spec publish_event(machinery_mg_eventsink:evsink_event(
+    ff_machine:timestamped_event(ff_withdrawal:event())
+    )) -> ff_proto_withdrawal_thrift:'SinkEvent'().
+
 publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, EventDt, Payload}}}) ->
     #'wthd_SinkEvent'{
         'sequence'      = marshal(event_id, ID),
@@ -75,7 +79,7 @@ publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, EventDt, Payload}}}) ->
         'payload'        = #'wthd_Event'{
             'id'         = marshal(event_id, EventID),
             'occured_at' = marshal(timestamp, EventDt),
-            'changes'    = [marshal(event, Payload)]
+            'changes'    = [marshal(event, ff_transfer:maybe_migrate(Payload))]
         }
     }.
 

@@ -96,9 +96,8 @@ get_create_identify_events_ok(C) ->
     {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    RawMaxID = ct_helper:get_max_rawevent_id(RawEvents),
     MaxID    = ct_helper:get_max_sinkevent_id(Events),
-    MaxID    = LastEvent + RawMaxID.
+    MaxID    = LastEvent + length(RawEvents).
 
 -spec get_create_wallet_events_ok(config()) -> test_return().
 
@@ -123,9 +122,8 @@ get_create_wallet_events_ok(C) ->
     {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    RawMaxID = ct_helper:get_max_rawevent_id(RawEvents),
     MaxID    = ct_helper:get_max_sinkevent_id(Events),
-    MaxID    = LastEvent + RawMaxID.
+    MaxID    = LastEvent + length(RawEvents).
 
 -spec get_withdrawal_events_ok(config()) -> test_return().
 
@@ -148,9 +146,8 @@ get_withdrawal_events_ok(C) ->
     {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
     {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    RawMaxID = ct_helper:get_max_rawevent_id(RawEvents),
     MaxID    = ct_helper:get_max_sinkevent_id(Events),
-    MaxID    = LastEvent + RawMaxID.
+    MaxID    = LastEvent + length(RawEvents).
 
 create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).

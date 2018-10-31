@@ -9,7 +9,7 @@
     schema := machinery_mg_schema:schema()
 ).
 
--type event_sink_id()  :: binary().
+-type eventsink_id()   :: binary().
 -type event_id()       :: integer().
 -type eventsink_opts() :: #{
     client := machinery_mg_client:client(),
@@ -17,23 +17,25 @@
 }.
 -type timestamp() :: machinery:timestamp().
 
--type evsink_event()  :: {
-    integer(),
+-type evsink_event(T)  :: {
+    event_id(),
     binary(),
-    binary(),
+    eventsink_id(),
     {
-        integer(),
+        event_id(),
         timestamp(),
-        {ev, timestamp(), _} % timestamped_event
+        T
     }
 }.
 
--spec get_events(event_sink_id(), event_id(), integer(), eventsink_opts()) ->
-    {ok, list(evsink_event())}.
+-export_type([evsink_event/1]).
+
+-spec get_events(eventsink_id(), event_id(), integer(), eventsink_opts()) ->
+    {ok, list(evsink_event(_))}.
 get_events(EventSinkID, After, Limit, Opts) ->
     {ok, get_history_range(EventSinkID, After, Limit, Opts)}.
 
--spec get_last_event_id(event_sink_id(), eventsink_opts()) ->
+-spec get_last_event_id(eventsink_id(), eventsink_opts()) ->
     {ok, event_id()} | {error, no_last_event}.
 get_last_event_id(EventSinkID, Opts) ->
     case get_history_range(EventSinkID, undefined, 1, backward, Opts) of

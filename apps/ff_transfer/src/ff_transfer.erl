@@ -63,6 +63,7 @@
 %% Event source
 
 -export([apply_event/2]).
+-export([maybe_migrate/1]).
 
 %% Pipeline
 

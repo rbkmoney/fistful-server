@@ -52,6 +52,10 @@ handle_function_(
 publish_events(Events) ->
     [publish_event(Event) || Event <- Events].
 
+-spec publish_event(machinery_mg_eventsink:evsink_event(
+    ff_machine:timestamped_event(ff_wallet:event())
+    )) -> ff_proto_wallet_thrift:'SinkEvent'().
+
 publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, EventDt, Payload}}}) ->
     #'wlt_SinkEvent'{
         'sequence'       = marshal(event_id, ID),

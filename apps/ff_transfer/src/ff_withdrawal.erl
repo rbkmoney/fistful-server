@@ -109,23 +109,24 @@ route(T)           -> ff_transfer:route(T).
     }.
 
 create(ID, #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->
-    {_Amount, CurrencyID} = Body,
     do(fun() ->
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
+        WalletAccount = ff_wallet:account(Wallet),
         Destination = ff_destination:get(
             unwrap(destination, ff_destination:get_machine(DestinationID))
         ),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
         Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
-        valid = unwrap(terms, ff_party:validate_withdrawal_creation(Terms, CurrencyID)),
+        valid = unwrap(terms, ff_party:validate_withdrawal_creation(Terms, Body, WalletAccount)),
         CashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
+
         Params = #{
             handler     => ?MODULE,
             body        => Body,
             params      => #{
                 wallet_id => WalletID,
                 destination_id => DestinationID,
-                wallet_account => ff_wallet:account(Wallet),
+                wallet_account => WalletAccount,
                 destination_account => ff_destination:account(Destination),
                 wallet_cash_flow_plan => CashFlowPlan
             }
@@ -229,11 +230,14 @@ create_p_transfer(Withdrawal) ->
         destination_account := DestinationAccount,
         wallet_cash_flow_plan := WalletCashFlowPlan
     } = params(Withdrawal),
+    {_Amount, CurrencyID} = body(Withdrawal),
     do(fun () ->
         Provider = unwrap(provider, get_route_provider(route(Withdrawal))),
-        ProviderAccount = ff_withdrawal_provider:account(Provider),
+        ProviderAccounts = ff_withdrawal_provider:accounts(Provider),
+        ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
         ProviderFee = ff_withdrawal_provider:fee(Provider),
-        SystemAccount = unwrap(system, get_system_account()),
+        SystemAccounts = unwrap(system, get_system_accounts()),
+        SystemAccount = maps:get(CurrencyID, SystemAccounts, undefined),
         CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
         FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
             CashFlowPlan, WalletAccount, DestinationAccount, SystemAccount, ProviderAccount, body(Withdrawal)
@@ -248,20 +252,23 @@ create_p_transfer(Withdrawal) ->
     {error, _Reason}.
 create_session(Withdrawal) ->
     ID = construct_session_id(id(Withdrawal)),
+    Body = body(Withdrawal),
     #{
+        wallet_id := WalletID,
         wallet_account := WalletAccount,
         destination_account := DestinationAccount
     } = params(Withdrawal),
-    #{provider_id := ProviderID} = route(Withdrawal),
-    {ok, SenderSt} = ff_identity_machine:get(ff_account:identity(WalletAccount)),
-    {ok, ReceiverSt} = ff_identity_machine:get(ff_account:identity(DestinationAccount)),
-    TransferData = #{
-        id          => ID,
-        cash        => body(Withdrawal),
-        sender      => ff_identity_machine:identity(SenderSt),
-        receiver    => ff_identity_machine:identity(ReceiverSt)
-    },
     do(fun () ->
+        valid = validate_wallet_limits(WalletID, Body, WalletAccount),
+        #{provider_id := ProviderID} = route(Withdrawal),
+        SenderSt = unwrap(ff_identity_machine:get(ff_account:identity(WalletAccount))),
+        ReceiverSt = unwrap(ff_identity_machine:get(ff_account:identity(DestinationAccount))),
+        TransferData = #{
+            id          => ID,
+            cash        => body(Withdrawal),
+            sender      => ff_identity_machine:identity(SenderSt),
+            receiver    => ff_identity_machine:identity(ReceiverSt)
+        },
         SessionParams = #{
             destination => destination_id(Withdrawal),
             provider_id => ProviderID
@@ -324,12 +331,12 @@ get_contract_terms(Wallet, Body, Timestamp) ->
 get_route_provider(#{provider_id := ProviderID}) ->
     ff_withdrawal_provider:get(ProviderID).
 
--spec get_system_account() -> {ok, account()}.
-get_system_account() ->
+-spec get_system_accounts() -> {ok, ff_withdrawal_provider:accounts()}.
+get_system_accounts() ->
     % TODO: Read system account from domain config
     SystemConfig = maps:get(system, genlib_app:env(ff_transfer, withdrawal, #{})),
-    SystemAccount = maps:get(account, SystemConfig),
-    {ok, SystemAccount}.
+    SystemAccounts = maps:get(accounts, SystemConfig, undefined),
+    {ok, SystemAccounts}.
 
 -spec finalize_cash_flow(cash_flow_plan(), account(), account(), account(), account(), body()) ->
     {ok, final_cash_flow()} | {error, _Error}.
@@ -337,10 +344,15 @@ finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount, SystemAccoun
     Constants = #{
         operation_amount => Body
     },
-    Accounts = #{
+    Accounts = genlib_map:compact(#{
         {wallet, sender_settlement} => WalletAccount,
         {wallet, receiver_destination} => DestinationAccount,
         {system, settlement} => SystemAccount,
         {provider, settlement} => ProviderAccount
-    },
+    }),
     ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants).
+
+validate_wallet_limits(WalletID, Body, Account) ->
+    Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
+    Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
+    unwrap(wallet_limit, ff_party:validate_wallet_limits(Account, Terms)).

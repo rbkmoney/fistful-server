@@ -552,9 +552,9 @@ from_swag(destination_resource, #{
     }};
 from_swag(withdrawal_params, Params) ->
     #{
-        source      => maps:get(<<"wallet">>     , Params),
-        destination => maps:get(<<"destination">>, Params),
-        body        => from_swag(withdrawal_body , maps:get(<<"body">>, Params))
+        wallet_id      => maps:get(<<"wallet">>     , Params),
+        destination_id => maps:get(<<"destination">>, Params),
+        body           => from_swag(withdrawal_body , maps:get(<<"body">>, Params))
     };
 %% TODO
 %%  - remove this clause when we fix negative accounts and turn on validation in swag

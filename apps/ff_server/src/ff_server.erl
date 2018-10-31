@@ -148,7 +148,7 @@ get_eventsink_route(RouteType, {DefPath, Route}) ->
     case lists:keyfind(RouteType, 1, RouteList) of
         false ->
             erlang:error(bad_config);
-        Opts ->
+        {_, Opts} ->
             Path = maps:get(path, Opts, DefPath),
             Limits = genlib_map:get(handler_limits, Opts),
             woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{

@@ -232,7 +232,7 @@ get_create_events_ok(C) ->
     Party = create_party(C),
     Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
     LastEvent = ct_helper:unwrap_last_sinkevent_id(
-        ct_helper:call_eventsink_handler('GetLastEventID',Service, [])),
+        ct_helper:call_eventsink_handler('GetLastEventID', Service, [])),
 
     ok = ff_identity_machine:create(
         ID,

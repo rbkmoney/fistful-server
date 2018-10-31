@@ -47,7 +47,7 @@ get_ns(DefNS) ->
     case lists:keyfind('withdrawal', 1, RouteList) of
         false ->
             DefNS;
-        Opts ->
+        {_, Opts} ->
             maps:get(namespace, Opts, DefNS)
     end.
 

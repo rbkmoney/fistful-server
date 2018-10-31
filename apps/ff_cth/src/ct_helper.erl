@@ -222,7 +222,7 @@ get_max_sinkevent_id(Events) ->
 
 unwrap_last_sinkevent_id({ok, EventID}) ->
     EventID;
-unwrap_last_sinkevent_id({exception,{evsink_NoLastEvent}}) ->
+unwrap_last_sinkevent_id({exception, {evsink_NoLastEvent}}) ->
     0.
 
 -spec call_eventsink_handler(atom(), tuple(), list()) ->
@@ -232,7 +232,7 @@ unwrap_last_sinkevent_id({exception,{evsink_NoLastEvent}}) ->
 call_eventsink_handler(Function, {Service, Path}, Args) ->
     Request = {Service, Function, Args},
     Client  = ff_woody_client:new(#{
-        url           => [<<"http://localhost:8022">>, Path],
+        url           => <<<<"http://localhost:8022">>/binary, Path/binary>>,
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).

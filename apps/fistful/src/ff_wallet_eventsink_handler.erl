@@ -33,7 +33,7 @@ get_ns(DefNS) ->
     case lists:keyfind(wallet, 1, RouteList) of
         false ->
             DefNS;
-        Opts ->
+        {_, Opts} ->
             maps:get(namespace, Opts, DefNS)
     end.
 

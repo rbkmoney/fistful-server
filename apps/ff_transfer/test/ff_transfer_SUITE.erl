@@ -156,7 +156,7 @@ get_withdrawal_events_ok(C) ->
 
     Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
     LastEvent = ct_helper:unwrap_last_sinkevent_id(
-        ct_helper:call_eventsink_handler('GetLastEventID',Service, [])),
+        ct_helper:call_eventsink_handler('GetLastEventID', Service, [])),
 
     Party = create_party(C),
     IID = create_person_identity(Party, C),

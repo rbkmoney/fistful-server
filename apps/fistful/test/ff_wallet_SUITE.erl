@@ -188,7 +188,7 @@ get_create_wallet_events_ok(C) ->
 
     Service = {{ff_proto_wallet_thrift, 'EventSink'}, <<"/v1/eventsink/wallet">>},
     LastEvent = ct_helper:unwrap_last_sinkevent_id(
-        ct_helper:call_eventsink_handler('GetLastEventID',Service, [])),
+        ct_helper:call_eventsink_handler('GetLastEventID', Service, [])),
 
     ok = ff_wallet_machine:create(
         ID,

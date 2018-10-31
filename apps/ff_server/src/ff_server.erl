@@ -155,7 +155,7 @@ get_eventsink_route(RouteType, {DefPath, {Module, {Handler, Cfg}}}) ->
     RouteList = genlib_app:env(?MODULE, eventsink, []),
     case lists:keyfind(RouteType, 1, RouteList) of
         false ->
-            erlang:error(bad_config);
+            erlang:error({'eventsink undefined', RouteType});
         {_, Opts} ->
             Path = maps:get(path, Opts, DefPath),
             NS = maps:get(namespace, Opts),

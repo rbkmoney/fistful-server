@@ -1,7 +1,5 @@
 -module(ff_wallet_SUITE).
 
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
-
 -export([all/0]).
 -export([init_per_suite/1]).
 -export([end_per_suite/1]).
@@ -12,13 +10,11 @@
 -export([create_missing_identity_fails/1]).
 -export([create_missing_currency_fails/1]).
 -export([create_wallet_ok/1]).
--export([get_create_wallet_events_ok/1]).
 
 -spec get_missing_fails(config()) -> test_return().
 -spec create_missing_identity_fails(config()) -> test_return().
 -spec create_missing_currency_fails(config()) -> test_return().
 -spec create_wallet_ok(config()) -> test_return().
--spec get_create_wallet_events_ok(config()) -> test_return().
 
 %%
 
@@ -37,8 +33,7 @@ all() ->
         get_missing_fails,
         create_missing_identity_fails,
         create_missing_currency_fails,
-        create_wallet_ok,
-        get_create_wallet_events_ok
+        create_wallet_ok
     ].
 
 -spec init_per_suite(config()) -> config().
@@ -78,19 +73,13 @@ init_per_suite(C) ->
         ],
         BeOpts
     ),
-
-    Path = <<"/v1/eventsink/wallet">>,
-    WalletRoute = ct_helper:create_sink_route({Path,
-        {{ff_proto_wallet_thrift, 'EventSink'}, {ff_wallet_eventsink_handler,
-        BeConf#{ns => <<"ff/wallet_v2">>}}}}),
-
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
         BeOpts#{
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => Routes ++ WalletRoute
+            additional_routes => Routes
         }
     )),
     C1 = ct_helper:makeup_cfg(
@@ -178,31 +167,6 @@ create_wallet_ok(C) ->
     {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
     0 = ff_indef:current(Amount),
     ok.
-
-get_create_wallet_events_ok(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
-    IdentityID = create_identity(Party, C),
-
-    Service = {{ff_proto_wallet_thrift, 'EventSink'}, <<"/v1/eventsink/wallet">>},
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(
-        ct_helper:call_eventsink_handler('GetLastEventID', Service, [])),
-
-    ok = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"EVENTS TEST">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ),
-    {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
-    {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    RawMaxID = ct_helper:get_max_rawevent_id(RawEvents),
-    MaxID    = ct_helper:get_max_sinkevent_id(Events),
-    MaxID    = LastEvent + RawMaxID.
 
 %%
 

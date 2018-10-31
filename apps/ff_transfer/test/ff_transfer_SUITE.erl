@@ -25,7 +25,10 @@
 -spec all() -> [test_case_name() | {group, group_name()}].
 
 all() ->
-    [{group, default}].
+    [
+        {group, default},
+        get_withdrawal_events_ok
+    ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 
@@ -34,8 +37,7 @@ groups() ->
         {default, [parallel], [
             get_missing_fails,
             deposit_via_admin_ok,
-            deposit_withdrawal_ok,
-            get_withdrawal_events_ok
+            deposit_withdrawal_ok
         ]}
     ].
 

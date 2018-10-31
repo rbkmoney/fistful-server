@@ -15,9 +15,21 @@
     client := machinery_mg_client:client(),
     ?EVENTSINK_CORE_OPTS
 }.
+-type timestamp() :: machinery:timestamp().
+
+-type evsink_event()  :: {
+    integer(),
+    binary(),
+    binary(),
+    {
+        integer(),
+        timestamp(),
+        {ev, timestamp(), _} % timestamped_event
+    }
+}.
 
 -spec get_events(event_sink_id(), event_id(), integer(), eventsink_opts()) ->
-    {ok, list()}.
+    {ok, list(evsink_event())}.
 get_events(EventSinkID, After, Limit, Opts) ->
     {ok, get_history_range(EventSinkID, After, Limit, Opts)}.
 
@@ -84,11 +96,11 @@ unmarshal(
     }
 ) ->
     #'mg_stateproc_Event'{id = EventID, created_at = CreatedAt, event_payload = Payload} = Event,
-    {unmarshal(event_id, ID), unmarshal(namespace, Ns), unmarshal(id, SourceID),
-        {
-            unmarshal(event_id, EventID),
-            unmarshal(timestamp, CreatedAt),
-            unmarshal({schema, Schema, event}, Payload)}};
+    {unmarshal(event_id, ID), unmarshal(namespace, Ns), unmarshal(id, SourceID), {
+        unmarshal(event_id, EventID),
+        unmarshal(timestamp, CreatedAt),
+        unmarshal({schema, Schema, event}, Payload)
+    }};
 
 unmarshal({list, T}, V) when is_list(V) ->
     [unmarshal(T, E) || E <- V];

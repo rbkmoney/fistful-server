@@ -30,13 +30,17 @@ handle_function(Func, Args, Context, Opts) ->
 %% Internals
 %%
 
-handle_function_('GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
-    Context, #{schema := Schema, client := Client, ns := NS}) ->
+handle_function_(
+    'GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
+    Context, #{schema := Schema, client := Client, ns := NS}
+) ->
     {ok, Events} = machinery_mg_eventsink:get_events(NS, After, Limit,
         #{client => {Client, Context}, schema => Schema}),
     {ok, publish_events(Events)};
-handle_function_('GetLastEventID', _Params, Context,
-        #{schema := Schema, client := Client, ns := NS}) ->
+handle_function_(
+    'GetLastEventID', _Params, Context,
+    #{schema := Schema, client := Client, ns := NS}
+) ->
     case machinery_mg_eventsink:get_last_event_id(NS,
         #{client => {Client, Context}, schema => Schema}) of
         {ok, _} = Result ->
@@ -48,14 +52,14 @@ handle_function_('GetLastEventID', _Params, Context,
 publish_events(Events) ->
     [publish_event(Event) || Event <- Events].
 
-publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, _, Payload}}}) ->
+publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, EventDt, Payload}}}) ->
     #'wlt_SinkEvent'{
         'sequence'       = marshal(event_id, ID),
         'created_at'     = marshal(timestamp, Dt),
         'source'         = marshal(id, SourceID),
         'payload'        = #'wlt_Event'{
             'id'         = marshal(event_id, EventID),
-            'occured_at' = marshal(timestamp, Dt),
+            'occured_at' = marshal(timestamp, EventDt),
             'changes'    = [marshal(event, Payload)]
         }
     }.
@@ -75,24 +79,24 @@ marshal(wallet, Wallet) ->
     Name = maps:get(name, Wallet, undefined),
     #'wlt_Wallet'{
         name = marshal(string, Name)
-};
+    };
 
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
 marshal(account, #{
         identity := Identity,
         currency := Currency
-        }) ->
+}) ->
     #'wlt_Account'{
         identity = ff_identity_eventsink_handler:marshal(identity, Identity),
         currency = marshal(currency_ref, #{symbolic_code => Currency})
-};
+    };
 marshal(currency_ref, #{
         symbolic_code   := SymbolicCode
-        }) ->
+}) ->
     #'CurrencyRef'{
         symbolic_code    = marshal(string, SymbolicCode)
-};
+    };
 
 marshal(timestamp, {{Date, Time}, USec} = V) ->
     case rfc3339:format({Date, Time, USec, 0}) of

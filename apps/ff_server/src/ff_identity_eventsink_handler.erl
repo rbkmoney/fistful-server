@@ -30,13 +30,17 @@ handle_function(Func, Args, Context, Opts) ->
 %% Internals
 %%
 
-handle_function_('GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
-    Context, #{schema := Schema, client := Client, ns := NS}) ->
+handle_function_(
+    'GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
+    Context, #{schema := Schema, client := Client, ns := NS}
+) ->
     {ok, Events} = machinery_mg_eventsink:get_events(NS, After, Limit,
         #{client => {Client, Context}, schema => Schema}),
     {ok, publish_events(Events)};
-handle_function_('GetLastEventID', _Params, Context,
-        #{schema := Schema, client := Client, ns := NS}) ->
+handle_function_(
+    'GetLastEventID', _Params, Context,
+    #{schema := Schema, client := Client, ns := NS}
+) ->
     case machinery_mg_eventsink:get_last_event_id(NS,
         #{client => {Client, Context}, schema => Schema}) of
         {ok, _} = Result ->
@@ -48,14 +52,14 @@ handle_function_('GetLastEventID', _Params, Context,
 publish_events(Events) ->
     [publish_event(Event) || Event <- Events].
 
-publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, _, Payload}}}) ->
+publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, EventDt, Payload}}}) ->
     #'idnt_SinkEvent'{
         'sequence'      = marshal(event_id, ID),
         'created_at'    = marshal(timestamp, Dt),
         'source'        = marshal(id, SourceID),
         'payload'        = #'idnt_Event'{
             'id'         = marshal(event_id, EventID),
-            'occured_at' = marshal(timestamp, Dt),
+            'occured_at' = marshal(timestamp, EventDt),
             'changes'    = [marshal(event, Payload)]
         }
     }.
@@ -84,35 +88,35 @@ marshal(identity, Identity = #{
         party       := PartyID,
         provider    := ProviderID,
         class       := ClassID
-        }) ->
+}) ->
     ContractID = maps:get(contract, Identity, undefined),
     #'idnt_Identity'{
         'party'     = marshal(id, PartyID),
         'provider'  = marshal(id, ProviderID),
         'cls'       = marshal(id, ClassID),
         'contract'  = marshal(id, ContractID)
-};
+    };
 
 marshal(challenge_change, #{
         id       := ID,
         payload  := Payload
-        }) ->
+    }) ->
     #'idnt_ChallengeChange'{
         id      = marshal(id, ID),
         payload = marshal(challenge_payload, Payload)
-};
+    };
 marshal(challenge_payload, {created, Challenge}) ->
     {created, marshal(challenge_payload_created, Challenge)};
 marshal(challenge_payload, {status_changed, ChallengeStatus}) ->
     {status_changed, marshal(challenge_payload_status_changed, ChallengeStatus)};
 marshal(challenge_payload_created, Challenge = #{
         id   := ID
-        }) ->
+}) ->
     Proofs = maps:get(proofs, Challenge, undefined),
     #'idnt_Challenge'{
         cls    = marshal(id, ID),
         proofs = marshal(challenge_proofs, Proofs)
-};
+    };
 marshal(challenge_proofs, _) ->
     #'idnt_ChallengeProof'{};
 marshal(challenge_payload_status_changed, pending) ->
@@ -121,7 +125,7 @@ marshal(challenge_payload_status_changed, cancelled) ->
     {cancelled, #'idnt_ChallengeCancelled'{}};
 marshal(challenge_payload_status_changed, {completed, Status = #{
         resolution := Resolution
-    }}) ->
+}}) ->
     ValidUntil = maps:get(valid_until, Status, undefined),
     NewStatus = #'idnt_ChallengeCompleted'{
         resolution = marshal(resolution, Resolution),

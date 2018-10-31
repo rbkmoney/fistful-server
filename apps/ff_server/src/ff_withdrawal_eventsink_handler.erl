@@ -44,13 +44,17 @@ handle_function(Func, Args, Context, Opts) ->
 %% Internals
 %%
 
-handle_function_('GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
-    Context, #{schema := Schema, client := Client, ns := NS}) ->
+handle_function_(
+    'GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
+    Context, #{schema := Schema, client := Client, ns := NS}
+) ->
     {ok, Events} = machinery_mg_eventsink:get_events(NS, After, Limit,
         #{client => {Client, Context}, schema => Schema}),
     {ok, publish_events(Events)};
-handle_function_('GetLastEventID', _Params, Context,
-        #{schema := Schema, client := Client, ns := NS}) ->
+handle_function_(
+    'GetLastEventID', _Params, Context,
+    #{schema := Schema, client := Client, ns := NS}
+) ->
     case machinery_mg_eventsink:get_last_event_id(NS,
         #{client => {Client, Context}, schema => Schema}) of
         {ok, _} = Result ->
@@ -63,21 +67,21 @@ handle_function_('GetLastEventID', _Params, Context,
 publish_events(Events) ->
     [publish_event(Event) || Event <- Events].
 
-publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, _, Payload}}}) ->
+publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, EventDt, Payload}}}) ->
     #'wthd_SinkEvent'{
         'sequence'      = marshal(event_id, ID),
         'created_at'    = marshal(timestamp, Dt),
         'source'        = marshal(id, SourceID),
         'payload'        = #'wthd_Event'{
             'id'         = marshal(event_id, EventID),
-            'occured_at' = marshal(timestamp, Dt),
+            'occured_at' = marshal(timestamp, EventDt),
             'changes'    = [marshal(event, Payload)]
         }
     }.
 
 %%
 
-marshal(T, V) when is_list(V) ->
+marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
 marshal(id, V) ->
@@ -101,14 +105,14 @@ marshal(event, {route_changed, Route}) ->
 
 marshal(withdrawal, Withdrawal = #{
         body := {Amount, SymCode}
-    }) ->
+}) ->
     WalletID = maps:get(wallet_id, Withdrawal, undefined),
     DestinationID = maps:get(destination_id, Withdrawal, undefined),
     #'wthd_Withdrawal'{
         body = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
         source = marshal(id, WalletID),
         destination = marshal(id, DestinationID)
-};
+    };
 
 marshal(withdrawal_status_changed, pending) ->
     {pending, #'wthd_WithdrawalPending'{}};
@@ -129,21 +133,21 @@ marshal(withdrawal_transfer_change, {status_changed, TransferStatus}) ->
     {status_changed, marshal(transfer_status, TransferStatus)};
 marshal(transfer, #{
         final_cash_flow := Cashflow
-    }) ->
+}) ->
     #'wthd_Transfer'{
         cashflow = marshal(cashflow, Cashflow)
-};
+    };
 marshal(cashflow, #{
         postings := Postings
-    }) ->
+}) ->
     #'cashflow_FinalCashFlow'{
-        postings = marshal(postings, Postings)
-};
+        postings = marshal({list, postings}, Postings)
+    };
 marshal(postings, Postings = #{
         sender := Source,
         receiver := Destination,
         volume := {Amount, SymCode}
-    }) ->
+}) ->
     Details = maps:get(details, Postings, undefined),
     #'cashflow_FinalCashFlowPosting'{
         source      = marshal(final_cash_flow_account,
@@ -152,15 +156,15 @@ marshal(postings, Postings = #{
             final_account_to_final_cash_flow_account(Destination)),
         volume      = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
         details     = marshal(string, Details)
-};
+    };
 marshal(final_cash_flow_account, #{
         account_type   := AccountType,
         account_id     := AccountID
-    }) ->
+}) ->
     #'cashflow_FinalCashFlowAccount'{
         account_type   = marshal(account_type, AccountType),
         account_id     = marshal(id, AccountID)
-};
+    };
 
 marshal(account_type, {provider, Provider}) ->
     {provider, marshal(provider, Provider)};
@@ -193,11 +197,11 @@ marshal(transfer_status, cancelled) ->
 marshal(withdrawal_session_change, #{
         id      := SessionID,
         payload := Payload
-    }) ->
+}) ->
     #'wthd_SessionChange'{
         id      = marshal(id, SessionID),
         payload = marshal(withdrawal_session_payload, Payload)
-};
+    };
 marshal(withdrawal_session_payload, started) ->
     {started, #'wthd_SessionStarted'{}};
 marshal(withdrawal_session_payload, finished) ->
@@ -205,7 +209,7 @@ marshal(withdrawal_session_payload, finished) ->
 
 marshal(withdrawal_route_changed, #{
         provider_id := ProviderID
-    }) ->
+}) ->
     #'wthd_RouteChange'{
         id = marshal(id, ProviderID)
     };
@@ -213,17 +217,17 @@ marshal(withdrawal_route_changed, #{
 marshal(cash, #{
         amount   := Amount,
         currency := Currency
-    }) ->
+}) ->
     #'Cash'{
         amount   = marshal(amount, Amount),
         currency = marshal(currency_ref, Currency)
-};
+    };
 marshal(currency_ref, #{
         symbolic_code   := SymbolicCode
-    }) ->
+}) ->
     #'CurrencyRef'{
         symbolic_code    = marshal(string, SymbolicCode)
-};
+    };
 marshal(amount, V) ->
     marshal(integer, V);
 

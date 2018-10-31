@@ -55,7 +55,6 @@ init_per_suite(C) ->
         dmt_client,
         {fistful, [
             {services, #{
-                'eventsink' => "http://machinegun:8022/v1/event_sink",
                 'partymgmt' => "http://hellgate:8022/v1/processing/partymgmt",
                 'accounter' => "http://shumway:8022/accounter"
             }},
@@ -198,16 +197,12 @@ get_create_wallet_events_ok(C) ->
         },
         ff_ctx:new()
     ),
-    Wallet = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
-    {ok, accessible} = ff_wallet:is_accessible(Wallet),
-    Account = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
-    {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
-    0 = ff_indef:current(Amount),
-
+    {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = ct_helper:get_max_sinkevent_id(Events),
-    MaxID = LastEvent + 2.
+    RawMaxID = ct_helper:get_max_rawevent_id(RawEvents),
+    MaxID    = ct_helper:get_max_sinkevent_id(Events),
+    MaxID    = LastEvent + RawMaxID.
 
 %%
 

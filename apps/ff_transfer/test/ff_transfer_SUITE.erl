@@ -167,12 +167,14 @@ get_withdrawal_events_ok(C) ->
     process_deposit(SrcID, WalID),
     DestID = create_destination(IID, C),
     pass_identification(ICID, IID, C),
-    process_withdrawal(WalID, DestID),
+    WdrID = process_withdrawal(WalID, DestID),
 
+    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
     {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = ct_helper:get_max_sinkevent_id(Events),
-    MaxID = LastEvent + 10.
+    RawMaxID = ct_helper:get_max_rawevent_id(RawEvents),
+    MaxID    = ct_helper:get_max_sinkevent_id(Events),
+    MaxID    = LastEvent + RawMaxID.
 
 create_party(_C) ->
     ID = genlib:unique(),
@@ -343,4 +345,5 @@ process_withdrawal(WalID, DestID) ->
         genlib_retry:linear(15, 1000)
     ),
     ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
-    ok = await_destination_balance({4240 - 424, <<"RUB">>}, DestID).
+    ok = await_destination_balance({4240 - 424, <<"RUB">>}, DestID),
+    WdrID.

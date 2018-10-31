@@ -55,7 +55,6 @@ init_per_suite(C) ->
         dmt_client,
         {fistful, [
             {services, #{
-                'eventsink'      => "http://machinegun:8022/v1/event_sink",
                 'partymgmt'      => "http://hellgate:8022/v1/processing/partymgmt",
                 'identification' => "http://identification:8022/v1/identification"
             }},
@@ -242,13 +241,13 @@ get_create_events_ok(C) ->
         },
         ff_ctx:new()
     ),
-    I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
-    {ok, accessible} = ff_identity:is_accessible(I1),
-    Party = ff_identity:party(I1),
+
+    {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = ct_helper:get_max_sinkevent_id(Events),
-    MaxID = LastEvent + 2.
+    RawMaxID = ct_helper:get_max_rawevent_id(RawEvents),
+    MaxID    = ct_helper:get_max_sinkevent_id(Events),
+    MaxID    = LastEvent + RawMaxID.
 
 %%
 

@@ -148,30 +148,6 @@ deposit_withdrawal_ok(C) ->
 
     process_withdrawal(WalID, DestID).
 
-get_withdrawal_events_ok(C) ->
-
-    Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(
-        ct_helper:call_eventsink_handler('GetLastEventID', Service, [])),
-
-    Party = create_party(C),
-    IID = create_person_identity(Party, C),
-    ICID = genlib:unique(),
-    WalID = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
-    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
-    SrcID = create_source(IID, C),
-    process_deposit(SrcID, WalID),
-    DestID = create_destination(IID, C),
-    pass_identification(ICID, IID, C),
-    WdrID = process_withdrawal(WalID, DestID),
-
-    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
-    {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    RawMaxID = ct_helper:get_max_rawevent_id(RawEvents),
-    MaxID    = ct_helper:get_max_sinkevent_id(Events),
-    MaxID    = LastEvent + RawMaxID.
-
 create_party(_C) ->
     ID = genlib:unique(),
     _ = ff_party:create(ID),

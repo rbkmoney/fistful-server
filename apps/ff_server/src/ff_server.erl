@@ -135,7 +135,15 @@ get_admin_routes() ->
     })).
 
 get_eventsink_routes() ->
-    Cfg = #{schema => machinery_mg_schema_generic},
+    Url = maps:get(eventsink, genlib_app:env(?MODULE, services, #{}),
+        "http://machinegun:8022/v1/event_sink"),
+    Cfg = #{
+        schema => machinery_mg_schema_generic,
+        client => #{
+            event_handler => scoper_woody_event_handler,
+            url => Url
+        }
+    },
     get_eventsink_route(identity, {<<"/v1/eventsink/identity">>,
         {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_handler, Cfg}}}) ++
     get_eventsink_route(wallet, {<<"/v1/eventsink/wallet">>,
@@ -143,16 +151,17 @@ get_eventsink_routes() ->
     get_eventsink_route(withdrawal, {<<"/v1/eventsink/withdrawal">>,
         {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_withdrawal_eventsink_handler, Cfg}}}).
 
-get_eventsink_route(RouteType, {DefPath, Route}) ->
+get_eventsink_route(RouteType, {DefPath, {Module, {Handler, Cfg}}}) ->
     RouteList = genlib_app:env(?MODULE, eventsink, []),
     case lists:keyfind(RouteType, 1, RouteList) of
         false ->
             erlang:error(bad_config);
         {_, Opts} ->
             Path = maps:get(path, Opts, DefPath),
+            NS = maps:get(namespace, Opts),
             Limits = genlib_map:get(handler_limits, Opts),
             woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-                handlers => [{Path, Route}],
+                handlers => [{Path, {Module, {Handler, Cfg#{ns => NS}}}}],
                 event_handler => scoper_woody_event_handler,
                 handler_limits => Limits
             }))

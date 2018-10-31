@@ -81,10 +81,9 @@ init_per_suite(C) ->
     ),
 
     Path = <<"/v1/eventsink/wallet">>,
-    WalletRoute = woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {{ff_proto_wallet_thrift, 'EventSink'}, {ff_wallet_eventsink_handler, BeConf}}}],
-        event_handler => scoper_woody_event_handler
-    })),
+    WalletRoute = ct_helper:create_sink_route({Path,
+        {{ff_proto_wallet_thrift, 'EventSink'}, {ff_wallet_eventsink_handler,
+        BeConf#{ns => <<"ff/wallet_v2">>}}}}),
 
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,

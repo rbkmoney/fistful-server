@@ -21,6 +21,7 @@
 -export([get_max_sinkevent_id/1]).
 -export([unwrap_last_sinkevent_id/1]).
 -export([call_eventsink_handler/3]).
+-export([create_sink_route/1]).
 
 -type test_case_name() :: atom().
 -type group_name() :: atom().
@@ -237,3 +238,15 @@ call_eventsink_handler(Function, {Service, Path}, Args) ->
     }),
     ff_woody_client:call(Client, Request).
 
+-spec create_sink_route(tuple()) -> list(woody_server_thrift_http_handler:route(_)).
+
+create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
+    NewCfg = Cfg#{
+        client => #{
+            event_handler => scoper_woody_event_handler,
+            url => "http://machinegun:8022/v1/event_sink"
+        }},
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, {Module, {Handler, NewCfg}}}],
+        event_handler => scoper_woody_event_handler
+    })).

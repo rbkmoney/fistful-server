@@ -10,7 +10,7 @@
 ).
 
 -type event_sink_id()  :: binary().
--type event_id()       :: ff_proto_base_thrift:'EventID'().
+-type event_id()       :: integer().
 -type eventsink_opts() :: #{
     client := machinery_mg_client:client(),
     ?EVENTSINK_CORE_OPTS

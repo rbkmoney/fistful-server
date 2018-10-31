@@ -29,7 +29,6 @@
 -export([new/1]).
 -export([call/2]).
 -export([call/3]).
--export([get_service_client/1]).
 
 %%
 
@@ -69,8 +68,6 @@ call(ServiceID, Request, Context) when is_atom(ServiceID) ->
     call(get_service_client(ServiceID), Request, Context);
 call(Client, Request, Context) when is_map(Client) ->
     woody_client:call(Request, Client, Context).
-
--spec get_service_client(atom()) -> client() | no_return().
 
 get_service_client(ServiceID) ->
     case maps:find(ServiceID, genlib_app:env(fistful, services, #{})) of

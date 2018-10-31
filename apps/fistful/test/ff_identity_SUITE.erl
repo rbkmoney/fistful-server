@@ -78,10 +78,9 @@ init_per_suite(C) ->
     ),
 
     Path = <<"/v1/eventsink/identity">>,
-    IdentityRoute = woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_handler, BeConf}}}],
-        event_handler => scoper_woody_event_handler
-    })),
+    IdentityRoute = ct_helper:create_sink_route({Path,
+        {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_handler,
+        BeConf#{ns => <<"ff/identity">>}}}}),
 
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,

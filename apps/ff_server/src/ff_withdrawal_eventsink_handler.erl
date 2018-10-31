@@ -29,38 +29,28 @@ final_account_to_final_cash_flow_account(#{
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Context, Opts) ->
-    scoper:scope(ff_transfer, #{function => Func},
+    scoper:scope(ff_server, #{function => Func},
         fun() ->
             ok = ff_woody_ctx:set(Context),
             try
-                NS = get_ns(ff_withdrawal:get_ns()),
-                Client = ff_woody_client:get_service_client(eventsink),
-                handle_function_(Func, Args, {NS, Client, Context}, Opts)
+                handle_function_(Func, Args, Context, Opts)
             after
                 ff_woody_ctx:unset()
             end
         end
     ).
 
-get_ns(DefNS) ->
-    RouteList = genlib_app:env(ff_server, eventsink, []),
-    case lists:keyfind('withdrawal', 1, RouteList) of
-        false ->
-            DefNS;
-        {_, Opts} ->
-            maps:get(namespace, Opts, DefNS)
-    end.
-
 %%
 %% Internals
 %%
 
 handle_function_('GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
-    {NS, Client, Context}, #{schema := Schema}) ->
+    Context, #{schema := Schema, client := Client, ns := NS}) ->
     {ok, Events} = machinery_mg_eventsink:get_events(NS, After, Limit,
         #{client => {Client, Context}, schema => Schema}),
     {ok, publish_events(Events)};
-handle_function_('GetLastEventID', _Params, {NS, Client, Context}, #{schema := Schema}) ->
+handle_function_('GetLastEventID', _Params, Context,
+        #{schema := Schema, client := Client, ns := NS}) ->
     case machinery_mg_eventsink:get_last_event_id(NS,
         #{client => {Client, Context}, schema => Schema}) of
         {ok, _} = Result ->
@@ -68,6 +58,7 @@ handle_function_('GetLastEventID', _Params, {NS, Client, Context}, #{schema := S
         {error, no_last_event} ->
             woody_error:raise(business, #'evsink_NoLastEvent'{})
     end.
+
 
 publish_events(Events) ->
     [publish_event(Event) || Event <- Events].

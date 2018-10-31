@@ -104,19 +104,15 @@ start_processing_apps(Options) ->
         BeOpts
     ),
 
-    Path = <<"/v1/eventsink/withdrawal">>,
-    WithdrawalRoute = ct_helper:create_sink_route({Path,
-        {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_withdrawal_eventsink_handler,
-        BeConf#{ns => <<"ff/withdrawal_v2">>}}}}),
-
     AdminRoutes = get_admin_routes(),
+    EventsinkRoutes = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
         BeOpts#{
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => AdminRoutes ++ Routes ++ WithdrawalRoute
+            additional_routes => AdminRoutes ++ Routes ++ EventsinkRoutes
         }
     )),
     Processing = #{
@@ -142,6 +138,18 @@ get_admin_routes() ->
         handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
         event_handler => scoper_woody_event_handler
     }).
+
+get_eventsink_routes(BeConf) ->
+    IdentityRoute = ct_helper:create_sink_route({<<"/v1/eventsink/identity">>,
+        {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_handler,
+        BeConf#{ns => <<"ff/identity">>}}}}),
+    WalletRoute = ct_helper:create_sink_route({<<"/v1/eventsink/wallet">>,
+        {{ff_proto_wallet_thrift, 'EventSink'}, {ff_wallet_eventsink_handler,
+        BeConf#{ns => <<"ff/wallet_v2">>}}}}),
+    WithdrawalRoute = ct_helper:create_sink_route({<<"/v1/eventsink/withdrawal">>,
+        {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_withdrawal_eventsink_handler,
+        BeConf#{ns => <<"ff/withdrawal_v2">>}}}}),
+    IdentityRoute ++ WalletRoute ++ WithdrawalRoute.
 
 create_company_account() ->
     PartyID = create_party(),

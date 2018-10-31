@@ -1,7 +1,5 @@
 -module(ff_identity_SUITE).
 
--include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
-
 -export([all/0]).
 -export([init_per_suite/1]).
 -export([end_per_suite/1]).
@@ -12,7 +10,6 @@
 -export([create_missing_fails/1]).
 -export([create_ok/1]).
 -export([identify_ok/1]).
--export([get_create_events_ok/1]).
 
 %%
 
@@ -31,15 +28,13 @@ all() ->
         get_missing_fails,
         create_missing_fails,
         create_ok,
-        identify_ok,
-        get_create_events_ok
+        identify_ok
     ].
 
 -spec get_missing_fails(config()) -> test_return().
 -spec create_missing_fails(config()) -> test_return().
 -spec create_ok(config()) -> test_return().
 -spec identify_ok(config()) -> test_return().
--spec get_create_events_ok(config()) -> test_return().
 
 -spec init_per_suite(config()) -> config().
 
@@ -75,19 +70,13 @@ init_per_suite(C) ->
         ],
         BeOpts
     ),
-
-    Path = <<"/v1/eventsink/identity">>,
-    IdentityRoute = ct_helper:create_sink_route({Path,
-        {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_handler,
-        BeConf#{ns => <<"ff/identity">>}}}}),
-
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
         BeOpts#{
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => Routes ++ IdentityRoute
+            additional_routes => Routes
         }
     )),
     C1 = ct_helper:makeup_cfg(
@@ -224,30 +213,6 @@ create_party(_C) ->
     ID = genlib:unique(),
     _ = ff_party:create(ID),
     ID.
-
-get_create_events_ok(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
-    Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(
-        ct_helper:call_eventsink_handler('GetLastEventID', Service, [])),
-
-    ok = ff_identity_machine:create(
-        ID,
-        #{
-            party    => Party,
-            provider => <<"good-one">>,
-            class    => <<"person">>
-        },
-        ff_ctx:new()
-    ),
-
-    {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000, forward}),
-    {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    RawMaxID = ct_helper:get_max_rawevent_id(RawEvents),
-    MaxID    = ct_helper:get_max_sinkevent_id(Events),
-    MaxID    = LastEvent + RawMaxID.
 
 %%
 

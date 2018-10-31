@@ -1,7 +1,8 @@
 -module(ff_transfer_SUITE).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+
 
 -export([all/0]).
 -export([groups/0]).
@@ -15,7 +16,6 @@
 -export([get_missing_fails/1]).
 -export([deposit_via_admin_ok/1]).
 -export([deposit_withdrawal_ok/1]).
--export([get_withdrawal_events_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -25,10 +25,7 @@
 -spec all() -> [test_case_name() | {group, group_name()}].
 
 all() ->
-    [
-        {group, default},
-        get_withdrawal_events_ok
-    ].
+    [{group, default}].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 
@@ -84,7 +81,6 @@ end_per_testcase(_Name, _C) ->
 -spec get_missing_fails(config()) -> test_return().
 -spec deposit_via_admin_ok(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
--spec get_withdrawal_events_ok(config()) -> test_return().
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
@@ -100,7 +96,7 @@ deposit_via_admin_ok(C) ->
     {ok, Src1} = admin_call('CreateSource', [#fistful_SourceParams{
         name     = <<"HAHA NO">>,
         identity_id = IID,
-        currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
+        currency = #fistful_CurrencyRef{symbolic_code = <<"RUB">>},
         resource = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
     unauthorized = Src1#fistful_Source.status,
@@ -117,9 +113,9 @@ deposit_via_admin_ok(C) ->
     {ok, Dep1} = admin_call('CreateDeposit', [#fistful_DepositParams{
             source      = SrcID,
             destination = WalID,
-            body        = #'Cash'{
+            body        = #fistful_DepositBody{
                 amount   = 20000,
-                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+                currency = #fistful_CurrencyRef{symbolic_code = <<"RUB">>}
             }
     }]),
     DepID = Dep1#fistful_Deposit.id,
@@ -142,39 +138,130 @@ deposit_withdrawal_ok(C) ->
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
 
-    SrcID = create_source(IID, C),
+    % Create source
+    SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
+    SrcID = create_instrument(source, IID, <<"XSource">>, <<"RUB">>, SrcResource, C),
+    {ok, SrcM1} = ff_source:get_machine(SrcID),
+    Src1 = ff_source:get(SrcM1),
+    unauthorized = ff_source:status(Src1),
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, SrcM} = ff_source:get_machine(SrcID),
+            ff_source:status(ff_source:get(SrcM))
+        end
+    ),
 
-    process_deposit(SrcID, WalID),
+    % Process deposit
+    DepID = generate_id(),
+    ok = ff_deposit:create(
+        DepID,
+        #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
+        ff_ctx:new()
+    ),
+    {ok, DepM1} = ff_deposit:get_machine(DepID),
+    pending = ff_deposit:status(ff_deposit:get(DepM1)),
+    succeeded = ct_helper:await(
+        succeeded,
+        fun () ->
+            {ok, DepM} = ff_deposit:get_machine(DepID),
+            ff_deposit:status(ff_deposit:get(DepM))
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok = await_wallet_balance({10000, <<"RUB">>}, WalID),
 
-    DestID = create_destination(IID, C),
+    % Create destination
+    DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
+    DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
+    {ok, DestM1} = ff_destination:get_machine(DestID),
+    Dest1 = ff_destination:get(DestM1),
+    unauthorized = ff_destination:status(Dest1),
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
+        end
+    ),
 
-    pass_identification(ICID, IID, C),
+    % Pass identification
+    Doc1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
+    Doc2 = ct_identdocstore:rus_domestic_passport(C),
+    ok = ff_identity_machine:start_challenge(
+        IID, #{
+            id     => ICID,
+            class  => <<"sword-initiation">>,
+            proofs => [Doc1, Doc2]
+        }
+    ),
+    {completed, _} = ct_helper:await(
+        {completed, #{resolution => approved}},
+        fun () ->
+            {ok, S}  = ff_identity_machine:get(IID),
+            {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
+            ff_identity_challenge:status(IC)
+        end
+    ),
 
-    process_withdrawal(WalID, DestID).
+    % Process withdrawal
+    WdrID = generate_id(),
+    ok = ff_withdrawal:create(
+        WdrID,
+        #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
+        ff_ctx:new()
+    ),
+    {ok, WdrM1} = ff_withdrawal:get_machine(WdrID),
+    pending = ff_withdrawal:status(ff_withdrawal:get(WdrM1)),
+    succeeded = ct_helper:await(
+        succeeded,
+        fun () ->
+            {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
+            ff_withdrawal:status(ff_withdrawal:get(WdrM))
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
+    ok = await_destination_balance({4240 - 424, <<"RUB">>}, DestID),
 
-get_withdrawal_events_ok(C) ->
+    % Fail withdrawal because of limits
+    WdrID2 = generate_id(),
+    ok = ff_withdrawal:create(
+        WdrID2,
+        #{wallet_id => WalID, destination_id => DestID, body => {10000 - 4240 + 1, <<"RUB">>}},
+        ff_ctx:new()
+    ),
+    {ok, WdrM2} = ff_withdrawal:get_machine(WdrID2),
+    pending = ff_withdrawal:status(ff_withdrawal:get(WdrM2)),
 
-    Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(
-        ct_helper:call_eventsink_handler('GetLastEventID', Service, [])),
-
-    Party = create_party(C),
-    IID = create_person_identity(Party, C),
-    ICID = genlib:unique(),
-    WalID = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
-    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
-    SrcID = create_source(IID, C),
-    process_deposit(SrcID, WalID),
-    DestID = create_destination(IID, C),
-    pass_identification(ICID, IID, C),
-    WdrID = process_withdrawal(WalID, DestID),
-
-    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
-    {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    RawMaxID = ct_helper:get_max_rawevent_id(RawEvents),
-    MaxID    = ct_helper:get_max_sinkevent_id(Events),
-    MaxID    = LastEvent + RawMaxID.
+    FailedDueToLimit = {failed, {wallet_limit, {terms_violation,
+        {cash_range, {
+            #domain_Cash{
+                amount = -1,
+                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+            },
+            #domain_CashRange{
+                lower = {inclusive, #domain_Cash{
+                    amount = 0,
+                    currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+                }},
+                upper = {exclusive, #domain_Cash{
+                    amount = 10000001,
+                    currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+                }}
+            }
+        }}
+    }}},
+    FailedDueToLimit = ct_helper:await(
+        FailedDueToLimit,
+        fun () ->
+            {ok, TmpWdrM} = ff_withdrawal:get_machine(WdrID2),
+            ff_withdrawal:status(ff_withdrawal:get(TmpWdrM))
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
+    ok = await_destination_balance({4240 - 424, <<"RUB">>}, DestID).
 
 create_party(_C) ->
     ID = genlib:unique(),
@@ -247,7 +334,7 @@ create_instrument(source, ID, Params, Ctx, _C) ->
     ff_source:create(ID, Params, Ctx).
 
 generate_id() ->
-    genlib:to_binary(genlib_time:ticks()).
+    genlib:to_binary(genlib_time:ticks() div 1000).
 
 admin_call(Fun, Args) ->
     Service = {ff_proto_fistful_thrift, 'FistfulAdmin'},
@@ -257,93 +344,5 @@ admin_call(Fun, Args) ->
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).
-
-create_source(IID, C) ->
-    % Create source
-    SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
-    SrcID = create_instrument(source, IID, <<"XSource">>, <<"RUB">>, SrcResource, C),
-    {ok, SrcM1} = ff_source:get_machine(SrcID),
-    Src1 = ff_source:get(SrcM1),
-    unauthorized = ff_source:status(Src1),
-    authorized = ct_helper:await(
-        authorized,
-        fun () ->
-            {ok, SrcM} = ff_source:get_machine(SrcID),
-            ff_source:status(ff_source:get(SrcM))
-        end
-    ),
-    SrcID.
-
-process_deposit(SrcID, WalID) ->
-    DepID = generate_id(),
-    ok = ff_deposit:create(
-        DepID,
-        #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
-        ff_ctx:new()
-    ),
-    {ok, DepM1} = ff_deposit:get_machine(DepID),
-    pending = ff_deposit:status(ff_deposit:get(DepM1)),
-    succeeded = ct_helper:await(
-        succeeded,
-        fun () ->
-            {ok, DepM} = ff_deposit:get_machine(DepID),
-            ff_deposit:status(ff_deposit:get(DepM))
-        end,
-        genlib_retry:linear(15, 1000)
-    ),
-    ok = await_wallet_balance({10000, <<"RUB">>}, WalID).
-
-create_destination(IID, C) ->
-    DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
-    DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
-    {ok, DestM1} = ff_destination:get_machine(DestID),
-    Dest1 = ff_destination:get(DestM1),
-    unauthorized = ff_destination:status(Dest1),
-    authorized = ct_helper:await(
-        authorized,
-        fun () ->
-            {ok, DestM} = ff_destination:get_machine(DestID),
-            ff_destination:status(ff_destination:get(DestM))
-        end
-    ),
-    DestID.
-
-pass_identification(ICID, IID, C) ->
-    Doc1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
-    Doc2 = ct_identdocstore:rus_domestic_passport(C),
-    ok = ff_identity_machine:start_challenge(
-        IID, #{
-            id     => ICID,
-            class  => <<"sword-initiation">>,
-            proofs => [Doc1, Doc2]
-        }
-    ),
-    {completed, _} = ct_helper:await(
-        {completed, #{resolution => approved}},
-        fun () ->
-            {ok, S}  = ff_identity_machine:get(IID),
-            {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
-            ff_identity_challenge:status(IC)
-        end
-    ).
-
-process_withdrawal(WalID, DestID) ->
-    WdrID = generate_id(),
-    ok = ff_withdrawal:create(
-        WdrID,
-        #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
-        ff_ctx:new()
-    ),
-    {ok, WdrM1} = ff_withdrawal:get_machine(WdrID),
-    pending = ff_withdrawal:status(ff_withdrawal:get(WdrM1)),
-    succeeded = ct_helper:await(
-        succeeded,
-        fun () ->
-            {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
-            ff_withdrawal:status(ff_withdrawal:get(WdrM))
-        end,
-        genlib_retry:linear(15, 1000)
-    ),
-    ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
-    ok = await_destination_balance({4240 - 424, <<"RUB">>}, DestID),
+ <<"RUB">>}, DestID),
     WdrID.

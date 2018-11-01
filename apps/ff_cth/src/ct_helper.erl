@@ -1,5 +1,11 @@
 -module(ct_helper).
 
+-include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
+
 -export([cfg/2]).
 
 -export([start_apps/1]).
@@ -26,6 +32,11 @@
 -type test_case_name() :: atom().
 -type group_name() :: atom().
 -type config() :: [{atom(), term()}].
+
+-type evsink() :: ff_proto_identity_thrift:'SinkEvent'() |
+                  ff_proto_wallet_thrift:'SinkEvent'() |
+                  ff_proto_withdrawal_thrift:'SinkEvent'().
+-type evsink_id() :: ff_proto_base_thrift:'EventID'().
 
 -export_type([test_case_name/0]).
 -export_type([group_name/0]).
@@ -214,16 +225,20 @@ await(Expect, Compute, Retry0) ->
 
 %%
 
--spec get_max_sinkevent_id(list()) -> integer().
+-spec get_max_sinkevent_id(list(evsink())) -> evsink_id().
 
 get_max_sinkevent_id(Events) when is_list(Events) ->
-    lists:foldl(fun ({_, ID, _, _, _}, Max) -> erlang:max(ID, Max) end, 0, Events).
+    lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_id(Ev), Max) end, 0, Events).
 
--spec unwrap_last_sinkevent_id({ok | error, integer()}) -> integer().
+get_sinkevent_id(#'wlt_SinkEvent'{sequence = ID}) -> ID;
+get_sinkevent_id(#'wthd_SinkEvent'{sequence = ID}) -> ID;
+get_sinkevent_id(#'idnt_SinkEvent'{sequence = ID}) -> ID.
+
+-spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
 
 unwrap_last_sinkevent_id({ok, EventID}) ->
     EventID;
-unwrap_last_sinkevent_id({exception, {evsink_NoLastEvent}}) ->
+unwrap_last_sinkevent_id({exception, #'evsink_NoLastEvent'{}}) ->
     0.
 
 -spec call_eventsink_handler(atom(), tuple(), list()) ->

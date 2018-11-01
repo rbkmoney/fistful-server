@@ -15,7 +15,7 @@
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Context, Opts) ->
-    scoper:scope(ff_server, #{function => Func},
+    scoper:scope(wallet_eventsink, #{function => Func},
         fun() ->
             ok = ff_woody_ctx:set(Context),
             try
@@ -56,12 +56,18 @@ publish_events(Events) ->
     ff_machine:timestamped_event(ff_wallet:event())
     )) -> ff_proto_wallet_thrift:'SinkEvent'().
 
-publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, EventDt, Payload}}}) ->
+publish_event(#{
+        evsink_id   := ID,
+        source_id   := SourceID,
+        ev_id       := EventID,
+        ev_time     := Dt,
+        ev_payload  := {ev, EventDt, Payload}
+}) ->
     #'wlt_SinkEvent'{
-        'sequence'       = marshal(event_id, ID),
-        'created_at'     = marshal(timestamp, Dt),
-        'source'         = marshal(id, SourceID),
-        'payload'        = #'wlt_Event'{
+        'sequence'      = marshal(event_id, ID),
+        'created_at'    = marshal(timestamp, Dt),
+        'source'        = marshal(id, SourceID),
+        'payload'       = #'wlt_Event'{
             'id'         = marshal(event_id, EventID),
             'occured_at' = marshal(timestamp, EventDt),
             'changes'    = [marshal(event, Payload)]
@@ -107,12 +113,13 @@ marshal(timestamp, {{Date, Time}, USec} = V) ->
         {ok, R} when is_binary(R) ->
             R;
         Error ->
-            error(badarg, {timestamp, V, Error})
+            error({bad_timestamp, Error}, [timestamp, V])
     end;
 marshal(string, V) when is_binary(V) ->
     V;
 marshal(integer, V) when is_integer(V) ->
     V;
+% Catch this up in thrift validation
 marshal(_, Other) ->
     Other.
 

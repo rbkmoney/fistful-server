@@ -69,6 +69,8 @@ call(ServiceID, Request, Context) when is_atom(ServiceID) ->
 call(Client, Request, Context) when is_map(Client) ->
     woody_client:call(Request, Client, Context).
 
+%%
+
 get_service_client(ServiceID) ->
     case maps:find(ServiceID, genlib_app:env(fistful, services, #{})) of
         {ok, V} ->

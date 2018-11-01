@@ -152,11 +152,11 @@ get_eventsink_routes() ->
         {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_withdrawal_eventsink_handler, Cfg}}}).
 
 get_eventsink_route(RouteType, {DefPath, {Module, {Handler, Cfg}}}) ->
-    RouteList = genlib_app:env(?MODULE, eventsink, []),
-    case lists:keyfind(RouteType, 1, RouteList) of
-        false ->
-            erlang:error({'eventsink undefined', RouteType});
-        {_, Opts} ->
+    RouteMap = genlib_app:env(?MODULE, eventsink, []),
+    case maps:get(RouteType, RouteMap, undefined) of
+        undefined ->
+            erlang:error({eventsink_undefined, RouteType});
+        Opts ->
             Path = maps:get(path, Opts, DefPath),
             NS = maps:get(namespace, Opts),
             Limits = genlib_map:get(handler_limits, Opts),

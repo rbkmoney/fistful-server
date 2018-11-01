@@ -29,7 +29,7 @@ final_account_to_final_cash_flow_account(#{
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Context, Opts) ->
-    scoper:scope(ff_server, #{function => Func},
+    scoper:scope(withdrawal_eventsink, #{function => Func},
         fun() ->
             ok = ff_woody_ctx:set(Context),
             try
@@ -71,12 +71,18 @@ publish_events(Events) ->
     ff_machine:timestamped_event(ff_withdrawal:event())
     )) -> ff_proto_withdrawal_thrift:'SinkEvent'().
 
-publish_event({ID, _Ns, SourceID, {EventID, Dt, {ev, EventDt, Payload}}}) ->
+publish_event(#{
+        evsink_id   := ID,
+        source_id   := SourceID,
+        ev_id       := EventID,
+        ev_time     := Dt,
+        ev_payload  := {ev, EventDt, Payload}
+}) ->
     #'wthd_SinkEvent'{
         'sequence'      = marshal(event_id, ID),
         'created_at'    = marshal(timestamp, Dt),
         'source'        = marshal(id, SourceID),
-        'payload'        = #'wthd_Event'{
+        'payload'       = #'wthd_Event'{
             'id'         = marshal(event_id, EventID),
             'occured_at' = marshal(timestamp, EventDt),
             'changes'    = [marshal(event, ff_transfer:maybe_migrate(Payload))]
@@ -97,7 +103,7 @@ marshal(event, {created, Withdrawal}) ->
 marshal(event, {status_changed, WithdrawalStatus}) ->
     {status_changed, marshal(withdrawal_status_changed, WithdrawalStatus)};
 marshal(event, {p_transfer, TransferChange}) ->
-    {transfer, marshal(withdrawal_transfer_change, TransferChange)};
+    {transfer, marshal(postings_transfer_change, TransferChange)};
 marshal(event, {session_started, SessionID}) ->
     marshal(session, ?to_session_event(SessionID, started));
 marshal(event, {session_finished, SessionID}) ->
@@ -107,11 +113,12 @@ marshal(session, {session, SessionChange}) ->
 marshal(event, {route_changed, Route}) ->
     {route, marshal(withdrawal_route_changed, Route)};
 
-marshal(withdrawal, Withdrawal = #{
-        body := {Amount, SymCode}
+marshal(withdrawal, #{
+        body := {Amount, SymCode},
+        params := Params
 }) ->
-    WalletID = maps:get(wallet_id, Withdrawal, undefined),
-    DestinationID = maps:get(destination_id, Withdrawal, undefined),
+    WalletID = maps:get(wallet_id, Params),
+    DestinationID = maps:get(destination_id, Params),
     #'wthd_Withdrawal'{
         body = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
         source = marshal(id, WalletID),
@@ -131,17 +138,17 @@ marshal(withdrawal_status_changed, {failed, _}) ->
 marshal(failure, _) ->
     #'wthd_Failure'{};
 
-marshal(withdrawal_transfer_change, {created, Transfer}) ->
-    {created, marshal(transfer, Transfer)};
-marshal(withdrawal_transfer_change, {status_changed, TransferStatus}) ->
+marshal(postings_transfer_change, {created, Transfer}) ->
+    {created, marshal(transfer, Transfer)}; % not ff_transfer :) see thrift
+marshal(postings_transfer_change, {status_changed, TransferStatus}) ->
     {status_changed, marshal(transfer_status, TransferStatus)};
 marshal(transfer, #{
         final_cash_flow := Cashflow
 }) ->
     #'wthd_Transfer'{
-        cashflow = marshal(cashflow, Cashflow)
+        cashflow = marshal(final_cash_flow, Cashflow)
     };
-marshal(cashflow, #{
+marshal(final_cash_flow, #{
         postings := Postings
 }) ->
     #'cashflow_FinalCashFlow'{
@@ -170,25 +177,9 @@ marshal(final_cash_flow_account, #{
         account_id     = marshal(id, AccountID)
     };
 
-marshal(account_type, {provider, Provider}) ->
-    {provider, marshal(provider, Provider)};
-marshal(account_type, {system, System}) ->
-    {system, marshal(system, System)};
-marshal(account_type, {wallet, Wallet}) ->
-    {wallet, marshal(wallet, Wallet)};
-marshal(provider, settlement) ->
-    settlement;
-marshal(system, settlement) ->
-    settlement;
-% How to convert here?
-marshal(wallet, sender_source) ->
-    payout;
-marshal(wallet, sender_settlement) ->
-    settlement;
-marshal(wallet, receiver_settlement) ->
-    settlement;
-marshal(wallet, receiver_destination) ->
-    payout;
+marshal(account_type, CashflowAccount) ->
+    % Mapped to thrift type WalletCashFlowAccount as is
+    CashflowAccount;
 marshal(transfer_status, created) ->
     {created, #'wthd_TransferCreated'{}};
 marshal(transfer_status, prepared) ->
@@ -240,7 +231,7 @@ marshal(timestamp, {{Date, Time}, USec} = V) ->
         {ok, R} when is_binary(R) ->
             R;
         Error ->
-            error(badarg, {timestamp, V, Error})
+            error({bad_timestamp, Error}, [timestamp, V])
     end;
 marshal(atom, V) when is_atom(V) ->
     atom_to_binary(V, utf8);
@@ -248,5 +239,6 @@ marshal(string, V) when is_binary(V) ->
     V;
 marshal(integer, V) when is_integer(V) ->
     V;
+% Catch this up in thrift validation
 marshal(_, Other) ->
     Other.

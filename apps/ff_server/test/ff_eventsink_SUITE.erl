@@ -253,8 +253,7 @@ process_deposit(SrcID, WalID) ->
             ff_deposit:status(ff_deposit:get(DepM))
         end,
         genlib_retry:linear(15, 1000)
-    ),
-    ok = await_wallet_balance({10000, <<"RUB">>}, WalID).
+    ).
 
 create_destination(IID, C) ->
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},

@@ -66,6 +66,7 @@ init_per_group(_, C) ->
 
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -104,7 +105,7 @@ get_create_identify_events_ok(C) ->
     {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID    = get_max_sinkevent_id(Events),
+    MaxID    = get_max_sinkevent_sequence(Events),
     MaxID    = LastEvent + length(RawEvents).
 
 -spec get_create_wallet_events_ok(config()) -> test_return().
@@ -130,7 +131,7 @@ get_create_wallet_events_ok(C) ->
     {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID    = get_max_sinkevent_id(Events),
+    MaxID    = get_max_sinkevent_sequence(Events),
     MaxID    = LastEvent + length(RawEvents).
 
 -spec get_withdrawal_events_ok(config()) -> test_return().
@@ -140,21 +141,18 @@ get_withdrawal_events_ok(C) ->
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
-    Party = create_party(C),
-    IID = create_person_identity(Party, C),
-    ICID = genlib:unique(),
-    WalID = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
-    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
-    SrcID = create_source(IID, C),
-    process_deposit(SrcID, WalID),
-    DestID = create_destination(IID, C),
-    pass_identification(ICID, IID, C),
-    WdrID = process_withdrawal(WalID, DestID),
+    Party   = create_party(C),
+    IID     = create_person_identity(Party, C),
+    WalID   = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
+    SrcID   = create_source(IID, C),
+    succeeded = process_deposit(SrcID, WalID),
+    DestID  = create_destination(IID, C),
+    WdrID   = process_withdrawal(WalID, DestID),
 
     {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID    = get_max_sinkevent_id(Events),
+    MaxID    = get_max_sinkevent_sequence(Events),
     MaxID    = LastEvent + length(RawEvents).
 
 create_identity(Party, C) ->
@@ -186,22 +184,6 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ),
     ID.
 
-await_wallet_balance(Balance, ID) ->
-    Balance = ct_helper:await(
-        Balance,
-        fun () -> get_wallet_balance(ID) end,
-        genlib_retry:linear(3, 500)
-    ),
-    ok.
-
-get_wallet_balance(ID) ->
-    {ok, Machine} = ff_wallet_machine:get(ID),
-    get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
-
-get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
-    {ff_indef:current(Amounts), Currency}.
-
 create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
     ID = genlib:unique(),
     ok = create_instrument(
@@ -222,7 +204,6 @@ generate_id() ->
     genlib:to_binary(genlib_time:ticks()).
 
 create_source(IID, C) ->
-    % Create source
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
     SrcID = create_instrument(source, IID, <<"XSource">>, <<"RUB">>, SrcResource, C),
     {ok, SrcM1} = ff_source:get_machine(SrcID),
@@ -270,25 +251,6 @@ create_destination(IID, C) ->
     ),
     DestID.
 
-pass_identification(ICID, IID, C) ->
-    Doc1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
-    Doc2 = ct_identdocstore:rus_domestic_passport(C),
-    ok = ff_identity_machine:start_challenge(
-        IID, #{
-            id     => ICID,
-            class  => <<"sword-initiation">>,
-            proofs => [Doc1, Doc2]
-        }
-    ),
-    {completed, _} = ct_helper:await(
-        {completed, #{resolution => approved}},
-        fun () ->
-            {ok, S}  = ff_identity_machine:get(IID),
-            {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
-            ff_identity_challenge:status(IC)
-        end
-    ).
-
 process_withdrawal(WalID, DestID) ->
     WdrID = generate_id(),
     ok = ff_withdrawal:create(
@@ -309,14 +271,14 @@ process_withdrawal(WalID, DestID) ->
     WdrID.
 
 
--spec get_max_sinkevent_id(list(evsink_event())) -> evsink_id().
+-spec get_max_sinkevent_sequence(list(evsink_event())) -> evsink_id().
 
-get_max_sinkevent_id(Events) when is_list(Events) ->
-    lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_id(Ev), Max) end, 0, Events).
+get_max_sinkevent_sequence(Events) when is_list(Events) ->
+    lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_sequence(Ev), Max) end, 0, Events).
 
-get_sinkevent_id(#'wlt_SinkEvent'{sequence = ID}) -> ID;
-get_sinkevent_id(#'wthd_SinkEvent'{sequence = ID}) -> ID;
-get_sinkevent_id(#'idnt_SinkEvent'{sequence = ID}) -> ID.
+get_sinkevent_sequence(#'wlt_SinkEvent'{sequence = Sequence}) -> Sequence;
+get_sinkevent_sequence(#'wthd_SinkEvent'{sequence = Sequence}) -> Sequence;
+get_sinkevent_sequence(#'idnt_SinkEvent'{sequence = Sequence}) -> Sequence.
 
 -spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
 
@@ -332,7 +294,7 @@ unwrap_last_sinkevent_id({exception, #'evsink_NoLastEvent'{}}) ->
 call_eventsink_handler(Function, {Service, Path}, Args) ->
     Request = {Service, Function, Args},
     Client  = ff_woody_client:new(#{
-        url           => <<<<"http://localhost:8022">>/binary, Path/binary>>,
+        url           => <<"http://localhost:8022", Path/binary>>,
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).

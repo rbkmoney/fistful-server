@@ -59,6 +59,7 @@
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
 -export([process_transfer/1]).
+-export([process_failure/2]).
 
 %% Event source
 
@@ -153,6 +154,26 @@ create(TransferType, ID, Body, Params) ->
 
 process_transfer(Transfer) ->
     process_activity(deduce_activity(Transfer), Transfer).
+
+-spec process_failure(any(), transfer()) ->
+    {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(event())]}} |
+    {error, _Reason}.
+
+process_failure(Reason, Transfer) ->
+    {ok, ShutdownEvents} = do_process_failure(Reason, Transfer),
+    {ok, {undefined, ShutdownEvents ++ [{status_changed, {failed, Reason}}]}}.
+
+do_process_failure(_Reason, #{status := pending, p_transfer := #{status := created}}) ->
+    {ok, []};
+do_process_failure(_Reason, #{status := pending, p_transfer := #{status := prepared}} = Transfer) ->
+    do(fun () ->
+        unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))
+    end);
+do_process_failure(Reason, #{status := pending, p_transfer := #{status := committed}}) ->
+    erlang:error({unprocessable_failure, committed_p_transfer, Reason});
+do_process_failure(_Reason, Transfer) ->
+    no_p_transfer = maps:get(p_transfer, Transfer, no_p_transfer),
+    {ok, []}.
 
 -type activity() ::
     prepare_transfer         |

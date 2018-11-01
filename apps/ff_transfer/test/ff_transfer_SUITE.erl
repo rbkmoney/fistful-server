@@ -174,7 +174,8 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ),
     ID.
 
-await_wallet_balance(Balance, ID) ->
+await_wallet_balance({Amount, Currency}, ID) ->
+    Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
         fun () -> get_wallet_balance(ID) end,
@@ -182,7 +183,8 @@ await_wallet_balance(Balance, ID) ->
     ),
     ok.
 
-await_destination_balance(Balance, ID) ->
+await_destination_balance({Amount, Currency}, ID) ->
+    Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
         fun () -> get_destination_balance(ID) end,
@@ -200,7 +202,7 @@ get_destination_balance(ID) ->
 
 get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
-    {ff_indef:current(Amounts), Currency}.
+    {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
     ID = genlib:unique(),

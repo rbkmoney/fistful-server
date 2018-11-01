@@ -32,6 +32,7 @@
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
 -export([process_transfer/1]).
+-export([process_failure/2]).
 
 %% Accessors
 
@@ -150,6 +151,13 @@ events(ID, Range) ->
 process_transfer(Deposit) ->
     Activity = deduce_activity(Deposit),
     do_process_transfer(Activity, Deposit).
+
+-spec process_failure(any(), deposit()) ->
+    {ok, process_result()} |
+    {error, _Reason}.
+
+process_failure(Reason, Deposit) ->
+    ff_transfer:process_failure(Reason, Deposit).
 
 %% Internals
 

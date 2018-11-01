@@ -32,6 +32,7 @@
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
 -export([process_transfer/1]).
+-export([process_failure/2]).
 
 %% Accessors
 
@@ -163,6 +164,13 @@ events(ID, Range) ->
 process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
     do_process_transfer(Activity, Withdrawal).
+
+-spec process_failure(any(), withdrawal()) ->
+    {ok, process_result()} |
+    {error, _Reason}.
+
+process_failure(Reason, Withdrawal) ->
+    ff_transfer:process_failure(Reason, Withdrawal).
 
 %% Internals
 

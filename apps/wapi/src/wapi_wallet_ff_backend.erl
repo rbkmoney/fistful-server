@@ -750,7 +750,7 @@ to_swag(withdrawal_status, {failed, Failure}) ->
 to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
     to_swag(domain_failure, Failure);
 to_swag(withdrawal_status_failure, Failure) ->
-    genlib:to_binary(Failure);
+    to_swag(domain_failure, map_internal_error(Failure));
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{
         <<"eventID">> => EventId,
@@ -787,3 +787,15 @@ to_swag(map, Map) ->
     genlib_map:compact(Map);
 to_swag(_, V) ->
     V.
+
+map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
+    #domain_Failure{
+        code = <<"terms_violation">>,
+        sub = #domain_SubFailure{
+            code = <<"cash_range">>
+        }
+    };
+map_internal_error(_Reason) ->
+    #domain_Failure{
+        code = <<"failed">>
+    }.

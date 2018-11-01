@@ -19,7 +19,6 @@
 -export([await/3]).
 
 -export([get_max_sinkevent_id/1]).
--export([get_max_rawevent_id/1]).
 -export([unwrap_last_sinkevent_id/1]).
 -export([call_eventsink_handler/3]).
 -export([create_sink_route/1]).
@@ -219,11 +218,6 @@ await(Expect, Compute, Retry0) ->
 
 get_max_sinkevent_id(Events) when is_list(Events) ->
     lists:foldl(fun ({_, ID, _, _, _}, Max) -> erlang:max(ID, Max) end, 0, Events).
-
--spec get_max_rawevent_id(list()) -> integer().
-
-get_max_rawevent_id(Events) when is_list(Events) ->
-    lists:foldl(fun ({ID, _}, Max) -> erlang:max(ID, Max) end, 0, Events).
 
 -spec unwrap_last_sinkevent_id({ok | error, integer()}) -> integer().
 

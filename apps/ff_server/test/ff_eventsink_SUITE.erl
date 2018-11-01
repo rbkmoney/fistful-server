@@ -1,7 +1,10 @@
 -module(ff_eventsink_SUITE).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -20,6 +23,11 @@
 -type test_case_name() :: ct_helper:test_case_name().
 -type group_name()     :: ct_helper:group_name().
 -type test_return()    :: _ | no_return().
+
+-type evsink_event() :: ff_proto_identity_thrift:'SinkEvent'() |
+                        ff_proto_wallet_thrift:'SinkEvent'() |
+                        ff_proto_withdrawal_thrift:'SinkEvent'().
+-type evsink_id()    :: ff_proto_base_thrift:'EventID'().
 
 -spec all() -> [test_case_name() | {group, group_name()}].
 
@@ -80,8 +88,8 @@ get_create_identify_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
     Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(
-        ct_helper:call_eventsink_handler('GetLastEventID', Service, [])),
+    LastEvent = unwrap_last_sinkevent_id(
+        call_eventsink_handler('GetLastEventID', Service, [])),
 
     ok = ff_identity_machine:create(
         ID,
@@ -94,9 +102,9 @@ get_create_identify_events_ok(C) ->
     ),
 
     {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000, forward}),
-    {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
+    {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID    = ct_helper:get_max_sinkevent_id(Events),
+    MaxID    = get_max_sinkevent_id(Events),
     MaxID    = LastEvent + length(RawEvents).
 
 -spec get_create_wallet_events_ok(config()) -> test_return().
@@ -107,8 +115,8 @@ get_create_wallet_events_ok(C) ->
     IdentityID = create_identity(Party, C),
 
     Service = {{ff_proto_wallet_thrift, 'EventSink'}, <<"/v1/eventsink/wallet">>},
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(
-        ct_helper:call_eventsink_handler('GetLastEventID', Service, [])),
+    LastEvent = unwrap_last_sinkevent_id(
+        call_eventsink_handler('GetLastEventID', Service, [])),
 
     ok = ff_wallet_machine:create(
         ID,
@@ -120,17 +128,17 @@ get_create_wallet_events_ok(C) ->
         ff_ctx:new()
     ),
     {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
-    {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
+    {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID    = ct_helper:get_max_sinkevent_id(Events),
+    MaxID    = get_max_sinkevent_id(Events),
     MaxID    = LastEvent + length(RawEvents).
 
 -spec get_withdrawal_events_ok(config()) -> test_return().
 
 get_withdrawal_events_ok(C) ->
     Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
-    LastEvent = ct_helper:unwrap_last_sinkevent_id(
-        ct_helper:call_eventsink_handler('GetLastEventID', Service, [])),
+    LastEvent = unwrap_last_sinkevent_id(
+        call_eventsink_handler('GetLastEventID', Service, [])),
 
     Party = create_party(C),
     IID = create_person_identity(Party, C),
@@ -144,9 +152,9 @@ get_withdrawal_events_ok(C) ->
     WdrID = process_withdrawal(WalID, DestID),
 
     {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
-    {ok, Events} = ct_helper:call_eventsink_handler('GetEvents',
+    {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID    = ct_helper:get_max_sinkevent_id(Events),
+    MaxID    = get_max_sinkevent_id(Events),
     MaxID    = LastEvent + length(RawEvents).
 
 create_identity(Party, C) ->
@@ -300,3 +308,32 @@ process_withdrawal(WalID, DestID) ->
         genlib_retry:linear(15, 1000)
     ),
     WdrID.
+
+
+-spec get_max_sinkevent_id(list(evsink_event())) -> evsink_id().
+
+get_max_sinkevent_id(Events) when is_list(Events) ->
+    lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_id(Ev), Max) end, 0, Events).
+
+get_sinkevent_id(#'wlt_SinkEvent'{sequence = ID}) -> ID;
+get_sinkevent_id(#'wthd_SinkEvent'{sequence = ID}) -> ID;
+get_sinkevent_id(#'idnt_SinkEvent'{sequence = ID}) -> ID.
+
+-spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
+
+unwrap_last_sinkevent_id({ok, EventID}) ->
+    EventID;
+unwrap_last_sinkevent_id({exception, #'evsink_NoLastEvent'{}}) ->
+    0.
+
+-spec call_eventsink_handler(atom(), tuple(), list()) ->
+    {ok, woody:result()} |
+    {exception, woody_error:business_error()}.
+
+call_eventsink_handler(Function, {Service, Path}, Args) ->
+    Request = {Service, Function, Args},
+    Client  = ff_woody_client:new(#{
+        url           => <<<<"http://localhost:8022">>/binary, Path/binary>>,
+        event_handler => scoper_woody_event_handler
+    }),
+    ff_woody_client:call(Client, Request).

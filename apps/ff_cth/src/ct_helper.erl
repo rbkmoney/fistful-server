@@ -1,11 +1,5 @@
 -module(ct_helper).
 
--include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
-
 -export([cfg/2]).
 
 -export([start_apps/1]).
@@ -24,19 +18,9 @@
 -export([await/2]).
 -export([await/3]).
 
--export([get_max_sinkevent_id/1]).
--export([unwrap_last_sinkevent_id/1]).
--export([call_eventsink_handler/3]).
--export([create_sink_route/1]).
-
 -type test_case_name() :: atom().
 -type group_name() :: atom().
 -type config() :: [{atom(), term()}].
-
--type evsink() :: ff_proto_identity_thrift:'SinkEvent'() |
-                  ff_proto_wallet_thrift:'SinkEvent'() |
-                  ff_proto_withdrawal_thrift:'SinkEvent'().
--type evsink_id() :: ff_proto_base_thrift:'EventID'().
 
 -export_type([test_case_name/0]).
 -export_type([group_name/0]).
@@ -222,46 +206,3 @@ await(Expect, Compute, Retry0) ->
                     error({'await failed', NotYet})
             end
     end.
-
-%%
-
--spec get_max_sinkevent_id(list(evsink())) -> evsink_id().
-
-get_max_sinkevent_id(Events) when is_list(Events) ->
-    lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_id(Ev), Max) end, 0, Events).
-
-get_sinkevent_id(#'wlt_SinkEvent'{sequence = ID}) -> ID;
-get_sinkevent_id(#'wthd_SinkEvent'{sequence = ID}) -> ID;
-get_sinkevent_id(#'idnt_SinkEvent'{sequence = ID}) -> ID.
-
--spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
-
-unwrap_last_sinkevent_id({ok, EventID}) ->
-    EventID;
-unwrap_last_sinkevent_id({exception, #'evsink_NoLastEvent'{}}) ->
-    0.
-
--spec call_eventsink_handler(atom(), tuple(), list()) ->
-    {ok, woody:result()} |
-    {exception, woody_error:business_error()}.
-
-call_eventsink_handler(Function, {Service, Path}, Args) ->
-    Request = {Service, Function, Args},
-    Client  = ff_woody_client:new(#{
-        url           => <<<<"http://localhost:8022">>/binary, Path/binary>>,
-        event_handler => scoper_woody_event_handler
-    }),
-    ff_woody_client:call(Client, Request).
-
--spec create_sink_route(tuple()) -> list(woody_server_thrift_http_handler:route(_)).
-
-create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
-    NewCfg = Cfg#{
-        client => #{
-            event_handler => scoper_woody_event_handler,
-            url => "http://machinegun:8022/v1/event_sink"
-        }},
-    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {Module, {Handler, NewCfg}}}],
-        event_handler => scoper_woody_event_handler
-    })).

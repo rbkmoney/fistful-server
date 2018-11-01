@@ -69,14 +69,16 @@ publish_events(Events) ->
 
 -spec publish_event(machinery_mg_eventsink:evsink_event(
     ff_machine:timestamped_event(ff_withdrawal:event())
-    )) -> ff_proto_withdrawal_thrift:'SinkEvent'().
+)) -> ff_proto_withdrawal_thrift:'SinkEvent'().
 
 publish_event(#{
-        evsink_id   := ID,
-        source_id   := SourceID,
-        ev_id       := EventID,
-        ev_time     := Dt,
-        ev_payload  := {ev, EventDt, Payload}
+    id          := ID,
+    source_id   := SourceID,
+    event       := {
+        EventID,
+        Dt,
+        {ev, EventDt, Payload}
+    }
 }) ->
     #'wthd_SinkEvent'{
         'sequence'      = marshal(event_id, ID),

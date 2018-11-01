@@ -146,13 +146,13 @@ get_admin_routes() ->
     }).
 
 get_eventsink_routes(BeConf) ->
-    IdentityRoute = ct_helper:create_sink_route({<<"/v1/eventsink/identity">>,
+    IdentityRoute = create_sink_route({<<"/v1/eventsink/identity">>,
         {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_handler,
         BeConf#{ns => <<"ff/identity">>}}}}),
-    WalletRoute = ct_helper:create_sink_route({<<"/v1/eventsink/wallet">>,
+    WalletRoute = create_sink_route({<<"/v1/eventsink/wallet">>,
         {{ff_proto_wallet_thrift, 'EventSink'}, {ff_wallet_eventsink_handler,
         BeConf#{ns => <<"ff/wallet_v2">>}}}}),
-    WithdrawalRoute = ct_helper:create_sink_route({<<"/v1/eventsink/withdrawal">>,
+    WithdrawalRoute = create_sink_route({<<"/v1/eventsink/withdrawal">>,
         {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_withdrawal_eventsink_handler,
         BeConf#{ns => <<"ff/withdrawal_v2">>}}}}),
     IdentityRoute ++ WalletRoute ++ WithdrawalRoute.
@@ -194,6 +194,16 @@ do_set_env([Key | Path], Value, Env) ->
     SubEnv = maps:get(Key, Env, #{}),
     Env#{Key => do_set_env(Path, Value, SubEnv)}.
 
+create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
+    NewCfg = Cfg#{
+        client => #{
+            event_handler => scoper_woody_event_handler,
+            url => "http://machinegun:8022/v1/event_sink"
+        }},
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, {Module, {Handler, NewCfg}}}],
+        event_handler => scoper_woody_event_handler
+    })).
 
 %% Default options
 

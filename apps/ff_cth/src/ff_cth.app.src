@@ -9,7 +9,6 @@
         stdlib,
         genlib,
         woody,
-        fistful_proto,
         dmsl
     ]},
     {env, []},

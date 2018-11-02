@@ -80,6 +80,9 @@ publish_event(#{
 
 -spec marshal(term(), term()) -> term().
 
+marshal({list, T}, V) ->
+    [marshal(T, E) || E <- V];
+
 marshal(id, V) ->
     marshal(string, V);
 marshal(event_id, V) ->
@@ -127,7 +130,7 @@ marshal(challenge_payload_created, Challenge = #{
     Proofs = maps:get(proofs, Challenge, undefined),
     #'idnt_Challenge'{
         cls    = marshal(id, ID),
-        proofs = marshal(challenge_proofs, Proofs)
+        proofs = marshal({list, challenge_proofs}, Proofs)
     };
 marshal(challenge_proofs, _) ->
     #'idnt_ChallengeProof'{};

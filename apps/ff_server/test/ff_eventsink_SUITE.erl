@@ -15,7 +15,7 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
--export([get_create_identify_events_ok/1]).
+-export([get_identity_events_ok/1]).
 -export([get_create_wallet_events_ok/1]).
 -export([get_withdrawal_events_ok/1]).
 
@@ -33,7 +33,7 @@
 
 all() ->
     [
-        get_create_identify_events_ok,
+        get_identity_events_ok,
         get_create_wallet_events_ok,
         get_withdrawal_events_ok
     ].
@@ -83,9 +83,9 @@ end_per_testcase(_Name, _C) ->
 
 %%
 
--spec get_create_identify_events_ok(config()) -> test_return().
+-spec get_identity_events_ok(config()) -> test_return().
 
-get_create_identify_events_ok(C) ->
+get_identity_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
     Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
@@ -100,6 +100,40 @@ get_create_identify_events_ok(C) ->
             class    => <<"person">>
         },
         ff_ctx:new()
+    ),
+    ICID = genlib:unique(),
+    {ok, S1} = ff_identity_machine:get(ID),
+    I1 = ff_identity_machine:identity(S1),
+    {error, notfound} = ff_identity:challenge(ICID, I1),
+    D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
+    D2 = ct_identdocstore:rus_domestic_passport(C),
+    ChallengeParams = #{
+        id     => ICID,
+        class  => <<"sword-initiation">>
+    },
+    {error, {challenge, {proof, insufficient}}} = ff_identity_machine:start_challenge(
+        ID, ChallengeParams#{proofs => []}
+    ),
+    {error, {challenge, {proof, insufficient}}} = ff_identity_machine:start_challenge(
+        ID, ChallengeParams#{proofs => [D1]}
+    ),
+    ok = ff_identity_machine:start_challenge(
+        ID, ChallengeParams#{proofs => [D1, D2]}
+    ),
+    {error, {challenge, {pending, ICID}}} = ff_identity_machine:start_challenge(
+        ID, ChallengeParams#{proofs => [D1, D2]}
+    ),
+    {ok, S2} = ff_identity_machine:get(ID),
+    I2 = ff_identity_machine:identity(S2),
+    {ok, IC1} = ff_identity:challenge(ICID, I2),
+    pending = ff_identity_challenge:status(IC1),
+    {completed, _} = ct_helper:await(
+        {completed, #{resolution => approved}},
+        fun () ->
+            {ok, S}  = ff_identity_machine:get(ID),
+            {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
+            ff_identity_challenge:status(IC)
+        end
     ),
 
     {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000, forward}),

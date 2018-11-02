@@ -56,8 +56,8 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
 handle_function_('CreateDeposit', [Params], Context, Opts) ->
     DepositID = next_id('deposit'),
     case ff_deposit:create(DepositID, #{
-            source      => Params#fistful_DepositParams.source,
-            destination => Params#fistful_DepositParams.destination,
+            source_id   => Params#fistful_DepositParams.source,
+            wallet_id   => Params#fistful_DepositParams.destination,
             body        => decode({deposit, body}, Params#fistful_DepositParams.body)
         }, decode(context, Params#fistful_DepositParams.context))
     of
@@ -85,9 +85,9 @@ decode({source, resource}, #fistful_SourceResource{details = Details}) ->
         type    => internal,
         details => Details
     });
-decode({deposit, body}, #fistful_DepositBody{amount = Amount, currency = Currency}) ->
+decode({deposit, body}, #'Cash'{amount = Amount, currency = Currency}) ->
     {Amount, decode(currency, Currency)};
-decode(currency, #fistful_CurrencyRef{symbolic_code = V}) ->
+decode(currency, #'CurrencyRef'{symbolic_code = V}) ->
     V;
 decode(context, Context) ->
     Context.
@@ -113,14 +113,14 @@ encode(deposit, {ID, Machine}) ->
     Deposit = ff_deposit:get(Machine),
     #fistful_Deposit{
         id          = ID,
-        source      = ff_deposit:source(Deposit),
-        destination = ff_deposit:destination(Deposit),
+        source      = ff_deposit:source_id(Deposit),
+        destination = ff_deposit:wallet_id(Deposit),
         body        = encode({deposit, body}, ff_deposit:body(Deposit)),
         status      = encode({deposit, status}, ff_deposit:status(Deposit)),
         context     = encode(context, ff_machine:ctx(Machine))
     };
 encode({deposit, body}, {Amount, Currency}) ->
-    #fistful_DepositBody{
+    #'Cash'{
         amount   = Amount,
         currency = encode(currency, Currency)
     };
@@ -131,7 +131,7 @@ encode({deposit, status}, succeeded) ->
 encode({deposit, status}, {failed, Details}) ->
     {failed, #fistful_DepositStatusFailed{details = woody_error:format_details(Details)}};
 encode(currency, V) ->
-    #fistful_CurrencyRef{symbolic_code = V};
+    #'CurrencyRef'{symbolic_code = V};
 encode(context, #{}) ->
     undefined;
 encode(context, Ctx) ->

@@ -43,11 +43,12 @@ cfg(Key, Value, Config) ->
 
 %%
 
--type app_name()    :: atom().
--type app_env()     :: [{atom(), term()}].
--type startup_ctx() :: #{atom() => _}.
+-type app_name()     :: atom().
+-type app_env()      :: [{atom(), term()}].
+-type app_with_env() :: {app_name(), app_env()}.
+-type startup_ctx()  :: #{atom() => _}.
 
--spec start_apps([app_name()]) -> {[Started :: app_name()], startup_ctx()}.
+-spec start_apps([app_name() | app_with_env()]) -> {[Started :: app_name()], startup_ctx()}.
 
 start_apps(AppNames) ->
     lists:foldl(
@@ -59,7 +60,7 @@ start_apps(AppNames) ->
         AppNames
     ).
 
--spec start_app(app_name()) -> {[Started :: app_name()], startup_ctx()}.
+-spec start_app(app_name() | app_with_env()) -> {[Started :: app_name()], startup_ctx()}.
 
 start_app(lager = AppName) ->
     {start_app_with(AppName, [

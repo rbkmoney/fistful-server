@@ -75,8 +75,9 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
     {error,
         {identity, notfound} |
         {currency, notfound} |
-        {contract, notfound} |
         {accounter, any()} |
+        {contract, any()} |
+        {terms, any()} |
         {party, ff_party:inaccessibility()} |
         invalid
     }.
@@ -87,9 +88,15 @@ create(ID, Identity, Currency) ->
         Party = ff_identity:party(Identity),
         Contract = ff_identity:contract(Identity),
         accessible = unwrap(party, ff_party:is_accessible(Party)),
-        valid = unwrap(contract, ff_party:validate_account_creation(
-            Party, Contract, ID, Currency, ff_time:now()
+        CurrencyID = ff_currency:id(Currency),
+        TermVarset = #{
+            wallet_id => ID,
+            currency_id => CurrencyID
+        },
+        Terms = unwrap(contract, ff_party:get_contract_terms(
+            Party, Contract, TermVarset, ff_time:now()
         )),
+        valid = unwrap(terms, ff_party:validate_account_creation(Terms, CurrencyID)),
         AccounterID = unwrap(accounter, create_account(ID, Currency)),
         [{created, #{
             id       => ID,

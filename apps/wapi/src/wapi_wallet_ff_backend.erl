@@ -552,9 +552,9 @@ from_swag(destination_resource, #{
     }};
 from_swag(withdrawal_params, Params) ->
     #{
-        source      => maps:get(<<"wallet">>     , Params),
-        destination => maps:get(<<"destination">>, Params),
-        body        => from_swag(withdrawal_body , maps:get(<<"body">>, Params))
+        wallet_id      => maps:get(<<"wallet">>     , Params),
+        destination_id => maps:get(<<"destination">>, Params),
+        body           => from_swag(withdrawal_body , maps:get(<<"body">>, Params))
     };
 %% TODO
 %%  - remove this clause when we fix negative accounts and turn on validation in swag
@@ -725,8 +725,8 @@ to_swag(withdrawal, State) ->
             <<"id">>          => ff_withdrawal:id(Withdrawal),
             <<"createdAt">>   => to_swag(timestamp, ff_machine:created(State)),
             <<"metadata">>    => genlib_map:get(<<"metadata">>, get_ctx(State)),
-            <<"wallet">>      => ff_withdrawal:source(Withdrawal),
-            <<"destination">> => ff_withdrawal:destination(Withdrawal),
+            <<"wallet">>      => ff_withdrawal:wallet_id(Withdrawal),
+            <<"destination">> => ff_withdrawal:destination_id(Withdrawal),
             <<"body">>        => to_swag(withdrawal_body, ff_withdrawal:body(Withdrawal))
         },
         to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))
@@ -750,7 +750,7 @@ to_swag(withdrawal_status, {failed, Failure}) ->
 to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
     to_swag(domain_failure, Failure);
 to_swag(withdrawal_status_failure, Failure) ->
-    genlib:to_binary(Failure);
+    to_swag(domain_failure, map_internal_error(Failure));
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{
         <<"eventID">> => EventId,
@@ -787,3 +787,15 @@ to_swag(map, Map) ->
     genlib_map:compact(Map);
 to_swag(_, V) ->
     V.
+
+map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
+    #domain_Failure{
+        code = <<"terms_violation">>,
+        sub = #domain_SubFailure{
+            code = <<"cash_range">>
+        }
+    };
+map_internal_error(_Reason) ->
+    #domain_Failure{
+        code = <<"failed">>
+    }.

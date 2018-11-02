@@ -255,7 +255,7 @@ get_default_termset() ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
             currencies = {value, ?ordset([?cur(<<"RUB">>)])},
-            cash_limit = {decisions, [
+            wallet_limit = {decisions, [
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(

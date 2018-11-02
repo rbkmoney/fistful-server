@@ -29,13 +29,9 @@ build('fistful-server', 'docker-host', finalHook) {
         }
       }
 
-      /*
-       * TODO: uncomment when linter warnings are fixed
-       *
       runStage('lint') {
         sh 'make wc_lint'
       }
-      */
 
       runStage('xref') {
         sh 'make wc_xref'

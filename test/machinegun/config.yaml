@@ -21,9 +21,11 @@ namespaces:
 
   # Fistful
   ff/identity:
+      event_sink: ff/identity
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/identity
   ff/wallet_v2:
+      event_sink: ff/wallet_v2
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/wallet_v2
   ff/source_v1:
@@ -36,6 +38,7 @@ namespaces:
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/destination_v2
   ff/withdrawal_v2:
+      event_sink: ff/withdrawal_v2
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/withdrawal_v2
   ff/withdrawal/session_v2:

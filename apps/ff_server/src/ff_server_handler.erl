@@ -85,9 +85,9 @@ decode({source, resource}, #fistful_SourceResource{details = Details}) ->
         type    => internal,
         details => Details
     });
-decode({deposit, body}, #fistful_DepositBody{amount = Amount, currency = Currency}) ->
+decode({deposit, body}, #'Cash'{amount = Amount, currency = Currency}) ->
     {Amount, decode(currency, Currency)};
-decode(currency, #fistful_CurrencyRef{symbolic_code = V}) ->
+decode(currency, #'CurrencyRef'{symbolic_code = V}) ->
     V;
 decode(context, Context) ->
     Context.
@@ -120,7 +120,7 @@ encode(deposit, {ID, Machine}) ->
         context     = encode(context, ff_machine:ctx(Machine))
     };
 encode({deposit, body}, {Amount, Currency}) ->
-    #fistful_DepositBody{
+    #'Cash'{
         amount   = Amount,
         currency = encode(currency, Currency)
     };
@@ -131,7 +131,7 @@ encode({deposit, status}, succeeded) ->
 encode({deposit, status}, {failed, Details}) ->
     {failed, #fistful_DepositStatusFailed{details = woody_error:format_details(Details)}};
 encode(currency, V) ->
-    #fistful_CurrencyRef{symbolic_code = V};
+    #'CurrencyRef'{symbolic_code = V};
 encode(context, #{}) ->
     undefined;
 encode(context, Ctx) ->

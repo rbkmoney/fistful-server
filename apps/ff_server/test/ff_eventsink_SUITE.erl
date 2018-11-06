@@ -127,8 +127,8 @@ get_identity_events_ok(C) ->
     {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID    = get_max_sinkevent_sequence(Events),
-    MaxID    = LastEvent + length(RawEvents).
+    MaxID = get_max_sinkevent_id(Events),
+    MaxID = LastEvent + length(RawEvents).
 
 -spec get_create_wallet_events_ok(config()) -> test_return().
 
@@ -153,8 +153,8 @@ get_create_wallet_events_ok(C) ->
     {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID    = get_max_sinkevent_sequence(Events),
-    MaxID    = LastEvent + length(RawEvents).
+    MaxID = get_max_sinkevent_id(Events),
+    MaxID = LastEvent + length(RawEvents).
 
 -spec get_withdrawal_events_ok(config()) -> test_return().
 
@@ -174,8 +174,8 @@ get_withdrawal_events_ok(C) ->
     {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID    = get_max_sinkevent_sequence(Events),
-    MaxID    = LastEvent + length(RawEvents).
+    MaxID = get_max_sinkevent_id(Events),
+    MaxID = LastEvent + length(RawEvents).
 
 create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
@@ -293,14 +293,14 @@ process_withdrawal(WalID, DestID) ->
     WdrID.
 
 
--spec get_max_sinkevent_sequence(list(evsink_event())) -> evsink_id().
+-spec get_max_sinkevent_id(list(evsink_event())) -> evsink_id().
 
-get_max_sinkevent_sequence(Events) when is_list(Events) ->
-    lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_sequence(Ev), Max) end, 0, Events).
+get_max_sinkevent_id(Events) when is_list(Events) ->
+    lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_id(Ev), Max) end, 0, Events).
 
-get_sinkevent_sequence(#'wlt_SinkEvent'{sequence = Sequence}) -> Sequence;
-get_sinkevent_sequence(#'wthd_SinkEvent'{sequence = Sequence}) -> Sequence;
-get_sinkevent_sequence(#'idnt_SinkEvent'{sequence = Sequence}) -> Sequence.
+get_sinkevent_id(#'wlt_SinkEvent'{id = ID}) -> ID;
+get_sinkevent_id(#'wthd_SinkEvent'{id = ID}) -> ID;
+get_sinkevent_id(#'idnt_SinkEvent'{id = ID}) -> ID.
 
 -spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
 

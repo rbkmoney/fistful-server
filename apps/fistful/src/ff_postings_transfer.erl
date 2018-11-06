@@ -48,7 +48,7 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/1]).
+-export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -218,28 +218,27 @@ construct_trx_posting(Posting) ->
     {SenderAccount, ReceiverAccount, Volume}.
 
 %% Event migrations
--spec maybe_migrate(any()) -> event().
+-spec maybe_migrate(any(), atom()) -> event().
 % Actual events
-maybe_migrate({created, #{final_cash_flow := CashFlow} = EvBody}) ->
+maybe_migrate({created, #{final_cash_flow := CashFlow} = EvBody}, _EvType) ->
     {created, EvBody#{final_cash_flow => maybe_migrate_cash_flow(CashFlow)}};
 % Old events
-maybe_migrate({created, #{postings := Postings} = Transfer}) ->
+maybe_migrate({created, #{postings := Postings} = Transfer}, EvType) ->
     #{
         id := ID,
         postings := Postings
     } = Transfer,
-    CashFlowPostings = [
-        #{sender => #{account => S}, receiver => #{account => D}, volume => B}
-        || {S, D, B} <- Postings
-    ],
+
+    CashFlowPostings = maybe_migrate_cashflow_postings(EvType, Postings),
+
     maybe_migrate({created, #{
         id              => ID,
         final_cash_flow => #{
             postings => CashFlowPostings
         }
-    }});
+    }}, EvType);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate(Ev, _) ->
     Ev.
 
 maybe_migrate_cash_flow(#{postings := CashFlowPostings} = CashFlow) ->
@@ -264,3 +263,33 @@ maybe_migrate_posting(#{
     });
 maybe_migrate_posting(Posting) ->
     Posting.
+
+maybe_migrate_cashflow_postings(withdrawal, Postings) ->
+    [#{
+        sender => #{
+            account => S,
+            type => {wallet, sender_settlement}
+        },
+        receiver => #{
+            account => D,
+            type => {wallet, receiver_destination}
+        },
+        volume => B} || {S, D, B} <- Postings
+    ];
+maybe_migrate_cashflow_postings(deposit, Postings) ->
+    [#{
+        sender => #{
+            account => S,
+            type => {wallet, sender_source}
+        },
+        receiver => #{
+            account => D,
+            type => {wallet, receiver_settlement}
+        },
+        volume => B} || {S, D, B} <- Postings
+    ];
+maybe_migrate_cashflow_postings(_, Postings) ->
+    [
+        #{sender => #{account => S}, receiver => #{account => D}, volume => B}
+        || {S, D, B} <- Postings
+    ].

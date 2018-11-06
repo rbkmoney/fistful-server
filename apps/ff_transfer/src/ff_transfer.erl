@@ -64,7 +64,7 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/1]).
+-export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -83,6 +83,7 @@
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type legacy_event() :: any().
 -type transfer_type() :: atom().
+-type event_type() :: withdrawal | deposit | undefined.
 
 %% Accessors
 
@@ -207,7 +208,7 @@ process_activity(cancel_transfer, Transfer) ->
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
 apply_event(Ev, T) ->
-    apply_event_(maybe_migrate(Ev), T).
+    apply_event_(maybe_migrate(Ev, get_event_type(T)), T).
 
 -spec apply_event_(event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
@@ -226,15 +227,24 @@ apply_event_({session_finished, S}, T = #{session_id := S}) ->
 apply_event_({route_changed, R}, T) ->
     maps:put(route, R, T).
 
--spec maybe_migrate(event() | legacy_event()) ->
+-spec get_event_type(ff_maybe:maybe(transfer(_))) -> event_type().
+
+get_event_type(#{params := #{destination_id := _DestinationID}}) ->
+    withdrawal;
+get_event_type(#{params := #{source_id := _SourceID}}) ->
+    deposit;
+get_event_type(_) ->
+    undefined.
+
+-spec maybe_migrate(event() | legacy_event(), event_type()) ->
     event().
 % Actual events
-maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _) ->
     Ev;
-maybe_migrate({p_transfer, PEvent}) ->
-    {p_transfer, ff_postings_transfer:maybe_migrate(PEvent)};
+maybe_migrate({p_transfer, PEvent}, EventType) ->
+    {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, EventType)};
 % Old events
-maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
+maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, EventType) ->
     #{
         version     := 1,
         id          := ID,
@@ -267,8 +277,8 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
                 ]
             }
         }
-    }});
-maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
+    }}, EventType);
+maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, EventType) ->
     #{
         version     := 1,
         id          := ID,
@@ -301,8 +311,8 @@ maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
                 ]
             }
         }
-    }});
-maybe_migrate({created, T}) ->
+    }}, EventType);
+maybe_migrate({created, T}, EventType) ->
     DestinationID = maps:get(destination, T),
     {ok, DestinationSt} = ff_destination:get_machine(DestinationID),
     DestinationAcc = ff_destination:account(ff_destination:get(DestinationSt)),
@@ -318,9 +328,9 @@ maybe_migrate({created, T}) ->
             destination => DestinationID,
             source      => SourceID
         }
-    }});
-maybe_migrate({transfer, PTransferEv}) ->
-    maybe_migrate({p_transfer, PTransferEv});
+    }}, EventType);
+maybe_migrate({transfer, PTransferEv}, EventType) ->
+    maybe_migrate({p_transfer, PTransferEv}, EventType);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate(Ev, _) ->
     Ev.

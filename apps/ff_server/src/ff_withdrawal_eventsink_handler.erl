@@ -87,7 +87,7 @@ publish_event(#{
         'payload'       = #'wthd_Event'{
             'sequence'   = marshal(event_id, EventID),
             'occured_at' = marshal(timestamp, EventDt),
-            'changes'    = [marshal(event, ff_transfer:maybe_migrate(Payload))]
+            'changes'    = [marshal(event, ff_transfer:maybe_migrate(Payload, withdrawal))]
         }
     }.
 

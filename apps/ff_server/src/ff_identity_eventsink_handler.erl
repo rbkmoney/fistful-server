@@ -66,11 +66,11 @@ publish_event(#{
     }
 }) ->
     #'idnt_SinkEvent'{
-        'sequence'      = marshal(event_id, ID),
+        'id'            = marshal(event_id, ID),
         'created_at'    = marshal(timestamp, Dt),
         'source'        = marshal(id, SourceID),
         'payload'       = #'idnt_Event'{
-            'id'         = marshal(event_id, EventID),
+            'sequence'   = marshal(event_id, EventID),
             'occured_at' = marshal(timestamp, EventDt),
             'changes'    = [marshal(event, Payload)]
         }

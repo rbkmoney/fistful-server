@@ -83,7 +83,6 @@
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type legacy_event() :: any().
 -type transfer_type() :: atom().
--type event_type() :: withdrawal | deposit | undefined.
 
 %% Accessors
 
@@ -208,7 +207,7 @@ process_activity(cancel_transfer, Transfer) ->
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
 apply_event(Ev, T) ->
-    apply_event_(maybe_migrate(Ev, get_event_type(T)), T).
+    apply_event_(maybe_migrate(Ev, transfer_type(T)), T).
 
 -spec apply_event_(event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
@@ -227,16 +226,7 @@ apply_event_({session_finished, S}, T = #{session_id := S}) ->
 apply_event_({route_changed, R}, T) ->
     maps:put(route, R, T).
 
--spec get_event_type(ff_maybe:maybe(transfer(_))) -> event_type().
-
-get_event_type(#{params := #{destination_id := _DestinationID}}) ->
-    withdrawal;
-get_event_type(#{params := #{source_id := _SourceID}}) ->
-    deposit;
-get_event_type(_) ->
-    undefined.
-
--spec maybe_migrate(event() | legacy_event(), event_type()) ->
+-spec maybe_migrate(event() | legacy_event(), transfer_type()) ->
     event().
 % Actual events
 maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _) ->

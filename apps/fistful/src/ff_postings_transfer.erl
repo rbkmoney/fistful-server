@@ -229,7 +229,7 @@ maybe_migrate({created, #{postings := Postings} = Transfer}, EvType) ->
         postings := Postings
     } = Transfer,
 
-    CashFlowPostings = maybe_migrate_cashflow_postings(EvType, Postings),
+    CashFlowPostings = migrate_primitive_cashflow_postings(EvType, Postings),
 
     maybe_migrate({created, #{
         id              => ID,
@@ -264,7 +264,7 @@ maybe_migrate_posting(#{
 maybe_migrate_posting(Posting) ->
     Posting.
 
-maybe_migrate_cashflow_postings(withdrawal, Postings) ->
+migrate_primitive_cashflow_postings(withdrawal, Postings) ->
     [#{
         sender => #{
             account => S,
@@ -276,7 +276,7 @@ maybe_migrate_cashflow_postings(withdrawal, Postings) ->
         },
         volume => B} || {S, D, B} <- Postings
     ];
-maybe_migrate_cashflow_postings(deposit, Postings) ->
+migrate_primitive_cashflow_postings(deposit, Postings) ->
     [#{
         sender => #{
             account => S,
@@ -287,9 +287,4 @@ maybe_migrate_cashflow_postings(deposit, Postings) ->
             type => {wallet, receiver_settlement}
         },
         volume => B} || {S, D, B} <- Postings
-    ];
-maybe_migrate_cashflow_postings(_, Postings) ->
-    [
-        #{sender => #{account => S}, receiver => #{account => D}, volume => B}
-        || {S, D, B} <- Postings
     ].

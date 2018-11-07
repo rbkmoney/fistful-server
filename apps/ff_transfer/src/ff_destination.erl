@@ -29,11 +29,13 @@
 -type destination() :: ff_instrument:instrument(resource()).
 -type params()      :: ff_instrument_machine:params(resource()).
 -type machine()     :: ff_instrument_machine:st(resource()).
+-type event()       :: ff_instrument:event(resource()).
 
 -export_type([id/0]).
 -export_type([destination/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
+-export_type([event/0]).
 
 %% Accessors
 

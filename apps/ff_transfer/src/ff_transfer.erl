@@ -231,7 +231,7 @@ maybe_transfer_type(undefined) ->
 maybe_transfer_type(T) ->
     transfer_type(T).
 
--spec maybe_migrate(event() | legacy_event(), transfer_type()) ->
+-spec maybe_migrate(event() | legacy_event(), transfer_type() | undefined) ->
     event().
 % Actual events
 maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _) ->

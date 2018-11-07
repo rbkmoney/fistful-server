@@ -207,7 +207,7 @@ process_activity(cancel_transfer, Transfer) ->
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
 apply_event(Ev, T) ->
-    apply_event_(maybe_migrate(Ev, transfer_type(T)), T).
+    apply_event_(maybe_migrate(Ev, maybe_transfer_type(T)), T).
 
 -spec apply_event_(event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
@@ -225,6 +225,11 @@ apply_event_({session_finished, S}, T = #{session_id := S}) ->
     T;
 apply_event_({route_changed, R}, T) ->
     maps:put(route, R, T).
+
+maybe_transfer_type(undefined) ->
+    undefined;
+maybe_transfer_type(T) ->
+    transfer_type(T).
 
 -spec maybe_migrate(event() | legacy_event(), transfer_type()) ->
     event().

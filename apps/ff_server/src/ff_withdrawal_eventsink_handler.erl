@@ -4,10 +4,18 @@
 
 -export([handle_function/4]).
 
+-behaviour(ff_eventsink_publisher).
+
+-export([publish_events/1]).
+
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_cashflow_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
+
+-type event() :: ff_eventsink_publisher:event(ff_withdrawal:event()).
+-type sinkevent() :: ff_eventsink_publisher:sinkevent(ff_proto_withdrawal_thrift:'SinkEvent'()).
+
 
 %% Data transform
 
@@ -33,7 +41,11 @@ handle_function(Func, Args, Context, Opts) ->
         fun() ->
             ok = ff_woody_ctx:set(Context),
             try
-                handle_function_(Func, Args, Context, Opts)
+                ff_eventsink_handler:handle_function(
+                    Func, Args, Context, Opts#{
+                        handler => ff_withdrawal_eventsink_handler
+                    }
+                )
             after
                 ff_woody_ctx:unset()
             end
@@ -44,32 +56,14 @@ handle_function(Func, Args, Context, Opts) ->
 %% Internals
 %%
 
-handle_function_(
-    'GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
-    Context, #{schema := Schema, client := Client, ns := NS}
-) ->
-    {ok, Events} = machinery_mg_eventsink:get_events(NS, After, Limit,
-        #{client => {Client, Context}, schema => Schema}),
-    {ok, publish_events(Events)};
-handle_function_(
-    'GetLastEventID', _Params, Context,
-    #{schema := Schema, client := Client, ns := NS}
-) ->
-    case machinery_mg_eventsink:get_last_event_id(NS,
-        #{client => {Client, Context}, schema => Schema}) of
-        {ok, _} = Result ->
-            Result;
-        {error, no_last_event} ->
-            woody_error:raise(business, #'evsink_NoLastEvent'{})
-    end.
-
+-spec publish_events(list(event())) ->
+    list(sinkevent()).
 
 publish_events(Events) ->
     [publish_event(Event) || Event <- Events].
 
--spec publish_event(machinery_mg_eventsink:evsink_event(
-    ff_machine:timestamped_event(ff_withdrawal:event())
-)) -> ff_proto_withdrawal_thrift:'SinkEvent'().
+-spec publish_event(event()) ->
+    sinkevent().
 
 publish_event(#{
     id          := ID,
@@ -81,25 +75,20 @@ publish_event(#{
     }
 }) ->
     #'wthd_SinkEvent'{
-        'id'            = marshal(event_id, ID),
-        'created_at'    = marshal(timestamp, Dt),
-        'source'        = marshal(id, SourceID),
+        'id'            = ff_eventsink_handler:marshal(event_id, ID),
+        'created_at'    = ff_eventsink_handler:marshal(timestamp, Dt),
+        'source'        = ff_eventsink_handler:marshal(id, SourceID),
         'payload'       = #'wthd_Event'{
-            'sequence'   = marshal(event_id, EventID),
-            'occured_at' = marshal(timestamp, EventDt),
-            'changes'    = [marshal(event, ff_transfer:maybe_migrate(Payload))]
+            'sequence'   = ff_eventsink_handler:marshal(event_id, EventID),
+            'occured_at' = ff_eventsink_handler:marshal(timestamp, EventDt),
+            'changes'    = [marshal(event, Payload)]
         }
     }.
-
 %%
 
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
-marshal(id, V) ->
-    marshal(string, V);
-marshal(event_id, V) ->
-    marshal(integer, V);
 marshal(event, {created, Withdrawal}) ->
     {created, marshal(withdrawal, Withdrawal)};
 marshal(event, {status_changed, WithdrawalStatus}) ->
@@ -123,8 +112,8 @@ marshal(withdrawal, #{
     DestinationID = maps:get(destination_id, Params),
     #'wthd_Withdrawal'{
         body = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
-        source = marshal(id, WalletID),
-        destination = marshal(id, DestinationID)
+        source = ff_eventsink_handler:marshal(id, WalletID),
+        destination = ff_eventsink_handler:marshal(id, DestinationID)
     };
 
 marshal(withdrawal_status_changed, pending) ->
@@ -168,7 +157,7 @@ marshal(postings, Postings = #{
         destination = marshal(final_cash_flow_account,
             final_account_to_final_cash_flow_account(Destination)),
         volume      = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
-        details     = marshal(string, Details)
+        details     = ff_eventsink_handler:marshal(string, Details)
     };
 marshal(final_cash_flow_account, #{
         account_type   := AccountType,
@@ -176,7 +165,7 @@ marshal(final_cash_flow_account, #{
 }) ->
     #'cashflow_FinalCashFlowAccount'{
         account_type   = marshal(account_type, AccountType),
-        account_id     = marshal(id, AccountID)
+        account_id     = ff_eventsink_handler:marshal(id, AccountID)
     };
 
 marshal(account_type, CashflowAccount) ->
@@ -196,7 +185,7 @@ marshal(withdrawal_session_change, #{
         payload := Payload
 }) ->
     #'wthd_SessionChange'{
-        id      = marshal(id, SessionID),
+        id      = ff_eventsink_handler:marshal(id, SessionID),
         payload = marshal(withdrawal_session_payload, Payload)
     };
 marshal(withdrawal_session_payload, started) ->
@@ -208,7 +197,7 @@ marshal(withdrawal_route_changed, #{
         provider_id := ProviderID
 }) ->
     #'wthd_RouteChange'{
-        id = marshal(id, ProviderID)
+        id = ff_eventsink_handler:marshal(id, ProviderID)
     };
 
 marshal(cash, #{
@@ -223,24 +212,11 @@ marshal(currency_ref, #{
         symbolic_code   := SymbolicCode
 }) ->
     #'CurrencyRef'{
-        symbolic_code    = marshal(string, SymbolicCode)
+        symbolic_code    = ff_eventsink_handler:marshal(string, SymbolicCode)
     };
 marshal(amount, V) ->
-    marshal(integer, V);
+    ff_eventsink_handler:marshal(integer, V);
 
-marshal(timestamp, {{Date, Time}, USec} = V) ->
-    case rfc3339:format({Date, Time, USec, 0}) of
-        {ok, R} when is_binary(R) ->
-            R;
-        Error ->
-            error({bad_timestamp, Error}, [timestamp, V])
-    end;
-marshal(atom, V) when is_atom(V) ->
-    atom_to_binary(V, utf8);
-marshal(string, V) when is_binary(V) ->
-    V;
-marshal(integer, V) when is_integer(V) ->
-    V;
 % Catch this up in thrift validation
 marshal(_, Other) ->
     Other.

@@ -144,6 +144,8 @@ get_eventsink_routes() ->
             url => Url
         }
     },
+    get_eventsink_route(destination, {<<"/v1/eventsink/destination">>,
+        {{ff_proto_destination_thrift, 'EventSink'}, {ff_destination_eventsink_handler, Cfg}}}) ++
     get_eventsink_route(identity, {<<"/v1/eventsink/identity">>,
         {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_handler, Cfg}}}) ++
     get_eventsink_route(wallet, {<<"/v1/eventsink/wallet">>,

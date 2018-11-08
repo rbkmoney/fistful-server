@@ -46,6 +46,7 @@
 
 -export_type([identity/0]).
 -export_type([event/0]).
+-export_type([id/1]).
 
 -export([id/1]).
 -export([provider/1]).

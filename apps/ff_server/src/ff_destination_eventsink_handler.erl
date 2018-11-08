@@ -3,15 +3,15 @@
 -behaviour(woody_server_thrift_handler).
 
 -export([handle_function/4]).
+
+-behaviour(ff_eventsink_publisher).
+
 -export([publish_events/1]).
 
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
--type event() :: machinery_mg_eventsink:evsink_event(
-    ff_machine:timestamped_event(ff_destination:event())
-).
-
--type sinkevent() :: ff_proto_destinaion_thrift:'SinkEvent'().
+-type event() :: ff_eventsink_publisher:event(ff_destination:event()).
+-type sinkevent() :: ff_eventsink_publisher:sinkevent(ff_proto_destinaion_thrift:'SinkEvent'()).
 
 %%
 %% woody_server_thrift_handler callbacks
@@ -25,8 +25,9 @@ handle_function(Func, Args, Context, Opts) ->
             ok = ff_woody_ctx:set(Context),
             try
                 ff_eventsink_handler:handle_function(
-                    Func, Args, Context, Opts,
-                    ff_destination_eventsink_handler
+                    Func, Args, Context, Opts#{
+                        handler => ff_destination_eventsink_handler
+                    }
                 )
             after
                 ff_woody_ctx:unset()
@@ -66,6 +67,43 @@ publish_event(#{
 %%
 %% Internals
 %%
+
+-spec marshal(term(), term()) -> term().
+
+marshal(event, {created, Destination}) ->
+    {destination, marshal(destination, Destination)};
+marshal(event, {account, AccountChange}) ->
+    {account, ff_eventsink_handler:marshal(account_change, AccountChange)};
+marshal(event, {status_changed, StatusChange}) ->
+    {status, marshal(status_change, StatusChange)};
+
+marshal(destination, #{
+    name := Name,
+    resource := Resource
+}) ->
+    #'dst_Destination'{
+        name = ff_eventsink_handler:marshal(string, Name),
+        resource = marshal(resource, Resource)
+    };
+marshal(resource, {bank_card, BankCard}) ->
+    {bank_card, marshal(bank_card, BankCard)};
+marshal(bank_card, BankCard = #{
+    token := Token
+}) ->
+    PaymentSystem = maps:get(payment_system, BankCard, undefined),
+    Bin = maps:get(bin, BankCard, undefined),
+    MaskedPan = maps:get(masked_pan, BankCard, undefined),
+    #'BankCard'{
+        'token' = ff_eventsink_handler:marshal(string, Token),
+        'payment_system' = PaymentSystem,
+        'bin' = ff_eventsink_handler:marshal(string, Bin),
+        'masked_pan' = ff_eventsink_handler:marshal(string, MaskedPan)
+    };
+
+marshal(status_change, unauthorized) ->
+    {changed, {unauthorized, #'dst_Unauthorized'{}}};
+marshal(status_change, authorized) ->
+    {changed, {authorized, #'dst_Authorized'{}}};
 
 % Catch this up in thrift validation
 marshal(_, Other) ->

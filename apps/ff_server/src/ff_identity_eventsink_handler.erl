@@ -3,16 +3,17 @@
 -behaviour(woody_server_thrift_handler).
 
 -export([handle_function/4]).
--export([marshal/2]).
+
+-behaviour(ff_eventsink_publisher).
+
 -export([publish_events/1]).
+
+-export([marshal/2]).
 
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 
--type event() :: machinery_mg_eventsink:evsink_event(
-    ff_machine:timestamped_event(ff_identity:event())
-).
-
--type sinkevent() :: ff_proto_identity_thrift:'SinkEvent'().
+-type event() :: ff_eventsink_publisher:event(ff_identity:event()).
+-type sinkevent() :: ff_eventsink_publisher:sinkevent(ff_proto_identity_thrift:'SinkEvent'()).
 
 %%
 %% woody_server_thrift_handler callbacks
@@ -26,8 +27,9 @@ handle_function(Func, Args, Context, Opts) ->
             ok = ff_woody_ctx:set(Context),
             try
                 ff_eventsink_handler:handle_function(
-                    Func, Args, Context, Opts,
-                    ff_identity_eventsink_handler
+                    Func, Args, Context, Opts#{
+                        handler => ff_identity_eventsink_handler
+                    }
                 )
             after
                 ff_woody_ctx:unset()
@@ -41,7 +43,8 @@ handle_function(Func, Args, Context, Opts) ->
 publish_events(Events) ->
     [publish_event(Event) || Event <- Events].
 
--spec publish_event(event()) -> sinkevent().
+-spec publish_event(event()) ->
+    sinkevent().
 
 publish_event(#{
     id          := ID,

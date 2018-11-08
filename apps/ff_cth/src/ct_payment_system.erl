@@ -158,7 +158,10 @@ get_eventsink_routes(BeConf) ->
     DestinationRoute = create_sink_route({<<"/v1/eventsink/destination">>,
         {{ff_proto_destination_thrift, 'EventSink'}, {ff_destination_eventsink_handler,
         BeConf#{ns => <<"ff/destination_v2">>}}}}),
-    IdentityRoute ++ WalletRoute ++ WithdrawalRoute ++ DestinationRoute.
+    SourceRoute = create_sink_route({<<"/v1/eventsink/source">>,
+        {{ff_proto_source_thrift, 'EventSink'}, {ff_source_eventsink_handler,
+        BeConf#{ns => <<"ff/source_v1">>}}}}),
+    IdentityRoute ++ WalletRoute ++ WithdrawalRoute ++ DestinationRoute ++ SourceRoute.
 
 create_company_account() ->
     PartyID = create_party(),

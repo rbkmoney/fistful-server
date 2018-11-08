@@ -5,6 +5,7 @@
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_source_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
 
 -export([all/0]).
@@ -20,6 +21,7 @@
 -export([get_create_wallet_events_ok/1]).
 -export([get_withdrawal_events_ok/1]).
 -export([get_create_destination_events_ok/1]).
+-export([get_create_source_events_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -197,6 +199,23 @@ get_create_destination_events_ok(C) ->
     MaxID = get_max_sinkevent_id(Events),
     MaxID = LastEvent + length(RawEvents).
 
+-spec get_create_source_events_ok(config()) -> test_return().
+
+get_create_source_events_ok(C) ->
+    Service = {{ff_proto_source_thrift, 'EventSink'}, <<"/v1/eventsink/source">>},
+    LastEvent = unwrap_last_sinkevent_id(
+        call_eventsink_handler('GetLastEventID', Service, [])),
+
+    Party   = create_party(C),
+    IID     = create_person_identity(Party, C),
+    SrcID   = create_source(IID, C),
+
+    {ok, RawEvents} = ff_source:events(SrcID, {undefined, 1000, forward}),
+    {ok, Events} = call_eventsink_handler('GetEvents',
+        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
+    MaxID = get_max_sinkevent_id(Events),
+    MaxID = LastEvent + length(RawEvents).
+
 create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
@@ -321,7 +340,8 @@ get_max_sinkevent_id(Events) when is_list(Events) ->
 get_sinkevent_id(#'wlt_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'wthd_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'idnt_SinkEvent'{id = ID}) -> ID;
-get_sinkevent_id(#'dst_SinkEvent'{id = ID}) -> ID.
+get_sinkevent_id(#'dst_SinkEvent'{id = ID}) -> ID;
+get_sinkevent_id(#'src_SinkEvent'{id = ID}) -> ID.
 
 -spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
 

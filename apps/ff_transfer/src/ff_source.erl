@@ -24,10 +24,14 @@
 -type params()      :: ff_instrument_machine:params(resource()).
 -type machine()     :: ff_instrument_machine:st(resource()).
 
+-type event()       :: ff_instrument:event(resource()).
+-type events()      :: ff_instrument_machine:events(resource()).
+
 -export_type([id/0]).
 -export_type([source/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
+-export_type([event/0]).
 
 %% Accessors
 
@@ -45,6 +49,7 @@
 -export([get_machine/1]).
 -export([get/1]).
 -export([is_accessible/1]).
+-export([events/2]).
 
 %% Accessors
 
@@ -95,3 +100,10 @@ get(Machine) ->
 
 is_accessible(Source) ->
     ff_instrument:is_accessible(Source).
+
+-spec events(id(), machinery:range()) ->
+    {ok, events()} |
+    {error, notfound}.
+
+events(ID, Range) ->
+    ff_transfer_machine:events(?NS, ID, Range).

@@ -66,12 +66,23 @@ marshal(account, #{
         currency = marshal(currency_ref, #{symbolic_code => Currency}),
         accounter_account_id = marshal(event_id, AAID)
     };
+
+marshal(cash, #{
+        amount   := Amount,
+        currency := Currency
+}) ->
+    #'Cash'{
+        amount   = marshal(amount, Amount),
+        currency = marshal(currency_ref, Currency)
+    };
 marshal(currency_ref, #{
-    symbolic_code   := SymbolicCode
+        symbolic_code   := SymbolicCode
 }) ->
     #'CurrencyRef'{
         symbolic_code    = marshal(string, SymbolicCode)
     };
+marshal(amount, V) ->
+    marshal(integer, V);
 
 marshal(timestamp, {{Date, Time}, USec} = V) ->
     case rfc3339:format({Date, Time, USec, 0}) of

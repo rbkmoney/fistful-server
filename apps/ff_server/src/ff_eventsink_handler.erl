@@ -42,10 +42,8 @@ handle_function_(
     'GetLastEventID', _Params, Context,
     #{schema := Schema, client := Client, ns := NS}
 ) ->
-    case machinery_mg_eventsink:get_last_event_id(
-            NS,
-            #{client => {Client, Context}, schema => Schema}
-        ) of
+    Opts = #{client => {Client, Context}, schema => Schema},
+    case machinery_mg_eventsink:get_last_event_id(NS, Opts) of
         {ok, _} = Result ->
             Result;
         {error, no_last_event} ->

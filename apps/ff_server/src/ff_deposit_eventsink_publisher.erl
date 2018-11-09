@@ -1,16 +1,16 @@
--module(ff_withdrawal_eventsink_publisher).
+-module(ff_deposit_eventsink_publisher).
 
 -behaviour(ff_eventsink_publisher).
 
 -export([publish_events/1]).
 
--include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_deposit_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_cashflow_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
 
--type event() :: ff_eventsink_publisher:event(ff_withdrawal:event()).
--type sinkevent() :: ff_eventsink_publisher:sinkevent(ff_proto_withdrawal_thrift:'SinkEvent'()).
+-type event() :: ff_eventsink_publisher:event(ff_deposit:event()).
+-type sinkevent() :: ff_eventsink_publisher:sinkevent(ff_proto_deposit_thrift:'SinkEvent'()).
 
 
 %% Data transform
@@ -48,60 +48,53 @@ publish_event(#{
         {ev, EventDt, Payload}
     }
 }) ->
-    #wthd_SinkEvent{
+    #deposit_SinkEvent{
         id            = marshal(event_id, ID),
         created_at    = marshal(timestamp, Dt),
         source        = marshal(id, SourceID),
-        payload       = #wthd_Event{
+        payload       = #deposit_Event{
             sequence   = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
             changes    = [marshal(event, ff_transfer:maybe_migrate(Payload))]
         }
     }.
+
 %%
 
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
-marshal(event, {created, Withdrawal}) ->
-    {created, marshal(withdrawal, Withdrawal)};
-marshal(event, {status_changed, WithdrawalStatus}) ->
-    {status_changed, marshal(withdrawal_status_changed, WithdrawalStatus)};
+marshal(event, {created, Deposit}) ->
+    {created, marshal(deposit, Deposit)};
+marshal(event, {status_changed, DepositStatus}) ->
+    {status_changed, marshal(deposit_status_changed, DepositStatus)};
 marshal(event, {p_transfer, TransferChange}) ->
     {transfer, marshal(postings_transfer_change, TransferChange)};
-marshal(event, {session_started, SessionID}) ->
-    marshal(session, ?to_session_event(SessionID, started));
-marshal(event, {session_finished, SessionID}) ->
-    marshal(session, ?to_session_event(SessionID, finished));
-marshal(session, {session, SessionChange}) ->
-    {session, marshal(withdrawal_session_change, SessionChange)};
-marshal(event, {route_changed, Route}) ->
-    {route, marshal(withdrawal_route_changed, Route)};
 
-marshal(withdrawal, #{
+marshal(deposit, #{
         body := {Amount, SymCode},
         params := Params
 }) ->
     WalletID = maps:get(wallet_id, Params),
-    DestinationID = maps:get(destination_id, Params),
-    #wthd_Withdrawal{
+    SourceID = maps:get(source_id, Params),
+    #deposit_Deposit{
         body = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
-        source = marshal(id, WalletID),
-        destination = marshal(id, DestinationID)
+        wallet = marshal(id, WalletID),
+        source = marshal(id, SourceID)
     };
 
-marshal(withdrawal_status_changed, pending) ->
-    {pending, #wthd_WithdrawalPending{}};
-marshal(withdrawal_status_changed, succeeded) ->
-    {succeeded, #wthd_WithdrawalSucceeded{}};
-% marshal(withdrawal_status_changed, {failed, #{
+marshal(deposit_status_changed, pending) ->
+    {pending, #deposit_DepositPending{}};
+marshal(deposit_status_changed, succeeded) ->
+    {succeeded, #deposit_DepositSucceeded{}};
+% marshal(deposit_status_changed, {failed, #{
 %         failure := Failure
 %     }}) ->
-%     {failed, #wthd_WithdrawalFailed{failure = marshal(failure, Failure)}};
-marshal(withdrawal_status_changed, {failed, _}) ->
-    {failed, #wthd_WithdrawalFailed{failure = marshal(failure, dummy)}};
+%     {failed, #deposit_DepositFailed{failure = marshal(failure, Failure)}};
+marshal(deposit_status_changed, {failed, _}) ->
+    {failed, #deposit_DepositFailed{failure = marshal(failure, dummy)}};
 marshal(failure, _) ->
-    #wthd_Failure{};
+    #deposit_Failure{};
 
 marshal(postings_transfer_change, {created, Transfer}) ->
     {created, marshal(transfer, Transfer)}; % not ff_transfer :) see thrift
@@ -110,7 +103,7 @@ marshal(postings_transfer_change, {status_changed, TransferStatus}) ->
 marshal(transfer, #{
         final_cash_flow := Cashflow
 }) ->
-    #wthd_Transfer{
+    #deposit_Transfer{
         cashflow = marshal(final_cash_flow, Cashflow)
     };
 marshal(final_cash_flow, #{
@@ -146,33 +139,13 @@ marshal(account_type, CashflowAccount) ->
     % Mapped to thrift type WalletCashFlowAccount as is
     CashflowAccount;
 marshal(transfer_status, created) ->
-    {created, #wthd_TransferCreated{}};
+    {created, #deposit_TransferCreated{}};
 marshal(transfer_status, prepared) ->
-    {prepared, #wthd_TransferPrepared{}};
+    {prepared, #deposit_TransferPrepared{}};
 marshal(transfer_status, committed) ->
-    {committed, #wthd_TransferCommitted{}};
+    {committed, #deposit_TransferCommitted{}};
 marshal(transfer_status, cancelled) ->
-    {cancelled, #wthd_TransferCancelled{}};
-
-marshal(withdrawal_session_change, #{
-        id      := SessionID,
-        payload := Payload
-}) ->
-    #wthd_SessionChange{
-        id      = marshal(id, SessionID),
-        payload = marshal(withdrawal_session_payload, Payload)
-    };
-marshal(withdrawal_session_payload, started) ->
-    {started, #wthd_SessionStarted{}};
-marshal(withdrawal_session_payload, finished) ->
-    {finished, #wthd_SessionFinished{}};
-
-marshal(withdrawal_route_changed, #{
-        provider_id := ProviderID
-}) ->
-    #wthd_RouteChange{
-        id = marshal(id, ProviderID)
-    };
+    {cancelled, #deposit_TransferCancelled{}};
 
 marshal(T, V) ->
     ff_eventsink_publisher:marshal(T, V).

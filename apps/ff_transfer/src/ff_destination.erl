@@ -112,4 +112,4 @@ is_accessible(Destination) ->
     {error, notfound}.
 
 events(ID, Range) ->
-    ff_transfer_machine:events(?NS, ID, Range).
+    ff_instrument_machine:events(?NS, ID, Range).

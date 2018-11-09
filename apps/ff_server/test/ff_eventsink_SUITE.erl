@@ -40,7 +40,8 @@ all() ->
         get_identity_events_ok,
         get_create_wallet_events_ok,
         get_withdrawal_events_ok,
-        get_create_destination_events_ok
+        get_create_destination_events_ok,
+        get_create_source_events_ok
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].

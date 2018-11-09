@@ -4,6 +4,9 @@
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_source_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_deposit_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
 
 -export([all/0]).
@@ -18,6 +21,9 @@
 -export([get_identity_events_ok/1]).
 -export([get_create_wallet_events_ok/1]).
 -export([get_withdrawal_events_ok/1]).
+-export([get_create_destination_events_ok/1]).
+-export([get_create_source_events_ok/1]).
+-export([get_create_deposit_events_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -35,7 +41,10 @@ all() ->
     [
         get_identity_events_ok,
         get_create_wallet_events_ok,
-        get_withdrawal_events_ok
+        get_withdrawal_events_ok,
+        get_create_destination_events_ok,
+        get_create_source_events_ok,
+        get_create_deposit_events_ok
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -167,11 +176,64 @@ get_withdrawal_events_ok(C) ->
     IID     = create_person_identity(Party, C),
     WalID   = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
     SrcID   = create_source(IID, C),
-    succeeded = process_deposit(SrcID, WalID),
+    _DepID  = process_deposit(SrcID, WalID),
     DestID  = create_destination(IID, C),
     WdrID   = process_withdrawal(WalID, DestID),
 
     {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
+    {ok, Events} = call_eventsink_handler('GetEvents',
+        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
+    MaxID = get_max_sinkevent_id(Events),
+    MaxID = LastEvent + length(RawEvents).
+
+-spec get_create_destination_events_ok(config()) -> test_return().
+
+get_create_destination_events_ok(C) ->
+    Service = {{ff_proto_destination_thrift, 'EventSink'}, <<"/v1/eventsink/destination">>},
+    LastEvent = unwrap_last_sinkevent_id(
+        call_eventsink_handler('GetLastEventID', Service, [])),
+
+    Party   = create_party(C),
+    IID     = create_person_identity(Party, C),
+    DestID = create_destination(IID, C),
+
+    {ok, RawEvents} = ff_destination:events(DestID, {undefined, 1000, forward}),
+    {ok, Events} = call_eventsink_handler('GetEvents',
+        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
+    MaxID = get_max_sinkevent_id(Events),
+    MaxID = LastEvent + length(RawEvents).
+
+-spec get_create_source_events_ok(config()) -> test_return().
+
+get_create_source_events_ok(C) ->
+    Service = {{ff_proto_source_thrift, 'EventSink'}, <<"/v1/eventsink/source">>},
+    LastEvent = unwrap_last_sinkevent_id(
+        call_eventsink_handler('GetLastEventID', Service, [])),
+
+    Party   = create_party(C),
+    IID     = create_person_identity(Party, C),
+    SrcID   = create_source(IID, C),
+
+    {ok, RawEvents} = ff_source:events(SrcID, {undefined, 1000, forward}),
+    {ok, Events} = call_eventsink_handler('GetEvents',
+        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
+    MaxID = get_max_sinkevent_id(Events),
+    MaxID = LastEvent + length(RawEvents).
+
+-spec get_create_deposit_events_ok(config()) -> test_return().
+
+get_create_deposit_events_ok(C) ->
+    Service = {{ff_proto_deposit_thrift, 'EventSink'}, <<"/v1/eventsink/deposit">>},
+    LastEvent = unwrap_last_sinkevent_id(
+        call_eventsink_handler('GetLastEventID', Service, [])),
+
+    Party   = create_party(C),
+    IID     = create_person_identity(Party, C),
+    WalID   = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
+    SrcID   = create_source(IID, C),
+    DepID   = process_deposit(SrcID, WalID),
+
+    {ok, RawEvents} = ff_deposit:events(DepID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
     MaxID = get_max_sinkevent_id(Events),
@@ -256,7 +318,8 @@ process_deposit(SrcID, WalID) ->
             ff_deposit:status(ff_deposit:get(DepM))
         end,
         genlib_retry:linear(15, 1000)
-    ).
+    ),
+    DepID.
 
 create_destination(IID, C) ->
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
@@ -300,7 +363,10 @@ get_max_sinkevent_id(Events) when is_list(Events) ->
 
 get_sinkevent_id(#'wlt_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'wthd_SinkEvent'{id = ID}) -> ID;
-get_sinkevent_id(#'idnt_SinkEvent'{id = ID}) -> ID.
+get_sinkevent_id(#'idnt_SinkEvent'{id = ID}) -> ID;
+get_sinkevent_id(#'dst_SinkEvent'{id = ID}) -> ID;
+get_sinkevent_id(#'src_SinkEvent'{id = ID}) -> ID;
+get_sinkevent_id(#'deposit_SinkEvent'{id = ID}) -> ID.
 
 -spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
 

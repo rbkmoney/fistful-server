@@ -45,7 +45,7 @@ publish_event(#{
 -spec marshal(term(), term()) -> term().
 
 marshal(event, {created, Destination}) ->
-    {destination, marshal(destination, Destination)};
+    {created, marshal(destination, Destination)};
 marshal(event, {account, AccountChange}) ->
     {account, marshal(account_change, AccountChange)};
 marshal(event, {status_changed, StatusChange}) ->

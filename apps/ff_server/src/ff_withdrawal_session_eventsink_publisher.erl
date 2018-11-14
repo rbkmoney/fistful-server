@@ -7,11 +7,15 @@
 -include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
+-include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 
 -type event() :: ff_eventsink_publisher:event(ff_withdrawal_session_machine:ev()).
 -type sinkevent() :: ff_eventsink_publisher:sinkevent(
     ff_proto_withdrawal_session_thrift:'SinkEvent'()
 ).
+
+-define(transaction_body_to_cash(Amount, SymCode),
+    #{amount => Amount, currency => #{symbolic_code => SymCode}}).
 
 %%
 %% Internals
@@ -42,18 +46,15 @@ publish_event(#{
         payload       = #wthd_session_Event{
             sequence   = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
-            changes    = [marshal(event, ff_transfer:maybe_migrate(Payload))]
+            changes    = [marshal(event, Payload)]
         }
     }.
 %%
 
-marshal({list, T}, V) ->
-    [marshal(T, E) || E <- V];
-
 marshal(event, {created, Session}) ->
     {created, marshal(session, Session)};
 marshal(event, {next_state, AdapterState}) ->
-    {next_state, marshal(adapter_state, AdapterState)}; % handle in base marshal
+    {next_state, marshal(msgpack_value, AdapterState)}; % handle in base marshal
 marshal(event, {finished, SessionResult}) ->
     {finished, marshal(session_result, SessionResult)};
 
@@ -85,14 +86,14 @@ marshal(session_finished_status, failed) ->
 marshal(withdrawal, Params = #{
         id := WithdrawalID,
         destination := Destination,
-        cash := Cash
+        cash := {Amount, SymCode}
 }) ->
     SenderIdentity = maps:get(sender, Params, undefined),
     ReceiverIdentity = maps:get(receiver, Params, undefined),
-    #wthd_session_withdrawal{
+    #wthd_session_Withdrawal{
         id = marshal(id, WithdrawalID),
         destination = ff_destination_eventsink_publisher:marshal(destination, Destination),
-        cash = marshal(cash, Cash),
+        cash = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
         sender = ff_identity_eventsink_publisher:marshal(identity, SenderIdentity),
         receiver = ff_identity_eventsink_publisher:marshal(identity, ReceiverIdentity)
     };
@@ -101,10 +102,43 @@ marshal(session_result, {success, TransactionInfo}) ->
     {success, #wthd_session_SessionResultSuccess{
         trx_info = marshal(transaction_info, TransactionInfo)
     }};
+marshal(transaction_info, #domain_TransactionInfo{
+    id = TransactionID,
+    timestamp = Timestamp,
+    extra = Extra
+}) ->
+    #'TransactionInfo'
+    {
+        id = marshal(id, TransactionID),
+        timestamp = marshal(timestamp, Timestamp),
+        extra = Extra
+    };
+
 marshal(session_result, {failed, Failure}) ->
     {success, #wthd_session_SessionResultFailed{
         failure = marshal(failure, Failure)
     }};
+
+marshal(failure, #domain_Failure{
+    code = Code,
+    reason = Reason,
+    sub = SubFailure
+}) ->
+    #'Failure'
+    {
+        code = marshal(string, Code),
+        reason = marshal(string, Reason),
+        sub = marshal(sub_failure, SubFailure)
+    };
+marshal(sub_failure, #domain_SubFailure{
+    code = Code,
+    sub = SubFailure
+}) ->
+    #'SubFailure'
+    {
+        code = marshal(string, Code),
+        sub = marshal(sub_failure, SubFailure)
+    };
 
 marshal(T, V) ->
     ff_eventsink_publisher:marshal(T, V).

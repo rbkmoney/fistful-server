@@ -52,39 +52,6 @@ marshal(id, V) ->
 marshal(event_id, V) ->
     marshal(integer, V);
 
-marshal(failure, Params = #{
-    code := Code
-}) ->
-    Reason = maps:get(reason, Params, undefined),
-    SubFailure = maps:get(sub, Params, undefined),
-    #'Failure'
-    {
-        code = marshal(string, Code),
-        reason = marshal(string, Reason),
-        sub = marshal(sub_failure, SubFailure)
-    };
-marshal(sub_failure, Params = #{
-    code := Code
-}) ->
-    SubFailure = maps:get(sub, Params, undefined),
-    #'SubFailure'
-    {
-        code = marshal(string, Code),
-        sub = marshal(sub_failure, SubFailure)
-    };
-
-marshal(transaction_info, Params = #{
-    id := TransactionID,
-    extra := Extra
-}) ->
-    Timestamp = maps:get(timestamp, Params, undefined),
-    #'TransactionInfo'
-    {
-        id = marshal(id, TransactionID),
-        timestamp = marshal(timestamp, Timestamp),
-        extra = Extra
-    };
-
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
 marshal(account, #{
@@ -129,7 +96,7 @@ marshal(string, V) when is_binary(V) ->
 marshal(integer, V) when is_integer(V) ->
     V;
 
-marshal(msgpack, V) when is_integer(V) ->
+marshal(msgpack_value, V) ->
     wrap(V);
 
 % Catch this up in thrift validation

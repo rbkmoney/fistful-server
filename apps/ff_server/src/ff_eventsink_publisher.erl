@@ -5,7 +5,7 @@
 -module(ff_eventsink_publisher).
 
 -include_lib("fistful_proto/include/ff_proto_account_thrift.hrl").
-
+-include_lib("fistful_proto/include/ff_proto_msgpack_thrift.hrl").
 %% API
 
 -type event(T) :: machinery_mg_eventsink:evsink_event(
@@ -52,6 +52,39 @@ marshal(id, V) ->
 marshal(event_id, V) ->
     marshal(integer, V);
 
+marshal(failure, Params = #{
+    code := Code
+}) ->
+    Reason = maps:get(reason, Params, undefined),
+    SubFailure = maps:get(sub, Params, undefined),
+    #'Failure'
+    {
+        code = marshal(string, Code),
+        reason = marshal(string, Reason),
+        sub = marshal(sub_failure, SubFailure)
+    };
+marshal(sub_failure, Params = #{
+    code := Code
+}) ->
+    SubFailure = maps:get(sub, Params, undefined),
+    #'SubFailure'
+    {
+        code = marshal(string, Code),
+        sub = marshal(sub_failure, SubFailure)
+    };
+
+marshal(transaction_info, Params = #{
+    id := TransactionID,
+    extra := Extra
+}) ->
+    Timestamp = maps:get(timestamp, Params, undefined),
+    #'TransactionInfo'
+    {
+        id = marshal(id, TransactionID),
+        timestamp = marshal(timestamp, Timestamp),
+        extra = Extra
+    };
+
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
 marshal(account, #{
@@ -95,7 +128,29 @@ marshal(string, V) when is_binary(V) ->
     V;
 marshal(integer, V) when is_integer(V) ->
     V;
+
+marshal(msgpack, V) when is_integer(V) ->
+    wrap(V);
+
 % Catch this up in thrift validation
 marshal(_, Other) ->
     Other.
+
+wrap(nil) ->
+    {nl, #msgp_Nil{}};
+wrap(V) when is_boolean(V) ->
+    {b, V};
+wrap(V) when is_integer(V) ->
+    {i, V};
+wrap(V) when is_float(V) ->
+    V;
+wrap(V) when is_binary(V) ->
+    % Assuming well-formed UTF-8 bytestring.
+    {str, V};
+wrap({binary, V}) when is_binary(V) ->
+    {bin, V};
+wrap(V) when is_list(V) ->
+    {arr, V};
+wrap(V) when is_map(V) ->
+    {obj, V}.
 

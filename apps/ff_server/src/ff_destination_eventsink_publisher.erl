@@ -4,6 +4,8 @@
 
 -export([publish_events/1]).
 
+-export([marshal/2]).
+
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
 -type event() :: ff_eventsink_publisher:event(ff_destination:event()).

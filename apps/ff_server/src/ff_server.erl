@@ -144,6 +144,11 @@ get_eventsink_routes() ->
             url => Url
         }
     },
+    get_eventsink_route(withdrawal_session, {<<"/v1/eventsink/withdrawal/session">>,
+        {
+            {ff_proto_withdrawal_session_thrift, 'EventSink'},
+            {ff_withdrawal_session_eventsink_publisher, Cfg}
+        }}) ++
     get_eventsink_route(deposit, {<<"/v1/eventsink/deposit">>,
         {{ff_proto_deposit_thrift, 'EventSink'}, {ff_deposit_eventsink_publisher, Cfg}}}) ++
     get_eventsink_route(source, {<<"/v1/eventsink/source">>,

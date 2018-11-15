@@ -5,7 +5,7 @@
 -module(ff_eventsink_publisher).
 
 -include_lib("fistful_proto/include/ff_proto_account_thrift.hrl").
-
+-include_lib("fistful_proto/include/ff_proto_msgpack_thrift.hrl").
 %% API
 
 -type event(T) :: machinery_mg_eventsink:evsink_event(
@@ -68,15 +68,15 @@ marshal(account, #{
     };
 
 marshal(cash, #{
-        amount   := Amount,
-        currency := Currency
+    amount   := Amount,
+    currency := Currency
 }) ->
     #'Cash'{
         amount   = marshal(amount, Amount),
         currency = marshal(currency_ref, Currency)
     };
 marshal(currency_ref, #{
-        symbolic_code   := SymbolicCode
+    symbolic_code   := SymbolicCode
 }) ->
     #'CurrencyRef'{
         symbolic_code    = marshal(string, SymbolicCode)
@@ -95,7 +95,7 @@ marshal(string, V) when is_binary(V) ->
     V;
 marshal(integer, V) when is_integer(V) ->
     V;
+
 % Catch this up in thrift validation
 marshal(_, Other) ->
     Other.
-

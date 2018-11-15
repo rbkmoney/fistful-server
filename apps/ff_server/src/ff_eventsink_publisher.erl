@@ -96,28 +96,6 @@ marshal(string, V) when is_binary(V) ->
 marshal(integer, V) when is_integer(V) ->
     V;
 
-marshal(msgpack_value, V) ->
-    wrap(V);
-
 % Catch this up in thrift validation
 marshal(_, Other) ->
     Other.
-
-wrap(nil) ->
-    {nl, #msgp_Nil{}};
-wrap(V) when is_boolean(V) ->
-    {b, V};
-wrap(V) when is_integer(V) ->
-    {i, V};
-wrap(V) when is_float(V) ->
-    V;
-wrap(V) when is_binary(V) ->
-    % Assuming well-formed UTF-8 bytestring.
-    {str, V};
-wrap({binary, V}) when is_binary(V) ->
-    {bin, V};
-wrap(V) when is_list(V) ->
-    {arr, V};
-wrap(V) when is_map(V) ->
-    {obj, V}.
-

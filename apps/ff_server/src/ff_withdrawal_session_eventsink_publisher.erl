@@ -54,7 +54,7 @@ publish_event(#{
 marshal(event, {created, Session}) ->
     {created, marshal(session, Session)};
 marshal(event, {next_state, AdapterState}) ->
-    {next_state, marshal(msgpack_value, AdapterState)}; % handle in base marshal
+    {next_state, marshal(msgpack_value, AdapterState)};
 marshal(event, {finished, SessionResult}) ->
     {finished, marshal(session_result, SessionResult)};
 
@@ -98,10 +98,14 @@ marshal(withdrawal, Params = #{
         receiver = ff_identity_eventsink_publisher:marshal(identity, ReceiverIdentity)
     };
 
+marshal(msgpack_value, V) ->
+    wrap(V);
+
 marshal(session_result, {success, TransactionInfo}) ->
     {success, #wthd_session_SessionResultSuccess{
         trx_info = marshal(transaction_info, TransactionInfo)
     }};
+% TODO change all dmsl types to fistfull types
 marshal(transaction_info, #domain_TransactionInfo{
     id = TransactionID,
     timestamp = Timestamp,
@@ -142,3 +146,9 @@ marshal(sub_failure, #domain_SubFailure{
 
 marshal(T, V) ->
     ff_eventsink_publisher:marshal(T, V).
+
+% Convert from dmsl to fistful proto
+wrap({nl, #msgpack_Nil{}}) ->
+    {nl, #msgp_Nil{}};
+wrap(Other) ->
+    Other.

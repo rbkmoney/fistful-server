@@ -59,10 +59,10 @@ marshal(event, {finished, SessionResult}) ->
     {finished, marshal(session_result, SessionResult)};
 
 marshal(session, #{
-        id := SessionID,
-        status := SessionStatus,
-        withdrawal := Withdrawal,
-        provider := ProviderID
+    id := SessionID,
+    status := SessionStatus,
+    withdrawal := Withdrawal,
+    provider := ProviderID
 }) ->
     #wthd_session_Session{
         id = marshal(id, SessionID),
@@ -84,9 +84,9 @@ marshal(session_finished_status, failed) ->
     {failed, #wthd_session_SessionFinishedFailed{}};
 
 marshal(withdrawal, Params = #{
-        id := WithdrawalID,
-        destination := Destination,
-        cash := {Amount, SymCode}
+    id := WithdrawalID,
+    destination := Destination,
+    cash := {Amount, SymCode}
 }) ->
     SenderIdentity = maps:get(sender, Params, undefined),
     ReceiverIdentity = maps:get(receiver, Params, undefined),

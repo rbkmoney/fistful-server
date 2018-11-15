@@ -171,9 +171,15 @@ get_eventsink_routes(BeConf) ->
     DepositRoute = create_sink_route({<<"/v1/eventsink/deposit">>,
         {{ff_proto_deposit_thrift, 'EventSink'}, {ff_eventsink_handler,
         BeConf#{ns => <<"ff/deposit_v1">>, publisher => ff_deposit_eventsink_publisher}}}}),
-    IdentityRoute ++ WalletRoute ++
-    WithdrawalRoute ++ WithdrawalSessionRoute ++ DestinationRoute ++
-    SourceRoute ++ DepositRoute.
+    lists:flatten([
+        IdentityRoute,
+        WalletRoute,
+        WithdrawalRoute,
+        WithdrawalSessionRoute,
+        DestinationRoute,
+        SourceRoute,
+        DepositRoute
+    ]).
 
 create_company_account() ->
     PartyID = create_party(),

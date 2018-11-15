@@ -68,15 +68,15 @@ marshal(account, #{
     };
 
 marshal(cash, #{
-        amount   := Amount,
-        currency := Currency
+    amount   := Amount,
+    currency := Currency
 }) ->
     #'Cash'{
         amount   = marshal(amount, Amount),
         currency = marshal(currency_ref, Currency)
     };
 marshal(currency_ref, #{
-        symbolic_code   := SymbolicCode
+    symbolic_code   := SymbolicCode
 }) ->
     #'CurrencyRef'{
         symbolic_code    = marshal(string, SymbolicCode)

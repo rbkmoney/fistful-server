@@ -164,8 +164,11 @@ process_request('GetIdentityChallengeEvent', Params, Context, _Opts) ->
     end;
 
 %% Wallets
-process_request('ListWallets', _Req, _Context, _Opts) ->
-    not_implemented();
+process_request('ListWallets', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:list_wallets(Params, Context) of
+        {ok, List}                 -> wapi_handler_utils:reply_ok(200, List);
+        {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
+    end;
 process_request('GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_wallet(WalletId, Context) of
         {ok, Wallet}                    -> wapi_handler_utils:reply_ok(200, Wallet);
@@ -313,6 +316,11 @@ process_request('GetWithdrawalEvents', #{
         {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {withdrawal, unauthorized}} -> wapi_handler_utils:reply_ok(404);
         {error, {event, notfound}}          -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('ListWithdrawals', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:list_withdrawals(Params, Context) of
+        {ok, List}                 -> wapi_handler_utils:reply_ok(200, List);
+        {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
     end;
 
 %% Residences

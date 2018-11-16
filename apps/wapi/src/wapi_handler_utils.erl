@@ -10,6 +10,8 @@
 -export([reply_error/2]).
 -export([reply_error/3]).
 
+-export([service_call/2]).
+
 -export([throw_not_implemented/0]).
 
 -export([get_owner/1]).
@@ -92,3 +94,16 @@ get_location(PathSpec, Params, _Opts) ->
     %% TODO pass base URL via Opts
     BaseUrl = genlib_app:env(?APP, public_endpoint),
     [{<<"Location">>, wapi_utils:get_url(BaseUrl, PathSpec, Params)}].
+
+-spec service_call(
+    {
+        wapi_woody_client:service_name(),
+        woody:func(),
+        [term()]
+    },
+    handler_context()
+) ->
+    woody:result().
+
+service_call({ServiceName, Function, Args}, #{woody_context := WoodyContext}) ->
+    wapi_woody_client:call_service(ServiceName, Function, Args, WoodyContext).

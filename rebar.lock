@@ -38,7 +38,7 @@
   0},
  {<<"fistful_proto">>,
   {git,"git@github.com:rbkmoney/fistful-proto.git",
-       {ref,"37ccefb5dd1c87d1fcda36a46149d0c5b3320340"}},
+       {ref,"8994087cb7ce217d370231c8e424b46813ac9d76"}},
   0},
  {<<"genlib">>,
   {git,"https://github.com/rbkmoney/genlib.git",

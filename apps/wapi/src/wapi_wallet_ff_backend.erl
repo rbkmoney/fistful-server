@@ -46,6 +46,7 @@
 -type result()      :: result(map()).
 -type result(T)     :: result(T, notfound).
 -type result(T, E)  :: {ok, T} | {error, E}.
+-type result_stat() :: {ok, {integer(), list(), iolist()}}.
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 
@@ -255,9 +256,8 @@ get_wallet_account(WalletId, Context) ->
         to_swag(wallet_account, {ff_indef:current(Amounts), ff_indef:expmin(Amounts), Currency})
     end).
 
--spec list_wallets(params(), ctx()) -> result([map()],
-    {bad_request, term()}
-).
+-spec list_wallets(params(), ctx()) ->
+    result_stat().
 list_wallets(Params, Context) ->
     StatType = wallet_stat,
     Dsl = create_stat_dsl(StatType, Params, Context),
@@ -349,9 +349,8 @@ get_withdrawal_event(WithdrawalId, EventId, Context) ->
     end,
     get_event({withdrawal, event}, WithdrawalId, EventId, Mapper, Context).
 
--spec list_withdrawals(params(), ctx()) -> result([map()],
-    {bad_request, term()}
-).
+-spec list_withdrawals(params(), ctx()) ->
+    result_stat().
 
 list_withdrawals(Params, Context) ->
     StatType = withdrawal_stat,
@@ -556,9 +555,9 @@ process_stat_result(StatType, Result) ->
             {ok, {200, [], Responce}};
         {exception, #fistfulstat_InvalidRequest{errors = Errors}} ->
             FormattedErrors = format_request_errors(Errors),
-            {ok, {400, [], wapi_handler_utils:bad_request_error(invalidRequest, FormattedErrors)}};
+            {ok, {400, [], bad_request_error(invalidRequest, FormattedErrors)}};
         {exception, #fistfulstat_BadToken{reason = Reason}} ->
-            {ok, {400, [], wapi_handler_utils:bad_request_error(invalidRequest, Reason)}}
+            {ok, {400, [], bad_request_error(invalidRequest, Reason)}}
     end.
 
 get_time(Key, Req) ->

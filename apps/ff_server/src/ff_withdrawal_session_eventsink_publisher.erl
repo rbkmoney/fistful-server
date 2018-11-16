@@ -99,7 +99,7 @@ marshal(withdrawal, Params = #{
     };
 
 marshal(msgpack_value, V) ->
-    wrap(V);
+    convert(V);
 
 marshal(session_result, {success, TransactionInfo}) ->
     {success, #wthd_session_SessionResultSuccess{
@@ -148,7 +148,19 @@ marshal(T, V) ->
     ff_eventsink_publisher:marshal(T, V).
 
 % Convert from dmsl to fistful proto
-wrap({nl, #msgpack_Nil{}}) ->
+convert({nl, #msgpack_Nil{}}) ->
     {nl, #msgp_Nil{}};
-wrap(Other) ->
+convert({arr, List}) when is_list(List) ->
+    {arr, [convert(V) || V <- List]};
+convert({obj, Map}) when is_map(Map) ->
+    {obj, maps:fold(
+        fun (K, V, Acc) ->
+            NewK = convert(K),
+            NewV = convert(V),
+            Acc#{NewK => NewV}
+        end,
+        #{},
+        Map
+    )};
+convert(Other) ->
     Other.

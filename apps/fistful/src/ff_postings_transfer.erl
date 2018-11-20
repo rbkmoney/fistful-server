@@ -218,7 +218,7 @@ construct_trx_posting(Posting) ->
     {SenderAccount, ReceiverAccount, Volume}.
 
 %% Event migrations
--spec maybe_migrate(any(), atom()) -> event().
+-spec maybe_migrate(any(), withdrawal | deposit) -> event().
 % Actual events
 maybe_migrate({created, #{final_cash_flow := CashFlow} = EvBody}, EvType) ->
     {created, EvBody#{final_cash_flow => maybe_migrate_cash_flow(CashFlow, EvType)}};

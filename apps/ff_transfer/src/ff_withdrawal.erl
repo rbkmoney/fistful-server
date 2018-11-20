@@ -50,6 +50,10 @@
 -export([get_machine/1]).
 -export([events/2]).
 
+%% Event source
+
+-export([maybe_migrate/1]).
+
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
@@ -364,3 +368,9 @@ validate_wallet_limits(WalletID, Body, Account) ->
     Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
     Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
     unwrap(wallet_limit, ff_party:validate_wallet_limits(Account, Terms)).
+
+-spec maybe_migrate(ff_transfer:event() | ff_transfer:legacy_event()) ->
+    ff_transfer:event().
+
+maybe_migrate(Ev) ->
+    ff_transfer:maybe_migrate(Ev, withdrawal).

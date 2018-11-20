@@ -16,9 +16,11 @@
 
 -export_type([id/0]).
 -export_type([st/1]).
+-export_type([events/1]).
 
 -export([create/4]).
 -export([get/2]).
+-export([events/3]).
 
 %% Accessors
 
@@ -75,8 +77,8 @@ instrument(St) ->
 
 %% Machinery
 
--type event(T) ::
-    ff_instrument:event(T).
+-type event(T)       :: ff_instrument:event(T).
+-type events(T)      :: [{integer(), ff_machine:timestamped_event(event(T))}].
 
 -type machine()      :: ff_machine:machine(event(_)).
 -type result()       :: ff_machine:result(event(_)).
@@ -122,3 +124,16 @@ deduce_activity(#{}) ->
 
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
+
+-spec events(ns(), id(), machinery:range()) ->
+    {ok, events(_)} |
+    {error, notfound}.
+
+events(NS, ID, Range) ->
+    do(fun () ->
+        #{history := History} = unwrap(machinery:get(NS, ID, Range, backend(NS))),
+        [{EventID, TsEv} || {EventID, _, TsEv} <- History]
+    end).
+
+backend(NS) ->
+    fistful:backend(NS).

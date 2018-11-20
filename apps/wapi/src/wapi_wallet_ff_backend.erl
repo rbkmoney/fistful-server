@@ -351,7 +351,6 @@ get_withdrawal_event(WithdrawalId, EventId, Context) ->
 
 -spec list_withdrawals(params(), ctx()) ->
     {ok, result_stat()} | {error, result_stat()}.
-
 list_withdrawals(Params, Context) ->
     StatType = withdrawal_stat,
     Dsl = create_stat_dsl(StatType, Params, Context),
@@ -589,8 +588,14 @@ decode_stat(withdrawal_stat, Response) ->
         <<"createdAt"   >> => Response#fistfulstat_StatWithdrawal.created_at,
         <<"wallet"      >> => Response#fistfulstat_StatWithdrawal.source_id,
         <<"destination" >> => Response#fistfulstat_StatWithdrawal.destination_id,
-        <<"body"        >> => Response#fistfulstat_StatWithdrawal.amount,
-        <<"fee"         >> => Response#fistfulstat_StatWithdrawal.fee
+        <<"body"        >> => decode_withdrawal_cash(
+            Response#fistfulstat_StatWithdrawal.amount,
+            Response#fistfulstat_StatWithdrawal.currency_symbolic_code
+        ),
+        <<"fee"         >> => decode_withdrawal_cash(
+            Response#fistfulstat_StatWithdrawal.fee,
+            Response#fistfulstat_StatWithdrawal.currency_symbolic_code
+        )
     }, decode_withdrawal_stat_status(Response#fistfulstat_StatWithdrawal.status));
 decode_stat(wallet_stat, Response) ->
     #{
@@ -599,6 +604,9 @@ decode_stat(wallet_stat, Response) ->
         <<"identity"    >> => Response#fistfulstat_StatWallet.identity_id,
         <<"currency"    >> => Response#fistfulstat_StatWallet.currency_symbolic_code
     }.
+
+decode_withdrawal_cash(Amount, Currency) ->
+    #{<<"amount">> => Amount, <<"currency">> => Currency}.
 
 decode_withdrawal_stat_status({pending, #fistfulstat_WithdrawalPending{}}) ->
     #{<<"status">> => <<"Pending">>};

@@ -31,6 +31,7 @@
 -type response_data() :: wapi_handler:response_data().
 
 -type owner() :: binary().
+-type args()  :: [term()].
 -export_type([owner/0]).
 
 %% API
@@ -99,7 +100,7 @@ get_location(PathSpec, Params, _Opts) ->
     {
         wapi_woody_client:service_name(),
         woody:func(),
-        [term()]
+        args()
     },
     handler_context()
 ) ->

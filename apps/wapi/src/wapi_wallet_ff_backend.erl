@@ -512,27 +512,27 @@ next_id(Type) ->
 
 create_stat_dsl(withdrawal_stat, Req, Context) ->
     Query = #{
-        <<"merchant_id"     >> => wapi_handler_utils:get_owner(Context),
+        <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
         <<"wallet_id"       >> => genlib_map:get(walletID, Req),
         <<"identity_id"     >> => genlib_map:get(identityID, Req),
         <<"destination_id"  >> => genlib_map:get(destinationID, Req),
         <<"status"          >> => genlib_map:get(status, Req),
-        <<"created_at_from" >> => get_time(createdAtFrom, Req),
-        <<"created_at_to"   >> => get_time(createdAtTo, Req),
+        <<"from_time"       >> => get_time(createdAtFrom, Req),
+        <<"to_time"         >> => get_time(createdAtTo, Req),
         <<"amount_from"     >> => genlib_map:get(amountFrom, Req),
         <<"amount_to"       >> => genlib_map:get(amountTo, Req),
-        <<"currency_id"     >> => genlib_map:get(currencyID, Req),
-        <<"limit"           >> => genlib_map:get(limit, Req)
+        <<"currency_code"   >> => genlib_map:get(currencyID, Req)
     },
-    jsx:encode(create_dsl(Query, #{}));
+    QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
+    jsx:encode(create_dsl(withdrawals, Query, QueryParams));
 create_stat_dsl(wallet_stat, Req, Context) ->
     Query = #{
-        <<"merchant_id"     >> => wapi_handler_utils:get_owner(Context),
+        <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
         <<"identity_id"     >> => genlib_map:get(identityID, Req),
-        <<"currency_id"     >> => genlib_map:get(currencyID, Req),
-        <<"limit"           >> => genlib_map:get(limit, Req)
+        <<"currency_code"   >> => genlib_map:get(currencyID, Req)
     },
-    jsx:encode(create_dsl(Query, #{})).
+    QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
+    jsx:encode(create_dsl(wallets, Query, QueryParams)).
 
 create_stat_request(Dsl, Token) ->
     #fistfulstat_StatRequest{
@@ -567,11 +567,11 @@ get_time(Key, Req) ->
             undefined
     end.
 
-create_dsl(Query, QueryParams) ->
-    merge_and_compact(
-        #{<<"query">> => genlib_map:compact(Query)},
+create_dsl(StatTag, Query, QueryParams) ->
+    #{<<"query">> => merge_and_compact(
+        maps:put(genlib:to_binary(StatTag), genlib_map:compact(Query), #{}),
         QueryParams
-    ).
+    )}.
 
 merge_and_compact(M1, M2) ->
     genlib_map:compact(maps:merge(M1, M2)).

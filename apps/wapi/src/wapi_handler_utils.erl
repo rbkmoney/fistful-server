@@ -35,6 +35,7 @@
 
 -type owner() :: binary().
 -type args()  :: [term()].
+-type hash()  :: binary().
 -export_type([owner/0]).
 
 %% API
@@ -114,8 +115,8 @@ service_call({ServiceName, Function, Args}, #{woody_context := WoodyContext}) ->
 
 -spec check_request(atom(), binary() | undefined, {atom(), req_data(), handler_context()}) ->
     {ok, continue} |
-    {ok, repeat} |
-    {error, {bad_data, req_data()}}.
+    {ok, accepted} |
+    {error, {check_failed, hash()}}.
 
 check_request(_, undefined, _) ->
     {ok, continue};
@@ -127,12 +128,12 @@ check_request(Tag, ExternalID, {OperationID, Req, Context}) ->
         request     => {OperationID, Req}
     },
     case ff_checker:check(Params) of
-        {ok, {already_in_use, _}} ->
-            {ok, repeat};
-        {ok, _} ->
-            {ok, continue};
+        {ok, continue} = Result ->
+            Result;
+        {ok, accepted} ->
+            reply_ok(202);
         {error, _} ->
-            {error, {bad_data, Req}}
+            reply_error(400)
     end.
 
 

@@ -8,8 +8,8 @@
 
 %% API
 -type check_result() ::
-    {ok, hash()} |
-    {ok, {already_in_use, hash()}} |
+    {ok, continue} |
+    {ok, accepted} |
     {error, {check_failed, hash()}}.
 
 -type params() :: #{
@@ -53,7 +53,7 @@ check(Params = #{request := Request}) ->
             compare_hash(Hash, OldHash);
         {error, notfound} ->
             _ = machinery:start(?NS, ID, Hash, backend()),
-            {ok, Hash}
+            {ok, continue}
     end.
 
 %% Machinery
@@ -101,13 +101,13 @@ create_id(#{
     party_id    := PartyID
 }) ->
     Name = erlang:term_to_binary(EntityName),
-    <<"ff/eid/",Name/binary,"/",PartyID/binary,"/",ExternalID/binary>>.
+    <<"ff/eid/", Name/binary, "/", PartyID/binary, "/", ExternalID/binary>>.
 
 get_request_hash(Data) ->
     crypto:hash(sha224, Data).
 
 compare_hash(Hash, Hash) ->
-    {ok, {already_in_use, Hash}};
+    {ok, accepted};
 compare_hash(Hash, _OldHash) ->
     {error, {check_failed, Hash}}.
 

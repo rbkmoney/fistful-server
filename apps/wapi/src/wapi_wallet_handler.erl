@@ -9,6 +9,7 @@
 
 %% wapi_handler callbacks
 -export([process_request/4]).
+-export([check_request/4]).
 
 %% Types
 
@@ -35,6 +36,13 @@ handle_request(OperationID, Req, SwagContext, Opts) ->
 
 
 %% Providers
+-spec check_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
+    request_result() | {ok, continue}.
+check_request(OperationID, Req, Context, _Opts) ->
+    Tag = get_tag(OperationID),
+    ExternalID = genlib_map:get(externalID, Req),
+    wapi_handler_utils:check_request(Tag, ExternalID, {OperationID, Req, Context}).
+
 -spec process_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
     request_result().
 process_request('ListProviders', #{'residence' := Residence}, Context, _Opts) ->
@@ -364,3 +372,9 @@ get_expiration_deadline(Expiration) ->
         false ->
             {error, expired}
     end.
+
+get_tag(Tag) when
+    Tag =:= 'CreateWithdrawal' orelse
+    Tag =:= 'GetWithdrawal'
+->
+    withdrawal.

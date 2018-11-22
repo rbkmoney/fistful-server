@@ -56,6 +56,7 @@ init([]) ->
     % TODO
     %  - Make it palatable
     {Backends, Handlers} = lists:unzip([
+        contruct_backend_childspec('ff/checker'               , ff_checker),
         contruct_backend_childspec('ff/sequence'              , ff_sequence),
         contruct_backend_childspec('ff/identity'              , ff_identity_machine),
         contruct_backend_childspec('ff/wallet_v2'             , ff_wallet_machine),
@@ -149,18 +150,18 @@ get_eventsink_routes() ->
             {ff_proto_withdrawal_session_thrift, 'EventSink'},
             {ff_withdrawal_session_eventsink_publisher, Cfg}
         }}) ++
-    get_eventsink_route(deposit, {<<"/v1/eventsink/deposit">>,
-        {{ff_proto_deposit_thrift, 'EventSink'}, {ff_deposit_eventsink_publisher, Cfg}}}) ++
-    get_eventsink_route(source, {<<"/v1/eventsink/source">>,
-        {{ff_proto_source_thrift, 'EventSink'}, {ff_source_eventsink_publisher, Cfg}}}) ++
-    get_eventsink_route(destination, {<<"/v1/eventsink/destination">>,
-        {{ff_proto_destination_thrift, 'EventSink'}, {ff_destination_eventsink_publisher, Cfg}}}) ++
-    get_eventsink_route(identity, {<<"/v1/eventsink/identity">>,
-        {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_publisher, Cfg}}}) ++
-    get_eventsink_route(wallet, {<<"/v1/eventsink/wallet">>,
-        {{ff_proto_wallet_thrift, 'EventSink'}, {ff_wallet_eventsink_publisher, Cfg}}}) ++
-    get_eventsink_route(withdrawal, {<<"/v1/eventsink/withdrawal">>,
-        {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_withdrawal_eventsink_publisher, Cfg}}}).
+    get_eventsink_route(deposit,        {<<"/v1/eventsink/deposit">>,
+        {{ff_proto_deposit_thrift,      'EventSink'}, {ff_deposit_eventsink_publisher, Cfg}}}) ++
+    get_eventsink_route(source,         {<<"/v1/eventsink/source">>,
+        {{ff_proto_source_thrift,       'EventSink'}, {ff_source_eventsink_publisher, Cfg}}}) ++
+    get_eventsink_route(destination,    {<<"/v1/eventsink/destination">>,
+        {{ff_proto_destination_thrift,  'EventSink'}, {ff_destination_eventsink_publisher, Cfg}}}) ++
+    get_eventsink_route(identity,       {<<"/v1/eventsink/identity">>,
+        {{ff_proto_identity_thrift,     'EventSink'}, {ff_identity_eventsink_publisher, Cfg}}}) ++
+    get_eventsink_route(wallet,         {<<"/v1/eventsink/wallet">>,
+        {{ff_proto_wallet_thrift,       'EventSink'}, {ff_wallet_eventsink_publisher, Cfg}}}) ++
+    get_eventsink_route(withdrawal,     {<<"/v1/eventsink/withdrawal">>,
+        {{ff_proto_withdrawal_thrift,   'EventSink'}, {ff_withdrawal_eventsink_publisher, Cfg}}}).
 
 get_eventsink_route(RouteType, {DefPath, {Module, {Publisher, Cfg}}}) ->
     RouteMap = genlib_app:env(?MODULE, eventsink, #{}),

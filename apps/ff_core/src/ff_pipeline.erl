@@ -175,8 +175,7 @@ transform_do(Tree) ->
 
 build_do_statement(Pos, Body) ->
     ThrownVar = build_var(<<"Thrown">>, Pos),
-    Error = ?Q("_@ThrownVar"),
-    build_do_statement(Pos, ThrownVar, Error, Body).
+    build_do_statement(Pos, ThrownVar, ThrownVar, Body).
 
 build_do_statement(Pos, Tag, Body) ->
     ThrownVar = build_var(<<"Thrown">>, Pos),

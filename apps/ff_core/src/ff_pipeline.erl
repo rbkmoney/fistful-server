@@ -61,9 +61,8 @@ unwrap({ok, V}) ->
 unwrap({error, E}) ->
     throw(E).
 
--spec wrap
-    (ok)         -> ok;
-    (V)          -> {ok, V}.
+-spec wrap(any()) ->
+    ok | {ok, any()}.
 
 wrap(ok) ->
     ok;

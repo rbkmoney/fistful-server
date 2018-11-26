@@ -32,6 +32,7 @@
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
 -export([process_transfer/1]).
+-export([process_failure/2]).
 
 %% Accessors
 
@@ -46,6 +47,10 @@
 -export([get/1]).
 -export([get_machine/1]).
 -export([events/2]).
+
+%% Event source
+
+-export([maybe_migrate/1]).
 
 %% Pipeline
 
@@ -152,6 +157,13 @@ process_transfer(Deposit) ->
     Activity = deduce_activity(Deposit),
     do_process_transfer(Activity, Deposit).
 
+-spec process_failure(any(), deposit()) ->
+    {ok, process_result()} |
+    {error, _Reason}.
+
+process_failure(Reason, Deposit) ->
+    ff_transfer:process_failure(Reason, Deposit).
+
 %% Internals
 
 -type activity() ::
@@ -215,3 +227,8 @@ finish_transfer(_Deposit) ->
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->
     <<"ff/deposit/", ID/binary>>.
+
+-spec maybe_migrate(ff_transfer:event() | ff_transfer:legacy_event()) ->
+    ff_transfer:event().
+maybe_migrate(Ev) ->
+    ff_transfer:maybe_migrate(Ev, deposit).

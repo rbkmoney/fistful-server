@@ -19,6 +19,7 @@
 
 -export([create/3]).
 -export([get/1]).
+-export([events/2]).
 
 %% Accessors
 
@@ -37,6 +38,8 @@
 -compile({parse_transform, ff_pipeline}).
 -import(ff_pipeline, [unwrap/1]).
 
+-define(NS, 'ff/wallet_v2').
+
 %% Accessors
 
 -spec wallet(st())  -> wallet().
@@ -45,8 +48,6 @@ wallet(St) ->
     ff_machine:model(St).
 
 %%
-
--define(NS, 'ff/wallet_v2').
 
 -type params() :: #{
     identity   := ff_identity_machine:id(),
@@ -73,6 +74,19 @@ create(ID, #{identity := IdentityID, name := Name, currency := CurrencyID}, Ctx)
 
 get(ID) ->
     ff_machine:get(ff_wallet, ?NS, ID).
+
+-spec events(id(), machinery:range()) ->
+    {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
+    {error, notfound}.
+
+events(ID, Range) ->
+    ff_pipeline:do(fun () ->
+        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
+        [{EventID, TsEv} || {EventID, _, TsEv} <- History]
+    end).
+
+backend() ->
+    fistful:backend(?NS).
 
 %% machinery
 

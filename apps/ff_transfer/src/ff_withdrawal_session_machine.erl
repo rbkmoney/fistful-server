@@ -18,6 +18,7 @@
 -export([create/3]).
 -export([get/1]).
 -export([status/1]).
+-export([events/2]).
 
 %% machinery
 
@@ -79,6 +80,10 @@
     adapter_state => ff_adapter:state()
 }.
 
+-type events()   :: [{integer(), ff_machine:timestamped_event(ev())}].
+
+-export_type([ev/0]).
+
 %% Pipeline
 
 -compile({parse_transform, ff_pipeline}).
@@ -108,6 +113,16 @@ create(ID, Data, Params) ->
 get(ID) ->
     ff_pipeline:do(fun () ->
         session(collapse(unwrap(machinery:get(?NS, ID, backend()))))
+    end).
+
+-spec events(id(), machinery:range()) ->
+    {ok, events()} |
+    {error, notfound}.
+
+events(ID, Range) ->
+    do(fun () ->
+        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
+        [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 
 backend() ->

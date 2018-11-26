@@ -93,6 +93,7 @@ init([]) ->
                                 )
                             ) ++
                             get_admin_routes() ++
+                            get_eventsink_routes() ++
                             [erl_health_handle:get_route(HealthCheckers)]
                     }
                 )
@@ -132,3 +133,51 @@ get_admin_routes() ->
         event_handler => scoper_woody_event_handler,
         handler_limits => Limits
     })).
+
+get_eventsink_routes() ->
+    Url = maps:get(eventsink, genlib_app:env(?MODULE, services, #{}),
+        "http://machinegun:8022/v1/event_sink"),
+    Cfg = #{
+        schema => machinery_mg_schema_generic,
+        client => #{
+            event_handler => scoper_woody_event_handler,
+            url => Url
+        }
+    },
+    get_eventsink_route(withdrawal_session, {<<"/v1/eventsink/withdrawal/session">>,
+        {
+            {ff_proto_withdrawal_session_thrift, 'EventSink'},
+            {ff_withdrawal_session_eventsink_publisher, Cfg}
+        }}) ++
+    get_eventsink_route(deposit, {<<"/v1/eventsink/deposit">>,
+        {{ff_proto_deposit_thrift, 'EventSink'}, {ff_deposit_eventsink_publisher, Cfg}}}) ++
+    get_eventsink_route(source, {<<"/v1/eventsink/source">>,
+        {{ff_proto_source_thrift, 'EventSink'}, {ff_source_eventsink_publisher, Cfg}}}) ++
+    get_eventsink_route(destination, {<<"/v1/eventsink/destination">>,
+        {{ff_proto_destination_thrift, 'EventSink'}, {ff_destination_eventsink_publisher, Cfg}}}) ++
+    get_eventsink_route(identity, {<<"/v1/eventsink/identity">>,
+        {{ff_proto_identity_thrift, 'EventSink'}, {ff_identity_eventsink_publisher, Cfg}}}) ++
+    get_eventsink_route(wallet, {<<"/v1/eventsink/wallet">>,
+        {{ff_proto_wallet_thrift, 'EventSink'}, {ff_wallet_eventsink_publisher, Cfg}}}) ++
+    get_eventsink_route(withdrawal, {<<"/v1/eventsink/withdrawal">>,
+        {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_withdrawal_eventsink_publisher, Cfg}}}).
+
+get_eventsink_route(RouteType, {DefPath, {Module, {Publisher, Cfg}}}) ->
+    RouteMap = genlib_app:env(?MODULE, eventsink, #{}),
+    case maps:get(RouteType, RouteMap, undefined) of
+        undefined ->
+            erlang:error({eventsink_undefined, RouteType});
+        Opts ->
+            Path = maps:get(path, Opts, DefPath),
+            NS = maps:get(namespace, Opts),
+            Limits = genlib_map:get(handler_limits, Opts),
+            woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+                handlers => [
+                    {Path, {Module, {
+                        ff_eventsink_handler,
+                        Cfg#{ns => NS, publisher => Publisher}
+                }}}],
+                event_handler => scoper_woody_event_handler,
+                handler_limits => Limits
+            }))
+    end.

@@ -91,7 +91,6 @@ create(ID, IdentityID, Name, CurrencyID) ->
     ff_pipeline:do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Contract = ff_identity:contract(Identity),
-        Contract = ff_identity:contract(Identity),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Wallet = #{
             name => Name,

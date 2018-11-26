@@ -59,10 +59,12 @@
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
 -export([process_transfer/1]).
+-export([process_failure/2]).
 
 %% Event source
 
 -export([apply_event/2]).
+-export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -154,6 +156,26 @@ create(TransferType, ID, Body, Params) ->
 process_transfer(Transfer) ->
     process_activity(deduce_activity(Transfer), Transfer).
 
+-spec process_failure(any(), transfer()) ->
+    {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(event())]}} |
+    {error, _Reason}.
+
+process_failure(Reason, Transfer) ->
+    {ok, ShutdownEvents} = do_process_failure(Reason, Transfer),
+    {ok, {undefined, ShutdownEvents ++ [{status_changed, {failed, Reason}}]}}.
+
+do_process_failure(_Reason, #{status := pending, p_transfer := #{status := created}}) ->
+    {ok, []};
+do_process_failure(_Reason, #{status := pending, p_transfer := #{status := prepared}} = Transfer) ->
+    ff_pipeline:do(fun () ->
+        unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))
+    end);
+do_process_failure(Reason, #{status := pending, p_transfer := #{status := committed}}) ->
+    erlang:error({unprocessable_failure, committed_p_transfer, Reason});
+do_process_failure(_Reason, Transfer) ->
+    no_p_transfer = maps:get(p_transfer, Transfer, no_p_transfer),
+    {ok, []}.
+
 -type activity() ::
     prepare_transfer         |
     commit_transfer          |
@@ -186,7 +208,7 @@ process_activity(cancel_transfer, Transfer) ->
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
 apply_event(Ev, T) ->
-    apply_event_(maybe_migrate(Ev), T).
+    apply_event_(maybe_migrate(Ev, maybe_transfer_type(T)), T).
 
 -spec apply_event_(event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
@@ -205,15 +227,20 @@ apply_event_({session_finished, S}, T = #{session_id := S}) ->
 apply_event_({route_changed, R}, T) ->
     maps:put(route, R, T).
 
--spec maybe_migrate(event() | legacy_event()) ->
+maybe_transfer_type(undefined) ->
+    undefined;
+maybe_transfer_type(T) ->
+    transfer_type(T).
+
+-spec maybe_migrate(event() | legacy_event(), transfer_type() | undefined) ->
     event().
 % Actual events
-maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _) ->
     Ev;
-maybe_migrate({p_transfer, PEvent}) ->
-    {p_transfer, ff_postings_transfer:maybe_migrate(PEvent)};
+maybe_migrate({p_transfer, PEvent}, EventType) ->
+    {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, EventType)};
 % Old events
-maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
+maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, EventType) ->
     #{
         version     := 1,
         id          := ID,
@@ -246,8 +273,8 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
                 ]
             }
         }
-    }});
-maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
+    }}, EventType);
+maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, EventType) ->
     #{
         version     := 1,
         id          := ID,
@@ -280,8 +307,8 @@ maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
                 ]
             }
         }
-    }});
-maybe_migrate({created, T}) ->
+    }}, EventType);
+maybe_migrate({created, T}, EventType) ->
     DestinationID = maps:get(destination, T),
     {ok, DestinationSt} = ff_destination:get_machine(DestinationID),
     DestinationAcc = ff_destination:account(ff_destination:get(DestinationSt)),
@@ -297,9 +324,9 @@ maybe_migrate({created, T}) ->
             destination => DestinationID,
             source      => SourceID
         }
-    }});
-maybe_migrate({transfer, PTransferEv}) ->
-    maybe_migrate({p_transfer, PTransferEv});
+    }}, EventType);
+maybe_migrate({transfer, PTransferEv}, EventType) ->
+    maybe_migrate({p_transfer, PTransferEv}, EventType);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate(Ev, _) ->
     Ev.

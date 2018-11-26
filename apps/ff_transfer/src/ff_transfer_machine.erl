@@ -38,6 +38,10 @@
     {ok, {action(), [event(_)]}} |
     {error, _Reason}.
 
+-callback process_failure(_Reason, transfer(_)) ->
+    {ok, {action(), [event(_)]}} |
+    {error, _Reason}.
+
 -optional_callbacks([process_call/2]).
 
 %% API
@@ -152,10 +156,12 @@ process_result({ok, {Action, Events}}, St) ->
         events => set_events(Events),
         action => set_action(Action, St)
     });
-process_result({error, Reason}, _St) ->
-    #{
-        events => emit_failure(Reason)
-    }.
+process_result({error, Reason}, St) ->
+    {ok, {Action, Events}} = handler_process_failure(Reason, transfer(St)),
+    genlib_map:compact(#{
+        events => set_events(Events),
+        action => set_action(Action, St)
+    }).
 
 set_events([]) ->
     undefined;
@@ -171,8 +177,6 @@ set_action(poll, St) ->
     Timeout = erlang:max(1, machinery_time:interval(Now, ff_machine:updated(St)) div 1000),
     {set_timer, {timeout, Timeout}}.
 
-emit_failure(Reason) ->
-    ff_machine:emit_event({status_changed, {failed, Reason}}).
 
 %% Handler convertors
 
@@ -205,3 +209,7 @@ handler_process_call(CallArgs, Transfer) ->
 handler_process_transfer(Transfer) ->
     Handler = transfer_handler(Transfer),
     Handler:process_transfer(Transfer).
+
+handler_process_failure(Reason, Transfer) ->
+    Handler = transfer_handler(Transfer),
+    Handler:process_failure(Reason, Transfer).

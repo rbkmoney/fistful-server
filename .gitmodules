@@ -1,6 +1,6 @@
 [submodule "build-utils"]
 	path = build-utils
-	url = git+ssh://github.com/rbkmoney/build_utils
+	url = git@github.com:rbkmoney/build_utils.git
 [submodule "schemes/swag"]
 	path = schemes/swag
 	url = git@github.com:rbkmoney/swag-wallets.git

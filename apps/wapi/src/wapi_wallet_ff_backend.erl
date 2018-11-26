@@ -4,6 +4,8 @@
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
 
+-compile({parse_transform, ff_pipeline}).
+
 %% API
 -export([get_providers/2]).
 -export([get_provider/2]).
@@ -67,11 +69,13 @@ get_providers(Residences, _Context) ->
 
 -spec get_provider(id(), ctx()) -> result().
 get_provider(ProviderId, _Context) ->
-    do(fun() -> to_swag(provider, unwrap(ff_provider:get(ProviderId))) end).
+    ff_pipeline:do(fun() ->
+        to_swag(provider, unwrap(ff_provider:get(ProviderId)))
+    end).
 
 -spec get_provider_identity_classes(id(), ctx()) -> result([map()]).
 get_provider_identity_classes(Id, _Context) ->
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         Provider = unwrap(ff_provider:get(Id)),
         lists:map(
             fun(ClassId) -> get_provider_identity_class(ClassId, Provider) end,
@@ -81,7 +85,9 @@ get_provider_identity_classes(Id, _Context) ->
 
 -spec get_provider_identity_class(id(), id(), ctx()) -> result().
 get_provider_identity_class(ProviderId, ClassId, _Context) ->
-    do(fun() -> get_provider_identity_class(ClassId, unwrap(ff_provider:get(ProviderId))) end).
+    ff_pipeline:do(fun() ->
+        get_provider_identity_class(ClassId, unwrap(ff_provider:get(ProviderId)))
+    end).
 
 get_provider_identity_class(ClassId, Provider) ->
     to_swag(identity_class, unwrap(ff_provider:get_identity_class(ClassId, Provider))).
@@ -105,7 +111,9 @@ get_identities(_Params, _Context) ->
     {identity, unauthorized}
 ).
 get_identity(IdentityId, Context) ->
-    do(fun() -> to_swag(identity, get_state(identity, IdentityId, Context)) end).
+    ff_pipeline:do(fun() ->
+        to_swag(identity, get_state(identity, IdentityId, Context))
+    end).
 
 -spec create_identity(params(), ctx()) -> result(map(),
     {provider, notfound}       |
@@ -114,7 +122,7 @@ get_identity(IdentityId, Context) ->
 ).
 create_identity(Params, Context) ->
     IdentityId = next_id('identity'),
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         with_party(Context, fun() ->
             ok = unwrap(ff_identity_machine:create(
                 IdentityId,
@@ -132,7 +140,7 @@ create_identity(Params, Context) ->
     {identity, unauthorized}
 ).
 get_identity_challenges(IdentityId, Statuses, Context) ->
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         Challenges0 = maps:to_list(ff_identity:challenges(
             ff_identity_machine:identity(get_state(identity, IdentityId, Context))
         )),
@@ -159,7 +167,7 @@ get_identity_challenges(IdentityId, Statuses, Context) ->
 ).
 create_identity_challenge(IdentityId, Params, Context) ->
     ChallengeId = next_id('identity-challenge'),
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
         ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
             maps:merge(#{id => ChallengeId}, from_swag(identity_challenge_params, Params)
@@ -173,7 +181,7 @@ create_identity_challenge(IdentityId, Params, Context) ->
     {challenge, notfound}
 ).
 get_identity_challenge(IdentityId, ChallengeId, Context) ->
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         Challenge = unwrap(challenge, ff_identity:challenge(
             ChallengeId, ff_identity_machine:identity(get_state(identity, IdentityId, Context))
         )),
@@ -224,7 +232,9 @@ get_identity_challenge_event(#{
     {wallet, unauthorized}
 ).
 get_wallet(WalletId, Context) ->
-    do(fun() -> to_swag(wallet, get_state(wallet, WalletId, Context)) end).
+    ff_pipeline:do(fun() ->
+        to_swag(wallet, get_state(wallet, WalletId, Context))
+    end).
 
 -spec create_wallet(params(), ctx()) -> result(map(),
     invalid                  |
@@ -235,7 +245,7 @@ get_wallet(WalletId, Context) ->
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     WalletId = next_id('wallet'),
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         _ = check_resource(identity, IdenityId, Context),
         ok = unwrap(
             ff_wallet_machine:create(WalletId, from_swag(wallet_params, Params), make_ctx(Params, [], Context))
@@ -277,7 +287,9 @@ get_destinations(_Params, _Context) ->
     {destination, unauthorized}
 ).
 get_destination(DestinationId, Context) ->
-    do(fun() -> to_swag(destination, get_state(destination, DestinationId, Context)) end).
+    ff_pipeline:do(fun() ->
+        to_swag(destination, get_state(destination, DestinationId, Context))
+    end).
 
 -spec create_destination(params(), ctx()) -> result(map(),
     invalid                  |
@@ -288,7 +300,7 @@ get_destination(DestinationId, Context) ->
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     DestinationId = next_id('destination'),
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         _ = check_resource(identity, IdenityId, Context),
         ok = unwrap(ff_destination:create(
             DestinationId, from_swag(destination_params, Params), make_ctx(Params, [], Context)
@@ -307,7 +319,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
 ).
 create_withdrawal(Params, Context) ->
     WithdrawalId = next_id('withdrawal'),
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         ok = unwrap(ff_withdrawal:create(
             WithdrawalId, from_swag(withdrawal_params, Params), make_ctx(Params, [], Context)
         )),
@@ -319,7 +331,9 @@ create_withdrawal(Params, Context) ->
     {withdrawal, notfound}
 ).
 get_withdrawal(WithdrawalId, Context) ->
-    do(fun() -> to_swag(withdrawal, get_state(withdrawal, WithdrawalId, Context)) end).
+    ff_pipeline:do(fun() ->
+        to_swag(withdrawal, get_state(withdrawal, WithdrawalId, Context))
+    end).
 
 -spec get_withdrawal_events(params(), ctx()) -> result([map()],
     {withdrawal, unauthorized} |
@@ -388,7 +402,7 @@ get_event(Type, ResourceId, EventId, Mapper, Context) ->
     end.
 
 get_events(Type = {Resource, _}, ResourceId, Limit, Cursor, Filter, Context) ->
-    do(fun() ->
+    ff_pipeline:do(fun() ->
         _ = check_resource(Resource, ResourceId, Context),
         to_swag(
             {list, get_event_type(Type)},
@@ -493,9 +507,6 @@ get_email(AuthContext) ->
 -spec not_implemented() -> no_return().
 not_implemented() ->
     wapi_handler_utils:throw_not_implemented().
-
-do(Fun) ->
-    ff_pipeline:do(Fun).
 
 unwrap(Res) ->
     ff_pipeline:unwrap(Res).

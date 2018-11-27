@@ -19,8 +19,6 @@
 
 -export([get_location/3]).
 
--export([check_request/3]).
-
 -define(APP, wapi).
 
 -type handler_context() :: wapi_handler:context().
@@ -31,11 +29,10 @@
 -type status_code()   :: wapi_handler:status_code().
 -type headers()       :: wapi_handler:headers().
 -type response_data() :: wapi_handler:response_data().
--type req_data()      :: wapi_handler:req_data().
 
 -type owner() :: binary().
 -type args()  :: [term()].
--type hash()  :: binary().
+
 -export_type([owner/0]).
 
 %% API
@@ -112,28 +109,3 @@ get_location(PathSpec, Params, _Opts) ->
 
 service_call({ServiceName, Function, Args}, #{woody_context := WoodyContext}) ->
     wapi_woody_client:call_service(ServiceName, Function, Args, WoodyContext).
-
--spec check_request(atom(), binary() | undefined, {atom(), req_data(), handler_context()}) ->
-    {ok, continue} |
-    {ok, accepted} |
-    {error, {check_failed, hash()}}.
-
-check_request(_, undefined, _) ->
-    {ok, continue};
-check_request(Tag, ExternalID, {OperationID, Req, Context}) ->
-    Params = #{
-        entity_name => Tag,
-        external_id => ExternalID,
-        party_id    => get_owner(Context),
-        request     => {OperationID, Req}
-    },
-    case ff_checker:check(Params) of
-        {ok, continue} = Result ->
-            Result;
-        {ok, accepted} ->
-            reply_ok(202);
-        {error, _} ->
-            reply_error(400)
-    end.
-
-

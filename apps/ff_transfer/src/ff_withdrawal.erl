@@ -103,17 +103,18 @@ route(T)           -> ff_transfer:route(T).
 }.
 
 -spec create(id(), params(), ctx()) ->
-    ok |
+    {ok, withdrawal()} |
     {error,
         {source, notfound} |
         {destination, notfound | unauthorized} |
         {provider, notfound} |
-        exists |
+        {conflict, id()} |
+        {compare_error, id()} |
         _TransferError
 
     }.
 
-create(ID, #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->
+create(ExternalID, #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->
     do(fun() ->
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
         WalletAccount = ff_wallet:account(Wallet),
@@ -136,6 +137,7 @@ create(ID, #{wallet_id := WalletID, destination_id := DestinationID, body := Bod
                 wallet_cash_flow_plan => CashFlowPlan
             }
         },
+        {ok, ID} = ff_external_id:check(withdrawal, ExternalID, ff_utils:get_owner(Ctx)),
         unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))
     end).
 

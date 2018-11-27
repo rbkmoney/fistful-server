@@ -75,10 +75,11 @@
 %% API
 
 -spec create(ns(), id(), params(), ctx()) ->
-    ok |
+    {ok, st(_)} |
     {error,
         _TransferError |
-        exists
+        {conflict, id()} |
+        {compare_error, id()}
     }.
 
 create(NS, ID,
@@ -87,7 +88,12 @@ Ctx)
 ->
     do(fun () ->
         Events = unwrap(ff_transfer:create(handler_to_type(Handler), ID, Body, Params)),
-        unwrap(machinery:start(NS, ID, {Events, Ctx}, backend(NS)))
+        case machinery:start(NS, ID, {Events, Ctx}, backend(NS)) of
+            ok ->
+                {ok, ff_machine:get(ff_transfer, NS, ID)};
+            {error, exists} ->
+                compare_events(NS, ID, Events)
+        end
     end).
 
 -spec get(ns(), id()) ->
@@ -212,3 +218,17 @@ handler_process_transfer(Transfer) ->
 handler_process_failure(Reason, Transfer) ->
     Handler = transfer_handler(Transfer),
     Handler:process_failure(Reason, Transfer).
+
+compare_events(NS, ID, NewEv) ->
+    Limit = length(NewEv),
+    case events(NS, ID, {undefined, Limit, forward}) of
+        {ok, OldEv} ->
+            compare_events_(NS, ID, NewEv, [Ev || {_, {ev, _, Ev}} <- OldEv]);
+        {error, notfound} ->
+            {error, {compare_error, ID}}
+    end.
+
+compare_events_(NS, ID, NewEv, OldEv) when NewEv =:= OldEv ->
+    {ok, ff_machine:get(ff_transfer, NS, ID)};
+compare_events_(_NS, ID, _NewEv, _Ev) ->
+    {error, {conflict, ID}}.

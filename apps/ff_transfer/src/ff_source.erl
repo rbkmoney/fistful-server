@@ -74,13 +74,15 @@ account(Source)  -> ff_instrument:account(Source).
 -define(NS, 'ff/source_v1').
 
 -spec create(id(), params(), ctx()) ->
-    ok |
+    {ok, machine()} |
     {error,
         _InstrumentCreateError |
-        exists
+        {conflict, id()} |
+        {compare_error, id()}
     }.
 
-create(ID, Params, Ctx) ->
+create(ExternalID, Params, Ctx) ->
+    {ok, ID} = ff_external_id:check(source, ExternalID, ff_utils:get_owner(Ctx)),
     ff_instrument_machine:create(?NS, ID, Params, Ctx).
 
 -spec get_machine(id()) ->

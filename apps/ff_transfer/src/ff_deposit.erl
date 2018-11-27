@@ -90,16 +90,17 @@ params(T)          -> ff_transfer:params(T).
 }.
 
 -spec create(id(), params(), ctx()) ->
-    ok |
+    {ok, deposit()} |
     {error,
         {source, notfound | unauthorized} |
         {destination, notfound} |
         {provider, notfound} |
-        exists |
+        {conflict, id()} |
+        {compare_error, id()} |
         _TransferError
     }.
 
-create(ID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
+create(ExternalID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
     do(fun() ->
         Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
         Wallet = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(WalletID))),
@@ -123,6 +124,7 @@ create(ID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) -
                 }
             }
         },
+        {ok, ID} = ff_external_id:check(deposit, ExternalID, ff_utils:get_owner(Ctx)),
         unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))
     end).
 

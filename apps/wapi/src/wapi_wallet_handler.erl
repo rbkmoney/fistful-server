@@ -9,7 +9,6 @@
 
 %% wapi_handler callbacks
 -export([process_request/4]).
--export([check_request/4]).
 
 %% Types
 
@@ -36,13 +35,6 @@ handle_request(OperationID, Req, SwagContext, Opts) ->
 
 
 %% Providers
--spec check_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
-    request_result() | {ok, continue}.
-check_request(OperationID, Req, Context, _Opts) ->
-    Tag = get_tag(OperationID),
-    ExternalID = genlib_map:get(externalID, Req),
-    wapi_handler_utils:check_request(Tag, ExternalID, {OperationID, Req, Context}).
-
 -spec process_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
     request_result().
 process_request('ListProviders', #{'residence' := Residence}, Context, _Opts) ->
@@ -99,8 +91,9 @@ process_request('GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
-    case wapi_wallet_ff_backend:create_identity(Params, Context) of
+process_request('CreateIdentity', #{'Identity' := Params} = Req, Context, Opts) ->
+    ExternalID = genlib_map:get(externalID, Req),
+    case wapi_wallet_ff_backend:create_identity(ExternalID, Params, Context) of
         {ok, Identity = #{<<"id">> := IdentityId}} ->
             wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Opts));
         {error, {provider, notfound}} ->
@@ -183,8 +176,9 @@ process_request('GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
         {error, {wallet, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
-    case wapi_wallet_ff_backend:create_wallet(Params, Context) of
+process_request('CreateWallet', #{'Wallet' := Params} = Req, Context, Opts) ->
+    ExternalID = genlib_map:get(externalID, Req),
+    case wapi_wallet_ff_backend:create_wallet(ExternalID, Params, Context) of
         {ok, Wallet = #{<<"id">> := WalletId}} ->
             wapi_handler_utils:reply_ok(201, Wallet, get_location('GetWallet', [WalletId], Opts));
         {error, {identity, unauthorized}} ->
@@ -241,8 +235,9 @@ process_request('GetDestination', #{'destinationID' := DestinationId}, Context, 
         {error, {destination, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {destination, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
-process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) ->
-    case wapi_wallet_ff_backend:create_destination(Params, Context) of
+process_request('CreateDestination', #{'Destination' := Params} = Req, Context, Opts) ->
+    ExternalID = genlib_map:get(externalID, Req),
+    case wapi_wallet_ff_backend:create_destination(ExternalID, Params, Context) of
         {ok, Destination = #{<<"id">> := DestinationId}} ->
             wapi_handler_utils:reply_ok(201, Destination, get_location('GetDestination', [DestinationId], Opts));
         {error, {identity, unauthorized}} ->
@@ -278,8 +273,9 @@ process_request('IssueDestinationGrant', #{
         {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(404)
     end;
-process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context, Opts) ->
-    case wapi_wallet_ff_backend:create_withdrawal(Params, Context) of
+process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params} = Req, Context, Opts) ->
+    ExternalID = genlib_map:get(externalID, Req),
+    case wapi_wallet_ff_backend:create_withdrawal(ExternalID, Params, Context) of
         {ok, Withdrawal = #{<<"id">> := WithdrawalId}} ->
             wapi_handler_utils:reply_ok(202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Opts));
         {error, {source, notfound}} ->
@@ -372,9 +368,3 @@ get_expiration_deadline(Expiration) ->
         false ->
             {error, expired}
     end.
-
-get_tag(Tag) when
-    Tag =:= 'CreateWithdrawal' orelse
-    Tag =:= 'GetWithdrawal'
-->
-    withdrawal.

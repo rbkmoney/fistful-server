@@ -55,16 +55,23 @@ wallet(St) ->
 }.
 
 -spec create(id(), params(), ctx()) ->
-    ok |
+    {ok, st()} |
     {error,
         _WalletCreateError |
-        exists
+        {conflict, id()} |
+        {compare_error, id()}
     }.
 
-create(ID, #{identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
+create(ExternalID, #{identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
     do(fun () ->
+        ID = unwrap(ff_external_id:check(wallet, ExternalID, ff_utils:get_owner(Ctx))),
         Events = unwrap(ff_wallet:create(ID, IdentityID, Name, CurrencyID)),
-        unwrap(machinery:start(?NS, ID, {Events, Ctx}, fistful:backend(?NS)))
+        case machinery:start(?NS, ID, {Events, Ctx}, backend()) of
+            ok ->
+                {ok, ff_machine:get(ff_wallet, ?NS, ID)};
+            {error, exists} ->
+                compare_events(ID, Events)
+        end
     end).
 
 -spec get(id()) ->
@@ -116,3 +123,18 @@ process_timeout(#{}, _, _Opts) ->
 
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
+
+compare_events(ID, NewEv) ->
+    Limit = length(NewEv),
+    case events(ID, {undefined, Limit, forward}) of
+        {ok, OldEv} ->
+            compare_events_(ID, NewEv, [Ev || {_, {ev, _, Ev}} <- OldEv]);
+        {error, notfound} ->
+            {error, {compare_error, ID}}
+    end.
+
+compare_events_(ID, NewEv, OldEv) when NewEv =:= OldEv ->
+    {ok, ff_machine:get(ff_wallet, ?NS, ID)};
+compare_events_(ID, _NewEv, _Ev) ->
+    {error, {conflict, ID}}.
+

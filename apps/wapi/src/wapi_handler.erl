@@ -36,8 +36,6 @@
 
 -callback process_request(operation_id(), req_data(), context(), opts()) ->
     request_result() | no_return().
--callback check_request(operation_id(), req_data(), context(), opts()) ->
-    request_result() | {ok, continue} | no_return().
 
 -export_type([operation_id/0]).
 -export_type([swagger_context/0]).
@@ -67,7 +65,7 @@ handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContex
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
             {ok, AuthDetails} ->
                 ok = lager:info("Operation ~p authorized via ~p", [OperationID, AuthDetails]),
-                check_and_process_request(Handler, {OperationID, Req, Context, Opts});
+                Handler:process_request(OperationID, Req, Context, Opts);
             {error, Error} ->
                 ok = lager:info("Operation ~p authorization failed due to ~p", [OperationID, Error]),
                 wapi_handler_utils:reply_error(401, wapi_handler_utils:get_error_msg(<<"Unauthorized operation">>))
@@ -132,11 +130,3 @@ create_handler_context(SwagContext, WoodyContext) ->
 process_woody_error(_Source, result_unexpected   , _Details) -> wapi_handler_utils:reply_error(500);
 process_woody_error(_Source, resource_unavailable, _Details) -> wapi_handler_utils:reply_error(503);
 process_woody_error(_Source, result_unknown      , _Details) -> wapi_handler_utils:reply_error(504).
-
-check_and_process_request(Handler, {OperationID, Req, Context, Opts}) ->
-    case Handler:check_request(OperationID, Req, Context, Opts) of
-        {ok, continue} ->
-            Handler:process_request(OperationID, Req, Context, Opts);
-        Result ->
-            Result
-    end.

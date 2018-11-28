@@ -10,10 +10,9 @@
 
 -type check_result() :: {ok, sequence()}.
 
--type party_id()     :: binary().
 -type external_id()  :: binary() | undefined.
 
--export([check/3]).
+-export([check/2]).
 
 -export_type([external_id/0]).
 -export_type([check_result/0]).
@@ -33,13 +32,13 @@
 
 %% API
 
--spec check(entity_name(), external_id(), party_id()) ->
+-spec check(entity_name(), external_id()) ->
     check_result().
 
-check(EntityName, undefined, _PartyID) ->
+check(EntityName, undefined) ->
     {ok, next_id(EntityName)};
-check(EntityName, ExternalID, PartyID) ->
-    ID = create_id(EntityName, ExternalID, PartyID),
+check(EntityName, ExternalID) ->
+    ID = create_id(EntityName, ExternalID),
     check_(EntityName, ID).
 
 check_(EntityName, ID) ->
@@ -93,12 +92,12 @@ process_call(_, #{}, _, _Opts) ->
 
 %%
 
--spec create_id(entity_name(), external_id(), party_id()) ->
+-spec create_id(entity_name(), external_id()) ->
     id().
 
-create_id(EntityName, ExternalID, PartyID) ->
+create_id(EntityName, ExternalID) ->
     Name = erlang:term_to_binary(EntityName),
-    <<"ff/external_id/", Name/binary, "/", PartyID/binary, "/", ExternalID/binary>>.
+    <<"ff/external_id/", Name/binary, "/", ExternalID/binary>>.
 
 backend() ->
     fistful:backend(?NS).

@@ -51,19 +51,19 @@
     {ok, st(_)} |
     {error,
         _InstrumentCreateError |
-        {conflict, id()} |
-        {compare_error, id()}
+        {conflict, id()}
     }.
 
 create(NS, ID, #{identity := IdentityID, name := Name, currency := CurrencyID, resource := Resource}, Ctx) ->
     do(fun () ->
         Events = unwrap(ff_instrument:create(ID, IdentityID, Name, CurrencyID, Resource)),
-        case machinery:start(NS, ID, {Events, Ctx}, backend(NS)) of
+        {ok, Result} = case machinery:start(NS, ID, {Events, Ctx}, backend(NS)) of
             ok ->
-                {ok, ff_machine:get(ff_instrument, NS, ID)};
+                ff_machine:get(ff_instrument, NS, ID);
             {error, exists} ->
                 compare_events(NS, ID, Events)
-        end
+        end,
+        Result
     end).
 
 -spec get(ns(), id()) ->
@@ -146,14 +146,10 @@ backend(NS) ->
 
 compare_events(NS, ID, NewEv) ->
     Limit = length(NewEv),
-    case events(NS, ID, {undefined, Limit, forward}) of
-        {ok, OldEv} ->
-            compare_events_(NS, ID, NewEv, [Ev || {_, {ev, _, Ev}} <- OldEv]);
-        {error, notfound} ->
-            {error, {compare_error, ID}}
-    end.
+    {ok, OldEv} = events(NS, ID, {undefined, Limit, forward}),
+    compare_events_(NS, ID, NewEv, [Ev || {_, {ev, _, Ev}} <- OldEv]).
 
 compare_events_(NS, ID, NewEv, OldEv) when NewEv =:= OldEv ->
-    {ok, ff_machine:get(ff_instrument, NS, ID)};
+    ff_machine:get(ff_instrument, NS, ID);
 compare_events_(_NS, ID, _NewEv, _Ev) ->
     {error, {conflict, ID}}.

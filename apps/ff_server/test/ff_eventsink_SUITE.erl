@@ -98,21 +98,12 @@ end_per_testcase(_Name, _C) ->
 -spec get_identity_events_ok(config()) -> test_return().
 
 get_identity_events_ok(C) ->
-    ID = genlib:unique(),
     Party = create_party(C),
     Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
-    ok = ff_identity_machine:create(
-        ID,
-        #{
-            party    => Party,
-            provider => <<"good-one">>,
-            class    => <<"person">>
-        },
-        ff_ctx:new()
-    ),
+    ID = ct_payment_system:create_identity(Party, <<"good-one">>, <<"person">>),
     ICID = genlib:unique(),
     D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
     D2 = ct_identdocstore:rus_domestic_passport(C),
@@ -145,7 +136,6 @@ get_identity_events_ok(C) ->
 -spec get_create_wallet_events_ok(config()) -> test_return().
 
 get_create_wallet_events_ok(C) ->
-    ID = genlib:unique(),
     Party = create_party(C),
     IdentityID = create_identity(Party, C),
 
@@ -153,15 +143,7 @@ get_create_wallet_events_ok(C) ->
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
-    ok = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"EVENTS TEST">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ),
+    ID   = create_wallet(IdentityID, <<"HAHA NO2">>, <<"RUB">>, C),
     {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
@@ -269,53 +251,28 @@ get_create_deposit_events_ok(C) ->
     MaxID = get_max_sinkevent_id(Events),
     MaxID = LastEvent + length(RawEvents).
 
-create_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
+create_identity(Party, _C) ->
+    ct_payment_system:create_identity(Party, <<"good-one">>, <<"person">>).
+
+create_person_identity(Party, C) ->
+    create_identity(Party, C).
 
 create_party(_C) ->
     ID = genlib:unique(),
     _ = ff_party:create(ID),
     ID.
 
-create_person_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
-
-create_identity(Party, ProviderID, ClassID, _C) ->
-    ID = genlib:unique(),
-    ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
-    ),
-    ID.
-
 create_wallet(IdentityID, Name, Currency, _C) ->
-    ID = genlib:unique(),
-    ok = ff_wallet_machine:create(
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
-    ),
-    ID.
+    ct_payment_system:create_wallet(IdentityID, Name, Currency).
 
-create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
-    ID = genlib:unique(),
-    ok = create_instrument(
+create_instrument(Type, IdentityID, Name, Currency, Resource, _C) ->
+    ct_payment_system:create_instrument(
         Type,
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_ctx:new(),
-        C
-    ),
-    ID.
-
-create_instrument(destination, ID, Params, Ctx, _C) ->
-    ff_destination:create(ID, Params, Ctx);
-create_instrument(source, ID, Params, Ctx, _C) ->
-    ff_source:create(ID, Params, Ctx).
-
-generate_id() ->
-    genlib:to_binary(genlib_time:ticks()).
+        IdentityID,
+        Name,
+        Currency,
+        Resource
+    ).
 
 create_source(IID, C) ->
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
@@ -333,13 +290,12 @@ create_source(IID, C) ->
     SrcID.
 
 process_deposit(SrcID, WalID) ->
-    DepID = generate_id(),
-    ok = ff_deposit:create(
-        DepID,
+    {ok, DepM1} = ff_deposit:create(
+        undefined,
         #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, DepM1} = ff_deposit:get_machine(DepID),
+    DepID = ff_deposit:id(ff_deposit:get(DepM1)),
     pending = ff_deposit:status(ff_deposit:get(DepM1)),
     succeeded = ct_helper:await(
         succeeded,
@@ -367,13 +323,12 @@ create_destination(IID, C) ->
     DestID.
 
 process_withdrawal(WalID, DestID) ->
-    WdrID = generate_id(),
-    ok = ff_withdrawal:create(
-        WdrID,
+    {ok, WdrM1} = ff_withdrawal:create(
+        undefined,
         #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, WdrM1} = ff_withdrawal:get_machine(WdrID),
+    WdrID = ff_withdrawal:id(ff_withdrawal:get(WdrM1)),
     pending = ff_withdrawal:status(ff_withdrawal:get(WdrM1)),
     succeeded = ct_helper:await(
         succeeded,

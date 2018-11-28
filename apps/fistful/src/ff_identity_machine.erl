@@ -59,24 +59,24 @@
     class    := ff_identity:class_id()
 }.
 
--spec create(id(), params(), ctx()) ->
+-spec create(id() | undefined, params(), ctx()) ->
     {ok, st()} |
     {error,
         _IdentityCreateError |
-        {conflict, id()} |
-        {compare_error, id()}
+        {conflict, id()}
     }.
 
 create(ExternalID, #{party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
     do(fun () ->
-        ID = unwrap(ff_external_id:check(identity, ExternalID, Party)),
+        ID = unwrap(ff_external_id:check(identity, ExternalID)),
         Events = unwrap(ff_identity:create(ID, Party, ProviderID, IdentityClassID)),
-        case machinery:start(?NS, ID, {Events, Ctx}, backend()) of
+        {ok, Result} = case machinery:start(?NS, ID, {Events, Ctx}, backend()) of
             ok ->
-                {ok, ff_machine:get(ff_identity, ?NS, ID)};
+                ff_machine:get(ff_identity, ?NS, ID);
             {error, exists} ->
                 compare_events(ID, Events)
-        end
+        end,
+        Result
     end).
 
 -spec get(id()) ->
@@ -222,14 +222,10 @@ deduce_activity(#{}) ->
 
 compare_events(ID, NewEv) ->
     Limit = length(NewEv),
-    case events(ID, {undefined, Limit, forward}) of
-        {ok, OldEv} ->
-            compare_events_(ID, NewEv, [Ev || {_, {ev, _, Ev}} <- OldEv]);
-        {error, notfound} ->
-            {error, {compare_error, ID}}
-    end.
+    {ok, OldEv} = events(ID, {undefined, Limit, forward}),
+    compare_events_(ID, NewEv, [Ev || {_, {ev, _, Ev}} <- OldEv]).
 
 compare_events_(ID, NewEv, OldEv) when NewEv =:= OldEv ->
-    {ok, ff_machine:get(ff_identity, ?NS, ID)};
+    ff_machine:get(ff_identity, ?NS, ID);
 compare_events_(ID, _NewEv, _Ev) ->
     {error, {conflict, ID}}.

@@ -55,6 +55,7 @@ init_per_suite(C) ->
             }},
             {backends, #{
                 'ff/identity'  => Be,
+                'ff/sequence'  => Be,
                 'ff/wallet_v2' => Be
             }},
             {providers,
@@ -68,6 +69,8 @@ init_per_suite(C) ->
         [
             {{fistful, ff_identity_machine},
                 #{path => <<"/v1/stateproc/ff/identity">>, backend_config => BeConf}},
+            {{fistful, ff_sequence},
+                #{path => <<"/v1/stateproc/ff/sequence">>, backend_config => BeConf}},
             {{fistful, ff_wallet_machine},
                 #{path => <<"/v1/stateproc/ff/wallet_v2">>, backend_config => BeConf}}
         ],
@@ -123,9 +126,8 @@ get_missing_fails(_C) ->
     {error, notfound} = ff_wallet_machine:get(genlib:unique()).
 
 create_missing_identity_fails(_C) ->
-    ID = genlib:unique(),
     {error, {identity, notfound}} = ff_wallet_machine:create(
-        ID,
+        undefined,
         #{
             identity => genlib:unique(),
             name     => <<"HAHA NO">>,
@@ -135,11 +137,10 @@ create_missing_identity_fails(_C) ->
     ).
 
 create_missing_currency_fails(C) ->
-    ID = genlib:unique(),
     Party = create_party(C),
     IdentityID = create_identity(Party, C),
     {error, {currency, notfound}} = ff_wallet_machine:create(
-        ID,
+        undefined,
         #{
             identity => IdentityID,
             name     => <<"HAHA YES">>,
@@ -149,18 +150,9 @@ create_missing_currency_fails(C) ->
     ).
 
 create_wallet_ok(C) ->
-    ID = genlib:unique(),
     Party = create_party(C),
     IdentityID = create_identity(Party, C),
-    ok = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ),
+    ID = ct_payment_system:create_wallet(IdentityID, <<"HAHA YES">>, <<"RUB">>),
     Wallet = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
     {ok, accessible} = ff_wallet:is_accessible(Wallet),
     Account = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
@@ -181,17 +173,7 @@ create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
 create_identity(Party, ProviderID, ClassID, _C) ->
-    ID = genlib:unique(),
-    ok = ff_identity_machine:create(
-        ID,
-        #{
-            party    => Party,
-            provider => ProviderID,
-            class    => ClassID
-        },
-        ff_ctx:new()
-    ),
-    ID.
+    ct_payment_system:create_identity(Party, ProviderID, ClassID).
 
 get_provider_config() ->
     #{

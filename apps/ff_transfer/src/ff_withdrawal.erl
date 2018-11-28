@@ -102,14 +102,13 @@ route(T)           -> ff_transfer:route(T).
     body           := ff_transaction:body()
 }.
 
--spec create(id(), params(), ctx()) ->
-    {ok, withdrawal()} |
+-spec create(id() | undefined, params(), ctx()) ->
+    {ok, machine()} |
     {error,
         {source, notfound} |
         {destination, notfound | unauthorized} |
         {provider, notfound} |
         {conflict, id()} |
-        {compare_error, id()} |
         _TransferError
 
     }.
@@ -137,7 +136,7 @@ create(ExternalID, #{wallet_id := WalletID, destination_id := DestinationID, bod
                 wallet_cash_flow_plan => CashFlowPlan
             }
         },
-        {ok, ID} = ff_external_id:check(withdrawal, ExternalID, ff_utils:get_owner(Ctx)),
+        {ok, ID} = ff_external_id:check(withdrawal, ExternalID),
         unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))
     end).
 

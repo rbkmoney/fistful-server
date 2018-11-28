@@ -107,9 +107,8 @@ get_identities(_Params, _Context) ->
 get_identity(IdentityId, Context) ->
     do(fun() -> to_swag(identity, get_state(identity, IdentityId, Context)) end).
 
--spec create_identity(id(), params(), ctx()) -> result(map(),
+-spec create_identity(id() | undefined, params(), ctx()) -> result(map(),
     {conflict, id()}           |
-    {compare_error, id()}      |
     {provider, notfound}       |
     {identity_class, notfound} |
     {email, notfound}
@@ -235,9 +234,8 @@ get_identity_challenge_event(#{
 get_wallet(WalletId, Context) ->
     do(fun() -> to_swag(wallet, get_state(wallet, WalletId, Context)) end).
 
--spec create_wallet(id(), params(), ctx()) -> result(map(),
+-spec create_wallet(id() | undefined, params(), ctx()) -> result(map(),
     {conflict, id()}         |
-    {compare_error, id()}    |
     invalid                  |
     {identity, unauthorized} |
     {identity, notfound}     |
@@ -295,9 +293,8 @@ get_destinations(_Params, _Context) ->
 get_destination(DestinationId, Context) ->
     do(fun() -> to_swag(destination, get_state(destination, DestinationId, Context)) end).
 
--spec create_destination(id(), params(), ctx()) -> result(map(),
+-spec create_destination(id() | undefined, params(), ctx()) -> result(map(),
     {conflict, id()}         |
-    {compare_error, id()}    |
     invalid                  |
     {identity, unauthorized} |
     {identity, notfound}     |
@@ -317,9 +314,8 @@ create_destination(ExternalID, Params = #{<<"identity">> := IdenityId}, Context)
         end
     end).
 
--spec create_withdrawal(id(), params(), ctx()) -> result(map(),
+-spec create_withdrawal(id() | undefined, params(), ctx()) -> result(map(),
     {conflict, id()}              |
-    {compare_error, id()}         |
     {source, notfound}            |
     {destination, notfound}       |
     {destination, unauthorized}   |

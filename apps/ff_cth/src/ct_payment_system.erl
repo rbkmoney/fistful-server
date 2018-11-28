@@ -4,6 +4,10 @@
 -export([setup/1]).
 -export([shutdown/1]).
 
+-export([create_identity/3]).
+-export([create_wallet/3]).
+-export([create_instrument/5]).
+
 %% API types
 
 -type options() :: #{
@@ -198,14 +202,41 @@ create_party() ->
     _ = ff_party:create(ID),
     ID.
 
+-spec create_identity(binary(), binary(), binary()) ->
+    binary().
 create_identity(Party, ProviderID, ClassID) ->
-    ID = genlib:unique(),
-    ok = ff_identity_machine:create(
-        ID,
+    {ok, Identity} = ff_identity_machine:create(
+        undefined,
         #{party => Party, provider => ProviderID, class => ClassID},
         ff_ctx:new()
     ),
-    ID.
+    ff_identity:id(ff_machine:model(Identity)).
+
+-spec create_wallet(binary(), binary(), binary()) ->
+    binary().
+create_wallet(IdentityID, Name, Currency) ->
+    {ok, Wallet} = ff_wallet_machine:create(
+        undefined,
+        #{identity => IdentityID, name => Name, currency => Currency},
+        ff_ctx:new()
+    ),
+    ff_wallet:id(ff_machine:model(Wallet)).
+
+-spec create_instrument(destination | source, binary(), binary(), binary(), map()) ->
+    binary().
+create_instrument(Type, IdentityID, Name, Currency, Resource) ->
+    {ok, Instrument} = create_instrument(
+        Type,
+        undefined,
+        #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
+        ff_ctx:new()
+    ),
+    ff_instrument:id(ff_instrument_machine:instrument(Instrument)).
+
+create_instrument(destination, ID, Params, Ctx) ->
+    ff_destination:create(ID, Params, Ctx);
+create_instrument(source, ID, Params, Ctx) ->
+    ff_source:create(ID, Params, Ctx).
 
 set_app_env([App, Key | Path], Value) ->
     Env = genlib_app:env(App, Key, #{}),

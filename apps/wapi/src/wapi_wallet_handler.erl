@@ -92,7 +92,10 @@ process_request('GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('CreateIdentity', #{'Identity' := Params} = Req, Context, Opts) ->
-    ExternalID = genlib_map:get(externalID, Req),
+    ExternalID = wapi_handler_utils:sign_external_id(
+        genlib_map:get(externalID, Req),
+        Context
+    ),
     case wapi_wallet_ff_backend:create_identity(ExternalID, Params, Context) of
         {ok, Identity = #{<<"id">> := IdentityId}} ->
             wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Opts));
@@ -177,7 +180,10 @@ process_request('GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
         {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('CreateWallet', #{'Wallet' := Params} = Req, Context, Opts) ->
-    ExternalID = genlib_map:get(externalID, Req),
+    ExternalID = wapi_handler_utils:sign_external_id(
+        genlib_map:get(externalID, Req),
+        Context
+    ),
     case wapi_wallet_ff_backend:create_wallet(ExternalID, Params, Context) of
         {ok, Wallet = #{<<"id">> := WalletId}} ->
             wapi_handler_utils:reply_ok(201, Wallet, get_location('GetWallet', [WalletId], Opts));
@@ -236,7 +242,10 @@ process_request('GetDestination', #{'destinationID' := DestinationId}, Context, 
         {error, {destination, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('CreateDestination', #{'Destination' := Params} = Req, Context, Opts) ->
-    ExternalID = genlib_map:get(externalID, Req),
+    ExternalID = wapi_handler_utils:sign_external_id(
+        genlib_map:get(externalID, Req),
+        Context
+    ),
     case wapi_wallet_ff_backend:create_destination(ExternalID, Params, Context) of
         {ok, Destination = #{<<"id">> := DestinationId}} ->
             wapi_handler_utils:reply_ok(201, Destination, get_location('GetDestination', [DestinationId], Opts));
@@ -274,7 +283,10 @@ process_request('IssueDestinationGrant', #{
             wapi_handler_utils:reply_ok(404)
     end;
 process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params} = Req, Context, Opts) ->
-    ExternalID = genlib_map:get(externalID, Req),
+    ExternalID = wapi_handler_utils:sign_external_id(
+        genlib_map:get(externalID, Req),
+        Context
+    ),
     case wapi_wallet_ff_backend:create_withdrawal(ExternalID, Params, Context) of
         {ok, Withdrawal = #{<<"id">> := WithdrawalId}} ->
             wapi_handler_utils:reply_ok(202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Opts));

@@ -157,22 +157,10 @@ create_person_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
 create_identity(Party, ProviderID, ClassID, _C) ->
-    ID = genlib:unique(),
-    ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
-    ),
-    ID.
+    ct_payment_system:create_identity(Party, ProviderID, ClassID).
 
 create_wallet(IdentityID, Name, Currency, _C) ->
-    ID = genlib:unique(),
-    ok = ff_wallet_machine:create(
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
-    ),
-    ID.
+    ct_payment_system:create_wallet(IdentityID, Name, Currency).
 
 await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
@@ -204,24 +192,14 @@ get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
-create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
-    ID = genlib:unique(),
-    ok = create_instrument(
+create_instrument(Type, IdentityID, Name, Currency, Resource, _C) ->
+    ct_payment_system:create_instrument(
         Type,
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_ctx:new(),
-        C
-    ),
-    ID.
-
-create_instrument(destination, ID, Params, Ctx, _C) ->
-    ff_destination:create(ID, Params, Ctx);
-create_instrument(source, ID, Params, Ctx, _C) ->
-    ff_source:create(ID, Params, Ctx).
-
-generate_id() ->
-    genlib:to_binary(genlib_time:ticks()).
+        IdentityID,
+        Name,
+        Currency,
+        Resource
+    ).
 
 admin_call(Fun, Args) ->
     Service = {ff_proto_fistful_thrift, 'FistfulAdmin'},
@@ -249,13 +227,12 @@ create_source(IID, C) ->
     SrcID.
 
 process_deposit(SrcID, WalID) ->
-    DepID = generate_id(),
-    ok = ff_deposit:create(
-        DepID,
+    {ok, DepM1} = ff_deposit:create(
+        undefined,
         #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, DepM1} = ff_deposit:get_machine(DepID),
+    DepID = ff_deposit:id(ff_deposit:get(DepM1)),
     pending = ff_deposit:status(ff_deposit:get(DepM1)),
     succeeded = ct_helper:await(
         succeeded,
@@ -265,7 +242,7 @@ process_deposit(SrcID, WalID) ->
         end,
         genlib_retry:linear(15, 1000)
     ),
-    ok = await_wallet_balance({10000, <<"RUB">>}, WalID).
+    DepID.
 
 create_destination(IID, C) ->
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
@@ -302,13 +279,12 @@ pass_identification(ICID, IID, C) ->
     ).
 
 process_withdrawal(WalID, DestID) ->
-    WdrID = generate_id(),
-    ok = ff_withdrawal:create(
-        WdrID,
+    {ok, WdrM1} = ff_withdrawal:create(
+        undefined,
         #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, WdrM1} = ff_withdrawal:get_machine(WdrID),
+    WdrID = ff_withdrawal:id(ff_withdrawal:get(WdrM1)),
     pending = ff_withdrawal:status(ff_withdrawal:get(WdrM1)),
     succeeded = ct_helper:await(
         succeeded,
@@ -321,3 +297,4 @@ process_withdrawal(WalID, DestID) ->
     ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
     ok = await_destination_balance({4240 - 424, <<"RUB">>}, DestID),
     WdrID.
+

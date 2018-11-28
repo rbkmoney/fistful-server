@@ -19,6 +19,8 @@
 
 -export([get_location/3]).
 
+-export([sign_external_id/2]).
+
 -define(APP, wapi).
 
 -type handler_context() :: wapi_handler:context().
@@ -106,6 +108,13 @@ get_location(PathSpec, Params, _Opts) ->
     handler_context()
 ) ->
     woody:result().
-
 service_call({ServiceName, Function, Args}, #{woody_context := WoodyContext}) ->
     wapi_woody_client:call_service(ServiceName, Function, Args, WoodyContext).
+
+-spec sign_external_id(binary() | undefined, handler_context()) ->
+    binary().
+sign_external_id(undefined, _Context) ->
+    undefined;
+sign_external_id(ExternalID, Context) ->
+    PartyID = get_owner(Context),
+    <<PartyID/binary, "/", ExternalID/binary>>.

@@ -79,16 +79,15 @@ account(Destination)  -> ff_instrument:account(Destination).
 
 -define(NS, 'ff/destination_v2').
 
--spec create(id(), params(), ctx()) ->
+-spec create(id() | undefined, params(), ctx()) ->
     {ok, machine()} |
     {error,
         _InstrumentCreateError |
-        {conflict, id()} |
-        {compare_error, id()}
+        {conflict, id()}
     }.
 
 create(ExternalID, Params, Ctx) ->
-    {ok, ID} = ff_external_id:check(destination, ExternalID, ff_utils:get_owner(Ctx)),
+    {ok, ID} = ff_external_id:check(destination, ExternalID),
     ff_instrument_machine:create(?NS, ID, Params, Ctx).
 
 -spec get_machine(id()) ->

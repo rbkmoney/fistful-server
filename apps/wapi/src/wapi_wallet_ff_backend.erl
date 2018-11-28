@@ -613,7 +613,12 @@ decode_withdrawal_stat_status({pending, #fistfulstat_WithdrawalPending{}}) ->
 decode_withdrawal_stat_status({succeeded, #fistfulstat_WithdrawalSucceeded{}}) ->
     #{<<"status">> => <<"Succeeded">>};
 decode_withdrawal_stat_status({failed, #fistfulstat_WithdrawalFailed{failure = Failure}}) ->
-    #{<<"status">> => <<"Failed">>, <<"failure">> => Failure}.
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => #{
+            <<"code">> => to_swag(stat_withdrawal_status_failure, Failure)
+        }
+    }.
 
 %% Marshalling
 
@@ -880,6 +885,8 @@ to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
     to_swag(domain_failure, Failure);
 to_swag(withdrawal_status_failure, Failure) ->
     to_swag(domain_failure, map_internal_error(Failure));
+to_swag(stat_withdrawal_status_failure, Failure) ->
+    to_swag(domain_failure, map_fistful_stat_error(Failure));
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{
         <<"eventID">> => EventId,
@@ -925,6 +932,11 @@ map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
         }
     };
 map_internal_error(_Reason) ->
+    #domain_Failure{
+        code = <<"failed">>
+    }.
+
+map_fistful_stat_error(_Reason) ->
     #domain_Failure{
         code = <<"failed">>
     }.

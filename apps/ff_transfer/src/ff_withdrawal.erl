@@ -53,6 +53,7 @@
 %% Event source
 
 -export([maybe_migrate/1]).
+-export([compare_params/2]).
 
 %% Pipeline
 
@@ -374,3 +375,25 @@ validate_wallet_limits(WalletID, Body, Account) ->
     ff_transfer:event().
 maybe_migrate(Ev) ->
     ff_transfer:maybe_migrate(Ev, withdrawal).
+
+-spec compare_params(transfer_params(), transfer_params()) ->
+    true | false.
+compare_params(
+    #{
+        wallet_id             := WalletID,
+        destination_id        := DestinationID,
+        wallet_account        := WalletAccount,
+        destination_account   := DestinationAccount,
+        wallet_cash_flow_plan := CashFlowPlan1
+    },
+    #{
+        wallet_id             := WalletID,
+        destination_id        := DestinationID,
+        wallet_account        := WalletAccount,
+        destination_account   := DestinationAccount,
+        wallet_cash_flow_plan := CashFlowPlan2
+    }
+) ->
+    ff_cash_flow:compare_cash_flow_plan(CashFlowPlan1, CashFlowPlan2);
+compare_params(_, _) ->
+    false.

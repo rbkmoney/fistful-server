@@ -57,13 +57,13 @@
 create(NS, ID, #{identity := IdentityID, name := Name, currency := CurrencyID, resource := Resource}, Ctx) ->
     do(fun () ->
         Events = unwrap(ff_instrument:create(ID, IdentityID, Name, CurrencyID, Resource)),
-        {ok, Result} = case machinery:start(NS, ID, {Events, Ctx}, backend(NS)) of
+        Result = case machinery:start(NS, ID, {Events, Ctx}, backend(NS)) of
             ok ->
                 ff_machine:get(ff_instrument, NS, ID);
             {error, exists} ->
                 compare_events(NS, ID, Events)
         end,
-        Result
+        unwrap(Result)
     end).
 
 -spec get(ns(), id()) ->
@@ -149,7 +149,17 @@ compare_events(NS, ID, NewEv) ->
     {ok, OldEv} = events(NS, ID, {undefined, Limit, forward}),
     compare_events_(NS, ID, NewEv, [Ev || {_, {ev, _, Ev}} <- OldEv]).
 
-compare_events_(NS, ID, NewEv, OldEv) when NewEv =:= OldEv ->
+compare_events_(NS, ID, [], []) ->
     ff_machine:get(ff_instrument, NS, ID);
-compare_events_(_NS, ID, _NewEv, _Ev) ->
-    {error, {conflict, ID}}.
+compare_events_(NS, ID, [H1 | T1], [H2 | T2]) ->
+    case ff_instrument:compare_event(get_instrument_type(NS), H1, H2) of
+        true ->
+            compare_events_(NS, ID, T1, T2);
+        false ->
+            {error, {conflict, ID}}
+    end.
+
+get_instrument_type('ff/source_v1') ->
+    source;
+get_instrument_type('ff/destination_v2') ->
+    destination.

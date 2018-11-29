@@ -51,6 +51,7 @@
 %% Event source
 
 -export([maybe_migrate/1]).
+-export([compare_params/2]).
 
 %% Pipeline
 
@@ -232,3 +233,25 @@ construct_p_transfer_id(ID) ->
     ff_transfer:event().
 maybe_migrate(Ev) ->
     ff_transfer:maybe_migrate(Ev, deposit).
+
+-spec compare_params(transfer_params(), transfer_params()) ->
+    true | false.
+compare_params(
+    #{
+        source_id             := SourceID,
+        wallet_id             := WalletID,
+        wallet_account        := WalletAccount,
+        source_account        := SourceAccount,
+        wallet_cash_flow_plan := CashFlowPlan1
+    },
+    #{
+        source_id             := SourceID,
+        wallet_id             := WalletID,
+        wallet_account        := WalletAccount,
+        source_account        := SourceAccount,
+        wallet_cash_flow_plan := CashFlowPlan2
+    }
+) ->
+    ff_cash_flow:compare_cash_flow_plan(CashFlowPlan1, CashFlowPlan2);
+compare_params(_, _) ->
+    false.

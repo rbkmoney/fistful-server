@@ -70,13 +70,13 @@ create(ExternalID, #{party := Party, provider := ProviderID, class := IdentityCl
     do(fun () ->
         ID = unwrap(ff_external_id:check(identity, ExternalID)),
         Events = unwrap(ff_identity:create(ID, Party, ProviderID, IdentityClassID)),
-        {ok, Result} = case machinery:start(?NS, ID, {Events, Ctx}, backend()) of
+        Result = case machinery:start(?NS, ID, {Events, Ctx}, backend()) of
             ok ->
                 ff_machine:get(ff_identity, ?NS, ID);
             {error, exists} ->
                 compare_events(ID, Events)
         end,
-        Result
+        unwrap(Result)
     end).
 
 -spec get(id()) ->
@@ -225,7 +225,12 @@ compare_events(ID, NewEv) ->
     {ok, OldEv} = events(ID, {undefined, Limit, forward}),
     compare_events_(ID, NewEv, [Ev || {_, {ev, _, Ev}} <- OldEv]).
 
-compare_events_(ID, NewEv, OldEv) when NewEv =:= OldEv ->
+compare_events_(ID, [], []) ->
     ff_machine:get(ff_identity, ?NS, ID);
-compare_events_(ID, _NewEv, _Ev) ->
-    {error, {conflict, ID}}.
+compare_events_(ID, [H1 | T1], [H2 | T2]) ->
+    case ff_identity:compare_event(H1, H2) of
+        true ->
+            compare_events_(ID, T1, T2);
+        false ->
+            {error, {conflict, ID}}
+    end.

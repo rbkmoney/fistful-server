@@ -56,6 +56,7 @@
 -export([get/1]).
 -export([is_accessible/1]).
 -export([events/2]).
+-export([compare_resource/2]).
 
 %% Accessors
 
@@ -114,3 +115,11 @@ is_accessible(Destination) ->
 
 events(ID, Range) ->
     ff_instrument_machine:events(?NS, ID, Range).
+
+-spec compare_resource(resource(), resource()) ->
+    true | false.
+
+compare_resource(Resource, Resource) ->
+    true;
+compare_resource(_, _) ->
+    false.

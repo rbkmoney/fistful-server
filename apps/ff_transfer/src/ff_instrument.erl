@@ -51,7 +51,10 @@
 
 -export([is_accessible/1]).
 
+%% Event source
+
 -export([apply_event/2]).
+-export([compare_event/3]).
 
 %% Pipeline
 
@@ -138,3 +141,37 @@ apply_event({account, Ev}, Instrument = #{account := Account}) ->
     Instrument#{account => ff_account:apply_event(Ev, Account)};
 apply_event({account, Ev}, Instrument) ->
     apply_event({account, Ev}, Instrument#{account => undefined}).
+
+-spec compare_event(source | destination, event(_), event(_)) ->
+    true | false.
+
+compare_event(
+    Type,
+    {created, #{
+        name     := Name,
+        resource := Resource1
+    }},
+    {created, #{
+        name     := Name,
+        resource := Resource2
+    }}
+) ->
+    compare_resource(Type, Resource1, Resource2);
+compare_event(_, {created, _}, _) ->
+    false;
+compare_event(_, {account, Ev1}, {account, Ev2}) ->
+    ff_account:compare_event(Ev1, Ev2);
+compare_event(_, {account, _}, _) ->
+    false;
+compare_event(_, {status_changed, Status}, {status_changed, Status}) ->
+    true;
+compare_event(_, {status_changed, _}, _) ->
+    false;
+compare_event(_, _, _) ->
+    true.
+
+compare_resource(source, Resource1, Resource2) ->
+    ff_source:compare_resource(Resource1, Resource2);
+compare_resource(destination, Resource1, Resource2) ->
+    ff_destination:compare_resource(Resource1, Resource2).
+

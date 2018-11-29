@@ -87,13 +87,13 @@ Ctx)
 ->
     do(fun () ->
         Events = unwrap(ff_transfer:create(handler_to_type(Handler), ID, Body, Params)),
-        {ok, Result} = case machinery:start(NS, ID, {Events, Ctx}, backend(NS)) of
+        Result = case machinery:start(NS, ID, {Events, Ctx}, backend(NS)) of
             ok ->
                 ff_machine:get(ff_transfer, NS, ID);
             {error, exists} ->
                 compare_events(handler_to_type(Handler), NS, ID, Events)
         end,
-        Result
+        unwrap(Result)
     end).
 
 -spec get(ns(), id()) ->
@@ -225,7 +225,12 @@ compare_events(Type, NS, ID, NewEv) ->
     MigratedEv = [ff_transfer:maybe_migrate(Ev, Type) || {_, {ev, _, Ev}} <- OldEv],
     compare_events_(NS, ID, NewEv, MigratedEv).
 
-compare_events_(NS, ID, NewEv, OldEv) when NewEv =:= OldEv ->
+compare_events_(NS, ID, [], []) ->
     ff_machine:get(ff_transfer, NS, ID);
-compare_events_(_NS, ID, _NewEv, _Ev) ->
-    {error, {conflict, ID}}.
+compare_events_(NS, ID, [H1 | T1], [H2 | T2]) ->
+    case ff_transfer:compare_event(H1, H2) of
+        true ->
+            compare_events_(NS, ID, T1, T2);
+        false ->
+            {error, {conflict, ID}}
+    end.

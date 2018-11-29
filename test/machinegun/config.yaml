@@ -52,6 +52,8 @@ namespaces:
   ff/sequence:
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/sequence
-
+  ff/external_id:
+      processor:
+          url: http://fistful-server:8022/v1/stateproc/ff/external_id
 storage:
     type: memory

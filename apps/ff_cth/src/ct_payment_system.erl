@@ -5,8 +5,11 @@
 -export([shutdown/1]).
 
 -export([create_identity/3]).
+-export([create_identity/4]).
 -export([create_wallet/3]).
+-export([create_wallet/4]).
 -export([create_instrument/5]).
+-export([create_instrument/6]).
 
 %% API types
 
@@ -77,6 +80,7 @@ start_processing_apps(Options) ->
             {backends, maps:from_list([{NS, Be} || NS <- [
                 'ff/identity'              ,
                 'ff/sequence'              ,
+                'ff/external_id'              ,
                 'ff/wallet_v2'             ,
                 'ff/source_v1'             ,
                 'ff/deposit_v1'            ,
@@ -98,6 +102,7 @@ start_processing_apps(Options) ->
         [
             construct_handler(ff_identity_machine           , "identity"              , BeConf),
             construct_handler(ff_sequence                   , "sequence"              , BeConf),
+            construct_handler(ff_external_id                , "external_id"           , BeConf),
             construct_handler(ff_wallet_machine             , "wallet_v2"             , BeConf),
             construct_handler(ff_instrument_machine         , "source_v1"             , BeConf),
             construct_handler(ff_transfer_machine           , "deposit_v1"            , BeConf),
@@ -203,35 +208,62 @@ create_party() ->
     ID.
 
 -spec create_identity(binary(), binary(), binary()) ->
-    binary().
+    binary() | {error, _}.
 create_identity(Party, ProviderID, ClassID) ->
-    {ok, Identity} = ff_identity_machine:create(
-        undefined,
+    create_identity(undefined, Party, ProviderID, ClassID).
+
+-spec create_identity(binary() | undefined, binary(), binary(), binary()) ->
+    binary() | {error, _}.
+create_identity(ExternalID, Party, ProviderID, ClassID) ->
+    case ff_identity_machine:create(
+        ExternalID,
         #{party => Party, provider => ProviderID, class => ClassID},
         ff_ctx:new()
-    ),
-    ff_identity:id(ff_machine:model(Identity)).
+    ) of
+        {ok, Identity} ->
+            ff_identity:id(ff_machine:model(Identity));
+        Error ->
+            Error
+    end.
 
 -spec create_wallet(binary(), binary(), binary()) ->
-    binary().
+    binary() | {error, _}.
 create_wallet(IdentityID, Name, Currency) ->
-    {ok, Wallet} = ff_wallet_machine:create(
-        undefined,
+    create_wallet(undefined, IdentityID, Name, Currency).
+
+-spec create_wallet(binary() | undefined, binary(), binary(), binary()) ->
+    binary() | {error, _}.
+create_wallet(ExternalID, IdentityID, Name, Currency) ->
+    case ff_wallet_machine:create(
+        ExternalID,
         #{identity => IdentityID, name => Name, currency => Currency},
         ff_ctx:new()
-    ),
-    ff_wallet:id(ff_machine:model(Wallet)).
+    ) of
+        {ok, Wallet} ->
+            ff_wallet:id(ff_machine:model(Wallet));
+        Error ->
+            Error
+    end.
 
 -spec create_instrument(destination | source, binary(), binary(), binary(), map()) ->
-    binary().
+    binary() | {error, _}.
 create_instrument(Type, IdentityID, Name, Currency, Resource) ->
-    {ok, Instrument} = create_instrument(
+    create_instrument(undefined, Type, IdentityID, Name, Currency, Resource).
+
+-spec create_instrument(binary() | undefined, destination | source, binary(), binary(), binary(), map()) ->
+    binary() | {error, _}.
+create_instrument(ExternalID, Type, IdentityID, Name, Currency, Resource) ->
+    case create_instrument(
         Type,
-        undefined,
+        ExternalID,
         #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
         ff_ctx:new()
-    ),
-    ff_instrument:id(ff_instrument_machine:instrument(Instrument)).
+    ) of
+        {ok, Instrument} ->
+            ff_instrument:id(ff_instrument_machine:instrument(Instrument));
+        Error ->
+            Error
+    end.
 
 create_instrument(destination, ID, Params, Ctx) ->
     ff_destination:create(ID, Params, Ctx);
@@ -271,6 +303,45 @@ machinery_backend_options(Options) ->
 identity_provider_config(Options) ->
     Default = #{
         <<"good-one">> => #{
+            payment_institution_id => 1,
+            routes => [<<"mocketbank">>],
+            identity_classes => #{
+                <<"person">> => #{
+                    name => <<"Well, a person">>,
+                    contract_template_id => 1,
+                    initial_level => <<"peasant">>,
+                    levels => #{
+                        <<"peasant">> => #{
+                            name => <<"Well, a peasant">>,
+                            contractor_level => none
+                        },
+                        <<"nobleman">> => #{
+                            name => <<"Well, a nobleman">>,
+                            contractor_level => partial
+                        }
+                    },
+                    challenges => #{
+                        <<"sword-initiation">> => #{
+                            name   => <<"Initiation by sword">>,
+                            base   => <<"peasant">>,
+                            target => <<"nobleman">>
+                        }
+                    }
+                },
+                <<"church">>          => #{
+                    name                 => <<"Well, a Сhurch">>,
+                    contract_template_id => 2,
+                    initial_level        => <<"mainline">>,
+                    levels               => #{
+                        <<"mainline">>    => #{
+                            name               => <<"Well, a mainline Сhurch">>,
+                            contractor_level   => full
+                        }
+                    }
+                }
+            }
+        },
+        <<"good-two">> => #{
             payment_institution_id => 1,
             routes => [<<"mocketbank">>],
             identity_classes => #{
@@ -392,13 +463,20 @@ domain_config(Options, C) ->
 default_termset(Options) ->
     Default = #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
-            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+            currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
             wallet_limit = {decisions, [
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
                         {inclusive, ?cash(       0, <<"RUB">>)},
                         {exclusive, ?cash(10000001, <<"RUB">>)}
+                    )}
+                },
+                #domain_CashLimitDecision{
+                    if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                    then_ = {value, ?cashrng(
+                        {inclusive, ?cash(       0, <<"USD">>)},
+                        {exclusive, ?cash(10000000, <<"USD">>)}
                     )}
                 }
             ]},
@@ -438,13 +516,20 @@ default_termset(Options) ->
 company_termset(Options) ->
     Default = #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
-            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+            currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
             wallet_limit = {decisions, [
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
                         {inclusive, ?cash(       0, <<"RUB">>)},
                         {exclusive, ?cash(10000000, <<"RUB">>)}
+                    )}
+                },
+                #domain_CashLimitDecision{
+                    if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                    then_ = {value, ?cashrng(
+                        {inclusive, ?cash(       0, <<"USD">>)},
+                        {exclusive, ?cash(10000000, <<"USD">>)}
                     )}
                 }
             ]}

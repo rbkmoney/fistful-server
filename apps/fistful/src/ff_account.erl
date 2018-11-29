@@ -35,6 +35,7 @@
 -export([is_accessible/1]).
 
 -export([apply_event/2]).
+-export([compare_event/2]).
 
 %% Pipeline
 
@@ -153,3 +154,24 @@ construct_prototype(CurrencyCode, Description) ->
 call_accounter(Function, Args) ->
     Service = {dmsl_accounter_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}).
+
+-spec compare_event(event(), event()) ->
+    true | false.
+
+compare_event(
+    {created, #{
+        id                   := ID,
+        identity             := Identity,
+        currency             := Currency
+    }},
+    {created, #{
+        id                   := ID,
+        identity             := Identity,
+        currency             := Currency
+    }}
+) ->
+    true;
+compare_event({created, _}, _) ->
+    false;
+compare_event(_, _) ->
+    true.

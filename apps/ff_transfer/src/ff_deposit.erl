@@ -48,6 +48,10 @@
 -export([get_machine/1]).
 -export([events/2]).
 
+%% Event source
+
+-export([maybe_migrate/1]).
+
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
@@ -222,3 +226,8 @@ finish_transfer(_Deposit) ->
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->
     <<"ff/deposit/", ID/binary>>.
+
+-spec maybe_migrate(ff_transfer:event() | ff_transfer:legacy_event()) ->
+    ff_transfer:event().
+maybe_migrate(Ev) ->
+    ff_transfer:maybe_migrate(Ev, deposit).

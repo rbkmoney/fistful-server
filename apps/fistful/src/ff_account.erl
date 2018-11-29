@@ -44,7 +44,7 @@
 
 -type identity() :: ff_identity:identity().
 -type currency() :: ff_currency:currency().
--type identity_id() :: ff_identity:id().
+-type identity_id() :: ff_identity:id(id()).
 -type currency_id() :: ff_currency:id().
 -type accounter_account_id() :: dmsl_accounter_thrift:'AccountID'().
 

@@ -48,7 +48,7 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/1]).
+-export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -218,12 +218,12 @@ construct_trx_posting(Posting) ->
     {SenderAccount, ReceiverAccount, Volume}.
 
 %% Event migrations
--spec maybe_migrate(any()) -> event().
+-spec maybe_migrate(any(), withdrawal | deposit) -> event().
 % Actual events
-maybe_migrate({created, #{final_cash_flow := CashFlow} = EvBody}) ->
-    {created, EvBody#{final_cash_flow => maybe_migrate_cash_flow(CashFlow)}};
+maybe_migrate({created, #{final_cash_flow := CashFlow} = EvBody}, EvType) ->
+    {created, EvBody#{final_cash_flow => maybe_migrate_cash_flow(CashFlow, EvType)}};
 % Old events
-maybe_migrate({created, #{postings := Postings} = Transfer}) ->
+maybe_migrate({created, #{postings := Postings} = Transfer}, EvType) ->
     #{
         id := ID,
         postings := Postings
@@ -237,30 +237,49 @@ maybe_migrate({created, #{postings := Postings} = Transfer}) ->
         final_cash_flow => #{
             postings => CashFlowPostings
         }
-    }});
+    }}, EvType);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate(Ev, _) ->
     Ev.
 
-maybe_migrate_cash_flow(#{postings := CashFlowPostings} = CashFlow) ->
-    CashFlow#{postings => lists:map(fun maybe_migrate_posting/1, CashFlowPostings)}.
+maybe_migrate_cash_flow(#{postings := CashFlowPostings} = CashFlow, EvType) ->
+    NewPostings = [
+        maybe_migrate_posting(CashFlowPosting, EvType)
+        || CashFlowPosting <- CashFlowPostings
+    ],
+    CashFlow#{postings => NewPostings}.
 
 % Some cashflow in early withdrawals has been created with binary accounter_account_id
 maybe_migrate_posting(#{
     sender := #{accounter_account_id := SenderAcc} = Sender
-} = Posting) when is_binary(SenderAcc) ->
+} = Posting, EvType) when is_binary(SenderAcc) ->
     maybe_migrate_posting(Posting#{
         sender := Sender#{
             accounter_account_id := erlang:binary_to_integer(SenderAcc)
         }
-    });
+    }, EvType);
 maybe_migrate_posting(#{
     receiver := #{accounter_account_id := ReceiverAcc} = Receiver
-} = Posting) when is_binary(ReceiverAcc) ->
+} = Posting, EvType) when is_binary(ReceiverAcc) ->
     maybe_migrate_posting(Posting#{
         receiver := Receiver#{
             accounter_account_id := erlang:binary_to_integer(ReceiverAcc)
         }
-    });
-maybe_migrate_posting(Posting) ->
-    Posting.
+    }, EvType);
+maybe_migrate_posting(#{receiver := Receiver, sender := Sender} = Posting, EvType) ->
+    Posting#{
+        receiver := maybe_migrate_final_account(Receiver, receiver, EvType),
+        sender := maybe_migrate_final_account(Sender, sender, EvType)
+    }.
+
+maybe_migrate_final_account(Account = #{type := _Type}, _, _) ->
+    Account;
+maybe_migrate_final_account(Account, receiver, withdrawal) ->
+    Account#{type => {wallet, receiver_destination}};
+maybe_migrate_final_account(Account, receiver, deposit) ->
+    Account#{type => {wallet, receiver_settlement}};
+maybe_migrate_final_account(Account, sender, withdrawal) ->
+    Account#{type => {wallet, sender_settlement}};
+maybe_migrate_final_account(Account, sender, deposit) ->
+    Account#{type => {wallet, sender_source}}.
+

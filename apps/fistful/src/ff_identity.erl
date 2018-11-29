@@ -15,17 +15,17 @@
 
 %% API
 
--type id(T)             :: T.
+-type id()              :: binary().
 -type party()           :: ff_party:id().
 -type provider()        :: ff_provider:id().
 -type contract()        :: ff_party:contract_id().
 -type class()           :: ff_identity_class:id().
 -type level()           :: ff_identity_class:level_id().
 -type challenge_class() :: ff_identity_class:challenge_class_id().
--type challenge_id()    :: id(_).
+-type challenge_id()    :: id().
 
 -type identity() :: #{
-    id           := id(_),
+    id           := id(),
     party        := party(),
     provider     := provider(),
     class        := class(),
@@ -46,6 +46,7 @@
 
 -export_type([identity/0]).
 -export_type([event/0]).
+-export_type([id/0]).
 
 -export([id/1]).
 -export([provider/1]).
@@ -73,7 +74,7 @@
 %% Accessors
 
 -spec id(identity()) ->
-    id(_).
+    id().
 -spec provider(identity()) ->
     provider().
 -spec class(identity()) ->
@@ -131,7 +132,7 @@ is_accessible(Identity) ->
 
 %% Constructor
 
--spec create(id(_), party(), provider(), class()) ->
+-spec create(id(), party(), provider(), class()) ->
     {ok, [event()]} |
     {error,
         {provider, notfound} |

@@ -2,6 +2,7 @@
 
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
 
 %% API
 -export([get_providers/2]).
@@ -23,6 +24,7 @@
 -export([get_wallet/2]).
 -export([create_wallet/2]).
 -export([get_wallet_account/2]).
+-export([list_wallets/2]).
 
 -export([get_destinations/2]).
 -export([get_destination/2]).
@@ -31,6 +33,7 @@
 -export([get_withdrawal/2]).
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
+-export([list_withdrawals/2]).
 
 -export([get_residence/2]).
 -export([get_currency/2]).
@@ -43,6 +46,7 @@
 -type result()      :: result(map()).
 -type result(T)     :: result(T, notfound).
 -type result(T, E)  :: {ok, T} | {error, E}.
+-type result_stat() :: {200 | 400, list(), map()}.
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 
@@ -252,6 +256,16 @@ get_wallet_account(WalletId, Context) ->
         to_swag(wallet_account, {ff_indef:current(Amounts), ff_indef:expmin(Amounts), Currency})
     end).
 
+-spec list_wallets(params(), ctx()) ->
+    {ok, result_stat()} | {error, result_stat()}.
+list_wallets(Params, Context) ->
+    StatType = wallet_stat,
+    Dsl = create_stat_dsl(StatType, Params, Context),
+    ContinuationToken = maps:get(continuationToken, Params, undefined),
+    Req = create_stat_request(Dsl, ContinuationToken),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWallets', [Req]}, Context),
+    process_stat_result(StatType, Result).
+
 %% Withdrawals
 
 -spec get_destinations(params(), ctx()) -> no_return().
@@ -334,6 +348,16 @@ get_withdrawal_event(WithdrawalId, EventId, Context) ->
             false
     end,
     get_event({withdrawal, event}, WithdrawalId, EventId, Mapper, Context).
+
+-spec list_withdrawals(params(), ctx()) ->
+    {ok, result_stat()} | {error, result_stat()}.
+list_withdrawals(Params, Context) ->
+    StatType = withdrawal_stat,
+    Dsl = create_stat_dsl(StatType, Params, Context),
+    ContinuationToken = maps:get(continuationToken, Params, undefined),
+    Req = create_stat_request(Dsl, ContinuationToken),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', [Req]}, Context),
+    process_stat_result(StatType, Result).
 
 %% Residences
 
@@ -485,6 +509,116 @@ next_id(Type) ->
     erlang:integer_to_binary(
         ff_sequence:next(NS, ff_string:join($/, [Type, id]), fistful:backend(NS))
     ).
+
+create_stat_dsl(withdrawal_stat, Req, Context) ->
+    Query = #{
+        <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
+        <<"wallet_id"       >> => genlib_map:get(walletID, Req),
+        <<"identity_id"     >> => genlib_map:get(identityID, Req),
+        <<"destination_id"  >> => genlib_map:get(destinationID, Req),
+        <<"status"          >> => genlib_map:get(status, Req),
+        <<"from_time"       >> => get_time(createdAtFrom, Req),
+        <<"to_time"         >> => get_time(createdAtTo, Req),
+        <<"amount_from"     >> => genlib_map:get(amountFrom, Req),
+        <<"amount_to"       >> => genlib_map:get(amountTo, Req),
+        <<"currency_code"   >> => genlib_map:get(currencyID, Req)
+    },
+    QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
+    jsx:encode(create_dsl(withdrawals, Query, QueryParams));
+create_stat_dsl(wallet_stat, Req, Context) ->
+    Query = #{
+        <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
+        <<"identity_id"     >> => genlib_map:get(identityID, Req),
+        <<"currency_code"   >> => genlib_map:get(currencyID, Req)
+    },
+    QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
+    jsx:encode(create_dsl(wallets, Query, QueryParams)).
+
+create_stat_request(Dsl, Token) ->
+    #fistfulstat_StatRequest{
+        dsl = Dsl,
+        continuation_token = Token
+    }.
+
+process_stat_result(StatType, Result) ->
+    case Result of
+        {ok, #fistfulstat_StatResponse{
+            data = {_QueryType, Data},
+            continuation_token = ContinuationToken
+        }} ->
+            DecodedData = [decode_stat(StatType, S) || S <- Data],
+            Responce = genlib_map:compact(#{
+                <<"result">> => DecodedData,
+                <<"continuationToken">> => ContinuationToken
+            }),
+            {ok, {200, [], Responce}};
+        {exception, #fistfulstat_InvalidRequest{errors = Errors}} ->
+            FormattedErrors = format_request_errors(Errors),
+            {error, {400, [], bad_request_error(invalidRequest, FormattedErrors)}};
+        {exception, #fistfulstat_BadToken{reason = Reason}} ->
+            {error, {400, [], bad_request_error(invalidRequest, Reason)}}
+    end.
+
+get_time(Key, Req) ->
+    case genlib_map:get(Key, Req) of
+        Timestamp when is_binary(Timestamp) ->
+            wapi_utils:to_universal_time(Timestamp);
+        undefined ->
+            undefined
+    end.
+
+create_dsl(StatTag, Query, QueryParams) ->
+    #{<<"query">> => merge_and_compact(
+        maps:put(genlib:to_binary(StatTag), genlib_map:compact(Query), #{}),
+        QueryParams
+    )}.
+
+merge_and_compact(M1, M2) ->
+    genlib_map:compact(maps:merge(M1, M2)).
+
+bad_request_error(Type, Name) ->
+    #{<<"errorType">> => genlib:to_binary(Type), <<"name">> => genlib:to_binary(Name)}.
+
+format_request_errors([]    ) -> <<>>;
+format_request_errors(Errors) -> genlib_string:join(<<"\n">>, Errors).
+
+decode_stat(withdrawal_stat, Response) ->
+    merge_and_compact(#{
+        <<"id"          >> => Response#fistfulstat_StatWithdrawal.id,
+        <<"createdAt"   >> => Response#fistfulstat_StatWithdrawal.created_at,
+        <<"wallet"      >> => Response#fistfulstat_StatWithdrawal.source_id,
+        <<"destination" >> => Response#fistfulstat_StatWithdrawal.destination_id,
+        <<"body"        >> => decode_withdrawal_cash(
+            Response#fistfulstat_StatWithdrawal.amount,
+            Response#fistfulstat_StatWithdrawal.currency_symbolic_code
+        ),
+        <<"fee"         >> => decode_withdrawal_cash(
+            Response#fistfulstat_StatWithdrawal.fee,
+            Response#fistfulstat_StatWithdrawal.currency_symbolic_code
+        )
+    }, decode_withdrawal_stat_status(Response#fistfulstat_StatWithdrawal.status));
+decode_stat(wallet_stat, Response) ->
+    #{
+        <<"id"          >> => Response#fistfulstat_StatWallet.id,
+        <<"name"        >> => Response#fistfulstat_StatWallet.name,
+        <<"identity"    >> => Response#fistfulstat_StatWallet.identity_id,
+        <<"currency"    >> => Response#fistfulstat_StatWallet.currency_symbolic_code
+    }.
+
+decode_withdrawal_cash(Amount, Currency) ->
+    #{<<"amount">> => Amount, <<"currency">> => Currency}.
+
+decode_withdrawal_stat_status({pending, #fistfulstat_WithdrawalPending{}}) ->
+    #{<<"status">> => <<"Pending">>};
+decode_withdrawal_stat_status({succeeded, #fistfulstat_WithdrawalSucceeded{}}) ->
+    #{<<"status">> => <<"Succeeded">>};
+decode_withdrawal_stat_status({failed, #fistfulstat_WithdrawalFailed{failure = Failure}}) ->
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => #{
+            <<"code">> => to_swag(stat_withdrawal_status_failure, Failure)
+        }
+    }.
 
 %% Marshalling
 
@@ -751,6 +885,8 @@ to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
     to_swag(domain_failure, Failure);
 to_swag(withdrawal_status_failure, Failure) ->
     to_swag(domain_failure, map_internal_error(Failure));
+to_swag(stat_withdrawal_status_failure, Failure) ->
+    to_swag(domain_failure, map_fistful_stat_error(Failure));
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{
         <<"eventID">> => EventId,
@@ -796,6 +932,11 @@ map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
         }
     };
 map_internal_error(_Reason) ->
+    #domain_Failure{
+        code = <<"failed">>
+    }.
+
+map_fistful_stat_error(_Reason) ->
     #domain_Failure{
         code = <<"failed">>
     }.

@@ -598,12 +598,13 @@ decode_stat(withdrawal_stat, Response) ->
         )
     }, decode_withdrawal_stat_status(Response#fistfulstat_StatWithdrawal.status));
 decode_stat(wallet_stat, Response) ->
-    #{
+    genlib_map:compact(#{
         <<"id"          >> => Response#fistfulstat_StatWallet.id,
         <<"name"        >> => Response#fistfulstat_StatWallet.name,
         <<"identity"    >> => Response#fistfulstat_StatWallet.identity_id,
+        <<"createdAt"   >> => Response#fistfulstat_StatWallet.created_at,
         <<"currency"    >> => Response#fistfulstat_StatWallet.currency_symbolic_code
-    }.
+    }).
 
 decode_withdrawal_cash(Amount, Currency) ->
     #{<<"amount">> => Amount, <<"currency">> => Currency}.

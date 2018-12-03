@@ -247,7 +247,7 @@ create_p_transfer(Withdrawal) ->
         Provider = unwrap(provider, get_route_provider(route(Withdrawal))),
         ProviderAccounts = ff_withdrawal_provider:accounts(Provider),
         ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
-        ProviderFee = ff_withdrawal_provider:fee(Provider),
+        ProviderFee = ff_withdrawal_provider:fee(Provider, CurrencyID),
         SystemAccounts = unwrap(system, get_system_accounts()),
         SystemAccount = maps:get(CurrencyID, SystemAccounts, undefined),
         CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),

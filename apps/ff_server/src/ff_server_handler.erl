@@ -28,16 +28,17 @@ handle_function(Func, Args, Context, Opts) ->
 %% Internals
 %%
 
-handle_function_('CreateSource', [Params], _Context, _Opts) ->
-    case ff_source:create(undefined, #{
+handle_function_('CreateSource', [Params], Context, Opts) ->
+    SourceID = next_id('source'),
+    case ff_source:create(SourceID, #{
             identity => Params#fistful_SourceParams.identity_id,
             name     => Params#fistful_SourceParams.name,
             currency => decode(currency, Params#fistful_SourceParams.currency),
             resource => decode({source, resource}, Params#fistful_SourceParams.resource)
         }, decode(context, Params#fistful_SourceParams.context))
     of
-        {ok, Source} ->
-            {ok, encode(source, {ff_source:id(ff_source:get(Source)), Source})};
+        ok ->
+            handle_function_('GetSource', [SourceID], Context, Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {currency, notfound}} ->
@@ -52,15 +53,16 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_SourceNotFound{})
     end;
-handle_function_('CreateDeposit', [Params], _Context, _Opts) ->
-    case ff_deposit:create(undefined, #{
+handle_function_('CreateDeposit', [Params], Context, Opts) ->
+    DepositID = next_id('deposit'),
+    case ff_deposit:create(DepositID, #{
             source_id   => Params#fistful_DepositParams.source,
             wallet_id   => Params#fistful_DepositParams.destination,
             body        => decode({deposit, body}, Params#fistful_DepositParams.body)
         }, decode(context, Params#fistful_DepositParams.context))
     of
-        {ok, Deposit} ->
-            {ok, encode(deposit, {ff_deposit:id(ff_deposit:get(Deposit)), Deposit})};
+        ok ->
+            handle_function_('GetDeposit', [DepositID], Context, Opts);
         {error, {source, notfound}} ->
             woody_error:raise(business, #fistful_SourceNotFound{});
         {error, {source, unauthorized}} ->
@@ -134,3 +136,9 @@ encode(context, #{}) ->
     undefined;
 encode(context, Ctx) ->
     Ctx.
+
+next_id(Type) ->
+    NS = 'ff/sequence',
+    erlang:integer_to_binary(
+        ff_sequence:next(NS, ff_string:join($/, [Type, id]), fistful:backend(NS))
+    ).

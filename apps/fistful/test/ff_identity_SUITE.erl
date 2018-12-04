@@ -54,8 +54,7 @@ init_per_suite(C) ->
                 'identification' => "http://identification:8022/v1/identification"
             }},
             {backends, #{
-                'ff/identity' => Be,
-                'ff/sequence' => Be
+                'ff/identity' => Be
             }},
             {providers,
                 get_provider_config()
@@ -67,9 +66,7 @@ init_per_suite(C) ->
     Routes = machinery_mg_backend:get_routes(
         [
             {{fistful, ff_identity_machine},
-                #{path => <<"/v1/stateproc/ff/identity">>, backend_config => BeConf}},
-            {{fistful, ff_sequence},
-                #{path => <<"/v1/stateproc/ff/sequence">>, backend_config => BeConf}}
+                #{path => <<"/v1/stateproc/ff/identity">>, backend_config => BeConf}}
         ],
         BeOpts
     ),
@@ -125,8 +122,9 @@ get_missing_fails(_C) ->
     {error, notfound} = ff_identity_machine:get(ID).
 
 create_missing_fails(_C) ->
+    ID = genlib:unique(),
     {error, {provider, notfound}} = ff_identity_machine:create(
-        undefined,
+        ID,
         #{
             party    => <<"party">>,
             provider => <<"who">>,
@@ -135,7 +133,7 @@ create_missing_fails(_C) ->
         ff_ctx:new()
     ),
     {error, {identity_class, notfound}} = ff_identity_machine:create(
-        undefined,
+        ID,
         #{
             party    => <<"party">>,
             provider => <<"good-one">>,
@@ -145,16 +143,34 @@ create_missing_fails(_C) ->
     ).
 
 create_ok(C) ->
+    ID = genlib:unique(),
     Party = create_party(C),
-    ID = ct_payment_system:create_identity(Party, <<"good-one">>, <<"person">>),
+    ok = ff_identity_machine:create(
+        ID,
+        #{
+            party    => Party,
+            provider => <<"good-one">>,
+            class    => <<"person">>
+        },
+        ff_ctx:new()
+    ),
     I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
     {ok, accessible} = ff_identity:is_accessible(I1),
     Party = ff_identity:party(I1),
     Party = ff_identity:party(I1).
 
 identify_ok(C) ->
+    ID = genlib:unique(),
     Party = create_party(C),
-    ID = ct_payment_system:create_identity(Party, <<"good-one">>, <<"person">>),
+    ok = ff_identity_machine:create(
+        ID,
+        #{
+            party    => Party,
+            provider => <<"good-one">>,
+            class    => <<"person">>
+        },
+        ff_ctx:new()
+    ),
     ICID = genlib:unique(),
     {ok, S1} = ff_identity_machine:get(ID),
     I1 = ff_identity_machine:identity(S1),

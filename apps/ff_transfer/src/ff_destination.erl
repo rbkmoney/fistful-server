@@ -56,7 +56,6 @@
 -export([get/1]).
 -export([is_accessible/1]).
 -export([events/2]).
--export([compare_resource/2]).
 
 %% Accessors
 
@@ -80,15 +79,14 @@ account(Destination)  -> ff_instrument:account(Destination).
 
 -define(NS, 'ff/destination_v2').
 
--spec create(id() | undefined, params(), ctx()) ->
-    {ok, machine()} |
+-spec create(id(), params(), ctx()) ->
+    ok |
     {error,
         _InstrumentCreateError |
-        {conflict, id()}
+        exists
     }.
 
-create(ExternalID, Params, Ctx) ->
-    {ok, ID} = ff_external_id:check(destination, ExternalID),
+create(ID, Params, Ctx) ->
     ff_instrument_machine:create(?NS, ID, Params, Ctx).
 
 -spec get_machine(id()) ->
@@ -115,11 +113,3 @@ is_accessible(Destination) ->
 
 events(ID, Range) ->
     ff_instrument_machine:events(?NS, ID, Range).
-
--spec compare_resource(resource(), resource()) ->
-    true | false.
-
-compare_resource(Resource, Resource) ->
-    true;
-compare_resource(_, _) ->
-    false.

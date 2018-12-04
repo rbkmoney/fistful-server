@@ -66,7 +66,6 @@
 -export([poll_challenge_completion/2]).
 
 -export([apply_event/2]).
--export([compare_event/2]).
 
 %% Pipeline
 
@@ -271,30 +270,3 @@ with_challenges(Fun, Identity) ->
 
 with_challenge(ID, Fun, Challenges) ->
     maps:update_with(ID, Fun, maps:merge(#{ID => undefined}, Challenges)).
-
--spec compare_event(event(), event()) ->
-    true | false.
-
-compare_event(
-    {created, #{
-        id       := ID,
-        party    := Party,
-        provider := ProviderID,
-        class    := ClassID
-    }},
-    {created, #{
-        id       := ID,
-        party    := Party,
-        provider := ProviderID,
-        class    := ClassID
-    }}
-) ->
-    true;
-compare_event({created, _}, _) ->
-    false;
-compare_event({level_changed, LevelID}, {level_changed, LevelID}) ->
-    true;
-compare_event({level_changed, _}, _) ->
-    false;
-compare_event(_, _) ->
-    true.

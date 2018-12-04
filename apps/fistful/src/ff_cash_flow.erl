@@ -5,7 +5,6 @@
 -export([gather_used_accounts/1]).
 -export([finalize/3]).
 -export([add_fee/2]).
--export([compare_cash_flow_plan/2]).
 
 %% Domain types
 -type plan_posting() :: #{
@@ -236,39 +235,3 @@ cash_max({Amount1, Currency1}, {Amount2, Currency2}) when Currency1 =:= Currency
     {ok, {erlang:max(Amount1, Amount2), Currency1}};
 cash_max({_Amount1, Currency1} = Cash1, {_Amount2, Currency2} = Cash2) when Currency1 =/= Currency2 ->
     {error, {incomparable, {currency_mismatch, {Cash1, Cash2}}}}.
-
--spec compare_cash_flow_plan(cash_flow_plan(), cash_flow_plan()) ->
-    true | false.
-
-compare_cash_flow_plan(#{postings := Postings1}, #{postings := Postings2}) when
-    length(Postings1) =:= length(Postings2)
- ->
-    compare_postings(Postings1, Postings2);
-compare_cash_flow_plan(_, _) ->
-    false.
-
-compare_postings([], []) ->
-    true;
-compare_postings([H1 | T1], [H2 | T2]) ->
-    case compare_posting(H1, H2) of
-        true ->
-            compare_postings(T1, T2);
-        false ->
-            false
-    end.
-
-compare_posting(
-    #{
-        sender      := Sender,
-        receiver    := Receiver,
-        volume      := Volume
-    },
-    #{
-        sender      := Sender,
-        receiver    := Receiver,
-        volume      := Volume
-    }
-) ->
-    true;
-compare_posting(_, _) ->
-    false.

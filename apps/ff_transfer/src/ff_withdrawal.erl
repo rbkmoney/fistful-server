@@ -53,7 +53,6 @@
 %% Event source
 
 -export([maybe_migrate/1]).
--export([compare_params/2]).
 
 %% Pipeline
 
@@ -103,18 +102,18 @@ route(T)           -> ff_transfer:route(T).
     body           := ff_transaction:body()
 }.
 
--spec create(id() | undefined, params(), ctx()) ->
-    {ok, machine()} |
+-spec create(id(), params(), ctx()) ->
+    ok |
     {error,
         {source, notfound} |
         {destination, notfound | unauthorized} |
         {provider, notfound} |
-        {conflict, id()} |
+        exists |
         _TransferError
 
     }.
 
-create(ExternalID, #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->
+create(ID, #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->
     do(fun() ->
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
         WalletAccount = ff_wallet:account(Wallet),
@@ -137,7 +136,6 @@ create(ExternalID, #{wallet_id := WalletID, destination_id := DestinationID, bod
                 wallet_cash_flow_plan => CashFlowPlan
             }
         },
-        {ok, ID} = ff_external_id:check(withdrawal, ExternalID),
         unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))
     end).
 
@@ -375,25 +373,3 @@ validate_wallet_limits(WalletID, Body, Account) ->
     ff_transfer:event().
 maybe_migrate(Ev) ->
     ff_transfer:maybe_migrate(Ev, withdrawal).
-
--spec compare_params(transfer_params(), transfer_params()) ->
-    true | false.
-compare_params(
-    #{
-        wallet_id             := WalletID,
-        destination_id        := DestinationID,
-        wallet_account        := WalletAccount,
-        destination_account   := DestinationAccount,
-        wallet_cash_flow_plan := CashFlowPlan1
-    },
-    #{
-        wallet_id             := WalletID,
-        destination_id        := DestinationID,
-        wallet_account        := WalletAccount,
-        destination_account   := DestinationAccount,
-        wallet_cash_flow_plan := CashFlowPlan2
-    }
-) ->
-    ff_cash_flow:compare_cash_flow_plan(CashFlowPlan1, CashFlowPlan2);
-compare_params(_, _) ->
-    false.

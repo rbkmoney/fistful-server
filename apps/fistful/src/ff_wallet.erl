@@ -38,7 +38,6 @@
 -export([close/1]).
 
 -export([apply_event/2]).
--export([compare_event/2]).
 
 %% Internal types
 
@@ -149,28 +148,3 @@ check_accessible(Wallet) ->
         blocked ->
             {error, blocked}
     end.
-
--spec compare_event(event(), event()) ->
-    true | false.
-
-compare_event(
-    {created, #{
-        name     := Name,
-        contract := Contract,
-        blocking := Blocking
-    }},
-    {created, #{
-        name     := Name,
-        contract := Contract,
-        blocking := Blocking
-    }}
-) ->
-    true;
-compare_event({created, _}, _) ->
-    false;
-compare_event({account, Ev1}, {account, Ev2}) ->
-    ff_account:compare_event(Ev1, Ev2);
-compare_event({account, _}, _) ->
-    false;
-compare_event(_, _) ->
-    true.

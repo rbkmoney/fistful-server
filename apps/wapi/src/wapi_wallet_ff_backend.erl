@@ -14,7 +14,7 @@
 
 -export([get_identities/2]).
 -export([get_identity/2]).
--export([create_identity/3]).
+-export([create_identity/2]).
 -export([get_identity_challenges/3]).
 -export([create_identity_challenge/3]).
 -export([get_identity_challenge/3]).
@@ -22,14 +22,14 @@
 -export([get_identity_challenge_event/2]).
 
 -export([get_wallet/2]).
--export([create_wallet/3]).
+-export([create_wallet/2]).
 -export([get_wallet_account/2]).
 -export([list_wallets/2]).
 
 -export([get_destinations/2]).
 -export([get_destination/2]).
--export([create_destination/3]).
--export([create_withdrawal/3]).
+-export([create_destination/2]).
+-export([create_withdrawal/2]).
 -export([get_withdrawal/2]).
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
@@ -42,7 +42,7 @@
 
 -type ctx()         :: wapi_handler:context().
 -type params()      :: map().
--type id()          :: binary() | undefined.
+-type id()          :: binary().
 -type result()      :: result(map()).
 -type result(T)     :: result(T, notfound).
 -type result(T, E)  :: {ok, T} | {error, E}.
@@ -107,33 +107,25 @@ get_identities(_Params, _Context) ->
 get_identity(IdentityId, Context) ->
     do(fun() -> to_swag(identity, get_state(identity, IdentityId, Context)) end).
 
--spec create_identity(id() | undefined, params(), ctx()) -> result(map(),
-    {conflict, id()}           |
+-spec create_identity(params(), ctx()) -> result(map(),
     {provider, notfound}       |
     {identity_class, notfound} |
     {email, notfound}
 ).
-create_identity(ExternalID, Params, Context) ->
+create_identity(Params, Context) ->
+    IdentityId = next_id('identity'),
     do(fun() ->
         with_party(Context, fun() ->
-            create_identity_(ExternalID, Params, Context)
-        end)
-    end).
-
-create_identity_(ExternalID, Params, Context) ->
-    case ff_identity_machine:create(
-        ExternalID,
-        maps:merge(from_swag(identity_params, Params), #{party => wapi_handler_utils:get_owner(Context)}),
-        make_ctx(Params, [<<"name">>], Context
-    )) of
-        {ok, Identity} ->
-            IdentityId = ff_identity:id(ff_identity_machine:identity(Identity)),
+            ok = unwrap(ff_identity_machine:create(
+                IdentityId,
+                maps:merge(from_swag(identity_params, Params), #{party => wapi_handler_utils:get_owner(Context)}),
+                make_ctx(Params, [<<"name">>], Context
+            ))),
             ok = scoper:add_meta(#{identity_id => IdentityId}),
             ok = lager:info("Identity created"),
-            to_swag(identity, Identity);
-        Error ->
-            Error
-    end.
+            unwrap(get_identity(IdentityId, Context))
+        end)
+    end).
 
 -spec get_identity_challenges(id(), [binary()], ctx()) -> result(map(),
     {identity, notfound}     |
@@ -234,27 +226,21 @@ get_identity_challenge_event(#{
 get_wallet(WalletId, Context) ->
     do(fun() -> to_swag(wallet, get_state(wallet, WalletId, Context)) end).
 
--spec create_wallet(id() | undefined, params(), ctx()) -> result(map(),
-    {conflict, id()}         |
+-spec create_wallet(params(), ctx()) -> result(map(),
     invalid                  |
     {identity, unauthorized} |
     {identity, notfound}     |
     {currency, notfound}     |
     {inaccessible, _}
 ).
-create_wallet(ExternalID, Params = #{<<"identity">> := IdenityId}, Context) ->
+create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
+    WalletId = next_id('wallet'),
     do(fun() ->
         _ = check_resource(identity, IdenityId, Context),
-        case ff_wallet_machine:create(
-            ExternalID,
-            from_swag(wallet_params, Params),
-            make_ctx(Params, [], Context)
-        ) of
-            {ok, Wallet} ->
-                to_swag(wallet, Wallet);
-            Error ->
-                Error
-        end
+        ok = unwrap(
+            ff_wallet_machine:create(WalletId, from_swag(wallet_params, Params), make_ctx(Params, [], Context))
+        ),
+        unwrap(get_wallet(WalletId, Context))
     end).
 
 -spec get_wallet_account(id(), ctx()) -> result(map(),
@@ -293,29 +279,24 @@ get_destinations(_Params, _Context) ->
 get_destination(DestinationId, Context) ->
     do(fun() -> to_swag(destination, get_state(destination, DestinationId, Context)) end).
 
--spec create_destination(id() | undefined, params(), ctx()) -> result(map(),
-    {conflict, id()}         |
+-spec create_destination(params(), ctx()) -> result(map(),
     invalid                  |
     {identity, unauthorized} |
     {identity, notfound}     |
     {currency, notfound}     |
     {inaccessible, _}
 ).
-create_destination(ExternalID, Params = #{<<"identity">> := IdenityId}, Context) ->
+create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
+    DestinationId = next_id('destination'),
     do(fun() ->
         _ = check_resource(identity, IdenityId, Context),
-        case ff_destination:create(
-            ExternalID, from_swag(destination_params, Params), make_ctx(Params, [], Context)
-        ) of
-            {ok, Destination} ->
-                to_swag(destination, Destination);
-            Error ->
-                Error
-        end
+        ok = unwrap(ff_destination:create(
+            DestinationId, from_swag(destination_params, Params), make_ctx(Params, [], Context)
+        )),
+        unwrap(get_destination(DestinationId, Context))
     end).
 
--spec create_withdrawal(id() | undefined, params(), ctx()) -> result(map(),
-    {conflict, id()}              |
+-spec create_withdrawal(params(), ctx()) -> result(map(),
     {source, notfound}            |
     {destination, notfound}       |
     {destination, unauthorized}   |
@@ -324,16 +305,13 @@ create_destination(ExternalID, Params = #{<<"identity">> := IdenityId}, Context)
     {wallet, {currency, invalid}} |
     {wallet, {provider, invalid}}
 ).
-create_withdrawal(ExternalID, Params, Context) ->
+create_withdrawal(Params, Context) ->
+    WithdrawalId = next_id('withdrawal'),
     do(fun() ->
-       case ff_withdrawal:create(
-            ExternalID, from_swag(withdrawal_params, Params), make_ctx(Params, [], Context)
-        ) of
-            {ok, Withdrawal} ->
-                to_swag(withdrawal, Withdrawal);
-            Error ->
-                Error
-        end
+        ok = unwrap(ff_withdrawal:create(
+            WithdrawalId, from_swag(withdrawal_params, Params), make_ctx(Params, [], Context)
+        )),
+        unwrap(get_withdrawal(WithdrawalId, Context))
     end).
 
 -spec get_withdrawal(id(), ctx()) -> result(map(),

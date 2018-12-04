@@ -64,7 +64,6 @@
 %% Event source
 
 -export([apply_event/2]).
--export([compare_event/2]).
 -export([maybe_migrate/2]).
 
 %% Pipeline
@@ -330,37 +329,3 @@ maybe_migrate({transfer, PTransferEv}, EventType) ->
 % Other events
 maybe_migrate(Ev, _) ->
     Ev.
-
--spec compare_event(event(), event()) ->
-    true | false.
-
-compare_event(
-    {created, #{
-        version       := Version,
-        id            := ID,
-        transfer_type := TransferType,
-        body          := Body,
-        params        := Params1
-    }},
-    {created, #{
-        version       := Version,
-        id            := ID,
-        transfer_type := TransferType,
-        body          := Body,
-        params        := Params2
-    }}
-) ->
-    compare_params(TransferType, Params1, Params2);
-compare_event({created, _}, _) ->
-    false;
-compare_event({status_changed, Status}, {status_changed, Status}) ->
-    true;
-compare_event({status_changed, _}, _) ->
-    false;
-compare_event(_, _) ->
-    true.
-
-compare_params(withdrawal, Params1, Params2) ->
-    ff_withdrawal:compare_params(Params1, Params2);
-compare_params(deposit, Params1, Params2) ->
-    ff_deposit:compare_params(Params1, Params2).

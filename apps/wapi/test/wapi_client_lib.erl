@@ -45,7 +45,7 @@
 -spec protocol_to_opt(protocol()) ->
     protocol_opts().
 protocol_to_opt(ipv4) ->
-    [{connect_options, [inet4]}];
+    [{connect_options, [inet]}];
 protocol_to_opt(ipv6) ->
     [{connect_options, [inet6]}].
 

@@ -147,7 +147,7 @@ create_identity(C) ->
             <<"class">>    => ?ID_CLASS,
             <<"metadata">> => #{
                 ?STRING => ?STRING
-             }
+            }
         }},
         ct_helper:cfg(context, C)
     ),
@@ -156,11 +156,22 @@ create_identity(C) ->
 
 get_identity(C) ->
     {create_identity, Cfg} = ct_helper:cfg(saved_config, C),
-    {ok, _Identity} = call_api(
+    {ok, Identity} = call_api(
         fun swag_client_wallet_identities_api:get_identity/3,
         #{binding => #{<<"identityID">> => ct_helper:cfg(identity, Cfg)}},
         ct_helper:cfg(context, C)
     ),
+    #{
+        <<"name">> := <<"Keyn Fawkes">>,
+        <<"provider">> := ?ID_PROVIDER,
+        <<"class">> := ?ID_CLASS,
+        <<"metadata">> := #{
+            ?STRING := ?STRING
+        }
+    } = maps:with([<<"name">>,
+                   <<"provider">>,
+                   <<"class">>,
+                   <<"metadata">>], Identity),
     {save_config, Cfg}.
 
 create_wallet(C) ->
@@ -182,11 +193,18 @@ create_wallet(C) ->
 
 get_wallet(C) ->
     {create_wallet, Cfg} = ct_helper:cfg(saved_config, C),
-    {ok, _Wallet} = call_api(
+    {ok, Wallet} = call_api(
         fun swag_client_wallet_wallets_api:get_wallet/3,
         #{binding => #{<<"walletID">> => ct_helper:cfg(wallet, Cfg)}},
         ct_helper:cfg(context, C)
     ),
+    #{
+        <<"name">> := <<"Worldwide PHP Awareness Initiative">>,
+        <<"currency">> := <<"RUB">>,
+        <<"metadata">> := #{
+            ?STRING := ?STRING
+        }
+    } = maps:with([<<"name">>, <<"currency">>, <<"metadata">>], Wallet),
     {save_config, Cfg}.
 
 store_bank_card(C) ->
@@ -206,14 +224,12 @@ store_bank_card(C) ->
 
 get_bank_card(C) ->
     {store_bank_card, Cfg} = ct_helper:cfg(saved_config, C),
-    {store_bank_card, CardToken} = ct_helper:cfg(saved_config, C),
     {ok, _Card} = call_api(
         fun swag_client_payres_payment_resources_api:get_bank_card/3,
         #{binding => #{<<"token">> => ct_helper:cfg(card_token, Cfg)}},
-        ct_helper:cfg(context, C)
+        ct_helper:cfg(context_pcidss, C)
     ),
     {save_config, Cfg}.
-
 
 create_desination(C) ->
     {get_bank_card, Cfg} = ct_helper:cfg(saved_config, C),
@@ -221,7 +237,7 @@ create_desination(C) ->
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{body => #{
             <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
-            <<"identity">> => IdentityID,
+            <<"identity">> => ct_helper:cfg(identity, Cfg),
             <<"currency">> => <<"RUB">>,
             <<"resource">> => #{
                 <<"type">>  => <<"BankCardDestinationResource">>,
@@ -238,16 +254,33 @@ create_desination(C) ->
 
 get_destination(C) ->
     {create_desination, Cfg} = ct_helper:cfg(saved_config, C),
-    {ok, _Wallet} = call_api(
+    {ok, Wallet} = call_api(
         fun swag_client_wallet_withdrawals_api:get_destination/3,
         #{binding => #{<<"destinationID">> => ct_helper:cfg(dest, Cfg)}},
         ct_helper:cfg(context, C)
     ),
+    #{<<"resource">> := Res} = W1 = maps:with([<<"name">>,
+                                               <<"identity">>,
+                                               <<"currency">>,
+                                               <<"resource">>,
+                                               <<"metadata">>], Wallet),
+    IdentityID = ct_helper:cfg(identity, Cfg),
+    #{
+        <<"name">> := <<"Worldwide PHP Awareness Initiative">>,
+        <<"identity">> := IdentityID,
+        <<"currency">> := <<"RUB">>,
+        <<"resource">> := #{
+            <<"type">>  := <<"BankCardDestinationResource">>
+        },
+        <<"metadata">> := #{
+            ?STRING := ?STRING
+        }
+    } = W1#{<<"resource">> => maps:with([<<"type">>], Res)},
     {save_config, Cfg}.
 
 %%
 
--spec call_api(function(),map(), wapi_client_lib:context()) ->
+-spec call_api(function(), map(), wapi_client_lib:context()) ->
     {ok, term()} | {error, term()}.
 call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
@@ -346,7 +379,7 @@ get_default_termset() ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
             currencies = {value, ?ordset([?cur(<<"RUB">>)])},
-            cash_limit = {decisions, [
+            wallet_limit = {decisions, [
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(

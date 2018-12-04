@@ -124,6 +124,36 @@ start_app(ff_server = AppName) ->
         }},
         {admin, #{
             path => <<"/v1/admin">>
+        }},
+        {eventsink, #{
+            identity => #{
+                namespace => <<"ff/identity">>,
+                path => <<"/v1/eventsink/identity">>
+            },
+            wallet => #{
+                namespace => <<"ff/wallet_v2">>,
+                path => <<"/v1/eventsink/wallet">>
+            },
+            withdrawal => #{
+                namespace => <<"ff/withdrawal_v2">>,
+                path => <<"/v1/eventsink/withdrawal">>
+            },
+            deposit => #{
+                namespace => <<"ff/deposit_v1">>,
+                path => <<"/v1/eventsink/deposit">>
+            },
+            destination => #{
+                namespace => <<"ff/destination_v2">>,
+                path => <<"/v1/eventsink/destination">>
+            },
+            source => #{
+                namespace => <<"ff/source_v1">>,
+                path => <<"/v1/eventsink/source">>
+            },
+            withdrawal_session => #{
+                namespace => <<"ff/withdrawal/session_v2">>,
+                path => <<"/v1/eventsink/withdrawal/session">>
+            }
         }}
     ]), #{}};
 

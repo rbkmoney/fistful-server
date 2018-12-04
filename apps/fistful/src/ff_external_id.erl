@@ -27,7 +27,8 @@
 
 %%
 
--type entity_name()  :: identity | wallet | withdrawal | deposit | source | destination.
+-type entity_name()  :: identity | wallet | withdrawal |
+                        deposit  | source | destination | 'identity-challenge'.
 -type sequence()     :: binary().
 
 %% API

@@ -73,6 +73,7 @@ start_processing_apps(Options) ->
             {backends, maps:from_list([{NS, Be} || NS <- [
                 'ff/identity'              ,
                 'ff/sequence'              ,
+                'ff/external_id'           ,
                 'ff/wallet_v2'             ,
                 'ff/source_v1'             ,
                 'ff/deposit_v1'            ,
@@ -94,6 +95,7 @@ start_processing_apps(Options) ->
         [
             construct_handler(ff_identity_machine           , "identity"              , BeConf),
             construct_handler(ff_sequence                   , "sequence"              , BeConf),
+            construct_handler(ff_external_id                , "external_id"           , BeConf),
             construct_handler(ff_wallet_machine             , "wallet_v2"             , BeConf),
             construct_handler(ff_instrument_machine         , "source_v1"             , BeConf),
             construct_handler(ff_transfer_machine           , "deposit_v1"            , BeConf),
@@ -277,6 +279,45 @@ identity_provider_config(Options) ->
                     }
                 }
             }
+        },
+        <<"good-two">> => #{
+            payment_institution_id => 1,
+            routes => [<<"mocketbank">>],
+            identity_classes => #{
+                <<"person">> => #{
+                    name => <<"Well, a person">>,
+                    contract_template_id => 1,
+                    initial_level => <<"peasant">>,
+                    levels => #{
+                        <<"peasant">> => #{
+                            name => <<"Well, a peasant">>,
+                            contractor_level => none
+                        },
+                        <<"nobleman">> => #{
+                            name => <<"Well, a nobleman">>,
+                            contractor_level => partial
+                        }
+                    },
+                    challenges => #{
+                        <<"sword-initiation">> => #{
+                            name   => <<"Initiation by sword">>,
+                            base   => <<"peasant">>,
+                            target => <<"nobleman">>
+                        }
+                    }
+                },
+                <<"church">>          => #{
+                    name                 => <<"Well, a Сhurch">>,
+                    contract_template_id => 2,
+                    initial_level        => <<"mainline">>,
+                    levels               => #{
+                        <<"mainline">>    => #{
+                            name               => <<"Well, a mainline Сhurch">>,
+                            contractor_level   => full
+                        }
+                    }
+                }
+            }
         }
     },
     maps:get(identity_provider_config, Options, Default).
@@ -361,13 +402,20 @@ domain_config(Options, C) ->
 default_termset(Options) ->
     Default = #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
-            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+            currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
             wallet_limit = {decisions, [
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
                         {inclusive, ?cash(       0, <<"RUB">>)},
                         {exclusive, ?cash(10000001, <<"RUB">>)}
+                    )}
+                },
+                #domain_CashLimitDecision{
+                    if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                    then_ = {value, ?cashrng(
+                        {inclusive, ?cash(       0, <<"USD">>)},
+                        {exclusive, ?cash(10000000, <<"USD">>)}
                     )}
                 }
             ]},
@@ -407,13 +455,20 @@ default_termset(Options) ->
 company_termset(Options) ->
     Default = #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
-            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+            currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
             wallet_limit = {decisions, [
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
                         {inclusive, ?cash(       0, <<"RUB">>)},
                         {exclusive, ?cash(10000000, <<"RUB">>)}
+                    )}
+                },
+                #domain_CashLimitDecision{
+                    if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                    then_ = {value, ?cashrng(
+                        {inclusive, ?cash(       0, <<"USD">>)},
+                        {exclusive, ?cash(10000000, <<"USD">>)}
                     )}
                 }
             ]}

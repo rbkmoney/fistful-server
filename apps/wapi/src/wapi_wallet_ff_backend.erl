@@ -14,7 +14,7 @@
 
 -export([get_identities/2]).
 -export([get_identity/2]).
--export([create_identity/2]).
+-export([create_identity/3]).
 -export([get_identity_challenges/3]).
 -export([create_identity_challenge/3]).
 -export([get_identity_challenge/3]).
@@ -22,14 +22,14 @@
 -export([get_identity_challenge_event/2]).
 
 -export([get_wallet/2]).
--export([create_wallet/2]).
+-export([create_wallet/3]).
 -export([get_wallet_account/2]).
 -export([list_wallets/2]).
 
 -export([get_destinations/2]).
 -export([get_destination/2]).
--export([create_destination/2]).
--export([create_withdrawal/2]).
+-export([create_destination/3]).
+-export([create_withdrawal/3]).
 -export([get_withdrawal/2]).
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
@@ -42,7 +42,7 @@
 
 -type ctx()         :: wapi_handler:context().
 -type params()      :: map().
--type id()          :: binary().
+-type id()          :: binary() | undefined.
 -type result()      :: result(map()).
 -type result(T)     :: result(T, notfound).
 -type result(T, E)  :: {ok, T} | {error, E}.
@@ -107,23 +107,26 @@ get_identities(_Params, _Context) ->
 get_identity(IdentityId, Context) ->
     do(fun() -> to_swag(identity, get_state(identity, IdentityId, Context)) end).
 
--spec create_identity(params(), ctx()) -> result(map(),
+-spec create_identity(id(), params(), ctx()) -> result(map(),
     {provider, notfound}       |
     {identity_class, notfound} |
-    {email, notfound}
+    {email, notfound}          |
+    {identity, unauthorized}   |
+    {conflict, id()}
 ).
-create_identity(Params, Context) ->
-    IdentityId = next_id('identity'),
+create_identity(ExternalID, Params, Context) ->
+    IdentityId = next_id('identity', ExternalID),
+    ParamsHash = erlang:phash2(Params),
     do(fun() ->
         with_party(Context, fun() ->
-            ok = unwrap(ff_identity_machine:create(
+            ok = unwrap_create(ff_identity_machine:create(
                 IdentityId,
                 maps:merge(from_swag(identity_params, Params), #{party => wapi_handler_utils:get_owner(Context)}),
-                make_ctx(Params, [<<"name">>], Context
-            ))),
+                add_to_ctx(<<"create_hash">>, ParamsHash, make_ctx(Params, [<<"name">>], Context))
+            )),
             ok = scoper:add_meta(#{identity_id => IdentityId}),
             ok = lager:info("Identity created"),
-            unwrap(get_identity(IdentityId, Context))
+            unwrap(get_and_compare_hash(identity, IdentityId, ParamsHash, Context))
         end)
     end).
 
@@ -226,21 +229,26 @@ get_identity_challenge_event(#{
 get_wallet(WalletId, Context) ->
     do(fun() -> to_swag(wallet, get_state(wallet, WalletId, Context)) end).
 
--spec create_wallet(params(), ctx()) -> result(map(),
+-spec create_wallet(id(), params(), ctx()) -> result(map(),
     invalid                  |
     {identity, unauthorized} |
     {identity, notfound}     |
     {currency, notfound}     |
+    {wallet, unauthorized}   |
+    {conflict, id()}         |
     {inaccessible, _}
 ).
-create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
-    WalletId = next_id('wallet'),
+create_wallet(ExternalID, Params = #{<<"identity">> := IdenityId}, Context) ->
+    WalletId = next_id('wallet', ExternalID),
+    ParamsHash = erlang:phash2(Params),
     do(fun() ->
         _ = check_resource(identity, IdenityId, Context),
-        ok = unwrap(
-            ff_wallet_machine:create(WalletId, from_swag(wallet_params, Params), make_ctx(Params, [], Context))
-        ),
-        unwrap(get_wallet(WalletId, Context))
+        ok = unwrap_create(ff_wallet_machine:create(
+            WalletId,
+            from_swag(wallet_params, Params),
+            add_to_ctx(<<"create_hash">>, ParamsHash, make_ctx(Params, [], Context))
+        )),
+        unwrap(get_and_compare_hash(wallet, WalletId, ParamsHash, Context))
     end).
 
 -spec get_wallet_account(id(), ctx()) -> result(map(),
@@ -279,39 +287,49 @@ get_destinations(_Params, _Context) ->
 get_destination(DestinationId, Context) ->
     do(fun() -> to_swag(destination, get_state(destination, DestinationId, Context)) end).
 
--spec create_destination(params(), ctx()) -> result(map(),
-    invalid                  |
-    {identity, unauthorized} |
-    {identity, notfound}     |
-    {currency, notfound}     |
-    {inaccessible, _}
+-spec create_destination(id(), params(), ctx()) -> result(map(),
+    invalid                     |
+    {identity, unauthorized}    |
+    {identity, notfound}        |
+    {currency, notfound}        |
+    {inaccessible, _}           |
+    {conflict, id()}            |
+    {destination, unauthorized}
 ).
-create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
-    DestinationId = next_id('destination'),
+create_destination(ExternalID, Params = #{<<"identity">> := IdenityId}, Context) ->
+    DestinationId = next_id('destination', ExternalID),
+    ParamsHash = erlang:phash2(Params),
     do(fun() ->
         _ = check_resource(identity, IdenityId, Context),
-        ok = unwrap(ff_destination:create(
-            DestinationId, from_swag(destination_params, Params), make_ctx(Params, [], Context)
+        ok = unwrap_create(ff_destination:create(
+            DestinationId,
+            from_swag(destination_params, Params),
+            add_to_ctx(<<"create_hash">>, ParamsHash, make_ctx(Params, [], Context))
         )),
-        unwrap(get_destination(DestinationId, Context))
+        unwrap(get_and_compare_hash(destination, DestinationId, ParamsHash, Context))
     end).
 
--spec create_withdrawal(params(), ctx()) -> result(map(),
+-spec create_withdrawal(id(), params(), ctx()) -> result(map(),
     {source, notfound}            |
     {destination, notfound}       |
     {destination, unauthorized}   |
+    {withdrawal, unauthorized}    |
+    {conflict, id()}              |
     {provider, notfound}          |
     {wallet, {inaccessible, _}}   |
     {wallet, {currency, invalid}} |
     {wallet, {provider, invalid}}
 ).
-create_withdrawal(Params, Context) ->
-    WithdrawalId = next_id('withdrawal'),
+create_withdrawal(ExternalID, Params, Context) ->
+    WithdrawalId = next_id('withdrawal', ExternalID),
+    ParamsHash = erlang:phash2(Params),
     do(fun() ->
-        ok = unwrap(ff_withdrawal:create(
-            WithdrawalId, from_swag(withdrawal_params, Params), make_ctx(Params, [], Context)
+        ok = unwrap_create(ff_withdrawal:create(
+            WithdrawalId,
+            from_swag(withdrawal_params, Params),
+            add_to_ctx(<<"create_hash">>, ParamsHash, make_ctx(Params, [], Context))
         )),
-        unwrap(get_withdrawal(WithdrawalId, Context))
+        unwrap(get_and_compare_hash(withdrawal, WithdrawalId, ParamsHash, Context))
     end).
 
 -spec get_withdrawal(id(), ctx()) -> result(map(),
@@ -454,8 +472,14 @@ make_ctx(Params, WapiKeys, Context) ->
         maps:with([<<"metadata">> | WapiKeys], Params)
     )}.
 
+add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
+    Context#{?CTX_NS => Ctx#{Key => Value}}.
+
 get_ctx(State) ->
     unwrap(ff_ctx:get(?CTX_NS, ff_machine:ctx(State))).
+
+get_hash(State) ->
+    maps:get(<<"create_hash">>, get_ctx(State)).
 
 get_resource_owner(State) ->
     maps:get(<<"owner">>, get_ctx(State)).
@@ -468,6 +492,19 @@ check_resource_access(HandlerCtx, State) ->
 
 check_resource_access(true)  -> ok;
 check_resource_access(false) -> {error, unauthorized}.
+
+get_and_compare_hash(Type, ID, Hash, Context) ->
+    case do(fun() -> get_state(Type, ID, Context) end) of
+        {ok, State} ->
+            compare_hash(Hash, get_hash(State), {ID, fun() -> to_swag(Type, State) end});
+        Error ->
+            Error
+    end.
+
+compare_hash(Hash, Hash, {_, CallBack}) ->
+    {ok, CallBack()};
+compare_hash(_, _, {ID, _}) ->
+    {error, {conflict, ID}}.
 
 with_party(Context, Fun) ->
     try Fun()
@@ -497,6 +534,11 @@ not_implemented() ->
 do(Fun) ->
     ff_pipeline:do(Fun).
 
+unwrap_create({error, exists}) ->
+    ok;
+unwrap_create(Res) ->
+    unwrap(Res).
+
 unwrap(Res) ->
     ff_pipeline:unwrap(Res).
 
@@ -504,11 +546,12 @@ unwrap(Tag, Res) ->
     ff_pipeline:unwrap(Tag, Res).
 
 %% ID Gen
+
 next_id(Type) ->
-    NS = 'ff/sequence',
-    erlang:integer_to_binary(
-        ff_sequence:next(NS, ff_string:join($/, [Type, id]), fistful:backend(NS))
-    ).
+    next_id(Type, undefined).
+
+next_id(Type, ExternalID) ->
+    unwrap(ff_external_id:check(Type, ExternalID)).
 
 create_stat_dsl(withdrawal_stat, Req, Context) ->
     Query = #{

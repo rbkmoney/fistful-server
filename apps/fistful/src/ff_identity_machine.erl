@@ -74,7 +74,7 @@ create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, 
 
 -spec get(id()) ->
     {ok, st()}        |
-    {error, notfound} .
+    {error, notfound}.
 
 get(ID) ->
     ff_machine:get(ff_identity, ?NS, ID).

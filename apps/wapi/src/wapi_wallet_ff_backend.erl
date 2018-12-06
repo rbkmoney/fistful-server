@@ -111,7 +111,6 @@ get_identity(IdentityId, Context) ->
     {provider, notfound}       |
     {identity_class, notfound} |
     {email, notfound}          |
-    {identity, unauthorized}   |
     {conflict, id()}
 ).
 create_identity(ExternalID, Params, Context) ->
@@ -234,7 +233,6 @@ get_wallet(WalletId, Context) ->
     {identity, unauthorized} |
     {identity, notfound}     |
     {currency, notfound}     |
-    {wallet, unauthorized}   |
     {conflict, id()}         |
     {inaccessible, _}
 ).
@@ -293,8 +291,7 @@ get_destination(DestinationId, Context) ->
     {identity, notfound}        |
     {currency, notfound}        |
     {inaccessible, _}           |
-    {conflict, id()}            |
-    {destination, unauthorized}
+    {conflict, id()}
 ).
 create_destination(ExternalID, Params = #{<<"identity">> := IdenityId}, Context) ->
     DestinationId = next_id('destination', ExternalID),
@@ -313,7 +310,6 @@ create_destination(ExternalID, Params = #{<<"identity">> := IdenityId}, Context)
     {source, notfound}            |
     {destination, notfound}       |
     {destination, unauthorized}   |
-    {withdrawal, unauthorized}    |
     {conflict, id()}              |
     {provider, notfound}          |
     {wallet, {inaccessible, _}}   |

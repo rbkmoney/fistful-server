@@ -19,8 +19,6 @@
 
 -export([get_location/3]).
 
--export([construct_external_id/2]).
-
 -define(APP, wapi).
 
 -type handler_context() :: wapi_handler:context().
@@ -110,14 +108,3 @@ get_location(PathSpec, Params, _Opts) ->
     woody:result().
 service_call({ServiceName, Function, Args}, #{woody_context := WoodyContext}) ->
     wapi_woody_client:call_service(ServiceName, Function, Args, WoodyContext).
-
--spec construct_external_id(map(), handler_context()) ->
-    binary().
-construct_external_id(Params, Context) ->
-    case genlib_map:get(<<"idempotencyTag">>, Params) of
-        undefined ->
-            undefined;
-        ExternalID ->
-            PartyID = get_owner(Context),
-            <<PartyID/binary, "/", ExternalID/binary>>
-    end.

@@ -122,7 +122,7 @@ create_identity(Params, Context) ->
         case ff_identity_machine:create(
             IdentityId,
             maps:merge(from_swag(identity_params, Params), #{party => wapi_handler_utils:get_owner(Context)}),
-            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [<<"name">>], Context))
+            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [<<"name">>, ?IDEMPOTENCY_TAG], Context))
         ) of
         ok ->
             {ok, IdentityId};
@@ -254,7 +254,7 @@ create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
         case ff_wallet_machine:create(
             WalletId,
             from_swag(wallet_params, Params),
-            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [], Context))
+            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [?IDEMPOTENCY_TAG], Context))
         ) of
         ok ->
             {ok, WalletId};
@@ -318,7 +318,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
         case ff_destination:create(
             DestinationId,
             from_swag(destination_params, Params),
-            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [], Context))
+            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [?IDEMPOTENCY_TAG], Context))
         ) of
         ok ->
             {ok, DestinationId};
@@ -347,7 +347,7 @@ create_withdrawal(Params, Context) ->
         case ff_withdrawal:create(
             WithdrawalId,
             from_swag(withdrawal_params, Params),
-            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [], Context))
+            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [?IDEMPOTENCY_TAG], Context))
         ) of
         ok ->
             {ok, WithdrawalId};
@@ -826,7 +826,8 @@ to_swag(identity, State) ->
         <<"level">>              => ff_identity:level(Identity),
         <<"effectiveChallenge">> => to_swag(identity_effective_challenge, ff_identity:effective_challenge(Identity)),
         <<"isBlocked">>          => to_swag(is_blocked, ff_identity:is_accessible(Identity)),
-        <<"metadata">>           => maps:get(<<"metadata">>, WapiCtx, undefined)
+        <<"metadata">>           => maps:get(<<"metadata">>, WapiCtx, undefined),
+        ?IDEMPOTENCY_TAG         => maps:get(?IDEMPOTENCY_TAG, WapiCtx, undefined)
     });
 to_swag(identity_effective_challenge, {ok, ChallegeId}) ->
     ChallegeId;
@@ -876,6 +877,7 @@ to_swag(identity_challenge_event_change, {status_changed, S}) ->
 
 to_swag(wallet, State) ->
     Wallet = ff_wallet_machine:wallet(State),
+    WapiCtx = get_ctx(State),
     to_swag(map, #{
         <<"id">>         => ff_wallet:id(Wallet),
         <<"name">>       => ff_wallet:name(Wallet),
@@ -883,7 +885,8 @@ to_swag(wallet, State) ->
         <<"isBlocked">>  => to_swag(is_blocked, ff_wallet:is_accessible(Wallet)),
         <<"identity">>   => ff_wallet:identity(Wallet),
         <<"currency">>   => to_swag(currency, ff_wallet:currency(Wallet)),
-        <<"metadata">>   => genlib_map:get(<<"metadata">>, get_ctx(State))
+        <<"metadata">>   => genlib_map:get(<<"metadata">>, WapiCtx),
+        ?IDEMPOTENCY_TAG => maps:get(?IDEMPOTENCY_TAG, WapiCtx, undefined)
     });
 to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
     EncodedCurrency = to_swag(currency, Currency),
@@ -899,6 +902,7 @@ to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
     };
 to_swag(destination, State) ->
     Destination = ff_destination:get(State),
+    WapiCtx = get_ctx(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>         => ff_destination:id(Destination),
@@ -908,7 +912,8 @@ to_swag(destination, State) ->
             <<"identity">>   => ff_destination:identity(Destination),
             <<"currency">>   => to_swag(currency, ff_destination:currency(Destination)),
             <<"resource">>   => to_swag(destination_resource, ff_destination:resource(Destination)),
-            <<"metadata">>   => genlib_map:get(<<"metadata">>, get_ctx(State))
+            <<"metadata">>   => genlib_map:get(<<"metadata">>, WapiCtx),
+            ?IDEMPOTENCY_TAG => maps:get(?IDEMPOTENCY_TAG, WapiCtx, undefined)
         },
         to_swag(destination_status, ff_destination:status(Destination))
     ));
@@ -934,14 +939,16 @@ to_swag(pan_last_digits, MaskedPan) ->
     wapi_utils:get_last_pan_digits(MaskedPan);
 to_swag(withdrawal, State) ->
     Withdrawal = ff_withdrawal:get(State),
+    WapiCtx = get_ctx(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>          => ff_withdrawal:id(Withdrawal),
             <<"createdAt">>   => to_swag(timestamp, ff_machine:created(State)),
-            <<"metadata">>    => genlib_map:get(<<"metadata">>, get_ctx(State)),
             <<"wallet">>      => ff_withdrawal:wallet_id(Withdrawal),
             <<"destination">> => ff_withdrawal:destination_id(Withdrawal),
-            <<"body">>        => to_swag(withdrawal_body, ff_withdrawal:body(Withdrawal))
+            <<"body">>        => to_swag(withdrawal_body, ff_withdrawal:body(Withdrawal)),
+            <<"metadata">>    => genlib_map:get(<<"metadata">>, WapiCtx),
+            ?IDEMPOTENCY_TAG  => maps:get(?IDEMPOTENCY_TAG, WapiCtx, undefined)
         },
         to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))
     ));

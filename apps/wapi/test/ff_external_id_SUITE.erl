@@ -91,12 +91,13 @@ idempotency_identity_ok(C) ->
     Params = #{
         <<"provider">> => <<"good-one">>,
         <<"class">> => <<"person">>,
-        <<"name">> => <<"someone">>
+        <<"name">> => <<"someone">>,
+        <<"idempotencyTag">> => ExternalID
     },
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_identity(ExternalID, Params, create_auth_ctx(Party)),
+        wapi_wallet_ff_backend:create_identity(Params, create_auth_ctx(Party)),
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_identity(ExternalID, Params, create_auth_ctx(Party)).
+        wapi_wallet_ff_backend:create_identity(Params, create_auth_ctx(Party)).
 
 -spec idempotency_identity_conflict(config()) ->
     test_return().
@@ -107,13 +108,14 @@ idempotency_identity_conflict(C) ->
     Params = #{
         <<"provider">> => <<"good-one">>,
         <<"class">> => <<"person">>,
-        <<"name">> => <<"HAHA NO2">>
+        <<"name">> => <<"HAHA NO2">>,
+        <<"idempotencyTag">> => ExternalID
     },
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_identity(ExternalID, Params, create_auth_ctx(Party)),
+        wapi_wallet_ff_backend:create_identity(Params, create_auth_ctx(Party)),
     NewParams = Params#{<<"provider">> => <<"good-two">>},
     {error, {conflict, ID}} =
-        wapi_wallet_ff_backend:create_identity(ExternalID, NewParams, create_auth_ctx(Party)).
+        wapi_wallet_ff_backend:create_identity(NewParams, create_auth_ctx(Party)).
 
 -spec idempotency_wallet_ok(config()) ->
     test_return().
@@ -125,12 +127,13 @@ idempotency_wallet_ok(C) ->
     Params = #{
         <<"identity">> => IdentityID,
         <<"currency">> => <<"RUB">>,
-        <<"name">> => <<"HAHA NO2">>
+        <<"name">> => <<"HAHA NO2">>,
+        <<"idempotencyTag">> => ExternalID
     },
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_wallet(ExternalID, Params, create_auth_ctx(Party)),
+        wapi_wallet_ff_backend:create_wallet(Params, create_auth_ctx(Party)),
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_wallet(ExternalID, Params, create_auth_ctx(Party)).
+        wapi_wallet_ff_backend:create_wallet(Params, create_auth_ctx(Party)).
 
 -spec idempotency_wallet_conflict(config()) ->
     test_return().
@@ -142,13 +145,14 @@ idempotency_wallet_conflict(C) ->
     Params = #{
         <<"identity">> => IdentityID,
         <<"currency">> => <<"RUB">>,
-        <<"name">> => <<"HAHA NO2">>
+        <<"name">> => <<"HAHA NO2">>,
+        <<"idempotencyTag">> => ExternalID
     },
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_wallet(ExternalID, Params, create_auth_ctx(Party)),
+        wapi_wallet_ff_backend:create_wallet(Params, create_auth_ctx(Party)),
     NewParams = Params#{<<"currency">> => <<"USD">>},
     {error, {conflict, ID}} =
-        wapi_wallet_ff_backend:create_wallet(ExternalID, NewParams, create_auth_ctx(Party)).
+        wapi_wallet_ff_backend:create_wallet(NewParams, create_auth_ctx(Party)).
 
 -spec idempotency_destination_ok(config()) ->
     test_return().
@@ -168,12 +172,13 @@ idempotency_destination_ok(C) ->
             <<"token">> => wapi_utils:map_to_base64url(BankCard#{
                 paymentSystem => PS,
                 lastDigits => MP})
-        }
+        },
+        <<"idempotencyTag">> => ExternalID
     },
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_destination(ExternalID, Params, create_auth_ctx(Party)),
+        wapi_wallet_ff_backend:create_destination(Params, create_auth_ctx(Party)),
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_destination(ExternalID, Params, create_auth_ctx(Party)).
+        wapi_wallet_ff_backend:create_destination(Params, create_auth_ctx(Party)).
 
 -spec idempotency_destination_conflict(config()) ->
     test_return().
@@ -193,13 +198,14 @@ idempotency_destination_conflict(C) ->
             <<"token">> => wapi_utils:map_to_base64url(BankCard#{
                 paymentSystem   => PS,
                 lastDigits      => MP})
-        }
+        },
+        <<"idempotencyTag">> => ExternalID
     },
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_destination(ExternalID, Params, create_auth_ctx(Party)),
+        wapi_wallet_ff_backend:create_destination(Params, create_auth_ctx(Party)),
     NewParams = Params#{<<"currency">> => <<"USD">>},
     {error, {conflict, ID}} =
-        wapi_wallet_ff_backend:create_destination(ExternalID, NewParams, create_auth_ctx(Party)).
+        wapi_wallet_ff_backend:create_destination(NewParams, create_auth_ctx(Party)).
 
 -spec idempotency_withdrawal_ok(config()) ->
     test_return().
@@ -219,12 +225,13 @@ idempotency_withdrawal_ok(C) ->
         <<"body">>          => #{
             <<"amount">>    => <<"10">>,
             <<"currency">>  => <<"RUB">>
-        }
+        },
+        <<"idempotencyTag">> => ExternalID
     },
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_withdrawal(ExternalID, Params, create_auth_ctx(Party)),
+        wapi_wallet_ff_backend:create_withdrawal(Params, create_auth_ctx(Party)),
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_withdrawal(ExternalID, Params, create_auth_ctx(Party)).
+        wapi_wallet_ff_backend:create_withdrawal(Params, create_auth_ctx(Party)).
 
 -spec idempotency_withdrawal_conflict(config()) ->
     test_return().
@@ -244,13 +251,14 @@ idempotency_withdrawal_conflict(C) ->
         <<"body">>          => Body = #{
             <<"amount">>    => <<"10">>,
             <<"currency">>  => <<"RUB">>
-        }
+        },
+        <<"idempotencyTag">> => ExternalID
     },
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_withdrawal(ExternalID, Params, create_auth_ctx(Party)),
+        wapi_wallet_ff_backend:create_withdrawal(Params, create_auth_ctx(Party)),
     NewParams = Params#{<<"body">> => Body#{<<"amount">> => <<"100">>}},
     {error, {conflict, ID}} =
-        wapi_wallet_ff_backend:create_withdrawal(ExternalID, NewParams, create_auth_ctx(Party)).
+        wapi_wallet_ff_backend:create_withdrawal(NewParams, create_auth_ctx(Party)).
 
 %%
 
@@ -280,30 +288,23 @@ create_destination(IdentityID, Party, C) ->
                 lastDigits      => MP})
         }
     },
-    wapi_wallet_ff_backend:create_destination(undefined, Params, create_auth_ctx(Party)).
+    wapi_wallet_ff_backend:create_destination(Params, create_auth_ctx(Party)).
 
 create_wallet(IdentityID, Party) ->
-    create_wallet(undefined, IdentityID, Party).
-
-create_wallet(ExternalID, IdentityID, Party) ->
     Params = #{
         <<"identity">> => IdentityID,
         <<"currency">> => <<"RUB">>,
         <<"name">> => <<"HAHA NO2">>
     },
-    wapi_wallet_ff_backend:create_wallet(ExternalID, Params, create_auth_ctx(Party)).
-
+    wapi_wallet_ff_backend:create_wallet(Params, create_auth_ctx(Party)).
 
 create_identity(Party) ->
-    create_identity(undefined, Party).
-
-create_identity(ExternalID, Party) ->
     Params = #{
         <<"provider">> => <<"good-one">>,
         <<"class">> => <<"person">>,
         <<"name">> => <<"HAHA NO2">>
     },
-    wapi_wallet_ff_backend:create_identity(ExternalID, Params, create_auth_ctx(Party)).
+    wapi_wallet_ff_backend:create_identity(Params, create_auth_ctx(Party)).
 
 create_auth_ctx(PartyID) ->
     #{

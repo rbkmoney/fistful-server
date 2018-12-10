@@ -47,6 +47,7 @@ call_service(ServiceName, Function, Args, Context, EventHandler, Retry) ->
 
 apply_retry_strategy(Retry, Error, Context) ->
     apply_retry_step(genlib_retry:next_step(Retry), woody_context:get_deadline(Context), Error).
+
 apply_retry_step(finish, _, Error) ->
     erlang:error(Error);
 apply_retry_step({wait, Timeout, Retry}, undefined, _) ->

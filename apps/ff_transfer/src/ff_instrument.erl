@@ -9,26 +9,29 @@
 
 -module(ff_instrument).
 
--type id()        :: binary().
--type name()      :: binary().
--type resource(T) :: T.
--type account()   :: ff_account:account().
--type identity()  :: ff_identity:id().
--type currency()  :: ff_currency:id().
--type status()    ::
+-type id()          :: binary().
+-type external_id() :: id() | undefined.
+-type name()        :: binary().
+-type resource(T)   :: T.
+-type account()     :: ff_account:account().
+-type identity()    :: ff_identity:id().
+-type currency()    :: ff_currency:id().
+-type status()      ::
     unauthorized |
     authorized.
 
 -type instrument(T) :: #{
-    account  := account() | undefined,
-    resource := resource(T),
-    name     := name(),
-    status   := status()
+    account     := account() | undefined,
+    resource    := resource(T),
+    name        := name(),
+    status      := status(),
+    external_id => id()
 }.
 
 -type event(T) ::
     {created, instrument(T)} |
     {account, ff_account:ev()} |
+    {external_changed  , id()} |
     {status_changed, status()}.
 
 -export_type([id/0]).
@@ -45,8 +48,9 @@
 -export([currency/1]).
 -export([resource/1]).
 -export([status/1]).
+-export([external_id/1]).
 
--export([create/5]).
+-export([create/6]).
 -export([authorize/1]).
 
 -export([is_accessible/1]).
@@ -91,20 +95,29 @@ resource(#{resource := V}) ->
 status(#{status := V}) ->
     V.
 
+-spec external_id(instrument(_)) ->
+    external_id().
+
+external_id(#{external_id := ExternalID}) ->
+    ExternalID;
+external_id(_Transfer) ->
+    undefined.
+
 %%
 
--spec create(id(), identity(), binary(), currency(), resource(T)) ->
+-spec create(id(), identity(), binary(), currency(), resource(T), external_id()) ->
     {ok, [event(T)]} |
     {error, _WalletError}.
 
-create(ID, IdentityID, Name, CurrencyID, Resource) ->
+create(ID, IdentityID, Name, CurrencyID, Resource, ExternalID) ->
     do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Events = unwrap(ff_account:create(ID, Identity, Currency)),
         [{created, #{name => Name, resource => Resource}}] ++
         [{account, Ev} || Ev <- Events] ++
-        [{status_changed, unauthorized}]
+        [{status_changed, unauthorized}] ++
+        make_external_changed_event(ExternalID)
     end).
 
 -spec authorize(instrument(T)) ->
@@ -125,6 +138,11 @@ authorize(#{status := authorized}) ->
 is_accessible(Instrument) ->
     ff_account:is_accessible(account(Instrument)).
 
+make_external_changed_event(undefined)->
+    [];
+make_external_changed_event(ExternalID)->
+    [{external_changed, ExternalID}].
+
 %%
 
 -spec apply_event(event(T), ff_maybe:maybe(instrument(T))) ->
@@ -134,6 +152,8 @@ apply_event({created, Instrument}, undefined) ->
     Instrument;
 apply_event({status_changed, S}, Instrument) ->
     Instrument#{status => S};
+apply_event({external_changed, ExternalID}, Instrument) ->
+    Instrument#{external_id => ExternalID};
 apply_event({account, Ev}, Instrument = #{account := Account}) ->
     Instrument#{account => ff_account:apply_event(Ev, Account)};
 apply_event({account, Ev}, Instrument) ->

@@ -17,7 +17,8 @@
     p_transfer    => maybe(p_transfer()),
     session_id    => session_id(),
     route         => any(),
-    status        => status()
+    status        => status(),
+    external_id   => id()
 }.
 
 -type route(T) :: T.
@@ -33,7 +34,8 @@
     {p_transfer, ff_postings_transfer:ev()} |
     {session_started, session_id()}         |
     {session_finished, session_id()}        |
-    {status_changed, status()}              .
+    {status_changed, status()}              |
+    {external_changed  , id()}              .
 
 -type event() :: event(Params :: any(), Route :: any()).
 
@@ -53,8 +55,9 @@
 -export([status/1]).
 -export([session_id/1]).
 -export([route/1]).
+-export([external_id/1]).
 
--export([create/4]).
+-export([create/5]).
 
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
@@ -73,6 +76,7 @@
 %% Internal types
 
 -type id() :: binary().
+-type external_id() :: id() | undefined.
 -type body() :: ff_transaction:body().
 -type route() :: route(any()).
 -type maybe(T) :: ff_maybe:maybe(T).
@@ -124,15 +128,23 @@ route(#{route := V}) ->
 route(_Other) ->
     undefined.
 
+-spec external_id(transfer()) ->
+    external_id().
+
+external_id(#{external_id := ExternalID}) ->
+    ExternalID;
+external_id(_Transfer) ->
+    undefined.
+
 %% API
 
--spec create(handler(), id(), body(), params()) ->
+-spec create(handler(), id(), body(), params(), external_id()) ->
     {ok, [event()]} |
     {error,
         _PostingsTransferError
     }.
 
-create(TransferType, ID, Body, Params) ->
+create(TransferType, ID, Body, Params, ExternalID) ->
     do(fun () ->
         [
             {created, #{
@@ -143,7 +155,7 @@ create(TransferType, ID, Body, Params) ->
                 params        => Params
             }},
             {status_changed, pending}
-        ]
+        ] ++ make_external_changed_event(ExternalID)
     end).
 
 %% ff_transfer_machine behaviour
@@ -202,6 +214,11 @@ process_activity(cancel_transfer, Transfer) ->
         {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))}
     end).
 
+make_external_changed_event(undefined)->
+    [];
+make_external_changed_event(ExternalID)->
+    [{external_changed, ExternalID}].
+
 %%
 
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(transfer(T))) ->
@@ -215,6 +232,8 @@ apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
     maps:put(status, S, T);
+apply_event_({external_changed, ExternalID}, T) ->
+    maps:put(external_id, ExternalID, T);
 apply_event_({p_transfer, Ev}, T = #{p_transfer := PT}) ->
     T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
 apply_event_({p_transfer, Ev}, T) ->

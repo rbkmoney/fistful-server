@@ -41,10 +41,11 @@
 %%
 
 -type params(T) :: #{
-    identity := ff_identity:id(),
-    name     := binary(),
-    currency := ff_currency:id(),
-    resource := ff_instrument:resource(T)
+    identity    := ff_identity:id(),
+    name        := binary(),
+    currency    := ff_currency:id(),
+    resource    := ff_instrument:resource(T),
+    external_id => id()
 }.
 
 -spec create(ns(), id(), params(_), ctx()) ->
@@ -54,9 +55,16 @@
         exists
     }.
 
-create(NS, ID, #{identity := IdentityID, name := Name, currency := CurrencyID, resource := Resource}, Ctx) ->
+create(NS, ID, Params = #{identity := IdentityID, name := Name, currency := CurrencyID, resource := Resource}, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_instrument:create(ID, IdentityID, Name, CurrencyID, Resource)),
+        Events = unwrap(ff_instrument:create(
+            ID,
+            IdentityID,
+            Name,
+            CurrencyID,
+            Resource,
+            maps:get(external_id, Params, undefined)
+        )),
         unwrap(machinery:start(NS, ID, {Events, Ctx}, fistful:backend(NS)))
     end).
 

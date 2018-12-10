@@ -810,7 +810,7 @@ to_swag(identity, State) ->
         <<"effectiveChallenge">> => to_swag(identity_effective_challenge, ff_identity:effective_challenge(Identity)),
         <<"isBlocked">>          => to_swag(is_blocked, ff_identity:is_accessible(Identity)),
         <<"metadata">>           => maps:get(<<"metadata">>, WapiCtx, undefined),
-        ?EXTERNAL_ID             => maps:get(?EXTERNAL_ID, WapiCtx, undefined)
+        ?EXTERNAL_ID             => ff_identity:external_id(Identity)
     });
 to_swag(identity_effective_challenge, {ok, ChallegeId}) ->
     ChallegeId;
@@ -869,7 +869,7 @@ to_swag(wallet, State) ->
         <<"identity">>   => ff_wallet:identity(Wallet),
         <<"currency">>   => to_swag(currency, ff_wallet:currency(Wallet)),
         <<"metadata">>   => genlib_map:get(<<"metadata">>, WapiCtx),
-        ?EXTERNAL_ID     => maps:get(?EXTERNAL_ID, WapiCtx, undefined)
+        ?EXTERNAL_ID     => ff_wallet:external_id(Wallet)
     });
 to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
     EncodedCurrency = to_swag(currency, Currency),
@@ -896,7 +896,7 @@ to_swag(destination, State) ->
             <<"currency">>   => to_swag(currency, ff_destination:currency(Destination)),
             <<"resource">>   => to_swag(destination_resource, ff_destination:resource(Destination)),
             <<"metadata">>   => genlib_map:get(<<"metadata">>, WapiCtx),
-            ?EXTERNAL_ID     => maps:get(?EXTERNAL_ID, WapiCtx, undefined)
+            ?EXTERNAL_ID     => ff_destination:external_id(Destination)
         },
         to_swag(destination_status, ff_destination:status(Destination))
     ));
@@ -931,7 +931,7 @@ to_swag(withdrawal, State) ->
             <<"destination">> => ff_withdrawal:destination_id(Withdrawal),
             <<"body">>        => to_swag(withdrawal_body, ff_withdrawal:body(Withdrawal)),
             <<"metadata">>    => genlib_map:get(<<"metadata">>, WapiCtx),
-            ?EXTERNAL_ID      => maps:get(?EXTERNAL_ID, WapiCtx, undefined)
+            ?EXTERNAL_ID      => ff_withdrawal:external_id(Withdrawal)
         },
         to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))
     ));

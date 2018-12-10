@@ -48,10 +48,11 @@ wallet(St) ->
 
 %%
 
--type params() :: #{
-    identity   := ff_identity_machine:id(),
-    name       := binary(),
-    currency   := ff_currency:id()
+-type params()  :: #{
+    identity    := ff_identity_machine:id(),
+    name        := binary(),
+    currency    := ff_currency:id(),
+    external_id => id()
 }.
 
 -spec create(id(), params(), ctx()) ->
@@ -61,9 +62,15 @@ wallet(St) ->
         exists
     }.
 
-create(ID, #{identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
+create(ID, Params = #{identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_wallet:create(ID, IdentityID, Name, CurrencyID)),
+        Events = unwrap(ff_wallet:create(
+            ID,
+            IdentityID,
+            Name,
+            CurrencyID,
+            maps:get(external_id, Params, undefined)
+        )),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, fistful:backend(?NS)))
     end).
 

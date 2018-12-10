@@ -54,9 +54,10 @@
 -define(NS, 'ff/identity').
 
 -type params() :: #{
-    party    := ff_party:id(),
-    provider := ff_provider:id(),
-    class    := ff_identity:class_id()
+    party       := ff_party:id(),
+    provider    := ff_provider:id(),
+    class       := ff_identity:class_id(),
+    external_id => id()
 }.
 
 -spec create(id(), params(), ctx()) ->
@@ -66,9 +67,15 @@
         exists
     }.
 
-create(ID, #{party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
+create(ID, Params = #{party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_identity:create(ID, Party, ProviderID, IdentityClassID)),
+        Events = unwrap(ff_identity:create(
+            ID,
+            Party,
+            ProviderID,
+            IdentityClassID,
+            maps:get(external_id, Params, undefined)
+        )),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 

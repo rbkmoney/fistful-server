@@ -4,17 +4,20 @@
 
 -module(ff_wallet).
 
--type id() :: ff_account:id().
+-type id()          :: ff_account:id().
+-type external_id() :: id() | undefined.
 
 -type wallet() :: #{
-    name       := binary(),
-    contract   := contract(),
-    blocking   := blocking(),
-    account    => account()
+    name        := binary(),
+    contract    := contract(),
+    blocking    := blocking(),
+    account     => account(),
+    external_id => id()
 }.
 
 -type event() ::
     {created, wallet()} |
+    {external_changed, id()}                                       |
     {account, ff_account:event()}.
 
 -export_type([id/0]).
@@ -32,8 +35,9 @@
 -export([name/1]).
 -export([currency/1]).
 -export([blocking/1]).
+-export([external_id/1]).
 
--export([create/4]).
+-export([create/5]).
 -export([is_accessible/1]).
 -export([close/1]).
 
@@ -80,13 +84,21 @@ currency(Wallet) ->
 blocking(#{blocking := Blocking}) ->
     Blocking.
 
+-spec external_id(wallet()) ->
+    external_id().
+
+external_id(#{external_id := ExternalID}) ->
+    ExternalID;
+external_id(_Wallet) ->
+    undefined.
+
 %%
 
--spec create(id(), identity(), binary(), currency()) ->
+-spec create(id(), identity(), binary(), currency(), external_id()) ->
     {ok, [event()]} |
     {error, _Reason}.
 
-create(ID, IdentityID, Name, CurrencyID) ->
+create(ID, IdentityID, Name, CurrencyID, ExternalID) ->
     do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Contract = ff_identity:contract(Identity),
@@ -97,7 +109,8 @@ create(ID, IdentityID, Name, CurrencyID) ->
             blocking => unblocked
         },
         [{created, Wallet}] ++
-        [{account, Ev} || Ev <- unwrap(ff_account:create(ID, Identity, Currency))]
+        [{account, Ev} || Ev <- unwrap(ff_account:create(ID, Identity, Currency))] ++
+        make_external_changed_event(ExternalID)
     end).
 
 -spec is_accessible(wallet()) ->
@@ -124,6 +137,11 @@ close(Wallet) ->
         []
     end).
 
+make_external_changed_event(undefined)->
+    [];
+make_external_changed_event(ExternalID)->
+    [{external_changed, ExternalID}].
+
 %%
 
 -spec apply_event(event(), undefined | wallet()) ->
@@ -131,6 +149,8 @@ close(Wallet) ->
 
 apply_event({created, Wallet}, undefined) ->
     Wallet;
+apply_event({external_changed, ExternalID}, Wallet) ->
+    Wallet#{external_id => ExternalID};
 apply_event({account, Ev}, Wallet) ->
     Account = maps:get(account, Wallet, undefined),
     Wallet#{account => ff_account:apply_event(Ev, Account)}.

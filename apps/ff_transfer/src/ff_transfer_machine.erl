@@ -6,15 +6,17 @@
 
 %% API
 
--type id()        :: machinery:id().
--type ns()        :: machinery:namespace().
--type transfer(T) :: ff_transfer:transfer(T).
--type event(T)    :: T.
--type events(T)   :: [{integer(), ff_machine:timestamped_event(event(T))}].
--type params() :: #{
+-type id()          :: machinery:id().
+-type external_id() :: id() | undefined.
+-type ns()          :: machinery:namespace().
+-type transfer(T)   :: ff_transfer:transfer(T).
+-type event(T)      :: T.
+-type events(T)     :: [{integer(), ff_machine:timestamped_event(event(T))}].
+-type params()      :: #{
     handler     := ff_transfer:handler(),
     body        := ff_transaction:body(),
-    params      := ff_transfer:params()
+    params      := ff_transfer:params(),
+    external_id => external_id()
 }.
 
 %% Behaviour definition
@@ -82,11 +84,17 @@
     }.
 
 create(NS, ID,
-    #{handler := Handler, body := Body, params := Params},
+    Args = #{handler := Handler, body := Body, params := Params},
 Ctx)
 ->
     do(fun () ->
-        Events = unwrap(ff_transfer:create(handler_to_type(Handler), ID, Body, Params)),
+        Events = unwrap(ff_transfer:create(
+            handler_to_type(Handler),
+            ID,
+            Body,
+            Params,
+            maps:get(external_id, Args, undefined)
+        )),
         unwrap(machinery:start(NS, ID, {Events, Ctx}, backend(NS)))
     end).
 

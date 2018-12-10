@@ -38,7 +38,9 @@ call_service(ServiceName, Function, Args, Context, EventHandler, Retry) ->
             Context
         )
     catch
-        error:{woody_error, {_Source, resource_unavailable, _Details}} = Error ->
+        error:{woody_error, {_Source, Class, _Details}} = Error
+        when Class =:= resource_unavailable orelse Class =:= result_unknown
+        ->
             NextRetry = apply_retry_strategy(Retry, Error, Context),
             call_service(ServiceName, Function, Args, Context, EventHandler, NextRetry)
     end.

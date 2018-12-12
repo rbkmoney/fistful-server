@@ -115,6 +115,36 @@ start_app(wapi = AppName) ->
         }}
     ]), #{}};
 
+start_app(wapi_retry) ->
+    {start_app_with(wapi, [
+        {ip, "::"},
+        {port, 8080},
+        {realm, <<"external">>},
+        {public_endpoint, <<"localhost:8080">>},
+        {authorizers, #{
+            jwt => #{
+                signee => wapi,
+                keyset => #{
+                    wapi     => {pem_file, "/opt/wapi/config/private.pem"}
+                }
+            }
+        }},
+        {service_urls, #{
+            cds_storage         => "http://cds:8022/v1/storage",
+            identdoc_storage    => "http://cds:8022/v1/identity_document_storage",
+            fistful_stat        => "http://spanish.inquision/fistful_stat"
+        }},
+        {service_retries, #{
+            fistful_stat    => #{
+                'GetWallets'   => {linear, 3, 1000},
+                '_'            => finish
+            }
+        }},
+        {api_deadlines, #{
+            fistful_stat => 5000
+        }}
+    ]), #{}};
+
 start_app(ff_server = AppName) ->
     {start_app_with(AppName, [
         {ip, "::"},

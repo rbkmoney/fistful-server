@@ -31,7 +31,6 @@
 -type event(T) ::
     {created, instrument(T)} |
     {account, ff_account:ev()} |
-    {external_changed  , id()} |
     {status_changed, status()}.
 
 -export_type([id/0]).
@@ -114,10 +113,9 @@ create(ID, IdentityID, Name, CurrencyID, Resource, ExternalID) ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Events = unwrap(ff_account:create(ID, Identity, Currency)),
-        [{created, #{name => Name, resource => Resource}}] ++
+        [{created, add_external_id(ExternalID, #{name => Name, resource => Resource})}] ++
         [{account, Ev} || Ev <- Events] ++
-        [{status_changed, unauthorized}] ++
-        make_external_changed_event(ExternalID)
+        [{status_changed, unauthorized}]
     end).
 
 -spec authorize(instrument(T)) ->
@@ -138,10 +136,10 @@ authorize(#{status := authorized}) ->
 is_accessible(Instrument) ->
     ff_account:is_accessible(account(Instrument)).
 
-make_external_changed_event(undefined)->
-    [];
-make_external_changed_event(ExternalID)->
-    [{external_changed, ExternalID}].
+add_external_id(undefined, Event)->
+    Event;
+add_external_id(ExternalID, Event)->
+    Event#{external_id => ExternalID}.
 
 %%
 

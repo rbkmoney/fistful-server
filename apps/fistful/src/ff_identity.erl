@@ -43,7 +43,6 @@
 -type event() ::
     {created           , identity()}                                 |
     {level_changed     , level()}                                    |
-    {external_changed  , id()}                                       |
     {effective_challenge_changed, challenge_id()}                    |
     {{challenge        , challenge_id()}, ff_identity_challenge:ev()}.
 
@@ -165,17 +164,17 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
             contractor_level  => ff_identity_class:contractor_level(Level)
         })),
         [
-            {created, #{
+            {created, add_external_id(ExternalID, #{
                 id       => ID,
                 party    => Party,
                 provider => ProviderID,
                 class    => ClassID,
                 contract => Contract
-            }},
+            })},
             {level_changed,
                 LevelID
             }
-        ] ++ make_external_changed_event(ExternalID)
+        ]
     end).
 
 %%
@@ -254,10 +253,10 @@ get_challenge_class(Challenge, Identity) ->
     ),
     V.
 
-make_external_changed_event(undefined)->
-    [];
-make_external_changed_event(ExternalID)->
-    [{external_changed, ExternalID}].
+add_external_id(undefined, Event)->
+    Event;
+add_external_id(ExternalID, Event)->
+    Event#{external_id => ExternalID}.
 
 %%
 

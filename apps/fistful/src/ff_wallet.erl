@@ -17,7 +17,6 @@
 
 -type event() ::
     {created, wallet()} |
-    {external_changed, id()}                                       |
     {account, ff_account:event()}.
 
 -export_type([id/0]).
@@ -108,9 +107,8 @@ create(ID, IdentityID, Name, CurrencyID, ExternalID) ->
             contract => Contract,
             blocking => unblocked
         },
-        [{created, Wallet}] ++
-        [{account, Ev} || Ev <- unwrap(ff_account:create(ID, Identity, Currency))] ++
-        make_external_changed_event(ExternalID)
+        [{created, add_external_id(ExternalID, Wallet)}] ++
+        [{account, Ev} || Ev <- unwrap(ff_account:create(ID, Identity, Currency))]
     end).
 
 -spec is_accessible(wallet()) ->
@@ -137,10 +135,10 @@ close(Wallet) ->
         []
     end).
 
-make_external_changed_event(undefined)->
-    [];
-make_external_changed_event(ExternalID)->
-    [{external_changed, ExternalID}].
+add_external_id(undefined, Event)->
+    Event;
+add_external_id(ExternalID, Event)->
+    Event#{external_id => ExternalID}.
 
 %%
 

@@ -34,8 +34,7 @@
     {p_transfer, ff_postings_transfer:ev()} |
     {session_started, session_id()}         |
     {session_finished, session_id()}        |
-    {status_changed, status()}              |
-    {external_changed  , id()}              .
+    {status_changed, status()}              .
 
 -type event() :: event(Params :: any(), Route :: any()).
 
@@ -147,15 +146,15 @@ external_id(_Transfer) ->
 create(TransferType, ID, Body, Params, ExternalID) ->
     do(fun () ->
         [
-            {created, #{
+            {created, add_external_id(ExternalID,#{
                 version       => ?ACTUAL_FORMAT_VERSION,
                 id            => ID,
                 transfer_type => TransferType,
                 body          => Body,
                 params        => Params
-            }},
+            })},
             {status_changed, pending}
-        ] ++ make_external_changed_event(ExternalID)
+        ]
     end).
 
 %% ff_transfer_machine behaviour
@@ -214,10 +213,10 @@ process_activity(cancel_transfer, Transfer) ->
         {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))}
     end).
 
-make_external_changed_event(undefined)->
-    [];
-make_external_changed_event(ExternalID)->
-    [{external_changed, ExternalID}].
+add_external_id(undefined, Event)->
+    Event;
+add_external_id(ExternalID, Event)->
+    Event#{external_id => ExternalID}.
 
 %%
 

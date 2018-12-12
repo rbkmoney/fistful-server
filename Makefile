@@ -58,7 +58,7 @@ release: submodules generate
 clean:
 	$(REBAR) clean
 
-distclean: swagger.distclean.server.wallet swagger.distclean.client.wallet
+distclean: swagger.distclean.server.wallet swagger.distclean.client.wallet swagger.distclean.client.payres
 	$(REBAR) clean -a
 	rm -rf _build
 
@@ -80,10 +80,10 @@ $(foreach suite,$(TESTSUITES),$(eval $(call testsuite,$(suite))))
 # Swagger
 
 .PHONY: generate
-generate: swagger.generate.server.wallet swagger.generate.client.wallet
+generate: swagger.generate.server.wallet swagger.generate.client.wallet swagger.generate.client.payres
 
 .PHONY: regenerate
-regenerate: swagger.regenerate.server.wallet swagger.regenerate.client.wallet
+regenerate: swagger.regenerate.server.wallet swagger.regenerate.client.wallet swagger.generate.client.payres
 
 #
 

@@ -330,16 +330,18 @@ withdrawal_provider_config(Options) ->
             adapter => ff_woody_client:new(<<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
             accounts => #{},
             fee => #{
-                postings => [
-                    #{
-                        sender => {system, settlement},
-                        receiver => {provider, settlement},
-                        volume => {product, {min_of, [
-                            {fixed, {10, <<"RUB">>}},
-                            {share, {genlib_rational:new(5, 100), operation_amount, round_half_towards_zero}}
-                        ]}}
-                    }
-                ]
+                <<"RUB">> => #{
+                    postings => [
+                        #{
+                            sender => {system, settlement},
+                            receiver => {provider, settlement},
+                            volume => {product, {min_of, [
+                                {fixed, {10, <<"RUB">>}},
+                                {share, {genlib_rational:new(5, 100), operation_amount, round_half_towards_zero}}
+                            ]}}
+                        }
+                    ]
+                }
             }
         }
     },

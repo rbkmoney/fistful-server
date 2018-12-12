@@ -652,12 +652,13 @@ decode_stat(withdrawal_stat, Response) ->
         )
     }, decode_withdrawal_stat_status(Response#fistfulstat_StatWithdrawal.status));
 decode_stat(wallet_stat, Response) ->
-    #{
+    genlib_map:compact(#{
         <<"id"          >> => Response#fistfulstat_StatWallet.id,
         <<"name"        >> => Response#fistfulstat_StatWallet.name,
         <<"identity"    >> => Response#fistfulstat_StatWallet.identity_id,
+        <<"createdAt"   >> => Response#fistfulstat_StatWallet.created_at,
         <<"currency"    >> => Response#fistfulstat_StatWallet.currency_symbolic_code
-    }.
+    }).
 
 decode_withdrawal_cash(Amount, Currency) ->
     #{<<"amount">> => Amount, <<"currency">> => Currency}.
@@ -667,7 +668,12 @@ decode_withdrawal_stat_status({pending, #fistfulstat_WithdrawalPending{}}) ->
 decode_withdrawal_stat_status({succeeded, #fistfulstat_WithdrawalSucceeded{}}) ->
     #{<<"status">> => <<"Succeeded">>};
 decode_withdrawal_stat_status({failed, #fistfulstat_WithdrawalFailed{failure = Failure}}) ->
-    #{<<"status">> => <<"Failed">>, <<"failure">> => Failure}.
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => #{
+            <<"code">> => to_swag(stat_withdrawal_status_failure, Failure)
+        }
+    }.
 
 construct_external_id(Params, Context) ->
     case genlib_map:get(?EXTERNAL_ID, Params) of
@@ -955,6 +961,8 @@ to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
     to_swag(domain_failure, Failure);
 to_swag(withdrawal_status_failure, Failure) ->
     to_swag(domain_failure, map_internal_error(Failure));
+to_swag(stat_withdrawal_status_failure, Failure) ->
+    to_swag(domain_failure, map_fistful_stat_error(Failure));
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{
         <<"eventID">> => EventId,
@@ -1000,6 +1008,11 @@ map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
         }
     };
 map_internal_error(_Reason) ->
+    #domain_Failure{
+        code = <<"failed">>
+    }.
+
+map_fistful_stat_error(_Reason) ->
     #domain_Failure{
         code = <<"failed">>
     }.

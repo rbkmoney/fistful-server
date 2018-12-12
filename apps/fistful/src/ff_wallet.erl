@@ -147,8 +147,6 @@ add_external_id(ExternalID, Event)->
 
 apply_event({created, Wallet}, undefined) ->
     Wallet;
-apply_event({external_changed, ExternalID}, Wallet) ->
-    Wallet#{external_id => ExternalID};
 apply_event({account, Ev}, Wallet) ->
     Account = maps:get(account, Wallet, undefined),
     Wallet#{account => ff_account:apply_event(Ev, Account)}.

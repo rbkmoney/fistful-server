@@ -146,7 +146,7 @@ external_id(_Transfer) ->
 create(TransferType, ID, Body, Params, ExternalID) ->
     do(fun () ->
         [
-            {created, add_external_id(ExternalID,#{
+            {created, add_external_id(ExternalID, #{
                 version       => ?ACTUAL_FORMAT_VERSION,
                 id            => ID,
                 transfer_type => TransferType,
@@ -231,8 +231,6 @@ apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
     maps:put(status, S, T);
-apply_event_({external_changed, ExternalID}, T) ->
-    maps:put(external_id, ExternalID, T);
 apply_event_({p_transfer, Ev}, T = #{p_transfer := PT}) ->
     T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
 apply_event_({p_transfer, Ev}, T) ->

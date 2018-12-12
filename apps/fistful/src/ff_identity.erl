@@ -267,8 +267,6 @@ apply_event({created, Identity}, undefined) ->
     Identity;
 apply_event({level_changed, L}, Identity) ->
     Identity#{level => L};
-apply_event({external_changed, ExternalID}, Identity) ->
-    Identity#{external_id => ExternalID};
 apply_event({effective_challenge_changed, ID}, Identity) ->
     Identity#{effective => ID};
 apply_event({{challenge, ID}, Ev}, Identity) ->

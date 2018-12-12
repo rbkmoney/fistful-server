@@ -150,8 +150,6 @@ apply_event({created, Instrument}, undefined) ->
     Instrument;
 apply_event({status_changed, S}, Instrument) ->
     Instrument#{status => S};
-apply_event({external_changed, ExternalID}, Instrument) ->
-    Instrument#{external_id => ExternalID};
 apply_event({account, Ev}, Instrument = #{account := Account}) ->
     Instrument#{account => ff_account:apply_event(Ev, Account)};
 apply_event({account, Ev}, Instrument) ->

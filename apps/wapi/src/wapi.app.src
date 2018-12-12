@@ -10,6 +10,7 @@
         genlib,
         woody,
         erl_health,
+        lager,
         dmsl,
         identdocstore_proto,
         swag_server_wallet,

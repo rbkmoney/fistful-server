@@ -282,7 +282,13 @@ get_destination(C) ->
     {save_config, Cfg}.
 
 woody_retry_test(C) ->
-    _ = ct_helper:start_app(wapi_retry),
+    _ = ct_helper:start_app(wapi),
+    Urls = application:get_env(wapi, service_urls, #{}),
+    ok = application:set_env(
+        wapi,
+        service_urls,
+        Urls#{fistful_stat => "http://spanish.inquision/fistful_stat"}
+    ),
     Params = #{
         identityID => <<"12332">>,
         currencyID => <<"RUB">>,
@@ -300,7 +306,8 @@ woody_retry_test(C) ->
     end,
     T2 = erlang:monotonic_time(),
     Time = erlang:convert_time_unit(T2 - T1, native, micro_seconds),
-    true = (Time > 3000000) and (Time < 6000000).
+    true = (Time > 3000000) and (Time < 6000000),
+    ok = application:set_env(wapi, service_urls, Urls).
 
 %%
 

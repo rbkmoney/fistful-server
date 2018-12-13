@@ -19,6 +19,7 @@
 -export([get_bank_card/1]).
 -export([create_desination/1]).
 -export([get_destination/1]).
+-export([woody_retry_test/1]).
 
 -import(ct_helper, [cfg/2]).
 
@@ -44,7 +45,8 @@ groups() ->
             store_bank_card,
             get_bank_card,
             create_desination,
-            get_destination
+            get_destination,
+            woody_retry_test
         ]}
     ].
 
@@ -137,6 +139,7 @@ end_per_testcase(_Name, _C) ->
 -spec get_bank_card(config()) -> test_return().
 -spec create_desination(config()) -> test_return().
 -spec get_destination(config()) -> test_return().
+-spec woody_retry_test(config()) -> test_return().
 
 create_identity(C) ->
     {ok, Identity} = call_api(
@@ -278,6 +281,34 @@ get_destination(C) ->
     } = W1#{<<"resource">> => maps:with([<<"type">>], Res)},
     {save_config, Cfg}.
 
+woody_retry_test(C) ->
+    _ = ct_helper:start_app(wapi),
+    Urls = application:get_env(wapi, service_urls, #{}),
+    ok = application:set_env(
+        wapi,
+        service_urls,
+        Urls#{fistful_stat => "http://spanish.inquision/fistful_stat"}
+    ),
+    Params = #{
+        identityID => <<"12332">>,
+        currencyID => <<"RUB">>,
+        limit      => <<"123">>
+    },
+    Ctx = create_auth_ctx(<<"12332">>),
+    T1 = erlang:monotonic_time(),
+    try
+        wapi_wallet_ff_backend:list_wallets(Params, Ctx#{woody_context => ct_helper:get_woody_ctx(C)})
+    catch
+        error:{woody_error, {_Source, Class, _Details}} = _Error
+        when Class =:= resource_unavailable orelse Class =:= result_unknown
+        ->
+            ok
+    end,
+    T2 = erlang:monotonic_time(),
+    Time = erlang:convert_time_unit(T2 - T1, native, micro_seconds),
+    true = (Time > 3000000) and (Time < 6000000),
+    ok = application:set_env(wapi, service_urls, Urls).
+
 %%
 
 -spec call_api(function(), map(), wapi_client_lib:context()) ->
@@ -301,6 +332,11 @@ issue_token(PartyID, ACL, LifeTime) ->
 
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).
+
+create_auth_ctx(PartyID) ->
+    #{
+        swagger_context => #{auth_context => {{PartyID, empty}, empty}}
+    }.
 
 %%
 

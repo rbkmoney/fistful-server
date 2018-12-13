@@ -135,9 +135,9 @@ close(Wallet) ->
         []
     end).
 
-add_external_id(undefined, Event)->
+add_external_id(undefined, Event) ->
     Event;
-add_external_id(ExternalID, Event)->
+add_external_id(ExternalID, Event) ->
     Event#{external_id => ExternalID}.
 
 %%

@@ -125,11 +125,7 @@ create_identity(Params, Context) ->
             add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [<<"name">>], Context))
         )
     end,
-    CreateFun = fun() ->
-        with_party(Context, fun() ->
-            CreateIdentity()
-        end)
-    end,
+    CreateFun = fun() -> with_party(Context, CreateIdentity) end,
     do(fun() -> unwrap(create_entity(identity, IdentityId, ParamsHash, CreateFun, Context)) end).
 
 -spec get_identity_challenges(id(), [binary()], ctx()) -> result(map(),

@@ -213,9 +213,9 @@ process_activity(cancel_transfer, Transfer) ->
         {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))}
     end).
 
-add_external_id(undefined, Event)->
+add_external_id(undefined, Event) ->
     Event;
-add_external_id(ExternalID, Event)->
+add_external_id(ExternalID, Event) ->
     Event#{external_id => ExternalID}.
 
 %%

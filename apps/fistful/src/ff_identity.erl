@@ -253,9 +253,9 @@ get_challenge_class(Challenge, Identity) ->
     ),
     V.
 
-add_external_id(undefined, Event)->
+add_external_id(undefined, Event) ->
     Event;
-add_external_id(ExternalID, Event)->
+add_external_id(ExternalID, Event) ->
     Event#{external_id => ExternalID}.
 
 %%

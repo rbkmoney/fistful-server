@@ -119,7 +119,7 @@ marshal(transaction_info, #domain_TransactionInfo{
     };
 
 marshal(session_result, {failed, Failure}) ->
-    {success, #wthd_session_SessionResultFailed{
+    {failed, #wthd_session_SessionResultFailed{
         failure = marshal(failure, Failure)
     }};
 

@@ -19,9 +19,10 @@
 -export([get_bank_card/1]).
 -export([create_desination/1]).
 -export([get_destination/1]).
+-export([issue_destination_grants/1]).
+-export([create_withdrawal/1]).
+-export([get_withdrawal/1]).
 -export([woody_retry_test/1]).
-
--import(ct_helper, [cfg/2]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -31,13 +32,15 @@
 -spec all() -> [test_case_name() | {group, group_name()}].
 
 all() ->
-    [{group, default}].
+    [ {group, default}
+    , {group, woody}
+    ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 
 groups() ->
     [
-        {default, [sequence], [
+        {default, [sequence, {repeat, 2}], [
             create_identity,
             get_identity,
             create_wallet,
@@ -46,6 +49,11 @@ groups() ->
             get_bank_card,
             create_desination,
             get_destination,
+            issue_destination_grants,
+            create_withdrawal,
+            get_withdrawal
+        ]},
+        {woody, [], [
             woody_retry_test
         ]}
     ].
@@ -53,49 +61,17 @@ groups() ->
 -spec init_per_suite(config()) -> config().
 
 init_per_suite(C) ->
-    {StartedApps, _StartupCtx} = ct_helper:start_apps([
-        lager,
-        scoper,
-        woody,
-        dmt_client,
-        {fistful, [
-            {services, #{
-                'partymgmt'      => "http://hellgate:8022/v1/processing/partymgmt",
-                'accounter'      => "http://shumway:8022/accounter",
-                'identification' => "http://identification:8022/v1/identification"
-            }},
-            {providers,
-                get_provider_config()
-            }
-        ]},
-        {ff_transfer, [
-            {withdrawal,
-                #{provider => get_withdrawal_provider_config()}
-            }
-        ]},
-        wapi,
-        ff_server
-    ]),
-    C1 = ct_helper:makeup_cfg(
-        [ct_helper:test_case_name(init), ct_helper:woody_ctx()],
-        [
-            {started_apps , StartedApps},
-            {services     , #{
-                'accounter'     => "http://shumway:8022/accounter",
-                'cds'           => "http://cds:8022/v1/storage",
-                'identdocstore' => "http://cds:8022/v1/identity_document_storage"
-            }}
-        | C]
-    ),
-    ok = ct_domain_config:upsert(get_domain_config(C1)),
-    ok = timer:sleep(1000),
-    C1.
+     ct_helper:makeup_cfg([
+        ct_helper:test_case_name(init),
+        ct_payment_system:setup(#{
+            default_termset => get_default_termset()
+        })
+    ], C).
 
 -spec end_per_suite(config()) -> _.
 
 end_per_suite(C) ->
-    ok = ct_helper:stop_apps(cfg(started_apps, C)),
-    ok.
+    ok = ct_payment_system:shutdown(C).
 
 %%
 
@@ -140,6 +116,9 @@ end_per_testcase(_Name, _C) ->
 -spec create_desination(config()) -> test_return().
 -spec get_destination(config()) -> test_return().
 -spec woody_retry_test(config()) -> test_return().
+-spec issue_destination_grants(config()) -> test_return().
+-spec create_withdrawal(config()) -> test_return().
+-spec get_withdrawal(config()) -> test_return().
 
 create_identity(C) ->
     {ok, Identity} = call_api(
@@ -281,8 +260,68 @@ get_destination(C) ->
     } = W1#{<<"resource">> => maps:with([<<"type">>], Res)},
     {save_config, Cfg}.
 
+issue_destination_grants(C) ->
+    {get_destination, Cfg} = ct_helper:cfg(saved_config, C),
+    DestinationID = ct_helper:cfg(dest, Cfg),
+    {ok, _Grants} = call_api(
+        fun swag_client_wallet_withdrawals_api:issue_destination_grant/3,
+        #{
+            binding => #{
+                <<"destinationID">> => DestinationID
+            },
+            body => #{
+                <<"validUntil">> => <<"2800-12-12T00:00:00.0Z">>
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    {save_config, Cfg}.
+
+create_withdrawal(C) ->
+    timer:sleep(1000),
+    {issue_destination_grants, Cfg} = ct_helper:cfg(saved_config, C),
+    WalletID = ct_helper:cfg(wallet, Cfg),
+    DestinationID = ct_helper:cfg(dest, Cfg),
+    {ok, Withdrawal} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+        #{body => #{
+            <<"wallet">> => WalletID,
+            <<"destination">> => DestinationID,
+            <<"body">> => #{
+                <<"amount">> => 100,
+                <<"currency">> => <<"RUB">>
+            }
+        }},
+        ct_helper:cfg(context, C)
+    ),
+    WithdrawalID = maps:get(<<"id">>, Withdrawal),
+    {save_config, [{withdrawal, WithdrawalID} | Cfg]}.
+
+get_withdrawal(C) ->
+    timer:sleep(20000),
+    {create_withdrawal, Cfg} = ct_helper:cfg(saved_config, C),
+    WalletID = ct_helper:cfg(wallet, Cfg),
+    DestinationID = ct_helper:cfg(dest, Cfg),
+    WithdrawalID = ct_helper:cfg(withdrawal, Cfg),
+    {ok, Withdrawal} = call_api(
+         fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
+         #{qs_val => #{
+             <<"withdrawalID">> => WithdrawalID,
+             <<"limit">> => 100
+         }},
+         ct_helper:cfg(context, C)
+    ),
+    #{<<"result">> := [
+        #{<<"wallet">> := WalletID,
+          <<"destination">> := DestinationID,
+          <<"body">> := #{
+              <<"amount">> := 100,
+              <<"currency">> := <<"RUB">>
+          }
+    }]} = Withdrawal,
+    {save_config, Cfg}.
+
 woody_retry_test(C) ->
-    _ = ct_helper:start_app(wapi),
     Urls = application:get_env(wapi, service_urls, #{}),
     ok = application:set_env(
         wapi,
@@ -321,7 +360,7 @@ call_api(F, Params, Context) ->
 %%
 
 create_party(_C) ->
-    ID = genlib:unique(),
+    ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 
@@ -342,75 +381,6 @@ create_auth_ctx(PartyID) ->
 
 -include_lib("ff_cth/include/ct_domain.hrl").
 
-get_provider_config() ->
-    #{
-        ?ID_PROVIDER => #{
-            payment_institution_id => 1,
-            routes => [<<"mocketbank">>],
-            identity_classes => #{
-                ?ID_CLASS => #{
-                    name => <<"Well, a person">>,
-                    contract_template_id => 1,
-                    initial_level => <<"peasant">>,
-                    levels => #{
-                        <<"peasant">> => #{
-                            name => <<"Well, a peasant">>,
-                            contractor_level => none
-                        },
-                        <<"nobleman">> => #{
-                            name => <<"Well, a nobleman">>,
-                            contractor_level => partial
-                        }
-                    },
-                    challenges => #{
-                        <<"sword-initiation">> => #{
-                            name   => <<"Initiation by sword">>,
-                            base   => <<"peasant">>,
-                            target => <<"nobleman">>
-                        }
-                    }
-                }
-            }
-        }
-    }.
-
-get_domain_config(C) ->
-    [
-
-        ct_domain:globals(?eas(1), [?payinst(1)]),
-        ct_domain:external_account_set(?eas(1), <<"Default">>, ?cur(<<"RUB">>), C),
-
-        {payment_institution, #domain_PaymentInstitutionObject{
-            ref = ?payinst(1),
-            data = #domain_PaymentInstitution{
-                name                      = <<"Generic Payment Institution">>,
-                system_account_set        = {value, ?sas(1)},
-                default_contract_template = {value, ?tmpl(1)},
-                providers                 = {value, ?ordset([])},
-                inspector                 = {value, ?insp(1)},
-                residences                = ['rus'],
-                realm                     = live
-            }
-        }},
-
-        ct_domain:system_account_set(?sas(1), <<"System">>, ?cur(<<"RUB">>), C),
-
-        ct_domain:inspector(?insp(1), <<"Low Life">>, ?prx(1), #{<<"risk_score">> => <<"low">>}),
-        ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
-
-        ct_domain:contract_template(?tmpl(1), ?trms(1)),
-        ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(get_default_termset())]),
-
-        ct_domain:currency(?cur(<<"RUB">>)),
-        ct_domain:currency(?cur(<<"USD">>)),
-
-        ct_domain:category(?cat(1), <<"Generic Store">>, live),
-
-        ct_domain:payment_method(?pmt(bank_card, visa)),
-        ct_domain:payment_method(?pmt(bank_card, mastercard))
-
-    ].
-
 get_default_termset() ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
@@ -419,17 +389,39 @@ get_default_termset() ->
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
-                        {inclusive, ?cash(       0, <<"RUB">>)},
-                        {exclusive, ?cash(10000000, <<"RUB">>)}
+                        {inclusive, ?cash(-10000000, <<"RUB">>)},
+                        {exclusive, ?cash( 10000001, <<"RUB">>)}
                     )}
                 }
-            ]}
-        }
-    }.
-
-get_withdrawal_provider_config() ->
-    #{
-        <<"mocketbank">> => #{
-            adapter => ff_woody_client:new("http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit")
+            ]},
+            withdrawals = #domain_WithdrawalServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10000000, <<"RUB">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
+                    }
+                ]}
+            }
         }
     }.

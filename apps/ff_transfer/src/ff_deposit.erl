@@ -154,7 +154,7 @@ events(ID, Range) ->
 
 process_transfer(Deposit) ->
     Activity = deduce_activity(Deposit),
-    do_process_transfer(Activity, Deposit). 
+    do_process_transfer(Activity, Deposit).
 
 -spec process_failure(any(), deposit()) ->
     {ok, process_result()} |

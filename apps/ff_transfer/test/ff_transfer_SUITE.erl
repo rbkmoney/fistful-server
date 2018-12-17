@@ -197,7 +197,7 @@ deposit_withdrawal_ok(C) ->
     DestID = create_destination(IID, C),
 
     pass_identification(ICID, IID, C),
-    
+
     process_withdrawal(WalID, DestID).
 
 create_party(_C) ->

@@ -62,16 +62,13 @@
 
 -type id() :: ff_transfer_machine:id().
 -type body() :: ff_transfer:body().
--type wallet() :: ff_wallet:wallet().
 -type account() :: ff_account:account().
 -type provider() :: ff_withdrawal_provider:provider().
 -type wallet_id() :: ff_wallet:id().
--type timestamp() :: ff_time:timestamp_ms().
 -type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
 -type destination_id() :: ff_destination:id().
 -type process_result() :: {ff_transfer_machine:action(), [event()]}.
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
--type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
 
 %% Accessors
 
@@ -121,7 +118,7 @@ create(ID, #{wallet_id := WalletID, destination_id := DestinationID, body := Bod
             unwrap(destination, ff_destination:get_machine(DestinationID))
         ),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
-        Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
+        Terms = unwrap(contract, ff_party:get_contract_terms(Wallet, Body, ff_time:now())),
         valid = unwrap(terms, ff_party:validate_withdrawal_creation(Terms, Body, WalletAccount)),
         CashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
 
@@ -271,7 +268,7 @@ create_session(Withdrawal) ->
         destination_account := DestinationAccount
     } = params(Withdrawal),
     do(fun () ->
-        valid = validate_wallet_limits(WalletID, Body, WalletAccount),
+        valid = ff_party:validate_wallet_limits(WalletID, Body, WalletAccount),
         #{provider_id := ProviderID} = route(Withdrawal),
         SenderSt = unwrap(ff_identity_machine:get(ff_account:identity(WalletAccount))),
         ReceiverSt = unwrap(ff_identity_machine:get(ff_account:identity(DestinationAccount))),
@@ -316,29 +313,6 @@ poll_session_completion(Withdrawal) ->
         end
     end).
 
--spec get_contract_terms(wallet(), body(), timestamp()) -> Result when
-    Result :: {ok, withdrawal_terms()} | {error, Error},
-    Error ::
-        {party_not_found, id()} |
-        {party_not_exists_yet, id()} |
-        {exception, any()}.
-get_contract_terms(Wallet, Body, Timestamp) ->
-    WalletID = ff_wallet:id(Wallet),
-    IdentityID = ff_wallet:identity(Wallet),
-    do(fun() ->
-        IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
-        Identity = ff_identity_machine:identity(IdentityMachine),
-        ContractID = ff_identity:contract(Identity),
-        PartyID = ff_identity:party(Identity),
-        {_Amount, CurrencyID} = Body,
-        TermVarset = #{
-            amount => Body,
-            wallet_id => WalletID,
-            currency_id => CurrencyID
-        },
-        unwrap(ff_party:get_contract_terms(PartyID, ContractID, TermVarset, Timestamp))
-    end).
-
 -spec get_route_provider(route()) -> {ok, provider()}.
 get_route_provider(#{provider_id := ProviderID}) ->
     ff_withdrawal_provider:get(ProviderID).
@@ -363,11 +337,6 @@ finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount, SystemAccoun
         {provider, settlement} => ProviderAccount
     }),
     ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants).
-
-validate_wallet_limits(WalletID, Body, Account) ->
-    Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
-    Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
-    unwrap(wallet_limit, ff_party:validate_wallet_limits(Account, Terms)).
 
 -spec maybe_migrate(ff_transfer:event() | ff_transfer:legacy_event()) ->
     ff_transfer:event().

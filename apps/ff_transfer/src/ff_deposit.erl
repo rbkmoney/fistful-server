@@ -154,7 +154,7 @@ events(ID, Range) ->
 
 process_transfer(Deposit) ->
     Activity = deduce_activity(Deposit),
-    do_process_transfer(Activity, Deposit).
+    do_process_transfer(Activity, Deposit). 
 
 -spec process_failure(any(), deposit()) ->
     {ok, process_result()} |
@@ -220,8 +220,16 @@ create_p_transfer(Deposit) ->
 -spec finish_transfer(deposit()) ->
     {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(ff_transfer:event())]}} |
     {error, _Reason}.
-finish_transfer(_Deposit) ->
-    {ok, {continue, [{status_changed, succeeded}]}}.
+finish_transfer(Deposit) ->
+    Body = body(Deposit),
+    #{
+        wallet_id := WalletID,
+        wallet_account := WalletAccount
+    } = params(Deposit),
+    do(fun () -> 
+        valid = ff_party:validate_wallet_limits(WalletID, Body, WalletAccount),
+        {continue, [{status_changed, succeeded}]}
+    end).
 
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->

@@ -15,6 +15,7 @@
 
 -export([get_missing_fails/1]).
 -export([deposit_via_admin_ok/1]).
+-export([deposit_via_admin_bad/1]).
 -export([deposit_withdrawal_ok/1]).
 
 -type config()         :: ct_helper:config().
@@ -34,6 +35,7 @@ groups() ->
         {default, [parallel], [
             get_missing_fails,
             deposit_via_admin_ok,
+            deposit_via_admin_bad,
             deposit_withdrawal_ok
         ]}
     ].
@@ -80,6 +82,7 @@ end_per_testcase(_Name, _C) ->
 
 -spec get_missing_fails(config()) -> test_return().
 -spec deposit_via_admin_ok(config()) -> test_return().
+-spec deposit_via_admin_bad(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
 
 get_missing_fails(_C) ->
@@ -131,6 +134,55 @@ deposit_via_admin_ok(C) ->
     ),
     ok = await_wallet_balance({20000, <<"RUB">>}, WalID).
 
+deposit_via_admin_bad(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+
+    % Create source
+    {ok, Src1} = admin_call('CreateSource', [#fistful_SourceParams{
+        name     = <<"HAHA NO">>,
+        identity_id = IID,
+        currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
+        resource = #fistful_SourceResource{details = <<"Infinite source of cash">>}
+    }]),
+    unauthorized = Src1#fistful_Source.status,
+    SrcID = Src1#fistful_Source.id,
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, Src} = admin_call('GetSource', [SrcID]),
+            Src#fistful_Source.status
+        end
+    ),
+    % Process deposit
+    % dbg:tracer(),
+    % dbg:tp(ff_transfer_machine, []),
+    % dbg:tp(ff_deposit, process_transfer, 1, []),
+    % dbg:p(all, c), 
+    {ok, Dep1} = admin_call('CreateDeposit', [#fistful_DepositParams{
+            source      = SrcID,
+            destination = WalID,
+            body        = #'Cash'{
+                amount   = 10000002,
+                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+            }
+    }]),
+
+    DepID = Dep1#fistful_Deposit.id,
+    {pending, _} = Dep1#fistful_Deposit.status,
+    failed = ct_helper:await(
+        failed,
+        fun () ->
+            {ok, Dep} = admin_call('GetDeposit', [DepID]),
+            {Status, _} = Dep#fistful_Deposit.status,
+            Status
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID).
+
 deposit_withdrawal_ok(C) ->
     Party = create_party(C),
     IID = create_person_identity(Party, C),
@@ -145,7 +197,7 @@ deposit_withdrawal_ok(C) ->
     DestID = create_destination(IID, C),
 
     pass_identification(ICID, IID, C),
-
+    
     process_withdrawal(WalID, DestID).
 
 create_party(_C) ->

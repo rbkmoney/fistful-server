@@ -111,7 +111,8 @@ start_app(wapi = AppName) ->
         }},
         {service_urls, #{
             cds_storage         => "http://cds:8022/v1/storage",
-            identdoc_storage    => "http://cds:8022/v1/identity_document_storage"
+            identdoc_storage    => "http://cds:8022/v1/identity_document_storage",
+            fistful_stat        => "http://fistful-magista:8022/stat"
         }},
         {service_retries, #{
             fistful_stat    => #{

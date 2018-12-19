@@ -46,7 +46,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr.rbkmoney.com/rbkmoney/hellgate:16d9d57b18096d22ef7f3514fb8bc5e8c0606df3
+    image: dr.rbkmoney.com/rbkmoney/hellgate:998985ade2bb8d8b7882e8d09a036414e91e25b4
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -164,5 +164,37 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - SERVICE_NAME=shumway-db
+
+  fistful-magista:
+    image: dr.rbkmoney.com/rbkmoney/fistful-magista:fed290bccd48627822fda47f9dc2fe0cd1d3a5ad
+    restart: always
+    entrypoint:
+      - java
+      - -Xmx256m
+      - -jar
+      - /opt/fistful-magista/fistful-magista.jar
+      - --spring.datasource.url=jdbc:postgresql://ffmagista-db:5432/ffmagista
+      - --spring.datasource.username=postgres
+      - --withdrawal.polling.url=http://fistful-server:8022/v1/eventsink/withdrawal
+      - --identity.polling.url=http://fistful-server:8022/v1/eventsink/identity
+      - --wallet.polling.url=http://fistful-server:8022/v1/eventsink/wallet
+    depends_on:
+      - ffmagista-db
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 10
+    environment:
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SERVICE_NAME=ffmagista 
+  
+  ffmagista-db:
+    image: dr.rbkmoney.com/rbkmoney/postgres:9.6
+    environment:
+      - POSTGRES_DB=ffmagista
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - SERVICE_NAME=ffmagista-db
 
 EOF

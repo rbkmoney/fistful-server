@@ -515,6 +515,7 @@ create_stat_dsl(withdrawal_stat, Req, Context) ->
         <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
         <<"wallet_id"       >> => genlib_map:get(walletID, Req),
         <<"identity_id"     >> => genlib_map:get(identityID, Req),
+        <<"withdrawal_id"   >> => genlib_map:get(withdrawalID, Req),
         <<"destination_id"  >> => genlib_map:get(destinationID, Req),
         <<"status"          >> => genlib_map:get(status, Req),
         <<"from_time"       >> => get_time(createdAtFrom, Req),

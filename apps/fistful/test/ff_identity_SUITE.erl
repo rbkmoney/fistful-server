@@ -210,7 +210,7 @@ identify_ok(C) ->
     {ok, ICID} = ff_identity:effective_challenge(I3).
 
 create_party(_C) ->
-    ID = genlib:unique(),
+    ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 

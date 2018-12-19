@@ -97,7 +97,7 @@ handle_response(Response) ->
 
 -spec handle_response(integer(), list(), term()) ->
     {ok, term()} | {error, term()}.
-handle_response(Code, _, _) when Code =:= 202; Code =:= 204 ->
+handle_response(Code, _, _) when Code =:= 204 ->
     {ok, undefined};
 handle_response(303, Headers, _) ->
     URL = proplists:get_value(<<"Location">>, Headers),

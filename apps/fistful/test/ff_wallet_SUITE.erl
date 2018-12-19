@@ -173,7 +173,7 @@ create_wallet_ok(C) ->
 -include_lib("ff_cth/include/ct_domain.hrl").
 
 create_party(_C) ->
-    ID = genlib:unique(),
+    ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 

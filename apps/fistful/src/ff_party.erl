@@ -42,6 +42,7 @@
 -export([change_contractor_level/3]).
 -export([validate_account_creation/2]).
 -export([validate_withdrawal_creation/3]).
+-export([validate_deposit_creation/2]).
 -export([validate_wallet_limits/2]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/3]).
@@ -205,6 +206,16 @@ validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
         valid = unwrap(validate_withdrawal_wallet_currency(CurrencyID, Account)),
         valid = unwrap(validate_withdrawal_terms_currency(CurrencyID, WithdrawalTerms)),
         valid = unwrap(validate_withdrawal_cash_limit(Cash, WithdrawalTerms))
+    end).
+
+-spec validate_deposit_creation(wallet(), cash()) -> Result when
+    Result :: {ok, valid} | {error, currency_validation_error()}.
+
+validate_deposit_creation(Wallet, {_Amount, CurrencyID} = Cash) ->
+    do(fun () ->
+        Terms = unwrap(get_contract_terms(Wallet, Cash, ff_time:now())),
+        #domain_TermSet{wallets = WalletTerms} = Terms,
+        valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 
 -spec get_withdrawal_cash_flow_plan(terms()) ->

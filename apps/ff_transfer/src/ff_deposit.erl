@@ -98,11 +98,13 @@ params(T)          -> ff_transfer:params(T).
         exists |
         _TransferError
     }.
-
+create(_ID, #{body := {Amount, _Currency}}, _Ctx)
+    when Amount < 1 -> {error, {bad_deposit_amount, Amount}};
 create(ID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
     do(fun() ->
         Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
         Wallet = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(WalletID))),
+        valid =  unwrap(ff_party:validate_deposit_creation(Wallet, Body)),
         ok = unwrap(source, valid(authorized, ff_source:status(Source))),
         Params = #{
             handler     => ?MODULE,
@@ -154,6 +156,7 @@ events(ID, Range) ->
 
 process_transfer(Deposit) ->
     Activity = deduce_activity(Deposit),
+    lager:error("ff_deposit:process_transfer ~p ~n", [Activity]),
     do_process_transfer(Activity, Deposit).
 
 -spec process_failure(any(), deposit()) ->
@@ -161,6 +164,7 @@ process_transfer(Deposit) ->
     {error, _Reason}.
 
 process_failure(Reason, Deposit) ->
+    lager:error("ff_deposit:process_failure ~p ~n", [Reason]),
     ff_transfer:process_failure(Reason, Deposit).
 
 %% Internals
@@ -226,7 +230,7 @@ finish_transfer(Deposit) ->
         wallet_id := WalletID,
         wallet_account := WalletAccount
     } = params(Deposit),
-    do(fun () -> 
+    do(fun () ->
         valid = ff_party:validate_wallet_limits(WalletID, Body, WalletAccount),
         {continue, [{status_changed, succeeded}]}
     end).

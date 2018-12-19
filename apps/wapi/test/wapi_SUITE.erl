@@ -278,6 +278,7 @@ issue_destination_grants(C) ->
     {save_config, Cfg}.
 
 create_withdrawal(C) ->
+    % ожидаем выполнения асинхронного вызова выдачи прав на вывод
     timer:sleep(1000),
     {issue_destination_grants, Cfg} = ct_helper:cfg(saved_config, C),
     WalletID = ct_helper:cfg(wallet, Cfg),
@@ -298,27 +299,38 @@ create_withdrawal(C) ->
     {save_config, [{withdrawal, WithdrawalID} | Cfg]}.
 
 get_withdrawal(C) ->
-    timer:sleep(20000),
     {create_withdrawal, Cfg} = ct_helper:cfg(saved_config, C),
     WalletID = ct_helper:cfg(wallet, Cfg),
     DestinationID = ct_helper:cfg(dest, Cfg),
     WithdrawalID = ct_helper:cfg(withdrawal, Cfg),
-    {ok, Withdrawal} = call_api(
-         fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
-         #{qs_val => #{
-             <<"withdrawalID">> => WithdrawalID,
-             <<"limit">> => 100
-         }},
-         ct_helper:cfg(context, C)
+    ct_helper:await(
+        ok,
+        fun () ->
+            R = call_api(fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
+                         #{qs_val => #{
+                             <<"withdrawalID">> => WithdrawalID,
+                             <<"limit">> => 100
+                            }},
+                         ct_helper:cfg(context, C)),
+            case R of
+                {ok, #{<<"result">> := []}} ->
+                    R;
+                {ok, Withdrawal} ->
+                    #{<<"result">> := [
+                        #{<<"wallet">> := WalletID,
+                          <<"destination">> := DestinationID,
+                          <<"body">> := #{
+                              <<"amount">> := 100,
+                              <<"currency">> := <<"RUB">>
+                          }
+                    }]} = Withdrawal,
+                    ok;
+                _ ->
+                    R
+            end
+        end,
+        {linear, 20, 1000}
     ),
-    #{<<"result">> := [
-        #{<<"wallet">> := WalletID,
-          <<"destination">> := DestinationID,
-          <<"body">> := #{
-              <<"amount">> := 100,
-              <<"currency">> := <<"RUB">>
-          }
-    }]} = Withdrawal,
     {save_config, Cfg}.
 
 woody_retry_test(C) ->

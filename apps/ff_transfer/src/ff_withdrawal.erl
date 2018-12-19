@@ -268,7 +268,7 @@ create_session(Withdrawal) ->
         destination_account := DestinationAccount
     } = params(Withdrawal),
     do(fun () ->
-        valid = ff_party:validate_wallet_limits(WalletID, Body, WalletAccount),
+        valid = unwrap(ff_party:validate_wallet_limits(WalletID, Body, WalletAccount)),
         #{provider_id := ProviderID} = route(Withdrawal),
         SenderSt = unwrap(ff_identity_machine:get(ff_account:identity(WalletAccount))),
         ReceiverSt = unwrap(ff_identity_machine:get(ff_account:identity(DestinationAccount))),

@@ -156,7 +156,6 @@ events(ID, Range) ->
 
 process_transfer(Deposit) ->
     Activity = deduce_activity(Deposit),
-    lager:error("ff_deposit:process_transfer ~p ~n", [Activity]),
     do_process_transfer(Activity, Deposit).
 
 -spec process_failure(any(), deposit()) ->
@@ -164,7 +163,6 @@ process_transfer(Deposit) ->
     {error, _Reason}.
 
 process_failure(Reason, Deposit) ->
-    lager:error("ff_deposit:process_failure ~p ~n", [Reason]),
     ff_transfer:process_failure(Reason, Deposit).
 
 %% Internals
@@ -231,7 +229,7 @@ finish_transfer(Deposit) ->
         wallet_account := WalletAccount
     } = params(Deposit),
     do(fun () ->
-        valid = ff_party:validate_wallet_limits(WalletID, Body, WalletAccount),
+        valid = unwrap(ff_party:validate_wallet_limits(WalletID, Body, WalletAccount)),
         {continue, [{status_changed, succeeded}]}
     end).
 

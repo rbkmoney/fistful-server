@@ -483,11 +483,13 @@ validate_wallet_limits(Account, #domain_TermSet{wallets = WalletTerms}) ->
     end).
 
 -spec validate_wallet_limits(machinery:id(), body(), ff_account:account()) ->
-    valid | {error, cash_range_validation_error()}.
+    {ok, valid} | {error, cash_range_validation_error()}.
 validate_wallet_limits(WalletID, Body, Account) ->
-    Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
-    Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
-    unwrap(wallet_limit, validate_wallet_limits(Account, Terms)).
+    do(fun () ->
+        Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
+        Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
+        valid = unwrap(validate_wallet_limits(Account, Terms))
+    end).
 
 -spec validate_wallet_limits_terms_is_reduced(wallet_terms()) ->
     {ok, valid} | {error, {invalid_terms, _Details}}.

@@ -15,7 +15,7 @@
 
 -export([get_missing_fails/1]).
 -export([deposit_via_admin_ok/1]).
--export([deposit_via_admin_bad/1]).
+-export([deposit_via_admin_fails/1]).
 -export([deposit_via_admin_amount_fails/1]).
 -export([deposit_via_admin_currency_fails/1]).
 -export([deposit_withdrawal_ok/1]).
@@ -35,13 +35,12 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            % get_missing_fails,
-            % deposit_via_admin_ok,
-            % deposit_via_admin_bad,
-            % deposit_via_admin_bad2,
+            get_missing_fails,
+            deposit_via_admin_ok,
+            deposit_via_admin_fails,
             deposit_via_admin_amount_fails,
-            deposit_via_admin_currency_fails
-            % deposit_withdrawal_ok
+            deposit_via_admin_currency_fails,
+            deposit_withdrawal_ok
         ]}
     ].
 
@@ -87,7 +86,7 @@ end_per_testcase(_Name, _C) ->
 
 -spec get_missing_fails(config()) -> test_return().
 -spec deposit_via_admin_ok(config()) -> test_return().
--spec deposit_via_admin_bad(config()) -> test_return().
+-spec deposit_via_admin_fails(config()) -> test_return().
 -spec deposit_via_admin_amount_fails(config()) -> test_return().
 -spec deposit_via_admin_currency_fails(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
@@ -141,7 +140,7 @@ deposit_via_admin_ok(C) ->
     ),
     ok = await_wallet_balance({20000, <<"RUB">>}, WalID).
 
-deposit_via_admin_bad(C) ->
+deposit_via_admin_fails(C) ->
     Party = create_party(C),
     IID = create_person_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
@@ -209,7 +208,7 @@ deposit_via_admin_amount_fails(C) ->
         end
     ),
 
-    {exception,{fistful_DepositAmountInvalid}} = admin_call('CreateDeposit', [
+    {exception, {fistful_DepositAmountInvalid}} = admin_call('CreateDeposit', [
         #fistful_DepositParams{
             source      = SrcID,
             destination = WalID,

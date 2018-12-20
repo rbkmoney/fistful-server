@@ -312,6 +312,6 @@ create_auth_ctx(PartyID) ->
     }.
 
 create_party(_C) ->
-    ID = genlib:unique(),
+    ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.

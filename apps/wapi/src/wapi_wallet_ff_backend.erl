@@ -116,17 +116,15 @@ get_identity(IdentityId, Context) ->
     {conflict, id()}
 ).
 create_identity(Params, Context) ->
-    IdentityId = next_id(identity, construct_external_id(Params, Context)),
-    ParamsHash = erlang:phash2(Params),
-    CreateIdentity = fun() ->
+    CreateIdentity = fun(ID, Ctx) ->
         ff_identity_machine:create(
-            IdentityId,
+            ID,
             maps:merge(from_swag(identity_params, Params), #{party => wapi_handler_utils:get_owner(Context)}),
-            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [<<"name">>], Context))
+            Ctx
         )
     end,
-    CreateFun = fun() -> with_party(Context, CreateIdentity) end,
-    do(fun() -> unwrap(create_entity(identity, IdentityId, ParamsHash, CreateFun, Context)) end).
+    CreateFun = fun(ID, Ctx) -> with_party(Context, fun() -> CreateIdentity(ID, Ctx) end) end,
+    do(fun() -> unwrap(create_entity(identity, [<<"name">>], Params, CreateFun, Context)) end).
 
 -spec get_identity_challenges(id(), [binary()], ctx()) -> result(map(),
     {identity, notfound}     |
@@ -236,17 +234,15 @@ get_wallet(WalletId, Context) ->
     {inaccessible, _}
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
-    WalletId = next_id(wallet, construct_external_id(Params, Context)),
-    ParamsHash = erlang:phash2(Params),
-    CreateFun = fun() ->
+    CreateFun = fun(ID, Ctx) ->
         _ = check_resource(identity, IdenityId, Context),
         ff_wallet_machine:create(
-            WalletId,
+            ID,
             from_swag(wallet_params, Params),
-            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [], Context))
+            Ctx
         )
     end,
-    do(fun() -> unwrap(create_entity(wallet, WalletId, ParamsHash, CreateFun, Context)) end).
+    do(fun() -> unwrap(create_entity(wallet, [], Params, CreateFun, Context)) end).
 
 -spec get_wallet_account(id(), ctx()) -> result(map(),
     {wallet, notfound}     |
@@ -293,17 +289,15 @@ get_destination(DestinationId, Context) ->
     {conflict, id()}
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
-    DestinationId = next_id(destination, construct_external_id(Params, Context)),
-    ParamsHash = erlang:phash2(Params),
-    CreateFun = fun() ->
+    CreateFun = fun(ID, Ctx) ->
         _ = check_resource(identity, IdenityId, Context),
         ff_destination:create(
-            DestinationId,
+            ID,
             from_swag(destination_params, Params),
-            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [], Context))
+            Ctx
         )
     end,
-    do(fun() -> unwrap(create_entity(destination, DestinationId, ParamsHash, CreateFun, Context)) end).
+    do(fun() -> unwrap(create_entity(destination, [], Params, CreateFun, Context)) end).
 
 -spec create_withdrawal(params(), ctx()) -> result(map(),
     {source, notfound}            |
@@ -316,16 +310,14 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {wallet, {provider, invalid}}
 ).
 create_withdrawal(Params, Context) ->
-    WithdrawalId = next_id(withdrawal, construct_external_id(Params, Context)),
-    ParamsHash = erlang:phash2(Params),
-    CreateFun = fun() ->
+    CreateFun = fun(ID, Ctx) ->
         ff_withdrawal:create(
-            WithdrawalId,
+            ID,
             from_swag(withdrawal_params, Params),
-            add_to_ctx(?PARAMS_HASH, ParamsHash, make_ctx(Params, [], Context))
+            Ctx
         )
     end,
-    do(fun() -> unwrap(create_entity(withdrawal, WithdrawalId, ParamsHash, CreateFun, Context)) end).
+    do(fun() -> unwrap(create_entity(withdrawal, [], Params, CreateFun, Context)) end).
 
 -spec get_withdrawal(id(), ctx()) -> result(map(),
     {withdrawal, unauthorized} |
@@ -488,16 +480,11 @@ check_resource_access(HandlerCtx, State) ->
 check_resource_access(true)  -> ok;
 check_resource_access(false) -> {error, unauthorized}.
 
-finish_create_entity(identity, ID) ->
-    ok = scoper:add_meta(#{identity_id => ID}),
-    ok = lager:info("Identity created");
-finish_create_entity(_, _) ->
-    ok.
-
-create_entity(Type, ID, Hash, CreateFun, Context) ->
-    case CreateFun() of
+create_entity(Type, WapiKeys, Params, CreateFun, Context) ->
+    ID = next_id(Type, construct_external_id(Params, Context)),
+    Hash = erlang:phash2(Params),
+    case CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Params, WapiKeys, Context))) of
         ok ->
-            ok = finish_create_entity(Type, ID),
             do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
         {error, exists} ->
             get_and_compare_hash(Type, ID, Hash, Context);
@@ -508,13 +495,13 @@ create_entity(Type, ID, Hash, CreateFun, Context) ->
 get_and_compare_hash(Type, ID, Hash, Context) ->
     case do(fun() -> get_state(Type, ID, Context) end) of
         {ok, State} ->
-            compare_hash(Hash, get_hash(State), {ID, fun() -> to_swag(Type, State) end});
+            compare_hash(Hash, get_hash(State), {ID, to_swag(Type, State)});
         Error ->
             Error
     end.
 
-compare_hash(Hash, Hash, {_, CallBack}) ->
-    {ok, CallBack()};
+compare_hash(Hash, Hash, {_, Data}) ->
+    {ok, Data};
 compare_hash(_, _, {ID, _}) ->
     {error, {conflict, ID}}.
 

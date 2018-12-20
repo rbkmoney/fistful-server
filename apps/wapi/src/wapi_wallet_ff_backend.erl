@@ -116,15 +116,15 @@ get_identity(IdentityId, Context) ->
     {conflict, id()}
 ).
 create_identity(Params, Context) ->
-    CreateIdentity = fun(ID, Ctx) ->
+    CreateIdentity = fun(ID, EntityCtx) ->
         ff_identity_machine:create(
             ID,
             maps:merge(from_swag(identity_params, Params), #{party => wapi_handler_utils:get_owner(Context)}),
-            Ctx
+            add_meta_to_ctx([<<"name">>], Params, EntityCtx)
         )
     end,
-    CreateFun = fun(ID, Ctx) -> with_party(Context, fun() -> CreateIdentity(ID, Ctx) end) end,
-    do(fun() -> unwrap(create_entity(identity, [<<"name">>], Params, CreateFun, Context)) end).
+    CreateFun = fun(ID, EntityCtx) -> with_party(Context, fun() -> CreateIdentity(ID, EntityCtx) end) end,
+    do(fun() -> unwrap(create_entity(identity, Params, CreateFun, Context)) end).
 
 -spec get_identity_challenges(id(), [binary()], ctx()) -> result(map(),
     {identity, notfound}     |
@@ -157,7 +157,7 @@ get_identity_challenges(IdentityId, Statuses, Context) ->
     {challenge, conflict}
 ).
 create_identity_challenge(IdentityId, Params, Context) ->
-    ChallengeId = next_id('identity-challenge'),
+    ChallengeId = make_id(identity_challenge),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
         ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
@@ -234,15 +234,15 @@ get_wallet(WalletId, Context) ->
     {inaccessible, _}
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
-    CreateFun = fun(ID, Ctx) ->
+    CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
         ff_wallet_machine:create(
             ID,
             from_swag(wallet_params, Params),
-            Ctx
+            add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
-    do(fun() -> unwrap(create_entity(wallet, [], Params, CreateFun, Context)) end).
+    do(fun() -> unwrap(create_entity(wallet, Params, CreateFun, Context)) end).
 
 -spec get_wallet_account(id(), ctx()) -> result(map(),
     {wallet, notfound}     |
@@ -289,15 +289,15 @@ get_destination(DestinationId, Context) ->
     {conflict, id()}
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
-    CreateFun = fun(ID, Ctx) ->
+    CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
         ff_destination:create(
             ID,
             from_swag(destination_params, Params),
-            Ctx
+            add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
-    do(fun() -> unwrap(create_entity(destination, [], Params, CreateFun, Context)) end).
+    do(fun() -> unwrap(create_entity(destination, Params, CreateFun, Context)) end).
 
 -spec create_withdrawal(params(), ctx()) -> result(map(),
     {source, notfound}            |
@@ -310,14 +310,14 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {wallet, {provider, invalid}}
 ).
 create_withdrawal(Params, Context) ->
-    CreateFun = fun(ID, Ctx) ->
+    CreateFun = fun(ID, EntityCtx) ->
         ff_withdrawal:create(
             ID,
             from_swag(withdrawal_params, Params),
-            Ctx
+            add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
-    do(fun() -> unwrap(create_entity(withdrawal, [], Params, CreateFun, Context)) end).
+    do(fun() -> unwrap(create_entity(withdrawal, Params, CreateFun, Context)) end).
 
 -spec get_withdrawal(id(), ctx()) -> result(map(),
     {withdrawal, unauthorized} |
@@ -453,9 +453,12 @@ check_resource(Resource, Id, Context) ->
     _ = get_state(Resource, Id, Context),
     ok.
 
-make_ctx(Params, WapiKeys, Context) ->
-    #{?CTX_NS => maps:merge(
-        #{<<"owner">> => wapi_handler_utils:get_owner(Context)},
+make_ctx(Context) ->
+    #{?CTX_NS => #{<<"owner">> => wapi_handler_utils:get_owner(Context)}}.
+
+add_meta_to_ctx(WapiKeys, Params, Context = #{?CTX_NS := Ctx}) ->
+    Context#{?CTX_NS => maps:merge(
+        Ctx,
         maps:with([<<"metadata">> | WapiKeys], Params)
     )}.
 
@@ -480,10 +483,10 @@ check_resource_access(HandlerCtx, State) ->
 check_resource_access(true)  -> ok;
 check_resource_access(false) -> {error, unauthorized}.
 
-create_entity(Type, WapiKeys, Params, CreateFun, Context) ->
-    ID = next_id(Type, construct_external_id(Params, Context)),
+create_entity(Type, Params, CreateFun, Context) ->
+    ID = make_id(Type, construct_external_id(Params, Context)),
     Hash = erlang:phash2(Params),
-    case CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Params, WapiKeys, Context))) of
+    case CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))) of
         ok ->
             do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
         {error, exists} ->
@@ -541,11 +544,11 @@ unwrap(Tag, Res) ->
 
 %% ID Gen
 
-next_id(Type) ->
-    next_id(Type, undefined).
+make_id(Type) ->
+    make_id(Type, undefined).
 
-next_id(Type, ExternalID) ->
-    unwrap(ff_external_id:check(Type, ExternalID)).
+make_id(Type, ExternalID) ->
+    unwrap(ff_external_id:check_in(Type, ExternalID)).
 
 create_stat_dsl(withdrawal_stat, Req, Context) ->
     Query = #{

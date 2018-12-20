@@ -12,7 +12,7 @@
 
 -type external_id()  :: binary() | undefined.
 
--export([check/2]).
+-export([check_in/2]).
 
 -export_type([external_id/0]).
 -export_type([check_result/0]).
@@ -27,22 +27,29 @@
 
 %%
 
--type entity_name()  :: identity | wallet | withdrawal |
-                        deposit  | source | destination | 'identity-challenge'.
+-type entity_name()  ::
+    identity |
+    wallet |
+    withdrawal |
+    deposit  |
+    source |
+    destination |
+    identity_challenge.
+
 -type sequence()     :: binary().
 
 %% API
 
--spec check(entity_name(), external_id()) ->
+-spec check_in(entity_name(), external_id()) ->
     check_result().
 
-check(EntityName, undefined) ->
+check_in(EntityName, undefined) ->
     {ok, next_id(EntityName)};
-check(EntityName, ExternalID) ->
+check_in(EntityName, ExternalID) ->
     ID = create_id(EntityName, ExternalID),
-    check_(EntityName, ID).
+    check_in_(EntityName, ID).
 
-check_(EntityName, ID) ->
+check_in_(EntityName, ID) ->
     case machinery:get(?NS, ID, {undefined, 0, forward}, backend()) of
         {ok, #{aux_state := Seq}} ->
             {ok, Seq};
@@ -56,7 +63,7 @@ start_(EntityName, ID, Seq) ->
         ok ->
             {ok, Seq};
         {error, exists} ->
-            check_(EntityName, ID)
+            check_in_(EntityName, ID)
     end.
 
 %% Machinery
@@ -98,7 +105,7 @@ process_call(_, #{}, _, _Opts) ->
 
 create_id(EntityName, ExternalID) ->
     Name = erlang:term_to_binary(EntityName),
-    <<"ff/external_id/", Name/binary, "/", ExternalID/binary>>.
+    <<Name/binary, "/", ExternalID/binary>>.
 
 backend() ->
     fistful:backend(?NS).

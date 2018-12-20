@@ -87,7 +87,8 @@ start_processing_apps(Options) ->
             {withdrawal,
                 #{provider => withdrawal_provider_config(Options)}
             }
-        ]}
+        ]},
+        wapi
     ]),
     SuiteSup = ct_sup:start(),
     BeOpts = machinery_backend_options(Options),
@@ -196,7 +197,7 @@ create_company_identity(Party) ->
     create_identity(Party, <<"good-one">>, <<"church">>).
 
 create_party() ->
-    ID = genlib:unique(),
+    ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 

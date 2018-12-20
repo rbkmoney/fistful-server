@@ -273,7 +273,7 @@ create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
 create_party(_C) ->
-    ID = genlib:unique(),
+    ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 

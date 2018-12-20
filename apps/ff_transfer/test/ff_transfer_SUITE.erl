@@ -152,7 +152,7 @@ deposit_withdrawal_ok(C) ->
     process_withdrawal(WalID, DestID).
 
 create_party(_C) ->
-    ID = genlib:unique(),
+    ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 

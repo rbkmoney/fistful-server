@@ -16,6 +16,7 @@
 %% API
 
 -type id()              :: binary().
+-type external_id()     :: id() | undefined.
 -type party()           :: ff_party:id().
 -type provider()        :: ff_provider:id().
 -type contract()        :: ff_party:contract_id().
@@ -32,7 +33,8 @@
     contract     := contract(),
     level        => level(),
     challenges   => #{challenge_id() => challenge()},
-    effective    => challenge_id()
+    effective    => challenge_id(),
+    external_id  => id()
 }.
 
 -type challenge() ::
@@ -57,10 +59,11 @@
 -export([challenges/1]).
 -export([challenge/2]).
 -export([effective_challenge/1]).
+-export([external_id/1]).
 
 -export([is_accessible/1]).
 
--export([create/4]).
+-export([create/5]).
 
 -export([start_challenge/4]).
 -export([poll_challenge_completion/2]).
@@ -130,9 +133,17 @@ challenge(ChallengeID, Identity) ->
 is_accessible(Identity) ->
     ff_party:is_accessible(party(Identity)).
 
+-spec external_id(identity()) ->
+    external_id().
+
+external_id(#{external_id := ExternalID}) ->
+    ExternalID;
+external_id(_Identity) ->
+    undefined.
+
 %% Constructor
 
--spec create(id(), party(), provider(), class()) ->
+-spec create(id(), party(), provider(), class(), external_id()) ->
     {ok, [event()]} |
     {error,
         {provider, notfound} |
@@ -141,7 +152,7 @@ is_accessible(Identity) ->
         invalid
     }.
 
-create(ID, Party, ProviderID, ClassID) ->
+create(ID, Party, ProviderID, ClassID, ExternalID) ->
     do(fun () ->
         Provider = unwrap(provider, ff_provider:get(ProviderID)),
         Class = unwrap(identity_class, ff_provider:get_identity_class(ClassID, Provider)),
@@ -153,13 +164,13 @@ create(ID, Party, ProviderID, ClassID) ->
             contractor_level  => ff_identity_class:contractor_level(Level)
         })),
         [
-            {created, #{
+            {created, add_external_id(ExternalID, #{
                 id       => ID,
                 party    => Party,
                 provider => ProviderID,
                 class    => ClassID,
                 contract => Contract
-            }},
+            })},
             {level_changed,
                 LevelID
             }
@@ -241,6 +252,11 @@ get_challenge_class(Challenge, Identity) ->
         get_identity_class(Identity)
     ),
     V.
+
+add_external_id(undefined, Event) ->
+    Event;
+add_external_id(ExternalID, Event) ->
+    Event#{external_id => ExternalID}.
 
 %%
 

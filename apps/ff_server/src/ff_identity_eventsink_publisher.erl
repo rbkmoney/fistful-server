@@ -67,11 +67,13 @@ marshal(identity, Identity = #{
         class       := ClassID
 }) ->
     ContractID = maps:get(contract, Identity, undefined),
+    ExternalID = maps:get(external_id, Identity, undefined),
     #idnt_Identity{
         party     = marshal(id, PartyID),
         provider  = marshal(id, ProviderID),
         cls       = marshal(id, ClassID),
-        contract  = marshal(id, ContractID)
+        contract  = marshal(id, ContractID),
+        external_id = marshal(id, ExternalID)
     };
 
 marshal(challenge_change, #{

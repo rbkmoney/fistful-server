@@ -77,10 +77,12 @@ marshal(deposit, #{
 }) ->
     WalletID = maps:get(wallet_id, Params),
     SourceID = maps:get(source_id, Params),
+    ExternalID = maps:get(external_id, Params, undefined),
     #deposit_Deposit{
         body = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
         wallet = marshal(id, WalletID),
-        source = marshal(id, SourceID)
+        source = marshal(id, SourceID),
+        external_id = marshal(id, ExternalID)
     };
 
 marshal(deposit_status_changed, pending) ->

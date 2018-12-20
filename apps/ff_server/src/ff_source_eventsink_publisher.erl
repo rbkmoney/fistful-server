@@ -51,13 +51,15 @@ marshal(event, {account, AccountChange}) ->
 marshal(event, {status_changed, StatusChange}) ->
     {status, marshal(status_change, StatusChange)};
 
-marshal(source, #{
+marshal(source, Params = #{
     name := Name,
     resource := Resource
 }) ->
+    ExternalID = maps:get(external_id, Params, undefined),
     #src_Source{
         name = marshal(string, Name),
-        resource = marshal(resource, Resource)
+        resource = marshal(resource, Resource),
+        external_id = marshal(id, ExternalID)
     };
 marshal(resource, #{type := internal} = Internal) ->
     {internal, marshal(internal, Internal)};

@@ -163,14 +163,16 @@ deposit_via_admin_fails(C) ->
         end
     ),
 
-    {ok, Dep1} = admin_call('CreateDeposit', [#fistful_DepositParams{
+    {ok, Dep1} = admin_call('CreateDeposit', [
+        #fistful_DepositParams{
             source      = SrcID,
             destination = WalID,
             body        = #'Cash'{
                 amount   = 10000002,
                 currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
             }
-    }]),
+        }
+    ]),
 
     DepID = Dep1#fistful_Deposit.id,
     {pending, _} = Dep1#fistful_Deposit.status,
@@ -219,6 +221,7 @@ deposit_via_admin_amount_fails(C) ->
         }
     ]),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID).
+
 deposit_via_admin_currency_fails(C) ->
     Party = create_party(C),
     IID = create_person_identity(Party, C),

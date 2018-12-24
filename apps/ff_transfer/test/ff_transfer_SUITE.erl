@@ -133,8 +133,8 @@ deposit_via_admin_ok(C) ->
         succeeded,
         fun () ->
             {ok, Dep} = admin_call('GetDeposit', [DepID]),
-             {Status, _} = Dep#fistful_Deposit.status,
-             Status
+            {Status, _} = Dep#fistful_Deposit.status,
+            Status
         end,
         genlib_retry:linear(15, 1000)
     ),

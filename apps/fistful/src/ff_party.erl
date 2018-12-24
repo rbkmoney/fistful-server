@@ -137,11 +137,12 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
     end).
 
 -spec get_contract_terms(wallet(), body(), timestamp()) -> Result when
-    Result :: {ok, wallet_terms()} | {error, Error},
+    Result :: {ok, terms()} | {error, Error},
     Error ::
         {party_not_found, id()} |
         {party_not_exists_yet, id()} |
         {exception, any()}.
+
 get_contract_terms(Wallet, Body, Timestamp) ->
     WalletID = ff_wallet:id(Wallet),
     IdentityID = ff_wallet:identity(Wallet),
@@ -209,12 +210,19 @@ validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
     end).
 
 -spec validate_deposit_creation(wallet(), cash()) -> Result when
-    Result :: {ok, valid} | {error, currency_validation_error()}.
+    Result :: {ok, valid} | {error, Error},
+    Error ::
+        currency_validation_error() |
+        {invalid_terms, _Details} |
+        {bad_deposit_amount, _Details}.
 
+validate_deposit_creation(_Wallet, {Amount, _Currency} = _Cash)
+    when Amount < 1 -> {error, {bad_deposit_amount, Amount}};
 validate_deposit_creation(Wallet, {_Amount, CurrencyID} = Cash) ->
     do(fun () ->
         Terms = unwrap(get_contract_terms(Wallet, Cash, ff_time:now())),
         #domain_TermSet{wallets = WalletTerms} = Terms,
+        valid = unwrap(validate_wallet_creation_terms_is_reduced(WalletTerms)),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 
@@ -483,11 +491,15 @@ validate_wallet_limits(Account, #domain_TermSet{wallets = WalletTerms}) ->
     end).
 
 -spec validate_wallet_limits(machinery:id(), body(), ff_account:account()) ->
-    {ok, valid} | {error, cash_range_validation_error()}.
+    {ok, valid} |
+    {error, {invalid_terms, _Details}} |
+    {error, cash_range_validation_error()}.
 validate_wallet_limits(WalletID, Body, Account) ->
     do(fun () ->
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
         Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
+        #domain_TermSet{wallets = WalletTerms} = Terms,
+        valid = unwrap(validate_wallet_limits_terms_is_reduced(WalletTerms)),
         valid = unwrap(validate_wallet_limits(Account, Terms))
     end).
 

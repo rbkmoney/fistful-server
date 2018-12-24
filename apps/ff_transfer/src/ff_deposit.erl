@@ -98,8 +98,7 @@ params(T)          -> ff_transfer:params(T).
         exists |
         _TransferError
     }.
-create(_ID, #{body := {Amount, _Currency}}, _Ctx)
-    when Amount < 1 -> {error, {bad_deposit_amount, Amount}};
+
 create(ID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
     do(fun() ->
         Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),

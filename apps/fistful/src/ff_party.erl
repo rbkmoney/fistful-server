@@ -187,7 +187,7 @@ get_contract_terms(ID, ContractID, Varset, Timestamp) ->
 validate_account_creation(Terms, CurrencyID) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
-        valid = unwrap(validate_wallet_creation_terms_is_reduced(WalletTerms)),
+        valid = unwrap(validate_wallet_currencies_term_is_reduced(WalletTerms)),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 
@@ -222,7 +222,7 @@ validate_deposit_creation(Wallet, {_Amount, CurrencyID} = Cash) ->
     do(fun () ->
         Terms = unwrap(get_contract_terms(Wallet, Cash, ff_time:now())),
         #domain_TermSet{wallets = WalletTerms} = Terms,
-        valid = unwrap(validate_wallet_creation_terms_is_reduced(WalletTerms)),
+        valid = unwrap(validate_wallet_currencies_term_is_reduced(WalletTerms)),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 
@@ -411,12 +411,12 @@ call(Function, Args0) ->
 
 %% Terms stuff
 
--spec validate_wallet_creation_terms_is_reduced(wallet_terms()) ->
+-spec validate_wallet_currencies_term_is_reduced(wallet_terms()) ->
     {ok, valid} | {error, {invalid_terms, _Details}}.
 
-validate_wallet_creation_terms_is_reduced(undefined) ->
+validate_wallet_currencies_term_is_reduced(undefined) ->
     {error, {invalid_terms, undefined_wallet_terms}};
-validate_wallet_creation_terms_is_reduced(Terms) ->
+validate_wallet_currencies_term_is_reduced(Terms) ->
     #domain_WalletServiceTerms{
         currencies = CurrenciesSelector
     } = Terms,

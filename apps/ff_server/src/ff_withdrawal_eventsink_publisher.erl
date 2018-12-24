@@ -84,10 +84,12 @@ marshal(withdrawal, #{
 }) ->
     WalletID = maps:get(wallet_id, Params),
     DestinationID = maps:get(destination_id, Params),
+    ExternalID = maps:get(external_id, Params, undefined),
     #wthd_Withdrawal{
         body = marshal(cash, ?transaction_body_to_cash(Amount, SymCode)),
         source = marshal(id, WalletID),
-        destination = marshal(id, DestinationID)
+        destination = marshal(id, DestinationID),
+        external_id = marshal(id, ExternalID)
     };
 
 marshal(withdrawal_status_changed, pending) ->

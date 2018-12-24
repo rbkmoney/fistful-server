@@ -42,6 +42,7 @@
 -export([currency/1]).
 -export([resource/1]).
 -export([status/1]).
+-export([external_id/1]).
 
 %% API
 
@@ -68,6 +69,10 @@ currency(Source) -> ff_instrument:currency(Source).
 resource(Source) -> ff_instrument:resource(Source).
 status(Source)   -> ff_instrument:status(Source).
 account(Source)  -> ff_instrument:account(Source).
+
+-spec external_id(source()) ->
+    id() | undefined.
+external_id(T)   -> ff_instrument:external_id(T).
 
 %% API
 

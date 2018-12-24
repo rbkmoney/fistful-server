@@ -43,6 +43,7 @@
 -export([status/1]).
 -export([params/1]).
 -export([route/1]).
+-export([external_id/1]).
 
 %% API
 -export([create/3]).
@@ -88,6 +89,10 @@ status(T)          -> ff_transfer:status(T).
 params(T)          -> ff_transfer:params(T).
 route(T)           -> ff_transfer:route(T).
 
+-spec external_id(withdrawal()) ->
+    id() | undefined.
+external_id(T)     -> ff_transfer:external_id(T).
+
 %%
 
 -define(NS, 'ff/withdrawal_v2').
@@ -96,7 +101,8 @@ route(T)           -> ff_transfer:route(T).
 -type params() :: #{
     wallet_id      := ff_wallet_machine:id(),
     destination_id := ff_destination:id(),
-    body           := ff_transaction:body()
+    body           := ff_transaction:body(),
+    external_id    => id()
 }.
 
 -spec create(id(), params(), ctx()) ->
@@ -110,7 +116,7 @@ route(T)           -> ff_transfer:route(T).
 
     }.
 
-create(ID, #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->
+create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->
     do(fun() ->
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
         WalletAccount = ff_wallet:account(Wallet),
@@ -131,7 +137,8 @@ create(ID, #{wallet_id := WalletID, destination_id := DestinationID, body := Bod
                 wallet_account => WalletAccount,
                 destination_account => ff_destination:account(Destination),
                 wallet_cash_flow_plan => CashFlowPlan
-            }
+            },
+            external_id => maps:get(external_id, Args, undefined)
         },
         unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))
     end).

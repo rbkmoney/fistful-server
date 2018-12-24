@@ -17,7 +17,8 @@
     p_transfer    => maybe(p_transfer()),
     session_id    => session_id(),
     route         => any(),
-    status        => status()
+    status        => status(),
+    external_id   => id()
 }.
 
 -type route(T) :: T.
@@ -53,8 +54,9 @@
 -export([status/1]).
 -export([session_id/1]).
 -export([route/1]).
+-export([external_id/1]).
 
--export([create/4]).
+-export([create/5]).
 
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
@@ -73,6 +75,7 @@
 %% Internal types
 
 -type id() :: binary().
+-type external_id() :: id() | undefined.
 -type body() :: ff_transaction:body().
 -type route() :: route(any()).
 -type maybe(T) :: ff_maybe:maybe(T).
@@ -124,24 +127,32 @@ route(#{route := V}) ->
 route(_Other) ->
     undefined.
 
+-spec external_id(transfer()) ->
+    external_id().
+
+external_id(#{external_id := ExternalID}) ->
+    ExternalID;
+external_id(_Transfer) ->
+    undefined.
+
 %% API
 
--spec create(handler(), id(), body(), params()) ->
+-spec create(handler(), id(), body(), params(), external_id()) ->
     {ok, [event()]} |
     {error,
         _PostingsTransferError
     }.
 
-create(TransferType, ID, Body, Params) ->
+create(TransferType, ID, Body, Params, ExternalID) ->
     do(fun () ->
         [
-            {created, #{
+            {created, add_external_id(ExternalID, #{
                 version       => ?ACTUAL_FORMAT_VERSION,
                 id            => ID,
                 transfer_type => TransferType,
                 body          => Body,
                 params        => Params
-            }},
+            })},
             {status_changed, pending}
         ]
     end).
@@ -201,6 +212,11 @@ process_activity(cancel_transfer, Transfer) ->
     do(fun () ->
         {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))}
     end).
+
+add_external_id(undefined, Event) ->
+    Event;
+add_external_id(ExternalID, Event) ->
+    Event#{external_id => ExternalID}.
 
 %%
 

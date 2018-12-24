@@ -100,9 +100,11 @@ deposit_via_admin_ok(C) ->
     IID = create_person_identity(Party, C),
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
-
+    SrcID = genlib:unique(),
+    DepID = genlib:unique(),
     % Create source
     {ok, Src1} = admin_call('CreateSource', [#fistful_SourceParams{
+        id       = SrcID,
         name     = <<"HAHA NO">>,
         identity_id = IID,
         currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
@@ -120,6 +122,7 @@ deposit_via_admin_ok(C) ->
 
     % Process deposit
     {ok, Dep1} = admin_call('CreateDeposit', [#fistful_DepositParams{
+            id          = DepID,
             source      = SrcID,
             destination = WalID,
             body        = #'Cash'{
@@ -276,7 +279,7 @@ deposit_withdrawal_ok(C) ->
     process_withdrawal(WalID, DestID).
 
 create_party(_C) ->
-    ID = genlib:unique(),
+    ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 

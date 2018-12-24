@@ -53,13 +53,15 @@ marshal(event, {account, AccountChange}) ->
 marshal(event, {status_changed, StatusChange}) ->
     {status, marshal(status_change, StatusChange)};
 
-marshal(destination, #{
+marshal(destination, Params = #{
     name := Name,
     resource := Resource
 }) ->
+    ExternalID = maps:get(external_id, Params, undefined),
     #dst_Destination{
         name = marshal(string, Name),
-        resource = marshal(resource, Resource)
+        resource = marshal(resource, Resource),
+        external_id = marshal(id, ExternalID)
     };
 marshal(resource, {bank_card, BankCard}) ->
     {bank_card, marshal(bank_card, BankCard)};

@@ -41,6 +41,7 @@
 -export([id/1]).
 -export([body/1]).
 -export([status/1]).
+-export([external_id/1]).
 
 %% API
 -export([create/3]).
@@ -78,6 +79,10 @@ body(T)            -> ff_transfer:body(T).
 status(T)          -> ff_transfer:status(T).
 params(T)          -> ff_transfer:params(T).
 
+-spec external_id(deposit()) ->
+    id() | undefined.
+external_id(T)     -> ff_transfer:external_id(T).
+
 %%
 
 -define(NS, 'ff/deposit_v1').
@@ -86,7 +91,8 @@ params(T)          -> ff_transfer:params(T).
 -type params() :: #{
     source_id   := ff_source:id(),
     wallet_id   := ff_wallet_machine:id(),
-    body        := ff_transaction:body()
+    body        := ff_transaction:body(),
+    external_id => id()
 }.
 
 -spec create(id(), params(), ctx()) ->
@@ -99,7 +105,7 @@ params(T)          -> ff_transfer:params(T).
         _TransferError
     }.
 
-create(ID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
+create(ID, Args = #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
     do(fun() ->
         Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
         Wallet = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(WalletID))),
@@ -122,7 +128,8 @@ create(ID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) -
                         }
                     ]
                 }
-            }
+            },
+            external_id => maps:get(external_id, Args, undefined)
         },
         unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))
     end).

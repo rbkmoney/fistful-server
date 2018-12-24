@@ -9,21 +9,23 @@
 
 -module(ff_instrument).
 
--type id()        :: binary().
--type name()      :: binary().
--type resource(T) :: T.
--type account()   :: ff_account:account().
--type identity()  :: ff_identity:id().
--type currency()  :: ff_currency:id().
--type status()    ::
+-type id()          :: binary().
+-type external_id() :: id() | undefined.
+-type name()        :: binary().
+-type resource(T)   :: T.
+-type account()     :: ff_account:account().
+-type identity()    :: ff_identity:id().
+-type currency()    :: ff_currency:id().
+-type status()      ::
     unauthorized |
     authorized.
 
 -type instrument(T) :: #{
-    account  := account() | undefined,
-    resource := resource(T),
-    name     := name(),
-    status   := status()
+    account     := account() | undefined,
+    resource    := resource(T),
+    name        := name(),
+    status      := status(),
+    external_id => id()
 }.
 
 -type event(T) ::
@@ -45,8 +47,9 @@
 -export([currency/1]).
 -export([resource/1]).
 -export([status/1]).
+-export([external_id/1]).
 
--export([create/5]).
+-export([create/6]).
 -export([authorize/1]).
 
 -export([is_accessible/1]).
@@ -91,18 +94,26 @@ resource(#{resource := V}) ->
 status(#{status := V}) ->
     V.
 
+-spec external_id(instrument(_)) ->
+    external_id().
+
+external_id(#{external_id := ExternalID}) ->
+    ExternalID;
+external_id(_Transfer) ->
+    undefined.
+
 %%
 
--spec create(id(), identity(), binary(), currency(), resource(T)) ->
+-spec create(id(), identity(), binary(), currency(), resource(T), external_id()) ->
     {ok, [event(T)]} |
     {error, _WalletError}.
 
-create(ID, IdentityID, Name, CurrencyID, Resource) ->
+create(ID, IdentityID, Name, CurrencyID, Resource, ExternalID) ->
     do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Events = unwrap(ff_account:create(ID, Identity, Currency)),
-        [{created, #{name => Name, resource => Resource}}] ++
+        [{created, add_external_id(ExternalID, #{name => Name, resource => Resource})}] ++
         [{account, Ev} || Ev <- Events] ++
         [{status_changed, unauthorized}]
     end).
@@ -124,6 +135,11 @@ authorize(#{status := authorized}) ->
 
 is_accessible(Instrument) ->
     ff_account:is_accessible(account(Instrument)).
+
+add_external_id(undefined, Event) ->
+    Event;
+add_external_id(ExternalID, Event) ->
+    Event#{external_id => ExternalID}.
 
 %%
 

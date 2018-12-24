@@ -48,6 +48,7 @@
 -export([currency/1]).
 -export([resource/1]).
 -export([status/1]).
+-export([external_id/1]).
 
 %% API
 
@@ -74,6 +75,10 @@ currency(Destination) -> ff_instrument:currency(Destination).
 resource(Destination) -> ff_instrument:resource(Destination).
 status(Destination)   -> ff_instrument:status(Destination).
 account(Destination)  -> ff_instrument:account(Destination).
+
+-spec external_id(destination()) ->
+    id() | undefined.
+external_id(T)        -> ff_instrument:external_id(T).
 
 %% API
 

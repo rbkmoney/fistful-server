@@ -32,6 +32,7 @@
 
 -type owner() :: binary().
 -type args()  :: [term()].
+
 -export_type([owner/0]).
 
 %% API
@@ -105,6 +106,5 @@ get_location(PathSpec, Params, _Opts) ->
     handler_context()
 ) ->
     woody:result().
-
 service_call({ServiceName, Function, Args}, #{woody_context := WoodyContext}) ->
     wapi_woody_client:call_service(ServiceName, Function, Args, WoodyContext).

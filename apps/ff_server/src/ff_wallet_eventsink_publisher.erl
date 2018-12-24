@@ -49,8 +49,10 @@ marshal(event, {account, AccountChange}) ->
 
 marshal(wallet, Wallet) ->
     Name = maps:get(name, Wallet, undefined),
+    ExternalID = maps:get(external_id, Wallet, undefined),
     #wlt_Wallet{
-        name = marshal(string, Name)
+        name = marshal(string, Name),
+        external_id = marshal(id, ExternalID)
     };
 
 marshal(T, V) ->

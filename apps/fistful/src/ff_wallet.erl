@@ -4,13 +4,15 @@
 
 -module(ff_wallet).
 
--type id() :: ff_account:id().
+-type id()          :: ff_account:id().
+-type external_id() :: id() | undefined.
 
 -type wallet() :: #{
-    name       := binary(),
-    contract   := contract(),
-    blocking   := blocking(),
-    account    => account()
+    name        := binary(),
+    contract    := contract(),
+    blocking    := blocking(),
+    account     => account(),
+    external_id => id()
 }.
 
 -type event() ::
@@ -32,8 +34,9 @@
 -export([name/1]).
 -export([currency/1]).
 -export([blocking/1]).
+-export([external_id/1]).
 
--export([create/4]).
+-export([create/5]).
 -export([is_accessible/1]).
 -export([close/1]).
 
@@ -80,13 +83,21 @@ currency(Wallet) ->
 blocking(#{blocking := Blocking}) ->
     Blocking.
 
+-spec external_id(wallet()) ->
+    external_id().
+
+external_id(#{external_id := ExternalID}) ->
+    ExternalID;
+external_id(_Wallet) ->
+    undefined.
+
 %%
 
--spec create(id(), identity(), binary(), currency()) ->
+-spec create(id(), identity(), binary(), currency(), external_id()) ->
     {ok, [event()]} |
     {error, _Reason}.
 
-create(ID, IdentityID, Name, CurrencyID) ->
+create(ID, IdentityID, Name, CurrencyID, ExternalID) ->
     do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Contract = ff_identity:contract(Identity),
@@ -96,7 +107,7 @@ create(ID, IdentityID, Name, CurrencyID) ->
             contract => Contract,
             blocking => unblocked
         },
-        [{created, Wallet}] ++
+        [{created, add_external_id(ExternalID, Wallet)}] ++
         [{account, Ev} || Ev <- unwrap(ff_account:create(ID, Identity, Currency))]
     end).
 
@@ -123,6 +134,11 @@ close(Wallet) ->
         % TODO
         []
     end).
+
+add_external_id(undefined, Event) ->
+    Event;
+add_external_id(ExternalID, Event) ->
+    Event#{external_id => ExternalID}.
 
 %%
 

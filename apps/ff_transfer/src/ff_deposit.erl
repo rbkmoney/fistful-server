@@ -109,6 +109,7 @@ create(ID, Args = #{source_id := SourceID, wallet_id := WalletID, body := Body},
     do(fun() ->
         Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
         Wallet = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(WalletID))),
+        valid =  unwrap(ff_party:validate_deposit_creation(Wallet, Body)),
         ok = unwrap(source, valid(authorized, ff_source:status(Source))),
         Params = #{
             handler     => ?MODULE,
@@ -227,8 +228,16 @@ create_p_transfer(Deposit) ->
 -spec finish_transfer(deposit()) ->
     {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(ff_transfer:event())]}} |
     {error, _Reason}.
-finish_transfer(_Deposit) ->
-    {ok, {continue, [{status_changed, succeeded}]}}.
+finish_transfer(Deposit) ->
+    Body = body(Deposit),
+    #{
+        wallet_id := WalletID,
+        wallet_account := WalletAccount
+    } = params(Deposit),
+    do(fun () ->
+        valid = unwrap(ff_party:validate_wallet_limits(WalletID, Body, WalletAccount)),
+        {continue, [{status_changed, succeeded}]}
+    end).
 
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->

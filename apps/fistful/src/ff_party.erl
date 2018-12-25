@@ -42,13 +42,15 @@
 -export([change_contractor_level/3]).
 -export([validate_account_creation/2]).
 -export([validate_withdrawal_creation/3]).
+-export([validate_deposit_creation/2]).
 -export([validate_wallet_limits/2]).
-
+-export([validate_wallet_limits/3]).
+-export([get_contract_terms/3]).
 -export([get_contract_terms/4]).
 -export([get_withdrawal_cash_flow_plan/1]).
 
 %% Internal types
-
+-type body() :: ff_transfer:body().
 -type cash() :: ff_transaction:body().
 -type terms() :: dmsl_domain_thrift:'TermSet'().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'() | undefined.
@@ -58,6 +60,7 @@
 -type domain_cash() :: dmsl_domain_thrift:'Cash'().
 -type cash_range() :: dmsl_domain_thrift:'CashRange'().
 -type timestamp() :: ff_time:timestamp_ms().
+-type wallet() :: ff_wallet:wallet().
 
 -type currency_validation_error() :: {terms_violation, {not_allowed_currency, _Details}}.
 -type withdrawal_currency_error() :: {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}.
@@ -65,7 +68,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %%
 
@@ -133,7 +136,29 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
         ok
     end).
 
-%%
+-spec get_contract_terms(wallet(), body(), timestamp()) -> Result when
+    Result :: {ok, terms()} | {error, Error},
+    Error ::
+        {party_not_found, id()} |
+        {party_not_exists_yet, id()} |
+        {exception, any()}.
+
+get_contract_terms(Wallet, Body, Timestamp) ->
+    WalletID = ff_wallet:id(Wallet),
+    IdentityID = ff_wallet:identity(Wallet),
+    do(fun() ->
+        IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
+        Identity = ff_identity_machine:identity(IdentityMachine),
+        ContractID = ff_identity:contract(Identity),
+        PartyID = ff_identity:party(Identity),
+        {_Amount, CurrencyID} = Body,
+        TermVarset = #{
+            amount => Body,
+            wallet_id => WalletID,
+            currency_id => CurrencyID
+        },
+        unwrap(get_contract_terms(PartyID, ContractID, TermVarset, Timestamp))
+    end).
 
 -spec get_contract_terms(id(), contract_id(), term_varset(), timestamp()) -> Result when
     Result :: {ok, terms()} | {error, Error},
@@ -162,7 +187,7 @@ get_contract_terms(ID, ContractID, Varset, Timestamp) ->
 validate_account_creation(Terms, CurrencyID) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
-        valid = unwrap(validate_wallet_creation_terms_is_reduced(WalletTerms)),
+        valid = unwrap(validate_wallet_currencies_term_is_reduced(WalletTerms)),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 
@@ -182,6 +207,23 @@ validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
         valid = unwrap(validate_withdrawal_wallet_currency(CurrencyID, Account)),
         valid = unwrap(validate_withdrawal_terms_currency(CurrencyID, WithdrawalTerms)),
         valid = unwrap(validate_withdrawal_cash_limit(Cash, WithdrawalTerms))
+    end).
+
+-spec validate_deposit_creation(wallet(), cash()) -> Result when
+    Result :: {ok, valid} | {error, Error},
+    Error ::
+        currency_validation_error() |
+        {invalid_terms, _Details} |
+        {bad_deposit_amount, _Details}.
+
+validate_deposit_creation(_Wallet, {Amount, _Currency} = _Cash)
+    when Amount < 1 -> {error, {bad_deposit_amount, Amount}};
+validate_deposit_creation(Wallet, {_Amount, CurrencyID} = Cash) ->
+    do(fun () ->
+        Terms = unwrap(get_contract_terms(Wallet, Cash, ff_time:now())),
+        #domain_TermSet{wallets = WalletTerms} = Terms,
+        valid = unwrap(validate_wallet_currencies_term_is_reduced(WalletTerms)),
+        valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 
 -spec get_withdrawal_cash_flow_plan(terms()) ->
@@ -369,12 +411,12 @@ call(Function, Args0) ->
 
 %% Terms stuff
 
--spec validate_wallet_creation_terms_is_reduced(wallet_terms()) ->
+-spec validate_wallet_currencies_term_is_reduced(wallet_terms()) ->
     {ok, valid} | {error, {invalid_terms, _Details}}.
 
-validate_wallet_creation_terms_is_reduced(undefined) ->
+validate_wallet_currencies_term_is_reduced(undefined) ->
     {error, {invalid_terms, undefined_wallet_terms}};
-validate_wallet_creation_terms_is_reduced(Terms) ->
+validate_wallet_currencies_term_is_reduced(Terms) ->
     #domain_WalletServiceTerms{
         currencies = CurrenciesSelector
     } = Terms,
@@ -446,6 +488,19 @@ validate_wallet_limits(Account, #domain_TermSet{wallets = WalletTerms}) ->
         ExpMaxCash = encode_cash({ff_indef:expmax(Amounts), CurrencyID}),
         valid = unwrap(validate_cash_range(ExpMinCash, CashRange)),
         valid = unwrap(validate_cash_range(ExpMaxCash, CashRange))
+    end).
+
+-spec validate_wallet_limits(machinery:id(), body(), ff_account:account()) ->
+    {ok, valid} |
+    {error, {invalid_terms, _Details}} |
+    {error, cash_range_validation_error()}.
+validate_wallet_limits(WalletID, Body, Account) ->
+    do(fun () ->
+        Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
+        Terms = unwrap(contract, get_contract_terms(Wallet, Body, ff_time:now())),
+        #domain_TermSet{wallets = WalletTerms} = Terms,
+        valid = unwrap(validate_wallet_limits_terms_is_reduced(WalletTerms)),
+        valid = unwrap(validate_wallet_limits(Account, Terms))
     end).
 
 -spec validate_wallet_limits_terms_is_reduced(wallet_terms()) ->

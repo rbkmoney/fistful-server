@@ -29,7 +29,7 @@ handle_function(Func, Args, Context, Opts) ->
 %%
 
 handle_function_('CreateSource', [Params], Context, Opts) ->
-    SourceID = next_id('source'),
+    SourceID = Params#fistful_SourceParams.id,
     case ff_source:create(SourceID, #{
             identity => Params#fistful_SourceParams.identity_id,
             name     => Params#fistful_SourceParams.name,
@@ -54,7 +54,7 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
             woody_error:raise(business, #fistful_SourceNotFound{})
     end;
 handle_function_('CreateDeposit', [Params], Context, Opts) ->
-    DepositID = next_id('deposit'),
+    DepositID = Params#fistful_DepositParams.id,
     case ff_deposit:create(DepositID, #{
             source_id   => Params#fistful_DepositParams.source,
             wallet_id   => Params#fistful_DepositParams.destination,
@@ -69,6 +69,10 @@ handle_function_('CreateDeposit', [Params], Context, Opts) ->
             woody_error:raise(business, #fistful_SourceUnauthorized{});
         {error, {destination, notfound}} ->
             woody_error:raise(business, #fistful_DestinationNotFound{});
+        {error, {terms_violation, {not_allowed_currency, _More}}} ->
+            woody_error:raise(business, #fistful_DepositCurrencyInvalid{});
+        {error, {bad_deposit_amount, _Amount}} ->
+            woody_error:raise(business, #fistful_DepositAmountInvalid{});
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
@@ -136,9 +140,3 @@ encode(context, #{}) ->
     undefined;
 encode(context, Ctx) ->
     Ctx.
-
-next_id(Type) ->
-    NS = 'ff/sequence',
-    erlang:integer_to_binary(
-        ff_sequence:next(NS, ff_string:join($/, [Type, id]), fistful:backend(NS))
-    ).

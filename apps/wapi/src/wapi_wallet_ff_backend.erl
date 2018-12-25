@@ -42,13 +42,15 @@
 
 -type ctx()         :: wapi_handler:context().
 -type params()      :: map().
--type id()          :: binary().
+-type id()          :: binary() | undefined.
 -type result()      :: result(map()).
 -type result(T)     :: result(T, notfound).
 -type result(T, E)  :: {ok, T} | {error, E}.
 -type result_stat() :: {200 | 400, list(), map()}.
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
+-define(PARAMS_HASH, <<"params_hash">>).
+-define(EXTERNAL_ID, <<"externalID">>).
 
 %% API
 
@@ -110,22 +112,19 @@ get_identity(IdentityId, Context) ->
 -spec create_identity(params(), ctx()) -> result(map(),
     {provider, notfound}       |
     {identity_class, notfound} |
-    {email, notfound}
+    {email, notfound}          |
+    {conflict, id()}
 ).
 create_identity(Params, Context) ->
-    IdentityId = next_id('identity'),
-    do(fun() ->
-        with_party(Context, fun() ->
-            ok = unwrap(ff_identity_machine:create(
-                IdentityId,
-                maps:merge(from_swag(identity_params, Params), #{party => wapi_handler_utils:get_owner(Context)}),
-                make_ctx(Params, [<<"name">>], Context
-            ))),
-            ok = scoper:add_meta(#{identity_id => IdentityId}),
-            ok = lager:info("Identity created"),
-            unwrap(get_identity(IdentityId, Context))
-        end)
-    end).
+    CreateIdentity = fun(ID, EntityCtx) ->
+        ff_identity_machine:create(
+            ID,
+            maps:merge(from_swag(identity_params, Params), #{party => wapi_handler_utils:get_owner(Context)}),
+            add_meta_to_ctx([<<"name">>], Params, EntityCtx)
+        )
+    end,
+    CreateFun = fun(ID, EntityCtx) -> with_party(Context, fun() -> CreateIdentity(ID, EntityCtx) end) end,
+    do(fun() -> unwrap(create_entity(identity, Params, CreateFun, Context)) end).
 
 -spec get_identity_challenges(id(), [binary()], ctx()) -> result(map(),
     {identity, notfound}     |
@@ -158,7 +157,7 @@ get_identity_challenges(IdentityId, Statuses, Context) ->
     {challenge, conflict}
 ).
 create_identity_challenge(IdentityId, Params, Context) ->
-    ChallengeId = next_id('identity-challenge'),
+    ChallengeId = make_id(identity_challenge),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
         ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
@@ -231,17 +230,19 @@ get_wallet(WalletId, Context) ->
     {identity, unauthorized} |
     {identity, notfound}     |
     {currency, notfound}     |
+    {conflict, id()}         |
     {inaccessible, _}
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
-    WalletId = next_id('wallet'),
-    do(fun() ->
+    CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
-        ok = unwrap(
-            ff_wallet_machine:create(WalletId, from_swag(wallet_params, Params), make_ctx(Params, [], Context))
-        ),
-        unwrap(get_wallet(WalletId, Context))
-    end).
+        ff_wallet_machine:create(
+            ID,
+            from_swag(wallet_params, Params),
+            add_meta_to_ctx([], Params, EntityCtx)
+        )
+    end,
+    do(fun() -> unwrap(create_entity(wallet, Params, CreateFun, Context)) end).
 
 -spec get_wallet_account(id(), ctx()) -> result(map(),
     {wallet, notfound}     |
@@ -280,39 +281,43 @@ get_destination(DestinationId, Context) ->
     do(fun() -> to_swag(destination, get_state(destination, DestinationId, Context)) end).
 
 -spec create_destination(params(), ctx()) -> result(map(),
-    invalid                  |
-    {identity, unauthorized} |
-    {identity, notfound}     |
-    {currency, notfound}     |
-    {inaccessible, _}
+    invalid                     |
+    {identity, unauthorized}    |
+    {identity, notfound}        |
+    {currency, notfound}        |
+    {inaccessible, _}           |
+    {conflict, id()}
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
-    DestinationId = next_id('destination'),
-    do(fun() ->
+    CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
-        ok = unwrap(ff_destination:create(
-            DestinationId, from_swag(destination_params, Params), make_ctx(Params, [], Context)
-        )),
-        unwrap(get_destination(DestinationId, Context))
-    end).
+        ff_destination:create(
+            ID,
+            from_swag(destination_params, Params),
+            add_meta_to_ctx([], Params, EntityCtx)
+        )
+    end,
+    do(fun() -> unwrap(create_entity(destination, Params, CreateFun, Context)) end).
 
 -spec create_withdrawal(params(), ctx()) -> result(map(),
     {source, notfound}            |
     {destination, notfound}       |
     {destination, unauthorized}   |
+    {conflict, id()}              |
     {provider, notfound}          |
     {wallet, {inaccessible, _}}   |
     {wallet, {currency, invalid}} |
     {wallet, {provider, invalid}}
 ).
 create_withdrawal(Params, Context) ->
-    WithdrawalId = next_id('withdrawal'),
-    do(fun() ->
-        ok = unwrap(ff_withdrawal:create(
-            WithdrawalId, from_swag(withdrawal_params, Params), make_ctx(Params, [], Context)
-        )),
-        unwrap(get_withdrawal(WithdrawalId, Context))
-    end).
+    CreateFun = fun(ID, EntityCtx) ->
+        ff_withdrawal:create(
+            ID,
+            from_swag(withdrawal_params, Params),
+            add_meta_to_ctx([], Params, EntityCtx)
+        )
+    end,
+    do(fun() -> unwrap(create_entity(withdrawal, Params, CreateFun, Context)) end).
 
 -spec get_withdrawal(id(), ctx()) -> result(map(),
     {withdrawal, unauthorized} |
@@ -448,14 +453,23 @@ check_resource(Resource, Id, Context) ->
     _ = get_state(Resource, Id, Context),
     ok.
 
-make_ctx(Params, WapiKeys, Context) ->
-    #{?CTX_NS => maps:merge(
-        #{<<"owner">> => wapi_handler_utils:get_owner(Context)},
+make_ctx(Context) ->
+    #{?CTX_NS => #{<<"owner">> => wapi_handler_utils:get_owner(Context)}}.
+
+add_meta_to_ctx(WapiKeys, Params, Context = #{?CTX_NS := Ctx}) ->
+    Context#{?CTX_NS => maps:merge(
+        Ctx,
         maps:with([<<"metadata">> | WapiKeys], Params)
     )}.
 
+add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
+    Context#{?CTX_NS => Ctx#{Key => Value}}.
+
 get_ctx(State) ->
     unwrap(ff_ctx:get(?CTX_NS, ff_machine:ctx(State))).
+
+get_hash(State) ->
+    maps:get(?PARAMS_HASH, get_ctx(State)).
 
 get_resource_owner(State) ->
     maps:get(<<"owner">>, get_ctx(State)).
@@ -468,6 +482,31 @@ check_resource_access(HandlerCtx, State) ->
 
 check_resource_access(true)  -> ok;
 check_resource_access(false) -> {error, unauthorized}.
+
+create_entity(Type, Params, CreateFun, Context) ->
+    ID = make_id(Type, construct_external_id(Params, Context)),
+    Hash = erlang:phash2(Params),
+    case CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))) of
+        ok ->
+            do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
+        {error, exists} ->
+            get_and_compare_hash(Type, ID, Hash, Context);
+        {error, E} ->
+            throw(E)
+    end.
+
+get_and_compare_hash(Type, ID, Hash, Context) ->
+    case do(fun() -> get_state(Type, ID, Context) end) of
+        {ok, State} ->
+            compare_hash(Hash, get_hash(State), {ID, to_swag(Type, State)});
+        Error ->
+            Error
+    end.
+
+compare_hash(Hash, Hash, {_, Data}) ->
+    {ok, Data};
+compare_hash(_, _, {ID, _}) ->
+    {error, {conflict, ID}}.
 
 with_party(Context, Fun) ->
     try Fun()
@@ -504,11 +543,12 @@ unwrap(Tag, Res) ->
     ff_pipeline:unwrap(Tag, Res).
 
 %% ID Gen
-next_id(Type) ->
-    NS = 'ff/sequence',
-    erlang:integer_to_binary(
-        ff_sequence:next(NS, ff_string:join($/, [Type, id]), fistful:backend(NS))
-    ).
+
+make_id(Type) ->
+    make_id(Type, undefined).
+
+make_id(Type, ExternalID) ->
+    unwrap(ff_external_id:check_in(Type, ExternalID)).
 
 create_stat_dsl(withdrawal_stat, Req, Context) ->
     Query = #{
@@ -622,7 +662,21 @@ decode_withdrawal_stat_status({failed, #fistfulstat_WithdrawalFailed{failure = F
         }
     }.
 
+construct_external_id(Params, Context) ->
+    case genlib_map:get(?EXTERNAL_ID, Params) of
+        undefined ->
+            undefined;
+        ExternalID ->
+            PartyID = wapi_handler_utils:get_owner(Context),
+            <<PartyID/binary, "/", ExternalID/binary>>
+    end.
+
 %% Marshalling
+
+add_external_id(Params, #{?EXTERNAL_ID := Tag}) ->
+    Params#{external_id => Tag};
+add_external_id(Params, _) ->
+    Params.
 
 -type swag_term() ::
     #{binary() => swag_term()} |
@@ -635,10 +689,10 @@ decode_withdrawal_stat_status({failed, #fistfulstat_WithdrawalFailed{failure = F
     _Term.
 
 from_swag(identity_params, Params) ->
-    #{
+    add_external_id(#{
         provider => maps:get(<<"provider">>, Params),
         class    => maps:get(<<"class">>   , Params)
-    };
+    }, Params);
 from_swag(identity_challenge_params, Params) ->
     #{
        class  => maps:get(<<"type">>, Params),
@@ -663,18 +717,18 @@ from_swag(proof_type, <<"RUSRetireeInsuranceCertificate">>) ->
     rus_retiree_insurance_cert;
 
 from_swag(wallet_params, Params) ->
-    #{
+    add_external_id(#{
         identity => maps:get(<<"identity">>, Params),
         currency => maps:get(<<"currency">>, Params),
         name     => maps:get(<<"name">>    , Params)
-    };
+    }, Params);
 from_swag(destination_params, Params) ->
-    #{
+    add_external_id(#{
         identity => maps:get(<<"identity">>, Params),
         currency => maps:get(<<"currency">>, Params),
         name     => maps:get(<<"name">>    , Params),
         resource => from_swag(destination_resource, maps:get(<<"resource">>, Params))
-    };
+    }, Params);
 from_swag(destination_resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
     <<"token">> := WapiToken
@@ -687,11 +741,11 @@ from_swag(destination_resource, #{
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }};
 from_swag(withdrawal_params, Params) ->
-    #{
+    add_external_id(#{
         wallet_id      => maps:get(<<"wallet">>     , Params),
         destination_id => maps:get(<<"destination">>, Params),
         body           => from_swag(withdrawal_body , maps:get(<<"body">>, Params))
-    };
+    }, Params);
 %% TODO
 %%  - remove this clause when we fix negative accounts and turn on validation in swag
 from_swag(withdrawal_body, #{<<"amount">> := Amount}) when Amount < 0 ->
@@ -748,7 +802,8 @@ to_swag(identity, State) ->
         <<"level">>              => ff_identity:level(Identity),
         <<"effectiveChallenge">> => to_swag(identity_effective_challenge, ff_identity:effective_challenge(Identity)),
         <<"isBlocked">>          => to_swag(is_blocked, ff_identity:is_accessible(Identity)),
-        <<"metadata">>           => maps:get(<<"metadata">>, WapiCtx, undefined)
+        <<"metadata">>           => maps:get(<<"metadata">>, WapiCtx, undefined),
+        ?EXTERNAL_ID             => ff_identity:external_id(Identity)
     });
 to_swag(identity_effective_challenge, {ok, ChallegeId}) ->
     ChallegeId;
@@ -798,6 +853,7 @@ to_swag(identity_challenge_event_change, {status_changed, S}) ->
 
 to_swag(wallet, State) ->
     Wallet = ff_wallet_machine:wallet(State),
+    WapiCtx = get_ctx(State),
     to_swag(map, #{
         <<"id">>         => ff_wallet:id(Wallet),
         <<"name">>       => ff_wallet:name(Wallet),
@@ -805,7 +861,8 @@ to_swag(wallet, State) ->
         <<"isBlocked">>  => to_swag(is_blocked, ff_wallet:is_accessible(Wallet)),
         <<"identity">>   => ff_wallet:identity(Wallet),
         <<"currency">>   => to_swag(currency, ff_wallet:currency(Wallet)),
-        <<"metadata">>   => genlib_map:get(<<"metadata">>, get_ctx(State))
+        <<"metadata">>   => genlib_map:get(<<"metadata">>, WapiCtx),
+        ?EXTERNAL_ID     => ff_wallet:external_id(Wallet)
     });
 to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
     EncodedCurrency = to_swag(currency, Currency),
@@ -821,6 +878,7 @@ to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
     };
 to_swag(destination, State) ->
     Destination = ff_destination:get(State),
+    WapiCtx = get_ctx(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>         => ff_destination:id(Destination),
@@ -830,7 +888,8 @@ to_swag(destination, State) ->
             <<"identity">>   => ff_destination:identity(Destination),
             <<"currency">>   => to_swag(currency, ff_destination:currency(Destination)),
             <<"resource">>   => to_swag(destination_resource, ff_destination:resource(Destination)),
-            <<"metadata">>   => genlib_map:get(<<"metadata">>, get_ctx(State))
+            <<"metadata">>   => genlib_map:get(<<"metadata">>, WapiCtx),
+            ?EXTERNAL_ID     => ff_destination:external_id(Destination)
         },
         to_swag(destination_status, ff_destination:status(Destination))
     ));
@@ -856,14 +915,16 @@ to_swag(pan_last_digits, MaskedPan) ->
     wapi_utils:get_last_pan_digits(MaskedPan);
 to_swag(withdrawal, State) ->
     Withdrawal = ff_withdrawal:get(State),
+    WapiCtx = get_ctx(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>          => ff_withdrawal:id(Withdrawal),
             <<"createdAt">>   => to_swag(timestamp, ff_machine:created(State)),
-            <<"metadata">>    => genlib_map:get(<<"metadata">>, get_ctx(State)),
             <<"wallet">>      => ff_withdrawal:wallet_id(Withdrawal),
             <<"destination">> => ff_withdrawal:destination_id(Withdrawal),
-            <<"body">>        => to_swag(withdrawal_body, ff_withdrawal:body(Withdrawal))
+            <<"body">>        => to_swag(withdrawal_body, ff_withdrawal:body(Withdrawal)),
+            <<"metadata">>    => genlib_map:get(<<"metadata">>, WapiCtx),
+            ?EXTERNAL_ID      => ff_withdrawal:external_id(Withdrawal)
         },
         to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))
     ));

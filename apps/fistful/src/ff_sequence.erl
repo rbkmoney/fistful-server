@@ -13,6 +13,8 @@
 -export([next/3]).
 -export([get/3]).
 
+-export_type([sequence/0]).
+
 %% Machinery
 
 -export([init/4]).

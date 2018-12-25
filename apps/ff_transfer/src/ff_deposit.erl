@@ -41,6 +41,7 @@
 -export([id/1]).
 -export([body/1]).
 -export([status/1]).
+-export([external_id/1]).
 
 %% API
 -export([create/3]).
@@ -78,6 +79,10 @@ body(T)            -> ff_transfer:body(T).
 status(T)          -> ff_transfer:status(T).
 params(T)          -> ff_transfer:params(T).
 
+-spec external_id(deposit()) ->
+    id() | undefined.
+external_id(T)     -> ff_transfer:external_id(T).
+
 %%
 
 -define(NS, 'ff/deposit_v1').
@@ -86,7 +91,8 @@ params(T)          -> ff_transfer:params(T).
 -type params() :: #{
     source_id   := ff_source:id(),
     wallet_id   := ff_wallet_machine:id(),
-    body        := ff_transaction:body()
+    body        := ff_transaction:body(),
+    external_id => id()
 }.
 
 -spec create(id(), params(), ctx()) ->
@@ -99,10 +105,11 @@ params(T)          -> ff_transfer:params(T).
         _TransferError
     }.
 
-create(ID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
+create(ID, Args = #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
     do(fun() ->
         Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
         Wallet = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(WalletID))),
+        valid =  unwrap(ff_party:validate_deposit_creation(Wallet, Body)),
         ok = unwrap(source, valid(authorized, ff_source:status(Source))),
         Params = #{
             handler     => ?MODULE,
@@ -121,7 +128,8 @@ create(ID, #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) -
                         }
                     ]
                 }
-            }
+            },
+            external_id => maps:get(external_id, Args, undefined)
         },
         unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))
     end).
@@ -220,8 +228,16 @@ create_p_transfer(Deposit) ->
 -spec finish_transfer(deposit()) ->
     {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(ff_transfer:event())]}} |
     {error, _Reason}.
-finish_transfer(_Deposit) ->
-    {ok, {continue, [{status_changed, succeeded}]}}.
+finish_transfer(Deposit) ->
+    Body = body(Deposit),
+    #{
+        wallet_id := WalletID,
+        wallet_account := WalletAccount
+    } = params(Deposit),
+    do(fun () ->
+        valid = unwrap(ff_party:validate_wallet_limits(WalletID, Body, WalletAccount)),
+        {continue, [{status_changed, succeeded}]}
+    end).
 
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->

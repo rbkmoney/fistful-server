@@ -128,6 +128,8 @@ transfer(St) ->
 
 %% Machinery
 
+-define(MAX_SESSION_POLL_TIMEOUT, 3600000).
+
 -type machine()      :: ff_machine:machine(event(_)).
 -type result()       :: ff_machine:result(event(_)).
 -type handler_opts() :: machinery:handler_opts(_).
@@ -181,9 +183,13 @@ set_action(undefined, _St) ->
     undefined;
 set_action(poll, St) ->
     Now = machinery_time:now(),
-    Timeout = erlang:max(1, machinery_time:interval(Now, ff_machine:updated(St)) div 1000),
-    {set_timer, {timeout, Timeout}}.
+    {set_timer, {timeout, compute_poll_timeout(Now, St)}}.
 
+compute_poll_timeout(Now, St) ->
+    MaxTimeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
+    TimeoutMs0 = machinery_time:interval(Now, ff_machine:updated(St)),
+    TimeoutMs1 = erlang:min(TimeoutMs0, MaxTimeout),
+    erlang:max(1, TimeoutMs1 div 1000).
 
 %% Handler convertors
 

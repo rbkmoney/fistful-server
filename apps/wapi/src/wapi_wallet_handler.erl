@@ -334,7 +334,7 @@ process_request('ListWithdrawals', Params, Context, _Opts) ->
 %% Residences
 process_request('GetResidence', #{'residence' := ResidenceId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_residence(ResidenceId, Context) of
-        {ok, Residence}    -> wapi_handler_utils:reply_ok(200, Residence);
+        {ok, Residence}   -> wapi_handler_utils:reply_ok(200, Residence);
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
     end;
 
@@ -342,6 +342,49 @@ process_request('GetResidence', #{'residence' := ResidenceId}, Context, _Opts) -
 process_request('GetCurrency', #{'currencyID' := CurrencyId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_currency(CurrencyId, Context) of
         {ok, Currency}    -> wapi_handler_utils:reply_ok(200, Currency);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
+
+%% Reports
+process_request('CreateReport', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:create_report(Params, Context) of
+        {ok, Report}              -> wapi_handler_utils:reply_ok(201, Report);
+        {error, invalid_request}  -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NoMatch">>,
+                <<"name">>        => <<"timestamps">>,
+                <<"description">> => <<"invalid time range">>
+            });
+        {error, invalid_contract} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => <<"contractID">>,
+                <<"description">> => <<"contract not found">>
+            })
+    end;
+process_request('GetReport', #{
+    contractID := ContractId,
+    reportID   := ReportId
+}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_report(ReportId, ContractId, Context) of
+        {ok, Report}      -> wapi_handler_utils:reply_ok(200, Report);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('GetReports', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_reports(Params, Context) of
+        {ok, ReportList}          -> wapi_handler_utils:reply_ok(200, ReportList);
+        {error, invalid_request}  -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NoMatch">>,
+                <<"name">>        => <<"timestamps">>,
+                <<"description">> => <<"invalid time range">>
+            });
+        {error, {dataset_too_big, Limit}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"WrongLength">>,
+                <<"name">>        => <<"limitExceeded">>,
+                <<"description">> => io_lib:format("Max limit: ~p", [Limit])
+            })
+    end;
+process_request('DownloadFile', #{fileID := FileId, expiresAt := ExpiresAt}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:download_file(FileId, ExpiresAt, Context) of
+        {ok, URL}         -> wapi_handler_utils:reply_ok(200, #{<<"url">> => URL});
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
     end.
 

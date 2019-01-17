@@ -18,6 +18,8 @@
 
 -export([get_last_pan_digits/1]).
 
+-export([parse_deadline/1]).
+
 -type binding_value() :: binary().
 -type url()           :: binary().
 -type path()          :: binary().
@@ -167,6 +169,80 @@ get_last_pan_digits(MaskedPan) when byte_size(MaskedPan) > ?MASKED_PAN_MAX_LENGT
 get_last_pan_digits(MaskedPan) ->
     MaskedPan.
 
+-spec parse_deadline
+    (binary()) -> {ok, woody:deadline()} | {error, bad_deadline};
+    (undefined) -> {ok, undefined}.
+parse_deadline(undefined) ->
+    {ok, undefined};
+parse_deadline(DeadlineStr) ->
+    Parsers = [
+        fun try_parse_woody_default/1,
+        fun try_parse_relative/1
+    ],
+    try_parse_deadline(DeadlineStr, Parsers).
+
+%%
+%% Internals
+%%
+try_parse_deadline(_DeadlineStr, []) ->
+    {error, bad_deadline};
+try_parse_deadline(DeadlineStr, [P | Parsers]) ->
+    case P(DeadlineStr) of
+        {ok, _Deadline} = Result ->
+            Result;
+        {error, bad_deadline} ->
+            try_parse_deadline(DeadlineStr, Parsers)
+    end.
+try_parse_woody_default(DeadlineStr) ->
+    try
+        Deadline = woody_deadline:from_binary(to_universal_time(DeadlineStr)),
+        NewDeadline = clamp_max_deadline(woody_deadline:to_timeout(Deadline)),
+        {ok, woody_deadline:from_timeout(NewDeadline)}
+    catch
+        error:{bad_deadline, _Reason} ->
+            {error, bad_deadline};
+        error:{badmatch, {error, baddate}} ->
+            {error, bad_deadline};
+        error:deadline_reached ->
+            {error, bad_deadline}
+    end.
+try_parse_relative(DeadlineStr) ->
+    %% deadline string like '1ms', '30m', '2.6h' etc
+    case re:split(DeadlineStr, <<"^(\\d+\\.\\d+|\\d+)([a-z]+)$">>) of
+        [<<>>, NumberStr, Unit, <<>>] ->
+            Number = genlib:to_float(NumberStr),
+            try_parse_relative(Number, Unit);
+        _Other ->
+            {error, bad_deadline}
+    end.
+try_parse_relative(Number, Unit) ->
+    case unit_factor(Unit) of
+        {ok, Factor} ->
+            Timeout = erlang:round(Number * Factor),
+            {ok, woody_deadline:from_timeout(clamp_max_deadline(Timeout))};
+        {error, _Reason} ->
+            {error, bad_deadline}
+    end.
+unit_factor(<<"ms">>) ->
+    {ok, 1};
+unit_factor(<<"s">>) ->
+    {ok, 1000};
+unit_factor(<<"m">>) ->
+    {ok, 1000 * 60};
+unit_factor(_Other) ->
+    {error, unknown_unit}.
+
+-define(MAX_DEADLINE_TIME, 1*60*1000). % 1 min
+
+clamp_max_deadline(Value) when is_integer(Value)->
+    MaxDeadline = genlib_app:env(wapi, max_deadline, ?MAX_DEADLINE_TIME),
+    case Value > MaxDeadline of
+        true ->
+            MaxDeadline;
+        false ->
+            Value
+    end.
+
 %%
 
 -ifdef(TEST).
@@ -220,5 +296,15 @@ mask_and_keep_test() ->
     ?assertEqual(<<"**й">>, mask_and_keep(trailing, 1, $*, <<"Хуй">>)),
     ?assertEqual(<<"*уй">>, mask_and_keep(trailing, 2, $*, <<"Хуй">>)),
     ?assertEqual(<<"Хуй">>, mask_and_keep(trailing, 3, $*, <<"Хуй">>)).
+
+-spec parse_deadline_test() -> _.
+parse_deadline_test() ->
+    Deadline = woody_deadline:from_timeout(3000),
+    BinDeadline = woody_deadline:to_binary(Deadline),
+    {ok, {_, _}} = parse_deadline(BinDeadline),
+    ?assertEqual({error, bad_deadline}, parse_deadline(<<"2017-04-19T13:56:07.53Z">>)),
+    {ok, {_, _}} = parse_deadline(<<"15s">>),
+    {ok, {_, _}} = parse_deadline(<<"15m">>),
+    {error, bad_deadline} = parse_deadline(<<"15h">>).
 
 -endif.

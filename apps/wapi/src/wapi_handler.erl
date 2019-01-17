@@ -55,10 +55,11 @@
     request_result().
 handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContext}, Opts) ->
     _ = lager:info("Processing request ~p", [OperationID]),
-    WoodyContext = create_woody_context(Tag, Req, AuthContext, Opts),
-    %% TODO remove this fistful specific step, when separating the wapi service.
-    ok = ff_woody_ctx:set(WoodyContext),
     try
+        WoodyContext = attach_deadline(Req, create_woody_context(Tag, Req, AuthContext, Opts)),
+
+        %% TODO remove this fistful specific step, when separating the wapi service.
+        ok = ff_woody_ctx:set(WoodyContext),
 
         Context      = create_handler_context(SwagContext, WoodyContext),
         Handler      = get_handler(Tag),
@@ -68,11 +69,18 @@ handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContex
                 Handler:process_request(OperationID, Req, Context, Opts);
             {error, Error} ->
                 ok = lager:info("Operation ~p authorization failed due to ~p", [OperationID, Error]),
-                wapi_handler_utils:reply_error(401, wapi_handler_utils:get_error_msg(<<"Unauthorized operation">>))
+                wapi_handler_utils:reply_ok(401, wapi_handler_utils:get_error_msg(<<"Unauthorized operation">>))
         end
     catch
         throw:{?request_result, Result} ->
             Result;
+        throw:{bad_deadline, Deadline} ->
+            _ = lager:warning("Operation ~p failed due to invalid deadline ~p", [OperationID, Deadline]),
+            wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"SchemaViolated">>,
+                <<"name">>        => <<"X-Request-Deadline">>,
+                <<"description">> => <<"Invalid data in X-Request-Deadline header">>
+            });
         error:{woody_error, {Source, Class, Details}} ->
             process_woody_error(Source, Class, Details)
     after
@@ -106,6 +114,16 @@ get_deadline(Tag) ->
             woody_deadline:from_timeout(Timeout);
         undefined ->
             undefined
+    end.
+
+attach_deadline(#{'X-Request-Deadline' := undefined}, Context) ->
+    Context;
+attach_deadline(#{'X-Request-Deadline' := Header}, Context) ->
+    case capi_utils:parse_deadline(Header) of
+        {ok, Deadline} when Deadline /= undefined ->
+            woody_context:set_deadline(Deadline, Context);
+        _ ->
+            throw({bad_deadline, Header})
     end.
 
 -define(APP, wapi).

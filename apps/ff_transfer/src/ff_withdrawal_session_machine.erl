@@ -198,8 +198,14 @@ create_session(ID, Data, #{destination := DestinationID, provider_id := Provider
         status     => active
     }.
 
--spec get_adapter_with_opts(ff_withdrawal_provider:id()) -> adapter_with_opts().
-get_adapter_with_opts(ProviderID) ->
+-spec get_adapter_with_opts(ff_payouts_provider:id() | ff_withdrawal_provider:id()) -> adapter_with_opts().
+get_adapter_with_opts(ProviderID) when is_integer(ProviderID) ->
+    %% new_style
+    Provider =  unwrap(ff_payouts_provider:get(ProviderID)),
+    {ff_payouts_provider:adapter(Provider), ff_payouts_provider:adapter_opts(Provider)};
+get_adapter_with_opts(ProviderID) when is_binary(ProviderID) ->
+    %% old style
+    %% TODO remove after update
     {ok, Provider} = ff_withdrawal_provider:get(ProviderID),
     {ff_withdrawal_provider:adapter(Provider), ff_withdrawal_provider:adapter_opts(Provider)}.
 

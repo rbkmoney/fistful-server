@@ -19,7 +19,8 @@
 -type events()  :: ff_transfer_machine:events(ff_transfer:event(transfer_params(), route())).
 -type event()   :: ff_transfer_machine:event(ff_transfer:event(transfer_params(), route())).
 -type route()   :: ff_transfer:route(#{
-    provider_id := id()
+    % TODO I'm now sure about this change, it may crash old events. Or not. ))
+    provider_id := pos_integer() | id()
 }).
 
 -export_type([withdrawal/0]).
@@ -228,19 +229,73 @@ do_process_transfer(idle, Withdrawal) ->
     {error, _Reason}.
 create_route(Withdrawal) ->
     #{
+        wallet_id      := WalletID,
         destination_id := DestinationID
     } = params(Withdrawal),
+    Body = body(Withdrawal),
     do(fun () ->
+        Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
+        PaymentInstitutionID = unwrap(ff_party:get_wallet_payment_institution_id(Wallet)),
+        PaymentInstitution = unwrap(ff_payment_institution:get(PaymentInstitutionID)),
         DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
         Destination = ff_destination:get(DestinationMachine),
-        ProviderID = unwrap(route, ff_withdrawal_provider:choose(Destination, body(Withdrawal))),
+        VS = unwrap(collect_varset(Body, Wallet, Destination)),
+        ProviderID = unwrap(ff_payment_institution:compute_payouts_provider(PaymentInstitution, VS)),
         {continue, [{route_changed, #{provider_id => ProviderID}}]}
     end).
+
+
 
 -spec create_p_transfer(withdrawal()) ->
     {ok, process_result()} |
     {error, _Reason}.
 create_p_transfer(Withdrawal) ->
+    #{provider_id := ProviderID} = route(Withdrawal),
+    if
+        is_integer(ProviderID) ->
+            create_p_transfer_new_style(Withdrawal);
+        is_binary(ProviderID) ->
+            create_p_transfer_old_style(Withdrawal)
+    end.
+
+create_p_transfer_new_style(Withdrawal) ->
+    #{
+        wallet_id := WalletID,
+        wallet_account := WalletAccount,
+        destination_id := DestinationID,
+        destination_account := DestinationAccount,
+        wallet_cash_flow_plan := WalletCashFlowPlan
+    } = params(Withdrawal),
+    {_Amount, CurrencyID} = body(Withdrawal),
+    #{provider_id := ProviderID} = route(Withdrawal),
+    do(fun () ->
+        Provider = unwrap(provider, ff_payouts_provider:get(ProviderID)),
+        ProviderAccounts = ff_payouts_provider:accounts(Provider),
+        ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
+
+        Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
+        PaymentInstitutionID = unwrap(ff_party:get_wallet_payment_institution_id(Wallet)),
+        PaymentInstitution = unwrap(ff_payment_institution:get(PaymentInstitutionID)),
+        DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
+        Destination = ff_destination:get(DestinationMachine),
+        VS = unwrap(collect_varset(body(Withdrawal), Wallet, Destination)),
+        SystemAccounts = unwrap(ff_payment_institution:compute_system_accounts(PaymentInstitution, VS)),
+
+        SystemAccount = maps:get(CurrencyID, SystemAccounts, undefined),
+
+        ProviderFee = ff_payouts_provider:compute_fees(Provider, VS),
+
+        CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
+        FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
+            CashFlowPlan, WalletAccount, DestinationAccount, SystemAccount, ProviderAccount, body(Withdrawal)
+        )),
+        PTransferID = construct_p_transfer_id(id(Withdrawal)),
+        PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
+        {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}
+    end).
+
+% TODO backward compatibility, remove after successful update
+create_p_transfer_old_style(Withdrawal) ->
     #{
         wallet_account := WalletAccount,
         destination_account := DestinationAccount,
@@ -349,3 +404,32 @@ finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount, SystemAccoun
     ff_transfer:event().
 maybe_migrate(Ev) ->
     ff_transfer:maybe_migrate(Ev, withdrawal).
+
+collect_varset({_, CurrencyID} = Body, Wallet, Destination) ->
+    Currency = #domain_CurrencyRef{symbolic_code = CurrencyID},
+    IdentityID = ff_wallet:identity(Wallet),
+    do(fun() ->
+        IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
+        Identity = ff_identity_machine:identity(IdentityMachine),
+        PartyID = ff_identity:party(Identity),
+        PaymentTool = construct_payment_tool(ff_destination:resource(Destination)),
+        #{
+            currency => Currency,
+            cost => ff_cash:encode(Body),
+            % TODO it's not fair, because it's PAYOUT not PAYMENT tool.
+            payment_tool => PaymentTool,
+            party_id => PartyID,
+            wallet_id => ff_wallet:id(Wallet),
+            payout_method => #domain_PayoutMethodRef{id = wallet_info}
+        }
+    end).
+
+-spec construct_payment_tool(ff_destination:resource()) ->
+    dmsl_domain_thrift:'PaymentTool'().
+construct_payment_tool({bank_card, ResourceBankCard}) ->
+    {bank_card, #domain_BankCard{
+        token           = maps:get(token, ResourceBankCard),
+        payment_system  = maps:get(payment_system, ResourceBankCard),
+        bin             = maps:get(bin, ResourceBankCard),
+        masked_pan      = maps:get(masked_pan, ResourceBankCard)
+    }}.

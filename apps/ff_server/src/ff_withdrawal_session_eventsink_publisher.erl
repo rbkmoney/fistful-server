@@ -68,7 +68,7 @@ marshal(session, #{
         id = marshal(id, SessionID),
         status = marshal(session_status, SessionStatus),
         withdrawal = marshal(withdrawal, Withdrawal),
-        provider = marshal(id, ProviderID)
+        provider = marshal(id, genlib:to_binary(ProviderID))
     };
 
 marshal(session_status, active) ->

@@ -9,7 +9,6 @@
 %%
 %% woody_server_thrift_handler callbacks
 %%
-%% TODO scoper                       --- ?
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Context, Opts) ->

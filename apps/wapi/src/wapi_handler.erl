@@ -119,7 +119,7 @@ get_deadline(Tag) ->
 attach_deadline(#{'X-Request-Deadline' := undefined}, Context) ->
     Context;
 attach_deadline(#{'X-Request-Deadline' := Header}, Context) ->
-    case capi_utils:parse_deadline(Header) of
+    case wapi_utils:parse_deadline(Header) of
         {ok, Deadline} when Deadline /= undefined ->
             woody_context:set_deadline(Deadline, Context);
         _ ->

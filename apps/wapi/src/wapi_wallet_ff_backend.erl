@@ -3,6 +3,8 @@
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
+-include_lib("fistful_reporter_proto/include/fistful_reporter_fistful_reporter_thrift.hrl").
+-include_lib("file_storage_proto/include/file_storage_file_storage_thrift.hrl").
 
 %% API
 -export([get_providers/2]).
@@ -387,7 +389,8 @@ get_currency(CurrencyId, _Context) ->
 
 %% Reports
 
--spec create_report(params(), ctx()) -> result().
+-spec create_report(params(), ctx()) ->
+    result(map(), invalid_request | invalid_contract).
 create_report(Params, Context) ->
     {Type, Req} = create_report_request(Params, Context),
     Call = {fistful_report, 'GenerateReport', [Req, Type]},
@@ -407,18 +410,19 @@ get_report(ReportID, ContractID, Context) ->
     Call = {fistful_report, 'GetReport', [PartyID, ContractID, ReportID]},
     case wapi_handler_utils:service_call(Call, Context) of
         {ok, Report} ->
-            {ok, do(fun () -> to_swag(report_object, Report) end)};
+            do(fun () -> to_swag(report_object, Report) end);
         {exception, #fistful_reporter_ReportNotFound{}} ->
             {error, notfound}
     end.
 
--spec get_reports(params(), ctx()) -> result().
+-spec get_reports(params(), ctx()) ->
+    result(map(), invalid_request | {dataset_too_big, integer()}).
 get_reports(Params, Context) ->
     {Type, Req} = create_report_request(Params, Context),
     Call = {fistful_report, 'GetReports', [Req, [Type]]},
     case wapi_handler_utils:service_call(Call, Context) of
         {ok, ReportList} ->
-            {ok, do(fun () -> to_swag({list, report_object}, ReportList) end)};
+            do(fun () -> to_swag({list, report_object}, ReportList) end);
         {exception, #'InvalidRequest'{}} ->
             {error, invalid_request};
         {exception, #fistful_reporter_DatasetTooBig{limit = Limit}} ->
@@ -430,10 +434,10 @@ download_file(FileID, ExpiresAt, Context) ->
     Timestamp = wapi_utils:to_universal_time(ExpiresAt),
     Call = {file_storage, 'GenerateDownloadUrl', [FileID, Timestamp]},
     case wapi_handler_utils:service_call(Call, Context) of
-        {ok, URL} = Result->
-            Result;
         {exception, #file_storage_FileNotFound{}} ->
-            {error, notfound}
+            {error, notfound};
+        Result->
+            Result
     end.
 
 %% Internal functions
@@ -1056,12 +1060,12 @@ to_swag(report_object, #fistful_reporter_Report{
     created_at = CreatedAt,
     report_type = Type,
     status = Status,
-    file_ids = Files
+    file_data_ids = Files
 }) ->
     to_swag(map, #{
         <<"id">>        => ReportID,
-        <<"fromTime">>  => to_swag(timestamp, TimeRange##fistful_reporter_ReportTimeRange.from_time),
-        <<"toTime">>    => to_swag(timestamp, TimeRange##fistful_reporter_ReportTimeRange.to_time),
+        <<"fromTime">>  => to_swag(timestamp, TimeRange#fistful_reporter_ReportTimeRange.from_time),
+        <<"toTime">>    => to_swag(timestamp, TimeRange#fistful_reporter_ReportTimeRange.to_time),
         <<"createdAt">> => to_swag(timestamp, CreatedAt),
         <<"status">>    => to_swag(report_status, Status),
         <<"type">>      => Type,

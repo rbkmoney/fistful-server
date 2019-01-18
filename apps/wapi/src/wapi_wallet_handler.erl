@@ -384,8 +384,10 @@ process_request('GetReports', Params, Context, _Opts) ->
     end;
 process_request('DownloadFile', #{fileID := FileId, expiresAt := ExpiresAt}, Context, _Opts) ->
     case wapi_wallet_ff_backend:download_file(FileId, ExpiresAt, Context) of
-        {ok, URL}         -> wapi_handler_utils:reply_ok(200, #{<<"url">> => URL});
-        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+        {ok, URL}         ->
+            wapi_handler_utils:reply_ok(200, #{<<"url">> => URL, <<"expiresAt">> => ExpiresAt});
+        {error, notfound} ->
+            wapi_handler_utils:reply_ok(404)
     end.
 
 %% Internal functions

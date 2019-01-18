@@ -391,12 +391,20 @@ get_currency(CurrencyId, _Context) ->
 
 -spec create_report(params(), ctx()) ->
     result(map(), invalid_request | invalid_contract).
-create_report(Params, Context) ->
-    {Type, Req} = create_report_request(Params, Context),
-    Call = {fistful_report, 'GenerateReport', [Req, Type]},
+create_report(#{
+    identityID     := IdentityID,
+    'ReportParams' := ReportParams
+}, Context) ->
+    ContractID = get_contract_id_from_identity(IdentityID, Context),
+    Req = create_report_request(#{
+        party_id     => wapi_handler_utils:get_owner(Context),
+        contract_id  => ContractID,
+        from_time    => get_time(<<"fromTime">>, ReportParams),
+        to_time      => get_time(<<"toTime">>, ReportParams)
+    }),
+    Call = {fistful_report, 'GenerateReport', [Req, maps:get(<<"reportType">>, ReportParams)]},
     case wapi_handler_utils:service_call(Call, Context) of
         {ok, ReportID} ->
-            ContractID = maps:get(contractID, Params),
             get_report(ReportID, ContractID, Context);
         {exception, #'InvalidRequest'{}} ->
             {error, invalid_request};
@@ -405,7 +413,8 @@ create_report(Params, Context) ->
     end.
 
 -spec get_report(integer(), binary(), ctx()) -> result().
-get_report(ReportID, ContractID, Context) ->
+get_report(ReportID, IdentityID, Context) ->
+    ContractID = get_contract_id_from_identity(IdentityID, Context),
     PartyID = wapi_handler_utils:get_owner(Context),
     Call = {fistful_report, 'GetReport', [PartyID, ContractID, ReportID]},
     case wapi_handler_utils:service_call(Call, Context) of
@@ -417,9 +426,17 @@ get_report(ReportID, ContractID, Context) ->
 
 -spec get_reports(params(), ctx()) ->
     result(map(), invalid_request | {dataset_too_big, integer()}).
-get_reports(Params, Context) ->
-    {Type, Req} = create_report_request(Params, Context),
-    Call = {fistful_report, 'GetReports', [Req, [Type]]},
+get_reports(#{
+    identityID   := IdentityID
+} = Params, Context) ->
+    ContractID = get_contract_id_from_identity(IdentityID, Context),
+    Req = create_report_request(#{
+        party_id     => wapi_handler_utils:get_owner(Context),
+        contract_id  => ContractID,
+        from_time    => get_time(fromTime, Params),
+        to_time      => get_time(toTime, Params)
+    }),
+    Call = {fistful_report, 'GetReports', [Req, [maps:get(type, Params)]]},
     case wapi_handler_utils:service_call(Call, Context) of
         {ok, ReportList} ->
             do(fun () -> to_swag({list, report_object}, ReportList) end);
@@ -602,20 +619,24 @@ unwrap(Res) ->
 unwrap(Tag, Res) ->
     ff_pipeline:unwrap(Tag, Res).
 
+get_contract_id_from_identity(IdentityID, Context) ->
+    State = get_state(identity, IdentityID, Context),
+    ff_identity:contract(ff_machine:model(State)).
+
 create_report_request(#{
-    'contractID'   := ContractId,
-    'ReportParams' := ReportParams
-}, Context) ->
-    {
-        maps:get(<<"reportType">>, ReportParams),
-        #'fistful_reporter_ReportRequest'{
-            party_id    = wapi_handler_utils:get_owner(Context),
-            contract_id = ContractId,
-            time_range  = #'fistful_reporter_ReportTimeRange'{
-                from_time = get_time(<<"fromTime">>, ReportParams),
-                to_time   = get_time(<<"toTime">>, ReportParams)
-            }
-    }}.
+    party_id     := PartyID,
+    contract_id  := ContractID,
+    from_time    := FromTime,
+    to_time      := ToTime
+}) ->
+    #'fistful_reporter_ReportRequest'{
+        party_id    = PartyID,
+        contract_id = ContractID,
+        time_range  = #'fistful_reporter_ReportTimeRange'{
+            from_time = FromTime,
+            to_time   = ToTime
+        }
+    }.
 
 %% ID Gen
 

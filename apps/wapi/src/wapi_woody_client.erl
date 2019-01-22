@@ -76,7 +76,11 @@ get_service_modname(cds_storage) ->
 get_service_modname(identdoc_storage) ->
     {identdocstore_identity_document_storage_thrift, 'IdentityDocumentStorage'};
 get_service_modname(fistful_stat) ->
-    {ff_proto_fistful_stat_thrift, 'FistfulStatistics'}.
+    {ff_proto_fistful_stat_thrift, 'FistfulStatistics'};
+get_service_modname(fistful_report) ->
+    {fistful_reporter_thrift, 'Reporting'};
+get_service_modname(file_storage) ->
+    {file_storage_thrift, 'FileStorage'}.
 %% get_service_modname(webhook_manager) ->
 %%     {dmsl_webhooker_thrift, 'WebhookManager'}.
 

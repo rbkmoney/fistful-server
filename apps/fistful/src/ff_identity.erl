@@ -82,8 +82,6 @@
     provider().
 -spec class(identity()) ->
     class().
--spec level(identity()) ->
-    level().
 -spec party(identity()) ->
     party().
 
@@ -99,14 +97,16 @@ provider(#{provider := V}) ->
 class(#{class := V})    ->
     V.
 
-level(#{level := V})    ->
-    V.
-
 party(#{party := V})    ->
     V.
 
 contract(#{contract := V}) ->
     V.
+
+-spec level(identity()) ->
+    level().
+level(Identity) ->
+    maps:get(level, Identity, <<>>).
 
 -spec challenges(identity()) ->
     #{challenge_id() => challenge()}.

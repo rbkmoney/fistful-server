@@ -260,7 +260,7 @@ get_test_case_name(C) ->
     Expect.
 
 await(Expect, Compute) ->
-    await(Expect, Compute, genlib_retry:linear(3, 5000)).
+    await(Expect, Compute, genlib_retry:linear(3, 1000)).
 
 -spec await(Expect, fun(() -> Expect | _), genlib_retry:strategy()) ->
     Expect.

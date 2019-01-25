@@ -78,8 +78,7 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
         {accounter, any()} |
         {contract, any()} |
         {terms, any()} |
-        {party, ff_party:inaccessibility()} |
-        invalid %% TODO: who generate this error
+        {party, ff_party:inaccessibility()}
     }.
 
 create(ID, Identity, Currency) ->

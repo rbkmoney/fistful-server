@@ -29,7 +29,7 @@ handle_function(Func, Args, Context, Opts) ->
 handle_function_('Create', [Params], Context, Opts) ->
     WalletID = Params#wlt_WalletParams.id,
     case ff_wallet_machine:create(WalletID,
-        decode(wallet, Params),
+        decode(wallet_params, Params),
         decode(context, Params#wlt_WalletParams.context))
     of
         ok ->
@@ -60,19 +60,22 @@ encode(wallet, {ID, Machine}) ->
         name        = ff_wallet:name(Wallet),
         blocking    = ff_wallet:blocking(Wallet),
         account     = encode(account, ff_wallet:account(Wallet)),
+        external_id = ff_wallet:external_id(Wallet),
         context     = encode(context, Ctx)
     };
 encode(context, Ctx) ->
-    ff_ctx:wrap(Ctx);
+    ff_context:wrap(Ctx);
 encode(account, Account) ->
     #account_Account{
         id       = ff_account:id(Account),
         identity = ff_account:identity(Account),
-        currency = to_currency_ref(ff_account:currency(Account)),
+        currency = encode(currency, ff_account:currency(Account)),
         accounter_account_id = ff_account:accounter_account_id(Account)
-    }.
+    };
+encode(currency, CurrencyId) ->
+    #'CurrencyRef'{symbolic_code = CurrencyId}.
 
-decode(wallet, Params) ->
+decode(wallet_params, Params) ->
     AccountParams = Params#wlt_WalletParams.account_params,
     #{
         name        => Params#wlt_WalletParams.name,
@@ -83,7 +86,5 @@ decode(wallet, Params) ->
 decode(context, undefined) ->
     undefined;
 decode(context, Ctx) ->
-    ff_ctx:unwrap(Ctx).
+    ff_context:unwrap(Ctx).
 
-to_currency_ref(CurrencyId) ->
-    #'CurrencyRef'{symbolic_code = CurrencyId}.

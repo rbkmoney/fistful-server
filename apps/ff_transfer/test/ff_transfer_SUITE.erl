@@ -1,7 +1,6 @@
 -module(ff_transfer_SUITE).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 
 
@@ -20,9 +19,6 @@
 -export([deposit_via_admin_amount_fails/1]).
 -export([deposit_via_admin_currency_fails/1]).
 -export([deposit_withdrawal_ok/1]).
--export([create_wallet_ok/1]).
--export([create_wallet_identity_fails/1]).
--export([create_wallet_currency_fails/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -44,10 +40,7 @@ groups() ->
             deposit_via_admin_fails,
             deposit_via_admin_amount_fails,
             deposit_via_admin_currency_fails,
-            deposit_withdrawal_ok,
-            create_wallet_ok,
-            create_wallet_identity_fails,
-            create_wallet_currency_fails
+            deposit_withdrawal_ok
         ]}
     ].
 
@@ -97,9 +90,6 @@ end_per_testcase(_Name, _C) ->
 -spec deposit_via_admin_amount_fails(config()) -> test_return().
 -spec deposit_via_admin_currency_fails(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
--spec create_wallet_ok(config()) -> test_return().
--spec create_wallet_identity_fails(config()) -> test_return().
--spec create_wallet_currency_fails(config()) -> test_return().
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
@@ -295,66 +285,6 @@ deposit_withdrawal_ok(C) ->
 
     process_withdrawal(WalID, DestID).
 
-create_wallet_ok(C) ->
-    Party = create_party(C),
-    Currency = <<"RUB">>,
-    WalletName = <<"Valet">>,
-    ID = genlib:unique(),
-    ExternalId = genlib:unique(),
-    IdentityID = create_person_identity(Party, C),
-    Ctx = #{<<"TEST_NS">> => {obj, #{ {str, <<"KEY">>} => {b, true} }}},
-    Params = #wlt_WalletParams{
-        id = ID,
-        name = WalletName,
-        external_id = ExternalId,
-        context = Ctx,
-        account_params = #account_AccountParams{
-            identity_id   = IdentityID,
-            symbolic_code = Currency
-        }
-    },
-    {ok, Src} = api_call('Create', [Params]),
-    WalletName = Src#wlt_WalletState.name,
-    unblocked  = Src#wlt_WalletState.blocking,
-    ID         = Src#wlt_WalletState.id,
-
-    {ok, Wallet} = api_call('Get', [ID]),
-    WalletName   = Wallet#wlt_WalletState.name,
-    unblocked    = Wallet#wlt_WalletState.blocking,
-    Ctx          = Wallet#wlt_WalletState.context.
-
-create_wallet_identity_fails(_C) ->
-    Currency = <<"RUB">>,
-    ID = genlib:unique(),
-    ExternalId = genlib:unique(),
-    IdentityID = genlib:unique(),
-    Params = #wlt_WalletParams{
-        id = ID,
-        name = <<"Valet">>,
-        external_id = ExternalId,
-        account_params = #account_AccountParams{
-            identity_id = IdentityID,
-            symbolic_code = Currency
-        }
-    },
-    {exception, {fistful_IdentityNotFound}} = api_call('Create', [Params]).
-
-create_wallet_currency_fails(C) ->
-    Party = create_party(C),
-    Currency = <<"RBK.MONEY">>,
-    ID = genlib:unique(),
-    IdentityID = create_person_identity(Party, C),
-    Params = #wlt_WalletParams{
-        id   = ID,
-        name = <<"Valet">>,
-        account_params = #account_AccountParams{
-            identity_id   = IdentityID,
-            symbolic_code = Currency
-        }
-
-    },
-    {exception, {fistful_CurrencyNotFound}} = api_call('Create', [Params]).
-
 create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
@@ -435,15 +365,6 @@ admin_call(Fun, Args) ->
     Request = {Service, Fun, Args},
     Client  = ff_woody_client:new(#{
         url           => <<"http://localhost:8022/v1/admin">>,
-        event_handler => scoper_woody_event_handler
-    }),
-    ff_woody_client:call(Client, Request).
-
-api_call(Fun, Args) ->
-    Service = {ff_proto_wallet_thrift, 'Management'},
-    Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022/v1/wallet">>,
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).

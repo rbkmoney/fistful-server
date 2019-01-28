@@ -117,7 +117,8 @@ run_challenges_ok(_C) ->
         external_id  = ExternalID,
         context      = Ctx
     },
-    {ok, _IdentityState} = api_call('StartChallenges', [Params2]),
+    {ok, IdentityState} = api_call('StartChallenges', [Params2]),
+    lager:error("~n>>>~nState: ~n~p~n", [IdentityState]),
     ok.
 
 %%----------

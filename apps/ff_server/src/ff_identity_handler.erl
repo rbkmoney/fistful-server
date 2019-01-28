@@ -26,16 +26,14 @@ handle_function(Func, Args, Context, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [Params], _Context, _Opts) ->
+handle_function_('Create', [Params], Context, Opts) ->
     IdentityID = Params#idnt_IdentityParams.id,
     case ff_identity_machine:create(IdentityID,
         decode(identity, Params),
         decode(context, Params#idnt_IdentityParams.context))
     of
         ok ->
-            {ok, Machine} = ff_identity_machine:get(IdentityID),
-            {ok, encode(identity, Machine)};
-            % handle_function_('Get', [IdentityID], Context, Opts);
+            handle_function_('Get', [IdentityID], Context, Opts);
         {error, {provider, notfound}} ->
             woody_error:raise(business, #fistful_ProviderNotFound{});
         {error, {identity_class, notfound}} ->
@@ -54,35 +52,52 @@ handle_function_('Get', [ID], _Context, _Opts) ->
     end;
 handle_function_('StartChallenges', [Params], Context, Opts) ->
     IdentityID = Params#idnt_ChallengeParams.id,
-    lager:error(">>> Start challenges ~n~n~n"),
     case ff_identity_machine:start_challenge(IdentityID,
         decode(challenge, Params))
     of
         ok ->
-            lager:error(">>> GET~n~n"),
-            handle_function_('Get', [IdentityID], Context, Opts);
+            Ans = handle_function_('Get', [IdentityID], Context, Opts),
+            lager:error("~n~n>>>~n~n~p~n", [Ans]),
+            Ans;
         {error, {identity, _R} = Error} ->
-            lager:error("CRITICAL Error: ~p~n", [Error]),
             woody_error:raise(business, #fistful_ChallengeError{ error_type = encode(error, Error)});
         {error, {challenge, _Reason} = Error} ->
-            lager:error("CRITICAL Error: ~p~n", [Error]),
             woody_error:raise(business, #fistful_ChallengeError{ error_type = encode(error, Error)});
         {error, Error} ->
-            lager:error("CRITICAL Error: ~p~n", [Error]),
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 handle_function_(_Func, _Args, _Ctx, _Opts) -> not_implement.
 
 encode(identity, Machine) ->
     Identity = ff_machine:model(Machine),
-    _Ctx = ff_machine:ctx(Machine),
+    % Ctx = ff_machine:ctx(Machine),
+    Challenges = ff_identity:challenges(Identity),
     #idnt_IdentityState{
         id          = ff_identity:id(Identity),
         party_id    = ff_identity:party(Identity),
         provider_id = ff_identity:provider(Identity),
         class_id    = ff_identity:class(Identity),
-        contract_id = ff_identity:contract(Identity)
+        contract_id = ff_identity:contract(Identity),
+        level       = ff_identity:level(Identity),
+        challenges  = encode(challenges, Challenges),
+        % context     = encode(context, Ctx),
+        external_id = ff_identity:external_id(Identity)
     };
+encode(challenges, Challenges)
+    when map_size(Challenges) == 0 ->
+        undefined;
+encode(challenges, Challenges) ->
+    maps:map(fun(_ID, Value) -> encode(challenge, Value) end, Challenges);
+encode(challenge, Challenge) ->
+    Proofs = ff_identity_challenge:proofs(Challenge),
+    Status = ff_identity_challenge:status(Challenge),
+    #idnt_ChallengeState{
+        id     = ff_identity_challenge:id(Challenge),
+        proofs = encode(proofs, Proofs),
+        status = encode(challenge_status, Status, Challenge)
+    };
+encode(proofs, Proofs) ->
+    [#idnt_ChallengeProof{ type = Type, token = Token } || {Type, Token} <- Proofs];
 encode(context, _Ctx) -> #{<<"NS">> => nil}; %% TODO after merge PR FF-44; impl it
 %% ERROR
 encode(error, {identity, notfound})                     -> identity_notfound;
@@ -93,6 +108,21 @@ encode(error, {challenge, {proof, notfound}})           -> challenge_proof_notfo
 encode(error, {challenge, {proof, insufficient}})       -> challenge_proof_insufficient;
 encode(error, {challenge, {level, _}})                  -> challenge_level_incorrect;
 encode(error, {challenge, conflict})                    -> challenge_conflict.
+
+%% CHALLENGE_STATUS
+encode(challenge_status, pending,   _Challenge) ->
+    {pending, #idnt_ChallengePending{}};
+encode(challenge_status, cancelled, _Challenge) ->
+    {cancelled, #idnt_ChallengeCancelled{}};
+encode(challenge_status, {completed, _}, Challenge) ->
+    {ok, Resolution} = ff_identity_challenge:resolution(Challenge),
+    {ok, Time}       = ff_identity_challenge:valid_until(Challenge),
+    {completed, #idnt_ChallengeCompleted{
+        resolution = Resolution,
+        valid_until = Time
+    }};
+encode(challenge_status, {failed, _}, _Challenge) ->
+    {failed, #idnt_ChallengeFailed{}}.
 
 decode(identity, P) -> #{
     party       => P#idnt_IdentityParams.party_id,
@@ -106,5 +136,5 @@ decode(challenge, Params) -> #{
     };
 decode(proofs, Proofs) ->
     [{P#idnt_ChallengeProof.type, P#idnt_ChallengeProof.token} || P <- Proofs];
-decode(context,  _P) -> #{}.
+decode(context,  _P) -> #{}. %% TODO after merge PR FF-44; impl it
 

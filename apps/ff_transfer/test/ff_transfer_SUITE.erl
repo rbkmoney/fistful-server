@@ -103,7 +103,7 @@ deposit_via_admin_ok(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = admin_call('CreateSource', [#fistful_SourceParams{
+    {ok, Src1} = call_admin('CreateSource', [#fistful_SourceParams{
         id       = SrcID,
         name     = <<"HAHA NO">>,
         identity_id = IID,
@@ -115,13 +115,13 @@ deposit_via_admin_ok(C) ->
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, Src} = admin_call('GetSource', [SrcID]),
+            {ok, Src} = call_admin('GetSource', [SrcID]),
             Src#fistful_Source.status
         end
     ),
 
     % Process deposit
-    {ok, Dep1} = admin_call('CreateDeposit', [#fistful_DepositParams{
+    {ok, Dep1} = call_admin('CreateDeposit', [#fistful_DepositParams{
         id          = DepID,
         source      = SrcID,
         destination = WalID,
@@ -135,7 +135,7 @@ deposit_via_admin_ok(C) ->
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
-            {ok, Dep} = admin_call('GetDeposit', [DepID]),
+            {ok, Dep} = call_admin('GetDeposit', [DepID]),
             {Status, _} = Dep#fistful_Deposit.status,
             Status
         end,
@@ -151,7 +151,7 @@ deposit_via_admin_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = admin_call('CreateSource', [#fistful_SourceParams{
+    {ok, Src1} = call_admin('CreateSource', [#fistful_SourceParams{
         id          = SrcID,
         name        = <<"HAHA NO">>,
         identity_id = IID,
@@ -163,12 +163,12 @@ deposit_via_admin_fails(C) ->
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, Src} = admin_call('GetSource', [SrcID]),
+            {ok, Src} = call_admin('GetSource', [SrcID]),
             Src#fistful_Source.status
         end
     ),
 
-    {ok, Dep1} = admin_call('CreateDeposit', [
+    {ok, Dep1} = call_admin('CreateDeposit', [
         #fistful_DepositParams{
             id          = DepID,
             source      = SrcID,
@@ -185,7 +185,7 @@ deposit_via_admin_fails(C) ->
     failed = ct_helper:await(
         failed,
         fun () ->
-            {ok, Dep} = admin_call('GetDeposit', [DepID]),
+            {ok, Dep} = call_admin('GetDeposit', [DepID]),
             {Status, _} = Dep#fistful_Deposit.status,
             Status
         end,
@@ -201,7 +201,7 @@ deposit_via_admin_amount_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = admin_call('CreateSource', [#fistful_SourceParams{
+    {ok, Src1} = call_admin('CreateSource', [#fistful_SourceParams{
         id          = SrcID,
         name        = <<"HAHA NO">>,
         identity_id = IID,
@@ -212,12 +212,12 @@ deposit_via_admin_amount_fails(C) ->
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, Src} = admin_call('GetSource', [SrcID]),
+            {ok, Src} = call_admin('GetSource', [SrcID]),
             Src#fistful_Source.status
         end
     ),
 
-    {exception, {fistful_DepositAmountInvalid}} = admin_call('CreateDeposit', [
+    {exception, {fistful_DepositAmountInvalid}} = call_admin('CreateDeposit', [
         #fistful_DepositParams{
             id          = DepID,
             source      = SrcID,
@@ -238,7 +238,7 @@ deposit_via_admin_currency_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = admin_call('CreateSource', [#fistful_SourceParams{
+    {ok, Src1} = call_admin('CreateSource', [#fistful_SourceParams{
         id          = SrcID,
         name        = <<"HAHA NO">>,
         identity_id = IID,
@@ -250,12 +250,12 @@ deposit_via_admin_currency_fails(C) ->
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, Src} = admin_call('GetSource', [SrcID]),
+            {ok, Src} = call_admin('GetSource', [SrcID]),
             Src#fistful_Source.status
         end
     ),
     BadCurrency = <<"CAT">>,
-    {exception, {fistful_DepositCurrencyInvalid}} = admin_call('CreateDeposit', [#fistful_DepositParams{
+    {exception, {fistful_DepositCurrencyInvalid}} = call_admin('CreateDeposit', [#fistful_DepositParams{
             id          = DepID,
             source      = SrcID,
             destination = WalID,
@@ -360,7 +360,7 @@ create_instrument(source, ID, Params, Ctx, _C) ->
 generate_id() ->
     genlib:to_binary(genlib_time:ticks()).
 
-admin_call(Fun, Args) ->
+call_admin(Fun, Args) ->
     Service = {ff_proto_fistful_thrift, 'FistfulAdmin'},
     Request = {Service, Fun, Args},
     Client  = ff_woody_client:new(#{

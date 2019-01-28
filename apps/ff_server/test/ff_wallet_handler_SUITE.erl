@@ -97,15 +97,15 @@ create_wallet_ok(C) ->
             symbolic_code = Currency
         }
     },
-    {ok, Src} = api_call('Create', [Params]),
-    WalletName = Src#wlt_WalletState.name,
-    unblocked  = Src#wlt_WalletState.blocking,
-    ID         = Src#wlt_WalletState.id,
+    {ok, WalletState} = call_service('Create', [Params]),
+    WalletName = WalletState#wlt_WalletState.name,
+    unblocked  = WalletState#wlt_WalletState.blocking,
+    ID         = WalletState#wlt_WalletState.id,
 
-    {ok, Wallet} = api_call('Get', [ID]),
-    WalletName   = Wallet#wlt_WalletState.name,
-    unblocked    = Wallet#wlt_WalletState.blocking,
-    Ctx          = Wallet#wlt_WalletState.context.
+    {ok, WalletState2} = call_service('Get', [ID]),
+    WalletName   = WalletState2#wlt_WalletState.name,
+    unblocked    = WalletState2#wlt_WalletState.blocking,
+    Ctx          = WalletState2#wlt_WalletState.context.
 
 create_wallet_identity_fails(_C) ->
     Currency = <<"RUB">>,
@@ -121,7 +121,7 @@ create_wallet_identity_fails(_C) ->
             symbolic_code = Currency
         }
     },
-    {exception, {fistful_IdentityNotFound}} = api_call('Create', [Params]).
+    {exception, {fistful_IdentityNotFound}} = call_service('Create', [Params]).
 
 create_wallet_currency_fails(C) ->
     Party = create_party(C),
@@ -137,12 +137,12 @@ create_wallet_currency_fails(C) ->
         }
 
     },
-    {exception, {fistful_CurrencyNotFound}} = api_call('Create', [Params]).
+    {exception, {fistful_CurrencyNotFound}} = call_service('Create', [Params]).
 
 %%-----------
 %%  Internal
 %%-----------
-api_call(Fun, Args) ->
+call_service(Fun, Args) ->
     Service = {ff_proto_wallet_thrift, 'Management'},
     Request = {Service, Fun, Args},
     Client  = ff_woody_client:new(#{

@@ -78,15 +78,13 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
         {accounter, any()} |
         {contract, any()} |
         {terms, any()} |
-        {party, ff_party:inaccessibility()} |
-        invalid
+        {party, ff_party:inaccessibility()}
     }.
 
 create(ID, Identity, Currency) ->
     do(fun () ->
         Contract = ff_identity:contract(Identity),
         Party = ff_identity:party(Identity),
-        Contract = ff_identity:contract(Identity),
         accessible = unwrap(party, ff_party:is_accessible(Party)),
         CurrencyID = ff_currency:id(Currency),
         TermVarset = #{

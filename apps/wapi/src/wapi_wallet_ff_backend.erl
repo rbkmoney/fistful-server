@@ -3,6 +3,8 @@
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
+-include_lib("fistful_reporter_proto/include/fistful_reporter_fistful_reporter_thrift.hrl").
+-include_lib("file_storage_proto/include/file_storage_file_storage_thrift.hrl").
 
 %% API
 -export([get_providers/2]).
@@ -37,6 +39,11 @@
 
 -export([get_residence/2]).
 -export([get_currency/2]).
+
+-export([create_report/2]).
+-export([get_report/3]).
+-export([get_reports/2]).
+-export([download_file/3]).
 
 %% Types
 
@@ -380,6 +387,76 @@ get_currency(CurrencyId, _Context) ->
         to_swag(currency_object, unwrap(ff_currency:get(from_swag(currency, CurrencyId))))
     end).
 
+%% Reports
+
+-spec create_report(params(), ctx()) ->
+    result(map(), invalid_request | invalid_contract).
+create_report(#{
+    identityID     := IdentityID,
+    'ReportParams' := ReportParams
+}, Context) ->
+    ContractID = get_contract_id_from_identity(IdentityID, Context),
+    Req = create_report_request(#{
+        party_id     => wapi_handler_utils:get_owner(Context),
+        contract_id  => ContractID,
+        from_time    => get_time(<<"fromTime">>, ReportParams),
+        to_time      => get_time(<<"toTime">>, ReportParams)
+    }),
+    Call = {fistful_report, 'GenerateReport', [Req, maps:get(<<"reportType">>, ReportParams)]},
+    case wapi_handler_utils:service_call(Call, Context) of
+        {ok, ReportID} ->
+            get_report(ReportID, ContractID, Context);
+        {exception, #'InvalidRequest'{}} ->
+            {error, invalid_request};
+        {exception, #fistful_reporter_ContractNotFound{}} ->
+            {error, invalid_contract}
+    end.
+
+-spec get_report(integer(), binary(), ctx()) -> result().
+get_report(ReportID, IdentityID, Context) ->
+    ContractID = get_contract_id_from_identity(IdentityID, Context),
+    PartyID = wapi_handler_utils:get_owner(Context),
+    Call = {fistful_report, 'GetReport', [PartyID, ContractID, ReportID]},
+    case wapi_handler_utils:service_call(Call, Context) of
+        {ok, Report} ->
+            do(fun () -> to_swag(report_object, Report) end);
+        {exception, #fistful_reporter_ReportNotFound{}} ->
+            {error, notfound}
+    end.
+
+-spec get_reports(params(), ctx()) ->
+    result(map(), invalid_request | {dataset_too_big, integer()}).
+get_reports(#{
+    identityID   := IdentityID
+} = Params, Context) ->
+    ContractID = get_contract_id_from_identity(IdentityID, Context),
+    Req = create_report_request(#{
+        party_id     => wapi_handler_utils:get_owner(Context),
+        contract_id  => ContractID,
+        from_time    => get_time(fromTime, Params),
+        to_time      => get_time(toTime, Params)
+    }),
+    Call = {fistful_report, 'GetReports', [Req, [maps:get(type, Params)]]},
+    case wapi_handler_utils:service_call(Call, Context) of
+        {ok, ReportList} ->
+            do(fun () -> to_swag({list, report_object}, ReportList) end);
+        {exception, #'InvalidRequest'{}} ->
+            {error, invalid_request};
+        {exception, #fistful_reporter_DatasetTooBig{limit = Limit}} ->
+            {error, {dataset_too_big, Limit}}
+    end.
+
+-spec download_file(binary(), binary(), ctx()) -> result().
+download_file(FileID, ExpiresAt, Context) ->
+    Timestamp = wapi_utils:to_universal_time(ExpiresAt),
+    Call = {file_storage, 'GenerateDownloadUrl', [FileID, Timestamp]},
+    case wapi_handler_utils:service_call(Call, Context) of
+        {exception, #file_storage_FileNotFound{}} ->
+            {error, notfound};
+        Result->
+            Result
+    end.
+
 %% Internal functions
 
 filter_identity_challenge_status(Filter, Status) ->
@@ -541,6 +618,25 @@ unwrap(Res) ->
 
 unwrap(Tag, Res) ->
     ff_pipeline:unwrap(Tag, Res).
+
+get_contract_id_from_identity(IdentityID, Context) ->
+    State = get_state(identity, IdentityID, Context),
+    ff_identity:contract(ff_machine:model(State)).
+
+create_report_request(#{
+    party_id     := PartyID,
+    contract_id  := ContractID,
+    from_time    := FromTime,
+    to_time      := ToTime
+}) ->
+    #'fistful_reporter_ReportRequest'{
+        party_id    = PartyID,
+        contract_id = ContractID,
+        time_range  = #'fistful_reporter_ReportTimeRange'{
+            from_time = FromTime,
+            to_time   = ToTime
+        }
+    }.
 
 %% ID Gen
 
@@ -979,6 +1075,33 @@ to_swag(is_blocked, {ok, accessible}) ->
     false;
 to_swag(is_blocked, _) ->
     true;
+to_swag(report_object, #fistful_reporter_Report{
+    report_id = ReportID,
+    time_range = TimeRange,
+    created_at = CreatedAt,
+    report_type = Type,
+    status = Status,
+    file_data_ids = Files
+}) ->
+    to_swag(map, #{
+        <<"id">>        => ReportID,
+        <<"fromTime">>  => to_swag(timestamp, TimeRange#fistful_reporter_ReportTimeRange.from_time),
+        <<"toTime">>    => to_swag(timestamp, TimeRange#fistful_reporter_ReportTimeRange.to_time),
+        <<"createdAt">> => to_swag(timestamp, CreatedAt),
+        <<"status">>    => to_swag(report_status, Status),
+        <<"type">>      => Type,
+        <<"files">>     => to_swag(report_files, Files)
+    });
+to_swag(report_status, pending) ->
+    <<"pending">>;
+to_swag(report_status, created) ->
+    <<"created">>;
+to_swag(report_status, canceled) ->
+    <<"canceled">>;
+to_swag(report_files, Files) ->
+    to_swag({list, report_file}, Files);
+to_swag(report_file, File) ->
+    File;
 
 to_swag({list, Type}, List) ->
     lists:map(fun(V) -> to_swag(Type, V) end, List);

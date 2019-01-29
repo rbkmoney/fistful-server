@@ -27,13 +27,11 @@
 
 -spec new() ->
     ctx().
-
 new() ->
     #{}.
 
 -spec get(namespace(), ctx()) ->
     {ok, md()}       |
     {error, notfound}.
-
 get(Ns, Ctx) ->
     ff_map:find(Ns, Ctx).

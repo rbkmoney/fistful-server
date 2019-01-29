@@ -67,41 +67,39 @@ init([]) ->
         contruct_backend_childspec('ff/withdrawal/session_v2' , ff_withdrawal_session_machine)
     ]),
     ok = application:set_env(fistful, backends, maps:from_list(Backends)),
-    {ok, IP} = inet:parse_address(genlib_app:env(?MODULE, ip, "::0")),
+
+    IpEnv          = genlib_app:env(?MODULE, ip, "::0"),
+    Port           = genlib_app:env(?MODULE, port, 8022),
     HealthCheckers = genlib_app:env(?MODULE, health_checkers, []),
-    {ok, {
-        % TODO
-        %  - Zero thoughts given while defining this strategy.
-        #{strategy => one_for_one},
-        [
-            woody_server:child_spec(
-                ?MODULE,
-                maps:merge(
-                    maps:with([net_opts, handler_limits], genlib_app:env(?MODULE, woody_opts, #{})),
-                    #{
-                        ip                => IP,
-                        port              => genlib_app:env(?MODULE, port, 8022),
-                        handlers          => [],
-                        event_handler     => scoper_woody_event_handler,
-                        additional_routes =>
-                            machinery_mg_backend:get_routes(
-                                Handlers,
-                                maps:merge(
-                                    genlib_app:env(?MODULE, route_opts, #{}),
-                                    #{
-                                        event_handler => scoper_woody_event_handler
-                                    }
-                                )
-                            ) ++
-                            get_admin_routes() ++
-                            get_identity_routes() ++
-                            get_eventsink_routes() ++
-                            [erl_health_handle:get_route(HealthCheckers)]
-                    }
-                )
-            )
-        ]
-    }}.
+    WoodyOptsEnv   = genlib_app:env(?MODULE, woody_opts, #{}),
+    RouteOptsEnv   = genlib_app:env(?MODULE, route_opts, #{}),
+
+    {ok, Ip}       = inet:parse_address(IpEnv),
+    WoodyOpts      = maps:with([net_opts, handler_limits], WoodyOptsEnv),
+    RouteOpts      = RouteOptsEnv#{event_handler => scoper_woody_event_handler},
+
+    ChildSpec = woody_server:child_spec(
+        ?MODULE,
+        maps:merge(
+            WoodyOpts,
+            #{
+                ip                => Ip,
+                port              => Port,
+                handlers          => [],
+                event_handler     => scoper_woody_event_handler,
+                additional_routes =>
+                    machinery_mg_backend:get_routes(Handlers, RouteOpts) ++
+                    get_admin_routes() ++
+                    get_identity_routes() ++
+                    get_wallet_routes(WoodyOpts) ++
+                    get_eventsink_routes() ++
+                    [erl_health_handle:get_route(HealthCheckers)]
+            }
+        )
+    ),
+    % TODO
+    %  - Zero thoughts given while defining this strategy.
+    {ok, {#{strategy => one_for_one}, [ChildSpec]}}.
 
 contruct_backend_childspec(NS, Handler) ->
     Be = {machinery_mg_backend, #{
@@ -142,6 +140,18 @@ get_identity_routes() ->
     Limits = genlib_map:get(handler_limits, Opts),
     woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
         handlers => [{Path, {{ff_proto_identity_thrift, 'Management'}, {ff_identity_handler, []}}}],
+        event_handler => scoper_woody_event_handler,
+        handler_limits => Limits
+    })).
+
+get_wallet_routes(Opts) ->
+    Path = <<"/v1/wallet">>,
+    Limits = genlib_map:get(handler_limits, Opts),
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, {
+            {ff_proto_wallet_thrift, 'Management'},
+            {ff_wallet_handler, []}
+        }}],
         event_handler => scoper_woody_event_handler,
         handler_limits => Limits
     })).

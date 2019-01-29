@@ -9,7 +9,6 @@
 
 -type wallet() :: #{
     name        := binary(),
-    contract    := contract(),
     blocking    := blocking(),
     account     => account(),
     external_id => id()
@@ -44,11 +43,10 @@
 
 %% Internal types
 
--type account() :: ff_account:account().
--type contract() :: ff_party:contract().
--type identity() :: ff_identity:id().
--type currency() :: ff_currency:id().
--type blocking() :: unblocked | blocked.
+-type account()     :: ff_account:account().
+-type identity()    :: ff_identity:id().
+-type currency()    :: ff_currency:id().
+-type blocking()    :: unblocked | blocked.
 
 %% Pipeline
 
@@ -95,16 +93,14 @@ external_id(_Wallet) ->
 
 -spec create(id(), identity(), binary(), currency(), external_id()) ->
     {ok, [event()]} |
-    {error, _Reason}.
+    {error, _AccountCreateReason}.
 
 create(ID, IdentityID, Name, CurrencyID, ExternalID) ->
     do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
-        Contract = ff_identity:contract(Identity),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Wallet = #{
             name => Name,
-            contract => Contract,
             blocking => unblocked
         },
         [{created, add_external_id(ExternalID, Wallet)}] ++

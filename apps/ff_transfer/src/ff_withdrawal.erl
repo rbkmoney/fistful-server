@@ -251,10 +251,10 @@ create_route(Withdrawal) ->
     {error, _Reason}.
 create_p_transfer(Withdrawal) ->
     #{provider_id := ProviderID} = route(Withdrawal),
-    if
-        is_integer(ProviderID) ->
+    case is_integer(ProviderID) of
+        true ->
             create_p_transfer_new_style(Withdrawal);
-        is_binary(ProviderID) ->
+        false when is_binary(ProviderID) ->
             create_p_transfer_old_style(Withdrawal)
     end.
 

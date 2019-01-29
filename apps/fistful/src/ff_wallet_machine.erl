@@ -24,6 +24,7 @@
 %% Accessors
 
 -export([wallet/1]).
+-export([ctx/1]).
 
 %% Machinery
 
@@ -41,10 +42,15 @@
 
 %% Accessors
 
--spec wallet(st())  -> wallet().
+-spec wallet(st()) -> wallet().
 
 wallet(St) ->
     ff_machine:model(St).
+
+-spec ctx(st()) -> ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
 
 %%
 

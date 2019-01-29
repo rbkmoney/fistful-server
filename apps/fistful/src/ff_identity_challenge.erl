@@ -12,11 +12,11 @@
 
 %% API
 
--type id(T)       :: T.
--type claimant() :: id(binary()).
--type timestamp() :: machinery:timestamp().
--type provider()     :: ff_provider:id().
--type identity_class() :: ff_identity_class:id().
+-type id(T)             :: T.
+-type claimant()        :: id(binary()).
+-type timestamp()       :: machinery:timestamp().
+-type provider()        :: ff_provider:id().
+-type identity_class()  :: ff_identity_class:id().
 -type challenge_class() :: ff_identity_class:challenge_class_id().
 -type master_id() :: id(binary()).
 -type claim_id()  :: id(binary()).

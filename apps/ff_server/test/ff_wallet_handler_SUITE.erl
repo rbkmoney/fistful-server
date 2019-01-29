@@ -97,15 +97,17 @@ create_wallet_ok(C) ->
             symbolic_code = Currency
         }
     },
-    {ok, WalletState} = call_service('Create', [Params]),
-    WalletName = WalletState#wlt_WalletState.name,
-    unblocked  = WalletState#wlt_WalletState.blocking,
-    ID         = WalletState#wlt_WalletState.id,
-
+    {ok, WalletState}  = call_service('Create', [Params]),
     {ok, WalletState2} = call_service('Get', [ID]),
-    WalletName   = WalletState2#wlt_WalletState.name,
-    unblocked    = WalletState2#wlt_WalletState.blocking,
-    Ctx          = WalletState2#wlt_WalletState.context.
+    WalletState = WalletState2,
+    WalletName  = WalletState2#wlt_WalletState.name,
+    unblocked   = WalletState2#wlt_WalletState.blocking,
+    ExternalId  = WalletState2#wlt_WalletState.external_id,
+    Ctx         = WalletState2#wlt_WalletState.context,
+    Account     = WalletState2#wlt_WalletState.account,
+    IdentityID  = Account#account_Account.identity,
+    CurrencyRef = Account#account_Account.currency,
+    Currency = CurrencyRef#'CurrencyRef'.symbolic_code.
 
 create_wallet_identity_fails(_C) ->
     Currency = <<"RUB">>,

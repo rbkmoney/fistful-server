@@ -240,7 +240,7 @@ create_route(Withdrawal) ->
         DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
         Destination = ff_destination:get(DestinationMachine),
         VS = unwrap(collect_varset(Body, Wallet, Destination)),
-        ProviderID = unwrap(ff_payment_institution:compute_payouts_provider(PaymentInstitution, VS)),
+        ProviderID = unwrap(ff_payment_institution:compute_withdrawal_provider(PaymentInstitution, VS)),
         {continue, [{route_changed, #{provider_id => ProviderID}}]}
     end).
 

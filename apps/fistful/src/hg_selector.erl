@@ -23,7 +23,7 @@
     dmsl_domain_thrift:'HoldLifetimeSelector'() |
     dmsl_domain_thrift:'CashValueSelector'() |
     dmsl_domain_thrift:'CumulativeLimitSelector'() |
-    dmsl_domain_thrift:'PayoutsProviderSelector'() |
+    dmsl_domain_thrift:'WithdrawalProviderSelector'() |
     dmsl_domain_thrift:'TimeSpanSelector'().
 
 -type value() ::

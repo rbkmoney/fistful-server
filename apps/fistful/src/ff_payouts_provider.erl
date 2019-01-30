@@ -2,10 +2,10 @@
 
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 
--type payouts_provider() :: #{
+-type withdrawal_provider() :: #{
     id := id(),
     identity := ff_identity:id(),
-    payout_terms := dmsl_domain_thrift:'PayoutsProvisionTerms'(),
+    withdrawal_terms := dmsl_domain_thrift:'WithdrawalProvisionTerms'(),
     accounts := accounts(),
     adapter := ff_adapter:adapter(),
     adapter_opts := map()
@@ -14,10 +14,10 @@
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
 -type accounts() :: #{ff_currency:id() => ff_account:account()}.
 
--type payouts_provider_ref() :: dmsl_domain_thrift:'PayoutsProviderRef'().
+-type withdrawal_provider_ref() :: dmsl_domain_thrift:'WithdrawalProviderRef'().
 
 -export_type([id/0]).
--export_type([payouts_provider/0]).
+-export_type([withdrawal_provider/0]).
 
 -export([id/1]).
 -export([accounts/1]).
@@ -34,10 +34,10 @@
 
 %%
 
--spec id(payouts_provider()) -> id().
--spec accounts(payouts_provider()) -> accounts().
--spec adapter(payouts_provider()) -> ff_adapter:adapter().
--spec adapter_opts(payouts_provider()) -> map().
+-spec id(withdrawal_provider()) -> id().
+-spec accounts(withdrawal_provider()) -> accounts().
+-spec adapter(withdrawal_provider()) -> ff_adapter:adapter().
+-spec adapter_opts(withdrawal_provider()) -> map().
 
 id(#{id := ID}) ->
     ID.
@@ -53,25 +53,25 @@ adapter_opts(#{adapter_opts := AdapterOpts}) ->
 
 %%
 
--spec ref(id()) -> payouts_provider_ref().
+-spec ref(id()) -> withdrawal_provider_ref().
 
 ref(ID) ->
-    #domain_PayoutsProviderRef{id = ID}.
+    #domain_WithdrawalProviderRef{id = ID}.
 
 -spec get(id()) ->
-    {ok, payouts_provider()} |
+    {ok, withdrawal_provider()} |
     {error, notfound}.
 
 get(ID) ->
     do(fun () ->
-        PayoutsProvider = unwrap(ff_domain_config:object({payouts_provider, ref(ID)})),
-        decode(ID, PayoutsProvider)
+        WithdrawalProvider = unwrap(ff_domain_config:object({withdrawal_provider, ref(ID)})),
+        decode(ID, WithdrawalProvider)
     end).
 
--spec compute_fees(payouts_provider(), hg_selector:varset()) -> ff_cash_flow:cash_flow_fee().
+-spec compute_fees(withdrawal_provider(), hg_selector:varset()) -> ff_cash_flow:cash_flow_fee().
 
-compute_fees(#{payout_terms := PayoutTerms}, VS) ->
-    #domain_PayoutsProvisionTerms{cash_flow = CashFlowSelector} = PayoutTerms,
+compute_fees(#{withdrawal_terms := WithdrawalTerms}, VS) ->
+    #domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector} = WithdrawalTerms,
     CashFlow = unwrap(hg_selector:reduce_to_value(CashFlowSelector, VS)),
     #{
         postings => ff_cash_flow:decode_domain_postings(CashFlow)
@@ -79,18 +79,18 @@ compute_fees(#{payout_terms := PayoutTerms}, VS) ->
 
 %%
 
-decode(ID, #domain_PayoutsProvider{
+decode(ID, #domain_WithdrawalProvider{
     proxy = Proxy,
     identity = Identity,
-    payout_terms = PayoutTerms,
+    withdrawal_terms = WithdrawalTerms,
     accounts = Accounts
 }) ->
     maps:merge(
         #{
-            id              => ID,
-            identity        => Identity,
-            payout_terms    => PayoutTerms,
-            accounts        => decode_accounts(Identity, Accounts)
+            id               => ID,
+            identity         => Identity,
+            withdrawal_terms => WithdrawalTerms,
+            accounts         => decode_accounts(Identity, Accounts)
         },
         decode_adapter(Proxy)
     ).

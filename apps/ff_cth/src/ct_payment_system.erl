@@ -405,7 +405,7 @@ domain_config(Options, C) ->
                 realm                     = live,
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = crunch_identity_id(Options),
-                payout_providers          = {value, ?ordset([?payout_prv(1)])}
+                withdrawal_providers      = {value, ?ordset([?wthdr_prv(1)])}
             }
         }},
 
@@ -415,7 +415,7 @@ domain_config(Options, C) ->
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
 
-        ct_domain:payouts_provider(?payout_prv(1), ?prx(2), crunch_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), crunch_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),

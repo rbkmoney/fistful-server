@@ -20,7 +20,7 @@
 -export([term_set_hierarchy/3]).
 -export([timed_term_set/1]).
 -export([globals/2]).
--export([payouts_provider/4]).
+-export([withdrawal_provider/4]).
 
 %%
 
@@ -32,18 +32,18 @@
 -type object() ::
     dmsl_domain_thrift:'DomainObject'().
 
--spec payouts_provider(?dtp('PayoutsProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
+-spec withdrawal_provider(?dtp('WithdrawalProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
     object().
 
-payouts_provider(Ref, ProxyRef, IdentityID, C) ->
+withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
     AccountID = account(<<"RUB">>, C),
-    {payouts_provider, #domain_PayoutsProviderObject{
+    {withdrawal_provider, #domain_WithdrawalProviderObject{
         ref = Ref,
-        data = #domain_PayoutsProvider{
-            name = <<"PayoutsProvider">>,
+        data = #domain_WithdrawalProvider{
+            name = <<"WithdrawalProvider">>,
             proxy = #domain_Proxy{ref = ProxyRef, additional = #{}},
             identity = IdentityID,
-            payout_terms = #domain_PayoutsProvisionTerms{
+            withdrawal_terms = #domain_WithdrawalProvisionTerms{
                 currencies = {value, ?ordset([])},
                 payout_methods = {value, ?ordset([])},
                 cash_limit = {value, ?cashrng(

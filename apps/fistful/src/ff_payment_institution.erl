@@ -7,7 +7,7 @@
     id              := id(),
     system_accounts := dmsl_domain_thrift:'SystemAccountSetSelector'(),
     identity        := binary(),
-    providers       := dmsl_domain_thrift:'PayoutsProviderSelector'()
+    providers       := dmsl_domain_thrift:'WithdrawalProviderSelector'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -19,7 +19,7 @@
 
 -export([ref/1]).
 -export([get/1]).
--export([compute_payouts_provider/2]).
+-export([compute_withdrawal_provider/2]).
 -export([compute_system_accounts/2]).
 
 %% Pipeline
@@ -50,14 +50,14 @@ get(ID) ->
         decode(ID, PaymentInstitution)
     end).
 
--spec compute_payouts_provider(payment_institution(), hg_selector:varset()) ->
+-spec compute_withdrawal_provider(payment_institution(), hg_selector:varset()) ->
     {ok, ff_payouts_provider:id()} | {error, term()}.
 
-compute_payouts_provider(#{providers := Providers}, VS) ->
+compute_withdrawal_provider(#{providers := ProviderSelector}, VS) ->
     do(fun() ->
-        PayoutsProviders = unwrap(hg_selector:reduce_to_value(Providers, VS)),
+        Providers = unwrap(hg_selector:reduce_to_value(ProviderSelector, VS)),
         %% TODO choose wizely one of them
-        [#domain_PayoutsProviderRef{id = ProviderID} | _] = PayoutsProviders,
+        [#domain_WithdrawalProviderRef{id = ProviderID} | _] = Providers,
         ProviderID
     end).
 
@@ -79,7 +79,7 @@ compute_system_accounts(PaymentInstitution, VS) ->
 decode(ID, #domain_PaymentInstitution{
     wallet_system_account_set = SystemAccounts,
     identity = Identity,
-    payout_providers = Providers
+    withdrawal_providers = Providers
 }) ->
     #{
         id              => ID,

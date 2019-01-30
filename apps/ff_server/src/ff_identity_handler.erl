@@ -56,9 +56,7 @@ handle_function_('StartChallenges', [Params], Context, Opts) ->
         decode(challenge, Params))
     of
         ok ->
-            Ans = handle_function_('Get', [IdentityID], Context, Opts),
-            lager:error("~n~n>>>~n~n~p~n", [Ans]),
-            Ans;
+            handle_function_('Get', [IdentityID], Context, Opts);
         {error, {identity, _R} = Error} ->
             woody_error:raise(business, #fistful_ChallengeError{ error_type = encode(error, Error)});
         {error, {challenge, _Reason} = Error} ->
@@ -66,7 +64,15 @@ handle_function_('StartChallenges', [Params], Context, Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_(_Func, _Args, _Ctx, _Opts) -> not_implement.
+handle_function_('GetEvents', [Params], _Context, _Opts) ->
+    IdentityID = Params#idnt_IdentityEventParams.identity_id,
+    Range = decode(range, Params#idnt_IdentityEventParams.range),
+    case ff_identity_machine:events(IdentityID, Range) of
+        {ok, Events} ->
+            {ok, encode(events, Events)};
+        {error, notfound} ->
+            {ok, encode(events, [])}
+    end.
 
 encode(identity, Machine) ->
     Identity = ff_machine:model(Machine),
@@ -99,6 +105,16 @@ encode(challenge, Challenge) ->
 encode(proofs, Proofs) ->
     [#idnt_ChallengeProof{ type = Type, token = Token } || {Type, Token} <- Proofs];
 encode(context, _Ctx) -> #{<<"NS">> => nil}; %% TODO after merge PR FF-44; impl it
+encode(events, Events) ->
+    GenIdentityEvent = fun({ID, {ev, Timestamp, Ev}}) ->
+        #idnt_IdentityEvent{
+            sequence   = ff_identity_eventsink_publisher:marshal(event_id, ID),
+            occured_at = ff_identity_eventsink_publisher:marshal(timestamp, Timestamp),
+            change     = ff_identity_eventsink_publisher:marshal(event, Ev)
+        }
+    end,
+    [ GenIdentityEvent(Event) || Event <- Events];
+
 %% ERROR
 encode(error, {identity, notfound})                     -> identity_notfound;
 encode(error, {identity, unauthorized})                 -> identity_unauthorized;
@@ -136,5 +152,9 @@ decode(challenge, Params) -> #{
     };
 decode(proofs, Proofs) ->
     [{P#idnt_ChallengeProof.type, P#idnt_ChallengeProof.token} || P <- Proofs];
+decode(range, Range) ->
+    Cursor = Range#evsink_EventRange.'after',
+    Limit  = Range#evsink_EventRange.limit,
+    {Cursor, Limit, forward};
 decode(context,  _P) -> #{}. %% TODO after merge PR FF-44; impl it
 

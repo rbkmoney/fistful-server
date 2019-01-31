@@ -130,7 +130,11 @@ setup_dominant(Options, C) ->
 
 configure_processing_apps(_Options) ->
     ok = set_app_env(
-        [ff_transfer, withdrawal, system, accounts, <<"RUB">>],
+        [ff_transfer, withdrawal, system, accounts, settlement, <<"RUB">>],
+        create_company_account()
+    ),
+    ok = set_app_env(
+        [ff_transfer, withdrawal, system, accounts, subagent, <<"RUB">>],
         create_company_account()
     ),
     ok = set_app_env(

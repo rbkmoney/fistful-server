@@ -253,10 +253,19 @@ create_p_transfer(Withdrawal) ->
         ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
         ProviderFee = ff_withdrawal_provider:fee(Provider, CurrencyID),
         SystemAccounts = unwrap(system, get_system_accounts()),
-        SystemAccount = maps:get(CurrencyID, SystemAccounts, undefined),
+        SettlementAccountMap = maps:get(settlement, SystemAccounts, #{}),
+        SettlementAccount = maps:get(CurrencyID, SettlementAccountMap, undefined),
+        SubagentAccountMap = maps:get(subagent, SystemAccounts, #{}),
+        SubagentAccount = maps:get(CurrencyID, SubagentAccountMap, undefined),
         CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
         FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
-            CashFlowPlan, WalletAccount, DestinationAccount, SystemAccount, ProviderAccount, body(Withdrawal)
+            CashFlowPlan,
+            WalletAccount,
+            DestinationAccount,
+            SettlementAccount,
+            SubagentAccount,
+            ProviderAccount,
+            body(Withdrawal)
         )),
         PTransferID = construct_p_transfer_id(id(Withdrawal)),
         PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
@@ -331,16 +340,18 @@ get_system_accounts() ->
     SystemAccounts = maps:get(accounts, SystemConfig, undefined),
     {ok, SystemAccounts}.
 
--spec finalize_cash_flow(cash_flow_plan(), account(), account(), account(), account(), body()) ->
+-spec finalize_cash_flow(cash_flow_plan(), account(), account(), account(), account(), account(), body()) ->
     {ok, final_cash_flow()} | {error, _Error}.
-finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount, SystemAccount, ProviderAccount, Body) ->
+finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount,
+                    SettlementAccount, SubagentAccount, ProviderAccount, Body) ->
     Constants = #{
         operation_amount => Body
     },
     Accounts = genlib_map:compact(#{
         {wallet, sender_settlement} => WalletAccount,
         {wallet, receiver_destination} => DestinationAccount,
-        {system, settlement} => SystemAccount,
+        {system, settlement} => SettlementAccount,
+        {system, subagent} => SubagentAccount,
         {provider, settlement} => ProviderAccount
     }),
     ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants).

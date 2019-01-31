@@ -46,7 +46,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr.rbkmoney.com/rbkmoney/hellgate:998985ade2bb8d8b7882e8d09a036414e91e25b4
+    image: dr.rbkmoney.com/rbkmoney/hellgate:8d7f618f6f2e1d8410384797b8f9a76150580f46
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -117,7 +117,7 @@ services:
       test: "curl http://localhost:8022/"
       interval: 5s
       timeout: 1s
-      retries: 10
+      retries: 20
 
   identification:
     image: dr.rbkmoney.com/rbkmoney/identification:ff4ef447327d81882c0ee618b622e5e04e771881

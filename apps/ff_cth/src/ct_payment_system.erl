@@ -452,7 +452,7 @@ default_termset(Options) ->
                             ),
                             ?cfpost(
                                 {wallet, receiver_destination},
-                                {system, settlement},
+                                {system, subagent},
                                 ?share(10, 100, operation_amount)
                             )
                         ]}

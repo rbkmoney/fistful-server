@@ -117,7 +117,7 @@ services:
       test: "curl http://localhost:8022/"
       interval: 5s
       timeout: 1s
-      retries: 20
+      retries: 30
 
   identification:
     image: dr.rbkmoney.com/rbkmoney/identification:ff4ef447327d81882c0ee618b622e5e04e771881

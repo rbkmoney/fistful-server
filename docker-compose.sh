@@ -46,7 +46,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr.rbkmoney.com/rbkmoney/hellgate:d1879d79a290a18fd5492d73943c312dc7ffefea
+    image: dr.rbkmoney.com/rbkmoney/hellgate:a1ea6053fe2d0d446e1c69735ca63ab0d493a87a
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -86,7 +86,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr.rbkmoney.com/rbkmoney/dominant:06cd029f6d94636302c935dc81ca226f2da0dae4
+    image: dr.rbkmoney.com/rbkmoney/dominant:2f9f7e3d06972bc341bf55e9948435e202b578a2
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -117,7 +117,7 @@ services:
       test: "curl http://localhost:8022/"
       interval: 5s
       timeout: 1s
-      retries: 10
+      retries: 30
 
   identification:
     image: dr.rbkmoney.com/rbkmoney/identification:ff4ef447327d81882c0ee618b622e5e04e771881

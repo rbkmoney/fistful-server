@@ -134,7 +134,11 @@ setup_dominant(Options, C) ->
 
 configure_processing_apps(Options) ->
     ok = set_app_env(
-        [ff_transfer, withdrawal, system, accounts, <<"RUB">>],
+        [ff_transfer, withdrawal, system, accounts, settlement, <<"RUB">>],
+        create_company_account()
+    ),
+    ok = set_app_env(
+        [ff_transfer, withdrawal, system, accounts, subagent, <<"RUB">>],
         create_company_account()
     ),
     ok = set_app_env(
@@ -476,6 +480,11 @@ default_termset(Options) ->
                             ?cfpost(
                                 {wallet, receiver_destination},
                                 {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, subagent},
                                 ?share(10, 100, operation_amount)
                             )
                         ]}

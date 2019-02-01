@@ -456,5 +456,5 @@ process_withdrawal(WalID, DestID) ->
         genlib_retry:linear(15, 1000)
     ),
     ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
-    ok = await_destination_balance({4240 - 424, <<"RUB">>}, DestID),
+    ok = await_destination_balance({4240 - 848, <<"RUB">>}, DestID),
     WdrID.

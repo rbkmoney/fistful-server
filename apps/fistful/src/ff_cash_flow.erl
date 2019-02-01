@@ -60,6 +60,7 @@
     {wallet, receiver_settlement} |
     {wallet, receiver_destination} |
     {system, settlement} |
+    {system, subagent} |
     {provider, settlement}.
 -type final_account() :: #{
     account := account(),

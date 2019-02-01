@@ -385,7 +385,7 @@ services(Options) ->
 -include_lib("ff_cth/include/ct_domain.hrl").
 
 crunch_identity_id(Options) ->
-    maps:get(crunch_identity_id, Options, <<"555">>).
+    maps:get(crunch_identity_id, Options).
 
 domain_config(Options, C) ->
     Default = [

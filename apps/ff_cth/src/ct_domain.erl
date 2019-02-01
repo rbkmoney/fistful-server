@@ -144,7 +144,8 @@ proxy(Ref, Name, Opts) ->
     object().
 
 system_account_set(Ref, Name, ?cur(SymCode), C) ->
-    AccountID = account(SymCode, C),
+    AccountID1 = account(SymCode, C),
+    AccountID2 = account(SymCode, C),
     {system_account_set, #domain_SystemAccountSetObject{
         ref = Ref,
         data = #domain_SystemAccountSet{
@@ -152,7 +153,8 @@ system_account_set(Ref, Name, ?cur(SymCode), C) ->
             description = <<>>,
             accounts = #{
                 ?cur(SymCode) => #domain_SystemAccount{
-                    settlement = AccountID
+                    settlement = AccountID1,
+                    subagent = AccountID2
                 }
             }
         }

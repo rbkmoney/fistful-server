@@ -64,7 +64,18 @@ start_processing_apps(Options) ->
         client => ff_woody_client:new(<<"http://machinegun:8022/v1/automaton">>)
     }},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
-        lager,
+        % lager,
+        {lager, [
+            {error_logger_hwm, 600},
+            % {log_root, "/var/log/fistful-server"},
+            {crash_log, "crash.log"},
+            {handlers, [
+                {lager_console_backend, [
+                    {level, warning}
+                ]}
+            ]}
+        ]},
+
         scoper,
         woody,
         dmt_client,
@@ -109,6 +120,7 @@ start_processing_apps(Options) ->
 
     AdminRoutes = get_admin_routes(),
     WalletRoutes = get_wallet_routes(),
+    DstRoutes = get_destination_routes(),
     EventsinkRoutes = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
@@ -116,7 +128,7 @@ start_processing_apps(Options) ->
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => AdminRoutes ++ WalletRoutes ++ Routes ++ EventsinkRoutes
+            additional_routes => AdminRoutes ++ WalletRoutes ++ DstRoutes ++ Routes ++ EventsinkRoutes
         }
     )),
     Processing = #{
@@ -153,6 +165,13 @@ get_wallet_routes() ->
     Path = <<"/v1/wallet">>,
     woody_server_thrift_http_handler:get_routes(#{
         handlers => [{Path, {{ff_proto_wallet_thrift, 'Management'}, {ff_wallet_handler, []}}}],
+        event_handler => scoper_woody_event_handler
+    }).
+
+get_destination_routes() ->
+    Path = <<"/v1/destination">>,
+    woody_server_thrift_http_handler:get_routes(#{
+        handlers => [{Path, {{ff_proto_destination_thrift, 'Management'}, {ff_destination_handler, []}}}],
         event_handler => scoper_woody_event_handler
     }).
 

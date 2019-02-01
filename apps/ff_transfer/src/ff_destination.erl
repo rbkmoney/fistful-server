@@ -15,7 +15,8 @@
 -type account()  :: ff_account:account().
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
--type status()   :: ff_identity:status().
+%%-type status()   :: ff_identity:status(). %% TODO unknown type?
+-type status()   :: ff_instrument:status().
 -type resource() ::
     {bank_card, resource_bank_card()}.
 

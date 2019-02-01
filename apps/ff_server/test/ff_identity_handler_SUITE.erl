@@ -91,10 +91,10 @@ run_challenges_ok(C) ->
 
     PID = create_party(),
     ProvID     = <<"good-one">>,
-    CID        = <<"person">>,
+    ClassID    = <<"person">>,
     ChlClassID = <<"sword-initiation">>,
 
-    _IdentityState = create_identity(IID, EID, PID, ProvID, CID, Ctx),
+    _IdentityState = create_identity(IID, EID, PID, ProvID, ClassID, Ctx),
 
     Params2 = gen_challenge_param(ChlID, ChlClassID, {IID, EID, Ctx}, C),
     {ok, IdentityState2} = call_api('StartChallenges', [Params2]),
@@ -190,12 +190,12 @@ start_challenge_token_fail(C) ->
 %%----------
 %% INTERNAL
 %%----------
-create_identity(IID, EID, PID, ProvID, CID, Ctx) ->
+create_identity(IID, EID, PID, ProvID, ClassID, Ctx) ->
     Params = #idnt_IdentityParams{
         id          = IID,
         party_id    = PID,
         provider_id = ProvID,
-        class_id    = CID,
+        class_id    = ClassID,
         external_id = EID,
         context     = Ctx
     },

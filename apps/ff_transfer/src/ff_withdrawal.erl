@@ -281,13 +281,21 @@ create_p_transfer_new_style(Withdrawal) ->
         VS = unwrap(collect_varset(body(Withdrawal), Wallet, Destination)),
         SystemAccounts = unwrap(ff_payment_institution:compute_system_accounts(PaymentInstitution, VS)),
 
-        SystemAccount = maps:get(CurrencyID, SystemAccounts, undefined),
+        SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
+        SettlementAccount = maps:get(settlement, SystemAccount, undefined),
+        SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
         ProviderFee = ff_payouts_provider:compute_fees(Provider, VS),
 
         CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
         FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
-            CashFlowPlan, WalletAccount, DestinationAccount, SystemAccount, ProviderAccount, body(Withdrawal)
+            CashFlowPlan,
+            WalletAccount,
+            DestinationAccount,
+            SettlementAccount,
+            SubagentAccount,
+            ProviderAccount,
+            body(Withdrawal)
         )),
         PTransferID = construct_p_transfer_id(id(Withdrawal)),
         PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),

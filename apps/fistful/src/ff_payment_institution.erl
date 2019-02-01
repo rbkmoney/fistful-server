@@ -12,6 +12,15 @@
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
 
+-type system_accounts() :: #{
+    ff_currency:id() => system_account()
+}.
+
+-type system_account() :: #{
+    settlement  => ff_account:account(),
+    subagent    => ff_account:account()
+}.
+
 -export_type([id/0]).
 -export_type([payment_institution/0]).
 
@@ -62,7 +71,7 @@ compute_withdrawal_provider(#{providers := ProviderSelector}, VS) ->
     end).
 
 -spec compute_system_accounts(payment_institution(), hg_selector:varset()) ->
-    {ok, ff_withdrawal_provider:accounts()} | {error, term()}.
+    {ok, system_accounts()} | {error, term()}.
 
 compute_system_accounts(PaymentInstitution, VS) ->
     #{
@@ -92,19 +101,33 @@ decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts
     maps:fold(
         fun(CurrencyRef, SystemAccount, Acc) ->
             #domain_CurrencyRef{symbolic_code = CurrencyID} = CurrencyRef,
-            #domain_SystemAccount{settlement = AccountID} = SystemAccount,
             maps:put(
                 CurrencyID,
-                #{
-                    % FIXME
-                    id => Identity,
-                    identity => Identity,
-                    currency => CurrencyID,
-                    accounter_account_id => AccountID
-                },
+                decode_system_account(SystemAccount, CurrencyID, Identity),
                 Acc
             )
         end,
         #{},
         Accounts
     ).
+
+decode_system_account(SystemAccount, CurrencyID, Identity) ->
+    #domain_SystemAccount{
+        settlement  = SettlementAccountID,
+        subagent    = SubagentAccountID
+    } = SystemAccount,
+    #{
+        settlement  => decode_account(SettlementAccountID, CurrencyID, Identity),
+        subagent    => decode_account(SubagentAccountID, CurrencyID, Identity)
+    }.
+
+decode_account(AccountID, CurrencyID, Identity) when AccountID =/= undefined ->
+    #{
+        % FIXME
+        id => Identity,
+        identity => Identity,
+        currency => CurrencyID,
+        accounter_account_id => AccountID
+    };
+decode_account(undefined, _, _) ->
+    undefined.

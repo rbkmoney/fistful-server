@@ -15,7 +15,8 @@
     domain_config => list(),
     default_termset => dmsl_domain_thrift:'TermSet'(),
     company_termset => dmsl_domain_thrift:'TermSet'(),
-    crunch_identity_id => id()
+    payment_inst_identity_id => id(),
+    provider_identity_id => id()
 }.
 -opaque system() :: #{
     started_apps := [atom()],
@@ -51,7 +52,8 @@ shutdown(C) ->
 -spec do_setup(options(), config()) -> config().
 do_setup(Options0, C0) ->
     Options = Options0#{
-        crunch_identity_id => genlib:unique()
+        payment_inst_identity_id => genlib:unique(),
+        provider_identity_id => genlib:unique()
     },
     {ok, Processing0} = start_processing_apps(Options),
     C1 = ct_helper:makeup_cfg([ct_helper:woody_ctx()], [{services, services(Options)} | C0]),
@@ -203,8 +205,10 @@ get_eventsink_routes(BeConf) ->
 
 create_crunch_identity(Options) ->
     PartyID = create_party(),
-    IdentityID = crunch_identity_id(Options),
-    IdentityID = create_identity(IdentityID, PartyID, <<"good-one">>, <<"church">>),
+    PaymentInstIdentityID = payment_inst_identity_id(Options),
+    PaymentInstIdentityID = create_identity(PaymentInstIdentityID, PartyID, <<"good-one">>, <<"church">>),
+    ProviderIdentityID = provider_identity_id(Options),
+    ProviderIdentityID = create_identity(ProviderIdentityID, PartyID, <<"good-one">>, <<"church">>),
     ok.
 
 create_company_account() ->
@@ -388,8 +392,11 @@ services(Options) ->
 
 -include_lib("ff_cth/include/ct_domain.hrl").
 
-crunch_identity_id(Options) ->
-    maps:get(crunch_identity_id, Options).
+payment_inst_identity_id(Options) ->
+    maps:get(payment_inst_identity_id, Options).
+
+provider_identity_id(Options) ->
+    maps:get(provider_identity_id, Options).
 
 domain_config(Options, C) ->
     Default = [
@@ -408,7 +415,7 @@ domain_config(Options, C) ->
                 residences                = ['rus'],
                 realm                     = live,
                 wallet_system_account_set = {value, ?sas(1)},
-                identity                  = crunch_identity_id(Options),
+                identity                  = payment_inst_identity_id(Options),
                 withdrawal_providers      = {value, ?ordset([?wthdr_prv(1)])}
             }
         }},
@@ -419,7 +426,7 @@ domain_config(Options, C) ->
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
 
-        ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), crunch_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),

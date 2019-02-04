@@ -48,6 +48,7 @@
 -export([get_contract_terms/3]).
 -export([get_contract_terms/4]).
 -export([get_withdrawal_cash_flow_plan/1]).
+-export([get_wallet_payment_institution_id/1]).
 
 %% Internal types
 -type body() :: ff_transfer:body().
@@ -61,6 +62,7 @@
 -type cash_range() :: dmsl_domain_thrift:'CashRange'().
 -type timestamp() :: ff_time:timestamp_ms().
 -type wallet() :: ff_wallet:wallet().
+-type payment_institution_id() :: ff_payment_institution:id().
 
 -type currency_validation_error() :: {terms_violation, {not_allowed_currency, _Details}}.
 -type withdrawal_currency_error() :: {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}.
@@ -102,7 +104,7 @@ is_accessible(ID) ->
 %%
 
 -type contract_prototype() :: #{
-    payinst           := _PaymentInstitutionRef,
+    payinst           := dmsl_domain_thrift:'PaymentInstitutionRef'(),
     contract_template := dmsl_domain_thrift:'ContractTemplateRef'(),
     contractor_level  := dmsl_domain_thrift:'ContractorIdentificationLevel'()
 }.
@@ -136,6 +138,25 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
         ok
     end).
 
+-spec get_wallet_payment_institution_id(wallet()) -> Result when
+    Result :: {ok, payment_institution_id()} | {error, Error},
+    Error ::
+        {party_not_found, id()} |
+        {contract_not_found, id()} |
+        {exception, any()}.
+
+get_wallet_payment_institution_id(Wallet) ->
+    IdentityID = ff_wallet:identity(Wallet),
+    do(fun() ->
+        IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
+        Identity = ff_identity_machine:identity(IdentityMachine),
+        PartyID = ff_identity:party(Identity),
+        ContractID = ff_identity:contract(Identity),
+        Contract = unwrap(do_get_contract(PartyID, ContractID)),
+        #domain_PaymentInstitutionRef{id = ID} = Contract#domain_Contract.payment_institution,
+        ID
+    end).
+
 -spec get_contract_terms(wallet(), body(), timestamp()) -> Result when
     Result :: {ok, terms()} | {error, Error},
     Error ::
@@ -149,8 +170,11 @@ get_contract_terms(Wallet, Body, Timestamp) ->
     do(fun() ->
         IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
         Identity = ff_identity_machine:identity(IdentityMachine),
-        ContractID = ff_identity:contract(Identity),
         PartyID = ff_identity:party(Identity),
+        ContractID = ff_identity:contract(Identity),
+        % TODO this is not level itself! Dont know how to get it here.
+        % Currently we use Contract's level in PartyManagement, but I'm not sure about correctness of this.
+        % Level = ff_identity:level(Identity),
         {_Amount, CurrencyID} = Body,
         TermVarset = #{
             amount => Body,
@@ -160,20 +184,20 @@ get_contract_terms(Wallet, Body, Timestamp) ->
         unwrap(get_contract_terms(PartyID, ContractID, TermVarset, Timestamp))
     end).
 
--spec get_contract_terms(id(), contract_id(), term_varset(), timestamp()) -> Result when
+-spec get_contract_terms(PartyID :: id(), contract_id(), term_varset(), timestamp()) -> Result when
     Result :: {ok, terms()} | {error, Error},
     Error :: {party_not_found, id()} | {party_not_exists_yet, id()} | {exception, any()}.
 
-get_contract_terms(ID, ContractID, Varset, Timestamp) ->
+get_contract_terms(PartyID, ContractID, Varset, Timestamp) ->
     DomainVarset = encode_varset(Varset),
-    Args = [ID, ContractID, ff_time:to_rfc3339(Timestamp), DomainVarset],
+    Args = [PartyID, ContractID, ff_time:to_rfc3339(Timestamp), DomainVarset],
     case call('ComputeWalletTermsNew', Args) of
         {ok, Terms} ->
             {ok, Terms};
         {exception, #payproc_PartyNotFound{}} ->
-            {error, {party_not_found, ID}};
+            {error, {party_not_found, PartyID}};
         {exception, #payproc_PartyNotExistsYet{}} ->
-            {error, {party_not_exists_yet, ID}};
+            {error, {party_not_exists_yet, PartyID}};
         {exception, Unexpected} ->
             {error, {exception, Unexpected}}
     end.
@@ -236,7 +260,7 @@ get_withdrawal_cash_flow_plan(Terms) ->
             }
         }
     } = Terms,
-    Postings = decode_domain_postings(DomainPostings),
+    Postings = ff_cash_flow:decode_domain_postings(DomainPostings),
     {ok, #{postings => Postings}}.
 
 %% Internal functions
@@ -269,15 +293,17 @@ do_get_party(ID) ->
             error(Unexpected)
     end.
 
-% do_get_contract(ID, ContractID) ->
-%     case call('GetContract', [ID, ContractID]) of
-%         {ok, #domain_Contract{} = Contract} ->
-%             Contract;
-%         {exception, #payproc_ContractNotFound{}} ->
-%             {error, notfound};
-%         {exception, Unexpected} ->
-%             error(Unexpected)
-%     end.
+do_get_contract(ID, ContractID) ->
+    case call('GetContract', [ID, ContractID]) of
+        {ok, #domain_Contract{} = Contract} ->
+            {ok, Contract};
+        {exception, #payproc_PartyNotFound{}} ->
+            {error, {party_not_found, ID}};
+        {exception, #payproc_ContractNotFound{}} ->
+            {error, {contract_not_found, ContractID}};
+        {exception, Unexpected} ->
+            error(Unexpected)
+    end.
 
 do_create_claim(ID, Changeset) ->
     case call('CreateClaim', [ID, Changeset]) of
@@ -572,73 +598,6 @@ compare_cash(
     {_, #domain_Cash{amount = Am, currency = C}}
 ) ->
     Fun(A, Am).
-
-%% Domain cash flow unmarshalling
-
--spec decode_domain_postings(ff_cash_flow:domain_plan_postings()) ->
-    [ff_cash_flow:plan_posting()].
-decode_domain_postings(DomainPostings) ->
-    [decode_domain_posting(P) || P <- DomainPostings].
-
--spec decode_domain_posting(dmsl_domain_thrift:'CashFlowPosting'()) ->
-    ff_cash_flow:plan_posting().
-decode_domain_posting(
-    #domain_CashFlowPosting{
-        source = Source,
-        destination = Destination,
-        volume = Volume,
-        details = Details
-    }
-) ->
-    #{
-        sender => decode_domain_plan_account(Source),
-        receiver => decode_domain_plan_account(Destination),
-        volume => decode_domain_plan_volume(Volume),
-        details => Details
-    }.
-
--spec decode_domain_plan_account(dmsl_domain_thrift:'CashFlowAccount'()) ->
-    ff_cash_flow:plan_account().
-decode_domain_plan_account({_AccountNS, _AccountType} = Account) ->
-    Account.
-
--spec decode_domain_plan_volume(dmsl_domain_thrift:'CashVolume'()) ->
-    ff_cash_flow:plan_volume().
-decode_domain_plan_volume({fixed, #domain_CashVolumeFixed{cash = Cash}}) ->
-    {fixed, decode_domain_cash(Cash)};
-decode_domain_plan_volume({share, Share}) ->
-    #domain_CashVolumeShare{
-        parts = Parts,
-        'of' = Of,
-        rounding_method = RoundingMethod
-    } = Share,
-    {share, {decode_rational(Parts), Of, decode_rounding_method(RoundingMethod)}};
-decode_domain_plan_volume({product, {Fun, CVs}}) ->
-    {product, {Fun, lists:map(fun decode_domain_plan_volume/1, CVs)}}.
-
--spec decode_rounding_method(dmsl_domain_thrift:'RoundingMethod'() | undefined) ->
-    ff_cash_flow:rounding_method().
-decode_rounding_method(undefined) ->
-    default;
-decode_rounding_method(RoundingMethod) ->
-    RoundingMethod.
-
--spec decode_rational(dmsl_base_thrift:'Rational'()) ->
-    genlib_rational:t().
-decode_rational(#'Rational'{p = P, q = Q}) ->
-    genlib_rational:new(P, Q).
-
--spec decode_domain_cash(domain_cash()) ->
-    ff_cash_flow:cash().
-decode_domain_cash(
-    #domain_Cash{
-        amount = Amount,
-        currency = #domain_CurrencyRef{
-            symbolic_code = SymbolicCode
-        }
-    }
-) ->
-    {Amount, SymbolicCode}.
 
 %% Varset stuff
 

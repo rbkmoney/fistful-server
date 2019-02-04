@@ -5,6 +5,7 @@
 -export([gather_used_accounts/1]).
 -export([finalize/3]).
 -export([add_fee/2]).
+-export([decode_domain_postings/1]).
 
 %% Domain types
 -type plan_posting() :: #{
@@ -66,6 +67,7 @@
     type => plan_account()
 }.
 
+-export_type([plan_posting/0]).
 -export_type([plan_volume/0]).
 -export_type([plan_constant/0]).
 -export_type([plan_operation/0]).
@@ -116,6 +118,61 @@ finalize(Plan, Accounts, Constants) ->
     {ok, cash_flow_plan()}.
 add_fee(#{postings := PlanPostings} = Plan, #{postings := FeePostings}) ->
     {ok, Plan#{postings => PlanPostings ++ FeePostings}}.
+
+%% Domain cash flow unmarshalling
+
+-spec decode_domain_postings(dmsl_domain_thrift:'CashFlow'()) ->
+    [plan_posting()].
+decode_domain_postings(DomainPostings) ->
+    [decode_domain_posting(P) || P <- DomainPostings].
+
+-spec decode_domain_posting(dmsl_domain_thrift:'CashFlowPosting'()) ->
+    plan_posting().
+decode_domain_posting(
+    #domain_CashFlowPosting{
+        source = Source,
+        destination = Destination,
+        volume = Volume,
+        details = Details
+    }
+) ->
+    #{
+        sender => decode_domain_plan_account(Source),
+        receiver => decode_domain_plan_account(Destination),
+        volume => decode_domain_plan_volume(Volume),
+        details => Details
+    }.
+
+-spec decode_domain_plan_account(dmsl_domain_thrift:'CashFlowAccount'()) ->
+    ff_cash_flow:plan_account().
+decode_domain_plan_account({_AccountNS, _AccountType} = Account) ->
+    Account.
+
+-spec decode_domain_plan_volume(dmsl_domain_thrift:'CashVolume'()) ->
+    ff_cash_flow:plan_volume().
+decode_domain_plan_volume({fixed, #domain_CashVolumeFixed{cash = Cash}}) ->
+    {fixed, ff_cash:decode(Cash)};
+decode_domain_plan_volume({share, Share}) ->
+    #domain_CashVolumeShare{
+        parts = Parts,
+        'of' = Of,
+        rounding_method = RoundingMethod
+    } = Share,
+    {share, {decode_rational(Parts), Of, decode_rounding_method(RoundingMethod)}};
+decode_domain_plan_volume({product, {Fun, CVs}}) ->
+    {product, {Fun, lists:map(fun decode_domain_plan_volume/1, CVs)}}.
+
+-spec decode_rounding_method(dmsl_domain_thrift:'RoundingMethod'() | undefined) ->
+    ff_cash_flow:rounding_method().
+decode_rounding_method(undefined) ->
+    default;
+decode_rounding_method(RoundingMethod) ->
+    RoundingMethod.
+
+-spec decode_rational(dmsl_base_thrift:'Rational'()) ->
+    genlib_rational:t().
+decode_rational(#'Rational'{p = P, q = Q}) ->
+    genlib_rational:new(P, Q).
 
 %% Internals
 

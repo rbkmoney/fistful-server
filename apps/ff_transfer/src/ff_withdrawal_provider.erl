@@ -3,7 +3,7 @@
 %%%
 %%% TODOs
 %%%
-%%%  - Anything remotely similar to routing!
+%%%  - Replace with ff_payouts_provider after update!
 %%%
 
 -module(ff_withdrawal_provider).

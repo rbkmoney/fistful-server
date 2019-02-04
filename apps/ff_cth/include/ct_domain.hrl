@@ -18,6 +18,7 @@
 -define(eas(ID),        #domain_ExternalAccountSetRef{id = ID}).
 -define(insp(ID),       #domain_InspectorRef{id = ID}).
 -define(payinst(ID),    #domain_PaymentInstitutionRef{id = ID}).
+-define(wthdr_prv(ID),  #domain_WithdrawalProviderRef{id = ID}).
 
 -define(cash(Amount, SymCode),
     #domain_Cash{amount = Amount, currency = ?cur(SymCode)}

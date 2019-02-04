@@ -173,7 +173,7 @@ marshal(withdrawal_route_changed, #{
         provider_id := ProviderID
 }) ->
     #wthd_RouteChange{
-        id = marshal(id, ProviderID)
+        id = marshal(id, genlib:to_binary(ProviderID))
     };
 
 marshal(T, V) ->

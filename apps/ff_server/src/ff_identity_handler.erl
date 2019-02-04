@@ -69,9 +69,10 @@ handle_function_('GetEvents', [Params], _Context, _Opts) ->
     Range = decode(range, Params#idnt_IdentityEventParams.range),
     case ff_identity_machine:events(IdentityID, Range) of
         {ok, Events} ->
+            lager:error("~n~nEvents~n~n~p~n", [Events]),
             {ok, encode(events, Events)};
         {error, notfound} ->
-            {ok, encode(events, [])}
+            woody_error:raise(business, #fistful_IdentityNotFound{})
     end.
 
 encode(identity, Machine) ->

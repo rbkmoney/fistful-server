@@ -117,6 +117,14 @@ run_challenges_ok(C) ->
 
 get_challenge_event_ok(C) ->
     Ctx = #{},
+    [IID2, EID2, _ChlID2] = lists:map(fun(_) -> genlib:unique() end, [1,2,3]),
+
+    PID2 = create_party(),
+    ProvID2     = <<"good-one">>,
+    CID2        = <<"person">>,
+
+    _IdentityState23 = create_identity(IID2, EID2, PID2, ProvID2, CID2, #{}),
+
     [IID, EID, ChlID] = lists:map(fun(_) -> genlib:unique() end, [1,2,3]),
 
     PID = create_party(),
@@ -132,16 +140,19 @@ get_challenge_event_ok(C) ->
     IdentityEventParams = #idnt_IdentityEventParams{
         identity_id = IID,
         range = #evsink_EventRange{
-            limit = 1,
+            limit = 1000,
             'after' = undefined
         }
     },
-    {ok, [Ev]} = call_api('GetEvents', [IdentityEventParams]),
-    1 = Ev#idnt_IdentityEvent.sequence,
-    {created, Identity} = Ev#idnt_IdentityEvent.change,
-    PID    = Identity#idnt_Identity.party,
-    ProvID = Identity#idnt_Identity.provider,
-    CID    = Identity#idnt_Identity.cls,
+    Ans = call_api('GetEvents', [IdentityEventParams]),
+    lager:error("Ans:~n~p~n", [Ans]),
+    % {ok, [Ev]} = call_api('GetEvents', [IdentityEventParams]),
+
+    % 1 = Ev#idnt_IdentityEvent.sequence,
+    % {created, Identity} = Ev#idnt_IdentityEvent.change,
+    % PID    = Identity#idnt_Identity.party,
+    % ProvID = Identity#idnt_Identity.provider,
+    % CID    = Identity#idnt_Identity.cls,
     ok.
 
 get_event_unknow_identity_ok(_C) ->
@@ -159,7 +170,7 @@ get_event_unknow_identity_ok(_C) ->
             'after' = undefined
         }
     },
-    {ok, []} = call_api('GetEvents', [IdentityEventParams]).
+    {exception, {fistful_IdentityNotFound}} = call_api('GetEvents', [IdentityEventParams]).
 
 start_challenge_token_fail(C) ->
     Ctx = #{},

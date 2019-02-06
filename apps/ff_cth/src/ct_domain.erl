@@ -44,7 +44,7 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
             proxy = #domain_Proxy{ref = ProxyRef, additional = #{}},
             identity = IdentityID,
             withdrawal_terms = #domain_WithdrawalProvisionTerms{
-                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                currencies = {value, ?ordset([])},
                 payout_methods = {value, ?ordset([])},
                 cash_limit = {value, ?cashrng(
                     {inclusive, ?cash(       0, <<"RUB">>)},

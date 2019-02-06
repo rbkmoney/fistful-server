@@ -240,11 +240,27 @@ create_route(Withdrawal) ->
         DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
         Destination = ff_destination:get(DestinationMachine),
         VS = unwrap(collect_varset(Body, Wallet, Destination)),
-        ProviderID = unwrap(ff_payment_institution:compute_withdrawal_provider(PaymentInstitution, VS)),
+        Providers = unwrap(ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, VS)),
+        ProviderID = unwrap(choose_provider(Providers, VS)),
         {continue, [{route_changed, #{provider_id => ProviderID}}]}
     end).
 
+choose_provider(Providers, VS) ->
+    case lists:filter(fun(P) -> validate_withdrawals_terms(P, VS) end, Providers) of
+        [ProviderID | _] ->
+            {ok, ProviderID};
+        [] ->
+            {error, route_not_found}
+    end.
 
+validate_withdrawals_terms(ID, VS) ->
+    Provider = unwrap(ff_payouts_provider:get(ID)),
+    case ff_payouts_provider:validate_terms(Provider, VS) of
+        {ok, valid} ->
+            true;
+        {error, Error} ->
+            false
+    end.
 
 -spec create_p_transfer(withdrawal()) ->
     {ok, process_result()} |

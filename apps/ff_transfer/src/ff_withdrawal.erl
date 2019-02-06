@@ -258,7 +258,7 @@ validate_withdrawals_terms(ID, VS) ->
     case ff_payouts_provider:validate_terms(Provider, VS) of
         {ok, valid} ->
             true;
-        {error, Error} ->
+        {error, _Error} ->
             false
     end.
 

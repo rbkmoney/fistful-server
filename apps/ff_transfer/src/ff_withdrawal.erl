@@ -374,9 +374,10 @@ construct_p_transfer_id(ID) ->
 
 poll_session_completion(Withdrawal) ->
     SessionID = ff_transfer:session_id(Withdrawal),
-    {ok, Session} = ff_withdrawal_session_machine:get(SessionID),
+    {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
+    Session = ff_withdrawal_session_machine:session(SessionMachine),
     do(fun () ->
-        case ff_withdrawal_session_machine:status(Session) of
+        case ff_withdrawal_session:status(Session) of
             active ->
                 {poll, []};
             {finished, {success, _}} ->

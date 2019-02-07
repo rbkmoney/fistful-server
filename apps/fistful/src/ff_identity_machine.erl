@@ -45,6 +45,7 @@
 
 -export([init/4]).
 -export([process_timeout/3]).
+-export([process_repair/4]).
 -export([process_call/4]).
 
 %% Pipeline
@@ -136,6 +137,7 @@ identity(St) ->
 -type machine()      :: ff_machine:machine(event()).
 -type result()       :: ff_machine:result(event()).
 -type handler_opts() :: machinery:handler_opts(_).
+-type handler_args() :: machinery:handler_args(_).
 
 -spec init({[event()], ctx()}, machine(), _, handler_opts()) ->
     result().
@@ -175,10 +177,10 @@ set_poll_timer(St) ->
 -type call() ::
     {start_challenge, challenge_params()}.
 
--spec process_call(call(), machine(), _, handler_opts()) ->
+-spec process_call(call(), machine(), handler_args(), handler_opts()) ->
     {_TODO, result()}.
 
-process_call({start_challenge, Params}, Machine, _, _Opts) ->
+process_call({start_challenge, Params}, Machine, _Args, _Opts) ->
     St = ff_machine:collapse(ff_identity, Machine),
     case deduce_activity(identity(St)) of
         undefined ->
@@ -186,6 +188,12 @@ process_call({start_challenge, Params}, Machine, _, _Opts) ->
         {challenge, ChallengeID} ->
             handle_result({error, {challenge, {pending, ChallengeID}}})
     end.
+
+-spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
+    result().
+
+process_repair(RepairArgs, Machine, _Args, _Opts) ->
+    ff_repair:apply_repair(ff_identity, Machine, RepairArgs).
 
 do_start_challenge(Params, St) ->
     Identity = identity(St),

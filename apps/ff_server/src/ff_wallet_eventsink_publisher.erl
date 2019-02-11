@@ -42,19 +42,5 @@ publish_event(#{
 %% Internals
 %%
 
-marshal(event, {created, Wallet}) ->
-    {created, marshal(wallet, Wallet)};
-marshal(event, {account, AccountChange}) ->
-    {account, marshal(account_change, AccountChange)};
-
-marshal(wallet, Wallet) ->
-    Name = maps:get(name, Wallet, undefined),
-    ExternalID = maps:get(external_id, Wallet, undefined),
-    #wlt_Wallet{
-        name = marshal(string, Name),
-        external_id = marshal(id, ExternalID)
-    };
-
-marshal(T, V) ->
-    ff_eventsink_publisher:marshal(T, V).
-
+marshal(Type, Value) ->
+    ff_wallet_codec:marshal(Type, Value).

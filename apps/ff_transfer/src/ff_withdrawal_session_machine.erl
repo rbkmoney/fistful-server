@@ -20,6 +20,7 @@
 -export([create/3]).
 -export([get/1]).
 -export([events/2]).
+-export([repair/2]).
 
 %% machinery
 
@@ -87,6 +88,11 @@ events(ID, Range) ->
         #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
+
+-spec repair(id(), ff_repair:scenario()) ->
+    ok | {error, notfound | working}.
+repair(ID, Scenario) ->
+    machinery:repair(?NS, ID, Scenario, backend()).
 
 %% machinery callbacks
 

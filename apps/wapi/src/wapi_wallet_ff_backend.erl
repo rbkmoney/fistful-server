@@ -3,6 +3,9 @@
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_account_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/fistful_reporter_fistful_reporter_thrift.hrl").
 -include_lib("file_storage_proto/include/file_storage_file_storage_thrift.hrl").
 
@@ -241,15 +244,30 @@ get_wallet(WalletId, Context) ->
     {inaccessible, _}
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
-    CreateFun = fun(ID, EntityCtx) ->
-        _ = check_resource(identity, IdenityId, Context),
-        ff_wallet_machine:create(
-            ID,
-            from_swag(wallet_params, Params),
-            add_meta_to_ctx([], Params, EntityCtx)
-        )
-    end,
-    do(fun() -> unwrap(create_entity(wallet, Params, CreateFun, Context)) end).
+    ExternalID = construct_external_id(Params, Context),
+    ID = make_id(wallet, ExternalID),
+    WalletParams = from_swag(wallet_params, Params),
+    Req = #wlt_WalletParams{
+        id = ID,
+        name = maps:get(name, WalletParams),
+        account_params = #account_AccountParams{
+            identity_id = IdenityId,
+            symbolic_code = maps:get(currency, WalletParams)
+        },
+        context = make_ctx(Context),
+        external_id = ExternalID
+    },
+    Result = wapi_handler_utils:service_call({fistful_wallet, 'Create', [Req]}, Context),
+    case Result of
+        {ok, Result} ->
+            do(fun() -> to_swag(walletState, Result) end);
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}};
+        {exception, #fistful_CurrencyNotFound{}} ->
+            {error, {currency, notfound}};
+        {exception, #fistful_PartyInaccessible{}} ->
+            {error, {inaccessible, some_reason}}
+    end.
 
 -spec get_wallet_account(id(), ctx()) -> result(map(),
     {wallet, notfound}     |

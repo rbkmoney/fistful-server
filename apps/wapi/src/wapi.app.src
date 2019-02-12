@@ -14,6 +14,7 @@
         dmsl,
         identdocstore_proto,
         swag_server_wallet,
+        scoper,
         jose,
         cowboy_cors,
         cowboy_access_log,

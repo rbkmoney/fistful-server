@@ -4,6 +4,7 @@
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_account_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_account_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/fistful_reporter_fistful_reporter_thrift.hrl").
@@ -245,7 +246,7 @@ get_wallet(WalletId, Context) ->
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     ExternalID = construct_external_id(Params, Context),
-    ID = make_id(wallet, ExternalID),
+    ID = IdenityId,%make_id(wallet, ExternalID),
     WalletParams = from_swag(wallet_params, Params),
     Req = #wlt_WalletParams{
         id = ID,
@@ -260,7 +261,7 @@ create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     Result = wapi_handler_utils:service_call({fistful_wallet, 'Create', [Req]}, Context),
     case Result of
         {ok, Result} ->
-            do(fun() -> to_swag(walletState, Result) end);
+            do(fun() -> to_swag(wallet_state, Result) end);
         {exception, #fistful_IdentityNotFound{}} ->
             {error, {identity, notfound}};
         {exception, #fistful_CurrencyNotFound{}} ->
@@ -990,6 +991,17 @@ to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
             <<"currency">> => EncodedCurrency
         }
     };
+to_swag(wallet_state, Wallet) ->
+    Account = Wallet#wlt_WalletState.account,
+    to_swag(map, #{
+        <<"id">>         => Wallet#wlt_WalletState.id,
+        <<"name">>       => Wallet#wlt_WalletState.name,
+        <<"createdAt">>  => <<"2017-04-19T13:56:07Z">>,
+        <<"isBlocked">>  => false,
+        <<"identity">>   => Account#account_Account.identity,
+        <<"currency">>   => <<"RUB">>, %to_swag(currency, Account#account_Account.currency),
+        <<"metadata">>   => <<"">>
+    });
 to_swag(destination, State) ->
     Destination = ff_destination:get(State),
     WapiCtx = get_ctx(State),

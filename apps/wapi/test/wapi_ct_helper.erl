@@ -33,7 +33,6 @@ init_suite(Module, Config) ->
     Apps1 =
         start_app(lager) ++
         start_app(scoper) ++
-        start_app(fistful) ++
         start_app(woody),
     ServiceURLs = mock_services_([
         {
@@ -57,39 +56,13 @@ start_app(lager = AppName) ->
         {error_logger_hwm, 600},
         {suppress_application_start_stop, true},
         {handlers, [
-            {lager_common_test_backend, [warning, {lager_logstash_formatter, []}]}
+            {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
         ]}
     ]);
 
 start_app(scoper = AppName) ->
     start_app(AppName, [
         {storage, scoper_storage_lager}
-    ]);
-
-start_app(fistful = AppName) ->
-    BeConf = #{schema => machinery_mg_schema_generic},
-    Be = {machinery_mg_backend, BeConf#{
-        client => ff_woody_client:new(<<"http://machinegun:8022/v1/automaton">>)
-    }},
-    start_app(AppName, [
-        {services, #{
-            accounter      => "http://shumway:8022/accounter",
-            cds            => "http://cds:8022/v1/storage",
-            identdocstore  => "http://cds:8022/v1/identity_document_storage",
-            partymgmt      => "http://hellgate:8022/v1/processing/partymgmt",
-            identification => "http://identification:8022/v1/identification"
-        }},
-        {backends, maps:from_list([{NS, Be} || NS <- [
-            'ff/identity'              ,
-            'ff/sequence'              ,
-            'ff/external_id'           ,
-            'ff/wallet_v2'             ,
-            'ff/source_v1'             ,
-            'ff/deposit_v1'            ,
-            'ff/destination_v2'        ,
-            'ff/withdrawal_v2'         ,
-            'ff/withdrawal/session_v2'
-        ]])}
     ]);
 
 start_app(woody = AppName) ->
@@ -119,11 +92,6 @@ start_wapi(Config) ->
                     wapi => {pem_file, get_keysource("keys/local/private.pem", Config)}
                 }
             }
-        }},
-        {service_urls, #{
-            cds_storage         => "http://cds:8022/v1/storage",
-            identdoc_storage    => "http://cds:8022/v1/identity_document_storage",
-            fistful_stat        => "http://fistful-magista:8022/stat"
         }},
         {service_retries, #{
             fistful_stat    => #{

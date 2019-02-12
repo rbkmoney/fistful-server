@@ -67,7 +67,7 @@ apply_retry_step({wait, Timeout, Retry}, Deadline0, Error) ->
     end.
 
 get_service_url(ServiceName) ->
-    maps:get(ServiceName, genlib_app:env(?APP, service_urls)).
+    maps:get(ServiceName, genlib_app:env(?MODULE, service_urls)).
 
 -spec get_service_modname(service_name()) -> woody:service().
 

@@ -75,11 +75,11 @@ apply_processor(Processor, Args, Machine) ->
 
 -spec validate_result(module(), machine(), result()) ->
     valid | no_return().
-validate_result(Mod, #{history := History} = Machine, #{events := Events}) ->
+validate_result(Mod, #{history := History} = Machine, #{events := NewEvents}) ->
     HistoryLen = erlang:length(History),
-    NewEventsLen = erlang:length(Events),
-    IDs = lists:seq(HistoryLen, HistoryLen + NewEventsLen + 1),
-    NewHistory = [{ID, machinery_time:now(), Event} || {ID, Event} <- lists:zip(IDs, Events)],
+    NewEventsLen = erlang:length(NewEvents),
+    IDs = lists:seq(HistoryLen + 1, HistoryLen + NewEventsLen),
+    NewHistory = [{ID, machinery_time:now(), Event} || {ID, Event} <- lists:zip(IDs, NewEvents)],
     _ = ff_machine:collapse(Mod, Machine#{history => History ++ NewHistory}),
     valid.
 

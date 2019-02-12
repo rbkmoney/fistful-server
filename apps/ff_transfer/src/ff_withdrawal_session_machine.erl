@@ -123,7 +123,10 @@ process_call(_CallArgs, #{}, _, _Opts) ->
     result().
 process_repair(RepairArgs, Machine, _Args, _Opts) ->
     Scenarios = #{
-        set_session_result => fun ff_withdrawal_session:set_session_result/2
+        set_session_result => fun(Args, RMachine) ->
+            State = ff_machine:collapse(ff_withdrawal_session, RMachine),
+            ff_withdrawal_session:set_session_result(Args, session(State))
+        end
     },
     ff_repair:apply_repair(ff_withdrawal_session, Machine, RepairArgs, Scenarios).
 

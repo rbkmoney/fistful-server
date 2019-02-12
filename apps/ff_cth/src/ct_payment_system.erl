@@ -212,7 +212,10 @@ get_eventsink_routes(BeConf) ->
 
 get_repair_routes() ->
     Handlers = [
-        {<<"withdrawal/session">>, {ff_withdrawal_session_repair, #{}}}
+        {
+            <<"withdrawal/session">>,
+            {{ff_proto_withdrawal_session_thrift, 'Repairer'}, {ff_withdrawal_session_repair, #{}}}
+        }
     ],
     woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
         handlers => [{<<"/v1/repair/", N/binary>>, H} || {N, H} <- Handlers],

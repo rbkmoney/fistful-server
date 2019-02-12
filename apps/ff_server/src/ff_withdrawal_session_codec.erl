@@ -136,6 +136,8 @@ unmarshal(repair_scenario, {add_events, #wthd_session_AddEventsRepair{events = E
         events => unmarshal({list, event}, Events),
         actions => maybe_unmarshal(complex_action, Action)
     })};
+unmarshal(repair_scenario, {set_session_result, #wthd_session_SetResultRepair{result = Result}}) ->
+    {set_session_result, unmarshal(session_result, Result)};
 
 unmarshal(event, {created, Session}) ->
     {created, unmarshal(session, Session)};
@@ -161,9 +163,9 @@ unmarshal(session_status, {active, #wthd_session_SessionActive{}}) ->
     active;
 unmarshal(session_status, {finished, #wthd_session_SessionFinished{status = Result}}) ->
     {finished, unmarshal(session_finished_status, Result)};
-unmarshal(session_status, {success, #wthd_session_SessionFinishedSuccess{}}) ->
+unmarshal(session_finished_status, {success, #wthd_session_SessionFinishedSuccess{}}) ->
     success;
-unmarshal(session_status, {failed, #wthd_session_SessionFinishedFailed{}}) ->
+unmarshal(session_finished_status, {failed, #wthd_session_SessionFinishedFailed{}}) ->
     failed;
 
 unmarshal(withdrawal, #wthd_session_Withdrawal{
@@ -194,7 +196,7 @@ unmarshal(transaction_info, #'TransactionInfo'{
 }) ->
     #domain_TransactionInfo{
         id = unmarshal(id, TransactionID),
-        timestamp = unmarshal(timestamp, Timestamp),
+        timestamp = maybe_unmarshal(timestamp, Timestamp),
         extra = Extra
     };
 
@@ -208,8 +210,8 @@ unmarshal(failure, #'Failure'{
 }) ->
     #domain_Failure{
         code = unmarshal(string, Code),
-        reason = unmarshal(string, Reason),
-        sub = unmarshal(sub_failure, SubFailure)
+        reason = maybe_unmarshal(string, Reason),
+        sub = maybe_unmarshal(sub_failure, SubFailure)
     };
 unmarshal(sub_failure, #'SubFailure'{
     code = Code,
@@ -217,7 +219,7 @@ unmarshal(sub_failure, #'SubFailure'{
 }) ->
     #domain_SubFailure{
         code = unmarshal(string, Code),
-        sub = unmarshal(sub_failure, SubFailure)
+        sub = maybe_unmarshal(sub_failure, SubFailure)
     };
 
 unmarshal(T, V) ->

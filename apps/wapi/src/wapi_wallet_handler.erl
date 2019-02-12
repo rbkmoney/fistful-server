@@ -388,6 +388,13 @@ process_request('DownloadFile', #{fileID := FileId, expiresAt := ExpiresAt}, Con
             wapi_handler_utils:reply_ok(201, #{<<"url">> => URL, <<"expiresAt">> => ExpiresAt});
         {error, notfound} ->
             wapi_handler_utils:reply_ok(404)
+    end;
+
+%% Deposits
+process_request('ListDeposits', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:list_deposits(Params, Context) of
+        {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
+        {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
     end.
 
 %% Internal functions

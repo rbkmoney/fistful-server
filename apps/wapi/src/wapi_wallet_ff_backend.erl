@@ -255,13 +255,12 @@ create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
             identity_id = IdenityId,
             symbolic_code = maps:get(currency, WalletParams)
         },
-        context = make_ctx(Context),
+        context = #{<<"test">> => {str, <<"test">>}}, %make_ctx(Context),
         external_id = ExternalID
     },
-    Result = wapi_handler_utils:service_call({fistful_wallet, 'Create', [Req]}, Context),
-    case Result of
-        {ok, Result} ->
-            do(fun() -> to_swag(wallet_state, Result) end);
+    case wapi_handler_utils:service_call({fistful_wallet, 'Create', [Req]}, Context) of
+        {ok, Wallet} ->
+            do(fun() -> to_swag(wallet_state, Wallet) end);
         {exception, #fistful_IdentityNotFound{}} ->
             {error, {identity, notfound}};
         {exception, #fistful_CurrencyNotFound{}} ->
@@ -1000,7 +999,7 @@ to_swag(wallet_state, Wallet) ->
         <<"isBlocked">>  => false,
         <<"identity">>   => Account#account_Account.identity,
         <<"currency">>   => <<"RUB">>, %to_swag(currency, Account#account_Account.currency),
-        <<"metadata">>   => <<"">>
+        <<"metadata">>   => #{<<"metadata">> => <<"metadata">>}
     });
 to_swag(destination, State) ->
     Destination = ff_destination:get(State),

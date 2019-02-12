@@ -91,6 +91,7 @@ init([]) ->
                     machinery_mg_backend:get_routes(Handlers, RouteOpts) ++
                     get_admin_routes() ++
                     get_wallet_routes(WoodyOpts) ++
+                    get_identity_routes(WoodyOpts) ++
                     get_eventsink_routes() ++
                     [erl_health_handle:get_route(HealthCheckers)]
             }
@@ -140,6 +141,18 @@ get_wallet_routes(Opts) ->
         handlers => [{Path, {
             {ff_proto_wallet_thrift, 'Management'},
             {ff_wallet_handler, []}
+        }}],
+        event_handler => scoper_woody_event_handler,
+        handler_limits => Limits
+    })).
+
+get_identity_routes(Opts) ->
+    Path = <<"/v1/identity">>,
+    Limits = genlib_map:get(handler_limits, Opts),
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, {
+            {ff_proto_identity_thrift, 'Management'},
+            {ff_identity_handler, []}
         }}],
         event_handler => scoper_woody_event_handler,
         handler_limits => Limits

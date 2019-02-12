@@ -115,6 +115,7 @@ start_processing_apps(Options) ->
 
     AdminRoutes = get_admin_routes(),
     WalletRoutes = get_wallet_routes(),
+    IdentityRoutes = get_identity_routes(),
     EventsinkRoutes = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
@@ -122,7 +123,7 @@ start_processing_apps(Options) ->
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => AdminRoutes ++ WalletRoutes ++ Routes ++ EventsinkRoutes
+            additional_routes => AdminRoutes ++ IdentityRoutes ++ WalletRoutes ++ Routes ++ EventsinkRoutes
         }
     )),
     Processing = #{
@@ -157,6 +158,13 @@ get_admin_routes() ->
     Path = <<"/v1/admin">>,
     woody_server_thrift_http_handler:get_routes(#{
         handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
+        event_handler => scoper_woody_event_handler
+    }).
+
+get_identity_routes() ->
+    Path = <<"/v1/identity">>,
+    woody_server_thrift_http_handler:get_routes(#{
+        handlers => [{Path, {{ff_proto_identity_thrift, 'Management'}, {ff_identity_handler, []}}}],
         event_handler => scoper_woody_event_handler
     }).
 

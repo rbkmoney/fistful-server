@@ -37,6 +37,7 @@ wrap_({binary, V}) when is_binary(V) ->
     {bin, V};
 wrap_(V) when is_list(V) ->
     {arr, [wrap_(ListItem) || ListItem <- V]};
+wrap_(V) when map_size(V) == 0 -> {obj, #{}};
 wrap_(V) when is_map(V) ->
     {obj, maps:fold(fun(Key, Value, Map) -> Map#{wrap_(Key) => wrap_(Value)} end, #{}, V)}.
 

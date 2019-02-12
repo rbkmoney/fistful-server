@@ -45,6 +45,8 @@
 -export([get_reports/2]).
 -export([download_file/3]).
 
+-export([list_deposits/2]).
+
 %% Types
 
 -type ctx()         :: wapi_handler:context().
@@ -457,6 +459,18 @@ download_file(FileID, ExpiresAt, Context) ->
             Result
     end.
 
+%% Deposits
+
+-spec list_deposits(params(), ctx()) ->
+    {ok, result_stat()} | {error, result_stat()}.
+list_deposits(Params, Context) ->
+    StatType = deposit_stat,
+    Dsl = create_stat_dsl(StatType, Params, Context),
+    ContinuationToken = maps:get(continuationToken, Params, undefined),
+    Req = create_stat_request(Dsl, ContinuationToken),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', [Req]}, Context),
+    process_stat_result(StatType, Result).
+
 %% Internal functions
 
 filter_identity_challenge_status(Filter, Status) ->
@@ -662,6 +676,22 @@ create_stat_dsl(withdrawal_stat, Req, Context) ->
     },
     QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
     jsx:encode(create_dsl(withdrawals, Query, QueryParams));
+create_stat_dsl(deposit_stat, Req, Context) ->
+    Query = #{
+        <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
+        <<"wallet_id"       >> => genlib_map:get(walletID, Req),
+        <<"identity_id"     >> => genlib_map:get(identityID, Req),
+        <<"deposit_id"      >> => genlib_map:get(depositID, Req),
+        <<"source_id"       >> => genlib_map:get(sourceID, Req),
+        <<"status"          >> => genlib_map:get(status, Req),
+        <<"from_time"       >> => get_time(createdAtFrom, Req),
+        <<"to_time"         >> => get_time(createdAtTo, Req),
+        <<"amount_from"     >> => genlib_map:get(amountFrom, Req),
+        <<"amount_to"       >> => genlib_map:get(amountTo, Req),
+        <<"currency_code"   >> => genlib_map:get(currencyID, Req)
+    },
+    QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
+    jsx:encode(create_dsl(deposits, Query, QueryParams));
 create_stat_dsl(wallet_stat, Req, Context) ->
     Query = #{
         <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
@@ -725,15 +755,30 @@ decode_stat(withdrawal_stat, Response) ->
         <<"createdAt"   >> => Response#fistfulstat_StatWithdrawal.created_at,
         <<"wallet"      >> => Response#fistfulstat_StatWithdrawal.source_id,
         <<"destination" >> => Response#fistfulstat_StatWithdrawal.destination_id,
-        <<"body"        >> => decode_withdrawal_cash(
+        <<"body"        >> => decode_stat_cash(
             Response#fistfulstat_StatWithdrawal.amount,
             Response#fistfulstat_StatWithdrawal.currency_symbolic_code
         ),
-        <<"fee"         >> => decode_withdrawal_cash(
+        <<"fee"         >> => decode_stat_cash(
             Response#fistfulstat_StatWithdrawal.fee,
             Response#fistfulstat_StatWithdrawal.currency_symbolic_code
         )
     }, decode_withdrawal_stat_status(Response#fistfulstat_StatWithdrawal.status));
+decode_stat(deposit_stat, Response) ->
+    merge_and_compact(#{
+        <<"id"          >> => Response#fistfulstat_StatDeposit.id,
+        <<"createdAt"   >> => Response#fistfulstat_StatDeposit.created_at,
+        <<"wallet"      >> => Response#fistfulstat_StatDeposit.destination_id,
+        <<"source"      >> => Response#fistfulstat_StatDeposit.source_id,
+        <<"body"        >> => decode_stat_cash(
+            Response#fistfulstat_StatDeposit.amount,
+            Response#fistfulstat_StatDeposit.currency_symbolic_code
+        ),
+        <<"fee"         >> => decode_stat_cash(
+            Response#fistfulstat_StatDeposit.fee,
+            Response#fistfulstat_StatDeposit.currency_symbolic_code
+        )
+    }, decode_deposit_stat_status(Response#fistfulstat_StatDeposit.status));
 decode_stat(wallet_stat, Response) ->
     genlib_map:compact(#{
         <<"id"          >> => Response#fistfulstat_StatWallet.id,
@@ -743,7 +788,7 @@ decode_stat(wallet_stat, Response) ->
         <<"currency"    >> => Response#fistfulstat_StatWallet.currency_symbolic_code
     }).
 
-decode_withdrawal_cash(Amount, Currency) ->
+decode_stat_cash(Amount, Currency) ->
     #{<<"amount">> => Amount, <<"currency">> => Currency}.
 
 decode_withdrawal_stat_status({pending, #fistfulstat_WithdrawalPending{}}) ->
@@ -754,7 +799,19 @@ decode_withdrawal_stat_status({failed, #fistfulstat_WithdrawalFailed{failure = F
     #{
         <<"status">> => <<"Failed">>,
         <<"failure">> => #{
-            <<"code">> => to_swag(stat_withdrawal_status_failure, Failure)
+            <<"code">> => to_swag(stat_status_failure, Failure)
+        }
+    }.
+
+decode_deposit_stat_status({pending, #fistfulstat_DepositPending{}}) ->
+    #{<<"status">> => <<"Pending">>};
+decode_deposit_stat_status({succeeded, #fistfulstat_DepositSucceeded{}}) ->
+    #{<<"status">> => <<"Succeeded">>};
+decode_deposit_stat_status({failed, #fistfulstat_DepositFailed{failure = Failure}}) ->
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => #{
+            <<"code">> => to_swag(stat_status_failure, Failure)
         }
     }.
 
@@ -1044,7 +1101,7 @@ to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
     to_swag(domain_failure, Failure);
 to_swag(withdrawal_status_failure, Failure) ->
     to_swag(domain_failure, map_internal_error(Failure));
-to_swag(stat_withdrawal_status_failure, Failure) ->
+to_swag(stat_status_failure, Failure) ->
     to_swag(domain_failure, map_fistful_stat_error(Failure));
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{

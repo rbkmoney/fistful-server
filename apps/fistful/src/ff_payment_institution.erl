@@ -28,7 +28,7 @@
 
 -export([ref/1]).
 -export([get/1]).
--export([compute_withdrawal_provider/2]).
+-export([compute_withdrawal_providers/2]).
 -export([compute_system_accounts/2]).
 
 %% Pipeline
@@ -59,16 +59,16 @@ get(ID) ->
         decode(ID, PaymentInstitution)
     end).
 
--spec compute_withdrawal_provider(payment_institution(), hg_selector:varset()) ->
-    {ok, ff_payouts_provider:id()} | {error, term()}.
+-spec compute_withdrawal_providers(payment_institution(), hg_selector:varset()) ->
+    {ok, [ff_payouts_provider:id()]} | {error, term()}.
 
-compute_withdrawal_provider(#{providers := ProviderSelector}, VS) ->
-    do(fun() ->
-        Providers = unwrap(hg_selector:reduce_to_value(ProviderSelector, VS)),
-        %% TODO choose wizely one of them
-        [#domain_WithdrawalProviderRef{id = ProviderID} | _] = Providers,
-        ProviderID
-    end).
+compute_withdrawal_providers(#{providers := ProviderSelector}, VS) ->
+    case hg_selector:reduce_to_value(ProviderSelector, VS) of
+        {ok, Providers} ->
+            {ok, [ProviderID || #domain_WithdrawalProviderRef{id = ProviderID} <- Providers]};
+        Error ->
+            Error
+    end.
 
 -spec compute_system_accounts(payment_institution(), hg_selector:varset()) ->
     {ok, system_accounts()} | {error, term()}.

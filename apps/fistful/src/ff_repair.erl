@@ -38,9 +38,9 @@ apply_scenario(Mod, Machine, Scenario) ->
 
 -spec apply_scenario(module(), machine(), scenario(), processors()) ->
     result().
-apply_scenario(Mod, Machine, Scenario, Processors) ->
+apply_scenario(Mod, Machine, Scenario, ScenarioProcessors) ->
     {ScenarioID, ScenarioArgs} = unwrap_scenario(Scenario),
-    AllProcessors = add_default_processors(Processors),
+    AllProcessors = add_default_processors(ScenarioProcessors),
     case maps:find(ScenarioID, AllProcessors) of
         {ok, Processor} ->
             Result = apply_processor(Processor, ScenarioArgs, Machine),

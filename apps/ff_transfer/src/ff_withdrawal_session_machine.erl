@@ -122,13 +122,13 @@ process_call(_CallArgs, #{}, _, _Opts) ->
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     result().
 process_repair(Scenario, Machine, _Args, _Opts) ->
-    Scenarios = #{
+    ScenarioProcessors = #{
         set_session_result => fun(Args, RMachine) ->
             State = ff_machine:collapse(ff_withdrawal_session, RMachine),
             ff_withdrawal_session:set_session_result(Args, session(State))
         end
     },
-    ff_repair:apply_scenario(ff_withdrawal_session, Machine, Scenario, Scenarios).
+    ff_repair:apply_scenario(ff_withdrawal_session, Machine, Scenario, ScenarioProcessors).
 
 %%
 %% Internals

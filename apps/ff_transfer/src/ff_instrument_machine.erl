@@ -138,8 +138,8 @@ process_call(_CallArgs, #{}, _, _Opts) ->
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     result().
 
-process_repair(RepairArgs, Machine, _Args, _Opts) ->
-    ff_repair:apply_repair(ff_instrument, Machine, RepairArgs).
+process_repair(Scenario, Machine, _Args, _Opts) ->
+    ff_repair:apply_scenario(ff_instrument, Machine, Scenario).
 
 -spec events(ns(), id(), machinery:range()) ->
     {ok, events(_)} |

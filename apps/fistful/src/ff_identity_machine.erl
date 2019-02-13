@@ -192,8 +192,8 @@ process_call({start_challenge, Params}, Machine, _Args, _Opts) ->
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     result().
 
-process_repair(RepairArgs, Machine, _Args, _Opts) ->
-    ff_repair:apply_repair(ff_identity, Machine, RepairArgs).
+process_repair(Scenario, Machine, _Args, _Opts) ->
+    ff_repair:apply_scenario(ff_identity, Machine, Scenario).
 
 do_start_challenge(Params, St) ->
     Identity = identity(St),

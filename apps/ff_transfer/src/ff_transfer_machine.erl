@@ -165,8 +165,8 @@ process_call(CallArgs, Machine, _, _Opts) ->
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     result().
 
-process_repair(RepairArgs, Machine, _Args, _Opts) ->
-    ff_repair:apply_repair(ff_transfer, Machine, RepairArgs).
+process_repair(Scenario, Machine, _Args, _Opts) ->
+    ff_repair:apply_scenario(ff_transfer, Machine, Scenario).
 
 process_result({ok, {Action, Events}}, St) ->
     genlib_map:compact(#{

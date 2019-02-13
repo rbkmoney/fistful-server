@@ -135,5 +135,5 @@ process_call(_CallArgs, #{}, _, _Opts) ->
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     result().
 
-process_repair(RepairArgs, Machine, _Args, _Opts) ->
-    ff_repair:apply_repair(ff_wallet, Machine, RepairArgs).
+process_repair(Scenario, Machine, _Args, _Opts) ->
+    ff_repair:apply_scenario(ff_wallet, Machine, Scenario).

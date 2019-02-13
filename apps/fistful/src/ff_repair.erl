@@ -1,7 +1,7 @@
 -module(ff_repair).
 
--export([apply_repair/3]).
--export([apply_repair/4]).
+-export([apply_scenario/3]).
+-export([apply_scenario/4]).
 
 %% Types
 
@@ -31,14 +31,14 @@
 
 %% API
 
--spec apply_repair(module(), machine(), scenario()) ->
+-spec apply_scenario(module(), machine(), scenario()) ->
     result().
-apply_repair(Mod, Machine, Scenario) ->
-    apply_repair(Mod, Machine, Scenario, #{}).
+apply_scenario(Mod, Machine, Scenario) ->
+    apply_scenario(Mod, Machine, Scenario, #{}).
 
--spec apply_repair(module(), machine(), scenario(), processors()) ->
+-spec apply_scenario(module(), machine(), scenario(), processors()) ->
     result().
-apply_repair(Mod, Machine, Scenario, Processors) ->
+apply_scenario(Mod, Machine, Scenario, Processors) ->
     {ScenarioID, ScenarioArgs} = unwrap_scenario(Scenario),
     AllProcessors = add_default_processors(Processors),
     case maps:find(ScenarioID, AllProcessors) of

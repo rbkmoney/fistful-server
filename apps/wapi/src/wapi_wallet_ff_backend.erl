@@ -3,8 +3,8 @@
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
--include_lib("fistful_reporter_proto/include/fistful_reporter_fistful_reporter_thrift.hrl").
--include_lib("file_storage_proto/include/file_storage_file_storage_thrift.hrl").
+-include_lib("file_storage_proto/include/file_storage_thrift.hrl").
+-include_lib("fistful_reporter_proto/include/fistful_reporter_thrift.hrl").
 
 %% API
 -export([get_providers/2]).

@@ -3,8 +3,8 @@
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
--include_lib("file_storage_proto/include/file_storage_thrift.hrl").
--include_lib("fistful_reporter_proto/include/fistful_reporter_thrift.hrl").
+-include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
+-include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
 
 %% API
 -export([get_providers/2]).
@@ -410,7 +410,7 @@ create_report(#{
             get_report(ReportID, ContractID, Context);
         {exception, #'InvalidRequest'{}} ->
             {error, invalid_request};
-        {exception, #fistful_reporter_ContractNotFound{}} ->
+        {exception, #ff_reports_ContractNotFound{}} ->
             {error, invalid_contract}
     end.
 
@@ -422,7 +422,7 @@ get_report(ReportID, IdentityID, Context) ->
     case wapi_handler_utils:service_call(Call, Context) of
         {ok, Report} ->
             do(fun () -> to_swag(report_object, Report) end);
-        {exception, #fistful_reporter_ReportNotFound{}} ->
+        {exception, #ff_reports_ReportNotFound{}} ->
             {error, notfound}
     end.
 
@@ -444,7 +444,7 @@ get_reports(#{
             do(fun () -> to_swag({list, report_object}, ReportList) end);
         {exception, #'InvalidRequest'{}} ->
             {error, invalid_request};
-        {exception, #fistful_reporter_DatasetTooBig{limit = Limit}} ->
+        {exception, #ff_reports_DatasetTooBig{limit = Limit}} ->
             {error, {dataset_too_big, Limit}}
     end.
 
@@ -643,10 +643,10 @@ create_report_request(#{
     from_time    := FromTime,
     to_time      := ToTime
 }) ->
-    #'fistful_reporter_ReportRequest'{
+    #'ff_reports_ReportRequest'{
         party_id    = PartyID,
         contract_id = ContractID,
-        time_range  = #'fistful_reporter_ReportTimeRange'{
+        time_range  = #'ff_reports_ReportTimeRange'{
             from_time = FromTime,
             to_time   = ToTime
         }
@@ -1132,7 +1132,7 @@ to_swag(is_blocked, {ok, accessible}) ->
     false;
 to_swag(is_blocked, _) ->
     true;
-to_swag(report_object, #fistful_reporter_Report{
+to_swag(report_object, #ff_reports_Report{
     report_id = ReportID,
     time_range = TimeRange,
     created_at = CreatedAt,
@@ -1142,8 +1142,8 @@ to_swag(report_object, #fistful_reporter_Report{
 }) ->
     to_swag(map, #{
         <<"id">>        => ReportID,
-        <<"fromTime">>  => to_swag(timestamp, TimeRange#fistful_reporter_ReportTimeRange.from_time),
-        <<"toTime">>    => to_swag(timestamp, TimeRange#fistful_reporter_ReportTimeRange.to_time),
+        <<"fromTime">>  => to_swag(timestamp, TimeRange#ff_reports_ReportTimeRange.from_time),
+        <<"toTime">>    => to_swag(timestamp, TimeRange#ff_reports_ReportTimeRange.to_time),
         <<"createdAt">> => to_swag(timestamp, CreatedAt),
         <<"status">>    => to_swag(report_status, Status),
         <<"type">>      => Type,

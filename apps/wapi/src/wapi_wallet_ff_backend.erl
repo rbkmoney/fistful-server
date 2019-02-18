@@ -981,17 +981,6 @@ to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
             <<"currency">> => EncodedCurrency
         }
     };
-to_swag(wallet_state, Wallet) ->
-    Account = Wallet#wlt_WalletState.account,
-    to_swag(map, #{
-        <<"id">>         => Wallet#wlt_WalletState.id,
-        <<"name">>       => Wallet#wlt_WalletState.name,
-        <<"createdAt">>  => <<"2017-04-19T13:56:07Z">>,
-        <<"isBlocked">>  => false,
-        <<"identity">>   => Account#account_Account.identity,
-        <<"currency">>   => <<"RUB">>, %to_swag(currency, Account#account_Account.currency),
-        <<"metadata">>   => #{<<"metadata">> => <<"metadata">>}
-    });
 to_swag(destination, State) ->
     Destination = ff_destination:get(State),
     WapiCtx = get_ctx(State),

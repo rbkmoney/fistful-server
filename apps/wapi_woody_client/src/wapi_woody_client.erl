@@ -80,9 +80,7 @@ get_service_modname(fistful_stat) ->
 get_service_modname(fistful_report) ->
     {fistful_reporter_fistful_reporter_thrift, 'Reporting'};
 get_service_modname(file_storage) ->
-    {file_storage_file_storage_thrift, 'FileStorage'};
-get_service_modname(fistful_wallet) ->
-    {ff_proto_wallet_thrift, 'Management'}.
+    {file_storage_file_storage_thrift, 'FileStorage'}.
 %% get_service_modname(webhook_manager) ->
 %%     {dmsl_webhooker_thrift, 'WebhookManager'}.
 

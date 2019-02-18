@@ -69,12 +69,12 @@ groups() ->
 -spec init_per_suite(config()) ->
     config().
 init_per_suite(Config) ->
-    Config1 = [{apps, wapi_ct_helper:start_wapi(Config)} | Config],
     %% TODO remove this after cut off wapi
-    ct_helper:makeup_cfg([
+    Config1 = ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{})
-    ], Config1).
+    ], Config),
+    [{apps, wapi_ct_helper:start_wapi(Config1)} | Config1].
 
 -spec end_per_suite(config()) ->
     _.

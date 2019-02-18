@@ -438,7 +438,7 @@ get_reports(#{
         from_time    => get_time(fromTime, Params),
         to_time      => get_time(toTime, Params)
     }),
-    Call = {fistful_report, 'GetReports', [Req, [maps:get(type, Params)]]},
+    Call = {fistful_report, 'GetReports', [Req, [genlib:to_binary(maps:get(type, Params))]]},
     case wapi_handler_utils:service_call(Call, Context) of
         {ok, ReportList} ->
             do(fun () -> to_swag({list, report_object}, ReportList) end);

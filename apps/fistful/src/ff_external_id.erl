@@ -21,6 +21,7 @@
 
 -export([init/4]).
 -export([process_timeout/3]).
+-export([process_repair/4]).
 -export([process_call/4]).
 
 -define(NS, 'ff/external_id').
@@ -76,16 +77,20 @@ start_(EntityName, ID, Seq) ->
 -type machine()      :: machinery:machine(ev(), auxst()).
 -type result()       :: machinery:result(ev(), auxst()).
 -type handler_opts() :: machinery:handler_opts(_).
+-type handler_args() :: machinery:handler_args(_).
 -type id()           :: machinery:id().
 
--spec init(sequence(), machine(), _, handler_opts()) ->
+-spec init(sequence(), machine(), handler_args(), handler_opts()) ->
     result().
 
--spec process_timeout(machine(), _, handler_opts()) ->
+-spec process_timeout(machine(), handler_args(), handler_opts()) ->
     result().
 
--spec process_call(_, machine(), _, handler_opts()) ->
+-spec process_call(_, machine(), handler_args(), handler_opts()) ->
     {_, result()}.
+
+-spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
+    no_return().
 
 init(Data, #{}, _, _Opts) ->
     #{
@@ -97,6 +102,9 @@ process_timeout(#{}, _, _Opts) ->
 
 process_call(_, #{}, _, _Opts) ->
     {ok, #{}}.
+
+process_repair(_RepairArgs, _Machine, _Args, _Opts) ->
+    erlang:error({not_implemented, repair}).
 
 %%
 

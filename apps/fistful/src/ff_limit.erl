@@ -47,6 +47,7 @@
 
 -export([init/4]).
 -export([process_timeout/3]).
+-export([process_repair/4]).
 -export([process_call/4]).
 
 %% Types
@@ -159,6 +160,7 @@ find_bucket({Y, _, _}, year) ->
 -type machine(T)      :: machinery:machine(ev(T), auxst(T)).
 -type result(T)       :: machinery:result(ev(T), auxst(T)).
 -type handler_opts()  :: machinery:handler_opts(_).
+-type handler_args()  :: machinery:handler_args(_).
 
 -spec init(ord(T), machine(T), _, handler_opts()) ->
     result(T).
@@ -178,6 +180,9 @@ find_bucket({Y, _, _}, year) ->
         result(T)
     }.
 
+-spec process_repair(ff_repair:scenario(), machine(_), handler_args(), handler_opts()) ->
+    no_return().
+
 init(Seed, #{}, _, _Opts) ->
     #{
         events    => [{seed, Seed}],
@@ -193,6 +198,9 @@ process_call({confirm, Trx}, #{aux_state := St}, _, _Opts) ->
     process_confirm(Trx, St);
 process_call({reject, Trx}, #{aux_state := St}, _, _Opts) ->
     process_reject(Trx, St).
+
+process_repair(_RepairArgs, _Machine, _Args, _Opts) ->
+    erlang:error({not_implemented, repair}).
 
 process_account(Trx, Range, St0) ->
     case lookup_trx(get_trx_id(Trx), St0) of

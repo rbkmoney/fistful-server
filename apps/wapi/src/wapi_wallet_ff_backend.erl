@@ -245,29 +245,15 @@ get_wallet(WalletId, Context) ->
     {inaccessible, _}
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
-    ExternalID = construct_external_id(Params, Context),
-    ID = IdenityId,%make_id(wallet, ExternalID),
-    WalletParams = from_swag(wallet_params, Params),
-    Req = #wlt_WalletParams{
-        id = ID,
-        name = maps:get(name, WalletParams),
-        account_params = #account_AccountParams{
-            identity_id = IdenityId,
-            symbolic_code = maps:get(currency, WalletParams)
-        },
-        context = #{<<"test">> => {str, <<"test">>}}, %make_ctx(Context),
-        external_id = ExternalID
-    },
-    case wapi_handler_utils:service_call({fistful_wallet, 'Create', [Req]}, Context) of
-        {ok, Wallet} ->
-            do(fun() -> to_swag(wallet_state, Wallet) end);
-        {exception, #fistful_IdentityNotFound{}} ->
-            {error, {identity, notfound}};
-        {exception, #fistful_CurrencyNotFound{}} ->
-            {error, {currency, notfound}};
-        {exception, #fistful_PartyInaccessible{}} ->
-            {error, {inaccessible, some_reason}}
-    end.
+    CreateFun = fun(ID, EntityCtx) ->
+        _ = check_resource(identity, IdenityId, Context),
+        ff_wallet_machine:create(
+            ID,
+            from_swag(wallet_params, Params),
+            add_meta_to_ctx([], Params, EntityCtx)
+        )
+    end,
+    do(fun() -> unwrap(create_entity(wallet, Params, CreateFun, Context)) end).
 
 -spec get_wallet_account(id(), ctx()) -> result(map(),
     {wallet, notfound}     |
@@ -423,7 +409,7 @@ create_report(#{
     Call = {fistful_report, 'GenerateReport', [Req, maps:get(<<"reportType">>, ReportParams)]},
     case wapi_handler_utils:service_call(Call, Context) of
         {ok, ReportID} ->
-            get_report(ReportID, ContractID, Context);
+            get_report(contractID, ReportID, ContractID, Context);
         {exception, #'InvalidRequest'{}} ->
             {error, invalid_request};
         {exception, #fistful_reporter_ContractNotFound{}} ->
@@ -432,7 +418,12 @@ create_report(#{
 
 -spec get_report(integer(), binary(), ctx()) -> result().
 get_report(ReportID, IdentityID, Context) ->
+    get_report(identityID, ReportID, IdentityID, Context).
+
+get_report(identityID, ReportID, IdentityID, Context) ->
     ContractID = get_contract_id_from_identity(IdentityID, Context),
+    get_report(contractID, ReportID, ContractID, Context);
+get_report(contractID, ReportID, ContractID, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),
     Call = {fistful_report, 'GetReport', [PartyID, ContractID, ReportID]},
     case wapi_handler_utils:service_call(Call, Context) of
@@ -454,7 +445,7 @@ get_reports(#{
         from_time    => get_time(fromTime, Params),
         to_time      => get_time(toTime, Params)
     }),
-    Call = {fistful_report, 'GetReports', [Req, [maps:get(type, Params)]]},
+    Call = {fistful_report, 'GetReports', [Req, [genlib:to_binary(maps:get(type, Params))]]},
     case wapi_handler_utils:service_call(Call, Context) of
         {ok, ReportList} ->
             do(fun () -> to_swag({list, report_object}, ReportList) end);
@@ -1119,7 +1110,7 @@ to_swag(report_object, #fistful_reporter_Report{
         <<"createdAt">> => to_swag(timestamp, CreatedAt),
         <<"status">>    => to_swag(report_status, Status),
         <<"type">>      => Type,
-        <<"files">>     => to_swag(report_files, Files)
+        <<"files">>     => to_swag(report_files, {files, Files})
     });
 to_swag(report_status, pending) ->
     <<"pending">>;
@@ -1127,10 +1118,12 @@ to_swag(report_status, created) ->
     <<"created">>;
 to_swag(report_status, canceled) ->
     <<"canceled">>;
-to_swag(report_files, Files) ->
+to_swag(report_files, {files, undefined}) ->
+    [];
+to_swag(report_files, {files, Files}) ->
     to_swag({list, report_file}, Files);
 to_swag(report_file, File) ->
-    File;
+    #{<<"id">> => File};
 
 to_swag({list, Type}, List) ->
     lists:map(fun(V) -> to_swag(Type, V) end, List);

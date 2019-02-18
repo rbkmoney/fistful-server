@@ -64,7 +64,10 @@ init_per_suite(C) ->
      ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
-            default_termset => get_default_termset()
+            default_termset => get_default_termset(),
+            optional_apps => [
+                wapi
+            ]
         })
     ], C).
 

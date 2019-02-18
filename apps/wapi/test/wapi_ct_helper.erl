@@ -7,6 +7,7 @@
 -export([init_suite/2]).
 -export([start_app/1]).
 -export([start_app/2]).
+-export([start_wapi/1]).
 -export([issue_token/2]).
 -export([issue_token/3]).
 -export([get_context/1]).
@@ -54,7 +55,8 @@ start_app(lager = AppName) ->
         {async_threshold, 1},
         {async_threshold_window, 0},
         {error_logger_hwm, 600},
-        {suppress_application_start_stop, true},
+        {suppress_application_start_stop, false},
+        {suppress_supervisor_start_stop, false},
         {handlers, [
             {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
         ]}
@@ -79,6 +81,8 @@ start_app(AppName) ->
 start_app(AppName, Env) ->
     genlib_app:start_application_with(AppName, Env).
 
+-spec start_wapi(config()) ->
+    [app_name()].
 start_wapi(Config) ->
     start_app(wapi, [
         {ip, ?WAPI_IP},
@@ -158,7 +162,12 @@ mock_services(Services, SupOrConfig) ->
     start_woody_client(mock_services_(Services, SupOrConfig)).
 
 start_woody_client(ServiceURLs) ->
-    start_app(wapi_woody_client, [{service_urls, ServiceURLs}]).
+    ok = application:set_env(
+        wapi,
+        service_urls,
+        ServiceURLs
+    ),
+    start_app(wapi_woody_client, []).
 
 -spec mock_services_(_, _) ->
     _.

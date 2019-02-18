@@ -67,7 +67,7 @@ apply_retry_step({wait, Timeout, Retry}, Deadline0, Error) ->
     end.
 
 get_service_url(ServiceName) ->
-    maps:get(ServiceName, genlib_app:env(?MODULE, service_urls)).
+    maps:get(ServiceName, genlib_app:env(?APP, service_urls)).
 
 -spec get_service_modname(service_name()) -> woody:service().
 
@@ -78,9 +78,9 @@ get_service_modname(identdoc_storage) ->
 get_service_modname(fistful_stat) ->
     {ff_proto_fistful_stat_thrift, 'FistfulStatistics'};
 get_service_modname(fistful_report) ->
-    {fistful_reporter_thrift, 'Reporting'};
+    {fistful_reporter_fistful_reporter_thrift, 'Reporting'};
 get_service_modname(file_storage) ->
-    {file_storage_thrift, 'FileStorage'};
+    {file_storage_file_storage_thrift, 'FileStorage'};
 get_service_modname(fistful_wallet) ->
     {ff_proto_wallet_thrift, 'Management'}.
 %% get_service_modname(webhook_manager) ->

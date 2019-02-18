@@ -361,10 +361,10 @@ process_request('CreateReport', Params, Context, _Opts) ->
             })
     end;
 process_request('GetReport', #{
-    contractID := ContractId,
+    identityID := IdentityID,
     reportID   := ReportId
 }, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_report(ReportId, ContractId, Context) of
+    case wapi_wallet_ff_backend:get_report(ReportId, IdentityID, Context) of
         {ok, Report}      -> wapi_handler_utils:reply_ok(200, Report);
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
     end;

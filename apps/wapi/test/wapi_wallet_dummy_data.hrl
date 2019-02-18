@@ -36,6 +36,24 @@
     account = ?ACCOUNT
 }).
 
+-define(REPORT_ID, ?INTEGER).
+
+-define(REPORT, #fistful_reporter_Report{
+    report_id = ?INTEGER,
+    time_range = #fistful_reporter_ReportTimeRange{
+        from_time = ?TIMESTAMP,
+        to_time = ?TIMESTAMP
+    },
+    created_at = ?TIMESTAMP,
+    report_type = <<"withdrawalRegistry">>,
+    status = created,
+    file_data_ids = [
+        ?STRING,
+        ?STRING,
+        ?STRING
+    ]
+}).
+
 -define(SNAPSHOT, #'Snapshot'{
     version = ?INTEGER,
     domain = #{

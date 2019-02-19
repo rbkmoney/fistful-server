@@ -391,67 +391,87 @@ get_currency(CurrencyId, _Context) ->
 
 %% Reports
 
--spec create_report(params(), ctx()) ->
-    result(map(), invalid_request | invalid_contract).
+-spec create_report(params(), ctx()) -> result(map(),
+    {identity, unauthorized}    |
+    {identity, notfound}        |
+    invalid_request             |
+    invalid_contract
+).
 create_report(#{
     identityID     := IdentityID,
     'ReportParams' := ReportParams
 }, Context) ->
-    ContractID = get_contract_id_from_identity(IdentityID, Context),
-    Req = create_report_request(#{
-        party_id     => wapi_handler_utils:get_owner(Context),
-        contract_id  => ContractID,
-        from_time    => get_time(<<"fromTime">>, ReportParams),
-        to_time      => get_time(<<"toTime">>, ReportParams)
-    }),
-    Call = {fistful_report, 'GenerateReport', [Req, maps:get(<<"reportType">>, ReportParams)]},
-    case wapi_handler_utils:service_call(Call, Context) of
-        {ok, ReportID} ->
-            get_report(contractID, ReportID, ContractID, Context);
-        {exception, #'InvalidRequest'{}} ->
-            {error, invalid_request};
-        {exception, #ff_reports_ContractNotFound{}} ->
-            {error, invalid_contract}
-    end.
+    do(fun () ->
+        ContractID = get_contract_id_from_identity(IdentityID, Context),
+        Req = create_report_request(#{
+            party_id     => wapi_handler_utils:get_owner(Context),
+            contract_id  => ContractID,
+            from_time    => get_time(<<"fromTime">>, ReportParams),
+            to_time      => get_time(<<"toTime">>, ReportParams)
+        }),
+        Call = {fistful_report, 'GenerateReport', [Req, maps:get(<<"reportType">>, ReportParams)]},
+        case wapi_handler_utils:service_call(Call, Context) of
+            {ok, ReportID} ->
+                unwrap(get_report(contractID, ReportID, ContractID, Context));
+            {exception, #'InvalidRequest'{}} ->
+                throw(invalid_request);
+            {exception, #ff_reports_ContractNotFound{}} ->
+                throw(invalid_contract)
+        end
+    end).
 
--spec get_report(integer(), binary(), ctx()) -> result().
+-spec get_report(integer(), binary(), ctx()) -> result(map(),
+    {identity, unauthorized}    |
+    {identity, notfound}        |
+    notfound
+).
 get_report(ReportID, IdentityID, Context) ->
     get_report(identityID, ReportID, IdentityID, Context).
 
 get_report(identityID, ReportID, IdentityID, Context) ->
-    ContractID = get_contract_id_from_identity(IdentityID, Context),
-    get_report(contractID, ReportID, ContractID, Context);
+    do(fun () ->
+        ContractID = get_contract_id_from_identity(IdentityID, Context),
+        unwrap(get_report(contractID, ReportID, ContractID, Context))
+    end);
 get_report(contractID, ReportID, ContractID, Context) ->
-    PartyID = wapi_handler_utils:get_owner(Context),
-    Call = {fistful_report, 'GetReport', [PartyID, ContractID, ReportID]},
-    case wapi_handler_utils:service_call(Call, Context) of
-        {ok, Report} ->
-            do(fun () -> to_swag(report_object, Report) end);
-        {exception, #ff_reports_ReportNotFound{}} ->
-            {error, notfound}
-    end.
+    do(fun () ->
+        PartyID = wapi_handler_utils:get_owner(Context),
+        Call = {fistful_report, 'GetReport', [PartyID, ContractID, ReportID]},
+        case wapi_handler_utils:service_call(Call, Context) of
+            {ok, Report} ->
+                to_swag(report_object, Report);
+            {exception, #ff_reports_ReportNotFound{}} ->
+                throw(notfound)
+        end
+    end).
 
--spec get_reports(params(), ctx()) ->
-    result(map(), invalid_request | {dataset_too_big, integer()}).
+-spec get_reports(params(), ctx()) -> result(map(),
+    {identity, unauthorized}    |
+    {identity, notfound}        |
+    invalid_request             |
+    {dataset_too_big, integer()}
+).
 get_reports(#{
     identityID   := IdentityID
 } = Params, Context) ->
-    ContractID = get_contract_id_from_identity(IdentityID, Context),
-    Req = create_report_request(#{
-        party_id     => wapi_handler_utils:get_owner(Context),
-        contract_id  => ContractID,
-        from_time    => get_time(fromTime, Params),
-        to_time      => get_time(toTime, Params)
-    }),
-    Call = {fistful_report, 'GetReports', [Req, [genlib:to_binary(maps:get(type, Params))]]},
-    case wapi_handler_utils:service_call(Call, Context) of
-        {ok, ReportList} ->
-            do(fun () -> to_swag({list, report_object}, ReportList) end);
-        {exception, #'InvalidRequest'{}} ->
-            {error, invalid_request};
-        {exception, #ff_reports_DatasetTooBig{limit = Limit}} ->
-            {error, {dataset_too_big, Limit}}
-    end.
+    do(fun () ->
+        ContractID = get_contract_id_from_identity(IdentityID, Context),
+        Req = create_report_request(#{
+            party_id     => wapi_handler_utils:get_owner(Context),
+            contract_id  => ContractID,
+            from_time    => get_time(fromTime, Params),
+            to_time      => get_time(toTime, Params)
+        }),
+        Call = {fistful_report, 'GetReports', [Req, [genlib:to_binary(maps:get(type, Params))]]},
+        case wapi_handler_utils:service_call(Call, Context) of
+            {ok, ReportList} ->
+                to_swag({list, report_object}, ReportList);
+            {exception, #'InvalidRequest'{}} ->
+                throw(invalid_request);
+            {exception, #ff_reports_DatasetTooBig{limit = Limit}} ->
+                throw({dataset_too_big, Limit})
+        end
+    end).
 
 -spec download_file(binary(), binary(), ctx()) -> result().
 download_file(FileID, ExpiresAt, Context) ->

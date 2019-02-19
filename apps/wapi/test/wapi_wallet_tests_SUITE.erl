@@ -24,6 +24,7 @@
     create_report_ok_test/1,
     get_report_ok_test/1,
     get_reports_ok_test/1,
+    reports_with_wrong_identity_ok_test/1,
     download_file_ok_test/1
 ]).
 
@@ -57,6 +58,7 @@ groups() ->
                 create_report_ok_test,
                 get_report_ok_test,
                 get_reports_ok_test,
+                reports_with_wrong_identity_ok_test,
                 download_file_ok_test
             ]
         }
@@ -75,12 +77,10 @@ init_per_suite(Config) ->
             optional_apps => [wapi]
         })
     ], Config).
-    % [{apps, wapi_ct_helper:start_wapi(Config1)} | Config1].
 
 -spec end_per_suite(config()) ->
     _.
 end_per_suite(C) ->
-    [application:stop(App) || App <- proplists:get_value(apps, C)],
     %% TODO remove this after cut off wapi
     ok = ct_payment_system:shutdown(C).
 
@@ -165,9 +165,60 @@ get_reports_ok_test(C) ->
     {ok, Identity} = create_identity(C),
     IdentityID = maps:get(<<"id">>, Identity),
     wapi_ct_helper:mock_services([{fistful_report, fun
-        ('GetReports', _) -> {ok, [?REPORT, ?REPORT, ?REPORT]}
+        ('GetReports', _) -> {ok, [
+            ?REPORT_EXT(pending, []),
+            ?REPORT_EXT(created, undefined),
+            ?REPORT_WITH_STATUS(canceled)]}
     end}], C),
     {ok, _} = call_api(
+        fun swag_client_wallet_reports_api:get_reports/3,
+        #{
+            binding => #{
+                <<"identityID">> => IdentityID
+            },
+            qs_val => #{
+                <<"fromTime">> => ?TIMESTAMP,
+                <<"toTime">> => ?TIMESTAMP,
+                <<"type">> => <<"withdrawalRegistry">>
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec reports_with_wrong_identity_ok_test(config()) ->
+    _.
+reports_with_wrong_identity_ok_test(C) ->
+    IdentityID = <<"WrongIdentity">>,
+    wapi_ct_helper:mock_services([{fistful_report, fun
+        ('GenerateReport', _) -> {ok, ?REPORT_ID};
+        ('GetReport', _) -> {ok, ?REPORT};
+        ('GetReports', _) -> {ok, [?REPORT, ?REPORT, ?REPORT]}
+    end}], C),
+    ?emptyresp(400) = call_api(
+        fun swag_client_wallet_reports_api:create_report/3,
+        #{
+            binding => #{
+                <<"identityID">> => IdentityID
+            },
+            body => #{
+                <<"reportType">> => <<"withdrawalRegistry">>,
+                <<"fromTime">> => ?TIMESTAMP,
+                <<"toTime">> => ?TIMESTAMP
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    ?emptyresp(400) = call_api(
+        fun swag_client_wallet_reports_api:get_report/3,
+        #{
+            binding => #{
+                <<"identityID">> => IdentityID,
+                <<"reportID">> => ?INTEGER
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    ?emptyresp(400) = call_api(
         fun swag_client_wallet_reports_api:get_reports/3,
         #{
             binding => #{

@@ -38,7 +38,7 @@
 
 -define(REPORT_ID, ?INTEGER).
 
--define(REPORT, #ff_reports_Report{
+-define(REPORT_EXT(Status, FilesList), #ff_reports_Report{
     report_id = ?INTEGER,
     time_range = #ff_reports_ReportTimeRange{
         from_time = ?TIMESTAMP,
@@ -46,13 +46,13 @@
     },
     created_at = ?TIMESTAMP,
     report_type = <<"withdrawalRegistry">>,
-    status = created,
-    file_data_ids = [
-        ?STRING,
-        ?STRING,
-        ?STRING
-    ]
+    status = Status,
+    file_data_ids = FilesList
 }).
+
+-define(REPORT_WITH_STATUS(Status), ?REPORT_EXT(Status, [?STRING, ?STRING,?STRING])).
+
+-define(REPORT, ?REPORT_WITH_STATUS(created)).
 
 -define(SNAPSHOT, #'Snapshot'{
     version = ?INTEGER,

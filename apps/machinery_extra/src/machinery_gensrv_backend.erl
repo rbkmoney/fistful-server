@@ -37,6 +37,7 @@
 
 -export([start/4]).
 -export([call/5]).
+-export([repair/5]).
 -export([get/4]).
 
 %% Gen Server
@@ -100,6 +101,12 @@ call(NS, ID, Range, Args, _Opts) ->
         exit:{noproc, {gen_server, call, _}} ->
             report_notfound(NS, ID)
     end.
+
+-spec repair(namespace(), id(), range(), args(_), backend_opts()) ->
+    no_return().
+repair(_NS, _ID, _Range, _Args, _Opts) ->
+    % Machine state has been removed after machine process failed. Nothing to repair.
+    erlang:error({not_implemented, repair}).
 
 -spec get(namespace(), id(), range(), backend_opts()) ->
     {ok, machine(_, _)} | {error, notfound}.

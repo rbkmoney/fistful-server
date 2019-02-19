@@ -15,6 +15,8 @@
     domain_config => list(),
     default_termset => dmsl_domain_thrift:'TermSet'(),
     company_termset => dmsl_domain_thrift:'TermSet'(),
+    payment_inst_identity_id => id(),
+    provider_identity_id => id(),
     optional_apps => list()
 }.
 -opaque system() :: #{
@@ -49,7 +51,11 @@ shutdown(C) ->
 %% Internals
 
 -spec do_setup(options(), config()) -> config().
-do_setup(Options, C0) ->
+do_setup(Options0, C0) ->
+    Options = Options0#{
+        payment_inst_identity_id => genlib:unique(),
+        provider_identity_id => genlib:unique()
+    },
     {ok, Processing0} = start_processing_apps(Options),
     C1 = ct_helper:makeup_cfg([ct_helper:woody_ctx()], [{services, services(Options)} | C0]),
     ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
@@ -109,6 +115,7 @@ start_processing_apps(Options) ->
 
     AdminRoutes = get_admin_routes(),
     WalletRoutes = get_wallet_routes(),
+    RepairRoutes = get_repair_routes(),
     EventsinkRoutes = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
@@ -116,7 +123,13 @@ start_processing_apps(Options) ->
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => AdminRoutes ++ WalletRoutes ++ Routes ++ EventsinkRoutes
+            additional_routes => lists:flatten([
+                Routes,
+                AdminRoutes,
+                WalletRoutes,
+                EventsinkRoutes,
+                RepairRoutes
+            ])
         }
     )),
     Processing = #{
@@ -134,7 +147,7 @@ start_optional_apps(_)->
 setup_dominant(Options, C) ->
     ok = ct_domain_config:upsert(domain_config(Options, C)).
 
-configure_processing_apps(_Options) ->
+configure_processing_apps(Options) ->
     ok = set_app_env(
         [ff_transfer, withdrawal, system, accounts, settlement, <<"RUB">>],
         create_company_account()
@@ -146,7 +159,8 @@ configure_processing_apps(_Options) ->
     ok = set_app_env(
         [ff_transfer, withdrawal, provider, <<"mocketbank">>, accounts, <<"RUB">>],
         create_company_account()
-    ).
+    ),
+    ok = create_crunch_identity(Options).
 
 construct_handler(Module, Suffix, BeConf) ->
     {{fistful, Module},
@@ -202,6 +216,26 @@ get_eventsink_routes(BeConf) ->
         DepositRoute
     ]).
 
+get_repair_routes() ->
+    Handlers = [
+        {
+            <<"withdrawal/session">>,
+            {{ff_proto_withdrawal_session_thrift, 'Repairer'}, {ff_withdrawal_session_repair, #{}}}
+        }
+    ],
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{<<"/v1/repair/", N/binary>>, H} || {N, H} <- Handlers],
+        event_handler => scoper_woody_event_handler
+    })).
+
+create_crunch_identity(Options) ->
+    PartyID = create_party(),
+    PaymentInstIdentityID = payment_inst_identity_id(Options),
+    PaymentInstIdentityID = create_identity(PaymentInstIdentityID, PartyID, <<"good-one">>, <<"church">>),
+    ProviderIdentityID = provider_identity_id(Options),
+    ProviderIdentityID = create_identity(ProviderIdentityID, PartyID, <<"good-one">>, <<"church">>),
+    ok.
+
 create_company_account() ->
     PartyID = create_party(),
     IdentityID = create_company_identity(PartyID),
@@ -211,19 +245,22 @@ create_company_account() ->
     {ok, [{created, Account}]} = ff_account:create(PartyID, Identity, Currency),
     Account.
 
-create_company_identity(Party) ->
-    create_identity(Party, <<"good-one">>, <<"church">>).
+create_company_identity(PartyID) ->
+    create_identity(PartyID, <<"good-one">>, <<"church">>).
 
 create_party() ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 
-create_identity(Party, ProviderID, ClassID) ->
+create_identity(PartyID, ProviderID, ClassID) ->
     ID = genlib:unique(),
+    create_identity(ID, PartyID, ProviderID, ClassID).
+
+create_identity(ID, PartyID, ProviderID, ClassID) ->
     ok = ff_identity_machine:create(
         ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
+        #{party => PartyID, provider => ProviderID, class => ClassID},
         ff_ctx:new()
     ),
     ID.
@@ -380,6 +417,12 @@ services(Options) ->
 
 -include_lib("ff_cth/include/ct_domain.hrl").
 
+payment_inst_identity_id(Options) ->
+    maps:get(payment_inst_identity_id, Options).
+
+provider_identity_id(Options) ->
+    maps:get(provider_identity_id, Options).
+
 domain_config(Options, C) ->
     Default = [
 
@@ -395,7 +438,10 @@ domain_config(Options, C) ->
                 providers                 = {value, ?ordset([])},
                 inspector                 = {value, ?insp(1)},
                 residences                = ['rus'],
-                realm                     = live
+                realm                     = live,
+                wallet_system_account_set = {value, ?sas(1)},
+                identity                  = payment_inst_identity_id(Options),
+                withdrawal_providers      = {value, ?ordset([?wthdr_prv(1)])}
             }
         }},
 
@@ -403,6 +449,9 @@ domain_config(Options, C) ->
 
         ct_domain:inspector(?insp(1), <<"Low Life">>, ?prx(1), #{<<"risk_score">> => <<"low">>}),
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
+        ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
+
+        ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),

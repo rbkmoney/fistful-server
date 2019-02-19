@@ -38,9 +38,9 @@
 
 -define(REPORT_ID, ?INTEGER).
 
--define(REPORT, #fistful_reporter_Report{
+-define(REPORT, #ff_reports_Report{
     report_id = ?INTEGER,
-    time_range = #fistful_reporter_ReportTimeRange{
+    time_range = #ff_reports_ReportTimeRange{
         from_time = ?TIMESTAMP,
         to_time = ?TIMESTAMP
     },

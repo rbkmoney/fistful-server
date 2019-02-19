@@ -3,9 +3,8 @@
 -include_lib("common_test/include/ct.hrl").
 
 -include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
--include_lib("fistful_reporter_proto/include/fistful_reporter_fistful_reporter_thrift.hrl").
--include_lib("file_storage_proto/include/file_storage_file_storage_thrift.hrl").
+-include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
+-include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("jose/include/jose_jwk.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
@@ -70,11 +69,13 @@ groups() ->
     config().
 init_per_suite(Config) ->
     %% TODO remove this after cut off wapi
-    Config1 = ct_helper:makeup_cfg([
+    ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
-        ct_payment_system:setup(#{})
-    ], Config),
-    [{apps, wapi_ct_helper:start_wapi(Config1)} | Config1].
+        ct_payment_system:setup(#{
+            optional_apps => [wapi]
+        })
+    ], Config).
+    % [{apps, wapi_ct_helper:start_wapi(Config1)} | Config1].
 
 -spec end_per_suite(config()) ->
     _.

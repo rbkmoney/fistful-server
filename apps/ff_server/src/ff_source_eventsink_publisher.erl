@@ -42,38 +42,5 @@ publish_event(#{
 %% Internals
 %%
 
--spec marshal(term(), term()) -> term().
-
-marshal(event, {created, Source}) ->
-    {created, marshal(source, Source)};
-marshal(event, {account, AccountChange}) ->
-    {account, marshal(account_change, AccountChange)};
-marshal(event, {status_changed, StatusChange}) ->
-    {status, marshal(status_change, StatusChange)};
-
-marshal(source, Params = #{
-    name := Name,
-    resource := Resource
-}) ->
-    ExternalID = maps:get(external_id, Params, undefined),
-    #src_Source{
-        name = marshal(string, Name),
-        resource = marshal(resource, Resource),
-        external_id = marshal(id, ExternalID)
-    };
-marshal(resource, #{type := internal} = Internal) ->
-    {internal, marshal(internal, Internal)};
-marshal(internal, Internal) ->
-    Details = maps:get(details, Internal, undefined),
-    #src_Internal{
-        details = marshal(string, Details)
-    };
-
-marshal(status_change, unauthorized) ->
-    {changed, {unauthorized, #src_Unauthorized{}}};
-marshal(status_change, authorized) ->
-    {changed, {authorized, #src_Authorized{}}};
-
-marshal(T, V) ->
-    ff_eventsink_publisher:marshal(T, V).
-
+marshal(Type, Value) ->
+    ff_source_codec:marshal(Type, Value).

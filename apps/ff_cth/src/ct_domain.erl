@@ -12,6 +12,7 @@
 -export([inspector/4]).
 -export([proxy/2]).
 -export([proxy/3]).
+-export([proxy/4]).
 -export([system_account_set/4]).
 -export([external_account_set/4]).
 -export([term_set_hierarchy/1]).
@@ -19,6 +20,7 @@
 -export([term_set_hierarchy/3]).
 -export([timed_term_set/1]).
 -export([globals/2]).
+-export([withdrawal_provider/4]).
 
 %%
 
@@ -29,6 +31,46 @@
 
 -type object() ::
     dmsl_domain_thrift:'DomainObject'().
+
+-spec withdrawal_provider(?dtp('WithdrawalProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
+    object().
+
+withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
+    AccountID = account(<<"RUB">>, C),
+    {withdrawal_provider, #domain_WithdrawalProviderObject{
+        ref = Ref,
+        data = #domain_WithdrawalProvider{
+            name = <<"WithdrawalProvider">>,
+            proxy = #domain_Proxy{ref = ProxyRef, additional = #{}},
+            identity = IdentityID,
+            withdrawal_terms = #domain_WithdrawalProvisionTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                payout_methods = {value, ?ordset([])},
+                cash_limit = {value, ?cashrng(
+                    {inclusive, ?cash(       0, <<"RUB">>)},
+                    {exclusive, ?cash(10000000, <<"RUB">>)}
+                )},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {system, settlement},
+                                {provider, settlement},
+                                {product, {min_of, ?ordset([
+                                    ?fixed(10, <<"RUB">>),
+                                    ?share(5, 100, operation_amount, round_half_towards_zero)
+                                ])}}
+                            )
+                        ]}
+                    }
+                ]}
+            },
+            accounts = #{
+                ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
+            }
+        }
+    }}.
 
 -spec currency(?dtp('CurrencyRef')) ->
     object().
@@ -120,22 +162,29 @@ inspector(Ref, Name, ProxyRef, Additional) ->
         }
     }}.
 
--spec proxy(?dtp('ProxyRef'), binary()) ->
+-spec proxy(?dtp('ProxyRef'), Name :: binary()) ->
     object().
 
 proxy(Ref, Name) ->
-    proxy(Ref, Name, #{}).
+    proxy(Ref, Name, <<>>).
 
--spec proxy(?dtp('ProxyRef'), binary(), ?dtp('ProxyOptions')) ->
+-spec proxy(?dtp('ProxyRef'), Name :: binary(), URL :: binary()) ->
     object().
 
-proxy(Ref, Name, Opts) ->
+proxy(Ref, Name, URL) ->
+    proxy(Ref, Name, URL, #{}).
+
+
+-spec proxy(?dtp('ProxyRef'), Name :: binary(), URL :: binary(), ?dtp('ProxyOptions')) ->
+    object().
+
+proxy(Ref, Name, URL, Opts) ->
     {proxy, #domain_ProxyObject{
         ref  = Ref,
         data = #domain_ProxyDefinition{
             name        = Name,
             description = <<>>,
-            url         = <<>>,
+            url         = URL,
             options     = Opts
         }
     }}.

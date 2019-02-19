@@ -55,6 +55,7 @@
 %% Accessors
 
 -export([transfer/1]).
+-export([ctx/1]).
 
 %% Machinery
 
@@ -125,6 +126,12 @@ backend(NS) ->
 
 transfer(St) ->
     ff_machine:model(St).
+
+-spec ctx(st(_)) ->
+    ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
 
 %% Machinery
 

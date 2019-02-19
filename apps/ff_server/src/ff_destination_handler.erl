@@ -65,7 +65,7 @@ encode(destination, {ID, Machine}) ->
         status   = encode(status, ff_destination:status(Dst)),
         resource = encode(resource, ff_destination:resource(Dst)),
         blocked  = encode(blocked, ff_destination:is_accessible(Dst)),
-        context  = ff_context:wrap(Ctx),
+        context  = encode(context, Ctx),
         created_at  = encode(time, CreatedAt),
         external_id = ff_destination:external_id(Dst)
     };
@@ -86,7 +86,11 @@ encode(time, {{Date, Time}, Usec}) ->
 encode(blocked, {ok, accessible}) ->
     false;
 encode(blocked, _) ->
-    true.
+    true;
+encode(context, undefined) ->
+    undefined;
+encode(context, Ctx) ->
+    ff_context:wrap(Ctx).
 
 decode(destination_params, Params) -> #{
     identity => Params#dst_DestinationParams.identity,
@@ -102,6 +106,7 @@ decode(resource, {bank_card, BankCard}) ->
         bin            => BankCard#'BankCard'.bin,
         masked_pan     => BankCard#'BankCard'.masked_pan
     }};
+decode(context, undefined) -> undefined;
 decode(context, Ctx) -> ff_context:unwrap(Ctx).
 
 

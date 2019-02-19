@@ -126,6 +126,7 @@ start_processing_apps(Options) ->
     AdminRoutes = get_admin_routes(),
     WalletRoutes = get_wallet_routes(),
     DestRoutes = get_destination_routes(),
+    WithdrawalRoutes = get_withdrawal_routes(),
     EventsinkRoutes = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
@@ -133,7 +134,7 @@ start_processing_apps(Options) ->
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => AdminRoutes ++ WalletRoutes ++ DestRoutes ++ Routes ++ EventsinkRoutes
+            additional_routes => AdminRoutes ++ WalletRoutes ++ DestRoutes ++ WithdrawalRoutes ++ Routes ++ EventsinkRoutes
         }
     )),
     Processing = #{
@@ -185,6 +186,12 @@ get_destination_routes() ->
         event_handler => scoper_woody_event_handler
     }).
 
+get_withdrawal_routes() ->
+    Path = <<"/v1/withdrawal">>,
+    woody_server_thrift_http_handler:get_routes(#{
+        handlers => [{Path, {{ff_proto_withdrawal_thrift, 'Management'}, {ff_withdrawal_handler, []}}}],
+        event_handler => scoper_woody_event_handler
+    }).
 
 
 get_eventsink_routes(BeConf) ->

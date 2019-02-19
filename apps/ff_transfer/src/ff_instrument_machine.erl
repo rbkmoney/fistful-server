@@ -32,6 +32,7 @@
 
 -export([init/4]).
 -export([process_timeout/3]).
+-export([process_repair/4]).
 -export([process_call/4]).
 
 %% Pipeline
@@ -91,6 +92,7 @@ instrument(St) ->
 -type machine()      :: ff_machine:machine(event(_)).
 -type result()       :: ff_machine:result(event(_)).
 -type handler_opts() :: machinery:handler_opts(_).
+-type handler_args() :: machinery:handler_args(_).
 
 -spec init({[event(_)], ctx()}, machine(), _, handler_opts()) ->
     result().
@@ -104,7 +106,7 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 
 %%
 
--spec process_timeout(machine(), _, handler_opts()) ->
+-spec process_timeout(machine(), handler_args(), handler_opts()) ->
     result().
 
 process_timeout(Machine, _, _Opts) ->
@@ -127,11 +129,17 @@ deduce_activity(#{}) ->
 
 %%
 
--spec process_call(_CallArgs, machine(), _, handler_opts()) ->
+-spec process_call(_CallArgs, machine(), handler_args(), handler_opts()) ->
     {ok, result()}.
 
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
+
+-spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
+    result().
+
+process_repair(Scenario, Machine, _Args, _Opts) ->
+    ff_repair:apply_scenario(ff_instrument, Machine, Scenario).
 
 -spec events(ns(), id(), machinery:range()) ->
     {ok, events(_)} |

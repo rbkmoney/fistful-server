@@ -19,6 +19,7 @@
 
 -export([init/4]).
 -export([process_timeout/3]).
+-export([process_repair/4]).
 -export([process_call/4]).
 
 %%
@@ -92,3 +93,9 @@ process_call({increment, Inc}, #{aux_state := Seq0}, _, _Opts) ->
         events    => [{increment, Inc}],
         aux_state => Seq1
     }}.
+
+-spec process_repair(ff_repair:scenario(), machine(), machinery:handler_args(), machinery:handler_opts(_)) ->
+    no_return().
+
+process_repair(_RepairArgs, _Machine, _Args, _Opts) ->
+    erlang:error({not_implemented, repair}).

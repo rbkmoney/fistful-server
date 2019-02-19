@@ -116,6 +116,7 @@ start_processing_apps(Options) ->
     AdminRoutes = get_admin_routes(),
     WalletRoutes = get_wallet_routes(),
     IdentityRoutes = get_identity_routes(),
+    RepairRoutes = get_repair_routes(),
     EventsinkRoutes = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
@@ -123,7 +124,14 @@ start_processing_apps(Options) ->
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => AdminRoutes ++ IdentityRoutes ++ WalletRoutes ++ Routes ++ EventsinkRoutes
+            additional_routes => lists:flatten([
+                Routes,
+                AdminRoutes,
+                WalletRoutes,
+                IdentityRoutes,
+                EventsinkRoutes,
+                RepairRoutes
+            ])
         }
     )),
     Processing = #{
@@ -210,6 +218,18 @@ get_eventsink_routes(BeConf) ->
         SourceRoute,
         DepositRoute
     ]).
+
+get_repair_routes() ->
+    Handlers = [
+        {
+            <<"withdrawal/session">>,
+            {{ff_proto_withdrawal_session_thrift, 'Repairer'}, {ff_withdrawal_session_repair, #{}}}
+        }
+    ],
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{<<"/v1/repair/", N/binary>>, H} || {N, H} <- Handlers],
+        event_handler => scoper_woody_event_handler
+    })).
 
 create_crunch_identity(Options) ->
     PartyID = create_party(),

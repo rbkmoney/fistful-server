@@ -32,16 +32,48 @@ marshal(identity, Identity = #{
     provider    := ProviderID,
     class       := ClassID
 }) ->
-    ContractID = maps:get(contract, Identity, undefined),
+    ContractID = maps:get(contract,    Identity, undefined),
     ExternalID = maps:get(external_id, Identity, undefined),
+    ID         = maps:get(id,          Identity, undefined),
+    Level      = maps:get(level,       Identity, undefined),
+    Blocked    = maps:get(blocked,     Identity, undefined),
+    Ctx        = maps:get(context,     Identity, undefined),
+    Effective_challenge = maps:get(effective_challenge, Identity, undefined),
     #idnt_Identity{
         party     = marshal(id, PartyID),
         provider  = marshal(id, ProviderID),
         cls       = marshal(id, ClassID),
         contract  = marshal(id, ContractID),
-        external_id = marshal(id, ExternalID)
+        external_id = marshal(id, ExternalID),
+        id        = marshal(id, ID),
+        level     = marshal(id, Level),
+        blocked   = marshal(blocked, Blocked),
+        effective_challenge = marshal(id, Effective_challenge),
+        context   = marshal(msgpack, Ctx)
     };
 
+marshal(identity_events, Events) ->
+    GenIdentityEvent = fun({ID, {ev, Timestamp, Ev}}) ->
+        #idnt_IdentityEvent{
+            sequence   = marshal(event_id, ID),
+            occured_at = marshal(timestamp, Timestamp),
+            change     = marshal(event, Ev)
+        }
+    end,
+    [ GenIdentityEvent(Event) || Event <- Events];
+
+marshal(challenge, _Challenge = #{
+    id  := ID,
+    cls := ClassID,
+    proofs := Proofs,
+    status := Status
+}) ->
+    #idnt_Challenge{
+        id     = marshal(id, ID),
+        cls    = marshal(id, ClassID),
+        proofs = marshal({list, challenge_proof}, Proofs),
+        status = marshal(challenge_payload_status_changed, Status)
+    };
 marshal(challenge_change, #{
     id       := ID,
     payload  := Payload
@@ -55,15 +87,20 @@ marshal(challenge_payload, {created, Challenge}) ->
 marshal(challenge_payload, {status_changed, ChallengeStatus}) ->
     {status_changed, marshal(challenge_payload_status_changed, ChallengeStatus)};
 marshal(challenge_payload_created, Challenge = #{
-    id   := ID
+    id := ID
 }) ->
-    Proofs = maps:get(proofs, Challenge, undefined),
+    Proofs = maps:get(proofs, Challenge, []),
     #idnt_Challenge{
         cls    = marshal(id, ID),
-        proofs = marshal({list, challenge_proofs}, Proofs)
+        proofs = marshal({list, challenge_proof}, Proofs)
     };
-marshal(challenge_proofs, _) ->
-    #idnt_ChallengeProof{};
+
+marshal(challenge_proof, {Type, Token}) ->
+    #idnt_ChallengeProof{
+        type = Type,
+        token = Token
+    };
+
 marshal(challenge_payload_status_changed, pending) ->
     {pending, #idnt_ChallengePending{}};
 marshal(challenge_payload_status_changed, cancelled) ->
@@ -124,6 +161,30 @@ unmarshal(identity, #idnt_Identity{
         external_id => unmarshal(id, ExternalID)
     });
 
+unmarshal(identity_params, #idnt_IdentityParams{
+    party       = PartyID,
+    provider    = ProviderID,
+    cls         = ClassID,
+    external_id = ExternalID
+}) ->
+    genlib_map:compact(#{
+        party       => PartyID,
+        provider    => ProviderID,
+        class       => ClassID,
+        external_id => ExternalID
+    });
+
+unmarshal(challenge_params, #idnt_ChallengeParams{
+    id = ID,
+    cls = ClassID,
+    proofs = Proofs
+}) ->
+    genlib_map:compact(#{
+        id => ID,
+        class => ClassID,
+        proofs => unmarshal(challenge_proofs, Proofs)
+    });
+
 unmarshal(challenge_payload, {created, Challenge}) ->
     {created, unmarshal(challenge_payload_created, Challenge)};
 unmarshal(challenge_payload, {status_changed, ChallengeStatus}) ->
@@ -136,9 +197,14 @@ unmarshal(challenge_payload_created, #idnt_Challenge{
         id     => unmarshal(id, ID),
         proofs => unmarshal({list, challenge_proofs}, Proofs)
     };
-unmarshal(challenge_proofs, #idnt_ChallengeProof{} = Proof) ->
-    % FIXME: Describe challenge_proofs in protocol
-    erlang:error({not_implemented, {unmarshal, challenge_proofs}}, [challenge_proofs, Proof]);
+
+unmarshal(challenge_proofs, [#idnt_ChallengeProof{}|_] = Proofs) ->
+    [{unmarshal(proof_type, P#idnt_ChallengeProof.type),
+      unmarshal(id, P#idnt_ChallengeProof.token)} || P <- Proofs];
+
+unmarshal(proof_type, rus_domestic_passport)      -> rus_domestic_passport;
+unmarshal(proof_type, rus_retiree_insurance_cert) -> rus_retiree_insurance_cert;
+
 unmarshal(challenge_payload_status_changed, {pending, #idnt_ChallengePending{}}) ->
     pending;
 unmarshal(challenge_payload_status_changed, {cancelled, #idnt_ChallengeCancelled{}}) ->
@@ -158,6 +224,9 @@ unmarshal(resolution, approved) ->
     approved;
 unmarshal(resolution, denied) ->
     denied;
+
+unmarshal(context, #idnt_IdentityParams{ context = Ctx}) ->
+    unmarshal(msgpack, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

@@ -128,10 +128,10 @@ get_challenge_event_ok(C) ->
     ChlClassID = <<"sword-initiation">>,
     Name       = <<"Ricardo Milos">>,
     Identity = create_identity(EID, PartyID, ProvID, ClassID, Name, Context),
+
     IID = Identity#idnt_Identity.id,
     Params2 = gen_challenge_param(ChlClassID, IID, C),
     {ok, _} = call_api('StartChallenge', [IID, Params2]),
-
     Range = #evsink_EventRange{
         limit = 1000,
         'after' = undefined
@@ -149,7 +149,6 @@ get_challenge_event_ok(C) ->
         end,
         genlib_retry:linear(10, 1000)
     ),
-
     {ok, Identity2} = call_api('Get', [IID]),
     EffectiveChl = Identity2#idnt_Identity.effective_challenge,
     true  = EffectiveChl =/= undefined,
@@ -231,7 +230,11 @@ create_identity(EID, PartyID, ProvID, ClassID, Name, Ctx) ->
         external_id = EID,
         context     = Ctx
     },
+    dbg:tracer(),
+    dbg:p(all, c),
+    dbg:tp(ff_identity_handler, decode, '_'),
     {ok, IdentityState} = call_api('Create', [IID, Params]),
+    dbg:stop_clear(),
     IdentityState.
 
 gen_challenge_param(ClgClassID, ChallengeID, C) ->

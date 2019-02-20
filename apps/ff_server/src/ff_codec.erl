@@ -56,6 +56,9 @@ marshal(id, V) ->
 marshal(event_id, V) ->
     marshal(integer, V);
 
+marshal(blocked, V) ->
+    marshal(bool, V);
+
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
 marshal(account, #{
@@ -94,6 +97,11 @@ marshal(string, V) when is_binary(V) ->
     V;
 marshal(integer, V) when is_integer(V) ->
     V;
+marshal(bool, V) when is_boolean(V) ->
+    V;
+
+marshal(msgpack, undefined) -> undefined;
+marshal(msgpack, V) -> ff_context:wrap(V);
 
 % Catch this up in thrift validation
 marshal(_, Other) ->
@@ -161,6 +169,15 @@ unmarshal(currency_ref, #'CurrencyRef'{
     unmarshal(string, SymbolicCode);
 unmarshal(amount, V) ->
     unmarshal(integer, V);
+
+unmarshal(msgpack, undefined) -> undefined;
+unmarshal(msgpack, V) -> ff_context:unwrap(V);
+
+unmarshal(range, #evsink_EventRange{
+    'after' = Cursor,
+    limit   = Limit
+}) ->
+    {Cursor, Limit, forward};
 
 unmarshal(timestamp, Timestamp) when is_binary(Timestamp) ->
     parse_timestamp(Timestamp);

@@ -18,10 +18,10 @@
 -export([mock_services_/2]).
 -export([get_lifetime/0]).
 
--define(WAPI_IP                     , "::").
--define(WAPI_PORT                   , 8080).
--define(WAPI_HOST_NAME              , "localhost").
--define(WAPI_URL                    , ?WAPI_HOST_NAME ++ ":" ++ integer_to_list(?WAPI_PORT)).
+-define(WAPI_IP,        "::").
+-define(WAPI_PORT,      8080).
+-define(WAPI_HOST_NAME, "localhost").
+-define(WAPI_URL,       ?WAPI_HOST_NAME ++ ":" ++ integer_to_list(?WAPI_PORT)).
 
 %%
 -type config()          :: [{atom(), any()}].

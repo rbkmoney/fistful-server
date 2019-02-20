@@ -33,9 +33,10 @@ handle_function(Func, Args, Context, Opts) ->
 
 handle_function_(
     'GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
-    Context, #{schema := Schema, client := Client, ns := NS, publisher := Publisher}
+    Context, Params = #{schema := Schema, client := Client, ns := NS, publisher := Publisher}
 ) ->
-    {ok, Events} = machinery_mg_eventsink:get_events(NS, After, Limit,
+    NewAfter = maybe_clamp_start_event(After, Params),
+    {ok, Events} = machinery_mg_eventsink:get_events(NS, NewAfter, Limit,
         #{client => {Client, Context}, schema => Schema}),
     ff_eventsink_publisher:publish_events(Events, #{publisher => Publisher});
 handle_function_(
@@ -49,3 +50,11 @@ handle_function_(
         {error, no_last_event} ->
             woody_error:raise(business, #'evsink_NoLastEvent'{})
     end.
+
+%%
+
+maybe_clamp_start_event(Num, #{start_event := StartEvent}) when Num < StartEvent ->
+    StartEvent;
+maybe_clamp_start_event(Num, _) ->
+    Num.
+

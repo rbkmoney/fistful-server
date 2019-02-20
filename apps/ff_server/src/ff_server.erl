@@ -187,12 +187,20 @@ get_eventsink_route(RouteType, {DefPath, {Module, {Publisher, Cfg}}}) ->
                 handlers => [
                     {Path, {Module, {
                         ff_eventsink_handler,
-                        Cfg#{ns => NS, publisher => Publisher}
+                        maybe_add_start_event(
+                            Opts,
+                            Cfg#{ns => NS, publisher => Publisher}
+                        )
                 }}}],
                 event_handler => scoper_woody_event_handler,
                 handler_limits => Limits
             }))
     end.
+
+maybe_add_start_event(#{start_event := StartEvent}, Config) ->
+    Config#{start_event => StartEvent};
+maybe_add_start_event(_, Config) ->
+    Config.
 
 get_repair_routes(WoodyOpts) ->
     Limits = genlib_map:get(handler_limits, WoodyOpts),

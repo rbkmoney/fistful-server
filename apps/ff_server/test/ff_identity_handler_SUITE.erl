@@ -144,7 +144,6 @@ get_challenge_event_ok(C) ->
                                 {identity_challenge,  #idnt_ChallengeChange{payload = {status_changed, Status}}}
                             },   _AccIn) -> Status;
                             (_Ev, AccIn) -> AccIn end, undefined, Events)
-
         end,
         genlib_retry:linear(10, 1000)
     ),

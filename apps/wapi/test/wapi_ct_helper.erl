@@ -72,6 +72,21 @@ start_app(woody = AppName) ->
         {acceptors_pool_size, 4}
     ]);
 
+start_app(wapi_woody_client = AppName) ->
+    start_app(AppName, [
+        {service_urls, #{
+            cds_storage         => "http://cds:8022/v1/storage",
+            identdoc_storage    => "http://cds:8022/v1/identity_document_storage",
+            fistful_stat        => "http://fistful-magista:8022/stat"
+        }},
+        {service_retries, #{
+            fistful_stat    => #{
+                'GetWallets'   => {linear, 3, 1000},
+                '_'            => finish
+            }
+        }}
+    ]);
+
 start_app(AppName) ->
     genlib_app:start_application(AppName).
 
@@ -96,15 +111,6 @@ start_wapi(Config) ->
                     wapi => {pem_file, get_keysource("keys/local/private.pem", Config)}
                 }
             }
-        }},
-        {service_retries, #{
-            fistful_stat    => #{
-                'GetWallets'   => {linear, 3, 1000},
-                '_'            => finish
-            }
-        }},
-        {api_deadlines, #{
-            fistful_stat => 5000
         }}
     ]).
 
@@ -163,7 +169,7 @@ mock_services(Services, SupOrConfig) ->
 
 start_woody_client(ServiceURLs) ->
     ok = application:set_env(
-        wapi,
+        wapi_woody_client,
         service_urls,
         ServiceURLs
     ),
@@ -185,7 +191,7 @@ mock_services_(Services, SupPid) when is_pid(SupPid) ->
         #{
             ip => IP,
             port => Port,
-            event_handler => wapi_woody_event_handler,
+            event_handler => scoper_woody_event_handler,
             handlers => lists:map(fun mock_service_handler/1, Services)
         }
     ),

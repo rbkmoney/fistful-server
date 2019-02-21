@@ -53,7 +53,7 @@ all() ->
     [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
-        {base, [sequence],
+        {base, [],
             [
                 create_report_ok_test,
                 get_report_ok_test,
@@ -74,7 +74,10 @@ init_per_suite(Config) ->
     ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
-            optional_apps => [wapi]
+            optional_apps => [
+                wapi,
+                wapi_woody_client
+            ]
         })
     ], Config).
 

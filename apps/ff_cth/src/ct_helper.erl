@@ -109,6 +109,13 @@ start_app(wapi = AppName) ->
                 }
             }
         }},
+        {api_deadlines, #{
+            fistful_stat => 5000
+        }}
+    ]), #{}};
+
+start_app(wapi_woody_client = AppName) ->
+    {start_app_with(AppName, [
         {service_urls, #{
             cds_storage         => "http://cds:8022/v1/storage",
             identdoc_storage    => "http://cds:8022/v1/identity_document_storage",
@@ -119,9 +126,6 @@ start_app(wapi = AppName) ->
                 'GetWallets'   => {linear, 3, 1000},
                 '_'            => finish
             }
-        }},
-        {api_deadlines, #{
-            fistful_stat => 5000
         }}
     ]), #{}};
 

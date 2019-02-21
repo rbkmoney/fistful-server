@@ -6,7 +6,7 @@
 -export([get_service_modname/1]).
 
 %%
--define(APP, wapi).
+-define(APP, wapi_woody_client).
 
 -type service_name() :: atom().
 

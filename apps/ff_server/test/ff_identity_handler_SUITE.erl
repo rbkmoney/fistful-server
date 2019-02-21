@@ -80,7 +80,6 @@ create_identity_ok(_C) ->
     Ctx = #{<<"NS">> => #{<<"owner">> => PartyID}},
     Context = ff_context:wrap(Ctx),
     Identity = create_identity(EID, PartyID, ProvID, ClassID, Name, Context),
-
     IID = Identity#idnt_Identity.id,
     {ok, Identity_} = call_api('Get', [IID]),
 

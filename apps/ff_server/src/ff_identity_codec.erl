@@ -7,7 +7,100 @@
 -export([marshal/2]).
 -export([unmarshal/2]).
 
+-export([marshal_identity/2]).
+-export([marshal_challenge/1]).
+-export([marshal_identity_event/1]).
+-export([marshal_identity_events/1]).
+
+-export([unmarshal_identity_params/1]).
+-export([unmarshal_challenge_params/1]).
+-export([unmarshal_context/1]).
+
 %% API
+
+-spec marshal_identity(ff_identity:identity(), ff_ctx:ctx())
+    -> ff_proto_identity_thrift:'Identity'().
+
+marshal_identity(Identity, Ctx) ->
+    IsAccessible = {ok, accessible} =:= ff_identity:is_accessible(Identity),
+    #idnt_Identity{
+        id       = marshal(id, ff_identity:id(Identity)),
+        party    = marshal(id, ff_identity:party(Identity)),
+        provider = marshal(id, ff_identity:provider(Identity)),
+        cls      = marshal(id, ff_identity:class(Identity)),
+        contract = marshal(id, ff_identity:contract(Identity)),
+        level    = marshal(id, ff_identity:level(Identity)),
+        context  = marshal(msgpack, Ctx),
+        blocked  = marshal(is_accessible, IsAccessible),
+        external_id = marshal(id, ff_identity:external_id(Identity)),
+        effective_challenge = marshal(effective_challenge, ff_identity:effective_challenge(Identity))
+    }.
+
+-spec marshal_identity_event({integer(), ff_machine:timestamped_event(ff_identity:event())})
+    -> ff_proto_identity_thrift:''().
+
+marshal_identity_event({ID, {ev, Timestamp, Ev}}) ->
+    #idnt_IdentityEvent{
+        sequence   = marshal(event_id, ID),
+        occured_at = marshal(timestamp, Timestamp),
+        change     = marshal(event, Ev)
+    }.
+
+-spec marshal_identity_events([{integer(), ff_machine:timestamped_event(ff_identity:event())}])
+    -> ff_proto_identity_thrift:''().
+
+marshal_identity_events(Events) ->
+    [ marshal_identity_event(Event) || Event <- Events].
+
+
+-spec marshal_challenge(ff_identity:challenge())
+    -> ff_proto_identity:'Challenge'().
+
+marshal_challenge(Challenge) ->
+    Proofs = ff_identity_challenge:proofs(Challenge),
+    Status = ff_identity_challenge:status(Challenge),
+    #idnt_Challenge{
+        id     = ff_identity_challenge:id(Challenge),
+        cls    = ff_identity_challenge:class(Challenge),
+        proofs = marshal({list, challenge_proof}, Proofs),
+        status = marshal(challenge_payload_status_changed, Status)
+    }.
+
+-spec unmarshal_identity_params(ff_proto_identity_thrift:'IdentityParams'())
+    -> ff_identity_machine:params().
+
+unmarshal_identity_params(#idnt_IdentityParams{
+    party       = PartyID,
+    provider    = ProviderID,
+    cls         = ClassID,
+    external_id = ExternalID
+}) ->
+    genlib_map:compact(#{
+        party       => PartyID,
+        provider    => ProviderID,
+        class       => ClassID,
+        external_id => ExternalID
+    }).
+
+-spec unmarshal_context(ff_proto_identity_thrift:'IdentityParams'())
+    -> ff_identity_machine:params().
+
+unmarshal_context(#idnt_IdentityParams{ context = Ctx}) ->
+    unmarshal(msgpack, Ctx).
+
+-spec unmarshal_challenge_params(ff_proto_identity_thrift:'ChallengeParams'())
+    -> ff_identity_machine:challenge_params().
+
+unmarshal_challenge_params(#idnt_ChallengeParams{
+    id = ID,
+    cls = ClassID,
+    proofs = Proofs
+}) ->
+    genlib_map:compact(#{
+        id     => unmarshal(id, ID),
+        class  => unmarshal(id, ClassID),
+        proofs => unmarshal(challenge_proofs, Proofs)
+    }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
@@ -32,35 +125,15 @@ marshal(identity, Identity = #{
     provider    := ProviderID,
     class       := ClassID
 }) ->
-    ContractID = maps:get(contract,    Identity, undefined),
+    ContractID = maps:get(contract, Identity, undefined),
     ExternalID = maps:get(external_id, Identity, undefined),
-    ID         = maps:get(id,          Identity, undefined),
-    Level      = maps:get(level,       Identity, undefined),
-    Blocked    = maps:get(blocked,     Identity, undefined),
-    Ctx        = maps:get(context,     Identity, undefined),
-    Effective_challenge = maps:get(effective_challenge, Identity, undefined),
     #idnt_Identity{
         party     = marshal(id, PartyID),
         provider  = marshal(id, ProviderID),
         cls       = marshal(id, ClassID),
         contract  = marshal(id, ContractID),
-        external_id = marshal(id, ExternalID),
-        id        = marshal(id, ID),
-        level     = marshal(id, Level),
-        blocked   = marshal(blocked, Blocked),
-        effective_challenge = marshal(id, Effective_challenge),
-        context   = marshal(msgpack, Ctx)
+        external_id = marshal(id, ExternalID)
     };
-
-marshal(identity_events, Events) ->
-    GenIdentityEvent = fun({ID, {ev, Timestamp, Ev}}) ->
-        #idnt_IdentityEvent{
-            sequence   = marshal(event_id, ID),
-            occured_at = marshal(timestamp, Timestamp),
-            change     = marshal(event, Ev)
-        }
-    end,
-    [ GenIdentityEvent(Event) || Event <- Events];
 
 marshal(challenge, _Challenge = #{
     id  := ID,
@@ -121,6 +194,11 @@ marshal(resolution, approved) ->
 marshal(resolution, denied) ->
     denied;
 
+marshal(effective_challenge, {ok, EffectiveChallengeID}) ->
+    marshal(id, EffectiveChallengeID);
+marshal(effective_challenge, {error, notfound}) ->
+    undefined;
+
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -159,30 +237,6 @@ unmarshal(identity, #idnt_Identity{
         class       => unmarshal(id, ClassID),
         contract    => unmarshal(id, ContractID),
         external_id => unmarshal(id, ExternalID)
-    });
-
-unmarshal(identity_params, #idnt_IdentityParams{
-    party       = PartyID,
-    provider    = ProviderID,
-    cls         = ClassID,
-    external_id = ExternalID
-}) ->
-    genlib_map:compact(#{
-        party       => PartyID,
-        provider    => ProviderID,
-        class       => ClassID,
-        external_id => ExternalID
-    });
-
-unmarshal(challenge_params, #idnt_ChallengeParams{
-    id = ID,
-    cls = ClassID,
-    proofs = Proofs
-}) ->
-    genlib_map:compact(#{
-        id => ID,
-        class => ClassID,
-        proofs => unmarshal(challenge_proofs, Proofs)
     });
 
 unmarshal(challenge_payload, {created, Challenge}) ->
@@ -224,9 +278,6 @@ unmarshal(resolution, approved) ->
     approved;
 unmarshal(resolution, denied) ->
     denied;
-
-unmarshal(context, #idnt_IdentityParams{ context = Ctx}) ->
-    unmarshal(msgpack, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

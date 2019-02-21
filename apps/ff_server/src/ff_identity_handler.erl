@@ -28,8 +28,8 @@ handle_function(Func, Args, Context, Opts) ->
 %%
 
 handle_function_('Create', [IdentityID, IdentityParams], WoodyCtx, Opts) ->
-    Params = ff_identity_codec:unmarshal(identity_params, IdentityParams),
-    Context = ff_identity_codec:unmarshal(context, IdentityParams),
+    Params = ff_identity_codec:unmarshal_identity_params(IdentityParams),
+    Context = ff_identity_codec:unmarshal_context(IdentityParams),
     case ff_identity_machine:create(IdentityID, Params, Context) of
         ok ->
             handle_function_('Get', [IdentityID], WoodyCtx, Opts);
@@ -45,20 +45,22 @@ handle_function_('Create', [IdentityID, IdentityParams], WoodyCtx, Opts) ->
 handle_function_('Get', [ID], _Context, _Opts) ->
     case ff_identity_machine:get(ID) of
         {ok, Machine} ->
-            {ok, encode(identity, Machine)};
+            Identity = ff_identity_machine:identity(Machine),
+            Ctx      = ff_identity_machine:ctx(Machine),
+            {ok, ff_identity_codec:marshal_identity(Identity, Ctx)};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;
 handle_function_('StartChallenge', [IdentityID, Params], _WoodyCtx, _Opts) ->
     %% Не используем ExternalID тк идемпотентность реал-на через challengeID
-    ChallengeParams = ff_identity_codec:unmarshal(challenge_params, Params),
+    ChallengeParams = ff_identity_codec:unmarshal_challenge_params(Params),
     case ff_identity_machine:start_challenge(IdentityID, ChallengeParams) of
         ok ->
             ChallengeID = maps:get(id, ChallengeParams),
             {ok, Machine}   = ff_identity_machine:get(IdentityID),
             Identity        = ff_identity_machine:identity(Machine),
             {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
-            {ok, encode(challenge, Challenge)};
+            {ok, ff_identity_codec:marshal_challenge(Challenge)};
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {challenge, {challenge_pending, _}}} ->
@@ -88,54 +90,18 @@ handle_function_('GetEvents', [IdentityID, RangeParams], _Context, _Opts) ->
     Range = ff_identity_codec:unmarshal(range, RangeParams),
     case ff_identity_machine:events(IdentityID, Range) of
         {ok, Events} ->
-            {ok, ff_identity_codec:marshal(identity_events, Events)};
+            {ok, ff_identity_codec:marshal_identity_events(Events)};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
-    end.
-
-get_effective_challenge(Identity) ->
-    case ff_identity:effective_challenge(Identity) of
-        {ok, EffectiveChallenge} -> EffectiveChallenge;
-        {error, notfound} -> undefined
     end.
 
 %%
 %% Encode
 %%
-
-encode(identity, Machine) ->
-    Identity = ff_identity_machine:identity(Machine),
-    Ctx      = ff_identity_machine:ctx(Machine),
-    Party    = ff_identity:party(Identity),
-    IsAccessible = {ok, accessible} =:= ff_party:is_accessible(Party),
-
-    ff_identity_codec:marshal(identity, #{
-        id       => ff_identity:id(Identity),
-        party    => ff_identity:party(Identity),
-        provider => ff_identity:provider(Identity),
-        class    => ff_identity:class(Identity),
-        contract => ff_identity:contract(Identity),
-        level    => ff_identity:level(Identity),
-        blocked  => IsAccessible,
-        context  => Ctx,
-        external_id => ff_identity:external_id(Identity),
-        effective_challenge => get_effective_challenge(Identity)
-    });
-
-encode(challenge, Challenge) ->
-    Proofs = ff_identity_challenge:proofs(Challenge),
-    Status = ff_identity_challenge:status(Challenge),
-    ff_identity_codec:marshal(challenge, #{
-        id     => ff_identity_challenge:id(Challenge),
-        cls    => ff_identity_challenge:class(Challenge),
-        proofs => Proofs,
-        status => Status
-    });
-
 encode(challenges, Challenges)
     when map_size(Challenges) == 0 ->
-        undefined;
+        [];
 encode(challenges, Challenges) ->
     maps:fold(fun(_ID, Value, AccIn) ->
-        [encode(challenge, Value) | AccIn]
+        [ff_identity_codec:marshal_challenge(Value) | AccIn]
     end, [], Challenges).

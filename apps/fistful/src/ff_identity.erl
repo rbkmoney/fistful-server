@@ -24,6 +24,7 @@
 -type level()           :: ff_identity_class:level_id().
 -type challenge_class() :: ff_identity_class:challenge_class_id().
 -type challenge_id()    :: id().
+-type blocked()         :: boolean().
 
 -type identity() :: #{
     id           := id(),
@@ -34,7 +35,8 @@
     level        => level(),
     challenges   => #{challenge_id() => challenge()},
     effective    => challenge_id(),
-    external_id  => id()
+    external_id  => id(),
+    blocked      => blocked()
 }.
 
 -type challenge() ::

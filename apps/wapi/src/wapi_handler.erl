@@ -104,17 +104,8 @@ create_woody_context(Tag, #{'X-Request-ID' := RequestID}, AuthContext, Opts) ->
     _ = lager:debug("Created TraceID for the request"),
     woody_user_identity:put(
         collect_user_identity(AuthContext, Opts),
-        woody_context:new(RpcID, undefined, get_deadline(Tag))
+        woody_context:new(RpcID, undefined, wapi_woody_client:get_service_deadline(Tag))
     ).
-
-get_deadline(Tag) ->
-    ApiDeadlines = genlib_app:env(wapi, api_deadlines, #{}),
-    case maps:get(Tag, ApiDeadlines, undefined) of
-        Timeout when is_integer(Timeout) andalso Timeout >= 0 ->
-            woody_deadline:from_timeout(Timeout);
-        undefined ->
-            undefined
-    end.
 
 attach_deadline(#{'X-Request-Deadline' := undefined}, Context) ->
     Context;

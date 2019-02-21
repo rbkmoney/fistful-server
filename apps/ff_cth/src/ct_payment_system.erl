@@ -16,7 +16,8 @@
     default_termset => dmsl_domain_thrift:'TermSet'(),
     company_termset => dmsl_domain_thrift:'TermSet'(),
     payment_inst_identity_id => id(),
-    provider_identity_id => id()
+    provider_identity_id => id(),
+    optional_apps => list()
 }.
 -opaque system() :: #{
     started_apps := [atom()],
@@ -93,8 +94,7 @@ start_processing_apps(Options) ->
             {withdrawal,
                 #{provider => withdrawal_provider_config(Options)}
             }
-        ]},
-        wapi
+        ]}
     ]),
     SuiteSup = ct_sup:start(),
     BeOpts = machinery_backend_options(Options),
@@ -133,10 +133,16 @@ start_processing_apps(Options) ->
         }
     )),
     Processing = #{
-        started_apps => StartedApps,
+        started_apps => StartedApps ++ start_optional_apps(Options),
         suite_sup    => SuiteSup
     },
     {ok, Processing}.
+
+start_optional_apps(#{optional_apps := Apps})->
+    {StartedApps, _StartupCtx} = ct_helper:start_apps(Apps),
+    StartedApps;
+start_optional_apps(_)->
+    [].
 
 setup_dominant(Options, C) ->
     ok = ct_domain_config:upsert(domain_config(Options, C)).

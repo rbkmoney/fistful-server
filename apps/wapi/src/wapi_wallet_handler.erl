@@ -349,6 +349,16 @@ process_request('GetCurrency', #{'currencyID' := CurrencyId}, Context, _Opts) ->
 process_request('CreateReport', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_report(Params, Context) of
         {ok, Report}              -> wapi_handler_utils:reply_ok(201, Report);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
         {error, invalid_request}  -> wapi_handler_utils:reply_ok(400, #{
                 <<"errorType">>   => <<"NoMatch">>,
                 <<"name">>        => <<"timestamps">>,
@@ -361,16 +371,36 @@ process_request('CreateReport', Params, Context, _Opts) ->
             })
     end;
 process_request('GetReport', #{
-    contractID := ContractId,
+    identityID := IdentityID,
     reportID   := ReportId
 }, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_report(ReportId, ContractId, Context) of
+    case wapi_wallet_ff_backend:get_report(ReportId, IdentityID, Context) of
         {ok, Report}      -> wapi_handler_utils:reply_ok(200, Report);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
         {error, notfound} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('GetReports', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_reports(Params, Context) of
         {ok, ReportList}          -> wapi_handler_utils:reply_ok(200, ReportList);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
         {error, invalid_request}  -> wapi_handler_utils:reply_ok(400, #{
                 <<"errorType">>   => <<"NoMatch">>,
                 <<"name">>        => <<"timestamps">>,

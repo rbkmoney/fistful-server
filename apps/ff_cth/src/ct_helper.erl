@@ -108,9 +108,6 @@ start_app(wapi = AppName) ->
                     wapi     => {pem_file, "/opt/wapi/config/private.pem"}
                 }
             }
-        }},
-        {api_deadlines, #{
-            fistful_stat => 5000
         }}
     ]), #{}};
 
@@ -126,6 +123,9 @@ start_app(wapi_woody_client = AppName) ->
                 'GetWallets'   => {linear, 3, 1000},
                 '_'            => finish
             }
+        }},
+        {api_deadlines, #{
+            fistful_stat => 5000
         }}
     ]), #{}};
 

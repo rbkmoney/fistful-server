@@ -182,12 +182,13 @@ get_eventsink_route(RouteType, {DefPath, {Module, {Publisher, Cfg}}}) ->
         Opts ->
             Path = maps:get(path, Opts, DefPath),
             NS = maps:get(namespace, Opts),
+            StartEvent = maps:get(start_event, Opts, 0),
             Limits = genlib_map:get(handler_limits, Opts),
             woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
                 handlers => [
                     {Path, {Module, {
                         ff_eventsink_handler,
-                        Cfg#{ns => NS, publisher => Publisher}
+                        Cfg#{ns => NS, publisher => Publisher, start_event => StartEvent}
                 }}}],
                 event_handler => scoper_woody_event_handler,
                 handler_limits => Limits

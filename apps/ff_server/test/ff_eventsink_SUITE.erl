@@ -26,6 +26,7 @@
 -export([get_create_destination_events_ok/1]).
 -export([get_create_source_events_ok/1]).
 -export([get_create_deposit_events_ok/1]).
+-export([get_shifted_create_identity_events_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -47,7 +48,8 @@ all() ->
         get_create_destination_events_ok,
         get_create_source_events_ok,
         get_create_deposit_events_ok,
-        get_withdrawal_session_events_ok
+        get_withdrawal_session_events_ok,
+        get_shifted_create_identity_events_ok
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -269,6 +271,35 @@ get_create_deposit_events_ok(C) ->
     MaxID = get_max_sinkevent_id(Events),
     MaxID = LastEvent + length(RawEvents).
 
+-spec get_shifted_create_identity_events_ok(config()) -> test_return().
+
+get_shifted_create_identity_events_ok(C) ->
+    #{suite_sup := SuiteSup} = ct_helper:cfg(payment_system, C),
+    Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
+    StartEventNum = 3,
+    IdentityRoute = create_sink_route({<<"/v1/eventsink/identity">>,
+        {{ff_proto_identity_thrift, 'EventSink'}, {ff_eventsink_handler,
+        #{
+            ns          => <<"ff/identity">>,
+            publisher   => ff_identity_eventsink_publisher,
+            start_event => StartEventNum,
+            schema      => machinery_mg_schema_generic
+        }}}}),
+    {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
+        ?MODULE,
+        #{
+            ip                => {0, 0, 0, 0},
+            port              => 8040,
+            handlers          => [],
+            event_handler     => scoper_woody_event_handler,
+            additional_routes => IdentityRoute
+        }
+    )),
+    {ok, Events} = call_route_handler('GetEvents',
+        Service, [#'evsink_EventRange'{'after' = 0, limit = 1}]),
+    MaxID = get_max_sinkevent_id(Events),
+    MaxID = StartEventNum + 1.
+
 create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
@@ -410,10 +441,27 @@ unwrap_last_sinkevent_id({exception, #'evsink_NoLastEvent'{}}) ->
     {ok, woody:result()} |
     {exception, woody_error:business_error()}.
 
-call_eventsink_handler(Function, {Service, Path}, Args) ->
+call_eventsink_handler(Function, Service, Args) ->
+    call_handler(Function, Service, Args, <<"8022">>).
+
+call_route_handler(Function, Service, Args) ->
+    call_handler(Function, Service, Args, <<"8040">>).
+
+call_handler(Function, {Service, Path}, Args, Port) ->
     Request = {Service, Function, Args},
     Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022", Path/binary>>,
+        url           => <<"http://localhost:", Port/binary, Path/binary>>,
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).
+
+create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
+    NewCfg = Cfg#{
+        client => #{
+            event_handler => scoper_woody_event_handler,
+            url => "http://machinegun:8022/v1/event_sink"
+        }},
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, {Module, {Handler, NewCfg}}}],
+        event_handler => scoper_woody_event_handler
+    })).

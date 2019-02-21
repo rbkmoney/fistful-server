@@ -32,9 +32,15 @@ handle_function(Func, Args, Context, Opts) ->
     ).
 
 handle_function_(
-    'GetEvents', [#'evsink_EventRange'{'after' = After, limit = Limit}],
-    Context, #{schema := Schema, client := Client, ns := NS, publisher := Publisher}
+    'GetEvents', [#'evsink_EventRange'{'after' = After0, limit = Limit}],
+    Context, #{
+        schema := Schema,
+        client := Client,
+        ns := NS,
+        publisher := Publisher,
+        start_event := StartEvent}
 ) ->
+    After = erlang:max(After0, StartEvent),
     {ok, Events} = machinery_mg_eventsink:get_events(NS, After, Limit,
         #{client => {Client, Context}, schema => Schema}),
     ff_eventsink_publisher:publish_events(Events, #{publisher => Publisher});

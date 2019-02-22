@@ -99,9 +99,8 @@ marshal(integer, V) when is_integer(V) ->
     V;
 marshal(bool, V) when is_boolean(V) ->
     V;
-
-marshal(msgpack, undefined) -> undefined;
-marshal(msgpack, V) -> ff_context:wrap(V);
+marshal(msgpack, V) ->
+    ff_context:wrap(V);
 
 % Catch this up in thrift validation
 marshal(_, Other) ->

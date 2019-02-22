@@ -18,11 +18,14 @@
 
 %% API
 
--spec marshal_identity(ff_identity:identity(), ff_ctx:ctx())
-    -> ff_proto_identity_thrift:'Identity'().
+-spec marshal_identity(ff_identity:identity(), ff_ctx:ctx()) -> ff_proto_identity_thrift:'Identity'().
 
 marshal_identity(Identity, Ctx) ->
     IsAccessible = {ok, accessible} =:= ff_identity:is_accessible(Identity),
+    Context = case Ctx of
+        undefined -> undefined;
+        MsgPack   -> marshal(msgpack, MsgPack)
+    end,
     #idnt_Identity{
         id       = marshal(id, ff_identity:id(Identity)),
         party    = marshal(id, ff_identity:party(Identity)),
@@ -30,14 +33,13 @@ marshal_identity(Identity, Ctx) ->
         cls      = marshal(id, ff_identity:class(Identity)),
         contract = marshal(id, ff_identity:contract(Identity)),
         level    = marshal(id, ff_identity:level(Identity)),
-        context  = marshal(msgpack, Ctx),
-        blocked  = marshal(is_accessible, IsAccessible),
+        context  = Context,
+        blocked  = marshal(bool, ff_identity:accessible(Identity)),
         external_id = marshal(id, ff_identity:external_id(Identity)),
         effective_challenge = marshal(effective_challenge, ff_identity:effective_challenge(Identity))
     }.
 
--spec marshal_identity_event({integer(), ff_machine:timestamped_event(ff_identity:event())})
-    -> ff_proto_identity_thrift:''().
+-spec marshal_identity_event({integer(), ff_machine:timestamped_event(ff_identity:event())}) -> ff_proto_identity_thrift:'IdentityEvent'().
 
 marshal_identity_event({ID, {ev, Timestamp, Ev}}) ->
     #idnt_IdentityEvent{
@@ -46,15 +48,13 @@ marshal_identity_event({ID, {ev, Timestamp, Ev}}) ->
         change     = marshal(event, Ev)
     }.
 
--spec marshal_identity_events([{integer(), ff_machine:timestamped_event(ff_identity:event())}])
-    -> ff_proto_identity_thrift:''().
+-spec marshal_identity_events([{integer(), ff_machine:timestamped_event(ff_identity:event())}]) -> [ff_proto_identity_thrift:'IdentityEvent'()].
 
 marshal_identity_events(Events) ->
     [ marshal_identity_event(Event) || Event <- Events].
 
 
--spec marshal_challenge(ff_identity:challenge())
-    -> ff_proto_identity:'Challenge'().
+-spec marshal_challenge(ff_identity:challenge()) -> ff_proto_identity:'Challenge'().
 
 marshal_challenge(Challenge) ->
     Proofs = ff_identity_challenge:proofs(Challenge),
@@ -66,8 +66,7 @@ marshal_challenge(Challenge) ->
         status = marshal(challenge_payload_status_changed, Status)
     }.
 
--spec unmarshal_identity_params(ff_proto_identity_thrift:'IdentityParams'())
-    -> ff_identity_machine:params().
+-spec unmarshal_identity_params(ff_proto_identity_thrift:'IdentityParams'()) -> ff_identity_machine:params().
 
 unmarshal_identity_params(#idnt_IdentityParams{
     party       = PartyID,
@@ -82,14 +81,12 @@ unmarshal_identity_params(#idnt_IdentityParams{
         external_id => ExternalID
     }).
 
--spec unmarshal_context(ff_proto_identity_thrift:'IdentityParams'())
-    -> ff_identity_machine:params().
+-spec unmarshal_context(ff_proto_identity_thrift:'IdentityParams'()) -> ff_identity_machine:params().
 
 unmarshal_context(#idnt_IdentityParams{ context = Ctx}) ->
     unmarshal(msgpack, Ctx).
 
--spec unmarshal_challenge_params(ff_proto_identity_thrift:'ChallengeParams'())
-    -> ff_identity_machine:challenge_params().
+-spec unmarshal_challenge_params(ff_proto_identity_thrift:'ChallengeParams'()) -> ff_identity_machine:challenge_params().
 
 unmarshal_challenge_params(#idnt_ChallengeParams{
     id = ID,
@@ -102,8 +99,7 @@ unmarshal_challenge_params(#idnt_ChallengeParams{
         proofs => unmarshal(challenge_proofs, Proofs)
     }).
 
--spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
-    ff_codec:encoded_value().
+-spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
 
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];

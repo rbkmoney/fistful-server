@@ -73,7 +73,6 @@
 -export([status/1]).
 -export([class/1]).
 -export([proofs/1]).
--export([valid_until/1]).
 -export([resolution/1]).
 -export([claim_id/1]).
 -export([master_id/1]).
@@ -96,7 +95,7 @@ id(#{id := V}) ->
     V.
 
 -spec status(challenge()) ->
-    status().
+    status() | undefined.
 
 status(Challenge) ->
     maps:get(status, Challenge, undefined).
@@ -130,21 +129,6 @@ resolution(Challenge) ->
         _Status ->
             {error, undefined}
     end.
-
--spec valid_until(challenge()) ->
-    {ok, timestamp() | undefined} |
-    {error, undefined}.
-
-valid_until(Challenge) ->
-    case status(Challenge) of
-        {completed, #{valid_until := Time}} ->
-            {ok, Time};
-        {completed, _NotFound} ->
-            {ok, undefined};
-        _Status ->
-            {error, bad_status}
-    end.
-
 
 -spec master_id(challenge()) ->
     id(_).

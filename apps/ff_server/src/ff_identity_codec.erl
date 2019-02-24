@@ -7,21 +7,21 @@
 -export([marshal/2]).
 -export([unmarshal/2]).
 
--export([marshal_identity/2]).
+-export([marshal_identity/1]).
 -export([marshal_challenge/1]).
 -export([marshal_identity_event/1]).
 -export([marshal_identity_events/1]).
 
+-export([unmarshal_identity/1]).
 -export([unmarshal_identity_params/1]).
 -export([unmarshal_challenge_params/1]).
 -export([unmarshal_context/1]).
 
 %% API
 
--spec marshal_identity(ff_identity:identity(), ff_ctx:ctx()) -> ff_proto_identity_thrift:'Identity'().
+-spec marshal_identity({ff_identity:identity(), ff_ctx:ctx()}) -> ff_proto_identity_thrift:'Identity'().
 
-marshal_identity(Identity, Ctx) ->
-    IsAccessible = {ok, accessible} =:= ff_identity:is_accessible(Identity),
+marshal_identity({Identity, Ctx}) ->
     Context = case Ctx of
         undefined -> undefined;
         MsgPack   -> marshal(msgpack, MsgPack)
@@ -34,10 +34,27 @@ marshal_identity(Identity, Ctx) ->
         contract = marshal(id, ff_identity:contract(Identity)),
         level    = marshal(id, ff_identity:level(Identity)),
         context  = Context,
-        blocked  = marshal(bool, ff_identity:accessible(Identity)),
+        blocked  = marshal(bool, ff_identity:blocked(Identity)),
         external_id = marshal(id, ff_identity:external_id(Identity)),
         effective_challenge = marshal(effective_challenge, ff_identity:effective_challenge(Identity))
     }.
+
+-spec unmarshal_identity(ff_proto_identity_thrift:'Identity'()) -> {ff_identity:identity(), ff_ctx:ctx()}.
+
+unmarshal_identity(#idnt_Identity{
+    party       = PartyID,
+    provider    = ProviderID,
+    cls         = ClassID,
+    contract    = ContractID,
+    external_id = ExternalID
+}) ->
+    genlib_map:compact(#{
+        party       => unmarshal(id, PartyID),
+        provider    => unmarshal(id, ProviderID),
+        class       => unmarshal(id, ClassID),
+        contract    => unmarshal(id, ContractID),
+        external_id => unmarshal(id, ExternalID)
+    }).
 
 -spec marshal_identity_event({integer(), ff_machine:timestamped_event(ff_identity:event())}) -> ff_proto_identity_thrift:'IdentityEvent'().
 
@@ -116,20 +133,20 @@ marshal(event, {{challenge, ChallengeID}, ChallengeChange}) ->
 marshal(event, {effective_challenge_changed, ChallengeID}) ->
     {effective_challenge_changed, marshal(id, ChallengeID)};
 
-marshal(identity, Identity = #{
-    party       := PartyID,
-    provider    := ProviderID,
-    class       := ClassID
-}) ->
-    ContractID = maps:get(contract, Identity, undefined),
-    ExternalID = maps:get(external_id, Identity, undefined),
-    #idnt_Identity{
-        party     = marshal(id, PartyID),
-        provider  = marshal(id, ProviderID),
-        cls       = marshal(id, ClassID),
-        contract  = marshal(id, ContractID),
-        external_id = marshal(id, ExternalID)
-    };
+% marshal(identity, Identity = #{
+%     party       := PartyID,
+%     provider    := ProviderID,
+%     class       := ClassID
+% }) ->
+%     ContractID = maps:get(contract, Identity, undefined),
+%     ExternalID = maps:get(external_id, Identity, undefined),
+%     #idnt_Identity{
+%         party     = marshal(id, PartyID),
+%         provider  = marshal(id, ProviderID),
+%         cls       = marshal(id, ClassID),
+%         contract  = marshal(id, ContractID),
+%         external_id = marshal(id, ExternalID)
+%     };
 
 marshal(challenge, _Challenge = #{
     id  := ID,
@@ -219,22 +236,6 @@ unmarshal(event, {identity_challenge, #idnt_ChallengeChange{id = ID, payload = P
     {{challenge, unmarshal(id, ID)}, unmarshal(challenge_payload, Payload)};
 unmarshal(event, {effective_challenge_changed, ChallengeID}) ->
     {effective_challenge_changed, unmarshal(id, ChallengeID)};
-
-unmarshal(identity, #idnt_Identity{
-    party       = PartyID,
-    provider    = ProviderID,
-    cls         = ClassID,
-    contract    = ContractID,
-    external_id = ExternalID
-}) ->
-    genlib_map:compact(#{
-        party       => unmarshal(id, PartyID),
-        provider    => unmarshal(id, ProviderID),
-        class       => unmarshal(id, ClassID),
-        contract    => unmarshal(id, ContractID),
-        external_id => unmarshal(id, ExternalID)
-    });
-
 unmarshal(challenge_payload, {created, Challenge}) ->
     {created, unmarshal(challenge_payload_created, Challenge)};
 unmarshal(challenge_payload, {status_changed, ChallengeStatus}) ->

@@ -45,9 +45,9 @@ handle_function_('Create', [IdentityID, IdentityParams], WoodyCtx, Opts) ->
 handle_function_('Get', [ID], _Context, _Opts) ->
     case ff_identity_machine:get(ID) of
         {ok, Machine} ->
-            Identity = ff_identity_machine:identity(Machine),
+            Identity = ff_identity:is_blocked(ff_identity_machine:identity(Machine)),
             Ctx      = ff_identity_machine:ctx(Machine),
-            {ok, ff_identity_codec:marshal_identity(Identity, Ctx)};
+            {ok, ff_identity_codec:marshal_identity({Identity, Ctx})};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;

@@ -62,8 +62,10 @@
 -export([challenge/2]).
 -export([effective_challenge/1]).
 -export([external_id/1]).
+-export([blocked/1]).
 
 -export([is_accessible/1]).
+-export([is_blocked/1]).
 
 -export([create/5]).
 
@@ -86,9 +88,20 @@
     class().
 -spec party(identity()) ->
     party().
-
 -spec contract(identity()) ->
     contract().
+-spec blocked(identity()) ->
+    boolean() | undefined.
+-spec level(identity()) ->
+    level() | undefined.
+-spec challenges(identity()) ->
+    #{challenge_id() => challenge()}.
+-spec effective_challenge(identity()) ->
+    ff_map:result(challenge_id()).
+-spec challenge(challenge_id(), identity()) ->
+    ff_map:result(challenge()).
+-spec external_id(identity()) ->
+    external_id().
 
 id(#{id := V}) ->
     V.
@@ -96,39 +109,32 @@ id(#{id := V}) ->
 provider(#{provider := V}) ->
     V.
 
-class(#{class := V})    ->
+class(#{class := V}) ->
     V.
 
-party(#{party := V})    ->
+party(#{party := V}) ->
     V.
 
 contract(#{contract := V}) ->
     V.
 
--spec level(identity()) ->
-    level().
+blocked(Identity) ->
+    maps:get(blocked, Identity, undefined).
 
 level(Identity) ->
-    maps:get(level, Identity, <<>>).
-
-
--spec challenges(identity()) ->
-    #{challenge_id() => challenge()}.
+    maps:get(level, Identity, undefined).
 
 challenges(Identity) ->
     maps:get(challenges, Identity, #{}).
 
--spec effective_challenge(identity()) ->
-    ff_map:result(challenge_id()).
-
 effective_challenge(Identity) ->
     ff_map:find(effective, Identity).
 
--spec challenge(challenge_id(), identity()) ->
-    ff_map:result(challenge()).
-
 challenge(ChallengeID, Identity) ->
     ff_map:find(ChallengeID, challenges(Identity)).
+
+external_id(Identity) ->
+    maps:get(external_id, Identity, undefined).
 
 -spec is_accessible(identity()) ->
     {ok, accessible} |
@@ -137,13 +143,13 @@ challenge(ChallengeID, Identity) ->
 is_accessible(Identity) ->
     ff_party:is_accessible(party(Identity)).
 
--spec external_id(identity()) ->
-    external_id().
 
-external_id(#{external_id := ExternalID}) ->
-    ExternalID;
-external_id(_Identity) ->
-    undefined.
+-spec is_blocked(identity()) -> identity().
+
+is_blocked(Identity) ->
+    Blocked = {ok, accessible} =/= is_accessible(Identity),
+    maps:put(blocked, Blocked, Identity).
+
 
 %% Constructor
 

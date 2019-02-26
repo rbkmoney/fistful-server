@@ -1,5 +1,6 @@
 -module(ff_identity_handler_SUITE).
 
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 
 -export([all/0]).
@@ -11,16 +12,16 @@
 -export([create_identity_ok/1]).
 -export([run_challenge_ok/1]).
 -export([get_challenge_event_ok/1]).
--export([get_event_unknow_identity_ok/1]).
+-export([get_event_unknown_identity_ok/1]).
 -export([start_challenge_token_fail/1]).
 -export([get_challenges_ok/1]).
 
--spec create_identity_ok(config())           -> test_return().
--spec run_challenge_ok(config())             -> test_return().
--spec get_challenge_event_ok(config())       -> test_return().
--spec get_event_unknow_identity_ok(config()) -> test_return().
--spec start_challenge_token_fail(config())   -> test_return().
--spec get_challenges_ok(config())            -> test_return().
+-spec create_identity_ok(config())            -> test_return().
+-spec run_challenge_ok(config())              -> test_return().
+-spec get_challenge_event_ok(config())        -> test_return().
+-spec get_event_unknown_identity_ok(config()) -> test_return().
+-spec start_challenge_token_fail(config())    -> test_return().
+-spec get_challenges_ok(config())             -> test_return().
 %%
 
 -type config()         :: ct_helper:config().
@@ -36,7 +37,7 @@ all() ->
         create_identity_ok,
         run_challenge_ok,
         get_challenge_event_ok,
-        get_event_unknow_identity_ok,
+        get_event_unknown_identity_ok,
         start_challenge_token_fail
     ].
 
@@ -115,15 +116,9 @@ run_challenge_ok(C) ->
 
 get_challenge_event_ok(C) ->
     Context = ff_context:wrap(#{<<"NS">> => #{}}),
-    %% Shadow identity
-    EID_= genlib:unique(),
-    PartyID_ = create_party(),
-    ProvID   = <<"good-one">>,
-    ClassID  = <<"person">>,
-    Name_    = <<"BukaBjaka">>,
-    _IdentityShadow = create_identity(EID_, PartyID_, ProvID, ClassID, Name_, Context),
-
-    EID = genlib:unique(),
+    ProvID     = <<"good-one">>,
+    ClassID    = <<"person">>,
+    EID        = genlib:unique(),
     PartyID    = create_party(),
     ChlClassID = <<"sword-initiation">>,
     Name       = <<"Ricardo Milos">>,
@@ -141,27 +136,31 @@ get_challenge_event_ok(C) ->
         {completed, #idnt_ChallengeCompleted{resolution = approved}},
         fun () ->
             {ok, Events} = call_api('GetEvents', [IID, Range]),
-            lists:foldl(fun(#idnt_IdentityEvent{change =
-                                {identity_challenge,  #idnt_ChallengeChange{payload = {status_changed, Status}}}
-                            },   _AccIn) -> Status;
-                            (_Ev, AccIn) -> AccIn end, undefined, Events)
+            Fun =
+                fun(#idnt_IdentityEvent{change = {identity_challenge,  ChallengeChange}}, AccIn) ->
+                        case ChallengeChange#idnt_ChallengeChange.payload of
+                            {status_changed, Status} -> Status;
+                            _Other -> AccIn
+                        end;
+                    (_Ev, AccIn) ->
+                        AccIn
+                end,
+            lists:foldl(Fun, undefined, Events)
         end,
         genlib_retry:linear(10, 1000)
     ),
     {ok, Identity2} = call_api('Get', [IID]),
-    EffectiveChl = Identity2#idnt_Identity.effective_challenge,
-    true  = EffectiveChl =/= undefined,
-    Level = Identity2#idnt_Identity.level,
-    true  = Level =/= undefined.
+    ?assertNotEqual(undefined, Identity2#idnt_Identity.effective_challenge),
+    ?assertNotEqual(undefined, Identity2#idnt_Identity.level).
 
-get_event_unknow_identity_ok(_C) ->
+get_event_unknown_identity_ok(_C) ->
     Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
-    [EID, _ChlID] = lists:map(fun(_) -> genlib:unique() end, [1, 2]),
+    EID = genlib:unique(),
     PID     = create_party(),
     ProvID  = <<"good-one">>,
     ClassID = <<"person">>,
     Name    = <<"Ricardo Milos">>,
-    _Identity = create_identity(EID, PID, ProvID, ClassID, Name, Ctx),
+    create_identity(EID, PID, ProvID, ClassID, Name, Ctx),
     Range = #evsink_EventRange{
             limit = 1,
             'after' = undefined
@@ -177,11 +176,11 @@ start_challenge_token_fail(C) ->
     ChlClassID = <<"sword-initiation">>,
     Name       = <<"Ricardo Milos">>,
     IdentityState = create_identity(EID, PID, ProvID, CID, Name, Ctx),
-    {Type1, _Token1} = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
+    {Type1, Token1} = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
     {Type2, _Token2} = ct_identdocstore:rus_domestic_passport(C),
     IID = IdentityState#idnt_Identity.id,
     Proofs = [
-        #idnt_ChallengeProof{type = Type1, token = _Token1},
+        #idnt_ChallengeProof{type = Type1, token = Token1},
         #idnt_ChallengeProof{type = Type2, token = <<"Token">>}
     ],
     Params = #idnt_ChallengeParams{
@@ -211,10 +210,8 @@ get_challenges_ok(C) ->
     [Chl] = lists:filter(fun(Item) ->
             CID =:= Item#idnt_Challenge.id
         end, Challenges),
-    Cls = Challenge#idnt_Challenge.cls,
-    Proofs = Challenge#idnt_Challenge.proofs,
-    Cls = Chl#idnt_Challenge.cls,
-    Proofs = Chl#idnt_Challenge.proofs.
+    ?assertEqual(Chl#idnt_Challenge.cls,    Challenge#idnt_Challenge.cls),
+    ?assertEqual(Chl#idnt_Challenge.proofs, Challenge#idnt_Challenge.proofs).
 
 %%----------
 %% INTERNAL
@@ -229,11 +226,7 @@ create_identity(EID, PartyID, ProvID, ClassID, Name, Ctx) ->
         external_id = EID,
         context     = Ctx
     },
-    dbg:tracer(),
-    dbg:p(all, c),
-    dbg:tp(ff_identity_handler, decode, '_'),
     {ok, IdentityState} = call_api('Create', [IID, Params]),
-    dbg:stop_clear(),
     IdentityState.
 
 gen_challenge_param(ClgClassID, ChallengeID, C) ->

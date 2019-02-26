@@ -169,7 +169,6 @@ unmarshal(currency_ref, #'CurrencyRef'{
 unmarshal(amount, V) ->
     unmarshal(integer, V);
 
-unmarshal(msgpack, undefined) -> undefined;
 unmarshal(msgpack, V) -> ff_context:unwrap(V);
 
 unmarshal(range, #evsink_EventRange{
@@ -183,6 +182,8 @@ unmarshal(timestamp, Timestamp) when is_binary(Timestamp) ->
 unmarshal(string, V) when is_binary(V) ->
     V;
 unmarshal(integer, V) when is_integer(V) ->
+    V;
+unmarshal(bool, V) when is_boolean(V) ->
     V.
 
 %% Suppress dialyzer warning until rfc3339 spec will be fixed.

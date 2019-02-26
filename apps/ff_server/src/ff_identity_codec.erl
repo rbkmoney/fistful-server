@@ -51,7 +51,10 @@ decode_challenge_params(#idnt_ChallengeParams{
 
 %% ENCODE
 
--spec encode_identity_event({integer(), ff_machine:timestamped_event(ff_identity:event())}) -> ff_proto_identity_thrift:'IdentityEvent'().
+-spec encode_identity_event({
+    integer(),
+    ff_machine:timestamped_event(ff_identity:event())
+}) -> ff_proto_identity_thrift:'IdentityEvent'().
 
 encode_identity_event({ID, {ev, Timestamp, Ev}}) ->
     #idnt_IdentityEvent{

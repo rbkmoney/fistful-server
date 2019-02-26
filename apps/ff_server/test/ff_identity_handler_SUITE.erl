@@ -132,20 +132,21 @@ get_challenge_event_ok(C) ->
         'after' = undefined
     },
 
+    FindStatusChanged = fun
+        (#idnt_IdentityEvent{change = {identity_challenge,  ChallengeChange}}, AccIn) ->
+            case ChallengeChange#idnt_ChallengeChange.payload of
+                {status_changed, Status} -> Status;
+                _Other -> AccIn
+            end;
+        (_Ev, AccIn) ->
+            AccIn
+    end,
+
     {completed, #idnt_ChallengeCompleted{resolution = approved}} = ct_helper:await(
         {completed, #idnt_ChallengeCompleted{resolution = approved}},
         fun () ->
             {ok, Events} = call_api('GetEvents', [IID, Range]),
-            Fun =
-                fun(#idnt_IdentityEvent{change = {identity_challenge,  ChallengeChange}}, AccIn) ->
-                        case ChallengeChange#idnt_ChallengeChange.payload of
-                            {status_changed, Status} -> Status;
-                            _Other -> AccIn
-                        end;
-                    (_Ev, AccIn) ->
-                        AccIn
-                end,
-            lists:foldl(Fun, undefined, Events)
+            lists:foldl(FindStatusChanged, undefined, Events)
         end,
         genlib_retry:linear(10, 1000)
     ),

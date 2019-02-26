@@ -412,7 +412,8 @@ process_request('GetReports', Params, Context, _Opts) ->
                 <<"description">> => io_lib:format("Max limit: ~p", [Limit])
             })
     end;
-process_request('DownloadFile', #{fileID := FileId, expiresAt := ExpiresAt}, Context, _Opts) ->
+process_request('DownloadFile', #{fileID := FileId}, Context, _Opts) ->
+    ExpiresAt = get_default_url_lifetime(),
     case wapi_wallet_ff_backend:download_file(FileId, ExpiresAt, Context) of
         {ok, URL}         ->
             wapi_handler_utils:reply_ok(201, #{<<"url">> => URL, <<"expiresAt">> => ExpiresAt});
@@ -454,3 +455,10 @@ get_expiration_deadline(Expiration) ->
         false ->
             {error, expired}
     end.
+
+-define(DEFAULT_URL_LIFETIME, 60). % seconds
+
+get_default_url_lifetime() ->
+    Now      = erlang:system_time(second),
+    Lifetime = application:get_env(wapi, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
+    wapi_utils:unwrap(rfc3339:format(Now + Lifetime, second)).

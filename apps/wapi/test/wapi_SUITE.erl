@@ -64,7 +64,11 @@ init_per_suite(C) ->
      ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
-            default_termset => get_default_termset()
+            default_termset => get_default_termset(),
+            optional_apps => [
+                wapi,
+                wapi_woody_client
+            ]
         })
     ], C).
 
@@ -334,9 +338,9 @@ get_withdrawal(C) ->
     {save_config, Cfg}.
 
 woody_retry_test(C) ->
-    Urls = application:get_env(wapi, service_urls, #{}),
+    Urls = application:get_env(wapi_woody_client, service_urls, #{}),
     ok = application:set_env(
-        wapi,
+        wapi_woody_client,
         service_urls,
         Urls#{fistful_stat => "http://spanish.inquision/fistful_stat"}
     ),
@@ -358,7 +362,7 @@ woody_retry_test(C) ->
     T2 = erlang:monotonic_time(),
     Time = erlang:convert_time_unit(T2 - T1, native, micro_seconds),
     true = (Time > 3000000) and (Time < 6000000),
-    ok = application:set_env(wapi, service_urls, Urls).
+    ok = application:set_env(wapi_woody_client, service_urls, Urls).
 
 %%
 

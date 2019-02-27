@@ -108,7 +108,11 @@ start_app(wapi = AppName) ->
                     wapi     => {pem_file, "/opt/wapi/config/private.pem"}
                 }
             }
-        }},
+        }}
+    ]), #{}};
+
+start_app(wapi_woody_client = AppName) ->
+    {start_app_with(AppName, [
         {service_urls, #{
             cds_storage         => "http://cds:8022/v1/storage",
             identdoc_storage    => "http://cds:8022/v1/identity_document_storage",

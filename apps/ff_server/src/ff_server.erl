@@ -92,6 +92,7 @@ init([]) ->
                     get_admin_routes() ++
                     get_wallet_routes(WoodyOpts) ++
                     get_eventsink_routes() ++
+                    get_repair_routes(WoodyOpts) ++
                     [erl_health_handle:get_route(HealthCheckers)]
             }
         )
@@ -181,14 +182,29 @@ get_eventsink_route(RouteType, {DefPath, {Module, {Publisher, Cfg}}}) ->
         Opts ->
             Path = maps:get(path, Opts, DefPath),
             NS = maps:get(namespace, Opts),
+            StartEvent = maps:get(start_event, Opts, 0),
             Limits = genlib_map:get(handler_limits, Opts),
             woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
                 handlers => [
                     {Path, {Module, {
                         ff_eventsink_handler,
-                        Cfg#{ns => NS, publisher => Publisher}
+                        Cfg#{ns => NS, publisher => Publisher, start_event => StartEvent}
                 }}}],
                 event_handler => scoper_woody_event_handler,
                 handler_limits => Limits
             }))
     end.
+
+get_repair_routes(WoodyOpts) ->
+    Limits = genlib_map:get(handler_limits, WoodyOpts),
+    Handlers = [
+        {
+            <<"withdrawal/session">>,
+            {{ff_proto_withdrawal_session_thrift, 'Repairer'}, {ff_withdrawal_session_repair, #{}}}
+        }
+    ],
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{<<"/v1/repair/", N/binary>>, H} || {N, H} <- Handlers],
+        event_handler => scoper_woody_event_handler,
+        handler_limits => Limits
+    })).

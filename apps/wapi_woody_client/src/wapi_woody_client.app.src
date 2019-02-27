@@ -1,0 +1,10 @@
+{application, wapi_woody_client , [
+    {description, "Woody client for calling backend"},
+    {vsn, "0.1.0"},
+    {applications, [
+        kernel,
+        stdlib,
+        woody,
+        genlib
+    ]}
+]}.

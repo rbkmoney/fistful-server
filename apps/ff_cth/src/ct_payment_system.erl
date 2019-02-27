@@ -16,7 +16,8 @@
     default_termset => dmsl_domain_thrift:'TermSet'(),
     company_termset => dmsl_domain_thrift:'TermSet'(),
     payment_inst_identity_id => id(),
-    provider_identity_id => id()
+    provider_identity_id => id(),
+    optional_apps => list()
 }.
 -opaque system() :: #{
     started_apps := [atom()],
@@ -103,8 +104,7 @@ start_processing_apps(Options) ->
             {withdrawal,
                 #{provider => withdrawal_provider_config(Options)}
             }
-        ]},
-        wapi
+        ]}
     ]),
     SuiteSup = ct_sup:start(),
     BeOpts = machinery_backend_options(Options),
@@ -127,6 +127,7 @@ start_processing_apps(Options) ->
     WalletRoutes = get_wallet_routes(),
     DestRoutes = get_destination_routes(),
     WithdrawalRoutes = get_withdrawal_routes(),
+    RepairRoutes = get_repair_routes(),
     EventsinkRoutes = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
@@ -134,14 +135,29 @@ start_processing_apps(Options) ->
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
-            additional_routes => AdminRoutes ++ WalletRoutes ++ DestRoutes ++ WithdrawalRoutes ++ Routes ++ EventsinkRoutes
+
+            additional_routes => lists:flatten([
+                Routes,
+                AdminRoutes,
+                WalletRoutes,
+                DestRoutes,
+                WithdrawalRoutes,
+                EventsinkRoutes,
+                RepairRoutes
+            ])
         }
     )),
     Processing = #{
-        started_apps => StartedApps,
+        started_apps => StartedApps ++ start_optional_apps(Options),
         suite_sup    => SuiteSup
     },
     {ok, Processing}.
+
+start_optional_apps(#{optional_apps := Apps})->
+    {StartedApps, _StartupCtx} = ct_helper:start_apps(Apps),
+    StartedApps;
+start_optional_apps(_)->
+    [].
 
 setup_dominant(Options, C) ->
     ok = ct_domain_config:upsert(domain_config(Options, C)).
@@ -197,29 +213,30 @@ get_withdrawal_routes() ->
 get_eventsink_routes(BeConf) ->
     IdentityRoute = create_sink_route({<<"/v1/eventsink/identity">>,
         {{ff_proto_identity_thrift, 'EventSink'}, {ff_eventsink_handler,
-        BeConf#{ns => <<"ff/identity">>, publisher => ff_identity_eventsink_publisher}}}}),
+        make_sink_handler_cfg(<<"ff/identity">>, ff_identity_eventsink_publisher, BeConf)}}}),
     WalletRoute = create_sink_route({<<"/v1/eventsink/wallet">>,
         {{ff_proto_wallet_thrift, 'EventSink'}, {ff_eventsink_handler,
-        BeConf#{ns => <<"ff/wallet_v2">>, publisher => ff_wallet_eventsink_publisher}}}}),
+        make_sink_handler_cfg(<<"ff/wallet_v2">>, ff_wallet_eventsink_publisher, BeConf)}}}),
     WithdrawalSessionRoute = create_sink_route({<<"/v1/eventsink/withdrawal/session">>,
         {{ff_proto_withdrawal_session_thrift, 'EventSink'}, {ff_eventsink_handler,
-            BeConf#{
-                ns => <<"ff/withdrawal/session_v2">>,
-                publisher => ff_withdrawal_session_eventsink_publisher
-            }
+            make_sink_handler_cfg(
+                <<"ff/withdrawal/session_v2">>,
+                ff_withdrawal_session_eventsink_publisher,
+                BeConf
+            )
         }}}),
     WithdrawalRoute = create_sink_route({<<"/v1/eventsink/withdrawal">>,
         {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_eventsink_handler,
-        BeConf#{ns => <<"ff/withdrawal_v2">>, publisher => ff_withdrawal_eventsink_publisher}}}}),
+        make_sink_handler_cfg(<<"ff/withdrawal_v2">>, ff_withdrawal_eventsink_publisher, BeConf)}}}),
     DestinationRoute = create_sink_route({<<"/v1/eventsink/destination">>,
         {{ff_proto_destination_thrift, 'EventSink'}, {ff_eventsink_handler,
-        BeConf#{ns => <<"ff/destination_v2">>, publisher => ff_destination_eventsink_publisher}}}}),
+        make_sink_handler_cfg(<<"ff/destination_v2">>, ff_destination_eventsink_publisher, BeConf)}}}),
     SourceRoute = create_sink_route({<<"/v1/eventsink/source">>,
         {{ff_proto_source_thrift, 'EventSink'}, {ff_eventsink_handler,
-        BeConf#{ns => <<"ff/source_v1">>, publisher => ff_source_eventsink_publisher}}}}),
+        make_sink_handler_cfg(<<"ff/source_v1">>, ff_source_eventsink_publisher, BeConf)}}}),
     DepositRoute = create_sink_route({<<"/v1/eventsink/deposit">>,
         {{ff_proto_deposit_thrift, 'EventSink'}, {ff_eventsink_handler,
-        BeConf#{ns => <<"ff/deposit_v1">>, publisher => ff_deposit_eventsink_publisher}}}}),
+        make_sink_handler_cfg(<<"ff/deposit_v1">>, ff_deposit_eventsink_publisher, BeConf)}}}),
     lists:flatten([
         IdentityRoute,
         WalletRoute,
@@ -229,6 +246,18 @@ get_eventsink_routes(BeConf) ->
         SourceRoute,
         DepositRoute
     ]).
+
+get_repair_routes() ->
+    Handlers = [
+        {
+            <<"withdrawal/session">>,
+            {{ff_proto_withdrawal_session_thrift, 'Repairer'}, {ff_withdrawal_session_repair, #{}}}
+        }
+    ],
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{<<"/v1/repair/", N/binary>>, H} || {N, H} <- Handlers],
+        event_handler => scoper_woody_event_handler
+    })).
 
 create_crunch_identity(Options) ->
     PartyID = create_party(),
@@ -288,6 +317,13 @@ create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
         handlers => [{Path, {Module, {Handler, NewCfg}}}],
         event_handler => scoper_woody_event_handler
     })).
+
+make_sink_handler_cfg(NS, Publisher, Cfg) ->
+    Cfg#{
+        ns => NS,
+        publisher => Publisher,
+        start_event => 0
+    }.
 
 %% Default options
 

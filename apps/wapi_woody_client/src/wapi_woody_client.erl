@@ -4,9 +4,10 @@
 -export([call_service/5]).
 
 -export([get_service_modname/1]).
+-export([get_service_deadline/1]).
 
 %%
--define(APP, wapi).
+-define(APP, wapi_woody_client).
 
 -type service_name() :: atom().
 
@@ -78,11 +79,13 @@ get_service_modname(identdoc_storage) ->
 get_service_modname(fistful_stat) ->
     {ff_proto_fistful_stat_thrift, 'FistfulStatistics'};
 get_service_modname(fistful_report) ->
-    {fistful_reporter_thrift, 'Reporting'};
+    {ff_reporter_reports_thrift, 'Reporting'};
 get_service_modname(file_storage) ->
-    {file_storage_thrift, 'FileStorage'}.
+    {fs_file_storage_thrift, 'FileStorage'}.
 %% get_service_modname(webhook_manager) ->
 %%     {dmsl_webhooker_thrift, 'WebhookManager'}.
+
+-spec get_service_deadline(service_name()) -> undefined | woody_deadline:deadline().
 
 get_service_deadline(ServiceName) ->
     ServiceDeadlines = genlib_app:env(?APP, api_deadlines, #{}),

@@ -45,10 +45,12 @@ handle_function_('Create', [Params], Context, Opts) ->
             woody_error:raise(business, #fistful_WalletNotFound{});
         {error, {provider, notfound}} ->
             woody_error:raise(business, #fistful_ProviderNotFound{});
-        {error, {terms, {invalid_withdrawal_currency, _Details2, {wallet_currency, _Details}}}} ->
-            woody_error:raise(business, #fistful_CurrencyInvalid{});
-        {error, {terms, {terms_violation, {cash_range, _Details}}}} ->
-            woody_error:raise(business, #fistful_CashRangeError{});
+        {error, {terms, Error = {invalid_withdrawal_currency, _Details2, {wallet_currency, _Details}}}} ->
+            woody_error:raise(business, encode(currency_invalid, Error));
+        {error, {terms, {terms_violation, Error = {cash_range, _Details}}}} ->
+            encode(cash_range_error, Error),
+            % woody_error:raise(business, #fistful_CashRangeError{});
+            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(not_impl)});
         {error, exists} ->
             woody_error:raise(business, #fistful_IDExists{});
         {error, Error} ->
@@ -70,6 +72,15 @@ handle_function_('GetEvents', [WithdrawalID, RangeParams], _Context, _Opts) ->
             woody_error:raise(business, #fistful_WithdrawalNotFound{})
     end.
 
+encode(cash_range_error, {cash_range, Cash, _CashRange}) ->
+    lager:error("Error: cash_range ~p~n", [Cash]),
+    #fistful_WithdrawalCashAmountInvalid{
+        cash  = #'Cash'{},
+        range = #'CashRange'{
+            upper = {},
+            lower = {}
+        }
+    };
 encode(withdrawal, {ID, Machine}) ->
     Withdrawal = ff_withdrawal:get(Machine),
     #wthd_Withdrawal {
@@ -88,8 +99,8 @@ encode(transaction_body, {Amount, Currency}) ->
     };
 encode(events, Events) ->
     GenWithdrawalEvent = fun({ID, {ev, Timestamp, Ev}}) ->
-        #wthd_WithdrawalEvent{
-            sequence   = ff_withdrawal_eventsink_publisher:marshal(event_id, ID),
+        #wthd_Event{
+            event      = ff_withdrawal_eventsink_publisher:marshal(event_id, ID),
             occured_at = ff_withdrawal_eventsink_publisher:marshal(timestamp, Timestamp),
             change     = ff_withdrawal_eventsink_publisher:marshal(event, Ev)
         }

@@ -103,7 +103,6 @@ create_destination_ok(C) ->
     Resource    = Dst#dst_Destination.resource,
     ExternalId  = Dst#dst_Destination.external_id,
     Ctx         = Dst#dst_Destination.context,
-    false       = Dst#dst_Destination.blocked,
 
     {unauthorized, #dst_Unauthorized{}} = Dst#dst_Destination.status,
 

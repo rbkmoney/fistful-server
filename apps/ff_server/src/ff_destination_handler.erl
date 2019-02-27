@@ -64,7 +64,6 @@ encode(destination, {ID, Machine}) ->
         currency = ff_destination:currency(Dst),
         status   = encode(status, ff_destination:status(Dst)),
         resource = encode(resource, ff_destination:resource(Dst)),
-        blocked  = encode(blocked, ff_destination:is_accessible(Dst)),
         context  = encode(context, Ctx),
         created_at  = encode(time, CreatedAt),
         external_id = ff_destination:external_id(Dst)

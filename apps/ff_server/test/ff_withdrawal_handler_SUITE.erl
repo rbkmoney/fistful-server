@@ -35,9 +35,9 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            create_withdrawal_ok
-            % create_withdrawal_wallet_currency_fail
-            % create_withdrawal_cashrange_fail,
+            % create_withdrawal_ok,
+            % create_withdrawal_wallet_currency_fail,
+            create_withdrawal_cashrange_fail
             % create_withdrawal_destination_fail,
             % create_withdrawal_wallet_fail,
             % get_events_ok
@@ -93,7 +93,7 @@ end_per_testcase(_Name, _C) ->
 create_withdrawal_ok(C) ->
     ID            = genlib:unique(),
     ExternalId    = genlib:unique(),
-    WalletID      = create_wallet(<<"RUB">>, 100),
+    WalletID      = create_wallet(<<"RUB">>, 10000),
     DestinationID = create_destination(C),
     Body = #'Cash'{
         amount = 1000,
@@ -108,10 +108,7 @@ create_withdrawal_ok(C) ->
         external_id = ExternalId,
         context     = Ctx
     },
-    lager:error("~n>>>~n Create~n", []),
-    % _ = dbg:tracer(),
-    % _ = dbg:tpl({ff_withdrawal, '_', '_'}, []),
-    % _ = dbg:p(all, [c, timestamp]),
+
     {ok, Withdrawal}  = call_service(withdrawal, 'Create', [Params]),
     ID            = Withdrawal#wthd_Withdrawal.id,
     ExternalId    = Withdrawal#wthd_Withdrawal.external_id,
@@ -119,16 +116,14 @@ create_withdrawal_ok(C) ->
     DestinationID = Withdrawal#wthd_Withdrawal.destination,
     Ctx           = Withdrawal#wthd_Withdrawal.context,
     Body          = Withdrawal#wthd_Withdrawal.body,
-    % dbg:stop_clear(),
-    % lager:error("~n>>>~nWithdrawal: ~n~p~n", [Withdrawal]),
+
     {succeeded, _} = ct_helper:await(
         {succeeded, #wthd_WithdrawalSucceeded{}},
         fun() ->
             {ok, W} = call_service(withdrawal, 'Get', [ID]),
-            lager:error("Status: ~p~n", [W#wthd_Withdrawal.status]),
             W#wthd_Withdrawal.status
         end,
-        genlib_retry:linear(5, 1000)
+        genlib_retry:linear(15, 1000)
     ),
     ok.
 
@@ -247,7 +242,7 @@ get_events_ok(C) ->
         {succeeded, #wthd_WithdrawalSucceeded{}},
         fun () ->
             {ok, Events} = call_service(withdrawal, 'GetEvents', [ID, Range]),
-            lists:foldl(fun(#wthd_WithdrawalEvent{change = {status_changed, Status}}, _AccIn) -> Status;
+            lists:foldl(fun(#wthd_Event{change = {status_changed, Status}}, _AccIn) -> Status;
                             (_Ev, AccIn) -> AccIn end, undefined, Events)
         end,
         genlib_retry:linear(10, 1000)

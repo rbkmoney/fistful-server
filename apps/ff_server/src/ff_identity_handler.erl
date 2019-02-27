@@ -61,7 +61,7 @@ handle_function_('StartChallenge', [IdentityID, Params], _WoodyCtx, _Opts) ->
             {ok, Machine}   = ff_identity_machine:get(IdentityID),
             Identity        = ff_identity_machine:identity(Machine),
             {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
-            {ok, ff_identity_codec:encode_challenge(Challenge)};
+            {ok, ff_identity_codec:marshal_challenge(Challenge)};
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {challenge, {challenge_pending, _}}} ->
@@ -84,7 +84,7 @@ handle_function_('GetChallenges', [ID], _WoodCtx, _Opts) ->
         {ok, Machine} ->
             Identity = ff_identity_machine:identity(Machine),
             Challenges = ff_identity:challenges(Identity),
-            {ok, [ff_identity_codec:encode_challenge(C) || C <- maps:values(Challenges)]};
+            {ok, [ff_identity_codec:marshal_challenge(C) || C <- maps:values(Challenges)]};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;
@@ -92,7 +92,7 @@ handle_function_('GetEvents', [IdentityID, RangeParams], _Context, _Opts) ->
     Range = ff_identity_codec:unmarshal(range, RangeParams),
     case ff_identity_machine:events(IdentityID, Range) of
         {ok, EventList} ->
-            Events = [ff_identity_codec:encode_identity_event(Event) || Event <- EventList],
+            Events = [ff_identity_codec:marshal_identity_event(Event) || Event <- EventList],
             {ok, Events};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})

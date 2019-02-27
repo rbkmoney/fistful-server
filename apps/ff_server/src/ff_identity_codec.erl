@@ -7,8 +7,8 @@
 -export([decode_identity_params/1]).
 -export([decode_challenge_params/1]).
 
--export([encode_identity_event/1]).
--export([encode_challenge/1]).
+-export([marshal_identity_event/1]).
+-export([marshal_challenge/1]).
 
 -export([marshal_identity/1]).
 -export([unmarshal_identity/1]).
@@ -19,7 +19,8 @@
 
 %% API
 %% DECODE
--spec decode_identity_params(ff_proto_identity_thrift:'IdentityParams'()) -> ff_identity_machine:params().
+-spec decode_identity_params(ff_proto_identity_thrift:'IdentityParams'()) ->
+    ff_identity_machine:params().
 
 decode_identity_params(#idnt_IdentityParams{
     name        = Name,
@@ -36,7 +37,8 @@ decode_identity_params(#idnt_IdentityParams{
         external_id => maybe_unmarshal(id, ExternalID)
     }).
 
--spec decode_challenge_params(ff_proto_identity_thrift:'ChallengeParams'()) -> ff_identity_machine:challenge_params().
+-spec decode_challenge_params(ff_proto_identity_thrift:'ChallengeParams'()) ->
+    ff_identity_machine:challenge_params().
 
 decode_challenge_params(#idnt_ChallengeParams{
     id     = ID,
@@ -49,23 +51,21 @@ decode_challenge_params(#idnt_ChallengeParams{
         proofs => unmarshal(challenge_proofs, Proofs)
     }).
 
-%% ENCODE
+%% Every function marshal_X has got opposite function unmarshal_X.
+%% Composition of functions doesn't change x.  x = g(f(x))
+-spec marshal_identity_event({integer(), ff_machine:timestamped_event(ff_identity:event())}) ->
+    ff_proto_identity_thrift:'IdentityEvent'().
 
--spec encode_identity_event({
-    integer(),
-    ff_machine:timestamped_event(ff_identity:event())
-}) -> ff_proto_identity_thrift:'IdentityEvent'().
-
-encode_identity_event({ID, {ev, Timestamp, Ev}}) ->
+marshal_identity_event({ID, {ev, Timestamp, Ev}}) ->
     #idnt_IdentityEvent{
         sequence   = marshal(event_id, ID),
         occured_at = marshal(timestamp, Timestamp),
         change     = marshal(event, Ev)
     }.
 
--spec encode_challenge(ff_identity:challenge()) -> ff_proto_identity:'Challenge'().
+-spec marshal_challenge(ff_identity:challenge()) -> ff_proto_identity:'Challenge'().
 
-encode_challenge(Challenge) ->
+marshal_challenge(Challenge) ->
     Proofs = ff_identity_challenge:proofs(Challenge),
     Status = ff_identity_challenge:status(Challenge),
     #idnt_Challenge{
@@ -75,9 +75,8 @@ encode_challenge(Challenge) ->
         status = marshal(challenge_payload_status_changed, Status)
     }.
 
-%% Every function marshal_X has got opposite function unmarshal_X.
-%% Composition of functions doesn't change x.  x = g(f(x))
--spec marshal_identity({ff_identity:identity(), ff_ctx:ctx() | undefined}) -> ff_proto_identity_thrift:'Identity'().
+-spec marshal_identity({ff_identity:identity(), ff_ctx:ctx() | undefined}) ->
+    ff_proto_identity_thrift:'Identity'().
 
 marshal_identity({Identity, Ctx}) ->
     EffectiveChallengeID = case ff_identity:effective_challenge(Identity) of
@@ -97,7 +96,8 @@ marshal_identity({Identity, Ctx}) ->
         effective_challenge = EffectiveChallengeID
     }.
 
--spec unmarshal_identity(ff_proto_identity_thrift:'Identity'()) -> {ff_identity:identity(), ff_ctx:ctx()}.
+-spec unmarshal_identity(ff_proto_identity_thrift:'Identity'()) ->
+    {ff_identity:identity(), ff_ctx:ctx()}.
 
 unmarshal_identity(#idnt_Identity{
     id          = ID,

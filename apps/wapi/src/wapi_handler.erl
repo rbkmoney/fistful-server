@@ -54,10 +54,23 @@
 -spec handle_request(tag(), operation_id(), req_data(), swagger_context(), opts()) ->
     request_result().
 handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContext}, Opts) ->
+    #{'X-Request-Deadline' := Header} = Req,
+    case wapi_utils:parse_deadline(Header) of
+        {ok, Deadline} ->
+            WoodyContext = attach_deadline(Deadline, create_woody_context(Tag, Req, AuthContext, Opts)),
+            process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext);
+        _ ->
+            _ = lager:warning("Operation ~p failed due to invalid deadline header ~p", [OperationID, Header]),
+            wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"SchemaViolated">>,
+                <<"name">>        => <<"X-Request-Deadline">>,
+                <<"description">> => <<"Invalid data in X-Request-Deadline header">>
+            })
+    end.
+
+process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
     _ = lager:info("Processing request ~p", [OperationID]),
     try
-        WoodyContext = attach_deadline(Req, create_woody_context(Tag, Req, AuthContext, Opts)),
-
         %% TODO remove this fistful specific step, when separating the wapi service.
         ok = ff_woody_ctx:set(WoodyContext),
 
@@ -73,18 +86,11 @@ handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContex
         end
     catch
         throw:{?request_result, Result} ->
-            ff_woody_ctx:unset(),
             Result;
-        throw:{bad_deadline, Deadline} ->
-            _ = lager:warning("Operation ~p failed due to invalid deadline ~p", [OperationID, Deadline]),
-            wapi_handler_utils:reply_ok(400, #{
-                <<"errorType">>   => <<"SchemaViolated">>,
-                <<"name">>        => <<"X-Request-Deadline">>,
-                <<"description">> => <<"Invalid data in X-Request-Deadline header">>
-            });
         error:{woody_error, {Source, Class, Details}} ->
-            ff_woody_ctx:unset(),
             process_woody_error(Source, Class, Details)
+    after
+        ff_woody_ctx:unset()
     end.
 
 -spec throw_result(request_result()) ->
@@ -107,15 +113,10 @@ create_woody_context(Tag, #{'X-Request-ID' := RequestID}, AuthContext, Opts) ->
         woody_context:new(RpcID, undefined, wapi_woody_client:get_service_deadline(Tag))
     ).
 
-attach_deadline(#{'X-Request-Deadline' := undefined}, Context) ->
+attach_deadline(undefined, Context) ->
     Context;
-attach_deadline(#{'X-Request-Deadline' := Header}, Context) ->
-    case wapi_utils:parse_deadline(Header) of
-        {ok, Deadline} when Deadline /= undefined ->
-            woody_context:set_deadline(Deadline, Context);
-        _ ->
-            throw({bad_deadline, Header})
-    end.
+attach_deadline(Deadline, Context) ->
+    woody_context:set_deadline(Deadline, Context).
 
 -define(APP, wapi).
 

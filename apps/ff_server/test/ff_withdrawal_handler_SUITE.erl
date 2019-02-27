@@ -35,8 +35,8 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            % create_withdrawal_ok,
-            create_withdrawal_wallet_currency_fail
+            create_withdrawal_ok
+            % create_withdrawal_wallet_currency_fail
             % create_withdrawal_cashrange_fail,
             % create_withdrawal_destination_fail,
             % create_withdrawal_wallet_fail,
@@ -93,7 +93,7 @@ end_per_testcase(_Name, _C) ->
 create_withdrawal_ok(C) ->
     ID            = genlib:unique(),
     ExternalId    = genlib:unique(),
-    WalletID      = create_wallet(<<"RUB">>, 10000),
+    WalletID      = create_wallet(<<"RUB">>, 100),
     DestinationID = create_destination(C),
     Body = #'Cash'{
         amount = 1000,
@@ -108,6 +108,7 @@ create_withdrawal_ok(C) ->
         external_id = ExternalId,
         context     = Ctx
     },
+    lager:error("~n>>>~n Create~n", []),
     % _ = dbg:tracer(),
     % _ = dbg:tpl({ff_withdrawal, '_', '_'}, []),
     % _ = dbg:p(all, [c, timestamp]),
@@ -124,9 +125,10 @@ create_withdrawal_ok(C) ->
         {succeeded, #wthd_WithdrawalSucceeded{}},
         fun() ->
             {ok, W} = call_service(withdrawal, 'Get', [ID]),
+            lager:error("Status: ~p~n", [W#wthd_Withdrawal.status]),
             W#wthd_Withdrawal.status
         end,
-        genlib_retry:linear(30, 1000)
+        genlib_retry:linear(5, 1000)
     ),
     ok.
 

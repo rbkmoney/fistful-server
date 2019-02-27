@@ -179,6 +179,7 @@ process_transfer(Withdrawal) ->
     {error, _Reason}.
 
 process_failure(Reason, Withdrawal) ->
+    lager:error("withdrawal process_failure Reason:~n~p~n~p~n", [Reason, Withdrawal]),
     ff_transfer:process_failure(Reason, Withdrawal).
 
 %% Internals

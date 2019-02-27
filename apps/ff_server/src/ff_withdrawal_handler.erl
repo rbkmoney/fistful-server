@@ -46,7 +46,6 @@ handle_function_('Create', [Params], Context, Opts) ->
         {error, {provider, notfound}} ->
             woody_error:raise(business, #fistful_ProviderNotFound{});
         {error, {terms, {invalid_withdrawal_currency, _Details2, {wallet_currency, _Details}}}} ->
-            lager:error("~nError: ~n~p~n", [_Details, _Details2]),
             woody_error:raise(business, #fistful_CurrencyInvalid{});
         {error, {terms, {terms_violation, {cash_range, _Details}}}} ->
             woody_error:raise(business, #fistful_CashRangeError{});

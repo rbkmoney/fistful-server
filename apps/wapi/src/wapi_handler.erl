@@ -73,6 +73,7 @@ handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContex
         end
     catch
         throw:{?request_result, Result} ->
+            ff_woody_ctx:unset(),
             Result;
         throw:{bad_deadline, Deadline} ->
             _ = lager:warning("Operation ~p failed due to invalid deadline ~p", [OperationID, Deadline]),
@@ -82,9 +83,8 @@ handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContex
                 <<"description">> => <<"Invalid data in X-Request-Deadline header">>
             });
         error:{woody_error, {Source, Class, Details}} ->
+            ff_woody_ctx:unset(),
             process_woody_error(Source, Class, Details)
-    after
-        ff_woody_ctx:unset()
     end.
 
 -spec throw_result(request_result()) ->

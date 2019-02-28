@@ -32,7 +32,7 @@
 -type event(Params, Route) ::
     {created, transfer(Params)}             |
     {route_changed, route(Route)}           |
-    {p_transfer, ff_postings_transfer:ev()} |
+    {p_transfer, ff_postings_transfer:event()} |
     {session_started, session_id()}         |
     {session_finished, session_id()}        |
     {status_changed, status()}              .
@@ -249,8 +249,8 @@ apply_event_({created, T}, undefined) ->
 apply_event_({status_changed, S}, T) ->
     maps:put(status, S, T);
 apply_event_({p_transfer, Ev}, T0 = #{p_transfer := PT}) ->
-    T = case ff_postings_transfer:get_event_type(Ev, T0) of
-        created ->
+    T = case ff_postings_transfer:get_event_type(Ev, PT) of
+        {ok, created} ->
             increment_transfer_count(T0);
         _ ->
             T0

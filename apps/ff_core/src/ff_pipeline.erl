@@ -103,7 +103,7 @@ valid(_, V) ->
 -type outcome(E, R) ::
     {ok, [E]} | {error, R}.
 
--spec with(Sub, St, fun((SubSt | undefined) -> outcome(SubEv, Reason)), term() | list()) ->
+-spec with(Sub, St, fun((_, SubSt | undefined) -> outcome(SubEv, Reason)), _) ->
     outcome({Sub, SubEv}, {Sub, Reason}) when
         Sub   :: atom(),
         St    :: #{Sub => SubSt},

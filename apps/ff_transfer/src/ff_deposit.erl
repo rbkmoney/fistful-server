@@ -159,11 +159,10 @@ events(ID, Range) ->
 -spec revert(id()) ->
     {ok, id()}        |
     {error, bad_deposit_amount} |
-    {error, notfound}           |
-    _TransferError.
+    {error, _TransferError}.
 
 revert(ID) ->
-    ff_transfer_machine:revert(?NS, ID).
+    do(fun() -> unwrap(ff_transfer_machine:revert(?NS, ID)) end).
 
 %% ff_transfer_machine behaviour
 

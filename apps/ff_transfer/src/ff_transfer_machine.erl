@@ -122,8 +122,11 @@ backend(NS) ->
 
 -spec revert(ns(), id()) ->
     {ok, id()}             |
-    {error, notfound}      |
-    {error, not_implemented}.
+    {error,
+        _TransferError |
+        notfound       |
+        not_implemented
+    }.
 
 % revert(ff_withdrawal, _ID) ->
 %     {error, not_implemented};

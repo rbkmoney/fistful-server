@@ -85,8 +85,8 @@ handle_function_('GetDeposit', [ID], _Context, _Opts) ->
     end;
 handle_function_('RevertDeposit', [ID], _Context, _Opts) ->
     case ff_deposit:revert(ID) of
-        ok ->
-            {ok, ID};
+        {ok, ID} ->
+            ID;
         {error, notfound} ->
             woody_error:raise(business, #fistful_DepositNotFound{});
         {error, Error} ->

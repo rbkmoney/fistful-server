@@ -15,7 +15,7 @@
 -export([flip/1]).
 -export([valid/2]).
 
--export([with/3]).
+-export([with/4]).
 
 %%
 
@@ -103,14 +103,14 @@ valid(_, V) ->
 -type outcome(E, R) ::
     {ok, [E]} | {error, R}.
 
--spec with(Sub, St, fun((SubSt | undefined) -> outcome(SubEv, Reason))) ->
+-spec with(Sub, St, fun((SubSt | undefined) -> outcome(SubEv, Reason)), term() | list()) ->
     outcome({Sub, SubEv}, {Sub, Reason}) when
         Sub   :: atom(),
         St    :: #{Sub => SubSt},
         SubSt :: _.
 
-with(Model, St, F) ->
-    case F(maps:get(Model, St, undefined)) of
+with(Model, St, F, Args) ->
+    case F(Args, maps:get(Model, St, undefined)) of
         {ok, Events0} when is_list(Events0) ->
             Events1 = [{Model, Ev} || Ev <- Events0],
             {ok, Events1};

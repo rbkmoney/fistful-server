@@ -82,6 +82,15 @@ handle_function_('GetDeposit', [ID], _Context, _Opts) ->
             {ok, encode(deposit, {ID, Machine})};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
+    end;
+handle_function_('RevertDeposit', [ID], _Context, _Opts) ->
+    case ff_deposit:revert(ID) of
+        ok ->
+            {ok, ID};
+        {error, notfound} ->
+            woody_error:raise(business, #fistful_DepositNotFound{});
+        {error, Error} ->
+            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end.
 
 decode({source, resource}, #fistful_SourceResource{details = Details}) ->

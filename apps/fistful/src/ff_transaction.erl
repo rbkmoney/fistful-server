@@ -26,9 +26,9 @@
 %%  - Module name is misleading then
 -export([balance/1]).
 
--export([prepare/2]).
--export([commit/2]).
--export([cancel/2]).
+-export([prepare/3]).
+-export([commit/3]).
+-export([cancel/3]).
 
 %%
 
@@ -38,23 +38,23 @@
 balance(Account) ->
     get_account_by_id(Account).
 
--spec prepare(id(), [posting()]) ->
+-spec prepare(id(), [posting()], integer()) ->
     {ok, affected()}.
 
-prepare(ID, Postings) ->
-    hold(encode_plan_change(ID, Postings)).
+prepare(ID, Postings, Num) ->
+    hold(encode_plan_change(ID, Postings, Num)).
 
--spec commit(id(), [posting()]) ->
+-spec commit(id(), [posting()], integer()) ->
     {ok, affected()}.
 
-commit(ID, Postings) ->
-    commit_plan(encode_plan(ID, Postings)).
+commit(ID, Postings, Num) ->
+    commit_plan(encode_plan(ID, Postings, Num)).
 
--spec cancel(id(), [posting()]) ->
+-spec cancel(id(), [posting()], integer()) ->
     {ok, affected()}.
 
-cancel(ID, Postings) ->
-    rollback_plan(encode_plan(ID, Postings)).
+cancel(ID, Postings, Num) ->
+    rollback_plan(encode_plan(ID, Postings, Num)).
 
 %% Woody stuff
 
@@ -94,21 +94,21 @@ call(Function, Args) ->
     Service = {dmsl_accounter_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}).
 
-encode_plan_change(ID, Postings) ->
+encode_plan_change(ID, Postings,  Num) ->
     #accounter_PostingPlanChange{
         id    = ID,
-        batch = encode_batch(Postings)
+        batch = encode_batch(Postings, Num)
     }.
 
-encode_plan(ID, Postings) ->
+encode_plan(ID, Postings,  Num) ->
     #accounter_PostingPlan{
         id         = ID,
-        batch_list = [encode_batch(Postings)]
+        batch_list = [encode_batch(Postings, Num)]
     }.
 
-encode_batch(Postings) ->
+encode_batch(Postings,  Num) ->
     #accounter_PostingBatch{
-        id       = 1, % TODO
+        id       = Num,
         postings = [
             encode_posting(Source, Destination, Body)
                 || {Source, Destination, Body} <- Postings

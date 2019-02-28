@@ -51,6 +51,7 @@
 -export([create/4]).
 -export([get/2]).
 -export([events/3]).
+-export([revert/2]).
 
 %% Accessors
 
@@ -118,6 +119,21 @@ events(NS, ID, Range) ->
 
 backend(NS) ->
     fistful:backend(NS).
+
+-spec revert(ns(), id()) ->
+    {ok, id()}             |
+    {error, notfound}      |
+    {error, not_implemented}.
+
+% revert(ff_withdrawal, _ID) ->
+%     {error, not_implemented};
+revert(NS, ID) ->
+    case machinery:call(NS, ID, revert, backend(NS)) of
+        {ok, _Events} ->
+            {ok, ID};
+        {error, _} = Result ->
+            Result
+    end.
 
 %% Accessors
 

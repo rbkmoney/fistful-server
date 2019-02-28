@@ -9,16 +9,17 @@
 -define(ACTUAL_FORMAT_VERSION, 2).
 
 -opaque transfer(T) :: #{
-    version       := ?ACTUAL_FORMAT_VERSION,
-    id            := id(),
-    transfer_type := transfer_type(),
-    body          := body(),
-    params        := params(T),
-    p_transfer    => maybe(p_transfer()),
-    session_id    => session_id(),
-    route         => any(),
-    status        => status(),
-    external_id   => id()
+    version             := ?ACTUAL_FORMAT_VERSION,
+    id                  := id(),
+    transfer_type       := transfer_type(),
+    body                := body(),
+    params              := params(T),
+    p_transfer          => maybe(p_transfer()),
+    session_id          => session_id(),
+    route               => any(),
+    status              => status(),
+    external_id         => id(),
+    p_transfer_count    => integer()
 }.
 
 -type route(T) :: T.
@@ -70,7 +71,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, with/3]).
+-import(ff_pipeline, [do/1, unwrap/1, with/4]).
 
 %% Internal types
 
@@ -178,7 +179,11 @@ do_process_failure(_Reason, #{status := pending, p_transfer := #{status := creat
     {ok, []};
 do_process_failure(_Reason, #{status := pending, p_transfer := #{status := prepared}} = Transfer) ->
     do(fun () ->
-        unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))
+        unwrap(with(
+            p_transfer,
+            Transfer,
+            fun ff_postings_transfer:cancel/2,
+            maps:get(p_transfer_count, Transfer)))
     end);
 do_process_failure(Reason, #{status := pending, p_transfer := #{status := committed}}) ->
     erlang:error({unprocessable_failure, committed_p_transfer, Reason});
@@ -202,15 +207,27 @@ deduce_activity(#{status := pending, p_transfer := #{status := created}}) ->
 
 process_activity(prepare_transfer, Transfer) ->
     do(fun () ->
-        {continue, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:prepare/1))}
+        {continue, unwrap(with(
+            p_transfer,
+            Transfer,
+            fun ff_postings_transfer:prepare/2,
+            maps:get(p_transfer_count, Transfer)))}
     end);
 process_activity(commit_transfer, Transfer) ->
     do(fun () ->
-        {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:commit/1))}
+        {undefined, unwrap(with(
+            p_transfer,
+            Transfer,
+            fun ff_postings_transfer:commit/2,
+            maps:get(p_transfer_count, Transfer)))}
     end);
 process_activity(cancel_transfer, Transfer) ->
     do(fun () ->
-        {undefined, unwrap(with(p_transfer, Transfer, fun ff_postings_transfer:cancel/1))}
+        {undefined, unwrap(with(
+            p_transfer,
+            Transfer,
+            fun ff_postings_transfer:cancel/2,
+            maps:get(p_transfer_count, Transfer)))}
     end).
 
 add_external_id(undefined, Event) ->
@@ -231,7 +248,13 @@ apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
     maps:put(status, S, T);
-apply_event_({p_transfer, Ev}, T = #{p_transfer := PT}) ->
+apply_event_({p_transfer, Ev}, T0 = #{p_transfer := PT}) ->
+    T = case ff_postings_transfer:get_event_type(Ev, T0) of
+        created ->
+            increment_transfer_count(T0);
+        _ ->
+            T0
+    end,
     T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
 apply_event_({p_transfer, Ev}, T) ->
     apply_event({p_transfer, Ev}, T#{p_transfer => undefined});
@@ -246,6 +269,11 @@ maybe_transfer_type(undefined) ->
     undefined;
 maybe_transfer_type(T) ->
     transfer_type(T).
+
+increment_transfer_count(T = #{p_transfer_count := Count}) ->
+    T#{p_transfer_count := Count + 1};
+increment_transfer_count(T) ->
+    T#{p_transfer_count => 1}.
 
 -spec maybe_migrate(event() | legacy_event(), transfer_type() | undefined) ->
     event().

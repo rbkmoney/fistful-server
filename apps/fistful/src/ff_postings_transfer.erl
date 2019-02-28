@@ -41,13 +41,14 @@
 -export([status/1]).
 
 -export([create/2]).
--export([prepare/1]).
--export([commit/1]).
--export([cancel/1]).
+-export([prepare/2]).
+-export([commit/2]).
+-export([cancel/2]).
 
 %% Event source
 
 -export([apply_event/2]).
+-export([get_event_type/2]).
 -export([maybe_migrate/2]).
 
 %% Pipeline
@@ -128,22 +129,22 @@ validate_identities([A0 | Accounts]) ->
 
 %%
 
--spec prepare(transfer()) ->
+-spec prepare(integer(), transfer()) ->
     {ok, [event()]} |
     {error,
         {status, committed | cancelled}
     }.
 
-prepare(Transfer = #{status := created}) ->
+prepare(TransferNum, Transfer = #{status := created}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
     do(fun () ->
-        _Affected = unwrap(ff_transaction:prepare(ID, construct_trx_postings(CashFlow))),
+        _Affected = unwrap(ff_transaction:prepare(ID, construct_trx_postings(CashFlow), TransferNum)),
         [{status_changed, prepared}]
     end);
-prepare(#{status := prepared}) ->
+prepare(_TransferNum, #{status := prepared}) ->
     {ok, []};
-prepare(#{status := Status}) ->
+prepare(_TransferNum, #{status := Status}) ->
     {error, Status}.
 
 %% TODO
@@ -152,38 +153,38 @@ prepare(#{status := Status}) ->
 
 %%
 
--spec commit(transfer()) ->
+-spec commit(integer(), transfer()) ->
     {ok, [event()]} |
     {error, {status, created | cancelled}}.
 
-commit(Transfer = #{status := prepared}) ->
+commit(TransferNum, Transfer = #{status := prepared}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
     do(fun () ->
-        _Affected = unwrap(ff_transaction:commit(ID, construct_trx_postings(CashFlow))),
+        _Affected = unwrap(ff_transaction:commit(ID, construct_trx_postings(CashFlow), TransferNum)),
         [{status_changed, committed}]
     end);
-commit(#{status := committed}) ->
+commit(_TransferNum, #{status := committed}) ->
     {ok, []};
-commit(#{status := Status}) ->
+commit(_TransferNum, #{status := Status}) ->
     {error, Status}.
 
 %%
 
--spec cancel(transfer()) ->
+-spec cancel(integer(), transfer()) ->
     {ok, [event()]} |
     {error, {status, created | committed}}.
 
-cancel(Transfer = #{status := prepared}) ->
+cancel(TransferNum, Transfer = #{status := prepared}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
     do(fun () ->
-        _Affected = unwrap(ff_transaction:cancel(ID, construct_trx_postings(CashFlow))),
+        _Affected = unwrap( ff_transaction:cancel(ID, construct_trx_postings(CashFlow), TransferNum)),
         [{status_changed, cancelled}]
     end);
-cancel(#{status := cancelled}) ->
+cancel(_TransferNum, #{status := cancelled}) ->
     {ok, []};
-cancel(#{status := Status}) ->
+cancel(_TransferNum, #{status := Status}) ->
     {error, {status, Status}}.
 
 %%
@@ -193,8 +194,18 @@ cancel(#{status := Status}) ->
 
 apply_event({created, Transfer}, undefined) ->
     Transfer;
+apply_event({created, Transfer}, _) ->
+    Transfer;
 apply_event({status_changed, S}, Transfer) ->
     Transfer#{status => S}.
+
+-spec get_event_type(event(), ff_maybe:maybe(account())) ->
+    {ok, created | status_changed}.
+
+get_event_type({created, _}, _) ->
+    created;
+get_event_type({status_changed, _}, _) ->
+    status_changed.
 
 %%
 

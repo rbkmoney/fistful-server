@@ -33,6 +33,7 @@
 -behaviour(ff_transfer_machine).
 -export([process_transfer/1]).
 -export([process_failure/2]).
+-export([process_call/2]).
 
 %% Accessors
 
@@ -48,6 +49,7 @@
 -export([get/1]).
 -export([get_machine/1]).
 -export([events/2]).
+-export([revert/1]).
 
 %% Event source
 
@@ -154,6 +156,15 @@ get_machine(ID) ->
 events(ID, Range) ->
     ff_transfer_machine:events(?NS, ID, Range).
 
+-spec revert(id()) ->
+    {ok, id()}        |
+    {error, bad_deposit_amount} |
+    {error, notfound}           |
+    _TransferError.
+
+revert(ID) ->
+    ff_transfer_machine:revert(?NS, ID).
+
 %% ff_transfer_machine behaviour
 
 -spec process_transfer(deposit()) ->
@@ -171,6 +182,20 @@ process_transfer(Deposit) ->
 process_failure(Reason, Deposit) ->
     ff_transfer:process_failure(Reason, Deposit).
 
+-spec process_call(any(), deposit()) ->
+    {ok, process_result()} |
+    {error, _Reason}.
+
+process_call(revert, Deposit) ->
+    #{
+        wallet_account := WalletAccount,
+        source_account := SourceAccount
+    } = params(Deposit),
+    do(fun () ->
+        PTransferID = construct_p_transfer_revert_id(id(Deposit)),
+        PostingsTransferEvents = create_p_transfer_(PTransferID, WalletAccount, SourceAccount, Deposit),
+        {continue, [{status_changed, pending}] ++ PostingsTransferEvents}
+    end).
 %% Internals
 
 -type activity() ::
@@ -208,21 +233,11 @@ do_process_transfer(idle, Deposit) ->
 create_p_transfer(Deposit) ->
     #{
         wallet_account := WalletAccount,
-        source_account := SourceAccount,
-        wallet_cash_flow_plan := CashFlowPlan
+        source_account := SourceAccount
     } = params(Deposit),
     do(fun () ->
-        Constants = #{
-            operation_amount => body(Deposit)
-        },
-        Accounts = #{
-            {wallet, sender_source} => SourceAccount,
-            {wallet, receiver_settlement} => WalletAccount
-        },
-        FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
         PTransferID = construct_p_transfer_id(id(Deposit)),
-        PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
-        {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}
+        {continue, create_p_transfer_(PTransferID, SourceAccount, WalletAccount, Deposit)}
     end).
 
 -spec finish_transfer(deposit()) ->
@@ -243,7 +258,26 @@ finish_transfer(Deposit) ->
 construct_p_transfer_id(ID) ->
     <<"ff/deposit/", ID/binary>>.
 
+-spec construct_p_transfer_revert_id(id()) -> id().
+construct_p_transfer_revert_id(ID) ->
+    <<"ff/r_deposit/", ID/binary>>.
+
 -spec maybe_migrate(ff_transfer:event() | ff_transfer:legacy_event()) ->
     ff_transfer:event().
 maybe_migrate(Ev) ->
     ff_transfer:maybe_migrate(Ev, deposit).
+
+create_p_transfer_(PTransferID, From, To, Deposit) ->
+    #{
+        wallet_cash_flow_plan := CashFlowPlan
+    } = params(Deposit),
+    Constants = #{
+        operation_amount => body(Deposit)
+    },
+    Accounts = #{
+        {wallet, sender_source} => From,
+        {wallet, receiver_settlement} => To
+    },
+    FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
+    PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
+    [{p_transfer, Ev} || Ev <- PostingsTransferEvents].

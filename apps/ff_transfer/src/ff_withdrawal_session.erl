@@ -110,8 +110,10 @@ process_session(#{status := active} = Session) ->
     } = Session,
     ASt = maps:get(adapter_state, Session, undefined),
     case ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
-        {ok, Intent, NextState} ->
-            process_intent(Intent, NextState);
+        {ok, Intent, ASt} ->
+            process_intent(Intent);
+        {ok, Intent, NextASt} ->
+            process_intent(Intent, NextASt);
         {ok, Intent} ->
             process_intent(Intent)
     end.
@@ -128,9 +130,9 @@ set_session_result(Result, #{status := active}) ->
 %% Internals
 %%
 
-process_intent(Intent, NextState) ->
+process_intent(Intent, NextASt) ->
     #{events := Events0} = Result = process_intent(Intent),
-    Events1 = Events0 ++ [{next_state, NextState}],
+    Events1 = Events0 ++ [{next_state, NextASt}],
     Result#{events => Events1}.
 
 process_intent({finish, Result}) ->

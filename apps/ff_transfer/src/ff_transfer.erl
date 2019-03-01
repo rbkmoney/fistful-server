@@ -249,12 +249,7 @@ apply_event_({created, T}, undefined) ->
 apply_event_({status_changed, S}, T) ->
     maps:put(status, S, T);
 apply_event_({p_transfer, Ev}, T0 = #{p_transfer := PT}) ->
-    T = case ff_postings_transfer:get_event_type(Ev, PT) of
-        {ok, created} ->
-            increment_transfer_count(T0);
-        _ ->
-            T0
-    end,
+    T = increment_if_new(ff_postings_transfer:is_new_transfer(Ev, PT), T0),
     T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
 apply_event_({p_transfer, Ev}, T) ->
     apply_event({p_transfer, Ev}, T#{p_transfer => undefined});
@@ -269,6 +264,11 @@ maybe_transfer_type(undefined) ->
     undefined;
 maybe_transfer_type(T) ->
     transfer_type(T).
+
+increment_if_new({_, true}, T) ->
+    increment_transfer_count(T);
+increment_if_new(_, T) ->
+    T.
 
 increment_transfer_count(T = #{p_transfer_count := Count}) ->
     T#{p_transfer_count := Count + 1};

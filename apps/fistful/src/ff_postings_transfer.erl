@@ -48,7 +48,7 @@
 %% Event source
 
 -export([apply_event/2]).
--export([get_event_type/2]).
+-export([is_new_transfer/2]).
 -export([maybe_migrate/2]).
 
 %% Pipeline
@@ -191,20 +191,18 @@ cancel(_TransferNum, #{status := Status}) ->
 -spec apply_event(event(), ff_maybe:maybe(transfer())) ->
     transfer().
 
-apply_event({created, Transfer}, undefined) ->
-    Transfer;
 apply_event({created, Transfer}, _) ->
     Transfer;
 apply_event({status_changed, S}, Transfer) ->
     Transfer#{status => S}.
 
--spec get_event_type(event(), transfer()) ->
-    {ok, created | status_changed}.
+-spec is_new_transfer(event(), transfer()) ->
+    {ok, true | false}.
 
-get_event_type({created, _}, _) ->
-    {ok, created};
-get_event_type({status_changed, _}, _) ->
-    {ok, status_changed}.
+is_new_transfer({created, _}, _) ->
+    {ok, true};
+is_new_transfer(_, _) ->
+    {ok, false}.
 
 %%
 

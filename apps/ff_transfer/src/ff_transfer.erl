@@ -71,7 +71,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, with/4]).
+-import(ff_pipeline, [do/1, unwrap/1, with/3]).
 
 %% Internal types
 
@@ -182,8 +182,7 @@ do_process_failure(_Reason, #{status := pending, p_transfer := #{status := prepa
         unwrap(with(
             p_transfer,
             Transfer,
-            fun ff_postings_transfer:cancel/2,
-            maps:get(p_transfer_count, Transfer)))
+            wrap_process_callback(fun ff_postings_transfer:cancel/2, Transfer)))
     end);
 do_process_failure(Reason, #{status := pending, p_transfer := #{status := committed}}) ->
     erlang:error({unprocessable_failure, committed_p_transfer, Reason});
@@ -210,30 +209,33 @@ process_activity(prepare_transfer, Transfer) ->
         {continue, unwrap(with(
             p_transfer,
             Transfer,
-            fun ff_postings_transfer:prepare/2,
-            maps:get(p_transfer_count, Transfer)))}
+            wrap_process_callback(fun ff_postings_transfer:prepare/2, Transfer)))}
     end);
 process_activity(commit_transfer, Transfer) ->
     do(fun () ->
         {undefined, unwrap(with(
             p_transfer,
             Transfer,
-            fun ff_postings_transfer:commit/2,
-            maps:get(p_transfer_count, Transfer)))}
+            wrap_process_callback(fun ff_postings_transfer:commit/2, Transfer)))}
     end);
 process_activity(cancel_transfer, Transfer) ->
     do(fun () ->
         {undefined, unwrap(with(
             p_transfer,
             Transfer,
-            fun ff_postings_transfer:cancel/2,
-            maps:get(p_transfer_count, Transfer)))}
+            wrap_process_callback(fun ff_postings_transfer:cancel/2, Transfer)))}
     end).
 
 add_external_id(undefined, Event) ->
     Event;
 add_external_id(ExternalID, Event) ->
     Event#{external_id => ExternalID}.
+
+wrap_process_callback(Fun, Transfer) ->
+    Count = maps:get(p_transfer_count, Transfer),
+    fun(State) ->
+        Fun(Count, State)
+    end.
 
 %%
 

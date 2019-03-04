@@ -105,9 +105,11 @@ body(#{body := V}) ->
 params(#{params := V}) ->
     V.
 
--spec status(transfer()) -> status().
+-spec status(transfer()) -> maybe(status()).
 status(#{status := V}) ->
-    V.
+    V;
+status(_Other) ->
+    undefined.
 
 -spec p_transfer(transfer())  -> maybe(p_transfer()).
 p_transfer(#{p_transfer := V}) ->

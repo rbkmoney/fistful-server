@@ -4,6 +4,8 @@
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
+-include_lib("stdlib/include/assert.hrl").
+
 -export([all/0]).
 -export([groups/0]).
 -export([init_per_suite/1]).
@@ -35,12 +37,12 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            % create_withdrawal_ok,
-            % create_withdrawal_wallet_currency_fail,
-            create_withdrawal_cashrange_fail
-            % create_withdrawal_destination_fail,
-            % create_withdrawal_wallet_fail,
-            % get_events_ok
+            create_withdrawal_ok,
+            create_withdrawal_wallet_currency_fail,
+            create_withdrawal_cashrange_fail,
+            create_withdrawal_destination_fail,
+            create_withdrawal_wallet_fail,
+            get_events_ok
         ]}
     ].
 
@@ -146,7 +148,10 @@ create_withdrawal_wallet_currency_fail(C) ->
         context     = Ctx
     },
 
-    {exception, {fistful_CurrencyInvalid}} = call_service(withdrawal, 'Create', [Params]).
+    {exception, #fistful_WithdrawalCurrencyInvalid{
+        withdrawal_currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>},
+        wallet_currency     = #'CurrencyRef'{ symbolic_code = <<"USD">>}
+    }} = call_service(withdrawal, 'Create', [Params]).
 
 create_withdrawal_cashrange_fail(C) ->
     ID            = genlib:unique(),
@@ -167,7 +172,13 @@ create_withdrawal_cashrange_fail(C) ->
         context     = Ctx
     },
 
-    {exception,{fistful_CashRangeError}} = call_service(withdrawal, 'Create', [Params]).
+    {exception, #fistful_WithdrawalCashAmountInvalid{
+            cash  = Cash,
+            range = CashRange
+        }
+    } = call_service(withdrawal, 'Create', [Params]),
+    ?assertEqual(Body, Cash),
+    ?assertNotEqual(undefined, CashRange).
 
 create_withdrawal_destination_fail(C) ->
     ID            = genlib:unique(),
@@ -189,7 +200,7 @@ create_withdrawal_destination_fail(C) ->
         context     = Ctx
     },
 
-    {exception,{fistful_DestinationNotFound}} = call_service(withdrawal, 'Create', [Params]).
+    {exception, {fistful_DestinationNotFound}} = call_service(withdrawal, 'Create', [Params]).
 
 create_withdrawal_wallet_fail(C) ->
     ID            = genlib:unique(),
@@ -211,7 +222,7 @@ create_withdrawal_wallet_fail(C) ->
         context     = Ctx
     },
 
-    {exception,{fistful_WalletNotFound}} = call_service(withdrawal, 'Create', [Params]).
+    {exception, {fistful_WalletNotFound}} = call_service(withdrawal, 'Create', [Params]).
 
 get_events_ok(C) ->
     ID            = genlib:unique(),
@@ -234,8 +245,8 @@ get_events_ok(C) ->
 
     {ok, _W} = call_service(withdrawal, 'Create', [Params]),
 
-    Range = #evsink_EventRange{
-        limit = 1000,
+    Range = #'EventRange'{
+        limit   = 1000,
         'after' = undefined
     },
     {succeeded, #wthd_WithdrawalSucceeded{}} = ct_helper:await(
@@ -322,7 +333,8 @@ create_wallet(Currency, Amount) ->
     WalletID.
 
 create_destination(C) ->
-    #{token := T, payment_system := PS, bin := Bin, masked_pan := Mp} = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    #{token := T, payment_system := PS, bin := Bin, masked_pan := Mp} =
+        ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     Resource = {bank_card, #'BankCard'{
         token = T,
         payment_system = PS,

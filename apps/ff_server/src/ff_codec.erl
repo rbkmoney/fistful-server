@@ -76,6 +76,11 @@ marshal(cash, {Amount, CurrencyRef}) ->
         amount   = marshal(amount, Amount),
         currency = marshal(currency_ref, CurrencyRef)
     };
+marshal(cash_range, {{BoundLower, CashLower}, {BoundUpper, CashUpper}}) ->
+    #'CashRange'{
+        lower = {BoundLower, marshal(cash, CashLower)},
+        upper = {BoundUpper, marshal(cash, CashUpper)}
+    };
 marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
     #'CurrencyRef'{
         symbolic_code = CurrencyID
@@ -95,6 +100,8 @@ marshal(string, V) when is_binary(V) ->
 marshal(integer, V) when is_integer(V) ->
     V;
 
+marshal(msgpack, V) ->
+    ff_context:wrap(V);
 % Catch this up in thrift validation
 marshal(_, Other) ->
     Other.
@@ -149,6 +156,16 @@ unmarshal(cash, #'Cash'{
     currency = CurrencyRef
 }) ->
     {unmarshal(amount, Amount), unmarshal(currency_ref, CurrencyRef)};
+
+unmarshal(cash_range, #'CashRange'{
+    lower = {BoundLower, CashLower},
+    upper = {BoundUpper, CashUpper}
+}) ->
+    {
+        {BoundLower, unmarshal(cash, CashLower)},
+        {BoundUpper, unmarshal(cash, CashUpper)}
+    };
+
 unmarshal(currency_ref, #{
     symbolic_code := SymbolicCode
 }) ->
@@ -167,7 +184,16 @@ unmarshal(timestamp, Timestamp) when is_binary(Timestamp) ->
 unmarshal(string, V) when is_binary(V) ->
     V;
 unmarshal(integer, V) when is_integer(V) ->
-    V.
+    V;
+
+unmarshal(msgpack, V) ->
+    ff_context:unwrap(V);
+
+unmarshal(range, #'EventRange'{
+    'after' = Cursor,
+    limit   = Limit
+}) ->
+    {Cursor, Limit, forward}.
 
 %% Suppress dialyzer warning until rfc3339 spec will be fixed.
 %% see https://github.com/talentdeficit/rfc3339/pull/5

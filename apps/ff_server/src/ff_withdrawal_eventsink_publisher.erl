@@ -3,7 +3,6 @@
 -behaviour(ff_eventsink_publisher).
 
 -export([publish_events/1]).
--export([marshal/2]).
 
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_cashflow_thrift.hrl").

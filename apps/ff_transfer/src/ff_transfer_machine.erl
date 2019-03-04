@@ -97,7 +97,6 @@ Ctx)
             Params,
             maps:get(external_id, Args, undefined)
         )),
-        % lager:error("~n>>>~n transfer create machine:~n~p~n~p~n~p~n~p~n", [NS, ID, {Events, Ctx}, backend(NS)]),
         unwrap(machinery:start(NS, ID, {Events, Ctx}, backend(NS)))
     end).
 
@@ -148,7 +147,6 @@ ctx(St) ->
     result().
 
 init({Events, Ctx}, #{}, _, _Opts) ->
-    % lager:error("TRANSFER[init]Events emit[~p]~n", [ff_machine:emit_events(Events)]),
     #{
         events    => ff_machine:emit_events(Events),
         action    => continue,
@@ -159,7 +157,6 @@ init({Events, Ctx}, #{}, _, _Opts) ->
     result().
 
 process_timeout(Machine, _, _Opts) ->
-    % lager:error("TRANSFER[timeout]~n", []),
     St = ff_machine:collapse(ff_transfer, Machine),
     Transfer = transfer(St),
     process_result(handler_process_transfer(Transfer), St).
@@ -168,7 +165,6 @@ process_timeout(Machine, _, _Opts) ->
     {ok, result()}.
 
 process_call(CallArgs, Machine, _, _Opts) ->
-    % lager:error("TRANSFER[call] ~p~n", [CallArgs]),
     St = ff_machine:collapse(ff_transfer, Machine),
     Transfer = transfer(St),
     {ok, process_result(handler_process_call(CallArgs, Transfer), St)}.
@@ -180,13 +176,11 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_transfer, Machine, Scenario).
 
 process_result({ok, {Action, Events}}, St) ->
-    % lager:error("TRANSFER[result ok] ~p~n", [{Action, Events}]),
     genlib_map:compact(#{
         events => set_events(Events),
         action => set_action(Action, St)
     });
 process_result({error, Reason}, St) ->
-    % lager:error("TRANSFER[result err] ~p~n", [Reason]),
     {ok, {Action, Events}} = handler_process_failure(Reason, transfer(St)),
     genlib_map:compact(#{
         events => set_events(Events),

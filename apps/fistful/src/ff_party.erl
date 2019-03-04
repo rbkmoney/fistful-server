@@ -50,16 +50,20 @@
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_wallet_payment_institution_id/1]).
 
+-export([decode_cash/1]).
+-export([decode_cash_range/1]).
 %% Internal types
 -type body() :: ff_transfer:body().
 -type cash() :: ff_transaction:body().
+-type cash_range() :: {{cash_bound(), cash()}, {cash_bound(), cash()}}.
+-type cash_bound() :: inclusive | exclusive.
 -type terms() :: dmsl_domain_thrift:'TermSet'().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'() | undefined.
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
 -type currency_id() :: ff_currency:id().
 -type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
 -type domain_cash() :: dmsl_domain_thrift:'Cash'().
--type cash_range() :: dmsl_domain_thrift:'CashRange'().
+-type domain_cash_range() :: dmsl_domain_thrift:'CashRange'().
 -type timestamp() :: ff_time:timestamp_ms().
 -type wallet() :: ff_wallet:wallet().
 -type payment_institution_id() :: ff_payment_institution:id().
@@ -576,7 +580,7 @@ validate_currency(CurrencyID, Currencies) ->
             {error, {terms_violation, {not_allowed_currency, {CurrencyID, Currencies}}}}
     end.
 
--spec validate_cash_range(domain_cash(), cash_range()) ->
+-spec validate_cash_range(domain_cash(), domain_cash_range()) ->
     {ok, valid} | {error, cash_range_validation_error()}.
 validate_cash_range(Cash, CashRange) ->
     case is_inside(Cash, CashRange) of
@@ -627,4 +631,24 @@ encode_cash({Amount, CurrencyID}) ->
         currency = #domain_CurrencyRef{
             symbolic_code = CurrencyID
         }
+    }.
+
+-spec decode_cash(domain_cash() | undefined) ->
+    cash() | undefined.
+decode_cash(undefined) ->
+    undefined;
+decode_cash(#domain_Cash{} = Cash) ->
+    Currency = Cash#domain_Cash.currency,
+    {Cash#domain_Cash.amount, Currency#domain_CurrencyRef.symbolic_code}.
+
+-spec decode_cash_range(cash_range()|undefined) ->
+    cash_range() | undefined.
+decode_cash_range(undefined) ->
+    undefined;
+decode_cash_range(#domain_CashRange{} = CashRange) ->
+    {UpperBound, CashUpper} = CashRange#domain_CashRange.upper,
+    {LowerBound, CashLower} = CashRange#domain_CashRange.lower,
+    {
+        {UpperBound, decode_cash(CashUpper)},
+        {LowerBound, decode_cash(CashLower)}
     }.

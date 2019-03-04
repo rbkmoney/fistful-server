@@ -81,7 +81,6 @@ start_processing_apps(Options) ->
                 ]}
             ]}
         ]},
-
         scoper,
         woody,
         dmt_client,

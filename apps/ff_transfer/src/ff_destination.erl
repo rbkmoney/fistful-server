@@ -55,6 +55,7 @@
 -export([create/3]).
 -export([get_machine/1]).
 -export([get/1]).
+-export([ctx/1]).
 -export([is_accessible/1]).
 -export([events/2]).
 
@@ -97,13 +98,21 @@ create(ID, Params, Ctx) ->
 -spec get_machine(id()) ->
     {ok, machine()}       |
     {error, notfound} .
+
 get_machine(ID) ->
     ff_instrument_machine:get(?NS, ID).
 
 -spec get(machine()) ->
     destination().
+
 get(Machine) ->
     ff_instrument_machine:instrument(Machine).
+
+-spec ctx(machine()) ->
+    ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
 
 -spec is_accessible(destination()) ->
     {ok, accessible} |

@@ -29,121 +29,46 @@ handle_function(Func, Args, Context, Opts) ->
 %%
 handle_function_('Create', [Params], Context, Opts) ->
     ID = Params#wthd_WithdrawalParams.id,
+    Ctx = Params#wthd_WithdrawalParams.context,
     case ff_withdrawal:create(ID,
-        decode(withdrawal_params, Params),
-        decode(context, Params#wthd_WithdrawalParams.context))
+        ff_withdrawal_codec:decode_withdrawal_params(Params),
+        ff_withdrawal_codec:unmarshal(context, Ctx))
     of
         ok ->
             handle_function_('Get', [ID], Context, Opts);
-        {error, {source, notfound}} ->
-            woody_error:raise(business, #fistful_SourceNotFound{});
+        {error, exists} ->
+            woody_error:raise(business, #fistful_IDExists{});
+        {error, {wallet, notfound}} ->
+            woody_error:raise(business, #fistful_WalletNotFound{});
         {error, {destination, notfound}} ->
             woody_error:raise(business, #fistful_DestinationNotFound{});
         {error, {destination, unauthorized}} ->
             woody_error:raise(business, #fistful_DestinationUnauthorized{});
-        {error, {wallet, notfound}} ->
-            woody_error:raise(business, #fistful_WalletNotFound{});
-        {error, {provider, notfound}} ->
-            woody_error:raise(business, #fistful_ProviderNotFound{});
-        {error, {terms, Error = {invalid_withdrawal_currency, _Details2, {wallet_currency, _Details}}}} ->
-            woody_error:raise(business, encode(currency_invalid, Error));
-        {error, {terms, {terms_violation, Error = {cash_range, _Details}}}} ->
-            encode(cash_range_error, Error),
-            % woody_error:raise(business, #fistful_CashRangeError{});
-            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(not_impl)});
-        {error, exists} ->
-            woody_error:raise(business, #fistful_IDExists{});
+        {error, {terms, {invalid_withdrawal_currency, CurrencyID, {wallet_currency, CurrencyID2}}}} ->
+            woody_error:raise(business, ff_withdrawal_codec:encode_currency_invalid({CurrencyID, CurrencyID2}));
+        {error, {terms, {terms_violation, {cash_range, {CashIn, CashRangeIn}}}}} ->
+            Cash  = ff_party:decode_cash(CashIn),
+            Range = ff_party:decode_cash_range(CashRangeIn),
+            woody_error:raise(business, ff_withdrawal_codec:encode_cash_range_error({Cash, Range}));
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 handle_function_('Get', [ID], _Context, _Opts) ->
     case ff_withdrawal:get_machine(ID) of
         {ok, Machine} ->
-            {ok, encode(withdrawal, {ID, Machine})};
+            Withdrawal = ff_withdrawal:get(Machine),
+            Ctx = ff_withdrawal:ctx(Machine),
+            Ans = ff_withdrawal_codec:marshal_withdrawal({Withdrawal, Ctx}),
+            {ok, Ans};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DestinationNotFound{})
     end;
 handle_function_('GetEvents', [WithdrawalID, RangeParams], _Context, _Opts) ->
-    Range = decode(range, RangeParams),
+    Range = ff_codec:unmarshal(range, RangeParams),
     case ff_withdrawal:events(WithdrawalID, Range) of
         {ok, Events} ->
-            {ok, encode(events, Events)};
+            {ok, [ff_withdrawal_codec:marshal_event(Ev) || Ev <- Events]};
         {error, notfound} ->
             woody_error:raise(business, #fistful_WithdrawalNotFound{})
     end.
-
-encode(cash_range_error, {cash_range, Cash, _CashRange}) ->
-    lager:error("Error: cash_range ~p~n", [Cash]),
-    #fistful_WithdrawalCashAmountInvalid{
-        cash  = #'Cash'{},
-        range = #'CashRange'{
-            upper = {},
-            lower = {}
-        }
-    };
-encode(withdrawal, {ID, Machine}) ->
-    Withdrawal = ff_withdrawal:get(Machine),
-    #wthd_Withdrawal {
-        source      = ff_withdrawal:wallet_id(Withdrawal),
-        destination = ff_withdrawal:destination_id(Withdrawal),
-        body        = encode(transaction_body, ff_withdrawal:body(Withdrawal)),
-        external_id = ff_withdrawal:external_id(Withdrawal),
-        id          = ID,
-        status      = encode(status, ff_withdrawal:status(Withdrawal)),
-        context     = encode(context, ff_transfer_machine:ctx(Machine))
-    };
-encode(transaction_body, {Amount, Currency}) ->
-    #'Cash'{
-        amount = Amount,
-        currency = encode(currency, Currency)
-    };
-encode(events, Events) ->
-    GenWithdrawalEvent = fun({ID, {ev, Timestamp, Ev}}) ->
-        #wthd_Event{
-            event      = ff_withdrawal_eventsink_publisher:marshal(event_id, ID),
-            occured_at = ff_withdrawal_eventsink_publisher:marshal(timestamp, Timestamp),
-            change     = ff_withdrawal_eventsink_publisher:marshal(event, Ev)
-        }
-    end,
-    [ GenWithdrawalEvent(Event) || Event <- Events];
-encode(status, pending) ->
-    {pending, #wthd_WithdrawalPending{}};
-encode(status, succeeded) ->
-    {succeeded, #wthd_WithdrawalSucceeded{}};
-encode(status, {failed, {terms_violation, {cash_range, _Details}}}) ->
-    {failed, #wthd_WithdrawalFailed{
-        failure = #wthd_Failure{}
-    }};
-encode(status, _Failure = #domain_Failure{}) ->
-    {failed, #wthd_WithdrawalFailed{
-        failure = #wthd_Failure{}
-    }};
-encode(currency, Currency) ->
-    #'CurrencyRef'{ symbolic_code = Currency};
-encode(context, Ctx) ->
-    ff_context:wrap(Ctx).
-
-decode(withdrawal_params, Params) ->
-    #{
-        wallet_id      => Params#wthd_WithdrawalParams.source,
-        destination_id => Params#wthd_WithdrawalParams.destination,
-        body           => decode(transaction_body,Params#wthd_WithdrawalParams.body),
-        external_id    => Params#wthd_WithdrawalParams.external_id
-    };
-decode(transaction_body, Params) ->
-    {
-        Params#'Cash'.amount,
-        decode(currency, Params#'Cash'.currency)
-    };
-decode(currency, #'CurrencyRef'{ symbolic_code = Currency}) ->
-    Currency;
-decode(context, undefined) ->
-    undefined;
-decode(context, Ctx) ->
-    ff_context:unwrap(Ctx);
-decode(range, Range) ->
-    Cursor = Range#evsink_EventRange.'after',
-    Limit  = Range#evsink_EventRange.limit,
-    {Cursor, Limit, forward}.
-
 

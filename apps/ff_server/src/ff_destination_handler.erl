@@ -28,9 +28,10 @@ handle_function(Func, Args, Context, Opts) ->
 %%
 handle_function_('Create', [Params], Context, Opts) ->
     ID = Params#dst_DestinationParams.id,
+    Ctx = Params#dst_DestinationParams.context,
     case ff_destination:create(ID,
-        decode(destination_params, Params),
-        decode(context, Params#dst_DestinationParams.context))
+        ff_destination_codec:unmarshal_destination_params(Params),
+        ff_destination_codec:unmarshal(context, Ctx))
     of
         ok ->
             handle_function_('Get', [ID], Context, Opts);
@@ -41,80 +42,24 @@ handle_function_('Create', [Params], Context, Opts) ->
         {error, {party, _Inaccessible}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
         {error, exists} ->
-            woody_error:raise(business, #fistful_MachineAlreadyWorking{});
+            woody_error:raise(business, #fistful_IDExists{});
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 handle_function_('Get', [ID], _Context, _Opts) ->
     case ff_destination:get_machine(ID) of
         {ok, Machine} ->
-            {ok, encode(destination, {ID, Machine})};
+            Dst = ff_destination:get(Machine),
+            Ctx = ff_destination:ctx(Machine),
+            Time = ff_machine:created(Machine),
+            Destination = ff_destination_codec:marshal_destination(Dst),
+            Context = ff_destination_codec:marshal(context, Ctx),
+            CreatedAt = ff_codec:marshal(timestamp, Time),
+            Responce = Destination#dst_Destination{
+                created_at = CreatedAt,
+                context = Context
+            },
+            {ok, Responce};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DestinationNotFound{})
     end.
-
-encode(destination, {ID, Machine}) ->
-    Dst = ff_destination:get(Machine),
-    Ctx = ff_machine:ctx(Machine),
-    CreatedAt = ff_machine:created(Machine),
-    #dst_Destination{
-        id       = ID,
-        name     = ff_destination:name(Dst),
-        identity = ff_destination:identity(Dst),
-        currency = ff_destination:currency(Dst),
-        status   = encode(status, ff_destination:status(Dst)),
-        resource = encode(resource, ff_destination:resource(Dst)),
-        context  = encode(context, Ctx),
-        created_at  = encode(time, CreatedAt),
-        external_id = ff_destination:external_id(Dst)
-    };
-encode(status, authorized) ->
-    {authorized, #dst_Authorized{}};
-encode(status, unauthorized) ->
-    {unauthorized, #dst_Unauthorized{}};
-encode(resource, {bank_card, BankCard}) ->
-    {bank_card, #'BankCard'{
-        token          = token(BankCard),
-        payment_system = payment_system(BankCard),
-        bin            = bin(BankCard),
-        masked_pan     = masked_pan(BankCard)
-    }};
-encode(time, {{Date, Time}, Usec}) ->
-    {ok, Timestamp} = rfc3339:format({Date, Time, Usec, undefined}),
-    Timestamp;
-encode(blocked, {ok, accessible}) ->
-    false;
-encode(blocked, _) ->
-    true;
-encode(context, undefined) ->
-    undefined;
-encode(context, Ctx) ->
-    ff_context:wrap(Ctx).
-
-decode(destination_params, Params) -> #{
-    identity => Params#dst_DestinationParams.identity,
-    name     => Params#dst_DestinationParams.name,
-    currency => Params#dst_DestinationParams.currency,
-    resource => decode(resource, Params#dst_DestinationParams.resource),
-    external_id => Params#dst_DestinationParams.external_id
-    };
-decode(resource, {bank_card, BankCard}) ->
-    {bank_card, #{
-        token          => BankCard#'BankCard'.token,
-        payment_system => BankCard#'BankCard'.payment_system,
-        bin            => BankCard#'BankCard'.bin,
-        masked_pan     => BankCard#'BankCard'.masked_pan
-    }};
-decode(context, undefined) -> undefined;
-decode(context, Ctx) -> ff_context:unwrap(Ctx).
-
-
-%%% Resource BankCard
-
-token(#{token := V}) -> V.
-payment_system(Resource) ->
-    maps:get(payment_system, Resource, undefined).
-bin(Resource) ->
-    maps:get(bin, Resource, undefined).
-masked_pan(Resource) ->
-    maps:get(masked_pan, Resource, undefined).

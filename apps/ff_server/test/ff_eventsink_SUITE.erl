@@ -38,7 +38,7 @@
                         ff_proto_withdrawal_thrift:'SinkEvent'().
 -type evsink_id()    :: ff_proto_base_thrift:'EventID'().
 
--spec all() -> [test_case_name() | {group, group_name()}].
+-spec all() -> [test_case_name()].
 
 all() ->
     [
@@ -52,9 +52,13 @@ all() ->
         get_shifted_create_identity_events_ok
     ].
 
--spec groups() -> [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [].
 
-groups() -> [].
+groups() -> [
+    {default, [sequence, {repeat, 5}], [
+        get_withdrawal_events_ok
+    ]}
+].
 
 -spec init_per_suite(config()) -> config().
 
@@ -176,7 +180,6 @@ get_withdrawal_events_ok(C) ->
     Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
-
     Party   = create_party(C),
     IID     = create_person_identity(Party, C),
     WalID   = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
@@ -188,8 +191,13 @@ get_withdrawal_events_ok(C) ->
     {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
+
+    AlienEvents = lists:filter(fun(Ev) ->
+        Ev#wthd_SinkEvent.source =/= WdrID
+    end, Events),
+
     MaxID = get_max_sinkevent_id(Events),
-    MaxID = LastEvent + length(RawEvents).
+    MaxID = LastEvent + length(RawEvents) + length(AlienEvents).
 
 -spec get_withdrawal_session_events_ok(config()) -> test_return().
 

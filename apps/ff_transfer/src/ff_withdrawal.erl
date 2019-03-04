@@ -49,6 +49,7 @@
 %% API
 -export([create/3]).
 -export([get/1]).
+-export([ctx/1]).
 -export([get_machine/1]).
 -export([events/2]).
 
@@ -150,6 +151,12 @@ create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body
 get(St) ->
     ff_transfer_machine:transfer(St).
 
+-spec ctx(machine()) ->
+    ctx().
+
+ctx(St) ->
+    ff_transfer_machine:ctx(St).
+
 -spec get_machine(id()) ->
     {ok, machine()}       |
     {error, notfound}.
@@ -179,7 +186,6 @@ process_transfer(Withdrawal) ->
     {error, _Reason}.
 
 process_failure(Reason, Withdrawal) ->
-    lager:error("withdrawal process_failure Reason:~n~p~n~p~n", [Reason, Withdrawal]),
     ff_transfer:process_failure(Reason, Withdrawal).
 
 %% Internals

@@ -56,7 +56,7 @@ start_app(lager = AppName) ->
         {async_threshold_window, 0},
         {error_logger_hwm, 600},
         {suppress_application_start_stop, false},
-        {suppress_supervisor_start_stop, false},
+        {suppress_supervisor_start_stop,  false},
         {handlers, [
             {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
         ]}

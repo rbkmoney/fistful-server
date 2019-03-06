@@ -75,10 +75,10 @@ marshal_challenge(Challenge) ->
         status = marshal(challenge_payload_status_changed, Status)
     }.
 
--spec marshal_identity({ff_identity:identity(), ff_ctx:ctx() | undefined}) ->
+-spec marshal_identity(ff_identity:identity()) ->
     ff_proto_identity_thrift:'Identity'().
 
-marshal_identity({Identity, Ctx}) ->
+marshal_identity(Identity) ->
     EffectiveChallengeID = case ff_identity:effective_challenge(Identity) of
         {ok, ID} -> maybe_marshal(id, ID);
         {error, notfound} -> undefined
@@ -90,14 +90,12 @@ marshal_identity({Identity, Ctx}) ->
         cls      = marshal(id, ff_identity:class(Identity)),
         contract = maybe_marshal(id, ff_identity:contract(Identity)),
         level    = maybe_marshal(id, ff_identity:level(Identity)),
-        context  = maybe_marshal(msgpack, Ctx),
         blocked  = maybe_marshal(bool, ff_identity:blocked(Identity)),
         external_id = maybe_marshal(id, ff_identity:external_id(Identity)),
         effective_challenge = EffectiveChallengeID
     }.
 
--spec unmarshal_identity(ff_proto_identity_thrift:'Identity'()) ->
-    {ff_identity:identity(), ff_ctx:ctx()}.
+-spec unmarshal_identity(ff_proto_identity_thrift:'Identity'()) -> ff_identity:identity().
 
 unmarshal_identity(#idnt_Identity{
     id          = ID,
@@ -106,12 +104,11 @@ unmarshal_identity(#idnt_Identity{
     cls         = ClassID,
     contract    = ContractID,
     level       = LevelID,
-    context     = Ctx,
     blocked     = Blocked,
     external_id = ExternalID,
     effective_challenge = EffectiveChallengeID
 }) ->
-    Identity = genlib_map:compact(#{
+    genlib_map:compact(#{
         id          => unmarshal(id,      ID),
         party       => unmarshal(id,      PartyID),
         provider    => unmarshal(id,      ProviderID),
@@ -121,8 +118,7 @@ unmarshal_identity(#idnt_Identity{
         blocked     => maybe_unmarshal(bool, Blocked),
         external_id => maybe_unmarshal(id,   ExternalID),
         effective   => maybe_unmarshal(id,   EffectiveChallengeID)
-    }),
-    {Identity, maybe_unmarshal(msgpack, Ctx)}.
+    }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
 
@@ -130,7 +126,7 @@ marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
 marshal(event, {created, Identity}) ->
-    {created, marshal_identity({Identity, maps:get(context, Identity, undefined)})};
+    {created, marshal_identity(Identity)};
 marshal(event, {level_changed, LevelID}) ->
     {level_changed, marshal(id, LevelID)};
 marshal(event, {{challenge, ChallengeID}, ChallengeChange}) ->
@@ -301,8 +297,7 @@ identity_test() ->
     Blocked    = true,
     ExternalID = genlib:unique(),
     EffectiveChallengeID = genlib:unique(),
-    Ctx = #{<<"NS">> => #{<<"key">> => <<"Value">>}},
-    In = #{
+    IdentityIn = #{
         id          => ID,
         party       => PartyID,
         provider    => ProviderID,
@@ -313,7 +308,7 @@ identity_test() ->
         external_id => ExternalID,
         effective   => EffectiveChallengeID
     },
-    {In2, Ctx2} = unmarshal_identity(marshal_identity({In, Ctx})),
-    ?assertEqual({In, Ctx}, {In2, Ctx2}).
+    IdentityOut = unmarshal_identity(marshal_identity(IdentityIn)),
+    ?assertEqual(IdentityOut, IdentityIn).
 
 -endif.

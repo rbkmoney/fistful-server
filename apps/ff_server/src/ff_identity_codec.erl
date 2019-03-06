@@ -8,7 +8,9 @@
 -export([decode_challenge_params/1]).
 
 -export([marshal_identity_event/1]).
+
 -export([marshal_challenge/1]).
+-export([unmarshal_challenge/1]).
 
 -export([marshal_identity/1]).
 -export([unmarshal_identity/1]).
@@ -48,7 +50,7 @@ decode_challenge_params(#idnt_ChallengeParams{
     genlib_map:compact(#{
         id     => unmarshal(id, ID),
         class  => unmarshal(id, ClassID),
-        proofs => unmarshal(challenge_proofs, Proofs)
+        proofs => unmarshal({list, challenge_proofs}, Proofs)
     }).
 
 %% Every function marshal_X has got opposite function unmarshal_X.
@@ -74,6 +76,21 @@ marshal_challenge(Challenge) ->
         proofs = marshal({list, challenge_proofs}, Proofs),
         status = marshal(challenge_payload_status_changed, Status)
     }.
+
+-spec unmarshal_challenge(ff_proto_identity:'Challenge'()) -> ff_identity:challenge().
+
+unmarshal_challenge(#idnt_Challenge{
+        id     = ID,
+        cls    = ClassID,
+        proofs = Proofs,
+        status = Status
+    }) -> #{
+        id     => unmarshal(id, ID),
+        proofs => unmarshal({list, challenge_proofs}, Proofs),
+        status => unmarshal(challenge_payload_status_changed, Status),
+        challenge_class => unmarshal(id, ClassID)
+    }.
+
 
 -spec marshal_identity(ff_identity:identity()) ->
     ff_proto_identity_thrift:'Identity'().
@@ -226,9 +243,10 @@ unmarshal(challenge_payload_created, #idnt_Challenge{
         proofs => unmarshal({list, challenge_proofs}, Proofs)
     };
 
-unmarshal(challenge_proofs, Proofs) ->
-    [{unmarshal(proof_type, P#idnt_ChallengeProof.type),
-      unmarshal(id, P#idnt_ChallengeProof.token)} || P <- Proofs];
+unmarshal(challenge_proofs, Proof) -> {
+        unmarshal(proof_type, Proof#idnt_ChallengeProof.type),
+        unmarshal(id, Proof#idnt_ChallengeProof.token)
+    };
 
 unmarshal(proof_type, rus_domestic_passport) ->
     rus_domestic_passport;
@@ -287,27 +305,34 @@ maybe_unmarshal(Type, Value) ->
 
 -spec identity_test() -> _.
 identity_test() ->
-    ID         = genlib:unique(),
-    PartyID    = genlib:unique(),
-    ProviderID = genlib:unique(),
-    ClassID    = genlib:unique(),
-    ContractID = genlib:unique(),
-    LevelID    = genlib:unique(),
     Blocked    = true,
-    ExternalID = genlib:unique(),
-    EffectiveChallengeID = genlib:unique(),
     IdentityIn = #{
-        id          => ID,
-        party       => PartyID,
-        provider    => ProviderID,
-        class       => ClassID,
-        contract    => ContractID,
-        level       => LevelID,
+        id          => genlib:unique(),
+        party       => genlib:unique(),
+        provider    => genlib:unique(),
+        class       => genlib:unique(),
+        contract    => genlib:unique(),
+        level       => genlib:unique(),
         blocked     => Blocked,
-        external_id => ExternalID,
-        effective   => EffectiveChallengeID
+        external_id => genlib:unique(),
+        effective   => genlib:unique()
     },
     IdentityOut = unmarshal_identity(marshal_identity(IdentityIn)),
     ?assertEqual(IdentityOut, IdentityIn).
+
+-spec challenge_test() -> _.
+challenge_test() ->
+    Status = {completed, #{
+            resolution => approved,
+            valid_until => {calendar:universal_time(), 0}
+        }},
+    ChallengeIn = #{
+        id     => genlib:unique(),
+        proofs => [{rus_retiree_insurance_cert, <<"Bananazzzz">>}],
+        status => Status,
+        challenge_class => genlib:unique()
+    },
+    ChallengeOut = unmarshal_challenge(marshal_challenge(ChallengeIn)),
+    ?assertEqual(ChallengeIn, ChallengeOut).
 
 -endif.

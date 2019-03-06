@@ -40,18 +40,18 @@ all() ->
 
 groups() ->
     [
-        {default, [sequence, {repeat, 2}], [
+        {default, [sequence, {repeat, 1}], [
             create_identity,
             get_identity,
-            create_wallet,
-            get_wallet,
-            store_bank_card,
-            get_bank_card,
-            create_desination,
-            get_destination,
-            issue_destination_grants,
-            create_withdrawal,
-            get_withdrawal
+            create_wallet
+            % get_wallet,
+            % store_bank_card,
+            % get_bank_card,
+            % create_desination,
+            % get_destination,
+            % issue_destination_grants,
+            % create_withdrawal,
+            % get_withdrawal
         ]},
         {woody, [], [
             woody_retry_test
@@ -125,6 +125,7 @@ end_per_testcase(_Name, _C) ->
 -spec get_withdrawal(config()) -> test_return().
 
 create_identity(C) ->
+    lager:error(">>>>>>>>>>>>>>>>~n", []),
     {ok, Identity} = call_api(
         fun swag_client_wallet_identities_api:create_identity/3,
         #{body => #{
@@ -162,6 +163,7 @@ get_identity(C) ->
 
 create_wallet(C) ->
     {get_identity, Cfg} = ct_helper:cfg(saved_config, C),
+    lager:error("~ncreate wallet >>>~n", []),
     {ok, Wallet} = call_api(
         fun swag_client_wallet_wallets_api:create_wallet/3,
         #{body => #{

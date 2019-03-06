@@ -64,14 +64,22 @@ start_apps(AppNames) ->
 
 start_app(lager = AppName) ->
     {start_app_with(AppName, [
-        {async_threshold, 1},
-        {async_threshold_window, 0},
         {error_logger_hwm, 600},
-        {suppress_application_start_stop, false},
-        {suppress_supervisor_start_stop, false},
+        {crash_log, "crash.log"},
         {handlers, [
-            {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
+            {lager_console_backend, [
+                {level, warning}
+            ]}
         ]}
+
+        % {async_threshold, 1},
+        % {async_threshold_window, 0},
+        % {error_logger_hwm, 600},
+        % {suppress_application_start_stop, false},
+        % {suppress_supervisor_start_stop, false},
+        % {handlers, [
+        %     {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
+        % ]}
     ]), #{}};
 
 start_app(scoper = AppName) ->
@@ -116,7 +124,8 @@ start_app(wapi_woody_client = AppName) ->
         {service_urls, #{
             cds_storage         => "http://cds:8022/v1/storage",
             identdoc_storage    => "http://cds:8022/v1/identity_document_storage",
-            fistful_stat        => "http://fistful-magista:8022/stat"
+            fistful_stat        => "http://fistful-magista:8022/stat",
+            fistful_wallet      => "http://localhost:8022/v1/wallet"
         }},
         {service_retries, #{
             fistful_stat    => #{

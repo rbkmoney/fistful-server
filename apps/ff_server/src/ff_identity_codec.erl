@@ -205,8 +205,7 @@ unmarshal(repair_scenario, {add_events, #idnt_AddEventsRepair{events = Events, a
     })};
 
 unmarshal(event, {created, Identity}) ->
-    {Ev, _} = unmarshal_identity(Identity),
-    {created, Ev};
+    {created, unmarshal_identity(Identity)};
 unmarshal(event, {level_changed, LevelID}) ->
     {level_changed, unmarshal(id, LevelID)};
 unmarshal(event, {identity_challenge, #idnt_ChallengeChange{id = ID, payload = Payload}}) ->

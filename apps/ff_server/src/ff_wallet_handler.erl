@@ -34,6 +34,9 @@ handle_function_('Create', [Params], Context, Opts) ->
     of
         ok ->
             handle_function_('Get', [WalletID], Context, Opts);
+        % TODO after improve thrift
+        % {error, exists} ->
+        %     woody_error:raise(business, #fistful_IDExists{});
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {currency, notfound}} ->

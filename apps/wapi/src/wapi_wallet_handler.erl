@@ -188,7 +188,7 @@ process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, {currency, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
-        {error, {inaccessible, _}} ->
+        {error, inaccessible} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
         {error, {conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID});

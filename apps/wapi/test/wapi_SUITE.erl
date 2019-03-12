@@ -14,6 +14,7 @@
 -export([create_identity/1]).
 -export([get_identity/1]).
 -export([create_wallet/1]).
+-export([create_wallet_fails/1]).
 -export([get_wallet/1]).
 -export([store_bank_card/1]).
 -export([get_bank_card/1]).
@@ -43,15 +44,16 @@ groups() ->
         {default, [sequence, {repeat, 1}], [
             create_identity,
             get_identity,
-            create_wallet
-            % get_wallet,
-            % store_bank_card,
-            % get_bank_card,
-            % create_desination,
-            % get_destination,
-            % issue_destination_grants,
-            % create_withdrawal,
-            % get_withdrawal
+            create_wallet_fails,
+            create_wallet,
+            get_wallet,
+            store_bank_card,
+            get_bank_card,
+            create_desination,
+            get_destination,
+            issue_destination_grants,
+            create_withdrawal,
+            get_withdrawal
         ]},
         {woody, [], [
             woody_retry_test
@@ -114,6 +116,7 @@ end_per_testcase(_Name, _C) ->
 -spec create_identity(config()) -> test_return().
 -spec get_identity(config()) -> test_return().
 -spec create_wallet(config()) -> test_return().
+-spec create_wallet_fails(config()) -> test_return().
 -spec get_wallet(config()) -> test_return().
 -spec store_bank_card(config()) -> test_return().
 -spec get_bank_card(config()) -> test_return().
@@ -125,7 +128,6 @@ end_per_testcase(_Name, _C) ->
 -spec get_withdrawal(config()) -> test_return().
 
 create_identity(C) ->
-    lager:error(">>>>>>>>>>>>>>>>~n", []),
     {ok, Identity} = call_api(
         fun swag_client_wallet_identities_api:create_identity/3,
         #{body => #{
@@ -161,21 +163,58 @@ get_identity(C) ->
                    <<"metadata">>], Identity),
     {save_config, Cfg}.
 
-create_wallet(C) ->
+create_wallet_fails(C) ->
     {get_identity, Cfg} = ct_helper:cfg(saved_config, C),
-    lager:error("~ncreate wallet >>>~n", []),
-    {ok, Wallet} = call_api(
+    Ctx = ct_helper:cfg(context, C),
+    IdentityID = ct_helper:cfg(identity, Cfg),
+    {error, {422, #{<<"message">> := <<"No such identity">>}}} = call_api(
         fun swag_client_wallet_wallets_api:create_wallet/3,
         #{body => #{
             <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
-            <<"identity">> => ct_helper:cfg(identity, Cfg),
-            <<"currency">> => <<"RUB">>,
-            <<"metadata">> => #{
-                ?STRING => ?STRING
-             }
+            <<"identity">> => <<"BAD_ID">>,
+            <<"currency">> => <<"RUB">>
+        }},
+        Ctx
+    ),
+    {error, {422, #{<<"message">> := <<"Currency not supported">>}}} = call_api(
+        fun swag_client_wallet_wallets_api:create_wallet/3,
+        #{body => #{
+            <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
+            <<"identity">> => IdentityID,
+            <<"currency">> => <<"BBB">>
+        }},
+        Ctx
+    ),
+    {save_config, Cfg}.
+
+create_wallet(C) ->
+    {create_wallet_fails, Cfg} = ct_helper:cfg(saved_config, C),
+    Name       = <<"Worldwide PHP Awareness Initiative">>,
+    IdentityID = ct_helper:cfg(identity, Cfg),
+    Currency   = <<"RUB">>,
+    MetaData   = #{ ?STRING => ?STRING },
+    ExternalID = genlib:unique(),
+
+    {ok, Wallet} = call_api(
+        fun swag_client_wallet_wallets_api:create_wallet/3,
+        #{body => #{
+            <<"name">>     => Name,
+            <<"identity">> => IdentityID,
+            <<"currency">> => Currency,
+            <<"metadata">> => MetaData,
+            <<"external_id">> => ExternalID
         }},
         ct_helper:cfg(context, C)
     ),
+
+    #{
+        <<"id">>          := WalletID,
+        <<"name">>        := Name,
+        <<"identity">>    := IdentityID,
+        <<"currency">>    := Currency,
+        <<"metadata">>    := MetaData,
+        <<"external_id">> := ExternalID
+    } = Wallet,
     WalletID = maps:get(<<"id">>, Wallet),
     {save_config, [{wallet, WalletID} | Cfg]}.
 

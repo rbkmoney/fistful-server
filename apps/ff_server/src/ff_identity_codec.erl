@@ -25,14 +25,12 @@
     ff_identity_machine:params().
 
 decode_identity_params(#idnt_IdentityParams{
-    name        = Name,
     party       = PartyID,
     provider    = ProviderID,
     cls         = ClassID,
     external_id = ExternalID
 }) ->
     genlib_map:compact(#{
-        name        => unmarshal(string, Name),
         party       => unmarshal(id, PartyID),
         provider    => unmarshal(id, ProviderID),
         class       => unmarshal(id, ClassID),
@@ -202,8 +200,8 @@ marshal(resolution, approved) ->
 marshal(resolution, denied) ->
     denied;
 
-marshal(context, Ctx) ->
-    maybe_marshal(msgpack, Ctx);
+marshal(ctx, Ctx) ->
+    maybe_marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -278,8 +276,8 @@ unmarshal(effective_challenge, undefined) ->
 unmarshal(effective_challenge, EffectiveChallengeID) ->
     {ok, unmarshal(id, EffectiveChallengeID)};
 
-unmarshal(context, Ctx) ->
-    maybe_unmarshal(msgpack, Ctx);
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

@@ -99,7 +99,7 @@ marshal(integer, V) when is_integer(V) ->
     V;
 marshal(bool, V) when is_boolean(V) ->
     V;
-marshal(msgpack, V) ->
+marshal(context, V) ->
     ff_context:wrap(V);
 
 % Catch this up in thrift validation
@@ -169,7 +169,7 @@ unmarshal(currency_ref, #'CurrencyRef'{
 unmarshal(amount, V) ->
     unmarshal(integer, V);
 
-unmarshal(msgpack, V) -> ff_context:unwrap(V);
+unmarshal(context, V) -> ff_context:unwrap(V);
 
 unmarshal(range, #evsink_EventRange{
     'after' = Cursor,

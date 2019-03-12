@@ -30,7 +30,7 @@ handle_function(Func, Args, Context, Opts) ->
 
 handle_function_('Create', [IdentityID, IdentityParams], WoodyCtx, Opts) ->
     Params  = ff_identity_codec:decode_identity_params(IdentityParams),
-    Context = ff_identity_codec:unmarshal(context, IdentityParams#idnt_IdentityParams.context),
+    Context = ff_identity_codec:unmarshal(ctx, IdentityParams#idnt_IdentityParams.context),
     case ff_identity_machine:create(IdentityID, Params, Context) of
         ok ->
             handle_function_('Get', [IdentityID], WoodyCtx, Opts);
@@ -47,7 +47,7 @@ handle_function_('Get', [ID], _Context, _Opts) ->
     case ff_identity_machine:get(ID) of
         {ok, Machine} ->
             Identity = ff_identity:is_blocked(ff_identity_machine:identity(Machine)),
-            Ctx      = ff_identity_codec:marshal(context, ff_identity_machine:ctx(Machine)),
+            Ctx      = ff_identity_codec:marshal(ctx, ff_identity_machine:ctx(Machine)),
             Response = ff_identity_codec:marshal_identity(Identity),
             {ok, Response#idnt_Identity{context = Ctx}};
         {error, notfound} ->

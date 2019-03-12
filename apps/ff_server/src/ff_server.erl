@@ -24,7 +24,7 @@
 -behaviour(supervisor).
 
 -export([init/1]).
-
+-export([get_identity_routes/1]).
 %%
 
 -spec start() ->
@@ -146,6 +146,9 @@ get_wallet_routes(Opts) ->
         event_handler => scoper_woody_event_handler,
         handler_limits => Limits
     })).
+
+-spec get_identity_routes(map()) ->
+    woody_client_thrift_http_transport:route().
 
 get_identity_routes(Opts) ->
     Path = <<"/v1/identity">>,

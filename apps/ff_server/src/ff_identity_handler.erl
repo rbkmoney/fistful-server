@@ -13,7 +13,7 @@
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Context, Opts) ->
     [IdentityID| _ ] = Args,
-    scoper:scope(fistful, #{function => Func, identity => IdentityID},
+    scoper:scope(identity, #{function => Func, identity_id => IdentityID},
         fun() ->
             ok = ff_woody_ctx:set(Context),
             try
@@ -46,7 +46,7 @@ handle_function_('Create', [IdentityID, IdentityParams], WoodyCtx, Opts) ->
 handle_function_('Get', [ID], _Context, _Opts) ->
     case ff_identity_machine:get(ID) of
         {ok, Machine} ->
-            Identity = ff_identity:is_blocked(ff_identity_machine:identity(Machine)),
+            Identity = ff_identity:set_blocked(ff_identity_machine:identity(Machine)),
             Ctx      = ff_identity_codec:marshal(ctx, ff_identity_machine:ctx(Machine)),
             Response = ff_identity_codec:marshal_identity(Identity),
             {ok, Response#idnt_Identity{context = Ctx}};

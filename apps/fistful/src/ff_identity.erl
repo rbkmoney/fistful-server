@@ -65,7 +65,7 @@
 -export([blocked/1]).
 
 -export([is_accessible/1]).
--export([is_blocked/1]).
+-export([set_blocked/1]).
 
 -export([create/5]).
 
@@ -144,9 +144,9 @@ is_accessible(Identity) ->
     ff_party:is_accessible(party(Identity)).
 
 
--spec is_blocked(identity()) -> identity().
+-spec set_blocked(identity()) -> identity().
 
-is_blocked(Identity) ->
+set_blocked(Identity) ->
     Blocked = {ok, accessible} =/= is_accessible(Identity),
     maps:put(blocked, Blocked, Identity).
 

@@ -24,7 +24,7 @@
 -behaviour(supervisor).
 
 -export([init/1]).
-
+-export([get_identity_routes/1]).
 %%
 
 -spec start() ->
@@ -91,6 +91,7 @@ init([]) ->
                     machinery_mg_backend:get_routes(Handlers, RouteOpts) ++
                     get_admin_routes() ++
                     get_wallet_routes(WoodyOpts) ++
+                    get_identity_routes(WoodyOpts) ++
                     get_eventsink_routes() ++
                     get_repair_routes(WoodyOpts) ++
                     [erl_health_handle:get_route(HealthCheckers)]
@@ -141,6 +142,21 @@ get_wallet_routes(Opts) ->
         handlers => [{Path, {
             {ff_proto_wallet_thrift, 'Management'},
             {ff_wallet_handler, []}
+        }}],
+        event_handler => scoper_woody_event_handler,
+        handler_limits => Limits
+    })).
+
+-spec get_identity_routes(map()) ->
+    woody_client_thrift_http_transport:route().
+
+get_identity_routes(Opts) ->
+    Path = <<"/v1/identity">>,
+    Limits = genlib_map:get(handler_limits, Opts),
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, {
+            {ff_proto_identity_thrift, 'Management'},
+            {ff_identity_handler, []}
         }}],
         event_handler => scoper_woody_event_handler,
         handler_limits => Limits

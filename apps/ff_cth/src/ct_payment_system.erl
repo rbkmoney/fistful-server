@@ -71,6 +71,9 @@ start_processing_apps(Options) ->
         client => ff_woody_client:new(<<"http://machinegun:8022/v1/automaton">>)
     }},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
+        {sasl, [{
+            sasl_error_logger, false }]
+        },
         % lager,
         {lager, [
             {error_logger_hwm, 600},

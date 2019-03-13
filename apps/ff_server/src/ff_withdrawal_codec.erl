@@ -7,9 +7,9 @@
 -include_lib("fistful_proto/include/ff_proto_cashflow_thrift.hrl").
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
 
--export([decode_withdrawal_params/1]).
--export([encode_cash_range_error/1]).
--export([encode_currency_invalid/1]).
+-export([unmarshal_withdrawal_params/1]).
+-export([marshal_cash_range_error/1]).
+-export([marshal_currency_invalid/1]).
 
 -export([marshal_withdrawal/1]).
 -export([marshal_event/1]).
@@ -30,10 +30,10 @@ final_account_to_final_cash_flow_account(#{
 
 %% DECODE
 
--spec decode_withdrawal_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
+-spec unmarshal_withdrawal_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
     ff_withdrawal:params().
 
-decode_withdrawal_params(Params) ->
+unmarshal_withdrawal_params(Params) ->
     Body = Params#wthd_WithdrawalParams.body,
     #{
         wallet_id      => Params#wthd_WithdrawalParams.source,
@@ -44,19 +44,19 @@ decode_withdrawal_params(Params) ->
 
 %% ENCODE
 
--spec encode_currency_invalid({ff_currency:id(), ff_currency:id()}) ->
+-spec marshal_currency_invalid({ff_currency:id(), ff_currency:id()}) ->
      ff_proto_withdrawal_thrift:'WithdrawalCurrencyInvalid'().
 
-encode_currency_invalid({WithdrawalCurrencyID, WalletCurrencyID}) ->
+marshal_currency_invalid({WithdrawalCurrencyID, WalletCurrencyID}) ->
     #fistful_WithdrawalCurrencyInvalid{
         withdrawal_currency = ff_codec:marshal(currency_ref, WithdrawalCurrencyID),
         wallet_currency     = ff_codec:marshal(currency_ref, WalletCurrencyID)
     }.
 
--spec encode_cash_range_error({ff_party:cash(), ff_party:cash_range()}) ->
+-spec marshal_cash_range_error({ff_party:cash(), ff_party:cash_range()}) ->
     ff_proto_withdrawal_thrift:'fistful_WithdrawalCashAmountInvalid'().
 
-encode_cash_range_error({Cash, Range}) ->
+marshal_cash_range_error({Cash, Range}) ->
     #fistful_WithdrawalCashAmountInvalid{
         cash  = ff_codec:marshal(cash, Cash),
         range = ff_codec:marshal(cash_range, Range)

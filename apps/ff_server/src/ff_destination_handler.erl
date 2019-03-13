@@ -12,7 +12,7 @@
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Context, Opts) ->
-    scoper:scope(fistful, #{function => Func},
+    scoper:scope(destination, #{function => Func},
         fun() ->
             ok = ff_woody_ctx:set(Context),
             try

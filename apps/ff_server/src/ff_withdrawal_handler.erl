@@ -13,7 +13,7 @@
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Context, Opts) ->
-    scoper:scope(fistful, #{function => Func},
+    scoper:scope(withdrawal, #{function => Func},
         fun() ->
             ok = ff_woody_ctx:set(Context),
             try
@@ -31,7 +31,7 @@ handle_function_('Create', [Params], Context, Opts) ->
     ID = Params#wthd_WithdrawalParams.id,
     Ctx = Params#wthd_WithdrawalParams.context,
     case ff_withdrawal:create(ID,
-        ff_withdrawal_codec:decode_withdrawal_params(Params),
+        ff_withdrawal_codec:unmarshal_withdrawal_params(Params),
         ff_withdrawal_codec:unmarshal(context, Ctx))
     of
         ok ->
@@ -45,11 +45,11 @@ handle_function_('Create', [Params], Context, Opts) ->
         {error, {destination, unauthorized}} ->
             woody_error:raise(business, #fistful_DestinationUnauthorized{});
         {error, {terms, {invalid_withdrawal_currency, CurrencyID, {wallet_currency, CurrencyID2}}}} ->
-            woody_error:raise(business, ff_withdrawal_codec:encode_currency_invalid({CurrencyID, CurrencyID2}));
+            woody_error:raise(business, ff_withdrawal_codec:marshal_currency_invalid({CurrencyID, CurrencyID2}));
         {error, {terms, {terms_violation, {cash_range, {CashIn, CashRangeIn}}}}} ->
             Cash  = ff_party:decode_cash(CashIn),
             Range = ff_party:decode_cash_range(CashRangeIn),
-            woody_error:raise(business, ff_withdrawal_codec:encode_cash_range_error({Cash, Range}));
+            woody_error:raise(business, ff_withdrawal_codec:marshal_cash_range_error({Cash, Range}));
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;

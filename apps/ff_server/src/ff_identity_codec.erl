@@ -4,8 +4,8 @@
 
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 
--export([decode_identity_params/1]).
--export([decode_challenge_params/1]).
+-export([unmarshal_identity_params/1]).
+-export([unmarshal_challenge_params/1]).
 
 -export([marshal_identity_event/1]).
 
@@ -19,12 +19,11 @@
 -export([unmarshal/2]).
 
 
-%% API
-%% DECODE
--spec decode_identity_params(ff_proto_identity_thrift:'IdentityParams'()) ->
+%% This special functions hasn't got opposite functions.
+-spec unmarshal_identity_params(ff_proto_identity_thrift:'IdentityParams'()) ->
     ff_identity_machine:params().
 
-decode_identity_params(#idnt_IdentityParams{
+unmarshal_identity_params(#idnt_IdentityParams{
     party       = PartyID,
     provider    = ProviderID,
     cls         = ClassID,
@@ -37,10 +36,10 @@ decode_identity_params(#idnt_IdentityParams{
         external_id => maybe_unmarshal(id, ExternalID)
     }).
 
--spec decode_challenge_params(ff_proto_identity_thrift:'ChallengeParams'()) ->
+-spec unmarshal_challenge_params(ff_proto_identity_thrift:'ChallengeParams'()) ->
     ff_identity_machine:challenge_params().
 
-decode_challenge_params(#idnt_ChallengeParams{
+unmarshal_challenge_params(#idnt_ChallengeParams{
     id     = ID,
     cls    = ClassID,
     proofs = Proofs

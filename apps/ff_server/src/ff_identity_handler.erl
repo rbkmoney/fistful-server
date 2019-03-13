@@ -29,7 +29,7 @@ handle_function(Func, Args, Context, Opts) ->
 %%
 
 handle_function_('Create', [IdentityID, IdentityParams], WoodyCtx, Opts) ->
-    Params  = ff_identity_codec:decode_identity_params(IdentityParams),
+    Params  = ff_identity_codec:unmarshal_identity_params(IdentityParams),
     Context = ff_identity_codec:unmarshal(ctx, IdentityParams#idnt_IdentityParams.context),
     case ff_identity_machine:create(IdentityID, Params, Context) of
         ok ->
@@ -55,7 +55,7 @@ handle_function_('Get', [ID], _Context, _Opts) ->
     end;
 handle_function_('StartChallenge', [IdentityID, Params], _WoodyCtx, _Opts) ->
     %% Не используем ExternalID тк идемпотентность реал-на через challengeID
-    ChallengeParams = ff_identity_codec:decode_challenge_params(Params),
+    ChallengeParams = ff_identity_codec:unmarshal_challenge_params(Params),
     case ff_identity_machine:start_challenge(IdentityID, ChallengeParams) of
         ok ->
             ChallengeID = maps:get(id, ChallengeParams),

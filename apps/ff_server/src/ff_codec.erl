@@ -56,6 +56,9 @@ marshal(id, V) ->
 marshal(event_id, V) ->
     marshal(integer, V);
 
+marshal(blocked, V) ->
+    marshal(bool, V);
+
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
 marshal(account, #{
@@ -99,9 +102,11 @@ marshal(string, V) when is_binary(V) ->
     V;
 marshal(integer, V) when is_integer(V) ->
     V;
-
-marshal(msgpack, V) ->
+marshal(bool, V) when is_boolean(V) ->
+    V;
+marshal(context, V) ->
     ff_context:wrap(V);
+
 % Catch this up in thrift validation
 marshal(_, Other) ->
     Other.
@@ -179,6 +184,14 @@ unmarshal(currency_ref, #'CurrencyRef'{
 unmarshal(amount, V) ->
     unmarshal(integer, V);
 
+unmarshal(context, V) -> ff_context:unwrap(V);
+
+unmarshal(range, #evsink_EventRange{
+    'after' = Cursor,
+    limit   = Limit
+}) ->
+    {Cursor, Limit, forward};
+
 unmarshal(timestamp, Timestamp) when is_binary(Timestamp) ->
     parse_timestamp(Timestamp);
 unmarshal(string, V) when is_binary(V) ->
@@ -186,14 +199,14 @@ unmarshal(string, V) when is_binary(V) ->
 unmarshal(integer, V) when is_integer(V) ->
     V;
 
-unmarshal(msgpack, V) ->
-    ff_context:unwrap(V);
-
 unmarshal(range, #'EventRange'{
     'after' = Cursor,
     limit   = Limit
 }) ->
-    {Cursor, Limit, forward}.
+    {Cursor, Limit, forward};
+
+unmarshal(bool, V) when is_boolean(V) ->
+    V.
 
 %% Suppress dialyzer warning until rfc3339 spec will be fixed.
 %% see https://github.com/talentdeficit/rfc3339/pull/5

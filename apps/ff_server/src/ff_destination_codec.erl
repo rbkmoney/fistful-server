@@ -96,8 +96,8 @@ marshal(status_change, unauthorized) ->
 marshal(status_change, authorized) ->
     {changed, {authorized, #dst_Authorized{}}};
 
-marshal(context, Ctx) ->
-    maybe_marshal(msgpack, Ctx);
+marshal(ctx, Ctx) ->
+    maybe_marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -159,8 +159,8 @@ unmarshal(status_change, {changed, {unauthorized, #dst_Unauthorized{}}}) ->
 unmarshal(status_change, {changed, {authorized, #dst_Authorized{}}}) ->
     authorized;
 
-unmarshal(context, Ctx) ->
-    maybe_unmarshal(msgpack, Ctx);
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

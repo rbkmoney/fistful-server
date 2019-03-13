@@ -38,7 +38,7 @@
 %% Accessors
 
 -export([identity/1]).
-
+-export([ctx/1]).
 %% Machinery
 
 -behaviour(machinery).
@@ -128,6 +128,12 @@ backend() ->
 
 identity(St) ->
     ff_machine:model(St).
+
+-spec ctx(st()) -> ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
+
 
 %% Machinery
 

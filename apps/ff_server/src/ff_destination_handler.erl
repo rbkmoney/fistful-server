@@ -31,7 +31,7 @@ handle_function_('Create', [Params], Context, Opts) ->
     Ctx = Params#dst_DestinationParams.context,
     case ff_destination:create(ID,
         ff_destination_codec:unmarshal_destination_params(Params),
-        ff_destination_codec:unmarshal(context, Ctx))
+        ff_destination_codec:unmarshal(ctx, Ctx))
     of
         ok ->
             handle_function_('Get', [ID], Context, Opts);
@@ -53,7 +53,7 @@ handle_function_('Get', [ID], _Context, _Opts) ->
             Ctx = ff_destination:ctx(Machine),
             Time = ff_machine:created(Machine),
             Destination = ff_destination_codec:marshal_destination(Dst),
-            Context = ff_destination_codec:marshal(context, Ctx),
+            Context = ff_destination_codec:marshal(ctx, Ctx),
             CreatedAt = ff_codec:marshal(timestamp, Time),
             Responce = Destination#dst_Destination{
                 created_at = CreatedAt,

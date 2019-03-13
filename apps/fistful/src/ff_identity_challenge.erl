@@ -68,6 +68,7 @@
 -export_type([challenge/0]).
 -export_type([event/0]).
 
+-export([id/1]).
 -export([claimant/1]).
 -export([status/1]).
 -export([class/1]).
@@ -87,11 +88,17 @@
 
 %%
 
--spec status(challenge()) ->
-    status().
+-spec id(challenge()) ->
+    id(_).
 
-status(#{status := V}) ->
+id(#{id := V}) ->
     V.
+
+-spec status(challenge()) ->
+    status() | undefined.
+
+status(Challenge) ->
+    maps:get(status, Challenge, undefined).
 
 -spec claimant(challenge()) ->
     claimant().

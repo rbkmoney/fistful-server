@@ -81,7 +81,7 @@ marshal_withdrawal({Withdrawal, Ctx}) ->
         external_id = marshal(id, ExternalID),
         id          = maybe_marshal(id, ID),
         status      = maybe_marshal(withdrawal_status_changed, Status),
-        context     = maybe_marshal(context, Ctx)
+        context     = maybe_marshal(ctx, Ctx)
     }.
 
 -spec marshal_event({integer(), ff_machine:timestamped_event(ff_withdrawal:event())}) ->
@@ -200,8 +200,8 @@ marshal(withdrawal_route_changed, #{
         id = marshal(id, genlib:to_binary(ProviderID))
     };
 
-marshal(context, Ctx) ->
-    maybe_marshal(msgpack, Ctx);
+marshal(ctx, Ctx) ->
+    maybe_marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -313,8 +313,8 @@ unmarshal(withdrawal_route_changed, #wthd_RouteChange{
         provider_id => unmarshal(id, erlang:binary_to_integer(ProviderID))
     };
 
-unmarshal(context, Ctx) ->
-    maybe_unmarshal(msgpack, Ctx);
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

@@ -71,9 +71,7 @@ start_processing_apps(Options) ->
         client => ff_woody_client:new(<<"http://machinegun:8022/v1/automaton">>)
     }},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
-        {sasl, [{
-            sasl_error_logger, false }]
-        },
+        {sasl, [{ sasl_error_logger, false }]},
         % lager,
         {lager, [
             {error_logger_hwm, 600},
@@ -129,6 +127,7 @@ start_processing_apps(Options) ->
     WalletRoutes = get_wallet_routes(),
     DestRoutes = get_destination_routes(),
     WithdrawalRoutes = get_withdrawal_routes(),
+    IdentityRoutes = ff_server:get_identity_routes(#{}),
     RepairRoutes = get_repair_routes(),
     EventsinkRoutes = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
@@ -144,6 +143,7 @@ start_processing_apps(Options) ->
                 WalletRoutes,
                 DestRoutes,
                 WithdrawalRoutes,
+                IdentityRoutes,
                 EventsinkRoutes,
                 RepairRoutes
             ])

@@ -19,15 +19,21 @@
     route               => any(),
     status              => status(),
     external_id         => id(),
-    p_transfer_count    => integer()
+    p_transfer_count    => integer(),
+    reposit             => ff_reposit:reposit(),
+    action              => maybe(action())
 }.
 
 -type route(T) :: T.
 
+-type action() ::
+    revert.
+
 -type status() ::
-    pending         |
-    succeeded       |
-    {failed, _TODO} .
+    pending                |
+    succeeded              |
+    {failed, _TODO}        |
+    reverted               .
 
 -type event(Params, Route) ::
     {created, transfer(Params)}             |
@@ -35,9 +41,13 @@
     {p_transfer, ff_postings_transfer:event()} |
     {session_started, session_id()}         |
     {session_finished, session_id()}        |
-    {status_changed, status()}              .
+    {status_changed, status()}              |
+    {reposit, ff_reposit:event()}           .
 
--type event() :: event(Params :: any(), Route :: any()).
+-type event()  :: event(Params :: any(), Route :: any()).
+-type maybe(T) :: ff_maybe:maybe(T).
+-type body()   :: ff_transaction:body().
+-type route()  :: route(any()).
 
 -export_type([transfer/1]).
 -export_type([handler/0]).
@@ -46,6 +56,8 @@
 -export_type([event/2]).
 -export_type([status/0]).
 -export_type([route/1]).
+-export_type([body/0]).
+-export_type([action/0]).
 
 -export([id/1]).
 -export([transfer_type/1]).
@@ -56,6 +68,8 @@
 -export([session_id/1]).
 -export([route/1]).
 -export([external_id/1]).
+-export([reposit/1]).
+-export([action/1]).
 
 -export([create/5]).
 
@@ -68,6 +82,7 @@
 
 -export([apply_event/2]).
 -export([maybe_migrate/2]).
+-export([wrap_events/2]).
 
 %% Pipeline
 
@@ -77,9 +92,6 @@
 
 -type id() :: binary().
 -type external_id() :: id() | undefined.
--type body() :: ff_transaction:body().
--type route() :: route(any()).
--type maybe(T) :: ff_maybe:maybe(T).
 -type params() :: params(any()).
 -type params(T) :: T.
 -type transfer() :: transfer(any()).
@@ -136,6 +148,18 @@ external_id(#{external_id := ExternalID}) ->
 external_id(_Transfer) ->
     undefined.
 
+-spec reposit(transfer())  -> maybe(ff_reposit:reposit()).
+reposit(#{reposit := V}) ->
+    V;
+reposit(_Other) ->
+    undefined.
+
+-spec action(transfer())  -> maybe(action()).
+action(#{action := V}) ->
+    V;
+action(_Other) ->
+    undefined.
+
 %% API
 
 -spec create(handler(), id(), body(), params(), external_id()) ->
@@ -173,7 +197,12 @@ process_transfer(Transfer) ->
 
 process_failure(Reason, Transfer) ->
     {ok, ShutdownEvents} = do_process_failure(Reason, Transfer),
-    {ok, {undefined, ShutdownEvents ++ [{status_changed, {failed, Reason}}]}}.
+    ActionEvents = get_fail_events_for_action(action(Transfer), Reason),
+    {ok, {undefined,
+        ShutdownEvents ++
+        [{status_changed, {failed, Reason}}] ++
+        ActionEvents
+    }}.
 
 do_process_failure(_Reason, #{status := pending, p_transfer := #{status := created}}) ->
     {ok, []};
@@ -189,6 +218,11 @@ do_process_failure(Reason, #{status := pending, p_transfer := #{status := commit
 do_process_failure(_Reason, Transfer) ->
     no_p_transfer = maps:get(p_transfer, Transfer, no_p_transfer),
     {ok, []}.
+
+get_fail_events_for_action(undefined, _Reason) ->
+    [];
+get_fail_events_for_action(revert, Reason) ->
+    ff_transfer:wrap_events(reposit, ff_reposit:update_status({failed, Reason})).
 
 -type activity() ::
     prepare_transfer         |
@@ -247,7 +281,7 @@ apply_event(Ev, T) ->
 -spec apply_event_(event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
 apply_event_({created, T}, undefined) ->
-    T;
+    init_action(T);
 apply_event_({status_changed, S}, T) ->
     maps:put(status, S, T);
 apply_event_({p_transfer, Ev}, T0 = #{p_transfer := PT}) ->
@@ -255,6 +289,9 @@ apply_event_({p_transfer, Ev}, T0 = #{p_transfer := PT}) ->
     T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
 apply_event_({p_transfer, Ev}, T) ->
     apply_event({p_transfer, Ev}, T#{p_transfer => undefined});
+apply_event_({reposit, Ev}, T) ->
+    Reposit = ff_reposit:apply_event(Ev, reposit(T)),
+    set_action(revert, maps:put(reposit, Reposit, T));
 apply_event_({session_started, S}, T) ->
     maps:put(session_id, S, T);
 apply_event_({session_finished, S}, T = #{session_id := S}) ->
@@ -276,6 +313,12 @@ increment_transfer_count(T = #{p_transfer_count := Count}) ->
     T#{p_transfer_count := Count + 1};
 increment_transfer_count(T) ->
     T#{p_transfer_count => 1}.
+
+init_action(T) ->
+    set_action(undefined, T).
+
+set_action(Action, Transfer) ->
+    maps:put(action, Action, Transfer).
 
 -spec maybe_migrate(event() | legacy_event(), transfer_type() | undefined) ->
     event().
@@ -375,3 +418,11 @@ maybe_migrate({transfer, PTransferEv}, EventType) ->
 % Other events
 maybe_migrate(Ev, _) ->
     Ev.
+
+-spec wrap_events(atom(), list()) ->
+    list(event()).
+
+wrap_events(reposit, Events) ->
+    [{reposit, Ev} || Ev <- Events];
+wrap_events(Type, Events) ->
+    erlang:error({unknown_event_type, {Type, Events}}).

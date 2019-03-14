@@ -49,7 +49,7 @@
 -export([get/1]).
 -export([get_machine/1]).
 -export([events/2]).
--export([revert/1]).
+-export([revert/3]).
 
 %% Event source
 
@@ -67,14 +67,14 @@
 
 %% Accessors
 
--spec wallet_id(deposit())       -> source_id().
--spec source_id(deposit())       -> wallet_id().
--spec id(deposit())              -> ff_transfer:id().
--spec body(deposit())            -> ff_transfer:body().
--spec status(deposit())          -> ff_transfer:status().
--spec params(deposit())          -> transfer_params().
+-spec wallet_id(deposit())                    -> source_id().
+-spec source_id(deposit())                    -> wallet_id().
+-spec id(ff_transfer:transfer())              -> ff_transfer:id().
+-spec body(ff_transfer:transfer())            -> ff_transfer:body().
+-spec status(ff_transfer:transfer())          -> ff_transfer:status().
+-spec params(ff_transfer:transfer())          -> transfer_params().
 
-wallet_id(T)        -> maps:get(wallet_id, ff_transfer:params(T)).
+wallet_id(T)       -> maps:get(wallet_id, ff_transfer:params(T)).
 source_id(T)       -> maps:get(source_id, ff_transfer:params(T)).
 id(T)              -> ff_transfer:id(T).
 body(T)            -> ff_transfer:body(T).
@@ -156,45 +156,65 @@ get_machine(ID) ->
 events(ID, Range) ->
     ff_transfer_machine:events(?NS, ID, Range).
 
--spec revert(id()) ->
-    {ok, id()}        |
-    {error, bad_deposit_amount} |
+-spec revert(id(), ff_transfer:maybe(ff_transfer:body()), binary()) ->
+    {ok, ff_reposit:reposit()}  |
     {error, _TransferError}.
-
-revert(ID) ->
-    do(fun() -> unwrap(ff_transfer_machine:revert(?NS, ID)) end).
+revert(ID, Body, Reason) ->
+    Params = #{
+        id => ID,
+        body => Body,
+        reason => Reason
+    },
+    do(fun() -> unwrap(ff_transfer_machine:revert(?NS, Params)) end).
 
 %% ff_transfer_machine behaviour
 
--spec process_transfer(deposit()) ->
+-spec process_transfer(ff_transfer:transfer()) ->
     {ok, process_result()} |
     {error, _Reason}.
 
-process_transfer(Deposit) ->
-    Activity = deduce_activity(Deposit),
-    do_process_transfer(Activity, Deposit).
+process_transfer(Transfer) ->
+    Activity = deduce_activity(Transfer),
+    do_process_transfer(Activity, Transfer).
 
--spec process_failure(any(), deposit()) ->
+-spec process_failure(any(), ff_transfer:transfer()) ->
     {ok, process_result()} |
     {error, _Reason}.
 
-process_failure(Reason, Deposit) ->
-    ff_transfer:process_failure(Reason, Deposit).
+process_failure(Reason, Transfer) ->
+    ff_transfer:process_failure(Reason, Transfer).
 
--spec process_call(any(), deposit()) ->
+-spec process_call(any(), ff_transfer:transfer()) ->
     {ok, process_result()} |
     {error, _Reason}.
 
-process_call(revert, Deposit) ->
+process_call({revert, Body, Reason}, Transfer) ->
     #{
+        source_id := SourceID,
+        wallet_id := WalletID,
         wallet_account := WalletAccount,
         source_account := SourceAccount
-    } = params(Deposit),
+    } = params(Transfer),
+    %% TODO validate body
+    Params = #{
+        deposit_id      => id(Transfer),
+        source_id       => SourceID,
+        wallet_id       => WalletID,
+        body            => Body,
+        reason          => Reason
+    },
     do(fun () ->
-        PTransferID = construct_p_transfer_revert_id(id(Deposit)),
-        PostingsTransferEvents = create_p_transfer_(PTransferID, WalletAccount, SourceAccount, Deposit),
-        {continue, [{status_changed, pending}] ++ PostingsTransferEvents}
+        RepositEvents = unwrap(ff_reposit:create(id(Transfer), Params)),
+        Reposit = ff_reposit:get(RepositEvents),
+        PTransferID = ff_reposit:construct_p_transfer_id(ff_reposit:id(Reposit)),
+        PostingsTransferEvents = create_p_transfer_(PTransferID, WalletAccount, SourceAccount, Transfer),
+        {continue,
+            [{status_changed, pending}] ++
+            ff_transfer:wrap_events(reposit, RepositEvents) ++
+            PostingsTransferEvents
+        }
     end).
+
 %% Internals
 
 -type activity() ::
@@ -205,10 +225,10 @@ process_call(revert, Deposit) ->
 % TODO: Move activity to ff_transfer
 -spec deduce_activity(deposit()) ->
     activity().
-deduce_activity(Deposit) ->
+deduce_activity(Transfer) ->
     Params = #{
-        p_transfer => ff_transfer:p_transfer(Deposit),
-        status => status(Deposit)
+        p_transfer => ff_transfer:p_transfer(Transfer),
+        status => status(Transfer)
     },
     do_deduce_activity(Params).
 
@@ -219,59 +239,62 @@ do_deduce_activity(#{status := pending, p_transfer := #{status := prepared}}) ->
 do_deduce_activity(_Other) ->
     idle.
 
-do_process_transfer(p_transfer_start, Deposit) ->
-    create_p_transfer(Deposit);
-do_process_transfer(finish_him, Deposit) ->
-    finish_transfer(Deposit);
-do_process_transfer(idle, Deposit) ->
-    ff_transfer:process_transfer(Deposit).
+do_process_transfer(p_transfer_start, Transfer) ->
+    create_p_transfer(Transfer);
+do_process_transfer(finish_him, Transfer) ->
+    finish_transfer(Transfer);
+do_process_transfer(idle, Transfer) ->
+    ff_transfer:process_transfer(Transfer).
 
--spec create_p_transfer(deposit()) ->
+-spec create_p_transfer(ff_transfer:transfer()) ->
     {ok, process_result()} |
     {error, _Reason}.
-create_p_transfer(Deposit) ->
+create_p_transfer(Transfer) ->
     #{
         wallet_account := WalletAccount,
         source_account := SourceAccount
-    } = params(Deposit),
+    } = params(Transfer),
     do(fun () ->
-        PTransferID = construct_p_transfer_id(id(Deposit)),
-        {continue, create_p_transfer_(PTransferID, SourceAccount, WalletAccount, Deposit)}
+        PTransferID = construct_p_transfer_id(id(Transfer)),
+        {continue, create_p_transfer_(PTransferID, SourceAccount, WalletAccount, Transfer)}
     end).
 
--spec finish_transfer(deposit()) ->
+-spec finish_transfer(ff_transfer:transfer()) ->
     {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(ff_transfer:event())]}} |
     {error, _Reason}.
-finish_transfer(Deposit) ->
-    Body = body(Deposit),
+finish_transfer(Transfer) ->
+    Body = body(Transfer),
     #{
         wallet_id := WalletID,
         wallet_account := WalletAccount
-    } = params(Deposit),
+    } = params(Transfer),
     do(fun () ->
         valid = unwrap(ff_party:validate_wallet_limits(WalletID, Body, WalletAccount)),
-        {continue, [{status_changed, succeeded}]}
+        Action = ff_transfer:action(Transfer),
+        {continue, get_success_events_for_action(Action)}
     end).
+
+get_success_events_for_action(undefined) ->
+    [{status_changed, succeeded}];
+get_success_events_for_action(revert) ->
+    [{status_changed, reverted}] ++
+    ff_transfer:wrap_events(reposit, ff_reposit:update_status(succeeded)).
 
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->
     <<"ff/deposit/", ID/binary>>.
-
--spec construct_p_transfer_revert_id(id()) -> id().
-construct_p_transfer_revert_id(ID) ->
-    <<"ff/r_deposit/", ID/binary>>.
 
 -spec maybe_migrate(ff_transfer:event() | ff_transfer:legacy_event()) ->
     ff_transfer:event().
 maybe_migrate(Ev) ->
     ff_transfer:maybe_migrate(Ev, deposit).
 
-create_p_transfer_(PTransferID, From, To, Deposit) ->
+create_p_transfer_(PTransferID, From, To, Transfer) ->
     #{
         wallet_cash_flow_plan := CashFlowPlan
-    } = params(Deposit),
+    } = params(Transfer),
     Constants = #{
-        operation_amount => body(Deposit)
+        operation_amount => body(Transfer)
     },
     Accounts = #{
         {wallet, sender_source} => From,

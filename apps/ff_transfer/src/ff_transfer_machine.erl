@@ -19,6 +19,12 @@
     external_id => external_id()
 }.
 
+-type revert_params()      :: #{
+    id      := id(),
+    body    := ff_transaction:body(),
+    reason  := binary() | undefined
+}.
+
 %% Behaviour definition
 
 -type st(T)    :: ff_machine:st(transfer(T)).
@@ -31,6 +37,7 @@
 -export_type([event/1]).
 -export_type([events/1]).
 -export_type([params/0]).
+-export_type([revert_params/0]).
 
 -callback process_transfer(transfer(_)) ->
     {ok, {action(), [event(_)]}} |
@@ -120,8 +127,8 @@ events(NS, ID, Range) ->
 backend(NS) ->
     fistful:backend(NS).
 
--spec revert(ns(), id()) ->
-    {ok, id()}             |
+-spec revert(ns(), revert_params()) ->
+    {ok, ff_reposit:reposit()}             |
     {error,
         _TransferError |
         notfound       |
@@ -130,10 +137,10 @@ backend(NS) ->
 
 % revert(ff_withdrawal, _ID) ->
 %     {error, not_implemented};
-revert(NS, ID) ->
-    case machinery:call(NS, ID, revert, backend(NS)) of
-        {ok, _Events} ->
-            {ok, ID};
+revert(NS, #{id := ID, body := Body, reason := Reason}) ->
+    case machinery:call(NS, ID, {revert, Body, Reason}, backend(NS)) of
+        {ok, Events} ->
+            {ok, ff_transfer:reposit(ff_transfer:apply_event(Events, undefined))};
         {error, _} = Result ->
             Result
     end.

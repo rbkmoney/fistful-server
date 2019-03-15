@@ -30,8 +30,6 @@ final_account_to_final_cash_flow_account(#{
 -define(to_session_event(SessionID, Payload),
     {session, #{id => SessionID, payload => Payload}}).
 
-%% DECODE
-
 -spec unmarshal_withdrawal_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
     ff_withdrawal:params().
 
@@ -43,8 +41,6 @@ unmarshal_withdrawal_params(Params) ->
         body           => ff_codec:unmarshal(cash, Body),
         external_id    => Params#wthd_WithdrawalParams.external_id
     }.
-
-%% ENCODE
 
 -spec marshal_currency_invalid({ff_currency:id(), ff_currency:id()}) ->
      ff_proto_withdrawal_thrift:'WithdrawalCurrencyInvalid'().
@@ -98,8 +94,7 @@ unmarshal_withdrawal(#wthd_Withdrawal{
 }) ->
     Params = genlib_map:compact(#{
         wallet_id      => unmarshal(id, WalletID),
-        destination_id => unmarshal(id, DestinationID),
-        external_id    => unmarshal(id, ExternalID)
+        destination_id => unmarshal(id, DestinationID)
     }),
     Cash = unmarshal(cash, Body),
     TransferType = ff_withdrawal:transfer_type(),
@@ -109,7 +104,8 @@ unmarshal_withdrawal(#wthd_Withdrawal{
         TransferType,
         Cash,
         Params,
-        Status
+        Status,
+        unmarshal(id, ExternalID)
     }).
 
 -spec marshal_event({integer(), ff_machine:timestamped_event(ff_withdrawal:event())}) ->
@@ -343,3 +339,29 @@ maybe_unmarshal(_Type, undefined) ->
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
 
+%% TESTS
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec withdrawal_test() -> _.
+withdrawal_test() ->
+    WalletID    = genlib:unique(),
+    Dest        = genlib:unique(),
+    ExternalID  = genlib:unique(),
+
+    In = #wthd_Withdrawal{
+        body        = #'Cash'{
+            amount = 10101,
+            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+        },
+        source      = WalletID,
+        destination = Dest,
+        external_id = ExternalID,
+        status      = {pending, #wthd_WithdrawalPending{}},
+        id          = genlib:unique()
+    },
+    ?assertEqual(In, marshal_withdrawal(unmarshal_withdrawal(In))).
+
+-endif.

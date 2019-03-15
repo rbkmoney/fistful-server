@@ -66,6 +66,7 @@
 %% Internal types
 
 -type id() :: ff_transfer_machine:id().
+-type external_id() :: id() | undefined.
 -type body() :: ff_transfer:body().
 -type account() :: ff_account:account().
 -type provider() :: ff_withdrawal_provider:provider().
@@ -87,7 +88,7 @@ transfer_type() ->
 %% Constructor
 
 -spec gen({
-    id(), transfer_type(), body(), params(), status()
+    id(), transfer_type(), body(), params(), status(), external_id()
 }) ->
     withdrawal().
 

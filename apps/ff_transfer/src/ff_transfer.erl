@@ -91,16 +91,17 @@
 %% Constructor
 
 -spec gen({
-    id(), transfer_type(), body(), params(T), status()
+    id(), transfer_type(), body(), params(T), status(), external_id()
 }) -> transfer(T).
 
-gen({ID, TransferType, Body, Params, Status}) ->
+gen({ID, TransferType, Body, Params, Status, ExternalID}) ->
     genlib_map:compact(#{
         id            => ID,
         transfer_type => TransferType,
         body          => Body,
         params        => Params,
-        status        => Status
+        status        => Status,
+        external_id   => ExternalID
     }).
 
 %% Accessors

@@ -482,18 +482,21 @@ create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
     })).
 
 search_event_commited(Events, WdrID) ->
-    TransferCommited = lists:filter(fun(Ev) ->
+    ClearEv = lists:filter(fun(Ev) ->
         case Ev#wthd_SinkEvent.source of
-            WdrID ->
-                Payload = Ev#wthd_SinkEvent.payload,
-                Changes = Payload#wthd_EventSinkPayload.changes,
-                Res = lists:filter(
-                    fun
-                        ({transfer, {status_changed, {committed, #wthd_TransferCommitted{}}}}) -> true;
-                        (_Other) -> false
-                    end, Changes),
-                length(Res) =/= 0;
-            _ -> false
+            WdrID -> true;
+            _     -> false
         end
     end, Events),
+
+    TransferCommited = lists:filter(fun(Ev) ->
+        Payload = Ev#wthd_SinkEvent.payload,
+        Changes = Payload#wthd_EventSinkPayload.changes,
+        Res = lists:filter(fun is_commited_ev/1, Changes),
+        length(Res) =/= 0
+    end, ClearEv),
+
     length(TransferCommited) =/= 0.
+
+is_commited_ev({transfer, {status_changed, {committed, #wthd_TransferCommitted{}}}}) -> true;
+is_commited_ev(_Other) -> false.

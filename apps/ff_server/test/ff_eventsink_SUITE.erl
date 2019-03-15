@@ -52,13 +52,10 @@ all() ->
         get_shifted_create_identity_events_ok
     ].
 
+
 -spec groups() -> [].
 
-groups() -> [
-    {default, [sequence, {repeat, 15}], [
-        get_withdrawal_events_ok
-    ]}
-].
+groups() -> [].
 
 -spec init_per_suite(config()) -> config().
 

@@ -188,9 +188,9 @@ get_withdrawal_events_ok(C) ->
     DestID  = create_destination(IID, C),
     WdrID   = process_withdrawal(WalID, DestID),
 
-    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
+    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
 
     AlienEvents = lists:filter(fun(Ev) ->
         Ev#wthd_SinkEvent.source =/= WdrID
@@ -422,6 +422,16 @@ process_withdrawal(WalID, DestID) ->
         end,
         genlib_retry:linear(15, 1000)
     ),
+    true = ct_helper:await(
+        true,
+        fun () ->
+            Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
+            {ok, Events} = call_eventsink_handler('GetEvents',
+                Service, [#'evsink_EventRange'{'after' = 0, limit = 1000}]),
+            search_event_commited(Events, WdrID)
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
     WdrID.
 
 
@@ -473,3 +483,20 @@ create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
         handlers => [{Path, {Module, {Handler, NewCfg}}}],
         event_handler => scoper_woody_event_handler
     })).
+
+search_event_commited(Events, WdrID) ->
+    TransferCommited = lists:filter(fun(Ev) ->
+        case Ev#wthd_SinkEvent.source of
+            WdrID ->
+                Payload = Ev#wthd_SinkEvent.payload,
+                Changes = Payload#wthd_EventSinkPayload.changes,
+                Res = lists:filter(
+                    fun
+                        ({transfer, {status_changed, {committed, #wthd_TransferCommitted{}}}}) -> true;
+                        (_Other) -> false
+                    end, Changes),
+                length(Res) =/= 0;
+            _ -> false
+        end
+    end, Events),
+    length(TransferCommited) =/= 0.

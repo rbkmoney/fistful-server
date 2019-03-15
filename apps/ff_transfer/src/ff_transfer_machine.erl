@@ -66,6 +66,11 @@
 -export([process_repair/4]).
 -export([process_call/4]).
 
+%% Convertors
+
+-export([handler_to_type/1]).
+-export([type_to_handler/1]).
+
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1]).

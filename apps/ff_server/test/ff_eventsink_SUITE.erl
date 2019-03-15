@@ -40,22 +40,25 @@
 
 -spec all() -> [test_case_name()].
 
-all() ->
-    [
-        get_identity_events_ok,
-        get_create_wallet_events_ok,
-        get_withdrawal_events_ok,
-        get_create_destination_events_ok,
-        get_create_source_events_ok,
-        get_create_deposit_events_ok,
-        get_withdrawal_session_events_ok,
-        get_shifted_create_identity_events_ok
+% all() ->
+%     [
+%         get_identity_events_ok,
+%         get_create_wallet_events_ok,
+%         get_withdrawal_events_ok,
+%         get_create_destination_events_ok,
+%         get_create_source_events_ok,
+%         get_create_deposit_events_ok,
+%         get_withdrawal_session_events_ok,
+%         get_shifted_create_identity_events_ok
+%     ].
+all() -> [
+        {group, default}
     ].
 
 -spec groups() -> [].
 
 groups() -> [
-    {default, [sequence, {repeat, 5}], [
+    {default, [sequence, {repeat, 15}], [
         get_withdrawal_events_ok
     ]}
 ].

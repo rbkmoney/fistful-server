@@ -12,6 +12,8 @@
 -export([marshal_currency_invalid/1]).
 
 -export([marshal_withdrawal/1]).
+-export([unmarshal_withdrawal/1]).
+
 -export([marshal_event/1]).
 
 -export([marshal/2]).
@@ -64,10 +66,10 @@ marshal_cash_range_error({Cash, Range}) ->
 
 %% API
 
--spec marshal_withdrawal({ff_withdrawal:withdrawal(), ff_withdrawal:ctx()}) ->
+-spec marshal_withdrawal(ff_withdrawal:withdrawal()) ->
     ff_proto_withdrawal_thrift:'Withdrawal'().
 
-marshal_withdrawal({Withdrawal, Ctx}) ->
+marshal_withdrawal(Withdrawal) ->
     WalletID      = ff_withdrawal:wallet_id(Withdrawal),
     DestinationID = ff_withdrawal:destination_id(Withdrawal),
     ExternalID    = ff_withdrawal:external_id(Withdrawal),
@@ -80,9 +82,35 @@ marshal_withdrawal({Withdrawal, Ctx}) ->
         destination = marshal(id, DestinationID),
         external_id = marshal(id, ExternalID),
         id          = maybe_marshal(id, ID),
-        status      = maybe_marshal(withdrawal_status_changed, Status),
-        context     = maybe_marshal(ctx, Ctx)
+        status      = maybe_marshal(withdrawal_status_changed, Status)
     }.
+
+-spec unmarshal_withdrawal(ff_proto_withdrawal_thrift:'Withdrawal'()) ->
+    ff_withdrawal:withdrawal().
+
+unmarshal_withdrawal(#wthd_Withdrawal{
+    body        = Body,
+    source      = WalletID,
+    destination = DestinationID,
+    external_id = ExternalID,
+    status      = S,
+    id          = ID
+}) ->
+    Params = genlib_map:compact(#{
+        wallet_id      => unmarshal(id, WalletID),
+        destination_id => unmarshal(id, DestinationID),
+        external_id    => unmarshal(id, ExternalID)
+    }),
+    Cash = unmarshal(cash, Body),
+    TransferType = ff_withdrawal:transfer_type(),
+    Status = maybe_unmarshal(withdrawal_status_changed, S),
+    ff_withdrawal:gen({
+        unmarshal(id, ID),
+        TransferType,
+        Cash,
+        Params,
+        Status
+    }).
 
 -spec marshal_event({integer(), ff_machine:timestamped_event(ff_withdrawal:event())}) ->
     ff_proto_withdrawal_thrift:'Event'().
@@ -101,7 +129,7 @@ marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
 marshal(event, {created, Withdrawal}) ->
-    {created, marshal_withdrawal({Withdrawal, undefined})};
+    {created, marshal_withdrawal(Withdrawal)};
 marshal(event, {status_changed, WithdrawalStatus}) ->
     {status_changed, marshal(withdrawal_status_changed, WithdrawalStatus)};
 marshal(event, {p_transfer, TransferChange}) ->
@@ -220,7 +248,7 @@ unmarshal(repair_scenario, {add_events, #wthd_AddEventsRepair{events = Events, a
     })};
 
 unmarshal(event, {created, Withdrawal}) ->
-    {created, unmarshal(withdrawal, Withdrawal)};
+    {created, unmarshal_withdrawal(Withdrawal)};
 unmarshal(event, {status_changed, WithdrawalStatus}) ->
     {status_changed, unmarshal(withdrawal_status_changed, WithdrawalStatus)};
 unmarshal(event, {transfer, TransferChange}) ->
@@ -233,21 +261,6 @@ unmarshal(event, {route, Route}) ->
     {route_changed, unmarshal(withdrawal_route_changed, Route)};
 unmarshal(event, {route_changed, Route}) ->
     {route, unmarshal(withdrawal_route_changed, Route)};
-
-unmarshal(withdrawal, #wthd_Withdrawal{
-    body = Cash,
-    source = WalletID,
-    destination = DestinationID,
-    external_id = ExternalID
-}) ->
-    #{
-        body => unmarshal(cash, Cash),
-        params => genlib_map:compact(#{
-            wallet_id => unmarshal(id, WalletID),
-            destination_id => unmarshal(id, DestinationID),
-            external_id => unmarshal(id, ExternalID)
-        })
-    };
 
 unmarshal(withdrawal_status_changed, {pending, #wthd_WithdrawalPending{}}) ->
     pending;

@@ -32,7 +32,7 @@ handle_function_('Create', [Params], Context, Opts) ->
     Ctx = Params#wthd_WithdrawalParams.context,
     case ff_withdrawal:create(ID,
         ff_withdrawal_codec:unmarshal_withdrawal_params(Params),
-        ff_withdrawal_codec:unmarshal(context, Ctx))
+        ff_withdrawal_codec:unmarshal(ctx, Ctx))
     of
         ok ->
             handle_function_('Get', [ID], Context, Opts);
@@ -56,10 +56,10 @@ handle_function_('Create', [Params], Context, Opts) ->
 handle_function_('Get', [ID], _Context, _Opts) ->
     case ff_withdrawal:get_machine(ID) of
         {ok, Machine} ->
-            Withdrawal = ff_withdrawal:get(Machine),
             Ctx = ff_withdrawal:ctx(Machine),
-            Ans = ff_withdrawal_codec:marshal_withdrawal({Withdrawal, Ctx}),
-            {ok, Ans};
+            Context = ff_withdrawal_codec:marshal(ctx, Ctx),
+            Withdrawal = ff_withdrawal_codec:marshal_withdrawal(ff_withdrawal:get(Machine)),
+            {ok, Withdrawal#wthd_Withdrawal{context = Context}};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DestinationNotFound{})
     end;

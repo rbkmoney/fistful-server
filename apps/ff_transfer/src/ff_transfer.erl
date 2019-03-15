@@ -46,6 +46,7 @@
 -export_type([status/0]).
 -export_type([route/1]).
 
+-export([gen/1]).
 -export([id/1]).
 -export([transfer_type/1]).
 -export([body/1]).
@@ -86,6 +87,21 @@
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type legacy_event() :: any().
 -type transfer_type() :: atom().
+
+%% Constructor
+
+-spec gen({
+    id(), transfer_type(), body(), params(T), status()
+}) -> transfer(T).
+
+gen({ID, TransferType, Body, Params, Status}) ->
+    genlib_map:compact(#{
+        id            => ID,
+        transfer_type => TransferType,
+        body          => Body,
+        params        => Params,
+        status        => Status
+    }).
 
 %% Accessors
 

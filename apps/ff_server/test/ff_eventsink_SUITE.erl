@@ -40,19 +40,16 @@
 
 -spec all() -> [test_case_name()].
 
-% all() ->
-%     [
-%         get_identity_events_ok,
-%         get_create_wallet_events_ok,
-%         get_withdrawal_events_ok,
-%         get_create_destination_events_ok,
-%         get_create_source_events_ok,
-%         get_create_deposit_events_ok,
-%         get_withdrawal_session_events_ok,
-%         get_shifted_create_identity_events_ok
-%     ].
-all() -> [
-        {group, default}
+all() ->
+    [
+        get_identity_events_ok,
+        get_create_wallet_events_ok,
+        get_withdrawal_events_ok,
+        get_create_destination_events_ok,
+        get_create_source_events_ok,
+        get_create_deposit_events_ok,
+        get_withdrawal_session_events_ok,
+        get_shifted_create_identity_events_ok
     ].
 
 -spec groups() -> [].

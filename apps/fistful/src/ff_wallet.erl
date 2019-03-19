@@ -67,8 +67,8 @@
 -spec blocking(wallet()) ->
     blocking().
 
-account(#{account := V}) ->
-    V.
+account(Wallet) ->
+    maps:get(account, Wallet, undefined).
 
 id(Wallet) ->
     ff_account:id(account(Wallet)).

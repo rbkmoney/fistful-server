@@ -67,4 +67,8 @@ wrap_test() ->
     MsgPack = wrap(#{<<"NS">> => Arr}),
     ?assertEqual(#{<<"NS">> => {arr, [{obj, #{ {i, 123} => {str, Str} }}]}}, MsgPack).
 
+-spec wrap_empty_obj_test() -> _.
+wrap_empty_obj_test() ->
+    ?assertEqual({obj, #{}}, wrap_(#{})).
+
 -endif.

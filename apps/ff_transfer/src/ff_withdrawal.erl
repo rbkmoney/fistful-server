@@ -125,7 +125,12 @@ create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body
             unwrap(destination, ff_destination:get_machine(DestinationID))
         ),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
-        Terms = unwrap(contract, ff_party:get_contract_terms(Wallet, Body, ff_time:now())),
+        IdentityMachine = unwrap(ff_identity_machine:get(ff_wallet:identity(Wallet))),
+        Identity = ff_identity_machine:identity(IdentityMachine),
+        PartyID = ff_identity:party(Identity),
+        ContractID = ff_identity:contract(Identity),
+        VS = unwrap(collect_varset(Body, Wallet, Destination)),
+        Terms = unwrap(contract, ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now())),
         valid = unwrap(terms, ff_party:validate_withdrawal_creation(Terms, Body, WalletAccount)),
         CashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
 
@@ -440,6 +445,9 @@ finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount,
     ff_transfer:event().
 maybe_migrate(Ev) ->
     ff_transfer:maybe_migrate(Ev, withdrawal).
+
+-spec collect_varset(body(), ff_wallet:wallet(), ff_destination:destination()) ->
+    {ok, hg_selector:varset()} | {error, Reason :: any()}.
 
 collect_varset({_, CurrencyID} = Body, Wallet, Destination) ->
     Currency = #domain_CurrencyRef{symbolic_code = CurrencyID},

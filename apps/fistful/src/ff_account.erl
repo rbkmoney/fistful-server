@@ -89,7 +89,7 @@ create(ID, Identity, Currency) ->
         CurrencyID = ff_currency:id(Currency),
         TermVarset = #{
             wallet_id => ID,
-            currency_id => CurrencyID
+            currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
         },
         Terms = unwrap(contract, ff_party:get_contract_terms(
             PartyID, ContractID, TermVarset, ff_time:now()

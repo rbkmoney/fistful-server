@@ -23,14 +23,13 @@ create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
                 throw({currency, notfound});
             {exception, #fistful_PartyInaccessible{}} ->
                 throw(inaccessible);
-            %% TODO extend thrift add createdAt, exception IDExists
-            % {exception, #fistful_IDExists{}} ->
-            %     WalletID = get_id(WalletParams),
-            %     {ok, Wallet} = call({fistful_wallet, 'Get', [WalletID]}, WoodyContext),
-            %     wapi_backend_utils:compare_hash(
-            %         wapi_backend_utils:create_hash(ParamsIn),
-            %         get_hash(Wallet)
-            %     );
+            {exception, #fistful_IDExists{}} ->
+                WalletID = get_id(WalletParams),
+                {ok, Wallet} = call({fistful_wallet, 'Get', [WalletID]}, WoodyContext),
+                wapi_backend_utils:compare_hash(
+                    wapi_backend_utils:create_hash(ParamsIn),
+                    get_hash(Wallet)
+                );
             {exception, Details} ->
                 throw(Details)
         end
@@ -62,11 +61,11 @@ call(Params, Ctx) ->
             Error
     end.
 
-% get_hash(#wlt_WalletState{context = Ctx}) ->
-%     wapi_handler_utils:get_hash(Ctx).
+get_hash(#wlt_Wallet{context = Ctx}) ->
+    wapi_handler_utils:get_hash(Ctx).
 
-% get_id(#wlt_WalletParams{id = ID}) ->
-%     ID.
+get_id(#wlt_WalletParams{id = ID}) ->
+    ID.
 
 create_wallet_params(ParamsIn, WoodyContext) ->
     Type = wallet,
@@ -111,12 +110,13 @@ marshal(account_params, {IdentityID, CurrencyID}) -> #account_AccountParams{
 marshal(context, Ctx) ->
     ff_context:wrap(Ctx).
 
-unmarshal(wallet, #wlt_WalletState{
+unmarshal(wallet, #wlt_Wallet{
     id          = WalletID,
     name        = Name,
     blocking    = Blocking,
     account     = Account,
     external_id = ExternalID,
+    created_at  = CreatedAt,
     context     = Ctx
 }) ->
     {Identity, Currency} = unmarshal(account, Account),
@@ -127,6 +127,7 @@ unmarshal(wallet, #wlt_WalletState{
         <<"isBlocked">>   => unmarshal(blocked, Blocking),
         <<"identity">>    => Identity,
         <<"currency">>    => Currency,
+        <<"created_at">>  => CreatedAt,
         <<"external_id">> => ExternalID,
         <<"metadata">>    => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
     });

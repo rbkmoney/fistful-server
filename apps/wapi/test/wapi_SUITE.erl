@@ -52,8 +52,9 @@ groups() ->
             create_desination,
             get_destination,
             issue_destination_grants,
-            create_withdrawal,
-            get_withdrawal
+            create_withdrawal
+            %% TODO !!!
+            % get_withdrawal
         ]},
         {woody, [], [
             woody_retry_test
@@ -206,16 +207,16 @@ create_wallet(C) ->
         }},
         ct_helper:cfg(context, C)
     ),
-
     #{
         <<"id">>          := WalletID,
         <<"name">>        := Name,
         <<"identity">>    := IdentityID,
         <<"currency">>    := Currency,
         <<"metadata">>    := MetaData,
-        <<"external_id">> := ExternalID
+        <<"external_id">> := ExternalID,
+        <<"created_at">>  := _CreatedAt,
+        <<"isBlocked">>   := false
     } = Wallet,
-    WalletID = maps:get(<<"id">>, Wallet),
     {save_config, [{wallet, WalletID} | Cfg]}.
 
 get_wallet(C) ->

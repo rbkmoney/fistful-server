@@ -12,10 +12,10 @@
 -export([extend_ctx_from_map/3]).
 -export([extend_ctx_from_list/2]).
 -export([create_params_hash/1]).
--export([get_and_compare_hash/3]).
+-export([compare_hash/2]).
 
 %% Pipeline
--import(ff_pipeline, [do/1, unwrap/1]).
+-import(ff_pipeline, [unwrap/1]).
 
 -type context() :: #{namespace() => md()}.
 
@@ -101,24 +101,15 @@ get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
 create_params_hash(Value) ->
     {?PARAMS_HASH, erlang:phash2(Value)}.
 
-get_hash(Context) ->
-    #{?CTX_NS := #{?PARAMS_HASH := Value}} = Context,
-    Value.
+% get_hash(Context) ->
+%     #{?CTX_NS := #{?PARAMS_HASH := Value}} = Context,
+%     Value.
 
--spec get_and_compare_hash(function(), list(), integer()) ->
-    {ok, term()} |
-    {error, {conflict_hash, _}} |
-    _Error.
+-spec compare_hash(integer(), integer()) ->
+    ok |
+    {error, conflict_hash}.
 
-get_and_compare_hash(Fun, Args, Hash) ->
-    case do(fun() -> Fun(Args) end) of
-        {ok, Entity} ->
-            compare_hash(Hash, get_hash(Entity), Entity);
-        Error ->
-            Error
-    end.
-
-compare_hash(Hash, Hash, Entity) ->
-    {ok, Entity};
-compare_hash(_, _, Entity) ->
-    {error, {conflict_hash, Entity}}.
+compare_hash(Hash, Hash) ->
+    ok;
+compare_hash(_, _) ->
+    {error, conflict_hash}.

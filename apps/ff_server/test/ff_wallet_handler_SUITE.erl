@@ -97,14 +97,14 @@ create_wallet_ok(C) ->
             symbolic_code = Currency
         }
     },
-    {ok, WalletState}  = call_service('Create', [Params]),
-    {ok, WalletState2} = call_service('Get', [ID]),
-    WalletState = WalletState2,
-    WalletName  = WalletState2#wlt_WalletState.name,
-    unblocked   = WalletState2#wlt_WalletState.blocking,
-    ExternalId  = WalletState2#wlt_WalletState.external_id,
-    Ctx         = WalletState2#wlt_WalletState.context,
-    Account     = WalletState2#wlt_WalletState.account,
+    {ok, Wallet}  = call_service('Create', [Params]),
+    {ok, Wallet2} = call_service('Get', [ID]),
+    Wallet      = Wallet2,
+    WalletName  = Wallet2#wlt_Wallet.name,
+    unblocked   = Wallet2#wlt_Wallet.blocking,
+    ExternalId  = Wallet2#wlt_Wallet.external_id,
+    Ctx         = Wallet2#wlt_Wallet.context,
+    Account     = Wallet2#wlt_Wallet.account,
     IdentityID  = Account#account_Account.identity,
     CurrencyRef = Account#account_Account.currency,
     Currency = CurrencyRef#'CurrencyRef'.symbolic_code.

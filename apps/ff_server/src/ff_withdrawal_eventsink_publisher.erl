@@ -29,20 +29,22 @@ publish_event(#{
     id          := ID,
     source_id   := SourceID,
     event       := {
-        EventID,
-        Dt,
-        {ev, EventDt, Payload}
+        %% TODO !!! return back
+        % EventID,
+        Dt
+        % {ev, EventDt, Payload}
     }
 }) ->
     #wthd_SinkEvent{
         id            = marshal(event_id, ID),
         created_at    = marshal(timestamp, Dt),
-        source        = marshal(id, SourceID),
-        payload       = #wthd_Event{
-            sequence   = marshal(event_id, EventID),
-            occured_at = marshal(timestamp, EventDt),
-            changes    = [marshal(event, ff_withdrawal:maybe_migrate(Payload))]
-        }
+        source        = marshal(id, SourceID)
+        %% TODO !!! return back after merge withdrawal changes
+        % payload       = #wthd_Event{
+        %     sequence   = marshal(event_id, EventID),
+        %     occured_at = marshal(timestamp, EventDt),
+        %     changes    = [marshal(event, ff_withdrawal:maybe_migrate(Payload))]
+        % }
     }.
 %%
 

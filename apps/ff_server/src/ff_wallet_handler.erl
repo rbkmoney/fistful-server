@@ -12,7 +12,7 @@
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Context, Opts) ->
-    scoper:scope(fistful, #{function => Func},
+    scoper:scope(wallet, #{function => Func},
         fun() ->
             ok = ff_woody_ctx:set(Context),
             try
@@ -34,9 +34,8 @@ handle_function_('Create', [Params], Context, Opts) ->
     of
         ok ->
             handle_function_('Get', [WalletID], Context, Opts);
-        % TODO after improve thrift
-        % {error, exists} ->
-        %     woody_error:raise(business, #fistful_IDExists{});
+        {error, exists} ->
+            woody_error:raise(business, #fistful_IDExists{});
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {currency, notfound}} ->
@@ -50,22 +49,15 @@ handle_function_('Create', [Params], Context, Opts) ->
 handle_function_('Get', [ID], _Context, _Opts) ->
     case ff_wallet_machine:get(ID) of
         {ok, Machine} ->
-            {ok, encode(wallet, {ID, Machine})};
+            Wallet     = ff_wallet_machine:wallet(Machine),
+            _Ctx       = ff_wallet_machine:ctx(Machine),
+            _CreatedAt = ff_codec:marshal(timestamp, ff_machine:created(Machine)),
+            Response   = ff_wallet_codec:marshal_wallet(Wallet),
+            {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_WalletNotFound{})
     end.
 
-encode(wallet, {ID, Machine}) ->
-    Wallet = ff_wallet_machine:wallet(Machine),
-    Ctx = ff_wallet_machine:ctx(Machine),
-    #wlt_WalletState{
-        id          = ID,
-        name        = ff_wallet:name(Wallet),
-        blocking    = ff_wallet:blocking(Wallet),
-        account     = encode(account, ff_wallet:account(Wallet)),
-        external_id = ff_wallet:external_id(Wallet),
-        context     = encode(context, Ctx)
-    };
 encode(context, Ctx) ->
     ff_context:wrap(Ctx);
 encode(account, Account) ->

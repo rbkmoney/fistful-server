@@ -18,12 +18,21 @@ marshal(event, {account, AccountChange}) ->
     {account, marshal(account_change, AccountChange)};
 
 marshal(wallet, Wallet) ->
-    Name = maps:get(name, Wallet, undefined),
-    ExternalID = maps:get(external_id, Wallet, undefined),
     #wlt_Wallet{
-        name = marshal(string, Name),
-        external_id = marshal(id, ExternalID)
+        id          = maybe_marshal(id,       ff_wallet:id(Wallet)),
+        name        = maybe_marshal(string,   ff_wallet:name(Wallet)),
+        blocking    = maybe_marshal(blocking, ff_wallet:blocking(Wallet)),
+        account     = maybe_marshal(account,  ff_wallet:account(Wallet)),
+        external_id = maybe_marshal(id,       ff_wallet:external_id(Wallet))
     };
+
+marshal(blocking, blocked) ->
+    blocked;
+marshal(blocking, unblocked) ->
+    unblocked;
+
+marshal(ctx, Ctx) ->
+    maybe_marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -59,6 +68,11 @@ unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
 %% Internals
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
 
 maybe_unmarshal(_Type, undefined) ->
     undefined;

@@ -86,7 +86,7 @@ marshal(status_change, authorized) ->
     {changed, {authorized, #dst_Authorized{}}};
 
 marshal(ctx, Ctx) ->
-    maybe_marshal(context, Ctx);
+    marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -155,10 +155,6 @@ unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
 %% Internals
-maybe_marshal(_Type, undefined) ->
-    undefined;
-maybe_marshal(Type, Value) ->
-    marshal(Type, Value).
 
 maybe_unmarshal(_Type, undefined) ->
     undefined;

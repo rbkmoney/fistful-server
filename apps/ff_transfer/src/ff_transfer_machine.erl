@@ -139,8 +139,12 @@ backend(NS) ->
 %     {error, not_implemented};
 revert(NS, #{id := ID, body := Body, reason := Reason}) ->
     case machinery:call(NS, ID, {revert, Body, Reason}, backend(NS)) of
-        {ok, Events} ->
-            {ok, ff_transfer:reposit(ff_transfer:apply_event(Events, undefined))};
+        {ok, _} ->
+            do(fun () ->
+                Transfer = transfer(unwrap(get(NS, ID))),
+                io:format(<<" --- revert transfer - ~p~n">>, [Transfer]),
+                ff_transfer:reposit(Transfer)
+            end);
         {error, _} = Result ->
             Result
     end.
@@ -186,7 +190,10 @@ process_timeout(Machine, _, _Opts) ->
 process_call(CallArgs, Machine, _, _Opts) ->
     St = ff_machine:collapse(ff_transfer, Machine),
     Transfer = transfer(St),
-    {ok, process_result(handler_process_call(CallArgs, Transfer), St)}.
+    CallRes = handler_process_call(CallArgs, Transfer),
+    Result = process_result(CallRes, St),
+    io:format(<<" --- revert call - ~p - ~p~n">>, [CallRes, Result]),
+    {ok, Result}.
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     result().

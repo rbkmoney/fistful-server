@@ -207,7 +207,7 @@ process_call({revert, Body, Reason}, Transfer) ->
         RepositEvents = unwrap(ff_reposit:create(id(Transfer), Params)),
         Reposit = ff_reposit:get(RepositEvents),
         PTransferID = ff_reposit:construct_p_transfer_id(ff_reposit:id(Reposit)),
-        PostingsTransferEvents = create_p_transfer_(PTransferID, WalletAccount, SourceAccount, Transfer),
+        PostingsTransferEvents = create_p_transfer_(PTransferID, WalletAccount, SourceAccount, Body, Transfer),
         {continue,
             [{status_changed, pending}] ++
             ff_transfer:wrap_events(reposit, RepositEvents) ++
@@ -256,7 +256,7 @@ create_p_transfer(Transfer) ->
     } = params(Transfer),
     do(fun () ->
         PTransferID = construct_p_transfer_id(id(Transfer)),
-        {continue, create_p_transfer_(PTransferID, SourceAccount, WalletAccount, Transfer)}
+        {continue, create_p_transfer_(PTransferID, SourceAccount, WalletAccount, body(Transfer), Transfer)}
     end).
 
 -spec finish_transfer(ff_transfer:transfer()) ->
@@ -289,12 +289,12 @@ construct_p_transfer_id(ID) ->
 maybe_migrate(Ev) ->
     ff_transfer:maybe_migrate(Ev, deposit).
 
-create_p_transfer_(PTransferID, From, To, Transfer) ->
+create_p_transfer_(PTransferID, From, To, Body, Transfer) ->
     #{
         wallet_cash_flow_plan := CashFlowPlan
     } = params(Transfer),
     Constants = #{
-        operation_amount => body(Transfer)
+        operation_amount => Body
     },
     Accounts = #{
         {wallet, sender_source} => From,

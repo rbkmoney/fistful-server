@@ -104,7 +104,7 @@ marshal(integer, V) when is_integer(V) ->
     V;
 marshal(bool, V) when is_boolean(V) ->
     V;
-marshal(context, V) ->
+marshal(context, V) when is_map(V) ->
     ff_context:wrap(V);
 
 % Catch this up in thrift validation

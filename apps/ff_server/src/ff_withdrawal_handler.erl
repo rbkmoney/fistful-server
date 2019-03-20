@@ -30,10 +30,11 @@ handle_function(Func, Args, Context, Opts) ->
 handle_function_('Create', [Params], Context, Opts) ->
     ID = Params#wthd_WithdrawalParams.id,
     Ctx = Params#wthd_WithdrawalParams.context,
-    case ff_withdrawal:create(ID,
+    case ff_withdrawal:create(
+        ID,
         ff_withdrawal_codec:unmarshal_withdrawal_params(Params),
-        ff_withdrawal_codec:unmarshal(ctx, Ctx))
-    of
+        ff_withdrawal_codec:unmarshal(ctx, Ctx)
+    ) of
         ok ->
             handle_function_('Get', [ID], Context, Opts);
         {error, exists} ->
@@ -47,7 +48,7 @@ handle_function_('Create', [Params], Context, Opts) ->
         {error, {terms, {invalid_withdrawal_currency, CurrencyID, {wallet_currency, CurrencyID2}}}} ->
             woody_error:raise(business, ff_withdrawal_codec:marshal_currency_invalid({CurrencyID, CurrencyID2}));
         {error, {terms, {terms_violation, {cash_range, {CashIn, CashRangeIn}}}}} ->
-            Cash  = ff_party:decode_cash(CashIn),
+            Cash  = ff_cash:decode(CashIn),
             Range = ff_party:decode_cash_range(CashRangeIn),
             woody_error:raise(business, ff_withdrawal_codec:marshal_cash_range_error({Cash, Range}));
         {error, Error} ->

@@ -76,7 +76,7 @@
 -type process_result() :: {ff_transfer_machine:action(), [event()]}.
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 
--type transfer_type() :: ff_transfer_machine:transfer().
+-type transfer_type() :: ff_transfer:transfer_type().
 -type status() :: ff_transfer:status().
 
 -spec transfer_type() ->
@@ -157,9 +157,6 @@ create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body
             params      => #{
                 wallet_id => WalletID,
                 destination_id => DestinationID
-                % wallet_account => WalletAccount,
-                % destination_account => ff_destination:account(Destination),
-                % wallet_cash_flow_plan => CashFlowPlan
             },
             external_id => maps:get(external_id, Args, undefined)
         },
@@ -352,9 +349,6 @@ create_p_transfer_old_style(Withdrawal) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-        % wallet_account := WalletAccount,
-        % destination_account := DestinationAccount,
-        % wallet_cash_flow_plan := WalletCashFlowPlan
     } = params(Withdrawal),
     Body = body(Withdrawal),
     {_Amount, CurrencyID} = Body,

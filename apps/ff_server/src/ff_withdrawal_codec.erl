@@ -77,8 +77,8 @@ marshal_withdrawal(Withdrawal) ->
         source      = marshal(id, WalletID),
         destination = marshal(id, DestinationID),
         external_id = marshal(id, ExternalID),
-        id          = maybe_marshal(id, ID),
-        status      = maybe_marshal(withdrawal_status_changed, Status)
+        id          = marshal(id, ID),
+        status      = marshal(withdrawal_status_changed, Status)
     }.
 
 -spec unmarshal_withdrawal(ff_proto_withdrawal_thrift:'Withdrawal'()) ->
@@ -89,7 +89,7 @@ unmarshal_withdrawal(#wthd_Withdrawal{
     source      = WalletID,
     destination = DestinationID,
     external_id = ExternalID,
-    status      = S,
+    status      = Status,
     id          = ID
 }) ->
     Params = genlib_map:compact(#{
@@ -98,13 +98,13 @@ unmarshal_withdrawal(#wthd_Withdrawal{
     }),
     Cash = unmarshal(cash, Body),
     TransferType = ff_withdrawal:transfer_type(),
-    Status = maybe_unmarshal(withdrawal_status_changed, S),
+    WithdrawalStatus = maybe_unmarshal(withdrawal_status_changed, Status),
     ff_withdrawal:gen({
         unmarshal(id, ID),
         TransferType,
         Cash,
         Params,
-        Status,
+        WithdrawalStatus,
         unmarshal(id, ExternalID)
     }).
 
@@ -225,7 +225,7 @@ marshal(withdrawal_route_changed, #{
     };
 
 marshal(ctx, Ctx) ->
-    maybe_marshal(context, Ctx);
+    marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -329,10 +329,6 @@ unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
 %% Internals
-maybe_marshal(_Type, undefined) ->
-    undefined;
-maybe_marshal(Type, Value) ->
-    marshal(Type, Value).
 
 maybe_unmarshal(_Type, undefined) ->
     undefined;

@@ -83,23 +83,23 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
 
 create(ID, Identity, Currency) ->
     do(fun () ->
-        Contract = ff_identity:contract(Identity),
-        Party = ff_identity:party(Identity),
-        accessible = unwrap(party, ff_party:is_accessible(Party)),
+        ContractID = ff_identity:contract(Identity),
+        PartyID = ff_identity:party(Identity),
+        accessible = unwrap(party, ff_party:is_accessible(PartyID)),
         CurrencyID = ff_currency:id(Currency),
         TermVarset = #{
             wallet_id => ID,
-            currency_id => CurrencyID
+            currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
         },
         Terms = unwrap(contract, ff_party:get_contract_terms(
-            Party, Contract, TermVarset, ff_time:now()
+            PartyID, ContractID, TermVarset, ff_time:now()
         )),
         valid = unwrap(terms, ff_party:validate_account_creation(Terms, CurrencyID)),
         AccounterID = unwrap(accounter, create_account(ID, Currency)),
         [{created, #{
             id       => ID,
             identity => ff_identity:id(Identity),
-            currency => ff_currency:id(Currency),
+            currency => CurrencyID,
             accounter_account_id => AccounterID
         }}]
     end).

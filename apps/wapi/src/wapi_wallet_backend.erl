@@ -26,8 +26,8 @@ create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
             {exception, #fistful_IDExists{}} ->
                 WalletID = get_id(WalletParams),
                 {ok, Wallet} = call({fistful_wallet, 'Get', [WalletID]}, WoodyContext),
-                wapi_backend_utils:compare_hash(
-                    wapi_backend_utils:create_hash(ParamsIn),
+                {_, Hash} = wapi_backend_utils:create_params_hash(ParamsIn),
+                wapi_backend_utils:compare_hash(Hash,
                     get_hash(Wallet)
                 );
             {exception, Details} ->
@@ -62,7 +62,7 @@ call(Params, Ctx) ->
     end.
 
 get_hash(#wlt_Wallet{context = Ctx}) ->
-    wapi_handler_utils:get_hash(Ctx).
+    wapi_backend_utils:get_hash(unmarshal(context, Ctx)).
 
 get_id(#wlt_WalletParams{id = ID}) ->
     ID.

@@ -12,6 +12,7 @@
 -export([extend_ctx_from_map/3]).
 -export([extend_ctx_from_list/2]).
 -export([create_params_hash/1]).
+-export([get_hash/1]).
 -export([compare_hash/2]).
 
 %% Pipeline
@@ -101,9 +102,12 @@ get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
 create_params_hash(Value) ->
     {?PARAMS_HASH, erlang:phash2(Value)}.
 
-% get_hash(Context) ->
-%     #{?CTX_NS := #{?PARAMS_HASH := Value}} = Context,
-%     Value.
+-spec get_hash(context()) ->
+    binary().
+
+get_hash(Context) ->
+    #{?CTX_NS := #{?PARAMS_HASH := Value}} = Context,
+    Value.
 
 -spec compare_hash(integer(), integer()) ->
     ok |

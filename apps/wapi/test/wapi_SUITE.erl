@@ -1,5 +1,6 @@
 -module(wapi_SUITE).
 
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
 
 -export([all/0]).
@@ -14,6 +15,7 @@
 -export([create_identity/1]).
 -export([get_identity/1]).
 -export([create_wallet/1]).
+-export([create_wallet_idempotency/1]).
 -export([create_wallet_fails/1]).
 -export([get_wallet/1]).
 -export([store_bank_card/1]).
@@ -46,6 +48,7 @@ groups() ->
             get_identity,
             create_wallet_fails,
             create_wallet,
+            create_wallet_idempotency,
             get_wallet,
             store_bank_card,
             get_bank_card,
@@ -117,6 +120,7 @@ end_per_testcase(_Name, _C) ->
 -spec create_identity(config()) -> test_return().
 -spec get_identity(config()) -> test_return().
 -spec create_wallet(config()) -> test_return().
+-spec create_wallet_idempotency(config()) -> test_return().
 -spec create_wallet_fails(config()) -> test_return().
 -spec get_wallet(config()) -> test_return().
 -spec store_bank_card(config()) -> test_return().
@@ -219,8 +223,35 @@ create_wallet(C) ->
     } = Wallet,
     {save_config, [{wallet, WalletID} | Cfg]}.
 
-get_wallet(C) ->
+create_wallet_idempotency(C) ->
     {create_wallet, Cfg} = ct_helper:cfg(saved_config, C),
+    Name       = <<"Worldwide PHP Awareness Initiative">>,
+    IdentityID = ct_helper:cfg(identity, Cfg),
+    Currency   = <<"RUB">>,
+    MetaData   = #{ ?STRING => ?STRING },
+    ExternalID = genlib:unique(),
+    Body = #{body => #{
+            <<"name">>     => Name,
+            <<"identity">> => IdentityID,
+            <<"currency">> => Currency,
+            <<"metadata">> => MetaData,
+            <<"externalID">> => ExternalID
+        }},
+    {ok, Wallet1} = call_api(
+        fun swag_client_wallet_wallets_api:create_wallet/3,
+        Body,
+        ct_helper:cfg(context, C)
+    ),
+    {ok, Wallet2} = call_api(
+        fun swag_client_wallet_wallets_api:create_wallet/3,
+        Body,
+        ct_helper:cfg(context, C)
+    ),
+    ?assertEqual(Wallet1, Wallet2),
+    {save_config, Cfg}.
+
+get_wallet(C) ->
+    {create_wallet_idempotency, Cfg} = ct_helper:cfg(saved_config, C),
     {ok, Wallet} = call_api(
         fun swag_client_wallet_wallets_api:get_wallet/3,
         #{binding => #{<<"walletID">> => ct_helper:cfg(wallet, Cfg)}},

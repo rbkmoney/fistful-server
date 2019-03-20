@@ -178,6 +178,7 @@ process_request('GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
         {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
+    lager:error("   >>> CreateWallet[~p]~n", [Params]),
     case wapi_wallet_backend:create(Params, Context) of
     % case wapi_wallet_ff_backend:create_wallet(Params, Context) of
         {ok, Wallet = #{<<"id">> := WalletId}} ->

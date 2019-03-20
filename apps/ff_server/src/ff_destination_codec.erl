@@ -30,19 +30,12 @@ unmarshal_destination_params(Params) ->
     ff_proto_destination_thrift:'Destination'().
 
 marshal_destination(Destination) ->
-    Account = maps:get(account, Destination, undefined),
-    ID       = maybe_x(Account, fun ff_destination:id/1,       Destination),
-    Identity = maybe_x(Account, fun ff_destination:identity/1, Destination),
-    Currency = maybe_x(Account, fun ff_destination:currency/1, Destination),
-    Status   = maybe_x(Account, fun ff_destination:status/1,   Destination),
     #dst_Destination{
-        name        = marshal(string,       ff_destination:name(Destination)),
-        resource    = marshal(resource,     ff_destination:resource(Destination)),
-        external_id = marshal(id,           ff_destination:external_id(Destination)),
-        id          = maybe_marshal(id,     ID),
-        identity    = maybe_marshal(id,     Identity),
-        currency    = maybe_marshal(string, Currency),
-        status      = maybe_marshal(status, Status)
+        name        = marshal(string,   ff_destination:name(Destination)),
+        resource    = marshal(resource, ff_destination:resource(Destination)),
+        external_id = marshal(id,       ff_destination:external_id(Destination)),
+        account     = marshal(account,  ff_destination:account(Destination)),
+        status      = marshal(status,   ff_destination:status(Destination))
     }.
 
 -spec unmarshal_destination(ff_proto_destination_thrift:'Destination'()) ->
@@ -50,11 +43,7 @@ marshal_destination(Destination) ->
 
 unmarshal_destination(Dest) ->
     genlib_map:compact(#{
-        account => #{
-            id          => maybe_unmarshal(id,     Dest#dst_Destination.id),
-            identity    => maybe_unmarshal(id,     Dest#dst_Destination.identity),
-            currency    => maybe_unmarshal(string, Dest#dst_Destination.currency)
-        },
+        account     => maybe_unmarshal(account, Dest#dst_Destination.account),
         resource    => unmarshal(resource,     Dest#dst_Destination.resource),
         name        => unmarshal(string,       Dest#dst_Destination.name),
         status      => maybe_unmarshal(status, Dest#dst_Destination.status),
@@ -166,11 +155,6 @@ unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
 %% Internals
-maybe_x(undefined, _Fun, _Value) ->
-    undefined;
-maybe_x(_Account, Fun, Value) ->
-    Fun(Value).
-
 maybe_marshal(_Type, undefined) ->
     undefined;
 maybe_marshal(Type, Value) ->
@@ -192,11 +176,13 @@ destination_test() ->
     Resource = {bank_card, #{
         token => <<"token auth">>
     }},
+    AAID = 12345,
     In = #{
         account => #{
             id       => genlib:unique(),
             identity => genlib:unique(),
-            currency => <<"RUN">>
+            currency => <<"RUN">>,
+            accounter_account_id => AAID
         },
         name        => <<"Wallet">>,
         status      => unauthorized,

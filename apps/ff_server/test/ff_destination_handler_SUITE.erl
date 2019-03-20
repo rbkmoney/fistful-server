@@ -98,11 +98,13 @@ create_destination_ok(C) ->
     {ok, Dst}  = call_service('Create', [Params]),
     DstName     = Dst#dst_Destination.name,
     ID          = Dst#dst_Destination.id,
-    IdentityID  = Dst#dst_Destination.identity,
-    Currency    = Dst#dst_Destination.currency,
     Resource    = Dst#dst_Destination.resource,
     ExternalId  = Dst#dst_Destination.external_id,
     Ctx         = Dst#dst_Destination.context,
+
+    Account = Dst#dst_Destination.account,
+    IdentityID = Account#account_Account.identity,
+    #'CurrencyRef'{symbolic_code = Currency} = Account#account_Account.currency,
 
     {unauthorized, #dst_Unauthorized{}} = Dst#dst_Destination.status,
 

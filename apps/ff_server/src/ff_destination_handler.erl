@@ -52,14 +52,15 @@ handle_function_('Get', [ID], _Context, _Opts) ->
             Dst = ff_destination:get(Machine),
             Ctx = ff_destination:ctx(Machine),
             Time = ff_machine:created(Machine),
+            CreatedAt = ff_codec:marshal(timestamp, Time),
             Destination = ff_destination_codec:marshal_destination(Dst),
             Context = ff_destination_codec:marshal(ctx, Ctx),
-            CreatedAt = ff_codec:marshal(timestamp, Time),
-            Responce = Destination#dst_Destination{
+            Response = Destination#dst_Destination{
+                id         = ID,
                 created_at = CreatedAt,
-                context = Context
+                context    = Context
             },
-            {ok, Responce};
+            {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DestinationNotFound{})
     end.

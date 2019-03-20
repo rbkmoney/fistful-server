@@ -217,10 +217,9 @@ get_challenges_ok(C) ->
 %%----------
 %% INTERNAL
 %%----------
-create_identity(EID, PartyID, ProvID, ClassID, Name, Ctx) ->
+create_identity(EID, PartyID, ProvID, ClassID, _Name, Ctx) ->
     IID = genlib:unique(),
     Params = #idnt_IdentityParams{
-        name        = Name,
         party       = PartyID,
         provider    = ProvID,
         cls         = ClassID,

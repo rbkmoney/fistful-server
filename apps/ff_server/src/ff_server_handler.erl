@@ -84,13 +84,32 @@ handle_function_('GetDeposit', [ID], _Context, _Opts) ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end;
 handle_function_('RevertDeposit', [ID, Body, Reason], _Context, _Opts) ->
-    case ff_deposit:revert(ID, Body, Reason) of
+    case ff_deposit:revert(ID, decode({deposit, body}, Body), Reason) of
         {ok, Reposit} ->
             Reposit;
         {error, notfound} ->
             woody_error:raise(business, #fistful_DepositNotFound{});
+        {error, invalid_currency} ->
+            woody_error:raise(business, #fistful_RepositCurrencyInvalid{});
+        {error, invalid_amount} ->
+            woody_error:raise(business, #fistful_RepositAmountInvalid{});
+        {error, {not_permitted, Reason}} ->
+            woody_error:raise(business, #fistful_OperationNotPermitted{details = Reason});
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
+    end;
+handle_function_('GetReposit', [DepositID, RepositID], _Context, _Opts) ->
+    case ff_deposit:get_machine(DepositID) of
+        {ok, Machine} ->
+            Deposit = ff_deposit:get(Machine),
+            case ff_reposit:get(RepositID, ff_transfer:reposits(Deposit)) of
+                {ok, Reposit} ->
+                    {ok, encode(reposit, Reposit)};
+                {error, notfound} ->
+                    woody_error:raise(business, #fistful_RepositNotFound{})
+            end;
+        {error, notfound} ->
+            woody_error:raise(business, #fistful_DepositNotFound{})
     end.
 
 decode({source, resource}, #fistful_SourceResource{details = Details}) ->

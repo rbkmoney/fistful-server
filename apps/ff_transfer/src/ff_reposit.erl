@@ -12,6 +12,7 @@
 -type domain_revision() :: integer().
 -type party_revision()  :: integer().
 -type maybe(T)          :: ff_maybe:maybe(T).
+-type timestamp()       :: binary().
 
 -type reposit() :: #{
     id              := id(),
@@ -19,6 +20,7 @@
     source_id       := source_id(),
     wallet_id       := wallet_id(),
     body            := body(),
+    create_at       := timestamp(),
     reason          => maybe(binary()),
     status          => status(),
     domain_revision => domain_revision(),
@@ -41,17 +43,21 @@
 %% Accessors
 
 -export([deposit_id/1]).
--export([source_id/1]).
 -export([wallet_id/1]).
+-export([source_id/1]).
+-export([create_at/1]).
 -export([id/1]).
 -export([body/1]).
 -export([status/1]).
 
 %% API
 -export([create/2]).
--export([get/1]).
+-export([get/2]).
+-export([next_id/1]).
+-export([collapse/1]).
 -export([construct_p_transfer_id/1]).
 -export([update_status/1]).
+-export([get_current/1]).
 
 %% Event source
 
@@ -66,6 +72,7 @@
 -spec deposit_id(reposit())      -> deposit_id().
 -spec wallet_id(reposit())       -> source_id().
 -spec source_id(reposit())       -> wallet_id().
+-spec create_at(reposit())       -> timestamp().
 -spec id(reposit())              -> id().
 -spec body(reposit())            -> body().
 -spec status(reposit())          -> status().
@@ -73,6 +80,7 @@
 deposit_id(#{deposit_id := V}) -> V.
 wallet_id(#{wallet_id := V})   -> V.
 source_id(#{source_id := V})   -> V.
+create_at(#{create_at := V})   -> V.
 id(#{id := V})                 -> V.
 body(#{body := V})             -> V.
 status(#{status := V})         -> V.
@@ -98,23 +106,46 @@ create(ID, #{
     reason     := Reason
 }) ->
     do(fun () ->
+        Timestamp = ff_time:now_rfc3339(),
         [
-            {created, #{
+            {created, genlib_map:compact(#{
                 id              => ID,
                 deposit_id      => DepositID,
                 source_id       => SourceID,
                 wallet_id       => WalletID,
                 body            => Body,
+                create_at       => Timestamp,
                 reason          => Reason
-            }},
+            })},
             {status_changed, pending}
         ]
     end).
 
--spec get(list(event())) ->
+-spec get(id(), maybe(list(reposit()))) ->
+    {error, notfound} | {ok, reposit()}.
+get(_, undefined) ->
+    {error, notfound};
+get(RepositID, Reposits) ->
+    case list:filter(fun(#{id := ID}) -> ID =:= RepositID end, Reposits) of
+        [] ->
+            {error, notfound};
+        [Reposit | _Rest] ->
+            Reposit
+    end.
+
+-spec next_id(maybe(list(reposit()))) ->
+    id().
+next_id(undefined) ->
+    <<"reposit_0">>;
+next_id(Reposits) ->
+    ID = erlang:integer_to_binary(length(Reposits)),
+    <<"reposit_", ID/binary>>.
+
+-spec collapse(list(event())) ->
     reposit().
-get(Events) ->
-    lists:foldl(fun (Ev, St) -> apply_event(Ev, St) end, undefined, Events).
+collapse(Events) ->
+    Reposits = lists:foldl(fun (Ev, St) -> apply_event(Ev, St) end, undefined, Events),
+    get_current(Reposits).
 
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->
@@ -125,9 +156,18 @@ construct_p_transfer_id(ID) ->
 update_status(Status) ->
     [{status_changed, Status}].
 
--spec apply_event(event(), maybe(reposit())) ->
-    reposit().
+-spec apply_event(event(), maybe(list(reposit()))) ->
+    list(reposit()).
 apply_event({created, R}, undefined) ->
-    R;
-apply_event({status_changed, S}, R) ->
-    maps:put(status, S, R).
+    [R];
+apply_event({created, R}, Reposits) ->
+    [R | Reposits];
+apply_event({status_changed, S}, [R | Reposits]) ->
+    [maps:put(status, S, R) | Reposits].
+
+-spec get_current(maybe(list(reposit()))) ->
+    reposit().
+get_current(undefined) ->
+    undefined;
+get_current([Reposit | _Rest]) ->
+    Reposit.

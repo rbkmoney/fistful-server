@@ -195,7 +195,6 @@ process_call({revert, Body, Reason}, Transfer) ->
         wallet_account := WalletAccount,
         source_account := SourceAccount
     } = params(Transfer),
-    %% TODO validate body
     Params = #{
         deposit_id      => id(Transfer),
         source_id       => SourceID,
@@ -204,8 +203,14 @@ process_call({revert, Body, Reason}, Transfer) ->
         reason          => Reason
     },
     do(fun () ->
-        RepositEvents = unwrap(ff_reposit:create(id(Transfer), Params)),
-        Reposit = ff_reposit:get(RepositEvents),
+        DepositBody = body(Transfer),
+        ok = unwrap(validate_cash(Body, DepositBody)),
+        ok = unwrap(validate_deposit_state(Transfer)),
+        Reposits = ff_transfer:reposits(Transfer),
+        ok = unwrap(validate_reposit_state(Reposits)),
+        RepositID = ff_reposit:next_id(Reposits),
+        RepositEvents = unwrap(ff_reposit:create(RepositID, Params)),
+        Reposit = ff_reposit:collapse(RepositEvents),
         PTransferID = ff_reposit:construct_p_transfer_id(ff_reposit:id(Reposit)),
         PostingsTransferEvents = create_p_transfer_(PTransferID, WalletAccount, SourceAccount, Body, Transfer),
         {continue,
@@ -271,13 +276,14 @@ finish_transfer(Transfer) ->
     do(fun () ->
         valid = unwrap(ff_party:validate_wallet_limits(WalletID, Body, WalletAccount)),
         Action = ff_transfer:action(Transfer),
-        {continue, get_success_events_for_action(Action)}
+        {continue, get_success_events_for_action(Action, Transfer)}
     end).
 
-get_success_events_for_action(undefined) ->
+get_success_events_for_action(undefined, _Transfer) ->
     [{status_changed, succeeded}];
-get_success_events_for_action(revert) ->
-    [{status_changed, reverted}] ++
+get_success_events_for_action(revert, Transfer) ->
+    Reposit = ff_reposit:get_current(ff_transfer:reposits(Transfer)),
+    [{status_changed, {reverted, #{reposit_id => ff_reposit:id(Reposit)}}}] ++
     ff_transfer:wrap_events(reposit, ff_reposit:update_status(succeeded)).
 
 -spec construct_p_transfer_id(id()) -> id().
@@ -303,3 +309,31 @@ create_p_transfer_(PTransferID, From, To, Body, Transfer) ->
     FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
     PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
     [{p_transfer, Ev} || Ev <- PostingsTransferEvents].
+
+validate_cash(Checked, CheckWith) ->
+    case ff_cash:validate_cash_to_cash(Checked, CheckWith) of
+        valid ->
+            ok;
+        Result ->
+            Result
+    end.
+
+validate_deposit_state(Transfer) ->
+    case ff_transfer:status(Transfer) of
+        succeeded ->
+            ok;
+        {reverted, _} ->
+            ok;
+        _Result ->
+            {error, {not_permitted, <<"Wrong deposit state">>}}
+    end.
+
+validate_reposit_state(Reposits) when is_list(Reposits) ->
+    case ff_reposit:status(ff_reposit:get_current(Reposits)) of
+        succeeded ->
+            ok;
+        _Result ->
+            {error, {not_permitted, <<"Previous reposit not finished">>}}
+    end;
+validate_reposit_state(_) ->
+    ok.

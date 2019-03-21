@@ -142,7 +142,6 @@ revert(NS, #{id := ID, body := Body, reason := Reason}) ->
         {ok, _} ->
             do(fun () ->
                 Transfer = transfer(unwrap(get(NS, ID))),
-                io:format(<<" --- revert transfer - ~p~n">>, [Transfer]),
                 ff_transfer:reposit(Transfer)
             end);
         {error, _} = Result ->
@@ -192,7 +191,6 @@ process_call(CallArgs, Machine, _, _Opts) ->
     Transfer = transfer(St),
     CallRes = handler_process_call(CallArgs, Transfer),
     Result = process_result(CallRes, St),
-    io:format(<<" --- revert call - ~p - ~p~n">>, [CallRes, Result]),
     {ok, Result}.
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->

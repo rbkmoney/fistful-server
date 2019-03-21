@@ -20,7 +20,8 @@
     status              => status(),
     external_id         => id(),
     p_transfer_count    => integer(),
-    reposit             => ff_reposit:reposit(),
+    reposits            => list(ff_reposit:reposit()),
+    current_reposit     => ff_reposit:reposit(),
     action              => maybe(action())
 }.
 
@@ -29,11 +30,16 @@
 -type action() ::
     revert.
 
+-type reverted_params() :: #{
+    reposit_id  := id(),
+    details     => binary()
+}.
+
 -type status() ::
-    pending                |
-    succeeded              |
-    {failed, _TODO}        |
-    reverted               .
+    pending                         |
+    succeeded                       |
+    {failed, _TODO}                 |
+    {reverted, reverted_params()}   .
 
 -type event(Params, Route) ::
     {created, transfer(Params)}             |
@@ -69,6 +75,7 @@
 -export([route/1]).
 -export([external_id/1]).
 -export([reposit/1]).
+-export([reposits/1]).
 -export([action/1]).
 
 -export([create/5]).
@@ -149,9 +156,15 @@ external_id(_Transfer) ->
     undefined.
 
 -spec reposit(transfer())  -> maybe(ff_reposit:reposit()).
-reposit(#{reposit := V}) ->
+reposit(#{current_reposit := V}) ->
     V;
 reposit(_Other) ->
+    undefined.
+
+-spec reposits(transfer())  -> maybe(list(ff_reposit:reposit())).
+reposits(#{reposits := V}) ->
+    V;
+reposits(_Other) ->
     undefined.
 
 -spec action(transfer())  -> maybe(action()).
@@ -290,8 +303,13 @@ apply_event_({p_transfer, Ev}, T0 = #{p_transfer := PT}) ->
 apply_event_({p_transfer, Ev}, T) ->
     apply_event({p_transfer, Ev}, T#{p_transfer => undefined});
 apply_event_({reposit, Ev}, T) ->
-    Reposit = ff_reposit:apply_event(Ev, reposit(T)),
-    set_action(revert, maps:put(reposit, Reposit, T));
+    Reposits = ff_reposit:apply_event(Ev, reposits(T)),
+    CurrentReposit = ff_reposit:get_current(Reposits),
+    NewT = T#{
+        reposits => Reposits,
+        current_reposit => CurrentReposit
+    },
+    set_action(revert, NewT);
 apply_event_({session_started, S}, T) ->
     maps:put(session_id, S, T);
 apply_event_({session_finished, S}, T = #{session_id := S}) ->

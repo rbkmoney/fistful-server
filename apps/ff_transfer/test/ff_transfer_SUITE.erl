@@ -339,7 +339,7 @@ deposit_revert_via_admin_ok(C) ->
     ),
     ok = await_wallet_balance({20000, <<"RUB">>}, WalID),
 
-    Body = {22000, <<"RUB">>},
+    Body = {20000, <<"RUB">>},
 
     %% reverting
     {ok, _Reposit} = ff_deposit:revert(DepID, Body, <<"Test reason">>),

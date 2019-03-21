@@ -48,6 +48,7 @@ handle_function_('Create', [Params], Context, Opts) ->
         {error, {terms, {invalid_withdrawal_currency, CurrencyID, {wallet_currency, CurrencyID2}}}} ->
             woody_error:raise(business, ff_withdrawal_codec:marshal_currency_invalid({CurrencyID, CurrencyID2}));
         {error, {terms, {terms_violation, {cash_range, {CashIn, CashRangeIn}}}}} ->
+            %% TODO after ff_party changes, del dmsl_codec
             Cash  = ff_dmsl_codec:unmarshal(cash, CashIn),
             Range = ff_dmsl_codec:unmarshal(cash_range, CashRangeIn),
             woody_error:raise(business, ff_withdrawal_codec:marshal_cash_range_error({Cash, Range}));

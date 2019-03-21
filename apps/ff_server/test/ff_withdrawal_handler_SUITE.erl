@@ -112,7 +112,6 @@ create_withdrawal_ok(C) ->
     },
 
     {ok, Withdrawal}  = call_service(withdrawal, 'Create', [Params]),
-    lager:error("WIthdrawal[~p]~n", [Withdrawal]),
     ID            = Withdrawal#wthd_Withdrawal.id,
     ExternalId    = Withdrawal#wthd_Withdrawal.external_id,
     WalletID      = Withdrawal#wthd_Withdrawal.source,

@@ -39,7 +39,6 @@
 -export([validate_deposit_creation/2]).
 -export([validate_wallet_limits/2]).
 -export([validate_wallet_limits/3]).
--export([get_contract_terms/3]).
 -export([get_contract_terms/4]).
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_wallet_payment_institution_id/1]).
@@ -177,7 +176,6 @@ get_contract_terms(Wallet, Body, Timestamp) ->
             wallet_id => WalletID,
             currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
         },
-        lager:error(" -------> TermVarset[~p]~n", [TermVarset]),
         unwrap(get_contract_terms(PartyID, ContractID, TermVarset, Timestamp))
     end).
 
@@ -250,7 +248,6 @@ validate_deposit_creation(Wallet, {_Amount, CurrencyID} = Cash) ->
 -spec get_withdrawal_cash_flow_plan(terms()) ->
     {ok, ff_cash_flow:cash_flow_plan()} | {error, _Error}.
 get_withdrawal_cash_flow_plan(Terms) ->
-    lager:error("~n~nTERMS >>>~p~n", [Terms]),
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
             withdrawals = #domain_WithdrawalServiceTerms{
@@ -258,9 +255,7 @@ get_withdrawal_cash_flow_plan(Terms) ->
             }
         }
     } = Terms,
-    lager:error("CashFlow ~p~n", [CashFlow]),
     {value, DomainPostings} = CashFlow,
-    lager:error("~n~nDomainPostings: ~p~n", [DomainPostings]),
     Postings = ff_cash_flow:decode_domain_postings(DomainPostings),
     {ok, #{postings => Postings}}.
 

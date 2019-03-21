@@ -540,7 +540,6 @@ default_termset(Options) ->
                                 }}
                             }}}}
                         ])},
-                        % if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {value, [
                             ?cfpost(
                                 {wallet, sender_settlement},

@@ -195,9 +195,7 @@ events(ID, Range) ->
     {error, _Reason}.
 
 process_transfer(Withdrawal) ->
-    lager:error("~n   process transfer >>> ~p~n", [Withdrawal]),
     Activity = deduce_activity(Withdrawal),
-    lager:error("       Activiry[~p]~n", [Activity]),
     do_process_transfer(Activity, Withdrawal).
 
 -spec process_failure(any(), withdrawal()) ->
@@ -205,7 +203,6 @@ process_transfer(Withdrawal) ->
     {error, _Reason}.
 
 process_failure(Reason, Withdrawal) ->
-    lager:error("   process failure >>> ~p~n", [Withdrawal]),
     ff_transfer:process_failure(Reason, Withdrawal).
 
 %% Internals
@@ -330,8 +327,11 @@ create_p_transfer_new_style(Withdrawal) ->
 
         ProviderFee = ff_payouts_provider:compute_fees(Provider, VS),
 
-        Terms = unwrap(contract, ff_party:get_contract_terms(Wallet, Body, ff_time:now())),
-        lager:error("DEBUG -> Terms [~p]~n", [Terms]),
+        IdentityMachine = unwrap(ff_identity_machine:get(ff_wallet:identity(Wallet))),
+        Identity = ff_identity_machine:identity(IdentityMachine),
+        PartyID = ff_identity:party(Identity),
+        ContractID = ff_identity:contract(Identity),
+        Terms = unwrap(contract, ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now())),
         WalletCashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
         CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
         FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
@@ -372,8 +372,14 @@ create_p_transfer_old_style(Withdrawal) ->
 
         Destination = ff_destination:get(unwrap(destination, ff_destination:get_machine(DestinationID))),
         DestinationAccount = ff_destination:account(Destination),
+        VS = unwrap(collect_varset(body(Withdrawal), Wallet, Destination)),
 
-        Terms = unwrap(contract, ff_party:get_contract_terms(Wallet, Body, ff_time:now())),
+        IdentityMachine = unwrap(ff_identity_machine:get(ff_wallet:identity(Wallet))),
+        Identity = ff_identity_machine:identity(IdentityMachine),
+        PartyID = ff_identity:party(Identity),
+        ContractID = ff_identity:contract(Identity),
+
+        Terms = unwrap(contract, ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now())),
         WalletCashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
 
         CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
@@ -400,8 +406,6 @@ create_session(Withdrawal) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
-        % wallet_account := WalletAccount,
-        % destination_account := DestinationAccount
     } = params(Withdrawal),
     do(fun () ->
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),

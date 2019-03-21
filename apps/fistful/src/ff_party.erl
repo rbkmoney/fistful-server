@@ -19,12 +19,6 @@
     email := binary()
 }.
 
--type term_varset() :: #{
-    amount => cash(),
-    wallet_id => wallet_id(),
-    currency_id => currency_id()
-}.
-
 -export_type([id/0]).
 -export_type([contract_id/0]).
 -export_type([wallet_id/0]).
@@ -45,7 +39,6 @@
 -export([validate_deposit_creation/2]).
 -export([validate_wallet_limits/2]).
 -export([validate_wallet_limits/3]).
--export([get_contract_terms/3]).
 -export([get_contract_terms/4]).
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_wallet_payment_institution_id/1]).
@@ -179,14 +172,14 @@ get_contract_terms(Wallet, Body, Timestamp) ->
         % Level = ff_identity:level(Identity),
         {_Amount, CurrencyID} = Body,
         TermVarset = #{
-            amount => Body,
+            cost => ff_cash:encode(Body),
             wallet_id => WalletID,
-            currency_id => CurrencyID
+            currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
         },
         unwrap(get_contract_terms(PartyID, ContractID, TermVarset, Timestamp))
     end).
 
--spec get_contract_terms(PartyID :: id(), contract_id(), term_varset(), timestamp()) -> Result when
+-spec get_contract_terms(PartyID :: id(), contract_id(), hg_selector:varset(), timestamp()) -> Result when
     Result :: {ok, terms()} | {error, Error},
     Error :: {party_not_found, id()} | {party_not_exists_yet, id()} | {exception, any()}.
 
@@ -603,11 +596,23 @@ compare_cash(
 
 %% Varset stuff
 
--spec encode_varset(term_varset()) ->
+-spec encode_varset(hg_selector:varset()) ->
     dmsl_payment_processing_thrift:'Varset'().
+
 encode_varset(Varset) ->
     #payproc_Varset{
-        currency  = ff_dmsl_codec:marshal(currency_ref, genlib_map:get(currency_id, Varset)),
-        amount    = ff_dmsl_codec:marshal(cash, genlib_map:get(amount, Varset)),
-        wallet_id = genlib_map:get(wallet_id, Varset)
+        currency = genlib_map:get(currency, Varset),
+        amount = genlib_map:get(cost, Varset),
+        wallet_id = genlib_map:get(wallet_id, Varset),
+        payment_method = encode_payment_method(genlib_map:get(payment_tool, Varset))
+    }.
+
+-spec encode_payment_method(ff_destination:resource() | undefined) ->
+    dmsl_domain_thrift:'PaymentMethodRef'() | undefined.
+
+encode_payment_method(undefined) ->
+    undefined;
+encode_payment_method({bank_card, #domain_BankCard{payment_system = PaymentSystem}}) ->
+    #domain_PaymentMethodRef{
+        id = {bank_card, PaymentSystem}
     }.

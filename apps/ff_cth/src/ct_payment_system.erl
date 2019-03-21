@@ -525,22 +525,22 @@ default_termset(Options) ->
                     % this is impossible cash flow decision to check
                     % if withdrawals cash flow calculates properly
                     #domain_CashFlowDecision{
-                    %     if_   = {
-                    %         condition,
-                    %         {payment_tool, {payment_terminal, #domain_PaymentTerminalCondition{}}}
-                    %     },
-                    %     then_ = {value, []}
-                    % },
-                    % #domain_CashFlowDecision{
-                    %     if_   = {all_of, ?ordset([
-                    %         {condition, {currency_is, ?cur(<<"RUB">>)}},
-                    %         {condition, {payment_tool, {bank_card, #domain_BankCardCondition{
-                    %             definition = {payment_system, #domain_PaymentSystemCondition{
-                    %                 payment_system_is = visa
-                    %             }}
-                    %         }}}}
-                    %     ])},
-                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        if_   = {
+                            condition,
+                            {payment_tool, {payment_terminal, #domain_PaymentTerminalCondition{}}}
+                        },
+                        then_ = {value, []}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {all_of, ?ordset([
+                            {condition, {currency_is, ?cur(<<"RUB">>)}},
+                            {condition, {payment_tool, {bank_card, #domain_BankCardCondition{
+                                definition = {payment_system, #domain_PaymentSystemCondition{
+                                    payment_system_is = visa
+                                }}
+                            }}}}
+                        ])},
+                        % if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {value, [
                             ?cfpost(
                                 {wallet, sender_settlement},

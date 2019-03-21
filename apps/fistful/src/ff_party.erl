@@ -254,10 +254,12 @@ get_withdrawal_cash_flow_plan(Terms) ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
             withdrawals = #domain_WithdrawalServiceTerms{
-                cash_flow = {value, DomainPostings}
+                cash_flow = CashFlow
             }
         }
     } = Terms,
+    lager:error("CashFlow ~p~n", [CashFlow]),
+    {value, DomainPostings} = CashFlow,
     lager:error("~n~nDomainPostings: ~p~n", [DomainPostings]),
     Postings = ff_cash_flow:decode_domain_postings(DomainPostings),
     {ok, #{postings => Postings}}.

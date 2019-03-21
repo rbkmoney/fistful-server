@@ -37,12 +37,12 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            create_withdrawal_ok,
-            create_withdrawal_wallet_currency_fail,
-            create_withdrawal_cashrange_fail,
-            create_withdrawal_destination_fail,
-            create_withdrawal_wallet_fail,
-            get_events_ok
+            create_withdrawal_ok
+            % create_withdrawal_wallet_currency_fail,
+            % create_withdrawal_cashrange_fail,
+            % create_withdrawal_destination_fail,
+            % create_withdrawal_wallet_fail,
+            % get_events_ok
         ]}
     ].
 
@@ -112,6 +112,7 @@ create_withdrawal_ok(C) ->
     },
 
     {ok, Withdrawal}  = call_service(withdrawal, 'Create', [Params]),
+    lager:error("WIthdrawal[~p]~n", [Withdrawal]),
     ID            = Withdrawal#wthd_Withdrawal.id,
     ExternalId    = Withdrawal#wthd_Withdrawal.external_id,
     WalletID      = Withdrawal#wthd_Withdrawal.source,
@@ -125,7 +126,7 @@ create_withdrawal_ok(C) ->
             {ok, W} = call_service(withdrawal, 'Get', [ID]),
             W#wthd_Withdrawal.status
         end,
-        genlib_retry:linear(15, 1000)
+        genlib_retry:linear(30, 1000)
     ),
     ok.
 

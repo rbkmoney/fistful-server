@@ -195,7 +195,9 @@ events(ID, Range) ->
     {error, _Reason}.
 
 process_transfer(Withdrawal) ->
+    lager:error("~n   process transfer >>> ~p~n", [Withdrawal]),
     Activity = deduce_activity(Withdrawal),
+    lager:error("       Activiry[~p]~n", [Activity]),
     do_process_transfer(Activity, Withdrawal).
 
 -spec process_failure(any(), withdrawal()) ->
@@ -203,6 +205,7 @@ process_transfer(Withdrawal) ->
     {error, _Reason}.
 
 process_failure(Reason, Withdrawal) ->
+    lager:error("   process failure >>> ~p~n", [Withdrawal]),
     ff_transfer:process_failure(Reason, Withdrawal).
 
 %% Internals
@@ -326,7 +329,9 @@ create_p_transfer_new_style(Withdrawal) ->
         SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
         ProviderFee = ff_payouts_provider:compute_fees(Provider, VS),
+
         Terms = unwrap(contract, ff_party:get_contract_terms(Wallet, Body, ff_time:now())),
+        lager:error("DEBUG -> Terms [~p]~n", [Terms]),
         WalletCashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
         CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
         FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(

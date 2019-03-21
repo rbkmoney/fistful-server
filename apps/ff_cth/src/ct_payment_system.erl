@@ -72,7 +72,15 @@ start_processing_apps(Options) ->
     }},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
         {sasl, [{ sasl_error_logger, false }]},
-        lager,
+        % lager,
+        {lager, [
+            {error_logger_hwm, 600},
+            {handlers, [
+                {lager_console_backend, [
+                    {level, warning}
+                ]}
+            ]}
+        ]},
         scoper,
         woody,
         dmt_client,
@@ -517,21 +525,22 @@ default_termset(Options) ->
                     % this is impossible cash flow decision to check
                     % if withdrawals cash flow calculates properly
                     #domain_CashFlowDecision{
-                        if_   = {
-                            condition,
-                            {payment_tool, {payment_terminal, #domain_PaymentTerminalCondition{}}}
-                        },
-                        then_ = {value, []}
-                    },
-                    #domain_CashFlowDecision{
-                        if_   = {all_of, ?ordset([
-                            {condition, {currency_is, ?cur(<<"RUB">>)}},
-                            {condition, {payment_tool, {bank_card, #domain_BankCardCondition{
-                                definition = {payment_system, #domain_PaymentSystemCondition{
-                                    payment_system_is = visa
-                                }}
-                            }}}}
-                        ])},
+                    %     if_   = {
+                    %         condition,
+                    %         {payment_tool, {payment_terminal, #domain_PaymentTerminalCondition{}}}
+                    %     },
+                    %     then_ = {value, []}
+                    % },
+                    % #domain_CashFlowDecision{
+                    %     if_   = {all_of, ?ordset([
+                    %         {condition, {currency_is, ?cur(<<"RUB">>)}},
+                    %         {condition, {payment_tool, {bank_card, #domain_BankCardCondition{
+                    %             definition = {payment_system, #domain_PaymentSystemCondition{
+                    %                 payment_system_is = visa
+                    %             }}
+                    %         }}}}
+                    %     ])},
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {value, [
                             ?cfpost(
                                 {wallet, sender_settlement},

@@ -171,12 +171,6 @@ unmarshal(cash_range, #'CashRange'{
         {BoundUpper, unmarshal(cash, CashUpper)}
     };
 
-unmarshal(currency_ref, #{
-    symbolic_code := SymbolicCode
-}) ->
-    #'CurrencyRef'{
-        symbolic_code = unmarshal(string, SymbolicCode)
-    };
 unmarshal(currency_ref, #'CurrencyRef'{
     symbolic_code = SymbolicCode
 }) ->

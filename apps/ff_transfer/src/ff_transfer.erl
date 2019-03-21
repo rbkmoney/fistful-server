@@ -38,6 +38,17 @@
 
 -type event() :: event(Params :: any(), Route :: any()).
 
+-type args() :: #{
+    id            := id(),
+    body          := body(),
+    params        := params(),
+    transfer_type := transfer_type(),
+
+    status        => status(),
+    external_id   => external_id()
+}.
+
+-export_type([args/0]).
 -export_type([transfer/1]).
 -export_type([handler/0]).
 -export_type([params/1]).
@@ -90,19 +101,11 @@
 
 %% Constructor
 
--spec gen({
-    id(), transfer_type(), body(), params(T), status(), external_id()
-}) -> transfer(T).
+-spec gen(args()) -> transfer().
 
-gen({ID, TransferType, Body, Params, Status, ExternalID}) ->
-    genlib_map:compact(#{
-        id            => ID,
-        transfer_type => TransferType,
-        body          => Body,
-        params        => Params,
-        status        => Status,
-        external_id   => ExternalID
-    }).
+gen(Args) ->
+    TypeKeys = [id, transfer_type, body, params, status, external_id],
+    genlib_map:compact(maps:with(TypeKeys, Args)).
 
 %% Accessors
 

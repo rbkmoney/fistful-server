@@ -50,8 +50,6 @@
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_wallet_payment_institution_id/1]).
 
--export([decode_cash/1]).
--export([decode_cash_range/1]).
 %% Internal types
 -type body() :: ff_transfer:body().
 -type cash() :: ff_transaction:body().
@@ -514,8 +512,8 @@ validate_wallet_limits(Account, #domain_TermSet{wallets = WalletTerms}) ->
         {Amounts, CurrencyID} = unwrap(ff_transaction:balance(
             ff_account:accounter_account_id(Account)
         )),
-        ExpMinCash = encode_cash({ff_indef:expmin(Amounts), CurrencyID}),
-        ExpMaxCash = encode_cash({ff_indef:expmax(Amounts), CurrencyID}),
+        ExpMinCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmin(Amounts), CurrencyID}),
+        ExpMaxCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmax(Amounts), CurrencyID}),
         valid = unwrap(validate_cash_range(ExpMinCash, CashRange)),
         valid = unwrap(validate_cash_range(ExpMaxCash, CashRange))
     end).
@@ -567,7 +565,7 @@ validate_withdrawal_cash_limit(Cash, Terms) ->
     #domain_WithdrawalServiceTerms{
         cash_limit = {value, CashRange}
     } = Terms,
-    validate_cash_range(encode_cash(Cash), CashRange).
+    validate_cash_range(ff_dmsl_codec:marshal(cash, Cash), CashRange).
 
 -spec validate_currency(currency_id(), ordsets:ordset(currency_ref())) ->
     {ok, valid} | {error, currency_validation_error()}.
@@ -609,46 +607,7 @@ compare_cash(
     dmsl_payment_processing_thrift:'Varset'().
 encode_varset(Varset) ->
     #payproc_Varset{
-        currency = encode_currency(genlib_map:get(currency_id, Varset)),
-        amount = encode_cash(genlib_map:get(amount, Varset)),
+        currency  = ff_dmsl_codec:marshal(currency_ref, genlib_map:get(currency_id, Varset)),
+        amount    = ff_dmsl_codec:marshal(cash, genlib_map:get(amount, Varset)),
         wallet_id = genlib_map:get(wallet_id, Varset)
-    }.
-
--spec encode_currency(currency_id() | undefined) ->
-    currency_ref() | undefined.
-encode_currency(undefined) ->
-    undefined;
-encode_currency(CurrencyID) ->
-    #domain_CurrencyRef{symbolic_code = CurrencyID}.
-
--spec encode_cash(cash() | undefined) ->
-    domain_cash() | undefined.
-encode_cash(undefined) ->
-    undefined;
-encode_cash({Amount, CurrencyID}) ->
-    #domain_Cash{
-        amount = Amount,
-        currency = #domain_CurrencyRef{
-            symbolic_code = CurrencyID
-        }
-    }.
-
--spec decode_cash(domain_cash() | undefined) ->
-    cash() | undefined.
-decode_cash(undefined) ->
-    undefined;
-decode_cash(#domain_Cash{} = Cash) ->
-    Currency = Cash#domain_Cash.currency,
-    {Cash#domain_Cash.amount, Currency#domain_CurrencyRef.symbolic_code}.
-
--spec decode_cash_range(cash_range()|undefined) ->
-    cash_range() | undefined.
-decode_cash_range(undefined) ->
-    undefined;
-decode_cash_range(#domain_CashRange{} = CashRange) ->
-    {UpperBound, CashUpper} = CashRange#domain_CashRange.upper,
-    {LowerBound, CashLower} = CashRange#domain_CashRange.lower,
-    {
-        {UpperBound, decode_cash(CashUpper)},
-        {LowerBound, decode_cash(CashLower)}
     }.

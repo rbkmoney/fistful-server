@@ -66,7 +66,6 @@
 %% Internal types
 
 -type id() :: ff_transfer_machine:id().
--type external_id() :: id() | undefined.
 -type body() :: ff_transfer:body().
 -type account() :: ff_account:account().
 -type provider() :: ff_withdrawal_provider:provider().
@@ -76,9 +75,6 @@
 -type process_result() :: {ff_transfer_machine:action(), [event()]}.
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 
--type transfer_type() :: ff_transfer:transfer_type().
--type status() :: ff_transfer:status().
-
 -spec transfer_type() ->
     ff_transfer_machine:transfer_type().
 
@@ -87,9 +83,7 @@ transfer_type() ->
 
 %% Constructor
 
--spec gen({
-    id(), transfer_type(), body(), params(), status(), external_id()
-}) ->
+-spec gen(ff_transfer:args()) ->
     withdrawal().
 
 gen(Args) ->

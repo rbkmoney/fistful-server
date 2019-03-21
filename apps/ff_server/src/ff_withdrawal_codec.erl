@@ -99,13 +99,13 @@ unmarshal_withdrawal(#wthd_Withdrawal{
     Cash = unmarshal(cash, Body),
     TransferType = ff_withdrawal:transfer_type(),
     WithdrawalStatus = maybe_unmarshal(withdrawal_status_changed, Status),
-    ff_withdrawal:gen({
-        unmarshal(id, ID),
-        TransferType,
-        Cash,
-        Params,
-        WithdrawalStatus,
-        unmarshal(id, ExternalID)
+    ff_withdrawal:gen(#{
+        id     => unmarshal(id, ID),
+        body   => Cash,
+        params => Params,
+        status => WithdrawalStatus,
+        external_id   => unmarshal(id, ExternalID),
+        transfer_type =>TransferType
     }).
 
 -spec marshal_event({integer(), ff_machine:timestamped_event(ff_withdrawal:event())}) ->

@@ -207,7 +207,7 @@ create_wallet(C) ->
             <<"identity">> => IdentityID,
             <<"currency">> => Currency,
             <<"metadata">> => MetaData,
-            <<"external_id">> => ExternalID
+            <<"externalID">> => ExternalID
         }},
         ct_helper:cfg(context, C)
     ),
@@ -217,10 +217,11 @@ create_wallet(C) ->
         <<"identity">>    := IdentityID,
         <<"currency">>    := Currency,
         <<"metadata">>    := MetaData,
-        <<"external_id">> := ExternalID,
+        <<"externalID">>  := ExternalID,
         <<"created_at">>  := _CreatedAt,
         <<"isBlocked">>   := false
     } = Wallet,
+
     {save_config, [{wallet, WalletID} | Cfg]}.
 
 create_wallet_idempotency(C) ->

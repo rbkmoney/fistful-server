@@ -16,7 +16,8 @@ create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
         WalletParams = create_wallet_params(ParamsIn, WoodyContext),
         ok = wapi_access_backend:check_resource(identity, IdentityID, WoodyContext),
         Request = {fistful_wallet, 'Create', [WalletParams]},
-        case call(Request, WoodyContext) of
+        Call = call(Request, WoodyContext),
+        case Call of
             {ok, Wallet} ->
                 unmarshal(wallet, Wallet);
             {exception, #fistful_CurrencyNotFound{}} ->
@@ -27,9 +28,12 @@ create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
                 WalletID = get_id(WalletParams),
                 {ok, Wallet} = call({fistful_wallet, 'Get', [WalletID]}, WoodyContext),
                 {_, Hash} = wapi_backend_utils:create_params_hash(ParamsIn),
-                wapi_backend_utils:compare_hash(Hash,
-                    get_hash(Wallet)
-                );
+                case wapi_backend_utils:compare_hash(Hash, get_hash(Wallet)) of
+                    ok ->
+                        unmarshal(wallet, Wallet);
+                    {error, conflict_hash} ->
+                        throw({error, {conflict, WalletID}})
+                end;
             {exception, Details} ->
                 throw(Details)
         end
@@ -68,22 +72,27 @@ get_id(#wlt_WalletParams{id = ID}) ->
     ID.
 
 create_wallet_params(ParamsIn, WoodyContext) ->
-    Type = wallet,
-    ID = wapi_backend_utils:make_id(
-            Type,
-            wapi_backend_utils:construct_external_id(ParamsIn, WoodyContext)
-        ),
+    ID = create_id(ParamsIn, WoodyContext),
+    Context = create_context(ParamsIn, WoodyContext),
+    marshal(wallet_params, genlib_map:compact(ParamsIn#{
+        <<"id">>            => ID,
+        <<"context">>       => Context
+    })).
+
+create_id(ParamsIn, WoodyContext) ->
+    wapi_backend_utils:make_id(
+        wallet,
+        wapi_backend_utils:construct_external_id(ParamsIn, WoodyContext)
+    ).
+
+create_context(ParamsIn, WoodyContext) ->
+    Hash = wapi_backend_utils:create_params_hash(ParamsIn),
     List = [
         {<<"owner">>, wapi_handler_utils:get_owner(WoodyContext)},
         {<<"metadata">>, maps:get(<<"metadata">>, ParamsIn, undefined)},
-        wapi_backend_utils:create_params_hash(ParamsIn)
+        Hash
     ],
-    Context = wapi_backend_utils:extend_ctx_from_list(List, wapi_backend_utils:make_ctx()),
-
-    marshal(wallet_params, ParamsIn#{
-        <<"id">>      => ID,
-        <<"context">> => Context
-    }).
+    wapi_backend_utils:extend_ctx_from_list(List, wapi_backend_utils:make_ctx()).
 
 %% Marshaling
 
@@ -98,7 +107,7 @@ marshal(wallet_params, Params = #{
         id       = ID,
         name     = Name,
         account_params = marshal(account_params, {IdentityID, CurrencyID}),
-        external_id    = maps:get(<<"external_id">>, Params, undefined),
+        external_id    = maps:get(<<"externalID">>, Params, undefined),
         context        = marshal(context, Ctx)
     };
 
@@ -128,9 +137,10 @@ unmarshal(wallet, #wlt_Wallet{
         <<"identity">>    => Identity,
         <<"currency">>    => Currency,
         <<"created_at">>  => CreatedAt,
-        <<"external_id">> => ExternalID,
+        <<"externalID">> => ExternalID,
         <<"metadata">>    => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
     });
+
 unmarshal(account, #account_Account{
     identity = IdentityID,
     currency = #'CurrencyRef'{

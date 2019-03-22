@@ -49,6 +49,9 @@
 -export([id/1]).
 -export([body/1]).
 -export([status/1]).
+-export([reason/1]).
+-export([domain_revision/1]).
+-export([party_revision/1]).
 
 %% API
 -export([create/2]).
@@ -76,15 +79,24 @@
 -spec id(reposit())              -> id().
 -spec body(reposit())            -> body().
 -spec status(reposit())          -> status().
+-spec reason(reposit())          -> binary().
+-spec domain_revision(reposit()) -> domain_revision().
+-spec party_revision(reposit())  -> party_revision().
 
-deposit_id(#{deposit_id := V}) -> V.
-wallet_id(#{wallet_id := V})   -> V.
-source_id(#{source_id := V})   -> V.
-create_at(#{create_at := V})   -> V.
-id(#{id := V})                 -> V.
-body(#{body := V})             -> V.
-status(#{status := V})         -> V.
+deposit_id(#{deposit_id := V})              -> V.
+wallet_id(#{wallet_id := V})                -> V.
+source_id(#{source_id := V})                -> V.
+create_at(#{create_at := V})                -> V.
+id(#{id := V})                              -> V.
+body(#{body := V})                          -> V.
+status(#{status := V})                      -> V.
 
+reason(#{reason := V})                      -> V;
+reason(_)                                   -> undefined.
+domain_revision(#{domain_revision := V})    -> V;
+domain_revision(_)                          -> undefined.
+party_revision(#{party_revision := V})      -> V;
+party_revision(_)                           -> undefined.
 %%
 
 -type params() :: #{
@@ -126,11 +138,11 @@ create(ID, #{
 get(_, undefined) ->
     {error, notfound};
 get(RepositID, Reposits) ->
-    case list:filter(fun(#{id := ID}) -> ID =:= RepositID end, Reposits) of
+    case lists:filter(fun(#{id := ID}) -> ID =:= RepositID end, Reposits) of
         [] ->
             {error, notfound};
         [Reposit | _Rest] ->
-            Reposit
+            {ok ,Reposit}
     end.
 
 -spec next_id(maybe(list(reposit()))) ->
@@ -147,9 +159,11 @@ collapse(Events) ->
     Reposits = lists:foldl(fun (Ev, St) -> apply_event(Ev, St) end, undefined, Events),
     get_current(Reposits).
 
--spec construct_p_transfer_id(id()) -> id().
-construct_p_transfer_id(ID) ->
-    <<"ff/reposit/", ID/binary>>.
+-spec construct_p_transfer_id(reposit()) -> id().
+construct_p_transfer_id(Reposit) ->
+    ID = id(Reposit),
+    DepositID = deposit_id(Reposit),
+    <<"ff/reposit/", DepositID/binary, "/", ID/binary>>.
 
 -spec update_status(status()) ->
     list(event()).

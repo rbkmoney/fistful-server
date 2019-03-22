@@ -83,10 +83,14 @@ handle_function_('GetDeposit', [ID], _Context, _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end;
-handle_function_('RevertDeposit', [ID, Body, Reason], _Context, _Opts) ->
-    case ff_deposit:revert(ID, decode({deposit, body}, Body), Reason) of
+handle_function_('RevertDeposit', [Params], _Context, _Opts) ->
+    case ff_deposit:revert(
+            Params#fistful_RevertDepositParams.id,
+            decode({deposit, body}, Params#fistful_RevertDepositParams.body),
+            Params#fistful_RevertDepositParams.reason
+        ) of
         {ok, Reposit} ->
-            Reposit;
+            {ok, encode(reposit, Reposit)};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DepositNotFound{});
         {error, invalid_currency} ->
@@ -124,6 +128,8 @@ decode(currency, #'CurrencyRef'{symbolic_code = V}) ->
 decode(context, Context) ->
     Context.
 
+encode({list, T}, V) when is_list(V) ->
+    [encode(T, E) || E <- V];
 encode(source, {ID, Machine}) ->
     Source = ff_source:get(Machine),
     #fistful_Source{
@@ -149,7 +155,8 @@ encode(deposit, {ID, Machine}) ->
         destination = ff_deposit:wallet_id(Deposit),
         body        = encode({deposit, body}, ff_deposit:body(Deposit)),
         status      = encode({deposit, status}, ff_deposit:status(Deposit)),
-        context     = encode(context, ff_machine:ctx(Machine))
+        context     = encode(context, ff_machine:ctx(Machine)),
+        reposits    = encode({list, reposit}, ff_transfer:reposits(Deposit))
     };
 encode({deposit, body}, {Amount, Currency}) ->
     #'Cash'{
@@ -162,9 +169,33 @@ encode({deposit, status}, succeeded) ->
     {succeeded, #fistful_DepositStatusSucceeded{}};
 encode({deposit, status}, {failed, Details}) ->
     {failed, #fistful_DepositStatusFailed{details = woody_error:format_details(Details)}};
+encode({deposit, status}, {reverted, Details}) ->
+    {reverted, #fistful_DepositStatusReverted{details = woody_error:format_details(Details)}};
 encode(currency, V) ->
     #'CurrencyRef'{symbolic_code = V};
 encode(context, #{}) ->
     undefined;
 encode(context, Ctx) ->
-    Ctx.
+    Ctx;
+encode(reposit, Reposit) ->
+    #fistful_Reposit{
+        id              = ff_reposit:id(Reposit),
+        deposit         = ff_reposit:deposit_id(Reposit),
+        source          = ff_reposit:wallet_id(Reposit),
+        destination     = ff_reposit:source_id(Reposit),
+        body            = encode({deposit, body}, ff_reposit:body(Reposit)),
+        created_at      = ff_reposit:create_at(Reposit),
+        domain_revision = ff_reposit:domain_revision(Reposit),
+        party_revision  = ff_reposit:party_revision(Reposit),
+        reason          = ff_reposit:reason(Reposit),
+        status          = encode({reposit, status}, ff_reposit:status(Reposit))
+    };
+encode({reposit, status}, pending) ->
+    {pending, #fistful_RepositStatusPending{}};
+encode({reposit, status}, succeeded) ->
+    {succeeded, #fistful_RepositStatusSucceeded{}};
+encode({reposit, status}, {failed, Details}) ->
+    {failed, #fistful_RepositStatusFailed{details = woody_error:format_details(Details)}};
+
+encode(_, undefined) ->
+    undefined.

@@ -30,16 +30,11 @@
 -type action() ::
     revert.
 
--type reverted_params() :: #{
-    reposit_id  := id(),
-    details     => binary()
-}.
-
 -type status() ::
-    pending                         |
-    succeeded                       |
-    {failed, _TODO}                 |
-    {reverted, reverted_params()}   .
+    pending          |
+    succeeded        |
+    {failed, _TODO}  |
+    {reverted, _TODO}.
 
 -type event(Params, Route) ::
     {created, transfer(Params)}             |
@@ -246,6 +241,8 @@ get_fail_events_for_action(revert, Reason) ->
     activity().
 deduce_activity(#{status := {failed, _}, p_transfer := #{status := prepared}}) ->
     cancel_transfer;
+deduce_activity(#{status := {reverted, _}, p_transfer := #{status := prepared}}) ->
+    commit_transfer;
 deduce_activity(#{status := succeeded, p_transfer := #{status := prepared}}) ->
     commit_transfer;
 deduce_activity(#{status := pending, p_transfer := #{status := created}}) ->

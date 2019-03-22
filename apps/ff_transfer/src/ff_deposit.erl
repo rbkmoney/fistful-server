@@ -156,16 +156,21 @@ get_machine(ID) ->
 events(ID, Range) ->
     ff_transfer_machine:events(?NS, ID, Range).
 
--spec revert(id(), ff_transfer:maybe(ff_transfer:body()), binary()) ->
+-spec revert(id(), ff_transfer:body(), binary() | undefined) ->
     {ok, ff_reposit:reposit()}  |
     {error, _TransferError}.
 revert(ID, Body, Reason) ->
     Params = #{
         id => ID,
         body => Body,
-        reason => Reason
+        reason => maybe_reason(Reason)
     },
     do(fun() -> unwrap(ff_transfer_machine:revert(?NS, Params)) end).
+
+maybe_reason(undefined) ->
+    <<"">>;
+maybe_reason(Reason) ->
+    Reason.
 
 %% ff_transfer_machine behaviour
 
@@ -204,14 +209,18 @@ process_call({revert, Body, Reason}, Transfer) ->
     },
     do(fun () ->
         DepositBody = body(Transfer),
+
         ok = unwrap(validate_cash(Body, DepositBody)),
         ok = unwrap(validate_deposit_state(Transfer)),
+
         Reposits = ff_transfer:reposits(Transfer),
+
         ok = unwrap(validate_reposit_state(Reposits)),
+
         RepositID = ff_reposit:next_id(Reposits),
         RepositEvents = unwrap(ff_reposit:create(RepositID, Params)),
         Reposit = ff_reposit:collapse(RepositEvents),
-        PTransferID = ff_reposit:construct_p_transfer_id(ff_reposit:id(Reposit)),
+        PTransferID = ff_reposit:construct_p_transfer_id(Reposit),
         PostingsTransferEvents = create_p_transfer_(PTransferID, WalletAccount, SourceAccount, Body, Transfer),
         {continue,
             [{status_changed, pending}] ++
@@ -268,22 +277,26 @@ create_p_transfer(Transfer) ->
     {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(ff_transfer:event())]}} |
     {error, _Reason}.
 finish_transfer(Transfer) ->
-    Body = body(Transfer),
+    Action = ff_transfer:action(Transfer),
+    Body = get_body_for_action(Action, Transfer),
     #{
         wallet_id := WalletID,
         wallet_account := WalletAccount
     } = params(Transfer),
     do(fun () ->
         valid = unwrap(ff_party:validate_wallet_limits(WalletID, Body, WalletAccount)),
-        Action = ff_transfer:action(Transfer),
-        {continue, get_success_events_for_action(Action, Transfer)}
+        {continue, get_success_events_for_action(Action)}
     end).
 
-get_success_events_for_action(undefined, _Transfer) ->
+get_body_for_action(undefined, Transfer) ->
+    body(Transfer);
+get_body_for_action(revert, Transfer) ->
+    ff_reposit:body(ff_transfer:reposit(Transfer)).
+
+get_success_events_for_action(undefined) ->
     [{status_changed, succeeded}];
-get_success_events_for_action(revert, Transfer) ->
-    Reposit = ff_reposit:get_current(ff_transfer:reposits(Transfer)),
-    [{status_changed, {reverted, #{reposit_id => ff_reposit:id(Reposit)}}}] ++
+get_success_events_for_action(revert) ->
+    [{status_changed, {reverted, <<"reverted">>}}] ++
     ff_transfer:wrap_events(reposit, ff_reposit:update_status(succeeded)).
 
 -spec construct_p_transfer_id(id()) -> id().

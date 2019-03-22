@@ -35,6 +35,8 @@ marshal(event, {status_changed, DepositStatus}) ->
     {status_changed, marshal(deposit_status_changed, DepositStatus)};
 marshal(event, {p_transfer, TransferChange}) ->
     {transfer, marshal(postings_transfer_change, TransferChange)};
+marshal(event, {reposit, RepositChange}) ->
+    {transfer, marshal(reposit_change, RepositChange)};
 
 marshal(deposit, #{
     body := Cash,
@@ -60,6 +62,8 @@ marshal(deposit_status_changed, succeeded) ->
 %     {failed, #deposit_DepositFailed{failure = marshal(failure, Failure)}};
 marshal(deposit_status_changed, {failed, _}) ->
     {failed, #deposit_DepositFailed{failure = marshal(failure, dummy)}};
+marshal(deposit_status_changed, {reverted, _}) ->
+    {reverted, #deposit_DepositReverted{}};
 marshal(failure, _) ->
     #deposit_Failure{};
 
@@ -114,6 +118,39 @@ marshal(transfer_status, committed) ->
 marshal(transfer_status, cancelled) ->
     {cancelled, #deposit_TransferCancelled{}};
 
+marshal(reposit_change, {created, Reposit}) ->
+    {created, marshal(reposit, Reposit)};
+marshal(reposit_change, {status_changed, RepositStatus}) ->
+    {status_changed, marshal(reposit_status, RepositStatus)};
+
+marshal(reposit, Params = #{
+    deposit_id      := DepositID,
+    source_id       := SourceID,
+    wallet_id       := WalletID,
+    body            := Body,
+    create_at       := CreatedAt
+}) ->
+    Reason = maps:get(reason, Params, undefined),
+    #deposit_Reposit{
+        deposit     = marshal(id, DepositID),
+        source      = marshal(id, WalletID),
+        destination = marshal(id, SourceID),
+        body        = marshal(cash, Body),
+        created_at  = marshal(string, CreatedAt),
+        reason      = marshal(string, Reason)
+    };
+
+marshal(reposit_status, pending) ->
+    {pending, #deposit_RepositPending{}};
+marshal(reposit_status, succeeded) ->
+    {succeeded, #deposit_RepositSucceeded{}};
+% marshal(reposit_status, {failed, #{
+%         failure := Failure
+%     }}) ->
+%     {failed, #deposit_RepositFailed{failure = marshal(failure, Failure)}};
+marshal(reposit_status, {failed, _}) ->
+    {failed, #deposit_RepositFailed{failure = marshal(failure, dummy)}};
+
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -136,6 +173,8 @@ unmarshal(event, {status_changed, DepositStatus}) ->
     {status_changed, unmarshal(deposit_status_changed, DepositStatus)};
 unmarshal(event, {transfer, TransferChange}) ->
     {p_transfer, unmarshal(postings_transfer_change, TransferChange)};
+unmarshal(event, {reposit, RepositChange}) ->
+    {reposit, unmarshal(reposit_change, RepositChange)};
 
 unmarshal(deposit, #deposit_Deposit{
     body = Cash,
@@ -144,11 +183,11 @@ unmarshal(deposit, #deposit_Deposit{
     external_id = ExternalID
 }) ->
     #{
-        body => marshal(cash, Cash),
+        body => unmarshal(cash, Cash),
         params => #{
-            wallet_id => marshal(id, WalletID),
-            source_id => marshal(id, SourceID),
-            external_id => marshal(id, ExternalID)
+            wallet_id => unmarshal(id, WalletID),
+            source_id => unmarshal(id, SourceID),
+            external_id => unmarshal(id, ExternalID)
         }
     };
 
@@ -159,8 +198,10 @@ unmarshal(deposit_status_changed, {succeeded, #deposit_DepositSucceeded{}}) ->
 % TODO: Process failures propertly
 % unmarshal(deposit_status_changed, {failed, #deposit_DepositFailed{failure = Failure}}) ->
 %     {failed, unmarshal(failure, Failure)};
-unmarshal(withdrawal_status_changed, {failed, #deposit_DepositFailed{failure = #deposit_Failure{}}}) ->
+unmarshal(deposit_status_changed, {failed, #deposit_DepositFailed{failure = #deposit_Failure{}}}) ->
     {failed, #domain_Failure{code = <<"unknown">>}};
+unmarshal(deposit_status_changed, {reverted, #deposit_DepositReverted{}}) ->
+    {reverted, <<"unknown">>};
 
 unmarshal(postings_transfer_change, {created, Transfer}) ->
     {created, unmarshal(transfer, Transfer)}; % not ff_transfer :) see thrift
@@ -210,6 +251,38 @@ unmarshal(transfer_status, {committed, #deposit_TransferCommitted{}}) ->
     committed;
 unmarshal(transfer_status, {cancelled, #deposit_TransferCancelled{}}) ->
     cancelled;
+
+unmarshal(reposit_change, {created, Reposit}) ->
+    {created, unmarshal(reposit, Reposit)};
+unmarshal(reposit_change, {status_changed, RepositStatus}) ->
+    {status_changed, unmarshal(reposit_status, RepositStatus)};
+
+unmarshal(reposit, #deposit_Reposit{
+    deposit     = DepositID,
+    source      = WalletID,
+    destination = SourceID,
+    body        = Body,
+    created_at  = CreatedAt,
+    reason      = Reason
+}) ->
+    genlib_map:compact(#{
+        deposit_id      => unmarshal(id, DepositID),
+        source_id       => unmarshal(id, SourceID),
+        wallet_id       => unmarshal(id, WalletID),
+        body            => unmarshal(cash, Body),
+        create_at       => unmarshal(string, CreatedAt),
+        reason          => unmarshal(string, Reason)
+    });
+
+unmarshal(reposit_status_changed, {pending, #deposit_RepositPending{}}) ->
+    pending;
+unmarshal(reposit_status_changed, {succeeded, #deposit_RepositSucceeded{}}) ->
+    succeeded;
+% TODO: Process failures propertly
+% unmarshal(reposit_status_changed, {failed, #deposit_RepositFailed{failure = Failure}}) ->
+%     {failed, unmarshal(failure, Failure)};
+unmarshal(reposit_status_changed, {failed, #deposit_RepositFailed{failure = #deposit_Failure{}}}) ->
+    {failed, #domain_Failure{code = <<"unknown">>}};
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

@@ -339,15 +339,19 @@ deposit_revert_via_admin_ok(C) ->
     ),
     ok = await_wallet_balance({20000, <<"RUB">>}, WalID),
 
-    Body = {20000, <<"RUB">>},
-
     %% reverting
-    {ok, _Reposit} = ff_deposit:revert(DepID, Body, <<"Test reason">>),
-    reverted = ct_helper:await(
-        reverted,
+    {ok, Reposit} = call_admin('RevertDeposit', [#fistful_RevertDepositParams{
+        id          = DepID,
+        body        = #'Cash'{
+            amount   = 20000,
+            currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+        }
+    }]),
+    succeeded = ct_helper:await(
+        succeeded,
         fun () ->
-            {ok, Dep} = call_admin('GetDeposit', [DepID]),
-            {Status, _} = Dep#fistful_Deposit.status,
+            {ok, Rep} = call_admin('GetReposit', [DepID, Reposit#fistful_Reposit.id]),
+            {Status, _} = Rep#fistful_Reposit.status,
             Status
         end,
         genlib_retry:linear(15, 1000)
@@ -413,12 +417,18 @@ deposit_revert_via_admin_fails(C) ->
     process_withdrawal(WalID, DestID, Amount),
 
     %% reverting
-    {ok, DepID} = ff_deposit:revert(DepID),
+    {ok, Reposit} = call_admin('RevertDeposit', [#fistful_RevertDepositParams{
+        id          = DepID,
+        body        = #'Cash'{
+            amount   = 20000,
+            currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+        }
+    }]),
     failed = ct_helper:await(
         failed,
         fun () ->
-            {ok, Dep} = call_admin('GetDeposit', [DepID]),
-            {Status, _} = Dep#fistful_Deposit.status,
+            {ok, Rep} = call_admin('GetReposit', [DepID, Reposit#fistful_Reposit.id]),
+            {Status, _} = Rep#fistful_Reposit.status,
             Status
         end,
         genlib_retry:linear(15, 1000)

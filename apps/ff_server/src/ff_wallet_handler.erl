@@ -55,7 +55,7 @@ handle_function_('Get', [ID], _Context, _Opts) ->
 encode(wallet, {ID, Machine}) ->
     Wallet = ff_wallet_machine:wallet(Machine),
     Ctx = ff_wallet_machine:ctx(Machine),
-    #wlt_WalletState{
+    #wlt_Wallet{
         id          = ID,
         name        = ff_wallet:name(Wallet),
         blocking    = ff_wallet:blocking(Wallet),

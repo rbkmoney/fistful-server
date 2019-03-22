@@ -52,7 +52,7 @@ marshal_currency_invalid({WithdrawalCurrencyID, WalletCurrencyID}) ->
     }.
 
 -spec marshal_cash_range_error({ff_party:cash(), ff_party:cash_range()}) ->
-    ff_proto_withdrawal_thrift:'fistful_WithdrawalCashAmountInvalid'().
+    ff_proto_withdrawal_thrift:'WithdrawalCashAmountInvalid'().
 
 marshal_cash_range_error({Cash, Range}) ->
     #fistful_WithdrawalCashAmountInvalid{
@@ -66,19 +66,13 @@ marshal_cash_range_error({Cash, Range}) ->
     ff_proto_withdrawal_thrift:'Withdrawal'().
 
 marshal_withdrawal(Withdrawal) ->
-    WalletID      = ff_withdrawal:wallet_id(Withdrawal),
-    DestinationID = ff_withdrawal:destination_id(Withdrawal),
-    ExternalID    = ff_withdrawal:external_id(Withdrawal),
-    Cash          = ff_withdrawal:body(Withdrawal),
-    ID            = ff_withdrawal:id(Withdrawal),
-    Status        = ff_withdrawal:status(Withdrawal),
     #wthd_Withdrawal{
-        body        = marshal(cash, Cash),
-        source      = marshal(id, WalletID),
-        destination = marshal(id, DestinationID),
-        external_id = marshal(id, ExternalID),
-        id          = marshal(id, ID),
-        status      = marshal(withdrawal_status_changed, Status)
+        body        = marshal(cash, ff_withdrawal:body(Withdrawal)),
+        source      = marshal(id,   ff_withdrawal:wallet_id(Withdrawal)),
+        destination = marshal(id,   ff_withdrawal:destination_id(Withdrawal)),
+        external_id = marshal(id,   ff_withdrawal:external_id(Withdrawal)),
+        id          = marshal(id,   ff_withdrawal:id(Withdrawal)),
+        status      = marshal(withdrawal_status_changed, ff_withdrawal:status(Withdrawal))
     }.
 
 -spec unmarshal_withdrawal(ff_proto_withdrawal_thrift:'Withdrawal'()) ->

@@ -26,6 +26,7 @@
 -export([get_create_destination_events_ok/1]).
 -export([get_create_source_events_ok/1]).
 -export([get_create_deposit_events_ok/1]).
+-export([get_create_reposit_events_ok/1]).
 -export([get_shifted_create_identity_events_ok/1]).
 
 -type config()         :: ct_helper:config().
@@ -48,6 +49,7 @@ all() ->
         get_create_destination_events_ok,
         get_create_source_events_ok,
         get_create_deposit_events_ok,
+        get_create_reposit_events_ok,
         get_withdrawal_session_events_ok,
         get_shifted_create_identity_events_ok
     ].
@@ -271,6 +273,40 @@ get_create_deposit_events_ok(C) ->
     MaxID = get_max_sinkevent_id(Events),
     MaxID = LastEvent + length(RawEvents).
 
+-spec get_create_reposit_events_ok(config()) -> test_return().
+
+get_create_reposit_events_ok(C) ->
+    Service = {{ff_proto_deposit_thrift, 'EventSink'}, <<"/v1/eventsink/deposit">>},
+    LastEvent = unwrap_last_sinkevent_id(
+        call_eventsink_handler('GetLastEventID', Service, [])),
+
+    Party   = create_party(C),
+    IID     = create_person_identity(Party, C),
+    WalID   = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
+    SrcID   = create_source(IID, C),
+    DepID   = process_deposit(SrcID, WalID),
+
+    ok = await_wallet_balance({10000, <<"RUB">>}, WalID),
+
+    {ok, _Reposit} = ff_deposit:revert(DepID, {10000, <<"RUB">>}, undefined),
+    succeeded = ct_helper:await(
+        succeeded,
+        fun () ->
+            {ok, DepM} = ff_deposit:get_machine(DepID),
+            Rep = ff_transfer:reposit(ff_deposit:get(DepM)),
+            ff_reposit:status(Rep)
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+
+    {ok, RawEvents} = ff_deposit:events(DepID, {undefined, 1000, forward}),
+    {ok, Events} = call_eventsink_handler('GetEvents',
+        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
+    MaxID = get_max_sinkevent_id_for(DepID, Events),
+    MaxID = LastEvent + length(RawEvents).
+
 -spec get_shifted_create_identity_events_ok(config()) -> test_return().
 
 get_shifted_create_identity_events_ok(C) ->
@@ -422,6 +458,12 @@ process_withdrawal(WalID, DestID) ->
 get_max_sinkevent_id(Events) when is_list(Events) ->
     lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_id(Ev), Max) end, 0, Events).
 
+-spec get_max_sinkevent_id_for(binary(), list(evsink_event())) -> evsink_id().
+
+get_max_sinkevent_id_for(ID, Events) when is_list(Events) ->
+    FilteredEvents = lists:filter(fun (Ev) -> get_sinkevent_source(Ev) =:= ID end, Events),
+    lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_id(Ev), Max) end, 0, FilteredEvents).
+
 get_sinkevent_id(#'wlt_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'wthd_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'idnt_SinkEvent'{id = ID}) -> ID;
@@ -429,6 +471,15 @@ get_sinkevent_id(#'dst_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'src_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'deposit_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'wthd_session_SinkEvent'{id = ID}) -> ID.
+
+get_sinkevent_source(#'wlt_SinkEvent'{source = Source}) -> Source;
+get_sinkevent_source(#'wthd_SinkEvent'{source = Source}) -> Source;
+get_sinkevent_source(#'idnt_SinkEvent'{source = Source}) -> Source;
+get_sinkevent_source(#'dst_SinkEvent'{source = Source}) -> Source;
+get_sinkevent_source(#'src_SinkEvent'{source = Source}) -> Source;
+get_sinkevent_source(#'deposit_SinkEvent'{source = Source}) -> Source;
+get_sinkevent_source(#'wthd_session_SinkEvent'{source = Source}) -> Source.
+
 
 -spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
 
@@ -465,3 +516,19 @@ create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
         handlers => [{Path, {Module, {Handler, NewCfg}}}],
         event_handler => scoper_woody_event_handler
     })).
+
+await_wallet_balance({Amount, Currency}, ID) ->
+    Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
+    Balance = ct_helper:await(
+        Balance,
+        fun () -> get_wallet_balance(ID) end,
+        genlib_retry:linear(3, 500)
+    ),
+    ok.
+
+get_wallet_balance(ID) ->
+    {ok, Machine} = ff_wallet_machine:get(ID),
+    get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
+get_account_balance(Account) ->
+    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
+    {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.

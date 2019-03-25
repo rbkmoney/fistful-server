@@ -36,7 +36,7 @@ marshal(event, {status_changed, DepositStatus}) ->
 marshal(event, {p_transfer, TransferChange}) ->
     {transfer, marshal(postings_transfer_change, TransferChange)};
 marshal(event, {reposit, RepositChange}) ->
-    {transfer, marshal(reposit_change, RepositChange)};
+    {reposit, marshal(reposit_change, RepositChange)};
 
 marshal(deposit, #{
     body := Cash,

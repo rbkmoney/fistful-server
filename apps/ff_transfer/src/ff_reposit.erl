@@ -142,7 +142,7 @@ get(RepositID, Reposits) ->
         [] ->
             {error, notfound};
         [Reposit | _Rest] ->
-            {ok ,Reposit}
+            {ok, Reposit}
     end.
 
 -spec next_id(maybe(list(reposit()))) ->

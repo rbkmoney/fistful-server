@@ -165,7 +165,10 @@ revert(ID, Body, Reason) ->
         body => Body,
         reason => maybe_reason(Reason)
     },
-    do(fun() -> unwrap(ff_transfer_machine:revert(?NS, Params)) end).
+    do(fun() ->
+        unwrap(validate_revert(Body, get_machine(ID))),
+        unwrap(ff_transfer_machine:revert(?NS, Params))
+    end).
 
 maybe_reason(undefined) ->
     <<"">>;
@@ -208,15 +211,7 @@ process_call({revert, Body, Reason}, Transfer) ->
         reason          => Reason
     },
     do(fun () ->
-        DepositBody = body(Transfer),
-
-        ok = unwrap(validate_cash(Body, DepositBody)),
-        ok = unwrap(validate_deposit_state(Transfer)),
-
         Reposits = ff_transfer:reposits(Transfer),
-
-        ok = unwrap(validate_reposit_state(Reposits)),
-
         RepositID = ff_reposit:next_id(Reposits),
         RepositEvents = unwrap(ff_reposit:create(RepositID, Params)),
         Reposit = ff_reposit:collapse(RepositEvents),
@@ -322,6 +317,30 @@ create_p_transfer_(PTransferID, From, To, Body, Transfer) ->
     FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
     PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
     [{p_transfer, Ev} || Ev <- PostingsTransferEvents].
+
+validate_revert(_, {error, notfound} = Error) ->
+    Error;
+validate_revert(Body, {ok, Machine}) ->
+    Transfer = ff_deposit:get(Machine),
+    Reposits = ff_transfer:reposits(Transfer),
+    do(fun () ->
+        ok = unwrap(validate_cash(Body, reduce_cash(Transfer))),
+        ok = unwrap(validate_deposit_state(Transfer)),
+        ok = unwrap(validate_reposit_state(Reposits))
+    end).
+
+reduce_cash(Transfer) ->
+    {Amount, Currency} = body(Transfer),
+    NewAmount = case ff_transfer:reposits(Transfer) of
+        undefined ->
+            Amount;
+        List ->
+            lists:foldl(fun(Reposit, Amount0) ->
+                {A, _} = ff_reposit:body(Reposit),
+                Amount0 - A
+            end, Amount, List)
+    end,
+    {NewAmount, Currency}.
 
 validate_cash(Checked, CheckWith) ->
     case ff_cash:validate_cash_to_cash(Checked, CheckWith) of

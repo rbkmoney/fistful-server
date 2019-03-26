@@ -64,8 +64,6 @@ start_apps(AppNames) ->
 
 start_app(lager = AppName) ->
     {start_app_with(AppName, [
-        {error_logger_hwm, 600},
-        {crash_log, "crash.log"},
         {async_threshold, 1},
         {async_threshold_window, 0},
         {error_logger_hwm, 600},

@@ -1,23 +1,33 @@
 -module(wapi_wallet_backend).
 
+-type req_data()        :: wapi_handler:req_data().
+-type handler_context() :: wapi_handler:context().
+-type response_data()   :: wapi_handler:response_data().
+
 -export([create/2]).
 -export([get/2]).
 
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
 %% Pipeline
--import(ff_pipeline, [do/1]).
+-import(ff_pipeline, [do/1, unwrap/2]).
 
--spec create(any(), any()) ->
-    {ok, any()}.
+-spec create(req_data(), handler_context()) ->
+    {ok, response_data()} | {error, WalletError}
+    when WalletError ::
+        {identity, unauthorized} |
+        {identity, notfound}  |
+        {currency, notfound}  |
+        inaccessible          |
+        {conflict, binary()}.
 
 create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
     do(fun() ->
-        WalletParams = create_wallet_params(ParamsIn, WoodyContext),
+        WalletParams = marshal(wallet_params, compose_wallet_params(ParamsIn, WoodyContext)),
+        %% TODO after impl identity through thrift, rewrite it
         ok = wapi_access_backend:check_resource(identity, IdentityID, WoodyContext),
         Request = {fistful_wallet, 'Create', [WalletParams]},
-        Call = call(Request, WoodyContext),
-        case Call of
+        case service_call(Request, WoodyContext) of
             {ok, Wallet} ->
                 unmarshal(wallet, Wallet);
             {exception, #fistful_CurrencyNotFound{}} ->
@@ -26,58 +36,52 @@ create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
                 throw(inaccessible);
             {exception, #fistful_IDExists{}} ->
                 WalletID = get_id(WalletParams),
-                {ok, Wallet} = call({fistful_wallet, 'Get', [WalletID]}, WoodyContext),
                 {_, Hash} = wapi_backend_utils:create_params_hash(ParamsIn),
-                case wapi_backend_utils:compare_hash(Hash, get_hash(Wallet)) of
-                    ok ->
-                        unmarshal(wallet, Wallet);
-                    {error, conflict_hash} ->
-                        throw({error, {conflict, WalletID}})
-                end;
+                get_and_compare_hash(WalletID, Hash, WoodyContext);
             {exception, Details} ->
                 throw(Details)
         end
     end).
 
--spec get(binary(), any()) ->
-    {ok, any()}.
+-spec get(binary(), handler_context()) ->
+    {ok, response_data()} |
+    {error, {wallet, notfound}} |
+    {error, {wallet, unauthorized}}.
 
 get(WalletID, WoodyCtx) ->
     Request = {fistful_wallet, 'Get', [WalletID]},
-    case call(Request, WoodyCtx) of
-        {ok, Wallet} ->
-            {ok, unmarshal(wallet, Wallet)};
-        {exception, #fistful_WalletNotFound{}} ->
-            throw({wallet, notfound});
-        {exception, Details} ->
-            throw(Details)
-    end.
+    do(fun() ->
+        case service_call(Request, WoodyCtx) of
+            {ok, WalletThrift} ->
+                ok = unwrap(wallet, wapi_access_backend:is_authorized(WoodyCtx, get_context(WalletThrift))),
+                unmarshal(wallet, WalletThrift);
+            {exception, #fistful_WalletNotFound{}} ->
+                throw({wallet, notfound})
+        end
+    end).
 
 %%
 %% Internal
 %%
 
-call(Params, Ctx) ->
-    case wapi_handler_utils:service_call(Params, Ctx) of
-        {ok, Response} ->
-            {ok, Response};
-        Error ->
-            Error
+get_and_compare_hash(WalletID, Hash, WoodyContext) ->
+    Request = {fistful_wallet, 'Get', [WalletID]},
+    {ok, Wallet} = service_call(Request, WoodyContext),
+    case wapi_backend_utils:compare_hash(Hash, get_hash(Wallet)) of
+        ok ->
+            unmarshal(wallet, Wallet);
+        {error, conflict_hash} ->
+            throw({error, {conflict, WalletID}})
     end.
 
-get_hash(#wlt_Wallet{context = Ctx}) ->
-    wapi_backend_utils:get_hash(unmarshal(context, Ctx)).
+service_call(Params, Ctx) ->
+    wapi_handler_utils:service_call(Params, Ctx).
 
-get_id(#wlt_WalletParams{id = ID}) ->
-    ID.
-
-create_wallet_params(ParamsIn, WoodyContext) ->
-    ID = create_id(ParamsIn, WoodyContext),
-    Context = create_context(ParamsIn, WoodyContext),
-    marshal(wallet_params, genlib_map:compact(ParamsIn#{
-        <<"id">>            => ID,
-        <<"context">>       => Context
-    })).
+compose_wallet_params(ParamsIn, WoodyContext) ->
+    genlib_map:compact(ParamsIn#{
+        <<"id">>      => create_id(ParamsIn, WoodyContext),
+        <<"context">> => create_context(ParamsIn, WoodyContext)
+    }).
 
 create_id(ParamsIn, WoodyContext) ->
     wapi_backend_utils:make_id(
@@ -94,6 +98,15 @@ create_context(ParamsIn, WoodyContext) ->
     ],
     wapi_backend_utils:extend_ctx_from_list(List, wapi_backend_utils:make_ctx()).
 
+get_hash(#wlt_Wallet{context = Ctx}) ->
+    wapi_backend_utils:get_hash(unmarshal(context, Ctx)).
+
+get_context(#wlt_Wallet{context = Ctx}) ->
+    unmarshal(context, Ctx).
+
+get_id(#wlt_WalletParams{id = ID}) ->
+    ID.
+
 %% Marshaling
 
 marshal(wallet_params, Params = #{
@@ -103,21 +116,26 @@ marshal(wallet_params, Params = #{
     <<"currency">> := CurrencyID,
     <<"context">>  := Ctx
 }) ->
+    ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #wlt_WalletParams{
-        id       = ID,
-        name     = Name,
+        id             = marshal(id, ID),
+        name           = marshal(string, Name),
         account_params = marshal(account_params, {IdentityID, CurrencyID}),
-        external_id    = maps:get(<<"externalID">>, Params, undefined),
+        external_id    = marshal(id, ExternalID),
         context        = marshal(context, Ctx)
     };
 
-marshal(account_params, {IdentityID, CurrencyID}) -> #account_AccountParams{
-    identity_id   = IdentityID,
-    symbolic_code = CurrencyID
-};
+marshal(account_params, {IdentityID, CurrencyID}) ->
+    #account_AccountParams{
+        identity_id   = marshal(id, IdentityID),
+        symbolic_code = marshal(string, CurrencyID)
+    };
 
 marshal(context, Ctx) ->
-    ff_context:wrap(Ctx).
+    ff_context:wrap(Ctx);
+
+marshal(T, V) ->
+    ff_codec:marshal(T, V).
 
 unmarshal(wallet, #wlt_Wallet{
     id          = WalletID,
@@ -128,26 +146,21 @@ unmarshal(wallet, #wlt_Wallet{
     created_at  = CreatedAt,
     context     = Ctx
 }) ->
-    {Identity, Currency} = unmarshal(account, Account),
+    #{
+        identity := Identity,
+        currency := Currency
+    } = unmarshal(account, Account),
     Context = unmarshal(context, Ctx),
     genlib_map:compact(#{
-        <<"id">>          => WalletID,
-        <<"name">>        => Name,
+        <<"id">>          => unmarshal(id, WalletID),
+        <<"name">>        => unmarshal(string, Name),
         <<"isBlocked">>   => unmarshal(blocked, Blocking),
         <<"identity">>    => Identity,
         <<"currency">>    => Currency,
         <<"created_at">>  => CreatedAt,
-        <<"externalID">> => ExternalID,
+        <<"externalID">>  => maybe_unmarshal(id, ExternalID),
         <<"metadata">>    => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
     });
-
-unmarshal(account, #account_Account{
-    identity = IdentityID,
-    currency = #'CurrencyRef'{
-        symbolic_code = CurrencyID
-    }
-}) ->
-    {IdentityID, CurrencyID};
 
 unmarshal(blocked, unblocked) ->
     false;
@@ -155,4 +168,12 @@ unmarshal(blocked, blocked) ->
     true;
 
 unmarshal(context, Ctx) ->
-    ff_context:unwrap(Ctx).
+    ff_context:unwrap(Ctx);
+
+unmarshal(T, V) ->
+    ff_codec:unmarshal(T, V).
+
+maybe_unmarshal(_, undefined) ->
+    undefined;
+maybe_unmarshal(T, V) ->
+    unmarshal(T, V).

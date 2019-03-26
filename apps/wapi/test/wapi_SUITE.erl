@@ -93,7 +93,16 @@ init_per_group(G, C) ->
     Token = issue_token(Party, [{[party], write}], unlimited),
     Context = get_context("localhost:8080", Token),
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
-    [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].
+    Party2 = create_party(C),
+    Token2 = issue_token(Party2, [{[party], write}], unlimited),
+    Context2 = get_context("localhost:8080", Token2),
+    [
+        {context, Context},
+        {context_pcidss, ContextPcidss},
+        {party, Party},
+        {context2, Context2},
+        {party2, Party2}
+        | C].
 
 -spec end_per_group(group_name(), config()) -> _.
 
@@ -171,12 +180,25 @@ get_identity(C) ->
 create_wallet_fails(C) ->
     {get_identity, Cfg} = ct_helper:cfg(saved_config, C),
     Ctx = ct_helper:cfg(context, C),
-    IdentityID = ct_helper:cfg(identity, Cfg),
+
+    {ok, AlienIdentity} = call_api(
+        fun swag_client_wallet_identities_api:create_identity/3,
+        #{body => #{
+            <<"name">>     => <<"Somebody">>,
+            <<"provider">> => ?ID_PROVIDER,
+            <<"class">>    => ?ID_CLASS,
+            <<"metadata">> => #{
+                ?STRING => ?STRING
+            }
+        }},
+        ct_helper:cfg(context2, C)
+    ),
+
     {error, {422, #{<<"message">> := <<"No such identity">>}}} = call_api(
         fun swag_client_wallet_wallets_api:create_wallet/3,
         #{body => #{
             <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
-            <<"identity">> => <<"BAD_ID">>,
+            <<"identity">> => maps:get(<<"id">>, AlienIdentity),
             <<"currency">> => <<"RUB">>
         }},
         Ctx
@@ -185,7 +207,7 @@ create_wallet_fails(C) ->
         fun swag_client_wallet_wallets_api:create_wallet/3,
         #{body => #{
             <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
-            <<"identity">> => IdentityID,
+            <<"identity">> => ct_helper:cfg(identity, Cfg),
             <<"currency">> => <<"BBB">>
         }},
         Ctx
@@ -198,7 +220,6 @@ create_wallet(C) ->
     IdentityID = ct_helper:cfg(identity, Cfg),
     Currency   = <<"RUB">>,
     MetaData   = #{ ?STRING => ?STRING },
-    ExternalID = genlib:unique(),
 
     {ok, Wallet} = call_api(
         fun swag_client_wallet_wallets_api:create_wallet/3,
@@ -206,8 +227,7 @@ create_wallet(C) ->
             <<"name">>     => Name,
             <<"identity">> => IdentityID,
             <<"currency">> => Currency,
-            <<"metadata">> => MetaData,
-            <<"externalID">> => ExternalID
+            <<"metadata">> => MetaData
         }},
         ct_helper:cfg(context, C)
     ),
@@ -217,7 +237,6 @@ create_wallet(C) ->
         <<"identity">>    := IdentityID,
         <<"currency">>    := Currency,
         <<"metadata">>    := MetaData,
-        <<"externalID">>  := ExternalID,
         <<"created_at">>  := _CreatedAt,
         <<"isBlocked">>   := false
     } = Wallet,

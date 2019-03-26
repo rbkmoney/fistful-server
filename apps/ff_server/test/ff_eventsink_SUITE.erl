@@ -42,25 +42,29 @@
 -spec all() -> [test_case_name() | {group, group_name()}].
 
 all() ->
-    [
-        get_identity_events_ok,
-        get_create_wallet_events_ok,
-        get_withdrawal_events_ok,
-        get_create_destination_events_ok,
-        get_create_source_events_ok,
-        get_create_deposit_events_ok,
-        get_create_reposit_events_ok,
-        get_withdrawal_session_events_ok,
-        get_shifted_create_identity_events_ok
-    ].
+    [{group, default}].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 
-groups() -> [].
+groups() ->
+    [
+        {default, [parallel], [
+            get_identity_events_ok,
+            get_create_wallet_events_ok,
+            get_withdrawal_events_ok,
+            get_create_destination_events_ok,
+            get_create_source_events_ok,
+            get_create_deposit_events_ok,
+            get_create_reposit_events_ok,
+            get_withdrawal_session_events_ok,
+            get_shifted_create_identity_events_ok
+        ]}
+    ].
 
 -spec init_per_suite(config()) -> config().
 
 init_per_suite(C) ->
+    ok = init_atoms(),
     ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup()
@@ -70,6 +74,10 @@ init_per_suite(C) ->
 
 end_per_suite(C) ->
     ok = ct_payment_system:shutdown(C).
+
+init_atoms() ->
+    _ = p_transfer,
+    ok.
 
 %%
 
@@ -143,8 +151,8 @@ get_identity_events_ok(C) ->
     {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
-    MaxID = LastEvent + length(RawEvents).
+    MaxID = length(get_sinkevents_for_id(ID, Events)),
+    MaxID = length(RawEvents).
 
 -spec get_create_wallet_events_ok(config()) -> test_return().
 
@@ -169,8 +177,8 @@ get_create_wallet_events_ok(C) ->
     {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
-    MaxID = LastEvent + length(RawEvents).
+    MaxID = length(get_sinkevents_for_id(ID, Events)),
+    MaxID = length(RawEvents).
 
 -spec get_withdrawal_events_ok(config()) -> test_return().
 
@@ -190,8 +198,8 @@ get_withdrawal_events_ok(C) ->
     {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
-    MaxID = LastEvent + length(RawEvents).
+    MaxID = length(get_sinkevents_for_id(WdrID, Events)),
+    MaxID = length(RawEvents).
 
 -spec get_withdrawal_session_events_ok(config()) -> test_return().
 
@@ -217,8 +225,8 @@ get_withdrawal_session_events_ok(C) ->
     ),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
-    MaxID = LastEvent + length(RawEvents).
+    MaxID = length(get_sinkevents_for_id(WdrID, Events)),
+    MaxID = length(RawEvents).
 
 -spec get_create_destination_events_ok(config()) -> test_return().
 
@@ -234,8 +242,8 @@ get_create_destination_events_ok(C) ->
     {ok, RawEvents} = ff_destination:events(DestID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
-    MaxID = LastEvent + length(RawEvents).
+    MaxID = length(get_sinkevents_for_id(DestID, Events)),
+    MaxID = length(RawEvents).
 
 -spec get_create_source_events_ok(config()) -> test_return().
 
@@ -251,8 +259,8 @@ get_create_source_events_ok(C) ->
     {ok, RawEvents} = ff_source:events(SrcID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
-    MaxID = LastEvent + length(RawEvents).
+    MaxID = length(get_sinkevents_for_id(SrcID, Events)),
+    MaxID = length(RawEvents).
 
 -spec get_create_deposit_events_ok(config()) -> test_return().
 
@@ -270,8 +278,8 @@ get_create_deposit_events_ok(C) ->
     {ok, RawEvents} = ff_deposit:events(DepID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
-    MaxID = LastEvent + length(RawEvents).
+    MaxID = length(get_sinkevents_for_id(DepID, Events)),
+    MaxID = length(RawEvents).
 
 -spec get_create_reposit_events_ok(config()) -> test_return().
 
@@ -304,8 +312,8 @@ get_create_reposit_events_ok(C) ->
     {ok, RawEvents} = ff_deposit:events(DepID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id_for(DepID, Events),
-    MaxID = LastEvent + length(RawEvents).
+    MaxID = length(get_sinkevents_for_id(DepID, Events)),
+    MaxID = length(RawEvents).
 
 -spec get_shifted_create_identity_events_ok(config()) -> test_return().
 
@@ -458,11 +466,10 @@ process_withdrawal(WalID, DestID) ->
 get_max_sinkevent_id(Events) when is_list(Events) ->
     lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_id(Ev), Max) end, 0, Events).
 
--spec get_max_sinkevent_id_for(binary(), list(evsink_event())) -> evsink_id().
+-spec get_sinkevents_for_id(binary(), list(evsink_event())) -> list(evsink_event()).
 
-get_max_sinkevent_id_for(ID, Events) when is_list(Events) ->
-    FilteredEvents = lists:filter(fun (Ev) -> get_sinkevent_source(Ev) =:= ID end, Events),
-    lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_id(Ev), Max) end, 0, FilteredEvents).
+get_sinkevents_for_id(ID, Events) when is_list(Events) ->
+    lists:filter(fun (Ev) -> get_sinkevent_source(Ev) =:= ID end, Events).
 
 get_sinkevent_id(#'wlt_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'wthd_SinkEvent'{id = ID}) -> ID;
@@ -479,7 +486,6 @@ get_sinkevent_source(#'dst_SinkEvent'{source = Source}) -> Source;
 get_sinkevent_source(#'src_SinkEvent'{source = Source}) -> Source;
 get_sinkevent_source(#'deposit_SinkEvent'{source = Source}) -> Source;
 get_sinkevent_source(#'wthd_session_SinkEvent'{source = Source}) -> Source.
-
 
 -spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
 

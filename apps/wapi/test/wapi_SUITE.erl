@@ -43,7 +43,7 @@ all() ->
 
 groups() ->
     [
-        {default, [sequence, {repeat, 1}], [
+        {default, [sequence, {repeat, 2}], [
             create_identity,
             get_identity,
             create_wallet_fails,
@@ -55,9 +55,8 @@ groups() ->
             create_desination,
             get_destination,
             issue_destination_grants,
-            create_withdrawal
-            %% TODO !!!
-            % get_withdrawal
+            create_withdrawal,
+            get_withdrawal
         ]},
         {woody, [], [
             woody_retry_test

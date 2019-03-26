@@ -16,10 +16,10 @@
 
 marshal_wallet(Wallet) ->
     #wlt_Wallet{
-        name        = maybe_marshal(string,   ff_wallet:name(Wallet)),
-        blocking    = maybe_marshal(blocking, ff_wallet:blocking(Wallet)),
-        account     = maybe_marshal(account,  ff_wallet:account(Wallet)),
-        external_id = maybe_marshal(id,       ff_wallet:external_id(Wallet))
+        name        = marshal(string,   ff_wallet:name(Wallet)),
+        blocking    = marshal(blocking, ff_wallet:blocking(Wallet)),
+        account     = marshal(account,  ff_wallet:account(Wallet)),
+        external_id = marshal(id,       ff_wallet:external_id(Wallet))
     }.
 
 -spec unmarshal_wallet_params(ff_proto_identity_thrift:'WalletParams'()) ->
@@ -52,7 +52,7 @@ marshal(blocking, unblocked) ->
     unblocked;
 
 marshal(ctx, Ctx) ->
-    maybe_marshal(context, Ctx);
+    marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -88,11 +88,6 @@ unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
 %% Internals
-
-maybe_marshal(_Type, undefined) ->
-    undefined;
-maybe_marshal(Type, Value) ->
-    marshal(Type, Value).
 
 maybe_unmarshal(_Type, undefined) ->
     undefined;

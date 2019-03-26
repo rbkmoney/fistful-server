@@ -62,8 +62,8 @@ marshal(deposit_status_changed, succeeded) ->
 %     {failed, #deposit_DepositFailed{failure = marshal(failure, Failure)}};
 marshal(deposit_status_changed, {failed, _}) ->
     {failed, #deposit_DepositFailed{failure = marshal(failure, dummy)}};
-marshal(deposit_status_changed, {reverted, _}) ->
-    {reverted, #deposit_DepositReverted{}};
+marshal(deposit_status_changed, {reverted, Details}) ->
+    {reverted, #deposit_DepositReverted{details = Details}};
 marshal(failure, _) ->
     #deposit_Failure{};
 
@@ -200,8 +200,8 @@ unmarshal(deposit_status_changed, {succeeded, #deposit_DepositSucceeded{}}) ->
 %     {failed, unmarshal(failure, Failure)};
 unmarshal(deposit_status_changed, {failed, #deposit_DepositFailed{failure = #deposit_Failure{}}}) ->
     {failed, #domain_Failure{code = <<"unknown">>}};
-unmarshal(deposit_status_changed, {reverted, #deposit_DepositReverted{}}) ->
-    {reverted, <<"unknown">>};
+unmarshal(deposit_status_changed, {reverted, #deposit_DepositReverted{details = Details}}) ->
+    {reverted, maybe_unmarshal(string, Details)};
 
 unmarshal(postings_transfer_change, {created, Transfer}) ->
     {created, unmarshal(transfer, Transfer)}; % not ff_transfer :) see thrift
@@ -271,7 +271,7 @@ unmarshal(reposit, #deposit_Reposit{
         wallet_id       => unmarshal(id, WalletID),
         body            => unmarshal(cash, Body),
         create_at       => unmarshal(string, CreatedAt),
-        reason          => unmarshal(string, Reason)
+        reason          => maybe_unmarshal(string, Reason)
     });
 
 unmarshal(reposit_status_changed, {pending, #deposit_RepositPending{}}) ->

@@ -186,6 +186,6 @@ destination_test() ->
         external_id => genlib:unique()
     },
 
-    In = unmarshal_destination(marshal_destination(In)).
+    ?assertEqual(In, unmarshal_destination(marshal_destination(In))).
 
 -endif.

@@ -79,6 +79,7 @@ account(Destination)  -> ff_instrument:account(Destination).
 
 -spec external_id(destination()) ->
     id() | undefined.
+
 external_id(T)        -> ff_instrument:external_id(T).
 
 %% API

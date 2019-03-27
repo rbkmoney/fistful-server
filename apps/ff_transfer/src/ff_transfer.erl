@@ -102,7 +102,6 @@
 %% Constructor
 
 -spec gen(args()) -> transfer().
-
 gen(Args) ->
     TypeKeys = [id, transfer_type, body, params, status, external_id],
     genlib_map:compact(maps:with(TypeKeys, Args)).

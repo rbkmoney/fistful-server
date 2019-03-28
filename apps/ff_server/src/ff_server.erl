@@ -19,12 +19,13 @@
 -export([start/2]).
 -export([stop/1]).
 
+-export([get_routes/1]).
+
 %% Supervisor
 
 -behaviour(supervisor).
 
 -export([init/1]).
--export([get_identity_routes/1]).
 %%
 
 -spec start() ->
@@ -78,6 +79,13 @@ init([]) ->
     WoodyOpts      = maps:with([net_opts, handler_limits], WoodyOptsEnv),
     RouteOpts      = RouteOptsEnv#{event_handler => scoper_woody_event_handler},
 
+    Routes = lists:merge(lists:map(fun get_routes/1, [
+        {<<"/v1/wallet">>,      {{ff_proto_wallet_thrift, 'Management'}, {ff_wallet_handler, []}}, WoodyOpts},
+        {<<"/v1/identity">>,    {{ff_proto_identity_thrift, 'Management'}, {ff_identity_handler, []}}, WoodyOpts},
+        {<<"/v1/destination">>, {{ff_proto_destination_thrift, 'Management'}, {ff_destination_handler, []}}, WoodyOpts},
+        {<<"/v1/withdrawal">>,  {{ff_proto_withdrawal_thrift, 'Management'}, {ff_withdrawal_handler, []}}, WoodyOpts}
+    ])),
+
     ChildSpec = woody_server:child_spec(
         ?MODULE,
         maps:merge(
@@ -90,8 +98,7 @@ init([]) ->
                 additional_routes =>
                     machinery_mg_backend:get_routes(Handlers, RouteOpts) ++
                     get_admin_routes() ++
-                    get_wallet_routes(WoodyOpts) ++
-                    get_identity_routes(WoodyOpts) ++
+                    Routes ++
                     get_eventsink_routes() ++
                     get_repair_routes(WoodyOpts) ++
                     [erl_health_handle:get_route(HealthCheckers)]
@@ -101,6 +108,17 @@ init([]) ->
     % TODO
     %  - Zero thoughts given while defining this strategy.
     {ok, {#{strategy => one_for_one}, [ChildSpec]}}.
+
+-spec get_routes({binary(), woody:th_handler(), map()}) ->
+    woody_client_thrift_http_transport:route().
+
+get_routes({Path, Handler, Opts}) ->
+    Limits = genlib_map:get(handler_limits, Opts),
+    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
+        handlers => [{Path, Handler}],
+        event_handler => scoper_woody_event_handler,
+        handler_limits => Limits
+    })).
 
 contruct_backend_childspec(NS, Handler) ->
     Be = {machinery_mg_backend, #{
@@ -131,33 +149,6 @@ get_admin_routes() ->
     Limits = genlib_map:get(handler_limits, Opts),
     woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
         handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
-        event_handler => scoper_woody_event_handler,
-        handler_limits => Limits
-    })).
-
-get_wallet_routes(Opts) ->
-    Path = <<"/v1/wallet">>,
-    Limits = genlib_map:get(handler_limits, Opts),
-    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {
-            {ff_proto_wallet_thrift, 'Management'},
-            {ff_wallet_handler, []}
-        }}],
-        event_handler => scoper_woody_event_handler,
-        handler_limits => Limits
-    })).
-
--spec get_identity_routes(map()) ->
-    woody_client_thrift_http_transport:route().
-
-get_identity_routes(Opts) ->
-    Path = <<"/v1/identity">>,
-    Limits = genlib_map:get(handler_limits, Opts),
-    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {
-            {ff_proto_identity_thrift, 'Management'},
-            {ff_identity_handler, []}
-        }}],
         event_handler => scoper_woody_event_handler,
         handler_limits => Limits
     })).

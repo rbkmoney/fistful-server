@@ -46,13 +46,15 @@
 %% Internal types
 -type body() :: ff_transfer:body().
 -type cash() :: ff_transaction:body().
+-type cash_range() :: {{cash_bound(), cash()}, {cash_bound(), cash()}}.
+-type cash_bound() :: inclusive | exclusive.
 -type terms() :: dmsl_domain_thrift:'TermSet'().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'() | undefined.
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
 -type currency_id() :: ff_currency:id().
 -type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
 -type domain_cash() :: dmsl_domain_thrift:'Cash'().
--type cash_range() :: dmsl_domain_thrift:'CashRange'().
+-type domain_cash_range() :: dmsl_domain_thrift:'CashRange'().
 -type timestamp() :: ff_time:timestamp_ms().
 -type wallet() :: ff_wallet:wallet().
 -type payment_institution_id() :: ff_payment_institution:id().
@@ -249,10 +251,11 @@ get_withdrawal_cash_flow_plan(Terms) ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
             withdrawals = #domain_WithdrawalServiceTerms{
-                cash_flow = {value, DomainPostings}
+                cash_flow = CashFlow
             }
         }
     } = Terms,
+    {value, DomainPostings} = CashFlow,
     Postings = ff_cash_flow:decode_domain_postings(DomainPostings),
     {ok, #{postings => Postings}}.
 
@@ -503,8 +506,8 @@ validate_wallet_limits(Account, #domain_TermSet{wallets = WalletTerms}) ->
         {Amounts, CurrencyID} = unwrap(ff_transaction:balance(
             ff_account:accounter_account_id(Account)
         )),
-        ExpMinCash = ff_cash:encode({ff_indef:expmin(Amounts), CurrencyID}),
-        ExpMaxCash = ff_cash:encode({ff_indef:expmax(Amounts), CurrencyID}),
+        ExpMinCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmin(Amounts), CurrencyID}),
+        ExpMaxCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmax(Amounts), CurrencyID}),
         valid = unwrap(validate_cash_range(ExpMinCash, CashRange)),
         valid = unwrap(validate_cash_range(ExpMaxCash, CashRange))
     end).
@@ -556,7 +559,7 @@ validate_withdrawal_cash_limit(Cash, Terms) ->
     #domain_WithdrawalServiceTerms{
         cash_limit = {value, CashRange}
     } = Terms,
-    validate_cash_range(ff_cash:encode(Cash), CashRange).
+    validate_cash_range(ff_dmsl_codec:marshal(cash, Cash), CashRange).
 
 -spec validate_currency(currency_id(), ordsets:ordset(currency_ref())) ->
     {ok, valid} | {error, currency_validation_error()}.
@@ -569,7 +572,7 @@ validate_currency(CurrencyID, Currencies) ->
             {error, {terms_violation, {not_allowed_currency, {CurrencyID, Currencies}}}}
     end.
 
--spec validate_cash_range(domain_cash(), cash_range()) ->
+-spec validate_cash_range(domain_cash(), domain_cash_range()) ->
     {ok, valid} | {error, cash_range_validation_error()}.
 validate_cash_range(Cash, CashRange) ->
     case is_inside(Cash, CashRange) of
@@ -596,6 +599,7 @@ compare_cash(
 
 -spec encode_varset(hg_selector:varset()) ->
     dmsl_payment_processing_thrift:'Varset'().
+
 encode_varset(Varset) ->
     #payproc_Varset{
         currency = genlib_map:get(currency, Varset),
@@ -606,6 +610,7 @@ encode_varset(Varset) ->
 
 -spec encode_payment_method(ff_destination:resource() | undefined) ->
     dmsl_domain_thrift:'PaymentMethodRef'() | undefined.
+
 encode_payment_method(undefined) ->
     undefined;
 encode_payment_method({bank_card, #domain_BankCard{payment_system = PaymentSystem}}) ->

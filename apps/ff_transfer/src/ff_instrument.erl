@@ -24,7 +24,7 @@
     account     := account() | undefined,
     resource    := resource(T),
     name        := name(),
-    status      := status(),
+    status      := status() | undefined,
     external_id => id()
 }.
 
@@ -66,7 +66,9 @@
     account().
 
 account(#{account := V}) ->
-    V.
+    V;
+account(_) ->
+    undefined.
 
 -spec id(instrument(_)) ->
     id().
@@ -92,7 +94,9 @@ currency(Instrument) ->
 resource(#{resource := V}) ->
     V.
 status(#{status := V}) ->
-    V.
+    V;
+status(_) ->
+    undefined.
 
 -spec external_id(instrument(_)) ->
     external_id().

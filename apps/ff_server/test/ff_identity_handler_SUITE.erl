@@ -77,10 +77,9 @@ create_identity_ok(_C) ->
     EID     = genlib:unique(),
     ProvID  = <<"good-one">>,
     ClassID = <<"person">>,
-    Name    = <<"Ricardo Milos">>,
     Ctx = #{<<"NS">> => #{<<"owner">> => PartyID}},
     Context = ff_context:wrap(Ctx),
-    Identity = create_identity(EID, PartyID, ProvID, ClassID, Name, Context),
+    Identity = create_identity(EID, PartyID, ProvID, ClassID, Context),
     IID = Identity#idnt_Identity.id,
     {ok, Identity_} = call_api('Get', [IID]),
 
@@ -100,8 +99,7 @@ run_challenge_ok(C) ->
     ProvID      = <<"good-one">>,
     ClassID     = <<"person">>,
     ChlClassID  = <<"sword-initiation">>,
-    Name        = <<"Ricardo Milos">>,
-    IdentityState = create_identity(EID, PartyID, ProvID, ClassID, Name, ff_context:wrap(Context)),
+    IdentityState = create_identity(EID, PartyID, ProvID, ClassID, ff_context:wrap(Context)),
 
     IID = IdentityState#idnt_Identity.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
@@ -121,13 +119,12 @@ get_challenge_event_ok(C) ->
     EID        = genlib:unique(),
     PartyID    = create_party(),
     ChlClassID = <<"sword-initiation">>,
-    Name       = <<"Ricardo Milos">>,
-    Identity = create_identity(EID, PartyID, ProvID, ClassID, Name, Context),
+    Identity = create_identity(EID, PartyID, ProvID, ClassID, Context),
 
     IID = Identity#idnt_Identity.id,
     Params2 = gen_challenge_param(ChlClassID, IID, C),
     {ok, _} = call_api('StartChallenge', [IID, Params2]),
-    Range = #evsink_EventRange{
+    Range = #'EventRange'{
         limit = 1000,
         'after' = undefined
     },
@@ -160,9 +157,8 @@ get_event_unknown_identity_ok(_C) ->
     PID     = create_party(),
     ProvID  = <<"good-one">>,
     ClassID = <<"person">>,
-    Name    = <<"Ricardo Milos">>,
-    create_identity(EID, PID, ProvID, ClassID, Name, Ctx),
-    Range = #evsink_EventRange{
+    create_identity(EID, PID, ProvID, ClassID, Ctx),
+    Range = #'EventRange'{
             limit = 1,
             'after' = undefined
         },
@@ -175,8 +171,7 @@ start_challenge_token_fail(C) ->
     ProvID     = <<"good-one">>,
     CID        = <<"person">>,
     ChlClassID = <<"sword-initiation">>,
-    Name       = <<"Ricardo Milos">>,
-    IdentityState = create_identity(EID, PID, ProvID, CID, Name, Ctx),
+    IdentityState = create_identity(EID, PID, ProvID, CID, Ctx),
     {Type1, Token1} = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
     {Type2, _Token2} = ct_identdocstore:rus_domestic_passport(C),
     IID = IdentityState#idnt_Identity.id,
@@ -200,8 +195,7 @@ get_challenges_ok(C) ->
     ProvID      = <<"good-one">>,
     ClassID     = <<"person">>,
     ChlClassID  = <<"sword-initiation">>,
-    Name        = <<"Ricardo Milos">>,
-    Identity = create_identity(EID, PartyID, ProvID, ClassID, Name, ff_context:wrap(Context)),
+    Identity = create_identity(EID, PartyID, ProvID, ClassID, ff_context:wrap(Context)),
 
     IID = Identity#idnt_Identity.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
@@ -217,10 +211,9 @@ get_challenges_ok(C) ->
 %%----------
 %% INTERNAL
 %%----------
-create_identity(EID, PartyID, ProvID, ClassID, Name, Ctx) ->
+create_identity(EID, PartyID, ProvID, ClassID, Ctx) ->
     IID = genlib:unique(),
     Params = #idnt_IdentityParams{
-        name        = Name,
         party       = PartyID,
         provider    = ProvID,
         cls         = ClassID,

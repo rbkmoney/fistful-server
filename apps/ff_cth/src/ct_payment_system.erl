@@ -114,21 +114,30 @@ start_processing_apps(Options) ->
         BeOpts
     ),
 
-    AdminRoutes = get_admin_routes(),
-    WalletRoutes = get_wallet_routes(),
-    IdentityRoutes = ff_server:get_identity_routes(#{}),
-    RepairRoutes = get_repair_routes(),
-    EventsinkRoutes = get_eventsink_routes(BeConf),
+    AdminRoutes      = get_admin_routes(),
+    WalletRoutes     = ff_server:get_routes(
+        {<<"/v1/wallet">>, {{ff_proto_wallet_thrift, 'Management'}, {ff_wallet_handler, []}}, #{}}),
+    DestRoutes       = ff_server:get_routes(
+        {<<"/v1/destination">>, {{ff_proto_destination_thrift, 'Management'}, {ff_destination_handler, []}}, #{}}),
+    WithdrawalRoutes = ff_server:get_routes(
+        {<<"/v1/withdrawal">>, {{ff_proto_withdrawal_thrift, 'Management'}, {ff_withdrawal_handler, []}}, #{}}),
+    IdentityRoutes   = ff_server:get_routes(
+        {<<"/v1/identity">>, {{ff_proto_identity_thrift, 'Management'}, {ff_identity_handler, []}}, #{}}),
+    RepairRoutes     = get_repair_routes(),
+    EventsinkRoutes  = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
         BeOpts#{
             ip                => {0, 0, 0, 0},
             port              => 8022,
             handlers          => [],
+
             additional_routes => lists:flatten([
                 Routes,
                 AdminRoutes,
                 WalletRoutes,
+                DestRoutes,
+                WithdrawalRoutes,
                 IdentityRoutes,
                 EventsinkRoutes,
                 RepairRoutes
@@ -173,13 +182,6 @@ get_admin_routes() ->
     Path = <<"/v1/admin">>,
     woody_server_thrift_http_handler:get_routes(#{
         handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
-        event_handler => scoper_woody_event_handler
-    }).
-
-get_wallet_routes() ->
-    Path = <<"/v1/wallet">>,
-    woody_server_thrift_http_handler:get_routes(#{
-        handlers => [{Path, {{ff_proto_wallet_thrift, 'Management'}, {ff_wallet_handler, []}}}],
         event_handler => scoper_woody_event_handler
     }).
 

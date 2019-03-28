@@ -38,7 +38,7 @@
                         ff_proto_withdrawal_thrift:'SinkEvent'().
 -type evsink_id()    :: ff_proto_base_thrift:'EventID'().
 
--spec all() -> [test_case_name() | {group, group_name()}].
+-spec all() -> [test_case_name()].
 
 all() ->
     [
@@ -52,7 +52,8 @@ all() ->
         get_shifted_create_identity_events_ok
     ].
 
--spec groups() -> [{group_name(), list(), [test_case_name()]}].
+
+-spec groups() -> [].
 
 groups() -> [].
 
@@ -176,7 +177,6 @@ get_withdrawal_events_ok(C) ->
     Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
-
     Party   = create_party(C),
     IID     = create_person_identity(Party, C),
     WalID   = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
@@ -185,11 +185,16 @@ get_withdrawal_events_ok(C) ->
     DestID  = create_destination(IID, C),
     WdrID   = process_withdrawal(WalID, DestID),
 
-    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
+    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
+
+    AlienEvents = lists:filter(fun(Ev) ->
+        Ev#wthd_SinkEvent.source =/= WdrID
+    end, Events),
+
     MaxID = get_max_sinkevent_id(Events),
-    MaxID = LastEvent + length(RawEvents).
+    MaxID = LastEvent + length(RawEvents) + length(AlienEvents).
 
 -spec get_withdrawal_session_events_ok(config()) -> test_return().
 
@@ -414,6 +419,16 @@ process_withdrawal(WalID, DestID) ->
         end,
         genlib_retry:linear(15, 1000)
     ),
+    true = ct_helper:await(
+        true,
+        fun () ->
+            Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
+            {ok, Events} = call_eventsink_handler('GetEvents',
+                Service, [#'evsink_EventRange'{'after' = 0, limit = 1000}]),
+            search_event_commited(Events, WdrID)
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
     WdrID.
 
 
@@ -465,3 +480,23 @@ create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
         handlers => [{Path, {Module, {Handler, NewCfg}}}],
         event_handler => scoper_woody_event_handler
     })).
+
+search_event_commited(Events, WdrID) ->
+    ClearEv = lists:filter(fun(Ev) ->
+        case Ev#wthd_SinkEvent.source of
+            WdrID -> true;
+            _     -> false
+        end
+    end, Events),
+
+    TransferCommited = lists:filter(fun(Ev) ->
+        Payload = Ev#wthd_SinkEvent.payload,
+        Changes = Payload#wthd_EventSinkPayload.changes,
+        Res = lists:filter(fun is_commited_ev/1, Changes),
+        length(Res) =/= 0
+    end, ClearEv),
+
+    length(TransferCommited) =/= 0.
+
+is_commited_ev({transfer, {status_changed, {committed, #wthd_TransferCommitted{}}}}) -> true;
+is_commited_ev(_Other) -> false.

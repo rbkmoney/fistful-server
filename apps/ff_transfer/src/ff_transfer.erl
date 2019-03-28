@@ -38,6 +38,17 @@
 
 -type event() :: event(Params :: any(), Route :: any()).
 
+-type args() :: #{
+    id            := id(),
+    body          := body(),
+    params        := params(),
+    transfer_type := transfer_type(),
+
+    status        => status(),
+    external_id   => external_id()
+}.
+
+-export_type([args/0]).
 -export_type([transfer/1]).
 -export_type([handler/0]).
 -export_type([params/1]).
@@ -46,6 +57,7 @@
 -export_type([status/0]).
 -export_type([route/1]).
 
+-export([gen/1]).
 -export([id/1]).
 -export([transfer_type/1]).
 -export([body/1]).
@@ -87,6 +99,13 @@
 -type legacy_event() :: any().
 -type transfer_type() :: atom().
 
+%% Constructor
+
+-spec gen(args()) -> transfer().
+gen(Args) ->
+    TypeKeys = [id, transfer_type, body, params, status, external_id],
+    genlib_map:compact(maps:with(TypeKeys, Args)).
+
 %% Accessors
 
 -spec id(transfer()) -> id().
@@ -105,9 +124,11 @@ body(#{body := V}) ->
 params(#{params := V}) ->
     V.
 
--spec status(transfer()) -> status().
+-spec status(transfer()) -> maybe(status()).
 status(#{status := V}) ->
-    V.
+    V;
+status(_Other) ->
+    undefined.
 
 -spec p_transfer(transfer())  -> maybe(p_transfer()).
 p_transfer(#{p_transfer := V}) ->

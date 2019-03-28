@@ -55,6 +55,7 @@
 %% Accessors
 
 -export([transfer/1]).
+-export([ctx/1]).
 
 %% Machinery
 
@@ -64,6 +65,11 @@
 -export([process_timeout/3]).
 -export([process_repair/4]).
 -export([process_call/4]).
+
+%% Convertors
+
+-export([handler_to_type/1]).
+-export([type_to_handler/1]).
 
 %% Pipeline
 
@@ -126,6 +132,12 @@ backend(NS) ->
 
 transfer(St) ->
     ff_machine:model(St).
+
+-spec ctx(st(_)) ->
+    ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
 
 %% Machinery
 

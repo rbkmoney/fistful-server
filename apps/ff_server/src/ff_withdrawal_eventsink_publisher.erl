@@ -44,7 +44,6 @@ publish_event(#{
             changes    = [marshal(event, ff_withdrawal:maybe_migrate(Payload))]
         }
     }.
-%%
 
 %% Internals
 

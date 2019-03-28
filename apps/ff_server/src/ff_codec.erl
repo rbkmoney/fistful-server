@@ -79,6 +79,11 @@ marshal(cash, {Amount, CurrencyRef}) ->
         amount   = marshal(amount, Amount),
         currency = marshal(currency_ref, CurrencyRef)
     };
+marshal(cash_range, {{BoundLower, CashLower}, {BoundUpper, CashUpper}}) ->
+    #'CashRange'{
+        lower = {BoundLower, marshal(cash, CashLower)},
+        upper = {BoundUpper, marshal(cash, CashUpper)}
+    };
 marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
     #'CurrencyRef'{
         symbolic_code = CurrencyID
@@ -99,7 +104,7 @@ marshal(integer, V) when is_integer(V) ->
     V;
 marshal(bool, V) when is_boolean(V) ->
     V;
-marshal(context, V) ->
+marshal(context, V) when is_map(V) ->
     ff_context:wrap(V);
 
 % Catch this up in thrift validation
@@ -156,12 +161,16 @@ unmarshal(cash, #'Cash'{
     currency = CurrencyRef
 }) ->
     {unmarshal(amount, Amount), unmarshal(currency_ref, CurrencyRef)};
-unmarshal(currency_ref, #{
-    symbolic_code := SymbolicCode
+
+unmarshal(cash_range, #'CashRange'{
+    lower = {BoundLower, CashLower},
+    upper = {BoundUpper, CashUpper}
 }) ->
-    #'CurrencyRef'{
-        symbolic_code = unmarshal(string, SymbolicCode)
+    {
+        {BoundLower, unmarshal(cash, CashLower)},
+        {BoundUpper, unmarshal(cash, CashUpper)}
     };
+
 unmarshal(currency_ref, #'CurrencyRef'{
     symbolic_code = SymbolicCode
 }) ->
@@ -189,6 +198,13 @@ unmarshal(string, V) when is_binary(V) ->
     V;
 unmarshal(integer, V) when is_integer(V) ->
     V;
+
+unmarshal(range, #'EventRange'{
+    'after' = Cursor,
+    limit   = Limit
+}) ->
+    {Cursor, Limit, forward};
+
 unmarshal(bool, V) when is_boolean(V) ->
     V.
 

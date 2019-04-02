@@ -47,6 +47,7 @@
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/3]).
 -export([get_contract_terms/4]).
+-export([get_cash_flow_plan/2]).
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_wallet_payment_institution_id/1]).
 
@@ -249,6 +250,22 @@ validate_deposit_creation(Wallet, {_Amount, CurrencyID} = Cash) ->
         valid = unwrap(validate_wallet_currencies_term_is_reduced(WalletTerms)),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
+
+-spec get_cash_flow_plan(withdrawal | deposit, map()) ->
+    {ok, ff_cash_flow:cash_flow_plan()} | {error, _Error}.
+get_cash_flow_plan(withdrawal, #{terms := Terms}) ->
+    get_withdrawal_cash_flow_plan(Terms);
+get_cash_flow_plan(deposit, _) ->
+    %% TODO Add term culc here too
+    {ok, #{
+        postings => [
+            #{
+                sender   => {wallet, sender_source},
+                receiver => {wallet, receiver_settlement},
+                volume   => {share, {{1, 1}, operation_amount, default}}
+            }
+        ]
+    }}.
 
 -spec get_withdrawal_cash_flow_plan(terms()) ->
     {ok, ff_cash_flow:cash_flow_plan()} | {error, _Error}.

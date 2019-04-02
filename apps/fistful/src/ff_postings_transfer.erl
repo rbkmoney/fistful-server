@@ -41,8 +41,11 @@
 -export([status/1]).
 
 -export([create/2]).
+-export([prepare/1]).
 -export([prepare/2]).
+-export([commit/1]).
 -export([commit/2]).
+-export([cancel/1]).
 -export([cancel/2]).
 
 %% Event source
@@ -128,6 +131,14 @@ validate_identities([A0 | Accounts]) ->
 
 %%
 
+-spec prepare(transfer()) ->
+    {ok, [event()]} |
+    {error,
+        {status, committed | cancelled}
+    }.
+prepare(Transfer) ->
+    prepare(1, Transfer).
+
 -spec prepare(integer(), transfer()) ->
     {ok, [event()]} |
     {error,
@@ -152,6 +163,14 @@ prepare(_TransferNum, #{status := Status}) ->
 
 %%
 
+-spec commit(transfer()) ->
+    {ok, [event()]} |
+    {error,
+        {status, committed | cancelled}
+    }.
+commit(Transfer) ->
+    commit(1, Transfer).
+
 -spec commit(integer(), transfer()) ->
     {ok, [event()]} |
     {error, {status, created | cancelled}}.
@@ -169,6 +188,14 @@ commit(_TransferNum, #{status := Status}) ->
     {error, Status}.
 
 %%
+
+-spec cancel(transfer()) ->
+    {ok, [event()]} |
+    {error,
+        {status, committed | cancelled}
+    }.
+cancel(Transfer) ->
+    cancel(1, Transfer).
 
 -spec cancel(integer(), transfer()) ->
     {ok, [event()]} |

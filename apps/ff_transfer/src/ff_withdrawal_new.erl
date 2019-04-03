@@ -224,6 +224,11 @@ create_transaction(Withdrawal) ->
         destination_id := DestinationID,
         wallet_id := WalletID
     } = params(Withdrawal),
+
+    Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
+    Terms = unwrap(contract, ff_party:get_contract_terms(Wallet, body(Withdrawal), ff_time:now())),
+    CashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
+
     TransactionParams = #{
         id            => construct_transaction_id(id(Withdrawal)),
         body          => body(Withdrawal),
@@ -231,6 +236,7 @@ create_transaction(Withdrawal) ->
         destination   => ff_transaction_new:make_ref(destination, DestinationID),
         route         => route(Withdrawal),
         transfer_type => ff_transfer_new:transfer_type(Withdrawal),
+        cash_flow     => CashFlowPlan,
         session_type  => ff_transaction_new:get_session_type(withdrawal)
     },
 

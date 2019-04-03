@@ -16,6 +16,7 @@
     route               := maybe(route()),
     session_type        := session_type(),
     transfer_type       := transfer_type(),
+    cash_flow           := cash_flow_plan(),
     activity            => activity(),
     p_transfer          => maybe(p_transfer()),
     session_id          => session_id(),
@@ -71,6 +72,7 @@
 -export([session_id/1]).
 -export([route/1]).
 -export([activity/1]).
+-export([cash_flow/1]).
 
 -export([make_ref/2]).
 
@@ -146,6 +148,10 @@ activity(#{activity := V}) ->
 activity(_Other) ->
     undefined.
 
+-spec cash_flow(transaction())  -> cash_flow_plan().
+cash_flow(#{cash_flow := V}) ->
+    V.
+
 -spec get_empty_session_type() ->
     session_type().
 
@@ -173,6 +179,7 @@ make_ref(Type, ID) ->
     destination     := ref(),
     route           := route(),
     transfer_type   := transfer_type(),
+    cash_flow       := cash_flow_plan(),
     session_type    := session_type()
 }.
 
@@ -189,6 +196,7 @@ create(#{
     destination     := Destination,
     route           := Route,
     transfer_type   := TransferType,
+    cash_flow       := CashFlow,
     session_type    := SessionType
 }) ->
     do(fun () ->
@@ -201,6 +209,7 @@ create(#{
                 destination   => Destination,
                 route         => Route,
                 transfer_type => TransferType,
+                cash_flow     => CashFlow,
                 session_type  => SessionType
             }},
             {status_changed, pending}
@@ -346,12 +355,11 @@ create_p_transfer(Transaction = #{route := Route, source := SourceRef, destinati
 
     ProviderFee = ff_payouts_provider:compute_fees(Provider, VS),
 
-    Terms = unwrap(contract, ff_party:get_contract_terms(Wallet, body(Transaction), ff_time:now())),
-    WalletCashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
+    CashFlowPlan0 = cash_flow(Transaction),
 
-    CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
+    CashFlowPlan1 = unwrap(provider_fee, ff_cash_flow:add_fee(CashFlowPlan0, ProviderFee)),
     FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
-        CashFlowPlan,
+        CashFlowPlan1,
         SourceAccount,
         DestinationAccount,
         SettlementAccount,
@@ -374,9 +382,7 @@ create_p_transfer(Transaction = #{source := Source, destination := Destination})
         {wallet, receiver_settlement} => DestinationAccount
     },
 
-    CashFlowPlan = unwrap(cash_flow_plan,
-        ff_party:get_cash_flow_plan(transfer_type(Transaction), #{})),
-
+    CashFlowPlan = cash_flow(Transaction),
     FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
     PTransferID = construct_p_transfer_id(id(Transaction)),
     PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),

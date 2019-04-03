@@ -175,6 +175,10 @@ create_transaction(Deposit) ->
         source_id := SourceID,
         wallet_id := WalletID
     } = params(Deposit),
+
+    CashFlowPlan = unwrap(cash_flow_plan,
+        ff_party:get_cash_flow_plan(ff_transfer_new:transfer_type(Deposit), #{})),
+
     TransactionParams = #{
         id            => construct_transaction_id(id(Deposit)),
         body          => body(Deposit),
@@ -182,6 +186,7 @@ create_transaction(Deposit) ->
         destination   => ff_transaction_new:make_ref(wallet, WalletID),
         route         => route(Deposit),
         transfer_type => ff_transfer_new:transfer_type(Deposit),
+        cash_flow     => CashFlowPlan,
         session_type  => ff_transaction_new:get_empty_session_type()
     },
 

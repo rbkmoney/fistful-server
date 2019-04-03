@@ -42,6 +42,7 @@
 -export([params/1]).
 -export([route/1]).
 -export([external_id/1]).
+-export([transaction/1]).
 
 %% API
 -export([create/3]).

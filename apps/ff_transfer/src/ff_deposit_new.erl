@@ -85,7 +85,7 @@ external_id(T)     -> ff_transfer_new:external_id(T).
 
 %%
 
--define(NS, 'ff/deposit_v1').
+-define(NS, 'ff/deposit_v2').
 
 -type ctx()    :: ff_ctx:ctx().
 -type params() :: #{
@@ -181,7 +181,7 @@ create_transaction(Deposit) ->
         source        => ff_transaction_new:make_ref(source, SourceID),
         destination   => ff_transaction_new:make_ref(wallet, WalletID),
         route         => route(Deposit),
-        transfer_type => ?MODULE,
+        transfer_type => ff_transfer_new:transfer_type(Deposit),
         session_type  => ff_transaction_new:get_empty_session_type()
     },
 
@@ -192,15 +192,33 @@ create_transaction(Deposit) ->
 
 poll_transaction_completion(Deposit) ->
     Transaction = transaction(Deposit),
-    case ff_transaction_new:process_transaction(Transaction) of
+    {Action, Events} = case ff_transaction_new:process_transaction(Transaction) of
         {ok, _} = Result ->
             unwrap_transaction_call_res(Result);
         {error, Reason} ->
             unwrap_transaction_call_res(ff_transaction_new:process_failure(Reason, Transaction))
-    end.
+    end,
+    TransferEvents = case check_transaction_complete(Events) of
+        true ->
+            [{status_changed, {base_flow, succeeded}}];
+        _ ->
+            []
+    end,
+
+    {ok, {Action, Events ++ TransferEvents}}.
 
 unwrap_transaction_call_res({ok, {Action, Events}}) ->
     {Action, [{cmd, {transaction, Ev}} || Ev <- Events]}.
+
+check_transaction_complete(Events) ->
+    lists:foldl(fun (Ev, Acc) ->
+        case Ev of
+            {cmd, {transaction, {p_transfer, {status_changed, committed}}}} ->
+                true;
+            _ ->
+                Acc
+        end
+    end, false, Events).
 
 -spec construct_transaction_id(id()) -> id().
 construct_transaction_id(ID) ->

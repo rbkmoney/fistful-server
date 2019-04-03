@@ -91,7 +91,7 @@ external_id(T)     -> ff_transfer_new:external_id(T).
 
 %%
 
--define(NS, 'ff/withdrawal_v2').
+-define(NS, 'ff/withdrawal_v3').
 
 -type ctx()    :: ff_ctx:ctx().
 -type params() :: #{
@@ -230,7 +230,7 @@ create_transaction(Withdrawal) ->
         source        => ff_transaction_new:make_ref(wallet, WalletID),
         destination   => ff_transaction_new:make_ref(destination, DestinationID),
         route         => route(Withdrawal),
-        transfer_type => ?MODULE,
+        transfer_type => ff_transfer_new:transfer_type(Withdrawal),
         session_type  => ff_transaction_new:get_session_type(withdrawal)
     },
 
@@ -241,15 +241,33 @@ create_transaction(Withdrawal) ->
 
 poll_transaction_completion(Withdrawal) ->
     Transaction = transaction(Withdrawal),
-    case ff_transaction_new:process_transaction(Transaction) of
+    {Action, Events} = case ff_transaction_new:process_transaction(Transaction) of
         {ok, _} = Result ->
             unwrap_transaction_call_res(Result);
         {error, Reason} ->
             unwrap_transaction_call_res(ff_transaction_new:process_failure(Reason, Transaction))
-    end.
+    end,
+    TransferEvents = case check_transaction_complete(Events) of
+        true ->
+            [{status_changed, {base_flow, succeeded}}];
+        _ ->
+            []
+    end,
+
+    {ok, {Action, Events ++ TransferEvents}}.
 
 unwrap_transaction_call_res({ok, {Action, Events}}) ->
     {Action, [{cmd, {transaction, Ev}} || Ev <- Events]}.
+
+check_transaction_complete(Events) ->
+    lists:foldl(fun (Ev, Acc) ->
+        case Ev of
+            {cmd, {transaction, {p_transfer, {status_changed, committed}}}} ->
+                true;
+            _ ->
+                Acc
+        end
+    end, false, Events).
 
 -spec maybe_migrate(ff_transfer_new:event() | ff_transfer_new:legacy_event()) ->
     ff_transfer_new:event().

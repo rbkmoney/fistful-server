@@ -35,10 +35,10 @@
     {failed, _TODO}  .
 
 -type event() ::
-    {created, transaction()}                |
-    {p_transfer, ff_postings_transfer:event()} |
-    {session_started, session_id()}         |
-    {session_finished, session_id()}        |
+    {created, transaction()}                    |
+    {p_transfer, ff_postings_transfer:event()}  |
+    {session_started, session_id()}             |
+    {session_finished, session_id()}            |
     {status_changed, status()}              .
 
 -type maybe(T)              :: ff_maybe:maybe(T).
@@ -304,12 +304,7 @@ process_activity(session_polling, Transaction) ->
     end);
 process_activity(p_transfer_finishing, Transaction) ->
     do(fun () ->
-        Fun = case status(Transaction) of
-            succeeded ->
-                fun ff_postings_transfer:commit/1;
-            {failed, _} ->
-                fun ff_postings_transfer:cancel/1
-        end,
+        Fun = get_finish_fun(status(Transaction)),
         {undefined, unwrap(with(
             p_transfer,
             Transaction,
@@ -317,9 +312,11 @@ process_activity(p_transfer_finishing, Transaction) ->
         ))}
     end).
 
--spec create_p_transfer(transaction()) ->
-    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
-    {error, _Reason}.
+get_finish_fun(succeeded) ->
+    fun ff_postings_transfer:commit/1;
+get_finish_fun({failed, _}) ->
+    fun ff_postings_transfer:cancel/1.
+
 create_p_transfer(Transaction = #{route := Route, source := SourceRef, destination := DestinationRef}) when
     Route =/= undefined
 ->
@@ -330,67 +327,60 @@ create_p_transfer(Transaction = #{route := Route, source := SourceRef, destinati
 
     {_Amount, CurrencyID} = body(Transaction),
     #{provider_id := ProviderID} = route(Transaction),
-    do(fun () ->
-        Provider = unwrap(provider, ff_payouts_provider:get(ProviderID)),
-        ProviderAccounts = ff_payouts_provider:accounts(Provider),
-        ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
 
-        Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
-        PaymentInstitutionID = unwrap(ff_party:get_wallet_payment_institution_id(Wallet)),
-        PaymentInstitution = unwrap(ff_payment_institution:get(PaymentInstitutionID)),
-        DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
-        Destination = ff_destination:get(DestinationMachine),
-        VS = unwrap(collect_varset(body(Transaction), Wallet, Destination)),
-        SystemAccounts = unwrap(ff_payment_institution:compute_system_accounts(PaymentInstitution, VS)),
+    Provider = unwrap(provider, ff_payouts_provider:get(ProviderID)),
+    ProviderAccounts = ff_payouts_provider:accounts(Provider),
+    ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
 
-        SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
-        SettlementAccount = maps:get(settlement, SystemAccount, undefined),
-        SubagentAccount = maps:get(subagent, SystemAccount, undefined),
+    Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
+    PaymentInstitutionID = unwrap(ff_party:get_wallet_payment_institution_id(Wallet)),
+    PaymentInstitution = unwrap(ff_payment_institution:get(PaymentInstitutionID)),
+    DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
+    Destination = ff_destination:get(DestinationMachine),
+    VS = unwrap(collect_varset(body(Transaction), Wallet, Destination)),
+    SystemAccounts = unwrap(ff_payment_institution:compute_system_accounts(PaymentInstitution, VS)),
 
-        ProviderFee = ff_payouts_provider:compute_fees(Provider, VS),
+    SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
+    SettlementAccount = maps:get(settlement, SystemAccount, undefined),
+    SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-        IdentityMachine = unwrap(ff_identity_machine:get(ff_wallet:identity(Wallet))),
-        Identity = ff_identity_machine:identity(IdentityMachine),
-        PartyID = ff_identity:party(Identity),
-        ContractID = ff_identity:contract(Identity),
-        Terms = unwrap(contract, ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now())),
-        WalletCashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
+    ProviderFee = ff_payouts_provider:compute_fees(Provider, VS),
 
-        CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
-        FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
-            CashFlowPlan,
-            SourceAccount,
-            DestinationAccount,
-            SettlementAccount,
-            SubagentAccount,
-            ProviderAccount,
-            body(Transaction)
-        )),
-        PTransferID = construct_p_transfer_id(id(Transaction)),
-        PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
-        {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}
-    end);
+    Terms = unwrap(contract, ff_party:get_contract_terms(Wallet, body(Transaction), ff_time:now())),
+    WalletCashFlowPlan = unwrap(cash_flow_plan, ff_party:get_withdrawal_cash_flow_plan(Terms)),
+
+    CashFlowPlan = unwrap(provider_fee, ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee)),
+    FinalCashFlow = unwrap(cash_flow, finalize_cash_flow(
+        CashFlowPlan,
+        SourceAccount,
+        DestinationAccount,
+        SettlementAccount,
+        SubagentAccount,
+        ProviderAccount,
+        body(Transaction)
+    )),
+    PTransferID = construct_p_transfer_id(id(Transaction)),
+    PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
+    {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]};
 create_p_transfer(Transaction = #{source := Source, destination := Destination}) ->
-    do(fun () ->
-        SourceAccount = get_account_for_ref(Source),
-        DestinationAccount = get_account_for_ref(Destination),
+    SourceAccount = get_account_for_ref(Source),
+    DestinationAccount = get_account_for_ref(Destination),
 
-        Constants = #{
-            operation_amount => body(Transaction)
-        },
-        Accounts = #{
-            {wallet, sender_source} => SourceAccount,
-            {wallet, receiver_settlement} => DestinationAccount
-        },
+    Constants = #{
+        operation_amount => body(Transaction)
+    },
+    Accounts = #{
+        {wallet, sender_source} => SourceAccount,
+        {wallet, receiver_settlement} => DestinationAccount
+    },
 
-        CashFlowPlan = unwrap(cash_flow_plan,
-            ff_party:get_cash_flow_plan(transfer_type(Transaction), #{})),
+    CashFlowPlan = unwrap(cash_flow_plan,
+        ff_party:get_cash_flow_plan(transfer_type(Transaction), #{})),
 
-        FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
-        PTransferID = construct_p_transfer_id(id(Transaction)),
-        PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
-        {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}
-    end).
+    FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
+    PTransferID = construct_p_transfer_id(id(Transaction)),
+    PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
+    {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
 
 prepare_session_params(empty, _ID, _Transaction) ->
     erlang:error({badtype, <<"Cant create empty session.">>});
@@ -443,7 +433,7 @@ find_id_in_ref(Type, Transaction, ID) ->
 
 get_account_for_ref({source, ID}) ->
     Source = ff_source:get(
-        unwrap(source, ff_destination:get_machine(ID))
+        unwrap(source, ff_source:get_machine(ID))
     ),
     ff_source:account(Source);
 get_account_for_ref({destination, ID}) ->
@@ -474,8 +464,9 @@ apply_event_({status_changed, S}, T) ->
 apply_event_({p_transfer, Ev}, T = #{p_transfer := PT}) ->
     PTransfer = ff_postings_transfer:apply_event(Ev, PT),
     set_activity(get_activity_from_p_status(PTransfer), T#{p_transfer := PTransfer});
-apply_event_({p_transfer, Ev}, T) ->
-    apply_event({p_transfer, Ev}, T#{p_transfer => undefined});
+apply_event_({p_transfer, Ev}, T0) ->
+    {_, T1} = apply_event({p_transfer, Ev}, T0#{p_transfer => undefined}),
+    T1;
 apply_event_({session_started, S}, T) ->
     set_activity(session_polling, maps:put(session_id, S, T));
 apply_event_({session_finished, S}, T = #{session_id := S}) ->
@@ -494,7 +485,9 @@ set_activity(Activity, T) ->
 get_activity_from_p_status(#{status := created}) ->
     p_transfer_preparing;
 get_activity_from_p_status(#{status := prepared}) ->
-    session_starting.
+    session_starting;
+get_activity_from_p_status(_) ->
+    undefined.
 
 get_activity_from_status(succeeded) ->
     p_transfer_finishing;

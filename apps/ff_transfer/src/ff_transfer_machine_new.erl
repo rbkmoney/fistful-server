@@ -116,7 +116,7 @@ create(
     {error, notfound}.
 
 get(NS, ID) ->
-    ff_machine:get(ff_transfer, NS, ID).
+    ff_machine:get(ff_transfer_new, NS, ID).
 
 -spec events(ns(), id(), machinery:range()) ->
     {ok, events(_)} |
@@ -146,7 +146,7 @@ backend(NS) ->
 %         {ok, _} ->
 %             do(fun () ->
 %                 Transfer = transfer(unwrap(get(NS, ID))),
-%                 ff_transfer:reposit(Transfer)
+%                 ff_transfer_new:reposit(Transfer)
 %             end);
 %         {error, _} = Result ->
 %             Result
@@ -183,7 +183,7 @@ init({Events, Ctx}, #{}, _, _Opts) ->
     result().
 
 process_timeout(Machine, _, _Opts) ->
-    St = ff_machine:collapse(ff_transfer, Machine),
+    St = ff_machine:collapse(ff_transfer_new, Machine),
     Transfer = transfer(St),
     process_result(handler_process_transfer(Transfer), St).
 
@@ -191,7 +191,7 @@ process_timeout(Machine, _, _Opts) ->
     {ok, result()}.
 
 process_call(CallArgs, Machine, _, _Opts) ->
-    St = ff_machine:collapse(ff_transfer, Machine),
+    St = ff_machine:collapse(ff_transfer_new, Machine),
     Transfer = transfer(St),
     CallRes = handler_process_call(CallArgs, Transfer),
     Result = process_result(CallRes, St),
@@ -201,7 +201,7 @@ process_call(CallArgs, Machine, _, _Opts) ->
     result().
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
-    ff_repair:apply_scenario(ff_transfer, Machine, Scenario).
+    ff_repair:apply_scenario(ff_transfer_new, Machine, Scenario).
 
 process_result({ok, {Action, Events}}, St) ->
     genlib_map:compact(#{
@@ -237,17 +237,17 @@ compute_poll_timeout(Now, St) ->
 
 -spec handler_to_type(module()) ->
     transfer_type().
-handler_to_type(ff_deposit) ->
+handler_to_type(ff_deposit_new) ->
     deposit;
-handler_to_type(ff_withdrawal) ->
+handler_to_type(ff_withdrawal_new) ->
     withdrawal.
 
 -spec type_to_handler(transfer_type()) ->
     module().
 type_to_handler(deposit) ->
-    ff_deposit;
+    ff_deposit_new;
 type_to_handler(withdrawal) ->
-    ff_withdrawal.
+    ff_withdrawal_new.
 
 -spec transfer_handler(transfer()) ->
     module().

@@ -36,6 +36,10 @@ namespaces:
       event_sink: ff/deposit_v1
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/deposit_v1
+  ff/deposit_v2:
+      event_sink: ff/deposit_v2
+      processor:
+          url: http://fistful-server:8022/v1/stateproc/ff/deposit_v2
   ff/destination_v2:
       event_sink: ff/destination_v2
       processor:
@@ -44,6 +48,10 @@ namespaces:
       event_sink: ff/withdrawal_v2
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/withdrawal_v2
+  ff/withdrawal_v3:
+      event_sink: ff/withdrawal_v3
+      processor:
+          url: http://fistful-server:8022/v1/stateproc/ff/withdrawal_v3
   ff/withdrawal/session_v2:
       event_sink: ff/withdrawal/session_v2
       processor:

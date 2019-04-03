@@ -91,6 +91,8 @@
 
 -export([create/1]).
 -export([process_failure/2]).
+-export([create_transaction/1]).
+-export([poll_transaction_completion/1]).
 
 %% Event source
 
@@ -239,6 +241,47 @@ process_failure(Reason, Transfer = #{activity := transaction_polling}) ->
         TransactionEvents ++
         [{status_changed, {failed, Reason}}]
     }}.
+
+-spec create_transaction(ff_transaction_new:create_params()) ->
+    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
+    {error, _Reason}.
+create_transaction(TransactionParams) ->
+    do(fun () ->
+        TransactionEvents = unwrap(ff_transaction_new:create(TransactionParams)),
+        {continue, [{cmd, {transaction, Ev}} || Ev <- TransactionEvents]}
+    end).
+
+-spec poll_transaction_completion(transfer()) ->
+    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}}.
+poll_transaction_completion(Transfer) ->
+    Transaction = transaction(Transfer),
+    {Action, Events} = case ff_transaction_new:process_transaction(Transaction) of
+        {ok, _} = Result ->
+            unwrap_transaction_call_res(Result);
+        {error, Reason} ->
+            unwrap_transaction_call_res(ff_transaction_new:process_failure(Reason, Transaction))
+    end,
+    TransferEvents = case check_transaction_complete(Events) of
+        true ->
+            [{status_changed, {base_flow, succeeded}}];
+        _ ->
+            []
+    end,
+
+    {ok, {Action, Events ++ TransferEvents}}.
+
+unwrap_transaction_call_res({ok, {Action, Events}}) ->
+    {Action, [{cmd, {transaction, Ev}} || Ev <- Events]}.
+
+check_transaction_complete(Events) ->
+    lists:foldl(fun (Ev, Acc) ->
+        case Ev of
+            {cmd, {transaction, {p_transfer, {status_changed, committed}}}} ->
+                true;
+            _ ->
+                Acc
+        end
+    end, false, Events).
 
 %%
 

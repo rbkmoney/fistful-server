@@ -190,40 +190,10 @@ create_transaction(Deposit) ->
         session_type  => ff_transaction_new:get_empty_session_type()
     },
 
-    do(fun () ->
-        TransactionEvents = unwrap(ff_transaction_new:create(TransactionParams)),
-        {continue, [{cmd, {transaction, Ev}} || Ev <- TransactionEvents]}
-    end).
+    ff_transfer_new:create_transaction(TransactionParams).
 
 poll_transaction_completion(Deposit) ->
-    Transaction = transaction(Deposit),
-    {Action, Events} = case ff_transaction_new:process_transaction(Transaction) of
-        {ok, _} = Result ->
-            unwrap_transaction_call_res(Result);
-        {error, Reason} ->
-            unwrap_transaction_call_res(ff_transaction_new:process_failure(Reason, Transaction))
-    end,
-    TransferEvents = case check_transaction_complete(Events) of
-        true ->
-            [{status_changed, {base_flow, succeeded}}];
-        _ ->
-            []
-    end,
-
-    {ok, {Action, Events ++ TransferEvents}}.
-
-unwrap_transaction_call_res({ok, {Action, Events}}) ->
-    {Action, [{cmd, {transaction, Ev}} || Ev <- Events]}.
-
-check_transaction_complete(Events) ->
-    lists:foldl(fun (Ev, Acc) ->
-        case Ev of
-            {cmd, {transaction, {p_transfer, {status_changed, committed}}}} ->
-                true;
-            _ ->
-                Acc
-        end
-    end, false, Events).
+    ff_transfer_new:poll_transaction_completion(Deposit).
 
 -spec construct_transaction_id(id()) -> id().
 construct_transaction_id(ID) ->

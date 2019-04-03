@@ -62,6 +62,7 @@
 -export_type([status/0]).
 -export_type([body/0]).
 -export_type([action/0]).
+-export_type([create_params/0]).
 
 -export([id/1]).
 -export([transfer_type/1]).

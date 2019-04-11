@@ -9,13 +9,13 @@
 -type id()          :: machinery:id().
 -type external_id() :: id() | undefined.
 -type ns()          :: machinery:namespace().
--type transfer(T)   :: ff_transfer:transfer(T).
+-type transfer(T)   :: ff_transfer_new:transfer(T).
 -type event(T)      :: T.
 -type events(T)     :: [{integer(), ff_machine:timestamped_event(event(T))}].
 -type params()      :: #{
-    handler     := ff_transfer:handler(),
+    handler     := ff_transfer_new:handler(),
     body        := ff_transaction:body(),
-    params      := ff_transfer:params(),
+    params      := ff_transfer_new:params(),
     external_id => external_id()
 }.
 
@@ -66,11 +66,6 @@
 -export([process_repair/4]).
 -export([process_call/4]).
 
-%% Convertors
-
--export([handler_to_type/1]).
--export([type_to_handler/1]).
-
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1]).
@@ -78,8 +73,8 @@
 %% Internal types
 
 -type ctx()   :: ff_ctx:ctx().
--type event() :: ff_transfer:event().
-% -type transfer()      :: ff_transfer:transfer().
+-type event() :: ff_transfer_new:event().
+% -type transfer()      :: ff_transfer_new:transfer().
 
 %% API
 
@@ -100,7 +95,7 @@ create(NS, ID, Events, Ctx) ->
     {error, notfound}.
 
 get(NS, ID) ->
-    ff_machine:get(ff_transfer, NS, ID).
+    ff_machine:get(ff_transfer_new, NS, ID).
 
 -spec events(ns(), id(), machinery:range()) ->
     {ok, events(_)} |
@@ -152,7 +147,7 @@ init({Events, Ctx}, #{}, _, _Opts) ->
     result().
 
 process_timeout(Machine, _, _Opts) ->
-    St = ff_machine:collapse(ff_transfer, Machine),
+    St = ff_machine:collapse(ff_transfer_new, Machine),
     Transfer = transfer(St),
     process_result(handler_process_transfer(Transfer), St).
 
@@ -160,7 +155,7 @@ process_timeout(Machine, _, _Opts) ->
     {ok, result()}.
 
 process_call(CallArgs, Machine, _, _Opts) ->
-    St = ff_machine:collapse(ff_transfer, Machine),
+    St = ff_machine:collapse(ff_transfer_new, Machine),
     Transfer = transfer(St),
     {ok, process_result(handler_process_call(CallArgs, Transfer), St)}.
 
@@ -168,7 +163,7 @@ process_call(CallArgs, Machine, _, _Opts) ->
     result().
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
-    ff_repair:apply_scenario(ff_transfer, Machine, Scenario).
+    ff_repair:apply_scenario(ff_transfer_new, Machine, Scenario).
 
 process_result({ok, {Action, Events}}, St) ->
     genlib_map:compact(#{
@@ -196,7 +191,7 @@ set_action(poll, St) ->
     {set_timer, {timeout, compute_poll_timeout(Now, St)}}.
 
 compute_poll_timeout(Now, St) ->
-    MaxTimeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
+    MaxTimeout = genlib_app:env(ff_transfer_new, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
     Timeout0 = machinery_time:interval(Now, ff_machine:updated(St)) div 1000,
     erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
 

@@ -272,7 +272,7 @@ create(TransferType, Params = #{id := ID}, Ctx, Parent) ->
         _PostingsTransferError
     }.
 
-make_default_events(create, Params = #{
+make_default_events(create, #{
     id := ID,
     transfer_type := TransferType,
     body := Body,
@@ -318,7 +318,7 @@ sign_event(ID, TransferType, Event, Parent) ->
 make_parent(undefined) ->
     undefined;
 make_parent(Transfer) ->
-    #{id => id(Transfer), transfer_type => transfer_type(Transfer)}.
+    {transfer_type(Transfer), id(Transfer)}.
 
 %% Handler convertors
 
@@ -516,9 +516,12 @@ find_child(Ev = #{id := ID}, [Child | Rest]) ->
             find_child(Ev, Rest)
     end.
 
+-spec set_parent(transfer(), transfer()) ->
+    transfer().
+
 set_parent(Child, Transfer) ->
     Parent = make_parent(Transfer),
-    Child#{parent => Parent}.
+    maps:put(parent, Parent, Child).
 
 -spec update_childs(maybe(transfer()), transfer(), transfer()) ->
     transfer().

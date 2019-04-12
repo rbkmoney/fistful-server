@@ -130,7 +130,7 @@ ns() ->
 }.
 
 -spec create(create_params(), ff_transfer_new:maybe(ff_transfer_new:parent())) ->
-    {ok, events()} |
+    {ok, [event()]} |
     {error,
         {source, notfound | unauthorized} |
         {destination, notfound} |

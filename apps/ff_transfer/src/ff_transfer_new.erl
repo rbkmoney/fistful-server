@@ -58,7 +58,13 @@
     status        => status(),
     external_id   => external_id()
 }.
--type create_params()       :: any().
+-type create_params()       :: #{
+    transfer_type := transfer_type(),
+    id            := id(),
+    body          := body(),
+    params        := params(),
+    external_id   := external_id()
+}.
 -type preprocess_result()   ::
     {create_transaction, ff_transaction_new:create_params()}.
 
@@ -98,22 +104,16 @@
 
 %% API
 
--export([create_deposit/2]).
--export([create_withdrawal/2]).
+-export([create/3]).
 
 %% Internal
 
--export([make_default_events/2]).
 -export([wrap_events_for_parent/3]).
 -export([wrap_events_for_parent/4]).
 -export([handler_to_type/1]).
 
 %% ff_transfer behaviour
--callback create(create_params(), maybe(parent())) ->
-    {ok, [event()]} |
-    {error, _Reason}.
--callback ns() ->
-    atom().
+
 -callback apply_event(event(), transfer()) ->
     transfer().
 
@@ -134,8 +134,8 @@
     {error, _Reason}.
 
 
-%% ff_transfer_machine behaviour
--behaviour(ff_transfer_machine).
+%% ff_transfer_machine_new behaviour
+-behaviour(ff_transfer_machine_new).
 -export([process_transfer/1]).
 -export([process_failure/2]).
 -export([process_call/2]).
@@ -165,6 +165,7 @@
 -type transfer_type()       :: atom().
 -type ctx()                 :: ff_ctx:ctx().
 -type action()              :: ff_transfer_machine_new:action().
+-type ns()                  :: machinery:namespace().
 
 %% Constructor
 
@@ -237,52 +238,26 @@ childs(_Transfer) ->
 
 %% API
 
--spec create_deposit(create_params(), ctx()) ->
+-spec create(ns(), create_params(), ctx()) ->
     {ok, [event()]} |
     {error,
         _PostingsTransferError
     }.
 
-create_deposit(Params, Ctx) ->
-    create(deposit, Params, Ctx).
-
--spec create_withdrawal(create_params(), ctx()) ->
-    {ok, [event()]} |
-    {error,
-        _PostingsTransferError
-    }.
-
-create_withdrawal(Params, Ctx) ->
-    create(withdrawal, Params, Ctx).
-
-create(TransferType, Params, Ctx) ->
-    create(TransferType, Params, Ctx, undefined).
-
-create(TransferType, Params = #{id := ID}, Ctx, Parent) ->
+create(
+    NS,
+    #{
+        transfer_type := TransferType,
+        id := ID,
+        body := Body,
+        params := Params,
+        external_id := ExternalID
+    },
+    Ctx
+) ->
     do(fun () ->
-        Handler = type_to_handler(TransferType),
-        Events = unwrap(Handler:create(Params, Parent)),
-        NS = Handler:ns(),
-        ff_transfer_machine_new:create(NS, ID, Events, Ctx)
-    end).
-
--spec make_default_events(create, map()) ->
-    {ok, [event()]} |
-    {error,
-        _PostingsTransferError
-    }.
-
-make_default_events(create, #{
-    id := ID,
-    transfer_type := TransferType,
-    body := Body,
-    params := Params,
-    external_id := ExternalID
-}) ->
-    do(fun () ->
-        [
+        Events = [
             {created, add_external_id(ExternalID, #{
-                %% TODO get version from handler module
                 version       => ?ACTUAL_FORMAT_VERSION,
                 id            => ID,
                 transfer_type => TransferType,
@@ -290,7 +265,8 @@ make_default_events(create, #{
                 params        => Params
             })},
             {status_changed, pending}
-        ]
+        ],
+        unwrap(ff_transfer_machine_new:create(NS, ID, Events, Ctx))
     end).
 
 add_external_id(undefined, Event) ->
@@ -332,14 +308,14 @@ handler_to_type(ff_withdrawal_new) ->
 -spec type_to_handler(transfer_type()) ->
     module().
 type_to_handler(deposit) ->
-    ff_deposit;
+    ff_deposit_new;
 type_to_handler(withdrawal) ->
-    ff_withdrawal.
+    ff_withdrawal_new.
 
-%% ff_transfer_machine behaviour
+%% ff_transfer_machine_new behaviour
 
 -spec process_transfer(maybe(transfer())) ->
-    {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(event())]}} |
+    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
     {error, _Reason}.
 
 process_transfer(undefined) ->
@@ -351,7 +327,7 @@ process_transfer(Transfer) ->
     end).
 
 -spec process_call(_Args, transfer()) ->
-    {ok, {ff_transfer_machine:action(), [ff_transfer_machine:event(event())]}} |
+    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
     {error, _Reason}.
 
 process_call(Args, Transfer) ->
@@ -401,7 +377,7 @@ do_process_transfer(transaction_starting, _Transfer, {create_transaction, Params
     end);
 do_process_transfer(transaction_polling, Transfer, _Data) ->
     Handler = type_to_handler(transfer_type(Transfer)),
-    Handler:process_transfer(Transfer),
+    unwrap(Handler:process_transfer(Transfer)),
     poll_transaction_completion(Transfer);
 do_process_transfer(_Activity, Transfer, _Data) ->
     Handler = type_to_handler(transfer_type(Transfer)),
@@ -471,7 +447,7 @@ wrap_transaction_events(Events) ->
 check_transaction_complete(Events) ->
     lists:foldl(fun (Ev, Acc) ->
         case Ev of
-            {cmd, {transaction, {p_transfer, {status_changed, committed}}}} ->
+            {transaction, {p_transfer, {status_changed, committed}}} ->
                 true;
             _ ->
                 Acc

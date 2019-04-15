@@ -13,6 +13,7 @@
 -export([end_per_testcase/2]).
 
 -export([get_missing_fails/1]).
+-export([deposit_ok/1]).
 -export([deposit_withdrawal_ok/1]).
 
 -type config()         :: ct_helper:config().
@@ -31,6 +32,7 @@ groups() ->
     [
         {default, [parallel], [
             get_missing_fails,
+            deposit_ok,
             deposit_withdrawal_ok
         ]}
     ].
@@ -76,11 +78,22 @@ end_per_testcase(_Name, _C) ->
 %%
 
 -spec get_missing_fails(config()) -> test_return().
+-spec deposit_ok(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
-    {error, notfound} = ff_withdrawal_new:get_machine(ID).
+    {error, notfound} = ff_deposit_new:get_machine(ID).
+
+deposit_ok(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+
+    SrcID = create_source(IID, C),
+
+    process_deposit(SrcID, WalID).
 
 deposit_withdrawal_ok(C) ->
     Party = create_party(C),
@@ -89,9 +102,9 @@ deposit_withdrawal_ok(C) ->
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
 
-    SrcID = create_source(IID, C),
+    % SrcID = create_source(IID, C),
 
-    process_deposit(SrcID, WalID),
+    % process_deposit(SrcID, WalID),
 
     DestID = create_destination(IID, C),
 
@@ -209,9 +222,9 @@ process_deposit(SrcID, WalID) ->
         ff_ctx:new()
     ),
     {ok, DepM1} = ff_deposit_new:get_machine(DepID),
-    {base_flow, pending} = ff_deposit_new:status(ff_deposit_new:get(DepM1)),
-    {base_flow, succeeded} = ct_helper:await(
-        {base_flow, succeeded},
+    pending = ff_deposit_new:status(ff_deposit_new:get(DepM1)),
+    succeeded = ct_helper:await(
+        succeeded,
         fun () ->
             {ok, DepM} = ff_deposit_new:get_machine(DepID),
             ff_deposit_new:status(ff_deposit_new:get(DepM))
@@ -265,9 +278,9 @@ process_withdrawal(WalID, DestID, WalStartBalance) ->
         ff_ctx:new()
     ),
     {ok, WdrM1} = ff_withdrawal_new:get_machine(WdrID),
-    {base_flow, pending} = ff_withdrawal_new:status(ff_withdrawal_new:get(WdrM1)),
-    {base_flow, succeeded} = ct_helper:await(
-        {base_flow, succeeded},
+    pending = ff_withdrawal_new:status(ff_withdrawal_new:get(WdrM1)),
+    succeeded = ct_helper:await(
+        succeeded,
         fun () ->
             {ok, WdrM} = ff_withdrawal_new:get_machine(WdrID),
             ff_withdrawal_new:status(ff_withdrawal_new:get(WdrM))

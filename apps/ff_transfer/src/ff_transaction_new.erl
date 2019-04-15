@@ -235,8 +235,6 @@ process_activity(p_transfer_preparing, Transaction) ->
 process_activity(session_starting, Transaction = #{session_data := {withdrawal, _, _}}) ->
     ID = construct_session_id(id(Transaction)),
     do(fun () ->
-        %% TODO
-        %% valid = unwrap(ff_party:validate_wallet_limits(WalletID, Body, WalletAccount)),
         {_, TransferData, SessionParams} = session_data(Transaction),
         ok = unwrap(ff_withdrawal_session_machine:create(ID, TransferData, SessionParams)),
         {continue, [{session_started, ID}]}

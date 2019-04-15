@@ -32,8 +32,6 @@
 %% ff_transfer_new behaviour
 
 -behaviour(ff_transfer_new).
--export([create/2]).
--export([ns/0]).
 -export([apply_event/2]).
 -export([preprocess_transfer/1]).
 -export([process_transfer/1]).
@@ -51,6 +49,7 @@
 
 %% API
 
+-export([create/3]).
 -export([get/1]).
 -export([get_machine/1]).
 -export([events/2]).
@@ -68,6 +67,7 @@
 -type account() :: ff_account:account().
 -type process_result() :: {ff_transfer_machine_new:action(), [event()]}.
 -type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
+-type ctx()            :: ff_ctx:ctx().
 
 %% Accessors
 
@@ -89,9 +89,57 @@ params(T)          -> ff_transfer_new:params(T).
     id() | undefined.
 external_id(T)     -> ff_transfer_new:external_id(T).
 
--define(NS, 'ff/deposit_v1').
+-define(NS, 'ff/deposit_v2').
 
 %% API
+
+-type create_params() :: #{
+    source_id   := ff_source:id(),
+    wallet_id   := ff_wallet_machine:id(),
+    body        := ff_transaction:body(),
+    external_id => id()
+}.
+
+-spec create(id(), create_params(), ctx()) ->
+    ok |
+    {error,
+        {source, notfound | unauthorized} |
+        {destination, notfound} |
+        {provider, notfound} |
+        exists |
+        _TransferError
+    }.
+
+create(ID, Args = #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
+    do(fun() ->
+        Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
+        Wallet = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(WalletID))),
+        valid =  unwrap(ff_party:validate_deposit_creation(Wallet, Body)),
+        ok = unwrap(source, valid(authorized, ff_source:status(Source))),
+        Params = #{
+
+            transfer_type   => ff_transfer_new:handler_to_type(?MODULE),
+            id              => ID,
+            body            => Body,
+            params          => #{
+                wallet_id             => WalletID,
+                source_id             => SourceID,
+                wallet_account        => ff_wallet:account(Wallet),
+                source_account        => ff_source:account(Source),
+                wallet_cash_flow_plan => #{
+                    postings => [
+                        #{
+                            sender   => {wallet, sender_source},
+                            receiver => {wallet, receiver_settlement},
+                            volume   => {share, {{1, 1}, operation_amount, default}}
+                        }
+                    ]
+                }
+            },
+            external_id => maps:get(external_id, Args, undefined)
+        },
+        unwrap(ff_transfer_new:create(?NS, Params, Ctx))
+    end).
 
 -spec get(machine()) ->
     deposit().
@@ -115,74 +163,13 @@ events(ID, Range) ->
 
 %% ff_transfer_new behaviour
 
--spec ns() ->
-    ?NS.
-
-ns() ->
-    ?NS.
-
--type create_params() :: #{
-    id          := id(),
-    source_id   := ff_source:id(),
-    wallet_id   := ff_wallet_machine:id(),
-    body        := ff_transaction:body(),
-    external_id => id()
-}.
-
--spec create(create_params(), ff_transfer_new:maybe(ff_transfer_new:parent())) ->
-    {ok, [event()]} |
-    {error,
-        {source, notfound | unauthorized} |
-        {destination, notfound} |
-        {provider, notfound} |
-        exists |
-        _TransferError
-    }.
-
-create(Args = #{id := ID, source_id := SourceID, wallet_id := WalletID, body := Body}, Parent) ->
-    do(fun() ->
-        Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
-        Wallet = ff_wallet_machine:wallet(unwrap(destination, ff_wallet_machine:get(WalletID))),
-        valid =  unwrap(ff_party:validate_deposit_creation(Wallet, Body)),
-        ok = unwrap(source, valid(authorized, ff_source:status(Source))),
-        Params = #{
-            wallet_id             => WalletID,
-            source_id             => SourceID,
-            wallet_account        => ff_wallet:account(Wallet),
-            source_account        => ff_source:account(Source),
-            wallet_cash_flow_plan => #{
-                postings => [
-                    #{
-                        sender   => {wallet, sender_source},
-                        receiver => {wallet, receiver_settlement},
-                        volume   => {share, {{1, 1}, operation_amount, default}}
-                    }
-                ]
-            }
-        },
-        TransferType = ff_transfer_new:handler_to_type(?MODULE),
-        Events = unwrap(ff_transfer_new:make_default_events(create, #{
-            id              => ID,
-            transfer_type   => TransferType,
-            body            => Body,
-            params          => Params,
-            external_id     => maps:get(external_id, Args, undefined)
-        })),
-        ff_transfer_new:wrap_events_for_parent(
-            ID,
-            TransferType,
-            Events,
-            Parent
-        )
-    end).
-
 -spec preprocess_transfer(deposit()) ->
     ok                                                                          |
     {ok, ff_transfer_new:new_activity(), ff_transfer_new:preprocess_result()}   |
     {error, _Reason}.
 
 preprocess_transfer(undefined) ->
-    {error, cant_process_undefined_transfer};
+    {error, cant_preprocess_undefined_transfer};
 preprocess_transfer(Transfer) ->
     Activity = ff_transfer_new:activity(Transfer),
     do_preprocess_transfer(Activity, Transfer).
@@ -243,7 +230,6 @@ create_transaction_params(Deposit) ->
         {wallet, receiver_settlement} => WalletAccount
     },
     FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
-
 
     #{
         id                  => construct_transaction_id(id(Deposit)),

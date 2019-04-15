@@ -102,9 +102,9 @@ deposit_withdrawal_ok(C) ->
     WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID),
 
-    % SrcID = create_source(IID, C),
+    SrcID = create_source(IID, C),
 
-    % process_deposit(SrcID, WalID),
+    process_deposit(SrcID, WalID),
 
     DestID = create_destination(IID, C),
 

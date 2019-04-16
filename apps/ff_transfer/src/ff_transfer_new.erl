@@ -668,6 +668,11 @@ maybe_migrate(Ev, _) ->
     ff_transaction_new:event().
 
 %% For Transfer VERSION =:= 3
+
+% При миграции мы не можем заполнить body, status транзакции,
+% так как для этого нужно больше событий, которых нет.
+% Это нужно учитывать при потреблении мигрированных событий.
+
 migrate_to_transaction({p_transfer, PEvent}, EventType) ->
     case ff_postings_transfer:maybe_migrate(PEvent, EventType) of
         {created, #{id := ID} = PT}->

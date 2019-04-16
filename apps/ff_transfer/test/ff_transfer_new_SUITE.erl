@@ -15,6 +15,8 @@
 -export([get_missing_fails/1]).
 -export([deposit_ok/1]).
 -export([deposit_withdrawal_ok/1]).
+-export([deposit_migrate_ok/1]).
+-export([withdrawal_migrate_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -33,7 +35,9 @@ groups() ->
         {default, [parallel], [
             get_missing_fails,
             deposit_ok,
-            deposit_withdrawal_ok
+            deposit_withdrawal_ok,
+            deposit_migrate_ok,
+            withdrawal_migrate_ok
         ]}
     ].
 
@@ -78,12 +82,12 @@ end_per_testcase(_Name, _C) ->
 %%
 
 -spec get_missing_fails(config()) -> test_return().
--spec deposit_ok(config()) -> test_return().
--spec deposit_withdrawal_ok(config()) -> test_return().
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
     {error, notfound} = ff_deposit_new:get_machine(ID).
+
+-spec deposit_ok(config()) -> test_return().
 
 deposit_ok(C) ->
     Party = create_party(C),
@@ -94,6 +98,8 @@ deposit_ok(C) ->
     SrcID = create_source(IID, C),
 
     process_deposit(SrcID, WalID).
+
+-spec deposit_withdrawal_ok(config()) -> test_return().
 
 deposit_withdrawal_ok(C) ->
     Party = create_party(C),
@@ -111,6 +117,45 @@ deposit_withdrawal_ok(C) ->
     pass_identification(ICID, IID, C),
 
     process_withdrawal(WalID, DestID).
+
+-spec deposit_migrate_ok(config()) -> test_return().
+
+deposit_migrate_ok(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+
+    SrcID = create_source(IID, C),
+
+    DepID = generate_id(),
+    ok = process_deposit_old_style(DepID, SrcID, WalID),
+    {ok, RawEvents} = ff_deposit:events(DepID, {undefined, 1000, forward}),
+    Transfer = collapse_raw_events(RawEvents),
+    succeeded = ff_deposit_new:status(Transfer).
+
+-spec withdrawal_migrate_ok(config()) -> test_return().
+
+withdrawal_migrate_ok(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    ICID = genlib:unique(),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+
+    SrcID = create_source(IID, C),
+
+    process_deposit(SrcID, WalID),
+
+    DestID = create_destination(IID, C),
+
+    pass_identification(ICID, IID, C),
+
+    WdrID = generate_id(),
+    process_withdrawal_old_style(WdrID, WalID, DestID, 10000),
+    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
+    Transfer = collapse_raw_events(RawEvents),
+    succeeded = ff_withdrawal_new:status(Transfer).
 
 %%
 
@@ -233,6 +278,24 @@ process_deposit(SrcID, WalID) ->
     ),
     ok = await_wallet_balance({10000, <<"RUB">>}, WalID).
 
+process_deposit_old_style(DepID, SrcID, WalID) ->
+    ok = ff_deposit:create(
+        DepID,
+        #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
+        ff_ctx:new()
+    ),
+    {ok, DepM1} = ff_deposit:get_machine(DepID),
+    pending = ff_deposit:status(ff_deposit:get(DepM1)),
+    succeeded = ct_helper:await(
+        succeeded,
+        fun () ->
+            {ok, DepM} = ff_deposit:get_machine(DepID),
+            ff_deposit:status(ff_deposit:get(DepM))
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok = await_wallet_balance({10000, <<"RUB">>}, WalID).
+
 create_destination(IID, C) ->
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
     DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
@@ -290,3 +353,31 @@ process_withdrawal(WalID, DestID, WalStartBalance) ->
     ok = await_wallet_balance({WalStartBalance - 4240, <<"RUB">>}, WalID),
     ok = await_destination_balance({4240 - 848, <<"RUB">>}, DestID),
     WdrID.
+
+process_withdrawal_old_style(WdrID, WalID, DestID, WalStartBalance) ->
+    ok = ff_withdrawal:create(
+        WdrID,
+        #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
+        ff_ctx:new()
+    ),
+    {ok, WdrM1} = ff_withdrawal:get_machine(WdrID),
+    pending = ff_withdrawal:status(ff_withdrawal:get(WdrM1)),
+    succeeded = ct_helper:await(
+        succeeded,
+        fun () ->
+            {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
+            ff_withdrawal:status(ff_withdrawal:get(WdrM))
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok = await_wallet_balance({WalStartBalance - 4240, <<"RUB">>}, WalID),
+    ok = await_destination_balance({4240 - 848, <<"RUB">>}, DestID),
+    WdrID.
+
+collapse_raw_events(Events) ->
+    lists:foldl(fun ({
+            _EventID,
+            {ev, _EventDt, Payload}
+        }, T) ->
+            ff_transfer_new:apply_event(Payload, T)
+    end, undefined, Events).

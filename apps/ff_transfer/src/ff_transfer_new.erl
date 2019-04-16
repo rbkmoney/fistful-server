@@ -6,7 +6,7 @@
 
 -type handler()     :: module().
 
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 
 -opaque transfer(T) :: #{
     version             := ?ACTUAL_FORMAT_VERSION,
@@ -442,7 +442,10 @@ unwrap_transaction_call_res({ok, {Action, Events}}) ->
     {Action, wrap_transaction_events(Events)}.
 
 wrap_transaction_events(Events) ->
-    [{transaction, Ev} || Ev <- Events].
+    [wrap_transaction_event(Ev) || Ev <- Events].
+
+wrap_transaction_event(Event) ->
+    {transaction, Event}.
 
 check_transaction_complete(Events) ->
     lists:foldl(fun (Ev, Acc) ->
@@ -538,9 +541,38 @@ action_to_activity(transaction, next) ->
 % Actual events
 maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _) ->
     Ev;
-maybe_migrate(Ev = {p_transfer, _PEvent}, EventType) ->
-    {transaction, {p_transfer, ff_postings_transfer:maybe_migrate(Ev, EventType)}};
 % Old events
+maybe_migrate(Ev = {p_transfer, _Event}, EventType) ->
+    wrap_transaction_event(migrate_to_transaction(Ev, EventType));
+maybe_migrate(Ev = {session_started, _Event}, _EventType) ->
+    wrap_transaction_event(Ev);
+maybe_migrate(Ev = {session_finished, _Event}, _EventType) ->
+    wrap_transaction_event(Ev);
+maybe_migrate({created, #{version := 2, transfer_type := withdrawal} = T}, EventType) ->
+    #{
+        version         := 2,
+        id              := ID,
+        transfer_type   := withdrawal,
+        body            := Body,
+        params          := #{
+            wallet_id             := SourceID,
+            destination_id        := DestinationID
+        }
+    } = T,
+    maybe_migrate({created, #{
+        version       => 3,
+        id            => ID,
+        transfer_type => withdrawal,
+        body          => Body,
+        params        => #{
+            wallet_id             => SourceID,
+            destination_id        => DestinationID
+        }
+    }}, EventType);
+maybe_migrate({created, #{version := 2, transfer_type := deposit} = T}, EventType) ->
+    maybe_migrate({created, T#{
+        version       => 3
+    }}, EventType);
 maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, EventType) ->
     #{
         version     := 1,
@@ -631,3 +663,23 @@ maybe_migrate({transfer, PTransferEv}, EventType) ->
 % Other events
 maybe_migrate(Ev, _) ->
     Ev.
+
+-spec migrate_to_transaction(legacy_event(), transfer_type()) ->
+    ff_transaction_new:event().
+
+%% For Transfer VERSION =:= 3
+migrate_to_transaction({p_transfer, PEvent}, EventType) ->
+    case ff_postings_transfer:maybe_migrate(PEvent, EventType) of
+        {created, #{id := ID} = PT}->
+            {created, #{
+                version         => 1,
+                id              => ID,
+                body            => {0, <<"">>},
+                final_cash_flow => [],
+                session_data    => [empty, undefined, undefined],
+                status          => pending,
+                p_transfer      => PT
+            }};
+        Other ->
+            {p_transfer, Other}
+    end.

@@ -79,8 +79,8 @@
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 -type session_params() :: #{
     cash        := ff_transaction:body(),
-    sender      := ff_identity:id(),
-    receiver    := ff_identity:id(),
+    sender      := ff_identity:identity(),
+    receiver    := ff_identity:identity(),
     destination := ff_destination:id(),
     provider_id := ff_withdrawal_provider:id()
 }.

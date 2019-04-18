@@ -4,6 +4,8 @@
 
 -module(ff_session).
 
+-define(ACTUAL_FORMAT_VERSION, 1).
+
 %% Accessors
 -export([status/1]).
 -export([params/1]).
@@ -38,6 +40,7 @@
 %%
 
 -type session(T) :: #{
+    version       := ?ACTUAL_FORMAT_VERSION,
     type          := session_type(),
     id            := id(),
     status        := status(),
@@ -142,6 +145,7 @@ create(NS, ID, #{
 }, Ctx) ->
     do(fun() ->
         Events = [{created, #{
+            version     => ?ACTUAL_FORMAT_VERSION,
             id          => ID,
             type        => SessionType,
             status      => active,
@@ -166,17 +170,6 @@ type_to_handler(empty) ->
 type_to_handler(withdrawal) ->
     ff_withdrawal_session_new.
 
-%% TODO Add migration to new identity id
--spec apply_event(event(), undefined | session()) ->
-    session().
-apply_event({created, Session}, undefined) ->
-    Session;
-apply_event({finished, Result}, Session) ->
-    set_session_status({finished, Result}, Session);
-apply_event(Ev, Session = #{type := Type}) ->
-    Handler = type_to_handler(Type),
-    Handler:apply_event(Ev, Session).
-
 -spec process_session(session()) -> result().
 process_session(#{status := active, type := Type} = Session) ->
     Handler = type_to_handler(Type),
@@ -187,6 +180,45 @@ process_session(#{status := active, type := Type} = Session) ->
 set_session_result(Result, Session = #{type := Type}) ->
     Handler = type_to_handler(Type),
     Handler:set_session_result(Result, Session).
+
+-spec apply_event(event(), undefined | session()) ->
+    session().
+apply_event(Ev, T) ->
+    apply_event_(maybe_migrate(Ev), T).
+
+apply_event_({created, Session}, undefined) ->
+    Session;
+apply_event_({finished, Result}, Session) ->
+    set_session_status({finished, Result}, Session);
+apply_event_(Ev, Session = #{type := Type}) ->
+    Handler = type_to_handler(Type),
+    Handler:apply_event(Ev, Session).
+
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+    Ev;
+% Old events
+maybe_migrate({created, T}) ->
+    #{
+        id         := ID,
+        withdrawal := Withdrawal,
+        provider   := ProviderID,
+        adapter    := Adapter,
+        status     := Status
+    } = T,
+    maybe_migrate({created, #{
+        version       => ?ACTUAL_FORMAT_VERSION,
+        id            => ID,
+        type          => withdrawal,
+        status        => Status,
+        params        => #{
+            withdrawal  => Withdrawal,
+            provider    => ProviderID,
+            adapter     => Adapter
+        }
+    }});
+% Other events
+maybe_migrate(Ev) ->
+    Ev.
 
 %%
 

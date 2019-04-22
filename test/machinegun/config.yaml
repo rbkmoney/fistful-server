@@ -56,6 +56,10 @@ namespaces:
       event_sink: ff/withdrawal/session_v2
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/withdrawal/session_v2
+  ff/withdrawal/session_v3:
+      event_sink: ff/withdrawal/session_v3
+      processor:
+          url: http://fistful-server:8022/v1/stateproc/ff/withdrawal/session_v3
 
   ff/sequence:
       processor:

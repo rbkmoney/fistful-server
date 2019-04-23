@@ -77,6 +77,13 @@
 -type destination_id() :: ff_destination:id().
 -type process_result() :: {ff_transfer_machine_new:action(), [event()]}.
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
+-type session_params() :: #{
+    cash        := ff_transaction:body(),
+    sender      := ff_identity:identity(),
+    receiver    := ff_identity:identity(),
+    destination := ff_destination:id(),
+    provider_id := ff_withdrawal_provider:id()
+}.
 
 -spec transfer_type() ->
     ff_transfer_new:transfer_type().
@@ -196,7 +203,7 @@ events(ID, Range) ->
 
 -spec preprocess_transfer(withdrawal()) ->
     ok                                                                          |
-    {ok, ff_transfer_new:new_activity(), ff_transfer_new:preprocess_result()}   |
+    {ok, ff_transfer_new:new_activity(), ff_transfer_new:preprocess_result(session_params())}   |
     {error, _Reason}.
 
 preprocess_transfer(undefined) ->
@@ -300,28 +307,24 @@ create_transaction_params(Withdrawal) ->
 
     %% Prepare session params
 
-    ID = construct_session_id(id(Withdrawal)),
+    ID = construct_transaction_id(id(Withdrawal)),
     SenderSt = unwrap(ff_identity_machine:get(ff_account:identity(WalletAccount))),
     ReceiverSt = unwrap(ff_identity_machine:get(ff_account:identity(DestinationAccount))),
-    TransferData = #{
-        id          => ID,
+    SessionParams = #{
         cash        => body(Withdrawal),
         sender      => ff_identity_machine:identity(SenderSt),
-        receiver    => ff_identity_machine:identity(ReceiverSt)
-    },
-    SessionParams = #{
+        receiver    => ff_identity_machine:identity(ReceiverSt),
         destination => destination_id(Withdrawal),
         provider_id => ProviderID
     },
 
     #{
-        id                  => construct_transaction_id(id(Withdrawal)),
+        id                  => ID,
         body                => body(Withdrawal),
         final_cash_flow     => FinalCashFlow,
-        session_data        => {
-            ff_transaction_new:get_session_type(withdrawal),
-            TransferData,
-            SessionParams
+        session_data        => #{
+            type    => ff_transaction_new:get_session_type(withdrawal),
+            params  => SessionParams
         }
     }.
 
@@ -378,9 +381,6 @@ validate_withdrawals_terms(ID, VS) ->
         {error, _Error} ->
             false
     end.
-
-construct_session_id(ID) ->
-    ID.
 
 -spec finalize_cash_flow(cash_flow_plan(), account(), account(), account(), account(), account(), body()) ->
     {ok, final_cash_flow()} | {error, _Error}.

@@ -65,8 +65,9 @@
     params        := params(),
     external_id   := external_id()
 }.
--type preprocess_result()   ::
-    {create_transaction, ff_transaction_new:create_params()}.
+-type preprocess_result()   :: preprocess_result(any()).
+-type preprocess_result(T)   ::
+    {create_transaction, ff_transaction_new:create_params(T)}.
 
 -type activity()            ::
     new                      |
@@ -88,7 +89,7 @@
 -export_type([route/1]).
 -export_type([maybe/1]).
 
--export_type([preprocess_result/0]).
+-export_type([preprocess_result/1]).
 -export_type([new_activity/0]).
 
 -export([gen/1]).

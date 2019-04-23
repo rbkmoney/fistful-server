@@ -45,9 +45,19 @@
     next                     |
     undefined                .
 
--type session_data() ::
-    {withdrawal, ff_withdrawal_session:data(), ff_withdrawal_session:params()} |
-    {empty, undefined, undefined}.
+-type session_data(T) :: #{
+    type := ff_session:session_type(),
+    params := T
+}.
+
+-type session_data() :: session_data(any()).
+-type create_params() :: create_params(any()).
+-type create_params(T) :: #{
+    id              := id(),
+    body            := body(),
+    final_cash_flow := final_cash_flow(),
+    session_data    := session_data(T)
+}.
 
 -export_type([transaction/0]).
 -export_type([event/0]).
@@ -55,7 +65,8 @@
 -export_type([body/0]).
 -export_type([action/0]).
 -export_type([create_params/0]).
--export_type([session_data/0]).
+-export_type([session_data/1]).
+-export_type([create_params/1]).
 
 -export([id/1]).
 -export([session_type/1]).
@@ -85,7 +96,7 @@
 
 -type id()              :: binary().
 -type session_id()      :: id().
--type session_type()    :: empty | withdrawal.
+-type session_type()    :: ff_session:session_type().
 -type p_transfer()      :: ff_postings_transfer:transaction().
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 
@@ -96,7 +107,7 @@ id(#{id := V}) ->
     V.
 
 -spec session_type(transaction()) -> session_type().
-session_type(#{session_data := {V, _, _}}) ->
+session_type(#{session_data := #{type := V}}) ->
     V.
 
 -spec session_data(transaction()) -> session_data().
@@ -137,22 +148,15 @@ final_cash_flow(#{final_cash_flow := V}) ->
     session_type().
 
 get_empty_session_type() ->
-    empty.
+    ff_session:get_empty_session_type().
 
 -spec get_session_type(withdrawal) ->
     session_type().
 
-get_session_type(withdrawal) ->
-    withdrawal.
+get_session_type(Type) ->
+    ff_session:get_session_type(Type).
 
 %% API
-
--type create_params() :: #{
-    id              := id(),
-    body            := body(),
-    final_cash_flow := final_cash_flow(),
-    session_data    := session_data()
-}.
 
 -spec create(create_params()) ->
     {ok, [event()]} |
@@ -232,12 +236,14 @@ process_activity(p_transfer_preparing, Transaction) ->
             fun ff_postings_transfer:prepare/1)
         )}
     end);
-process_activity(session_starting, Transaction = #{session_data := {withdrawal, _, _}}) ->
-    ID = construct_session_id(id(Transaction)),
+process_activity(session_starting, Transaction = #{session_data := #{
+    type := Type,
+    params := Params
+}}) when Type =/= empty ->
+    SessionID = construct_session_id(id(Transaction)),
     do(fun () ->
-        {_, TransferData, SessionParams} = session_data(Transaction),
-        ok = unwrap(ff_withdrawal_session_machine:create(ID, TransferData, SessionParams)),
-        {continue, [{session_started, ID}]}
+        ok = unwrap(ff_session:create(Type, SessionID, Params)),
+        {continue, [{session_started, SessionID}]}
     end);
 process_activity(session_starting, _Transaction) ->
     do(fun () ->
@@ -245,10 +251,11 @@ process_activity(session_starting, _Transaction) ->
     end);
 process_activity(session_polling, Transaction) ->
     SessionID = session_id(Transaction),
-    {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
-    Session = ff_withdrawal_session_machine:session(SessionMachine),
+    #{type := Type} = session_data(Transaction),
+    {ok, SessionMachine} = ff_session:get(Type, SessionID),
+    Session = ff_session_machine:session(SessionMachine),
     do(fun () ->
-        case ff_withdrawal_session:status(Session) of
+        case ff_session:status(Session) of
             active ->
                 {poll, []};
             {finished, {success, _}} ->

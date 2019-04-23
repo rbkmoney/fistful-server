@@ -89,7 +89,8 @@ start_processing_apps(Options) ->
                 'ff/destination_v2'        ,
                 'ff/withdrawal_v2'         ,
                 'ff/withdrawal_v3'         ,
-                'ff/withdrawal/session_v2'
+                'ff/withdrawal/session_v2' ,
+                'ff/withdrawal/session_v3'
             ]])},
             {providers, identity_provider_config(Options)}
         ]},
@@ -113,7 +114,8 @@ start_processing_apps(Options) ->
             construct_handler(ff_instrument_machine         , "destination_v2"        , BeConf),
             construct_handler(ff_transfer_machine           , "withdrawal_v2"         , BeConf),
             construct_handler(ff_transfer_machine_new       , "withdrawal_v3"         , BeConf),
-            construct_handler(ff_withdrawal_session_machine , "withdrawal/session_v2" , BeConf)
+            construct_handler(ff_withdrawal_session_machine , "withdrawal/session_v2" , BeConf),
+            construct_handler(ff_session_machine            , "withdrawal/session_v3" , BeConf)
         ],
         BeOpts
     ),

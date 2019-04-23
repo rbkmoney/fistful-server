@@ -68,7 +68,7 @@
 -type process_result() :: {ff_transfer_machine_new:action(), [event()]}.
 -type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
 -type ctx()            :: ff_ctx:ctx().
-
+-type session_params() :: #{}.
 %% Accessors
 
 -spec wallet_id(deposit())       -> source_id().
@@ -165,7 +165,7 @@ events(ID, Range) ->
 
 -spec preprocess_transfer(deposit()) ->
     ok                                                                          |
-    {ok, ff_transfer_new:new_activity(), ff_transfer_new:preprocess_result()}   |
+    {ok, ff_transfer_new:new_activity(), ff_transfer_new:preprocess_result(session_params())}   |
     {error, _Reason}.
 
 preprocess_transfer(undefined) ->
@@ -235,7 +235,10 @@ create_transaction_params(Deposit) ->
         id                  => construct_transaction_id(id(Deposit)),
         body                => body(Deposit),
         final_cash_flow     => FinalCashFlow,
-        session_data        => {ff_transaction_new:get_empty_session_type(), undefined, undefined}
+        session_data        => #{
+            type    => ff_transaction_new:get_empty_session_type(),
+            params  => #{}
+        }
     }.
 
 -spec construct_transaction_id(id()) -> id().

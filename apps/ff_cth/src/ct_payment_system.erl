@@ -71,7 +71,7 @@ start_processing_apps(Options) ->
         client => ff_woody_client:new(<<"http://machinegun:8022/v1/automaton">>)
     }},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
-        {sasl, [{sasl_error_logger, false}]},
+        % {sasl, [{sasl_error_logger, false}]},
         lager,
         scoper,
         woody,
@@ -85,9 +85,12 @@ start_processing_apps(Options) ->
                 'ff/wallet_v2'             ,
                 'ff/source_v1'             ,
                 'ff/deposit_v1'            ,
+                'ff/deposit_v2'            ,
                 'ff/destination_v2'        ,
                 'ff/withdrawal_v2'         ,
-                'ff/withdrawal/session_v2'
+                'ff/withdrawal_v3'         ,
+                'ff/withdrawal/session_v2' ,
+                'ff/withdrawal/session_v3'
             ]])},
             {providers, identity_provider_config(Options)}
         ]},
@@ -107,9 +110,12 @@ start_processing_apps(Options) ->
             construct_handler(ff_wallet_machine             , "wallet_v2"             , BeConf),
             construct_handler(ff_instrument_machine         , "source_v1"             , BeConf),
             construct_handler(ff_transfer_machine           , "deposit_v1"            , BeConf),
+            construct_handler(ff_transfer_machine_new       , "deposit_v2"            , BeConf),
             construct_handler(ff_instrument_machine         , "destination_v2"        , BeConf),
             construct_handler(ff_transfer_machine           , "withdrawal_v2"         , BeConf),
-            construct_handler(ff_withdrawal_session_machine , "withdrawal/session_v2" , BeConf)
+            construct_handler(ff_transfer_machine_new       , "withdrawal_v3"         , BeConf),
+            construct_handler(ff_withdrawal_session_machine , "withdrawal/session_v2" , BeConf),
+            construct_handler(ff_session_machine            , "withdrawal/session_v3" , BeConf)
         ],
         BeOpts
     ),

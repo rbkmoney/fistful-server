@@ -428,7 +428,7 @@ create_session(Withdrawal) ->
             destination => destination_id(Withdrawal),
             provider_id => ProviderID
         },
-        ok = unwrap(ff_withdrawal_session_machine:create(ID, TransferData, SessionParams)),
+        ok = create_session(ID, TransferData, SessionParams),
         {continue, [{session_started, ID}]}
     end).
 
@@ -438,6 +438,14 @@ construct_session_id(ID) ->
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->
     <<"ff/withdrawal/", ID/binary>>.
+
+create_session(ID, TransferData, SessionParams) ->
+    case ff_withdrawal_session_machine:create(ID, TransferData, SessionParams) of
+        ok ->
+            ok;
+        {error, exists} ->
+            ok
+    end.
 
 poll_session_completion(Withdrawal) ->
     SessionID = ff_transfer:session_id(Withdrawal),

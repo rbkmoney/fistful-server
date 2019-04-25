@@ -83,7 +83,40 @@ handle_function_('GetDeposit', [ID], _Context, _Opts) ->
             {ok, encode(deposit, {ID, Machine})};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
+    end;
+handle_function_('CreateRevert', [Params], Context, Opts) ->
+    RevertID = Params#fistful_admin_RevertParams.id,
+    case ff_transfer_new:revert(#{
+            revert_id   => RevertID,
+            target      => decode({transfer, target}, Params#fistful_admin_RevertParams.target),
+            reason      => Params#fistful_admin_RevertParams.reason,
+            body        => decode({deposit, body}, Params#fistful_admin_RevertParams.body)
+        })
+    of
+        ok ->
+            #{root_id := ID, root_type := Type} = decode({transfer, target}, Params#fistful_admin_RevertParams.target),
+            handle_function_('GetRevert', [
+                #fistful_admin_Target{
+                    root_id   = ID,
+                    root_type = Type,
+                    target_id = RevertID
+                }
+            ], Context, Opts);
+        {error, {not_found, ID}} ->
+            woody_error:raise(business, #fistful_TransferNotFound{id = ID});
+        {error, Error} ->
+            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
+    end;
+handle_function_('GetRevert', [Target], _Context, _Opts) ->
+    RevertID = Target#fistful_admin_Target.target_id,
+    case ff_transfer_new:get_revert(decode({transfer, target}, Target)) of
+        {ok, Revert} ->
+            {ok, encode(revert, {RevertID, Revert})};
+        {error, {notfound, ID}} ->
+            woody_error:raise(business, #fistful_TransferNotFound{id = ID})
     end.
+
+%%
 
 decode({source, resource}, #fistful_SourceResource{details = Details}) ->
     genlib_map:compact(#{
@@ -94,9 +127,19 @@ decode({deposit, body}, #'Cash'{amount = Amount, currency = Currency}) ->
     {Amount, decode(currency, Currency)};
 decode(currency, #'CurrencyRef'{symbolic_code = V}) ->
     V;
+decode({transfer, target}, #fistful_admin_Target{root_id = ID, root_type = Type, target_id = TargetID}) ->
+    #{root_id => ID, root_type => Type, target_id => TargetID};
 decode(context, Context) ->
     Context.
 
+encode(revert, {ID, Revert}) ->
+    #fistful_admin_Revert{
+        id          = ID,
+        target      = ff_revert:target(Revert),
+        status      = ff_revert:status(Revert),
+        body        = ff_revert:body(Revert),
+        reason      = ff_revert:reason(Revert)
+    };
 encode(source, {ID, Machine}) ->
     Source = ff_source:get(Machine),
     #fistful_Source{

@@ -79,6 +79,12 @@
     undefined                |
     activity()               .
 
+-type target()           :: #{
+    root_id   := id(),
+    root_type := transfer_type(),
+    target_id := id()
+}.
+
 -export_type([args/0]).
 -export_type([transfer/1]).
 -export_type([handler/0]).
@@ -88,6 +94,7 @@
 -export_type([status/0]).
 -export_type([route/1]).
 -export_type([maybe/1]).
+-export_type([target/0]).
 
 -export_type([preprocess_result/1]).
 -export_type([new_activity/0]).
@@ -103,15 +110,23 @@
 -export([activity/1]).
 -export([transaction/1]).
 
+-export([target_get_id/1]).
+-export([target_get_root_id/1]).
+-export([target_get_root_type/1]).
+
 %% API
 
 -export([create/3]).
+-export([create_events/1]).
+-export([revert/1]).
+-export([get_revert/1]).
 
 %% Internal
 
 -export([wrap_events_for_parent/3]).
 -export([wrap_events_for_parent/4]).
 -export([handler_to_type/1]).
+-export([collapse/2]).
 
 %% ff_transfer behaviour
 
@@ -134,6 +149,10 @@
     {ok, {action(), [event()]}} |
     {error, _Reason}.
 
+-callback revert(revert_params()) ->
+    ok | {error, _Reason}.
+
+-optional_callbacks([revert/1]).
 
 %% ff_transfer_machine_new behaviour
 -behaviour(ff_transfer_machine_new).
@@ -163,7 +182,7 @@
 -type params(T)             :: T.
 -type transfer()            :: transfer(any()).
 -type legacy_event()        :: any().
--type transfer_type()       :: atom().
+-type transfer_type()       :: withdrawal | deposit | revert.
 -type ctx()                 :: ff_ctx:ctx().
 -type action()              :: ff_transfer_machine_new:action().
 -type ns()                  :: machinery:namespace().
@@ -237,6 +256,18 @@ childs(#{childs := Activity}) ->
 childs(_Transfer) ->
     [].
 
+-spec target_get_root_id(target()) ->
+    id().
+target_get_root_id(#{root_id := V}) ->
+    V.
+-spec target_get_root_type(target()) ->
+    transfer_type().
+target_get_root_type(#{root_type := V}) ->
+    V.
+-spec target_get_id(target()) ->
+    id().
+target_get_id(#{target_id := V}) ->
+    V.
 %% API
 
 -spec create(ns(), create_params(), ctx()) ->
@@ -269,6 +300,41 @@ create(
         ],
         unwrap(ff_transfer_machine_new:create(NS, ID, Events, Ctx))
     end).
+
+-spec create_events(create_params()) ->
+    {ok, [event()]}.
+
+create_events(#{
+    transfer_type := TransferType,
+    id := ID,
+    body := Body,
+    params := Params,
+    external_id := ExternalID
+}) ->
+    [
+        {created, add_external_id(ExternalID, #{
+            version       => ?ACTUAL_FORMAT_VERSION,
+            id            => ID,
+            transfer_type => TransferType,
+            body          => Body,
+            params        => Params
+        })},
+        {status_changed, pending}
+    ].
+
+-type revert_params()           :: #{
+    revert_id     := id(),
+    target        := target(),
+    reason        := binary(),
+    body          := body()
+}.
+
+-spec revert(revert_params()) ->
+    ok | {error, {not_found, id()} | _TransferError}.
+
+revert(Params = #{target := Target}) ->
+    Handler = type_to_handler(target_get_root_type(Target)),
+    Handler:revert(Params).
 
 add_external_id(undefined, Event) ->
     Event;
@@ -331,6 +397,8 @@ process_transfer(Transfer) ->
     {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
     {error, _Reason}.
 
+process_call({revert, Params}, Transfer) ->
+    process_revert(Params, Transfer);
 process_call(Args, Transfer) ->
     Handler = type_to_handler(transfer_type(Transfer)),
     Handler:process_call(Args, Transfer).
@@ -383,6 +451,33 @@ do_process_transfer(transaction_polling, Transfer, _Data) ->
 do_process_transfer(_Activity, Transfer, _Data) ->
     Handler = type_to_handler(transfer_type(Transfer)),
     Handler:process_transfer(Transfer).
+
+-spec process_revert(revert_params(), transfer()) ->
+    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
+    {error, _Reason}.
+
+process_revert(Params = #{target := Target}, Transfer) ->
+    RootID = target_get_root_id(Target),
+    ID = target_get_id(Target),
+    case RootID =:= ID of
+        true ->
+            Type = transfer_type(Transfer),
+            Handler = type_to_handler(Type),
+            Handler:process_call({revert, Params}, Transfer);
+        false ->
+            case find_child(ID, childs(Transfer)) of
+                undefined ->
+                    %% TODO try to find in deep layer
+                    {error, {not_found, ID}};
+                Child ->
+                    do(fun () ->
+                        Type = transfer_type(Child),
+                        Handler = type_to_handler(Type),
+                        {Action, Events} = unwrap(Handler:process_call({revert, Params}, Child)),
+                        {ok, {Action, wrap_events_for_parent(Child, Events, Transfer)}}
+                    end)
+            end
+    end.
 
 %%
 
@@ -460,6 +555,12 @@ check_transaction_complete(Events) ->
 
 %%
 
+-spec collapse([event()], undefined | transfer()) ->
+    transfer().
+
+collapse(Events, Transfer0) ->
+    lists:foldl(fun (Ev, Transfer) -> apply_event(Ev, Transfer) end, Transfer0, Events).
+
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
 apply_event(Ev, T) ->
@@ -478,7 +579,8 @@ apply_event_({transaction, Ev}, T) ->
     Activity = action_to_activity(transaction, Action),
     set_activity(Activity, maps:put(transaction, Transaction, T));
 apply_event_({child_transfer, SignedEvent = #{event := Ev}}, T) ->
-    Child0 = find_child(SignedEvent, childs(T)),
+    #{id := ID} = SignedEvent,
+    Child0 = find_child(ID, childs(T)),
     Child1 = apply_event(Ev, Child0),
     Child2 = set_parent(Child1, T),
     update_childs(Child0, Child2, T);
@@ -488,12 +590,12 @@ apply_event_(Ev, T) ->
 
 find_child(_, []) ->
     undefined;
-find_child(Ev = #{id := ID}, [Child | Rest]) ->
+find_child(ID, [Child | Rest]) ->
     case id(Child) =:= ID of
         true ->
             Child;
         false ->
-            find_child(Ev, Rest)
+            find_child(ID, Rest)
     end.
 
 -spec set_parent(transfer(), transfer()) ->

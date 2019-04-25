@@ -37,6 +37,7 @@
 -export([process_transfer/1]).
 -export([process_failure/2]).
 -export([process_call/2]).
+-export([revert/1]).
 
 %% Accessors
 
@@ -69,10 +70,12 @@
 -type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
 -type ctx()            :: ff_ctx:ctx().
 -type session_params() :: #{}.
+-type revert_params()  :: ff_transfer_new:revert_params().
+
 %% Accessors
 
--spec wallet_id(deposit())       -> source_id().
--spec source_id(deposit())       -> wallet_id().
+-spec wallet_id(deposit())       -> wallet_id().
+-spec source_id(deposit())       -> source_id().
 -spec id(deposit())              -> ff_transfer_new:id().
 -spec body(deposit())            -> ff_transfer_new:body().
 -spec status(deposit())          -> ff_transfer_new:status().
@@ -141,6 +144,14 @@ create(ID, Args = #{source_id := SourceID, wallet_id := WalletID, body := Body},
         unwrap(ff_transfer_new:create(?NS, Params, Ctx))
     end).
 
+-spec revert(revert_params()) ->
+    ok | {error, _Error}.
+
+revert(Params) ->
+    do(fun() ->
+        unwrap(ff_transfer_machine_new:revert(?NS, Params))
+    end).
+
 -spec get(machine()) ->
     deposit().
 
@@ -170,9 +181,9 @@ events(ID, Range) ->
 
 preprocess_transfer(undefined) ->
     {error, cant_preprocess_undefined_transfer};
-preprocess_transfer(Transfer) ->
-    Activity = ff_transfer_new:activity(Transfer),
-    do_preprocess_transfer(Activity, Transfer).
+preprocess_transfer(Deposit) ->
+    Activity = ff_transfer_new:activity(Deposit),
+    do_preprocess_transfer(Activity, Deposit).
 
 -spec process_transfer(deposit()) ->
     {ok, process_result()} |
@@ -180,21 +191,21 @@ preprocess_transfer(Transfer) ->
 
 process_transfer(undefined) ->
     {error, cant_process_undefined_transfer};
-process_transfer(_Transfer) ->
+process_transfer(_Deposit) ->
     {ok, {undefined, []}}.
 
 -spec process_call(_Args, deposit()) ->
     {ok, process_result()} |
     {error, _Reason}.
 
-process_call({revert, _Body, _Reason}, _Transfer) ->
-    {ok, {undefined, []}}.
+process_call({revert, Params}, Deposit) ->
+    process_revert(Params, Deposit).
 
 -spec process_failure(any(), deposit()) ->
     {ok, process_result()} |
     {error, _Reason}.
 
-process_failure(_Reason, _Transfer) ->
+process_failure(_Reason, _Deposit) ->
     {ok, {undefined, []}}.
 
 %% Internals
@@ -215,7 +226,33 @@ do_preprocess_transfer(Activity, Deposit) when
 do_preprocess_transfer(_, _) ->
     ok.
 
+process_revert(Params = #{revert_id := RevertID, body := Body, target := Target}, Deposit) ->
+    #{
+        wallet_id := WalletID
+    } = params(Deposit),
+    %% TODO validate revert params and limits
+    %% TODO check if same revert already exists
+    {ok, Events} = ff_revert:create(RevertID, #{
+        wallet_id           => WalletID,
+        revert_cash_flow    => build_final_cash_flow(Body, Deposit),
+        body                => Body,
+        session_data        => prepare_session_data(),
+        reason              => maps:get(reason, Params, undefined),
+        target              => Target
+    }),
+    Revert = ff_transfer_new:collapse(Events, undefined),
+    RevertEvents = ff_transfer_new:wrap_events_for_parent(Revert, Events, Deposit),
+    {ok, {continue, RevertEvents}}.
+
 create_transaction_params(Deposit) ->
+    #{
+        id                  => construct_transaction_id(id(Deposit)),
+        body                => body(Deposit),
+        final_cash_flow     => build_final_cash_flow(body(Deposit), Deposit),
+        session_data        => prepare_session_data()
+    }.
+
+build_final_cash_flow(Body, Deposit) ->
     #{
         wallet_account := WalletAccount,
         source_account := SourceAccount,
@@ -223,22 +260,18 @@ create_transaction_params(Deposit) ->
     } = params(Deposit),
 
     Constants = #{
-        operation_amount => body(Deposit)
+        operation_amount => Body
     },
     Accounts = #{
         {wallet, sender_source} => SourceAccount,
         {wallet, receiver_settlement} => WalletAccount
     },
-    FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
+    unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)).
 
+prepare_session_data() ->
     #{
-        id                  => construct_transaction_id(id(Deposit)),
-        body                => body(Deposit),
-        final_cash_flow     => FinalCashFlow,
-        session_data        => #{
-            type    => ff_transaction_new:get_empty_session_type(),
-            params  => #{}
-        }
+        type    => ff_transaction_new:get_empty_session_type(),
+        params  => #{}
     }.
 
 -spec construct_transaction_id(id()) -> id().

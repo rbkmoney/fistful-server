@@ -9,6 +9,7 @@
 %% Accessors
 -export([status/1]).
 -export([params/1]).
+-export([type/1]).
 -export([get_empty_session_type/0]).
 -export([get_session_type/1]).
 
@@ -107,6 +108,10 @@ status(#{status := V}) ->
 
 -spec params(session(T)) -> params(T).
 params(#{params := V}) ->
+    V.
+
+-spec type(session()) -> session_type().
+type(#{type := V}) ->
     V.
 
 -spec get_empty_session_type() ->

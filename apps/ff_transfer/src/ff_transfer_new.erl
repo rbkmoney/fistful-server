@@ -149,10 +149,10 @@
     {ok, {action(), [event()]}} |
     {error, _Reason}.
 
--callback revert(revert_params()) ->
-    ok | {error, _Reason}.
+-callback get_ns() ->
+    ns().
 
--optional_callbacks([revert/1]).
+-optional_callbacks([get_ns/0]).
 
 %% ff_transfer_machine_new behaviour
 -behaviour(ff_transfer_machine_new).
@@ -268,6 +268,7 @@ target_get_root_type(#{root_type := V}) ->
     id().
 target_get_id(#{target_id := V}) ->
     V.
+
 %% API
 
 -spec create(ns(), create_params(), ctx()) ->
@@ -276,33 +277,14 @@ target_get_id(#{target_id := V}) ->
         _PostingsTransferError
     }.
 
-create(
-    NS,
-    #{
-        transfer_type := TransferType,
-        id := ID,
-        body := Body,
-        params := Params,
-        external_id := ExternalID
-    },
-    Ctx
-) ->
+create(NS, Params = #{id := ID}, Ctx) ->
     do(fun () ->
-        Events = [
-            {created, add_external_id(ExternalID, #{
-                version       => ?ACTUAL_FORMAT_VERSION,
-                id            => ID,
-                transfer_type => TransferType,
-                body          => Body,
-                params        => Params
-            })},
-            {status_changed, pending}
-        ],
+        Events = create_events(Params),
         unwrap(ff_transfer_machine_new:create(NS, ID, Events, Ctx))
     end).
 
 -spec create_events(create_params()) ->
-    {ok, [event()]}.
+    [event()].
 
 create_events(#{
     transfer_type := TransferType,
@@ -334,7 +316,28 @@ create_events(#{
 
 revert(Params = #{target := Target}) ->
     Handler = type_to_handler(target_get_root_type(Target)),
-    Handler:revert(Params).
+    do(fun() ->
+        unwrap(ff_transfer_machine_new:revert(Handler:get_ns(), Params))
+    end).
+
+-spec get_revert(target()) ->
+    {ok, transfer()} | {error, {not_found, id()}}.
+
+get_revert(Target) ->
+    Handler     = type_to_handler(target_get_root_type(Target)),
+    ID          = target_get_root_id(Target),
+    TargetID    = target_get_id(Target),
+    do(fun() ->
+        Machine = unwrap(ff_transfer_machine_new:get(Handler:get_ns(), ID)),
+        Transfer = ff_transfer_machine_new:transfer(Machine),
+        case find_child(TargetID, childs(Transfer)) of
+            undefined ->
+                %% TODO try to find in deep layer
+                {error, {not_found, TargetID}};
+            Child ->
+                {ok, Child}
+        end
+    end).
 
 add_external_id(undefined, Event) ->
     Event;
@@ -367,6 +370,8 @@ make_parent(Transfer) ->
 
 -spec handler_to_type(module()) ->
     transfer_type().
+handler_to_type(ff_revert) ->
+    revert;
 handler_to_type(ff_deposit_new) ->
     deposit;
 handler_to_type(ff_withdrawal_new) ->
@@ -374,6 +379,8 @@ handler_to_type(ff_withdrawal_new) ->
 
 -spec type_to_handler(transfer_type()) ->
     module().
+type_to_handler(revert) ->
+    ff_revert;
 type_to_handler(deposit) ->
     ff_deposit_new;
 type_to_handler(withdrawal) ->

@@ -37,7 +37,7 @@
 -export([process_transfer/1]).
 -export([process_failure/2]).
 -export([process_call/2]).
--export([revert/1]).
+-export([get_ns/0]).
 
 %% Accessors
 
@@ -71,6 +71,7 @@
 -type ctx()            :: ff_ctx:ctx().
 -type session_params() :: #{}.
 -type revert_params()  :: ff_transfer_new:revert_params().
+-type ns()             :: machinery:namespace().
 
 %% Accessors
 
@@ -144,14 +145,6 @@ create(ID, Args = #{source_id := SourceID, wallet_id := WalletID, body := Body},
         unwrap(ff_transfer_new:create(?NS, Params, Ctx))
     end).
 
--spec revert(revert_params()) ->
-    ok | {error, _Error}.
-
-revert(Params) ->
-    do(fun() ->
-        unwrap(ff_transfer_machine_new:revert(?NS, Params))
-    end).
-
 -spec get(machine()) ->
     deposit().
 
@@ -174,6 +167,12 @@ events(ID, Range) ->
 
 %% ff_transfer_new behaviour
 
+-spec get_ns() ->
+    ns().
+
+get_ns() ->
+    ?NS.
+
 -spec preprocess_transfer(deposit()) ->
     ok                                                                          |
     {ok, ff_transfer_new:new_activity(), ff_transfer_new:preprocess_result(session_params())}   |
@@ -194,7 +193,7 @@ process_transfer(undefined) ->
 process_transfer(_Deposit) ->
     {ok, {undefined, []}}.
 
--spec process_call(_Args, deposit()) ->
+-spec process_call({revert, revert_params()}, deposit()) ->
     {ok, process_result()} |
     {error, _Reason}.
 

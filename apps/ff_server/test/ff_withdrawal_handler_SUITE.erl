@@ -3,6 +3,7 @@
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
 
 -include_lib("stdlib/include/assert.hrl").
 
@@ -288,7 +289,7 @@ call_service(destination, Fun, Args) ->
     ff_woody_client:call(Client, Request).
 
 call_admin(Fun, Args) ->
-    Service = {ff_proto_fistful_thrift, 'FistfulAdmin'},
+    Service = {ff_proto_fistful_admin_thrift, 'FistfulAdmin'},
     Request = {Service, Fun, Args},
     Client  = ff_woody_client:new(#{
         url           => <<"http://localhost:8022/v1/admin">>,
@@ -365,7 +366,7 @@ add_money(WalletID, IdentityID, Amount, Currency) ->
     SrcID = genlib:unique(),
 
     % Create source
-    {ok, _Src1} = call_admin('CreateSource', [#fistful_SourceParams{
+    {ok, _Src1} = call_admin('CreateSource', [#fistful_admin_SourceParams{
         id       = SrcID,
         name     = <<"HAHA NO">>,
         identity_id = IdentityID,
@@ -382,7 +383,7 @@ add_money(WalletID, IdentityID, Amount, Currency) ->
     ),
 
     % Process deposit
-    {ok, Dep1} = call_admin('CreateDeposit', [#fistful_DepositParams{
+    {ok, Dep1} = call_admin('CreateDeposit', [#fistful_admin_DepositParams{
         id          = genlib:unique(),
         source      = SrcID,
         destination = WalletID,

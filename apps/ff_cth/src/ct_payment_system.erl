@@ -187,7 +187,7 @@ construct_handler(Module, Suffix, BeConf) ->
 get_admin_routes() ->
     Path = <<"/v1/admin">>,
     woody_server_thrift_http_handler:get_routes(#{
-        handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
+        handlers => [{Path, {{ff_proto_fistful_admin_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
         event_handler => scoper_woody_event_handler
     }).
 

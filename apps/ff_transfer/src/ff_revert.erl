@@ -7,19 +7,19 @@
 -type id()               :: ff_transfer_machine_new:id().
 -type wallet_id()        :: ff_wallet:id().
 
--type revert()           :: revert(any()).
--type revert(T)          :: ff_transfer_new:transfer(transfer_params(T)).
--type transfer_params()  :: transfer_params(any()).
--type transfer_params(T) :: #{
+-type revert()          :: ff_transfer_new:transfer(transfer_params()).
+
+-type transfer_params() :: #{
     wallet_id            := wallet_id(),
     revert_cash_flow     := final_cash_flow(),
     target               := target(),
-    session_data         := session_data(T),
+    session_data         := session_data(),
     reason               => binary()
 }.
 
+-type session_data()     :: session_data(any()).
 -type session_data(T)    :: #{
-    type                 := wallet_id(),
+    type                 := ff_session:session_type(),
     params               := T
 }.
 
@@ -29,7 +29,7 @@
     wallet_id            := wallet_id(),
     revert_cash_flow     := final_cash_flow(),
     body                 := ff_transaction:body(),
-    session_data         := T,
+    session_data         := session_data(T),
     target               := target(),
     reason               => binary(),
     external_id          => id()
@@ -86,7 +86,7 @@
 -spec status(revert())          -> ff_transfer_new:status().
 -spec reason(revert())          -> undefined | binary().
 -spec target(revert())          -> target().
--spec params(revert(T))         -> transfer_params(T).
+-spec params(revert())          -> transfer_params().
 
 wallet_id(T)       -> maps:get(wallet_id, ff_transfer_new:params(T)).
 id(T)              -> ff_transfer_new:id(T).
@@ -176,8 +176,15 @@ do_preprocess_transfer(transaction_polling, Revert) ->
         _ ->
             ok
     end;
-do_preprocess_transfer(routing, Revert = #{session_data := #{type := empty}}) ->
-    {ok, transaction_starting, {create_transaction, create_transaction_params(Revert)}};
+do_preprocess_transfer(routing, Revert) ->
+    #{session_data := SessionData} = params(Revert),
+    #{type := Type} = SessionData,
+    case Type of
+        empty ->
+            {ok, transaction_starting, {create_transaction, create_transaction_params(Revert)}};
+        _ ->
+            ok
+    end;
 do_preprocess_transfer(transaction_starting, Revert) ->
     {ok, transaction_starting, {create_transaction, create_transaction_params(Revert)}};
 do_preprocess_transfer(_, _) ->

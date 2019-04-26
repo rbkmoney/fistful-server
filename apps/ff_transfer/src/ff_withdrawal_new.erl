@@ -35,6 +35,7 @@
 -export([process_transfer/1]).
 -export([process_failure/2]).
 -export([process_call/2]).
+-export([get_ns/0]).
 
 %% Accessors
 
@@ -84,6 +85,7 @@
     destination := ff_destination:id(),
     provider_id := ff_withdrawal_provider:id()
 }.
+-type ns()             :: machinery:namespace().
 
 -spec transfer_type() ->
     ff_transfer_new:transfer_type().
@@ -200,6 +202,12 @@ events(ID, Range) ->
     ff_transfer_machine_new:events(?NS, ID, Range).
 
 %% ff_transfer_machine_new behaviour
+
+-spec get_ns() ->
+    ns().
+
+get_ns() ->
+    ?NS.
 
 -spec preprocess_transfer(withdrawal()) ->
     ok                                                                          |

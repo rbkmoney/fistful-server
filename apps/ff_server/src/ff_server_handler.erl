@@ -3,6 +3,7 @@
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_transfer_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
@@ -112,7 +113,7 @@ handle_function_('GetRevert', [Target], _Context, _Opts) ->
     case ff_transfer_new:get_revert(decode({transfer, target}, Target)) of
         {ok, Revert} ->
             {ok, encode(revert, {RevertID, Revert})};
-        {error, {notfound, ID}} ->
+        {error, {not_found, ID}} ->
             woody_error:raise(business, #fistful_TransferNotFound{id = ID})
     end.
 
@@ -135,10 +136,24 @@ decode(context, Context) ->
 encode(revert, {ID, Revert}) ->
     #fistful_admin_Revert{
         id          = ID,
-        target      = ff_revert:target(Revert),
-        status      = ff_revert:status(Revert),
-        body        = ff_revert:body(Revert),
+        target      = encode({transfer, target}, ff_revert:target(Revert)),
+        status      = encode({transfer, status}, ff_revert:status(Revert)),
+        body        = encode({deposit, body}, ff_revert:body(Revert)),
         reason      = ff_revert:reason(Revert)
+    };
+encode({transfer, status}, pending) ->
+    {pending, #transfer_TransferPending{}};
+encode({transfer, status}, succeeded) ->
+    {succeeded, #transfer_TransferSucceeded{}};
+encode({transfer, status}, reverted) ->
+    {reverted, #transfer_TransferReverted{}};
+encode({transfer, status}, {failed, _Failure}) ->
+    {failed, #transfer_TransferFailed{failure = #transfer_Failure{}}};
+encode({transfer, target}, #{root_id := ID, root_type := Type, target_id := TargetID}) ->
+    #fistful_admin_Target{
+        root_id = ID,
+        root_type = Type,
+        target_id = TargetID
     };
 encode(source, {ID, Machine}) ->
     Source = ff_source:get(Machine),

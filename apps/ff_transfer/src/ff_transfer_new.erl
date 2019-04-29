@@ -316,6 +316,7 @@ create_events(#{
 
 revert(Params = #{target := Target}) ->
     Handler = type_to_handler(target_get_root_type(Target)),
+    %% TODO check result and make valid error
     do(fun() ->
         unwrap(ff_transfer_machine_new:revert(Handler:get_ns(), Params))
     end).
@@ -335,7 +336,7 @@ get_revert(Target) ->
                 %% TODO try to find in deep layer
                 {error, {not_found, TargetID}};
             Child ->
-                {ok, Child}
+                Child
         end
     end).
 
@@ -466,24 +467,24 @@ do_process_transfer(_Activity, Transfer, _Data) ->
 process_revert(Params = #{target := Target}, Transfer) ->
     RootID = target_get_root_id(Target),
     ID = target_get_id(Target),
-    case RootID =:= ID of
-        true ->
-            Type = transfer_type(Transfer),
-            Handler = type_to_handler(Type),
-            Handler:process_call({revert, Params}, Transfer);
-        false ->
-            case find_child(ID, childs(Transfer)) of
-                undefined ->
-                    %% TODO try to find in deep layer
-                    {error, {not_found, ID}};
-                Child ->
-                    do(fun () ->
-                        Type = transfer_type(Child),
-                        Handler = type_to_handler(Type),
-                        {Action, Events} = unwrap(Handler:process_call({revert, Params}, Child)),
-                        {ok, {Action, wrap_events_for_parent(Child, Events, Transfer)}}
-                    end)
-            end
+    process_revert_(RootID, ID, Params, Transfer).
+
+process_revert_(RootID, RootID, Params, Transfer) ->
+    Type = transfer_type(Transfer),
+    Handler = type_to_handler(Type),
+    Handler:process_call({revert, Params}, Transfer);
+process_revert_(_RootID, ID, Params, Transfer) ->
+    case find_child(ID, childs(Transfer)) of
+        undefined ->
+            %% TODO try to find in deep layer
+            {error, {not_found, ID}};
+        Child ->
+            do(fun () ->
+                Type = transfer_type(Child),
+                Handler = type_to_handler(Type),
+                {Action, Events} = unwrap(Handler:process_call({revert, Params}, Child)),
+                {ok, {Action, wrap_events_for_parent(Child, Events, Transfer)}}
+            end)
     end.
 
 %%
@@ -590,7 +591,7 @@ apply_event_({child_transfer, SignedEvent = #{event := Ev}}, T) ->
     Child0 = find_child(ID, childs(T)),
     Child1 = apply_event(Ev, Child0),
     Child2 = set_parent(Child1, T),
-    update_childs(Child0, Child2, T);
+    set_activity(transfer, update_childs(Child0, Child2, T));
 apply_event_(Ev, T) ->
     Handler = type_to_handler(transfer_type(T)),
     Handler:apply_event(Ev, T).

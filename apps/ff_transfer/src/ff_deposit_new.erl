@@ -233,7 +233,7 @@ process_revert(Params = #{revert_id := RevertID, body := Body, target := Target}
     %% TODO check if same revert already exists
     {ok, Events} = ff_revert:create(RevertID, #{
         wallet_id           => WalletID,
-        revert_cash_flow    => build_final_cash_flow(Body, Deposit),
+        revert_cash_flow    => build_reverted_final_cash_flow(Body, Deposit),
         body                => Body,
         session_data        => prepare_session_data(),
         reason              => maps:get(reason, Params, undefined),
@@ -258,12 +258,24 @@ build_final_cash_flow(Body, Deposit) ->
         wallet_cash_flow_plan := CashFlowPlan
     } = params(Deposit),
 
+    build_final_cash_flow_(Body, CashFlowPlan, SourceAccount, WalletAccount).
+
+build_reverted_final_cash_flow(Body, Deposit) ->
+    #{
+        wallet_account := WalletAccount,
+        source_account := SourceAccount,
+        wallet_cash_flow_plan := CashFlowPlan
+    } = params(Deposit),
+
+    build_final_cash_flow_(Body, CashFlowPlan, WalletAccount, SourceAccount).
+
+build_final_cash_flow_(Body, CashFlowPlan, From, To) ->
     Constants = #{
         operation_amount => Body
     },
     Accounts = #{
-        {wallet, sender_source} => SourceAccount,
-        {wallet, receiver_settlement} => WalletAccount
+        {wallet, sender_source} => From,
+        {wallet, receiver_settlement} => To
     },
     unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)).
 

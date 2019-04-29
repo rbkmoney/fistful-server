@@ -17,6 +17,7 @@
 -export([deposit_withdrawal_ok/1]).
 -export([deposit_migrate_ok/1]).
 -export([withdrawal_migrate_ok/1]).
+-export([deposit_revert_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -37,7 +38,8 @@ groups() ->
             deposit_ok,
             deposit_withdrawal_ok,
             deposit_migrate_ok,
-            withdrawal_migrate_ok
+            withdrawal_migrate_ok,
+            deposit_revert_ok
         ]}
     ].
 
@@ -157,6 +159,38 @@ withdrawal_migrate_ok(C) ->
     Transfer = collapse_raw_events(RawEvents),
     succeeded = ff_withdrawal_new:status(Transfer).
 
+-spec deposit_revert_ok(config()) -> test_return().
+
+deposit_revert_ok(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+
+    SrcID = create_source(IID, C),
+    DepID = generate_id(),
+
+    process_deposit(DepID, SrcID, WalID),
+    RevertID = generate_id(),
+    ok = ff_transfer_new:revert(#{
+        revert_id   => RevertID,
+        target      => #{root_id => DepID, root_type => deposit, target_id => DepID},
+        reason      => <<"TEST">>,
+        body        => {5000, <<"RUB">>}
+    }),
+    Target = #{root_id => DepID, root_type => deposit, target_id => RevertID},
+    {ok, Revert0} = ff_transfer_new:get_revert(Target),
+    pending = ff_revert:status(Revert0),
+    succeeded = ct_helper:await(
+        succeeded,
+        fun () ->
+            {ok, Revert} = ff_transfer_new:get_revert(Target),
+            ff_revert:status(Revert)
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok = await_wallet_balance({5000, <<"RUB">>}, WalID).
+
 %%
 
 create_party(_C) ->
@@ -261,6 +295,9 @@ create_source(IID, C) ->
 
 process_deposit(SrcID, WalID) ->
     DepID = generate_id(),
+    process_deposit(DepID, SrcID, WalID).
+
+process_deposit(DepID, SrcID, WalID) ->
     ok = ff_deposit_new:create(
         DepID,
         #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},

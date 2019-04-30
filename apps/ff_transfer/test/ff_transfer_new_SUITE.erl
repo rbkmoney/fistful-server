@@ -1,6 +1,7 @@
 -module(ff_transfer_new_SUITE).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 
 -export([all/0]).
@@ -12,12 +13,19 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
--export([get_missing_fails/1]).
+-export([get_missing_fail/1]).
 -export([deposit_ok/1]).
 -export([deposit_withdrawal_ok/1]).
 -export([deposit_migrate_ok/1]).
 -export([withdrawal_migrate_ok/1]).
 -export([deposit_revert_ok/1]).
+-export([deposit_via_admin_ok/1]).
+-export([deposit_revert_via_admin_ok/1]).
+-export([deposit_revert_via_admin_fails/1]).
+-export([deposit_two_reverts_via_admin_ok/1]).
+-export([deposit_two_reverts_via_admin_fail/1]).
+-export([deposit_revert_via_admin_currency_fail/1]).
+-export([deposit_revert_via_admin_not_permitted/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -34,12 +42,19 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            get_missing_fails,
+            get_missing_fail,
             deposit_ok,
             deposit_withdrawal_ok,
             deposit_migrate_ok,
             withdrawal_migrate_ok,
-            deposit_revert_ok
+            deposit_revert_ok,
+            deposit_via_admin_ok,
+            deposit_revert_via_admin_ok,
+            deposit_revert_via_admin_fails,
+            deposit_two_reverts_via_admin_ok,
+            deposit_two_reverts_via_admin_fail,
+            deposit_revert_via_admin_currency_fail,
+            deposit_revert_via_admin_not_permitted
         ]}
     ].
 
@@ -83,9 +98,9 @@ end_per_testcase(_Name, _C) ->
 
 %%
 
--spec get_missing_fails(config()) -> test_return().
+-spec get_missing_fail(config()) -> test_return().
 
-get_missing_fails(_C) ->
+get_missing_fail(_C) ->
     ID = genlib:unique(),
     {error, notfound} = ff_deposit_new:get_machine(ID).
 
@@ -191,6 +206,239 @@ deposit_revert_ok(C) ->
     ),
     ok = await_wallet_balance({5000, <<"RUB">>}, WalID).
 
+-spec deposit_via_admin_ok(config()) -> test_return().
+
+deposit_via_admin_ok(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID = genlib:unique(),
+    DepID = genlib:unique(),
+
+    % Create source
+    process_source_via_admin(SrcID, IID),
+
+    % Process deposit
+    process_deposit_via_admin(DepID, SrcID, WalID).
+
+-spec deposit_revert_via_admin_ok(config()) -> test_return().
+
+deposit_revert_via_admin_ok(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID = genlib:unique(),
+    DepID = genlib:unique(),
+
+    % Create source
+    process_source_via_admin(SrcID, IID),
+
+    % Process deposit
+    process_deposit_via_admin(DepID, SrcID, WalID),
+
+    %% Reverting
+    RevertID = genlib:unique(),
+    process_revert_via_admin(RevertID, DepID, WalID).
+
+-spec deposit_revert_via_admin_fails(config()) -> test_return().
+
+deposit_revert_via_admin_fails(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID = genlib:unique(),
+    DepID = genlib:unique(),
+
+    % Create source
+    process_source_via_admin(SrcID, IID),
+
+    DefaultAmount = 20000,
+
+    % Process deposit
+    process_deposit_via_admin(DepID, SrcID, WalID, DefaultAmount),
+
+    %% withdrawal some cash
+
+    DestID = create_destination(IID, C),
+    ICID = genlib:unique(),
+
+    pass_identification(ICID, IID, C),
+
+    process_withdrawal(WalID, DestID, DefaultAmount),
+
+    %% Reverting
+
+    RevertID = genlib:unique(),
+    {ok, Revert1} = call_admin('CreateRevert', [#fistful_admin_RevertParams{
+        id          = RevertID,
+        target      = #fistful_admin_Target{
+            root_id = DepID,
+            root_type = {deposit, #transfer_TransferDeposit{}},
+            target_id = DepID
+        },
+        body        = #'Cash'{
+            amount   = DefaultAmount,
+            currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+        },
+        reason      = <<"test">>
+    }]),
+    RevertID = Revert1#fistful_admin_Revert.id,
+    {pending, _} = Revert1#fistful_admin_Revert.status,
+    failed = ct_helper:await(
+        failed,
+        fun () ->
+            {ok, Revert} = call_admin('GetRevert', [#fistful_admin_Target{
+                root_id = DepID,
+                root_type = {deposit, #transfer_TransferDeposit{}},
+                target_id = RevertID
+            }]),
+            {Status, _} = Revert#fistful_admin_Revert.status,
+            Status
+        end,
+        genlib_retry:linear(15, 1000)
+    ).
+
+-spec deposit_two_reverts_via_admin_ok(config()) -> test_return().
+
+deposit_two_reverts_via_admin_ok(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID = genlib:unique(),
+    DepID = genlib:unique(),
+
+    % Create source
+    process_source_via_admin(SrcID, IID),
+
+    % Process deposit
+    process_deposit_via_admin(DepID, SrcID, WalID, 20000),
+
+    %% Reverting
+    RevertID1 = genlib:unique(),
+    process_revert_via_admin(RevertID1, DepID, WalID, 10000, 10000),
+
+    RevertID2 = genlib:unique(),
+    process_revert_via_admin(RevertID2, DepID, WalID, 5000, 5000).
+
+-spec deposit_two_reverts_via_admin_fail(config()) -> test_return().
+
+deposit_two_reverts_via_admin_fail(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID = genlib:unique(),
+    DepID = genlib:unique(),
+
+    % Create source
+    process_source_via_admin(SrcID, IID),
+
+    % Process deposit
+    process_deposit_via_admin(DepID, SrcID, WalID, 20000),
+
+    %% Reverting
+    RevertID1 = genlib:unique(),
+    process_revert_via_admin(RevertID1, DepID, WalID, 10000, 10000),
+
+    RevertID2 = genlib:unique(),
+    {exception, #fistful_AmountInvalid{}} =
+        call_admin('CreateRevert', [#fistful_admin_RevertParams{
+            id          = RevertID2,
+            target      = #fistful_admin_Target{
+                root_id = DepID,
+                root_type = {deposit, #transfer_TransferDeposit{}},
+                target_id = DepID
+            },
+            body        = #'Cash'{
+                amount   = 12000,
+                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+            },
+            reason      = <<"test">>
+        }]).
+
+-spec deposit_revert_via_admin_currency_fail(config()) -> test_return().
+
+deposit_revert_via_admin_currency_fail(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID = genlib:unique(),
+    DepID = genlib:unique(),
+
+    % Create source
+    process_source_via_admin(SrcID, IID),
+
+    % Process deposit
+    process_deposit_via_admin(DepID, SrcID, WalID, 20000),
+
+    RevertID = genlib:unique(),
+    {exception, #fistful_CurrencyInvalid{}} =
+        call_admin('CreateRevert', [#fistful_admin_RevertParams{
+            id          = RevertID,
+            target      = #fistful_admin_Target{
+                root_id = DepID,
+                root_type = {deposit, #transfer_TransferDeposit{}},
+                target_id = DepID
+            },
+            body        = #'Cash'{
+                amount   = 12000,
+                currency = #'CurrencyRef'{symbolic_code = <<"USD">>}
+            },
+            reason      = <<"test">>
+        }]).
+
+-spec deposit_revert_via_admin_not_permitted(config()) -> test_return().
+
+deposit_revert_via_admin_not_permitted(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID = genlib:unique(),
+    DepID = genlib:unique(),
+
+    % Create source
+    process_source_via_admin(SrcID, IID),
+
+    % Process deposit
+    process_deposit_via_admin(DepID, SrcID, WalID, 20000),
+
+    RevertID1 = genlib:unique(),
+    {ok, _Revert} =
+        call_admin('CreateRevert', [#fistful_admin_RevertParams{
+            id          = RevertID1,
+            target      = #fistful_admin_Target{
+                root_id = DepID,
+                root_type = {deposit, #transfer_TransferDeposit{}},
+                target_id = DepID
+            },
+            body        = #'Cash'{
+                amount   = 12000,
+                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+            },
+            reason      = <<"test">>
+        }]),
+    RevertID2 = genlib:unique(),
+    {exception, #fistful_OperationNotPermitted{}} =
+        call_admin('CreateRevert', [#fistful_admin_RevertParams{
+            id          = RevertID2,
+            target      = #fistful_admin_Target{
+                root_id = DepID,
+                root_type = {deposit, #transfer_TransferDeposit{}},
+                target_id = DepID
+            },
+            body        = #'Cash'{
+                amount   = 1000,
+                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+            },
+            reason      = <<"test">>
+        }]).
+
 %%
 
 create_party(_C) ->
@@ -268,14 +516,14 @@ create_instrument(source, ID, Params, Ctx, _C) ->
 generate_id() ->
     genlib:to_binary(genlib_time:ticks()).
 
-% call_admin(Fun, Args) ->
-%     Service = {ff_proto_fistful_thrift, 'FistfulAdmin'},
-%     Request = {Service, Fun, Args},
-%     Client  = ff_woody_client:new(#{
-%         url           => <<"http://localhost:8022/v1/admin">>,
-%         event_handler => scoper_woody_event_handler
-%     }),
-%     ff_woody_client:call(Client, Request).
+call_admin(Fun, Args) ->
+    Service = {ff_proto_fistful_admin_thrift, 'FistfulAdmin'},
+    Request = {Service, Fun, Args},
+    Client  = ff_woody_client:new(#{
+        url           => <<"http://localhost:8022/v1/admin">>,
+        event_handler => scoper_woody_event_handler
+    }),
+    ff_woody_client:call(Client, Request).
 
 create_source(IID, C) ->
     % Create source
@@ -418,3 +666,81 @@ collapse_raw_events(Events) ->
         }, T) ->
             ff_transfer_new:apply_event(Payload, T)
     end, undefined, Events).
+
+process_deposit_via_admin(DepID, SrcID, WalID) ->
+    process_deposit_via_admin(DepID, SrcID, WalID, 20000).
+
+process_deposit_via_admin(DepID, SrcID, WalID, Amount) ->
+    {ok, Dep1} = call_admin('CreateDeposit', [#fistful_admin_DepositParams{
+        id          = DepID,
+        source      = SrcID,
+        destination = WalID,
+        body        = #'Cash'{
+            amount   = Amount,
+            currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+        }
+    }]),
+    DepID = Dep1#fistful_Deposit.id,
+    {pending, _} = Dep1#fistful_Deposit.status,
+    succeeded = ct_helper:await(
+        succeeded,
+        fun () ->
+            {ok, Dep} = call_admin('GetDeposit', [DepID]),
+            {Status, _} = Dep#fistful_Deposit.status,
+            Status
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok = await_wallet_balance({Amount, <<"RUB">>}, WalID).
+
+process_source_via_admin(SrcID, IID) ->
+    {ok, Src1} = call_admin('CreateSource', [#fistful_admin_SourceParams{
+        id       = SrcID,
+        name     = <<"HAHA NO">>,
+        identity_id = IID,
+        currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
+        resource = #fistful_SourceResource{details = <<"Infinite source of cash">>}
+    }]),
+    unauthorized = Src1#fistful_Source.status,
+    SrcID = Src1#fistful_Source.id,
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, Src} = call_admin('GetSource', [SrcID]),
+            Src#fistful_Source.status
+        end
+    ).
+
+process_revert_via_admin(DepID, SrcID, WalID) ->
+    process_revert_via_admin(DepID, SrcID, WalID, 20000, 0).
+
+process_revert_via_admin(RevertID, DepID, WalID, Amount, TargetAmount) ->
+    {ok, Revert1} = call_admin('CreateRevert', [#fistful_admin_RevertParams{
+        id          = RevertID,
+        target      = #fistful_admin_Target{
+            root_id = DepID,
+            root_type = {deposit, #transfer_TransferDeposit{}},
+            target_id = DepID
+        },
+        body        = #'Cash'{
+            amount   = Amount,
+            currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+        },
+        reason      = <<"test">>
+    }]),
+    RevertID = Revert1#fistful_admin_Revert.id,
+    {pending, _} = Revert1#fistful_admin_Revert.status,
+    succeeded = ct_helper:await(
+        succeeded,
+        fun () ->
+            {ok, Revert} = call_admin('GetRevert', [#fistful_admin_Target{
+                root_id = DepID,
+                root_type = {deposit, #transfer_TransferDeposit{}},
+                target_id = RevertID
+            }]),
+            {Status, _} = Revert#fistful_admin_Revert.status,
+            Status
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok = await_wallet_balance({TargetAmount, <<"RUB">>}, WalID).

@@ -57,7 +57,7 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
     end;
 handle_function_('CreateDeposit', [Params], Context, Opts) ->
     DepositID = Params#fistful_admin_DepositParams.id,
-    case ff_deposit:create(DepositID, #{
+    case ff_deposit_new:create(DepositID, #{
             source_id   => Params#fistful_admin_DepositParams.source,
             wallet_id   => Params#fistful_admin_DepositParams.destination,
             body        => decode({deposit, body}, Params#fistful_admin_DepositParams.body)
@@ -79,7 +79,7 @@ handle_function_('CreateDeposit', [Params], Context, Opts) ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 handle_function_('GetDeposit', [ID], _Context, _Opts) ->
-    case ff_deposit:get_machine(ID) of
+    case ff_deposit_new:get_machine(ID) of
         {ok, Machine} ->
             {ok, encode(deposit, {ID, Machine})};
         {error, notfound} ->
@@ -95,25 +95,29 @@ handle_function_('CreateRevert', [Params], Context, Opts) ->
         })
     of
         ok ->
-            #{root_id := ID, root_type := Type} = decode({transfer, target}, Params#fistful_admin_RevertParams.target),
+            Target = Params#fistful_admin_RevertParams.target,
             handle_function_('GetRevert', [
                 #fistful_admin_Target{
-                    root_id   = ID,
-                    root_type = Type,
+                    root_id   = Target#fistful_admin_Target.root_id,
+                    root_type = Target#fistful_admin_Target.root_type,
                     target_id = RevertID
                 }
             ], Context, Opts);
-        {error, {not_found, ID}} ->
+        {error, {notfound, ID}} ->
             woody_error:raise(business, #fistful_TransferNotFound{id = ID});
-        {error, Error} ->
-            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
+        {error, {not_permitted, _Details}} ->
+            woody_error:raise(business, #fistful_OperationNotPermitted{});
+        {error, invalid_amount} ->
+            woody_error:raise(business, #fistful_AmountInvalid{});
+        {error, invalid_currency} ->
+            woody_error:raise(business, #fistful_CurrencyInvalid{})
     end;
 handle_function_('GetRevert', [Target], _Context, _Opts) ->
     RevertID = Target#fistful_admin_Target.target_id,
     case ff_transfer_new:get_revert(decode({transfer, target}, Target)) of
         {ok, Revert} ->
             {ok, encode(revert, {RevertID, Revert})};
-        {error, {not_found, ID}} ->
+        {error, {notfound, ID}} ->
             woody_error:raise(business, #fistful_TransferNotFound{id = ID})
     end.
 

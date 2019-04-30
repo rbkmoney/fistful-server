@@ -29,9 +29,10 @@
 -type parent() :: {transfer_type(), id()}.
 
 -type status() ::
-    pending         |
-    succeeded       |
-    {failed, _TODO} .
+    pending             |
+    succeeded           |
+    {reverted, _TODO}   |
+    {failed, _TODO}     .
 
 -type event(Params, Route)                 ::
     {created, transfer(Params)}             |
@@ -312,17 +313,31 @@ create_events(#{
 }.
 
 -spec revert(revert_params()) ->
-    ok | {error, {not_found, id()} | _TransferError}.
+    ok |
+    {error,
+        {notfound, id()} |
+        {not_permitted, binary()} |
+        invalid_amount |
+        invalid_currency
+    }.
 
-revert(Params = #{target := Target}) ->
+revert(Params = #{target := Target, body := Body}) ->
     Handler = type_to_handler(target_get_root_type(Target)),
-    %% TODO check result and make valid error
-    do(fun() ->
-        unwrap(ff_transfer_machine_new:revert(Handler:get_ns(), Params))
-    end).
+    ID = target_get_root_id(Target),
+    Result = do(fun() ->
+        NS = Handler:get_ns(),
+        unwrap(validate_revert(Body, ff_transfer_machine_new:get(NS, ID))),
+        unwrap(ff_transfer_machine_new:revert(NS, Params))
+    end),
+    case Result of
+        {error, notfound} ->
+            {error, {notfound, ID}};
+        _ ->
+            Result
+    end.
 
 -spec get_revert(target()) ->
-    {ok, transfer()} | {error, {not_found, id()}}.
+    {ok, transfer()} | {error, {notfound, id()}}.
 
 get_revert(Target) ->
     Handler     = type_to_handler(target_get_root_type(Target)),
@@ -334,7 +349,7 @@ get_revert(Target) ->
         case find_child(TargetID, childs(Transfer)) of
             undefined ->
                 %% TODO try to find in deep layer
-                {error, {not_found, TargetID}};
+                {error, {notfound, TargetID}};
             Child ->
                 Child
         end
@@ -477,7 +492,7 @@ process_revert_(_RootID, ID, Params, Transfer) ->
     case find_child(ID, childs(Transfer)) of
         undefined ->
             %% TODO try to find in deep layer
-            {error, {not_found, ID}};
+            {error, {notfound, ID}};
         Child ->
             do(fun () ->
                 Type = transfer_type(Child),
@@ -561,6 +576,70 @@ check_transaction_complete(Events) ->
         end
     end, false, Events).
 
+get_childs_of_type(Type, Childs) ->
+    get_childs_of_type_(Type, Childs, []).
+
+get_childs_of_type_(_Type, [], Childs) ->
+    Childs;
+get_childs_of_type_(Type, [H | Rest], Childs) ->
+    case transfer_type(H) =:= Type of
+        true ->
+            get_childs_of_type_(Type, Rest, [H | Childs]);
+        false ->
+            get_childs_of_type_(Type, Rest, [H | Childs])
+    end.
+
+validate_revert(_, {error, notfound} = Error) ->
+    Error;
+validate_revert(Body, {ok, Machine}) ->
+    Transfer = ff_transfer_machine_new:transfer(Machine),
+    Reverts = get_childs_of_type(revert, childs(Transfer)),
+    do(fun () ->
+        ok = unwrap(validate_cash(Body, reduce_cash(Reverts, Transfer))),
+        ok = unwrap(validate_transfer_state(Transfer)),
+        ok = unwrap(validate_revert_state(Reverts))
+    end).
+
+reduce_cash([], Transfer) ->
+    body(Transfer);
+reduce_cash(Reverts, Transfer) ->
+    {Amount, Currency} = body(Transfer),
+    NewAmount = lists:foldl(fun(Revert, Amount0) ->
+        {A, _} = body(Revert),
+        Amount0 - A
+    end, Amount, Reverts),
+    {NewAmount, Currency}.
+
+validate_cash(Checked, CheckWith) ->
+    case ff_cash:validate_cash_to_cash(Checked, CheckWith) of
+        valid ->
+            ok;
+        Result ->
+            Result
+    end.
+
+validate_transfer_state(Transfer) ->
+    case status(Transfer) of
+        succeeded ->
+            ok;
+        {reverted, _} ->
+            ok;
+        _Result ->
+            {error, {not_permitted, <<"Wrong transfer state">>}}
+    end.
+
+validate_revert_state([]) ->
+    ok;
+validate_revert_state([H | Rest]) ->
+    case status(H) of
+        succeeded ->
+            validate_revert_state(Rest);
+        {failed, _} ->
+            validate_revert_state(Rest);
+        _Result ->
+            {error, {not_permitted, io_lib:format(<<"Revert with ID ~p not finished">>, [id(H)])}}
+    end.
+
 %%
 
 -spec collapse([event()], undefined | transfer()) ->
@@ -627,7 +706,7 @@ update_childs(_, Child0, T) ->
                 [Child | Acc]
         end
     end, [], childs(T)),
-    T#{childs => Childs}.
+    T#{childs => lists:reverse(Childs)}.
 
 maybe_transfer_type(undefined) ->
     undefined;

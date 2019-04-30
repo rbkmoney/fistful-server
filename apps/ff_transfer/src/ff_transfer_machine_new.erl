@@ -113,7 +113,7 @@ backend(NS) ->
     fistful:backend(NS).
 
 -spec revert(ns(), revert_params()) ->
-    ok | {error, _TransferError}.
+    ok | {error, notfound}.
 
 revert(NS, Params = #{target := Target}) ->
     ID = ff_transfer_new:target_get_root_id(Target),

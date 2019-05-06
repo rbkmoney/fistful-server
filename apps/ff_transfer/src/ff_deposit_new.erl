@@ -229,7 +229,6 @@ process_revert(Params = #{revert_id := RevertID, body := Body, target := Target}
     #{
         wallet_id := WalletID
     } = params(Deposit),
-    %% TODO validate revert params and limits
     %% TODO check if same revert already exists
     {ok, Events} = ff_revert:create(RevertID, #{
         wallet_id           => WalletID,

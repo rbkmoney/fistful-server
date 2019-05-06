@@ -86,6 +86,9 @@
     target_id := id()
 }.
 
+-type intent()              ::
+    transfer_succeed         .
+
 -export_type([args/0]).
 -export_type([transfer/1]).
 -export_type([handler/0]).
@@ -96,6 +99,7 @@
 -export_type([route/1]).
 -export_type([maybe/1]).
 -export_type([target/0]).
+-export_type([intent/0]).
 
 -export_type([preprocess_result/1]).
 -export_type([new_activity/0]).
@@ -404,16 +408,24 @@ type_to_handler(withdrawal) ->
 
 %% ff_transfer_machine_new behaviour
 
--spec process_transfer(maybe(transfer())) ->
+-spec process_transfer(transfer()) ->
     {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
     {error, _Reason}.
 
-process_transfer(undefined) ->
-    {error, cant_process_undefined_transfer};
 process_transfer(Transfer) ->
+    process_transfer_(Transfer, undefined).
+
+-spec process_transfer_(maybe(transfer()), maybe(transfer())) ->
+    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
+    {ok, {intent(), {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}}} |
+    {error, _Reason}.
+
+process_transfer_(undefined, _) ->
+    {error, cant_process_undefined_transfer};
+process_transfer_(Transfer, Parent) ->
     do(fun () ->
         {Activity, Data} = handle_preprocess_result(preprocess_transfer(Transfer), activity(Transfer)),
-        unwrap(do_process_transfer(Activity, Transfer, Data))
+        unwrap(do_process_transfer(Activity, Transfer, Data, Parent))
     end).
 
 -spec process_call(_Args, transfer()) ->
@@ -454,24 +466,27 @@ choose_new_activity(undefined, Activity) ->
 choose_new_activity(Activity, _) ->
     Activity.
 
-do_process_transfer(transfer, Transfer, _Data) ->
+do_process_transfer(transfer, Transfer, _Data, _Parent) ->
     Child = get_last_child(childs(Transfer)),
-    case process_transfer(Child) of
+    case process_transfer_(Child, Transfer) of
         {error, _} = Error ->
             Error;
-        {ok, {Action, Events}} ->
-            {ok, {Action, wrap_events_for_parent(Child, Events, Transfer)}}
+        {ok, {Action, Events}} when is_list(Events) ->
+            {ok, {Action, wrap_events_for_parent(Child, Events, Transfer)}};
+        {ok, {Intent, {Action, Events}}} ->
+            IntentEvents = handle_intent(Intent, Child, Transfer),
+            {ok, {Action, wrap_events_for_parent(Child, Events, Transfer) ++ IntentEvents}}
     end;
-do_process_transfer(transaction_starting, _Transfer, {create_transaction, Params}) ->
+do_process_transfer(transaction_starting, _Transfer, {create_transaction, Params}, _) ->
     do(fun () ->
         TransactionEvents = unwrap(ff_transaction_new:create(Params)),
         {continue, wrap_transaction_events(TransactionEvents)}
     end);
-do_process_transfer(transaction_polling, Transfer, _Data) ->
+do_process_transfer(transaction_polling, Transfer, _Data, Parent) ->
     Handler = type_to_handler(transfer_type(Transfer)),
     unwrap(Handler:process_transfer(Transfer)),
-    poll_transaction_completion(Transfer);
-do_process_transfer(_Activity, Transfer, _Data) ->
+    poll_transaction_completion(Transfer, Parent);
+do_process_transfer(_Activity, Transfer, _Data, _) ->
     Handler = type_to_handler(transfer_type(Transfer)),
     Handler:process_transfer(Transfer).
 
@@ -501,6 +516,25 @@ process_revert_(_RootID, ID, Params, Transfer) ->
                 {ok, {Action, wrap_events_for_parent(Child, Events, Transfer)}}
             end)
     end.
+
+handle_intent(transfer_succeed, Child, Transfer) ->
+    case transfer_type(Child) of
+        revert ->
+            change_to_reverted(check_revert_amount(Child, Transfer), <<"Reverted">>);
+        _ ->
+            []
+    end.
+
+check_revert_amount(Child, Transfer) ->
+    Reverts = get_childs_of_type(revert, childs(Transfer)),
+    {Amount, _} = reduce_cash(Reverts, Transfer),
+    {ChildAmount, _} = body(Child),
+    Amount - ChildAmount.
+
+change_to_reverted(Amount, Details) when Amount =:= 0 ->
+    [{status_changed, {reverted, Details}}];
+change_to_reverted(_Amount, _Details) ->
+    [].
 
 %%
 
@@ -538,9 +572,10 @@ get_last_child(Childs) when
 get_last_child([H | _T]) ->
     H.
 
--spec poll_transaction_completion(transfer()) ->
-    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}}.
-poll_transaction_completion(Transfer) ->
+-spec poll_transaction_completion(transfer(), maybe(transfer())) ->
+    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
+    {ok, intent(), {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}}.
+poll_transaction_completion(Transfer, Parent) ->
     Transaction = transaction(Transfer),
     {Action, Events} = case ff_transaction_new:process_transaction(Transaction) of
         {ok, _} = Result ->
@@ -548,14 +583,14 @@ poll_transaction_completion(Transfer) ->
         {error, Reason} ->
             unwrap_transaction_call_res(ff_transaction_new:process_failure(Reason, Transaction))
     end,
-    TransferEvents = case check_transaction_complete(Events) of
-        true ->
-            [{status_changed, succeeded}];
-        _ ->
-            []
-    end,
-
-    {ok, {Action, Events ++ TransferEvents}}.
+    case {check_transaction_complete(Events), Parent} of
+        {true, undefined} ->
+            {ok, {Action, Events ++ [{status_changed, succeeded}]}};
+        {true, _} ->
+            {ok, {transfer_succeed, {Action, Events ++ [{status_changed, succeeded}]}}};
+        {_, _} ->
+            {ok, {Action, Events}}
+    end.
 
 unwrap_transaction_call_res({ok, {Action, Events}}) ->
     {Action, wrap_transaction_events(Events)}.
@@ -605,8 +640,13 @@ reduce_cash([], Transfer) ->
 reduce_cash(Reverts, Transfer) ->
     {Amount, Currency} = body(Transfer),
     NewAmount = lists:foldl(fun(Revert, Amount0) ->
-        {A, _} = body(Revert),
-        Amount0 - A
+        case status(Revert) of
+            succeeded ->
+                {A, _} = body(Revert),
+                Amount0 - A;
+            _ ->
+                Amount0
+        end
     end, Amount, Reverts),
     {NewAmount, Currency}.
 

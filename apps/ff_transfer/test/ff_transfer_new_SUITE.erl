@@ -240,7 +240,9 @@ deposit_revert_via_admin_ok(C) ->
 
     %% Reverting
     RevertID = genlib:unique(),
-    process_revert_via_admin(RevertID, DepID, WalID).
+    process_revert_via_admin(RevertID, DepID, WalID),
+    {ok, Dep} = call_admin('GetDeposit', [DepID]),
+    {reverted, _} = Dep#fistful_Deposit.status.
 
 -spec deposit_revert_via_admin_fails(config()) -> test_return().
 

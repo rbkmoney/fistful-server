@@ -194,12 +194,12 @@ deposit_revert_ok(C) ->
         body        => {5000, <<"RUB">>}
     }),
     Target = #{root_id => DepID, root_type => deposit, target_id => RevertID},
-    {ok, Revert0} = ff_transfer_new:get_revert(Target),
+    {ok, Revert0} = ff_transfer_new:get_transfer(Target),
     pending = ff_revert:status(Revert0),
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
-            {ok, Revert} = ff_transfer_new:get_revert(Target),
+            {ok, Revert} = ff_transfer_new:get_transfer(Target),
             ff_revert:status(Revert)
         end,
         genlib_retry:linear(15, 1000)

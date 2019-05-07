@@ -31,7 +31,7 @@
 -type status() ::
     pending             |
     succeeded           |
-    {reverted, _TODO}   |
+    reverted            |
     {failed, _TODO}     .
 
 -type event(Params, Route)                 ::
@@ -124,7 +124,7 @@
 -export([create/3]).
 -export([create_events/1]).
 -export([revert/1]).
--export([get_revert/1]).
+-export([get_transfer/1]).
 
 %% Internal
 
@@ -340,10 +340,10 @@ revert(Params = #{target := Target, body := Body}) ->
             Result
     end.
 
--spec get_revert(target()) ->
+-spec get_transfer(target()) ->
     {ok, transfer()} | {error, {notfound, id()}}.
 
-get_revert(Target) ->
+get_transfer(Target) ->
     Handler     = type_to_handler(target_get_root_type(Target)),
     ID          = target_get_root_id(Target),
     TargetID    = target_get_id(Target),
@@ -520,7 +520,7 @@ process_revert_(_RootID, ID, Params, Transfer) ->
 handle_intent(transfer_succeed, Child, Transfer) ->
     case transfer_type(Child) of
         revert ->
-            change_to_reverted(check_revert_amount(Child, Transfer), <<"Reverted">>);
+            change_to_reverted(check_revert_amount(Child, Transfer));
         _ ->
             []
     end.
@@ -531,9 +531,9 @@ check_revert_amount(Child, Transfer) ->
     {ChildAmount, _} = body(Child),
     Amount - ChildAmount.
 
-change_to_reverted(Amount, Details) when Amount =:= 0 ->
-    [{status_changed, {reverted, Details}}];
-change_to_reverted(_Amount, _Details) ->
+change_to_reverted(Amount) when Amount =:= 0 ->
+    [{status_changed, reverted}];
+change_to_reverted(_Amount) ->
     [].
 
 %%
@@ -662,7 +662,7 @@ validate_transfer_state(Transfer) ->
     case status(Transfer) of
         succeeded ->
             ok;
-        {reverted, _} ->
+        reverted ->
             ok;
         _Result ->
             {error, {not_permitted, <<"Wrong transfer state">>}}
@@ -677,7 +677,8 @@ validate_revert_state([H | Rest]) ->
         {failed, _} ->
             validate_revert_state(Rest);
         _Result ->
-            {error, {not_permitted, io_lib:format(<<"Revert with ID ~p not finished">>, [id(H)])}}
+            ID = id(H),
+            {error, {not_permitted, <<"Revert with ID ", ID/binary, " not finished">>}}
     end.
 
 %%

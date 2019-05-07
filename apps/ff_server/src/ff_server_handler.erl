@@ -114,7 +114,7 @@ handle_function_('CreateRevert', [Params], Context, Opts) ->
     end;
 handle_function_('GetRevert', [Target], _Context, _Opts) ->
     RevertID = Target#fistful_admin_Target.target_id,
-    case ff_transfer_new:get_revert(decode({transfer, target}, Target)) of
+    case ff_transfer_new:get_transfer(decode({transfer, target}, Target)) of
         {ok, Revert} ->
             {ok, encode(revert, {RevertID, Revert})};
         {error, {notfound, ID}} ->
@@ -155,7 +155,7 @@ encode({transfer, status}, pending) ->
     {pending, #transfer_TransferPending{}};
 encode({transfer, status}, succeeded) ->
     {succeeded, #transfer_TransferSucceeded{}};
-encode({transfer, status}, {reverted, _}) ->
+encode({transfer, status}, reverted) ->
     {reverted, #transfer_TransferReverted{}};
 encode({transfer, status}, {failed, _Failure}) ->
     {failed, #transfer_TransferFailed{failure = #transfer_Failure{}}};

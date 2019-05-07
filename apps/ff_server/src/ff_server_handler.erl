@@ -209,8 +209,8 @@ encode({deposit, status}, pending) ->
     {pending, #fistful_DepositStatusPending{}};
 encode({deposit, status}, succeeded) ->
     {succeeded, #fistful_DepositStatusSucceeded{}};
-encode({deposit, status}, {reverted, Details}) ->
-    {reverted, #fistful_DepositStatusReverted{details = woody_error:format_details(Details)}};
+encode({deposit, status}, reverted) ->
+    {reverted, #fistful_DepositStatusReverted{}};
 encode({deposit, status}, {failed, Details}) ->
     {failed, #fistful_DepositStatusFailed{details = woody_error:format_details(Details)}};
 encode(currency, V) ->

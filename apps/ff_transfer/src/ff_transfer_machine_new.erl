@@ -51,6 +51,7 @@
 -export([create/4]).
 -export([get/2]).
 -export([events/3]).
+-export([revert/2]).
 
 %% Accessors
 
@@ -74,6 +75,7 @@
 
 -type ctx()   :: ff_ctx:ctx().
 -type event() :: ff_transfer_new:event().
+-type revert_params()  :: ff_transfer_new:revert_params().
 % -type transfer()      :: ff_transfer_new:transfer().
 
 %% API
@@ -109,6 +111,18 @@ events(NS, ID, Range) ->
 
 backend(NS) ->
     fistful:backend(NS).
+
+-spec revert(ns(), revert_params()) ->
+    ok | {error, notfound}.
+
+revert(NS, Params = #{target := Target}) ->
+    ID = ff_transfer_new:target_get_root_id(Target),
+    case machinery:call(NS, ID, {revert, Params}, backend(NS)) of
+        {ok, _} ->
+            ok;
+        {error, _} = Result ->
+            Result
+    end.
 
 %% Accessors
 

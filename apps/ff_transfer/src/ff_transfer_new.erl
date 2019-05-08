@@ -29,9 +29,10 @@
 -type parent() :: {transfer_type(), id()}.
 
 -type status() ::
-    pending         |
-    succeeded       |
-    {failed, _TODO} .
+    pending             |
+    succeeded           |
+    reverted            |
+    {failed, _TODO}     .
 
 -type event(Params, Route)                 ::
     {created, transfer(Params)}             |
@@ -79,6 +80,15 @@
     undefined                |
     activity()               .
 
+-type target()           :: #{
+    root_id   := id(),
+    root_type := transfer_type(),
+    target_id := id()
+}.
+
+-type intent()              ::
+    transfer_succeed         .
+
 -export_type([args/0]).
 -export_type([transfer/1]).
 -export_type([handler/0]).
@@ -88,6 +98,8 @@
 -export_type([status/0]).
 -export_type([route/1]).
 -export_type([maybe/1]).
+-export_type([target/0]).
+-export_type([intent/0]).
 
 -export_type([preprocess_result/1]).
 -export_type([new_activity/0]).
@@ -103,15 +115,23 @@
 -export([activity/1]).
 -export([transaction/1]).
 
+-export([target_get_id/1]).
+-export([target_get_root_id/1]).
+-export([target_get_root_type/1]).
+
 %% API
 
 -export([create/3]).
+-export([create_events/1]).
+-export([revert/1]).
+-export([get_transfer/1]).
 
 %% Internal
 
 -export([wrap_events_for_parent/3]).
 -export([wrap_events_for_parent/4]).
 -export([handler_to_type/1]).
+-export([collapse/2]).
 
 %% ff_transfer behaviour
 
@@ -134,6 +154,10 @@
     {ok, {action(), [event()]}} |
     {error, _Reason}.
 
+-callback get_ns() ->
+    ns().
+
+-optional_callbacks([get_ns/0]).
 
 %% ff_transfer_machine_new behaviour
 -behaviour(ff_transfer_machine_new).
@@ -163,7 +187,7 @@
 -type params(T)             :: T.
 -type transfer()            :: transfer(any()).
 -type legacy_event()        :: any().
--type transfer_type()       :: atom().
+-type transfer_type()       :: withdrawal | deposit | revert.
 -type ctx()                 :: ff_ctx:ctx().
 -type action()              :: ff_transfer_machine_new:action().
 -type ns()                  :: machinery:namespace().
@@ -237,6 +261,19 @@ childs(#{childs := Activity}) ->
 childs(_Transfer) ->
     [].
 
+-spec target_get_root_id(target()) ->
+    id().
+target_get_root_id(#{root_id := V}) ->
+    V.
+-spec target_get_root_type(target()) ->
+    transfer_type().
+target_get_root_type(#{root_type := V}) ->
+    V.
+-spec target_get_id(target()) ->
+    id().
+target_get_id(#{target_id := V}) ->
+    V.
+
 %% API
 
 -spec create(ns(), create_params(), ctx()) ->
@@ -245,29 +282,81 @@ childs(_Transfer) ->
         _PostingsTransferError
     }.
 
-create(
-    NS,
-    #{
-        transfer_type := TransferType,
-        id := ID,
-        body := Body,
-        params := Params,
-        external_id := ExternalID
-    },
-    Ctx
-) ->
+create(NS, Params = #{id := ID}, Ctx) ->
     do(fun () ->
-        Events = [
-            {created, add_external_id(ExternalID, #{
-                version       => ?ACTUAL_FORMAT_VERSION,
-                id            => ID,
-                transfer_type => TransferType,
-                body          => Body,
-                params        => Params
-            })},
-            {status_changed, pending}
-        ],
+        Events = create_events(Params),
         unwrap(ff_transfer_machine_new:create(NS, ID, Events, Ctx))
+    end).
+
+-spec create_events(create_params()) ->
+    [event()].
+
+create_events(#{
+    transfer_type := TransferType,
+    id := ID,
+    body := Body,
+    params := Params,
+    external_id := ExternalID
+}) ->
+    [
+        {created, add_external_id(ExternalID, #{
+            version       => ?ACTUAL_FORMAT_VERSION,
+            id            => ID,
+            transfer_type => TransferType,
+            body          => Body,
+            params        => Params
+        })},
+        {status_changed, pending}
+    ].
+
+-type revert_params()           :: #{
+    revert_id     := id(),
+    target        := target(),
+    reason        := binary(),
+    body          := body()
+}.
+
+-spec revert(revert_params()) ->
+    ok |
+    {error,
+        {notfound, id()} |
+        {not_permitted, binary()} |
+        invalid_amount |
+        invalid_currency
+    }.
+
+revert(Params = #{target := Target, body := Body}) ->
+    Handler = type_to_handler(target_get_root_type(Target)),
+    ID = target_get_root_id(Target),
+    Result = do(fun() ->
+        NS = Handler:get_ns(),
+        unwrap(validate_revert(Body, ff_transfer_machine_new:get(NS, ID))),
+        unwrap(ff_transfer_machine_new:revert(NS, Params))
+    end),
+    case Result of
+        {error, notfound} ->
+            {error, {notfound, ID}};
+        _ ->
+            Result
+    end.
+
+-spec get_transfer(target()) ->
+    {ok, transfer()} | {error, {notfound, id()}}.
+
+get_transfer(Target) ->
+    Handler     = type_to_handler(target_get_root_type(Target)),
+    ID          = target_get_root_id(Target),
+    TargetID    = target_get_id(Target),
+    do(fun() ->
+        Machine = unwrap(ff_transfer_machine_new:get(Handler:get_ns(), ID)),
+        Transfer = ff_transfer_machine_new:transfer(Machine),
+        case find_child(TargetID, childs(Transfer)) of
+            undefined ->
+                %% TODO try to find in deep layer
+                {error, {notfound, TargetID}};
+            Child ->
+                Child
+        end
     end).
 
 add_external_id(undefined, Event) ->
@@ -301,6 +390,8 @@ make_parent(Transfer) ->
 
 -spec handler_to_type(module()) ->
     transfer_type().
+handler_to_type(ff_revert) ->
+    revert;
 handler_to_type(ff_deposit_new) ->
     deposit;
 handler_to_type(ff_withdrawal_new) ->
@@ -308,6 +399,8 @@ handler_to_type(ff_withdrawal_new) ->
 
 -spec type_to_handler(transfer_type()) ->
     module().
+type_to_handler(revert) ->
+    ff_revert;
 type_to_handler(deposit) ->
     ff_deposit_new;
 type_to_handler(withdrawal) ->
@@ -315,22 +408,32 @@ type_to_handler(withdrawal) ->
 
 %% ff_transfer_machine_new behaviour
 
--spec process_transfer(maybe(transfer())) ->
+-spec process_transfer(transfer()) ->
     {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
     {error, _Reason}.
 
-process_transfer(undefined) ->
-    {error, cant_process_undefined_transfer};
 process_transfer(Transfer) ->
+    process_transfer_(Transfer, undefined).
+
+-spec process_transfer_(maybe(transfer()), maybe(transfer())) ->
+    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
+    {ok, {intent(), {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}}} |
+    {error, _Reason}.
+
+process_transfer_(undefined, _) ->
+    {error, cant_process_undefined_transfer};
+process_transfer_(Transfer, Parent) ->
     do(fun () ->
         {Activity, Data} = handle_preprocess_result(preprocess_transfer(Transfer), activity(Transfer)),
-        unwrap(do_process_transfer(Activity, Transfer, Data))
+        unwrap(do_process_transfer(Activity, Transfer, Data, Parent))
     end).
 
 -spec process_call(_Args, transfer()) ->
     {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
     {error, _Reason}.
 
+process_call({revert, Params}, Transfer) ->
+    process_revert(Params, Transfer);
 process_call(Args, Transfer) ->
     Handler = type_to_handler(transfer_type(Transfer)),
     Handler:process_call(Args, Transfer).
@@ -363,26 +466,75 @@ choose_new_activity(undefined, Activity) ->
 choose_new_activity(Activity, _) ->
     Activity.
 
-do_process_transfer(transfer, Transfer, _Data) ->
+do_process_transfer(transfer, Transfer, _Data, _Parent) ->
     Child = get_last_child(childs(Transfer)),
-    case process_transfer(Child) of
+    case process_transfer_(Child, Transfer) of
         {error, _} = Error ->
             Error;
-        {ok, {Action, Events}} ->
-            {ok, {Action, wrap_events_for_parent(Child, Events, Transfer)}}
+        {ok, {Action, Events}} when is_list(Events) ->
+            {ok, {Action, wrap_events_for_parent(Child, Events, Transfer)}};
+        {ok, {Intent, {Action, Events}}} ->
+            IntentEvents = handle_intent(Intent, Child, Transfer),
+            {ok, {Action, wrap_events_for_parent(Child, Events, Transfer) ++ IntentEvents}}
     end;
-do_process_transfer(transaction_starting, _Transfer, {create_transaction, Params}) ->
+do_process_transfer(transaction_starting, _Transfer, {create_transaction, Params}, _) ->
     do(fun () ->
         TransactionEvents = unwrap(ff_transaction_new:create(Params)),
         {continue, wrap_transaction_events(TransactionEvents)}
     end);
-do_process_transfer(transaction_polling, Transfer, _Data) ->
+do_process_transfer(transaction_polling, Transfer, _Data, Parent) ->
     Handler = type_to_handler(transfer_type(Transfer)),
     unwrap(Handler:process_transfer(Transfer)),
-    poll_transaction_completion(Transfer);
-do_process_transfer(_Activity, Transfer, _Data) ->
+    poll_transaction_completion(Transfer, Parent);
+do_process_transfer(_Activity, Transfer, _Data, _) ->
     Handler = type_to_handler(transfer_type(Transfer)),
     Handler:process_transfer(Transfer).
+
+-spec process_revert(revert_params(), transfer()) ->
+    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
+    {error, _Reason}.
+
+process_revert(Params = #{target := Target}, Transfer) ->
+    RootID = target_get_root_id(Target),
+    ID = target_get_id(Target),
+    process_revert_(RootID, ID, Params, Transfer).
+
+process_revert_(RootID, RootID, Params, Transfer) ->
+    Type = transfer_type(Transfer),
+    Handler = type_to_handler(Type),
+    Handler:process_call({revert, Params}, Transfer);
+process_revert_(_RootID, ID, Params, Transfer) ->
+    case find_child(ID, childs(Transfer)) of
+        undefined ->
+            %% TODO try to find in deep layer
+            {error, {notfound, ID}};
+        Child ->
+            do(fun () ->
+                Type = transfer_type(Child),
+                Handler = type_to_handler(Type),
+                {Action, Events} = unwrap(Handler:process_call({revert, Params}, Child)),
+                {ok, {Action, wrap_events_for_parent(Child, Events, Transfer)}}
+            end)
+    end.
+
+handle_intent(transfer_succeed, Child, Transfer) ->
+    case transfer_type(Child) of
+        revert ->
+            change_to_reverted(check_revert_amount(Child, Transfer));
+        _ ->
+            []
+    end.
+
+check_revert_amount(Child, Transfer) ->
+    Reverts = get_childs_of_type(revert, childs(Transfer)),
+    {Amount, _} = reduce_cash(Reverts, Transfer),
+    {ChildAmount, _} = body(Child),
+    Amount - ChildAmount.
+
+change_to_reverted(Amount) when Amount =:= 0 ->
+    [{status_changed, reverted}];
+change_to_reverted(_Amount) ->
+    [].
 
 %%
 
@@ -420,9 +572,10 @@ get_last_child(Childs) when
 get_last_child([H | _T]) ->
     H.
 
--spec poll_transaction_completion(transfer()) ->
-    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}}.
-poll_transaction_completion(Transfer) ->
+-spec poll_transaction_completion(transfer(), maybe(transfer())) ->
+    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
+    {ok, intent(), {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}}.
+poll_transaction_completion(Transfer, Parent) ->
     Transaction = transaction(Transfer),
     {Action, Events} = case ff_transaction_new:process_transaction(Transaction) of
         {ok, _} = Result ->
@@ -430,14 +583,14 @@ poll_transaction_completion(Transfer) ->
         {error, Reason} ->
             unwrap_transaction_call_res(ff_transaction_new:process_failure(Reason, Transaction))
     end,
-    TransferEvents = case check_transaction_complete(Events) of
-        true ->
-            [{status_changed, succeeded}];
-        _ ->
-            []
-    end,
-
-    {ok, {Action, Events ++ TransferEvents}}.
+    case {check_transaction_complete(Events), Parent} of
+        {true, undefined} ->
+            {ok, {Action, Events ++ [{status_changed, succeeded}]}};
+        {true, _} ->
+            {ok, {transfer_succeed, {Action, Events ++ [{status_changed, succeeded}]}}};
+        {_, _} ->
+            {ok, {Action, Events}}
+    end.
 
 unwrap_transaction_call_res({ok, {Action, Events}}) ->
     {Action, wrap_transaction_events(Events)}.
@@ -458,7 +611,83 @@ check_transaction_complete(Events) ->
         end
     end, false, Events).
 
+get_childs_of_type(Type, Childs) ->
+    get_childs_of_type_(Type, Childs, []).
+
+get_childs_of_type_(_Type, [], Childs) ->
+    Childs;
+get_childs_of_type_(Type, [H | Rest], Childs) ->
+    case transfer_type(H) =:= Type of
+        true ->
+            get_childs_of_type_(Type, Rest, [H | Childs]);
+        false ->
+            get_childs_of_type_(Type, Rest, [H | Childs])
+    end.
+
+validate_revert(_, {error, notfound} = Error) ->
+    Error;
+validate_revert(Body, {ok, Machine}) ->
+    Transfer = ff_transfer_machine_new:transfer(Machine),
+    Reverts = get_childs_of_type(revert, childs(Transfer)),
+    do(fun () ->
+        ok = unwrap(validate_cash(Body, reduce_cash(Reverts, Transfer))),
+        ok = unwrap(validate_transfer_state(Transfer)),
+        ok = unwrap(validate_revert_state(Reverts))
+    end).
+
+reduce_cash([], Transfer) ->
+    body(Transfer);
+reduce_cash(Reverts, Transfer) ->
+    {Amount, Currency} = body(Transfer),
+    NewAmount = lists:foldl(fun(Revert, Amount0) ->
+        case status(Revert) of
+            succeeded ->
+                {A, _} = body(Revert),
+                Amount0 - A;
+            _ ->
+                Amount0
+        end
+    end, Amount, Reverts),
+    {NewAmount, Currency}.
+
+validate_cash(Checked, CheckWith) ->
+    case ff_cash:validate_cash_to_cash(Checked, CheckWith) of
+        valid ->
+            ok;
+        Result ->
+            Result
+    end.
+
+validate_transfer_state(Transfer) ->
+    case status(Transfer) of
+        succeeded ->
+            ok;
+        reverted ->
+            ok;
+        _Result ->
+            {error, {not_permitted, <<"Wrong transfer state">>}}
+    end.
+
+validate_revert_state([]) ->
+    ok;
+validate_revert_state([H | Rest]) ->
+    case status(H) of
+        succeeded ->
+            validate_revert_state(Rest);
+        {failed, _} ->
+            validate_revert_state(Rest);
+        _Result ->
+            ID = id(H),
+            {error, {not_permitted, <<"Revert with ID ", ID/binary, " not finished">>}}
+    end.
+
 %%
+
+-spec collapse([event()], undefined | transfer()) ->
+    transfer().
+
+collapse(Events, Transfer0) ->
+    lists:foldl(fun (Ev, Transfer) -> apply_event(Ev, Transfer) end, Transfer0, Events).
 
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(transfer(T))) ->
     transfer(T).
@@ -478,22 +707,23 @@ apply_event_({transaction, Ev}, T) ->
     Activity = action_to_activity(transaction, Action),
     set_activity(Activity, maps:put(transaction, Transaction, T));
 apply_event_({child_transfer, SignedEvent = #{event := Ev}}, T) ->
-    Child0 = find_child(SignedEvent, childs(T)),
+    #{id := ID} = SignedEvent,
+    Child0 = find_child(ID, childs(T)),
     Child1 = apply_event(Ev, Child0),
     Child2 = set_parent(Child1, T),
-    update_childs(Child0, Child2, T);
+    set_activity(transfer, update_childs(Child0, Child2, T));
 apply_event_(Ev, T) ->
     Handler = type_to_handler(transfer_type(T)),
     Handler:apply_event(Ev, T).
 
 find_child(_, []) ->
     undefined;
-find_child(Ev = #{id := ID}, [Child | Rest]) ->
+find_child(ID, [Child | Rest]) ->
     case id(Child) =:= ID of
         true ->
             Child;
         false ->
-            find_child(Ev, Rest)
+            find_child(ID, Rest)
     end.
 
 -spec set_parent(transfer(), transfer()) ->
@@ -517,7 +747,7 @@ update_childs(_, Child0, T) ->
                 [Child | Acc]
         end
     end, [], childs(T)),
-    T#{childs => Childs}.
+    T#{childs => lists:reverse(Childs)}.
 
 maybe_transfer_type(undefined) ->
     undefined;

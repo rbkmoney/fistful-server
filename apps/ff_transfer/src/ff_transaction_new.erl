@@ -59,6 +59,12 @@
     session_data    := session_data(T)
 }.
 
+-type intent()                ::
+    {finished, succeed}        |
+    {finished, {failed, _}}    .
+
+-type intent_response()    :: ff_intent:intent_response(event(), intent()).
+
 -export_type([transaction/0]).
 -export_type([event/0]).
 -export_type([status/0]).
@@ -186,22 +192,22 @@ create(#{
 %% ff_transfer_machine_new behaviour
 
 -spec process_transaction(transaction()) ->
-    {ok, ff_transfer_new:process_response(event())} |
+    {ok, intent_response()} |
     {error, _Reason}.
 
 process_transaction(Transaction) ->
     process_activity(activity(Transaction), Transaction).
 
 -spec process_failure(any(), transaction()) ->
-    {ok, {ff_transfer_machine_new:action(), [ff_transfer_machine_new:event(event())]}} |
+    {ok, intent_response()} |
     {error, _Reason}.
 
 process_failure(Reason, Transaction) ->
     {ok, ShutdownEvents} = do_process_failure(Reason, Transaction),
-    {ok, {undefined,
+    {ok, ff_intent:make_response(undefined,
         ShutdownEvents ++
         [{status_changed, {failed, Reason}}]
-    }}.
+    )}.
 
 do_process_failure(_Reason, #{status := pending, activity := Status}) when
     Status =:= p_transfer_starting orelse
@@ -227,11 +233,11 @@ do_process_failure(_Reason, Transaction) ->
 process_activity(p_transfer_starting, Transaction) ->
     do(fun () ->
         {Action, Events} = create_p_transfer(Transaction),
-        ff_transfer_new:make_response(Action, Events)
+        ff_intent:make_response(Action, Events)
     end);
 process_activity(p_transfer_preparing, Transaction) ->
     do(fun () ->
-        ff_transfer_new:make_response(continue, unwrap(with(
+        ff_intent:make_response(continue, unwrap(with(
             p_transfer,
             Transaction,
             fun ff_postings_transfer:prepare/1)
@@ -244,11 +250,11 @@ process_activity(session_starting, Transaction = #{session_data := #{
     SessionID = construct_session_id(id(Transaction)),
     do(fun () ->
         ok = unwrap(ff_session:create(Type, SessionID, Params)),
-        ff_transfer_new:make_response(continue, [{session_started, SessionID}])
+        ff_intent:make_response(continue, [{session_started, SessionID}])
     end);
 process_activity(session_starting, _Transaction) ->
     do(fun () ->
-        ff_transfer_new:make_response(continue, [{status_changed, succeeded}])
+        ff_intent:make_response(continue, [{status_changed, succeeded}])
     end);
 process_activity(session_polling, Transaction) ->
     SessionID = session_id(Transaction),
@@ -258,14 +264,14 @@ process_activity(session_polling, Transaction) ->
     do(fun () ->
         case ff_session:status(Session) of
             active ->
-                ff_transfer_new:make_response(poll, []);
+                ff_intent:make_response(poll, []);
             {finished, {success, _}} ->
-                ff_transfer_new:make_response(continue, [
+                ff_intent:make_response(continue, [
                     {session_finished, SessionID},
                     {status_changed, succeeded}
                 ]);
             {finished, {failed, Failure}} ->
-                ff_transfer_new:make_response(continue, [
+                ff_intent:make_response(continue, [
                     {session_finished, SessionID},
                     {status_changed, {failed, Failure}}
                 ])
@@ -274,7 +280,7 @@ process_activity(session_polling, Transaction) ->
 process_activity(p_transfer_finishing, Transaction) ->
     do(fun () ->
         Fun = get_finish_fun(status(Transaction)),
-        ff_transfer_new:make_response(undefined, unwrap(with(
+        ff_intent:make_response(undefined, unwrap(with(
             p_transfer,
             Transaction,
             Fun
@@ -287,9 +293,9 @@ get_finish_fun({failed, _}) ->
     fun ff_postings_transfer:cancel/1.
 
 get_finish_intent(succeeded) ->
-    {transaction, {finished, succeed}};
+    {finished, succeed};
 get_finish_intent({failed, Failure}) ->
-    {transaction, {finished, {failed, Failure}}}.
+    {finished, {failed, Failure}}.
 
 create_p_transfer(Transaction) ->
     FinalCashFlow = final_cash_flow(Transaction),

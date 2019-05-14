@@ -30,11 +30,8 @@
 %% ff_transfer_new behaviour
 
 -behaviour(ff_transfer_new).
--export([apply_event/2]).
 -export([preprocess_transfer/1]).
 -export([process_transfer/1]).
--export([process_failure/2]).
--export([process_call/2]).
 -export([get_ns/0]).
 
 %% Accessors
@@ -76,7 +73,7 @@
 -type wallet_id() :: ff_wallet:id().
 -type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
 -type destination_id() :: ff_destination:id().
--type process_result() :: {ff_transfer_machine_new:action(), [event()]}.
+-type intent_response() :: ff_transfer_new:intent_response().
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 -type session_params() :: #{
     cash        := ff_transaction:body(),
@@ -221,7 +218,7 @@ preprocess_transfer(Withdrawal) ->
     do_preprocess_transfer(Activity, Withdrawal).
 
 -spec process_transfer(withdrawal()) ->
-    {ok, process_result()} |
+    {ok, intent_response()} |
     {error, _Reason}.
 
 process_transfer(undefined) ->
@@ -229,20 +226,6 @@ process_transfer(undefined) ->
 process_transfer(Withdrawal) ->
     Activity = ff_transfer_new:activity(Withdrawal),
     do_process_transfer(Activity, Withdrawal).
-
--spec process_call(_Args, withdrawal()) ->
-    {ok, process_result()} |
-    {error, _Reason}.
-
-process_call({revert, _Body, _Reason}, _Withdrawal) ->
-    {ok, {undefined, []}}.
-
--spec process_failure(any(), withdrawal()) ->
-    {ok, process_result()} |
-    {error, _Reason}.
-
-process_failure(_Reason, _Withdrawal) ->
-    {ok, {undefined, []}}.
 
 %% Internals
 
@@ -260,9 +243,7 @@ do_preprocess_transfer(_, _) ->
     ok.
 
 do_process_transfer(routing, Withdrawal) ->
-    create_route(Withdrawal);
-do_process_transfer(_, _) ->
-    {ok, {undefined, []}}.
+    create_route(Withdrawal).
 
 create_transaction_params(Withdrawal) ->
     #{
@@ -353,7 +334,7 @@ validate_wallet_limits(Withdrawal) ->
     end).
 
 -spec create_route(withdrawal()) ->
-    {ok, process_result()} |
+    {ok, intent_response()} |
     {error, _Reason}.
 create_route(Withdrawal) ->
     #{
@@ -370,7 +351,7 @@ create_route(Withdrawal) ->
         VS = unwrap(collect_varset(Body, Wallet, Destination)),
         Providers = unwrap(ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, VS)),
         ProviderID = unwrap(choose_provider(Providers, VS)),
-        {continue, [{route_changed, #{provider_id => ProviderID}}]}
+        ff_intent:make_response(continue, [{route_changed, #{provider_id => ProviderID}}])
     end).
 
 choose_provider(Providers, VS) ->
@@ -405,11 +386,6 @@ finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount,
         {provider, settlement} => ProviderAccount
     }),
     ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants).
-
--spec apply_event(event(), withdrawal()) ->
-    withdrawal().
-apply_event(_, T) ->
-    T.
 
 -spec maybe_migrate(ff_transfer_new:event() | ff_transfer_new:legacy_event()) ->
     ff_transfer_new:event().

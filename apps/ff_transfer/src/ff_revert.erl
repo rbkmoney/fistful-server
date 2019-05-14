@@ -44,11 +44,7 @@
 %% ff_transfer_new behaviour
 
 -behaviour(ff_transfer_new).
--export([apply_event/2]).
 -export([preprocess_transfer/1]).
--export([process_transfer/1]).
--export([process_failure/2]).
--export([process_call/2]).
 
 %% Accessors
 
@@ -74,7 +70,6 @@
 
 %% Internal types
 
--type process_result() :: {ff_transfer_machine_new:action(), [event()]}.
 -type session_params() :: #{}.
 -type target()         :: ff_transfer_new:target().
 
@@ -143,29 +138,6 @@ preprocess_transfer(Revert) ->
     Activity = ff_transfer_new:activity(Revert),
     do_preprocess_transfer(Activity, Revert).
 
--spec process_transfer(revert()) ->
-    {ok, process_result()} |
-    {error, _Reason}.
-
-process_transfer(undefined) ->
-    {error, cant_process_undefined_transfer};
-process_transfer(_Revert) ->
-    {ok, {undefined, []}}.
-
--spec process_call(_Args, revert()) ->
-    {ok, process_result()} |
-    {error, _Reason}.
-
-process_call({revert, _Body, _Reason}, _Revert) ->
-    {ok, {undefined, []}}.
-
--spec process_failure(any(), revert()) ->
-    {ok, process_result()} |
-    {error, _Reason}.
-
-process_failure(_Reason, _Revert) ->
-    {ok, {undefined, []}}.
-
 %% Internals
 
 do_preprocess_transfer(transaction_polling, Revert) ->
@@ -211,11 +183,6 @@ create_transaction_params(Revert) ->
 -spec construct_transaction_id(id()) -> id().
 construct_transaction_id(ID) ->
     <<"ff/revert/", ID/binary>>.
-
--spec apply_event(event(), revert()) ->
-    revert().
-apply_event(_, T) ->
-    T.
 
 -spec maybe_migrate(ff_transfer_new:event() | ff_transfer_new:legacy_event()) ->
     ff_transfer_new:event().

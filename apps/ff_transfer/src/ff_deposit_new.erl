@@ -32,10 +32,7 @@
 %% ff_transfer_new behaviour
 
 -behaviour(ff_transfer_new).
--export([apply_event/2]).
 -export([preprocess_transfer/1]).
--export([process_transfer/1]).
--export([process_failure/2]).
 -export([process_call/2]).
 -export([get_ns/0]).
 
@@ -66,7 +63,7 @@
 %% Internal types
 
 -type account() :: ff_account:account().
--type process_result() :: {ff_transfer_machine_new:action(), [event()]}.
+-type intent_response() :: ff_transfer_new:intent_response().
 -type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
 -type ctx()            :: ff_ctx:ctx().
 -type session_params() :: #{}.
@@ -184,28 +181,12 @@ preprocess_transfer(Deposit) ->
     Activity = ff_transfer_new:activity(Deposit),
     do_preprocess_transfer(Activity, Deposit).
 
--spec process_transfer(deposit()) ->
-    {ok, process_result()} |
-    {error, _Reason}.
-
-process_transfer(undefined) ->
-    {error, cant_process_undefined_transfer};
-process_transfer(_Deposit) ->
-    {ok, {undefined, []}}.
-
 -spec process_call({revert, revert_params()}, deposit()) ->
-    {ok, process_result()} |
+    {ok, intent_response()} |
     {error, _Reason}.
 
 process_call({revert, Params}, Deposit) ->
     process_revert(Params, Deposit).
-
--spec process_failure(any(), deposit()) ->
-    {ok, process_result()} |
-    {error, _Reason}.
-
-process_failure(_Reason, _Deposit) ->
-    {ok, {undefined, []}}.
 
 %% Internals
 
@@ -240,7 +221,7 @@ process_revert(Params = #{revert_id := RevertID, body := Body, target := Target}
     }),
     Revert = ff_transfer_new:collapse(Events, undefined),
     RevertEvents = ff_transfer_new:wrap_events_for_parent(Revert, Events, Deposit),
-    {ok, {continue, RevertEvents}}.
+    {ok, ff_intent:make_response(continue, RevertEvents)}.
 
 create_transaction_params(Deposit) ->
     #{
@@ -287,11 +268,6 @@ prepare_session_data() ->
 -spec construct_transaction_id(id()) -> id().
 construct_transaction_id(ID) ->
     <<"ff/deposit/", ID/binary>>.
-
--spec apply_event(event(), deposit()) ->
-    deposit().
-apply_event(_, T) ->
-    T.
 
 -spec maybe_migrate(ff_transfer_new:event() | ff_transfer_new:legacy_event()) ->
     ff_transfer_new:event().

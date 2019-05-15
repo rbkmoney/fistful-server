@@ -87,7 +87,7 @@
 -export([get_session_type/1]).
 
 -export([create/1]).
--export([process_transaction/1]).
+-export([process_transaction/2]).
 -export([process_failure/2]).
 
 %% Event source
@@ -191,12 +191,12 @@ create(#{
 
 %% ff_transfer_machine_new behaviour
 
--spec process_transaction(transaction()) ->
+-spec process_transaction(transaction(), ff_transfer_new:transfer()) ->
     {ok, intent_response()} |
     {error, _Reason}.
 
-process_transaction(Transaction) ->
-    process_activity(activity(Transaction), Transaction).
+process_transaction(Transaction, Transfer) ->
+    process_activity(activity(Transaction), Transaction, Transfer).
 
 -spec process_failure(any(), transaction()) ->
     {ok, intent_response()} |
@@ -230,12 +230,12 @@ do_process_failure(_Reason, Transaction) ->
     no_p_transfer = maps:get(p_transfer, Transaction, no_p_transfer),
     {ok, []}.
 
-process_activity(p_transfer_starting, Transaction) ->
+process_activity(p_transfer_starting, Transaction, _Transfer) ->
     do(fun () ->
         {Action, Events} = create_p_transfer(Transaction),
         ff_intent:make_response(Action, Events)
     end);
-process_activity(p_transfer_preparing, Transaction) ->
+process_activity(p_transfer_preparing, Transaction, _Transfer) ->
     do(fun () ->
         ff_intent:make_response(continue, unwrap(with(
             p_transfer,
@@ -246,17 +246,19 @@ process_activity(p_transfer_preparing, Transaction) ->
 process_activity(session_starting, Transaction = #{session_data := #{
     type := Type,
     params := Params
-}}) when Type =/= empty ->
+}}, Transfer) when Type =/= empty ->
     SessionID = construct_session_id(id(Transaction)),
     do(fun () ->
+        ok = unwrap(check_limits(Transfer)),
         ok = unwrap(ff_session:create(Type, SessionID, Params)),
         ff_intent:make_response(continue, [{session_started, SessionID}])
     end);
-process_activity(session_starting, _Transaction) ->
+process_activity(session_starting, _Transaction, Transfer) ->
     do(fun () ->
+        ok = unwrap(check_limits(Transfer)),
         ff_intent:make_response(continue, [{status_changed, succeeded}])
     end);
-process_activity(session_polling, Transaction) ->
+process_activity(session_polling, Transaction, _Transfer) ->
     SessionID = session_id(Transaction),
     #{type := Type} = session_data(Transaction),
     {ok, SessionMachine} = ff_session:get(Type, SessionID),
@@ -277,7 +279,7 @@ process_activity(session_polling, Transaction) ->
                 ])
         end
     end);
-process_activity(p_transfer_finishing, Transaction) ->
+process_activity(p_transfer_finishing, Transaction, _Transfer) ->
     do(fun () ->
         Fun = get_finish_fun(status(Transaction)),
         ff_intent:make_response(undefined, unwrap(with(
@@ -309,6 +311,14 @@ construct_session_id(ID) ->
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->
     <<"ff/transaction/", ID/binary>>.
+
+check_limits(Transfer) ->
+    case ff_transfer_new:check_limits(Transfer) of
+        {check_fail, _, Reason} ->
+            {error, {check_limit_fail, Reason}};
+        _ ->
+            ok
+    end.
 
 %%
 

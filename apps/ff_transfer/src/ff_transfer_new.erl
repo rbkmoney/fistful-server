@@ -93,6 +93,9 @@
 
 -type intent_response()    :: ff_intent:intent_response(event(), intent()).
 
+-type checked_param()       ::
+    limit                    .
+
 -export_type([args/0]).
 -export_type([transfer/1]).
 -export_type([handler/0]).
@@ -104,6 +107,7 @@
 -export_type([maybe/1]).
 -export_type([target/0]).
 -export_type([intent_response/0]).
+-export_type([checked_param/0]).
 
 -export_type([preprocess_result/1]).
 -export_type([new_activity/0]).
@@ -136,6 +140,7 @@
 -export([wrap_events_for_parent/4]).
 -export([handler_to_type/1]).
 -export([collapse/2]).
+-export([check_limits/1]).
 
 %% ff_transfer behaviour
 
@@ -160,6 +165,9 @@
 
 -callback get_ns() ->
     ns().
+
+-callback check_param(checked_param(), transfer()) ->
+    ok | {check_fail, checked_param(), _Reason}.
 
 -optional_callbacks([
     apply_event/2,
@@ -584,10 +592,15 @@ get_last_child([H | _T]) ->
     H.
 
 -spec poll_transaction_completion(transfer(), maybe(transfer())) ->
-    {ok, intent_response()}.
+    {ok, intent_response()} |
+    {error, _Reason}.
+
 poll_transaction_completion(Transfer, Parent) ->
     Transaction = transaction(Transfer),
-    case ff_transaction_new:process_transaction(Transaction) of
+    case ff_transaction_new:process_transaction(Transaction, Transfer) of
+        {error, {check_limit_fail, Reason}} ->
+            _ = ff_transaction_new:process_failure(Reason, Transaction),
+            erlang:throw({check_limit_fail, Reason});
         {error, Reason} ->
             unwrap_transaction_call_res(ff_transaction_new:process_failure(Reason, Transaction));
         {ok, #{intent := Intent0} = Response} ->
@@ -600,6 +613,13 @@ poll_transaction_completion(Transfer, Parent) ->
         {ok, #{action := Action, events := Events}} ->
             {ok, make_response(Action, wrap_transaction_events(Events))}
     end.
+
+-spec check_limits(transfer()) ->
+    ok | {check_fail, checked_param(), _Reason}.
+
+check_limits(Transfer) ->
+    Handler = type_to_handler(transfer_type(Transfer)),
+    Handler:check_param(limit, Transfer).
 
 unwrap_transaction_call_res({ok, Response}) ->
     make_response(

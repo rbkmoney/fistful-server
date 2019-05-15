@@ -45,6 +45,7 @@
 
 -behaviour(ff_transfer_new).
 -export([preprocess_transfer/1]).
+-export([check_param/2]).
 
 %% Accessors
 
@@ -138,16 +139,19 @@ preprocess_transfer(Revert) ->
     Activity = ff_transfer_new:activity(Revert),
     do_preprocess_transfer(Activity, Revert).
 
+-spec check_param(ff_transfer_new:checked_param(), revert()) ->
+    ok | {check_fail, ff_transfer_new:checked_param(), _Reason}.
+
+check_param(limit, Revert) ->
+    case validate_wallet_limits(Revert) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            {check_fail, limit, Reason}
+    end.
+
 %% Internals
 
-do_preprocess_transfer(transaction_polling, Revert) ->
-    Transaction = ff_transfer_new:transaction(Revert),
-    case ff_transaction_new:activity(Transaction) of
-        session_starting ->
-            validate_wallet_limits(Revert);
-        _ ->
-            ok
-    end;
 do_preprocess_transfer(routing, Revert) ->
     #{session_data := SessionData} = params(Revert),
     #{type := Type} = SessionData,

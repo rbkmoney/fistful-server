@@ -33,6 +33,7 @@
 -export([preprocess_transfer/1]).
 -export([process_transfer/1]).
 -export([get_ns/0]).
+-export([check_param/2]).
 
 %% Accessors
 
@@ -227,16 +228,19 @@ process_transfer(Withdrawal) ->
     Activity = ff_transfer_new:activity(Withdrawal),
     do_process_transfer(Activity, Withdrawal).
 
+-spec check_param(ff_transfer_new:checked_param(), withdrawal()) ->
+    ok | {check_fail, ff_transfer_new:checked_param(), _Reason}.
+
+check_param(limit, Withdrawal) ->
+    case validate_wallet_limits(Withdrawal) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            {check_fail, limit, Reason}
+    end.
+
 %% Internals
 
-do_preprocess_transfer(transaction_polling, Deposit) ->
-    Transaction = ff_transfer_new:transaction(Deposit),
-    case ff_transaction_new:activity(Transaction) of
-        session_starting ->
-            validate_wallet_limits(Deposit);
-        _ ->
-            ok
-    end;
 do_preprocess_transfer(transaction_starting, Withdrawal) ->
     {ok, transaction_starting, {create_transaction, create_transaction_params(Withdrawal)}};
 do_preprocess_transfer(_, _) ->

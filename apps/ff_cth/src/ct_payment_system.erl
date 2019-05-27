@@ -549,6 +549,29 @@ default_termset(Options) ->
                                 ?share(10, 100, operation_amount)
                             )
                         ]}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {all_of, ?ordset([
+                            {condition, {currency_is, ?cur(<<"RUB">>)}},
+                            {condition, {payment_tool, {crypto_currency, #domain_CryptoCurrencyCondition{}}}}
+                        ])},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
                     }
                 ]}
             }

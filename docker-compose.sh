@@ -10,11 +10,7 @@ services:
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/config/private.pem
       - $HOME/.cache:/home/$UNAME/.cache
     working_dir: $PWD
-    command: |
-      bash -c '{
-        woorl -s _build/default/lib/dmsl/proto/cds.thrift http://cds:8022/v1/keyring Keyring Init 1 1 || true;
-        exec /sbin/init
-      }'
+    command: /sbin/init
     depends_on:
       wapi-pcidss:
         condition: service_healthy
@@ -46,7 +42,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr.rbkmoney.com/rbkmoney/hellgate:a1ea6053fe2d0d446e1c69735ca63ab0d493a87a
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:4b9804fade0fef5fa0ad8cfe4a9748dc8c5574e7
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -86,7 +82,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr.rbkmoney.com/rbkmoney/dominant:410e9d8cd821b3b738eec2881e7737e021d9141b
+    image: dr.rbkmoney.com/rbkmoney/dominant:5a2be39e1035bf590af2e2a638062d6964708e05
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -134,7 +130,7 @@ services:
       retries: 10
 
   cds:
-    image: dr.rbkmoney.com/rbkmoney/cds:a02376ae8a30163a6177d41edec9d8ce2ff85e4f
+    image: dr2.rbkmoney.com/rbkmoney/cds:f7ad5a34a2f6d0780f44821290ba7c52d349f3f7
     command: /opt/cds/bin/cds foreground
     volumes:
       - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config
@@ -145,8 +141,14 @@ services:
       timeout: 1s
       retries: 10
 
+  holmes:
+    image: dr2.rbkmoney.com/rbkmoney/holmes:7a430d6ec97518a0ffe6e6c24ce267390de18b40
+    command: /opt/holmes/scripts/cds/keyring.py init
+    depends_on:
+      - cds
+
   machinegun:
-    image: dr.rbkmoney.com/rbkmoney/machinegun:5756aa3070f9beebd4b20d7076c8cdc079286090
+    image: dr2.rbkmoney.com/rbkmoney/machinegun:bffbaefa679c823d375cbf2b2434f72d2e3e5242
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml

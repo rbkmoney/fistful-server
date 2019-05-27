@@ -918,6 +918,23 @@ from_swag(destination_resource, #{
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }};
+from_swag(destination_resource, #{
+    <<"type">>     := <<"CryptoWalletDestinationResource">>,
+    <<"id">>       := CryptoWalletID,
+    <<"currency">> := CryptoWalletCurrency
+}) ->
+    {crypto_wallet, #{
+        id       => CryptoWalletID,
+        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency)
+    }};
+
+from_swag(crypto_wallet_currency, <<"Bitcoin">>)     -> bitcoin;
+from_swag(crypto_wallet_currency, <<"Litecoin">>)    -> litecoin;
+from_swag(crypto_wallet_currency, <<"BitcoinCash">>) -> bitcoin_cash;
+from_swag(crypto_wallet_currency, <<"Ripple">>)      -> ripple;
+from_swag(crypto_wallet_currency, <<"Ethereum">>)    -> ethereum;
+from_swag(crypto_wallet_currency, <<"Zcash">>)       -> zcash;
+
 from_swag(withdrawal_params, Params) ->
     add_external_id(#{
         wallet_id      => maps:get(<<"wallet">>     , Params),
@@ -1089,8 +1106,23 @@ to_swag(destination_resource, {bank_card, BankCard}) ->
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
+to_swag(destination_resource, {crypto_wallet, CryptoWallet}) ->
+    to_swag(map, #{
+        <<"type">>     => <<"CryptoWalletDestinationResource">>,
+        <<"id">>       => maps:get(id, CryptoWallet),
+        <<"currency">> => to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet))
+    });
+
 to_swag(pan_last_digits, MaskedPan) ->
     wapi_utils:get_last_pan_digits(MaskedPan);
+
+to_swag(crypto_wallet_currency, bitcoin)      -> <<"Bitcoin">>;
+to_swag(crypto_wallet_currency, litecoin)     -> <<"Litecoin">>;
+to_swag(crypto_wallet_currency, bitcoin_cash) -> <<"BitcoinCash">>;
+to_swag(crypto_wallet_currency, ripple)       -> <<"Ripple">>;
+to_swag(crypto_wallet_currency, ethereum)     -> <<"Ethereum">>;
+to_swag(crypto_wallet_currency, zcash)        -> <<"Zcash">>;
+
 to_swag(withdrawal, State) ->
     Withdrawal = ff_withdrawal:get(State),
     WapiCtx = get_ctx(State),

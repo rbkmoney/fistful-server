@@ -62,6 +62,9 @@ marshal(event, {status_changed, StatusChange}) ->
 
 marshal(resource, {bank_card, BankCard}) ->
     {bank_card, marshal(bank_card, BankCard)};
+marshal(resource, {crypto_wallet, CryptoWallet}) ->
+    {crypto_wallet, marshal(crypto_wallet, CryptoWallet)};
+
 marshal(bank_card, BankCard = #{
     token := Token
 }) ->
@@ -73,6 +76,15 @@ marshal(bank_card, BankCard = #{
         payment_system = PaymentSystem,
         bin = marshal(string, Bin),
         masked_pan = marshal(string, MaskedPan)
+    };
+
+marshal(crypto_wallet, #{
+    id       := CryptoWalletID,
+    currency := CryptoWalletCurrency
+}) ->
+    #'CryptoWallet'{
+        id       = marshal(string, CryptoWalletID),
+        currency = CryptoWalletCurrency
     };
 
 marshal(status, authorized) ->
@@ -113,6 +125,9 @@ unmarshal(event, {status, StatusChange}) ->
 
 unmarshal(resource, {bank_card, BankCard}) ->
     {bank_card, unmarshal(bank_card, BankCard)};
+unmarshal(resource, {crypto_wallet, CryptoWallet}) ->
+    {crypto_wallet, unmarshal(crypto_wallet, CryptoWallet)};
+
 unmarshal(bank_card, BankCard = #{
     token := Token
 }) ->
@@ -137,6 +152,15 @@ unmarshal(bank_card, #'BankCard'{
         bin => maybe_unmarshal(string, Bin),
         masked_pan => maybe_unmarshal(string, MaskedPan)
     });
+
+unmarshal(crypto_wallet, #'CryptoWallet'{
+    id       = CryptoWalletID,
+    currency = CryptoWalletCurrency
+}) ->
+    #{
+        id       => unmarshal(string, CryptoWalletID),
+        currency => CryptoWalletCurrency
+    };
 
 unmarshal(status, {authorized, #dst_Authorized{}}) ->
     authorized;
@@ -187,5 +211,13 @@ destination_test() ->
     },
 
     ?assertEqual(In, unmarshal_destination(marshal_destination(In))).
+
+-spec crypto_wallet_resource_test() -> _.
+crypto_wallet_resource_test() ->
+    Resource = {crypto_wallet, #{
+        id => <<"9e6245a7a6e15f75769a4d87183b090a">>,
+        currency => bitcoin
+    }},
+    ?assertEqual(Resource, unmarshal(resource, marshal(resource, Resource))).
 
 -endif.

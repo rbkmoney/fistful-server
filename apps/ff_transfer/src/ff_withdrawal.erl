@@ -530,4 +530,10 @@ construct_payment_tool({bank_card, ResourceBankCard}) ->
         payment_system  = maps:get(payment_system, ResourceBankCard),
         bin             = maps:get(bin, ResourceBankCard),
         masked_pan      = maps:get(masked_pan, ResourceBankCard)
+    }};
+
+construct_payment_tool({crypto_wallet, CryptoWallet}) ->
+    {crypto_wallet, #domain_CryptoWallet{
+        id              = maps:get(id, CryptoWallet),
+        crypto_currency = maps:get(currency, CryptoWallet)
     }}.

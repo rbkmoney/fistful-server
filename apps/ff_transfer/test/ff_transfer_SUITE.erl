@@ -19,6 +19,7 @@
 -export([deposit_via_admin_amount_fails/1]).
 -export([deposit_via_admin_currency_fails/1]).
 -export([deposit_withdrawal_ok/1]).
+-export([deposit_withdrawal_to_crypto_wallet/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -40,7 +41,8 @@ groups() ->
             deposit_via_admin_fails,
             deposit_via_admin_amount_fails,
             deposit_via_admin_currency_fails,
-            deposit_withdrawal_ok
+            deposit_withdrawal_ok,
+            deposit_withdrawal_to_crypto_wallet
         ]}
     ].
 
@@ -90,6 +92,7 @@ end_per_testcase(_Name, _C) ->
 -spec deposit_via_admin_amount_fails(config()) -> test_return().
 -spec deposit_via_admin_currency_fails(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
+-spec deposit_withdrawal_to_crypto_wallet(config()) -> test_return().
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
@@ -285,6 +288,18 @@ deposit_withdrawal_ok(C) ->
 
     process_withdrawal(WalID, DestID).
 
+deposit_withdrawal_to_crypto_wallet(C) ->
+    Party  = create_party(C),
+    IID    = create_person_identity(Party, C),
+    ICID   = genlib:unique(),
+    WalID  = create_wallet(IID, <<"WalletName">>, <<"RUB">>, C),
+    ok     = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID  = create_source(IID, C),
+    ok     = process_deposit(SrcID, WalID),
+    DestID = create_crypto_destination(IID, C),
+    pass_identification(ICID, IID, C),
+    process_withdrawal(WalID, DestID).
+
 create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
@@ -407,6 +422,24 @@ process_deposit(SrcID, WalID) ->
 create_destination(IID, C) ->
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
     DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
+    {ok, DestM1} = ff_destination:get_machine(DestID),
+    Dest1 = ff_destination:get(DestM1),
+    unauthorized = ff_destination:status(Dest1),
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
+        end
+    ),
+    DestID.
+
+create_crypto_destination(IID, C) ->
+    Resource = {crypto_wallet, #{
+        id => <<"a30e277c07400c9940628828949efd48">>,
+        currency => litecoin
+    }},
+    DestID = create_instrument(destination, IID, <<"CryptoDestination">>, <<"RUB">>, Resource, C),
     {ok, DestM1} = ff_destination:get_machine(DestID),
     Dest1 = ff_destination:get(DestM1),
     unauthorized = ff_destination:status(Dest1),

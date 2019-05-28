@@ -270,6 +270,8 @@ deposit_via_admin_currency_fails(C) ->
 
     ok = await_wallet_balance({0, <<"RUB">>}, WalID).
 
+-include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 deposit_withdrawal_ok(C) ->
     Party = create_party(C),
@@ -286,7 +288,9 @@ deposit_withdrawal_ok(C) ->
 
     pass_identification(ICID, IID, C),
 
-    process_withdrawal(WalID, DestID).
+    WdrID     = process_withdrawal(WalID, DestID),
+    Events    = get_withdrawal_events(WdrID),
+    [<<"1">>] = route_changes(Events).
 
 deposit_withdrawal_to_crypto_wallet(C) ->
     Party  = create_party(C),
@@ -298,7 +302,9 @@ deposit_withdrawal_to_crypto_wallet(C) ->
     ok     = process_deposit(SrcID, WalID),
     DestID = create_crypto_destination(IID, C),
     pass_identification(ICID, IID, C),
-    process_withdrawal(WalID, DestID).
+    WdrID     = process_withdrawal(WalID, DestID),
+    Events    = get_withdrawal_events(WdrID),
+    [<<"2">>] = route_changes(Events).
 
 create_party(_C) ->
     ID = genlib:bsuuid(),
@@ -491,3 +497,24 @@ process_withdrawal(WalID, DestID) ->
     ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
     ok = await_destination_balance({4240 - 848, <<"RUB">>}, DestID),
     WdrID.
+
+%%%
+
+get_withdrawal_events(WdrID) ->
+    Service = {{ff_proto_withdrawal_thrift, 'Management'}, <<"/v1/withdrawal">>},
+    {ok, Events} = call('GetEvents', Service, [WdrID, #'EventRange'{'after' = 0, limit = 1000}]),
+    Events.
+
+call(Function, Service, Args) ->
+    call(Function, Service, Args, <<"8022">>).
+
+call(Function, {Service, Path}, Args, Port) ->
+    Request = {Service, Function, Args},
+    Client  = ff_woody_client:new(#{
+        url           => <<"http://localhost:", Port/binary, Path/binary>>,
+        event_handler => scoper_woody_event_handler
+    }),
+    ff_woody_client:call(Client, Request).
+
+route_changes(Events) ->
+    [ProviderID || #wthd_Event{change = {route, #wthd_RouteChange{id = ProviderID}}} <- Events].

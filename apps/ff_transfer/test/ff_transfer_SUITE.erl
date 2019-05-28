@@ -1,6 +1,7 @@
 -module(ff_transfer_SUITE).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 
 
@@ -19,6 +20,7 @@
 -export([deposit_via_admin_amount_fails/1]).
 -export([deposit_via_admin_currency_fails/1]).
 -export([deposit_withdrawal_ok/1]).
+-export([deposit_withdrawal_to_crypto_wallet/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -40,7 +42,8 @@ groups() ->
             deposit_via_admin_fails,
             deposit_via_admin_amount_fails,
             deposit_via_admin_currency_fails,
-            deposit_withdrawal_ok
+            deposit_withdrawal_ok,
+            deposit_withdrawal_to_crypto_wallet
         ]}
     ].
 
@@ -90,6 +93,7 @@ end_per_testcase(_Name, _C) ->
 -spec deposit_via_admin_amount_fails(config()) -> test_return().
 -spec deposit_via_admin_currency_fails(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
+-spec deposit_withdrawal_to_crypto_wallet(config()) -> test_return().
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
@@ -267,7 +271,6 @@ deposit_via_admin_currency_fails(C) ->
 
     ok = await_wallet_balance({0, <<"RUB">>}, WalID).
 
-
 deposit_withdrawal_ok(C) ->
     Party = create_party(C),
     IID = create_person_identity(Party, C),
@@ -283,7 +286,23 @@ deposit_withdrawal_ok(C) ->
 
     pass_identification(ICID, IID, C),
 
-    process_withdrawal(WalID, DestID).
+    WdrID     = process_withdrawal(WalID, DestID),
+    Events    = get_withdrawal_events(WdrID),
+    [<<"1">>] = route_changes(Events).
+
+deposit_withdrawal_to_crypto_wallet(C) ->
+    Party  = create_party(C),
+    IID    = create_person_identity(Party, C),
+    ICID   = genlib:unique(),
+    WalID  = create_wallet(IID, <<"WalletName">>, <<"RUB">>, C),
+    ok     = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID  = create_source(IID, C),
+    ok     = process_deposit(SrcID, WalID),
+    DestID = create_crypto_destination(IID, C),
+    pass_identification(ICID, IID, C),
+    WdrID     = process_withdrawal(WalID, DestID),
+    Events    = get_withdrawal_events(WdrID),
+    [<<"2">>] = route_changes(Events).
 
 create_party(_C) ->
     ID = genlib:bsuuid(),
@@ -419,6 +438,24 @@ create_destination(IID, C) ->
     ),
     DestID.
 
+create_crypto_destination(IID, C) ->
+    Resource = {crypto_wallet, #{
+        id => <<"a30e277c07400c9940628828949efd48">>,
+        currency => litecoin
+    }},
+    DestID = create_instrument(destination, IID, <<"CryptoDestination">>, <<"RUB">>, Resource, C),
+    {ok, DestM1} = ff_destination:get_machine(DestID),
+    Dest1 = ff_destination:get(DestM1),
+    unauthorized = ff_destination:status(Dest1),
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
+        end
+    ),
+    DestID.
+
 pass_identification(ICID, IID, C) ->
     Doc1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
     Doc2 = ct_identdocstore:rus_domestic_passport(C),
@@ -458,3 +495,24 @@ process_withdrawal(WalID, DestID) ->
     ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
     ok = await_destination_balance({4240 - 848, <<"RUB">>}, DestID),
     WdrID.
+
+%%%
+
+get_withdrawal_events(WdrID) ->
+    Service = {{ff_proto_withdrawal_thrift, 'Management'}, <<"/v1/withdrawal">>},
+    {ok, Events} = call('GetEvents', Service, [WdrID, #'EventRange'{'after' = 0, limit = 1000}]),
+    Events.
+
+call(Function, Service, Args) ->
+    call(Function, Service, Args, <<"8022">>).
+
+call(Function, {Service, Path}, Args, Port) ->
+    Request = {Service, Function, Args},
+    Client  = ff_woody_client:new(#{
+        url           => <<"http://localhost:", Port/binary, Path/binary>>,
+        event_handler => scoper_woody_event_handler
+    }),
+    ff_woody_client:call(Client, Request).
+
+route_changes(Events) ->
+    [ProviderID || #wthd_Event{change = {route, #wthd_RouteChange{id = ProviderID}}} <- Events].

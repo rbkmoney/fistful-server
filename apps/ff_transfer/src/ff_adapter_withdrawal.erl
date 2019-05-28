@@ -130,6 +130,16 @@ encode_destination_resource(
         payment_system  = PaymentSystem,
         bin             = BIN,
         masked_pan      = MaskedPan
+    }};
+encode_destination_resource(
+    {crypto_wallet, #{
+        id       := CryptoWalletID,
+        currency := CryptoWalletCurrency
+    }}
+) ->
+    {crypto_wallet, #domain_CryptoWallet{
+        id              = CryptoWalletID,
+        crypto_currency = CryptoWalletCurrency
     }}.
 
 -spec encode_identity

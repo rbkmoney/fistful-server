@@ -159,10 +159,7 @@ external_id(_Transfer) ->
 %% API
 
 -spec create(handler(), id(), body(), params(), external_id()) ->
-    {ok, [event()]} |
-    {error,
-        _PostingsTransferError
-    }.
+    {ok, [event()]}.
 
 create(TransferType, ID, Body, Params, ExternalID) ->
     do(fun () ->

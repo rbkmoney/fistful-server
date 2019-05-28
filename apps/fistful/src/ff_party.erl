@@ -138,12 +138,12 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
     Error ::
         {party_not_found, id()} |
         {contract_not_found, id()} |
-        {exception, any()}.
+        no_return().
 
 get_wallet_payment_institution_id(Wallet) ->
     IdentityID = ff_wallet:identity(Wallet),
     do(fun() ->
-        IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
+        {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
         Identity = ff_identity_machine:identity(IdentityMachine),
         PartyID = ff_identity:party(Identity),
         ContractID = ff_identity:contract(Identity),
@@ -157,13 +157,13 @@ get_wallet_payment_institution_id(Wallet) ->
     Error ::
         {party_not_found, id()} |
         {party_not_exists_yet, id()} |
-        {exception, any()}.
+        no_return().
 
 get_contract_terms(Wallet, Body, Timestamp) ->
     WalletID = ff_wallet:id(Wallet),
     IdentityID = ff_wallet:identity(Wallet),
     do(fun() ->
-        IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
+        {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
         Identity = ff_identity_machine:identity(IdentityMachine),
         PartyID = ff_identity:party(Identity),
         ContractID = ff_identity:contract(Identity),
@@ -181,7 +181,7 @@ get_contract_terms(Wallet, Body, Timestamp) ->
 
 -spec get_contract_terms(PartyID :: id(), contract_id(), hg_selector:varset(), timestamp()) -> Result when
     Result :: {ok, terms()} | {error, Error},
-    Error :: {party_not_found, id()} | {party_not_exists_yet, id()} | {exception, any()}.
+    Error :: {party_not_found, id()} | {party_not_exists_yet, id()}.
 
 get_contract_terms(PartyID, ContractID, Varset, Timestamp) ->
     DomainVarset = encode_varset(Varset),
@@ -194,7 +194,7 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp) ->
         {exception, #payproc_PartyNotExistsYet{}} ->
             {error, {party_not_exists_yet, PartyID}};
         {exception, Unexpected} ->
-            {error, {exception, Unexpected}}
+            erlang:error({unexpected, Unexpected})
     end.
 
 -spec validate_account_creation(terms(), currency_id()) -> Result when
@@ -233,7 +233,9 @@ validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
     Error ::
         currency_validation_error() |
         {invalid_terms, _Details} |
-        {bad_deposit_amount, _Details}.
+        {bad_deposit_amount, _Details} |
+        {party_not_found, id()} |
+        {party_not_exists_yet, id()}.
 
 validate_deposit_creation(_Wallet, {Amount, _Currency} = _Cash)
     when Amount < 1 -> {error, {bad_deposit_amount, Amount}};
@@ -495,7 +497,7 @@ validate_wallet_terms_currency(CurrencyID, Terms) ->
     validate_currency(CurrencyID, Currencies).
 
 -spec validate_wallet_limits(ff_account:account(), terms()) ->
-    {ok, valid} | {error, cash_range_validation_error()}.
+    {ok, valid} | {error, cash_range_validation_error() | {invalid_terms, _Details}}.
 validate_wallet_limits(Account, #domain_TermSet{wallets = WalletTerms}) ->
     %% TODO add turnover validation here
     do(fun () ->

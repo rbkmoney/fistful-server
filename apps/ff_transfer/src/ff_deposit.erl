@@ -100,9 +100,12 @@ external_id(T)     -> ff_transfer:external_id(T).
     {error,
         {source, notfound | unauthorized} |
         {destination, notfound} |
-        {provider, notfound} |
-        exists |
-        _TransferError
+        {terms_violation, _Details} |
+        {invalid_terms, _Details} |
+        {bad_deposit_amount, _Details} |
+        {party_not_found, id()} |
+        {party_not_exists_yet, id()} |
+        exists
     }.
 
 create(ID, Args = #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
@@ -175,7 +178,7 @@ process_failure(Reason, Deposit) ->
 
 -type activity() ::
     p_transfer_start         |
-    finish                   |
+    finish_him               |
     idle                     .
 
 % TODO: Move activity to ff_transfer

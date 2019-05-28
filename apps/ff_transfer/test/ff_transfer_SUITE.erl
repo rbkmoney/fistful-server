@@ -1,6 +1,7 @@
 -module(ff_transfer_SUITE).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 
 
@@ -269,9 +270,6 @@ deposit_via_admin_currency_fails(C) ->
         }]),
 
     ok = await_wallet_balance({0, <<"RUB">>}, WalID).
-
--include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 deposit_withdrawal_ok(C) ->
     Party = create_party(C),

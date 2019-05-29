@@ -195,7 +195,9 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
         exists |
         {challenge_class, notfound} |
         {level, ff_identity_class:level()} |
-        _CreateChallengeError
+        {proof, notfound | insufficient} |
+        pending |
+        conflict
     }.
 
 start_challenge(ChallengeID, ChallengeClassID, Proofs, Identity) ->

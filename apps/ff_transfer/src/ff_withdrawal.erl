@@ -129,14 +129,12 @@ external_id(T)     -> ff_transfer:external_id(T).
         {wallet, notfound} |
         {source, notfound} |
         {destination, notfound | unauthorized} |
-        {terms_violation, _Details} |
-        {invalid_terms, _Details} |
-        {invalid_withdrawal_currency, ff_currency:id(), _Details} |
-        {party_not_found, id()} |
-        {party_not_exists_yet, id()} |
-        exists |
-        _TransferError
-
+        {terms, {terms_violation, _Details}} |
+        {terms, {invalid_terms, _Details}} |
+        {terms, {invalid_withdrawal_currency, ff_currency:id(), _Details}} |
+        {contract, {party_not_found, id()}} |
+        {contract, {party_not_exists_yet, id()}} |
+        exists
     }.
 
 create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->

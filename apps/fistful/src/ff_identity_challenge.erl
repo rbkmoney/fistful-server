@@ -84,7 +84,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
+-import(ff_pipeline, [do/1, unwrap/1, valid/2]).
 
 %%
 
@@ -148,14 +148,15 @@ claim_id(#{claim_id := V}) ->
     {ok, [event()]} |
     {error,
         {proof, notfound | insufficient} |
-        _StartError
+        pending |
+        conflict
     }.
 
 create(ID, Claimant, ProviderID, IdentityClassID, ChallengeClassID, Proofs) ->
     do(fun () ->
-        Provider = unwrap(provider, ff_provider:get(ProviderID)),
-        IdentityClass = unwrap(identity_class, ff_provider:get_identity_class(IdentityClassID, Provider)),
-        ChallengeClass = unwrap(challenge_class, ff_identity_class:challenge_class(ChallengeClassID, IdentityClass)),
+        {ok, Provider} = ff_provider:get(ProviderID),
+        {ok, IdentityClass} = ff_provider:get_identity_class(IdentityClassID, Provider),
+        {ok, ChallengeClass} = ff_identity_class:challenge_class(ChallengeClassID, IdentityClass),
         TargetLevelID = ff_identity_class:target_level(ChallengeClass),
         {ok, TargetLevel} = ff_identity_class:level(TargetLevelID, IdentityClass),
         MasterID = unwrap(deduce_identity_id(Proofs)),

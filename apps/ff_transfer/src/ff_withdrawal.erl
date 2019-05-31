@@ -449,7 +449,6 @@ create_session(ID, TransferData, SessionParams) ->
     case ff_withdrawal_session_machine:create(ID, TransferData, SessionParams) of
         ok ->
             ok;
-        % TODO А если параметры ранее созданной сессии отличаются?
         {error, exists} ->
             ok
     end.

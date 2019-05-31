@@ -27,6 +27,10 @@
 -type challenge_id() ::
     machinery:id().
 
+-type start_challenge_error() ::
+    {challenge, {pending, challenge_id()}} |
+    {challenge, ff_identity:start_challenge_error()}.
+
 -export_type([id/0]).
 
 -export([create/3]).
@@ -64,7 +68,7 @@
 -spec create(id(), params(), ctx()) ->
     ok |
     {error,
-        _IdentityCreateError |
+        ff_identity:create_error() |
         exists
     }.
 
@@ -107,7 +111,7 @@ events(ID, Range) ->
     ok |
     {error,
         notfound |
-        _IdentityChallengeError
+        start_challenge_error()
     }.
 
 start_challenge(ID, Params) ->
@@ -184,7 +188,7 @@ set_poll_timer(St) ->
     {start_challenge, challenge_params()}.
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) ->
-    {_TODO, result()}.
+    {ok | {error, start_challenge_error()}, result()}.
 
 process_call({start_challenge, Params}, Machine, _Args, _Opts) ->
     St = ff_machine:collapse(ff_identity, Machine),

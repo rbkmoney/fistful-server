@@ -65,8 +65,14 @@
     {created, challenge()} |
     {status_changed, status()}.
 
+-type create_error() ::
+    {proof, notfound | insufficient} |
+    pending |
+    conflict.
+
 -export_type([challenge/0]).
 -export_type([event/0]).
+-export_type([create_error/0]).
 
 -export([id/1]).
 -export([claimant/1]).
@@ -146,11 +152,7 @@ claim_id(#{claim_id := V}) ->
 
 -spec create(id(_), claimant(), provider(), identity_class(), challenge_class(), [proof()]) ->
     {ok, [event()]} |
-    {error,
-        {proof, notfound | insufficient} |
-        pending |
-        conflict
-    }.
+    {error, create_error()}.
 
 create(ID, Claimant, ProviderID, IdentityClassID, ChallengeClassID, Proofs) ->
     do(fun () ->

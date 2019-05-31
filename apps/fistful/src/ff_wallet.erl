@@ -18,9 +18,15 @@
     {created, wallet()} |
     {account, ff_account:event()}.
 
+-type create_error() ::
+    {identity, notfound} |
+    {currency, notfound} |
+    ff_account:create_error().
+
 -export_type([id/0]).
 -export_type([wallet/0]).
 -export_type([event/0]).
+-export_type([create_error/0]).
 
 -type inaccessibility() ::
     {inaccessible, blocked}.
@@ -93,11 +99,12 @@ external_id(_Wallet) ->
 
 -spec create(id(), identity(), binary(), currency(), external_id()) ->
     {ok, [event()]} |
-    {error, _AccountCreateReason}.
+    {error, create_error()}.
 
 create(ID, IdentityID, Name, CurrencyID, ExternalID) ->
     do(fun () ->
-        Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
+        IdentityMachine = unwrap(identity, ff_identity_machine:get(IdentityID)),
+        Identity = ff_identity_machine:identity(IdentityMachine),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Wallet = #{
             name => Name,

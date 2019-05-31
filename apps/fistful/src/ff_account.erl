@@ -22,9 +22,16 @@
 -type event() ::
     {created, account()}.
 
+-type create_error() ::
+    {accounter, any()} |
+    {contract, any()} |
+    {terms, any()} |
+    {party, ff_party:inaccessibility()}.
+
 -export_type([id/0]).
 -export_type([account/0]).
 -export_type([event/0]).
+-export_type([create_error/0]).
 
 -export([id/1]).
 -export([identity/1]).
@@ -73,8 +80,6 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
 -spec create(id(), identity(), currency()) ->
     {ok, [event()]} |
     {error,
-        {identity, notfound} |
-        {currency, notfound} |
         {accounter, any()} |
         {contract, any()} |
         {terms, any()} |

@@ -100,11 +100,7 @@ external_id(T)     -> ff_transfer:external_id(T).
     {error,
         {source, notfound | unauthorized} |
         {destination, notfound} |
-        {terms_violation, _Details} |
-        {invalid_terms, _Details} |
-        {bad_deposit_amount, _Details} |
-        {party_not_found, id()} |
-        {party_not_exists_yet, id()} |
+        ff_party:validate_deposit_creation_error() |
         exists
     }.
 
@@ -178,7 +174,7 @@ process_failure(Reason, Deposit) ->
 
 -type activity() ::
     p_transfer_start         |
-    finish_him               |
+    finish                   |
     idle                     .
 
 % TODO: Move activity to ff_transfer
@@ -194,13 +190,13 @@ deduce_activity(Deposit) ->
 do_deduce_activity(#{status := pending, p_transfer := undefined}) ->
     p_transfer_start;
 do_deduce_activity(#{status := pending, p_transfer := #{status := prepared}}) ->
-    finish_him;
+    finish;
 do_deduce_activity(_Other) ->
     idle.
 
 do_process_transfer(p_transfer_start, Deposit) ->
     create_p_transfer(Deposit);
-do_process_transfer(finish_him, Deposit) ->
+do_process_transfer(finish, Deposit) ->
     finish_transfer(Deposit);
 do_process_transfer(idle, Deposit) ->
     ff_transfer:process_transfer(Deposit).

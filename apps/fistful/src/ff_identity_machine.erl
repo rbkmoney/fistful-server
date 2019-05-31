@@ -29,12 +29,7 @@
 
 -type start_challenge_error() ::
     {challenge, {pending, challenge_id()}} |
-    {challenge, exists} |
-    {challenge, {challenge_class, notfound}} |
-    {challenge, {level, ff_identity_class:level()}} |
-    {challenge, {proof, notfound | insufficient}} |
-    {challenge, pending} |
-    {challenge, conflict}.
+    {challenge, ff_identity:start_challenge_error()}.
 
 -export_type([id/0]).
 
@@ -73,10 +68,7 @@
 -spec create(id(), params(), ctx()) ->
     ok |
     {error,
-        {provider, notfound} |
-        {identity_class, notfound} |
-        ff_party:inaccessibility() |
-        invalid |
+        ff_identity:create_error() |
         exists
     }.
 

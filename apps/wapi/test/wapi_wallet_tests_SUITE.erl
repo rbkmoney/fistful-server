@@ -118,7 +118,6 @@ end_per_testcase(_Name, C) ->
     ok.
 
 %%% Tests
-
 -spec create_report_ok_test(config()) ->
     _.
 create_report_ok_test(C) ->

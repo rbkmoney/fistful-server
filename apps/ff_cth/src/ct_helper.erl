@@ -116,7 +116,8 @@ start_app(wapi_woody_client = AppName) ->
         {service_urls, #{
             cds_storage         => "http://cds:8022/v1/storage",
             identdoc_storage    => "http://cds:8022/v1/identity_document_storage",
-            fistful_stat        => "http://fistful-magista:8022/stat"
+            fistful_stat        => "http://fistful-magista:8022/stat",
+            fistful_wallet      => "http://localhost:8022/v1/wallet"
         }},
         {service_retries, #{
             fistful_stat    => #{

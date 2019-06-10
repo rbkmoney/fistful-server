@@ -180,6 +180,12 @@ unmarshal(amount, V) ->
 
 unmarshal(context, V) -> ff_context:unwrap(V);
 
+unmarshal(ev_range, #'EventRange'{
+    'after' = Cursor,
+    limit   = Limit
+}) ->
+    {Cursor, Limit, forward};
+
 unmarshal(range, #evsink_EventRange{
     'after' = Cursor,
     limit   = Limit

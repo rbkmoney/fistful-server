@@ -86,6 +86,7 @@ start_app(woody = AppName) ->
 
 start_app(dmt_client = AppName) ->
     {start_app_with(AppName, [
+        {cache_update_interval, 500},
         {max_cache_size, #{
             elements => 1
         }},
@@ -169,11 +170,6 @@ start_app(ff_server = AppName) ->
                 path => <<"/v1/eventsink/withdrawal/session">>
             }
         }}
-    ]), #{}};
-
-start_app(dmt_client = AppName) ->
-    {start_app_with(AppName, [
-        {cache_update_interval, 500}
     ]), #{}};
 
 start_app({AppName, AppEnv}) ->

@@ -30,7 +30,7 @@ object(Ref, {Type, ObjectRef}) ->
             {Type, {_RecordName, ObjectRef, ObjectData}} = Object,
             {ok, ObjectData}
     catch
-        object_not_found ->
+        #'ObjectNotFound'{} ->
             {error, notfound}
     end.
 

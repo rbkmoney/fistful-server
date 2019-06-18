@@ -171,6 +171,11 @@ start_app(ff_server = AppName) ->
         }}
     ]), #{}};
 
+start_app(dmt_client = AppName) ->
+    {start_app_with(AppName, [
+        {cache_update_interval, 500}
+    ]), #{}};
+
 start_app({AppName, AppEnv}) ->
     {start_app_with(AppName, AppEnv), #{}};
 

@@ -17,13 +17,19 @@
 -type currency() :: ff_currency:id().
 -type status()   :: ff_identity:status().
 -type resource() ::
-    {bank_card, resource_bank_card()}.
+    {bank_card, resource_bank_card()} |
+    {crypto_wallet, resource_crypto_wallet()}.
 
 -type resource_bank_card() :: #{
     token          := binary(),
     payment_system => atom(), % TODO
     bin            => binary(),
     masked_pan     => binary()
+}.
+
+-type resource_crypto_wallet() :: #{
+    id       := binary(),
+    currency := atom()
 }.
 
 -type destination() :: ff_instrument:instrument(resource()).

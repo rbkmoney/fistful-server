@@ -85,10 +85,7 @@
 
 -spec create(ns(), id(), params(), ctx()) ->
     ok |
-    {error,
-        _TransferError |
-        exists
-    }.
+    {error, exists}.
 
 create(NS, ID,
     Args = #{handler := Handler, body := Body, params := Params},

@@ -65,7 +65,7 @@ ctx(St) ->
 -spec create(id(), params(), ctx()) ->
     ok |
     {error,
-        _WalletCreateError |
+        ff_wallet:create_error() |
         exists
     }.
 

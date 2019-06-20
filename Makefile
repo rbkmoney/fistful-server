@@ -22,6 +22,8 @@ BASE_IMAGE_TAG := 16e2b3ef17e5fdefac8554ced9c2c74e5c6e9e11
 # Build image tag to be used
 BUILD_IMAGE_TAG := 585ec439a97bade30cfcebc36cefdb45f13f3372
 
+REGISTRY := dr.rbkmoney.com
+
 CALL_ANYWHERE := all submodules compile xref lint dialyze release clean distclean
 CALL_ANYWHERE += generate regenerate
 

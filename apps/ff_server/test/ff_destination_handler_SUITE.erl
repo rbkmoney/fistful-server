@@ -11,9 +11,8 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
--export([create_destination_ok/1]).
-% -export([create_wallet_identity_fails/1]).
-% -export([create_wallet_currency_fails/1]).
+-export([create_bank_card_destination_ok/1]).
+-export([create_crypto_wallet_destination_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -30,7 +29,8 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            create_destination_ok
+            create_bank_card_destination_ok,
+            create_crypto_wallet_destination_ok
         ]}
     ].
 
@@ -72,19 +72,34 @@ init_per_testcase(Name, C) ->
 end_per_testcase(_Name, _C) ->
     ok = ff_woody_ctx:unset().
 
+-spec create_bank_card_destination_ok(config()) -> test_return().
 
--spec create_destination_ok(config()) -> test_return().
+create_bank_card_destination_ok(C) ->
+    Resource = {bank_card, #'BankCard'{
+        token = <<"TOKEN shmOKEN">>
+    }},
+    create_destination_ok(Resource, C).
 
-create_destination_ok(C) ->
+-spec create_crypto_wallet_destination_ok(config()) -> test_return().
+
+create_crypto_wallet_destination_ok(C) ->
+    Resource = {crypto_wallet, #'CryptoWallet'{
+        id = <<"f195298af836f41d072cb390ee62bee8">>,
+        currency = bitcoin_cash
+    }},
+    create_destination_ok(Resource, C).
+
+%%----------------------------------------------------------------------
+%%  Internal functions
+%%----------------------------------------------------------------------
+
+create_destination_ok(Resource, C) ->
     Party = create_party(C),
     Currency = <<"RUB">>,
     DstName = <<"loSHara card">>,
     ID = genlib:unique(),
     ExternalId = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
-    Resource = {bank_card, #'BankCard'{
-        token = <<"TOKEN shmOKEN">>
-    }},
     Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
     Params = #dst_DestinationParams{
         id          = ID,
@@ -118,9 +133,6 @@ create_destination_ok(C) ->
         genlib_retry:linear(15, 1000)
     ).
 
-%%-----------
-%%  Internal
-%%-----------
 call_service(Fun, Args) ->
     Service = {ff_proto_destination_thrift, 'Management'},
     Request = {Service, Fun, Args},

@@ -80,10 +80,9 @@ status(#{status := V}) ->
     {ok, [event()]} |
     {error,
         empty |
-        {account, notfound} |
         {account, ff_party:inaccessibility()} |
-        {currency, invalid} |
-        {provider, invalid}
+        {currency, ff_currency:id()} |
+        {provider, id()}
     }.
 
 create(_TrxID, #{postings := []}) ->

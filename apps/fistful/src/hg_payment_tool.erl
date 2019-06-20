@@ -21,6 +21,8 @@ test_condition({payment_terminal, C}, {payment_terminal, V = #domain_PaymentTerm
     test_payment_terminal_condition(C, V);
 test_condition({digital_wallet, C}, {digital_wallet, V = #domain_DigitalWallet{}}) ->
     test_digital_wallet_condition(C, V);
+test_condition({crypto_currency, C}, {crypto_currency, V}) ->
+    test_crypto_currency_condition(C, V);
 test_condition(_PaymentTool, _Condition) ->
     false.
 
@@ -89,3 +91,8 @@ test_digital_wallet_condition(#domain_DigitalWalletCondition{definition = Def}, 
 test_digital_wallet_condition_def({provider_is, V1}, #domain_DigitalWallet{provider = V2}) ->
     V1 =:= V2.
 
+test_crypto_currency_condition(#domain_CryptoCurrencyCondition{definition = Def}, V) ->
+    Def =:= undefined orelse test_crypto_currency_condition_def(Def, V).
+
+test_crypto_currency_condition_def({crypto_currency_is, C1}, C2) ->
+    C1 =:= C2.

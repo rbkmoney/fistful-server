@@ -38,7 +38,7 @@ handle_function_('Create', [IdentityID, IdentityParams], WoodyCtx, Opts) ->
             woody_error:raise(business, #fistful_ProviderNotFound{});
         {error, {identity_class, notfound}} ->
             woody_error:raise(business, #fistful_IdentityClassNotFound{});
-        {error, {party, _Inaccessible}} ->
+        {error, {inaccessible, _}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
@@ -63,9 +63,9 @@ handle_function_('StartChallenge', [IdentityID, Params], _WoodyCtx, _Opts) ->
             Identity        = ff_identity_machine:identity(Machine),
             {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
             {ok, ff_identity_codec:marshal_challenge(Challenge)};
-        {error, {identity, notfound}} ->
+        {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
-        {error, {challenge, {challenge_pending, _}}} ->
+        {error, {challenge, {pending, _}}} ->
             woody_error:raise(business, #fistful_ChallengePending{});
         {error, {challenge, {challenge_class, notfound}}} ->
             woody_error:raise(business, #fistful_ChallengeClassNotFound{});

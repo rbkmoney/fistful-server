@@ -2,6 +2,7 @@
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 
 -export([all/0]).
@@ -16,6 +17,7 @@
 -export([get_missing_fail/1]).
 -export([deposit_ok/1]).
 -export([deposit_withdrawal_ok/1]).
+-export([deposit_withdrawal_to_crypto_wallet/1]).
 -export([deposit_migrate_ok/1]).
 -export([withdrawal_migrate_ok/1]).
 -export([deposit_revert_ok/1]).
@@ -45,6 +47,7 @@ groups() ->
             get_missing_fail,
             deposit_ok,
             deposit_withdrawal_ok,
+            deposit_withdrawal_to_crypto_wallet,
             deposit_migrate_ok,
             withdrawal_migrate_ok,
             deposit_revert_ok,
@@ -133,7 +136,25 @@ deposit_withdrawal_ok(C) ->
 
     pass_identification(ICID, IID, C),
 
-    process_withdrawal(WalID, DestID).
+    WdrID     = process_withdrawal(WalID, DestID),
+    Events    = get_withdrawal_events(WdrID),
+    [1] = route_changes(Events).
+
+-spec deposit_withdrawal_to_crypto_wallet(config()) -> test_return().
+
+deposit_withdrawal_to_crypto_wallet(C) ->
+    Party  = create_party(C),
+    IID    = create_person_identity(Party, C),
+    ICID   = genlib:unique(),
+    WalID  = create_wallet(IID, <<"WalletName">>, <<"RUB">>, C),
+    ok     = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID  = create_source(IID, C),
+    ok     = process_deposit(SrcID, WalID),
+    DestID = create_crypto_destination(IID, C),
+    pass_identification(ICID, IID, C),
+    WdrID     = process_withdrawal(WalID, DestID),
+    Events    = get_withdrawal_events(WdrID),
+    [2] = route_changes(Events).
 
 -spec deposit_migrate_ok(config()) -> test_return().
 
@@ -276,7 +297,7 @@ deposit_revert_via_admin_fails(C) ->
     RevertID = genlib:unique(),
     {ok, Revert1} = call_admin('CreateRevert', [#fistful_admin_RevertParams{
         id          = RevertID,
-        target      = #fistful_admin_Target{
+        target      = #transfer_Target{
             root_id = DepID,
             root_type = {deposit, #transfer_TransferDeposit{}},
             target_id = DepID
@@ -292,7 +313,7 @@ deposit_revert_via_admin_fails(C) ->
     failed = ct_helper:await(
         failed,
         fun () ->
-            {ok, Revert} = call_admin('GetRevert', [#fistful_admin_Target{
+            {ok, Revert} = call_admin('GetRevert', [#transfer_Target{
                 root_id = DepID,
                 root_type = {deposit, #transfer_TransferDeposit{}},
                 target_id = RevertID
@@ -350,7 +371,7 @@ deposit_two_reverts_via_admin_fail(C) ->
     {exception, #fistful_AmountInvalid{}} =
         call_admin('CreateRevert', [#fistful_admin_RevertParams{
             id          = RevertID2,
-            target      = #fistful_admin_Target{
+            target      = #transfer_Target{
                 root_id = DepID,
                 root_type = {deposit, #transfer_TransferDeposit{}},
                 target_id = DepID
@@ -382,7 +403,7 @@ deposit_revert_via_admin_currency_fail(C) ->
     {exception, #fistful_CurrencyInvalid{}} =
         call_admin('CreateRevert', [#fistful_admin_RevertParams{
             id          = RevertID,
-            target      = #fistful_admin_Target{
+            target      = #transfer_Target{
                 root_id = DepID,
                 root_type = {deposit, #transfer_TransferDeposit{}},
                 target_id = DepID
@@ -414,7 +435,7 @@ deposit_revert_via_admin_not_permitted(C) ->
     {ok, _Revert} =
         call_admin('CreateRevert', [#fistful_admin_RevertParams{
             id          = RevertID1,
-            target      = #fistful_admin_Target{
+            target      = #transfer_Target{
                 root_id = DepID,
                 root_type = {deposit, #transfer_TransferDeposit{}},
                 target_id = DepID
@@ -429,7 +450,7 @@ deposit_revert_via_admin_not_permitted(C) ->
     {exception, #fistful_OperationNotPermitted{}} =
         call_admin('CreateRevert', [#fistful_admin_RevertParams{
             id          = RevertID2,
-            target      = #fistful_admin_Target{
+            target      = #transfer_Target{
                 root_id = DepID,
                 root_type = {deposit, #transfer_TransferDeposit{}},
                 target_id = DepID
@@ -531,9 +552,6 @@ create_source(IID, C) ->
     % Create source
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
     SrcID = create_instrument(source, IID, <<"XSource">>, <<"RUB">>, SrcResource, C),
-    {ok, SrcM1} = ff_source:get_machine(SrcID),
-    Src1 = ff_source:get(SrcM1),
-    unauthorized = ff_source:status(Src1),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -586,9 +604,21 @@ process_deposit_old_style(DepID, SrcID, WalID) ->
 create_destination(IID, C) ->
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
     DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
-    {ok, DestM1} = ff_destination:get_machine(DestID),
-    Dest1 = ff_destination:get(DestM1),
-    unauthorized = ff_destination:status(Dest1),
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
+        end
+    ),
+    DestID.
+
+create_crypto_destination(IID, C) ->
+    Resource = {crypto_wallet, #{
+        id => <<"a30e277c07400c9940628828949efd48">>,
+        currency => litecoin
+    }},
+    DestID = create_instrument(destination, IID, <<"CryptoDestination">>, <<"RUB">>, Resource, C),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -616,6 +646,13 @@ pass_identification(ICID, IID, C) ->
             ff_identity_challenge:status(IC)
         end
     ).
+
+get_withdrawal_events(WdrID) ->
+    {ok, Events} = ff_withdrawal_new:events(WdrID, {0, 1000, forward}),
+    [Payload || {_ID, {ev, _Timestamp, Payload}} <- Events].
+
+route_changes(Events) ->
+    [ProviderID || {route_changed, #{provider_id := ProviderID}} <- Events].
 
 process_withdrawal(WalID, DestID) ->
     process_withdrawal(WalID, DestID, 10000).
@@ -703,7 +740,6 @@ process_source_via_admin(SrcID, IID) ->
         currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         resource = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
-    unauthorized = Src1#fistful_Source.status,
     SrcID = Src1#fistful_Source.id,
     authorized = ct_helper:await(
         authorized,
@@ -719,7 +755,7 @@ process_revert_via_admin(DepID, SrcID, WalID) ->
 process_revert_via_admin(RevertID, DepID, WalID, Amount, TargetAmount) ->
     {ok, Revert1} = call_admin('CreateRevert', [#fistful_admin_RevertParams{
         id          = RevertID,
-        target      = #fistful_admin_Target{
+        target      = #transfer_Target{
             root_id = DepID,
             root_type = {deposit, #transfer_TransferDeposit{}},
             target_id = DepID
@@ -735,7 +771,7 @@ process_revert_via_admin(RevertID, DepID, WalID, Amount, TargetAmount) ->
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
-            {ok, Revert} = call_admin('GetRevert', [#fistful_admin_Target{
+            {ok, Revert} = call_admin('GetRevert', [#transfer_Target{
                 root_id = DepID,
                 root_type = {deposit, #transfer_TransferDeposit{}},
                 target_id = RevertID

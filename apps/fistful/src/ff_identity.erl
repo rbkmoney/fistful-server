@@ -48,9 +48,23 @@
     {effective_challenge_changed, challenge_id()}                    |
     {{challenge        , challenge_id()}, ff_identity_challenge:ev()}.
 
+-type create_error() ::
+    {provider, notfound} |
+    {identity_class, notfound} |
+    ff_party:inaccessibility() |
+    invalid.
+
+-type start_challenge_error() ::
+    exists |
+    {challenge_class, notfound} |
+    {level, ff_identity_class:level()} |
+    ff_identity_challenge:create_error().
+
 -export_type([identity/0]).
 -export_type([event/0]).
 -export_type([id/0]).
+-export_type([create_error/0]).
+-export_type([start_challenge_error/0]).
 
 -export([id/1]).
 -export([provider/1]).
@@ -155,12 +169,7 @@ set_blocked(Identity) ->
 
 -spec create(id(), party(), provider(), class(), external_id()) ->
     {ok, [event()]} |
-    {error,
-        {provider, notfound} |
-        {identity_class, notfound} |
-        ff_party:inaccessibility() |
-        invalid
-    }.
+    {error, create_error()}.
 
 create(ID, Party, ProviderID, ClassID, ExternalID) ->
     do(fun () ->
@@ -191,12 +200,7 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
 
 -spec start_challenge(challenge_id(), challenge_class(), [ff_identity_challenge:proof()], identity()) ->
     {ok, [event()]} |
-    {error,
-        exists |
-        {challenge_class, notfound} |
-        {level, ff_identity_class:level()} |
-        _CreateChallengeError
-    }.
+    {error, start_challenge_error()}.
 
 start_challenge(ChallengeID, ChallengeClassID, Proofs, Identity) ->
     do(fun () ->

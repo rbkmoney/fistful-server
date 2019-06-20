@@ -142,9 +142,6 @@ create_identity(Party, ProviderID, ClassID, _C) ->
 create_destination(IID, C) ->
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
     DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
-    {ok, DestM1} = ff_destination:get_machine(DestID),
-    Dest1 = ff_destination:get(DestM1),
-    unauthorized = ff_destination:status(Dest1),
     authorized = ct_helper:await(
         authorized,
         fun () ->

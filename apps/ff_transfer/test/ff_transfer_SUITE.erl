@@ -2,6 +2,7 @@
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 
 -export([all/0]).
@@ -19,6 +20,7 @@
 -export([deposit_via_admin_amount_fails/1]).
 -export([deposit_via_admin_currency_fails/1]).
 -export([deposit_withdrawal_ok/1]).
+-export([deposit_withdrawal_to_crypto_wallet/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -40,7 +42,8 @@ groups() ->
             deposit_via_admin_fails,
             deposit_via_admin_amount_fails,
             deposit_via_admin_currency_fails,
-            deposit_withdrawal_ok
+            deposit_withdrawal_ok,
+            deposit_withdrawal_to_crypto_wallet
         ]}
     ].
 
@@ -90,6 +93,7 @@ end_per_testcase(_Name, _C) ->
 -spec deposit_via_admin_amount_fails(config()) -> test_return().
 -spec deposit_via_admin_currency_fails(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
+-spec deposit_withdrawal_to_crypto_wallet(config()) -> test_return().
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
@@ -110,7 +114,6 @@ deposit_via_admin_ok(C) ->
         currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         resource = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
-    unauthorized = Src1#fistful_Source.status,
     SrcID = Src1#fistful_Source.id,
     authorized = ct_helper:await(
         authorized,
@@ -158,7 +161,6 @@ deposit_via_admin_fails(C) ->
         currency    = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         resource    = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
-    unauthorized = Src1#fistful_Source.status,
     SrcID = Src1#fistful_Source.id,
     authorized = ct_helper:await(
         authorized,
@@ -201,14 +203,13 @@ deposit_via_admin_amount_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', [#fistful_admin_SourceParams{
+    {ok, _Src1} = call_admin('CreateSource', [#fistful_admin_SourceParams{
         id          = SrcID,
         name        = <<"HAHA NO">>,
         identity_id = IID,
         currency    = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         resource    = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
-    unauthorized = Src1#fistful_Source.status,
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -245,7 +246,6 @@ deposit_via_admin_currency_fails(C) ->
         currency    = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         resource    = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
-    unauthorized = Src1#fistful_Source.status,
     SrcID = Src1#fistful_Source.id,
     authorized = ct_helper:await(
         authorized,
@@ -267,7 +267,6 @@ deposit_via_admin_currency_fails(C) ->
 
     ok = await_wallet_balance({0, <<"RUB">>}, WalID).
 
-
 deposit_withdrawal_ok(C) ->
     Party = create_party(C),
     IID = create_person_identity(Party, C),
@@ -283,7 +282,23 @@ deposit_withdrawal_ok(C) ->
 
     pass_identification(ICID, IID, C),
 
-    process_withdrawal(WalID, DestID).
+    WdrID     = process_withdrawal(WalID, DestID),
+    Events    = get_withdrawal_events(WdrID),
+    [<<"1">>] = route_changes(Events).
+
+deposit_withdrawal_to_crypto_wallet(C) ->
+    Party  = create_party(C),
+    IID    = create_person_identity(Party, C),
+    ICID   = genlib:unique(),
+    WalID  = create_wallet(IID, <<"WalletName">>, <<"RUB">>, C),
+    ok     = await_wallet_balance({0, <<"RUB">>}, WalID),
+    SrcID  = create_source(IID, C),
+    ok     = process_deposit(SrcID, WalID),
+    DestID = create_crypto_destination(IID, C),
+    pass_identification(ICID, IID, C),
+    WdrID     = process_withdrawal(WalID, DestID),
+    Events    = get_withdrawal_events(WdrID),
+    [<<"2">>] = route_changes(Events).
 
 create_party(_C) ->
     ID = genlib:bsuuid(),
@@ -373,9 +388,6 @@ create_source(IID, C) ->
     % Create source
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
     SrcID = create_instrument(source, IID, <<"XSource">>, <<"RUB">>, SrcResource, C),
-    {ok, SrcM1} = ff_source:get_machine(SrcID),
-    Src1 = ff_source:get(SrcM1),
-    unauthorized = ff_source:status(Src1),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -392,8 +404,6 @@ process_deposit(SrcID, WalID) ->
         #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, DepM1} = ff_deposit:get_machine(DepID),
-    pending = ff_deposit:status(ff_deposit:get(DepM1)),
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
@@ -407,9 +417,21 @@ process_deposit(SrcID, WalID) ->
 create_destination(IID, C) ->
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
     DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
-    {ok, DestM1} = ff_destination:get_machine(DestID),
-    Dest1 = ff_destination:get(DestM1),
-    unauthorized = ff_destination:status(Dest1),
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
+        end
+    ),
+    DestID.
+
+create_crypto_destination(IID, C) ->
+    Resource = {crypto_wallet, #{
+        id => <<"a30e277c07400c9940628828949efd48">>,
+        currency => litecoin
+    }},
+    DestID = create_instrument(destination, IID, <<"CryptoDestination">>, <<"RUB">>, Resource, C),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -445,8 +467,6 @@ process_withdrawal(WalID, DestID) ->
         #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, WdrM1} = ff_withdrawal:get_machine(WdrID),
-    pending = ff_withdrawal:status(ff_withdrawal:get(WdrM1)),
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
@@ -458,3 +478,24 @@ process_withdrawal(WalID, DestID) ->
     ok = await_wallet_balance({10000 - 4240, <<"RUB">>}, WalID),
     ok = await_destination_balance({4240 - 848, <<"RUB">>}, DestID),
     WdrID.
+
+%%%
+
+get_withdrawal_events(WdrID) ->
+    Service = {{ff_proto_withdrawal_thrift, 'Management'}, <<"/v1/withdrawal">>},
+    {ok, Events} = call('GetEvents', Service, [WdrID, #'EventRange'{'after' = 0, limit = 1000}]),
+    Events.
+
+call(Function, Service, Args) ->
+    call(Function, Service, Args, <<"8022">>).
+
+call(Function, {Service, Path}, Args, Port) ->
+    Request = {Service, Function, Args},
+    Client  = ff_woody_client:new(#{
+        url           => <<"http://localhost:", Port/binary, Path/binary>>,
+        event_handler => scoper_woody_event_handler
+    }),
+    ff_woody_client:call(Client, Request).
+
+route_changes(Events) ->
+    [ProviderID || #wthd_Event{change = {route, #wthd_RouteChange{id = ProviderID}}} <- Events].

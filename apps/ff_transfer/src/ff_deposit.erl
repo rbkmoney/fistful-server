@@ -100,9 +100,8 @@ external_id(T)     -> ff_transfer:external_id(T).
     {error,
         {source, notfound | unauthorized} |
         {destination, notfound} |
-        {provider, notfound} |
-        exists |
-        _TransferError
+        ff_party:validate_deposit_creation_error() |
+        exists
     }.
 
 create(ID, Args = #{source_id := SourceID, wallet_id := WalletID, body := Body}, Ctx) ->
@@ -191,13 +190,13 @@ deduce_activity(Deposit) ->
 do_deduce_activity(#{status := pending, p_transfer := undefined}) ->
     p_transfer_start;
 do_deduce_activity(#{status := pending, p_transfer := #{status := prepared}}) ->
-    finish_him;
+    finish;
 do_deduce_activity(_Other) ->
     idle.
 
 do_process_transfer(p_transfer_start, Deposit) ->
     create_p_transfer(Deposit);
-do_process_transfer(finish_him, Deposit) ->
+do_process_transfer(finish, Deposit) ->
     finish_transfer(Deposit);
 do_process_transfer(idle, Deposit) ->
     ff_transfer:process_transfer(Deposit).

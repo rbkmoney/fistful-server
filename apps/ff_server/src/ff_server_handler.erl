@@ -97,9 +97,9 @@ handle_function_('CreateRevert', [Params], Context, Opts) ->
         ok ->
             Target = Params#fistful_admin_RevertParams.target,
             handle_function_('GetRevert', [
-                #fistful_admin_Target{
-                    root_id   = Target#fistful_admin_Target.root_id,
-                    root_type = Target#fistful_admin_Target.root_type,
+                #transfer_Target{
+                    root_id   = Target#transfer_Target.root_id,
+                    root_type = Target#transfer_Target.root_type,
                     target_id = RevertID
                 }
             ], Context, Opts);
@@ -113,7 +113,7 @@ handle_function_('CreateRevert', [Params], Context, Opts) ->
             woody_error:raise(business, #fistful_CurrencyInvalid{})
     end;
 handle_function_('GetRevert', [Target], _Context, _Opts) ->
-    RevertID = Target#fistful_admin_Target.target_id,
+    RevertID = Target#transfer_Target.target_id,
     case ff_transfer_new:get_transfer(decode({transfer, target}, Target)) of
         {ok, Revert} ->
             {ok, encode(revert, {RevertID, Revert})};
@@ -132,13 +132,13 @@ decode({deposit, body}, #'Cash'{amount = Amount, currency = Currency}) ->
     {Amount, decode(currency, Currency)};
 decode(currency, #'CurrencyRef'{symbolic_code = V}) ->
     V;
-decode({transfer, target}, #fistful_admin_Target{root_id = ID, root_type = Type, target_id = TargetID}) ->
+decode({transfer, target}, #transfer_Target{root_id = ID, root_type = Type, target_id = TargetID}) ->
     #{root_id => ID, root_type => decode({transfer, type}, Type), target_id => TargetID};
 decode({transfer, type}, {deposit, #transfer_TransferDeposit{}}) ->
     deposit;
 decode({transfer, type}, {withdrawal, #transfer_TransferWithdrawal{}}) ->
     withdrawal;
-decode({transfer, type}, {revert, {deposit, #transfer_TransferDepositRevert{}}}) ->
+decode({transfer, type}, {revert, #transfer_TransferRevert{}}) ->
     revert;
 decode(context, Context) ->
     Context.
@@ -165,10 +165,10 @@ encode({transfer, type}, deposit) ->
 encode({transfer, type}, withdrawal) ->
     {withdrawal, #transfer_TransferWithdrawal{}};
 encode({transfer, type}, revert) ->
-    {revert, {deposit, #transfer_TransferDepositRevert{}}};
+    {revert, #transfer_TransferRevert{}};
 
 encode({transfer, target}, #{root_id := ID, root_type := Type, target_id := TargetID}) ->
-    #fistful_admin_Target{
+    #transfer_Target{
         root_id = ID,
         root_type = encode({transfer, type}, Type),
         target_id = TargetID

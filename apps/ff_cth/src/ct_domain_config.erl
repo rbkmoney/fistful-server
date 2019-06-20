@@ -41,7 +41,7 @@ get(Revision, Ref) ->
     try
         extract_data(dmt_client:checkout_object({version, Revision}, Ref))
     catch
-        throw:object_not_found ->
+        throw:#'ObjectNotFound'{} ->
             error({object_not_found, {Revision, Ref}})
     end.
 
@@ -51,7 +51,7 @@ find(Revision, Ref) ->
     try
         extract_data(dmt_client:checkout_object({version, Revision}, Ref))
     catch
-        throw:object_not_found ->
+        throw:#'ObjectNotFound'{} ->
             notfound
     end.
 

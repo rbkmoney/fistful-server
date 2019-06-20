@@ -114,7 +114,6 @@ deposit_via_admin_ok(C) ->
         currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         resource = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
-    unauthorized = Src1#fistful_Source.status,
     SrcID = Src1#fistful_Source.id,
     authorized = ct_helper:await(
         authorized,
@@ -162,7 +161,6 @@ deposit_via_admin_fails(C) ->
         currency    = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         resource    = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
-    unauthorized = Src1#fistful_Source.status,
     SrcID = Src1#fistful_Source.id,
     authorized = ct_helper:await(
         authorized,
@@ -205,14 +203,13 @@ deposit_via_admin_amount_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', [#fistful_admin_SourceParams{
+    {ok, _Src1} = call_admin('CreateSource', [#fistful_admin_SourceParams{
         id          = SrcID,
         name        = <<"HAHA NO">>,
         identity_id = IID,
         currency    = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         resource    = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
-    unauthorized = Src1#fistful_Source.status,
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -249,7 +246,6 @@ deposit_via_admin_currency_fails(C) ->
         currency    = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         resource    = #fistful_SourceResource{details = <<"Infinite source of cash">>}
     }]),
-    unauthorized = Src1#fistful_Source.status,
     SrcID = Src1#fistful_Source.id,
     authorized = ct_helper:await(
         authorized,
@@ -392,9 +388,6 @@ create_source(IID, C) ->
     % Create source
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
     SrcID = create_instrument(source, IID, <<"XSource">>, <<"RUB">>, SrcResource, C),
-    {ok, SrcM1} = ff_source:get_machine(SrcID),
-    Src1 = ff_source:get(SrcM1),
-    unauthorized = ff_source:status(Src1),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -411,8 +404,6 @@ process_deposit(SrcID, WalID) ->
         #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, DepM1} = ff_deposit:get_machine(DepID),
-    pending = ff_deposit:status(ff_deposit:get(DepM1)),
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
@@ -426,9 +417,6 @@ process_deposit(SrcID, WalID) ->
 create_destination(IID, C) ->
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
     DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
-    {ok, DestM1} = ff_destination:get_machine(DestID),
-    Dest1 = ff_destination:get(DestM1),
-    unauthorized = ff_destination:status(Dest1),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -444,9 +432,6 @@ create_crypto_destination(IID, C) ->
         currency => litecoin
     }},
     DestID = create_instrument(destination, IID, <<"CryptoDestination">>, <<"RUB">>, Resource, C),
-    {ok, DestM1} = ff_destination:get_machine(DestID),
-    Dest1 = ff_destination:get(DestM1),
-    unauthorized = ff_destination:status(Dest1),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -482,8 +467,6 @@ process_withdrawal(WalID, DestID) ->
         #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, WdrM1} = ff_withdrawal:get_machine(WdrID),
-    pending = ff_withdrawal:status(ff_withdrawal:get(WdrM1)),
     succeeded = ct_helper:await(
         succeeded,
         fun () ->

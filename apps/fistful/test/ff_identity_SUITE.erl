@@ -193,10 +193,6 @@ identify_ok(C) ->
     {error, {challenge, {pending, ICID}}} = ff_identity_machine:start_challenge(
         ID, ChallengeParams#{proofs => [D1, D2]}
     ),
-    {ok, S2} = ff_identity_machine:get(ID),
-    I2 = ff_identity_machine:identity(S2),
-    {ok, IC1} = ff_identity:challenge(ICID, I2),
-    pending = ff_identity_challenge:status(IC1),
     {completed, _} = ct_helper:await(
         {completed, #{resolution => approved}},
         fun () ->

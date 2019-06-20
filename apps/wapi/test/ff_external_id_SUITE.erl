@@ -263,9 +263,6 @@ idempotency_withdrawal_conflict(C) ->
 %%
 
 wait_for_destination_authorized(DestID) ->
-    {ok, DestM1} = ff_destination:get_machine(DestID),
-    Dest1 = ff_destination:get(DestM1),
-    unauthorized = ff_destination:status(Dest1),
     authorized = ct_helper:await(
         authorized,
         fun () ->

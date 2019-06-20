@@ -10,6 +10,13 @@
 -define(TIMESTAMP, <<"2016-03-22T06:12:27Z">>).
 -define(MD5, <<"033BD94B1168D7E4F0D644C3C95E35BF">>).
 -define(SHA256, <<"94EE059335E587E501CC4BF90613E0814F00A7B08BC7C648FD865A2AF6A22CC2">>).
+-define(DEFAULT_CONTEXT(PartyID), #{
+    <<"com.rbkmoney.wapi">> => {obj, #{
+        {str, <<"owner">>} => {str, PartyID},
+        {str, <<"name">>} => {str, ?STRING},
+        {str, <<"metadata">>} => {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}
+    }}
+}).
 
 -define(CASH, #'Cash'{
     amount = ?INTEGER,
@@ -29,12 +36,24 @@
     accounter_account_id = ?INTEGER
 }).
 
--define(WALLET_STATE, #wlt_WalletState{
-    id = ?STRING,
-    name = ?STRING,
-    blocking = ?BLOCKING,
-    account = ?ACCOUNT
+-define(WALLET(PartyID), #wlt_Wallet{
+    id          = ?STRING,
+    name        = ?STRING,
+    blocking    = ?BLOCKING,
+    account     = ?ACCOUNT,
+    external_id = ?STRING,
+    created_at  = ?TIMESTAMP,
+    context     = ?DEFAULT_CONTEXT(PartyID)
 }).
+
+-define(IDENTITY(PartyID), #idnt_Identity{
+    id          = ?STRING,
+    party       = ?STRING,
+    provider    = ?STRING,
+    cls         = ?STRING,
+    context     = ?DEFAULT_CONTEXT(PartyID)
+}).
+
 
 -define(REPORT_ID, ?INTEGER).
 

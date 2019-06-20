@@ -10,7 +10,7 @@
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
 %% Pipeline
--import(ff_pipeline, [do/1, unwrap/2]).
+-import(ff_pipeline, [do/1]).
 
 -spec create(req_data(), handler_context()) ->
     {ok, response_data()} | {error, WalletError}
@@ -24,7 +24,6 @@
 create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
     do(fun() ->
         WalletParams = marshal(wallet_params, compose_wallet_params(ParamsIn, WoodyContext)),
-        %% TODO after impl identity through thrift, rewrite it
         ok = wapi_access_backend:check_resource(identity, IdentityID, WoodyContext),
         Request = {fistful_wallet, 'Create', [WalletParams]},
         case service_call(Request, WoodyContext) of
@@ -48,12 +47,12 @@ create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
     {error, {wallet, notfound}} |
     {error, {wallet, unauthorized}}.
 
-get(WalletID, WoodyCtx) ->
+get(WalletID, WoodyContext) ->
     Request = {fistful_wallet, 'Get', [WalletID]},
     do(fun() ->
-        case service_call(Request, WoodyCtx) of
+        case service_call(Request, WoodyContext) of
             {ok, WalletThrift} ->
-                ok = unwrap(wallet, wapi_access_backend:is_authorized(WoodyCtx, get_context(WalletThrift))),
+                ok = wapi_access_backend:check_resource(wallet, WalletThrift, WoodyContext),
                 unmarshal(wallet, WalletThrift);
             {exception, #fistful_WalletNotFound{}} ->
                 throw({wallet, notfound})
@@ -100,9 +99,6 @@ create_context(ParamsIn, WoodyContext) ->
 
 get_hash(#wlt_Wallet{context = Ctx}) ->
     wapi_backend_utils:get_hash(unmarshal(context, Ctx)).
-
-get_context(#wlt_Wallet{context = Ctx}) ->
-    unmarshal(context, Ctx).
 
 get_id(#wlt_WalletParams{id = ID}) ->
     ID.

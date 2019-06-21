@@ -78,6 +78,7 @@ groups() ->
     config().
 init_per_suite(Config) ->
     %% TODO remove this after cut off wapi
+    ok = application:set_env(wapi, transport, thrift),
     ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
@@ -92,6 +93,7 @@ init_per_suite(Config) ->
     _.
 end_per_suite(C) ->
     %% TODO remove this after cut off wapi
+    ok = application:unset_env(wapi, transport),
     ok = ct_payment_system:shutdown(C).
 
 -spec init_per_group(group_name(), config()) ->

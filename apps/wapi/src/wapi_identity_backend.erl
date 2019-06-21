@@ -9,19 +9,19 @@
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 
 %% Pipeline
--import(ff_pipeline, [do/1, unwrap/2]).
+-import(ff_pipeline, [do/1]).
 
 -spec get(binary(), handler_context()) ->
     {ok, response_data()}             |
     {error, {identity, notfound}}     |
     {error, {identity, unauthorized}} .
 
-get(IdentityID, WoodyCtx) ->
+get(IdentityID, WoodyContext) ->
     Request = {fistful_identity, 'Get', [IdentityID]},
     do(fun() ->
-        case service_call(Request, WoodyCtx) of
+        case service_call(Request, WoodyContext) of
             {ok, IdentityThrift} ->
-                ok = unwrap(identity, wapi_access_backend:is_authorized(WoodyCtx, get_context(IdentityThrift))),
+                ok = wapi_access_backend:check_resource(identity, IdentityThrift, WoodyContext),
                 unmarshal(identity, IdentityThrift);
             {exception, #fistful_IdentityNotFound{}} ->
                 throw({identity, notfound})
@@ -34,11 +34,6 @@ get(IdentityID, WoodyCtx) ->
 
 service_call(Params, Ctx) ->
     wapi_handler_utils:service_call(Params, Ctx).
-
-get_context(#idnt_Identity{context = Ctx}) ->
-    unmarshal(context, Ctx).
-
-%% Marshaling
 
 unmarshal(identity, #idnt_Identity{
     id          = IdentityID,
@@ -56,7 +51,7 @@ unmarshal(identity, #idnt_Identity{
         <<"name">>                  => wapi_backend_utils:get_from_ctx(<<"name">>, Context),
         %% TODO add createdAt to proto struct
         % <<"createdAt">>           => unmarshal(timestamp, CreatedAt),
-        <<"isBlocked">>             => unmarshal(atom, Blocked),
+        <<"isBlocked">>             => unmarshal(blocked, Blocked),
         <<"class">>                 => unmarshal(string, Class),
         <<"provider">>              => unmarshal(id, Provider),
         <<"level">>                 => unmarshal(id, Level),
@@ -64,6 +59,11 @@ unmarshal(identity, #idnt_Identity{
         <<"externalID">>            => maybe_unmarshal(id, ExternalID),
         <<"metadata">>              => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
     });
+
+unmarshal(blocked, false) ->
+    false;
+unmarshal(blocked, true) ->
+    true;
 
 unmarshal(context, Ctx) ->
     ff_context:unwrap(Ctx);

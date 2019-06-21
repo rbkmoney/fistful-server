@@ -12,7 +12,7 @@
 %% Pipeline
 -import(ff_pipeline, [unwrap/2]).
 
--spec check_resource(atom(), binary(), handler_context()) ->
+-spec check_resource(atom(), binary() | tuple(), handler_context()) ->
     ok | no_return().
 
 check_resource(Resource, ID, Context) when is_binary(ID)->

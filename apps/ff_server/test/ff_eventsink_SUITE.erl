@@ -126,10 +126,6 @@ get_identity_events_ok(C) ->
     ok = ff_identity_machine:start_challenge(
         ID, ChallengeParams#{proofs => [D1, D2]}
     ),
-    {ok, S1} = ff_identity_machine:get(ID),
-    I1 = ff_identity_machine:identity(S1),
-    {ok, IC1} = ff_identity:challenge(ICID, I1),
-    pending = ff_identity_challenge:status(IC1),
     {completed, _} = ct_helper:await(
         {completed, #{resolution => approved}},
         fun () ->
@@ -356,9 +352,6 @@ generate_id() ->
 create_source(IID, C) ->
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
     SrcID = create_instrument(source, IID, <<"XSource">>, <<"RUB">>, SrcResource, C),
-    {ok, SrcM1} = ff_source:get_machine(SrcID),
-    Src1 = ff_source:get(SrcM1),
-    unauthorized = ff_source:status(Src1),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -375,8 +368,6 @@ process_deposit(SrcID, WalID) ->
         #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, DepM1} = ff_deposit:get_machine(DepID),
-    pending = ff_deposit:status(ff_deposit:get(DepM1)),
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
@@ -390,9 +381,6 @@ process_deposit(SrcID, WalID) ->
 create_destination(IID, C) ->
     DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
     DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
-    {ok, DestM1} = ff_destination:get_machine(DestID),
-    Dest1 = ff_destination:get(DestM1),
-    unauthorized = ff_destination:status(Dest1),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -409,8 +397,6 @@ process_withdrawal(WalID, DestID) ->
         #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
         ff_ctx:new()
     ),
-    {ok, WdrM1} = ff_withdrawal:get_machine(WdrID),
-    pending = ff_withdrawal:status(ff_withdrawal:get(WdrM1)),
     succeeded = ct_helper:await(
         succeeded,
         fun () ->

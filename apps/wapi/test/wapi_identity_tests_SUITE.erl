@@ -1,4 +1,4 @@
--module(wapi_wallet_tests_SUITE).
+-module(wapi_identity_tests_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -7,7 +7,7 @@
 -include_lib("jose/include/jose_jwk.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -21,8 +21,8 @@
 -export([init/1]).
 
 -export([
-    create_wallet/1,
-    get_wallet/1
+    create_identity/1,
+    get_identity/1
 ]).
 
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
@@ -52,8 +52,8 @@ groups() ->
     [
         {base, [],
             [
-                create_wallet,
-                get_wallet
+                create_identity,
+                get_identity
             ]
         }
     ].
@@ -114,38 +114,37 @@ end_per_testcase(_Name, C) ->
     ok.
 
 %%% Tests
--spec create_wallet(config()) ->
+-spec create_identity(config()) ->
     _.
-create_wallet(C) ->
+create_identity(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
-        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end},
-        {fistful_wallet, fun('Create', _) -> {ok, ?WALLET(PartyID)} end}
+        {fistful_identity, fun('Create', _) -> {ok, ?IDENTITY(PartyID)} end}
     ], C),
     {ok, _} = call_api(
-        fun swag_client_wallet_wallets_api:create_wallet/3,
+        fun swag_client_wallet_identities_api:create_identity/3,
         #{
             body => #{
                 <<"name">> => ?STRING,
-                <<"identity">> => ?STRING,
-                <<"currency">> => ?RUB
+                <<"class">> => ?STRING,
+                <<"provider">> => ?STRING
             }
         },
         ct_helper:cfg(context, C)
     ).
 
--spec get_wallet(config()) ->
+-spec get_identity(config()) ->
     _.
-get_wallet(C) ->
+get_identity(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
-        {fistful_wallet, fun('Get', _) -> {ok, ?WALLET(PartyID)} end}
+        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
     ], C),
     {ok, _} = call_api(
-        fun swag_client_wallet_wallets_api:get_wallet/3,
+        fun swag_client_wallet_identities_api:get_identity/3,
         #{
             binding => #{
-                <<"walletID">> => ?STRING
+                <<"identityID">> => ?STRING
             }
         },
         ct_helper:cfg(context, C)

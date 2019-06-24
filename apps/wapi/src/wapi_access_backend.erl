@@ -10,17 +10,16 @@
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 
 %% Pipeline
--import(ff_pipeline, [unwrap/2]).
 
 -spec check_resource(atom(), binary() | tuple(), handler_context()) ->
-    ok | no_return().
+    ok | {error, unauthorized}.
 
 check_resource(Resource, ID, Context) when is_binary(ID)->
     Owner = get_context(Resource, ID, Context),
-    unwrap(Resource, check_resource_access(is_resource_owner(Owner, Context)));
+    check_resource_access(is_resource_owner(Owner, Context));
 check_resource(Resource, Data, Context)->
     Owner = get_context(Resource, Data),
-    unwrap(Resource, check_resource_access(is_resource_owner(Owner, Context))).
+    check_resource_access(is_resource_owner(Owner, Context)).
 
 %%
 %% Internal

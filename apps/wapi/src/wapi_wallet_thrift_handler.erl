@@ -86,27 +86,23 @@ process_request('ListIdentities', _Req, _Context, _Opts) ->
     %% end;
     not_implemented();
 process_request('GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_identity(IdentityId, Context) of
+    case wapi_identity_backend:get(IdentityId, Context) of
         {ok, Identity}                    -> wapi_handler_utils:reply_ok(200, Identity);
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
-    case wapi_wallet_ff_backend:create_identity(Params, Context) of
+    case wapi_identity_backend:create(Params, Context) of
         {ok, Identity = #{<<"id">> := IdentityId}} ->
             wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Opts));
         {error, {provider, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {identity_class, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity class">>));
+        {error, inaccessible} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
         {error, {conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
-        {error, {email, notfound}} ->
-            wapi_handler_utils:reply_error(400, #{
-                <<"errorType">>   => <<"NotFound">>,
-                <<"name">>        => <<"email">>,
-                <<"description">> => <<"No email in JWT">>
-            })
+            wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
     end;
 process_request('ListIdentityChallenges', #{'identityID' := Id, 'status' := Status}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity_challenges(Id, ff_maybe:to_list(Status), Context) of

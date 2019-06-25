@@ -257,15 +257,22 @@ get_challenge_by_id(ID, [Challenge = #idnt_Challenge{id = ID} | _Rest], WoodyCon
 get_challenge_by_id(ID, [_Challenge | Rest], WoodyContext) ->
     get_challenge_by_id(ID, Rest, WoodyContext).
 
+filter_challenges_by_status(undefined, Challenges, WoodyContext, _) ->
+    [{Challenge, WoodyContext} || Challenge <- Challenges];
 filter_challenges_by_status(_Status, [], _, Result) ->
     Result;
-filter_challenges_by_status(Status, [Challenge = #idnt_Challenge{status = Status} | Rest], WoodyContext, Acc) ->
+filter_challenges_by_status(
+    FilteringStatus,
+    [Challenge = #idnt_Challenge{status = Status} | Rest],
+    WoodyContext,
+    Acc
+) ->
     ChallengeStatus = maps:get(<<"status">>, unmarshal(challenge_status, Status), undefined),
-    case ChallengeStatus =:= Status of
+    case ChallengeStatus =:= FilteringStatus of
         false ->
-            filter_challenges_by_status(Status, Rest, WoodyContext, Acc);
+            filter_challenges_by_status(FilteringStatus, Rest, WoodyContext, Acc);
         true ->
-            filter_challenges_by_status(Status, Rest, WoodyContext, [{Challenge, WoodyContext} | Acc])
+            filter_challenges_by_status(FilteringStatus, Rest, WoodyContext, [{Challenge, WoodyContext} | Acc])
     end.
 
 enrich_proofs(Proofs, WoodyContext) ->
@@ -323,7 +330,7 @@ marshal(identity_params, {Params = #{
     };
 
 marshal(challenge_params, {ID, #{
-    <<"class">>     := Class,
+    <<"type">>     := Class,
     <<"proofs">>    := Proofs
 }}) ->
     #idnt_ChallengeParams{
@@ -405,7 +412,7 @@ unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
 }}) ->
     #{
         <<"status">>  => <<"Completed">>,
-        <<"validUntil">>    => unmarshal(timestamp, Time)
+        <<"validUntil">> => unmarshal(string, Time)
     };
 unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
     resolution = denied
@@ -423,22 +430,27 @@ unmarshal(proof, #idnt_ChallengeProof{
     token = Token
 }) ->
     genlib_map:compact(#{
-        <<"type">>  => unmarshal(string, Type),
+        <<"type">>  => unmarshal(proof_type, Type),
         <<"token">>  => unmarshal(string, Token)
     });
 
+unmarshal(proof_type, rus_domestic_passport) ->
+    <<"RUSDomesticPassport">>;
+unmarshal(proof_type, rus_retiree_insurance_cert) ->
+    <<"RUSRetireeInsuranceCertificate">>;
+
 unmarshal(identity_challenge_event, {ID, Ts, V}) ->
     #{
-        <<"eventID">>   => unmarshal(id, ID),
-        <<"occuredAt">> => unmarshal(timestamp, Ts),
+        <<"eventID">>   => unmarshal(integer, ID),
+        <<"occuredAt">> => unmarshal(string, Ts),
         <<"changes">>   => [unmarshal(identity_challenge_event_change, V)]
     };
 
 unmarshal(identity_challenge_event_change, {status_changed, S}) ->
-    unmarshal(map, maps:merge(
+    maps:merge(
         #{<<"type">> => <<"IdentityChallengeStatusChanged">>},
         unmarshal(challenge_status, S)
-    ));
+    );
 
 unmarshal(blocked, false) ->
     false;

@@ -54,6 +54,46 @@
     context     = ?DEFAULT_CONTEXT(PartyID)
 }).
 
+-define(IDENTITY_CHALLENGE(Status), #idnt_Challenge{
+    cls         = ?STRING,
+    proofs      = [
+        #idnt_ChallengeProof{
+            type = rus_domestic_passport,
+            token = ?STRING
+        }
+    ],
+    id          = ?STRING,
+    status      = Status
+}).
+
+-define(IDENTITY_CHALLENGE_STATUS_COMPLETED, {completed, #idnt_ChallengeCompleted{
+    resolution = approved,
+    valid_until = ?TIMESTAMP
+}}).
+
+-define(IDENTITY_CHALLENGE_EVENT(Change), #idnt_IdentityEvent{
+    change = Change,
+    occured_at = ?TIMESTAMP,
+    sequence = ?INTEGER
+}).
+
+-define(CHALLENGE_STATUS_CHANGE, {identity_challenge, #idnt_ChallengeChange{
+    id = ?STRING,
+    payload = {status_changed, ?IDENTITY_CHALLENGE_STATUS_COMPLETED}
+}}).
+
+-define(IDENT_DOC, {russian_domestic_passport, #'identdocstore_RussianDomesticPassport'{
+    issuer = ?STRING,
+    issuer_code = ?STRING,
+    issued_at = ?TIMESTAMP,
+    birth_date = ?TIMESTAMP,
+    birth_place = ?STRING,
+    series = ?STRING,
+    number = ?STRING,
+    first_name = ?STRING,
+    family_name = ?STRING,
+    patronymic = ?STRING
+}}).
 
 -define(REPORT_ID, ?INTEGER).
 

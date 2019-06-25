@@ -105,7 +105,7 @@ process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
     end;
 process_request('ListIdentityChallenges', #{'identityID' := Id, 'status' := Status}, Context, _Opts) ->
-    case wapi_identity_backend:get_identity_challenges(Id, ff_maybe:to_list(Status), Context) of
+    case wapi_identity_backend:get_identity_challenges(Id, Status, Context) of
         {ok, Challenges}                  -> wapi_handler_utils:reply_ok(200, Challenges);
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
@@ -123,7 +123,7 @@ process_request('StartIdentityChallenge', #{
             wapi_handler_utils:reply_ok(404);
         {error, {challenge, conflict}} ->
             wapi_handler_utils:reply_ok(409);
-        {error, {challenge, {pending, _}}} ->
+        {error, {challenge, pending}} ->
             wapi_handler_utils:reply_ok(409);
         {error, {challenge, {class, notfound}}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such challenge type">>));
@@ -131,7 +131,7 @@ process_request('StartIdentityChallenge', #{
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Proof not found">>));
         {error, {challenge, {proof, insufficient}}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Insufficient proof">>));
-        {error, {challenge, {level, _}}} ->
+        {error, {challenge, level}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Illegal identification type for current identity level">>)
             )

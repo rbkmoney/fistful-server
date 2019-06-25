@@ -8,6 +8,7 @@
 -include_lib("wapi_wallet_dummy_data.hrl").
 
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
+-include_lib("identdocstore_proto/include/identdocstore_identity_document_storage_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -22,7 +23,12 @@
 
 -export([
     create_identity/1,
-    get_identity/1
+    get_identity/1,
+    create_identity_challenge/1,
+    get_identity_challenge/1,
+    list_identity_challenges/1,
+    get_identity_challenge_event/1,
+    poll_identity_challenge_events/1
 ]).
 
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
@@ -53,7 +59,12 @@ groups() ->
         {base, [],
             [
                 create_identity,
-                get_identity
+                get_identity,
+                create_identity_challenge,
+                get_identity_challenge,
+                list_identity_challenges,
+                get_identity_challenge_event,
+                poll_identity_challenge_events
             ]
         }
     ].
@@ -145,6 +156,128 @@ get_identity(C) ->
         #{
             binding => #{
                 <<"identityID">> => ?STRING
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec create_identity_challenge(config()) ->
+    _.
+create_identity_challenge(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun
+            ('Get', _) -> {ok, ?IDENTITY(PartyID)};
+            ('StartChallenge', _) -> {ok, ?IDENTITY_CHALLENGE(?IDENTITY_CHALLENGE_STATUS_COMPLETED)}
+        end},
+        {identdoc_storage, fun('Get', _) -> {ok, ?IDENT_DOC} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_identities_api:start_identity_challenge/3,
+        #{
+            binding => #{
+                <<"identityID">> => ?STRING
+            },
+            body => #{
+                <<"type">> => ?STRING,
+                <<"proofs">> => [
+                    #{
+                        <<"token">> => ?STRING
+                    }
+                ]
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec get_identity_challenge(config()) ->
+    _.
+get_identity_challenge(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun
+            ('Get', _) -> {ok, ?IDENTITY(PartyID)};
+            ('GetChallenges', _) -> {ok, [?IDENTITY_CHALLENGE(?IDENTITY_CHALLENGE_STATUS_COMPLETED)]}
+        end},
+        {identdoc_storage, fun('Get', _) -> {ok, ?IDENT_DOC} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_identities_api:get_identity_challenge/3,
+        #{
+            binding => #{
+                <<"identityID">> => ?STRING,
+                <<"challengeID">> => ?STRING
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec list_identity_challenges(config()) ->
+    _.
+list_identity_challenges(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun
+            ('Get', _) -> {ok, ?IDENTITY(PartyID)};
+            ('GetChallenges', _) -> {ok, [?IDENTITY_CHALLENGE(?IDENTITY_CHALLENGE_STATUS_COMPLETED)]}
+        end},
+        {identdoc_storage, fun('Get', _) -> {ok, ?IDENT_DOC} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_identities_api:list_identity_challenges/3,
+        #{
+            binding => #{
+                <<"identityID">> => ?STRING
+            },
+            qs_val => #{
+                <<"status">> => <<"Completed">>
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec get_identity_challenge_event(config()) ->
+    _.
+get_identity_challenge_event(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun
+            ('Get', _) -> {ok, ?IDENTITY(PartyID)};
+            ('GetEvents', _) -> {ok, [?IDENTITY_CHALLENGE_EVENT(?CHALLENGE_STATUS_CHANGE)]}
+        end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_identities_api:get_identity_challenge_event/3,
+        #{
+            binding => #{
+                <<"identityID">> => ?STRING,
+                <<"challengeID">> => ?STRING,
+                <<"eventID">> => ?INTEGER
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec poll_identity_challenge_events(config()) ->
+    _.
+poll_identity_challenge_events(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun
+            ('Get', _) -> {ok, ?IDENTITY(PartyID)};
+            ('GetEvents', _) -> {ok, [?IDENTITY_CHALLENGE_EVENT(?CHALLENGE_STATUS_CHANGE)]}
+        end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_identities_api:poll_identity_challenge_events/3,
+        #{
+            binding => #{
+                <<"identityID">> => ?STRING,
+                <<"challengeID">> => ?STRING
+            },
+            qs_val => #{
+                <<"limit">> => 551,
+                <<"eventCursor">> => ?INTEGER
             }
         },
         ct_helper:cfg(context, C)

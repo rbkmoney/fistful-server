@@ -6,12 +6,15 @@
 -export([check_resource/3]).
 
 -type handler_context() :: wapi_handler:context().
+-type data() ::
+    ff_proto_identity_thrift:'Identity'() |
+    ff_proto_wallet_thrift:'Wallet'().
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 
 %% Pipeline
 
--spec check_resource(atom(), binary() | tuple(), handler_context()) ->
+-spec check_resource(atom(), binary() | data(), handler_context()) ->
     ok | {error, unauthorized}.
 
 check_resource(Resource, ID, Context) when is_binary(ID)->

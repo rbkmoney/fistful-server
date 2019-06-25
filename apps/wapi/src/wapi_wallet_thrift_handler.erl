@@ -62,28 +62,16 @@ process_request('ListProviderIdentityLevels', #{
     'providerID'      := _ProviderId,
     'identityClassID' := _ClassId
 }, _Context, _Opts) ->
-    %% case wapi_wallet_ff_backend:get_provider_identity_class_levels(ProviderId, ClassId, Context) of
-    %%     {ok, Levels}      -> wapi_handler_utils:reply_ok(200, Levels);
-    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
-    %% end;
     not_implemented();
 process_request('GetProviderIdentityLevel', #{
     'providerID'      := _ProviderId,
     'identityClassID' := _ClassId,
     'identityLevelID' := _LevelId
 }, _Context, _Opts) ->
-    %% case wapi_wallet_ff_backend:get_provider_identity_class_level(ProviderId, ClassId, LevelId, Context) of
-    %%     {ok, Level}       -> wapi_handler_utils:reply_ok(200, Level);
-    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
-    %% end;
     not_implemented();
 
 %% Identities
 process_request('ListIdentities', _Req, _Context, _Opts) ->
-    %% case wapi_wallet_ff_backend:get_identities(maps:with(['provider', 'class', 'level'], Req), Context) of
-    %%     {ok, Identities}  -> wapi_handler_utils:reply_ok(200, Identities);
-    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
-    %% end;
     not_implemented();
 process_request('GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
     case wapi_identity_backend:get_identity(IdentityId, Context) of
@@ -220,10 +208,6 @@ process_request('IssueWalletGrant', #{
 
 %% Withdrawals
 process_request('ListDestinations', _Req, _Context, _Opts) ->
-    %% case wapi_wallet_ff_backend:get_destinations(maps:with(['identity', 'currency'], Req), Context) of
-    %%     {ok, Destinations} -> wapi_handler_utils:reply_ok(200, Destinations);
-    %%     {error, notfound}  -> wapi_handler_utils:reply_ok(200, [])
-    %% end;
     not_implemented();
 process_request('GetDestination', #{'destinationID' := DestinationId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_destination(DestinationId, Context) of

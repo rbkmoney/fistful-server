@@ -86,13 +86,13 @@ process_request('ListIdentities', _Req, _Context, _Opts) ->
     %% end;
     not_implemented();
 process_request('GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
-    case wapi_identity_backend:get(IdentityId, Context) of
+    case wapi_identity_backend:get_identity(IdentityId, Context) of
         {ok, Identity}                    -> wapi_handler_utils:reply_ok(200, Identity);
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
-    case wapi_identity_backend:create(Params, Context) of
+    case wapi_identity_backend:create_identity(Params, Context) of
         {ok, Identity = #{<<"id">> := IdentityId}} ->
             wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Opts));
         {error, {provider, notfound}} ->
@@ -105,7 +105,7 @@ process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
     end;
 process_request('ListIdentityChallenges', #{'identityID' := Id, 'status' := Status}, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_identity_challenges(Id, ff_maybe:to_list(Status), Context) of
+    case wapi_identity_backend:get_identity_challenges(Id, ff_maybe:to_list(Status), Context) of
         {ok, Challenges}                  -> wapi_handler_utils:reply_ok(200, Challenges);
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
@@ -114,7 +114,7 @@ process_request('StartIdentityChallenge', #{
     'identityID'        := IdentityId,
     'IdentityChallenge' := Params
 }, Context, Opts) ->
-    case wapi_wallet_ff_backend:create_identity_challenge(IdentityId, Params, Context) of
+    case wapi_identity_backend:create_identity_challenge(IdentityId, Params, Context) of
         {ok, Challenge = #{<<"id">> := ChallengeId}} ->
             wapi_handler_utils:reply_ok(202, Challenge, get_location('GetIdentityChallenge', [ChallengeId], Opts));
         {error, {identity, notfound}} ->
@@ -141,20 +141,20 @@ process_request('GetIdentityChallenge', #{
     'identityID'  := IdentityId,
     'challengeID' := ChallengeId
 }, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_identity_challenge(IdentityId, ChallengeId, Context) of
+    case wapi_identity_backend:get_identity_challenge(IdentityId, ChallengeId, Context) of
         {ok, Challenge}                   -> wapi_handler_utils:reply_ok(200, Challenge);
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404);
         {error, {challenge, notfound}}    -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('PollIdentityChallengeEvents', Params, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_identity_challenge_events(Params, Context) of
+    case wapi_identity_backend:get_identity_challenge_events(Params, Context) of
         {ok, Events}                      -> wapi_handler_utils:reply_ok(200, Events);
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 process_request('GetIdentityChallengeEvent', Params, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_identity_challenge_event(Params, Context) of
+    case wapi_identity_backend:get_identity_challenge_event(Params, Context) of
         {ok, Event}                       -> wapi_handler_utils:reply_ok(200, Event);
         {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404);

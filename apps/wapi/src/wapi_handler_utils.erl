@@ -53,32 +53,32 @@ get_error_msg(Message) ->
     #{<<"message">> => genlib:to_binary(Message)}.
 
 -spec reply_ok(status_code()) ->
-    {ok, {status_code(), [], undefined}}.
+    {ok, {status_code(), #{}, undefined}}.
 reply_ok(Code) ->
     reply_ok(Code, undefined).
 
 -spec reply_ok(status_code(), response_data()) ->
-    {ok, {status_code(), [], response_data()}}.
+    {ok, {status_code(), #{}, response_data()}}.
 reply_ok(Code, Data) ->
-    reply_ok(Code, Data, []).
+    reply_ok(Code, Data, #{}).
 
 -spec reply_ok(status_code(), response_data(), headers()) ->
-    {ok, {status_code(), [], response_data()}}.
+    {ok, {status_code(), #{}, response_data()}}.
 reply_ok(Code, Data, Headers) ->
     reply(ok, Code, Data, Headers).
 
 -spec reply_error(status_code()) ->
-    {error, {status_code(), [], undefined}}.
+    {error, {status_code(), #{}, undefined}}.
 reply_error(Code) ->
     reply_error(Code, undefined).
 
 -spec reply_error(status_code(), response_data()) ->
-    {error, {status_code(), [], response_data()}}.
+    {error, {status_code(), #{}, response_data()}}.
 reply_error(Code, Data) ->
-    reply_error(Code, Data, []).
+    reply_error(Code, Data, #{}).
 
 -spec reply_error(status_code(), response_data(), headers()) ->
-    {error, {status_code(), [], response_data()}}.
+    {error, {status_code(), #{}, response_data()}}.
 reply_error(Code, Data, Headers) ->
     reply(error, Code, Data, Headers).
 
@@ -95,7 +95,7 @@ throw_not_implemented() ->
 get_location(PathSpec, Params, _Opts) ->
     %% TODO pass base URL via Opts
     BaseUrl = genlib_app:env(?APP, public_endpoint),
-    [{<<"Location">>, wapi_utils:get_url(BaseUrl, PathSpec, Params)}].
+    #{<<"Location">> => wapi_utils:get_url(BaseUrl, PathSpec, Params)}.
 
 -spec service_call(
     {

@@ -17,12 +17,12 @@ SERVICE_IMAGE_PUSH_TAG ?= $(SERVICE_IMAGE_TAG)
 
 # Base image for the service
 BASE_IMAGE_NAME := service_erlang
-BASE_IMAGE_TAG := 16e2b3ef17e5fdefac8554ced9c2c74e5c6e9e11
+BASE_IMAGE_TAG := 294d280ff42e6c0cc68ab40fe81e76a6262636c4
 
 # Build image tag to be used
-BUILD_IMAGE_TAG := 585ec439a97bade30cfcebc36cefdb45f13f3372
+BUILD_IMAGE_TAG := cd38c35976f3684fe7552533b6175a4c3460e88b
 
-REGISTRY := dr.rbkmoney.com
+REGISTRY := dr2.rbkmoney.com
 
 CALL_ANYWHERE := all submodules compile xref lint dialyze release clean distclean
 CALL_ANYWHERE += generate regenerate

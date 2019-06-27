@@ -9,8 +9,7 @@
         stdlib,
         genlib,
         machinery,
-        gproc,
-        lager
+        gproc
     ]},
     {env, []},
     {modules, []},

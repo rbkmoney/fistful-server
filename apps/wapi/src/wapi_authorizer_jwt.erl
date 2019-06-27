@@ -97,7 +97,7 @@ ensure_store_key(Keyname, Source) ->
         {ok, KeyInfo} ->
             KeyInfo;
         {error, Reason} ->
-            _ = lager:error("Error importing key ~p: ~p", [Keyname, Reason]),
+            _ = logger:error("Error importing key ~p: ~p", [Keyname, Reason]),
             exit({import_error, Keyname, Source, Reason})
     end.
 
@@ -106,10 +106,10 @@ select_signee({ok, Keyname}, KeyInfos) ->
         {ok, #{sign := true}} ->
             set_signee(Keyname);
         {ok, KeyInfo} ->
-            _ = lager:error("Error setting signee: signing with ~p is not allowed", [Keyname]),
+            _ = logger:error("Error setting signee: signing with ~p is not allowed", [Keyname]),
             exit({invalid_signee, Keyname, KeyInfo});
         error ->
-            _ = lager:error("Error setting signee: no key named ~p", [Keyname]),
+            _ = logger:error("Error setting signee: no key named ~p", [Keyname]),
             exit({nonexstent_signee, Keyname})
     end;
 select_signee(error, _KeyInfos) ->

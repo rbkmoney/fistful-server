@@ -48,7 +48,7 @@ authorize_api_key(OperationID, ApiKey, _Opts) ->
     end.
 
 log_auth_error(OperationID, Error) ->
-    lager:info("API Key authorization failed for ~p due to ~p", [OperationID, Error]).
+    logger:info("API Key authorization failed for ~p due to ~p", [OperationID, Error]).
 
 -spec parse_api_key(ApiKey :: api_key()) ->
     {ok, {bearer, Credentials :: binary()}} | {error, Reason :: atom()}.

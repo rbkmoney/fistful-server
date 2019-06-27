@@ -11,7 +11,6 @@
         woody,
         wapi_woody_client,
         erl_health,
-        lager,
         dmsl,
         identdocstore_proto,
         fistful_reporter_proto,

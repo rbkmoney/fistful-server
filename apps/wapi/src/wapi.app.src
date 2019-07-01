@@ -19,6 +19,8 @@
         swag_server_wallet,
         scoper,
         jose,
+        libdecaf,
+        jiffy,
         cowboy_cors,
         cowboy_access_log,
         rfc3339,

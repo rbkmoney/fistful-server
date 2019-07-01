@@ -330,6 +330,17 @@ process_request('ListWithdrawals', Params, Context, _Opts) ->
         {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
         {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
     end;
+process_request('CreateExchangePromise', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:create_exchange_promise(Params, Context) of
+        {ok, Promise} -> wapi_handler_utils:reply_ok(202, Promise);
+        {error, {conflict, ID}} ->
+            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
+        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(400, #{
+            <<"errorType">>   => <<"NotFound">>,
+            <<"name">>        => <<"withdrawal">>,
+            <<"description">> => <<"withdrawal not found">>
+        })
+    end;
 
 %% Residences
 process_request('GetResidence', #{'residence' := ResidenceId}, Context, _Opts) ->

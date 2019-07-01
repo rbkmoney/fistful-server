@@ -11,6 +11,8 @@
 -export([create/3]).
 -export([process_session/1]).
 
+-export([get_adapter_with_opts/1]).
+
 %% ff_machine
 -export([apply_event/2]).
 

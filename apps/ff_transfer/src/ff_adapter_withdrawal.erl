@@ -7,6 +7,7 @@
 %% API
 
 -export([process_withdrawal/4]).
+-export([get_exchange_rate/3]).
 
 %%
 %% Internal types
@@ -28,6 +29,21 @@
     receiver    => identity() | undefined
 }.
 
+-type exchange_rate_params() :: #{
+    external_id => binary(),
+    currency_from := ff_currency:id(),
+    currency_to := ff_currency:id(),
+    body := cash()
+}.
+
+-type exchange_rate() :: #{
+    cash_from   := cash(),
+    cash_to     := cash(),
+    created_at  := binary(),
+    expires_on  := binary(),
+    rate_data   := ff_ctx:md()
+}.
+
 -type adapter()               :: ff_adapter:adapter().
 -type intent()                :: {finish, status()} | {sleep, timer()}.
 -type status()                :: {success, trx_info()} | {failure, failure()}.
@@ -35,7 +51,10 @@
 -type trx_info()              :: dmsl_domain_thrift:'TransactionInfo'().
 -type failure()               :: dmsl_domain_thrift:'Failure'().
 -type adapter_state()         :: ff_adapter:state().
--type process_result()        :: {ok, intent(), adapter_state()} | {ok, intent()}.
+-type process_result()        ::
+    {ok, intent(), adapter_state()} |
+    {ok, intent()} |
+    {ok, exchange_rate()}.
 
 -type domain_withdrawal()     :: dmsl_withdrawals_provider_adapter_thrift:'Withdrawal'().
 -type domain_cash()           :: dmsl_withdrawals_provider_adapter_thrift:'Cash'().
@@ -44,8 +63,12 @@
 -type domain_identity()       :: dmsl_withdrawals_provider_adapter_thrift:'Identity'().
 -type domain_internal_state() :: dmsl_withdrawals_provider_adapter_thrift:'InternalState'().
 
+-type domain_exchange_rate_params()  :: dmsl_withdrawals_provider_adapter_thrift:'GetExchangeRateParams'().
+
 -export_type([withdrawal/0]).
 -export_type([failure/0]).
+-export_type([exchange_rate/0]).
+-export_type([exchange_rate_params/0]).
 
 %%
 %% API
@@ -63,6 +86,14 @@ process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
     {ok, Result} = call(Adapter, 'ProcessWithdrawal', [DomainWithdrawal, encode_adapter_state(ASt), AOpt]),
     decode_result(Result).
 
+-spec get_exchange_rate(adapter(), exchange_rate_params(), map()) ->
+    {ok, exchange_rate()}.
+
+get_exchange_rate(Adapter, Params, AOpt) ->
+    ExchangeRateParams = encode_exchange_rate_params(Params),
+    {ok, Result} = call(Adapter, 'GetExchangeRate', [ExchangeRateParams, AOpt]),
+    decode_result(Result).
+
 %%
 %% Internals
 %%
@@ -72,6 +103,24 @@ call(Adapter, Function, Args) ->
     ff_woody_client:call(Adapter, Request).
 
 %% Encoders
+
+-spec encode_exchange_rate_params(Params) -> domain_exchange_rate_params() when
+    Params :: exchange_rate_params().
+encode_exchange_rate_params(Params) ->
+    #{
+        currency_from := CurrencyIDFrom,
+        currency_to := CurrencyIDTo,
+        body := Body
+    } = Params,
+    ExternalID = maps:get(external_id, Params, undefined),
+    {ok, CurrencyFrom} = ff_currency:get(CurrencyIDFrom),
+    {ok, CurrencyTo} = ff_currency:get(CurrencyIDTo),
+    #wthadpt_GetExchangeRateParams{
+        idempotency_id = ExternalID,
+        currency_from = encode_currency(CurrencyFrom),
+        currency_to = encode_currency(CurrencyTo),
+        exchange_cash = encode_body(Body)
+    }.
 
 -spec encode_withdrawal(Withdrawal) -> domain_withdrawal() when
     Withdrawal :: withdrawal().
@@ -182,7 +231,9 @@ encode_adapter_state(ASt) ->
 decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = undefined}) ->
     {ok, decode_intent(Intent)};
 decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = NextState}) ->
-    {ok, decode_intent(Intent), NextState}.
+    {ok, decode_intent(Intent), NextState};
+decode_result(#wthadpt_ExchangeRate{} = ExchangeRate) ->
+    {ok, decode_exchange_rate(ExchangeRate)}.
 
 %% Decoders
 
@@ -193,3 +244,51 @@ decode_intent({finish, #wthadpt_FinishIntent{status = {failure, Failure}}}) ->
     {finish, {failed, Failure}};
 decode_intent({sleep, #wthadpt_SleepIntent{timer = Timer}}) ->
     {sleep, Timer}.
+
+decode_exchange_rate(#wthadpt_ExchangeRate{
+    cash_from = CashFrom,
+    cash_to = CashTo,
+    created_at = CreatedAt,
+    expires_on = ExpiresOn,
+    rate_data = RateData
+}) ->
+    #{
+        cash_from => decode_body(CashFrom),
+        cash_to => decode_body(CashTo),
+        created_at => CreatedAt,
+        expires_on => ExpiresOn,
+        rate_data => decode_msgpack(RateData)
+    }.
+
+-spec decode_body(domain_cash()) -> cash().
+decode_body(#wthadpt_Cash{
+    amount = Amount,
+    currency = DomainCurrency
+}) ->
+    CurrencyID = ff_currency:id(decode_currency(DomainCurrency)),
+    {Amount, CurrencyID}.
+
+-spec decode_currency(domain_currency()) -> ff_currency:currency().
+decode_currency(#domain_Currency{
+    name = Name,
+    symbolic_code = Symcode,
+    numeric_code = Numcode,
+    exponent = Exponent
+}) ->
+    #{
+        id => Symcode,
+        name => Name,
+        symcode => Symcode,
+        numcode => Numcode,
+        exponent => Exponent
+    }.
+
+decode_msgpack({nl, #msgpack_Nil{}})        -> nil;
+decode_msgpack({b,   V}) when is_boolean(V) -> V;
+decode_msgpack({i,   V}) when is_integer(V) -> V;
+decode_msgpack({flt, V}) when is_float(V)   -> V;
+decode_msgpack({str, V}) when is_binary(V)  -> V; % Assuming well-formed UTF-8 bytestring.
+decode_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
+decode_msgpack({arr, V}) when is_list(V)    -> [decode_msgpack(ListItem) || ListItem <- V];
+decode_msgpack({obj, V}) when is_map(V)     ->
+    maps:fold(fun(Key, Value, Map) -> Map#{decode_msgpack(Key) => decode_msgpack(Value)} end, #{}, V).

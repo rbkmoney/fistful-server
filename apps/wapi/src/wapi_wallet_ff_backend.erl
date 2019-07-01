@@ -5,6 +5,7 @@
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
+-include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
 
 %% API
 -export([get_providers/2]).
@@ -36,6 +37,7 @@
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
 -export([list_withdrawals/2]).
+-export([create_exchange_promise/2]).
 
 -export([get_residence/2]).
 -export([get_currency/2]).
@@ -231,8 +233,8 @@ get_identity_challenge_event(#{
     {wallet, notfound}     |
     {wallet, unauthorized}
 ).
-get_wallet(WalletId, Context) ->
-    do(fun() -> to_swag(wallet, get_state(wallet, WalletId, Context)) end).
+get_wallet(WalletID, Context) ->
+    do(fun() -> to_swag(wallet, get_state(wallet, WalletID, Context)) end).
 
 -spec create_wallet(params(), ctx()) -> result(map(),
     invalid                  |
@@ -257,9 +259,9 @@ create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     {wallet, notfound}     |
     {wallet, unauthorized}
 ).
-get_wallet_account(WalletId, Context) ->
+get_wallet_account(WalletID, Context) ->
     do(fun () ->
-        Account = ff_wallet:account(ff_wallet_machine:wallet(get_state(wallet, WalletId, Context))),
+        Account = ff_wallet:account(ff_wallet_machine:wallet(get_state(wallet, WalletID, Context))),
         {Amounts, Currency} = unwrap(ff_transaction:balance(
             ff_account:accounter_account_id(Account)
         )),
@@ -286,8 +288,8 @@ get_destinations(_Params, _Context) ->
     {destination, notfound}     |
     {destination, unauthorized}
 ).
-get_destination(DestinationId, Context) ->
-    do(fun() -> to_swag(destination, get_state(destination, DestinationId, Context)) end).
+get_destination(DestinationID, Context) ->
+    do(fun() -> to_swag(destination, get_state(destination, DestinationID, Context)) end).
 
 -spec create_destination(params(), ctx()) -> result(map(),
     invalid                     |
@@ -372,6 +374,17 @@ list_withdrawals(Params, Context) ->
     Req = create_stat_request(Dsl, ContinuationToken),
     Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', [Req]}, Context),
     process_stat_result(StatType, Result).
+
+-spec create_exchange_promise(params(), ctx()) ->result(map(),
+    {destination, notfound}       |
+    {destination, unauthorized}   |
+    {provider, notfound}          |
+    {wallet, {inaccessible, _}}
+).
+create_exchange_promise(Params, _Context) ->
+    CreatePromiseParams = from_swag(create_promise_params, Params),
+    {ProviderID, Promise} = unwrap(ff_withdrawal:get_exchange_promise(CreatePromiseParams)),
+    {ok, to_swag(exchange_promise, Promise#{provider_id => ProviderID})}.
 
 %% Residences
 
@@ -866,6 +879,14 @@ add_external_id(Params, _) ->
 -spec from_swag(_Type, swag_term()) ->
     _Term.
 
+from_swag(create_promise_params, Params) ->
+    add_external_id(#{
+        wallet_id       => maps:get(<<"walletID">>, Params),
+        currency_from   => from_swag(currency, maps:get(<<"currencyFrom">>, Params)),
+        currency_to     => from_swag(currency, maps:get(<<"currencyTo">>, Params)),
+        body            => from_swag(withdrawal_body, maps:get(<<"cash">>, Params)),
+        destination_id  => maps:get(<<"destinationID">>, Params, undefined)
+    }, Params);
 from_swag(identity_params, Params) ->
     add_external_id(#{
         provider => maps:get(<<"provider">>, Params),
@@ -1218,6 +1239,33 @@ to_swag(report_files, {files, Files}) ->
     to_swag({list, report_file}, Files);
 to_swag(report_file, File) ->
     #{<<"id">> => File};
+
+to_swag(exchange_promise, #{
+    cash_from   := CashFrom,
+    cash_to     := CashTo,
+    created_at  := CreatedAt,
+    expires_on  := ExpiresOn,
+    rate_data   := RateData,
+    provider_id := ProviderID
+}) ->
+    EncodedCashFrom = to_swag(withdrawal_body, CashFrom),
+    EncodedCashTo = to_swag(withdrawal_body, CashTo),
+    Data = #{
+        <<"version">>       => 1,
+        <<"cash_from">>     => EncodedCashFrom,
+        <<"cash_to">>       => EncodedCashTo,
+        <<"rate_data">>     => RateData,
+        <<"provider_id">>   => ProviderID
+    },
+    JSONData = jiffy:encode(Data),
+    {ok, Token} = wapi_signer:sign(JSONData),
+    #{
+        <<"cashFrom">> => EncodedCashFrom,
+        <<"cashTo">> => EncodedCashTo,
+        <<"createdAt">> => to_swag(timestamp, CreatedAt),
+        <<"expiresOn">> => to_swag(timestamp, ExpiresOn),
+        <<"exchangeToken">> => Token
+    };
 
 to_swag({list, Type}, List) ->
     lists:map(fun(V) -> to_swag(Type, V) end, List);

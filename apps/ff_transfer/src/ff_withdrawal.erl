@@ -5,6 +5,7 @@
 -module(ff_withdrawal).
 
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 -type withdrawal() :: ff_transfer:transfer(transfer_params()).
 -type transfer_params() :: #{
@@ -17,8 +18,10 @@
 -type event()   :: ff_transfer_machine:event(ff_transfer:event(transfer_params(), route())).
 -type route()   :: ff_transfer:route(#{
     % TODO I'm now sure about this change, it may crash old events. Or not. ))
-    provider_id := pos_integer() | id()
+    provider_id := provider_id()
 }).
+-type promise() :: ff_adapter_withdrawal:exchange_rate().
+-type provider_id() :: pos_integer() | id().
 
 -export_type([withdrawal/0]).
 -export_type([machine/0]).
@@ -26,6 +29,7 @@
 -export_type([events/0]).
 -export_type([event/0]).
 -export_type([route/0]).
+-export_type([promise/0]).
 
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
@@ -45,6 +49,7 @@
 
 %%
 -export([transfer_type/0]).
+-export([get_exchange_promise/1]).
 
 %% API
 -export([create/3]).
@@ -120,6 +125,15 @@ external_id(T)     -> ff_transfer:external_id(T).
     wallet_id      := ff_wallet_machine:id(),
     destination_id := ff_destination:id(),
     body           := ff_transaction:body(),
+    external_id    => id()
+}.
+
+-type promise_params() :: #{
+    wallet_id      := ff_wallet_machine:id(),
+    currency_from  := ff_currency:id(),
+    currency_to    := ff_currency:id(),
+    body           := ff_transaction:body(),
+    destination_id => ff_destination:id(),
     external_id    => id()
 }.
 
@@ -257,16 +271,28 @@ create_route(Withdrawal) ->
     } = params(Withdrawal),
     Body = body(Withdrawal),
     do(fun () ->
+        ProviderID = unwrap(routing(WalletID, DestinationID, Body)),
+        {continue, [{route_changed, #{provider_id => ProviderID}}]}
+    end).
+
+routing(WalletID, undefined, Body) ->
+    routing_(WalletID, undefined, Body);
+routing(WalletID, DestinationID, Body) ->
+    do(fun () ->
+        {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
+        Destination = ff_destination:get(DestinationMachine),
+        unwrap(routing_(WalletID, Destination, Body))
+    end).
+
+routing_(WalletID, Destination, Body) ->
+    do(fun () ->
         {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
         Wallet = ff_wallet_machine:wallet(WalletMachine),
         PaymentInstitutionID = unwrap(ff_party:get_wallet_payment_institution_id(Wallet)),
         PaymentInstitution = unwrap(ff_payment_institution:get(PaymentInstitutionID)),
-        {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
-        Destination = ff_destination:get(DestinationMachine),
         {ok, VS} = collect_varset(Body, Wallet, Destination),
         Providers = unwrap(ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, VS)),
-        ProviderID = unwrap(choose_provider(Providers, VS)),
-        {continue, [{route_changed, #{provider_id => ProviderID}}]}
+        unwrap(choose_provider(Providers, VS))
     end).
 
 choose_provider(Providers, VS) ->
@@ -509,19 +535,29 @@ maybe_migrate(Ev) ->
 -spec collect_varset(body(), ff_wallet:wallet(), ff_destination:destination()) ->
     {ok, hg_selector:varset()} | no_return().
 
-collect_varset({_, CurrencyID} = Body, Wallet, Destination) ->
+collect_varset(Body, Wallet, Destination) ->
+    do(fun() ->
+        VS = unwrap(collect_varset(Body, Wallet)),
+        PaymentTool = construct_payment_tool(ff_destination:resource(Destination)),
+        VS#{
+            % TODO it's not fair, because it's PAYOUT not PAYMENT tool.
+            payment_tool => PaymentTool
+        }
+    end).
+
+-spec collect_varset(body(), ff_wallet:wallet()) ->
+    {ok, hg_selector:varset()} | no_return().
+
+collect_varset({_, CurrencyID} = Body, Wallet) ->
     Currency = #domain_CurrencyRef{symbolic_code = CurrencyID},
     IdentityID = ff_wallet:identity(Wallet),
     do(fun() ->
         {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
         Identity = ff_identity_machine:identity(IdentityMachine),
         PartyID = ff_identity:party(Identity),
-        PaymentTool = construct_payment_tool(ff_destination:resource(Destination)),
         #{
             currency => Currency,
             cost => ff_cash:encode(Body),
-            % TODO it's not fair, because it's PAYOUT not PAYMENT tool.
-            payment_tool => PaymentTool,
             party_id => PartyID,
             wallet_id => ff_wallet:id(Wallet),
             payout_method => #domain_PayoutMethodRef{id = wallet_info}
@@ -543,3 +579,24 @@ construct_payment_tool({crypto_wallet, CryptoWallet}) ->
         id              = maps:get(id, CryptoWallet),
         crypto_currency = maps:get(currency, CryptoWallet)
     }}.
+
+-spec get_exchange_promise(promise_params()) ->
+    {ok, {provider_id(), promise()}} |
+    {error, _Reason}.
+get_exchange_promise(Params = #{
+    wallet_id := WalletID,
+    body := Body,
+    currency_from := CurrencyFrom,
+    currency_to := CurrencyTo
+}) ->
+    DestinationID = maps:get(destination_id, Params, undefined),
+    ProviderID = unwrap(routing(WalletID, DestinationID, Body)),
+    {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
+    GetRateParams = #{
+        external_id => maps:get(external_id, Params, undefined),
+        currency_from => CurrencyFrom,
+        currency_to => CurrencyTo,
+        body => Body
+    },
+    {ok, Promise} = ff_adapter_withdrawal:get_exchange_rate(Adapter, GetRateParams, AdapterOpts),
+    {ok, {ProviderID, Promise}}.

@@ -379,12 +379,14 @@ list_withdrawals(Params, Context) ->
     {destination, notfound}       |
     {destination, unauthorized}   |
     {provider, notfound}          |
-    {wallet, {inaccessible, _}}
+    {wallet, notfound}
 ).
 create_exchange_promise(Params, _Context) ->
-    CreatePromiseParams = from_swag(create_promise_params, Params),
-    {ProviderID, Promise} = unwrap(ff_withdrawal:get_exchange_promise(CreatePromiseParams)),
-    {ok, to_swag(exchange_promise, Promise#{provider_id => ProviderID})}.
+    do(fun () ->
+        CreatePromiseParams = from_swag(create_promise_params, Params),
+        {ProviderID, Promise} = unwrap(ff_withdrawal:get_exchange_promise(CreatePromiseParams)),
+        to_swag(exchange_promise, Promise#{provider_id => ProviderID})
+    end).
 
 %% Residences
 
@@ -880,13 +882,13 @@ add_external_id(Params, _) ->
     _Term.
 
 from_swag(create_promise_params, Params) ->
-    add_external_id(#{
+    genlib_map:compact(add_external_id(#{
         wallet_id       => maps:get(<<"walletID">>, Params),
         currency_from   => from_swag(currency, maps:get(<<"currencyFrom">>, Params)),
         currency_to     => from_swag(currency, maps:get(<<"currencyTo">>, Params)),
         body            => from_swag(withdrawal_body, maps:get(<<"cash">>, Params)),
         destination_id  => maps:get(<<"destinationID">>, Params, undefined)
-    }, Params);
+    }, Params));
 from_swag(identity_params, Params) ->
     add_external_id(#{
         provider => maps:get(<<"provider">>, Params),

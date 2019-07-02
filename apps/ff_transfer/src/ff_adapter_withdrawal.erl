@@ -41,7 +41,7 @@
     cash_to     := cash(),
     created_at  := binary(),
     expires_on  := binary(),
-    rate_data   := ff_ctx:md()
+    rate_data   => ff_ctx:md()
 }.
 
 -type adapter()               :: ff_adapter:adapter().
@@ -252,13 +252,13 @@ decode_exchange_rate(#wthadpt_ExchangeRate{
     expires_on = ExpiresOn,
     rate_data = RateData
 }) ->
-    #{
+    genlib_map:compact(#{
         cash_from => decode_body(CashFrom),
         cash_to => decode_body(CashTo),
         created_at => CreatedAt,
         expires_on => ExpiresOn,
-        rate_data => decode_msgpack(RateData)
-    }.
+        rate_data => maybe_decode_msgpack(RateData)
+    }).
 
 -spec decode_body(domain_cash()) -> cash().
 decode_body(#wthadpt_Cash{
@@ -282,6 +282,11 @@ decode_currency(#domain_Currency{
         numcode => Numcode,
         exponent => Exponent
     }.
+
+maybe_decode_msgpack(undefined)->
+    undefined;
+maybe_decode_msgpack(Msgpack)->
+    decode_msgpack(Msgpack).
 
 decode_msgpack({nl, #msgpack_Nil{}})        -> nil;
 decode_msgpack({b,   V}) when is_boolean(V) -> V;

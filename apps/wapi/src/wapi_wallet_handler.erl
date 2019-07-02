@@ -333,13 +333,14 @@ process_request('ListWithdrawals', Params, Context, _Opts) ->
 process_request('CreateExchangePromise', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_exchange_promise(Params, Context) of
         {ok, Promise} -> wapi_handler_utils:reply_ok(202, Promise);
-        {error, {conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
-        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(400, #{
-            <<"errorType">>   => <<"NotFound">>,
-            <<"name">>        => <<"withdrawal">>,
-            <<"description">> => <<"withdrawal not found">>
-        })
+        {error, {destination, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
+        {error, {destination, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
+        {error, {provider, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
+        {error, {wallet, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>))
     end;
 
 %% Residences

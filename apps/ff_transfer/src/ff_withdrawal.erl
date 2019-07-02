@@ -271,23 +271,16 @@ create_route(Withdrawal) ->
     } = params(Withdrawal),
     Body = body(Withdrawal),
     do(fun () ->
-        ProviderID = unwrap(routing(WalletID, DestinationID, Body)),
+        {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
+        Destination = ff_destination:get(DestinationMachine),
+        {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
+        Wallet = ff_wallet_machine:wallet(WalletMachine),
+        ProviderID = unwrap(routing(Wallet, Destination, Body)),
         {continue, [{route_changed, #{provider_id => ProviderID}}]}
     end).
 
-routing(WalletID, undefined, Body) ->
-    routing_(WalletID, undefined, Body);
-routing(WalletID, DestinationID, Body) ->
+routing(Wallet, Destination, Body) ->
     do(fun () ->
-        {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
-        Destination = ff_destination:get(DestinationMachine),
-        unwrap(routing_(WalletID, Destination, Body))
-    end).
-
-routing_(WalletID, Destination, Body) ->
-    do(fun () ->
-        {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
-        Wallet = ff_wallet_machine:wallet(WalletMachine),
         PaymentInstitutionID = unwrap(ff_party:get_wallet_payment_institution_id(Wallet)),
         PaymentInstitution = unwrap(ff_payment_institution:get(PaymentInstitutionID)),
         {ok, VS} = collect_varset(Body, Wallet, Destination),
@@ -532,9 +525,11 @@ finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount,
 maybe_migrate(Ev) ->
     ff_transfer:maybe_migrate(Ev, withdrawal).
 
--spec collect_varset(body(), ff_wallet:wallet(), ff_destination:destination()) ->
+-spec collect_varset(body(), ff_wallet:wallet(), ff_destination:destination() | undefined) ->
     {ok, hg_selector:varset()} | no_return().
 
+collect_varset(Body, Wallet, undefined) ->
+    collect_varset(Body, Wallet);
 collect_varset(Body, Wallet, Destination) ->
     do(fun() ->
         VS = unwrap(collect_varset(Body, Wallet)),
@@ -583,20 +578,33 @@ construct_payment_tool({crypto_wallet, CryptoWallet}) ->
 -spec get_exchange_promise(promise_params()) ->
     {ok, {provider_id(), promise()}} |
     {error, _Reason}.
-get_exchange_promise(Params = #{
+get_exchange_promise(Params = #{destination_id := DestinationID}) ->
+    do(fun() ->
+        DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
+        Destination = ff_destination:get(DestinationMachine),
+        ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
+        get_exchange_promise_(Params, Destination)
+    end);
+get_exchange_promise(Params) ->
+    get_exchange_promise_(Params, undefined).
+
+get_exchange_promise_(Params = #{
     wallet_id := WalletID,
     body := Body,
     currency_from := CurrencyFrom,
     currency_to := CurrencyTo
-}) ->
-    DestinationID = maps:get(destination_id, Params, undefined),
-    ProviderID = unwrap(routing(WalletID, DestinationID, Body)),
-    {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
-    GetRateParams = #{
-        external_id => maps:get(external_id, Params, undefined),
-        currency_from => CurrencyFrom,
-        currency_to => CurrencyTo,
-        body => Body
-    },
-    {ok, Promise} = ff_adapter_withdrawal:get_exchange_rate(Adapter, GetRateParams, AdapterOpts),
-    {ok, {ProviderID, Promise}}.
+}, Destination) ->
+    do(fun() ->
+        WalletMachine = unwrap(wallet, ff_wallet_machine:get(WalletID)),
+        Wallet = ff_wallet_machine:wallet(WalletMachine),
+        ProviderID = unwrap(provider, routing(Wallet, Destination, Body)),
+        {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
+        GetRateParams = #{
+            external_id => maps:get(external_id, Params, undefined),
+            currency_from => CurrencyFrom,
+            currency_to => CurrencyTo,
+            body => Body
+        },
+        {ok, Promise} = ff_adapter_withdrawal:get_exchange_rate(Adapter, GetRateParams, AdapterOpts),
+        {ok, {ProviderID, Promise}}
+    end).

@@ -1259,7 +1259,7 @@ to_swag(exchange_promise, #{
         <<"rate_data">>     => RateData,
         <<"provider_id">>   => ProviderID
     },
-    JSONData = jiffy:encode(Data),
+    JSONData = jsx:encode(Data),
     {ok, Token} = wapi_signer:sign(JSONData),
     #{
         <<"cashFrom">> => EncodedCashFrom,

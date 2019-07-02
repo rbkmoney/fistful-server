@@ -20,7 +20,7 @@
         scoper,
         jose,
         libdecaf,
-        jiffy,
+        jsx,
         cowboy_cors,
         cowboy_access_log,
         rfc3339,

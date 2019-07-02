@@ -17,10 +17,10 @@
 -type events()  :: ff_transfer_machine:events(ff_transfer:event(transfer_params(), route())).
 -type event()   :: ff_transfer_machine:event(ff_transfer:event(transfer_params(), route())).
 -type route()   :: ff_transfer:route(#{
-    % TODO I'm now sure about this change, it may crash old events. Or not. ))
     provider_id := provider_id()
 }).
--type promise() :: ff_adapter_withdrawal:exchange_rate().
+-type quote() :: ff_adapter_withdrawal:quote().
+% TODO I'm now sure about this change, it may crash old events. Or not. ))
 -type provider_id() :: pos_integer() | id().
 
 -export_type([withdrawal/0]).
@@ -29,7 +29,7 @@
 -export_type([events/0]).
 -export_type([event/0]).
 -export_type([route/0]).
--export_type([promise/0]).
+-export_type([quote/0]).
 
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
@@ -49,7 +49,7 @@
 
 %%
 -export([transfer_type/0]).
--export([get_exchange_promise/1]).
+-export([get_quote/1]).
 
 %% API
 -export([create/3]).
@@ -75,8 +75,10 @@
 -type account() :: ff_account:account().
 -type provider() :: ff_withdrawal_provider:provider().
 -type wallet_id() :: ff_wallet:id().
+-type wallet() :: ff_wallet:wallet().
 -type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
 -type destination_id() :: ff_destination:id().
+-type destination() :: ff_destination:destination().
 -type process_result() :: {ff_transfer_machine:action(), [event()]}.
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 
@@ -128,7 +130,7 @@ external_id(T)     -> ff_transfer:external_id(T).
     external_id    => id()
 }.
 
--type promise_params() :: #{
+-type quote_params() :: #{
     wallet_id      := ff_wallet_machine:id(),
     currency_from  := ff_currency:id(),
     currency_to    := ff_currency:id(),
@@ -275,11 +277,14 @@ create_route(Withdrawal) ->
         Destination = ff_destination:get(DestinationMachine),
         {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
         Wallet = ff_wallet_machine:wallet(WalletMachine),
-        ProviderID = unwrap(routing(Wallet, Destination, Body)),
+        ProviderID = unwrap(prepare_route(Wallet, Destination, Body)),
         {continue, [{route_changed, #{provider_id => ProviderID}}]}
     end).
 
-routing(Wallet, Destination, Body) ->
+-spec prepare_route(wallet(), destination(), body()) ->
+    {ok, provider_id()} | {error, _Reason}.
+
+prepare_route(Wallet, Destination, Body) ->
     do(fun () ->
         PaymentInstitutionID = unwrap(ff_party:get_wallet_payment_institution_id(Wallet)),
         PaymentInstitution = unwrap(ff_payment_institution:get(PaymentInstitutionID)),
@@ -575,20 +580,24 @@ construct_payment_tool({crypto_wallet, CryptoWallet}) ->
         crypto_currency = maps:get(currency, CryptoWallet)
     }}.
 
--spec get_exchange_promise(promise_params()) ->
-    {ok, {provider_id(), promise()}} |
-    {error, _Reason}.
-get_exchange_promise(Params = #{destination_id := DestinationID}) ->
+-spec get_quote(quote_params()) ->
+    {ok, quote()} |
+    {error,
+        {destination, notfound}       |
+        {destination, unauthorized}   |
+        {wallet, notfound}
+    }.
+get_quote(Params = #{destination_id := DestinationID}) ->
     do(fun() ->
         DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
         Destination = ff_destination:get(DestinationMachine),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
-        get_exchange_promise_(Params, Destination)
+        get_quote_(Params, Destination)
     end);
-get_exchange_promise(Params) ->
-    get_exchange_promise_(Params, undefined).
+get_quote(Params) ->
+    get_quote_(Params, undefined).
 
-get_exchange_promise_(Params = #{
+get_quote_(Params = #{
     wallet_id := WalletID,
     body := Body,
     currency_from := CurrencyFrom,
@@ -597,7 +606,7 @@ get_exchange_promise_(Params = #{
     do(fun() ->
         WalletMachine = unwrap(wallet, ff_wallet_machine:get(WalletID)),
         Wallet = ff_wallet_machine:wallet(WalletMachine),
-        ProviderID = unwrap(provider, routing(Wallet, Destination, Body)),
+        {ok, ProviderID} = prepare_route(Wallet, Destination, Body),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
         GetRateParams = #{
             external_id => maps:get(external_id, Params, undefined),
@@ -605,6 +614,9 @@ get_exchange_promise_(Params = #{
             currency_to => CurrencyTo,
             body => Body
         },
-        {ok, Promise} = ff_adapter_withdrawal:get_exchange_rate(Adapter, GetRateParams, AdapterOpts),
-        {ok, {ProviderID, Promise}}
+        {ok, Quote} = ff_adapter_withdrawal:get_exchange_rate(Adapter, GetRateParams, AdapterOpts),
+        %% add provider id to quote_data
+        QuoteData = maps:get(quote_data, Quote),
+
+        Quote#{quote_data := #{<<"quote_data">> => QuoteData, <<"provider_id">> => ProviderID}}
     end).

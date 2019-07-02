@@ -37,7 +37,7 @@
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
 -export([list_withdrawals/2]).
--export([create_exchange_promise/2]).
+-export([create_quote/2]).
 
 -export([get_residence/2]).
 -export([get_currency/2]).
@@ -375,17 +375,16 @@ list_withdrawals(Params, Context) ->
     Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', [Req]}, Context),
     process_stat_result(StatType, Result).
 
--spec create_exchange_promise(params(), ctx()) ->result(map(),
+-spec create_quote(params(), ctx()) -> result(map(),
     {destination, notfound}       |
     {destination, unauthorized}   |
-    {provider, notfound}          |
     {wallet, notfound}
 ).
-create_exchange_promise(Params, _Context) ->
+create_quote(Params, _Context) ->
     do(fun () ->
-        CreatePromiseParams = from_swag(create_promise_params, Params),
-        {ProviderID, Promise} = unwrap(ff_withdrawal:get_exchange_promise(CreatePromiseParams)),
-        to_swag(exchange_promise, Promise#{provider_id => ProviderID})
+        CreateQuoteParams = from_swag(create_quote_params, Params),
+        Quote = unwrap(ff_withdrawal:get_quote(CreateQuoteParams)),
+        to_swag(quote, Quote)
     end).
 
 %% Residences
@@ -881,7 +880,7 @@ add_external_id(Params, _) ->
 -spec from_swag(_Type, swag_term()) ->
     _Term.
 
-from_swag(create_promise_params, Params) ->
+from_swag(create_quote_params, Params) ->
     genlib_map:compact(add_external_id(#{
         wallet_id       => maps:get(<<"walletID">>, Params),
         currency_from   => from_swag(currency, maps:get(<<"currencyFrom">>, Params)),
@@ -1242,13 +1241,12 @@ to_swag(report_files, {files, Files}) ->
 to_swag(report_file, File) ->
     #{<<"id">> => File};
 
-to_swag(exchange_promise, #{
+to_swag(quote, #{
     cash_from   := CashFrom,
     cash_to     := CashTo,
     created_at  := CreatedAt,
     expires_on  := ExpiresOn,
-    rate_data   := RateData,
-    provider_id := ProviderID
+    quote_data  := QuoteData
 }) ->
     EncodedCashFrom = to_swag(withdrawal_body, CashFrom),
     EncodedCashTo = to_swag(withdrawal_body, CashTo),
@@ -1256,16 +1254,15 @@ to_swag(exchange_promise, #{
         <<"version">>       => 1,
         <<"cash_from">>     => EncodedCashFrom,
         <<"cash_to">>       => EncodedCashTo,
-        <<"rate_data">>     => RateData,
-        <<"provider_id">>   => ProviderID
+        <<"quote_data">>    => QuoteData
     },
     JSONData = jsx:encode(Data),
     {ok, Token} = wapi_signer:sign(JSONData),
     #{
-        <<"cashFrom">> => EncodedCashFrom,
-        <<"cashTo">> => EncodedCashTo,
-        <<"createdAt">> => to_swag(timestamp, CreatedAt),
-        <<"expiresOn">> => to_swag(timestamp, ExpiresOn),
+        <<"cashFrom">>      => EncodedCashFrom,
+        <<"cashTo">>        => EncodedCashTo,
+        <<"createdAt">>     => to_swag(timestamp, CreatedAt),
+        <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"exchangeToken">> => Token
     };
 

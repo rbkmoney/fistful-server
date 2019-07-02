@@ -330,15 +330,13 @@ process_request('ListWithdrawals', Params, Context, _Opts) ->
         {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
         {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
     end;
-process_request('CreateExchangePromise', Params, Context, _Opts) ->
-    case wapi_wallet_ff_backend:create_exchange_promise(Params, Context) of
+process_request('CreateQuote', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:create_quote(Params, Context) of
         {ok, Promise} -> wapi_handler_utils:reply_ok(202, Promise);
         {error, {destination, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
         {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
-        {error, {provider, notfound}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>))
     end;

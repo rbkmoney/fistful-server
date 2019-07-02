@@ -29,20 +29,30 @@
     receiver    => identity() | undefined
 }.
 
--type exchange_rate_params() :: #{
+-type quote_params() :: #{
     external_id => binary(),
     currency_from := ff_currency:id(),
     currency_to := ff_currency:id(),
     body := cash()
 }.
 
--type exchange_rate() :: #{
+-type quote() :: #{
     cash_from   := cash(),
     cash_to     := cash(),
     created_at  := binary(),
     expires_on  := binary(),
-    rate_data   => ff_ctx:md()
+    quote_data  := quote_data()
 }.
+
+-type quote_data()     :: %% as stolen from `machinery_msgpack`
+    nil                |
+    boolean()          |
+    integer()          |
+    float()            |
+    binary()           | %% string
+    {binary, binary()} | %% binary
+    [quote_data()]             |
+    #{quote_data() => quote_data()}    .
 
 -type adapter()               :: ff_adapter:adapter().
 -type intent()                :: {finish, status()} | {sleep, timer()}.
@@ -53,8 +63,7 @@
 -type adapter_state()         :: ff_adapter:state().
 -type process_result()        ::
     {ok, intent(), adapter_state()} |
-    {ok, intent()} |
-    {ok, exchange_rate()}.
+    {ok, intent()}.
 
 -type domain_withdrawal()     :: dmsl_withdrawals_provider_adapter_thrift:'Withdrawal'().
 -type domain_cash()           :: dmsl_withdrawals_provider_adapter_thrift:'Cash'().
@@ -63,12 +72,12 @@
 -type domain_identity()       :: dmsl_withdrawals_provider_adapter_thrift:'Identity'().
 -type domain_internal_state() :: dmsl_withdrawals_provider_adapter_thrift:'InternalState'().
 
--type domain_exchange_rate_params()  :: dmsl_withdrawals_provider_adapter_thrift:'GetExchangeRateParams'().
+-type domain_quote_params()  :: dmsl_withdrawals_provider_adapter_thrift:'GetQuoteParams'().
 
 -export_type([withdrawal/0]).
 -export_type([failure/0]).
--export_type([exchange_rate/0]).
--export_type([exchange_rate_params/0]).
+-export_type([quote/0]).
+-export_type([quote_params/0]).
 
 %%
 %% API
@@ -86,8 +95,8 @@ process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
     {ok, Result} = call(Adapter, 'ProcessWithdrawal', [DomainWithdrawal, encode_adapter_state(ASt), AOpt]),
     decode_result(Result).
 
--spec get_exchange_rate(adapter(), exchange_rate_params(), map()) ->
-    {ok, exchange_rate()}.
+-spec get_exchange_rate(adapter(), quote_params(), map()) ->
+    {ok, quote()}.
 
 get_exchange_rate(Adapter, Params, AOpt) ->
     ExchangeRateParams = encode_exchange_rate_params(Params),
@@ -104,8 +113,8 @@ call(Adapter, Function, Args) ->
 
 %% Encoders
 
--spec encode_exchange_rate_params(Params) -> domain_exchange_rate_params() when
-    Params :: exchange_rate_params().
+-spec encode_exchange_rate_params(Params) -> domain_quote_params() when
+    Params :: quote_params().
 encode_exchange_rate_params(Params) ->
     #{
         currency_from := CurrencyIDFrom,
@@ -115,7 +124,7 @@ encode_exchange_rate_params(Params) ->
     ExternalID = maps:get(external_id, Params, undefined),
     {ok, CurrencyFrom} = ff_currency:get(CurrencyIDFrom),
     {ok, CurrencyTo} = ff_currency:get(CurrencyIDTo),
-    #wthadpt_GetExchangeRateParams{
+    #wthadpt_GetQuoteParams{
         idempotency_id = ExternalID,
         currency_from = encode_currency(CurrencyFrom),
         currency_to = encode_currency(CurrencyTo),
@@ -227,12 +236,15 @@ encode_adapter_state(undefined) ->
 encode_adapter_state(ASt) ->
     ASt.
 
--spec decode_result(dmsl_withdrawals_provider_adapter_thrift:'ProcessResult'()) -> process_result().
+-spec decode_result
+    (dmsl_withdrawals_provider_adapter_thrift:'ProcessResult'()) -> process_result();
+    (dmsl_withdrawals_provider_adapter_thrift:'Quote'()) -> {ok, quote()}.
+
 decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = undefined}) ->
     {ok, decode_intent(Intent)};
 decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = NextState}) ->
     {ok, decode_intent(Intent), NextState};
-decode_result(#wthadpt_ExchangeRate{} = ExchangeRate) ->
+decode_result(#wthadpt_Quote{} = ExchangeRate) ->
     {ok, decode_exchange_rate(ExchangeRate)}.
 
 %% Decoders
@@ -245,19 +257,19 @@ decode_intent({finish, #wthadpt_FinishIntent{status = {failure, Failure}}}) ->
 decode_intent({sleep, #wthadpt_SleepIntent{timer = Timer}}) ->
     {sleep, Timer}.
 
-decode_exchange_rate(#wthadpt_ExchangeRate{
+decode_exchange_rate(#wthadpt_Quote{
     cash_from = CashFrom,
     cash_to = CashTo,
     created_at = CreatedAt,
     expires_on = ExpiresOn,
-    rate_data = RateData
+    quote_data = QuoteData
 }) ->
     genlib_map:compact(#{
         cash_from => decode_body(CashFrom),
         cash_to => decode_body(CashTo),
         created_at => CreatedAt,
         expires_on => ExpiresOn,
-        rate_data => maybe_decode_msgpack(RateData)
+        quote_data => decode_msgpack(QuoteData)
     }).
 
 -spec decode_body(domain_cash()) -> cash().
@@ -282,11 +294,6 @@ decode_currency(#domain_Currency{
         numcode => Numcode,
         exponent => Exponent
     }.
-
-maybe_decode_msgpack(undefined)->
-    undefined;
-maybe_decode_msgpack(Msgpack)->
-    decode_msgpack(Msgpack).
 
 decode_msgpack({nl, #msgpack_Nil{}})        -> nil;
 decode_msgpack({b,   V}) when is_boolean(V) -> V;

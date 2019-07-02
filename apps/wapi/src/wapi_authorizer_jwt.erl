@@ -23,10 +23,10 @@
 -type kid()        :: binary().
 -type key()        :: #jose_jwk{}.
 -type stored_key() :: #{
-    jwk      => key(),
-    kid      => kid(),
-    signer   => map() | undefined,
-    verifier => map() | undefined
+    jwk      := key(),
+    kid      := kid(),
+    signer   := map() | undefined,
+    verifier := map() | undefined
 }.
 -type token()      :: binary().
 -type claims()     :: #{binary() => term()}.

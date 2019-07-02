@@ -14,6 +14,7 @@
 -export([withdrawal_to_bank_card/1]).
 -export([withdrawal_to_crypto_wallet/1]).
 -export([woody_retry_test/1]).
+-export([get_quote_test/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -33,7 +34,8 @@ groups() ->
     [
         {default, [sequence, {repeat, 2}], [
             withdrawal_to_bank_card,
-            withdrawal_to_crypto_wallet
+            withdrawal_to_crypto_wallet,
+            get_quote_test
         ]},
         {woody, [], [
             woody_retry_test
@@ -135,6 +137,40 @@ withdrawal_to_crypto_wallet(C) ->
     timer:sleep(1000),
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
+
+-spec get_quote_test(config()) -> test_return().
+
+get_quote_test(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ok            = check_identity(Name, IdentityID, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    ok            = check_wallet(WalletID, C),
+    CardToken     = store_bank_card(C),
+    {ok, _Card}   = get_bank_card(CardToken, C),
+    Resource      = make_bank_card_resource(CardToken),
+    DestID        = create_desination(IdentityID, Resource, C),
+    ok            = check_destination(IdentityID, DestID, Resource, C),
+
+    CashTo = #{
+        <<"amount">> => 100,
+        <<"currency">> => <<"RUB">>
+    },
+
+    {ok, Quote} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => #{
+                <<"walletID">> => WalletID,
+                <<"currencyFrom">> => <<"USD">>,
+                <<"currencyTo">> => <<"RUB">>,
+                <<"cash">> => CashTo
+        }},
+        ct_helper:cfg(context, C)
+    ),
+    CashTo = maps:get(<<"cashTo">>, Quote).
 
 woody_retry_test(C) ->
     Urls = application:get_env(wapi_woody_client, service_urls, #{}),

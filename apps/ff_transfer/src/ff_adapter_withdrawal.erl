@@ -51,8 +51,8 @@
     float()            |
     binary()           | %% string
     {binary, binary()} | %% binary
-    [quote_data()]             |
-    #{quote_data() => quote_data()}    .
+    [quote_data()]     |
+    #{quote_data() => quote_data()}.
 
 -type adapter()               :: ff_adapter:adapter().
 -type intent()                :: {finish, status()} | {sleep, timer()}.

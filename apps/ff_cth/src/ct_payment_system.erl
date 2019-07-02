@@ -123,6 +123,8 @@ start_processing_apps(Options) ->
         {<<"/v1/withdrawal">>, {{ff_proto_withdrawal_thrift, 'Management'}, {ff_withdrawal_handler, []}}, #{}}),
     IdentityRoutes   = ff_server:get_routes(
         {<<"/v1/identity">>, {{ff_proto_identity_thrift, 'Management'}, {ff_identity_handler, []}}, #{}}),
+    DummyProviderRoute = ff_server:get_routes(
+        {<<"/quotebank">>, {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'}, {ff_ct_provider_handler, []}}, #{}}),
     RepairRoutes     = get_repair_routes(),
     EventsinkRoutes  = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
@@ -140,7 +142,8 @@ start_processing_apps(Options) ->
                 WithdrawalRoutes,
                 IdentityRoutes,
                 EventsinkRoutes,
-                RepairRoutes
+                RepairRoutes,
+                DummyProviderRoute
             ])
         }
     )),
@@ -387,6 +390,34 @@ identity_provider_config(Options) ->
                     }
                 }
             }
+        },
+        <<"quote-owner">> => #{
+            payment_institution_id => 1,
+            routes => [<<"quotebank">>],
+            identity_classes => #{
+                <<"person">> => #{
+                    name => <<"Well, a person">>,
+                    contract_template_id => 1,
+                    initial_level => <<"peasant">>,
+                    levels => #{
+                        <<"peasant">> => #{
+                            name => <<"Well, a peasant">>,
+                            contractor_level => none
+                        },
+                        <<"nobleman">> => #{
+                            name => <<"Well, a nobleman">>,
+                            contractor_level => partial
+                        }
+                    },
+                    challenges => #{
+                        <<"sword-initiation">> => #{
+                            name   => <<"Initiation by sword">>,
+                            base   => <<"peasant">>,
+                            target => <<"nobleman">>
+                        }
+                    }
+                }
+            }
         }
     },
     maps:get(identity_provider_config, Options, Default).
@@ -397,6 +428,24 @@ withdrawal_provider_config(Options) ->
     Default = #{
         <<"mocketbank">> => #{
             adapter => ff_woody_client:new(<<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
+            accounts => #{},
+            fee => #{
+                <<"RUB">> => #{
+                    postings => [
+                        #{
+                            sender => {system, settlement},
+                            receiver => {provider, settlement},
+                            volume => {product, {min_of, [
+                                {fixed, {10, <<"RUB">>}},
+                                {share, {genlib_rational:new(5, 100), operation_amount, round_half_towards_zero}}
+                            ]}}
+                        }
+                    ]
+                }
+            }
+        },
+        <<"quotebank">> => #{
+            adapter => ff_woody_client:new(<<"http://localhost:8022/quotebank">>),
             accounts => #{},
             fee => #{
                 <<"RUB">> => #{

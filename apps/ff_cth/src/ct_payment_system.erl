@@ -505,7 +505,9 @@ domain_config(Options, C) ->
                 identity                  = payment_inst_identity_id(Options),
                 withdrawal_providers      = {decisions, [
                     #domain_WithdrawalProviderDecision{
-                        if_ = {condition, {party, #domain_PartyCondition{id = <<"e66ea72e-8eaf-47c1-b396-90ce98546528">>}}},
+                        if_ = {condition, {party,
+                            #domain_PartyCondition{id = <<"e66ea72e-8eaf-47c1-b396-90ce98546528">>}
+                        }},
                         then_ = {value, [?wthdr_prv(3)]}
                     },
                     #domain_WithdrawalProviderDecision{

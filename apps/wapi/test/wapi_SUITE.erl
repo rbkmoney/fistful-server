@@ -247,7 +247,7 @@ get_quote_without_destination_fail_test(C) ->
         <<"currency">> => <<"RUB">>
     },
 
-    {error,{400,
+    {error, {400,
        #{<<"description">> := <<"route not found">>,
          <<"errorType">> := <<"NoMatch">>,
          <<"name">> := <<"route">>}

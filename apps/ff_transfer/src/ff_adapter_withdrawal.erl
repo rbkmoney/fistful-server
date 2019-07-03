@@ -100,7 +100,7 @@ process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
 
 get_exchange_rate(Adapter, Params, AOpt) ->
     ExchangeRateParams = encode_exchange_rate_params(Params),
-    {ok, Result} = call(Adapter, 'GetExchangeRate', [ExchangeRateParams, AOpt]),
+    {ok, Result} = call(Adapter, 'GetQuote', [ExchangeRateParams, AOpt]),
     decode_result(Result).
 
 %%

@@ -880,7 +880,7 @@ add_external_id(Params, _) ->
 -spec from_swag(_Type, swag_term()) ->
     _Term.
 
-from_swag(create_quote_params, Params) ->
+from_swag(create_quote_params, #{'WithdrawalQuoteParams' := Params}) ->
     genlib_map:compact(add_external_id(#{
         wallet_id       => maps:get(<<"walletID">>, Params),
         currency_from   => from_swag(currency, maps:get(<<"currencyFrom">>, Params)),
@@ -1263,7 +1263,7 @@ to_swag(quote, #{
         <<"cashTo">>        => EncodedCashTo,
         <<"createdAt">>     => to_swag(timestamp, CreatedAt),
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
-        <<"exchangeToken">> => Token
+        <<"quoteToken">> => Token
     };
 
 to_swag({list, Type}, List) ->

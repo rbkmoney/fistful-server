@@ -334,11 +334,23 @@ process_request('CreateQuote', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_quote(Params, Context) of
         {ok, Promise} -> wapi_handler_utils:reply_ok(202, Promise);
         {error, {destination, notfound}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
+            wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => <<"destination">>,
+                <<"description">> => <<"destination not found">>
+            });
         {error, {destination, unauthorized}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
+            wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NoMatch">>,
+                <<"name">>        => <<"destination">>,
+                <<"description">> => <<"destination unauthorized">>
+            });
         {error, {wallet, notfound}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>))
+            wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => <<"wallet">>,
+                <<"description">> => <<"wallet not found">>
+            })
     end;
 
 %% Residences

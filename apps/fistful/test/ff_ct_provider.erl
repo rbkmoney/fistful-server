@@ -1,6 +1,7 @@
 -module(ff_ct_provider).
 
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 %% API
 -export([start/0]).
@@ -74,20 +75,20 @@ process_withdrawal(_Withdrawal, _State, _Options) ->
 -spec get_quote(quote_params(), map()) ->
     {ok, quote()}.
 get_quote(#{
-    currency_from := #domain_Currency{symbolic_code = CurrencyFrom},
-    currency_to := #domain_Currency{symbolic_code = CurrencyTo},
-    exchange_cash := #domain_Cash{amount = Amount, currency = Currency}
+    currency_from := CurrencyFrom,
+    currency_to := CurrencyTo,
+    exchange_cash := #wthadpt_Cash{amount = Amount, currency = Currency}
 }, _Options) ->
     {ok, #{
         cash_from => calc_cash(CurrencyFrom, Currency, Amount),
         cash_to => calc_cash(CurrencyTo, Currency, Amount),
         created_at => ff_time:to_rfc3339(ff_time:now()),
         expires_on => ff_time:to_rfc3339(ff_time:now() + 15*3600*1000),
-        quote_data => #{<<"test">> => <<"test">>}
+        quote_data => {obj, #{{str, <<"test">>} => {str, <<"test">>}}}
     }}.
 
 calc_cash(Currency, Currency, Amount) ->
-    #domain_Cash{amount = Amount, currency = Currency};
-calc_cash(_, Currency, Amount) ->
-    NewAmount = Amount / 2,
-    #domain_Cash{amount = NewAmount, currency = Currency}.
+    #wthadpt_Cash{amount = Amount, currency = Currency};
+calc_cash(Currency, _, Amount) ->
+    NewAmount = erlang:round(Amount / 2),
+    #wthadpt_Cash{amount = NewAmount, currency = Currency}.

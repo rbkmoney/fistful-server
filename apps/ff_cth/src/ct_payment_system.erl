@@ -505,6 +505,10 @@ domain_config(Options, C) ->
                 identity                  = payment_inst_identity_id(Options),
                 withdrawal_providers      = {decisions, [
                     #domain_WithdrawalProviderDecision{
+                        if_ = {condition, {party, #domain_PartyCondition{id = <<"e66ea72e-8eaf-47c1-b396-90ce98546528">>}}},
+                        then_ = {value, [?wthdr_prv(3)]}
+                    },
+                    #domain_WithdrawalProviderDecision{
                         if_ = {condition, {payment_tool, {bank_card, #domain_BankCardCondition{}}}},
                         then_ = {value, [?wthdr_prv(1)]}
                     },
@@ -521,9 +525,11 @@ domain_config(Options, C) ->
         ct_domain:inspector(?insp(1), <<"Low Life">>, ?prx(1), #{<<"risk_score">> => <<"low">>}),
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
+        ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8022/quotebank">>),
 
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),

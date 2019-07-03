@@ -592,7 +592,7 @@ get_quote(Params = #{destination_id := DestinationID}) ->
         DestinationMachine = unwrap(destination, ff_destination:get_machine(DestinationID)),
         Destination = ff_destination:get(DestinationMachine),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
-        get_quote_(Params, Destination)
+        unwrap(get_quote_(Params, Destination))
     end);
 get_quote(Params) ->
     get_quote_(Params, undefined).

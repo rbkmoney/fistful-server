@@ -26,7 +26,8 @@
     destination => destination(),
     cash        => cash(),
     sender      => identity() | undefined,
-    receiver    => identity() | undefined
+    receiver    => identity() | undefined,
+    quote_data  => quote_data()
 }.
 
 -type quote_params() :: #{
@@ -78,6 +79,7 @@
 -export_type([failure/0]).
 -export_type([quote/0]).
 -export_type([quote_params/0]).
+-export_type([quote_data/0]).
 
 %%
 %% API
@@ -146,7 +148,8 @@ encode_withdrawal(Withdrawal) ->
         body = encode_body(Cash),
         destination = encode_destination(Dest),
         sender = encode_identity(Sender),
-        receiver = encode_identity(Receiver)
+        receiver = encode_identity(Receiver),
+        quote = maybe_encode_msgpack(maps:get(quote_data, Withdrawal, undefined))
     }.
 
 -spec encode_body(cash()) -> domain_cash().
@@ -236,6 +239,23 @@ encode_adapter_state(undefined) ->
 encode_adapter_state(ASt) ->
     ASt.
 
+encode_msgpack(nil)                  -> {nl, #msgpack_Nil{}};
+encode_msgpack(V) when is_boolean(V) -> {b, V};
+encode_msgpack(V) when is_integer(V) -> {i, V};
+encode_msgpack(V) when is_float(V)   -> V;
+encode_msgpack(V) when is_binary(V)  -> {str, V}; % Assuming well-formed UTF-8 bytestring.
+encode_msgpack({binary, V}) when is_binary(V) ->
+    {bin, V};
+encode_msgpack(V) when is_list(V) ->
+    {arr, [encode_msgpack(ListItem) || ListItem <- V]};
+encode_msgpack(V) when is_map(V) ->
+    {obj, maps:fold(fun(Key, Value, Map) -> Map#{encode_msgpack(Key) => encode_msgpack(Value)} end, #{}, V)}.
+
+maybe_encode_msgpack(undefined) ->
+    undefined;
+maybe_encode_msgpack(Value) ->
+    encode_msgpack(Value).
+
 -spec decode_result
     (dmsl_withdrawals_provider_adapter_thrift:'ProcessResult'()) -> process_result();
     (dmsl_withdrawals_provider_adapter_thrift:'Quote'()) -> {ok, quote()}.
@@ -264,13 +284,13 @@ decode_exchange_rate(#wthadpt_Quote{
     expires_on = ExpiresOn,
     quote_data = QuoteData
 }) ->
-    genlib_map:compact(#{
+    #{
         cash_from => decode_body(CashFrom),
         cash_to => decode_body(CashTo),
         created_at => CreatedAt,
         expires_on => ExpiresOn,
         quote_data => decode_msgpack(QuoteData)
-    }).
+    }.
 
 -spec decode_body(domain_cash()) -> cash().
 decode_body(#wthadpt_Cash{

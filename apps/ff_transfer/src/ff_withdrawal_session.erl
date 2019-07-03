@@ -42,10 +42,11 @@
     | {finished, session_result()}.
 
 -type data() :: #{
-    id       := id(),
-    cash     := ff_transaction:body(),
-    sender   := ff_identity:identity(),
-    receiver := ff_identity:identity()
+    id         := id(),
+    cash       := ff_transaction:body(),
+    sender     := ff_identity:identity(),
+    receiver   := ff_identity:identity(),
+    quote_data => ff_adapter_withdrawal:quote_validation_data()
 }.
 
 -type params() :: #{

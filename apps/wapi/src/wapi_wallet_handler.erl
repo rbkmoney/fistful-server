@@ -301,7 +301,14 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {wallet, {provider, invalid}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>)
-            )
+            );
+        {error, {quote, _}} ->
+            %% TODO what info can we return here?
+            wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NoMatch">>,
+                <<"name">>        => <<"quote">>,
+                <<"description">> => <<"Invalid quote">>
+            })
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of
@@ -337,25 +344,25 @@ process_request('CreateQuote', Params, Context, _Opts) ->
             wapi_handler_utils:reply_ok(400, #{
                 <<"errorType">>   => <<"NotFound">>,
                 <<"name">>        => <<"destination">>,
-                <<"description">> => <<"destination not found">>
+                <<"description">> => <<"Destination not found">>
             });
         {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(400, #{
                 <<"errorType">>   => <<"NoMatch">>,
                 <<"name">>        => <<"destination">>,
-                <<"description">> => <<"destination unauthorized">>
+                <<"description">> => <<"Destination unauthorized">>
             });
         {error, {route, _}} ->
             wapi_handler_utils:reply_ok(400, #{
                 <<"errorType">>   => <<"NoMatch">>,
                 <<"name">>        => <<"route">>,
-                <<"description">> => <<"route not found">>
+                <<"description">> => <<"Route not found">>
             });
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(400, #{
                 <<"errorType">>   => <<"NotFound">>,
                 <<"name">>        => <<"wallet">>,
-                <<"description">> => <<"wallet not found">>
+                <<"description">> => <<"Wallet not found">>
             })
     end;
 

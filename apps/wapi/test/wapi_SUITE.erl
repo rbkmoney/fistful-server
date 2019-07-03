@@ -17,6 +17,7 @@
 -export([get_quote_test/1]).
 -export([get_quote_without_destination_test/1]).
 -export([get_quote_without_destination_fail_test/1]).
+-export([quote_withdrawal/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -42,7 +43,8 @@ groups() ->
         {quote, [], [
             get_quote_test,
             get_quote_without_destination_test,
-            get_quote_without_destination_fail_test
+            get_quote_without_destination_fail_test,
+            quote_withdrawal
         ]},
         {woody, [], [
             woody_retry_test
@@ -262,6 +264,46 @@ get_quote_without_destination_fail_test(C) ->
         }},
         ct_helper:cfg(context, C)
     ).
+
+-spec quote_withdrawal(config()) -> test_return().
+
+quote_withdrawal(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C, quote_context),
+    WalletID      = create_wallet(IdentityID, C, quote_context),
+    CardToken     = store_bank_card(C, quote_context_pcidss),
+    Resource      = make_bank_card_resource(CardToken),
+    DestID        = create_desination(IdentityID, Resource, C, quote_context),
+    % ожидаем авторизации назначения вывода
+    timer:sleep(1000),
+
+    CashFrom = #{
+        <<"amount">> => 100,
+        <<"currency">> => <<"RUB">>
+    },
+
+    {ok, Quote} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => #{
+                <<"walletID">> => WalletID,
+                <<"destinationID">> => DestID,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => CashFrom
+        }},
+        ct_helper:cfg(quote_context, C)
+    ),
+    WithdrawalID = create_withdrawal(
+        WalletID,
+        DestID,
+        C,
+        quote_context,
+        maps:get(<<"quoteToken">>, Quote)
+    ),
+    ok = check_withdrawal(WalletID, DestID, WithdrawalID, C, quote_context).
 
 woody_retry_test(C) ->
     Urls = application:get_env(wapi_woody_client, service_urls, #{}),
@@ -496,21 +538,31 @@ issue_destination_grants(DestID, C) ->
     ).
 
 create_withdrawal(WalletID, DestID, C) ->
+    create_withdrawal(WalletID, DestID, C, context).
+
+create_withdrawal(WalletID, DestID, C, ContextKey) ->
+    create_withdrawal(WalletID, DestID, C, ContextKey, undefined).
+
+create_withdrawal(WalletID, DestID, C, ContextKey, QuoteToken) ->
     {ok, Withdrawal} = call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
-        #{body => #{
+        #{body => genlib_map:compact(#{
             <<"wallet">> => WalletID,
             <<"destination">> => DestID,
             <<"body">> => #{
                 <<"amount">> => 100,
                 <<"currency">> => <<"RUB">>
-            }
-        }},
-        ct_helper:cfg(context, C)
+            },
+            <<"quoteToken">> => QuoteToken
+        })},
+        ct_helper:cfg(ContextKey, C)
     ),
     maps:get(<<"id">>, Withdrawal).
 
 check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
+    check_withdrawal(WalletID, DestID, WithdrawalID, C, context).
+
+check_withdrawal(WalletID, DestID, WithdrawalID, C, ContextKey) ->
     ct_helper:await(
         ok,
         fun () ->
@@ -519,7 +571,7 @@ check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
                              <<"withdrawalID">> => WithdrawalID,
                              <<"limit">> => 100
                             }},
-                         ct_helper:cfg(context, C)),
+                         ct_helper:cfg(ContextKey, C)),
             case R of
                 {ok, #{<<"result">> := []}} ->
                     R;

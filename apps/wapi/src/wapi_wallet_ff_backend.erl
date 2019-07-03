@@ -318,13 +318,16 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {provider, notfound}          |
     {wallet, {inaccessible, _}}   |
     {wallet, {currency, invalid}} |
-    {wallet, {provider, invalid}}
+    {wallet, {provider, invalid}} |
+    {quote, _}
 ).
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
+        QuoteData = unwrap(maybe_check_quote_token(Params, Context)),
+        WithdrawalParams = from_swag(withdrawal_params, Params),
         ff_withdrawal:create(
             ID,
-            from_swag(withdrawal_params, Params),
+            genlib_map:compact(WithdrawalParams#{quote_data => QuoteData}),
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
@@ -513,6 +516,28 @@ list_deposits(Params, Context) ->
 
 %% Internal functions
 
+maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
+    {ok, JSONData} = wapi_signer:verify(QuoteToken),
+    Data = jsx:decode(JSONData, [return_maps]),
+    unwrap(quote, valid(maps:get(<<"partyID">>, Data), wapi_handler_utils:get_owner(Context))),
+    unwrap(quote, valid(maps:get(<<"walletID">>, Data), maps:get(<<"walletID">>, Params))),
+    Deadline = woody_deadline:from_binary(wapi_utils:to_universal_time(maps:get(<<"expiresOn">>, Params))),
+    case woody_deadline:is_reached(Deadline) of
+        true ->
+            throw({quote, {deadline_reached, Deadline}});
+        _ ->
+            ok
+    end,
+    check_quote_body(maps:get(<<"cashFrom">>, Data), maps:get(<<"body">>, Params)),
+    {ok, maps:get(<<"quoteData">>, Data)};
+maybe_check_quote_token(_Params, _Context) ->
+    {ok, undefined}.
+
+check_quote_body(CashFrom, CashFrom) ->
+    ok;
+check_quote_body(_, CashFrom) ->
+    throw({quote, {invalid_body, CashFrom}}).
+
 filter_identity_challenge_status(Filter, Status) ->
     maps:get(<<"status">>, to_swag(challenge_status, Status)) =:= Filter.
 
@@ -672,6 +697,9 @@ unwrap(Res) ->
 
 unwrap(Tag, Res) ->
     ff_pipeline:unwrap(Tag, Res).
+
+valid(Val1, Val2) ->
+    ff_pipeline:valid(Val1, Val2).
 
 get_contract_id_from_identity(IdentityID, Context) ->
     State = get_state(identity, IdentityID, Context),
@@ -1270,7 +1298,7 @@ to_swag(quote, {#{
         <<"cashTo">>        => EncodedCashTo,
         <<"createdAt">>     => EncodedCreatedAt,
         <<"expiresOn">>     => EncodedExpiresOn,
-        <<"quoteToken">> => Token
+        <<"quoteToken">>    => Token
     };
 
 to_swag({list, Type}, List) ->

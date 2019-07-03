@@ -11,6 +11,8 @@
 -export([process_withdrawal/3]).
 -export([get_quote/2]).
 
+-define(DUMMY_QUOTE, {obj, #{{str, <<"test">>} => {str, <<"test">>}}}).
+
 %%
 %% Internal types
 %%
@@ -84,7 +86,7 @@ get_quote(#{
         cash_to => calc_cash(CurrencyTo, Currency, Amount),
         created_at => ff_time:to_rfc3339(ff_time:now()),
         expires_on => ff_time:to_rfc3339(ff_time:now() + 15*3600*1000),
-        quote_data => {obj, #{{str, <<"test">>} => {str, <<"test">>}}}
+        quote_data => ?DUMMY_QUOTE
     }}.
 
 calc_cash(Currency, Currency, Amount) ->

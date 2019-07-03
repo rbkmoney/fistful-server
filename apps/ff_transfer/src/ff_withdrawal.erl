@@ -585,6 +585,7 @@ construct_payment_tool({crypto_wallet, CryptoWallet}) ->
     {error,
         {destination, notfound}       |
         {destination, unauthorized}   |
+        {route, _Reason}              |
         {wallet, notfound}
     }.
 get_quote(Params = #{destination_id := DestinationID}) ->
@@ -606,7 +607,7 @@ get_quote_(Params = #{
     do(fun() ->
         WalletMachine = unwrap(wallet, ff_wallet_machine:get(WalletID)),
         Wallet = ff_wallet_machine:wallet(WalletMachine),
-        {ok, ProviderID} = prepare_route(Wallet, Destination, Body),
+        ProviderID = unwrap(route, prepare_route(Wallet, Destination, Body)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
         GetRateParams = #{
             external_id => maps:get(external_id, Params, undefined),
@@ -618,5 +619,9 @@ get_quote_(Params = #{
         %% add provider id to quote_data
         QuoteData = maps:get(quote_data, Quote),
 
-        Quote#{quote_data := #{<<"quote_data">> => QuoteData, <<"provider_id">> => ProviderID}}
+        Quote#{quote_data := #{
+            <<"version">> => 1,
+            <<"quote_data">> => QuoteData,
+            <<"provider_id">> => ProviderID
+        }}
     end).

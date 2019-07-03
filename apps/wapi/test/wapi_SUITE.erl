@@ -16,6 +16,7 @@
 -export([woody_retry_test/1]).
 -export([get_quote_test/1]).
 -export([get_quote_without_destination_test/1]).
+-export([get_quote_without_destination_fail_test/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -40,7 +41,8 @@ groups() ->
         ]},
         {quote, [], [
             get_quote_test,
-            get_quote_without_destination_test
+            get_quote_without_destination_test,
+            get_quote_without_destination_fail_test
         ]},
         {woody, [], [
             woody_retry_test
@@ -192,7 +194,7 @@ get_quote_test(C) ->
     {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
     #{
         <<"version">>       := 1,
-        <<"cash_from">>     := CashFrom
+        <<"cashFrom">>     := CashFrom
     } = jsx:decode(JSONData, [return_maps]).
 
 -spec get_quote_without_destination_test(config()) -> test_return().
@@ -226,8 +228,40 @@ get_quote_without_destination_test(C) ->
     {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
     #{
         <<"version">>       := 1,
-        <<"cash_from">>     := CashFrom
+        <<"cashFrom">>     := CashFrom
     } = jsx:decode(JSONData, [return_maps]).
+
+-spec get_quote_without_destination_fail_test(config()) -> test_return().
+
+get_quote_without_destination_fail_test(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    % ожидаем авторизации назначения вывода
+    timer:sleep(1000),
+
+    CashFrom = #{
+        <<"amount">> => 100,
+        <<"currency">> => <<"RUB">>
+    },
+
+    {error,{400,
+       #{<<"description">> := <<"route not found">>,
+         <<"errorType">> := <<"NoMatch">>,
+         <<"name">> := <<"route">>}
+    }} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => #{
+                <<"walletID">> => WalletID,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => CashFrom
+        }},
+        ct_helper:cfg(context, C)
+    ).
 
 woody_retry_test(C) ->
     Urls = application:get_env(wapi_woody_client, service_urls, #{}),

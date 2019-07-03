@@ -378,13 +378,14 @@ list_withdrawals(Params, Context) ->
 -spec create_quote(params(), ctx()) -> result(map(),
     {destination, notfound}       |
     {destination, unauthorized}   |
+    {route, _Reason}              |
     {wallet, notfound}
 ).
-create_quote(Params, _Context) ->
+create_quote(#{'WithdrawalQuoteParams' := Params}, Context) ->
     do(fun () ->
         CreateQuoteParams = from_swag(create_quote_params, Params),
         Quote = unwrap(ff_withdrawal:get_quote(CreateQuoteParams)),
-        to_swag(quote, Quote)
+        to_swag(quote, {Quote, maps:get(<<"walletID">>, Params), wapi_handler_utils:get_owner(Context)})
     end).
 
 %% Residences
@@ -880,7 +881,7 @@ add_external_id(Params, _) ->
 -spec from_swag(_Type, swag_term()) ->
     _Term.
 
-from_swag(create_quote_params, #{'WithdrawalQuoteParams' := Params}) ->
+from_swag(create_quote_params, Params) ->
     genlib_map:compact(add_external_id(#{
         wallet_id       => maps:get(<<"walletID">>, Params),
         currency_from   => from_swag(currency, maps:get(<<"currencyFrom">>, Params)),
@@ -1241,28 +1242,34 @@ to_swag(report_files, {files, Files}) ->
 to_swag(report_file, File) ->
     #{<<"id">> => File};
 
-to_swag(quote, #{
+to_swag(quote, {#{
     cash_from   := CashFrom,
     cash_to     := CashTo,
     created_at  := CreatedAt,
     expires_on  := ExpiresOn,
     quote_data  := QuoteData
-}) ->
+}, WalletID, PartyID}) ->
     EncodedCashFrom = to_swag(withdrawal_body, CashFrom),
     EncodedCashTo = to_swag(withdrawal_body, CashTo),
+    EncodedCreatedAt = to_swag(timestamp, CreatedAt),
+    EncodedExpiresOn = to_swag(timestamp, ExpiresOn),
     Data = #{
-        <<"version">>       => 1,
-        <<"cash_from">>     => EncodedCashFrom,
-        <<"cash_to">>       => EncodedCashTo,
-        <<"quote_data">>    => QuoteData
+        <<"version">>      => 1,
+        <<"walletID">>     => WalletID,
+        <<"partyID">>      => PartyID,
+        <<"cashFrom">>     => EncodedCashFrom,
+        <<"cashTo">>       => EncodedCashTo,
+        <<"createdAt">>    => EncodedCreatedAt,
+        <<"expiresOn">>    => EncodedExpiresOn,
+        <<"quoteData">>    => QuoteData
     },
     JSONData = jsx:encode(Data),
     {ok, Token} = wapi_signer:sign(JSONData),
     #{
         <<"cashFrom">>      => EncodedCashFrom,
         <<"cashTo">>        => EncodedCashTo,
-        <<"createdAt">>     => to_swag(timestamp, CreatedAt),
-        <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
+        <<"createdAt">>     => EncodedCreatedAt,
+        <<"expiresOn">>     => EncodedExpiresOn,
         <<"quoteToken">> => Token
     };
 

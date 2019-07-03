@@ -345,6 +345,12 @@ process_request('CreateQuote', Params, Context, _Opts) ->
                 <<"name">>        => <<"destination">>,
                 <<"description">> => <<"destination unauthorized">>
             });
+        {error, {route, _}} ->
+            wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">>   => <<"NoMatch">>,
+                <<"name">>        => <<"route">>,
+                <<"description">> => <<"route not found">>
+            });
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(400, #{
                 <<"errorType">>   => <<"NotFound">>,

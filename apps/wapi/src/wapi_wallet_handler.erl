@@ -334,29 +334,21 @@ process_request('CreateQuote', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_quote(Params, Context) of
         {ok, Promise} -> wapi_handler_utils:reply_ok(202, Promise);
         {error, {destination, notfound}} ->
-            wapi_handler_utils:reply_ok(400, #{
-                <<"errorType">>   => <<"NotFound">>,
-                <<"name">>        => <<"destination">>,
-                <<"description">> => <<"destination not found">>
-            });
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Destination not found">>)
+            );
         {error, {destination, unauthorized}} ->
-            wapi_handler_utils:reply_ok(400, #{
-                <<"errorType">>   => <<"NoMatch">>,
-                <<"name">>        => <<"destination">>,
-                <<"description">> => <<"destination unauthorized">>
-            });
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>)
+            );
         {error, {route, _}} ->
-            wapi_handler_utils:reply_ok(400, #{
-                <<"errorType">>   => <<"NoMatch">>,
-                <<"name">>        => <<"route">>,
-                <<"description">> => <<"route not found">>
-            });
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Provider not found">>)
+            );
         {error, {wallet, notfound}} ->
-            wapi_handler_utils:reply_ok(400, #{
-                <<"errorType">>   => <<"NotFound">>,
-                <<"name">>        => <<"wallet">>,
-                <<"description">> => <<"wallet not found">>
-            })
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Wallet not found">>)
+            )
     end;
 
 %% Residences

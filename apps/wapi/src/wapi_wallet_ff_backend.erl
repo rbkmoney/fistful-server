@@ -385,7 +385,12 @@ create_quote(#{'WithdrawalQuoteParams' := Params}, Context) ->
     do(fun () ->
         CreateQuoteParams = from_swag(create_quote_params, Params),
         Quote = unwrap(ff_withdrawal:get_quote(CreateQuoteParams)),
-        to_swag(quote, {Quote, maps:get(<<"walletID">>, Params), wapi_handler_utils:get_owner(Context)})
+        Token = create_quote_token(
+            Quote,
+            maps:get(<<"walletID">>, Params),
+            wapi_handler_utils:get_owner(Context)
+        ),
+        to_swag(quote, {Quote, Token})
     end).
 
 %% Residences
@@ -512,6 +517,27 @@ list_deposits(Params, Context) ->
     process_stat_result(StatType, Result).
 
 %% Internal functions
+
+create_quote_token(#{
+    cash_from   := CashFrom,
+    cash_to     := CashTo,
+    created_at  := CreatedAt,
+    expires_on  := ExpiresOn,
+    quote_data  := QuoteData
+}, WalletID, PartyID) ->
+    Data = #{
+        <<"version">>      => 1,
+        <<"walletID">>     => WalletID,
+        <<"partyID">>      => PartyID,
+        <<"cashFrom">>     => to_swag(withdrawal_body, CashFrom),
+        <<"cashTo">>       => to_swag(withdrawal_body, CashTo),
+        <<"createdAt">>    => to_swag(timestamp, CreatedAt),
+        <<"expiresOn">>    => to_swag(timestamp, ExpiresOn),
+        <<"quoteData">>    => QuoteData
+    },
+    JSONData = jsx:encode(Data),
+    {ok, Token} = wapi_signer:sign(JSONData),
+    Token.
 
 filter_identity_challenge_status(Filter, Status) ->
     maps:get(<<"status">>, to_swag(challenge_status, Status)) =:= Filter.
@@ -1246,30 +1272,13 @@ to_swag(quote, {#{
     cash_from   := CashFrom,
     cash_to     := CashTo,
     created_at  := CreatedAt,
-    expires_on  := ExpiresOn,
-    quote_data  := QuoteData
-}, WalletID, PartyID}) ->
-    EncodedCashFrom = to_swag(withdrawal_body, CashFrom),
-    EncodedCashTo = to_swag(withdrawal_body, CashTo),
-    EncodedCreatedAt = to_swag(timestamp, CreatedAt),
-    EncodedExpiresOn = to_swag(timestamp, ExpiresOn),
-    Data = #{
-        <<"version">>      => 1,
-        <<"walletID">>     => WalletID,
-        <<"partyID">>      => PartyID,
-        <<"cashFrom">>     => EncodedCashFrom,
-        <<"cashTo">>       => EncodedCashTo,
-        <<"createdAt">>    => EncodedCreatedAt,
-        <<"expiresOn">>    => EncodedExpiresOn,
-        <<"quoteData">>    => QuoteData
-    },
-    JSONData = jsx:encode(Data),
-    {ok, Token} = wapi_signer:sign(JSONData),
+    expires_on  := ExpiresOn
+}, Token}) ->
     #{
-        <<"cashFrom">>      => EncodedCashFrom,
-        <<"cashTo">>        => EncodedCashTo,
-        <<"createdAt">>     => EncodedCreatedAt,
-        <<"expiresOn">>     => EncodedExpiresOn,
+        <<"cashFrom">>      => to_swag(withdrawal_body, CashFrom),
+        <<"cashTo">>        => to_swag(withdrawal_body, CashTo),
+        <<"createdAt">>     => to_swag(timestamp, CreatedAt),
+        <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"quoteToken">> => Token
     };
 

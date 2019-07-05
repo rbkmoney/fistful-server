@@ -249,11 +249,7 @@ get_quote_without_destination_fail_test(C) ->
         <<"currency">> => <<"RUB">>
     },
 
-    {error, {400,
-       #{<<"description">> := <<"route not found">>,
-         <<"errorType">> := <<"NoMatch">>,
-         <<"name">> := <<"route">>}
-    }} = call_api(
+    {error, {422, #{<<"message">> := <<"Provider not found">>}}} = call_api(
         fun swag_client_wallet_withdrawals_api:create_quote/3,
         #{
             body => #{

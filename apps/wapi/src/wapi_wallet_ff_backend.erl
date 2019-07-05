@@ -388,6 +388,7 @@ create_quote(#{'WithdrawalQuoteParams' := Params}, Context) ->
         Token = create_quote_token(
             Quote,
             maps:get(<<"walletID">>, Params),
+            maps:get(<<"destinationID">>, Params, undefined),
             wapi_handler_utils:get_owner(Context)
         ),
         to_swag(quote, {Quote, Token})
@@ -524,17 +525,18 @@ create_quote_token(#{
     created_at  := CreatedAt,
     expires_on  := ExpiresOn,
     quote_data  := QuoteData
-}, WalletID, PartyID) ->
-    Data = #{
-        <<"version">>      => 1,
-        <<"walletID">>     => WalletID,
-        <<"partyID">>      => PartyID,
-        <<"cashFrom">>     => to_swag(withdrawal_body, CashFrom),
-        <<"cashTo">>       => to_swag(withdrawal_body, CashTo),
-        <<"createdAt">>    => to_swag(timestamp, CreatedAt),
-        <<"expiresOn">>    => to_swag(timestamp, ExpiresOn),
-        <<"quoteData">>    => QuoteData
-    },
+}, WalletID, DestinationID, PartyID) ->
+    Data = genlib_map:compact(#{
+        <<"version">>       => 1,
+        <<"walletID">>      => WalletID,
+        <<"destinationID">> => DestinationID,
+        <<"partyID">>       => PartyID,
+        <<"cashFrom">>      => to_swag(withdrawal_body, CashFrom),
+        <<"cashTo">>        => to_swag(withdrawal_body, CashTo),
+        <<"createdAt">>     => to_swag(timestamp, CreatedAt),
+        <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
+        <<"quoteData">>     => QuoteData
+    }),
     JSONData = jsx:encode(Data),
     {ok, Token} = wapi_signer:sign(JSONData),
     Token.

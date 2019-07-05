@@ -16,7 +16,9 @@
     default_termset => dmsl_domain_thrift:'TermSet'(),
     company_termset => dmsl_domain_thrift:'TermSet'(),
     payment_inst_identity_id => id(),
+    quote_payment_inst_identity_id => id(),
     provider_identity_id => id(),
+    quote_provider_identity_id => id(),
     optional_apps => list()
 }.
 -opaque system() :: #{

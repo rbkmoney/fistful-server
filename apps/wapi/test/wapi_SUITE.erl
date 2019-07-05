@@ -124,7 +124,8 @@ withdrawal_to_bank_card(C) ->
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    timer:sleep(1000),
+    await_destination(DestID),
+
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
@@ -143,7 +144,8 @@ withdrawal_to_crypto_wallet(C) ->
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    timer:sleep(1000),
+    await_destination(DestID),
+
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
@@ -159,7 +161,7 @@ get_quote_test(C) ->
     Resource      = make_bank_card_resource(CardToken),
     DestID        = create_desination(IdentityID, Resource, C),
     % ожидаем авторизации назначения вывода
-    timer:sleep(1000),
+    await_destination(DestID),
 
     CashFrom = #{
         <<"amount">> => 100,
@@ -193,8 +195,6 @@ get_quote_without_destination_test(C) ->
     Class         = ?ID_CLASS,
     IdentityID    = create_identity(Name, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),
-    % ожидаем авторизации назначения вывода
-    timer:sleep(1000),
 
     CashFrom = #{
         <<"amount">> => 100,
@@ -227,8 +227,6 @@ get_quote_without_destination_fail_test(C) ->
     Class         = ?ID_CLASS,
     IdentityID    = create_identity(Name, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),
-    % ожидаем авторизации назначения вывода
-    timer:sleep(1000),
 
     CashFrom = #{
         <<"amount">> => 100,
@@ -259,7 +257,7 @@ quote_withdrawal(C) ->
     Resource      = make_bank_card_resource(CardToken),
     DestID        = create_desination(IdentityID, Resource, C),
     % ожидаем авторизации назначения вывода
-    timer:sleep(1000),
+    await_destination(DestID),
 
     CashFrom = #{
         <<"amount">> => 100,
@@ -479,6 +477,15 @@ check_destination(IdentityID, DestID, Resource0, C) ->
         }
     } = D1#{<<"resource">> => maps:with(ResourceFields, Res)},
     ok.
+
+await_destination(DestID) ->
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
+        end
+    ).
 
 convert_token(#{<<"token">> := Base64} = Resource) ->
     BankCard = wapi_utils:base64url_to_map(Base64),

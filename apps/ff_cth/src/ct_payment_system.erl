@@ -54,7 +54,9 @@ shutdown(C) ->
 do_setup(Options0, C0) ->
     Options = Options0#{
         payment_inst_identity_id => genlib:unique(),
-        provider_identity_id => genlib:unique()
+        quote_payment_inst_identity_id => genlib:unique(),
+        provider_identity_id => genlib:unique(),
+        quote_provider_identity_id => genlib:unique()
     },
     {ok, Processing0} = start_processing_apps(Options),
     C1 = ct_helper:makeup_cfg([ct_helper:woody_ctx()], [{services, services(Options)} | C0]),
@@ -175,7 +177,10 @@ configure_processing_apps(Options) ->
         [ff_transfer, withdrawal, provider, <<"mocketbank">>, accounts, <<"RUB">>],
         create_company_account()
     ),
-    ok = create_crunch_identity(Options).
+    ok = create_crunch_identity(Options),
+    PIIID = quote_payment_inst_identity_id(Options),
+    PRIID = quote_provider_identity_id(Options),
+    ok = create_crunch_identity(PIIID, PRIID, <<"quote-owner">>).
 
 construct_handler(Module, Suffix, BeConf) ->
     {{fistful, Module},
@@ -238,11 +243,13 @@ get_repair_routes() ->
     })).
 
 create_crunch_identity(Options) ->
-    PartyID = create_party(),
     PaymentInstIdentityID = payment_inst_identity_id(Options),
-    PaymentInstIdentityID = create_identity(PaymentInstIdentityID, PartyID, <<"good-one">>, <<"church">>),
     ProviderIdentityID = provider_identity_id(Options),
-    ProviderIdentityID = create_identity(ProviderIdentityID, PartyID, <<"good-one">>, <<"church">>),
+    create_crunch_identity(PaymentInstIdentityID, ProviderIdentityID, <<"good-one">>).
+create_crunch_identity(PIIID, PRIID, ProviderID) ->
+    PartyID = create_party(),
+    PIIID = create_identity(PIIID, PartyID, ProviderID, <<"church">>),
+    PRIID = create_identity(PRIID, PartyID, ProviderID, <<"church">>),
     ok.
 
 create_company_account() ->
@@ -255,7 +262,9 @@ create_company_account() ->
     Account.
 
 create_company_identity(PartyID) ->
-    create_identity(PartyID, <<"good-one">>, <<"church">>).
+    create_company_identity(PartyID, <<"good-one">>).
+create_company_identity(PartyID, ProviderID) ->
+    create_identity(PartyID, ProviderID, <<"church">>).
 
 create_party() ->
     ID = genlib:bsuuid(),
@@ -392,7 +401,7 @@ identity_provider_config(Options) ->
             }
         },
         <<"quote-owner">> => #{
-            payment_institution_id => 1,
+            payment_institution_id => 2,
             routes => [<<"quotebank">>],
             identity_classes => #{
                 <<"person">> => #{
@@ -414,6 +423,17 @@ identity_provider_config(Options) ->
                             name   => <<"Initiation by sword">>,
                             base   => <<"peasant">>,
                             target => <<"nobleman">>
+                        }
+                    }
+                },
+                <<"church">>          => #{
+                    name                 => <<"Well, a Сhurch">>,
+                    contract_template_id => 2,
+                    initial_level        => <<"mainline">>,
+                    levels               => #{
+                        <<"mainline">>    => #{
+                            name               => <<"Well, a mainline Сhurch">>,
+                            contractor_level   => full
                         }
                     }
                 }
@@ -485,6 +505,12 @@ payment_inst_identity_id(Options) ->
 provider_identity_id(Options) ->
     maps:get(provider_identity_id, Options).
 
+quote_payment_inst_identity_id(Options) ->
+    maps:get(quote_payment_inst_identity_id, Options).
+
+quote_provider_identity_id(Options) ->
+    maps:get(quote_provider_identity_id, Options).
+
 domain_config(Options, C) ->
     Default = [
 
@@ -505,12 +531,6 @@ domain_config(Options, C) ->
                 identity                  = payment_inst_identity_id(Options),
                 withdrawal_providers      = {decisions, [
                     #domain_WithdrawalProviderDecision{
-                        if_ = {condition, {party,
-                            #domain_PartyCondition{id = <<"e66ea72e-8eaf-47c1-b396-90ce98546528">>}
-                        }},
-                        then_ = {value, [?wthdr_prv(3)]}
-                    },
-                    #domain_WithdrawalProviderDecision{
                         if_ = {condition, {payment_tool, {bank_card, #domain_BankCardCondition{}}}},
                         then_ = {value, [?wthdr_prv(1)]}
                     },
@@ -519,6 +539,22 @@ domain_config(Options, C) ->
                         then_ = {value, [?wthdr_prv(2)]}
                     }
                 ]}
+            }
+        }},
+
+        {payment_institution, #domain_PaymentInstitutionObject{
+            ref = ?payinst(2),
+            data = #domain_PaymentInstitution{
+                name                      = <<"Generic Payment Institution">>,
+                system_account_set        = {value, ?sas(1)},
+                default_contract_template = {value, ?tmpl(1)},
+                providers                 = {value, ?ordset([])},
+                inspector                 = {value, ?insp(1)},
+                residences                = ['rus'],
+                realm                     = live,
+                wallet_system_account_set = {value, ?sas(1)},
+                identity                  = quote_payment_inst_identity_id(Options),
+                withdrawal_providers      = {value, [?wthdr_prv(3)]}
             }
         }},
 
@@ -531,7 +567,7 @@ domain_config(Options, C) ->
 
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), quote_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),

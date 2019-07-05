@@ -22,13 +22,15 @@
 -type cash() :: dmsl_domain_thrift:'Cash'().
 -type currency() :: dmsl_domain_thrift:'Currency'().
 -type failure() :: dmsl_domain_thrift:'Failure'().
+-type domain_quote() :: dmsl_withdrawals_provider_adapter_thrift:'Quote'().
 
 -type withdrawal() :: #{
     id => binary(),
     body => cash(),
     destination => destination(),
     sender => identity(),
-    receiver => identity()
+    receiver => identity(),
+    quote => domain_quote()
 }.
 
 -type quote_params() :: #{
@@ -71,8 +73,11 @@ start(Opts) ->
     Status :: {success, TrxInfo} | {failure, failure()},
     Timer :: {deadline, binary()} | {timeout, integer()},
     TrxInfo :: #{id => binary()}.
-process_withdrawal(_Withdrawal, _State, _Options) ->
-    {finish, {success, #{id => <<"test">>}}}.
+process_withdrawal(#{quote := #wthadpt_Quote{quote_data = QuoteData}}, State, _Options) ->
+    QuoteData = ?DUMMY_QUOTE,
+    {ok, {finish, {success, #{id => <<"test">>}}}, State};
+process_withdrawal(_Withdrawal, State, _Options) ->
+    {ok, {finish, {success, #{id => <<"test">>}}}, State}.
 
 -spec get_quote(quote_params(), map()) ->
     {ok, quote()}.

@@ -319,15 +319,18 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {wallet, {inaccessible, _}}   |
     {wallet, {currency, invalid}} |
     {wallet, {provider, invalid}} |
-    {quote, _}
+    {quote_invalid_party, _}      |
+    {quote_invalid_wallet, _}     |
+    {quote, {invalid_body, _}}    |
+    {quote, {invalid_destination, _}}
 ).
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
-        QuoteData = unwrap(maybe_check_quote_token(Params, Context)),
+        Quote = unwrap(maybe_check_quote_token(Params, Context)),
         WithdrawalParams = from_swag(withdrawal_params, Params),
         ff_withdrawal:create(
             ID,
-            genlib_map:compact(WithdrawalParams#{quote_data => QuoteData}),
+            genlib_map:compact(WithdrawalParams#{quote => Quote}),
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
@@ -525,17 +528,28 @@ list_deposits(Params, Context) ->
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
     {ok, JSONData} = wapi_signer:verify(QuoteToken),
     Data = jsx:decode(JSONData, [return_maps]),
-    unwrap(quote, valid(maps:get(<<"partyID">>, Data), wapi_handler_utils:get_owner(Context))),
-    unwrap(quote, valid(maps:get(<<"walletID">>, Data), maps:get(<<"walletID">>, Params))),
-    Deadline = woody_deadline:from_binary(wapi_utils:to_universal_time(maps:get(<<"expiresOn">>, Params))),
-    case woody_deadline:is_reached(Deadline) of
-        true ->
-            throw({quote, {deadline_reached, Deadline}});
-        _ ->
-            ok
-    end,
+    unwrap(quote_invalid_party,
+        valid(
+            maps:get(<<"partyID">>, Data),
+            wapi_handler_utils:get_owner(Context)
+    )),
+    unwrap(quote_invalid_wallet,
+        valid(
+            maps:get(<<"walletID">>, Data),
+            maps:get(<<"wallet">>, Params)
+    )),
+    check_quote_destination(
+        maps:get(<<"destinationID">>, Data, undefined),
+        maps:get(<<"destination">>, Params)
+    ),
     check_quote_body(maps:get(<<"cashFrom">>, Data), maps:get(<<"body">>, Params)),
-    {ok, maps:get(<<"quoteData">>, Data)};
+    {ok, #{
+        cash_from   => from_swag(withdrawal_body, maps:get(<<"cashFrom">>, Data)),
+        cash_to     => from_swag(withdrawal_body, maps:get(<<"cashTo">>, Data)),
+        created_at  => maps:get(<<"createdAt">>, Data),
+        expires_on  => maps:get(<<"expiresOn">>, Data),
+        quote_data  => maps:get(<<"quoteData">>, Data)
+    }};
 maybe_check_quote_token(_Params, _Context) ->
     {ok, undefined}.
 
@@ -543,6 +557,13 @@ check_quote_body(CashFrom, CashFrom) ->
     ok;
 check_quote_body(_, CashFrom) ->
     throw({quote, {invalid_body, CashFrom}}).
+
+check_quote_destination(undefined, _DestinationID) ->
+    ok;
+check_quote_destination(DestinationID, DestinationID) ->
+    ok;
+check_quote_destination(_, DestinationID) ->
+    throw({quote, {invalid_destination, DestinationID}}).
 
 create_quote_token(#{
     cash_from   := CashFrom,

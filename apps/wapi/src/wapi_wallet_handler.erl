@@ -302,13 +302,22 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>)
             );
-        {error, {quote, _}} ->
-            %% TODO what info can we return here?
-            wapi_handler_utils:reply_ok(400, #{
-                <<"errorType">>   => <<"NoMatch">>,
-                <<"name">>        => <<"quote">>,
-                <<"description">> => <<"Invalid quote">>
-            })
+        {error, {quote_invalid_party, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal owner differs from quote`s one">>)
+            );
+        {error, {quote_invalid_wallet, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal wallet differs from quote`s one">>)
+            );
+        {error, {quote, {invalid_destination, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal destination differs from quote`s one">>)
+            );
+        {error, {quote, {invalid_body, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal body differs from quote`s one">>)
+            )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of

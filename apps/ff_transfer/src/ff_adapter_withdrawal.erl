@@ -7,7 +7,7 @@
 %% API
 
 -export([process_withdrawal/4]).
--export([get_exchange_rate/3]).
+-export([get_quote/3]).
 
 %%
 %% Internal types
@@ -27,7 +27,7 @@
     cash        => cash(),
     sender      => identity() | undefined,
     receiver    => identity() | undefined,
-    quote_data  => quote_data()
+    quote       => quote()
 }.
 
 -type quote_params() :: #{
@@ -37,12 +37,14 @@
     body := cash()
 }.
 
--type quote() :: #{
+-type quote() :: quote(quote_data()).
+
+-type quote(T) :: #{
     cash_from   := cash(),
     cash_to     := cash(),
     created_at  := binary(),
     expires_on  := binary(),
-    quote_data  := quote_data()
+    quote_data  := T
 }.
 
 -type quote_data()     :: %% as stolen from `machinery_msgpack`
@@ -77,7 +79,7 @@
 
 -export_type([withdrawal/0]).
 -export_type([failure/0]).
--export_type([quote/0]).
+-export_type([quote/1]).
 -export_type([quote_params/0]).
 -export_type([quote_data/0]).
 
@@ -97,12 +99,12 @@ process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
     {ok, Result} = call(Adapter, 'ProcessWithdrawal', [DomainWithdrawal, encode_adapter_state(ASt), AOpt]),
     decode_result(Result).
 
--spec get_exchange_rate(adapter(), quote_params(), map()) ->
+-spec get_quote(adapter(), quote_params(), map()) ->
     {ok, quote()}.
 
-get_exchange_rate(Adapter, Params, AOpt) ->
-    ExchangeRateParams = encode_exchange_rate_params(Params),
-    {ok, Result} = call(Adapter, 'GetQuote', [ExchangeRateParams, AOpt]),
+get_quote(Adapter, Params, AOpt) ->
+    QuoteParams = encode_quote_params(Params),
+    {ok, Result} = call(Adapter, 'GetQuote', [QuoteParams, AOpt]),
     decode_result(Result).
 
 %%
@@ -115,9 +117,9 @@ call(Adapter, Function, Args) ->
 
 %% Encoders
 
--spec encode_exchange_rate_params(Params) -> domain_quote_params() when
+-spec encode_quote_params(Params) -> domain_quote_params() when
     Params :: quote_params().
-encode_exchange_rate_params(Params) ->
+encode_quote_params(Params) ->
     #{
         currency_from := CurrencyIDFrom,
         currency_to := CurrencyIDTo,
@@ -149,7 +151,26 @@ encode_withdrawal(Withdrawal) ->
         destination = encode_destination(Dest),
         sender = encode_identity(Sender),
         receiver = encode_identity(Receiver),
-        quote = maybe_encode_msgpack(maps:get(quote_data, Withdrawal, undefined))
+        quote = encode_quote(maps:get(quote, Withdrawal, undefined))
+    }.
+
+-spec encode_quote(quote() | undefined) -> domain_withdrawal() | undefined.
+encode_quote(undefined) ->
+    undefined;
+encode_quote(Quote) ->
+    #{
+        cash_from  := CashFrom,
+        cash_to    := CashTo,
+        created_at := CreatedAt,
+        expires_on := ExpiresOn,
+        quote_data := QuoteData
+    } = Quote,
+    #wthadpt_Quote{
+        cash_from  = encode_body(CashFrom),
+        cash_to    = encode_body(CashTo),
+        created_at = CreatedAt,
+        expires_on = ExpiresOn,
+        quote_data = encode_msgpack(QuoteData)
     }.
 
 -spec encode_body(cash()) -> domain_cash().
@@ -251,10 +272,7 @@ encode_msgpack(V) when is_list(V) ->
 encode_msgpack(V) when is_map(V) ->
     {obj, maps:fold(fun(Key, Value, Map) -> Map#{encode_msgpack(Key) => encode_msgpack(Value)} end, #{}, V)}.
 
-maybe_encode_msgpack(undefined) ->
-    undefined;
-maybe_encode_msgpack(Value) ->
-    encode_msgpack(Value).
+%%
 
 -spec decode_result
     (dmsl_withdrawals_provider_adapter_thrift:'ProcessResult'()) -> process_result();
@@ -264,8 +282,8 @@ decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = undefined}) -
     {ok, decode_intent(Intent)};
 decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = NextState}) ->
     {ok, decode_intent(Intent), NextState};
-decode_result(#wthadpt_Quote{} = ExchangeRate) ->
-    {ok, decode_exchange_rate(ExchangeRate)}.
+decode_result(#wthadpt_Quote{} = Quote) ->
+    {ok, decode_quote(Quote)}.
 
 %% Decoders
 
@@ -277,7 +295,7 @@ decode_intent({finish, #wthadpt_FinishIntent{status = {failure, Failure}}}) ->
 decode_intent({sleep, #wthadpt_SleepIntent{timer = Timer}}) ->
     {sleep, Timer}.
 
-decode_exchange_rate(#wthadpt_Quote{
+decode_quote(#wthadpt_Quote{
     cash_from = CashFrom,
     cash_to = CashTo,
     created_at = CreatedAt,

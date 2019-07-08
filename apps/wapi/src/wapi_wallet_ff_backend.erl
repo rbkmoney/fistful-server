@@ -1330,7 +1330,7 @@ to_swag(quote, {#{
         <<"cashTo">>        => to_swag(withdrawal_body, CashTo),
         <<"createdAt">>     => to_swag(timestamp, CreatedAt),
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
-        <<"quoteToken">> => Token
+        <<"quoteToken">>    => Token
     };
 
 to_swag({list, Type}, List) ->

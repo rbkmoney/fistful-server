@@ -632,13 +632,13 @@ get_quote_(Params = #{
         Wallet = ff_wallet_machine:wallet(WalletMachine),
         ProviderID = unwrap(route, prepare_route(Wallet, Destination, Body)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
-        GetRateParams = #{
+        GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),
             currency_from => CurrencyFrom,
             currency_to => CurrencyTo,
             body => Body
         },
-        {ok, Quote} = ff_adapter_withdrawal:get_quote(Adapter, GetRateParams, AdapterOpts),
+        {ok, Quote} = ff_adapter_withdrawal:get_quote(Adapter, GetQuoteParams, AdapterOpts),
         %% add provider id to quote_data
         wrap_quote(ProviderID, Quote)
     end).

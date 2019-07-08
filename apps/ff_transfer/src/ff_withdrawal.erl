@@ -10,7 +10,8 @@
 -type withdrawal() :: ff_transfer:transfer(transfer_params()).
 -type transfer_params() :: #{
     wallet_id             := wallet_id(),
-    destination_id        := destination_id()
+    destination_id        := destination_id(),
+    quote                 => quote()
 }.
 
 -type machine() :: ff_transfer_machine:st(transfer_params()).
@@ -19,9 +20,10 @@
 -type route()   :: ff_transfer:route(#{
     provider_id := provider_id()
 }).
--type quote() :: ff_adapter_withdrawal:quote().
 % TODO I'm now sure about this change, it may crash old events. Or not. ))
 -type provider_id() :: pos_integer() | id().
+
+-type quote() :: ff_adapter_withdrawal:quote(quote_validation_data()).
 
 -export_type([withdrawal/0]).
 -export_type([machine/0]).
@@ -40,6 +42,7 @@
 
 -export([wallet_id/1]).
 -export([destination_id/1]).
+-export([quote/1]).
 -export([id/1]).
 -export([body/1]).
 -export([status/1]).
@@ -100,6 +103,7 @@ gen(Args) ->
 
 -spec wallet_id(withdrawal())       -> wallet_id().
 -spec destination_id(withdrawal())  -> destination_id().
+-spec quote(withdrawal())           -> quote() | undefined.
 -spec id(withdrawal())              -> ff_transfer:id().
 -spec body(withdrawal())            -> body().
 -spec status(withdrawal())          -> ff_transfer:status().
@@ -108,6 +112,7 @@ gen(Args) ->
 
 wallet_id(T)       -> maps:get(wallet_id, ff_transfer:params(T)).
 destination_id(T)  -> maps:get(destination_id, ff_transfer:params(T)).
+quote(T)           -> maps:get(quote, ff_transfer:params(T), undefined).
 id(T)              -> ff_transfer:id(T).
 body(T)            -> ff_transfer:body(T).
 status(T)          -> ff_transfer:status(T).
@@ -123,11 +128,19 @@ external_id(T)     -> ff_transfer:external_id(T).
 -define(NS, 'ff/withdrawal_v2').
 
 -type ctx()    :: ff_ctx:ctx().
+
+-type quote_validation_data() :: #{
+    version        := 1,
+    provider_id    := provider_id(),
+    quote_data     := ff_adapter_withdrawal:quote_data()
+}.
+
 -type params() :: #{
     wallet_id      := ff_wallet_machine:id(),
     destination_id := ff_destination:id(),
     body           := ff_transaction:body(),
-    external_id    => id()
+    external_id    => id(),
+    quote          => quote()
 }.
 
 -type quote_params() :: #{
@@ -168,10 +181,11 @@ create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body
         Params = #{
             handler     => ?MODULE,
             body        => Body,
-            params      => #{
+            params      => genlib_map:compact(#{
                 wallet_id => WalletID,
-                destination_id => DestinationID
-            },
+                destination_id => DestinationID,
+                quote => maps:get(quote, Args, undefined)
+            }),
             external_id => maps:get(external_id, Args, undefined)
         },
         unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))
@@ -278,6 +292,7 @@ create_route(Withdrawal) ->
         {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
         Wallet = ff_wallet_machine:wallet(WalletMachine),
         ProviderID = unwrap(prepare_route(Wallet, Destination, Body)),
+        unwrap(validate_quote_provider(ProviderID, quote(Withdrawal))),
         {continue, [{route_changed, #{provider_id => ProviderID}}]}
     end).
 
@@ -292,6 +307,13 @@ prepare_route(Wallet, Destination, Body) ->
         Providers = unwrap(ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, VS)),
         unwrap(choose_provider(Providers, VS))
     end).
+
+validate_quote_provider(_ProviderID, undefined) ->
+    ok;
+validate_quote_provider(ProviderID, #{quote_data := #{provider_id := ProviderID}}) ->
+    ok;
+validate_quote_provider(_ProviderID, _) ->
+    throw({quote, inconsistent_data}).
 
 choose_provider(Providers, VS) ->
     case lists:filter(fun(P) -> validate_withdrawals_terms(P, VS) end, Providers) of
@@ -448,12 +470,13 @@ create_session(Withdrawal) ->
         {ok, SenderSt} = ff_identity_machine:get(ff_account:identity(WalletAccount)),
         {ok, ReceiverSt} = ff_identity_machine:get(ff_account:identity(DestinationAccount)),
 
-        TransferData = #{
+        TransferData = genlib_map:compact(#{
             id          => ID,
             cash        => body(Withdrawal),
             sender      => ff_identity_machine:identity(SenderSt),
-            receiver    => ff_identity_machine:identity(ReceiverSt)
-        },
+            receiver    => ff_identity_machine:identity(ReceiverSt),
+            quote       => unwrap_quote(quote(Withdrawal))
+        }),
         SessionParams = #{
             destination => destination_id(Withdrawal),
             provider_id => ProviderID
@@ -609,19 +632,26 @@ get_quote_(Params = #{
         Wallet = ff_wallet_machine:wallet(WalletMachine),
         ProviderID = unwrap(route, prepare_route(Wallet, Destination, Body)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
-        GetRateParams = #{
+        GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),
             currency_from => CurrencyFrom,
             currency_to => CurrencyTo,
             body => Body
         },
-        {ok, Quote} = ff_adapter_withdrawal:get_exchange_rate(Adapter, GetRateParams, AdapterOpts),
+        {ok, Quote} = ff_adapter_withdrawal:get_quote(Adapter, GetQuoteParams, AdapterOpts),
         %% add provider id to quote_data
-        QuoteData = maps:get(quote_data, Quote),
-
-        Quote#{quote_data := #{
-            <<"version">> => 1,
-            <<"quote_data">> => QuoteData,
-            <<"provider_id">> => ProviderID
-        }}
+        wrap_quote(ProviderID, Quote)
     end).
+
+wrap_quote(ProviderID, Quote = #{quote_data := QuoteData}) ->
+    Quote#{quote_data := #{
+        version => 1,
+        quote_data => QuoteData,
+        provider_id => ProviderID
+    }}.
+
+unwrap_quote(undefined) ->
+    undefined;
+unwrap_quote(Quote = #{quote_data := QuoteData}) ->
+    WrappedData = maps:get(quote_data, QuoteData),
+    Quote#{quote_data := WrappedData}.

@@ -17,6 +17,7 @@
 -export([get_quote_test/1]).
 -export([get_quote_without_destination_test/1]).
 -export([get_quote_without_destination_fail_test/1]).
+-export([quote_withdrawal/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -42,7 +43,8 @@ groups() ->
         {quote, [], [
             get_quote_test,
             get_quote_without_destination_test,
-            get_quote_without_destination_fail_test
+            get_quote_without_destination_fail_test,
+            quote_withdrawal
         ]},
         {woody, [], [
             woody_retry_test
@@ -78,21 +80,7 @@ init_per_group(G, C) ->
     Token = issue_token(Party, [{[party], write}], unlimited),
     Context = get_context("localhost:8080", Token),
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
-
-    QuoteParty = <<"e66ea72e-8eaf-47c1-b396-90ce98546528">>,
-    _ = ff_party:create(QuoteParty),
-    QuoteToken = issue_token(QuoteParty, [{[party], write}], unlimited),
-    QuoteContext = get_context("localhost:8080", QuoteToken),
-    QuoteContextPcidss = get_context("wapi-pcidss:8080", QuoteToken),
-    [
-        {quote_context, QuoteContext},
-        {quote_context_pcidss, QuoteContextPcidss},
-        {quote_party, QuoteParty},
-        {context, Context},
-        {context_pcidss, ContextPcidss},
-        {party, Party} |
-        C
-    ].
+    [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].
 
 -spec end_per_group(group_name(), config()) -> _.
 
@@ -136,7 +124,8 @@ withdrawal_to_bank_card(C) ->
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    timer:sleep(1000),
+    await_destination(DestID),
+
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
@@ -155,7 +144,8 @@ withdrawal_to_crypto_wallet(C) ->
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    timer:sleep(1000),
+    await_destination(DestID),
+
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
@@ -165,13 +155,13 @@ get_quote_test(C) ->
     Name          = <<"Keyn Fawkes">>,
     Provider      = <<"quote-owner">>,
     Class         = ?ID_CLASS,
-    IdentityID    = create_identity(Name, Provider, Class, C, quote_context),
-    WalletID      = create_wallet(IdentityID, C, quote_context),
-    CardToken     = store_bank_card(C, quote_context_pcidss),
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    CardToken     = store_bank_card(C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C, quote_context),
+    DestID        = create_desination(IdentityID, Resource, C),
     % ожидаем авторизации назначения вывода
-    timer:sleep(1000),
+    await_destination(DestID),
 
     CashFrom = #{
         <<"amount">> => 100,
@@ -188,7 +178,7 @@ get_quote_test(C) ->
                 <<"currencyTo">> => <<"USD">>,
                 <<"cash">> => CashFrom
         }},
-        ct_helper:cfg(quote_context, C)
+        ct_helper:cfg(context, C)
     ),
     CashFrom = maps:get(<<"cashFrom">>, Quote),
     {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
@@ -203,10 +193,8 @@ get_quote_without_destination_test(C) ->
     Name          = <<"Keyn Fawkes">>,
     Provider      = <<"quote-owner">>,
     Class         = ?ID_CLASS,
-    IdentityID    = create_identity(Name, Provider, Class, C, quote_context),
-    WalletID      = create_wallet(IdentityID, C, quote_context),
-    % ожидаем авторизации назначения вывода
-    timer:sleep(1000),
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
 
     CashFrom = #{
         <<"amount">> => 100,
@@ -222,7 +210,7 @@ get_quote_without_destination_test(C) ->
                 <<"currencyTo">> => <<"USD">>,
                 <<"cash">> => CashFrom
         }},
-        ct_helper:cfg(quote_context, C)
+        ct_helper:cfg(context, C)
     ),
     CashFrom = maps:get(<<"cashFrom">>, Quote),
     {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
@@ -235,12 +223,10 @@ get_quote_without_destination_test(C) ->
 
 get_quote_without_destination_fail_test(C) ->
     Name          = <<"Keyn Fawkes">>,
-    Provider      = <<"quote-owner">>,
+    Provider      = ?ID_PROVIDER,
     Class         = ?ID_CLASS,
     IdentityID    = create_identity(Name, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),
-    % ожидаем авторизации назначения вывода
-    timer:sleep(1000),
 
     CashFrom = #{
         <<"amount">> => 100,
@@ -258,6 +244,45 @@ get_quote_without_destination_fail_test(C) ->
         }},
         ct_helper:cfg(context, C)
     ).
+
+-spec quote_withdrawal(config()) -> test_return().
+
+quote_withdrawal(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    CardToken     = store_bank_card(C),
+    Resource      = make_bank_card_resource(CardToken),
+    DestID        = create_desination(IdentityID, Resource, C),
+    % ожидаем авторизации назначения вывода
+    await_destination(DestID),
+
+    CashFrom = #{
+        <<"amount">> => 100,
+        <<"currency">> => <<"RUB">>
+    },
+
+    {ok, Quote} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => #{
+                <<"walletID">> => WalletID,
+                <<"destinationID">> => DestID,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => CashFrom
+        }},
+        ct_helper:cfg(context, C)
+    ),
+    WithdrawalID = create_withdrawal(
+        WalletID,
+        DestID,
+        C,
+        maps:get(<<"quoteToken">>, Quote)
+    ),
+    ok = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
 woody_retry_test(C) ->
     Urls = application:get_env(wapi_woody_client, service_urls, #{}),
@@ -318,9 +343,6 @@ create_auth_ctx(PartyID) ->
 %%
 
 create_identity(Name, Provider, Class, C) ->
-    create_identity(Name, Provider, Class, C, context).
-
-create_identity(Name, Provider, Class, C, ContextKey) ->
     {ok, Identity} = call_api(
         fun swag_client_wallet_identities_api:create_identity/3,
         #{body => #{
@@ -331,7 +353,7 @@ create_identity(Name, Provider, Class, C, ContextKey) ->
                 ?STRING => ?STRING
             }
         }},
-        ct_helper:cfg(ContextKey, C)
+        ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, Identity).
 
@@ -355,9 +377,6 @@ check_identity(Name, IdentityID, Provider, Class, C) ->
     ok.
 
 create_wallet(IdentityID, C) ->
-    create_wallet(IdentityID, C, context).
-
-create_wallet(IdentityID, C, ContextKey) ->
     {ok, Wallet} = call_api(
         fun swag_client_wallet_wallets_api:create_wallet/3,
         #{body => #{
@@ -368,7 +387,7 @@ create_wallet(IdentityID, C, ContextKey) ->
                 ?STRING => ?STRING
              }
         }},
-        ct_helper:cfg(ContextKey, C)
+        ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, Wallet).
 
@@ -391,8 +410,6 @@ get_wallet(WalletID, C) ->
     ).
 
 store_bank_card(C) ->
-    store_bank_card(C, context_pcidss).
-store_bank_card(C, ContextKey) ->
     {ok, Res} = call_api(
         fun swag_client_payres_payment_resources_api:store_bank_card/3,
         #{body => #{
@@ -401,7 +418,7 @@ store_bank_card(C, ContextKey) ->
             <<"expDate">>    => <<"12/25">>,
             <<"cardHolder">> => <<"LEXA SVOTIN">>
         }},
-        ct_helper:cfg(ContextKey, C)
+        ct_helper:cfg(context_pcidss, C)
     ),
     maps:get(<<"token">>, Res).
 
@@ -426,9 +443,6 @@ make_crypto_wallet_resource() ->
     }.
 
 create_desination(IdentityID, Resource, C) ->
-    create_desination(IdentityID, Resource, C, context).
-
-create_desination(IdentityID, Resource, C, ContextKey) ->
     {ok, Dest} = call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{body => #{
@@ -440,7 +454,7 @@ create_desination(IdentityID, Resource, C, ContextKey) ->
                 ?STRING => ?STRING
              }
         }},
-        ct_helper:cfg(ContextKey, C)
+        ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, Dest).
 
@@ -463,6 +477,15 @@ check_destination(IdentityID, DestID, Resource0, C) ->
         }
     } = D1#{<<"resource">> => maps:with(ResourceFields, Res)},
     ok.
+
+await_destination(DestID) ->
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
+        end
+    ).
 
 convert_token(#{<<"token">> := Base64} = Resource) ->
     BankCard = wapi_utils:base64url_to_map(Base64),
@@ -492,16 +515,20 @@ issue_destination_grants(DestID, C) ->
     ).
 
 create_withdrawal(WalletID, DestID, C) ->
+    create_withdrawal(WalletID, DestID, C, undefined).
+
+create_withdrawal(WalletID, DestID, C, QuoteToken) ->
     {ok, Withdrawal} = call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
-        #{body => #{
+        #{body => genlib_map:compact(#{
             <<"wallet">> => WalletID,
             <<"destination">> => DestID,
             <<"body">> => #{
                 <<"amount">> => 100,
                 <<"currency">> => <<"RUB">>
-            }
-        }},
+            },
+            <<"quoteToken">> => QuoteToken
+        })},
         ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, Withdrawal).

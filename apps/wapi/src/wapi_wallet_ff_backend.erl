@@ -318,13 +318,19 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {provider, notfound}          |
     {wallet, {inaccessible, _}}   |
     {wallet, {currency, invalid}} |
-    {wallet, {provider, invalid}}
+    {wallet, {provider, invalid}} |
+    {quote_invalid_party, _}      |
+    {quote_invalid_wallet, _}     |
+    {quote, {invalid_body, _}}    |
+    {quote, {invalid_destination, _}}
 ).
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
+        Quote = unwrap(maybe_check_quote_token(Params, Context)),
+        WithdrawalParams = from_swag(withdrawal_params, Params),
         ff_withdrawal:create(
             ID,
-            from_swag(withdrawal_params, Params),
+            genlib_map:compact(WithdrawalParams#{quote => Quote}),
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
@@ -519,6 +525,46 @@ list_deposits(Params, Context) ->
 
 %% Internal functions
 
+maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
+    {ok, JSONData} = wapi_signer:verify(QuoteToken),
+    Data = jsx:decode(JSONData, [return_maps]),
+    unwrap(quote_invalid_party,
+        valid(
+            maps:get(<<"partyID">>, Data),
+            wapi_handler_utils:get_owner(Context)
+    )),
+    unwrap(quote_invalid_wallet,
+        valid(
+            maps:get(<<"walletID">>, Data),
+            maps:get(<<"wallet">>, Params)
+    )),
+    check_quote_destination(
+        maps:get(<<"destinationID">>, Data, undefined),
+        maps:get(<<"destination">>, Params)
+    ),
+    check_quote_body(maps:get(<<"cashFrom">>, Data), maps:get(<<"body">>, Params)),
+    {ok, #{
+        cash_from   => from_swag(withdrawal_body, maps:get(<<"cashFrom">>, Data)),
+        cash_to     => from_swag(withdrawal_body, maps:get(<<"cashTo">>, Data)),
+        created_at  => maps:get(<<"createdAt">>, Data),
+        expires_on  => maps:get(<<"expiresOn">>, Data),
+        quote_data  => maps:get(<<"quoteData">>, Data)
+    }};
+maybe_check_quote_token(_Params, _Context) ->
+    {ok, undefined}.
+
+check_quote_body(CashFrom, CashFrom) ->
+    ok;
+check_quote_body(_, CashFrom) ->
+    throw({quote, {invalid_body, CashFrom}}).
+
+check_quote_destination(undefined, _DestinationID) ->
+    ok;
+check_quote_destination(DestinationID, DestinationID) ->
+    ok;
+check_quote_destination(_, DestinationID) ->
+    throw({quote, {invalid_destination, DestinationID}}).
+
 create_quote_token(#{
     cash_from   := CashFrom,
     cash_to     := CashTo,
@@ -700,6 +746,9 @@ unwrap(Res) ->
 
 unwrap(Tag, Res) ->
     ff_pipeline:unwrap(Tag, Res).
+
+valid(Val1, Val2) ->
+    ff_pipeline:valid(Val1, Val2).
 
 get_contract_id_from_identity(IdentityID, Context) ->
     State = get_state(identity, IdentityID, Context),

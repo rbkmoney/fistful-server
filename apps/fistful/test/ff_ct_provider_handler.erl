@@ -17,7 +17,10 @@ handle_function('ProcessWithdrawal', [Withdrawal, InternalState, Options], _Cont
     DState = decode_state(InternalState),
     DOptions = decode_options(Options),
     {ok, Intent, NewState} = ff_ct_provider:process_withdrawal(DWithdrawal, DState, DOptions),
-    {ok, encode_intent(Intent), encode_state(NewState)};
+    {ok, #wthadpt_ProcessResult{
+        intent = encode_intent(Intent),
+        next_state = encode_state(NewState)
+    }};
 handle_function('GetQuote', [QuoteParams, Options], _Context, _Opts) ->
     Params = decode_quote_params(QuoteParams),
     DOptions = decode_options(Options),
@@ -33,14 +36,16 @@ decode_withdrawal(#wthadpt_Withdrawal{
     body = Body,
     destination = Destination,
     sender = Sender,
-    receiver = Receiver
+    receiver = Receiver,
+    quote = Quote
 }) ->
     #{
         id => Id,
         body => Body,
         destination => Destination,
         sender => Sender,
-        receiver => Receiver
+        receiver => Receiver,
+        quote => Quote
     }.
 
 decode_quote_params(#wthadpt_GetQuoteParams{
@@ -59,13 +64,13 @@ decode_quote_params(#wthadpt_GetQuoteParams{
 decode_options(Options) ->
     Options.
 
-decode_state({string, EncodedState}) ->
-    erlang:binary_to_term(EncodedState, [safe]).
+decode_state(State) ->
+    State.
 
 %%
 
 encode_state(State) ->
-    {string, erlang:term_to_binary(State)}.
+    State.
 
 encode_intent({finish, {success, TrxInfo}}) ->
     {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = encode_trx(TrxInfo)}}}};

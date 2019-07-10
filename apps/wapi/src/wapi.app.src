@@ -16,6 +16,7 @@
         fistful_reporter_proto,
         file_storage_proto,
         swag_server_wallet,
+        swag_client_payres,
         scoper,
         jose,
         cowboy_cors,

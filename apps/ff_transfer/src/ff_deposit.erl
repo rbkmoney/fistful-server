@@ -18,7 +18,7 @@
 }.
 
 -type machine() :: ff_transfer_machine:st(transfer_params()).
--type events()  :: ff_transfer_machine:events().
+-type events()  :: ff_transfer_machine:events(any()). %TODO what's there
 -type event()   :: ff_transfer_machine:event(ff_transfer:event(transfer_params(), route())).
 -type route()   :: ff_transfer:route(none()).
 

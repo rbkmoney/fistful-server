@@ -63,33 +63,19 @@ handle_response({response, _, _, _} = Resp) ->
 
 send_oops_resp(Code, Headers, undefined, Req) ->
     {Code, Headers, Req};
-send_oops_resp(Code, Headers, File, Req) ->
+send_oops_resp(Code, Headers0, File, _) ->
     FileSize = filelib:file_size(File),
-    F = fun(Socket, Transport) ->
-        case Transport:sendfile(Socket, File) of
-            {ok, _} ->
-                ok;
-            {error, Error} ->
-                _ = lager:warning("Failed to send oops body: ~p", [Error]),
-                ok
-        end
-    end,
-    Headers1 = lists:foldl(
-        fun({K, V}, Acc) -> lists:keystore(K, 1, Acc, {K, V}) end,
-        Headers,
-        [
-            {<<"content-type">>, <<"text/plain; charset=utf-8">>},
-            {<<"content-length">>, integer_to_list(FileSize)}
-        ]
-    ),
-    {ok, Req1} = cowboy_req:reply(Code, Headers1, {FileSize, F}, Req),
-    {Code, Headers1, Req1}.
+    Headers = maps:merge(Headers0, #{
+        <<"content-type">> => <<"text/plain; charset=utf-8">>,
+        <<"content-length">> => integer_to_list(FileSize)
+    }),
+    {response, Code, Headers, {sendfile, 0, FileSize, File}}.
 
 get_oops_body_safe(Code) ->
     try get_oops_body(Code)
     catch
         Error:Reason ->
-            _ = lager:warning("Invalid oops body config for code: ~p. Error: ~p:~p", [Code, Error, Reason]),
+            _ = logger:warning("Invalid oops body config for code: ~p. Error: ~p:~p", [Code, Error, Reason]),
             undefined
     end.
 

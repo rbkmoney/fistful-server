@@ -20,7 +20,7 @@
     id          := event_id(),
     ns          := binary(),
     source_id   := machinery:id(),
-    event       := machinery:event(T)
+    event       := {integer(), {calendar:datetime(), 0..999999}, T} % machinery:event(T) TODO export from machinery
 }.
 
 -export_type([evsink_event/1]).

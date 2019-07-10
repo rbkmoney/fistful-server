@@ -73,6 +73,9 @@
 -export_type([challenge/0]).
 -export_type([event/0]).
 -export_type([create_error/0]).
+-export_type([proof/0]).
+-export_type([id/1]).
+-export_type([status/0]).
 
 -export([id/1]).
 -export([claimant/1]).

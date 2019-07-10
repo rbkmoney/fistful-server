@@ -6,17 +6,15 @@
 
 %% Behaviour definition
 
--type tag() :: wallet | payres | privdoc.
+-type tag() :: wallet | payres.
 
 -type operation_id() ::
-    swag_server_payres:operation_id() |
-    swag_server_wallet:operation_id() |
-    swag_server_privdoc:operation_id().
+    swag_client_payres:operation_id() |
+    swag_server_wallet:operation_id().
 
 -type swagger_context() ::
-    swag_server_payres:request_context() |
-    swag_server_wallet:request_context() |
-    swag_server_privdoc:request_context().
+    swag_client_payres:request_context() |
+    swag_server_wallet:request_context().
 
 -type context() :: #{
     woody_context   := woody_context:ctx(),
@@ -24,9 +22,7 @@
 }.
 
 -type opts() ::
-    swag_server_wallet:handler_opts() |
-    swag_server_payres:handler_opts() |
-    swag_server_privdoc:handler_opts().
+    swag_server_wallet:handler_opts(_).
 
 -type req_data()         :: #{atom() | binary() => term()}.
 -type status_code()      :: 200..599.
@@ -99,8 +95,7 @@ throw_result(Res) ->
     erlang:throw({?request_result, Res}).
 
 get_handler(wallet)  -> wapi_wallet_handler;
-get_handler(payres)  -> wapi_payres_handler;
-get_handler(privdoc) -> wapi_privdoc_handler.
+get_handler(payres)  -> wapi_payres_handler.
 
 -spec create_woody_context(tag(), req_data(), wapi_auth:context(), opts()) ->
     woody_context:ctx().

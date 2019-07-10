@@ -23,6 +23,9 @@
 -type binding_value() :: binary().
 -type url()           :: binary().
 -type path()          :: binary().
+-type route_match()   :: '_' | iodata(). % cowoby_router:route_match()
+
+-export_type([route_match/0]).
 
 %% API
 
@@ -127,7 +130,7 @@ define(undefined, V) ->
 define(V, _Default) ->
     V.
 
--spec get_path(cowboy_router:route_match(), [binding_value()]) ->
+-spec get_path(route_match(), [binding_value()]) ->
     path().
 get_path(PathSpec, Params) when is_list(PathSpec) ->
     get_path(genlib:to_binary(PathSpec), Params);
@@ -155,7 +158,7 @@ get_next(PathSpec) ->
 get_url(BaseUrl, Path) ->
     <<BaseUrl/binary, Path/binary>>.
 
--spec get_url(url(), cowboy_router:route_match(), [binding_value()]) ->
+-spec get_url(url(), route_match(), [binding_value()]) ->
     url().
 get_url(BaseUrl, PathSpec, Params) ->
     get_url(BaseUrl, get_path(PathSpec, Params)).

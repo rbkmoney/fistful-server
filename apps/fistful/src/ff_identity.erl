@@ -46,7 +46,7 @@
     {created           , identity()}                                 |
     {level_changed     , level()}                                    |
     {effective_challenge_changed, challenge_id()}                    |
-    {{challenge        , challenge_id()}, ff_identity_challenge:ev()}.
+    {{challenge        , challenge_id()}, ff_identity_challenge:event()}.
 
 -type create_error() ::
     {provider, notfound} |
@@ -65,6 +65,8 @@
 -export_type([id/0]).
 -export_type([create_error/0]).
 -export_type([start_challenge_error/0]).
+-export_type([class/0]).
+-export_type([challenge_class/0]).
 
 -export([id/1]).
 -export([provider/1]).

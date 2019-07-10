@@ -79,6 +79,7 @@
 -export_type([constant_mapping/0]).
 -export_type([final_posting/0]).
 -export_type([final_cash_flow/0]).
+-export_type([plan_account/0]).
 
 %% Pipeline
 

@@ -98,8 +98,7 @@ level(ID, #{levels := Levels}) ->
     ff_map:find(ID, Levels).
 
 -spec challenge_class(challenge_class_id(), class()) ->
-    {ok, challenge_class()} |
-    {error, notfound}.
+    ff_map:result(challenge_class()).
 
 challenge_class(ID, #{challenge_classes := ChallengeClasses}) ->
     ff_map:find(ID, ChallengeClasses).

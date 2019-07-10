@@ -32,6 +32,8 @@
     {challenge, ff_identity:start_challenge_error()}.
 
 -export_type([id/0]).
+-export_type([challenge_params/0]).
+-export_type([params/0]).
 
 -export([create/3]).
 -export([get/1]).
@@ -61,7 +63,7 @@
 -type params() :: #{
     party       := ff_party:id(),
     provider    := ff_provider:id(),
-    class       := ff_identity:class_id(),
+    class       := ff_identity:challenge_class(),
     external_id => id()
 }.
 

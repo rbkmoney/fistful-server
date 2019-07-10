@@ -90,7 +90,7 @@ reply(Status, Code, Data, Headers) ->
 throw_not_implemented() ->
     wapi_handler:throw_result(reply_error(501)).
 
--spec get_location(cowboy_router:route_match(), [binary()], handler_opts()) ->
+-spec get_location(wapi_utils:route_match(), [binary()], handler_opts()) ->
     headers().
 get_location(PathSpec, Params, _Opts) ->
     %% TODO pass base URL via Opts

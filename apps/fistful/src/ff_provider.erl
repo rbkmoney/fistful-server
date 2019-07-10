@@ -22,13 +22,13 @@
     payinst          := payinst(),
     routes           := routes(),
     identity_classes := #{
-        ff_identity:class_id() => ff_identity:class()
+        ff_identity:challenge_class() => ff_identity:class()
     }
 }.
 
 -type payinst()     :: dmsl_domain_thrift:'PaymentInstitution'().
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
--type routes()      :: [ff_withdrowal_provider:id()].
+-type routes()      :: [ff_withdrawal_provider:id()].
 
 -export_type([id/0]).
 -export_type([provider/0]).
@@ -111,13 +111,14 @@ get(ID) ->
     end).
 
 -spec list_identity_classes(provider()) ->
-    [ff_identity:class_id()].
+    [ff_identity:challenge_class()].
 
 list_identity_classes(#{identity_classes := ICs}) ->
     maps:keys(ICs).
 
--spec get_identity_class(ff_identity:class_id(), provider()) ->
-    {ok, ff_identity:class()} |
+-spec get_identity_class(ff_identity:challenge_class(), provider()) ->
+    % ff_map:result(ff_identity:class()). % TODO check
+    {ok, ff_identity:challenge_class()} |
     {error, notfound}.
 
 get_identity_class(IdentityClassID, #{identity_classes := ICs}) ->

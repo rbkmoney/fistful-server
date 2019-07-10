@@ -142,7 +142,7 @@ derive_kid_from_public_key_pem_entry(JWK) ->
 }.
 
 -spec store_key(keyname(), {pem_file, file:filename()}, store_opts()) ->
-    ok | {error, file:posix() | {unknown_key, _}}.
+    {ok, keyinfo()} | {error, file:posix() | {unknown_key, _}}.
 
 store_key(Keyname, {pem_file, Filename}, Opts) ->
     case jose_jwk:from_pem_file(Filename) of

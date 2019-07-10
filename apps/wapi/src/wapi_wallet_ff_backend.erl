@@ -61,6 +61,8 @@
 -define(PARAMS_HASH, <<"params_hash">>).
 -define(EXTERNAL_ID, <<"externalID">>).
 
+-dialyzer([{nowarn_function, [to_swag/2]}]).
+
 %% API
 
 %% Providers
@@ -1171,7 +1173,7 @@ to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     });
 
 to_swag(timestamp, {{Date, Time}, Usec}) ->
-    {ok, Timestamp} = rfc3339:format({Date, Time, Usec, undefined}),
+    {ok, Timestamp} = rfc3339:format({Date, Time, Usec, undefined}), % nowarn this?
     Timestamp;
 to_swag(currency, Currency) ->
     genlib_string:to_upper(genlib:to_binary(Currency));

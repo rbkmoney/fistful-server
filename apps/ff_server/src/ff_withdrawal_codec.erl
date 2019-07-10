@@ -51,7 +51,7 @@ marshal_currency_invalid({WithdrawalCurrencyID, WalletCurrencyID}) ->
         wallet_currency     = ff_codec:marshal(currency_ref, WalletCurrencyID)
     }.
 
--spec marshal_cash_range_error({ff_party:cash(), ff_party:cash_range()}) ->
+-spec marshal_cash_range_error({ff_party:cash(), ff_party:domain_cash_range()}) ->
     ff_proto_withdrawal_thrift:'WithdrawalCashAmountInvalid'().
 
 marshal_cash_range_error({Cash, Range}) ->

@@ -26,6 +26,7 @@
 -export_type([events/0]).
 -export_type([event/0]).
 -export_type([route/0]).
+-export_type([params/0]).
 
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).

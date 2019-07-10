@@ -23,9 +23,7 @@
 -type operation_id() :: wapi_handler:operation_id().
 
 -type api_key() ::
-    swag_wallet_server:api_key() |
-    swag_payres_server:api_key() |
-    swag_privdoc_server:api_key().
+    swag_server_wallet:api_key(). % TODO check
 
 -type handler_opts() :: wapi_handler:opts().
 

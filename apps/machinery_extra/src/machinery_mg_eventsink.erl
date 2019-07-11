@@ -92,7 +92,7 @@ unmarshal(
         'event'         = Event
     }
 ) ->
-    #'mg_stateproc_Event'{id = EventID, created_at = CreatedAt, event_payload = Payload} = Event,
+    #'mg_stateproc_Event'{id = EventID, created_at = CreatedAt, data = Payload} = Event,
     #{
         id          => unmarshal(event_id, ID),
         ns          => unmarshal(namespace, Ns),

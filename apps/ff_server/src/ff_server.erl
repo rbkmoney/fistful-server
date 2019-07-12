@@ -110,7 +110,7 @@ init([]) ->
     {ok, {#{strategy => one_for_one}, [ChildSpec]}}.
 
 -spec get_routes({binary(), woody:th_handler(), map()}) ->
-    woody_server_thrift_http_handler:route(_).
+    [woody_server_thrift_http_handler:route(_)].
 
 get_routes({Path, Handler, Opts}) ->
     Limits = genlib_map:get(handler_limits, Opts),

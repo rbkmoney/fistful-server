@@ -17,20 +17,21 @@
 -type timestamp() :: machinery:timestamp().
 -type provider()     :: ff_provider:id().
 -type identity_class() :: ff_identity_class:id().
--type challenge_class() :: ff_identity_class:challenge_class_id().
+-type challenge_class_id() :: ff_identity_class:challenge_class_id().
 -type master_id() :: id(binary()).
 -type claim_id()  :: id(binary()).
 
 -type challenge() :: #{
+    % Are fields here actually optional?
     id              := id(_),
-    claimant        := claimant(),
-    provider        := provider(),
-    identity_class  := identity_class(),
-    challenge_class := challenge_class(),
+    claimant        => claimant(),
+    provider        => provider(),
+    identity_class  => identity_class(),
+    challenge_class := challenge_class_id(),
     proofs          := [proof()],
-    master_id       := master_id(),
-    claim_id        := claim_id(),
-    status          => status()
+    master_id       => master_id(),
+    claim_id        => claim_id(),
+    status          := status()
 }.
 
 -type proof() ::
@@ -116,7 +117,7 @@ claimant(#{claimant := V}) ->
     V.
 
 -spec class(challenge()) ->
-    challenge_class().
+    challenge_class_id().
 
 class(#{challenge_class := V}) ->
     V.
@@ -153,7 +154,7 @@ claim_id(#{claim_id := V}) ->
 
 %%
 
--spec create(id(_), claimant(), provider(), identity_class(), challenge_class(), [proof()]) ->
+-spec create(id(_), claimant(), provider(), identity_class(), challenge_class_id(), [proof()]) ->
     {ok, [event()]} |
     {error, create_error()}.
 

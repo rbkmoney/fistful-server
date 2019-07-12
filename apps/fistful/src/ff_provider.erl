@@ -22,7 +22,7 @@
     payinst          := payinst(),
     routes           := routes(),
     identity_classes := #{
-        ff_identity:challenge_class() => ff_identity:class()
+        ff_identity:challenge_class_id() => ff_identity_class:class()
     }
 }.
 
@@ -111,14 +111,13 @@ get(ID) ->
     end).
 
 -spec list_identity_classes(provider()) ->
-    [ff_identity:challenge_class()].
+    [ff_identity_class:class()].
 
 list_identity_classes(#{identity_classes := ICs}) ->
     maps:keys(ICs).
 
--spec get_identity_class(ff_identity:challenge_class(), provider()) ->
-    % ff_map:result(ff_identity:class()). % TODO check
-    {ok, ff_identity:challenge_class()} |
+-spec get_identity_class(ff_identity:challenge_class_id(), provider()) ->
+    {ok, ff_identity_class:class()} |
     {error, notfound}.
 
 get_identity_class(IdentityClassID, #{identity_classes := ICs}) ->

@@ -109,8 +109,8 @@ times(St) ->
 %%
 
 -spec get(module(), namespace(), id()) ->
-    {ok, st()} |
-    {error, notfound}.
+    {ok, st()} | {error, _}.
+    % {error, notfound}.
 
 get(Mod, NS, ID) ->
     do(fun () ->

@@ -12,10 +12,36 @@
     id                    := id(),
     name                  := binary(),
     contract_template_ref := contract_template_ref(),
-    initial_level         := level(),
+    initial_level         := level_id(),
     levels                := #{level_id() => level()},
     challenge_classes     := #{challenge_class_id() => challenge_class()}
 }.
+
+% #{
+%     challenge_classes => #{
+%         <<"sword-initiation">> => #{
+%             base_level => <<"peasant">>,
+%             id => <<"sword-initiation">>,
+%             name => <<"Initiation by sword">>,
+%             target_level => <<"nobleman">>}
+%     },
+%     contract_template_ref => {domain_ContractTemplateRef,1},
+%     id => <<"person">>,
+%     initial_level => <<"peasant">>,
+%     levels => #{
+%         <<"nobleman">> => #{
+%             contractor_level => partial,
+%             id => <<"nobleman">>,
+%             name => <<"Well, a nobleman">>
+%         },
+%         <<"peasant">> => #{
+%             contractor_level => none,
+%             id => <<"peasant">>,
+%             name => <<"Well, a peasant">>
+%         }
+%     },
+%     name => <<"Well, a person">>
+% }
 
 -type contract_template_ref() ::
     dmsl_domain_thrift:'ContractTemplateRef'().
@@ -39,8 +65,8 @@
 -type challenge_class() :: #{
     id           := challenge_class_id(),
     name         := binary(),
-    base_level   := level(),
-    target_level := level()
+    base_level   := level_id(),
+    target_level := level_id()
 }.
 
 -export([id/1]).

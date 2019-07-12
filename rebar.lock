@@ -75,7 +75,7 @@
  {<<"jsx">>,{pkg,<<"jsx">>,<<"2.8.2">>},0},
  {<<"machinery">>,
   {git,"git@github.com:rbkmoney/machinery.git",
-       {ref,"4d1b63f6b11b275dbec6f214b08b2e7d42013707"}},
+       {ref,"9a86adf1b1abf7dae9d0427945d6fe0555a6814e"}},
   0},
  {<<"metrics">>,{pkg,<<"metrics">>,<<"1.0.1">>},1},
  {<<"mg_proto">>,

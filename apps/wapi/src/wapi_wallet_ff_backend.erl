@@ -1018,15 +1018,17 @@ from_swag(destination_resource, #{
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }};
-from_swag(destination_resource, #{
+from_swag(destination_resource, Resource = #{
     <<"type">>     := <<"CryptoWalletDestinationResource">>,
     <<"id">>       := CryptoWalletID,
     <<"currency">> := CryptoWalletCurrency
 }) ->
-    {crypto_wallet, #{
+    Tag = maps:get(<<"tag">>, Resource, undefined),
+    {crypto_wallet, genlib_map:compact(#{
         id       => CryptoWalletID,
-        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency)
-    }};
+        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
+        tag      => Tag
+    })};
 
 from_swag(crypto_wallet_currency, <<"Bitcoin">>)     -> bitcoin;
 from_swag(crypto_wallet_currency, <<"Litecoin">>)    -> litecoin;
@@ -1210,7 +1212,8 @@ to_swag(destination_resource, {crypto_wallet, CryptoWallet}) ->
     to_swag(map, #{
         <<"type">>     => <<"CryptoWalletDestinationResource">>,
         <<"id">>       => maps:get(id, CryptoWallet),
-        <<"currency">> => to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet))
+        <<"currency">> => to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet)),
+        <<"tag">>      => maps:get(tag, CryptoWallet, undefined)
     });
 
 to_swag(pan_last_digits, MaskedPan) ->

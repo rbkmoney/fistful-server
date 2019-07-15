@@ -439,7 +439,8 @@ make_crypto_wallet_resource() ->
     #{
         <<"type">>     => <<"CryptoWalletDestinationResource">>,
         <<"id">>       => <<"0610899fa9a3a4300e375ce582762273">>,
-        <<"currency">> => <<"Ethereum">>
+        <<"currency">> => <<"Ethereum">>,
+        <<"tag">>      => <<"test_tag">>
     }.
 
 create_desination(IdentityID, Resource, C) ->

@@ -29,7 +29,8 @@
 
 -type resource_crypto_wallet() :: #{
     id       := binary(),
-    currency := atom()
+    currency := atom(),
+    tag      => binary()
 }.
 
 -type destination() :: ff_instrument:instrument(resource()).

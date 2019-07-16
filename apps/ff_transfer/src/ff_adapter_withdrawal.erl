@@ -61,8 +61,38 @@
 -type intent()                :: {finish, status()} | {sleep, timer()}.
 -type status()                :: {success, trx_info()} | {failure, failure()}.
 -type timer()                 :: dmsl_base_thrift:'Timer'().
--type trx_info()              :: dmsl_domain_thrift:'TransactionInfo'().
--type failure()               :: dmsl_domain_thrift:'Failure'().
+-type trx_info()              :: #{
+    id := binary(),
+    timestamp => binary(),
+    extra := #{binary() => binary()},
+    additional_info => additional_trx_info()
+}.
+-type additional_trx_info()   :: #{
+    rrn => binary(),
+    approval_code => binary(),
+    acs_url => binary(),
+    pareq => binary(),
+    md => binary(),
+    term_url => binary(),
+    pares => binary(),
+    eci => binary(),
+    cavv => binary(),
+    xid => binary(),
+    cavv_algorithm => binary(),
+    three_ds_verification => binary()
+}.
+-type failure_code()          :: binary().
+-type failure_reason()        :: binary().
+
+-type failure()               :: #{
+    code := failure_code(),
+    reason => failure_reason(),
+    sub => sub_failure()
+}.
+-type sub_failure()           :: #{
+    code := failure_code(),
+    sub => sub_failure()
+}.
 -type adapter_state()         :: ff_adapter:state().
 -type process_result()        ::
     {ok, intent(), adapter_state()} |
@@ -79,6 +109,7 @@
 
 -export_type([withdrawal/0]).
 -export_type([failure/0]).
+-export_type([trx_info/0]).
 -export_type([quote/1]).
 -export_type([quote_params/0]).
 -export_type([quote_data/0]).
@@ -289,9 +320,9 @@ decode_result(#wthadpt_Quote{} = Quote) ->
 
 -spec decode_intent(dmsl_withdrawals_provider_adapter_thrift:'Intent'()) -> intent().
 decode_intent({finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = TrxInfo}}}}) ->
-    {finish, {success, TrxInfo}};
+    {finish, {success, ff_dmsl_codec:unmarshal(transaction_info, TrxInfo)}};
 decode_intent({finish, #wthadpt_FinishIntent{status = {failure, Failure}}}) ->
-    {finish, {failed, Failure}};
+    {finish, {failed, ff_dmsl_codec:unmarshal(failure, Failure)}};
 decode_intent({sleep, #wthadpt_SleepIntent{timer = Timer}}) ->
     {sleep, Timer}.
 

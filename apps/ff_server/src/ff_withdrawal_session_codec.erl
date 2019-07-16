@@ -68,15 +68,33 @@ marshal(session_result, {success, TransactionInfo}) ->
         trx_info = marshal(transaction_info, TransactionInfo)
     }};
 % TODO change all dmsl types to fistfull types
-marshal(transaction_info, #domain_TransactionInfo{
-    id = TransactionID,
-    timestamp = Timestamp,
-    extra = Extra
+marshal(transaction_info, TransactionInfo = #{
+    id := TransactionID,
+    extra := Extra
 }) ->
+    Timestamp = maps:get(timestamp, TransactionInfo, undefined),
+    AddInfo = maps:get(additional_info, TransactionInfo, undefined),
     #'TransactionInfo'{
         id = marshal(id, TransactionID),
         timestamp = marshal(timestamp, Timestamp),
-        extra = Extra
+        extra = Extra,
+        additional_info = marshal(additional_transaction_info, AddInfo)
+    };
+
+marshal(additional_transaction_info, AddInfo = #{}) ->
+    #'AdditionalTransactionInfo'{
+        rrn = marshal(string, maps:get(rrn, AddInfo, undefined)),
+        approval_code = marshal(string, maps:get(approval_code, AddInfo, undefined)),
+        acs_url = marshal(string, maps:get(acs_url, AddInfo, undefined)),
+        pareq = marshal(string, maps:get(pareq, AddInfo, undefined)),
+        md = marshal(string, maps:get(md, AddInfo, undefined)),
+        term_url = marshal(string, maps:get(term_url, AddInfo, undefined)),
+        pares = marshal(string, maps:get(pares, AddInfo, undefined)),
+        eci = marshal(string, maps:get(eci, AddInfo, undefined)),
+        cavv = marshal(string, maps:get(cavv, AddInfo, undefined)),
+        xid = marshal(string, maps:get(xid, AddInfo, undefined)),
+        cavv_algorithm = marshal(string, maps:get(cavv_algorithm, AddInfo, undefined)),
+        three_ds_verification = marshal(string, maps:get(three_ds_verification, AddInfo, undefined))
     };
 
 marshal(session_result, {failed, Failure}) ->
@@ -84,20 +102,20 @@ marshal(session_result, {failed, Failure}) ->
         failure = marshal(failure, Failure)
     }};
 
-marshal(failure, #domain_Failure{
-    code = Code,
-    reason = Reason,
-    sub = SubFailure
+marshal(failure, Failure = #{
+    code := Code
 }) ->
+    Reason = maps:get(reason, Failure, undefined),
+    SubFailure = maps:get(sub, Failure, undefined),
     #'Failure'{
         code = marshal(string, Code),
         reason = marshal(string, Reason),
         sub = marshal(sub_failure, SubFailure)
     };
-marshal(sub_failure, #domain_SubFailure{
-    code = Code,
-    sub = SubFailure
+marshal(sub_failure, SubFailure = #{
+    code := Code
 }) ->
+    SubFailure = maps:get(sub, SubFailure, undefined),
     #'SubFailure'{
         code = marshal(string, Code),
         sub = marshal(sub_failure, SubFailure)

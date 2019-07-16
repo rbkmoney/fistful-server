@@ -4,6 +4,8 @@
 
 -module(ff_withdrawal_session).
 
+-include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+
 %% API
 
 -export([status/1]).
@@ -32,7 +34,7 @@
     adapter_state => ff_adapter:state()
 }.
 
--type session_result() :: {success, trx_info()} | {failed, ff_adapter_withdrawal:failure()}.
+-type session_result() :: {success, ff_adapter_withdrawal:trx_info()} | {failed, ff_adapter_withdrawal:failure()}.
 
 -type status() :: active
     | {finished, session_result()}.
@@ -66,13 +68,12 @@
 %%
 -type id() :: machinery:id().
 
--type trx_info() :: dmsl_domain_thrift:'TransactionInfo'().
-
 -type auxst()        :: undefined.
 
 -type result() :: machinery:result(event(), auxst()).
 -type withdrawal() :: ff_adapter_withdrawal:withdrawal().
 -type adapter_with_opts() :: {ff_withdrawal_provider:adapter(), ff_withdrawal_provider:adapter_opts()}.
+-type legacy_event() :: any().
 
 %% Pipeline
 
@@ -98,12 +99,33 @@ create(ID, Data, Params) ->
 
 -spec apply_event(event(), undefined | session()) ->
     session().
-apply_event({created, Session}, undefined) ->
+apply_event(Ev, S) ->
+    apply_event_(maybe_migrate(Ev), S).
+
+-spec apply_event_(event(), undefined | session()) ->
+    session().
+apply_event_({created, Session}, undefined) ->
     Session;
-apply_event({next_state, AdapterState}, Session) ->
+apply_event_({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
-apply_event({finished, Result}, Session) ->
+apply_event_({finished, Result}, Session) ->
     set_session_status({finished, Result}, Session).
+
+-spec maybe_migrate(event() | legacy_event()) ->
+    event().
+maybe_migrate({finished, {failed, Failure = #domain_Failure{}}}) ->
+    {finished, {failed, ff_dmsl_codec:unmarshal(failure, Failure)}};
+maybe_migrate({finished, {success, TransactionInfo = #domain_TransactionInfo{}}}) ->
+    {finished, {success, ff_dmsl_codec:unmarshal(transaction_info, TransactionInfo)}};
+maybe_migrate({finished, {success, {'TransactionInfo', ID, Timestamp, Extra}}}) ->
+    {finished, {success, genlib_map:compact(#{
+        id => ID,
+        timestamp => Timestamp,
+        extra => Extra
+    })}};
+% Other events
+maybe_migrate(Ev) ->
+    Ev.
 
 -spec process_session(session()) -> result().
 process_session(#{status := active} = Session) ->

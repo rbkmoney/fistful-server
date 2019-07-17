@@ -37,10 +37,10 @@ unmarshal(transaction_info, #domain_TransactionInfo{
         id => unmarshal(string, ID),
         timestamp => maybe_unmarshal(string, Timestamp),
         extra => Extra,
-        additional_info => unmarshal(additional_transaction_info, AddInfo)
+        additional_info => maybe_unmarshal(additional_transaction_info, AddInfo)
     });
 
-unmarshal(transaction_info, #domain_AdditionalTransactionInfo{
+unmarshal(additional_transaction_info, #domain_AdditionalTransactionInfo{
     rrn = RRN,
     approval_code = ApprovalCode,
     acs_url = AcsURL,
@@ -66,8 +66,16 @@ unmarshal(transaction_info, #domain_AdditionalTransactionInfo{
         cavv => maybe_unmarshal(string, CAVV),
         xid => maybe_unmarshal(string, XID),
         cavv_algorithm => maybe_unmarshal(string, CAVVAlgorithm),
-        three_ds_verification => maybe_unmarshal(string, ThreeDSVerification)
+        three_ds_verification => maybe_unmarshal(three_ds_verification, ThreeDSVerification)
     });
+
+unmarshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
 
 unmarshal(failure, #domain_Failure{
     code = Code,

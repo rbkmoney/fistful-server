@@ -94,8 +94,19 @@ marshal(additional_transaction_info, AddInfo = #{}) ->
         cavv = marshal(string, maps:get(cavv, AddInfo, undefined)),
         xid = marshal(string, maps:get(xid, AddInfo, undefined)),
         cavv_algorithm = marshal(string, maps:get(cavv_algorithm, AddInfo, undefined)),
-        three_ds_verification = marshal(string, maps:get(three_ds_verification, AddInfo, undefined))
+        three_ds_verification = marshal(
+            three_ds_verification,
+            maps:get(three_ds_verification, AddInfo, undefined)
+        )
     };
+
+marshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
 
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_session_SessionResultFailed{
@@ -112,10 +123,10 @@ marshal(failure, Failure = #{
         reason = marshal(string, Reason),
         sub = marshal(sub_failure, SubFailure)
     };
-marshal(sub_failure, SubFailure = #{
+marshal(sub_failure, Failure = #{
     code := Code
 }) ->
-    SubFailure = maps:get(sub, SubFailure, undefined),
+    SubFailure = maps:get(sub, Failure, undefined),
     #'SubFailure'{
         code = marshal(string, Code),
         sub = marshal(sub_failure, SubFailure)
@@ -210,13 +221,52 @@ unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info 
 unmarshal(transaction_info, #'TransactionInfo'{
     id = TransactionID,
     timestamp = Timestamp,
-    extra = Extra
+    extra = Extra,
+    additional_info = AddInfo
 }) ->
-    #domain_TransactionInfo{
-        id = unmarshal(id, TransactionID),
-        timestamp = maybe_unmarshal(timestamp, Timestamp),
-        extra = Extra
-    };
+    genlib_map:compact(#{
+        id => unmarshal(string, TransactionID),
+        timestamp => maybe_unmarshal(string, Timestamp),
+        extra => Extra,
+        additional_info => maybe_unmarshal(additional_transaction_info, AddInfo)
+    });
+
+unmarshal(additional_transaction_info, #'AdditionalTransactionInfo'{
+    rrn = RRN,
+    approval_code = ApprovalCode,
+    acs_url = AcsURL,
+    pareq = Pareq,
+    md = MD,
+    term_url = TermURL,
+    pares = Pares,
+    eci = ECI,
+    cavv = CAVV,
+    xid = XID,
+    cavv_algorithm = CAVVAlgorithm,
+    three_ds_verification = ThreeDSVerification
+}) ->
+    genlib_map:compact(#{
+        rrn => maybe_unmarshal(string, RRN),
+        approval_code => maybe_unmarshal(string, ApprovalCode),
+        acs_url => maybe_unmarshal(string, AcsURL),
+        pareq => maybe_unmarshal(string, Pareq),
+        md => maybe_unmarshal(string, MD),
+        term_url => maybe_unmarshal(string, TermURL),
+        pares => maybe_unmarshal(string, Pares),
+        eci => maybe_unmarshal(string, ECI),
+        cavv => maybe_unmarshal(string, CAVV),
+        xid => maybe_unmarshal(string, XID),
+        cavv_algorithm => maybe_unmarshal(string, CAVVAlgorithm),
+        three_ds_verification => maybe_unmarshal(three_ds_verification, ThreeDSVerification)
+    });
+
+unmarshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
 
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
     {failed, unmarshal(failure, Failure)};
@@ -226,19 +276,19 @@ unmarshal(failure, #'Failure'{
     reason = Reason,
     sub = SubFailure
 }) ->
-    #domain_Failure{
-        code = unmarshal(string, Code),
-        reason = maybe_unmarshal(string, Reason),
-        sub = maybe_unmarshal(sub_failure, SubFailure)
-    };
+    genlib_map:compact(#{
+        code => unmarshal(string, Code),
+        reason => maybe_unmarshal(string, Reason),
+        sub => maybe_unmarshal(sub_failure, SubFailure)
+    });
 unmarshal(sub_failure, #'SubFailure'{
     code = Code,
     sub = SubFailure
 }) ->
-    #domain_SubFailure{
-        code = unmarshal(string, Code),
-        sub = maybe_unmarshal(sub_failure, SubFailure)
-    };
+    genlib_map:compact(#{
+        code => unmarshal(string, Code),
+        sub => maybe_unmarshal(sub_failure, SubFailure)
+    });
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

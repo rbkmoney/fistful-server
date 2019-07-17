@@ -78,14 +78,43 @@ marshal(bank_card, BankCard = #{
         masked_pan = marshal(string, MaskedPan)
     };
 
-marshal(crypto_wallet, #{
+marshal(crypto_wallet, CryptoWallet = #{
     id       := CryptoWalletID,
     currency := CryptoWalletCurrency
 }) ->
     #'CryptoWallet'{
         id       = marshal(string, CryptoWalletID),
-        currency = CryptoWalletCurrency
+        currency = CryptoWalletCurrency,
+        data = marshal(crypto_data, CryptoWallet)
     };
+
+marshal(crypto_data, #{
+    currency := bitcoin
+}) ->
+    {bitcoin, #'CryptoDataBitcoin'{}};
+marshal(crypto_data, #{
+    currency := litecoin
+}) ->
+    {litecoin, #'CryptoDataLitecoin'{}};
+marshal(crypto_data, #{
+    currency := bitcoin_cash
+}) ->
+    {bitcoin_cash, #'CryptoDataBitcoinCash'{}};
+marshal(crypto_data, #{
+    currency := ripple,
+    tag := Tag
+}) ->
+    {ripple, #'CryptoDataRipple'{
+        tag = marshal(string, Tag)
+    }};
+marshal(crypto_data, #{
+    currency := ethereum
+}) ->
+    {ethereum, #'CryptoDataEthereum'{}};
+marshal(crypto_data, #{
+    currency := zcash
+}) ->
+    {zcash, #'CryptoDataZcash'{}};
 
 marshal(status, authorized) ->
     {authorized, #dst_Authorized{}};
@@ -102,7 +131,6 @@ marshal(ctx, Ctx) ->
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
-
 
 -spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
     ff_codec:decoded_value().
@@ -154,13 +182,20 @@ unmarshal(bank_card, #'BankCard'{
     });
 
 unmarshal(crypto_wallet, #'CryptoWallet'{
-    id       = CryptoWalletID,
-    currency = CryptoWalletCurrency
+    id = CryptoWalletID,
+    currency = CryptoWalletCurrency,
+    data = Data
 }) ->
-    #{
-        id       => unmarshal(string, CryptoWalletID),
-        currency => CryptoWalletCurrency
-    };
+    genlib_map:compact(#{
+        id => unmarshal(string, CryptoWalletID),
+        currency => CryptoWalletCurrency,
+        tag => unmarshal(crypto_data, Data)
+    });
+
+unmarshal(crypto_data, {ripple, #'CryptoDataRipple'{tag = Tag}}) ->
+    unmarshal(string, Tag);
+unmarshal(crypto_data, _) ->
+    undefined;
 
 unmarshal(status, {authorized, #dst_Authorized{}}) ->
     authorized;

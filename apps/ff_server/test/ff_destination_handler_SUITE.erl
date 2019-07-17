@@ -85,7 +85,8 @@ create_bank_card_destination_ok(C) ->
 create_crypto_wallet_destination_ok(C) ->
     Resource = {crypto_wallet, #'CryptoWallet'{
         id = <<"f195298af836f41d072cb390ee62bee8">>,
-        currency = bitcoin_cash
+        currency = bitcoin_cash,
+        data = {bitcoin_cash, #'CryptoDataBitcoinCash'{}}
     }},
     create_destination_ok(Resource, C).
 

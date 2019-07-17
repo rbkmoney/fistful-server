@@ -20,6 +20,7 @@
 -export([deposit_via_admin_amount_fails/1]).
 -export([deposit_via_admin_currency_fails/1]).
 -export([deposit_withdrawal_ok/1]).
+-export([deposit_quote_withdrawal_ok/1]).
 -export([deposit_withdrawal_to_crypto_wallet/1]).
 
 -type config()         :: ct_helper:config().
@@ -43,6 +44,7 @@ groups() ->
             deposit_via_admin_amount_fails,
             deposit_via_admin_currency_fails,
             deposit_withdrawal_ok,
+            deposit_quote_withdrawal_ok,
             deposit_withdrawal_to_crypto_wallet
         ]}
     ].
@@ -94,6 +96,7 @@ end_per_testcase(_Name, _C) ->
 -spec deposit_via_admin_currency_fails(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
 -spec deposit_withdrawal_to_crypto_wallet(config()) -> test_return().
+-spec deposit_quote_withdrawal_ok(config()) -> test_return().
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
@@ -300,13 +303,51 @@ deposit_withdrawal_to_crypto_wallet(C) ->
     Events    = get_withdrawal_events(WdrID),
     [<<"2">>] = route_changes(Events).
 
+deposit_quote_withdrawal_ok(C) ->
+    Party  = create_party(C),
+    IID = create_person_identity(Party, C, <<"quote-owner">>),
+    ICID = genlib:unique(),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+
+    SrcID = create_source(IID, C),
+
+    process_deposit(SrcID, WalID),
+
+    DestID = create_destination(IID, C),
+
+    pass_identification(ICID, IID, C),
+
+    WdrID = process_withdrawal(WalID, DestID, #{
+        wallet_id => WalID,
+        destination_id => DestID,
+        body => {4240, <<"RUB">>},
+        quote => #{
+            cash_from   => {4240, <<"RUB">>},
+            cash_to     => {2120, <<"USD">>},
+            created_at  => <<"2016-03-22T06:12:27Z">>,
+            expires_on  => <<"2016-03-22T06:12:27Z">>,
+            quote_data  => #{
+                version => 1,
+                quote_data => #{<<"test">> => <<"test">>},
+                provider_id => 3
+            }
+        }
+    }),
+
+    Events    = get_withdrawal_events(WdrID),
+    [<<"3">>] = route_changes(Events).
+
 create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 
 create_person_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
+    create_person_identity(Party, C, <<"good-one">>).
+
+create_person_identity(Party, C, ProviderID) ->
+    create_identity(Party, ProviderID, <<"person">>, C).
 
 create_identity(Party, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
@@ -461,10 +502,12 @@ pass_identification(ICID, IID, C) ->
     ).
 
 process_withdrawal(WalID, DestID) ->
+    process_withdrawal(WalID, DestID, #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}}).
+process_withdrawal(WalID, DestID, Params) ->
     WdrID = generate_id(),
     ok = ff_withdrawal:create(
         WdrID,
-        #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
+        Params,
         ff_ctx:new()
     ),
     succeeded = ct_helper:await(

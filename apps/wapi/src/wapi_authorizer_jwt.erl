@@ -6,11 +6,13 @@
 -export([init/1]).
 
 -export([store_key/2]).
+-export([get_signee_key/0]).
 % TODO
 % Extend interface to support proper keystore manipulation
 
 -export([issue/2]).
 -export([verify/1]).
+-export([verify/2]).
 
 %%
 
@@ -20,6 +22,12 @@
 -type keyname()    :: term().
 -type kid()        :: binary().
 -type key()        :: #jose_jwk{}.
+-type stored_key() :: #{
+    jwk      := key(),
+    kid      := kid(),
+    signer   := map() | undefined,
+    verifier := map() | undefined
+}.
 -type token()      :: binary().
 -type claims()     :: #{binary() => term()}.
 -type subject()    :: {subject_id(), wapi_acl:t()}.
@@ -35,6 +43,8 @@
 -export_type([claims/0]).
 -export_type([token/0]).
 -export_type([expiration/0]).
+-export_type([key/0]).
+-export_type([stored_key/0]).
 
 %%
 
@@ -233,13 +243,32 @@ sign(#{kid := KID, jwk := JWK, signer := #{} = JWS}, Claims) ->
     }.
 
 verify(Token) ->
+    verify(Token, fun verify_/2).
+
+-spec verify(token(), fun((key(), token()) -> Result)) ->
+    Result |
+    {error,
+        {invalid_token,
+            badarg |
+            {badarg, term()} |
+            {missing, atom()} |
+            expired |
+            {malformed_acl, term()}
+        } |
+        {nonexistent_key, kid()} |
+        invalid_operation |
+        invalid_signature
+    } when
+    Result :: {ok, binary() | t()}.
+
+verify(Token, VerifyFun) ->
     try
         {_, ExpandedToken} = jose_jws:expand(Token),
         #{<<"protected">> := ProtectedHeader} = ExpandedToken,
         Header = wapi_utils:base64url_to_map(ProtectedHeader),
         Alg = get_alg(Header),
         KID = get_kid(Header),
-        verify(KID, Alg, ExpandedToken)
+        verify(KID, Alg, ExpandedToken, VerifyFun)
     catch
         %% from get_alg and get_kid
         throw:Reason ->
@@ -253,16 +282,16 @@ verify(Token) ->
             {error, {invalid_token, Reason}}
     end.
 
-verify(KID, Alg, ExpandedToken) ->
+verify(KID, Alg, ExpandedToken, VerifyFun) ->
     case get_key_by_kid(KID) of
         #{jwk := JWK, verifier := Algs} ->
             _ = lists:member(Alg, Algs) orelse throw(invalid_operation),
-            verify(JWK, ExpandedToken);
+            VerifyFun(JWK, ExpandedToken);
         undefined ->
             {error, {nonexistent_key, KID}}
     end.
 
-verify(JWK, ExpandedToken) ->
+verify_(JWK, ExpandedToken) ->
     case jose_jwt:verify(JWK, ExpandedToken) of
         {true, #jose_jwt{fields = Claims}, _JWS} ->
             {#{subject_id := SubjectID}, Claims1} = validate_claims(Claims),
@@ -377,6 +406,9 @@ set_signee(Keyname) ->
     insert_values(#{
         signee => {keyname, Keyname}
     }).
+
+-spec get_signee_key() ->
+    stored_key() | undefined.
 
 get_signee_key() ->
     case lookup_value(signee) of

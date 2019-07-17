@@ -301,6 +301,22 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {wallet, {provider, invalid}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>)
+            );
+        {error, {quote_invalid_party, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal owner differs from quote`s one">>)
+            );
+        {error, {quote_invalid_wallet, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal wallet differs from quote`s one">>)
+            );
+        {error, {quote, {invalid_destination, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal destination differs from quote`s one">>)
+            );
+        {error, {quote, {invalid_body, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal body differs from quote`s one">>)
             )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
@@ -329,6 +345,26 @@ process_request('ListWithdrawals', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:list_withdrawals(Params, Context) of
         {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
         {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
+    end;
+process_request('CreateQuote', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:create_quote(Params, Context) of
+        {ok, Promise} -> wapi_handler_utils:reply_ok(202, Promise);
+        {error, {destination, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Destination not found">>)
+            );
+        {error, {destination, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>)
+            );
+        {error, {route, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Provider not found">>)
+            );
+        {error, {wallet, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Wallet not found">>)
+            )
     end;
 
 %% Residences

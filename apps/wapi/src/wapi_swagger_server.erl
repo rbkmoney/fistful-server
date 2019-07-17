@@ -28,7 +28,7 @@ get_cowboy_config(HealthRoutes, LogicHandlers) ->
             HealthRoutes ++
             swag_server_wallet_router:get_paths(maps:get(wallet, LogicHandlers))
         )),
-    #{
+    CowboyOpts = #{
         env => #{
             dispatch => Dispatch,
             cors_policy => wapi_cors_policy
@@ -41,7 +41,11 @@ get_cowboy_config(HealthRoutes, LogicHandlers) ->
         stream_handlers => [
             cowboy_access_log_h, wapi_stream_h, cowboy_stream_h
         ]
-    }.
+    },
+    cowboy_access_log_h:set_extra_info_fun(
+        mk_operation_id_getter(CowboyOpts),
+        CowboyOpts
+    ).
 
 squash_routes(Routes) ->
     orddict:to_list(lists:foldl(
@@ -49,3 +53,19 @@ squash_routes(Routes) ->
         orddict:new(),
         Routes
     )).
+
+mk_operation_id_getter(#{env := Env}) ->
+    fun (Req) ->
+        case cowboy_router:execute(Req, Env) of
+            {ok, _, #{handler_opts := {Operations, _Handler}}} ->
+                Method = cowboy_req:method(Req),
+                case maps:find(Method, Operations) of
+                    error ->
+                        #{};
+                    {ok, OperationID} ->
+                        #{operation_id => OperationID}
+                end;
+            _ ->
+                #{}
+        end
+    end.

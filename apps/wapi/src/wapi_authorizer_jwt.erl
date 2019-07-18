@@ -45,6 +45,7 @@
 -export_type([expiration/0]).
 -export_type([key/0]).
 -export_type([stored_key/0]).
+-export_type([kid/0]).
 
 %%
 

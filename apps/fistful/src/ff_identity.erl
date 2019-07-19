@@ -66,8 +66,6 @@
 -export_type([id/0]).
 -export_type([create_error/0]).
 -export_type([start_challenge_error/0]).
--export_type([class_id/0]). % TODO check if nessesary
--export_type([challenge_class/0]).
 -export_type([challenge_class_id/0]).
 
 -export([id/1]).

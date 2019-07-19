@@ -22,7 +22,6 @@
 -type claim_id()  :: id(binary()).
 
 -type challenge() :: #{
-    % Are fields here actually optional?
     id              := id(_),
     claimant        => claimant(),
     provider        => provider(),

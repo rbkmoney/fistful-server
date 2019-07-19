@@ -17,32 +17,6 @@
     challenge_classes     := #{challenge_class_id() => challenge_class()}
 }.
 
-% #{
-%     challenge_classes => #{
-%         <<"sword-initiation">> => #{
-%             base_level => <<"peasant">>,
-%             id => <<"sword-initiation">>,
-%             name => <<"Initiation by sword">>,
-%             target_level => <<"nobleman">>}
-%     },
-%     contract_template_ref => {domain_ContractTemplateRef,1},
-%     id => <<"person">>,
-%     initial_level => <<"peasant">>,
-%     levels => #{
-%         <<"nobleman">> => #{
-%             contractor_level => partial,
-%             id => <<"nobleman">>,
-%             name => <<"Well, a nobleman">>
-%         },
-%         <<"peasant">> => #{
-%             contractor_level => none,
-%             id => <<"peasant">>,
-%             name => <<"Well, a peasant">>
-%         }
-%     },
-%     name => <<"Well, a person">>
-% }
-
 -type contract_template_ref() ::
     dmsl_domain_thrift:'ContractTemplateRef'().
 
@@ -124,7 +98,8 @@ level(ID, #{levels := Levels}) ->
     ff_map:find(ID, Levels).
 
 -spec challenge_class(challenge_class_id(), class()) ->
-    ff_map:result(challenge_class()).
+    {ok, challenge_class()} |
+    {error, notfound}.
 
 challenge_class(ID, #{challenge_classes := ChallengeClasses}) ->
     ff_map:find(ID, ChallengeClasses).

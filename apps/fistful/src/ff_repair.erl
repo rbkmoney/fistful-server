@@ -26,7 +26,7 @@
 %% Internal types
 
 -type event() :: ff_machine:timestamped_event(any()).
--type result() :: machinery:result(event(), _). % TODO check
+-type result() :: machinery:result(event(), any()).
 -type machine() :: ff_machine:machine(event()).
 
 %% API

@@ -44,7 +44,7 @@
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_withdrawal_creation_error/0]).
 -export_type([cash/0]).
--export_type([domain_cash_range/0]). % TODO check
+-export_type([cash_range/0]).
 
 -type inaccessibility() ::
     {inaccessible, blocked | suspended}.
@@ -78,6 +78,8 @@
 -type timestamp() :: ff_time:timestamp_ms().
 -type wallet() :: ff_wallet:wallet().
 -type payment_institution_id() :: ff_payment_institution:id().
+-type bound_type() :: 'exclusive' | 'inclusive'.
+-type cash_range() :: {{bound_type(), cash()}, {bound_type(), cash()}}.
 
 -type currency_validation_error() :: {terms_violation, {not_allowed_currency, _Details}}.
 -type withdrawal_currency_error() :: {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}.

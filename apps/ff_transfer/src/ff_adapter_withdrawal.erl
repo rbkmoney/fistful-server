@@ -289,7 +289,7 @@ try_encode_proof_document(_, Acc) ->
 encode_adapter_state(undefined) ->
     {nl, #msgpack_Nil{}};
 encode_adapter_state(ASt) ->
-    ASt.
+    encode_msgpack(ASt).
 
 encode_msgpack(nil)                  -> {nl, #msgpack_Nil{}};
 encode_msgpack(V) when is_boolean(V) -> {b, V};
@@ -312,11 +312,15 @@ encode_msgpack(V) when is_map(V) ->
 decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = undefined}) ->
     {ok, decode_intent(Intent)};
 decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = NextState}) ->
-    {ok, decode_intent(Intent), NextState};
+    {ok, decode_intent(Intent), decode_adapter_state(NextState)};
 decode_result(#wthadpt_Quote{} = Quote) ->
     {ok, decode_quote(Quote)}.
 
 %% Decoders
+
+-spec decode_adapter_state(domain_internal_state()) -> adapter_state().
+decode_adapter_state(ASt) ->
+    decode_msgpack(ASt).
 
 -spec decode_intent(dmsl_withdrawals_provider_adapter_thrift:'Intent'()) -> intent().
 decode_intent({finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = TrxInfo}}}}) ->

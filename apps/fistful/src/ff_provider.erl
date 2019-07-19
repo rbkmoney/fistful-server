@@ -22,7 +22,7 @@
     payinst          := payinst(),
     routes           := routes(),
     identity_classes := #{
-        ff_identity:challenge_class_id() => ff_identity_class:class()
+        ff_identity_class:id() => ff_identity_class:class()
     }
 }.
 

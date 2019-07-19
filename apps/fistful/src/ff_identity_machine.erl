@@ -63,7 +63,7 @@
 -type params() :: #{
     party       := ff_party:id(),
     provider    := ff_provider:id(),
-    class       := ff_identity:challenge_class_id(),
+    class       := ff_identity:id(),
     external_id => id()
 }.
 

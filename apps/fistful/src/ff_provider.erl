@@ -116,7 +116,7 @@ get(ID) ->
 list_identity_classes(#{identity_classes := ICs}) ->
     maps:keys(ICs).
 
--spec get_identity_class(ff_identity:challenge_class_id(), provider()) ->
+-spec get_identity_class(ff_identity_class:id(), provider()) ->
     {ok, ff_identity_class:class()} |
     {error, notfound}.
 

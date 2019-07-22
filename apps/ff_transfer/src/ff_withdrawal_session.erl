@@ -145,8 +145,19 @@ migrate_unmarshal(sub_failure, {'domain_SubFailure', Code, SubFailure}) ->
     });
 migrate_unmarshal(additional_transaction_info, AddInfo) ->
     {
-        RRN, ApprovalCode, AcsURL, Pareq, MD, TermURL, Pares,
-        ECI, CAVV, XID, CAVVAlgorithm, ThreeDSVerification
+        'domain_AdditionalTransactionInfo',
+        RRN,
+        ApprovalCode,
+        AcsURL,
+        Pareq,
+        MD,
+        TermURL,
+        Pares,
+        ECI,
+        CAVV,
+        XID,
+        CAVVAlgorithm,
+        ThreeDSVerification
     } = AddInfo,
     genlib_map:compact(#{
         rrn => maybe_migrate_unmarshal(string, RRN),

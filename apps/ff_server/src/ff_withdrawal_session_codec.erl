@@ -67,7 +67,7 @@ marshal(session_result, {success, TransactionInfo}) ->
     {success, #wthd_session_SessionResultSuccess{
         trx_info = marshal(transaction_info, TransactionInfo)
     }};
-% TODO change all dmsl types to fistfull types
+
 marshal(transaction_info, TransactionInfo = #{
     id := TransactionID,
     extra := Extra

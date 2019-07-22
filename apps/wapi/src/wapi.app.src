@@ -19,7 +19,6 @@
         swag_client_payres,
         scoper,
         jose,
-        libdecaf,
         jsx,
         cowboy_cors,
         cowboy_access_log,

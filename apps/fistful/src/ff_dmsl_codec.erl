@@ -27,6 +27,75 @@
 -spec unmarshal(ff_dmsl_codec:type_name(), ff_dmsl_codec:encoded_value()) ->
     ff_dmsl_codec:decoded_value().
 
+unmarshal(transaction_info, #domain_TransactionInfo{
+    id   = ID,
+    timestamp = Timestamp,
+    extra = Extra,
+    additional_info = AddInfo
+}) ->
+    genlib_map:compact(#{
+        id => unmarshal(string, ID),
+        timestamp => maybe_unmarshal(string, Timestamp),
+        extra => Extra,
+        additional_info => maybe_unmarshal(additional_transaction_info, AddInfo)
+    });
+
+unmarshal(additional_transaction_info, #domain_AdditionalTransactionInfo{
+    rrn = RRN,
+    approval_code = ApprovalCode,
+    acs_url = AcsURL,
+    pareq = Pareq,
+    md = MD,
+    term_url = TermURL,
+    pares = Pares,
+    eci = ECI,
+    cavv = CAVV,
+    xid = XID,
+    cavv_algorithm = CAVVAlgorithm,
+    three_ds_verification = ThreeDSVerification
+}) ->
+    genlib_map:compact(#{
+        rrn => maybe_unmarshal(string, RRN),
+        approval_code => maybe_unmarshal(string, ApprovalCode),
+        acs_url => maybe_unmarshal(string, AcsURL),
+        pareq => maybe_unmarshal(string, Pareq),
+        md => maybe_unmarshal(string, MD),
+        term_url => maybe_unmarshal(string, TermURL),
+        pares => maybe_unmarshal(string, Pares),
+        eci => maybe_unmarshal(string, ECI),
+        cavv => maybe_unmarshal(string, CAVV),
+        xid => maybe_unmarshal(string, XID),
+        cavv_algorithm => maybe_unmarshal(string, CAVVAlgorithm),
+        three_ds_verification => maybe_unmarshal(three_ds_verification, ThreeDSVerification)
+    });
+
+unmarshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
+
+unmarshal(failure, #domain_Failure{
+    code = Code,
+    reason = Reason,
+    sub = SubFailure
+}) ->
+    genlib_map:compact(#{
+        code => unmarshal(string, Code),
+        reason => maybe_unmarshal(string, Reason),
+        sub => unmarshal(sub_failure, SubFailure)
+    });
+unmarshal(sub_failure, #domain_SubFailure{
+    code = Code,
+    sub = SubFailure
+}) ->
+    genlib_map:compact(#{
+        code => unmarshal(string, Code),
+        sub => maybe_unmarshal(sub_failure, SubFailure)
+    });
+
 unmarshal(cash, #domain_Cash{
     amount   = Amount,
     currency = CurrencyRef
@@ -53,6 +122,11 @@ unmarshal(string, V) when is_binary(V) ->
     V;
 unmarshal(integer, V) when is_integer(V) ->
     V.
+
+maybe_unmarshal(_Type, undefined) ->
+    undefined;
+maybe_unmarshal(Type, V) ->
+    unmarshal(Type, V).
 
 -spec marshal(ff_dmsl_codec:type_name(), ff_dmsl_codec:decoded_value()) ->
     ff_dmsl_codec:encoded_value().

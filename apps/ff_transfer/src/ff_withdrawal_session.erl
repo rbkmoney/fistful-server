@@ -17,6 +17,7 @@
 
 %% ff_machine
 -export([apply_event/2]).
+-export([maybe_migrate/1]).
 
 %% ff_repair
 -export([set_session_result/2]).

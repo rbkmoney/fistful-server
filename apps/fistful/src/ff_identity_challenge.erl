@@ -33,6 +33,14 @@
     status          := status()
 }.
 
+% Challenge fileds that are present in protocol definition
+-type proto_challenge() :: #{
+    id              := id(_),
+    challenge_class := challenge_class_id(),
+    proofs          := [proof()],
+    status          := status()
+}.
+
 -type level_id() :: ff_identity:level_id().
 
 -type challenge_class() :: #{
@@ -87,6 +95,7 @@
 -export_type([status/0]).
 -export_type([challenge_class/0]).
 -export_type([level_id/0]).
+-export_type([proto_challenge/0]).
 
 -export([id/1]).
 -export([claimant/1]).

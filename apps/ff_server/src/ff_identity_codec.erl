@@ -62,7 +62,7 @@ marshal_identity_event({ID, {ev, Timestamp, Ev}}) ->
         change     = marshal(event, Ev)
     }.
 
--spec marshal_challenge(ff_identity_challenge:challenge()) -> ff_proto_identity_thrift:'Challenge'().
+-spec marshal_challenge(ff_identity_challenge:proto_challenge()) -> ff_proto_identity_thrift:'Challenge'().
 
 marshal_challenge(Challenge) ->
     Proofs = ff_identity_challenge:proofs(Challenge),

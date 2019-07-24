@@ -33,6 +33,15 @@
     status          := status()
 }.
 
+-type level_id() :: ff_identity:level_id().
+
+-type challenge_class() :: #{
+    id           := challenge_class_id(),
+    name         := binary(),
+    base_level   := level_id(),
+    target_level := level_id()
+}.
+
 -type proof() ::
     {proof_type(), identdoc_token()}.
 
@@ -76,6 +85,8 @@
 -export_type([proof/0]).
 -export_type([id/1]).
 -export_type([status/0]).
+-export_type([challenge_class/0]).
+-export_type([level_id/0]).
 
 -export([id/1]).
 -export([claimant/1]).

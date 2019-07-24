@@ -22,7 +22,7 @@
     payinst          := payinst(),
     routes           := routes(),
     identity_classes := #{
-        ff_identity_class:id() => ff_identity_class:class()
+        ff_identity_class:id() => ff_identity:class()
     }
 }.
 
@@ -111,13 +111,13 @@ get(ID) ->
     end).
 
 -spec list_identity_classes(provider()) ->
-    [ff_identity_class:class()].
+    [ff_identity:class()].
 
 list_identity_classes(#{identity_classes := ICs}) ->
     maps:keys(ICs).
 
 -spec get_identity_class(ff_identity_class:id(), provider()) ->
-    {ok, ff_identity_class:class()} |
+    {ok, ff_identity:class()} |
     {error, notfound}.
 
 get_identity_class(IdentityClassID, #{identity_classes := ICs}) ->

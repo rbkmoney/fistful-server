@@ -93,9 +93,9 @@ repair_failed_session_with_success(C) ->
             }
         }}
     }}]),
-    Expected = {success, #domain_TransactionInfo{
-        id = SessionID,
-        extra = #{}
+    Expected = {success, #{
+        id => SessionID,
+        extra => #{}
     }},
     ?assertMatch({finished, Expected}, get_session_status(SessionID)).
 
@@ -115,8 +115,8 @@ repair_failed_session_with_failure(C) ->
             }
         }}
     }}]),
-    Expected = {failed, #domain_Failure{
-        code = SessionID
+    Expected = {failed, #{
+        code => SessionID
     }},
     ?assertMatch({finished, Expected}, get_session_status(SessionID)).
 

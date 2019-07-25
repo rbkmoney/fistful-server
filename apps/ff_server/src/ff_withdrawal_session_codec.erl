@@ -61,43 +61,72 @@ marshal(withdrawal, Params = #{
     };
 
 marshal(msgpack_value, V) ->
-    marshal_dmsl(V);
+    marshal_msgpack(V);
 
 marshal(session_result, {success, TransactionInfo}) ->
     {success, #wthd_session_SessionResultSuccess{
         trx_info = marshal(transaction_info, TransactionInfo)
     }};
-% TODO change all dmsl types to fistfull types
-marshal(transaction_info, #domain_TransactionInfo{
-    id = TransactionID,
-    timestamp = Timestamp,
-    extra = Extra
+
+marshal(transaction_info, TransactionInfo = #{
+    id := TransactionID,
+    extra := Extra
 }) ->
+    Timestamp = maps:get(timestamp, TransactionInfo, undefined),
+    AddInfo = maps:get(additional_info, TransactionInfo, undefined),
     #'TransactionInfo'{
         id = marshal(id, TransactionID),
         timestamp = marshal(timestamp, Timestamp),
-        extra = Extra
+        extra = Extra,
+        additional_info = marshal(additional_transaction_info, AddInfo)
     };
+
+marshal(additional_transaction_info, AddInfo = #{}) ->
+    #'AdditionalTransactionInfo'{
+        rrn = marshal(string, maps:get(rrn, AddInfo, undefined)),
+        approval_code = marshal(string, maps:get(approval_code, AddInfo, undefined)),
+        acs_url = marshal(string, maps:get(acs_url, AddInfo, undefined)),
+        pareq = marshal(string, maps:get(pareq, AddInfo, undefined)),
+        md = marshal(string, maps:get(md, AddInfo, undefined)),
+        term_url = marshal(string, maps:get(term_url, AddInfo, undefined)),
+        pares = marshal(string, maps:get(pares, AddInfo, undefined)),
+        eci = marshal(string, maps:get(eci, AddInfo, undefined)),
+        cavv = marshal(string, maps:get(cavv, AddInfo, undefined)),
+        xid = marshal(string, maps:get(xid, AddInfo, undefined)),
+        cavv_algorithm = marshal(string, maps:get(cavv_algorithm, AddInfo, undefined)),
+        three_ds_verification = marshal(
+            three_ds_verification,
+            maps:get(three_ds_verification, AddInfo, undefined)
+        )
+    };
+
+marshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
 
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_session_SessionResultFailed{
         failure = marshal(failure, Failure)
     }};
 
-marshal(failure, #domain_Failure{
-    code = Code,
-    reason = Reason,
-    sub = SubFailure
+marshal(failure, Failure = #{
+    code := Code
 }) ->
+    Reason = maps:get(reason, Failure, undefined),
+    SubFailure = maps:get(sub, Failure, undefined),
     #'Failure'{
         code = marshal(string, Code),
         reason = marshal(string, Reason),
         sub = marshal(sub_failure, SubFailure)
     };
-marshal(sub_failure, #domain_SubFailure{
-    code = Code,
-    sub = SubFailure
+marshal(sub_failure, Failure = #{
+    code := Code
 }) ->
+    SubFailure = maps:get(sub, Failure, undefined),
     #'SubFailure'{
         code = marshal(string, Code),
         sub = marshal(sub_failure, SubFailure)
@@ -106,24 +135,19 @@ marshal(sub_failure, #domain_SubFailure{
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-% Convert msgpack from dmsl to fistful proto
-marshal_dmsl({nl, #msgpack_Nil{}}) ->
-    {nl, #msgp_Nil{}};
-marshal_dmsl({arr, List}) when is_list(List) ->
-    {arr, [marshal_dmsl(V) || V <- List]};
-marshal_dmsl({obj, Map}) when is_map(Map) ->
-    {obj, maps:fold(
-        fun (K, V, Acc) ->
-            NewK = marshal_dmsl(K),
-            NewV = marshal_dmsl(V),
-            Acc#{NewK => NewV}
-        end,
-        #{},
-        Map
-    )};
-marshal_dmsl(Other) ->
-    Other.
-
+marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};
+marshal_msgpack(V) when is_boolean(V) -> {b, V};
+marshal_msgpack(V) when is_integer(V) -> {i, V};
+marshal_msgpack(V) when is_float(V)   -> V;
+marshal_msgpack(V) when is_binary(V)  -> {str, V}; % Assuming well-formed UTF-8 bytestring.
+marshal_msgpack({binary, V}) when is_binary(V) ->
+    {bin, V};
+marshal_msgpack(V) when is_list(V) ->
+    {arr, [marshal_msgpack(ListItem) || ListItem <- V]};
+marshal_msgpack(V) when is_map(V) ->
+    {obj, maps:fold(fun(Key, Value, Map) -> Map#{marshal_msgpack(Key) => marshal_msgpack(Value)} end, #{}, V)};
+marshal_msgpack(undefined) ->
+    undefined.
 
 -spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
     ff_codec:decoded_value().
@@ -184,21 +208,59 @@ unmarshal(withdrawal, #wthd_session_Withdrawal{
     });
 
 unmarshal(msgpack_value, V) ->
-    unmarshal_dmsl(V);
+    unmarshal_msgpack(V);
 
 unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = Trx}}) ->
     {success, unmarshal(transaction_info, Trx)};
-% TODO change all dmsl types to fistfull types
 unmarshal(transaction_info, #'TransactionInfo'{
     id = TransactionID,
     timestamp = Timestamp,
-    extra = Extra
+    extra = Extra,
+    additional_info = AddInfo
 }) ->
-    #domain_TransactionInfo{
-        id = unmarshal(id, TransactionID),
-        timestamp = maybe_unmarshal(timestamp, Timestamp),
-        extra = Extra
-    };
+    genlib_map:compact(#{
+        id => unmarshal(string, TransactionID),
+        timestamp => maybe_unmarshal(string, Timestamp),
+        extra => Extra,
+        additional_info => maybe_unmarshal(additional_transaction_info, AddInfo)
+    });
+
+unmarshal(additional_transaction_info, #'AdditionalTransactionInfo'{
+    rrn = RRN,
+    approval_code = ApprovalCode,
+    acs_url = AcsURL,
+    pareq = Pareq,
+    md = MD,
+    term_url = TermURL,
+    pares = Pares,
+    eci = ECI,
+    cavv = CAVV,
+    xid = XID,
+    cavv_algorithm = CAVVAlgorithm,
+    three_ds_verification = ThreeDSVerification
+}) ->
+    genlib_map:compact(#{
+        rrn => maybe_unmarshal(string, RRN),
+        approval_code => maybe_unmarshal(string, ApprovalCode),
+        acs_url => maybe_unmarshal(string, AcsURL),
+        pareq => maybe_unmarshal(string, Pareq),
+        md => maybe_unmarshal(string, MD),
+        term_url => maybe_unmarshal(string, TermURL),
+        pares => maybe_unmarshal(string, Pares),
+        eci => maybe_unmarshal(string, ECI),
+        cavv => maybe_unmarshal(string, CAVV),
+        xid => maybe_unmarshal(string, XID),
+        cavv_algorithm => maybe_unmarshal(string, CAVVAlgorithm),
+        three_ds_verification => maybe_unmarshal(three_ds_verification, ThreeDSVerification)
+    });
+
+unmarshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
 
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
     {failed, unmarshal(failure, Failure)};
@@ -208,40 +270,34 @@ unmarshal(failure, #'Failure'{
     reason = Reason,
     sub = SubFailure
 }) ->
-    #domain_Failure{
-        code = unmarshal(string, Code),
-        reason = maybe_unmarshal(string, Reason),
-        sub = maybe_unmarshal(sub_failure, SubFailure)
-    };
+    genlib_map:compact(#{
+        code => unmarshal(string, Code),
+        reason => maybe_unmarshal(string, Reason),
+        sub => maybe_unmarshal(sub_failure, SubFailure)
+    });
 unmarshal(sub_failure, #'SubFailure'{
     code = Code,
     sub = SubFailure
 }) ->
-    #domain_SubFailure{
-        code = unmarshal(string, Code),
-        sub = maybe_unmarshal(sub_failure, SubFailure)
-    };
+    genlib_map:compact(#{
+        code => unmarshal(string, Code),
+        sub => maybe_unmarshal(sub_failure, SubFailure)
+    });
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
-% Convert msgpack from fistful proto to dmsl
-unmarshal_dmsl({nl, #msgp_Nil{}}) ->
-    {nl, #msgpack_Nil{}};
-unmarshal_dmsl({arr, List}) when is_list(List) ->
-    {arr, [unmarshal_dmsl(V) || V <- List]};
-unmarshal_dmsl({obj, Map}) when is_map(Map) ->
-    {obj, maps:fold(
-        fun (K, V, Acc) ->
-            NewK = unmarshal_dmsl(K),
-            NewV = unmarshal_dmsl(V),
-            Acc#{NewK => NewV}
-        end,
-        #{},
-        Map
-    )};
-unmarshal_dmsl(Other) ->
-    Other.
+unmarshal_msgpack({nl,  #msgp_Nil{}})        -> nil;
+unmarshal_msgpack({b,   V}) when is_boolean(V) -> V;
+unmarshal_msgpack({i,   V}) when is_integer(V) -> V;
+unmarshal_msgpack({flt, V}) when is_float(V)   -> V;
+unmarshal_msgpack({str, V}) when is_binary(V)  -> V; % Assuming well-formed UTF-8 bytestring.
+unmarshal_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
+unmarshal_msgpack({arr, V}) when is_list(V)    -> [unmarshal_msgpack(ListItem) || ListItem <- V];
+unmarshal_msgpack({obj, V}) when is_map(V)     ->
+    maps:fold(fun(Key, Value, Map) -> Map#{unmarshal_msgpack(Key) => unmarshal_msgpack(Value)} end, #{}, V);
+unmarshal_msgpack(undefined) ->
+    undefined.
 
 %% Internals
 

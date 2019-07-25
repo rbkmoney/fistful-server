@@ -120,14 +120,14 @@ maybe_migrate({finished, {failed, {'domain_Failure', Code, Reason, SubFailure}}}
     {finished, {failed, genlib_map:compact(#{
         code => migrate_unmarshal(string, Code),
         reason => maybe_migrate_unmarshal(string, Reason),
-        sub => migrate_unmarshal(sub_failure, SubFailure)
+        sub => maybe_migrate_unmarshal(sub_failure, SubFailure)
     })}};
 maybe_migrate({finished, {success, {'domain_TransactionInfo', ID, Timestamp, Extra, AddInfo}}}) ->
     {finished, {success, genlib_map:compact(#{
         id => ID,
         timestamp => Timestamp,
         extra => Extra,
-        additional_info => migrate_unmarshal(additional_transaction_info, AddInfo)
+        additional_info => maybe_migrate_unmarshal(additional_transaction_info, AddInfo)
     })}};
 maybe_migrate({finished, {success, {'domain_TransactionInfo', ID, Timestamp, Extra}}}) ->
     {finished, {success, genlib_map:compact(#{

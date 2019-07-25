@@ -41,7 +41,7 @@
     status          := status()
 }.
 
--type level_id() :: ff_identity:level_id().
+-type level_id() :: ff_identity_class:level_id().
 
 -type challenge_class() :: #{
     id           := challenge_class_id(),

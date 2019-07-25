@@ -21,11 +21,12 @@
 -type provider_id()     :: ff_provider:id().
 -type contract_id()     :: ff_party:contract_id().
 -type class_id()        :: ff_identity_class:id().
--type level_id()        :: binary().
 -type challenge_class() :: ff_identity_challenge:challenge_class().
 -type challenge_class_id() :: ff_identity_class:challenge_class_id().
 -type challenge_id()    :: id().
 -type blocked()         :: boolean().
+-type level()           :: ff_identity_class:level().
+-type level_id()        :: ff_identity_class:level().
 
 -type identity() :: #{
     id           := id(),
@@ -61,38 +62,13 @@
     {level, level()} |
     ff_identity_challenge:create_error().
 
--type contractor_level() ::
-    dmsl_domain_thrift:'ContractorIdentificationLevel'().
-
--type level() :: #{
-    id               := level_id(),
-    name             := binary(),
-    contractor_level := contractor_level()
-}.
-
--type contract_template_ref() ::
-    dmsl_domain_thrift:'ContractTemplateRef'().
-
--type class() :: #{
-    id                    := id(),
-    name                  := binary(),
-    contract_template_ref := contract_template_ref(),
-    initial_level         := level_id(),
-    levels                := #{level_id() => level()},
-    challenge_classes     := #{challenge_class_id() => challenge_class()}
-}.
-
 -export_type([identity/0]).
 -export_type([event/0]).
 -export_type([id/0]).
 -export_type([create_error/0]).
 -export_type([start_challenge_error/0]).
 -export_type([challenge_class_id/0]).
--export_type([class/0]).
 -export_type([class_id/0]).
--export_type([contract_template_ref/0]).
--export_type([contractor_level/0]).
--export_type([level/0]).
 -export_type([level_id/0]).
 
 -export([id/1]).

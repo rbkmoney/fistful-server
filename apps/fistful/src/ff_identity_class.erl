@@ -11,6 +11,28 @@
 %%
 
 -type challenge_class_id() :: binary().
+-type contractor_level() ::
+    dmsl_domain_thrift:'ContractorIdentificationLevel'().
+
+-type level() :: #{
+    id               := level_id(),
+    name             := binary(),
+    contractor_level := contractor_level()
+}.
+
+-type contract_template_ref() ::
+    dmsl_domain_thrift:'ContractTemplateRef'().
+
+-type level_id()        :: binary().
+
+-type class() :: #{
+    id                    := id(),
+    name                  := binary(),
+    contract_template_ref := contract_template_ref(),
+    initial_level         := level_id(),
+    levels                := #{level_id() => level()},
+    challenge_classes     := #{challenge_class_id() => ff_identity_challenge:challenge_class()}
+}.
 
 -export([id/1]).
 -export([name/1]).
@@ -28,41 +50,44 @@
 
 -export_type([id/0]).
 -export_type([challenge_class_id/0]).
+-export_type([level_id/0]).
+-export_type([level/0]).
+-export_type([class/0]).
 
 %% Class
 
--spec id(ff_identity:class()) ->
+-spec id(class()) ->
     id().
 
 id(#{id := V}) ->
     V.
 
--spec name(ff_identity:class()) ->
+-spec name(class()) ->
     binary().
 
 name(#{name := V}) ->
     V.
 
--spec contract_template(ff_identity:class()) ->
-    ff_identity:contract_template_ref().
+-spec contract_template(class()) ->
+    contract_template_ref().
 
 contract_template(#{contract_template_ref := V}) ->
     V.
 
--spec initial_level(ff_identity:class()) ->
-    ff_identity:level_id().
+-spec initial_level(class()) ->
+    level_id().
 
 initial_level(#{initial_level := V}) ->
     V.
 
--spec level(ff_identity:level_id(), ff_identity:class()) ->
-    {ok, ff_identity:level()} |
+-spec level(level_id(), class()) ->
+    {ok, level()} |
     {error, notfound}.
 
 level(ID, #{levels := Levels}) ->
     ff_map:find(ID, Levels).
 
--spec challenge_class(challenge_class_id(), ff_identity:class()) ->
+-spec challenge_class(challenge_class_id(), class()) ->
     {ok, ff_identity_challenge:challenge_class()} |
     {error, notfound}.
 
@@ -71,14 +96,14 @@ challenge_class(ID, #{challenge_classes := ChallengeClasses}) ->
 
 %% Level
 
--spec level_name(ff_identity:level()) ->
+-spec level_name(level()) ->
     binary().
 
 level_name(#{name := V}) ->
     V.
 
--spec contractor_level(ff_identity:level()) ->
-    ff_identity:contractor_level().
+-spec contractor_level(level()) ->
+    contractor_level().
 
 contractor_level(#{contractor_level := V}) ->
     V.
@@ -92,13 +117,13 @@ challenge_class_name(#{name := V}) ->
     V.
 
 -spec base_level(ff_identity_challenge:challenge_class()) ->
-    ff_identity:level_id().
+    level_id().
 
 base_level(#{base_level := V}) ->
     V.
 
 -spec target_level(ff_identity_challenge:challenge_class()) ->
-    ff_identity_challenge:level_id().
+    level_id().
 
 target_level(#{target_level := V}) ->
     V.

@@ -130,9 +130,7 @@ external_id(T)     -> ff_transfer:external_id(T).
 -type ctx()    :: ff_ctx:ctx().
 
 -type quote_validation_data() :: #{
-    version        := 1,
-    provider_id    := provider_id(),
-    quote_data     := ff_adapter_withdrawal:quote_data()
+    binary() => any()
 }.
 
 -type params() :: #{
@@ -310,7 +308,7 @@ prepare_route(Wallet, Destination, Body) ->
 
 validate_quote_provider(_ProviderID, undefined) ->
     ok;
-validate_quote_provider(ProviderID, #{quote_data := #{provider_id := ProviderID}}) ->
+validate_quote_provider(ProviderID, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
     ok;
 validate_quote_provider(_ProviderID, _) ->
     throw({quote, inconsistent_data}).
@@ -646,13 +644,13 @@ get_quote_(Params = #{
 
 wrap_quote(ProviderID, Quote = #{quote_data := QuoteData}) ->
     Quote#{quote_data := #{
-        version => 1,
-        quote_data => QuoteData,
-        provider_id => ProviderID
+        <<"version">> => 1,
+        <<"quote_data">> => QuoteData,
+        <<"provider_id">> => ProviderID
     }}.
 
 unwrap_quote(undefined) ->
     undefined;
 unwrap_quote(Quote = #{quote_data := QuoteData}) ->
-    WrappedData = maps:get(quote_data, QuoteData),
+    WrappedData = maps:get(<<"quote_data">>, QuoteData),
     Quote#{quote_data := WrappedData}.

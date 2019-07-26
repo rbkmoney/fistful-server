@@ -26,7 +26,7 @@
 -type challenge_id()    :: id().
 -type blocked()         :: boolean().
 -type level()           :: ff_identity_class:level().
--type level_id()        :: ff_identity_class:level().
+-type level_id()        :: ff_identity_class:level_id().
 
 -type identity() :: #{
     id           := id(),

@@ -11,6 +11,7 @@
 %%
 
 -type challenge_class_id() :: binary().
+-type challenge_class()  :: ff_identity_challenge:challenge_class().
 -type contractor_level() ::
     dmsl_domain_thrift:'ContractorIdentificationLevel'().
 
@@ -31,7 +32,7 @@
     contract_template_ref := contract_template_ref(),
     initial_level         := level_id(),
     levels                := #{level_id() => level()},
-    challenge_classes     := #{challenge_class_id() => ff_identity_challenge:challenge_class()}
+    challenge_classes     := #{challenge_class_id() => challenge_class()}
 }.
 
 -export([id/1]).
@@ -88,7 +89,7 @@ level(ID, #{levels := Levels}) ->
     ff_map:find(ID, Levels).
 
 -spec challenge_class(challenge_class_id(), class()) ->
-    {ok, ff_identity_challenge:challenge_class()} |
+    {ok, challenge_class()} |
     {error, notfound}.
 
 challenge_class(ID, #{challenge_classes := ChallengeClasses}) ->
@@ -110,19 +111,19 @@ contractor_level(#{contractor_level := V}) ->
 
 %% Challenge
 
--spec challenge_class_name(ff_identity_challenge:challenge_class()) ->
+-spec challenge_class_name(challenge_class()) ->
     binary().
 
 challenge_class_name(#{name := V}) ->
     V.
 
--spec base_level(ff_identity_challenge:challenge_class()) ->
+-spec base_level(challenge_class()) ->
     level_id().
 
 base_level(#{base_level := V}) ->
     V.
 
--spec target_level(ff_identity_challenge:challenge_class()) ->
+-spec target_level(challenge_class()) ->
     level_id().
 
 target_level(#{target_level := V}) ->

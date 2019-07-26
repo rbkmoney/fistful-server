@@ -15,7 +15,6 @@
 -type account()  :: ff_account:account().
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
-% -type status()   :: ff_identity_challenge:status().
 -type status()   :: ff_instrument:status().
 -type resource() ::
     {bank_card, resource_bank_card()} |

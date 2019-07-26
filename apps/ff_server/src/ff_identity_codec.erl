@@ -62,7 +62,7 @@ marshal_identity_event({ID, {ev, Timestamp, Ev}}) ->
         change     = marshal(event, Ev)
     }.
 
--spec marshal_challenge(ff_identity_challenge:proto_challenge()) -> ff_proto_identity_thrift:'Challenge'().
+-spec marshal_challenge(ff_identity_challenge:challenge()) -> ff_proto_identity_thrift:'Challenge'().
 
 marshal_challenge(Challenge) ->
     Proofs = ff_identity_challenge:proofs(Challenge),
@@ -74,6 +74,7 @@ marshal_challenge(Challenge) ->
         status = marshal(challenge_payload_status_changed, Status)
     }.
 
+-dialyzer([{nowarn_function, [unmarshal_challenge/1]}, no_match]).
 -spec unmarshal_challenge(ff_proto_identity_thrift:'Challenge'()) -> ff_identity_challenge:challenge().
 
 unmarshal_challenge(#idnt_Challenge{

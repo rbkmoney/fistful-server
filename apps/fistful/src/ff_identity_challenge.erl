@@ -23,21 +23,13 @@
 
 -type challenge() :: #{
     id              := id(_),
-    claimant        => claimant(),
-    provider        => provider(),
-    identity_class  => identity_class(),
+    claimant        := claimant(),
+    provider        := provider(),
+    identity_class  := identity_class(),
     challenge_class := challenge_class_id(),
     proofs          := [proof()],
-    master_id       => master_id(),
-    claim_id        => claim_id(),
-    status          := status()
-}.
-
-% Challenge fileds that are present in protocol definition
--type proto_challenge() :: #{
-    id              := id(_),
-    challenge_class := challenge_class_id(),
-    proofs          := [proof()],
+    master_id       := master_id(),
+    claim_id        := claim_id(),
     status          := status()
 }.
 
@@ -95,7 +87,6 @@
 -export_type([status/0]).
 -export_type([challenge_class/0]).
 -export_type([level_id/0]).
--export_type([proto_challenge/0]).
 
 -export([id/1]).
 -export([claimant/1]).

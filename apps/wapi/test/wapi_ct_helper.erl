@@ -32,7 +32,6 @@
 init_suite(Module, Config) ->
     SupPid = start_mocked_service_sup(Module),
     Apps1 =
-        start_app(lager) ++
         start_app(scoper) ++
         start_app(woody),
     ServiceURLs = mock_services_([
@@ -50,22 +49,8 @@ init_suite(Module, Config) ->
 -spec start_app(app_name()) ->
     [app_name()].
 
-start_app(lager = AppName) ->
-    start_app(AppName, [
-        {async_threshold, 1},
-        {async_threshold_window, 0},
-        {error_logger_hwm, 600},
-        {suppress_application_start_stop, false},
-        {suppress_supervisor_start_stop,  false},
-        {handlers, [
-            {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
-        ]}
-    ]);
-
 start_app(scoper = AppName) ->
-    start_app(AppName, [
-        {storage, scoper_storage_lager}
-    ]);
+    start_app(AppName, []);
 
 start_app(woody = AppName) ->
     start_app(AppName, [

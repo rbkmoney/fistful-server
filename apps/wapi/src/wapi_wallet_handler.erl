@@ -18,7 +18,7 @@
 -type operation_id()    :: swag_server_wallet:operation_id().
 -type api_key()         :: swag_server_wallet:api_key().
 -type request_context() :: swag_server_wallet:request_context().
--type handler_opts()    :: swag_server_wallet:handler_opts().
+-type handler_opts()    :: swag_server_wallet:handler_opts(_).
 
 %% API
 

@@ -21,6 +21,7 @@
 -export_type([id/0]).
 -export_type([body/0]).
 -export_type([account/0]).
+-export_type([posting/0]).
 
 %% TODO
 %%  - Module name is misleading then

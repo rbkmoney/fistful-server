@@ -10,7 +10,6 @@
         stdlib,
         woody,
         erl_health,
-        lager,
         scoper,
         fistful,
         ff_transfer,

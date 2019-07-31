@@ -63,6 +63,8 @@
 -define(PARAMS_HASH, <<"params_hash">>).
 -define(EXTERNAL_ID, <<"externalID">>).
 
+-dialyzer([{nowarn_function, [to_swag/2]}]).
+
 %% API
 
 %% Providers

@@ -6,8 +6,6 @@
 
 -module(machinery_gensrv_backend).
 
--compile([{parse_transform, lager_transform}]).
-
 -type namespace()       :: machinery:namespace().
 -type id()              :: machinery:id().
 -type range()           :: machinery:range().
@@ -76,10 +74,10 @@ child_spec(Handler0, Opts) ->
 -spec start(namespace(), id(), args(_), backend_opts()) ->
     ok | {error, exists}.
 start(NS, ID, Args, Opts) ->
-    _ = lager:debug("[machinery/gensrv][client][~s:~s] starting with args: ~p", [NS, ID, Args]),
+    _ = logger:debug("[machinery/gensrv][client][~s:~s] starting with args: ~p", [NS, ID, Args]),
     case supervisor:start_child(get_sup_ref(Opts), [NS, ID, Args]) of
         {ok, PID} ->
-            _ = lager:debug("[machinery/gensrv][client][~s:~s] started as: ~p", [NS, ID, PID]),
+            _ = logger:debug("[machinery/gensrv][client][~s:~s] started as: ~p", [NS, ID, PID]),
             ok;
         {error, {already_started, _}} ->
             report_exists(NS, ID);
@@ -90,10 +88,10 @@ start(NS, ID, Args, Opts) ->
 -spec call(namespace(), id(), range(), args(_), backend_opts()) ->
     {ok, response(_)} | {error, notfound}.
 call(NS, ID, Range, Args, _Opts) ->
-    _ = lager:debug("[machinery/gensrv][client][~s:~s] calling with range ~p and args: ~p", [NS, ID, Range, Args]),
+    _ = logger:debug("[machinery/gensrv][client][~s:~s] calling with range ~p and args: ~p", [NS, ID, Range, Args]),
     try gen_server:call(get_machine_ref(NS, ID), {call, Range, Args}) of
         Response ->
-            _ = lager:debug("[machinery/gensrv][client][~s:~s] response: ~p", [NS, ID, Response]),
+            _ = logger:debug("[machinery/gensrv][client][~s:~s] response: ~p", [NS, ID, Response]),
             {ok, Response}
     catch
         exit:noproc ->
@@ -111,10 +109,10 @@ repair(_NS, _ID, _Range, _Args, _Opts) ->
 -spec get(namespace(), id(), range(), backend_opts()) ->
     {ok, machine(_, _)} | {error, notfound}.
 get(NS, ID, Range, _Opts) ->
-    _ = lager:debug("[machinery/gensrv][client][~s:~s] getting with range: ~p", [NS, ID, Range]),
+    _ = logger:debug("[machinery/gensrv][client][~s:~s] getting with range: ~p", [NS, ID, Range]),
     try gen_server:call(get_machine_ref(NS, ID), {get, Range}) of
         Machine ->
-            _ = lager:debug("[machinery/gensrv][client][~s:~s] machine: ~p", [NS, ID, Machine]),
+            _ = logger:debug("[machinery/gensrv][client][~s:~s] machine: ~p", [NS, ID, Machine]),
             {ok, Machine}
     catch
         exit:noproc ->
@@ -124,11 +122,11 @@ get(NS, ID, Range, _Opts) ->
     end.
 
 report_exists(NS, ID) ->
-    _ = _ = lager:debug("[machinery/gensrv][client][~s:~s] exists already", [NS, ID]),
+    _ = _ = logger:debug("[machinery/gensrv][client][~s:~s] exists already", [NS, ID]),
     {error, exists}.
 
 report_notfound(NS, ID) ->
-    _ = _ = lager:debug("[machinery/gensrv][client][~s:~s] not found", [NS, ID]),
+    _ = _ = logger:debug("[machinery/gensrv][client][~s:~s] not found", [NS, ID]),
     {error, notfound}.
 
 %% Gen Server + Supervisor
@@ -153,14 +151,14 @@ start_machine_link(Handler, NS, ID, Args) ->
 
 init({machine, Handler, NS, ID, Args}) -> % Gen Server
     St0 = #{machine => construct_machine(NS, ID), handler => Handler},
-    _ = lager:debug("[machinery/gensrv][server][~s:~s] dispatching init: ~p with state: ~p", [NS, ID, Args, St0]),
+    _ = logger:debug("[machinery/gensrv][server][~s:~s] dispatching init: ~p with state: ~p", [NS, ID, Args, St0]),
     Result = dispatch_signal({init, Args}, St0),
     case apply_result(Result, St0) of
         St1 = #{} ->
-            _ = lager:debug("[machinery/gensrv][server][~s:~s] started with: ~p", [NS, ID, St1]),
+            _ = logger:debug("[machinery/gensrv][server][~s:~s] started with: ~p", [NS, ID, St1]),
             {ok, St1, compute_timeout(St1)};
         removed ->
-            _ = lager:debug("[machinery/gensrv][server][~s:~s] removed", [NS, ID]),
+            _ = logger:debug("[machinery/gensrv][server][~s:~s] removed", [NS, ID]),
             ignore
     end.
 
@@ -178,14 +176,14 @@ construct_machine(NS, ID) ->
 
 handle_call({call, Range, Args}, _From, St0 = #{machine := #{namespace := NS, id := ID}}) ->
     St1 = apply_range(Range, St0),
-    _ = lager:debug("[machinery/gensrv][server][~s:~s] dispatching call: ~p with state: ~p", [NS, ID, Args, St1]),
+    _ = logger:debug("[machinery/gensrv][server][~s:~s] dispatching call: ~p with state: ~p", [NS, ID, Args, St1]),
     {Response, Result} = dispatch_call(Args, St0),
     case apply_result(Result, St0) of
         St2 = #{} ->
-            _ = lager:debug("[machinery/gensrv][server][~s:~s] responded: ~p, new state: ~p", [NS, ID, Response, St2]),
+            _ = logger:debug("[machinery/gensrv][server][~s:~s] responded: ~p, new state: ~p", [NS, ID, Response, St2]),
             {reply, Response, St2, compute_timeout(St2)};
         removed ->
-            _ = lager:debug("[machinery/gensrv][server][~s:~s] responded: ~p, removed", [NS, ID, Response]),
+            _ = logger:debug("[machinery/gensrv][server][~s:~s] responded: ~p, removed", [NS, ID, Response]),
             {stop, normal, Response, St0}
     end;
 handle_call({get, Range}, _From, St = #{machine := M}) ->
@@ -204,14 +202,14 @@ handle_cast(Cast, _St) ->
     {stop, normal, st(E, Aux, Args)}.
 
 handle_info(timeout, St0 = #{machine := #{namespace := NS, id := ID}}) ->
-    _ = lager:debug("[machinery/gensrv][server][~s:~s] dispatching timeout with state: ~p", [NS, ID, St0]),
+    _ = logger:debug("[machinery/gensrv][server][~s:~s] dispatching timeout with state: ~p", [NS, ID, St0]),
     Result = dispatch_signal(timeout, St0),
     case apply_result(Result, St0) of
         St1 = #{} ->
-            _ = lager:debug("[machinery/gensrv][server][~s:~s] new state: ~p", [NS, ID, St1]),
+            _ = logger:debug("[machinery/gensrv][server][~s:~s] new state: ~p", [NS, ID, St1]),
             {noreply, St1, compute_timeout(St1)};
         removed ->
-            _ = lager:debug("[machinery/gensrv][server][~s:~s] removed", [NS, ID]),
+            _ = logger:debug("[machinery/gensrv][server][~s:~s] removed", [NS, ID]),
             {stop, normal, St0}
     end;
 handle_info(Info, _St) ->

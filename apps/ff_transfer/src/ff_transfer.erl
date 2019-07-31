@@ -31,7 +31,7 @@
 -type event(Params, Route) ::
     {created, transfer(Params)}             |
     {route_changed, route(Route)}           |
-    {p_transfer, ff_postings_transfer:ev()} |
+    {p_transfer, ff_postings_transfer:event()} |
     {session_started, session_id()}         |
     {session_finished, session_id()}        |
     {status_changed, status()}              .
@@ -56,6 +56,12 @@
 -export_type([event/2]).
 -export_type([status/0]).
 -export_type([route/1]).
+-export_type([body/0]).
+-export_type([id/0]).
+-export_type([legacy_event/0]).
+-export_type([params/0]).
+-export_type([transfer/0]).
+-export_type([transfer_type/0]).
 
 -export([gen/1]).
 -export([id/1]).

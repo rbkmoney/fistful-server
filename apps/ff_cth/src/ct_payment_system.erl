@@ -76,7 +76,6 @@ start_processing_apps(Options) ->
     }},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
         {sasl, [{sasl_error_logger, false}]},
-        lager,
         scoper,
         woody,
         dmt_client,

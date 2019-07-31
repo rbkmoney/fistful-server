@@ -75,7 +75,8 @@ create(ID, Data, Params) ->
     end).
 
 -spec get(id()) ->
-    ff_map:result(session()).
+    {ok, st()}        |
+    {error, notfound} .
 get(ID) ->
     ff_machine:get(ff_withdrawal_session, ?NS, ID).
 

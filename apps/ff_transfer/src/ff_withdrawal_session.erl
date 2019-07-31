@@ -49,7 +49,7 @@
     cash       := ff_transaction:body(),
     sender     := ff_identity:identity(),
     receiver   := ff_identity:identity(),
-    quote_data => ff_adapter_withdrawal:quote_validation_data()
+    quote_data => ff_adapter_withdrawal:quote_data()
 }.
 
 -type params() :: #{

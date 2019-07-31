@@ -14,7 +14,7 @@
 -type account()  :: ff_account:account().
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
--type status()   :: ff_identity:status().
+-type status()   :: ff_instrument:status().
 -type resource() :: #{
     type    := internal,
     details => binary()

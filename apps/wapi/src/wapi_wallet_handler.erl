@@ -462,6 +462,48 @@ process_request('ListDeposits', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:list_deposits(Params, Context) of
         {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
         {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
+    end;
+
+%% Webhooks
+process_request('CreateWebhook', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:create_webhook(Params, Context) of
+        {ok, Webhook} -> wapi_handler_utils:reply_ok(200, Webhook);
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {wallet, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
+        {error, {wallet, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>))
+    end;
+process_request('GetWebhooks', #{<<"identityID">> := IdentityID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_webhooks(IdentityID, Context) of
+        {ok, Webhooks} -> wapi_handler_utils:reply_ok(200, Webhooks);
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
+    end;
+process_request('GetWebhookByID', #{<<"identityID">> := IdentityID, <<"webhookID">> := WebhookID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_webhook(WebhookID, IdentityID, Context) of
+        {ok, Webhook} -> wapi_handler_utils:reply_ok(200, Webhook);
+        {error, notfound} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
+    end;
+process_request('DeleteWebhookByID', #{<<"identityID">> := IdentityID, <<"webhookID">> := WebhookID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:delete_webhook(WebhookID, IdentityID, Context) of
+        ok -> wapi_handler_utils:reply_ok(204, #{});
+        {error, notfound} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
     end.
 
 %% Internal functions

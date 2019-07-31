@@ -3,6 +3,7 @@
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
@@ -48,6 +49,10 @@
 -export([download_file/3]).
 
 -export([list_deposits/2]).
+-export([create_webhook/2]).
+-export([get_webhooks/2]).
+-export([get_webhook/3]).
+-export([delete_webhook/3]).
 
 %% Types
 
@@ -522,6 +527,83 @@ list_deposits(Params, Context) ->
     Req = create_stat_request(Dsl, ContinuationToken),
     Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', [Req]}, Context),
     process_stat_result(StatType, Result).
+
+%% Webhooks
+
+-spec create_webhook(params(), ctx()) -> result(map(),
+    {identity, notfound} |
+    {identity, unauthorized} |
+    {wallet, notfound} |
+    {wallet, unauthorized}
+).
+create_webhook(Params, Context) ->
+    do(fun () ->
+        #{
+            identity_id := IdentityID,
+            wallet_id := WalletID,
+            scope := EventFilter,
+            url := URL
+        } = from_swag(webhook_params, maps:get('Webhook', Params)),
+        _ = check_resource(identity, IdentityID, Context),
+        _ = check_resource(wallet, WalletID, Context),
+        WebhookParams = #webhooker_WebhookParams{
+            identity_id = IdentityID,
+            wallet_id = WalletID,
+            event_filter = EventFilter,
+            url = URL
+        },
+        Call = {webhook_manager, 'Create', [WebhookParams]},
+        {ok, NewWebhook} = wapi_handler_utils:service_call(Call, Context),
+        to_swag(webhook, NewWebhook)
+    end).
+
+-spec get_webhooks(id(), ctx()) -> result(list(map()),
+    {identity, notfound} |
+    {identity, unauthorized}
+).
+get_webhooks(IdentityID, Context) ->
+    do(fun () ->
+        _ = check_resource(identity, IdentityID, Context),
+        Call = {webhook_manager, 'GetList', [IdentityID]},
+        {ok, Webhooks} = wapi_handler_utils:service_call(Call, Context),
+        to_swag({list, webhook}, Webhooks)
+    end).
+
+-spec get_webhook(id(), id(), ctx()) -> result(map(),
+    notfound |
+    {identity, notfound} |
+    {identity, unauthorized}
+).
+get_webhook(WebhookID, IdentityID, Context) ->
+    do(fun () ->
+        _ = check_resource(identity, IdentityID, Context),
+        Call = {webhook_manager, 'Get', [WebhookID]},
+        case wapi_handler_utils:service_call(Call, Context) of
+            {ok, Webhook} ->
+                to_swag(webhook, Webhook);
+            {exception, #webhooker_WebhookNotFound{}} ->
+                throw(notfound)
+        end
+    end).
+
+-spec delete_webhook(id(), id(), ctx()) ->
+    ok |
+    {error,
+        notfound |
+        {identity, notfound} |
+        {identity, unauthorized}
+    }.
+delete_webhook(WebhookID, IdentityID, Context) ->
+    do(fun () ->
+        _ = check_resource(identity, IdentityID, Context),
+        Call = {webhook_manager, 'Delete', [WebhookID]},
+        case wapi_handler_utils:service_call(Call, Context) of
+            {ok, _} ->
+                ok;
+            {exception, #webhooker_WebhookNotFound{}} ->
+                throw(notfound)
+        end
+    end).
 
 %% Internal functions
 
@@ -1058,6 +1140,45 @@ from_swag(residence, V) ->
             %  - Essentially this is incorrect, we should reply with 400 instead
             undefined
     end;
+from_swag(webhook_params, #{
+    <<"identityID">> := IdentityID,
+    <<"walletID">> := WalletID,
+    <<"scope">> := Scope,
+    <<"url">> := URL
+}) ->
+    #{
+        identity_id => IdentityID,
+        wallet_id => WalletID,
+        scope => from_swag(webhook_scope, Scope),
+        url => URL
+    };
+from_swag(webhook_scope, #{
+    <<"topic">> := <<"WithdrawalsTopic">>,
+    <<"eventTypes">> := EventList
+}) ->
+    #webhooker_EventFilter {
+        types = from_swag({list, webhook_withdrawal_event_types}, EventList)
+    };
+from_swag(webhook_scope, #{
+    <<"topic">> := <<"DestinationsTopic">>,
+    <<"eventTypes">> := EventList
+}) ->
+    #webhooker_EventFilter {
+        types = from_swag({list, webhook_destination_event_types}, EventList)
+    };
+from_swag(webhook_withdrawal_event_types, <<"WithdrawalStarted">>) ->
+    {withdrawal, {started, #webhooker_WithdrawalStarted{}}};
+from_swag(webhook_withdrawal_event_types, <<"WithdrawalSucceeded">>) ->
+    {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}};
+from_swag(webhook_withdrawal_event_types, <<"WithdrawalFailed">>) ->
+    {withdrawal, {failed, #webhooker_WithdrawalFailed{}}};
+
+from_swag(webhook_destination_event_types, <<"DestinationCreated">>) ->
+    {destination, {created, #webhooker_DestinationCreated{}}};
+from_swag(webhook_destination_event_types, <<"DestinationUnauthorized">>) ->
+    {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}};
+from_swag(webhook_destination_event_types, <<"DestinationAuthorized">>) ->
+    {destination, {authorized, #webhooker_DestinationAuthorized{}}};
 
 from_swag({list, Type}, List) ->
     lists:map(fun(V) -> from_swag(Type, V) end, List).
@@ -1335,6 +1456,47 @@ to_swag(quote, {#{
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"quoteToken">>    => Token
     };
+
+to_swag(webhook, #webhooker_Webhook{
+    id = ID,
+    identity_id = IdentityID,
+    wallet_id = WalletID,
+    event_filter = EventFilter,
+    url = URL,
+    pub_key = PubKey,
+    enabled = Enabled
+}) ->
+    to_swag(map, #{
+        <<"id">> => ID,
+        <<"identityID">> => IdentityID,
+        <<"walletID">> => WalletID,
+        <<"active">> => to_swag(boolean, Enabled),
+        <<"scope">> => to_swag(webhook_scope, EventFilter),
+        <<"url">> => URL,
+        <<"publicKey">> => PubKey
+    });
+
+to_swag(webhook_scope, #webhooker_EventFilter{types = EventTypes}) ->
+    to_swag({list, webhook_event_types}, EventTypes);
+
+to_swag(webhook_event_types, {withdrawal, EventType}) ->
+    to_swag(webhook_withdrawal_event_types, EventType);
+to_swag(webhook_event_types, {destination, EventType}) ->
+    to_swag(webhook_destination_event_types, EventType);
+
+to_swag(webhook_withdrawal_event_types, {started, _}) ->
+    <<"WithdrawalStarted">>;
+to_swag(webhook_withdrawal_event_types, {succeeded, _}) ->
+    <<"WithdrawalSucceeded">>;
+to_swag(webhook_withdrawal_event_types, {failed, _}) ->
+    <<"WithdrawalFailed">>;
+
+to_swag(webhook_destination_event_types, {created, _}) ->
+    <<"DestinationCreated">>;
+to_swag(webhook_destination_event_types, {unauthorized, _}) ->
+    <<"DestinationUnauthorized">>;
+to_swag(webhook_destination_event_types, {authorized, _}) ->
+    <<"DestinationAuthorized">>;
 
 to_swag({list, Type}, List) ->
     lists:map(fun(V) -> to_swag(Type, V) end, List);

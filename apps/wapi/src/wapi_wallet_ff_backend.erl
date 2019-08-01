@@ -387,7 +387,8 @@ list_withdrawals(Params, Context) ->
     {destination, notfound}       |
     {destination, unauthorized}   |
     {route, _Reason}              |
-    {wallet, notfound}
+    {wallet, notfound}            |
+    {adapter, list(binary())}
 ).
 create_quote(#{'WithdrawalQuoteParams' := Params}, Context) ->
     do(fun () ->

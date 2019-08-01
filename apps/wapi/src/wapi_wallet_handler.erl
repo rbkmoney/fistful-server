@@ -364,6 +364,15 @@ process_request('CreateQuote', Params, Context, _Opts) ->
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Wallet not found">>)
+            );
+        {error, {adapter, Reasons}} ->
+            Reason = lists:foldl(
+                fun(V, Acc) -> <<Acc/binary, ", ", V/binary>> end,
+                <<"">>,
+                Reasons
+            ),
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Provider error ", Reason/binary>>)
             )
     end;
 
@@ -385,7 +394,7 @@ process_request('GetCurrency', #{'currencyID' := CurrencyId}, Context, _Opts) ->
 process_request('CreateReport', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_report(Params, Context) of
         {ok, Report}              -> wapi_handler_utils:reply_ok(201, Report);
-        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(400, #{
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(422, #{
                 <<"errorType">>   => <<"NotFound">>,
                 <<"name">>        => <<"identity">>,
                 <<"description">> => <<"identity not found">>

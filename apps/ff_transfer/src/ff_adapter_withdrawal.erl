@@ -131,12 +131,16 @@ process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
     decode_result(Result).
 
 -spec get_quote(adapter(), quote_params(), map()) ->
-    {ok, quote()}.
+    {ok, quote()} | no_return().
 
 get_quote(Adapter, Params, AOpt) ->
     QuoteParams = encode_quote_params(Params),
-    {ok, Result} = call(Adapter, 'GetQuote', [QuoteParams, AOpt]),
-    decode_result(Result).
+    case call(Adapter, 'GetQuote', [QuoteParams, AOpt]) of
+        {ok, Result} ->
+            decode_result(Result);
+        {exception, #wthadpt_GetQuoteFailure{failure = Failure}} ->
+            throw({adapter, [<<"get_quote">> | decode_failure(Failure)]})
+    end.
 
 %%
 %% Internals
@@ -377,3 +381,8 @@ decode_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
 decode_msgpack({arr, V}) when is_list(V)    -> [decode_msgpack(ListItem) || ListItem <- V];
 decode_msgpack({obj, V}) when is_map(V)     ->
     maps:fold(fun(Key, Value, Map) -> Map#{decode_msgpack(Key) => decode_msgpack(Value)} end, #{}, V).
+
+decode_failure(#wthadpt_GeneralFailure{}) ->
+    [];
+decode_failure({Type, SubFailure}) ->
+    [atom_to_binary(Type, utf8) | decode_failure(SubFailure)].

@@ -609,7 +609,8 @@ construct_payment_tool({crypto_wallet, CryptoWallet}) ->
         {destination, notfound}       |
         {destination, unauthorized}   |
         {route, _Reason}              |
-        {wallet, notfound}
+        {wallet, notfound}            |
+        {adapter, list(binary())}
     }.
 get_quote(Params = #{destination_id := DestinationID}) ->
     do(fun() ->

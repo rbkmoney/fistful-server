@@ -6,7 +6,6 @@
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
--include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
 
 %% API
 -export([get_providers/2]).
@@ -1498,6 +1497,10 @@ to_swag(webhook_destination_event_types, {unauthorized, _}) ->
 to_swag(webhook_destination_event_types, {authorized, _}) ->
     <<"DestinationAuthorized">>;
 
+to_swag(boolean, true) ->
+    true;
+to_swag(boolean, false) ->
+    false;
 to_swag({list, Type}, List) ->
     lists:map(fun(V) -> to_swag(Type, V) end, List);
 to_swag(map, Map) ->

@@ -54,30 +54,31 @@
 
 -define(REPORT, ?REPORT_WITH_STATUS(created)).
 
--define(WITHDRAWAL_EVENT_FILTER, #webhooker_EventFilter{
-    types = [
-        {withdrawal, {started, #webhooker_WithdrawalStarted{}}},
-        {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}},
-        {withdrawal, {failed, #webhooker_WithdrawalFailed{}}}
-    ]
+-define(WITHDRAWAL_EVENT_FILTER,
+    #webhooker_EventFilter{
+        types = ordsets:from_list([
+            {withdrawal, {started, #webhooker_WithdrawalStarted{}}},
+            {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}},
+            {withdrawal, {failed, #webhooker_WithdrawalFailed{}}}
+        ])
 }).
 
 -define(DESTINATION_EVENT_FILTER, #webhooker_EventFilter{
-    types = [
+    types = ordsets:from_list([
         {destination, {created, #webhooker_DestinationCreated{}}},
         {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}},
         {destination, {authorized, #webhooker_DestinationAuthorized{}}}
-    ]
+    ])
 }).
 
 -define(WEBHOOK(EventFilter), #webhooker_Webhook{
-    id = ?STRING,
+    id = ?INTEGER,
     identity_id = ?STRING,
     wallet_id = ?STRING,
     event_filter = EventFilter,
     url = ?STRING,
     pub_key = ?STRING,
-    enabled = true
+    enabled = false
 }).
 
 -define(SNAPSHOT, #'Snapshot'{

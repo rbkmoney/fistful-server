@@ -317,7 +317,7 @@ get_webhook_ok_test(C) ->
         fun swag_client_wallet_webhooks_api:get_webhook_by_id/3,
         #{
             binding => #{
-                <<"webhookID">> => ?STRING
+                <<"webhookID">> => integer_to_binary(?INTEGER)
             },
             qs_val => #{
                 <<"identityID">> => IdentityID
@@ -332,13 +332,13 @@ delete_webhook_ok_test(C) ->
     {ok, Identity} = create_identity(C),
     IdentityID = maps:get(<<"id">>, Identity),
     wapi_ct_helper:mock_services([{webhook_manager, fun
-        ('Delete', _) -> ok
+        ('Delete', _) -> {ok, ok}
     end}], C),
     {ok, _} = call_api(
         fun swag_client_wallet_webhooks_api:delete_webhook_by_id/3,
         #{
             binding => #{
-                <<"webhookID">> => ?STRING
+                <<"webhookID">> => integer_to_binary(?INTEGER)
             },
             qs_val => #{
                 <<"identityID">> => IdentityID

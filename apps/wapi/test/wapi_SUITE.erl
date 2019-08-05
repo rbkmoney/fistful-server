@@ -17,6 +17,7 @@
 -export([get_quote_test/1]).
 -export([get_quote_without_destination_test/1]).
 -export([get_quote_without_destination_fail_test/1]).
+-export([get_quote_fail_test/1]).
 -export([quote_withdrawal/1]).
 
 -type config()         :: ct_helper:config().
@@ -44,6 +45,7 @@ groups() ->
             get_quote_test,
             get_quote_without_destination_test,
             get_quote_without_destination_fail_test,
+            get_quote_fail_test,
             quote_withdrawal
         ]},
         {woody, [], [
@@ -234,6 +236,32 @@ get_quote_without_destination_fail_test(C) ->
     },
 
     {error, {422, #{<<"message">> := <<"Provider not found">>}}} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => #{
+                <<"walletID">> => WalletID,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => CashFrom
+        }},
+        ct_helper:cfg(context, C)
+    ).
+
+-spec get_quote_fail_test(config()) -> test_return().
+
+get_quote_fail_test(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = ?ID_PROVIDER,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+
+    CashFrom = #{
+        <<"amount">> => 999,
+        <<"currency">> => <<"RUB">>
+    },
+
+    {error, {422, _}} = call_api(
         fun swag_client_wallet_withdrawals_api:create_quote/3,
         #{
             body => #{

@@ -394,7 +394,7 @@ process_request('GetCurrency', #{'currencyID' := CurrencyId}, Context, _Opts) ->
 process_request('CreateReport', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_report(Params, Context) of
         {ok, Report}              -> wapi_handler_utils:reply_ok(201, Report);
-        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(422, #{
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(400, #{
                 <<"errorType">>   => <<"NotFound">>,
                 <<"name">>        => <<"identity">>,
                 <<"description">> => <<"identity not found">>

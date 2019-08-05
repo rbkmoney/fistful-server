@@ -1,7 +1,7 @@
 -module(wapi_wallet_ff_backend).
 
--include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").

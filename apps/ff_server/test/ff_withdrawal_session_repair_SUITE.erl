@@ -2,7 +2,7 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).

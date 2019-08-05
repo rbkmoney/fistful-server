@@ -1,7 +1,7 @@
 -module(ff_ct_provider_handler).
 -behaviour(woody_server_thrift_handler).
 
--include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
+-include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
@@ -24,8 +24,15 @@ handle_function('ProcessWithdrawal', [Withdrawal, InternalState, Options], _Cont
 handle_function('GetQuote', [QuoteParams, Options], _Context, _Opts) ->
     Params = decode_quote_params(QuoteParams),
     DOptions = decode_options(Options),
-    {ok, Quote} = ff_ct_provider:get_quote(Params, DOptions),
-    {ok, encode_quote(Quote)}.
+    case ff_ct_provider:get_quote(Params, DOptions) of
+        {ok, Quote} ->
+            {ok, encode_quote(Quote)};
+        {exception, not_enough_money} ->
+            {exception, #wthadpt_GetQuoteFailure{failure = {
+                limit_exceeded,
+                {value_above_max_limit, #wthadpt_GetQuoteFailure{}}
+            }}}
+    end.
 
 %%
 %% Internals

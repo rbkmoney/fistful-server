@@ -1,7 +1,7 @@
 -module(ff_ct_provider).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
--include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 %% API
 -export([start/0]).
@@ -81,6 +81,12 @@ process_withdrawal(_Withdrawal, State, _Options) ->
 
 -spec get_quote(quote_params(), map()) ->
     {ok, quote()}.
+get_quote(#{
+    currency_from := _CurrencyFrom,
+    currency_to := _CurrencyTo,
+    exchange_cash := #wthadpt_Cash{amount = 999, currency = _Currency}
+}, _Options) ->
+    {exception, not_enough_money};
 get_quote(#{
     currency_from := CurrencyFrom,
     currency_to := CurrencyTo,

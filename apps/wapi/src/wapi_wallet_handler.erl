@@ -25,7 +25,7 @@
 -spec authorize_api_key(operation_id(), api_key(), handler_opts()) ->
     false | {true, wapi_auth:context()}.
 authorize_api_key(OperationID, ApiKey, Opts) ->
-    ok = scoper:add_meta(#{api => wallet, operation_id => OperationID}),
+    ok = scoper:add_scope('swag.server', #{api => wallet, operation_id => OperationID}),
     wapi_auth:authorize_api_key(OperationID, ApiKey, Opts).
 
 -spec handle_request(swag_server_wallet:operation_id(), req_data(), request_context(), handler_opts()) ->

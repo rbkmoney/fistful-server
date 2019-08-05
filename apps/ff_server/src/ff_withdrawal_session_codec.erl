@@ -40,10 +40,10 @@ marshal(session_status, {finished, Result}) ->
         finished,
         #wthd_session_SessionFinished{status = marshal(session_finished_status, Result)}
     };
-marshal(session_finished_status, success) ->
+marshal(session_finished_status, {success, _}) ->
     {success, #wthd_session_SessionFinishedSuccess{}};
-marshal(session_finished_status, failed) ->
-    {failed, #wthd_session_SessionFinishedFailed{}};
+marshal(session_finished_status, {failed, Failure}) ->
+    {failed, #wthd_session_SessionFinishedFailed{failure = marshal(failure, Failure)}};
 
 marshal(withdrawal, Params = #{
     id := WithdrawalID,

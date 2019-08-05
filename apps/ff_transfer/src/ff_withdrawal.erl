@@ -6,6 +6,7 @@
 
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_errors_thrift.hrl").
 
 -type withdrawal() :: ff_transfer:transfer(transfer_params()).
 -type transfer_params() :: #{
@@ -231,7 +232,22 @@ process_transfer(Withdrawal) ->
     {error, _Reason}.
 
 process_failure(Reason, Withdrawal) ->
-    ff_transfer:process_failure(Reason, Withdrawal).
+    ff_transfer:process_failure(map_error_reason(Reason), Withdrawal).
+
+map_error_reason(Reason) when
+    Reason =:= {quote, inconsistent_data} orelse
+    Reason =:= route_not_found
+->
+    #{code => <<"no_route_found">>};
+map_error_reason({terms_violation, {cash_range, _}}) ->
+    #{
+        code => <<"account_limit_exceeded">>,
+        sub => #{
+            code => <<"amount">>
+        }
+    };
+map_error_reason(Reason) ->
+    Reason.
 
 %% Internals
 

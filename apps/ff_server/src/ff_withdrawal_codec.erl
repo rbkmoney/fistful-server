@@ -138,15 +138,31 @@ marshal(withdrawal_status_changed, pending) ->
     {pending, #wthd_WithdrawalPending{}};
 marshal(withdrawal_status_changed, succeeded) ->
     {succeeded, #wthd_WithdrawalSucceeded{}};
-% TODO: Process failures propertly
-% marshal(withdrawal_status_changed, {failed, #{
-%         failure := Failure
-%     }}) ->
-%     {failed, #wthd_WithdrawalFailed{failure = marshal(failure, Failure)}};
-marshal(withdrawal_status_changed, {failed, _}) ->
-    {failed, #wthd_WithdrawalFailed{failure = marshal(failure, dummy)}};
-marshal(failure, _) ->
-    #wthd_Failure{};
+marshal(withdrawal_status_changed, {failed, Failure}) ->
+    {failed, #wthd_WithdrawalFailed{failure = marshal(failure, Failure)}};
+marshal(failure, Failure) ->
+    #wthd_Failure{failure = marshal(base_failure, Failure)};
+
+marshal(base_failure, Failure = #{
+    code := Code
+}) ->
+    Reason = maps:get(reason, Failure, undefined),
+    SubFailure = maps:get(sub, Failure, undefined),
+    #'Failure'{
+        code = marshal(string, Code),
+        reason = marshal(string, Reason),
+        sub = marshal(sub_failure, SubFailure)
+    };
+marshal(base_failure, _) ->
+    undefined;
+marshal(sub_failure, Failure = #{
+    code := Code
+}) ->
+    SubFailure = maps:get(sub, Failure, undefined),
+    #'SubFailure'{
+        code = marshal(string, Code),
+        sub = marshal(sub_failure, SubFailure)
+    };
 
 marshal(postings_transfer_change, {created, Transfer}) ->
     {created, marshal(transfer, Transfer)}; % not ff_transfer :) see thrift

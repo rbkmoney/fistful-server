@@ -28,10 +28,10 @@ handle_function('GetQuote', [QuoteParams, Options], _Context, _Opts) ->
         {ok, Quote} ->
             {ok, encode_quote(Quote)};
         {exception, not_enough_money} ->
-            {exception, #wthadpt_GetQuoteFailure{failure = {
+            throw(#wthadpt_GetQuoteFailure{failure = {
                 limit_exceeded,
-                {value_above_max_limit, #wthadpt_GetQuoteFailure{}}
-            }}}
+                {value_above_max_limit, #wthadpt_GeneralFailure{}}
+            }})
     end.
 
 %%

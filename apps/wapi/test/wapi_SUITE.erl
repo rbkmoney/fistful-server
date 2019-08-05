@@ -251,7 +251,7 @@ get_quote_without_destination_fail_test(C) ->
 
 get_quote_fail_test(C) ->
     Name          = <<"Keyn Fawkes">>,
-    Provider      = ?ID_PROVIDER,
+    Provider      = <<"quote-owner">>,
     Class         = ?ID_CLASS,
     IdentityID    = create_identity(Name, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),

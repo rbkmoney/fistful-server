@@ -9,16 +9,16 @@
 -spec policy_init(cowboy_req:req()) -> {ok, cowboy_req:req(), any()}.
 
 policy_init(Req) ->
-    {ok, Req, undefined_state}.
+    {ok, Req, undefined}.
 
 -spec allowed_origins(cowboy_req:req(), any()) -> {'*', cowboy_req:req(), any()}.
 
-allowed_origins(Req, State) ->
-    {'*', Req, State}.
+allowed_origins(_Req, State) ->
+    {'*', State}.
 
 -spec allowed_headers(cowboy_req:req(), any()) -> {[binary()], cowboy_req:req(), any()}.
 
-allowed_headers(Req, State) ->
+allowed_headers(_Req, State) ->
     {[
         <<"access-control-allow-headers">>,
         <<"origin">>,
@@ -27,9 +27,9 @@ allowed_headers(Req, State) ->
         <<"accept">>,
         <<"authorization">>,
         <<"x-request-id">>
-    ], Req, State}.
+    ], State}.
 
 -spec allowed_methods(cowboy_req:req(), any()) -> {[binary()], cowboy_req:req(), any()}.
 
-allowed_methods(Req, State) ->
-    {[<<"GET">>, <<"POST">>, <<"PUT">>, <<"DELETE">>, <<"OPTIONS">>], Req, State}.
+allowed_methods(_Req, State) ->
+    {[<<"GET">>, <<"POST">>, <<"PUT">>, <<"DELETE">>, <<"OPTIONS">>], State}.

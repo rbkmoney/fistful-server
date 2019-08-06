@@ -11,12 +11,12 @@
 policy_init(Req) ->
     {ok, Req, undefined}.
 
--spec allowed_origins(cowboy_req:req(), any()) -> {'*', cowboy_req:req(), any()}.
+-spec allowed_origins(cowboy_req:req(), any()) -> {'*', any()}.
 
 allowed_origins(_Req, State) ->
     {'*', State}.
 
--spec allowed_headers(cowboy_req:req(), any()) -> {[binary()], cowboy_req:req(), any()}.
+-spec allowed_headers(cowboy_req:req(), any()) -> {[binary()], any()}.
 
 allowed_headers(_Req, State) ->
     {[
@@ -29,7 +29,7 @@ allowed_headers(_Req, State) ->
         <<"x-request-id">>
     ], State}.
 
--spec allowed_methods(cowboy_req:req(), any()) -> {[binary()], cowboy_req:req(), any()}.
+-spec allowed_methods(cowboy_req:req(), any()) -> {[binary()], any()}.
 
 allowed_methods(_Req, State) ->
     {[<<"GET">>, <<"POST">>, <<"PUT">>, <<"DELETE">>, <<"OPTIONS">>], State}.

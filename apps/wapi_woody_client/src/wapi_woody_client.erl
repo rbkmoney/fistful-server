@@ -84,8 +84,6 @@ get_service_modname(file_storage) ->
     {fs_file_storage_thrift, 'FileStorage'};
 get_service_modname(webhook_manager) ->
     {ff_proto_webhooker_thrift, 'WebhookManager'}.
-%% get_service_modname(webhook_manager) ->
-%%     {dmsl_webhooker_thrift, 'WebhookManager'}.
 
 -spec get_service_deadline(service_name()) -> undefined | woody_deadline:deadline().
 

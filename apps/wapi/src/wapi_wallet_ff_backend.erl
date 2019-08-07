@@ -244,7 +244,8 @@ get_wallet(WalletID, Context) ->
     {identity, notfound}     |
     {currency, notfound}     |
     {conflict, id()}         |
-    {inaccessible, _}
+    {inaccessible, _}        |
+    {terms, {terms_violation, {not_allowed_currency, {binary(), [binary()]}}}}
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->

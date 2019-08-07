@@ -18,6 +18,7 @@
 -export([get_quote_without_destination_test/1]).
 -export([get_quote_without_destination_fail_test/1]).
 -export([quote_withdrawal/1]).
+-export([not_allowed_currency_test/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -30,6 +31,7 @@ all() ->
     [ {group, default}
     , {group, quote}
     , {group, woody}
+    , {group, errors}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -48,6 +50,9 @@ groups() ->
         ]},
         {woody, [], [
             woody_retry_test
+        ]},
+        {errors, [], [
+            not_allowed_currency_test
         ]}
     ].
 
@@ -612,3 +617,24 @@ get_default_termset() ->
             }
         }
     }.
+
+-spec not_allowed_currency_test(config()) -> test_return().
+
+not_allowed_currency_test(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = ?ID_PROVIDER,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ok            = check_identity(Name, IdentityID, Provider, Class, C),
+    {error, {422, #{<<"message">> := <<"Currency not allowed">>}}} = call_api(
+        fun swag_client_wallet_wallets_api:create_wallet/3,
+        #{body => #{
+            <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
+            <<"identity">> => IdentityID,
+            <<"currency">> => <<"USD">>,
+            <<"metadata">> => #{
+                ?STRING => ?STRING
+            }
+        }},
+        ct_helper:cfg(context, C)
+    ).

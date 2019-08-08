@@ -192,7 +192,9 @@ process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
         {error, {conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
         {error, invalid} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>))
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>));
+        {error, {terms, {terms_violation, {not_allowed_currency, _Data}}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not allowed">>))
     end;
 process_request('GetWalletAccount', #{'walletID' := WalletId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_wallet_account(WalletId, Context) of

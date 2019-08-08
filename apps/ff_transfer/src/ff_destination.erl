@@ -46,6 +46,7 @@
 -export_type([resource/0]).
 -export_type([event/0]).
 -export_type([params/0]).
+-export_type([resource_bank_card/0]).
 
 %% Accessors
 
@@ -57,6 +58,7 @@
 -export([resource/1]).
 -export([status/1]).
 -export([external_id/1]).
+-export([try_get_bank_card_token/1]).
 
 %% API
 
@@ -77,6 +79,8 @@
 -spec resource(destination()) -> resource().
 -spec status(destination())   -> status().
 
+-spec try_get_bank_card_token(destination()) -> binary() | undefined.
+
 id(Destination)       -> ff_instrument:id(Destination).
 name(Destination)     -> ff_instrument:name(Destination).
 identity(Destination) -> ff_instrument:identity(Destination).
@@ -84,6 +88,14 @@ currency(Destination) -> ff_instrument:currency(Destination).
 resource(Destination) -> ff_instrument:resource(Destination).
 status(Destination)   -> ff_instrument:status(Destination).
 account(Destination)  -> ff_instrument:account(Destination).
+
+try_get_bank_card_token(Destination) ->
+    case ff_instrument:resource(Destination) of
+        {bank_card, #{token := Token}} ->
+            Token;
+        _ ->
+            undefined
+    end.
 
 -spec external_id(destination()) ->
     id() | undefined.

@@ -128,6 +128,8 @@ start_processing_apps(Options) ->
         {<<"/v1/identity">>, {{ff_proto_identity_thrift, 'Management'}, {ff_identity_handler, []}}, #{}}),
     DummyProviderRoute = ff_server:get_routes(
         {<<"/quotebank">>, {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'}, {ff_ct_provider_handler, []}}, #{}}),
+    DummyBinbaseRoute = ff_server:get_routes(
+        {<<"/binbase">>, {{binbase_binbase_thrift, 'Binbase'}, {ff_ct_binbase_handler, []}}, #{}}),
     RepairRoutes     = get_repair_routes(),
     EventsinkRoutes  = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
@@ -146,7 +148,8 @@ start_processing_apps(Options) ->
                 IdentityRoutes,
                 EventsinkRoutes,
                 RepairRoutes,
-                DummyProviderRoute
+                DummyProviderRoute,
+                DummyBinbaseRoute
             ])
         }
     )),
@@ -492,7 +495,8 @@ services(Options) ->
         cds            => "http://cds:8022/v1/storage",
         identdocstore  => "http://cds:8022/v1/identity_document_storage",
         partymgmt      => "http://hellgate:8022/v1/processing/partymgmt",
-        identification => "http://identification:8022/v1/identification"
+        identification => "http://identification:8022/v1/identification",
+        binbase        => "http://localhost:8022/binbase"
     },
     maps:get(services, Options, Default).
 

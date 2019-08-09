@@ -12,7 +12,7 @@
     wallet_id             := wallet_id(),
     destination_id        := destination_id(),
     quote                 => quote(),
-    bin_data              => bin_data()
+    resource_extension    => resource_extension()
 }.
 
 -type machine() :: ff_transfer_machine:st(transfer_params()).
@@ -23,7 +23,7 @@
 }).
 % TODO I'm now sure about this change, it may crash old events. Or not. ))
 -type provider_id() :: pos_integer() | id().
--type bin_data()    :: ff_bin_data:bin_data().
+-type resource_extension() :: ff_destination:resource_extension().
 
 -type quote() :: ff_adapter_withdrawal:quote(quote_validation_data()).
 
@@ -52,7 +52,7 @@
 -export([params/1]).
 -export([route/1]).
 -export([external_id/1]).
--export([bin_data/1]).
+-export([resource_extension/1]).
 
 %%
 -export([transfer_type/0]).
@@ -127,9 +127,9 @@ route(T)           -> ff_transfer:route(T).
     id() | undefined.
 external_id(T)     -> ff_transfer:external_id(T).
 
--spec bin_data(withdrawal()) ->
-    bin_data() | undefined.
-bin_data(T)        -> maps:get(bin_data, ff_transfer:params(T), undefined).
+-spec resource_extension(withdrawal()) ->
+    resource_extension() | undefined.
+resource_extension(T) -> maps:get(resource_extension, ff_transfer:params(T), undefined).
 
 %%
 
@@ -162,7 +162,7 @@ bin_data(T)        -> maps:get(bin_data, ff_transfer:params(T), undefined).
     body            := body(),
     wallet          := ff_wallet:wallet(),
     destination     => ff_destination:destination(),
-    bin_data        => bin_data()
+    resource_extension => resource_extension()
 }.
 
 -spec create(id(), params(), ctx()) ->
@@ -172,7 +172,7 @@ bin_data(T)        -> maps:get(bin_data, ff_transfer:params(T), undefined).
         {destination, notfound | unauthorized} |
         {terms, ff_party:validate_withdrawal_creation_error()} |
         {contract, ff_party:get_contract_terms_error()} |
-        {bin_data, notfound} |
+        {resource_extension, notfound} |
         exists
     }.
 
@@ -184,13 +184,12 @@ create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body
             unwrap(destination, ff_destination:get_machine(DestinationID))
         ),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
-        Token = ff_destination:try_get_bank_card_token(Destination),
-        {ok, BinData} = unwrap(bin_data, ff_bin_data:get(Token)),
+        ResourceExtension = unwrap(resource_extension, ff_destination:get_resource_extension(Destination)),
         {ok, IdentityMachine} = ff_identity_machine:get(ff_wallet:identity(Wallet)),
         Identity = ff_identity_machine:identity(IdentityMachine),
         PartyID = ff_identity:party(Identity),
         ContractID = ff_identity:contract(Identity),
-        {ok, VS} = collect_varset(make_varset_params(Body, Wallet, Destination, BinData)),
+        {ok, VS} = collect_varset(make_varset_params(Body, Wallet, Destination, ResourceExtension)),
         Terms = unwrap(contract, ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now())),
         valid = unwrap(terms, ff_party:validate_withdrawal_creation(Terms, Body, WalletAccount)),
 
@@ -201,7 +200,7 @@ create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body
                 wallet_id => WalletID,
                 destination_id => DestinationID,
                 quote => maps:get(quote, Args, undefined),
-                bin_data => BinData
+                resource_extension => ResourceExtension
             }),
             external_id => maps:get(external_id, Args, undefined)
         },
@@ -308,7 +307,7 @@ create_route(Withdrawal) ->
         Destination = ff_destination:get(DestinationMachine),
         {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
         Wallet = ff_wallet_machine:wallet(WalletMachine),
-        ProviderID = unwrap(prepare_route(Wallet, Destination, Body, bin_data(Withdrawal))),
+        ProviderID = unwrap(prepare_route(Wallet, Destination, Body, resource_extension(Withdrawal))),
         unwrap(validate_quote_provider(ProviderID, quote(Withdrawal))),
         {continue, [{route_changed, #{provider_id => ProviderID}}]}
     end).
@@ -319,14 +318,14 @@ create_route(Withdrawal) ->
 prepare_route(Wallet, Destination, Body) ->
     prepare_route(Wallet, Destination, Body, undefined).
 
--spec prepare_route(wallet(), destination(), body(), bin_data() | undefined) ->
+-spec prepare_route(wallet(), destination(), body(), resource_extension() | undefined) ->
     {ok, provider_id()} | {error, _Reason}.
 
-prepare_route(Wallet, Destination, Body, BinData) ->
+prepare_route(Wallet, Destination, Body, ResourceExtension) ->
     do(fun () ->
         PaymentInstitutionID = unwrap(ff_party:get_wallet_payment_institution_id(Wallet)),
         PaymentInstitution = unwrap(ff_payment_institution:get(PaymentInstitutionID)),
-        {ok, VS} = collect_varset(make_varset_params(Body, Wallet, Destination, BinData)),
+        {ok, VS} = collect_varset(make_varset_params(Body, Wallet, Destination, ResourceExtension)),
         Providers = unwrap(ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, VS)),
         unwrap(choose_provider(Providers, VS))
     end).
@@ -392,7 +391,7 @@ create_p_transfer_new_style(Withdrawal) ->
             body(Withdrawal),
             Wallet,
             Destination,
-            bin_data(Withdrawal)
+            resource_extension(Withdrawal)
         ))),
 
         SystemAccounts = unwrap(ff_payment_institution:compute_system_accounts(PaymentInstitution, VS)),
@@ -454,7 +453,7 @@ create_p_transfer_old_style(Withdrawal) ->
             body(Withdrawal),
             Wallet,
             Destination,
-            bin_data(Withdrawal)
+            resource_extension(Withdrawal)
         ))),
 
         {ok, IdentityMachine} = unwrap(ff_identity_machine:get(ff_wallet:identity(Wallet))),
@@ -591,15 +590,15 @@ maybe_migrate(Ev) ->
     body(),
     ff_wallet:wallet(),
     ff_destination:destination() | undefined,
-    bin_data() | undefined
+    resource_extension() | undefined
 ) ->
     varset_params().
-make_varset_params(Body, Wallet, Destination, BinData) ->
+make_varset_params(Body, Wallet, Destination, ResourceExtension) ->
     genlib_map:compact(#{
         body => Body,
         wallet => Wallet,
         destination => Destination,
-        bin_data => BinData
+        resource_extension => ResourceExtension
     }).
 
 -spec collect_varset(varset_params()) ->
@@ -615,12 +614,13 @@ collect_varset(#{body := Body, wallet := Wallet} = Params) ->
         Identity = ff_identity_machine:identity(IdentityMachine),
         PartyID = ff_identity:party(Identity),
         Destination = maps:get(destination, Params, undefined),
-        BinData = maps:get(bin_data, Params, undefined),
-        PaymentTool = case {Destination, BinData} of
+        ResourceExtension = maps:get(resource_extension, Params, undefined),
+        PaymentTool = case {Destination, ResourceExtension} of
             {undefined, _} ->
                 undefined;
-            {Destination, BinData} ->
-                construct_payment_tool(ff_destination:resource(Destination), BinData)
+            {Destination, ResourceExtension} ->
+                ExtendedResource = unwrap(ff_destination:extend_resource(ResourceExtension, Destination)),
+                construct_payment_tool(ExtendedResource)
         end,
         genlib_map:compact(#{
             currency => Currency,
@@ -633,26 +633,19 @@ collect_varset(#{body := Body, wallet := Wallet} = Params) ->
         })
     end).
 
--spec construct_payment_tool(ff_destination:resource(), bin_data() | undefined) ->
+-spec construct_payment_tool({ff_destination:resource_type(), map()}) ->
     dmsl_domain_thrift:'PaymentTool'().
-construct_payment_tool({bank_card, ResourceBankCard}, undefined) ->
-    {bank_card, #domain_BankCard{
-        token           = maps:get(token, ResourceBankCard),
-        payment_system  = maps:get(payment_system, ResourceBankCard),
-        bin             = maps:get(bin, ResourceBankCard),
-        masked_pan      = maps:get(masked_pan, ResourceBankCard)
-    }};
-construct_payment_tool({bank_card, ResourceBankCard}, BinData) ->
+construct_payment_tool({bank_card, ResourceBankCard}) ->
     {bank_card, #domain_BankCard{
         token           = maps:get(token, ResourceBankCard),
         payment_system  = maps:get(payment_system, ResourceBankCard),
         bin             = maps:get(bin, ResourceBankCard),
         masked_pan      = maps:get(masked_pan, ResourceBankCard),
-        issuer_country  = maps:get(iso_country_code, BinData, undefined),
-        bank_name       = maps:get(bank_name, BinData, undefined)
+        issuer_country  = maps:get(iso_country_code, ResourceBankCard, undefined),
+        bank_name       = maps:get(bank_name, ResourceBankCard, undefined)
     }};
 
-construct_payment_tool({crypto_wallet, CryptoWallet}, _) ->
+construct_payment_tool({crypto_wallet, CryptoWallet}) ->
     {crypto_currency, #domain_CryptoWallet{
         id              = maps:get(id, CryptoWallet),
         crypto_currency = maps:get(currency, CryptoWallet),

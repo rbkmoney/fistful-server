@@ -16,9 +16,35 @@
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
 -type status()   :: ff_instrument:status().
+
+-type resource_type() :: bank_card | crypto_wallet.
 -type resource() ::
     {bank_card, resource_bank_card()} |
     {crypto_wallet, resource_crypto_wallet()}.
+
+-type resource_extension() :: #{
+    type := resource_type(),
+    id   := resource_data_id(),
+    data := resource_extension_data()
+}.
+
+-type resource_data_id() ::
+    {bank_card, resource_bank_card_data_id()} |
+    {crypto_wallet, #{}}.
+
+-type resource_bank_card_data_id() :: #{
+    bin_data_id    := ff_bin_data:bin_data_id()
+}.
+
+-type resource_extension_data() ::
+    {bank_card, resource_bank_card_extension()} |
+    {crypto_wallet, #{}}.
+
+-type resource_bank_card_extension() :: #{
+    bank_name           => binary(),
+    iso_country_code    => binary(),
+    card_type           => charge_card | credit | debit | credit_or_debit
+}.
 
 -type resource_bank_card() :: #{
     token          := binary(),
@@ -44,9 +70,10 @@
 -export_type([destination/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
+-export_type([resource_type/0]).
+-export_type([resource_extension/0]).
 -export_type([event/0]).
 -export_type([params/0]).
--export_type([resource_bank_card/0]).
 
 %% Accessors
 
@@ -58,7 +85,6 @@
 -export([resource/1]).
 -export([status/1]).
 -export([external_id/1]).
--export([try_get_bank_card_token/1]).
 
 %% API
 
@@ -68,6 +94,12 @@
 -export([ctx/1]).
 -export([is_accessible/1]).
 -export([events/2]).
+-export([extend_resource/2]).
+-export([get_resource_extension/1]).
+
+%% Pipeline
+
+-import(ff_pipeline, [unwrap/2]).
 
 %% Accessors
 
@@ -79,7 +111,6 @@
 -spec resource(destination()) -> resource().
 -spec status(destination())   -> status().
 
--spec try_get_bank_card_token(destination()) -> binary() | undefined.
 
 id(Destination)       -> ff_instrument:id(Destination).
 name(Destination)     -> ff_instrument:name(Destination).
@@ -88,14 +119,6 @@ currency(Destination) -> ff_instrument:currency(Destination).
 resource(Destination) -> ff_instrument:resource(Destination).
 status(Destination)   -> ff_instrument:status(Destination).
 account(Destination)  -> ff_instrument:account(Destination).
-
-try_get_bank_card_token(Destination) ->
-    case ff_instrument:resource(Destination) of
-        {bank_card, #{token := Token}} ->
-            Token;
-        _ ->
-            undefined
-    end.
 
 -spec external_id(destination()) ->
     id() | undefined.
@@ -148,3 +171,47 @@ is_accessible(Destination) ->
 
 events(ID, Range) ->
     ff_instrument_machine:events(?NS, ID, Range).
+
+-spec extend_resource(resource_extension() | undefined, destination()) ->
+    {ok, {resource_type(), map()}} | {error, {resource_type, _Type, _AnoterType}}.
+
+extend_resource(#{type := bank_card, data := {bank_card, Data}}, Destination) ->
+    case resource(Destination) of
+        {bank_card, Resource} ->
+            {ok, {bank_card, maps:merge(Resource, Data)}};
+        {Type, _} ->
+            {error, {resource_type, bank_card, Type}}
+    end;
+extend_resource(#{type := crypto_wallet, data := {crypto_wallet, Data}}, Destination) ->
+    case resource(Destination) of
+        {crypto_wallet, Resource} ->
+            {ok, {crypto_wallet, maps:merge(Resource, Data)}};
+        {Type, _} ->
+            {error, {resource_type, crypto_wallet, Type}}
+    end;
+extend_resource(undefined, Destination) ->
+    {ok, resource(Destination)}.
+
+-spec get_resource_extension(destination()) ->
+    {ok, resource_extension()} |
+    {error,
+        {bin_data, not_found}
+    }.
+
+get_resource_extension(Destination) ->
+    case resource(Destination) of
+        {bank_card, #{token := Token}} ->
+            BinData = unwrap(bin_data, ff_bin_data:get(Token)),
+            KeyList = [bank_name, iso_country_code, card_type],
+            {ok, #{
+                type => bank_card,
+                id   => {bank_card, #{bin_data_id => ff_bin_data:id(BinData)}},
+                data => {bank_card, maps:with(KeyList, BinData)}
+            }};
+        {crypto_wallet, _CryptoWallet} ->
+            {ok, #{
+                type => crypto_wallet,
+                id   => {crypto_wallet, #{}},
+                data => {crypto_wallet, #{}}
+            }}
+    end.

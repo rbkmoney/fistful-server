@@ -25,8 +25,10 @@
     #{bin_data_id() => bin_data_id()}.
 
 -export_type([bin_data/0]).
+-export_type([bin_data_id/0]).
 
 -export([get/1]).
+-export([id/1]).
 
 -spec get(token() | undefined) ->
     {ok, bin_data() | undefined} | {error, not_found}.
@@ -40,6 +42,12 @@ get(Token) ->
         {exception, #binbase_BinNotFound{}} ->
             {error, not_found}
     end.
+
+-spec id(bin_data()) ->
+    bin_data_id().
+
+id(Data) ->
+    maps:get(id, Data).
 
 %%
 

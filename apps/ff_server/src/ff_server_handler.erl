@@ -55,13 +55,13 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
     end;
 handle_function_('CreateDeposit', [Params], Context, Opts) ->
     DepositID = Params#fistful_DepositParams.id,
-    Context = decode(context, Params#fistful_DepositParams.context),
-    Params = #{
+    DepositContext = decode(context, Params#fistful_DepositParams.context),
+    DepositParams = #{
         source_id   => Params#fistful_DepositParams.source,
         wallet_id   => Params#fistful_DepositParams.destination,
         body        => decode({deposit, body}, Params#fistful_DepositParams.body)
     },
-    case handle_create_result(ff_deposit:create(DepositID, Params, Context)) of
+    case handle_create_result(ff_deposit:create(DepositID, DepositParams, DepositContext)) of
         ok ->
             handle_function_('GetDeposit', [DepositID], Context, Opts);
         {error, {source, notfound}} ->

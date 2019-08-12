@@ -536,7 +536,12 @@ domain_config(Options, C) ->
                 identity                  = payment_inst_identity_id(Options),
                 withdrawal_providers      = {decisions, [
                     #domain_WithdrawalProviderDecision{
-                        if_ = {condition, {payment_tool, {bank_card, #domain_BankCardCondition{}}}},
+                        if_ = {
+                            condition,
+                            {payment_tool, {bank_card, #domain_BankCardCondition{
+                                definition = {issuer_country_is, 'rus'}
+                            }}}
+                        },
                         then_ = {value, [?wthdr_prv(1)]}
                     },
                     #domain_WithdrawalProviderDecision{

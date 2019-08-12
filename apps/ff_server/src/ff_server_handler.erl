@@ -55,12 +55,13 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
     end;
 handle_function_('CreateDeposit', [Params], Context, Opts) ->
     DepositID = Params#fistful_DepositParams.id,
-    case ff_deposit:create(DepositID, #{
-            source_id   => Params#fistful_DepositParams.source,
-            wallet_id   => Params#fistful_DepositParams.destination,
-            body        => decode({deposit, body}, Params#fistful_DepositParams.body)
-        }, decode(context, Params#fistful_DepositParams.context))
-    of
+    Context = decode(context, Params#fistful_DepositParams.context),
+    Params = #{
+        source_id   => Params#fistful_DepositParams.source,
+        wallet_id   => Params#fistful_DepositParams.destination,
+        body        => decode({deposit, body}, Params#fistful_DepositParams.body)
+    },
+    case handle_create_result(ff_deposit:create(DepositID, Params, Context)) of
         ok ->
             handle_function_('GetDeposit', [DepositID], Context, Opts);
         {error, {source, notfound}} ->
@@ -83,6 +84,13 @@ handle_function_('GetDeposit', [ID], _Context, _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end.
+
+handle_create_result(ok) ->
+    ok;
+handle_create_result({error, exists}) ->
+    ok;
+handle_create_result({error, _Reason} = Error) ->
+    Error.
 
 decode({source, resource}, #fistful_SourceResource{details = Details}) ->
     genlib_map:compact(#{

@@ -68,6 +68,8 @@
 -define(PARAMS_HASH, <<"params_hash">>).
 -define(EXTERNAL_ID, <<"externalID">>).
 
+-dialyzer([{nowarn_function, [to_swag/2]}]).
+
 %% API
 
 %% Providers
@@ -244,10 +246,9 @@ get_wallet(WalletID, Context) ->
 -spec create_wallet(params(), ctx()) -> result(map(),
     invalid                  |
     {identity, unauthorized} |
-    {identity, notfound}     |
-    {currency, notfound}     |
     {conflict, id()}         |
-    {inaccessible, _}
+    {inaccessible, _}        |
+    ff_wallet:create_error()
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->

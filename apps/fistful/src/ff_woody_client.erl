@@ -7,7 +7,7 @@
 
 -type url()            :: woody:url().
 -type event_handler()  :: woody:ev_handler().
--type transport_opts() :: woody_client_thrift_http_transport:options().
+-type transport_opts() :: woody_client_thrift_http_transport:transport_options().
 -type context()        :: woody_context:ctx().
 
 -type service_id()     :: atom().

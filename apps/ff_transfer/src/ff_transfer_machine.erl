@@ -31,6 +31,7 @@
 -export_type([event/1]).
 -export_type([events/1]).
 -export_type([params/0]).
+-export_type([transfer_type/0]).
 
 -callback process_transfer(transfer(_)) ->
     {ok, {action(), [event(_)]}} |

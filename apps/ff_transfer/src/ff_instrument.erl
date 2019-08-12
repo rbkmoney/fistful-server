@@ -30,7 +30,7 @@
 
 -type event(T) ::
     {created, instrument(T)} |
-    {account, ff_account:ev()} |
+    {account, ff_account:event()} |
     {status_changed, status()}.
 
 -export_type([id/0]).
@@ -38,6 +38,7 @@
 -export_type([status/0]).
 -export_type([resource/1]).
 -export_type([event/1]).
+-export_type([name/0]).
 
 -export([account/1]).
 

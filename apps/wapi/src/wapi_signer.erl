@@ -9,7 +9,7 @@
 -type token()      :: wapi_authorizer_jwt:token().
 
 -spec verify(token()) ->
-    {ok, map()} |
+    {ok, binary()} |
     {error,
         {invalid_token,
             badarg |

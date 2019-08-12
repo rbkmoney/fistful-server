@@ -18,14 +18,14 @@
 -type operation_id()    :: swag_server_wallet:operation_id().
 -type api_key()         :: swag_server_wallet:api_key().
 -type request_context() :: swag_server_wallet:request_context().
--type handler_opts()    :: swag_server_wallet:handler_opts().
+-type handler_opts()    :: swag_server_wallet:handler_opts(_).
 
 %% API
 
 -spec authorize_api_key(operation_id(), api_key(), handler_opts()) ->
     false | {true, wapi_auth:context()}.
 authorize_api_key(OperationID, ApiKey, Opts) ->
-    ok = scoper:add_meta(#{api => wallet, operation_id => OperationID}),
+    ok = scoper:add_scope('swag.server', #{api => wallet, operation_id => OperationID}),
     wapi_auth:authorize_api_key(OperationID, ApiKey, Opts).
 
 -spec handle_request(swag_server_wallet:operation_id(), req_data(), request_context(), handler_opts()) ->
@@ -192,7 +192,9 @@ process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
         {error, {conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
         {error, invalid} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>))
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>));
+        {error, {terms, {terms_violation, {not_allowed_currency, _Data}}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not allowed">>))
     end;
 process_request('GetWalletAccount', #{'walletID' := WalletId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_wallet_account(WalletId, Context) of

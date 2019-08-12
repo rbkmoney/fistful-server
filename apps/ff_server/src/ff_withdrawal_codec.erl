@@ -5,6 +5,7 @@
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_cashflow_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
 
 -export([unmarshal_withdrawal_params/1]).
@@ -43,7 +44,7 @@ unmarshal_withdrawal_params(Params) ->
     }.
 
 -spec marshal_currency_invalid({ff_currency:id(), ff_currency:id()}) ->
-     ff_proto_withdrawal_thrift:'WithdrawalCurrencyInvalid'().
+     ff_proto_fistful_thrift:'WithdrawalCurrencyInvalid'().
 
 marshal_currency_invalid({WithdrawalCurrencyID, WalletCurrencyID}) ->
     #fistful_WithdrawalCurrencyInvalid{
@@ -52,7 +53,7 @@ marshal_currency_invalid({WithdrawalCurrencyID, WalletCurrencyID}) ->
     }.
 
 -spec marshal_cash_range_error({ff_party:cash(), ff_party:cash_range()}) ->
-    ff_proto_withdrawal_thrift:'WithdrawalCashAmountInvalid'().
+    ff_proto_fistful_thrift:'WithdrawalCashAmountInvalid'().
 
 marshal_cash_range_error({Cash, Range}) ->
     #fistful_WithdrawalCashAmountInvalid{

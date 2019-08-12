@@ -62,21 +62,9 @@ start_apps(AppNames) ->
 
 -spec start_app(app_name() | app_with_env()) -> {[Started :: app_name()], startup_ctx()}.
 
-start_app(lager = AppName) ->
-    {start_app_with(AppName, [
-        {async_threshold, 1},
-        {async_threshold_window, 0},
-        {error_logger_hwm, 600},
-        {suppress_application_start_stop, false},
-        {suppress_supervisor_start_stop, false},
-        {handlers, [
-            {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
-        ]}
-    ]), #{}};
-
 start_app(scoper = AppName) ->
     {start_app_with(AppName, [
-        {storage, scoper_storage_lager}
+        {storage, scoper_storage_logger}
     ]), #{}};
 
 start_app(woody = AppName) ->

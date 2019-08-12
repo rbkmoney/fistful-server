@@ -23,6 +23,9 @@
 -type binding_value() :: binary().
 -type url()           :: binary().
 -type path()          :: binary().
+-type route_match()   :: '_' | iodata(). % cowoby_router:route_match()
+
+-export_type([route_match/0]).
 
 %% API
 
@@ -31,7 +34,7 @@ base64url_to_map(Base64) when is_binary(Base64) ->
     try jsx:decode(base64url:decode(Base64), [return_maps])
     catch
         Class:Reason ->
-            _ = lager:debug("decoding base64 ~p to map failed with ~p:~p", [Base64, Class, Reason]),
+            _ = logger:debug("decoding base64 ~p to map failed with ~p:~p", [Base64, Class, Reason]),
             erlang:error(badarg)
     end.
 
@@ -40,7 +43,7 @@ map_to_base64url(Map) when is_map(Map) ->
     try base64url:encode(jsx:encode(Map))
     catch
         Class:Reason ->
-            _ = lager:debug("encoding map ~p to base64 failed with ~p:~p", [Map, Class, Reason]),
+            _ = logger:debug("encoding map ~p to base64 failed with ~p:~p", [Map, Class, Reason]),
             erlang:error(badarg)
     end.
 
@@ -127,7 +130,7 @@ define(undefined, V) ->
 define(V, _Default) ->
     V.
 
--spec get_path(cowboy_router:route_match(), [binding_value()]) ->
+-spec get_path(route_match(), [binding_value()]) ->
     path().
 get_path(PathSpec, Params) when is_list(PathSpec) ->
     get_path(genlib:to_binary(PathSpec), Params);
@@ -155,7 +158,7 @@ get_next(PathSpec) ->
 get_url(BaseUrl, Path) ->
     <<BaseUrl/binary, Path/binary>>.
 
--spec get_url(url(), cowboy_router:route_match(), [binding_value()]) ->
+-spec get_url(url(), route_match(), [binding_value()]) ->
     url().
 get_url(BaseUrl, PathSpec, Params) ->
     get_url(BaseUrl, get_path(PathSpec, Params)).

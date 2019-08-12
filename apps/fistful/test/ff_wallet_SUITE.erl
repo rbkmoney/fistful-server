@@ -44,7 +44,6 @@ init_per_suite(C) ->
         client => ff_woody_client:new("http://machinegun:8022/v1/automaton")
     }},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
-        lager,
         scoper,
         woody,
         dmt_client,

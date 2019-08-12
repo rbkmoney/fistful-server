@@ -6,17 +6,15 @@
 
 %% Behaviour definition
 
--type tag() :: wallet | payres | privdoc.
+-type tag() :: wallet | payres.
 
 -type operation_id() ::
-    swag_server_payres:operation_id() |
-    swag_server_wallet:operation_id() |
-    swag_server_privdoc:operation_id().
+    swag_client_payres:operation_id() |
+    swag_server_wallet:operation_id().
 
 -type swagger_context() ::
-    swag_server_payres:request_context() |
-    swag_server_wallet:request_context() |
-    swag_server_privdoc:request_context().
+    swag_client_payres:request_context() |
+    swag_server_wallet:request_context().
 
 -type context() :: #{
     woody_context   := woody_context:ctx(),
@@ -24,9 +22,7 @@
 }.
 
 -type opts() ::
-    swag_server_wallet:handler_opts() |
-    swag_server_payres:handler_opts() |
-    swag_server_privdoc:handler_opts().
+    swag_server_wallet:handler_opts(_).
 
 -type req_data()         :: #{atom() | binary() => term()}.
 -type status_code()      :: 200..599.
@@ -60,7 +56,7 @@ handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContex
             WoodyContext = attach_deadline(Deadline, create_woody_context(Tag, Req, AuthContext, Opts)),
             process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext);
         _ ->
-            _ = lager:warning("Operation ~p failed due to invalid deadline header ~p", [OperationID, Header]),
+            _ = logger:warning("Operation ~p failed due to invalid deadline header ~p", [OperationID, Header]),
             wapi_handler_utils:reply_ok(400, #{
                 <<"errorType">>   => <<"SchemaViolated">>,
                 <<"name">>        => <<"X-Request-Deadline">>,
@@ -69,7 +65,7 @@ handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContex
     end.
 
 process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
-    _ = lager:info("Processing request ~p", [OperationID]),
+    _ = logger:info("Processing request ~p", [OperationID]),
     try
         %% TODO remove this fistful specific step, when separating the wapi service.
         ok = ff_woody_ctx:set(WoodyContext),
@@ -78,10 +74,10 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
         Handler      = get_handler(Tag),
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
             {ok, AuthDetails} ->
-                ok = lager:info("Operation ~p authorized via ~p", [OperationID, AuthDetails]),
+                ok = logger:info("Operation ~p authorized via ~p", [OperationID, AuthDetails]),
                 Handler:process_request(OperationID, Req, Context, Opts);
             {error, Error} ->
-                ok = lager:info("Operation ~p authorization failed due to ~p", [OperationID, Error]),
+                ok = logger:info("Operation ~p authorization failed due to ~p", [OperationID, Error]),
                 wapi_handler_utils:reply_ok(401, wapi_handler_utils:get_error_msg(<<"Unauthorized operation">>))
         end
     catch
@@ -99,15 +95,14 @@ throw_result(Res) ->
     erlang:throw({?request_result, Res}).
 
 get_handler(wallet)  -> wapi_wallet_handler;
-get_handler(payres)  -> wapi_payres_handler;
-get_handler(privdoc) -> wapi_privdoc_handler.
+get_handler(payres)  -> wapi_payres_handler.
 
 -spec create_woody_context(tag(), req_data(), wapi_auth:context(), opts()) ->
     woody_context:ctx().
 create_woody_context(Tag, #{'X-Request-ID' := RequestID}, AuthContext, Opts) ->
     RpcID = #{trace_id := TraceID} = woody_context:new_rpc_id(genlib:to_binary(RequestID)),
     ok = scoper:add_meta(#{request_id => RequestID, trace_id => TraceID}),
-    _ = lager:debug("Created TraceID for the request"),
+    _ = logger:debug("Created TraceID for the request"),
     woody_user_identity:put(
         collect_user_identity(AuthContext, Opts),
         woody_context:new(RpcID, undefined, wapi_woody_client:get_service_deadline(Tag))

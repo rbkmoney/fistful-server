@@ -15,7 +15,7 @@
 -type account()  :: ff_account:account().
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
--type status()   :: ff_identity:status().
+-type status()   :: ff_instrument:status().
 -type resource() ::
     {bank_card, resource_bank_card()} |
     {crypto_wallet, resource_crypto_wallet()}.
@@ -45,6 +45,7 @@
 -export_type([status/0]).
 -export_type([resource/0]).
 -export_type([event/0]).
+-export_type([params/0]).
 
 %% Accessors
 

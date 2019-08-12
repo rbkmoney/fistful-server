@@ -17,22 +17,24 @@
 
 -type id()              :: binary().
 -type external_id()     :: id() | undefined.
--type party()           :: ff_party:id().
--type provider()        :: ff_provider:id().
--type contract()        :: ff_party:contract_id().
--type class()           :: ff_identity_class:id().
--type level()           :: ff_identity_class:level_id().
--type challenge_class() :: ff_identity_class:challenge_class_id().
+-type party_id()        :: ff_party:id().
+-type provider_id()     :: ff_provider:id().
+-type contract_id()     :: ff_party:contract_id().
+-type class_id()        :: ff_identity_class:id().
+-type challenge_class() :: ff_identity_challenge:challenge_class().
+-type challenge_class_id() :: ff_identity_class:challenge_class_id().
 -type challenge_id()    :: id().
 -type blocked()         :: boolean().
+-type level()           :: ff_identity_class:level().
+-type level_id()        :: ff_identity_class:level_id().
 
 -type identity() :: #{
     id           := id(),
-    party        := party(),
-    provider     := provider(),
-    class        := class(),
-    contract     := contract(),
-    level        => level(),
+    party        := party_id(),
+    provider     := provider_id(),
+    class        := class_id(),
+    contract     := contract_id(),
+    level        => level_id(),
     challenges   => #{challenge_id() => challenge()},
     effective    => challenge_id(),
     external_id  => id(),
@@ -44,9 +46,9 @@
 
 -type event() ::
     {created           , identity()}                                 |
-    {level_changed     , level()}                                    |
+    {level_changed     , level_id()}                                    |
     {effective_challenge_changed, challenge_id()}                    |
-    {{challenge        , challenge_id()}, ff_identity_challenge:ev()}.
+    {{challenge        , challenge_id()}, ff_identity_challenge:event()}.
 
 -type create_error() ::
     {provider, notfound} |
@@ -57,7 +59,7 @@
 -type start_challenge_error() ::
     exists |
     {challenge_class, notfound} |
-    {level, ff_identity_class:level()} |
+    {level, level()} |
     ff_identity_challenge:create_error().
 
 -export_type([identity/0]).
@@ -65,6 +67,9 @@
 -export_type([id/0]).
 -export_type([create_error/0]).
 -export_type([start_challenge_error/0]).
+-export_type([challenge_class_id/0]).
+-export_type([class_id/0]).
+-export_type([level_id/0]).
 
 -export([id/1]).
 -export([provider/1]).
@@ -97,17 +102,17 @@
 -spec id(identity()) ->
     id().
 -spec provider(identity()) ->
-    provider().
+    provider_id().
 -spec class(identity()) ->
-    class().
+    class_id().
 -spec party(identity()) ->
-    party().
+    party_id().
 -spec contract(identity()) ->
-    contract().
+    contract_id().
 -spec blocked(identity()) ->
     boolean() | undefined.
 -spec level(identity()) ->
-    level() | undefined.
+    level_id() | undefined.
 -spec challenges(identity()) ->
     #{challenge_id() => challenge()}.
 -spec effective_challenge(identity()) ->
@@ -167,7 +172,7 @@ set_blocked(Identity) ->
 
 %% Constructor
 
--spec create(id(), party(), provider(), class(), external_id()) ->
+-spec create(id(), party_id(), provider_id(), class_id(), external_id()) ->
     {ok, [event()]} |
     {error, create_error()}.
 

@@ -55,7 +55,7 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
     end;
 handle_function_('CreateDeposit', [Params], Context, Opts) ->
     DepositID = Params#fistful_DepositParams.id,
-    case ff_deposit:create(DepositID, #{
+    case ff_deposit_machine:create(DepositID, #{
             source_id   => Params#fistful_DepositParams.source,
             wallet_id   => Params#fistful_DepositParams.destination,
             body        => decode({deposit, body}, Params#fistful_DepositParams.body)
@@ -67,7 +67,7 @@ handle_function_('CreateDeposit', [Params], Context, Opts) ->
             woody_error:raise(business, #fistful_SourceNotFound{});
         {error, {source, unauthorized}} ->
             woody_error:raise(business, #fistful_SourceUnauthorized{});
-        {error, {destination, notfound}} ->
+        {error, {wallet, notfound}} ->
             woody_error:raise(business, #fistful_DestinationNotFound{});
         {error, {terms_violation, {not_allowed_currency, _More}}} ->
             woody_error:raise(business, #fistful_DepositCurrencyInvalid{});
@@ -77,7 +77,7 @@ handle_function_('CreateDeposit', [Params], Context, Opts) ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 handle_function_('GetDeposit', [ID], _Context, _Opts) ->
-    case ff_deposit:get_machine(ID) of
+    case ff_deposit_machine:get(ID) of
         {ok, Machine} ->
             {ok, encode(deposit, {ID, Machine})};
         {error, notfound} ->
@@ -114,7 +114,7 @@ encode({source, resource}, Resource) ->
         details = genlib_map:get(details, Resource)
     };
 encode(deposit, {ID, Machine}) ->
-    Deposit = ff_deposit:get(Machine),
+    Deposit = ff_deposit_machine:deposit(Machine),
     #fistful_Deposit{
         id          = ID,
         source      = ff_deposit:source_id(Deposit),

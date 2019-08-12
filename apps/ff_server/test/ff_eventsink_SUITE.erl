@@ -266,7 +266,7 @@ get_create_deposit_events_ok(C) ->
     SrcID   = create_source(IID, C),
     DepID   = process_deposit(SrcID, WalID),
 
-    {ok, RawEvents} = ff_deposit:events(DepID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_deposit_machine:events(DepID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
     MaxID = get_max_sinkevent_id(Events),
@@ -363,7 +363,7 @@ create_source(IID, C) ->
 
 process_deposit(SrcID, WalID) ->
     DepID = generate_id(),
-    ok = ff_deposit:create(
+    ok = ff_deposit_machine:create(
         DepID,
         #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
         ff_ctx:new()
@@ -371,8 +371,8 @@ process_deposit(SrcID, WalID) ->
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
-            {ok, DepM} = ff_deposit:get_machine(DepID),
-            ff_deposit:status(ff_deposit:get(DepM))
+            {ok, DepM} = ff_deposit_machine:get(DepID),
+            ff_deposit:status(ff_deposit_machine:deposit(DepM))
         end,
         genlib_retry:linear(15, 1000)
     ),

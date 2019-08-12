@@ -440,7 +440,7 @@ create_source(IID, C) ->
 
 process_deposit(SrcID, WalID) ->
     DepID = generate_id(),
-    ok = ff_deposit:create(
+    ok = ff_deposit_machine:create(
         DepID,
         #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
         ff_ctx:new()
@@ -448,8 +448,8 @@ process_deposit(SrcID, WalID) ->
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
-            {ok, DepM} = ff_deposit:get_machine(DepID),
-            ff_deposit:status(ff_deposit:get(DepM))
+            {ok, DepM} = ff_deposit_machine:get(DepID),
+            ff_deposit:status(ff_deposit_machine:deposit(DepM))
         end,
         genlib_retry:linear(15, 1000)
     ),

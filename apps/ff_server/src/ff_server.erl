@@ -63,7 +63,7 @@ init([]) ->
         contruct_backend_childspec('ff/wallet_v2'             , ff_wallet_machine),
         contruct_backend_childspec('ff/source_v1'             , ff_instrument_machine),
         contruct_backend_childspec('ff/destination_v2'        , ff_instrument_machine),
-        contruct_backend_childspec('ff/deposit_v1'            , ff_transfer_machine),
+        contruct_backend_childspec('ff/deposit_v1'            , ff_deposit_machine),
         contruct_backend_childspec('ff/withdrawal_v2'         , ff_transfer_machine),
         contruct_backend_childspec('ff/withdrawal/session_v2' , ff_withdrawal_session_machine)
     ]),

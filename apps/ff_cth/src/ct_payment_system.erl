@@ -109,7 +109,7 @@ start_processing_apps(Options) ->
             construct_handler(ff_external_id                , "external_id"           , BeConf),
             construct_handler(ff_wallet_machine             , "wallet_v2"             , BeConf),
             construct_handler(ff_instrument_machine         , "source_v1"             , BeConf),
-            construct_handler(ff_transfer_machine           , "deposit_v1"            , BeConf),
+            construct_handler(ff_deposit_machine            , "deposit_v1"            , BeConf),
             construct_handler(ff_instrument_machine         , "destination_v2"        , BeConf),
             construct_handler(ff_transfer_machine           , "withdrawal_v2"         , BeConf),
             construct_handler(ff_withdrawal_session_machine , "withdrawal/session_v2" , BeConf)

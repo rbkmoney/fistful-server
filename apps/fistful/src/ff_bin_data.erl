@@ -9,7 +9,7 @@
     id                  := bin_data_id(),
     payment_system      := binary(),
     bank_name           => binary(),
-    iso_country_code    => binary(),
+    iso_country_code    => atom(),
     card_type           => charge_card | credit | debit | credit_or_debit,
     version             := integer()
 }.
@@ -64,7 +64,7 @@ decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Versi
         id                  => decode_msgpack(BinDataID),
         payment_system      => PaymentSystem,
         bank_name           => BankName,
-        iso_country_code    => IsoCountryCode,
+        iso_country_code    => decode_residence(IsoCountryCode),
         card_type           => decode_card_type(CardType),
         version             => Version
     }).
@@ -83,6 +83,16 @@ decode_card_type(undefined) ->
     undefined;
 decode_card_type(Type) ->
     Type.
+
+decode_residence(undefined) ->
+    undefined;
+decode_residence(Residence) when is_binary(Residence) ->
+    try
+        list_to_existing_atom(string:to_lower(binary_to_list(Residence)))
+    catch
+        error:badarg ->
+            throw({decode_residence, invalid_residence})
+    end.
 
 call_binbase(Function, Args) ->
     Service = {binbase_binbase_thrift, 'Binbase'},

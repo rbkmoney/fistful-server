@@ -32,7 +32,7 @@
     payment_system      := atom(), % TODO
     masked_pan          => binary(),
     bank_name           => binary(),
-    iso_country_code    => binary(),
+    iso_country_code    => atom(),
     card_type           => charge_card | credit | debit | credit_or_debit,
     bin_data_id         := ff_bin_data:bin_data_id()
 }.
@@ -116,13 +116,11 @@ account(Destination)  -> ff_instrument:account(Destination).
 external_id(T)        -> ff_instrument:external_id(T).
 
 -spec resource_full(destination()) ->
-    {ok, resource_full() | undefined} |
+    {ok, resource_full()} |
     {error,
         {bin_data, not_found}
     }.
 
-resource_full(undefined) ->
-    {ok, undefined};
 resource_full(Destination) ->
     do(fun() ->
         case resource(Destination) of

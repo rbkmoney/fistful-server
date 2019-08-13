@@ -81,9 +81,9 @@ get_service_modname(fistful_stat) ->
 get_service_modname(fistful_report) ->
     {ff_reporter_reports_thrift, 'Reporting'};
 get_service_modname(file_storage) ->
-    {fs_file_storage_thrift, 'FileStorage'}.
-%% get_service_modname(webhook_manager) ->
-%%     {dmsl_webhooker_thrift, 'WebhookManager'}.
+    {fs_file_storage_thrift, 'FileStorage'};
+get_service_modname(webhook_manager) ->
+    {ff_proto_webhooker_thrift, 'WebhookManager'}.
 
 -spec get_service_deadline(service_name()) -> undefined | woody_deadline:deadline().
 

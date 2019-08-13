@@ -621,6 +621,7 @@ collect_varset(#{body := Body, wallet := Wallet} = Params) ->
         PaymentTool = case {Destination, Resource} of
             {undefined, _} ->
                 undefined;
+            %% TODO remove this when complete all old withdrawals
             {Destination, undefined} ->
                 construct_payment_tool(ff_destination:resource(Destination));
             {_, Resource} ->

@@ -132,19 +132,21 @@ with(Model, St, F) ->
     end.
 
 %% Parse transform
+% -import(ff_pipeline, [do/1, unwrap/1]).
 % f() ->
 %     do(fun() ->
 %         R0 = 1,
 %         R1 = unwrap(do_smth(R0)),
-%         R2 = unwrap(do_smth2(R1)),
+%         R2 = ff_pipeline:unwrap(do_smth2(R1)),
 %         R2 + 1
 %     end).
 % To
+% -import(ff_pipeline, [unwrap/1]).
 % f() ->
 %     try
 %         ff_pipeline:wrap(begin
 %             R0 = 1,
-%             R1 = ff_pipeline:unwrap(do_smth(R0)),
+%             R1 = unwrap(do_smth(R0)),
 %             R2 = ff_pipeline:unwrap(do_smth2(R1)),
 %             R2 + 1
 %         end)
@@ -168,6 +170,8 @@ transform_do(Tree) ->
             build_do_statement(TreePos, Body);
         ?Q("ff_pipeline:do(fun() -> _@@Body end)") ->
             build_do_statement(TreePos, Body);
+        ?Q("-import(ff_pipeline, ['@_@Imports'/0]).") ->
+            build_import_statement(TreePos, Imports);
         _ ->
             Tree
     end.
@@ -186,6 +190,20 @@ build_do_statement(_Pos, ThrownVar, Error, Body) ->
         "try ff_pipeline:wrap(begin _@@Body end)",
         "catch _@ThrownVar -> {error, _@Error} end"
     ]).
+
+build_import_statement(_Pos, Imports) ->
+    FilteredImports = lists:filter(fun is_import_not_replaced/1, Imports),
+    ?Q("-import(ff_pipeline, ['@_@FilteredImports'/0]).").
+
+is_import_not_replaced(ImportItem) ->
+    case ?Q("-export(['@_ImportItem'/0]).") of
+        ?Q("-export([do/1]).") ->
+            false;
+        ?Q("-export([do/2]).") ->
+            false;
+        _ ->
+            true
+    end.
 
 build_var(Name, Line) ->
     LineStr = erlang:integer_to_binary(Line),

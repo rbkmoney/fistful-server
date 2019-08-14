@@ -100,7 +100,7 @@ end_per_testcase(_Name, _C) ->
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
-    {error, notfound} = ff_withdrawal:get_machine(ID).
+    {error, notfound} = ff_withdrawal_machine:get(ID).
 
 deposit_via_admin_ok(C) ->
     Party = create_party(C),
@@ -505,7 +505,7 @@ process_withdrawal(WalID, DestID) ->
     process_withdrawal(WalID, DestID, #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}}).
 process_withdrawal(WalID, DestID, Params) ->
     WdrID = generate_id(),
-    ok = ff_withdrawal:create(
+    ok = ff_withdrawal_machine:create(
         WdrID,
         Params,
         ff_ctx:new()
@@ -513,8 +513,8 @@ process_withdrawal(WalID, DestID, Params) ->
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
-            {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
-            ff_withdrawal:status(ff_withdrawal:get(WdrM))
+            {ok, WdrM} = ff_withdrawal_machine:get(WdrID),
+            ff_withdrawal:status(ff_withdrawal_machine:withdrawal(WdrM))
         end,
         genlib_retry:linear(15, 1000)
     ),

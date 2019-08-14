@@ -133,13 +133,8 @@ external_id(_Transfer) ->
 %% API
 
 -spec create(id(), params()) ->
-    ok |
-    {error,
-        {source, notfound | unauthorized} |
-        {destination, notfound} |
-        ff_party:validate_deposit_creation_error() |
-        exists
-    }.
+    {ok, [event()]} |
+    {error, create_error()}.
 create(ID, Params) ->
     do(fun() ->
         #{source_id := SourceID, wallet_id := WalletID, body := Body} = Params,

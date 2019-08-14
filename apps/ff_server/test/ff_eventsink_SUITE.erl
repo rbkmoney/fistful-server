@@ -183,7 +183,7 @@ get_withdrawal_events_ok(C) ->
 
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_withdrawal_machine:events(WdrID, {undefined, 1000, forward}),
 
     AlienEvents = lists:filter(fun(Ev) ->
         Ev#wthd_SinkEvent.source =/= WdrID
@@ -392,7 +392,7 @@ create_destination(IID, C) ->
 
 process_withdrawal(WalID, DestID) ->
     WdrID = generate_id(),
-    ok = ff_withdrawal:create(
+    ok = ff_withdrawal_machine:create(
         WdrID,
         #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
         ff_ctx:new()
@@ -400,8 +400,8 @@ process_withdrawal(WalID, DestID) ->
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
-            {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
-            ff_withdrawal:status(ff_withdrawal:get(WdrM))
+            {ok, WdrM} = ff_withdrawal_machine:get(WdrID),
+            ff_withdrawal:status(ff_withdrawal_machine:withdrawal(WdrM))
         end,
         genlib_retry:linear(15, 1000)
     ),

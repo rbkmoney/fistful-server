@@ -92,7 +92,7 @@ unmarshal_withdrawal(#wthd_Withdrawal{
         destination_id => unmarshal(id, DestinationID)
     }),
     Cash = unmarshal(cash, Body),
-    TransferType = ff_withdrawal:transfer_type(),
+    TransferType = withdrawal,
     WithdrawalStatus = maybe_unmarshal(withdrawal_status_changed, Status),
     ff_withdrawal:gen(#{
         id     => unmarshal(id, ID),

@@ -7,139 +7,50 @@
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
--type withdrawal() :: ff_transfer:transfer(transfer_params()).
--type transfer_params() :: #{
-    wallet_id             := wallet_id(),
-    destination_id        := destination_id(),
-    quote                 => quote()
+-type id() :: binary().
+
+-define(ACTUAL_FORMAT_VERSION, 2).
+-opaque withdrawal() :: #{
+    version       := ?ACTUAL_FORMAT_VERSION,
+    id            := id(),
+    transfer_type := withdrawal,
+    body          := body(),
+    params        := transfer_params(),
+    session_id    => session_id(),
+    route         => any(),
+    p_transfer    => p_transfer() | undefined,
+    status        => status(),
+    external_id   => id()
 }.
-
--type machine() :: ff_transfer_machine:st(transfer_params()).
--type events()  :: ff_transfer_machine:events(ff_transfer:event(transfer_params(), route())).
--type event()   :: ff_transfer_machine:event(ff_transfer:event(transfer_params(), route())).
--type route()   :: ff_transfer:route(#{
-    provider_id := provider_id()
-}).
-% TODO I'm now sure about this change, it may crash old events. Or not. ))
--type provider_id() :: pos_integer() | id().
-
--type quote() :: ff_adapter_withdrawal:quote(quote_validation_data()).
-
--export_type([withdrawal/0]).
--export_type([machine/0]).
--export_type([transfer_params/0]).
--export_type([events/0]).
--export_type([event/0]).
--export_type([route/0]).
--export_type([params/0]).
--export_type([quote/0]).
-
-%% ff_transfer_machine behaviour
--behaviour(ff_transfer_machine).
--export([process_transfer/1]).
--export([process_failure/2]).
-
-%% Accessors
-
--export([wallet_id/1]).
--export([destination_id/1]).
--export([quote/1]).
--export([id/1]).
--export([body/1]).
--export([status/1]).
--export([params/1]).
--export([route/1]).
--export([external_id/1]).
-
-%%
--export([transfer_type/0]).
--export([get_quote/1]).
-
-%% API
--export([create/3]).
--export([get/1]).
--export([ctx/1]).
--export([get_machine/1]).
--export([events/2]).
--export([gen/1]).
-
-
-%% Event source
-
--export([maybe_migrate/1]).
-
-%% Pipeline
-
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
-
-%% Internal types
-
--type id() :: ff_transfer_machine:id().
--type body() :: ff_transfer:body().
--type account() :: ff_account:account().
--type provider() :: ff_withdrawal_provider:provider().
--type wallet_id() :: ff_wallet:id().
--type wallet() :: ff_wallet:wallet().
--type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
--type destination_id() :: ff_destination:id().
--type destination() :: ff_destination:destination().
--type process_result() :: {ff_transfer_machine:action(), [event()]}.
--type final_cash_flow() :: ff_cash_flow:final_cash_flow().
-
--spec transfer_type() ->
-    ff_transfer_machine:transfer_type().
-
-transfer_type() ->
-    ff_transfer_machine:handler_to_type(?MODULE).
-
-%% Constructor
-
--spec gen(ff_transfer:args()) ->
-    withdrawal().
-
-gen(Args) ->
-    ff_transfer:gen(Args).
-
-%% Accessors
-
--spec wallet_id(withdrawal())       -> wallet_id().
--spec destination_id(withdrawal())  -> destination_id().
--spec quote(withdrawal())           -> quote() | undefined.
--spec id(withdrawal())              -> ff_transfer:id().
--spec body(withdrawal())            -> body().
--spec status(withdrawal())          -> ff_transfer:status().
--spec params(withdrawal())          -> transfer_params().
--spec route(withdrawal())           -> route().
-
-wallet_id(T)       -> maps:get(wallet_id, ff_transfer:params(T)).
-destination_id(T)  -> maps:get(destination_id, ff_transfer:params(T)).
-quote(T)           -> maps:get(quote, ff_transfer:params(T), undefined).
-id(T)              -> ff_transfer:id(T).
-body(T)            -> ff_transfer:body(T).
-status(T)          -> ff_transfer:status(T).
-params(T)          -> ff_transfer:params(T).
-route(T)           -> ff_transfer:route(T).
-
--spec external_id(withdrawal()) ->
-    id() | undefined.
-external_id(T)     -> ff_transfer:external_id(T).
-
-%%
-
--define(NS, 'ff/withdrawal_v2').
-
--type ctx()    :: ff_ctx:ctx().
-
--type quote_validation_data() :: #{
-    binary() => any()
-}.
-
 -type params() :: #{
     wallet_id      := ff_wallet_machine:id(),
     destination_id := ff_destination:id(),
-    body           := ff_transaction:body(),
+    body           := body(),
     external_id    => id(),
     quote          => quote()
+}.
+
+-type status() ::
+    pending         |
+    succeeded       |
+    {failed, _TODO} .
+
+-type event() ::
+    {created, withdrawal()} |
+    {route_changed, route()} |
+    {p_transfer, ff_postings_transfer:event()} |
+    {session_started, session_id()} |
+    {session_finished, session_id()} |
+    {status_changed, status()}.
+
+-type create_error() ::
+    {wallet, notfound} |
+    {destination, notfound | unauthorized} |
+    {terms, ff_party:validate_withdrawal_creation_error()} |
+    {contract, ff_party:get_contract_terms_error()}.
+
+-type route() :: #{
+    provider_id := provider_id()
 }.
 
 -type quote_params() :: #{
@@ -151,18 +62,141 @@ external_id(T)     -> ff_transfer:external_id(T).
     external_id    => id()
 }.
 
--spec create(id(), params(), ctx()) ->
-    ok |
-    {error,
-        {wallet, notfound} |
-        {destination, notfound | unauthorized} |
-        {terms, ff_party:validate_withdrawal_creation_error()} |
-        {contract, ff_party:get_contract_terms_error()} |
-        exists
-    }.
+-type quote() :: ff_adapter_withdrawal:quote(quote_validation_data()).
 
-create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body := Body}, Ctx) ->
+-type gen_args() :: #{
+    id            := id(),
+    body          := body(),
+    params        := params(),
+    transfer_type := withdrawal,
+
+    status        => status(),
+    external_id   => external_id()
+}.
+
+-type action() :: poll | continue | undefined.
+
+-export_type([withdrawal/0]).
+-export_type([id/0]).
+-export_type([params/0]).
+-export_type([event/0]).
+-export_type([route/0]).
+-export_type([quote/0]).
+-export_type([quote_params/0]).
+-export_type([gen_args/0]).
+-export_type([create_error/0]).
+-export_type([action/0]).
+
+%% Transfer callbacks
+
+-export([process_transfer/1]).
+-export([process_failure/2]).
+
+%% Accessors
+
+-export([wallet_id/1]).
+-export([destination_id/1]).
+-export([quote/1]).
+-export([id/1]).
+-export([body/1]).
+-export([status/1]).
+-export([route/1]).
+-export([external_id/1]).
+
+%% API
+
+-export([create/2]).
+-export([gen/1]).
+-export([get_quote/1]).
+
+%% Event source
+
+-export([apply_event/2]).
+-export([maybe_migrate/1]).
+
+%% Pipeline
+
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
+
+%% Internal types
+
+-type body() :: ff_transaction:body().
+-type account() :: ff_account:account().
+-type provider() :: ff_withdrawal_provider:provider().
+-type wallet_id() :: ff_wallet:id().
+-type wallet() :: ff_wallet:wallet().
+-type cash_flow_plan() :: ff_cash_flow:cash_flow_plan().
+-type destination_id() :: ff_destination:id().
+-type destination() :: ff_destination:destination().
+-type process_result() :: {action(), [event()]}.
+-type final_cash_flow() :: ff_cash_flow:final_cash_flow().
+-type external_id() :: id() | undefined.
+-type p_transfer() :: ff_postings_transfer:transfer().
+-type session_id() :: id().
+
+% TODO I'm now sure about this change, it may crash old events. Or not. ))
+-type provider_id() :: pos_integer() | id().
+
+-type legacy_event() :: any().
+
+-type transfer_params() :: #{
+    wallet_id      := wallet_id(),
+    destination_id := destination_id(),
+    quote          => quote()
+}.
+
+-type quote_validation_data() :: #{
+    binary() => any()
+}.
+
+%% Accessors
+
+-spec wallet_id(withdrawal()) -> wallet_id().
+wallet_id(T) ->
+    maps:get(wallet_id, params(T)).
+
+-spec destination_id(withdrawal()) -> destination_id().
+destination_id(T) ->
+    maps:get(destination_id, params(T)).
+
+-spec quote(withdrawal()) -> quote() | undefined.
+quote(T) ->
+    maps:get(quote, T, undefined).
+
+-spec id(withdrawal()) -> id().
+id(#{id := V}) ->
+    V.
+
+-spec body(withdrawal()) -> body().
+body(#{body := V}) ->
+    V.
+
+-spec status(withdrawal()) -> status() | undefined.
+status(T) ->
+    maps:get(status, T, undefined).
+
+-spec route(withdrawal()) -> route() | undefined.
+route(T) ->
+    maps:get(route, T, undefined).
+
+-spec external_id(withdrawal()) -> external_id() | undefined.
+external_id(T) ->
+    maps:get(external_id, T, undefined).
+
+%% API
+
+-spec gen(gen_args()) ->
+    withdrawal().
+gen(Args) ->
+    TypeKeys = [id, transfer_type, body, params, status, external_id],
+    genlib_map:compact(maps:with(TypeKeys, Args)).
+
+-spec create(id(), params()) ->
+    {ok, [event()]} |
+    {error, create_error()}.
+create(ID, Params) ->
     do(fun() ->
+        #{wallet_id := WalletID, destination_id := DestinationID, body := Body} = Params,
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
         WalletAccount = ff_wallet:account(Wallet),
         Destination = ff_destination:get(
@@ -177,46 +211,25 @@ create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body
         Terms = unwrap(contract, ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now())),
         valid = unwrap(terms, ff_party:validate_withdrawal_creation(Terms, Body, WalletAccount)),
 
-        Params = #{
-            handler     => ?MODULE,
-            body        => Body,
-            params      => genlib_map:compact(#{
-                wallet_id => WalletID,
-                destination_id => DestinationID,
-                quote => maps:get(quote, Args, undefined)
-            }),
-            external_id => maps:get(external_id, Args, undefined)
-        },
-        unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))
+        TransferParams = genlib_map:compact(#{
+            wallet_id => WalletID,
+            destination_id => DestinationID,
+            quote => maps:get(quote, Params, undefined)
+        }),
+        ExternalID = maps:get(external_id, Params, undefined),
+        [
+            {created, add_external_id(ExternalID, #{
+                version       => ?ACTUAL_FORMAT_VERSION,
+                id            => ID,
+                transfer_type => deposit,
+                body          => Body,
+                params        => TransferParams
+            })},
+            {status_changed, pending}
+        ]
     end).
 
--spec get(machine()) ->
-    withdrawal().
-
-get(St) ->
-    ff_transfer_machine:transfer(St).
-
--spec ctx(machine()) ->
-    ctx().
-
-ctx(St) ->
-    ff_transfer_machine:ctx(St).
-
--spec get_machine(id()) ->
-    {ok, machine()}       |
-    {error, notfound}.
-
-get_machine(ID) ->
-    ff_transfer_machine:get(?NS, ID).
-
--spec events(id(), machinery:range()) ->
-    {ok, events()} |
-    {error, notfound}.
-
-events(ID, Range) ->
-    ff_transfer_machine:events(?NS, ID, Range).
-
-%% ff_transfer_machine behaviour
+%% Transfer callbacks
 
 -spec process_transfer(withdrawal()) ->
     {ok, process_result()} |
@@ -229,27 +242,55 @@ process_transfer(Withdrawal) ->
 -spec process_failure(any(), withdrawal()) ->
     {ok, process_result()} |
     {error, _Reason}.
+process_failure(Reason, Deposit) ->
+    {ok, ShutdownEvents} = do_process_failure(Reason, Deposit),
+    {ok, {undefined, ShutdownEvents ++ [{status_changed, {failed, Reason}}]}}.
 
-process_failure(Reason, Withdrawal) ->
-    ff_transfer:process_failure(Reason, Withdrawal).
+do_process_failure(_Reason, #{status := pending, p_transfer := #{status := created}}) ->
+    {ok, []};
+do_process_failure(_Reason, #{status := pending, p_transfer := #{status := prepared}} = Deposit) ->
+    ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:cancel/1);
+do_process_failure(Reason, #{status := pending, p_transfer := #{status := committed}}) ->
+    erlang:error({unprocessable_failure, committed_p_transfer, Reason});
+do_process_failure(_Reason, Transfer) ->
+    no_p_transfer = maps:get(p_transfer, Transfer, no_p_transfer),
+    {ok, []}.
 
 %% Internals
 
 -type activity() ::
-    routing                  |
-    p_transfer_start         |
-    session_starting         |
-    session_polling          |
-    idle                     .
+    routing |
+    p_transfer_start |
+    p_transfer_prepare |
+    session_starting |
+    session_polling |
+    p_transfer_commit |
+    p_transfer_cancel.
 
-% TODO: Move activity to ff_transfer
+-spec params(withdrawal()) -> transfer_params().
+params(#{params := V}) ->
+    V.
+
+-spec session_id(withdrawal()) -> session_id() | undefined.
+session_id(T) ->
+    maps:get(session_id, T, undefined).
+
+add_external_id(undefined, Event) ->
+    Event;
+add_external_id(ExternalID, Event) ->
+    Event#{external_id => ExternalID}.
+
+-spec p_transfer(withdrawal()) -> p_transfer() | undefined.
+p_transfer(T) ->
+    maps:get(p_transfer, T, undefined).
+
 -spec deduce_activity(withdrawal()) ->
     activity().
 deduce_activity(Withdrawal) ->
     Params = #{
-        route => ff_transfer:route(Withdrawal),
-        p_transfer => ff_transfer:p_transfer(Withdrawal),
-        session_id => ff_transfer:session_id(Withdrawal),
+        route => route(Withdrawal),
+        p_transfer => p_transfer(Withdrawal),
+        session_id => session_id(Withdrawal),
         status => status(Withdrawal)
     },
     do_deduce_activity(Params).
@@ -258,23 +299,34 @@ do_deduce_activity(#{route := undefined}) ->
     routing;
 do_deduce_activity(#{p_transfer := undefined}) ->
     p_transfer_start;
+do_deduce_activity(#{status := pending, p_transfer := #{status := created}}) ->
+    p_transfer_prepare;
 do_deduce_activity(#{p_transfer := #{status := prepared}, session_id := undefined}) ->
     session_starting;
 do_deduce_activity(#{session_id := SessionID, status := pending}) when SessionID =/= undefined ->
     session_polling;
-do_deduce_activity(_Other) ->
-    idle.
+do_deduce_activity(#{status := succeeded, p_transfer := #{status := prepared}}) ->
+    p_transfer_commit;
+do_deduce_activity(#{status := {failed, _}, p_transfer := #{status := prepared}}) ->
+    p_transfer_cancel.
 
 do_process_transfer(routing, Withdrawal) ->
     create_route(Withdrawal);
 do_process_transfer(p_transfer_start, Withdrawal) ->
     create_p_transfer(Withdrawal);
+do_process_transfer(p_transfer_prepare, Deposit) ->
+    {ok, Events} = ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:prepare/1),
+    {ok, {continue, Events}};
 do_process_transfer(session_starting, Withdrawal) ->
     create_session(Withdrawal);
 do_process_transfer(session_polling, Withdrawal) ->
     poll_session_completion(Withdrawal);
-do_process_transfer(idle, Withdrawal) ->
-    ff_transfer:process_transfer(Withdrawal).
+do_process_transfer(p_transfer_commit, Deposit) ->
+    {ok, Events} = ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:commit/1),
+    {ok, {undefined, Events}};
+do_process_transfer(p_transfer_cancel, Deposit) ->
+    {ok, Events} = ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:cancel/1),
+    {ok, {undefined, Events}}.
 
 -spec create_route(withdrawal()) ->
     {ok, process_result()} |
@@ -500,7 +552,7 @@ create_session(ID, TransferData, SessionParams) ->
     end.
 
 poll_session_completion(Withdrawal) ->
-    SessionID = ff_transfer:session_id(Withdrawal),
+    SessionID = session_id(Withdrawal),
     {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
     Session = ff_withdrawal_session_machine:session(SessionMachine),
     do(fun () ->
@@ -546,11 +598,6 @@ finalize_cash_flow(CashFlowPlan, WalletAccount, DestinationAccount,
         {provider, settlement} => ProviderAccount
     }),
     ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants).
-
--spec maybe_migrate(ff_transfer:event() | ff_transfer:legacy_event()) ->
-    ff_transfer:event().
-maybe_migrate(Ev) ->
-    ff_transfer:maybe_migrate(Ev, withdrawal).
 
 -spec collect_varset(body(), ff_wallet:wallet(), ff_destination:destination() | undefined) ->
     {ok, hg_selector:varset()} | no_return().
@@ -655,3 +702,92 @@ unwrap_quote(undefined) ->
 unwrap_quote(Quote = #{quote_data := QuoteData}) ->
     WrappedData = maps:get(<<"quote_data">>, QuoteData),
     Quote#{quote_data := WrappedData}.
+
+%%
+
+-spec apply_event(event() | legacy_event(), ff_maybe:maybe(withdrawal())) ->
+    withdrawal().
+apply_event(Ev, T) ->
+    apply_event_(maybe_migrate(Ev), T).
+
+-spec apply_event_(event(), ff_maybe:maybe(withdrawal())) ->
+    withdrawal().
+apply_event_({created, T}, undefined) ->
+    T;
+apply_event_({status_changed, S}, T) ->
+    maps:put(status, S, T);
+apply_event_({p_transfer, Ev}, T = #{p_transfer := PT}) ->
+    T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
+apply_event_({p_transfer, Ev}, T) ->
+    apply_event({p_transfer, Ev}, T#{p_transfer => undefined});
+apply_event_({session_started, S}, T) ->
+    maps:put(session_id, S, T);
+apply_event_({session_finished, S}, T = #{session_id := S}) ->
+    T;
+apply_event_({route_changed, R}, T) ->
+    maps:put(route, R, T).
+
+-spec maybe_migrate(event() | legacy_event()) ->
+    event().
+% Actual events
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+    Ev;
+maybe_migrate({p_transfer, PEvent}) ->
+    {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
+% Old events
+maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
+    #{
+        version     := 1,
+        id          := ID,
+        handler     := ff_withdrawal,
+        source      := SourceAccount,
+        destination := DestinationAccount,
+        body        := Body,
+        params      := #{
+            destination := DestinationID,
+            source      := SourceID
+        }
+    } = T,
+    maybe_migrate({created, #{
+        version       => 2,
+        id            => ID,
+        transfer_type => withdrawal,
+        body          => Body,
+        params        => #{
+            wallet_id             => SourceID,
+            destination_id        => DestinationID,
+            wallet_account        => SourceAccount,
+            destination_account   => DestinationAccount,
+            wallet_cash_flow_plan => #{
+                postings => [
+                    #{
+                        sender   => {wallet, sender_settlement},
+                        receiver => {wallet, receiver_destination},
+                        volume   => {share, {{1, 1}, operation_amount, default}}
+                    }
+                ]
+            }
+        }
+    }});
+maybe_migrate({created, T}) ->
+    DestinationID = maps:get(destination, T),
+    {ok, DestinationSt} = ff_destination:get_machine(DestinationID),
+    DestinationAcc = ff_destination:account(ff_destination:get(DestinationSt)),
+    SourceID = maps:get(source, T),
+    {ok, SourceSt} = ff_wallet_machine:get(SourceID),
+    SourceAcc = ff_wallet:account(ff_wallet_machine:wallet(SourceSt)),
+    maybe_migrate({created, T#{
+        version     => 1,
+        handler     => ff_withdrawal,
+        source      => SourceAcc,
+        destination => DestinationAcc,
+        params => #{
+            destination => DestinationID,
+            source      => SourceID
+        }
+    }});
+maybe_migrate({transfer, PTransferEv}) ->
+    maybe_migrate({p_transfer, PTransferEv});
+% Other events
+maybe_migrate(Ev) ->
+    Ev.

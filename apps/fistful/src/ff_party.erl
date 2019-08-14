@@ -66,7 +66,7 @@
 -export([get_wallet_payment_institution_id/1]).
 
 %% Internal types
--type body() :: ff_transfer:body().
+-type body() :: ff_transaction:body().
 -type cash() :: ff_transaction:body().
 -type terms() :: dmsl_domain_thrift:'TermSet'().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'() | undefined.

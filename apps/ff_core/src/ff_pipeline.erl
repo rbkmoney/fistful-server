@@ -7,15 +7,20 @@
 
 -module(ff_pipeline).
 
+-include_lib("syntax_tools/include/merl.hrl").
+
 -export([do/1]).
 -export([do/2]).
 -export([unwrap/1]).
 -export([unwrap/2]).
+-export([wrap/1]).
 -export([expect/2]).
 -export([flip/1]).
 -export([valid/2]).
 
 -export([with/3]).
+
+-export([parse_transform/2]).
 
 %%
 
@@ -42,7 +47,7 @@ do(Fun) ->
     ok | result(T, {Tag, E}).
 
 do(Tag, Fun) ->
-    do(fun () -> unwrap(Tag, do(Fun)) end).
+    ff_pipeline:do(fun () -> unwrap(Tag, do(Fun)) end).
 
 -spec unwrap
     (ok)         -> ok;
@@ -55,6 +60,14 @@ unwrap({ok, V}) ->
     V;
 unwrap({error, E}) ->
     throw(E).
+
+-spec wrap(any()) ->
+    ok | {ok, any()}.
+
+wrap(ok) ->
+    ok;
+wrap(V) ->
+    {ok, V}.
 
 -spec expect
     (_E, ok)         -> ok;
@@ -117,3 +130,64 @@ with(Model, St, F) ->
         {error, Reason} ->
             {error, {Model, Reason}}
     end.
+
+%% Parse transform
+% f() ->
+%     do(fun() ->
+%         R0 = 1,
+%         R1 = unwrap(do_smth(R0)),
+%         R2 = unwrap(do_smth2(R1)),
+%         R2 + 1
+%     end).
+% To
+% f() ->
+%     try
+%         ff_pipeline:wrap(begin
+%             R0 = 1,
+%             R1 = ff_pipeline:unwrap(do_smth(R0)),
+%             R2 = ff_pipeline:unwrap(do_smth2(R1)),
+%             R2 + 1
+%         end)
+%     catch
+%         Thrown -> {error, Thrown}
+%     end.
+
+-spec parse_transform(Forms, [compile:option()]) -> Forms when
+    Forms :: [erl_parse:abstract_form() | erl_parse:form_info()].
+parse_transform(Forms, _Options) ->
+    [erl_syntax:revert(erl_syntax_lib:map(fun transform_do/1, Form)) || Form <- Forms].
+
+transform_do(Tree) ->
+    TreePos = erl_syntax:get_pos(Tree),
+    case Tree of
+        ?Q("do(_@Tag, fun() -> _@@Body end)") ->
+            build_do_statement(TreePos, Tag, Body);
+        ?Q("ff_pipeline:do(_@Tag, fun() -> _@@Body end)") ->
+            build_do_statement(TreePos, Tag, Body);
+        ?Q("do(fun() -> _@@Body end)") ->
+            build_do_statement(TreePos, Body);
+        ?Q("ff_pipeline:do(fun() -> _@@Body end)") ->
+            build_do_statement(TreePos, Body);
+        _ ->
+            Tree
+    end.
+
+build_do_statement(Pos, Body) ->
+    ThrownVar = build_var(<<"Thrown">>, Pos),
+    build_do_statement(Pos, ThrownVar, ThrownVar, Body).
+
+build_do_statement(Pos, Tag, Body) ->
+    ThrownVar = build_var(<<"Thrown">>, Pos),
+    Error = ?Q("{_@Tag, _@ThrownVar}"),
+    build_do_statement(Pos, ThrownVar, Error, Body).
+
+build_do_statement(_Pos, ThrownVar, Error, Body) ->
+    ?Q([
+        "try ff_pipeline:wrap(begin _@@Body end)",
+        "catch _@ThrownVar -> {error, _@Error} end"
+    ]).
+
+build_var(Name, Line) ->
+    LineStr = erlang:integer_to_binary(Line),
+    VarName = erlang:binary_to_atom(<<"$Pipeline", Name/binary, "-", LineStr/binary>>, latin1),
+    merl:var(VarName).

@@ -56,6 +56,7 @@
 
 %% Pipeline
 
+-compile({parse_transform, ff_pipeline}).
 -import(ff_pipeline, [do/1, do/2, unwrap/1]).
 
 -define(NS, 'ff/identity').

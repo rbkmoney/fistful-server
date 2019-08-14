@@ -55,6 +55,7 @@
 
 %% Pipeline
 
+-compile({parse_transform, ff_pipeline}).
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
 
 %% Internal types

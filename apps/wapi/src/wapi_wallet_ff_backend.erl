@@ -70,6 +70,11 @@
 
 -dialyzer([{nowarn_function, [to_swag/2]}]).
 
+%% Pipeline
+
+-compile({parse_transform, ff_pipeline}).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+
 %% API
 
 %% Providers
@@ -835,15 +840,6 @@ get_email(AuthContext) ->
 -spec not_implemented() -> no_return().
 not_implemented() ->
     wapi_handler_utils:throw_not_implemented().
-
-do(Fun) ->
-    ff_pipeline:do(Fun).
-
-unwrap(Res) ->
-    ff_pipeline:unwrap(Res).
-
-unwrap(Tag, Res) ->
-    ff_pipeline:unwrap(Tag, Res).
 
 valid(Val1, Val2) ->
     ff_pipeline:valid(Val1, Val2).

@@ -16,7 +16,8 @@
         uuid,
         dmsl,
         dmt_client,
-        id_proto
+        id_proto,
+        binbase_proto
     ]},
     {env, []},
     {modules, []},

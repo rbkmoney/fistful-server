@@ -441,8 +441,7 @@ create_source(IID, C) ->
 process_deposit(SrcID, WalID) ->
     DepID = generate_id(),
     ok = ff_deposit_machine:create(
-        DepID,
-        #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
+        #{id => DepID, source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
         ff_ctx:new()
     ),
     succeeded = ct_helper:await(

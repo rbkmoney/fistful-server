@@ -152,7 +152,7 @@ decode_domain_plan_account({_AccountNS, _AccountType} = Account) ->
 -spec decode_domain_plan_volume(dmsl_domain_thrift:'CashVolume'()) ->
     ff_cash_flow:plan_volume().
 decode_domain_plan_volume({fixed, #domain_CashVolumeFixed{cash = Cash}}) ->
-    {fixed, ff_cash:decode(Cash)};
+    {fixed, ff_dmsl_codec:unmarshal(cash, Cash)};
 decode_domain_plan_volume({share, Share}) ->
     #domain_CashVolumeShare{
         parts = Parts,

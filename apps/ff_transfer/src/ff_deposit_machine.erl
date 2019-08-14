@@ -14,28 +14,31 @@
 -type st() :: ff_machine:st(deposit()).
 -type deposit() :: ff_deposit:deposit().
 -type external_id() :: id().
--type action() :: poll | continue | undefined.
 
 -type params() :: ff_deposit:params().
 -type create_error() ::
     ff_deposit:create_error() |
     exists.
+-type start_revert_error() ::
+    ff_deposit:start_revert_error() |
+    notfound.
 
 -export_type([id/0]).
 -export_type([st/0]).
--export_type([action/0]).
 -export_type([event/0]).
 -export_type([events/0]).
 -export_type([params/0]).
 -export_type([deposit/0]).
 -export_type([external_id/0]).
 -export_type([create_error/0]).
+-export_type([start_revert_error/0]).
 
 %% API
 
--export([create/3]).
+-export([create/2]).
 -export([get/1]).
 -export([events/2]).
+-export([start_revert/2]).
 
 %% Accessors
 
@@ -56,19 +59,24 @@
 %% Internal types
 
 -type ctx()           :: ff_ctx:ctx().
+-type revert_params() :: ff_deposit:revert_params().
+
+-type call() ::
+    {start_revert, revert_params()}.
 
 -define(NS, 'ff/deposit_v1').
 
 %% API
 
--spec create(id(), params(), ctx()) ->
+-spec create(params(), ctx()) ->
     ok |
     {error, ff_deposit:create_error() | exists}.
 
-create(ID, Params, Ctx) ->
+create(Params, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_deposit:create(ID, Params)),
-        unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend(?NS)))
+        #{id := ID} = Params,
+        Events = unwrap(ff_deposit:create(Params)),
+        unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
@@ -84,12 +92,22 @@ get(ID) ->
 
 events(ID, Range) ->
     do(fun () ->
-        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend(?NS))),
+        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 
-backend(NS) ->
-    fistful:backend(NS).
+-spec start_revert(id(), revert_params()) ->
+    {ok, events()} |
+    {error, ff_deposit:start_revert_error()} |
+    {error, notfound}.
+
+start_revert(ID, Params) ->
+    case machinery:call(?NS, ID, {start_revert, Params}, backend()) of
+        {ok, Reply} ->
+            Reply;
+        Error ->
+            Error
+    end.
 
 %% Accessors
 
@@ -130,9 +148,11 @@ process_timeout(Machine, _, _Opts) ->
     Deposit = deposit(St),
     process_result(ff_deposit:process_transfer(Deposit), St).
 
--spec process_call(_CallArgs, machine(), handler_args(), handler_opts()) ->
-    no_return().
+-spec process_call(call(), machine(), handler_args(), handler_opts()) -> {Response, result()} when
+    Response :: ok | {error, ff_deposit:start_revert_error()}.
 
+process_call({start_revert, Params}, Machine, _, _Opts) ->
+    do_start_revert(Params, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
@@ -141,6 +161,26 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_deposit, Machine, Scenario).
+
+%% Internals
+
+backend() ->
+    fistful:backend(?NS).
+
+-spec do_start_revert(revert_params(), machine()) -> {Response, result()} when
+    Response :: ok | {error, ff_deposit:start_revert_error()}.
+
+do_start_revert(Params, Machine) ->
+    St = ff_machine:collapse(ff_deposit, Machine),
+    case ff_deposit:start_revert(Params, deposit(St)) of
+        {ok, Events} ->
+            {ok, #{
+                events => set_events(Events),
+                action => continue
+            }};
+        {error, _Reason} = Error ->
+            {Error, #{}}
+    end.
 
 process_result({ok, {Action, Events}}, _St) ->
     genlib_map:compact(#{

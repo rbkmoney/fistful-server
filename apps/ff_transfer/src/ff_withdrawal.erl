@@ -87,7 +87,7 @@
 -export_type([create_error/0]).
 -export_type([action/0]).
 
-%% Transfer callbacks
+%% Transfer logic callbacks
 
 -export([process_transfer/1]).
 -export([process_failure/2]).
@@ -246,16 +246,6 @@ process_failure(Reason, Deposit) ->
     {ok, ShutdownEvents} = do_process_failure(Reason, Deposit),
     {ok, {undefined, ShutdownEvents ++ [{status_changed, {failed, Reason}}]}}.
 
-do_process_failure(_Reason, #{status := pending, p_transfer := #{status := created}}) ->
-    {ok, []};
-do_process_failure(_Reason, #{status := pending, p_transfer := #{status := prepared}} = Deposit) ->
-    ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:cancel/1);
-do_process_failure(Reason, #{status := pending, p_transfer := #{status := committed}}) ->
-    erlang:error({unprocessable_failure, committed_p_transfer, Reason});
-do_process_failure(_Reason, Transfer) ->
-    no_p_transfer = maps:get(p_transfer, Transfer, no_p_transfer),
-    {ok, []}.
-
 %% Internals
 
 -type activity() ::
@@ -327,6 +317,16 @@ do_process_transfer(p_transfer_commit, Deposit) ->
 do_process_transfer(p_transfer_cancel, Deposit) ->
     {ok, Events} = ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:cancel/1),
     {ok, {undefined, Events}}.
+
+do_process_failure(_Reason, #{status := pending, p_transfer := #{status := created}}) ->
+    {ok, []};
+do_process_failure(_Reason, #{status := pending, p_transfer := #{status := prepared}} = Deposit) ->
+    ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:cancel/1);
+do_process_failure(Reason, #{status := pending, p_transfer := #{status := committed}}) ->
+    erlang:error({unprocessable_failure, committed_p_transfer, Reason});
+do_process_failure(_Reason, Transfer) ->
+    no_p_transfer = maps:get(p_transfer, Transfer, no_p_transfer),
+    {ok, []}.
 
 -spec create_route(withdrawal()) ->
     {ok, process_result()} |
@@ -516,7 +516,7 @@ create_session(Withdrawal) ->
         Destination = ff_destination:get(DestinationMachine),
         DestinationAccount = ff_destination:account(Destination),
 
-        valid = unwrap(ff_party:validate_wallet_limits(WalletID, Body, WalletAccount)),
+        valid = unwrap(ff_party:validate_wallet_limits(Wallet, Body)),
         #{provider_id := ProviderID} = route(Withdrawal),
         {ok, SenderSt} = ff_identity_machine:get(ff_account:identity(WalletAccount)),
         {ok, ReceiverSt} = ff_identity_machine:get(ff_account:identity(DestinationAccount)),
@@ -626,7 +626,7 @@ collect_varset({_, CurrencyID} = Body, Wallet) ->
         PartyID = ff_identity:party(Identity),
         #{
             currency => Currency,
-            cost => ff_cash:encode(Body),
+            cost => ff_dmsl_codec:marshal(cash, Body),
             party_id => PartyID,
             wallet_id => ff_wallet:id(Wallet),
             payout_method => #domain_PayoutMethodRef{id = wallet_info}

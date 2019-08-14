@@ -13,7 +13,7 @@
 -type id()       :: dmsl_accounter_thrift:'PlanID'().
 -type account()  :: dmsl_accounter_thrift:'AccountID'().
 -type amount()   :: dmsl_domain_thrift:'Amount'().
--type body()     :: {amount(), ff_currency:id()}.
+-type body()     :: ff_cash:cash().
 -type posting()  :: {account(), account(), body()}.
 -type balance()  :: {ff_indef:indef(amount()), ff_currency:id()}.
 -type affected() :: #{account() => balance()}.

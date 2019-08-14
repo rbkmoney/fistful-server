@@ -59,14 +59,13 @@
 -export([validate_withdrawal_creation/3]).
 -export([validate_deposit_creation/2]).
 -export([validate_wallet_limits/2]).
--export([validate_wallet_limits/3]).
 -export([get_contract_terms/4]).
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_wallet_payment_institution_id/1]).
 
 %% Internal types
 -type body() :: ff_transaction:body().
--type cash() :: ff_transaction:body().
+-type cash() :: ff_cash:cash().
 -type terms() :: dmsl_domain_thrift:'TermSet'().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'().
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
@@ -82,22 +81,25 @@
 
 -type currency_validation_error() :: {terms_violation, {not_allowed_currency, _Details}}.
 -type withdrawal_currency_error() :: {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}.
--type cash_range_validation_error() :: {terms_violation, {cash_range, {domain_cash(), domain_cash_range()}}}.
+-type cash_range_validation_error() :: {terms_violation, {cash_range, {cash(), cash_range()}}}.
 
 -type not_reduced_error() :: {not_reduced, {Name :: atom(), TermsPart :: any()}}.
 
 -type invalid_withdrawal_terms_error() ::
+    invalid_wallet_terms_error() |
     {invalid_terms, not_reduced_error()} |
-    {invalid_terms, undefined_wallet_terms} |
     {invalid_terms, {undefined_withdrawal_terms, wallet_terms()}}.
 
 -type invalid_deposit_terms_error() ::
+    invalid_wallet_terms_error().
+
+-type invalid_wallet_terms_error() ::
     {invalid_terms, not_reduced_error()} |
     {invalid_terms, undefined_wallet_terms}.
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/1]).
 
 %%
 
@@ -201,7 +203,7 @@ get_contract_terms(Wallet, Body, Timestamp) ->
         % Level = ff_identity:level(Identity),
         {_Amount, CurrencyID} = Body,
         TermVarset = #{
-            cost => ff_cash:encode(Body),
+            cost => ff_dmsl_codec:marshal(cash, Body),
             wallet_id => WalletID,
             currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
         },
@@ -519,36 +521,20 @@ validate_wallet_terms_currency(CurrencyID, Terms) ->
     } = Terms,
     validate_currency(CurrencyID, Currencies).
 
--spec validate_wallet_limits(ff_account:account(), terms()) ->
-    {ok, valid} | {error, cash_range_validation_error() | {invalid_terms, _Details}}.
-validate_wallet_limits(Account, #domain_TermSet{wallets = WalletTerms}) ->
-    %% TODO add turnover validation here
+-spec validate_wallet_limits(wallet(), body()) ->
+    {ok, valid} |
+    {error, invalid_wallet_terms_error()} |
+    {error, cash_range_validation_error()}.
+validate_wallet_limits(Wallet, Body) ->
     do(fun () ->
+        {ok, Terms} = get_contract_terms(Wallet, Body, ff_time:now()),
+        #domain_TermSet{wallets = WalletTerms} = Terms,
         valid = unwrap(validate_wallet_limits_terms_is_reduced(WalletTerms)),
         #domain_WalletServiceTerms{
             wallet_limit = {value, CashRange}
         } = WalletTerms,
-        {Amounts, CurrencyID} = unwrap(ff_transaction:balance(
-            ff_account:accounter_account_id(Account)
-        )),
-        ExpMinCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmin(Amounts), CurrencyID}),
-        ExpMaxCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmax(Amounts), CurrencyID}),
-        valid = unwrap(validate_cash_range(ExpMinCash, CashRange)),
-        valid = unwrap(validate_cash_range(ExpMaxCash, CashRange))
-    end).
-
--spec validate_wallet_limits(machinery:id(), body(), ff_account:account()) ->
-    {ok, valid} |
-    {error, {invalid_terms, _Details}} |
-    {error, cash_range_validation_error()}.
-validate_wallet_limits(WalletID, Body, Account) ->
-    do(fun () ->
-        {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
-        Wallet = ff_wallet_machine:wallet(WalletMachine),
-        {ok, Terms} = get_contract_terms(Wallet, Body, ff_time:now()),
-        #domain_TermSet{wallets = WalletTerms} = Terms,
-        valid = unwrap(validate_wallet_limits_terms_is_reduced(WalletTerms)),
-        valid = unwrap(validate_wallet_limits(Account, Terms))
+        Account = ff_wallet:account(Wallet),
+        valid = unwrap(validate_account_balance(Account, CashRange))
     end).
 
 -spec validate_wallet_limits_terms_is_reduced(wallet_terms()) ->
@@ -598,6 +584,20 @@ validate_currency(CurrencyID, Currencies) ->
             {error, {terms_violation, {not_allowed_currency, {CurrencyID, Currencies}}}}
     end.
 
+-spec validate_account_balance(ff_account:account(), domain_cash_range()) ->
+    {ok, valid} |
+    {error, cash_range_validation_error()}.
+validate_account_balance(Account, CashRange) ->
+    do(fun() ->
+        {Amounts, CurrencyID} = unwrap(ff_transaction:balance(
+                ff_account:accounter_account_id(Account)
+            )),
+        ExpMinCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmin(Amounts), CurrencyID}),
+        ExpMaxCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmax(Amounts), CurrencyID}),
+        valid = unwrap(validate_cash_range(ExpMinCash, CashRange)),
+        valid = unwrap(validate_cash_range(ExpMaxCash, CashRange))
+    end).
+
 -spec validate_cash_range(domain_cash(), domain_cash_range()) ->
     {ok, valid} | {error, cash_range_validation_error()}.
 validate_cash_range(Cash, CashRange) ->
@@ -605,7 +605,9 @@ validate_cash_range(Cash, CashRange) ->
         true ->
             {ok, valid};
         _ ->
-            {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
+            DecodedCash = ff_dmsl_codec:unmarshal(cash, Cash),
+            DecodedCashRange = ff_dmsl_codec:unmarshal(cash_range, CashRange),
+            {error, {terms_violation, {cash_range, {DecodedCash, DecodedCashRange}}}}
     end.
 
 is_inside(Cash, #domain_CashRange{lower = Lower, upper = Upper}) ->

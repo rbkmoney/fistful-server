@@ -22,6 +22,9 @@
     {bank_card, resource_bank_card()} |
     {crypto_wallet, resource_crypto_wallet()}.
 
+-type resource_full_id() ::
+    {bank_card, ff_bin_data:bin_data_id()}.
+
 -type resource_full() ::
     {bank_card, resource_full_bank_card()} |
     {crypto_wallet, resource_crypto_wallet()}.
@@ -40,7 +43,6 @@
 -type resource_bank_card() :: #{
     token          := binary(),
     bin            => binary(),
-    payment_system => atom(), % TODO
     masked_pan     => binary()
 }.
 
@@ -63,6 +65,7 @@
 -export_type([resource/0]).
 -export_type([resource_type/0]).
 -export_type([resource_full/0]).
+-export_type([resource_full_id/0]).
 -export_type([event/0]).
 -export_type([params/0]).
 
@@ -77,6 +80,8 @@
 -export([status/1]).
 -export([external_id/1]).
 -export([resource_full/1]).
+-export([resource_full/2]).
+-export([resource_full_id/1]).
 
 %% API
 
@@ -122,17 +127,40 @@ external_id(T)        -> ff_instrument:external_id(T).
     }.
 
 resource_full(Destination) ->
+    resource_full(Destination, undefined).
+
+-spec resource_full(destination(), resource_full_id() | undefined) ->
+    {ok, resource_full()} |
+    {error,
+        {bin_data, not_found}
+    }.
+
+resource_full(Destination, ResourceID) ->
     do(fun() ->
         case resource(Destination) of
             {bank_card, #{token := Token} = BankCard} ->
-                BinData = unwrap(bin_data, ff_bin_data:get(Token)),
-                KeyList = [bank_name, iso_country_code, card_type],
+                UnwrappedResourceID = unwrap_resource_id(ResourceID),
+                BinData = unwrap(bin_data, ff_bin_data:get(Token, UnwrappedResourceID)),
+                KeyList = [payment_system, bank_name, iso_country_code, card_type],
                 ExtendData = maps:with(KeyList, BinData),
                 {bank_card, maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})};
             {crypto_wallet, _CryptoWallet} = Resource ->
                 Resource
         end
     end).
+
+-spec resource_full_id(resource_full() | undefined) ->
+    resource_full_id() | undefined.
+
+resource_full_id({bank_card, #{bin_data_id := ID}}) ->
+    {bank_card, ID};
+resource_full_id(_) ->
+    undefined.
+
+unwrap_resource_id(undefined) ->
+    undefined;
+unwrap_resource_id({bank_card, ID}) ->
+    ID.
 
 %% API
 

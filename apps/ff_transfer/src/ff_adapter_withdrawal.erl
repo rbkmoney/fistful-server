@@ -16,14 +16,13 @@
 -type id()          :: machinery:id().
 -type identity_id() :: id().
 
--type destination() :: ff_destination:destination().
--type resource()    :: ff_destination:resource().
+-type resource() :: ff_destination:resource_full().
 -type identity()    :: ff_identity:identity().
 -type cash()        :: ff_transaction:body().
 
 -type withdrawal() :: #{
     id          => binary(),
-    destination => destination(),
+    resource    => resource(),
     cash        => cash(),
     sender      => identity() | undefined,
     receiver    => identity() | undefined,
@@ -172,14 +171,14 @@ encode_withdrawal(Withdrawal) ->
     #{
         id := ID,
         cash := Cash,
-        destination := Dest,
+        resource := Resource,
         sender := Sender,
         receiver := Receiver
     } = Withdrawal,
     #wthadpt_Withdrawal{
         id = ID,
         body = encode_body(Cash),
-        destination = encode_destination(Dest),
+        destination = encode_resource(Resource),
         sender = encode_identity(Sender),
         receiver = encode_identity(Receiver),
         quote = encode_quote(maps:get(quote, Withdrawal, undefined))
@@ -224,13 +223,8 @@ encode_currency(#{
         exponent = Exponent
     }.
 
--spec encode_destination(destination()) -> domain_destination().
-encode_destination(Destination) ->
-    Resource = ff_destination:resource(Destination),
-    encode_destination_resource(Resource).
-
--spec encode_destination_resource(resource()) -> domain_destination().
-encode_destination_resource(
+-spec encode_resource(resource()) -> domain_destination().
+encode_resource(
     {bank_card, #{
         token          := Token,
         payment_system := PaymentSystem,
@@ -244,7 +238,7 @@ encode_destination_resource(
         bin             = BIN,
         masked_pan      = MaskedPan
     }};
-encode_destination_resource(
+encode_resource(
     {crypto_wallet, #{
         id       := CryptoWalletID,
         currency := CryptoWalletCurrency

@@ -53,7 +53,7 @@
 }.
 
 -type params() :: #{
-    destination := ff_destination:id(),
+    resource := ff_destination:resource_full(),
     provider_id := ff_withdrawal_provider:id()
 }.
 
@@ -114,6 +114,18 @@ apply_event_({finished, Result}, Session) ->
 
 -spec maybe_migrate(event() | legacy_event()) ->
     event().
+maybe_migrate({created, Session = #{
+    destination := Destination
+}}) ->
+    Resource = unwrap(ff_destination:resource_full(Destination)),
+    {created, genlib_map:compact(#{
+        id          => maps:get(id, Session, undefined),
+        resource    => Resource,
+        cash        => maps:get(cash, Session, undefined),
+        sender      => maps:get(sender, Session, undefined),
+        receiver    => maps:get(receiver, Session, undefined),
+        quote       => maps:get(quote, Session, undefined)
+    })};
 maybe_migrate({next_state, Value}) when Value =/= undefined ->
     {next_state, try_unmarshal_msgpack(Value)};
 maybe_migrate({finished, {failed, {'domain_Failure', Code, Reason, SubFailure}}}) ->
@@ -265,12 +277,10 @@ process_intent({sleep, Timer}) ->
 
 -spec create_session(id(), data(), params()) ->
     session().
-create_session(ID, Data, #{destination := DestinationID, provider_id := ProviderID}) ->
-    {ok, DestinationSt} = ff_destination:get_machine(DestinationID),
-    Destination = ff_destination:get(DestinationSt),
+create_session(ID, Data, #{resource := Resource, provider_id := ProviderID}) ->
     #{
         id         => ID,
-        withdrawal => create_adapter_withdrawal(Data, Destination),
+        withdrawal => create_adapter_withdrawal(Data, Resource),
         provider   => ProviderID,
         adapter    => get_adapter_with_opts(ProviderID),
         status     => active
@@ -287,8 +297,8 @@ get_adapter_with_opts(ProviderID) when is_binary(ProviderID) ->
     {ok, Provider} = ff_withdrawal_provider:get(ProviderID),
     {ff_withdrawal_provider:adapter(Provider), ff_withdrawal_provider:adapter_opts(Provider)}.
 
-create_adapter_withdrawal(Data, Destination) ->
-    Data#{destination => Destination}.
+create_adapter_withdrawal(Data, Resource) ->
+    Data#{resource => Resource}.
 
 -spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->

@@ -47,14 +47,14 @@ marshal(session_finished_status, failed) ->
 
 marshal(withdrawal, Params = #{
     id := WithdrawalID,
-    destination := Destination,
+    resource := Resource,
     cash := Cash
 }) ->
     SenderIdentity = maps:get(sender, Params, undefined),
     ReceiverIdentity = maps:get(receiver, Params, undefined),
     #wthd_session_Withdrawal{
         id = marshal(id, WithdrawalID),
-        destination = ff_destination_codec:marshal_destination(Destination),
+        destination_resource = marshal(resource, Resource),
         cash = marshal(cash, Cash),
         sender   = ff_identity_codec:marshal_identity(SenderIdentity),
         receiver = ff_identity_codec:marshal_identity(ReceiverIdentity)
@@ -194,14 +194,14 @@ unmarshal(session_finished_status, {failed, #wthd_session_SessionFinishedFailed{
 
 unmarshal(withdrawal, #wthd_session_Withdrawal{
     id = WithdrawalID,
-    destination = Destination,
+    destination_resource = Resource,
     cash = Cash,
     sender = SenderIdentity,
     receiver = ReceiverIdentity
 }) ->
     genlib_map:compact(#{
         id => unmarshal(id, WithdrawalID),
-        destination => ff_destination_codec:unmarshal_destination(Destination),
+        resource => unmarshal(resource, Resource),
         cash => unmarshal(cash, Cash),
         sender => ff_identity_codec:unmarshal(identity, SenderIdentity),
         receiver => ff_identity_codec:unmarshal(identity, ReceiverIdentity)

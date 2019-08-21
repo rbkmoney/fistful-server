@@ -23,7 +23,7 @@
     {crypto_wallet, resource_crypto_wallet()}.
 
 -type resource_full_id() ::
-    {bank_card, ff_bin_data:bin_data_id()}.
+    #{binary() => ff_bin_data:bin_data_id()}.
 
 -type resource_full() ::
     {bank_card, resource_full_bank_card()} |
@@ -153,13 +153,13 @@ resource_full(Destination, ResourceID) ->
     resource_full_id() | undefined.
 
 resource_full_id({bank_card, #{bin_data_id := ID}}) ->
-    {bank_card, ID};
+    #{<<"bank_card">> => ID};
 resource_full_id(_) ->
     undefined.
 
 unwrap_resource_id(undefined) ->
     undefined;
-unwrap_resource_id({bank_card, ID}) ->
+unwrap_resource_id(#{<<"bank_card">> := ID}) ->
     ID.
 
 %% API

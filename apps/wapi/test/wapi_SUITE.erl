@@ -14,6 +14,7 @@
 -export([withdrawal_to_bank_card/1]).
 -export([withdrawal_to_crypto_wallet/1]).
 -export([woody_retry_test/1]).
+-export([jsx_encode_test/1]).
 -export([get_quote_test/1]).
 -export([get_quote_without_destination_test/1]).
 -export([get_quote_without_destination_fail_test/1]).
@@ -43,6 +44,7 @@ groups() ->
             withdrawal_to_crypto_wallet
         ]},
         {quote, [], [
+            jsx_encode_test,
             get_quote_test,
             get_quote_without_destination_test,
             get_quote_without_destination_fail_test,
@@ -153,6 +155,17 @@ withdrawal_to_crypto_wallet(C) ->
 
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
+
+-spec jsx_encode_test(config()) -> test_return().
+
+jsx_encode_test(_C) ->
+    Data = #{
+        <<"provider_id">> => 3,
+        <<"quote_data">> => #{<<"test">> => <<"test">>},
+        <<"resource_id">> => #{<<"bank_card_id">> => 123},
+        <<"version">> => 1
+    },
+    _JSONData = jsx:encode(Data).
 
 -spec get_quote_test(config()) -> test_return().
 

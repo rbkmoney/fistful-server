@@ -549,23 +549,23 @@ update_active_revert(Revert, RevertsIndex) ->
     RevertID = ff_deposit_revert:id(Revert),
     NewActive = case {IsRevertFinalized, RevertID, Active} of
         {true, RevertID, [RevertID | ActiveTail]} ->
-            drain_active_revert(ActiveTail, RevertsIndex);
+            drain_inactive_revert(ActiveTail, RevertsIndex);
         {true, _RevertID, _} ->
             Active;
-        {false, RevertID, [RevertID | ActiveTail]} ->
-            drain_active_revert(ActiveTail, RevertsIndex);
+        {false, RevertID, [RevertID | _]} ->
+            Active;
         {false, RevertID, _} ->
             [RevertID | Active]
     end,
     RevertsIndex#{active => NewActive}.
 
--spec drain_active_revert([revert_id()], indexed_reverts()) -> [revert_id()].
-drain_active_revert(RevertIDs, RevertsIndex) ->
+-spec drain_inactive_revert([revert_id()], indexed_reverts()) -> [revert_id()].
+drain_inactive_revert(RevertIDs, RevertsIndex) ->
     #{reverts := Reverts} = RevertsIndex,
-    lists:filter(
+    lists:dropwhile(
         fun(RevertID) ->
             #{RevertID := Revert} = Reverts,
-            not ff_deposit_revert:is_finalized(Revert)
+            ff_deposit_revert:is_finalized(Revert)
         end,
         RevertIDs
     ).

@@ -550,8 +550,10 @@ update_active_revert(Revert, RevertsIndex) ->
     NewActive = case {IsRevertFinalized, RevertID, Active} of
         {true, RevertID, [RevertID | ActiveTail]} ->
             drain_active_revert(ActiveTail, RevertsIndex);
-        {true, RevertID1, [RevertID2 | _]} when RevertID1 =/= RevertID2 ->
+        {true, _RevertID, _} ->
             Active;
+        {false, RevertID, [RevertID | ActiveTail]} ->
+            drain_active_revert(ActiveTail, RevertsIndex);
         {false, RevertID, _} ->
             [RevertID | Active]
     end,

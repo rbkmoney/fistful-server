@@ -16,7 +16,6 @@
     wallet_id     := wallet_id(),
     source_id     := source_id(),
     status        := status(),
-    cash_flow     => final_cash_flow(),
     p_transfer    => p_transfer() | undefined,
     reason        => reason(),
     external_id   => id(),
@@ -57,9 +56,6 @@
 
 -type create_error() :: none().
 
--type process_error() ::
-    {terms_violation, {wallet_limit, {cash_range, {cash(), cash_range()}}}}.
-
 -export_type([id/0]).
 -export_type([event/0]).
 -export_type([reason/0]).
@@ -67,7 +63,6 @@
 -export_type([revert/0]).
 -export_type([params/0]).
 -export_type([create_error/0]).
--export_type([process_error/0]).
 -export_type([limit_check_details/0]).
 
 %% Accessors
@@ -83,7 +78,7 @@
 %% API
 
 -export([create/1]).
--export([is_finalized/1]).
+-export([is_active/1]).
 
 %% Transfer logic callbacks
 
@@ -96,7 +91,6 @@
 
 %% Internal types
 
--type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 -type wallet_id()       :: ff_wallet:id().
 -type wallet()          :: ff_wallet:wallet().
 -type source_id()       :: ff_source:id().
@@ -109,6 +103,9 @@
 -type failure()         :: ff_failure:failure().
 -type cash()            :: ff_cash:cash().
 -type cash_range()      :: ff_range:range(cash()).
+
+-type validation_error() ::
+    {terms_violation, {wallet_limit, {cash_range, {cash(), cash_range()}}}}.
 
 -type fail_type() ::
     limit_check.
@@ -188,13 +185,13 @@ process_transfer(Revert) ->
     Activity = deduce_activity(Revert),
     do_process_transfer(Activity, Revert).
 
--spec is_finalized(revert()) -> boolean().
-is_finalized(#{status := succeeded}) ->
+-spec is_active(revert()) -> boolean().
+is_active(#{status := succeeded}) ->
+    false;
+is_active(#{status := {failed, _}}) ->
     true;
-is_finalized(#{status := {failed, _}}) ->
-    true;
-is_finalized(#{status := pending}) ->
-    false.
+is_active(#{status := pending}) ->
+    true.
 
 %% Events utils
 
@@ -366,7 +363,7 @@ is_limit_check_ok({wallet, {failed, _Details}}) ->
 
 -spec validate_wallet_limits(wallet(), cash()) ->
     {ok, valid} |
-    {error, process_error()}.
+    {error, validation_error()}.
 validate_wallet_limits(Wallet, Body) ->
     case ff_party:validate_wallet_limits(Wallet, Body) of
         {ok, valid} = Result ->

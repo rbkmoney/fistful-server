@@ -5,6 +5,8 @@
 -export([gather_used_accounts/1]).
 -export([finalize/3]).
 -export([add_fee/2]).
+-export([combine/2]).
+-export([inverse/1]).
 -export([decode_domain_postings/1]).
 
 %% Domain types
@@ -120,6 +122,15 @@ finalize(Plan, Accounts, Constants) ->
 add_fee(#{postings := PlanPostings} = Plan, #{postings := FeePostings}) ->
     {ok, Plan#{postings => PlanPostings ++ FeePostings}}.
 
+-spec combine(final_cash_flow(), final_cash_flow()) ->
+    {ok, final_cash_flow()}.
+combine(#{postings := Postings1} = Flow, #{postings := Postings2}) ->
+    {ok, Flow#{postings => Postings1 ++ Postings2}}.
+
+-spec inverse(final_cash_flow()) -> final_cash_flow().
+inverse(#{postings := Postings} = Flow) ->
+    Flow#{postings := lists:map(fun inverse_posting/1, Postings)}.
+
 %% Domain cash flow unmarshalling
 
 -spec decode_domain_postings(dmsl_domain_thrift:'CashFlow'()) ->
@@ -176,6 +187,18 @@ decode_rational(#'Rational'{p = P, q = Q}) ->
     genlib_rational:new(P, Q).
 
 %% Internals
+
+%% Inversing
+
+-spec inverse_posting
+    (plan_posting()) -> plan_posting();
+    (final_posting()) -> final_posting().
+inverse_posting(Posting) ->
+    #{
+        sender := Sender,
+        receiver := Receiver
+    } = Posting,
+    Posting#{sender := Receiver, receiver := Sender}.
 
 %% Finalizing
 

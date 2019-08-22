@@ -315,11 +315,11 @@ await_final_revert_status(RevertID, DepositID) ->
             {ok, Machine} = ff_deposit_machine:get(DepositID),
             Deposit = ff_deposit_machine:deposit(Machine),
             Revert = ff_deposit:find_revert(RevertID, Deposit),
-            case ff_deposit_revert:is_finalized(Revert) of
+            case ff_deposit_revert:is_active(Revert) of
                 true ->
-                    finished;
+                    {not_finished, Deposit};
                 false ->
-                    {not_finished, Deposit}
+                    finished
             end
         end,
         genlib_retry:linear(90, 1000)

@@ -545,16 +545,16 @@ process_revert(RevertID, Deposit) ->
 -spec update_active_revert(revert(), indexed_reverts()) -> indexed_reverts().
 update_active_revert(Revert, RevertsIndex) ->
     #{active := Active} = RevertsIndex,
-    IsRevertFinalized = ff_deposit_revert:is_finalized(Revert),
+    IsRevertActive = ff_deposit_revert:is_active(Revert),
     RevertID = ff_deposit_revert:id(Revert),
-    NewActive = case {IsRevertFinalized, RevertID, Active} of
-        {true, RevertID, [RevertID | ActiveTail]} ->
+    NewActive = case {IsRevertActive, RevertID, Active} of
+        {false, RevertID, [RevertID | ActiveTail]} ->
             drain_inactive_revert(ActiveTail, RevertsIndex);
-        {true, _RevertID, _} ->
+        {false, _RevertID, _} ->
             Active;
-        {false, RevertID, [RevertID | _]} ->
+        {true, RevertID, [RevertID | _]} ->
             Active;
-        {false, RevertID, _} ->
+        {true, RevertID, _} ->
             [RevertID | Active]
     end,
     RevertsIndex#{active => NewActive}.
@@ -565,7 +565,7 @@ drain_inactive_revert(RevertIDs, RevertsIndex) ->
     lists:dropwhile(
         fun(RevertID) ->
             #{RevertID := Revert} = Reverts,
-            ff_deposit_revert:is_finalized(Revert)
+            not ff_deposit_revert:is_active(Revert)
         end,
         RevertIDs
     ).

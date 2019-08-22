@@ -7,7 +7,7 @@
 -type bin_data() :: #{
     token               := token(),
     id                  := bin_data_id(),
-    payment_system      := binary(),
+    payment_system      := atom(),
     bank_name           => binary(),
     iso_country_code    => atom(),
     card_type           => charge_card | credit | debit | credit_or_debit,
@@ -27,16 +27,21 @@
 -export_type([bin_data/0]).
 -export_type([bin_data_id/0]).
 
--export([get/1]).
+-export([get/2]).
 -export([id/1]).
 
--spec get(token() | undefined) ->
+-spec get(token(), bin_data_id() | undefined) ->
     {ok, bin_data() | undefined} | {error, not_found}.
 
-get(undefined) ->
-    {ok, undefined};
-get(Token) ->
+get(Token, undefined) ->
     case call_binbase('GetByCardToken', [Token]) of
+        {ok, Result} ->
+            {ok, decode_result(Token, Result)};
+        {exception, #binbase_BinNotFound{}} ->
+            {error, not_found}
+    end;
+get(Token, ID) ->
+    case call_binbase('GetByBinDataId', [encode_msgpack(ID)]) of
         {ok, Result} ->
             {ok, decode_result(Token, Result)};
         {exception, #binbase_BinNotFound{}} ->
@@ -51,6 +56,20 @@ id(Data) ->
 
 %%
 
+encode_msgpack(nil)                  -> {nl, #'binbase_Nil'{}};
+encode_msgpack(V) when is_boolean(V) -> {b, V};
+encode_msgpack(V) when is_integer(V) -> {i, V};
+encode_msgpack(V) when is_float(V)   -> V;
+encode_msgpack(V) when is_binary(V)  -> {str, V}; % Assuming well-formed UTF-8 bytestring.
+encode_msgpack({binary, V}) when is_binary(V) ->
+    {bin, V};
+encode_msgpack(V) when is_list(V) ->
+    {arr, [encode_msgpack(ListItem) || ListItem <- V]};
+encode_msgpack(V) when is_map(V) ->
+    {obj, maps:fold(fun(Key, Value, Map) -> Map#{encode_msgpack(Key) => encode_msgpack(Value)} end, #{}, V)}.
+
+%%
+
 decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Version}) ->
     #'binbase_BinData'{
         payment_system = PaymentSystem,
@@ -62,7 +81,7 @@ decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Versi
     genlib_map:compact(#{
         token               => Token,
         id                  => decode_msgpack(BinDataID),
-        payment_system      => PaymentSystem,
+        payment_system      => decode_payment_system(PaymentSystem),
         bank_name           => BankName,
         iso_country_code    => decode_residence(IsoCountryCode),
         card_type           => decode_card_type(CardType),
@@ -78,6 +97,9 @@ decode_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
 decode_msgpack({arr, V}) when is_list(V)    -> [decode_msgpack(ListItem) || ListItem <- V];
 decode_msgpack({obj, V}) when is_map(V)     ->
     maps:fold(fun(Key, Value, Map) -> Map#{decode_msgpack(Key) => decode_msgpack(Value)} end, #{}, V).
+
+decode_payment_system(PaymentSystem) ->
+    binary_to_existing_atom(PaymentSystem, utf8).
 
 decode_card_type(undefined) ->
     undefined;

@@ -16,7 +16,8 @@
     handler     := ff_transfer:handler(),
     body        := ff_transaction:body(),
     params      := ff_transfer:params(),
-    external_id => external_id()
+    external_id => external_id(),
+    add_events  => list(event(any()))
 }.
 
 %% Behaviour definition
@@ -88,17 +89,20 @@
     ok |
     {error, exists}.
 
-create(NS, ID,
+create(
+    NS,
+    ID,
     Args = #{handler := Handler, body := Body, params := Params},
-Ctx)
-->
+    Ctx
+) ->
     do(fun () ->
         Events = unwrap(ff_transfer:create(
             handler_to_type(Handler),
             ID,
             Body,
             Params,
-            maps:get(external_id, Args, undefined)
+            maps:get(external_id, Args, undefined),
+            maps:get(add_events, Args, [])
         )),
         unwrap(machinery:start(NS, ID, {Events, Ctx}, backend(NS)))
     end).

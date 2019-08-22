@@ -175,8 +175,11 @@ create_failed_session(IdentityID, DestinationID, _C) ->
         sender      => IdentityID,
         receiver    => IdentityID
     },
+    {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
+    Destination = ff_destination:get(DestinationMachine),
+    DestinationResource = ff_destination:resource_full(Destination),
     SessionParams = #{
-        destination => DestinationID,
+        resource => DestinationResource,
         provider_id => 1
     },
     ok = ff_withdrawal_session_machine:create(ID, TransferData, SessionParams),

@@ -11,13 +11,17 @@
 -type transfer_params() :: #{
     wallet_id             := wallet_id(),
     destination_id        := destination_id(),
-    quote                 => quote(),
-    destination_resource  => destination_resource()
+    quote                 => quote()
 }.
 
 -type machine() :: ff_transfer_machine:st(transfer_params()).
--type events()  :: ff_transfer_machine:events(ff_transfer:event(transfer_params(), route())).
--type event()   :: ff_transfer_machine:event(ff_transfer:event(transfer_params(), route())).
+-type transfer_event()   :: ff_transfer:event(
+    transfer_params(),
+    route(),
+    destination_resource()
+).
+-type events()  :: ff_transfer_machine:events(transfer_event()).
+-type event()   :: ff_transfer_machine:event(transfer_event()).
 -type route()   :: ff_transfer:route(#{
     provider_id := provider_id()
 }).
@@ -35,6 +39,7 @@
 -export_type([route/0]).
 -export_type([params/0]).
 -export_type([quote/0]).
+-export_type([destination_resource/0]).
 
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
@@ -127,8 +132,17 @@ route(T)           -> ff_transfer:route(T).
 external_id(T)     -> ff_transfer:external_id(T).
 
 -spec destination_resource(withdrawal()) ->
-    destination_resource() | undefined.
-destination_resource(T) -> maps:get(destination_resource, ff_transfer:params(T), undefined).
+    destination_resource().
+destination_resource(T) ->
+    case ff_transfer:resource(T) of
+        undefined ->
+            DestinationID = destination_id(T),
+            {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
+            Destination = ff_destination:get(DestinationMachine),
+            unwrap(ff_destination:resource_full(Destination));
+        Resource ->
+            Resource
+    end.
 
 %%
 
@@ -183,7 +197,11 @@ create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body
             unwrap(destination, ff_destination:get_machine(DestinationID))
         ),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
-        Resource = unwrap(destination_resource, ff_destination:resource_full(Destination)),
+
+        Quote = maps:get(quote, Args, undefined),
+        ResourceID = quote_resource_id(Quote),
+
+        Resource = unwrap(destination_resource, ff_destination:resource_full(Destination, ResourceID)),
         {ok, IdentityMachine} = ff_identity_machine:get(ff_wallet:identity(Wallet)),
         Identity = ff_identity_machine:identity(IdentityMachine),
         PartyID = ff_identity:party(Identity),
@@ -198,10 +216,10 @@ create(ID, Args = #{wallet_id := WalletID, destination_id := DestinationID, body
             params      => genlib_map:compact(#{
                 wallet_id => WalletID,
                 destination_id => DestinationID,
-                quote => maps:get(quote, Args, undefined),
-                destination_resource => Resource
+                quote => Quote
             }),
-            external_id => maps:get(external_id, Args, undefined)
+            external_id => maps:get(external_id, Args, undefined),
+            add_events => [{resource_got, Resource}]
         },
         unwrap(ff_transfer_machine:create(?NS, ID, Params, Ctx))
     end).
@@ -514,7 +532,7 @@ create_session(Withdrawal) ->
             quote       => unwrap_quote(quote(Withdrawal))
         }),
         SessionParams = #{
-            destination => destination_id(Withdrawal),
+            resource => destination_resource(Withdrawal),
             provider_id => ProviderID
         },
         ok = create_session(ID, TransferData, SessionParams),
@@ -696,18 +714,24 @@ get_quote_(Params = #{
         },
         {ok, Quote} = ff_adapter_withdrawal:get_quote(Adapter, GetQuoteParams, AdapterOpts),
         %% add provider id to quote_data
-        wrap_quote(ProviderID, Quote)
+        wrap_quote(ff_destination:resource_full_id(Resource), ProviderID, Quote)
     end).
 
-wrap_quote(ProviderID, Quote = #{quote_data := QuoteData}) ->
-    Quote#{quote_data := #{
+wrap_quote(ResourceID, ProviderID, Quote = #{quote_data := QuoteData}) ->
+    Quote#{quote_data := genlib_map:compact(#{
         <<"version">> => 1,
         <<"quote_data">> => QuoteData,
-        <<"provider_id">> => ProviderID
-    }}.
+        <<"provider_id">> => ProviderID,
+        <<"resource_id">> => ResourceID
+    })}.
 
 unwrap_quote(undefined) ->
     undefined;
 unwrap_quote(Quote = #{quote_data := QuoteData}) ->
     WrappedData = maps:get(<<"quote_data">>, QuoteData),
     Quote#{quote_data := WrappedData}.
+
+quote_resource_id(undefined) ->
+    undefined;
+quote_resource_id(#{quote_data := QuoteData}) ->
+    maps:get(<<"resource_id">>, QuoteData, undefined).

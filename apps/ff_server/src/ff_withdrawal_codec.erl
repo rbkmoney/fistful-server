@@ -133,6 +133,8 @@ marshal(session, {session, SessionChange}) ->
     {session, marshal(withdrawal_session_change, SessionChange)};
 marshal(event, {route_changed, Route}) ->
     {route, marshal(withdrawal_route_changed, Route)};
+marshal(event, {resource_got, Resource}) ->
+    {resource, {got, marshal(resource_got_change, Resource)}};
 
 marshal(withdrawal_status_changed, pending) ->
     {pending, #wthd_WithdrawalPending{}};
@@ -219,6 +221,11 @@ marshal(withdrawal_route_changed, #{
         id = marshal(id, genlib:to_binary(ProviderID))
     };
 
+marshal(resource_got_change, Resource) ->
+    #wthd_ResourceGot{
+        resource = marshal(resource, Resource)
+    };
+
 marshal(ctx, Ctx) ->
     marshal(context, Ctx);
 
@@ -252,6 +259,8 @@ unmarshal(event, {route, Route}) ->
     {route_changed, unmarshal(withdrawal_route_changed, Route)};
 unmarshal(event, {route_changed, Route}) ->
     {route, unmarshal(withdrawal_route_changed, Route)};
+unmarshal(event, {resource, {got, Resource}}) ->
+    {resource_got, unmarshal(resource, Resource)};
 
 unmarshal(withdrawal_status_changed, {pending, #wthd_WithdrawalPending{}}) ->
     pending;

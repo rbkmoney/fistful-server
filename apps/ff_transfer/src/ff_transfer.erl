@@ -17,26 +17,31 @@
     p_transfer    => maybe(p_transfer()),
     session_id    => session_id(),
     route         => any(),
+    resource      => any(),
     status        => status(),
     external_id   => id()
 }.
 
 -type route(T) :: T.
+-type resource(T) :: T.
 
 -type status() ::
     pending         |
     succeeded       |
     {failed, _TODO} .
 
--type event(Params, Route) ::
+-type event(Params, Route) :: event(Params, Route, Resource :: any()).
+
+-type event(Params, Route, Resource) ::
     {created, transfer(Params)}             |
     {route_changed, route(Route)}           |
     {p_transfer, ff_postings_transfer:event()} |
     {session_started, session_id()}         |
     {session_finished, session_id()}        |
+    {resource_got, resource(Resource)}     |
     {status_changed, status()}              .
 
--type event() :: event(Params :: any(), Route :: any()).
+-type event() :: event(Params :: any(), Route :: any(), Resource :: any()).
 
 -type args() :: #{
     id            := id(),
@@ -54,6 +59,7 @@
 -export_type([params/1]).
 -export_type([event/0]).
 -export_type([event/2]).
+-export_type([event/3]).
 -export_type([status/0]).
 -export_type([route/1]).
 -export_type([body/0]).
@@ -72,9 +78,10 @@
 -export([status/1]).
 -export([session_id/1]).
 -export([route/1]).
+-export([resource/1]).
 -export([external_id/1]).
 
--export([create/5]).
+-export([create/6]).
 
 %% ff_transfer_machine behaviour
 -behaviour(ff_transfer_machine).
@@ -154,6 +161,12 @@ route(#{route := V}) ->
 route(_Other) ->
     undefined.
 
+-spec resource(transfer())  -> maybe(resource(any())).
+resource(#{resource := V}) ->
+    V;
+resource(_Other) ->
+    undefined.
+
 -spec external_id(transfer()) ->
     external_id().
 
@@ -164,10 +177,10 @@ external_id(_Transfer) ->
 
 %% API
 
--spec create(handler(), id(), body(), params(), external_id()) ->
+-spec create(handler(), id(), body(), params(), external_id(), list(event())) ->
     {ok, [event()]}.
 
-create(TransferType, ID, Body, Params, ExternalID) ->
+create(TransferType, ID, Body, Params, ExternalID, AddEvents) ->
     do(fun () ->
         [
             {created, add_external_id(ExternalID, #{
@@ -178,7 +191,7 @@ create(TransferType, ID, Body, Params, ExternalID) ->
                 params        => Params
             })},
             {status_changed, pending}
-        ]
+        ] ++ AddEvents
     end).
 
 %% ff_transfer_machine behaviour
@@ -264,7 +277,9 @@ apply_event_({session_started, S}, T) ->
 apply_event_({session_finished, S}, T = #{session_id := S}) ->
     T;
 apply_event_({route_changed, R}, T) ->
-    maps:put(route, R, T).
+    maps:put(route, R, T);
+apply_event_({resource_got, R}, T) ->
+    maps:put(resource, R, T).
 
 maybe_transfer_type(undefined) ->
     undefined;

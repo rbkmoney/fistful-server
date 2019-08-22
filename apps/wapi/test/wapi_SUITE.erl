@@ -1,6 +1,7 @@
 -module(wapi_SUITE).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("wapi_wallet_dummy_data.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -14,6 +15,7 @@
 -export([withdrawal_to_bank_card/1]).
 -export([withdrawal_to_crypto_wallet/1]).
 -export([woody_retry_test/1]).
+-export([quote_encode_decode_test/1]).
 -export([get_quote_test/1]).
 -export([get_quote_without_destination_test/1]).
 -export([get_quote_without_destination_fail_test/1]).
@@ -24,6 +26,8 @@
 -type test_case_name() :: ct_helper:test_case_name().
 -type group_name()     :: ct_helper:group_name().
 -type test_return()    :: _ | no_return().
+
+-import(ct_helper, [cfg/2]).
 
 -spec all() -> [test_case_name() | {group, group_name()}].
 
@@ -43,6 +47,7 @@ groups() ->
             withdrawal_to_crypto_wallet
         ]},
         {quote, [], [
+            quote_encode_decode_test,
             get_quote_test,
             get_quote_without_destination_test,
             get_quote_without_destination_fail_test,
@@ -108,7 +113,6 @@ end_per_testcase(_Name, _C) ->
 -define(ID_PROVIDER, <<"good-one">>).
 -define(ID_PROVIDER2, <<"good-two">>).
 -define(ID_CLASS, <<"person">>).
--define(STRING, <<"TEST">>).
 
 -spec woody_retry_test(config()) -> test_return().
 
@@ -153,6 +157,54 @@ withdrawal_to_crypto_wallet(C) ->
 
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
+
+-spec quote_encode_decode_test(config()) -> test_return().
+
+quote_encode_decode_test(C) ->
+    PartyID       = cfg(party, C),
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    CardToken     = store_bank_card(C),
+    Resource      = make_bank_card_resource(CardToken),
+    DestID        = create_desination(IdentityID, Resource, C),
+    % ожидаем авторизации назначения вывода
+    await_destination(DestID),
+
+
+    Data = #{
+        <<"version">>       => 1,
+        <<"walletID">>      => WalletID,
+        <<"destinationID">> => DestID,
+        <<"partyID">>       => PartyID,
+        <<"cashFrom">>      => #{
+            <<"amount">>   => 100,
+            <<"currency">> => <<"RUB">>
+        },
+        <<"cashTo">>        => #{
+            <<"amount">>   => 100,
+            <<"currency">> => <<"USD">>
+        },
+        <<"createdAt">>     => ?TIMESTAMP,
+        <<"expiresOn">>     => ?TIMESTAMP,
+        <<"quoteData">>     => #{
+            <<"version">> => ?INTEGER,
+            <<"quote_data">> => #{<<"test">> => <<"test">>},
+            <<"provider_id">> => ?INTEGER,
+            <<"resource_id">> => #{<<"bank_card">> => <<"test">>}
+        }
+    },
+    JSONData = jsx:encode(Data),
+    {ok, Token} = wapi_signer:sign(JSONData),
+
+    _WithdrawalID = create_withdrawal(
+        WalletID,
+        DestID,
+        C,
+        Token
+    ).
 
 -spec get_quote_test(config()) -> test_return().
 

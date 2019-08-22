@@ -71,7 +71,7 @@ init([]) ->
 
     IpEnv          = genlib_app:env(?MODULE, ip, "::0"),
     Port           = genlib_app:env(?MODULE, port, 8022),
-    HealthCheckers = genlib_app:env(?MODULE, health_checkers, []),
+    HealthCheck    = genlib_app:env(?MODULE, health_check, #{}),
     WoodyOptsEnv   = genlib_app:env(?MODULE, woody_opts, #{}),
     RouteOptsEnv   = genlib_app:env(?MODULE, route_opts, #{}),
 
@@ -101,13 +101,20 @@ init([]) ->
                     Routes ++
                     get_eventsink_routes() ++
                     get_repair_routes(WoodyOpts) ++
-                    [erl_health_handle:get_route(HealthCheckers)]
+                    [erl_health_handle:get_route(enable_health_logging(HealthCheck))]
             }
         )
     ),
     % TODO
     %  - Zero thoughts given while defining this strategy.
     {ok, {#{strategy => one_for_one}, [ChildSpec]}}.
+
+-spec enable_health_logging(erl_health:check()) ->
+    erl_health:check().
+
+enable_health_logging(Check) ->
+    EvHandler = {erl_health_event_handler, []},
+    maps:map(fun (_, V = {_, _, _}) -> #{runner => V, event_handler => EvHandler} end, Check).
 
 -spec get_routes({binary(), woody:th_handler(), map()}) ->
     [woody_server_thrift_http_handler:route(_)].

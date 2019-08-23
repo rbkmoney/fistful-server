@@ -99,11 +99,9 @@ decode_msgpack({obj, V}) when is_map(V)     ->
     maps:fold(fun(Key, Value, Map) -> Map#{decode_msgpack(Key) => decode_msgpack(Value)} end, #{}, V).
 
 decode_payment_system(<<"VISA">>)                      -> visa;
-decode_payment_system(<<"VISA/DANKORT">>)              -> visa;         % supposedly 🤔
+decode_payment_system(<<"VISA/DANKORT">>)              -> visa;
 decode_payment_system(<<"MASTERCARD">>)                -> mastercard;
-% decode_payment_system(<<"???">>)                       -> visaelectron;
 decode_payment_system(<<"MAESTRO">>)                   -> maestro;
-% decode_payment_system(<<"???">>)                       -> forbrugsforeningen;
 decode_payment_system(<<"DANKORT">>)                   -> dankort;
 decode_payment_system(<<"AMERICAN EXPRESS">>)          -> amex;
 decode_payment_system(<<"DINERS CLUB INTERNATIONAL">>) -> dinersclub;

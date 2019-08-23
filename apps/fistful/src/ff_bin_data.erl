@@ -99,7 +99,7 @@ decode_msgpack({obj, V}) when is_map(V)     ->
     maps:fold(fun(Key, Value, Map) -> Map#{decode_msgpack(Key) => decode_msgpack(Value)} end, #{}, V).
 
 decode_payment_system(PaymentSystem) ->
-    binary_to_existing_atom(PaymentSystem, utf8).
+    binary_to_existing_atom(string:to_lower(PaymentSystem), utf8).
 
 decode_card_type(undefined) ->
     undefined;

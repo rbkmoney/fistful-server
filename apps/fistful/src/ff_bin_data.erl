@@ -98,8 +98,19 @@ decode_msgpack({arr, V}) when is_list(V)    -> [decode_msgpack(ListItem) || List
 decode_msgpack({obj, V}) when is_map(V)     ->
     maps:fold(fun(Key, Value, Map) -> Map#{decode_msgpack(Key) => decode_msgpack(Value)} end, #{}, V).
 
-decode_payment_system(PaymentSystem) ->
-    binary_to_existing_atom(PaymentSystem, utf8).
+decode_payment_system(<<"VISA">>)                      -> visa;
+decode_payment_system(<<"VISA/DANKORT">>)              -> visa;
+decode_payment_system(<<"MASTERCARD">>)                -> mastercard;
+decode_payment_system(<<"MAESTRO">>)                   -> maestro;
+decode_payment_system(<<"DANKORT">>)                   -> dankort;
+decode_payment_system(<<"AMERICAN EXPRESS">>)          -> amex;
+decode_payment_system(<<"DINERS CLUB INTERNATIONAL">>) -> dinersclub;
+decode_payment_system(<<"DISCOVER">>)                  -> discover;
+decode_payment_system(<<"UNIONPAY">>)                  -> unionpay;
+decode_payment_system(<<"JCB">>)                       -> jcb;
+decode_payment_system(<<"NSPK MIR">>)                  -> nspkmir;
+decode_payment_system(_) ->
+    erlang:error({decode_payment_system, invalid_payment_system}).
 
 decode_card_type(undefined) ->
     undefined;
@@ -113,7 +124,7 @@ decode_residence(Residence) when is_binary(Residence) ->
         list_to_existing_atom(string:to_lower(binary_to_list(Residence)))
     catch
         error:badarg ->
-            throw({decode_residence, invalid_residence})
+            erlang:error({decode_residence, invalid_residence})
     end.
 
 call_binbase(Function, Args) ->

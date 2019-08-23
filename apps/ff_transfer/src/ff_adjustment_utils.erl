@@ -2,7 +2,7 @@
 %% Adjustment management helpers
 %%
 
--module(ff_adjustment_index).
+-module(ff_adjustment_utils).
 
 -opaque index() :: #{
     adjustments       := #{id() => adjustment()},

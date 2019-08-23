@@ -189,7 +189,7 @@ process_transfer(Revert) ->
 is_active(#{status := succeeded}) ->
     false;
 is_active(#{status := {failed, _}}) ->
-    true;
+    false;
 is_active(#{status := pending}) ->
     true.
 

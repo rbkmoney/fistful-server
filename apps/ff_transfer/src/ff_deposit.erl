@@ -16,7 +16,7 @@
     p_transfer    => p_transfer() | undefined,
     status        => status(),
     external_id   => id(),
-    reverts       => indexed_reverts()
+    reverts       => reverts()
 }.
 -type params() :: #{
     id            := id(),
@@ -59,10 +59,7 @@
 -type invalid_deposit_status_error() ::
     {invalid_deposit_status, status()}.
 
--type wrapped_revert_event()  :: {revert, #{
-    id := revert_id(),
-    payload := revert_event()
-}}.
+-type wrapped_revert_event()  :: ff_deposit_revert_utils:wrapped_event().
 
 -type process_error() ::
     {terms_violation, {wallet_limit, {cash_range, {cash(), cash_range()}}}}.
@@ -115,7 +112,6 @@
 -type wallet()                :: ff_wallet:wallet().
 -type revert()                :: ff_deposit_revert:revert().
 -type revert_id()             :: ff_deposit_revert:id().
--type revert_event()          :: ff_deposit_revert:event().
 -type body()                  :: ff_transaction:body().
 -type cash()                  :: ff_cash:cash().
 -type cash_range()            :: ff_range:range(cash()).
@@ -124,6 +120,7 @@
 -type currency_id()           :: ff_currency:id().
 -type external_id()           :: id().
 -type legacy_event()          :: any().
+-type reverts()               :: ff_deposit_revert_utils:index().
 
 -type transfer_params() :: #{
     source_id             := source_id(),
@@ -171,7 +168,7 @@ external_id(_Transfer) ->
 
 -spec find_revert(revert_id(), deposit()) -> revert().
 find_revert(RevertID, Deposit) ->
-    get_revert_by_id(RevertID, Deposit).
+    ff_deposit_revert_utils:get_by_id(RevertID, get_reverts(Deposit)).
 
 %% API
 
@@ -225,7 +222,7 @@ start_revert(Params, Deposit) ->
         },
         #{id := RevertID} = Params,
         Events = unwrap(ff_deposit_revert:create(RevertParams)),
-        wrap_revert_events(RevertID, Events)
+        ff_deposit_revert_utils:wrap_events(RevertID, Events)
     end).
 
 %% transfer logic callbacks
@@ -279,7 +276,7 @@ add_external_id(ExternalID, Event) ->
     p_transfer_prepare |
     p_transfer_commit |
     p_transfer_cancel |
-    {revert, revert_id()} |
+    revert |
     finish.
 
 -spec deduce_activity(deposit()) ->
@@ -288,7 +285,7 @@ deduce_activity(Deposit) ->
     Params = #{
         p_transfer => p_transfer_status(Deposit),
         status => status(Deposit),
-        revert => active_revert_id(Deposit)
+        active_revert => ff_deposit_revert_utils:is_active(get_reverts(Deposit))
     },
     do_deduce_activity(Params).
 
@@ -302,10 +299,8 @@ do_deduce_activity(#{status := succeeded, p_transfer := prepared}) ->
     p_transfer_commit;
 do_deduce_activity(#{status := {failed, _}, p_transfer := prepared}) ->
     p_transfer_cancel;
-do_deduce_activity(#{status := succeeded, p_transfer := committed, revert := undefined}) ->
-    erlang:error(nothing_to_do);
-do_deduce_activity(#{status := succeeded, p_transfer := committed, revert := RevertID}) ->
-    {revert, RevertID}.
+do_deduce_activity(#{status := succeeded, p_transfer := committed, active_revert := true}) ->
+    revert.
 
 -spec do_process_transfer(activity(), deposit()) ->
     {ok, process_result()} |
@@ -323,8 +318,8 @@ do_process_transfer(p_transfer_cancel, Deposit) ->
     {ok, {undefined, Events}};
 do_process_transfer(finish, Deposit) ->
     finish_transfer(Deposit);
-do_process_transfer({revert, RevertID}, Deposit) ->
-    process_revert(RevertID, Deposit).
+do_process_transfer(revert, Deposit) ->
+    ff_deposit_revert_utils:process_reverts(get_reverts(Deposit)).
 
 do_process_failure(_Reason, #{status := pending, p_transfer := #{status := created}}) ->
     {ok, []};
@@ -474,118 +469,31 @@ validate_revert_amount(Params) ->
 
 %% Revert helpers
 
--type indexed_reverts() :: #{
-    reverts := #{revert_id() => revert()},
-    % Стек идентифкаторов возвратов. Голова списка точно является незавершенным ревертом.
-    % Остальные реверты могут быть как завершенными, так и нет. Элементы могут повторяться.
-    % На практике, если машина не подвергалась починке, в стеке будут идентификаторы
-    % только активных возвратов без повторений.
-    active  := [revert_id()]
-}.
-
--spec get_reverts(deposit()) -> indexed_reverts().
+-spec get_reverts(deposit()) -> reverts().
 get_reverts(Deposit) ->
     case maps:find(reverts, Deposit) of
         {ok, Reverts} ->
             Reverts;
         error ->
-            #{
-                reverts => #{},
-                active => []
-            }
+            ff_deposit_revert_utils:new()
     end.
 
--spec set_reverts(indexed_reverts(), deposit()) -> deposit().
+-spec set_reverts(reverts(), deposit()) -> deposit().
 set_reverts(Reverts, Deposit) ->
     Deposit#{reverts => Reverts}.
 
--spec get_revert_by_id(revert_id(), deposit()) -> revert().
-get_revert_by_id(RevertID, Deposit) ->
-    #{reverts := #{RevertID := Revert}} = get_reverts(Deposit),
-    Revert.
-
--spec unwrap_revert_event(wrapped_revert_event()) -> {revert_id(), revert_event()}.
-unwrap_revert_event({revert, #{id := ID, payload := Event}}) ->
-    {ID, Event}.
-
--spec wrap_revert_event(revert_id(), revert_event()) -> wrapped_revert_event().
-wrap_revert_event(ID, Event) ->
-    {revert, #{id => ID, payload => Event}}.
-
--spec wrap_revert_events(revert_id(), [revert_event()]) -> [wrapped_revert_event()].
-wrap_revert_events(ID, Events) ->
-    [wrap_revert_event(ID, Ev) || Ev <- Events].
-
 -spec apply_revert_event(wrapped_revert_event(), deposit()) -> deposit().
 apply_revert_event(WrappedEvent, Deposit) ->
-    {RevertID, Event} = unwrap_revert_event(WrappedEvent),
-    #{reverts := Reverts} = RevertsIndex0 = get_reverts(Deposit),
-    Revert0 = maps:get(RevertID, Reverts, undefined),
-    Revert1 = ff_deposit_revert:apply_event(Event, Revert0),
-    RevertsIndex1 = RevertsIndex0#{reverts := Reverts#{RevertID => Revert1}},
-    RevertsIndex2 = update_active_revert(Revert1, RevertsIndex1),
-    set_reverts(RevertsIndex2, Deposit).
-
--spec process_revert(revert_id(), deposit()) ->
-    {ok, {action(), [wrapped_revert_event()]}}.
-process_revert(RevertID, Deposit) ->
-    #{reverts := #{RevertID := Revert}} = get_reverts(Deposit),
-    {RevertAction, Events} = ff_deposit_revert:process_transfer(Revert),
-    WrappedEvents = wrap_revert_events(RevertID, Events),
-    NextDeposit = lists:foldl(fun(E, Acc) -> apply_event(E, Acc) end, Deposit, WrappedEvents),
-    NextActiveRevert = active_revert_id(NextDeposit),
-    Action = case NextActiveRevert of
-        undefined ->
-            RevertAction;
-        _Other ->
-            continue
-    end,
-    {ok, {Action, WrappedEvents}}.
-
--spec update_active_revert(revert(), indexed_reverts()) -> indexed_reverts().
-update_active_revert(Revert, RevertsIndex) ->
-    #{active := Active} = RevertsIndex,
-    IsRevertActive = ff_deposit_revert:is_active(Revert),
-    RevertID = ff_deposit_revert:id(Revert),
-    NewActive = case {IsRevertActive, RevertID, Active} of
-        {false, RevertID, [RevertID | ActiveTail]} ->
-            drain_inactive_revert(ActiveTail, RevertsIndex);
-        {false, _RevertID, _} ->
-            Active;
-        {true, RevertID, [RevertID | _]} ->
-            Active;
-        {true, RevertID, _} ->
-            [RevertID | Active]
-    end,
-    RevertsIndex#{active => NewActive}.
-
--spec drain_inactive_revert([revert_id()], indexed_reverts()) -> [revert_id()].
-drain_inactive_revert(RevertIDs, RevertsIndex) ->
-    #{reverts := Reverts} = RevertsIndex,
-    lists:dropwhile(
-        fun(RevertID) ->
-            #{RevertID := Revert} = Reverts,
-            not ff_deposit_revert:is_active(Revert)
-        end,
-        RevertIDs
-    ).
-
--spec active_revert_id(deposit()) -> revert_id() | undefined.
-active_revert_id(Deposit) ->
-    #{active := Active} = get_reverts(Deposit),
-    case Active of
-        [RevertID | _] ->
-            RevertID;
-        [] ->
-            undefined
-    end.
+    Reverts0 = get_reverts(Deposit),
+    Reverts1 = ff_deposit_revert_utils:apply_event(WrappedEvent, Reverts0),
+    set_reverts(Reverts1, Deposit).
 
 -spec max_reverted_body_total(deposit()) -> body().
 max_reverted_body_total(Deposit) ->
-    #{reverts := Reverts} = get_reverts(Deposit),
+    Reverts = ff_deposit_revert_utils:reverts(get_reverts(Deposit)),
     {_InitialAmount, Currency} = body(Deposit),
-    maps:fold(
-        fun(_RevertID, Revert, {TotalAmount, AccCurrency} = Acc) ->
+    lists:foldl(
+        fun(Revert, {TotalAmount, AccCurrency} = Acc) ->
             case ff_deposit_revert:status(Revert) of
                 Status when
                     Status =:= succeeded orelse
@@ -611,8 +519,9 @@ maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
 maybe_migrate({p_transfer, PEvent}) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, deposit)};
 maybe_migrate({revert, _Payload} = Event) ->
-    {ID, RevertEvent} = unwrap_revert_event(Event),
-    wrap_revert_event(ID, ff_deposit_revert:maybe_migrate(RevertEvent));
+    {ID, RevertEvent} = ff_deposit_revert_utils:unwrap_event(Event),
+    Migrated = ff_deposit_revert:maybe_migrate(RevertEvent),
+    ff_deposit_revert_utils:wrap_event(ID, Migrated);
 % Old events
 maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
     #{

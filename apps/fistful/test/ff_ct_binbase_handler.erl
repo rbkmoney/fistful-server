@@ -15,7 +15,7 @@
 handle_function('GetByCardToken', [_Token], _Context, _Opts) ->
    {ok, #binbase_ResponseData{
         bin_data = #binbase_BinData{
-            payment_system = <<"visa">>,
+            payment_system = <<"VISA">>,
             bank_name = <<"sber">>,
             iso_country_code = <<"RUS">>,
             bin_data_id = {i, 123}
@@ -25,7 +25,7 @@ handle_function('GetByCardToken', [_Token], _Context, _Opts) ->
 handle_function('GetByBinDataId', [ID], _Context, _Opts) ->
    {ok, #binbase_ResponseData{
         bin_data = #binbase_BinData{
-            payment_system = <<"visa">>,
+            payment_system = <<"VISA">>,
             bank_name = <<"sber">>,
             iso_country_code = <<"RUS">>,
             bin_data_id = ID

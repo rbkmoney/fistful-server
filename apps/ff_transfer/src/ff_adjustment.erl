@@ -126,13 +126,13 @@ create(Params) ->
         id            := ID,
         changes_plan  := Changes
     } = Params,
-    Adjustment = #{
+    Adjustment = genlib_map:compact(#{
         version         => ?ACTUAL_FORMAT_VERSION,
         id              => ID,
         changes_plan    => Changes,
         status          => pending,
         external_id     => maps:get(external_id, Params, undefined)
-    },
+    }),
     {ok, [{created, Adjustment}]}.
 
 %% Transfer logic callbacks

@@ -165,7 +165,7 @@ create(Params) ->
         source_id     := SourceID,
         body          := Body
     } = Params,
-    Revert = #{
+    Revert = genlib_map:compact(#{
         version         => ?ACTUAL_FORMAT_VERSION,
         id              => ID,
         body            => Body,
@@ -174,7 +174,7 @@ create(Params) ->
         status          => pending,
         reason          => maps:get(reason, Params, undefined),
         external_id     => maps:get(external_id, Params, undefined)
-    },
+    }),
     {ok, [{created, Revert}]}.
 
 %% Transfer logic callbacks

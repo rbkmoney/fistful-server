@@ -221,7 +221,7 @@ create(ID, Params) ->
             {created, add_external_id(ExternalID, #{
                 version       => ?ACTUAL_FORMAT_VERSION,
                 id            => ID,
-                transfer_type => deposit,
+                transfer_type => withdrawal,
                 body          => Body,
                 params        => TransferParams
             })},

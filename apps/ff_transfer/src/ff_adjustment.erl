@@ -10,7 +10,6 @@
     changes_plan     := changes(),
     status           := status(),
     external_id      => id(),
-    accepted_changes => changes(),
     p_transfer       => p_transfer() | undefined
 }.
 
@@ -21,19 +20,18 @@
 }.
 
 -type changes() :: #{
-    new_body      => body(),
     new_cash_flow => cash_flow_change(),
     new_status    => target_status()
 }.
 
 -type cash_flow_change() :: #{
-    old_cash_flow := final_cash_flow(),
+    old_cash_flow_inverted := final_cash_flow(),
     new_cash_flow := final_cash_flow()
 }.
 
 -type status() ::
     pending |
-    {succeeded, changes()}.
+    succeeded.
 
 -type event() ::
     {created, adjustment()} |
@@ -55,7 +53,6 @@
 -export([id/1]).
 -export([status/1]).
 -export([changes_plan/1]).
--export([accepted_changes/1]).
 -export([external_id/1]).
 -export([p_transfer/1]).
 
@@ -63,6 +60,7 @@
 
 -export([create/1]).
 -export([is_active/1]).
+-export([is_finished/1]).
 
 %% Transfer logic callbacks
 
@@ -78,7 +76,6 @@
 -type target_status()   :: term().
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 -type p_transfer()      :: ff_postings_transfer:transfer().
--type body()            :: ff_transaction:body().
 -type action()          :: machinery:action() | undefined.
 -type process_result()  :: {action(), [event()]}.
 -type legacy_event()    :: any().
@@ -104,10 +101,6 @@ status(#{status := V}) ->
 changes_plan(#{changes_plan := V}) ->
     V.
 
--spec accepted_changes(adjustment()) -> changes().
-accepted_changes(T) ->
-    maps:get(accepted_changes, T, #{}).
-
 -spec external_id(adjustment()) -> external_id() | undefined.
 external_id(T) ->
     maps:get(external_id, T, undefined).
@@ -119,7 +112,7 @@ p_transfer(T) ->
 %% API
 
 -spec create(params()) ->
-    {ok, [event()]}.
+    {ok, process_result()}.
 
 create(Params) ->
     #{
@@ -133,7 +126,7 @@ create(Params) ->
         status          => pending,
         external_id     => maps:get(external_id, Params, undefined)
     }),
-    {ok, [{created, Adjustment}]}.
+    {ok, {continue, [{created, Adjustment}]}}.
 
 %% Transfer logic callbacks
 
@@ -143,11 +136,19 @@ process_transfer(Adjustment) ->
     Activity = deduce_activity(Adjustment),
     do_process_transfer(Activity, Adjustment).
 
+%% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(adjustment()) -> boolean().
-is_active(#{status := {succeeded, _}}) ->
+is_active(#{status := succeeded}) ->
     false;
 is_active(#{status := pending}) ->
     true.
+
+%% Сущность приняла статус, который не будет меняться без внешних воздействий.
+-spec is_finished(adjustment()) -> boolean().
+is_finished(#{status := succeeded}) ->
+    true;
+is_finished(#{status := pending}) ->
+    false.
 
 %% Events utils
 
@@ -162,10 +163,8 @@ apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
     update_status(S, T);
-apply_event_({p_transfer, Ev}, T = #{p_transfer := PT}) ->
-    T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
 apply_event_({p_transfer, Ev}, T) ->
-    apply_event({p_transfer, Ev}, T#{p_transfer => undefined}).
+    T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))}.
 
 -spec maybe_migrate(event() | legacy_event()) ->
     event().
@@ -221,27 +220,24 @@ do_process_transfer(finish, Adjustment) ->
 create_p_transfer(Adjustment) ->
     #{new_cash_flow := CashFlowChange} = changes_plan(Adjustment),
     #{
-        old_cash_flow := Old,
+        old_cash_flow_inverted := Old,
         new_cash_flow := New
     } = CashFlowChange,
-    {ok, FinalCashFlow} = ff_cash_flow:combine(ff_cash_flow:inverse(Old), New),
+    {ok, FinalCashFlow} = ff_cash_flow:combine(Old, New),
     PTransferID = construct_p_transfer_id(id(Adjustment)),
     {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
     {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
 
 -spec process_transfer_finish(adjustment()) ->
     process_result().
-process_transfer_finish(Adjustment) ->
-    Changes = changes_plan(Adjustment),
-    {undefined, [{status_changed, {succeeded, Changes}}]}.
+process_transfer_finish(_Adjustment) ->
+    {undefined, [{status_changed, succeeded}]}.
 
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->
     <<"ff/adjustment/", ID/binary>>.
 
 -spec update_status(status(), adjustment()) -> adjustment().
-update_status({succeeded, Changes} = Status, Adjustment) ->
-    Adjustment#{status := Status, accepted_changes => Changes};
 update_status(Status, Adjustment) ->
     Adjustment#{status := Status}.
 

@@ -18,14 +18,19 @@
     payload := event()
 }}.
 
+-type unknown_revert_error() :: {unknown_revert, id()}.
+
 -export_type([index/0]).
 -export_type([wrapped_event/0]).
+-export_type([unknown_revert_error/0]).
 
 %% API
 
--export([new/0]).
+-export([new_index/0]).
 -export([reverts/1]).
 -export([is_active/1]).
+-export([is_finished/1]).
+-export([get_not_finished/1]).
 -export([wrap_event/2]).
 -export([wrap_events/2]).
 -export([unwrap_event/1]).
@@ -42,8 +47,8 @@
 
 %% API
 
--spec new() -> index().
-new() ->
+-spec new_index() -> index().
+new_index() ->
     #{
         reverts => #{},
         active => []
@@ -53,15 +58,28 @@ new() ->
 is_active(Index) ->
     active_revert_id(Index) =/= undefined.
 
+-spec is_finished(index()) -> boolean().
+is_finished(Index) ->
+    lists:all(fun ff_deposit_revert:is_finished/1, reverts(Index)).
+
+-spec get_not_finished(index()) -> {ok, id()} | error.
+get_not_finished(Index) ->
+    do_get_not_finished(reverts(Index)).
+
 -spec reverts(index()) -> [revert()].
 reverts(Index) ->
     #{reverts := Reverts} = Index,
     maps:values(Reverts).
 
--spec get_by_id(id(), index()) -> revert().
+-spec get_by_id(id(), index()) -> {ok, revert()} | {error, unknown_revert_error()}.
 get_by_id(RevertID, Index) ->
-    #{reverts := #{RevertID := Revert}} = Index,
-    Revert.
+    #{reverts := Reverts} = Index,
+    case maps:find(RevertID, Reverts) of
+        {ok, Revert} ->
+            {ok, Revert};
+        error ->
+            {error, {unknown_revert, RevertID}}
+    end.
 
 -spec unwrap_event(wrapped_event()) -> {id(), event()}.
 unwrap_event({revert, #{id := ID, payload := Event}}) ->
@@ -86,13 +104,13 @@ apply_event(WrappedEvent, Index0) ->
     Index2.
 
 -spec process_reverts(index()) ->
-    {ok, {action(), [wrapped_event()]}}.
+    {action(), [wrapped_event()]}.
 process_reverts(Index) ->
     RevertID = active_revert_id(Index),
     #{reverts := #{RevertID := Revert}} = Index,
     {RevertAction, Events} = ff_deposit_revert:process_transfer(Revert),
     WrappedEvents = wrap_events(RevertID, Events),
-    NextIndex = lists:foldl(fun(E, Acc) -> apply_event(E, Acc) end, Index, WrappedEvents),
+    NextIndex = lists:foldl(fun(E, Acc) -> ff_deposit_revert_utils:apply_event(E, Acc) end, Index, WrappedEvents),
     NextActiveRevert = active_revert_id(NextIndex),
     Action = case NextActiveRevert of
         undefined ->
@@ -100,7 +118,7 @@ process_reverts(Index) ->
         _Other ->
             continue
     end,
-    {ok, {Action, WrappedEvents}}.
+    {Action, WrappedEvents}.
 
 %% Internals
 
@@ -140,4 +158,15 @@ active_revert_id(Index) ->
             RevertID;
         [] ->
             undefined
+    end.
+
+-spec do_get_not_finished([revert()]) -> {ok, id()} | error.
+do_get_not_finished([]) ->
+    error;
+do_get_not_finished([Revert | Tail]) ->
+    case ff_deposit_revert:is_finished(Revert) of
+        true ->
+            do_get_not_finished(Tail);
+        false ->
+            {ok, ff_deposit_revert:id(Revert)}
     end.

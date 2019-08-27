@@ -19,6 +19,7 @@
 -export([revert_ok_test/1]).
 -export([multiple_reverts_ok_test/1]).
 -export([multiple_parallel_reverts_ok_test/1]).
+-export([idempotency_test/1]).
 -export([optional_fields_test/1]).
 -export([insufficient_deposit_amount_test/1]).
 -export([insufficient_amount_multiple_reverts_test/1]).
@@ -26,6 +27,7 @@
 -export([inconsistent_revert_currency_test/1]).
 -export([wallet_limit_check_fail_test/1]).
 -export([multiple_parallel_reverts_limit_fail_test/1]).
+-export([unknown_deposit_test/1]).
 
 %% Internal types
 
@@ -51,13 +53,15 @@ groups() ->
             revert_ok_test,
             multiple_reverts_ok_test,
             multiple_parallel_reverts_ok_test,
+            idempotency_test,
             optional_fields_test,
             insufficient_deposit_amount_test,
             insufficient_amount_multiple_reverts_test,
             invalid_revert_amount_test,
             inconsistent_revert_currency_test,
             wallet_limit_check_fail_test,
-            multiple_parallel_reverts_limit_fail_test
+            multiple_parallel_reverts_limit_fail_test,
+            unknown_deposit_test
         ]}
     ].
 
@@ -143,6 +147,27 @@ multiple_parallel_reverts_ok_test(C) ->
     ),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_source_balance(SourceID)).
+
+-spec idempotency_test(config()) -> test_return().
+idempotency_test(C) ->
+    #{
+        deposit_id := DepositID,
+        wallet_id := WalletID,
+        source_id := SourceID
+    } = prepare_standard_environment({10000, <<"RUB">>}, C),
+    RevertID = generate_id(),
+    Params = #{
+        id     => RevertID,
+        body   => {5000, <<"RUB">>}
+    },
+    ok = ff_deposit_machine:start_revert(DepositID, Params),
+    ok = ff_deposit_machine:start_revert(DepositID, Params),
+    RevertID = process_revert(DepositID, Params),
+    ok = ff_deposit_machine:start_revert(DepositID, Params),
+    RevertID = process_revert(DepositID, Params),
+    ?assertEqual(1, erlang:length(get_reverts(DepositID))),
+    ?assertEqual(?final_balance(5000, <<"RUB">>), get_wallet_balance(WalletID)),
+    ?assertEqual(?final_balance(-5000, <<"RUB">>), get_source_balance(SourceID)).
 
 -spec optional_fields_test(config()) -> test_return().
 optional_fields_test(C) ->
@@ -265,6 +290,15 @@ multiple_parallel_reverts_limit_fail_test(C) ->
     ?assertEqual(-WalletBalance, SourceBalance + Lack),
     ?assert(WalletBalance >= 0).
 
+-spec unknown_deposit_test(config()) -> test_return().
+unknown_deposit_test(_C) ->
+    DepositID = <<"unknown_deposit">>,
+    Result = ff_deposit_machine:start_revert(DepositID, #{
+        id => generate_id(),
+        body => {1000, <<"RUB">>}
+    }),
+    ?assertMatch({error, {unknown_deposit, DepositID}}, Result).
+
 %% Utils
 
 prepare_standard_environment({_Amount, Currency} = Cash, C) ->
@@ -302,9 +336,10 @@ process_deposit(DepositParams) ->
     ),
     DepositID.
 
-process_revert(DepositID, RevertParams) ->
-    RevertID = generate_id(),
-    ok = ff_deposit_machine:start_revert(DepositID, RevertParams#{id => RevertID}),
+process_revert(DepositID, RevertParams0) ->
+    RevertParams1 = maps:merge(#{id => generate_id()}, RevertParams0),
+    #{id := RevertID} = RevertParams1,
+    ok = ff_deposit_machine:start_revert(DepositID, RevertParams1),
     succeeded = await_final_revert_status(RevertID, DepositID),
     RevertID.
 
@@ -314,11 +349,11 @@ await_final_revert_status(RevertID, DepositID) ->
         fun () ->
             {ok, Machine} = ff_deposit_machine:get(DepositID),
             Deposit = ff_deposit_machine:deposit(Machine),
-            Revert = ff_deposit:find_revert(RevertID, Deposit),
-            case ff_deposit_revert:is_active(Revert) of
-                true ->
-                    {not_finished, Deposit};
+            {ok, Revert} = ff_deposit:find_revert(RevertID, Deposit),
+            case ff_deposit_revert:is_finished(Revert) of
                 false ->
+                    {not_finished, Deposit};
+                true ->
                     finished
             end
         end,
@@ -326,13 +361,19 @@ await_final_revert_status(RevertID, DepositID) ->
     ),
     {ok, Machine} = ff_deposit_machine:get(DepositID),
     Deposit = ff_deposit_machine:deposit(Machine),
-    Revert = ff_deposit:find_revert(RevertID, Deposit),
+    {ok, Revert} = ff_deposit:find_revert(RevertID, Deposit),
     ff_deposit_revert:status(Revert).
 
 get_revert(RevertID, DepositID) ->
     {ok, Machine} = ff_deposit_machine:get(DepositID),
     Desposit = ff_deposit_machine:deposit(Machine),
-    ff_deposit:find_revert(RevertID, Desposit).
+    {ok, Revert} = ff_deposit:find_revert(RevertID, Desposit),
+    Revert.
+
+get_reverts(DepositID) ->
+    {ok, Machine} = ff_deposit_machine:get(DepositID),
+    Desposit = ff_deposit_machine:deposit(Machine),
+    ff_deposit:reverts(Desposit).
 
 create_party(_C) ->
     ID = genlib:bsuuid(),

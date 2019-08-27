@@ -2,6 +2,7 @@
 
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 
+-export([make_empty_final/0]).
 -export([gather_used_accounts/1]).
 -export([finalize/3]).
 -export([add_fee/2]).
@@ -103,6 +104,11 @@
     {operation_failed, {empty_list, plan_operation()}}.
 
 %% API
+
+-spec make_empty_final() -> final_cash_flow().
+make_empty_final() ->
+    #{postings => []}.
+
 -spec gather_used_accounts(final_cash_flow()) -> [account()].
 gather_used_accounts(#{postings := Postings}) ->
     lists:usort(lists:flatten([

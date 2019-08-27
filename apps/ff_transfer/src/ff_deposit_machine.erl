@@ -21,7 +21,14 @@
     exists.
 -type start_revert_error() ::
     ff_deposit:start_revert_error() |
-    notfound.
+    unknown_deposit_error().
+
+-type start_revert_adjustment_error() ::
+    ff_deposit:start_revert_adjustment_error() |
+    unknown_deposit_error().
+
+-type unknown_deposit_error() ::
+    {unknown_deposit, id()}.
 
 -export_type([id/0]).
 -export_type([st/0]).
@@ -32,13 +39,16 @@
 -export_type([external_id/0]).
 -export_type([create_error/0]).
 -export_type([start_revert_error/0]).
+-export_type([start_revert_adjustment_error/0]).
 
 %% API
 
 -export([create/2]).
 -export([get/1]).
 -export([events/2]).
+
 -export([start_revert/2]).
+-export([start_revert_adjustment/3]).
 
 %% Accessors
 
@@ -60,6 +70,9 @@
 
 -type ctx()           :: ff_ctx:ctx().
 -type revert_params() :: ff_deposit:revert_params().
+-type revert_id()     :: ff_deposit_revert:id().
+
+-type revert_adjustment_params() :: ff_deposit:revert_adjustment_params().
 
 -type call() ::
     {start_revert, revert_params()}.
@@ -81,33 +94,41 @@ create(Params, Ctx) ->
 
 -spec get(id()) ->
     {ok, st()} |
-    {error, notfound}.
+    {error, unknown_deposit_error()}.
 
 get(ID) ->
-    ff_machine:get(ff_deposit, ?NS, ID).
+    case ff_machine:get(ff_deposit, ?NS, ID) of
+        {ok, _Machine} = Result ->
+            Result;
+        {error, notfound} ->
+            {error, {unknown_deposit, ID}}
+    end.
 
 -spec events(id(), machinery:range()) ->
     {ok, events()} |
-    {error, notfound}.
+    {error, unknown_deposit_error()}.
 
 events(ID, Range) ->
-    do(fun () ->
-        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
-        [{EventID, TsEv} || {EventID, _, TsEv} <- History]
-    end).
+    case machinery:get(?NS, ID, Range, backend()) of
+        {ok, #{history := History}} ->
+            {ok, [{EventID, TsEv} || {EventID, _, TsEv} <- History]};
+        {error, notfound} ->
+            {error, {unknown_deposit, ID}}
+    end.
 
 -spec start_revert(id(), revert_params()) ->
     {ok, events()} |
-    {error, ff_deposit:start_revert_error()} |
-    {error, notfound}.
+    {error, start_revert_error()}.
 
 start_revert(ID, Params) ->
-    case machinery:call(?NS, ID, {start_revert, Params}, backend()) of
-        {ok, Reply} ->
-            Reply;
-        Error ->
-            Error
-    end.
+    call(ID, {start_revert, Params}).
+
+-spec start_revert_adjustment(id(), revert_id(), revert_adjustment_params()) ->
+    {ok, events()} |
+    {error, start_revert_adjustment_error()}.
+
+start_revert_adjustment(DepositID, RevertID, Params) ->
+    call(DepositID, {start_revert_adjustment, RevertID, Params}).
 
 %% Accessors
 
@@ -153,6 +174,8 @@ process_timeout(Machine, _, _Opts) ->
 
 process_call({start_revert, Params}, Machine, _, _Opts) ->
     do_start_revert(Params, Machine);
+process_call({start_revert_adjustment, RevertID, Params}, Machine, _, _Opts) ->
+    do_start_revert_adjustment(RevertID, Params, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
@@ -173,11 +196,26 @@ backend() ->
 do_start_revert(Params, Machine) ->
     St = ff_machine:collapse(ff_deposit, Machine),
     case ff_deposit:start_revert(Params, deposit(St)) of
-        {ok, Events} ->
-            {ok, #{
+        {ok, {Action, Events}} ->
+            {ok, genlib_map:compact(#{
                 events => set_events(Events),
-                action => continue
-            }};
+                action => Action
+            })};
+        {error, _Reason} = Error ->
+            {Error, #{}}
+    end.
+
+-spec do_start_revert_adjustment(revert_id(), revert_adjustment_params(), machine()) -> {Response, result()} when
+    Response :: ok | {error, ff_deposit:start_revert_adjustment_error()}.
+
+do_start_revert_adjustment(RevertID, Params, Machine) ->
+    St = ff_machine:collapse(ff_deposit, Machine),
+    case ff_deposit:start_revert_adjustment(RevertID, Params, deposit(St)) of
+        {ok, {Action, Events}} ->
+            {ok, genlib_map:compact(#{
+                events => set_events(Events),
+                action => Action
+            })};
         {error, _Reason} = Error ->
             {Error, #{}}
     end.
@@ -198,3 +236,11 @@ set_events([]) ->
     undefined;
 set_events(Events) ->
     ff_machine:emit_events(Events).
+
+call(ID, Call) ->
+    case machinery:call(?NS, ID, Call, backend()) of
+        {ok, Reply} ->
+            Reply;
+        {error, notfound} ->
+            {error, {unknown_deposit, ID}}
+    end.

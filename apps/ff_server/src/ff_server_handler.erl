@@ -82,7 +82,7 @@ handle_function_('GetDeposit', [ID], _Context, _Opts) ->
     case ff_deposit_machine:get(ID) of
         {ok, Machine} ->
             {ok, encode(deposit, {ID, Machine})};
-        {error, notfound} ->
+        {error, {unknown_deposit, _}} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end.
 

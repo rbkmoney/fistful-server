@@ -136,7 +136,6 @@
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 -type external_id() :: id() | undefined.
 -type p_transfer() :: ff_postings_transfer:transfer().
--type p_transfer_status() :: ff_postings_transfer:status().
 -type session_id() :: id().
 -type destination_resource() :: ff_destination:resource_full().
 

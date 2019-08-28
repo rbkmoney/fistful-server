@@ -16,6 +16,7 @@
     p_transfer    => p_transfer() | undefined,
     status        => status(),
     external_id   => id(),
+    limit_checks  => [limit_check_details()],
     reverts       => reverts()
 }.
 -type params() :: #{
@@ -27,15 +28,28 @@
 }.
 
 -type status() ::
-    pending         |
-    succeeded       |
-    {failed, _TODO} .
+    pending |
+    succeeded |
+    {failed, failure()} .
 
 -type event() ::
     {created, deposit()} |
+    {limit_check, limit_check_details()} |
     {p_transfer, ff_postings_transfer:event()} |
     wrapped_revert_event() |
     {status_changed, status()}.
+
+-type limit_check_details() ::
+    {wallet, wallet_limit_check_details()}.
+
+-type wallet_limit_check_details() ::
+    ok |
+    {failed, wallet_limit_check_error()}.
+
+-type wallet_limit_check_error() :: #{
+    expected_range := cash_range(),
+    balance := cash()
+}.
 
 -type create_error() ::
     {source, notfound | unauthorized} |
@@ -61,9 +75,6 @@
 
 -type wrapped_revert_event()  :: ff_deposit_revert_utils:wrapped_event().
 
--type process_error() ::
-    {terms_violation, {wallet_limit, {cash_range, {cash(), cash_range()}}}}.
-
 -type revert_adjustment_params() :: ff_deposit_revert:adjustment_params().
 
 -type start_revert_adjustment_error() ::
@@ -82,7 +93,7 @@
 -export_type([start_revert_error/0]).
 -export_type([revert_adjustment_params/0]).
 -export_type([start_revert_adjustment_error/0]).
--export_type([process_error/0]).
+-export_type([limit_check_details/0]).
 
 %% Accessors
 
@@ -103,7 +114,6 @@
 
 %% Transfer logic callbacks
 -export([process_transfer/1]).
--export([process_failure/2]).
 
 %% Event source
 
@@ -133,6 +143,7 @@
 -type external_id()           :: id().
 -type legacy_event()          :: any().
 -type reverts()               :: ff_deposit_revert_utils:index().
+-type failure()               :: ff_failure:failure().
 
 -type transfer_params() :: #{
     source_id             := source_id(),
@@ -141,6 +152,20 @@
     source_account        := account(),
     wallet_cash_flow_plan := cash_flow_plan()
 }.
+
+-type activity() ::
+    p_transfer_start |
+    p_transfer_prepare |
+    p_transfer_commit |
+    p_transfer_cancel |
+    limit_check |
+    revert |
+    {fail, fail_type()} |
+    stop |  % Legacy activity.
+    finish.
+
+-type fail_type() ::
+    limit_check.
 
 %% Accessors
 
@@ -252,17 +277,10 @@ reverts(Deposit) ->
 %% transfer logic callbacks
 
 -spec process_transfer(deposit()) ->
-    {ok, process_result()} |
-    {error, _Reason}.
+    process_result().
 process_transfer(Deposit) ->
     Activity = deduce_activity(Deposit),
     do_process_transfer(Activity, Deposit).
-
--spec process_failure(any(), deposit()) ->
-    {ok, process_result()}.
-process_failure(Reason, Deposit) ->
-    {ok, ShutdownEvents} = do_process_failure(Reason, Deposit),
-    {ok, {undefined, ShutdownEvents ++ [{status_changed, {failed, Reason}}]}}.
 
 %% Events utils
 
@@ -277,6 +295,8 @@ apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
     maps:put(status, S, T);
+apply_event_({limit_check, Details}, T) ->
+    add_limit_check(Details, T);
 apply_event_({p_transfer, Ev}, T = #{p_transfer := PT}) ->
     T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
 apply_event_({revert, _Ev} = Event, T) ->
@@ -310,20 +330,13 @@ add_external_id(undefined, Event) ->
 add_external_id(ExternalID, Event) ->
     Event#{external_id => ExternalID}.
 
--type activity() ::
-    p_transfer_start |
-    p_transfer_prepare |
-    p_transfer_commit |
-    p_transfer_cancel |
-    revert |
-    finish.
-
 -spec deduce_activity(deposit()) ->
     activity().
 deduce_activity(Deposit) ->
     Params = #{
         p_transfer => p_transfer_status(Deposit),
         status => status(Deposit),
+        limit_check => limit_check_status(Deposit),
         active_revert => ff_deposit_revert_utils:is_active(reverts_index(Deposit))
     },
     do_deduce_activity(Params).
@@ -332,98 +345,103 @@ do_deduce_activity(#{status := pending, p_transfer := undefined}) ->
     p_transfer_start;
 do_deduce_activity(#{status := pending, p_transfer := created}) ->
     p_transfer_prepare;
-do_deduce_activity(#{status := pending, p_transfer := prepared}) ->
-    finish;
-do_deduce_activity(#{status := succeeded, p_transfer := prepared}) ->
+do_deduce_activity(#{status := pending, p_transfer := prepared, limit_check := unknown}) ->
+    limit_check;
+do_deduce_activity(#{status := pending, p_transfer := prepared, limit_check := ok}) ->
     p_transfer_commit;
+do_deduce_activity(#{status := pending, p_transfer := committed, limit_check := ok}) ->
+    finish;
+do_deduce_activity(#{status := pending, p_transfer := prepared, limit_check := {failed, _}}) ->
+    p_transfer_cancel;
+do_deduce_activity(#{status := pending, p_transfer := cancelled, limit_check := {failed, _}}) ->
+    {fail, limit_check};
+do_deduce_activity(#{status := succeeded, p_transfer := committed, active_revert := true}) ->
+    revert;
+
+%% Legacy activity. Remove after first deployment
 do_deduce_activity(#{status := {failed, _}, p_transfer := prepared}) ->
     p_transfer_cancel;
-do_deduce_activity(#{status := succeeded, p_transfer := committed, active_revert := true}) ->
-    revert.
+do_deduce_activity(#{status := succeeded, p_transfer := prepared}) ->
+    p_transfer_commit;
+do_deduce_activity(#{status := succeeded, p_transfer := committed, active_revert := false}) ->
+    stop;
+do_deduce_activity(#{status := {failed, _}, p_transfer := cancelled, active_revert := false}) ->
+    stop.
 
 -spec do_process_transfer(activity(), deposit()) ->
-    {ok, process_result()} |
-    {error, _Reason}.
+    process_result().
 do_process_transfer(p_transfer_start, Deposit) ->
     create_p_transfer(Deposit);
 do_process_transfer(p_transfer_prepare, Deposit) ->
     {ok, Events} = ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:prepare/1),
-    {ok, {continue, Events}};
+    {continue, Events};
 do_process_transfer(p_transfer_commit, Deposit) ->
     {ok, Events} = ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:commit/1),
-    {ok, {undefined, Events}};
+    {continue, Events};
 do_process_transfer(p_transfer_cancel, Deposit) ->
     {ok, Events} = ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:cancel/1),
-    {ok, {undefined, Events}};
+    {continue, Events};
+do_process_transfer(limit_check, Deposit) ->
+    process_limit_check(Deposit);
+do_process_transfer({fail, Reason}, Deposit) ->
+    process_transfer_fail(Reason, Deposit);
 do_process_transfer(finish, Deposit) ->
-    finish_transfer(Deposit);
+    process_transfer_finish(Deposit);
 do_process_transfer(revert, Deposit) ->
-    {ok, ff_deposit_revert_utils:process_reverts(reverts_index(Deposit))}.
-
-do_process_failure(_Reason, #{status := pending, p_transfer := #{status := created}}) ->
-    {ok, []};
-do_process_failure(_Reason, #{status := pending, p_transfer := #{status := prepared}} = Deposit) ->
-    ff_pipeline:with(p_transfer, Deposit, fun ff_postings_transfer:cancel/1);
-do_process_failure(Reason, #{status := pending, p_transfer := #{status := committed}}) ->
-    erlang:error({unprocessable_failure, committed_p_transfer, Reason});
-do_process_failure(_Reason, Transfer) ->
-    no_p_transfer = maps:get(p_transfer, Transfer, no_p_transfer),
-    {ok, []}.
+    ff_deposit_revert_utils:process_reverts(reverts_index(Deposit));
+do_process_transfer(stop, _Deposit) ->
+    {undefined, []}.
 
 -spec create_p_transfer(deposit()) ->
-    {ok, process_result()} |
-    {error, _Reason}.
+    process_result().
 create_p_transfer(Deposit) ->
     #{
         wallet_account := WalletAccount,
         source_account := SourceAccount,
         wallet_cash_flow_plan := CashFlowPlan
     } = params(Deposit),
-    do(fun () ->
-        Constants = #{
-            operation_amount => body(Deposit)
-        },
-        Accounts = #{
-            {wallet, sender_source} => SourceAccount,
-            {wallet, receiver_settlement} => WalletAccount
-        },
-        FinalCashFlow = unwrap(cash_flow, ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants)),
-        PTransferID = construct_p_transfer_id(id(Deposit)),
-        PostingsTransferEvents = unwrap(p_transfer, ff_postings_transfer:create(PTransferID, FinalCashFlow)),
-        {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}
-    end).
+    Constants = #{
+        operation_amount => body(Deposit)
+    },
+    Accounts = #{
+        {wallet, sender_source} => SourceAccount,
+        {wallet, receiver_settlement} => WalletAccount
+    },
+    {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
+    PTransferID = construct_p_transfer_id(id(Deposit)),
+    {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
+    {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
 
--spec finish_transfer(deposit()) ->
-    {ok, {action(), [event()]}} |
-    {error, process_error()}.
-finish_transfer(Deposit) ->
+-spec process_limit_check(deposit()) ->
+    process_result().
+process_limit_check(Deposit) ->
     Body = body(Deposit),
-    #{
-        wallet_id := WalletID
-    } = params(Deposit),
-    {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
+    {ok, WalletMachine} = ff_wallet_machine:get(wallet_id(Deposit)),
     Wallet = ff_wallet_machine:wallet(WalletMachine),
-    do(fun () ->
-        valid = unwrap(validate_wallet_limits(Wallet, Body)),
-        {continue, [{status_changed, succeeded}]}
-    end).
+    Events = case validate_wallet_limits(Wallet, Body) of
+        {ok, valid} ->
+            [{limit_check, {wallet, ok}}];
+        {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
+            Details = #{
+                expected_range => Range,
+                balance => Cash
+            },
+            [{limit_check, {wallet, {failed, Details}}}]
+    end,
+    {continue, Events}.
 
--spec validate_wallet_limits(wallet(), cash()) ->
-    {ok, valid} |
-    {error, process_error()}.
-validate_wallet_limits(Wallet, Body) ->
-    case ff_party:validate_wallet_limits(Wallet, Body) of
-        {ok, valid} = Result ->
-            Result;
-        {error, {terms_violation, {cash_range, {Cash, CashRange}}}} ->
-            {error, {terms_violation, {wallet_limit, {cash_range, {Cash, CashRange}}}}};
-        {error, {invalid_terms, _Details} = Reason} ->
-            erlang:error(Reason)
-    end.
+-spec process_transfer_finish(deposit()) ->
+    process_result().
+process_transfer_finish(_Deposit) ->
+    {undefined, [{status_changed, succeeded}]}.
 
--spec construct_p_transfer_id(id()) -> id().
-construct_p_transfer_id(ID) ->
-    <<"ff/deposit/", ID/binary>>.
+-spec process_transfer_fail(fail_type(), deposit()) ->
+    process_result().
+process_transfer_fail(limit_check, Deposit) ->
+    Failure = build_failure(limit_check, Deposit),
+    {undefined, [{status_changed, {failed, Failure}}]}.
+
+%% Internal getters
 
 -spec p_transfer_status(deposit()) -> ff_postings_transfer:status() | undefined.
 p_transfer_status(Deposit) ->
@@ -432,6 +450,50 @@ p_transfer_status(Deposit) ->
             undefined;
         #{status := Status} ->
             Status
+    end.
+
+%% Limit helpers
+
+-spec limit_checks(deposit()) ->
+    [limit_check_details()].
+limit_checks(Deposit) ->
+    maps:get(limit_checks, Deposit, []).
+
+-spec add_limit_check(limit_check_details(), deposit()) ->
+    deposit().
+add_limit_check(Check, Deposit) ->
+    Checks = limit_checks(Deposit),
+    Deposit#{limit_checks => [Check | Checks]}.
+
+-spec limit_check_status(deposit()) ->
+    ok | {failed, limit_check_details()} | unknown.
+limit_check_status(#{limit_checks := Checks}) ->
+    case lists:dropwhile(fun is_limit_check_ok/1, Checks) of
+        [] ->
+            ok;
+        [H | _Tail] ->
+            {failed, H}
+    end;
+limit_check_status(Deposit) when not is_map_key(limit_checks, Deposit) ->
+    unknown.
+
+-spec is_limit_check_ok(limit_check_details()) -> boolean().
+is_limit_check_ok({wallet, ok}) ->
+    true;
+is_limit_check_ok({wallet, {failed, _Details}}) ->
+    false.
+
+-spec validate_wallet_limits(wallet(), cash()) ->
+    {ok, valid} |
+    {error, {terms_violation, {wallet_limit, {cash_range, {cash(), cash_range()}}}}}.
+validate_wallet_limits(Wallet, Body) ->
+    case ff_party:validate_wallet_limits(Wallet, Body) of
+        {ok, valid} = Result ->
+            Result;
+        {error, {terms_violation, {cash_range, {Cash, CashRange}}}} ->
+            {error, {terms_violation, {wallet_limit, {cash_range, {Cash, CashRange}}}}};
+        {error, {invalid_terms, _Details} = Reason} ->
+            erlang:error(Reason)
     end.
 
 %% Validators
@@ -548,12 +610,28 @@ max_reverted_body_total(Deposit) ->
         Reverts
     ).
 
+%% Helpers
+
+-spec construct_p_transfer_id(id()) -> id().
+construct_p_transfer_id(ID) ->
+    <<"ff/deposit/", ID/binary>>.
+
+-spec build_failure(fail_type(), deposit()) -> failure().
+build_failure(limit_check, Deposit) ->
+    {failed, Details} = limit_check_status(Deposit),
+    #{
+        code => <<"unknown">>,
+        reason => genlib:format(Details)
+    }.
+
 %% Migration
 
 -spec maybe_migrate(event() | legacy_event()) ->
     event().
 % Actual events
 maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+    Ev;
+maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}) ->
     Ev;
 maybe_migrate({p_transfer, PEvent}) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, deposit)};
@@ -598,6 +676,12 @@ maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
     }});
 maybe_migrate({transfer, PTransferEv}) ->
     maybe_migrate({p_transfer, PTransferEv});
+maybe_migrate({status_changed, {failed, LegacyFailure}}) ->
+    Failure = #{
+        code => <<"unknown">>,
+        reason => genlib:format(LegacyFailure)
+    },
+    maybe_migrate({status_changed, {failed, Failure}});
 % Other events
 maybe_migrate(Ev) ->
     Ev.

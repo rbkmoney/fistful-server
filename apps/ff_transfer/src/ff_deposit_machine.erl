@@ -167,7 +167,7 @@ init({Events, Ctx}, #{}, _, _Opts) ->
 process_timeout(Machine, _, _Opts) ->
     St = ff_machine:collapse(ff_deposit, Machine),
     Deposit = deposit(St),
-    process_result(ff_deposit:process_transfer(Deposit), St).
+    process_result(ff_deposit:process_transfer(Deposit)).
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) -> {Response, result()} when
     Response :: ok | {error, ff_deposit:start_revert_error()}.
@@ -196,11 +196,8 @@ backend() ->
 do_start_revert(Params, Machine) ->
     St = ff_machine:collapse(ff_deposit, Machine),
     case ff_deposit:start_revert(Params, deposit(St)) of
-        {ok, {Action, Events}} ->
-            {ok, genlib_map:compact(#{
-                events => set_events(Events),
-                action => Action
-            })};
+        {ok, Result} ->
+            {ok, process_result(Result)};
         {error, _Reason} = Error ->
             {Error, #{}}
     end.
@@ -211,22 +208,13 @@ do_start_revert(Params, Machine) ->
 do_start_revert_adjustment(RevertID, Params, Machine) ->
     St = ff_machine:collapse(ff_deposit, Machine),
     case ff_deposit:start_revert_adjustment(RevertID, Params, deposit(St)) of
-        {ok, {Action, Events}} ->
-            {ok, genlib_map:compact(#{
-                events => set_events(Events),
-                action => Action
-            })};
+        {ok, Result} ->
+            {ok, process_result(Result)};
         {error, _Reason} = Error ->
             {Error, #{}}
     end.
 
-process_result({ok, {Action, Events}}, _St) ->
-    genlib_map:compact(#{
-        events => set_events(Events),
-        action => Action
-    });
-process_result({error, Reason}, St) ->
-    {ok, {Action, Events}} = ff_deposit:process_failure(Reason, deposit(St)),
+process_result({Action, Events}) ->
     genlib_map:compact(#{
         events => set_events(Events),
         action => Action

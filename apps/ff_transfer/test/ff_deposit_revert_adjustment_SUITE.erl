@@ -322,7 +322,6 @@ prepare_standard_environment({_Amount, Currency} = DepositCash, RevertCash, C) -
         wallet_id => WalletID,
         body => DepositCash
     }),
-    ok = await_wallet_balance(DepositCash, WalletID),
     RevertID = process_revert(DepositID, #{
         body => RevertCash
     }),

@@ -312,7 +312,6 @@ prepare_standard_environment({_Amount, Currency} = Cash, C) ->
         wallet_id => WalletID,
         body => Cash
     }),
-    ok = await_wallet_balance(Cash, WalletID),
     #{
         identity_id => IdentityID,
         party_id => Party,

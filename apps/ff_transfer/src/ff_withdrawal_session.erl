@@ -115,17 +115,14 @@ apply_event_({finished, Result}, Session) ->
 -spec maybe_migrate(event() | legacy_event()) ->
     event().
 maybe_migrate({created, Session = #{
-    destination := Destination
+    withdrawal := Withdrawal = #{
+        destination := Destination
+    }
 }}) ->
-    Resource = unwrap(ff_destination:resource_full(Destination)),
-    {created, genlib_map:compact(#{
-        id          => maps:get(id, Session, undefined),
-        resource    => Resource,
-        cash        => maps:get(cash, Session, undefined),
-        sender      => maps:get(sender, Session, undefined),
-        receiver    => maps:get(receiver, Session, undefined),
-        quote       => maps:get(quote, Session, undefined)
-    })};
+    {ok, Resource} = ff_destination:resource_full(Destination),
+    NewWithdrawal0 = maps:without([destination], Withdrawal),
+    NewWithdrawal1 = NewWithdrawal0#{resource => Resource},
+    maybe_migrate({created, Session#{withdrawal => NewWithdrawal1}});
 maybe_migrate({next_state, Value}) when Value =/= undefined ->
     {next_state, try_unmarshal_msgpack(Value)};
 maybe_migrate({finished, {failed, {'domain_Failure', Code, Reason, SubFailure}}}) ->

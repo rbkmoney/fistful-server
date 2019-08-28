@@ -122,7 +122,7 @@ maybe_migrate({created, Session = #{
     {ok, Resource} = ff_destination:resource_full(Destination),
     NewWithdrawal0 = maps:without([destination], Withdrawal),
     NewWithdrawal1 = NewWithdrawal0#{resource => Resource},
-    maybe_migrate({created, Session#{withdrawal => NewWithdrawal1}});
+    {created, Session#{withdrawal => NewWithdrawal1}};
 maybe_migrate({next_state, Value}) when Value =/= undefined ->
     {next_state, try_unmarshal_msgpack(Value)};
 maybe_migrate({finished, {failed, {'domain_Failure', Code, Reason, SubFailure}}}) ->

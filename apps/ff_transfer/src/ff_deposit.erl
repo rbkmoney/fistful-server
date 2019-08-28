@@ -445,9 +445,10 @@ validate_revert_start(Params, Deposit) ->
         valid = unwrap(validate_revert_body(Params, Deposit))
     end).
 
--spec validate_revert_body(revert_params(), deposit()) ->
-    {ok, valid} |
-    {error, start_revert_error()}.
+-spec validate_revert_body(revert_params(), deposit()) -> {ok, valid} | {error, Error} when
+    Error :: CurrencyError | AmountError,
+    CurrencyError :: {inconsistent_revert_currency, {Revert :: currency_id(), Deposit :: currency_id()}},
+    AmountError :: {insufficient_deposit_amount, {Revert :: body(), Deposit :: body()}}.
 validate_revert_body(Params, Deposit) ->
     do(fun() ->
         valid = unwrap(validate_revert_currency(Params, Deposit)),
@@ -468,7 +469,7 @@ validate_deposit_success(Deposit) ->
 
 -spec validate_revert_currency(revert_params(), deposit()) ->
     {ok, valid} |
-    {error, start_revert_error()}.
+    {error, {inconsistent_revert_currency, {Revert :: currency_id(), Deposit :: currency_id()}}}.
 validate_revert_currency(Params, Deposit) ->
     {_InitialAmount, DepositCurrency} = body(Deposit),
     #{body := {_Amount, RevertCurrency}} = Params,
@@ -481,7 +482,7 @@ validate_revert_currency(Params, Deposit) ->
 
 -spec validate_unreverted_amount(revert_params(), deposit()) ->
     {ok, valid} |
-    {error, start_revert_error()}.
+    {error, {insufficient_deposit_amount, {Revert :: body(), Deposit :: body()}}}.
 validate_unreverted_amount(Params, Deposit) ->
     {InitialAmount, Currency} = body(Deposit),
     #{body := {RevertAmount, Currency} = RevertBody} = Params,
@@ -496,7 +497,7 @@ validate_unreverted_amount(Params, Deposit) ->
 
 -spec validate_revert_amount(revert_params()) ->
     {ok, valid} |
-    {error, start_revert_error()}.
+    {error, {invalid_revert_amount, Revert :: body()}}.
 validate_revert_amount(Params) ->
     #{body := {RevertAmount, _Currency} = RevertBody} = Params,
     case RevertAmount of

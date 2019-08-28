@@ -111,12 +111,11 @@ process_reverts(Index) ->
     {RevertAction, Events} = ff_deposit_revert:process_transfer(Revert),
     WrappedEvents = wrap_events(RevertID, Events),
     NextIndex = lists:foldl(fun(E, Acc) -> ff_deposit_revert_utils:apply_event(E, Acc) end, Index, WrappedEvents),
-    NextActiveRevert = active_revert_id(NextIndex),
-    Action = case NextActiveRevert of
-        undefined ->
-            RevertAction;
+    Action = case {RevertAction, ff_deposit_revert_utils:is_active(NextIndex)} of
+        {undefined, true} ->
+            continue;
         _Other ->
-            continue
+            RevertAction
     end,
     {Action, WrappedEvents}.
 

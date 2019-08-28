@@ -74,6 +74,57 @@ marshal(account, #{
         accounter_account_id = marshal(event_id, AAID)
     };
 
+marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
+    Bin = maps:get(bin, BankCard, undefined),
+    PaymentSystem = maps:get(payment_system, BankCard, undefined),
+    MaskedPan = maps:get(masked_pan, BankCard, undefined),
+    BankName = maps:get(bank_name, BankCard, undefined),
+    IsoCountryCode = maps:get(iso_country_code, BankCard, undefined),
+    CardType = maps:get(card_type, BankCard, undefined),
+    {bank_card, #'BankCard'{
+        token = marshal(string, Token),
+        bin = marshal(string, Bin),
+        masked_pan = marshal(string, MaskedPan),
+        bank_name = marshal(string, BankName),
+        payment_system = PaymentSystem,
+        issuer_country = IsoCountryCode,
+        card_type = CardType
+    }};
+marshal(resource, {crypto_wallet, CryptoWallet = #{id := ID, currency := Currency}}) ->
+    {crypto_wallet, #'CryptoWallet'{
+        id       = marshal(string, ID),
+        currency = Currency,
+        data = marshal(crypto_data, CryptoWallet)
+    }};
+
+marshal(crypto_data, #{
+    currency := bitcoin
+}) ->
+    {bitcoin, #'CryptoDataBitcoin'{}};
+marshal(crypto_data, #{
+    currency := litecoin
+}) ->
+    {litecoin, #'CryptoDataLitecoin'{}};
+marshal(crypto_data, #{
+    currency := bitcoin_cash
+}) ->
+    {bitcoin_cash, #'CryptoDataBitcoinCash'{}};
+marshal(crypto_data, #{
+    currency := ripple,
+    tag := Tag
+}) ->
+    {ripple, #'CryptoDataRipple'{
+        tag = marshal(string, Tag)
+    }};
+marshal(crypto_data, #{
+    currency := ethereum
+}) ->
+    {ethereum, #'CryptoDataEthereum'{}};
+marshal(crypto_data, #{
+    currency := zcash
+}) ->
+    {zcash, #'CryptoDataZcash'{}};
+
 marshal(cash, {Amount, CurrencyRef}) ->
     #'Cash'{
         amount   = marshal(amount, Amount),
@@ -156,6 +207,55 @@ unmarshal(account, #'account_Account'{
 unmarshal(accounter_account_id, V) ->
     unmarshal(integer, V);
 
+unmarshal(resource, {bank_card, BankCard}) ->
+    {bank_card, unmarshal(bank_card, BankCard)};
+unmarshal(resource, {crypto_wallet, CryptoWallet}) ->
+    {crypto_wallet, unmarshal(crypto_wallet, CryptoWallet)};
+
+unmarshal(bank_card, #'BankCard'{
+    token = Token,
+    bin = Bin,
+    masked_pan = MaskedPan,
+    bank_name = BankName,
+    payment_system = PaymentSystem,
+    issuer_country = IsoCountryCode,
+    card_type = CardType
+}) ->
+    genlib_map:compact(#{
+        token => unmarshal(string, Token),
+        payment_system => maybe_unmarshal(payment_system, PaymentSystem),
+        bin => maybe_unmarshal(string, Bin),
+        masked_pan => maybe_unmarshal(string, MaskedPan),
+        bank_name => maybe_unmarshal(string, BankName),
+        issuer_country => maybe_unmarshal(iso_country_code, IsoCountryCode),
+        card_type => maybe_unmarshal(card_type, CardType)
+    });
+
+unmarshal(payment_system, V) when is_atom(V) ->
+    V;
+
+unmarshal(iso_country_code, V) when is_atom(V) ->
+    V;
+
+unmarshal(card_type, V) when is_atom(V) ->
+    V;
+
+unmarshal(crypto_wallet, #'CryptoWallet'{
+    id = CryptoWalletID,
+    currency = CryptoWalletCurrency,
+    data = Data
+}) ->
+    genlib_map:compact(#{
+        id => unmarshal(string, CryptoWalletID),
+        currency => CryptoWalletCurrency,
+        tag => maybe_unmarshal(crypto_data, Data)
+    });
+
+unmarshal(crypto_data, {ripple, #'CryptoDataRipple'{tag = Tag}}) ->
+    unmarshal(string, Tag);
+unmarshal(crypto_data, _) ->
+    undefined;
+
 unmarshal(cash, #'Cash'{
     amount   = Amount,
     currency = CurrencyRef
@@ -201,6 +301,11 @@ unmarshal(range, #'EventRange'{
 
 unmarshal(bool, V) when is_boolean(V) ->
     V.
+
+maybe_unmarshal(_Type, undefined) ->
+    undefined;
+maybe_unmarshal(Type, Value) ->
+    unmarshal(Type, Value).
 
 %% Suppress dialyzer warning until rfc3339 spec will be fixed.
 %% see https://github.com/talentdeficit/rfc3339/pull/5

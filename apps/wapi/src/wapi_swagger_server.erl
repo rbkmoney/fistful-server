@@ -1,17 +1,15 @@
 -module(wapi_swagger_server).
 
--export([child_spec   /1]).
+-export([child_spec/2]).
 
 -define(APP, wapi).
 -define(DEFAULT_ACCEPTORS_POOLSIZE, 100).
 -define(DEFAULT_IP_ADDR, "::").
 -define(DEFAULT_PORT, 8080).
 
--type params() :: {cowboy_router:routes(), #{atom() => module()}}.
-
--spec child_spec(params()) ->
+-spec child_spec(cowboy_router:routes(), #{atom() => module()}) ->
     supervisor:child_spec().
-child_spec({HealthRoutes, LogicHandlers}) ->
+child_spec(HealthRoutes, LogicHandlers) ->
     {Transport, TransportOpts} = get_socket_transport(),
     CowboyOpts = get_cowboy_config(HealthRoutes, LogicHandlers),
     ranch:child_spec(?MODULE, Transport, TransportOpts, cowboy_clear, CowboyOpts).

@@ -1173,8 +1173,8 @@ from_swag(webhook_scope, Topic = #{
     <<"eventTypes">> := EventList
 }) ->
     WalletID = maps:get(<<"walletID">>, Topic, undefined),
-    Scope = #webhooker_EventFilter {
-        types = from_swag({list, webhook_withdrawal_event_types}, EventList)
+    Scope = #webhooker_EventFilter{
+        types = from_swag({set, webhook_withdrawal_event_types}, EventList)
     },
     genlib_map:compact(#{
         scope => Scope,
@@ -1184,8 +1184,8 @@ from_swag(webhook_scope, #{
     <<"topic">> := <<"DestinationsTopic">>,
     <<"eventTypes">> := EventList
 }) ->
-    Scope = #webhooker_EventFilter {
-        types = from_swag({list, webhook_destination_event_types}, EventList)
+    Scope = #webhooker_EventFilter{
+        types = from_swag({set, webhook_destination_event_types}, EventList)
     },
     #{
         scope => Scope
@@ -1205,7 +1205,9 @@ from_swag(webhook_destination_event_types, <<"DestinationAuthorized">>) ->
     {destination, {authorized, #webhooker_DestinationAuthorized{}}};
 
 from_swag({list, Type}, List) ->
-    lists:map(fun(V) -> from_swag(Type, V) end, List).
+    lists:map(fun(V) -> from_swag(Type, V) end, List);
+from_swag({set, Type}, List) ->
+    ordsets:from_list(from_swag({list, Type}, List)).
 
 -spec to_swag(_Type, _Value) ->
     swag_term() | undefined.
@@ -1501,7 +1503,7 @@ to_swag(webhook, #webhooker_Webhook{
     });
 
 to_swag(webhook_scope, #webhooker_EventFilter{types = EventTypes}) ->
-    List = to_swag({list, webhook_event_types}, EventTypes),
+    List = to_swag({set, webhook_event_types}, EventTypes),
     lists:foldl(fun({Topic, Type}, Acc) ->
         case maps:get(<<"topic">>, Acc, undefined) of
             undefined ->
@@ -1547,6 +1549,8 @@ to_swag(boolean, false) ->
     false;
 to_swag({list, Type}, List) ->
     lists:map(fun(V) -> to_swag(Type, V) end, List);
+to_swag({set, Type}, Set) ->
+    to_swag({list, Type}, ordsets:to_list(Set));
 to_swag(map, Map) ->
     genlib_map:compact(Map);
 to_swag(_, V) ->

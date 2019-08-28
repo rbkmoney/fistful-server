@@ -16,13 +16,32 @@
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
 -type status()   :: ff_instrument:status().
+
+-type resource_type() :: bank_card | crypto_wallet.
 -type resource() ::
     {bank_card, resource_bank_card()} |
     {crypto_wallet, resource_crypto_wallet()}.
 
+-type resource_full_id() ::
+    #{binary() => ff_bin_data:bin_data_id()}.
+
+-type resource_full() ::
+    {bank_card, resource_full_bank_card()} |
+    {crypto_wallet, resource_crypto_wallet()}.
+
+-type resource_full_bank_card() :: #{
+    token               := binary(),
+    bin                 => binary(),
+    payment_system      := atom(), % TODO
+    masked_pan          => binary(),
+    bank_name           => binary(),
+    iso_country_code    => atom(),
+    card_type           => charge_card | credit | debit | credit_or_debit,
+    bin_data_id         := ff_bin_data:bin_data_id()
+}.
+
 -type resource_bank_card() :: #{
     token          := binary(),
-    payment_system => atom(), % TODO
     bin            => binary(),
     masked_pan     => binary()
 }.
@@ -44,6 +63,9 @@
 -export_type([destination/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
+-export_type([resource_type/0]).
+-export_type([resource_full/0]).
+-export_type([resource_full_id/0]).
 -export_type([event/0]).
 -export_type([params/0]).
 
@@ -57,6 +79,9 @@
 -export([resource/1]).
 -export([status/1]).
 -export([external_id/1]).
+-export([resource_full/1]).
+-export([resource_full/2]).
+-export([resource_full_id/1]).
 
 %% API
 
@@ -67,6 +92,10 @@
 -export([is_accessible/1]).
 -export([events/2]).
 
+%% Pipeline
+
+-import(ff_pipeline, [do/1, unwrap/2]).
+
 %% Accessors
 
 -spec id(destination())       -> id().
@@ -76,6 +105,7 @@
 -spec currency(destination()) -> currency().
 -spec resource(destination()) -> resource().
 -spec status(destination())   -> status().
+
 
 id(Destination)       -> ff_instrument:id(Destination).
 name(Destination)     -> ff_instrument:name(Destination).
@@ -89,6 +119,48 @@ account(Destination)  -> ff_instrument:account(Destination).
     id() | undefined.
 
 external_id(T)        -> ff_instrument:external_id(T).
+
+-spec resource_full(destination()) ->
+    {ok, resource_full()} |
+    {error,
+        {bin_data, not_found}
+    }.
+
+resource_full(Destination) ->
+    resource_full(Destination, undefined).
+
+-spec resource_full(destination(), resource_full_id() | undefined) ->
+    {ok, resource_full()} |
+    {error,
+        {bin_data, not_found}
+    }.
+
+resource_full(Destination, ResourceID) ->
+    do(fun() ->
+        case resource(Destination) of
+            {bank_card, #{token := Token} = BankCard} ->
+                UnwrappedResourceID = unwrap_resource_id(ResourceID),
+                BinData = unwrap(bin_data, ff_bin_data:get(Token, UnwrappedResourceID)),
+                KeyList = [payment_system, bank_name, iso_country_code, card_type],
+                ExtendData = maps:with(KeyList, BinData),
+                {bank_card, maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})};
+            {crypto_wallet, _CryptoWallet} = Resource ->
+                Resource
+        end
+    end).
+
+-spec resource_full_id(resource_full() | undefined) ->
+    resource_full_id() | undefined.
+
+resource_full_id({bank_card, #{bin_data_id := ID}}) ->
+    #{<<"bank_card">> => ID};
+resource_full_id(_) ->
+    undefined.
+
+unwrap_resource_id(undefined) ->
+    undefined;
+unwrap_resource_id(#{<<"bank_card">> := ID}) ->
+    ID.
 
 %% API
 

@@ -155,7 +155,7 @@ get_admin_routes() ->
     Path = maps:get(path, Opts, <<"/v1/admin">>),
     Limits = genlib_map:get(handler_limits, Opts),
     woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
+        handlers => [{Path, {{ff_proto_fistful_admin_thrift, 'FistfulAdmin'}, {ff_server_admin_handler, []}}}],
         event_handler => scoper_woody_event_handler,
         handler_limits => Limits
     })).

@@ -1,5 +1,6 @@
 -module(ff_codec).
 
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_repairer_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_account_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_msgpack_thrift.hrl").
@@ -142,6 +143,18 @@ marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
 marshal(amount, V) ->
     marshal(integer, V);
 
+marshal(failure, Failure) ->
+    #'Failure'{
+        code = marshal(string, ff_failure:code(Failure)),
+        reason = maybe_marshal(string, ff_failure:reason(Failure)),
+        sub = maybe_marshal(sub_failure, ff_failure:sub_failure(Failure))
+    };
+marshal(sub_failure, Failure) ->
+    #'SubFailure'{
+        code = marshal(string, ff_failure:code(Failure)),
+        sub = maybe_marshal(sub_failure, ff_failure:sub_failure(Failure))
+    };
+
 marshal(timestamp, {{Date, Time}, USec} = V) ->
     case rfc3339:format({Date, Time, USec, 0}) of
         {ok, R} when is_binary(R) ->
@@ -278,6 +291,18 @@ unmarshal(currency_ref, #'CurrencyRef'{
 unmarshal(amount, V) ->
     unmarshal(integer, V);
 
+unmarshal(failure, Failure) ->
+    genlib_map:compact(#{
+        code => unmarshal(string, Failure#'Failure'.code),
+        reason => maybe_unmarshal(string, Failure#'Failure'.reason),
+        sub => maybe_unmarshal(sub_failure, Failure#'Failure'.sub)
+    });
+unmarshal(sub_failure, Failure) ->
+    genlib_map:compact(#{
+        code => unmarshal(string, Failure#'SubFailure'.code),
+        sub => maybe_unmarshal(sub_failure, Failure#'SubFailure'.sub)
+    });
+
 unmarshal(context, V) -> ff_context:unwrap(V);
 
 unmarshal(range, #evsink_EventRange{
@@ -306,6 +331,11 @@ maybe_unmarshal(_Type, undefined) ->
     undefined;
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
 
 %% Suppress dialyzer warning until rfc3339 spec will be fixed.
 %% see https://github.com/talentdeficit/rfc3339/pull/5

@@ -13,11 +13,12 @@
     transfer_type := deposit,
     body          := body(),
     params        := transfer_params(),
-    p_transfer    => p_transfer() | undefined,
+    p_transfer    => p_transfer(),
     status        => status(),
     external_id   => id(),
     limit_checks  => [limit_check_details()],
-    reverts       => reverts()
+    reverts       => reverts(),
+    adjustments   => adjustments()
 }.
 -type params() :: #{
     id            := id(),
@@ -37,6 +38,7 @@
     {limit_check, limit_check_details()} |
     {p_transfer, ff_postings_transfer:event()} |
     wrapped_revert_event() |
+    wrapped_adjustment_event() |
     {status_changed, status()}.
 
 -type limit_check_details() ::
@@ -74,6 +76,7 @@
     {invalid_deposit_status, status()}.
 
 -type wrapped_revert_event()  :: ff_deposit_revert_utils:wrapped_event().
+-type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
 -type revert_adjustment_params() :: ff_deposit_revert:adjustment_params().
 
@@ -83,16 +86,40 @@
 
 -type unknown_revert_error() :: ff_deposit_revert_utils:unknown_revert_error().
 
+-type adjustment_params() :: #{
+    id          := adjustment_id(),
+    change      := adjustment_change(),
+    external_id => id()
+}.
+
+-type adjustment_change() ::
+    {change_status, status()}.
+
+-type start_adjustment_error() ::
+    invalid_deposit_status_error() |
+    invalid_status_change_error() |
+    {another_adjustment_in_progress, adjustment_id()} |
+    ff_adjustment:create_error().
+
+-type unknown_adjustment_error() :: ff_adjustment_utils:unknown_adjustment_error().
+
+-type invalid_status_change_error() ::
+    {invalid_status_change, {unavailable_status, status()}} |
+    {invalid_status_change, {already_has_status, status()}}.
+
 -export_type([deposit/0]).
 -export_type([id/0]).
 -export_type([params/0]).
 -export_type([revert_params/0]).
 -export_type([event/0]).
 -export_type([wrapped_revert_event/0]).
+-export_type([wrapped_adjustment_event/0]).
 -export_type([create_error/0]).
 -export_type([start_revert_error/0]).
 -export_type([revert_adjustment_params/0]).
 -export_type([start_revert_adjustment_error/0]).
+-export_type([adjustment_params/0]).
+-export_type([start_adjustment_error/0]).
 -export_type([limit_check_details/0]).
 
 %% Accessors
@@ -106,11 +133,18 @@
 
 %% API
 -export([create/1]).
+
+-export([is_active/1]).
+-export([is_finished/1]).
+
 -export([start_revert/2]).
 -export([start_revert_adjustment/3]).
-
 -export([find_revert/2]).
 -export([reverts/1]).
+
+-export([start_adjustment/2]).
+-export([find_adjustment/2]).
+-export([adjustments/1]).
 
 %% Transfer logic callbacks
 -export([process_transfer/1]).
@@ -144,6 +178,10 @@
 -type legacy_event()          :: any().
 -type reverts()               :: ff_deposit_revert_utils:index().
 -type failure()               :: ff_failure:failure().
+-type adjustment()            :: ff_adjustment:adjustment().
+-type adjustment_id()         :: ff_adjustment:id().
+-type adjustments()           :: ff_adjustment_utils:index().
+-type final_cash_flow()       :: ff_cash_flow:final_cash_flow().
 
 -type transfer_params() :: #{
     source_id             := source_id(),
@@ -160,6 +198,7 @@
     p_transfer_cancel |
     limit_check |
     revert |
+    adjustment |
     {fail, fail_type()} |
     stop |  % Legacy activity.
     finish.
@@ -186,22 +225,16 @@ body(#{body := V}) ->
     V.
 
 -spec status(deposit()) -> status() | undefined.
-status(#{status := V}) ->
-    V;
-status(_Other) ->
-    undefined.
+status(Deposit) ->
+    ff_adjustment_utils:status(adjustments_index(Deposit)).
 
 -spec p_transfer(deposit())  -> p_transfer() | undefined.
-p_transfer(#{p_transfer := V}) ->
-    V;
-p_transfer(_Other) ->
-    undefined.
+p_transfer(Deposit) ->
+    maps:get(p_transfer, Deposit, undefined).
 
 -spec external_id(deposit()) -> external_id() | undefined.
-external_id(#{external_id := V}) ->
-    V;
-external_id(_Transfer) ->
-    undefined.
+external_id(Deposit) ->
+    maps:get(external_id, Deposit, undefined).
 
 %% API
 
@@ -274,7 +307,26 @@ find_revert(RevertID, Deposit) ->
 reverts(Deposit) ->
     ff_deposit_revert_utils:reverts(reverts_index(Deposit)).
 
-%% transfer logic callbacks
+-spec start_adjustment(adjustment_params(), deposit()) ->
+    {ok, process_result()} |
+    {error, start_adjustment_error()}.
+start_adjustment(Params, Deposit) ->
+    #{id := AdjustmentID} = Params,
+    case find_adjustment(AdjustmentID, Deposit) of
+        {error, {unknown_adjustment, _}} ->
+            do_start_adjustment(Params, Deposit);
+        {ok, _Revert} ->
+            {ok, {undefined, []}}
+    end.
+
+-spec find_adjustment(adjustment_id(), deposit()) ->
+    {ok, adjustment()} | {error, unknown_adjustment_error()}.
+find_adjustment(RevertID, Deposit) ->
+    ff_adjustment_utils:get_by_id(RevertID, adjustments_index(Deposit)).
+
+-spec adjustments(deposit()) -> [adjustment()].
+adjustments(Deposit) ->
+    ff_adjustment_utils:adjustments(adjustments_index(Deposit)).
 
 -spec process_transfer(deposit()) ->
     process_result().
@@ -282,12 +334,34 @@ process_transfer(Deposit) ->
     Activity = deduce_activity(Deposit),
     do_process_transfer(Activity, Deposit).
 
+%% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
+-spec is_active(deposit()) -> boolean().
+is_active(#{status := succeeded} = Deposit) ->
+    is_childs_active(Deposit);
+is_active(#{status := {failed, _}} = Deposit) ->
+    is_childs_active(Deposit);
+is_active(#{status := pending}) ->
+    true.
+
+%% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
+%% изменением дочерних сущностей, например запуском adjustment.
+-spec is_finished(deposit()) -> boolean().
+is_finished(#{status := succeeded}) ->
+    true;
+is_finished(#{status := {failed, _}}) ->
+    true;
+is_finished(#{status := pending}) ->
+    false.
+
 %% Events utils
 
 -spec apply_event(event() | legacy_event(), deposit() | undefined) ->
     deposit().
-apply_event(Ev, T) ->
-    apply_event_(maybe_migrate(Ev), T).
+apply_event(Ev, T0) ->
+    Migrated = maybe_migrate(Ev),
+    T1 = apply_event_(Migrated, T0),
+    T2 = save_adjustable_info(Migrated, T1),
+    T2.
 
 -spec apply_event_(event(), deposit() | undefined) ->
     deposit().
@@ -297,12 +371,12 @@ apply_event_({status_changed, S}, T) ->
     maps:put(status, S, T);
 apply_event_({limit_check, Details}, T) ->
     add_limit_check(Details, T);
-apply_event_({p_transfer, Ev}, T = #{p_transfer := PT}) ->
-    T#{p_transfer := ff_postings_transfer:apply_event(Ev, PT)};
+apply_event_({p_transfer, Ev}, T) ->
+    T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))};
 apply_event_({revert, _Ev} = Event, T) ->
     apply_revert_event(Event, T);
-apply_event_({p_transfer, Ev}, T) ->
-    apply_event({p_transfer, Ev}, T#{p_transfer => undefined}).
+apply_event_({adjustment, _Ev} = Event, T) ->
+    apply_adjustment_event(Event, T).
 
 %% Internals
 
@@ -321,6 +395,18 @@ do_start_revert(Params, Deposit) ->
         {Action, ff_deposit_revert_utils:wrap_events(RevertID, Events)}
     end).
 
+-spec do_start_adjustment(adjustment_params(), deposit()) ->
+    {ok, process_result()} |
+    {error, start_adjustment_error()}.
+do_start_adjustment(Params, Deposit) ->
+    do(fun() ->
+        valid = unwrap(validate_adjustment_start(Params, Deposit)),
+        AdjustmentParams = make_adjustment_params(Params, Deposit),
+        #{id := AdjustmentID} = Params,
+        {Action, Events} = unwrap(ff_adjustment:create(AdjustmentParams)),
+        {Action, ff_adjustment_utils:wrap_events(AdjustmentID, Events)}
+    end).
+
 -spec params(deposit()) -> transfer_params().
 params(#{params := V}) ->
     V.
@@ -337,7 +423,8 @@ deduce_activity(Deposit) ->
         p_transfer => p_transfer_status(Deposit),
         status => status(Deposit),
         limit_check => limit_check_status(Deposit),
-        active_revert => ff_deposit_revert_utils:is_active(reverts_index(Deposit))
+        active_revert => ff_deposit_revert_utils:is_active(reverts_index(Deposit)),
+        active_adjustment => ff_adjustment_utils:is_active(adjustments_index(Deposit))
     },
     do_deduce_activity(Params).
 
@@ -357,6 +444,8 @@ do_deduce_activity(#{status := pending, p_transfer := cancelled, limit_check := 
     {fail, limit_check};
 do_deduce_activity(#{status := succeeded, p_transfer := committed, active_revert := true}) ->
     revert;
+do_deduce_activity(#{active_adjustment := true}) ->
+    adjustment;
 
 %% Legacy activity. Remove after first deployment
 do_deduce_activity(#{status := {failed, _}, p_transfer := prepared}) ->
@@ -388,26 +477,18 @@ do_process_transfer({fail, Reason}, Deposit) ->
 do_process_transfer(finish, Deposit) ->
     process_transfer_finish(Deposit);
 do_process_transfer(revert, Deposit) ->
-    ff_deposit_revert_utils:process_reverts(reverts_index(Deposit));
+    Result = ff_deposit_revert_utils:process_reverts(reverts_index(Deposit)),
+    handle_child_result(Result, Deposit);
+do_process_transfer(adjustment, Deposit) ->
+    Result = ff_adjustment_utils:process_adjustments(adjustments_index(Deposit)),
+    handle_child_result(Result, Deposit);
 do_process_transfer(stop, _Deposit) ->
     {undefined, []}.
 
 -spec create_p_transfer(deposit()) ->
     process_result().
 create_p_transfer(Deposit) ->
-    #{
-        wallet_account := WalletAccount,
-        source_account := SourceAccount,
-        wallet_cash_flow_plan := CashFlowPlan
-    } = params(Deposit),
-    Constants = #{
-        operation_amount => body(Deposit)
-    },
-    Accounts = #{
-        {wallet, sender_source} => SourceAccount,
-        {wallet, receiver_settlement} => WalletAccount
-    },
-    {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
+    FinalCashFlow = make_final_cash_flow(wallet_id(Deposit), source_id(Deposit), body(Deposit)),
     PTransferID = construct_p_transfer_id(id(Deposit)),
     {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
     {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
@@ -441,7 +522,45 @@ process_transfer_fail(limit_check, Deposit) ->
     Failure = build_failure(limit_check, Deposit),
     {undefined, [{status_changed, {failed, Failure}}]}.
 
-%% Internal getters
+-spec make_final_cash_flow(wallet_id(), source_id(), body()) ->
+    final_cash_flow().
+make_final_cash_flow(WalletID, SourceID, Body) ->
+    {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
+    WalletAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletMachine)),
+    {ok, SourceMachine} = ff_source:get_machine(SourceID),
+    SourceAccount = ff_source:account(ff_source:get(SourceMachine)),
+    Constants = #{
+        operation_amount => Body
+    },
+    Accounts = #{
+        {wallet, sender_source} => SourceAccount,
+        {wallet, receiver_settlement} => WalletAccount
+    },
+    CashFlowPlan = #{
+        postings => [
+            #{
+                sender   => {wallet, sender_source},
+                receiver => {wallet, receiver_settlement},
+                volume   => {share, {{1, 1}, operation_amount, default}}
+            }
+        ]
+    },
+    {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
+    FinalCashFlow.
+
+-spec handle_child_result(process_result(), deposit()) -> process_result().
+handle_child_result({undefined, Events} = Result, Deposit) ->
+    NextDeposit = lists:foldl(fun(E, Acc) -> apply_event(E, Acc) end, Deposit, Events),
+    case is_active(NextDeposit) of
+        true ->
+            {continue, Events};
+        false ->
+            Result
+    end;
+handle_child_result({_OtherAction, _Events} = Result, _Deposit) ->
+    Result.
+
+%% Internal getters and setters
 
 -spec p_transfer_status(deposit()) -> ff_postings_transfer:status() | undefined.
 p_transfer_status(Deposit) ->
@@ -451,6 +570,28 @@ p_transfer_status(Deposit) ->
         #{status := Status} ->
             Status
     end.
+
+-spec adjustments_index(deposit()) -> adjustments().
+adjustments_index(Deposit) ->
+    case maps:find(adjustments, Deposit) of
+        {ok, Reverts} ->
+            Reverts;
+        error ->
+            ff_adjustment_utils:new_index()
+    end.
+
+-spec set_adjustments_index(adjustments(), deposit()) -> deposit().
+set_adjustments_index(Adjustments, Deposit) ->
+    Deposit#{adjustments => Adjustments}.
+
+-spec final_cash_flow(deposit()) -> final_cash_flow() | undefined.
+final_cash_flow(Deposit) ->
+    ff_adjustment_utils:cash_flow(adjustments_index(Deposit)).
+
+-spec is_childs_active(deposit()) -> boolean().
+is_childs_active(Deposit) ->
+    ff_adjustment_utils:is_active(adjustments_index(Deposit)) orelse
+        ff_deposit_revert_utils:is_active(reverts_index(Deposit)).
 
 %% Limit helpers
 
@@ -496,7 +637,7 @@ validate_wallet_limits(Wallet, Body) ->
             erlang:error(Reason)
     end.
 
-%% Validators
+%% Revert validators
 
 -spec validate_revert_start(revert_params(), deposit()) ->
     {ok, valid} |
@@ -597,7 +738,7 @@ max_reverted_body_total(Deposit) ->
     lists:foldl(
         fun(Revert, {TotalAmount, AccCurrency} = Acc) ->
             Status = ff_deposit_revert:status(Revert),
-            PotentialSucceeded = Status =:= succeeded orelse not ff_deposit_revert:is_finished(Revert),
+            PotentialSucceeded = Status =:= succeeded orelse ff_deposit_revert:is_active(Revert),
             case PotentialSucceeded of
                 true ->
                     {RevertAmount, AccCurrency} = ff_deposit_revert:body(Revert),
@@ -609,6 +750,137 @@ max_reverted_body_total(Deposit) ->
         {0, Currency},
         Reverts
     ).
+
+%% Adjustment validators
+
+-spec validate_adjustment_start(adjustment_params(), deposit()) ->
+    {ok, valid} |
+    {error, start_adjustment_error()}.
+validate_adjustment_start(Params, Deposit) ->
+    do(fun() ->
+        valid = unwrap(validate_no_pending_adjustment(Deposit)),
+        valid = unwrap(validate_deposit_finish(Deposit)),
+        valid = unwrap(validate_status_change(Params, Deposit))
+    end).
+
+-spec validate_deposit_finish(deposit()) ->
+    {ok, valid} |
+    {error, {invalid_deposit_status, status()}}.
+validate_deposit_finish(Deposit) ->
+    case is_finished(Deposit) of
+        true ->
+            {ok, valid};
+        false ->
+            {error, {invalid_deposit_status, status(Deposit)}}
+    end.
+
+-spec validate_no_pending_adjustment(deposit()) ->
+    {ok, valid} |
+    {error, {another_adjustment_in_progress, adjustment_id()}}.
+validate_no_pending_adjustment(Deposit) ->
+    case ff_adjustment_utils:get_not_finished(adjustments_index(Deposit)) of
+        error ->
+            {ok, valid};
+        {ok, AdjustmentID} ->
+            {error, {another_adjustment_in_progress, AdjustmentID}}
+    end.
+
+-spec validate_status_change(adjustment_params(), deposit()) ->
+    {ok, valid} |
+    {error, invalid_status_change_error()}.
+validate_status_change(#{change := {change_status, Status}}, Deposit) ->
+    do(fun() ->
+        valid = unwrap(invalid_status_change, validate_target_status(Status)),
+        valid = unwrap(invalid_status_change, validate_change_same_status(Status, status(Deposit)))
+    end);
+validate_status_change(_Params, _Deposit) ->
+    {ok, valid}.
+
+-spec validate_target_status(status()) ->
+    {ok, valid} |
+    {error, {unavailable_status, status()}}.
+validate_target_status(succeeded) ->
+    {ok, valid};
+validate_target_status({failed, _Failure}) ->
+    {ok, valid};
+validate_target_status(Status) ->
+    {error, {unavailable_status, Status}}.
+
+-spec validate_change_same_status(status(), status()) ->
+    {ok, valid} |
+    {error, {already_has_status, status()}}.
+validate_change_same_status(NewStatus, OldStatus) when NewStatus =/= OldStatus ->
+    {ok, valid};
+validate_change_same_status(Status, Status) ->
+    {error, {already_has_status, Status}}.
+
+%% Adjustment helpers
+
+-spec apply_adjustment_event(wrapped_adjustment_event(), deposit()) -> deposit().
+apply_adjustment_event(WrappedEvent, Deposit) ->
+    Adjustments0 = adjustments_index(Deposit),
+    Adjustments1 = ff_adjustment_utils:apply_event(WrappedEvent, Adjustments0),
+    set_adjustments_index(Adjustments1, Deposit).
+
+-spec make_adjustment_params(adjustment_params(), deposit()) ->
+    ff_adjustment:params().
+make_adjustment_params(Params, Deposit) ->
+    #{id := ID, change := Change} = Params,
+    genlib_map:compact(#{
+        id => ID,
+        changes_plan => make_adjustment_change(Change, Deposit),
+        external_id => genlib_map:get(external_id, Params)
+    }).
+
+-spec make_adjustment_change(adjustment_change(), deposit()) ->
+    ff_adjustment:changes().
+make_adjustment_change({change_status, NewStatus}, Deposit) ->
+    CurrentStatus = status(Deposit),
+    make_change_status_params(CurrentStatus, NewStatus, Deposit).
+
+-spec make_change_status_params(status(), status(), deposit()) ->
+    ff_adjustment:changes().
+make_change_status_params(succeeded, {failed, _} = NewStatus, Deposit) ->
+    CurrentCashFlow = final_cash_flow(Deposit),
+    NewCashFlow = ff_cash_flow:make_empty_final(),
+    #{
+        new_status => NewStatus,
+        new_cash_flow => #{
+            old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
+            new_cash_flow => NewCashFlow
+        }
+    };
+make_change_status_params({failed, _}, succeeded = NewStatus, Deposit) ->
+    #{
+        new_status => NewStatus,
+        new_cash_flow => #{
+            old_cash_flow_inverted => ff_cash_flow:make_empty_final(),
+            new_cash_flow => make_final_cash_flow(wallet_id(Deposit), source_id(Deposit), body(Deposit))
+        }
+    };
+make_change_status_params({failed, _}, {failed, _} = NewStatus, _Deposit) ->
+    #{
+        new_status => NewStatus
+    }.
+
+-spec save_adjustable_info(event(), deposit()) -> deposit().
+save_adjustable_info(Ev, Deposit) ->
+    Index = adjustments_index(Deposit),
+    case do_save_adjustable_info(Ev, Index) of
+        {save, NewIndex} ->
+            set_adjustments_index(NewIndex, Deposit);
+        ignore ->
+            Deposit
+    end.
+
+-spec do_save_adjustable_info(event(), adjustments()) ->
+    {save, adjustments()} | ignore.
+do_save_adjustable_info({status_changed, Status}, Index) ->
+    {save, ff_adjustment_utils:set_status(Status, Index)};
+do_save_adjustable_info({p_transfer, {created, Transfer}}, Index) ->
+    {save, ff_adjustment_utils:set_cash_flow(ff_postings_transfer:final_cash_flow(Transfer), Index)};
+do_save_adjustable_info(_Ev, _Index) ->
+    ignore.
 
 %% Helpers
 

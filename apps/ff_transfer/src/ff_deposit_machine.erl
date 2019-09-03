@@ -27,6 +27,10 @@
     ff_deposit:start_revert_adjustment_error() |
     unknown_deposit_error().
 
+-type start_adjustment_error() ::
+    ff_deposit:start_adjustment_error() |
+    unknown_deposit_error().
+
 -type unknown_deposit_error() ::
     {unknown_deposit, id()}.
 
@@ -40,6 +44,7 @@
 -export_type([create_error/0]).
 -export_type([start_revert_error/0]).
 -export_type([start_revert_adjustment_error/0]).
+-export_type([start_adjustment_error/0]).
 
 %% API
 
@@ -49,6 +54,8 @@
 
 -export([start_revert/2]).
 -export([start_revert_adjustment/3]).
+
+-export([start_adjustment/2]).
 
 %% Accessors
 
@@ -72,6 +79,7 @@
 -type revert_params() :: ff_deposit:revert_params().
 -type revert_id()     :: ff_deposit_revert:id().
 
+-type adjustment_params()        :: ff_deposit:adjustment_params().
 -type revert_adjustment_params() :: ff_deposit:revert_adjustment_params().
 
 -type call() ::
@@ -130,6 +138,13 @@ start_revert(ID, Params) ->
 start_revert_adjustment(DepositID, RevertID, Params) ->
     call(DepositID, {start_revert_adjustment, RevertID, Params}).
 
+-spec start_adjustment(id(), adjustment_params()) ->
+    {ok, events()} |
+    {error, start_adjustment_error()}.
+
+start_adjustment(DepositID, Params) ->
+    call(DepositID, {start_adjustment, Params}).
+
 %% Accessors
 
 -spec deposit(st()) ->
@@ -176,6 +191,8 @@ process_call({start_revert, Params}, Machine, _, _Opts) ->
     do_start_revert(Params, Machine);
 process_call({start_revert_adjustment, RevertID, Params}, Machine, _, _Opts) ->
     do_start_revert_adjustment(RevertID, Params, Machine);
+process_call({start_adjustment, Params}, Machine, _, _Opts) ->
+    do_start_adjustment(Params, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
@@ -208,6 +225,18 @@ do_start_revert(Params, Machine) ->
 do_start_revert_adjustment(RevertID, Params, Machine) ->
     St = ff_machine:collapse(ff_deposit, Machine),
     case ff_deposit:start_revert_adjustment(RevertID, Params, deposit(St)) of
+        {ok, Result} ->
+            {ok, process_result(Result)};
+        {error, _Reason} = Error ->
+            {Error, #{}}
+    end.
+
+-spec do_start_adjustment(adjustment_params(), machine()) -> {Response, result()} when
+    Response :: ok | {error, ff_deposit:start_adjustment_error()}.
+
+do_start_adjustment(Params, Machine) ->
+    St = ff_machine:collapse(ff_deposit, Machine),
+    case ff_deposit:start_adjustment(Params, deposit(St)) of
         {ok, Result} ->
             {ok, process_result(Result)};
         {error, _Reason} = Error ->

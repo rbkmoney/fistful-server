@@ -72,13 +72,13 @@ set_status(Status, Index) ->
 set_cash_flow(Body, Index) ->
     Index#{cash_flow => Body}.
 
--spec status(index()) -> target_status().
+-spec status(index()) -> target_status() | undefined.
 status(Index) ->
-    maps:get(status, Index).
+    maps:get(status, Index, undefined).
 
--spec cash_flow(index()) -> final_cash_flow().
+-spec cash_flow(index()) -> final_cash_flow() | undefined.
 cash_flow(Index) ->
-    maps:get(cash_flow, Index).
+    maps:get(cash_flow, Index, undefined).
 
 -spec adjustments(index()) -> [adjustment()].
 adjustments(Index) ->

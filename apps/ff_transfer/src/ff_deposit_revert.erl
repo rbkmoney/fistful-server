@@ -65,8 +65,7 @@
 }.
 
 -type adjustment_change() ::
-    {change_status, status()} |
-    {change_body, body()}.
+    {change_status, status()}.
 
 -type start_adjustment_error() ::
     invalid_revert_status_error() |
@@ -255,12 +254,13 @@ is_active(#{status := {failed, _}} = Revert) ->
 is_active(#{status := pending}) ->
     true.
 
-%% Сущность приняла статус, который не будет меняться без внешних воздействий.
+%% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
+%% изменением дочерних сущностей, например запуском adjustment.
 -spec is_finished(revert()) -> boolean().
-is_finished(#{status := succeeded} = Revert) ->
-    is_childs_finished(Revert);
-is_finished(#{status := {failed, _}} = Revert) ->
-    is_childs_finished(Revert);
+is_finished(#{status := succeeded}) ->
+    true;
+is_finished(#{status := {failed, _}}) ->
+    true;
 is_finished(#{status := pending}) ->
     false.
 
@@ -454,10 +454,6 @@ set_adjustments_index(Adjustments, Revert) ->
 final_cash_flow(Revert) ->
     ff_adjustment_utils:cash_flow(adjustments_index(Revert)).
 
--spec is_childs_finished(revert()) -> boolean().
-is_childs_finished(Revert) ->
-    ff_adjustment_utils:is_finished(adjustments_index(Revert)).
-
 -spec is_childs_active(revert()) -> boolean().
 is_childs_active(Revert) ->
     ff_adjustment_utils:is_active(adjustments_index(Revert)).
@@ -547,11 +543,7 @@ make_adjustment_params(Params, Revert) ->
     ff_adjustment:changes().
 make_adjustment_change({change_status, NewStatus}, Revert) ->
     CurrentStatus = status(Revert),
-    make_change_status_params(CurrentStatus, NewStatus, Revert);
-make_adjustment_change({change_body, NewBody}, _Revert) ->
-    #{
-        new_body => NewBody
-    }.
+    make_change_status_params(CurrentStatus, NewStatus, Revert).
 
 -spec make_change_status_params(status(), status(), revert()) ->
     ff_adjustment:changes().

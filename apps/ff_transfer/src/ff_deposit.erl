@@ -851,10 +851,11 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, Deposit) ->
         }
     };
 make_change_status_params({failed, _}, succeeded = NewStatus, Deposit) ->
+    CurrentCashFlow = final_cash_flow(Deposit),
     #{
         new_status => NewStatus,
         new_cash_flow => #{
-            old_cash_flow_inverted => ff_cash_flow:make_empty_final(),
+            old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => make_final_cash_flow(wallet_id(Deposit), source_id(Deposit), body(Deposit))
         }
     };

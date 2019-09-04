@@ -450,9 +450,14 @@ p_transfer(T) ->
 set_adjustments_index(Adjustments, Revert) ->
     Revert#{adjustments => Adjustments}.
 
--spec final_cash_flow(revert()) -> final_cash_flow() | undefined.
-final_cash_flow(Revert) ->
-    ff_adjustment_utils:cash_flow(adjustments_index(Revert)).
+-spec effective_final_cash_flow(revert()) -> final_cash_flow().
+effective_final_cash_flow(Revert) ->
+    case ff_adjustment_utils:cash_flow(adjustments_index(Revert)) of
+        undefined ->
+            ff_cash_flow:make_empty_final();
+        CashFlow ->
+            CashFlow
+    end.
 
 -spec is_childs_active(revert()) -> boolean().
 is_childs_active(Revert) ->
@@ -548,7 +553,7 @@ make_adjustment_change({change_status, NewStatus}, Revert) ->
 -spec make_change_status_params(status(), status(), revert()) ->
     ff_adjustment:changes().
 make_change_status_params(succeeded, {failed, _} = NewStatus, Revert) ->
-    CurrentCashFlow = final_cash_flow(Revert),
+    CurrentCashFlow = effective_final_cash_flow(Revert),
     NewCashFlow = ff_cash_flow:make_empty_final(),
     #{
         new_status => NewStatus,
@@ -558,12 +563,13 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, Revert) ->
         }
     };
 make_change_status_params({failed, _}, succeeded = NewStatus, Revert) ->
-    CurrentCashFlow = final_cash_flow(Revert),
+    CurrentCashFlow = effective_final_cash_flow(Revert),
+    NewCashFlow = make_final_cash_flow(wallet_id(Revert), source_id(Revert), body(Revert)),
     #{
         new_status => NewStatus,
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
-            new_cash_flow => make_final_cash_flow(wallet_id(Revert), source_id(Revert), body(Revert))
+            new_cash_flow => NewCashFlow
         }
     };
 make_change_status_params({failed, _}, {failed, _} = NewStatus, _Revert) ->
@@ -572,27 +578,22 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _Revert) ->
     }.
 
 -spec save_adjustable_info(event(), revert()) -> revert().
-save_adjustable_info(Ev, Revert) ->
-    Index = adjustments_index(Revert),
-    case do_save_adjustable_info(Ev, Index) of
-        {save, NewIndex} ->
-            set_adjustments_index(NewIndex, Revert);
-        ignore ->
-            Revert
-    end.
-
--spec do_save_adjustable_info(event(), adjustments()) ->
-    {save, adjustments()} | ignore.
-do_save_adjustable_info({created, Revert}, Index0) ->
+save_adjustable_info({created, _Revert}, Revert) ->
     #{status := Status} = Revert,
-    Index1 = ff_adjustment_utils:set_status(Status, Index0),
-    {save, Index1};
-do_save_adjustable_info({status_changed, Status}, Index) ->
-    {save, ff_adjustment_utils:set_status(Status, Index)};
-do_save_adjustable_info({p_transfer, {created, Transfer}}, Index) ->
-    {save, ff_adjustment_utils:set_cash_flow(ff_postings_transfer:final_cash_flow(Transfer), Index)};
-do_save_adjustable_info(_Ev, _Index) ->
-    ignore.
+    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, Revert);
+save_adjustable_info({status_changed, Status}, Revert) ->
+    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, Revert);
+save_adjustable_info({p_transfer, {status_changed, committed}}, Revert) ->
+    CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(Revert)),
+    update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, Revert);
+save_adjustable_info(_Ev, Revert) ->
+    Revert.
+
+-spec update_adjusment_index(fun((any(), adjustments()) -> adjustments()), any(), revert()) ->
+    revert().
+update_adjusment_index(Updater, Value, Revert) ->
+    Index = adjustments_index(Revert),
+    set_adjustments_index(Updater(Value, Index), Revert).
 
 %% Limit helpers
 

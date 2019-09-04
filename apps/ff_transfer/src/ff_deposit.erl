@@ -584,9 +584,14 @@ adjustments_index(Deposit) ->
 set_adjustments_index(Adjustments, Deposit) ->
     Deposit#{adjustments => Adjustments}.
 
--spec final_cash_flow(deposit()) -> final_cash_flow() | undefined.
-final_cash_flow(Deposit) ->
-    ff_adjustment_utils:cash_flow(adjustments_index(Deposit)).
+-spec effective_final_cash_flow(deposit()) -> final_cash_flow().
+effective_final_cash_flow(Deposit) ->
+    case ff_adjustment_utils:cash_flow(adjustments_index(Deposit)) of
+        undefined ->
+            ff_cash_flow:make_empty_final();
+        CashFlow ->
+            CashFlow
+    end.
 
 -spec is_childs_active(deposit()) -> boolean().
 is_childs_active(Deposit) ->
@@ -841,7 +846,7 @@ make_adjustment_change({change_status, NewStatus}, Deposit) ->
 -spec make_change_status_params(status(), status(), deposit()) ->
     ff_adjustment:changes().
 make_change_status_params(succeeded, {failed, _} = NewStatus, Deposit) ->
-    CurrentCashFlow = final_cash_flow(Deposit),
+    CurrentCashFlow = effective_final_cash_flow(Deposit),
     NewCashFlow = ff_cash_flow:make_empty_final(),
     #{
         new_status => NewStatus,
@@ -851,12 +856,13 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, Deposit) ->
         }
     };
 make_change_status_params({failed, _}, succeeded = NewStatus, Deposit) ->
-    CurrentCashFlow = final_cash_flow(Deposit),
+    CurrentCashFlow = effective_final_cash_flow(Deposit),
+    NewCashFlow = make_final_cash_flow(wallet_id(Deposit), source_id(Deposit), body(Deposit)),
     #{
         new_status => NewStatus,
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
-            new_cash_flow => make_final_cash_flow(wallet_id(Deposit), source_id(Deposit), body(Deposit))
+            new_cash_flow => NewCashFlow
         }
     };
 make_change_status_params({failed, _}, {failed, _} = NewStatus, _Deposit) ->
@@ -865,23 +871,20 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _Deposit) ->
     }.
 
 -spec save_adjustable_info(event(), deposit()) -> deposit().
-save_adjustable_info(Ev, Deposit) ->
-    Index = adjustments_index(Deposit),
-    case do_save_adjustable_info(Ev, Index) of
-        {save, NewIndex} ->
-            set_adjustments_index(NewIndex, Deposit);
-        ignore ->
-            Deposit
-    end.
+save_adjustable_info({status_changed, Status}, Deposit) ->
+    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, Deposit);
+save_adjustable_info({p_transfer, {status_changed, committed}}, Deposit) ->
+    CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(Deposit)),
+    update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, Deposit);
+save_adjustable_info(_Ev, Deposit) ->
+    Deposit.
 
--spec do_save_adjustable_info(event(), adjustments()) ->
-    {save, adjustments()} | ignore.
-do_save_adjustable_info({status_changed, Status}, Index) ->
-    {save, ff_adjustment_utils:set_status(Status, Index)};
-do_save_adjustable_info({p_transfer, {created, Transfer}}, Index) ->
-    {save, ff_adjustment_utils:set_cash_flow(ff_postings_transfer:final_cash_flow(Transfer), Index)};
-do_save_adjustable_info(_Ev, _Index) ->
-    ignore.
+-spec update_adjusment_index(fun((any(), adjustments()) -> adjustments()), any(), deposit()) ->
+    deposit().
+update_adjusment_index(Updater, Value, Revert) ->
+    Index = adjustments_index(Revert),
+    set_adjustments_index(Updater(Value, Index), Revert).
+
 
 %% Helpers
 

@@ -28,8 +28,8 @@ marshal(event, {status_changed, Status}) ->
     {status_changed, #deposit_StatusChange{status = marshal(status, Status)}};
 marshal(event, {p_transfer, TransferChange}) ->
     {transfer, #deposit_TransferChange{payload = ff_p_transfer_codec:marshal(event, TransferChange)}};
-marshal(event, {limit_check, LimitChange}) ->
-    {limit_check, #deposit_LimitCheckChange{details = marshal(limit_check_details, LimitChange)}};
+marshal(event, {limit_check, Details}) ->
+    {limit_check, #deposit_LimitCheckChange{details = ff_limit_check_codec:marshal(details, Details)}};
 
 marshal(deposit, Deposit) ->
     #deposit_Deposit{
@@ -40,17 +40,6 @@ marshal(deposit, Deposit) ->
         source = marshal(id, ff_deposit:source_id(Deposit)),
         external_id = marshal(id, ff_deposit:external_id(Deposit))
     };
-
-marshal(limit_check_details, {wallet, WalletDetails}) ->
-    {wallet, marshal(wallet_limit_check_details, WalletDetails)};
-marshal(wallet_limit_check_details, ok) ->
-    {ok, #deposit_WalletLimitCheckOk{}};
-marshal(wallet_limit_check_details, {failed, Details}) ->
-    #{expected_range := Range, balance := Balance} = Details,
-    {failed, #deposit_WalletLimitCheckFailed{
-        expected = marshal(cash_range, Range),
-        balance = marshal(cash, Balance)
-    }};
 
 marshal(status, pending) ->
     {pending, #dep_status_Pending{}};
@@ -82,7 +71,7 @@ unmarshal(event, {status_changed, #deposit_StatusChange{status = DepositStatus}}
 unmarshal(event, {transfer, #deposit_TransferChange{payload = TransferChange}}) ->
     {p_transfer, ff_p_transfer_codec:unmarshal(event, TransferChange)};
 unmarshal(event, {limit_check, #deposit_LimitCheckChange{details = Details}}) ->
-    {limit_check, unmarshal(limit_check_details, Details)};
+    {limit_check, ff_limit_check_codec:unmarshal(details, Details)};
 
 unmarshal(deposit, #deposit_Deposit{
     id = ID,
@@ -99,17 +88,6 @@ unmarshal(deposit, #deposit_Deposit{
             source_id => unmarshal(id, SourceID),
             external_id => unmarshal(id, ExternalID)
         }
-    };
-
-unmarshal(limit_check_details, {wallet, WalletDetails}) ->
-    {wallet, unmarshal(wallet_limit_check_details, WalletDetails)};
-unmarshal(wallet_limit_check_details, {ok, #deposit_WalletLimitCheckOk{}}) ->
-    ok;
-unmarshal(wallet_limit_check_details, {failed, Details}) ->
-    #deposit_WalletLimitCheckFailed{expected = Range, balance = Balance} = Details,
-    #{
-        expected_range => unmarshal(cash_range, Range),
-        balance => unmarshal(cash, Balance)
     };
 
 unmarshal(status, {pending, #dep_status_Pending{}}) ->

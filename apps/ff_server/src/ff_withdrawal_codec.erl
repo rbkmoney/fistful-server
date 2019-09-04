@@ -2,11 +2,7 @@
 
 -behaviour(ff_codec).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_cashflow_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
--include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
 
 -export([unmarshal_withdrawal_params/1]).
 -export([marshal_cash_range_error/1]).
@@ -21,15 +17,6 @@
 -export([unmarshal/2]).
 
 %% Data transform
-
-final_account_to_final_cash_flow_account(#{
-    account := #{id := AccountID},
-    type := AccountType}
-) ->
-    #{account_type => AccountType, account_id => AccountID}.
-
--define(to_session_event(SessionID, Payload),
-    {session, #{id => SessionID, payload => Payload}}).
 
 -spec unmarshal_withdrawal_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
     ff_withdrawal:params().
@@ -69,11 +56,11 @@ marshal_cash_range_error({Cash, Range}) ->
 marshal_withdrawal(Withdrawal) ->
     #wthd_Withdrawal{
         body        = marshal(cash, ff_withdrawal:body(Withdrawal)),
-        source      = marshal(id,   ff_withdrawal:wallet_id(Withdrawal)),
-        destination = marshal(id,   ff_withdrawal:destination_id(Withdrawal)),
-        external_id = marshal(id,   ff_withdrawal:external_id(Withdrawal)),
-        id          = marshal(id,   ff_withdrawal:id(Withdrawal)),
-        status      = marshal(withdrawal_status_changed, ff_withdrawal:status(Withdrawal))
+        source      = marshal(id, ff_withdrawal:wallet_id(Withdrawal)),
+        destination = marshal(id, ff_withdrawal:destination_id(Withdrawal)),
+        external_id = maybe_marshal(id, ff_withdrawal:external_id(Withdrawal)),
+        id          = marshal(id, ff_withdrawal:id(Withdrawal)),
+        status      = maybe_marshal(status, ff_withdrawal:status(Withdrawal))
     }.
 
 -spec unmarshal_withdrawal(ff_proto_withdrawal_thrift:'Withdrawal'()) ->
@@ -93,14 +80,14 @@ unmarshal_withdrawal(#wthd_Withdrawal{
     }),
     Cash = unmarshal(cash, Body),
     TransferType = withdrawal,
-    WithdrawalStatus = maybe_unmarshal(withdrawal_status_changed, Status),
+    WithdrawalStatus = maybe_unmarshal(status, Status),
     ff_withdrawal:gen(#{
         id     => unmarshal(id, ID),
         body   => Cash,
         params => Params,
         status => WithdrawalStatus,
-        external_id   => unmarshal(id, ExternalID),
-        transfer_type =>TransferType
+        external_id   => maybe_unmarshal(id, ExternalID),
+        transfer_type => TransferType
     }).
 
 -spec marshal_event({integer(), ff_machine:timestamped_event(ff_withdrawal:event())}) ->
@@ -120,114 +107,38 @@ marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
 marshal(event, {created, Withdrawal}) ->
-    {created, marshal_withdrawal(Withdrawal)};
-marshal(event, {status_changed, WithdrawalStatus}) ->
-    {status_changed, marshal(withdrawal_status_changed, WithdrawalStatus)};
+    {created, #wthd_CreatedChange{withdrawal = marshal_withdrawal(Withdrawal)}};
+marshal(event, {status_changed, Status}) ->
+    {status_changed, #wthd_StatusChange{status = marshal(status, Status)}};
 marshal(event, {p_transfer, TransferChange}) ->
-    {transfer, marshal(postings_transfer_change, TransferChange)};
+    {transfer, #wthd_TransferChange{payload = ff_p_transfer_codec:marshal(event, TransferChange)}};
 marshal(event, {session_started, SessionID}) ->
-    marshal(session, ?to_session_event(SessionID, started));
+    {session, #wthd_SessionChange{id = SessionID, payload = marshal(session_event, started)}};
 marshal(event, {session_finished, SessionID}) ->
-    marshal(session, ?to_session_event(SessionID, finished));
-marshal(session, {session, SessionChange}) ->
-    {session, marshal(withdrawal_session_change, SessionChange)};
+    {session, #wthd_SessionChange{id = SessionID, payload = marshal(session_event, finished)}};
 marshal(event, {route_changed, Route}) ->
-    {route, marshal(withdrawal_route_changed, Route)};
+    #{provider_id := ProviderID} = Route,
+    {route, #wthd_RouteChange{id = marshal(provider_id, ProviderID)}};
 marshal(event, {resource_got, Resource}) ->
-    {resource, {got, marshal(resource_got_change, Resource)}};
+    {resource, {got, #wthd_ResourceGot{resource = marshal(resource, Resource)}}};
 
-marshal(withdrawal_status_changed, pending) ->
-    {pending, #wthd_WithdrawalPending{}};
-marshal(withdrawal_status_changed, succeeded) ->
-    {succeeded, #wthd_WithdrawalSucceeded{}};
-% TODO: Process failures propertly
-% marshal(withdrawal_status_changed, {failed, #{
-%         failure := Failure
-%     }}) ->
-%     {failed, #wthd_WithdrawalFailed{failure = marshal(failure, Failure)}};
-marshal(withdrawal_status_changed, {failed, _}) ->
-    {failed, #wthd_WithdrawalFailed{failure = marshal(failure, dummy)}};
-marshal(failure, _) ->
-    #wthd_Failure{};
+marshal(status, pending) ->
+    {pending, #wthd_status_Pending{}};
+marshal(status, succeeded) ->
+    {succeeded, #wthd_status_Succeeded{}};
+marshal(status, {failed, Failure}) ->
+    {failed, #wthd_status_Failed{failure = marshal(failure, Failure)}};
 
-marshal(postings_transfer_change, {created, Transfer}) ->
-    {created, marshal(transfer, Transfer)}; % not ff_transfer :) see thrift
-marshal(postings_transfer_change, {status_changed, TransferStatus}) ->
-    {status_changed, marshal(transfer_status, TransferStatus)};
-marshal(transfer, #{
-        final_cash_flow := Cashflow
-}) ->
-    #wthd_Transfer{
-        cashflow = marshal(final_cash_flow, Cashflow)
-    };
-marshal(final_cash_flow, #{
-    postings := Postings
-}) ->
-    #cashflow_FinalCashFlow{
-        postings = marshal({list, postings}, Postings)
-    };
-marshal(postings, Postings = #{
-    sender := Source,
-    receiver := Destination,
-    volume := Cash
-}) ->
-    Details = maps:get(details, Postings, undefined),
-    #cashflow_FinalCashFlowPosting{
-        source      = marshal(final_cash_flow_account,
-            final_account_to_final_cash_flow_account(Source)),
-        destination = marshal(final_cash_flow_account,
-            final_account_to_final_cash_flow_account(Destination)),
-        volume      = marshal(cash, Cash),
-        details     = marshal(string, Details)
-    };
-marshal(final_cash_flow_account, #{
-    account_type   := AccountType,
-    account_id     := AccountID
-}) ->
-    #cashflow_FinalCashFlowAccount{
-        account_type   = marshal(account_type, AccountType),
-        account_id     = marshal(id, AccountID)
-    };
-
-marshal(account_type, CashflowAccount) ->
-    % Mapped to thrift type WalletCashFlowAccount as is
-    CashflowAccount;
-marshal(transfer_status, created) ->
-    {created, #wthd_TransferCreated{}};
-marshal(transfer_status, prepared) ->
-    {prepared, #wthd_TransferPrepared{}};
-marshal(transfer_status, committed) ->
-    {committed, #wthd_TransferCommitted{}};
-marshal(transfer_status, cancelled) ->
-    {cancelled, #wthd_TransferCancelled{}};
-
-marshal(withdrawal_session_change, #{
-    id      := SessionID,
-    payload := Payload
-}) ->
-    #wthd_SessionChange{
-        id      = marshal(id, SessionID),
-        payload = marshal(withdrawal_session_payload, Payload)
-    };
-marshal(withdrawal_session_payload, started) ->
+marshal(session_event, started) ->
     {started, #wthd_SessionStarted{}};
-marshal(withdrawal_session_payload, finished) ->
+marshal(session_event, finished) ->
     {finished, #wthd_SessionFinished{}};
-
-marshal(withdrawal_route_changed, #{
-    provider_id := ProviderID
-}) ->
-    #wthd_RouteChange{
-        id = marshal(id, genlib:to_binary(ProviderID))
-    };
-
-marshal(resource_got_change, Resource) ->
-    #wthd_ResourceGot{
-        resource = marshal(resource, Resource)
-    };
 
 marshal(ctx, Ctx) ->
     marshal(context, Ctx);
+
+marshal(provider_id, ProviderID) ->
+    marshal(id, genlib:to_binary(ProviderID));
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -245,86 +156,30 @@ unmarshal(repair_scenario, {add_events, #wthd_AddEventsRepair{events = Events, a
         actions => maybe_unmarshal(complex_action, Action)
     })};
 
-unmarshal(event, {created, Withdrawal}) ->
+unmarshal(event, {created, #wthd_CreatedChange{withdrawal = Withdrawal}}) ->
     {created, unmarshal_withdrawal(Withdrawal)};
-unmarshal(event, {status_changed, WithdrawalStatus}) ->
-    {status_changed, unmarshal(withdrawal_status_changed, WithdrawalStatus)};
-unmarshal(event, {transfer, TransferChange}) ->
-    {p_transfer, unmarshal(postings_transfer_change, TransferChange)};
+unmarshal(event, {status_changed, #wthd_StatusChange{status = Status}}) ->
+    {status_changed, unmarshal(status, Status)};
+unmarshal(event, {transfer, #wthd_TransferChange{payload = TransferChange}}) ->
+    {p_transfer, ff_p_transfer_codec:unmarshal(event, TransferChange)};
 unmarshal(event, {session, #wthd_SessionChange{id = ID, payload = {started, #wthd_SessionStarted{}}}}) ->
     {session_started, unmarshal(id, ID)};
 unmarshal(event, {session, #wthd_SessionChange{id = ID, payload = {finished, #wthd_SessionFinished{}}}}) ->
     {session_finished, unmarshal(id, ID)};
-unmarshal(event, {route, Route}) ->
-    {route_changed, unmarshal(withdrawal_route_changed, Route)};
-unmarshal(event, {route_changed, Route}) ->
-    {route, unmarshal(withdrawal_route_changed, Route)};
-unmarshal(event, {resource, {got, Resource}}) ->
+unmarshal(event, {route, #wthd_RouteChange{id = ProviderID}}) ->
+    {route_changed, #{provider_id => unmarshal(provider_id, ProviderID)}};
+unmarshal(event, {resource, {got, #wthd_ResourceGot{resource = Resource}}}) ->
     {resource_got, unmarshal(resource, Resource)};
 
-unmarshal(withdrawal_status_changed, {pending, #wthd_WithdrawalPending{}}) ->
+unmarshal(status, {pending, #wthd_status_Pending{}}) ->
     pending;
-unmarshal(withdrawal_status_changed, {succeeded, #wthd_WithdrawalSucceeded{}}) ->
+unmarshal(status, {succeeded, #wthd_status_Succeeded{}}) ->
     succeeded;
-% TODO: Process failures propertly
-% unmarshal(withdrawal_status_changed, {failed, #wthd_WithdrawalFailed{failure = Failure}}) ->
-%     {failed, unmarshal(failure, Failure)};
-unmarshal(withdrawal_status_changed, {failed, #wthd_WithdrawalFailed{failure = #wthd_Failure{}}}) ->
-    {failed, #domain_Failure{code = <<"unknown">>}};
+unmarshal(status, {failed, #wthd_status_Failed{failure = Failure}}) ->
+    {failed, unmarshal(failure, Failure)};
 
-unmarshal(postings_transfer_change, {created, Transfer}) ->
-    {created, unmarshal(transfer, Transfer)}; % not ff_transfer :) see thrift
-unmarshal(postings_transfer_change, {status_changed, TransferStatus}) ->
-    {status_changed, unmarshal(transfer_status, TransferStatus)};
-unmarshal(transfer, #wthd_Transfer{
-    cashflow = Cashflow
-}) ->
-    #{
-        cashflow => unmarshal(final_cash_flow, Cashflow)
-    };
-unmarshal(final_cash_flow, #cashflow_FinalCashFlow{
-    postings = Postings
-}) ->
-    #{
-        postings => unmarshal({list, postings}, Postings)
-    };
-unmarshal(postings, #cashflow_FinalCashFlowPosting{
-    source = Source,
-    destination = Destination,
-    volume = Cash,
-    details = Details
-}) ->
-    genlib_map:compact(#{
-        source      => unmarshal(final_cash_flow_account, Source),
-        destination => unmarshal(final_cash_flow_account, Destination),
-        volume      => unmarshal(cash, Cash),
-        details     => unmarshal(string, Details)
-    });
-unmarshal(final_cash_flow_account, CashFlow = #cashflow_FinalCashFlowAccount{
-    account_type = _AccountType,
-    account_id   = _AccountID
-}) ->
-    % FIXME: Make protocol symmetric. final_cash_flow_account is unrecoverable from thrift now
-    erlang:error({not_implemented, {unmarshal, final_cash_flow_account}}, [final_cash_flow_account, CashFlow]);
-
-unmarshal(account_type, CashflowAccount) ->
-    % Mapped to thrift type WalletCashFlowAccount as is
-    CashflowAccount;
-unmarshal(transfer_status, {created, #wthd_TransferCreated{}}) ->
-    created;
-unmarshal(transfer_status, {prepared, #wthd_TransferPrepared{}}) ->
-    prepared;
-unmarshal(transfer_status, {committed, #wthd_TransferCommitted{}}) ->
-    committed;
-unmarshal(transfer_status, {cancelled, #wthd_TransferCancelled{}}) ->
-    cancelled;
-
-unmarshal(withdrawal_route_changed, #wthd_RouteChange{
-    id = ProviderID
-}) ->
-    #{
-        provider_id => unmarshal(id, erlang:binary_to_integer(ProviderID))
-    };
+unmarshal(provider_id, ProviderID) ->
+    unmarshal(integer, erlang:binary_to_integer(ProviderID));
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);
@@ -338,6 +193,11 @@ maybe_unmarshal(_Type, undefined) ->
     undefined;
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
 
 %% TESTS
 
@@ -359,7 +219,7 @@ withdrawal_test() ->
         source      = WalletID,
         destination = Dest,
         external_id = ExternalID,
-        status      = {pending, #wthd_WithdrawalPending{}},
+        status      = {pending, #wthd_status_Pending{}},
         id          = genlib:unique()
     },
     ?assertEqual(In, marshal_withdrawal(unmarshal_withdrawal(In))).

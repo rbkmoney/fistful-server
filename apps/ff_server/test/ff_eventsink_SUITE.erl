@@ -477,11 +477,17 @@ search_event_commited(Events, WdrID) ->
     TransferCommited = lists:filter(fun(Ev) ->
         Payload = Ev#wthd_SinkEvent.payload,
         Changes = Payload#wthd_EventSinkPayload.changes,
-        Res = lists:filter(fun is_commited_ev/1, Changes),
-        length(Res) =/= 0
+        lists:any(fun is_commited_ev/1, Changes)
     end, ClearEv),
 
     length(TransferCommited) =/= 0.
 
-is_commited_ev({transfer, {status_changed, {committed, #wthd_TransferCommitted{}}}}) -> true;
-is_commited_ev(_Other) -> false.
+is_commited_ev({transfer, #wthd_TransferChange{payload = TransferEvent}}) ->
+    case TransferEvent of
+        {status_changed, #transfer_StatusChange{status = {committed, #transfer_Committed{}}}} ->
+            true;
+        _Other ->
+            false
+    end;
+is_commited_ev(_Other) ->
+    false.

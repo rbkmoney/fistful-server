@@ -121,7 +121,7 @@ create_withdrawal_ok(C) ->
     Body          = Withdrawal#wthd_Withdrawal.body,
 
     {succeeded, _} = ct_helper:await(
-        {succeeded, #wthd_WithdrawalSucceeded{}},
+        {succeeded, #wthd_status_Succeeded{}},
         fun() ->
             {ok, W} = call_service(withdrawal, 'Get', [ID]),
             W#wthd_Withdrawal.status
@@ -250,8 +250,8 @@ get_events_ok(C) ->
         limit   = 1000,
         'after' = undefined
     },
-    {succeeded, #wthd_WithdrawalSucceeded{}} = ct_helper:await(
-        {succeeded, #wthd_WithdrawalSucceeded{}},
+    {succeeded, #wthd_status_Succeeded{}} = ct_helper:await(
+        {succeeded, #wthd_status_Succeeded{}},
         fun () ->
             {ok, Events} = call_service(withdrawal, 'GetEvents', [ID, Range]),
             lists:foldl(fun(#wthd_Event{change = {status_changed, Status}}, _AccIn) -> Status;

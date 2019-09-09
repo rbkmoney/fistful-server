@@ -540,4 +540,13 @@ call(Function, {Service, Path}, Args, Port) ->
     ff_woody_client:call(Client, Request).
 
 route_changes(Events) ->
-    [ProviderID || #wthd_Event{change = {route, #wthd_RouteChange{id = ProviderID}}} <- Events].
+    lists:filtermap(
+        fun
+            (#wthd_Event{change = {route, RouteChange}}) ->
+                #wthd_RouteChange{route = #wthd_Route{provider_id = ProviderID}} = RouteChange,
+                {true, ProviderID};
+            (_Other) ->
+                false
+        end,
+        Events
+    ).

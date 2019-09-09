@@ -110,27 +110,8 @@ marshal(three_ds_verification, Value) when
 
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_session_SessionResultFailed{
-        failure = marshal(failure, Failure)
+        failure = ff_codec:marshal(failure, Failure)
     }};
-
-marshal(failure, Failure = #{
-    code := Code
-}) ->
-    Reason = maps:get(reason, Failure, undefined),
-    SubFailure = maps:get(sub, Failure, undefined),
-    #'Failure'{
-        code = marshal(string, Code),
-        reason = marshal(string, Reason),
-        sub = marshal(sub_failure, SubFailure)
-    };
-marshal(sub_failure, Failure = #{
-    code := Code
-}) ->
-    SubFailure = maps:get(sub, Failure, undefined),
-    #'SubFailure'{
-        code = marshal(string, Code),
-        sub = marshal(sub_failure, SubFailure)
-    };
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -263,26 +244,7 @@ unmarshal(three_ds_verification, Value) when
     Value;
 
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
-    {failed, unmarshal(failure, Failure)};
-
-unmarshal(failure, #'Failure'{
-    code = Code,
-    reason = Reason,
-    sub = SubFailure
-}) ->
-    genlib_map:compact(#{
-        code => unmarshal(string, Code),
-        reason => maybe_unmarshal(string, Reason),
-        sub => maybe_unmarshal(sub_failure, SubFailure)
-    });
-unmarshal(sub_failure, #'SubFailure'{
-    code = Code,
-    sub = SubFailure
-}) ->
-    genlib_map:compact(#{
-        code => unmarshal(string, Code),
-        sub => maybe_unmarshal(sub_failure, SubFailure)
-    });
+    {failed, ff_codec:unmarshal(failure, Failure)};
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

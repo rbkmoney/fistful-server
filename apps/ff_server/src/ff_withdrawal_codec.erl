@@ -114,13 +114,17 @@ marshal(event, {p_transfer, TransferChange}) ->
     {transfer, #wthd_TransferChange{payload = ff_p_transfer_codec:marshal(event, TransferChange)}};
 marshal(event, {session_started, SessionID}) ->
     {session, #wthd_SessionChange{id = SessionID, payload = marshal(session_event, started)}};
-marshal(event, {session_finished, SessionID}) ->
-    {session, #wthd_SessionChange{id = SessionID, payload = marshal(session_event, finished)}};
+marshal(event, {session_finished, {SessionID, SessionResult}}) ->
+    {session, #wthd_SessionChange{id = SessionID, payload = marshal(session_event, {finished, SessionResult})}};
 marshal(event, {route_changed, Route}) ->
-    #{provider_id := ProviderID} = Route,
-    {route, #wthd_RouteChange{id = marshal(provider_id, ProviderID)}};
+    {route, #wthd_RouteChange{route = marshal(route, Route)}};
+marshal(event, {limit_check, Details}) ->
+    {limit_check, #wthd_LimitCheckChange{details = ff_limit_check_codec:marshal(details, Details)}};
 marshal(event, {resource_got, Resource}) ->
     {resource, {got, #wthd_ResourceGot{resource = marshal(resource, Resource)}}};
+
+marshal(route, #{provider_id := ProviderID}) ->
+    #wthd_Route{provider_id = marshal(provider_id, ProviderID)};
 
 marshal(status, pending) ->
     {pending, #wthd_status_Pending{}};
@@ -131,8 +135,14 @@ marshal(status, {failed, Failure}) ->
 
 marshal(session_event, started) ->
     {started, #wthd_SessionStarted{}};
-marshal(session_event, finished) ->
-    {finished, #wthd_SessionFinished{}};
+marshal(session_event, {finished, Result}) ->
+    {finished, #wthd_SessionFinished{result = marshal(session_result, Result)}};
+
+marshal(session_result, {success, TrxInfo}) ->
+    MarshaledTrxInfo = ff_withdrawal_session_codec:marshal(transaction_info, TrxInfo),
+    {succeeded, #wthd_SessionSucceeded{trx_info = MarshaledTrxInfo}};
+marshal(session_result, {failed, Failure}) ->
+    {failed, #wthd_SessionFailed{failure = ff_codec:marshal(Failure)}};
 
 marshal(ctx, Ctx) ->
     marshal(context, Ctx);
@@ -162,14 +172,17 @@ unmarshal(event, {status_changed, #wthd_StatusChange{status = Status}}) ->
     {status_changed, unmarshal(status, Status)};
 unmarshal(event, {transfer, #wthd_TransferChange{payload = TransferChange}}) ->
     {p_transfer, ff_p_transfer_codec:unmarshal(event, TransferChange)};
-unmarshal(event, {session, #wthd_SessionChange{id = ID, payload = {started, #wthd_SessionStarted{}}}}) ->
-    {session_started, unmarshal(id, ID)};
-unmarshal(event, {session, #wthd_SessionChange{id = ID, payload = {finished, #wthd_SessionFinished{}}}}) ->
-    {session_finished, unmarshal(id, ID)};
-unmarshal(event, {route, #wthd_RouteChange{id = ProviderID}}) ->
-    {route_changed, #{provider_id => unmarshal(provider_id, ProviderID)}};
+unmarshal(event, {session, SessionChange}) ->
+    unmarshal(session_event, SessionChange);
+unmarshal(event, {route, Route}) ->
+    {route_changed, unmarshal(route, Route)};
+unmarshal(event, {limit_check, #wthd_LimitCheckChange{details = Details}}) ->
+    {limit_check, ff_limit_check_codec:unmarshal(details, Details)};
 unmarshal(event, {resource, {got, #wthd_ResourceGot{resource = Resource}}}) ->
     {resource_got, unmarshal(resource, Resource)};
+
+unmarshal(route, #wthd_Route{provider_id = ProviderID}) ->
+    #{provider_id => unmarshal(provider_id, ProviderID)};
 
 unmarshal(status, {pending, #wthd_status_Pending{}}) ->
     pending;
@@ -180,6 +193,17 @@ unmarshal(status, {failed, #wthd_status_Failed{failure = Failure}}) ->
 
 unmarshal(provider_id, ProviderID) ->
     unmarshal(integer, erlang:binary_to_integer(ProviderID));
+
+unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {started, #wthd_SessionStarted{}}}) ->
+    {session_started, unmarshal(id, ID)};
+unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {finished, Finished}}) ->
+    #wthd_SessionFinished{result = Result} = Finished,
+    {session_finished, {unmarshal(id, ID), unmarshal(session_result, Result)}};
+
+unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = TrxInfo}}) ->
+    {success, ff_withdrawal_session_codec:unmarshal(transaction_info, TrxInfo)};
+unmarshal(session_result, {failed, #wthd_SessionFailed{failure = Failure}}) ->
+    {failed, ff_codec:unmarshal(failure, Failure)};
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);

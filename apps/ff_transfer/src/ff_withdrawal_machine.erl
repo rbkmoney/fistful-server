@@ -144,13 +144,7 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_withdrawal, Machine, Scenario).
 
-process_result({ok, {Action, Events}}, St) ->
-    genlib_map:compact(#{
-        events => set_events(Events),
-        action => set_action(Action, St)
-    });
-process_result({error, Reason}, St) ->
-    {ok, {Action, Events}} = ff_withdrawal:process_failure(Reason, withdrawal(St)),
+process_result({Action, Events}, St) ->
     genlib_map:compact(#{
         events => set_events(Events),
         action => set_action(Action, St)

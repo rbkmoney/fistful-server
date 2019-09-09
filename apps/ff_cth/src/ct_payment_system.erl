@@ -94,11 +94,7 @@ start_processing_apps(Options) ->
             ]])},
             {providers, identity_provider_config(Options)}
         ]},
-        {ff_transfer, [
-            {withdrawal,
-                #{provider => withdrawal_provider_config(Options)}
-            }
-        ]}
+        ff_transfer
     ]),
     SuiteSup = ct_sup:start(),
     BeOpts = machinery_backend_options(Options),
@@ -446,49 +442,6 @@ identity_provider_config(Options) ->
     },
     maps:get(identity_provider_config, Options, Default).
 
--spec withdrawal_provider_config(options()) ->
-    #{id() => ff_withdrawal_provider:provider()}.
-withdrawal_provider_config(Options) ->
-    Default = #{
-        <<"mocketbank">> => #{
-            adapter => ff_woody_client:new(<<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
-            accounts => #{},
-            fee => #{
-                <<"RUB">> => #{
-                    postings => [
-                        #{
-                            sender => {system, settlement},
-                            receiver => {provider, settlement},
-                            volume => {product, {min_of, [
-                                {fixed, {10, <<"RUB">>}},
-                                {share, {genlib_rational:new(5, 100), operation_amount, round_half_towards_zero}}
-                            ]}}
-                        }
-                    ]
-                }
-            }
-        },
-        <<"quotebank">> => #{
-            adapter => ff_woody_client:new(<<"http://localhost:8022/quotebank">>),
-            accounts => #{},
-            fee => #{
-                <<"RUB">> => #{
-                    postings => [
-                        #{
-                            sender => {system, settlement},
-                            receiver => {provider, settlement},
-                            volume => {product, {min_of, [
-                                {fixed, {10, <<"RUB">>}},
-                                {share, {genlib_rational:new(5, 100), operation_amount, round_half_towards_zero}}
-                            ]}}
-                        }
-                    ]
-                }
-            }
-        }
-    },
-    maps:get(withdrawal_provider_config, Options, Default).
-
 services(Options) ->
     Default = #{
         accounter      => "http://shumway:8022/accounter",
@@ -547,6 +500,10 @@ domain_config(Options, C) ->
                     #domain_WithdrawalProviderDecision{
                         if_ = {condition, {payment_tool, {crypto_currency, #domain_CryptoCurrencyCondition{}}}},
                         then_ = {value, [?wthdr_prv(2)]}
+                    },
+                    #domain_WithdrawalProviderDecision{
+                        if_ = {constant, true},
+                        then_ = {value, []}
                     }
                 ]}
             }

@@ -367,14 +367,7 @@ process_deposit(SrcID, WalID) ->
         #{id => DepID, source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
         ff_ctx:new()
     ),
-    succeeded = ct_helper:await(
-        succeeded,
-        fun () ->
-            {ok, DepM} = ff_deposit_machine:get(DepID),
-            ff_deposit:status(ff_deposit_machine:deposit(DepM))
-        end,
-        genlib_retry:linear(15, 1000)
-    ),
+    succeeded = await_final_deposit_status(DepID),
     DepID.
 
 create_destination(IID, C) ->
@@ -396,14 +389,7 @@ process_withdrawal(WalID, DestID) ->
         #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
         ff_ctx:new()
     ),
-    succeeded = ct_helper:await(
-        succeeded,
-        fun () ->
-            {ok, WdrM} = ff_withdrawal_machine:get(WdrID),
-            ff_withdrawal:status(ff_withdrawal_machine:withdrawal(WdrM))
-        end,
-        genlib_retry:linear(15, 1000)
-    ),
+    succeeded = await_final_withdrawal_status(WdrID),
     true = ct_helper:await(
         true,
         fun () ->
@@ -416,6 +402,53 @@ process_withdrawal(WalID, DestID) ->
     ),
     WdrID.
 
+get_deposit(DepositID) ->
+    {ok, Machine} = ff_deposit_machine:get(DepositID),
+    ff_deposit_machine:deposit(Machine).
+
+get_deposit_status(DepositID) ->
+    ff_deposit:status(get_deposit(DepositID)).
+
+await_final_deposit_status(DepositID) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            {ok, Machine} = ff_deposit_machine:get(DepositID),
+            Deposit = ff_deposit_machine:deposit(Machine),
+            case ff_deposit:is_finished(Deposit) of
+                false ->
+                    {not_finished, Deposit};
+                true ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(90, 1000)
+    ),
+    get_deposit_status(DepositID).
+
+get_withdrawal(WithdrawalID) ->
+    {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
+    ff_withdrawal_machine:withdrawal(Machine).
+
+get_withdrawal_status(WithdrawalID) ->
+    ff_withdrawal:status(get_withdrawal(WithdrawalID)).
+
+await_final_withdrawal_status(WithdrawalID) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
+            Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
+            case ff_withdrawal:is_finished(Withdrawal) of
+                false ->
+                    {not_finished, Withdrawal};
+                true ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(90, 1000)
+    ),
+    get_withdrawal_status(WithdrawalID).
 
 -spec get_max_sinkevent_id(list(evsink_event())) -> evsink_id().
 

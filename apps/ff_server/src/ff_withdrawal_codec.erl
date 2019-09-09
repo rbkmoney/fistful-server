@@ -142,7 +142,7 @@ marshal(session_result, {success, TrxInfo}) ->
     MarshaledTrxInfo = ff_withdrawal_session_codec:marshal(transaction_info, TrxInfo),
     {succeeded, #wthd_SessionSucceeded{trx_info = MarshaledTrxInfo}};
 marshal(session_result, {failed, Failure}) ->
-    {failed, #wthd_SessionFailed{failure = ff_codec:marshal(Failure)}};
+    {failed, #wthd_SessionFailed{failure = ff_codec:marshal(failure, Failure)}};
 
 marshal(ctx, Ctx) ->
     marshal(context, Ctx);

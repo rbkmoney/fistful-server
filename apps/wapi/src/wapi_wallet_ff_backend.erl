@@ -335,8 +335,7 @@ create_withdrawal(Params, Context) ->
         Quote = unwrap(maybe_check_quote_token(Params, Context)),
         WithdrawalParams = from_swag(withdrawal_params, Params),
         ff_withdrawal_machine:create(
-            ID,
-            genlib_map:compact(WithdrawalParams#{quote => Quote}),
+            genlib_map:compact(WithdrawalParams#{id => ID, quote => Quote}),
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,

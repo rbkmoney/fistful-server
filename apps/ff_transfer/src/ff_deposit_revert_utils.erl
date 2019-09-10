@@ -35,6 +35,7 @@
 -export([wrap_events/2]).
 -export([unwrap_event/1]).
 -export([apply_event/2]).
+-export([maybe_migrate/1]).
 -export([get_by_id/2]).
 -export([process_reverts/1]).
 
@@ -102,6 +103,12 @@ apply_event(WrappedEvent, Index0) ->
     Index1 = Index0#{reverts := Reverts#{RevertID => Revert1}},
     Index2 = update_active(Revert1, Index1),
     Index2.
+
+-spec maybe_migrate(wrapped_event() | any()) -> wrapped_event().
+maybe_migrate(Event) ->
+    {ID, RevertEvent} = unwrap_event(Event),
+    Migrated = ff_deposit_revert:maybe_migrate(RevertEvent),
+    wrap_event(ID, Migrated).
 
 -spec process_reverts(index()) ->
     {action(), [wrapped_event()]}.

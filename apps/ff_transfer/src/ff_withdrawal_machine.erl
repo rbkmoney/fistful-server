@@ -21,6 +21,13 @@
     ff_withdrawal:create_error() |
     exists.
 
+-type start_adjustment_error() ::
+    ff_withdrawal:start_adjustment_error() |
+    unknown_withdrawal_error().
+
+-type unknown_withdrawal_error() ::
+    {unknown_withdrawal, id()}.
+
 -export_type([id/0]).
 -export_type([st/0]).
 -export_type([action/0]).
@@ -30,12 +37,15 @@
 -export_type([withdrawal/0]).
 -export_type([external_id/0]).
 -export_type([create_error/0]).
+-export_type([start_adjustment_error/0]).
 
 %% API
 
--export([create/3]).
+-export([create/2]).
 -export([get/1]).
 -export([events/2]).
+
+-export([start_adjustment/2]).
 
 %% Accessors
 
@@ -55,41 +65,58 @@
 
 %% Internal types
 
--type ctx()           :: ff_ctx:ctx().
+-type ctx() :: ff_ctx:ctx().
+
+-type adjustment_params() :: ff_withdrawal:adjustment_params().
+
+-type call() ::
+    {start_adjustment, adjustment_params()}.
 
 -define(NS, 'ff/withdrawal_v2').
 
 %% API
 
--spec create(id(), params(), ctx()) ->
+-spec create(params(), ctx()) ->
     ok |
     {error, ff_withdrawal:create_error() | exists}.
 
-create(ID, Params, Ctx) ->
+create(Params, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_withdrawal:create(ID, Params)),
-        unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend(?NS)))
+        #{id := ID} = Params,
+        Events = unwrap(ff_withdrawal:create(Params)),
+        unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
     {ok, st()} |
-    {error, notfound}.
+    {error, unknown_withdrawal_error()}.
 
 get(ID) ->
-    ff_machine:get(ff_withdrawal, ?NS, ID).
+    case ff_machine:get(ff_withdrawal, ?NS, ID) of
+        {ok, _Machine} = Result ->
+            Result;
+        {error, notfound} ->
+            {error, {unknown_withdrawal, ID}}
+    end.
 
 -spec events(id(), machinery:range()) ->
     {ok, events()} |
-    {error, notfound}.
+    {error, unknown_withdrawal_error()}.
 
 events(ID, Range) ->
-    do(fun () ->
-        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend(?NS))),
-        [{EventID, TsEv} || {EventID, _, TsEv} <- History]
-    end).
+    case machinery:get(?NS, ID, Range, backend()) of
+        {ok, #{history := History}} ->
+            {ok, [{EventID, TsEv} || {EventID, _, TsEv} <- History]};
+        {error, notfound} ->
+            {error, {unknown_withdrawal, ID}}
+    end.
 
-backend(NS) ->
-    fistful:backend(NS).
+-spec start_adjustment(id(), adjustment_params()) ->
+    {ok, events()} |
+    {error, start_adjustment_error()}.
+
+start_adjustment(WithdrawalID, Params) ->
+    call(WithdrawalID, {start_adjustment, Params}).
 
 %% Accessors
 
@@ -114,6 +141,9 @@ ctx(St) ->
 
 -define(MAX_SESSION_POLL_TIMEOUT, 4 * 60 * 60).
 
+backend() ->
+    fistful:backend(?NS).
+
 -spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) ->
     result().
 
@@ -132,9 +162,11 @@ process_timeout(Machine, _, _Opts) ->
     Withdrawal = withdrawal(St),
     process_result(ff_withdrawal:process_transfer(Withdrawal), St).
 
--spec process_call(_CallArgs, machine(), handler_args(), handler_opts()) ->
+-spec process_call(call(), machine(), handler_args(), handler_opts()) ->
     no_return().
 
+process_call({start_adjustment, Params}, Machine, _, _Opts) ->
+    do_start_adjustment(Params, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
@@ -143,6 +175,18 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_withdrawal, Machine, Scenario).
+
+-spec do_start_adjustment(adjustment_params(), machine()) -> {Response, result()} when
+    Response :: ok | {error, ff_withdrawal:start_adjustment_error()}.
+
+do_start_adjustment(Params, Machine) ->
+    St = ff_machine:collapse(ff_withdrawal, Machine),
+    case ff_withdrawal:start_adjustment(Params, withdrawal(St)) of
+        {ok, Result} ->
+            {ok, process_result(Result, St)};
+        {error, _Reason} = Error ->
+            {Error, #{}}
+    end.
 
 process_result({Action, Events}, St) ->
     genlib_map:compact(#{
@@ -167,3 +211,11 @@ compute_poll_timeout(Now, St) ->
     MaxTimeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
     Timeout0 = machinery_time:interval(Now, ff_machine:updated(St)) div 1000,
     erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
+
+call(ID, Call) ->
+    case machinery:call(?NS, ID, Call, backend()) of
+        {ok, Reply} ->
+            Reply;
+        {error, notfound} ->
+            {error, {unknown_withdrawal, ID}}
+    end.

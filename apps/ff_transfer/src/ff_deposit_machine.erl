@@ -83,7 +83,9 @@
 -type revert_adjustment_params() :: ff_deposit:revert_adjustment_params().
 
 -type call() ::
-    {start_revert, revert_params()}.
+    {start_revert, revert_params()} |
+    {start_revert_adjustment, revert_adjustment_params()} |
+    {start_adjustment, adjustment_params()}.
 
 -define(NS, 'ff/deposit_v1').
 

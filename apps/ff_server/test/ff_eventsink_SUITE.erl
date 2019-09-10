@@ -385,8 +385,7 @@ create_destination(IID, C) ->
 process_withdrawal(WalID, DestID) ->
     WdrID = generate_id(),
     ok = ff_withdrawal_machine:create(
-        WdrID,
-        #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
+        #{id => WdrID, wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
         ff_ctx:new()
     ),
     succeeded = await_final_withdrawal_status(WdrID),

@@ -109,8 +109,8 @@ adjustment_can_change_status_to_failed_test(C) ->
         external_id => <<"true_unique_id">>
     }),
     ?assertMatch(succeeded, get_adjustment_status(DepositID, AdjustmentID)),
-    ExtaernalID = ff_adjustment:external_id(get_adjustment(DepositID, AdjustmentID)),
-    ?assertEqual(<<"true_unique_id">>, ExtaernalID),
+    ExternalID = ff_adjustment:external_id(get_adjustment(DepositID, AdjustmentID)),
+    ?assertEqual(<<"true_unique_id">>, ExternalID),
     ?assertEqual({failed, Failure},  get_deposit_status(DepositID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_source_balance(SourceID)).
@@ -420,34 +420,19 @@ get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
-create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
-    ID = generate_id(),
-    ok = create_instrument(
-        Type,
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_ctx:new(),
-        C
-    ),
-    ID.
-
-create_instrument(destination, ID, Params, Ctx, _C) ->
-    ff_destination:create(ID, Params, Ctx);
-create_instrument(source, ID, Params, Ctx, _C) ->
-    ff_source:create(ID, Params, Ctx).
-
 generate_id() ->
     ff_id:generate_snowflake_id().
 
-create_source(IID, C) ->
-    % Create source
+create_source(IID, _C) ->
+    ID = generate_id(),
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
-    SrcID = create_instrument(source, IID, <<"XSource">>, <<"RUB">>, SrcResource, C),
+    Params = #{identity => IID, name => <<"XSource">>, currency => <<"RUB">>, resource => SrcResource},
+    ok = ff_source:create(ID, Params, ff_ctx:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, SrcM} = ff_source:get_machine(SrcID),
+            {ok, SrcM} = ff_source:get_machine(ID),
             ff_source:status(ff_source:get(SrcM))
         end
     ),
-    SrcID.
+    ID.

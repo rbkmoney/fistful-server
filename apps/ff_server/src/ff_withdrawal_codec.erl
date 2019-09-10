@@ -24,6 +24,7 @@
 unmarshal_withdrawal_params(Params) ->
     Body = Params#wthd_WithdrawalParams.body,
     #{
+        id             => Params#wthd_WithdrawalParams.id,
         wallet_id      => Params#wthd_WithdrawalParams.source,
         destination_id => Params#wthd_WithdrawalParams.destination,
         body           => ff_codec:unmarshal(cash, Body),

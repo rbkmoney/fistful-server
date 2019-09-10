@@ -182,7 +182,11 @@ body(#{body := V}) ->
 
 -spec status(revert()) -> status().
 status(Revert) ->
-    ff_adjustment_utils:status(adjustments_index(Revert)).
+    OwnStatus = maps:get(status, Revert),
+    %% `OwnStatus` is used in case of `{created, revert()}` event marshaling
+    %% The event revert is not created from events, so `adjustments` can not have
+    %% initial revert status.
+    ff_adjustment_utils:status(adjustments_index(Revert), OwnStatus).
 
 -spec reason(revert()) -> reason() | undefined.
 reason(T) ->
@@ -289,10 +293,8 @@ apply_event_({adjustment, _Ev} = Event, T) ->
 
 -spec maybe_migrate(event() | legacy_event()) ->
     event().
-maybe_migrate({adjustment, _Payload} = WrappedEvent) ->
-    {ID, Event} = ff_adjustment_utils:unwrap_event(WrappedEvent),
-    Migrated = ff_adjustment:maybe_migrate(Event),
-    ff_adjustment_utils:wrap_event(ID, Migrated);
+maybe_migrate({adjustment, _Payload} = Event) ->
+    ff_adjustment_utils:maybe_migrate(Event);
 maybe_migrate(Ev) ->
     Ev.
 

@@ -30,7 +30,7 @@
 -export([set_status/2]).
 -export([set_cash_flow/2]).
 
--export([status/1]).
+-export([status/2]).
 -export([cash_flow/1]).
 
 -export([adjustments/1]).
@@ -41,6 +41,7 @@
 -export([wrap_events/2]).
 -export([unwrap_event/1]).
 -export([apply_event/2]).
+-export([maybe_migrate/1]).
 -export([get_by_id/2]).
 -export([process_adjustments/1]).
 
@@ -72,9 +73,9 @@ set_status(Status, Index) ->
 set_cash_flow(Body, Index) ->
     Index#{cash_flow => Body}.
 
--spec status(index()) -> target_status() | undefined.
-status(Index) ->
-    maps:get(status, Index, undefined).
+-spec status(index(), target_status() | undefined) -> target_status() | undefined.
+status(Index, Default) ->
+    maps:get(status, Index, Default).
 
 -spec cash_flow(index()) -> final_cash_flow() | undefined.
 cash_flow(Index) ->
@@ -134,6 +135,12 @@ apply_event(WrappedEvent, Index0) ->
     Index3 = update_active(Event, Adjustment1, Index2),
     Index4 = update_target_data(Event, Adjustment1, Index3),
     Index4.
+
+-spec maybe_migrate(wrapped_event() | any()) -> wrapped_event().
+maybe_migrate(Event) ->
+    {ID, AdjustmentEvent} = unwrap_event(Event),
+    Migrated = ff_adjustment:maybe_migrate(AdjustmentEvent),
+    wrap_event(ID, Migrated).
 
 -spec process_adjustments(index()) ->
     {action(), [wrapped_event()]}.

@@ -226,7 +226,11 @@ body(#{body := V}) ->
 
 -spec status(deposit()) -> status() | undefined.
 status(Deposit) ->
-    ff_adjustment_utils:status(adjustments_index(Deposit)).
+    OwnStatus = maps:get(status, Deposit, undefined),
+    %% `OwnStatus` is used in case of `{created, deposit()}` event marshaling
+    %% The event deposit is not created from events, so `adjustments` can not have
+    %% initial deposit status.
+    ff_adjustment_utils:status(adjustments_index(Deposit), OwnStatus).
 
 -spec p_transfer(deposit())  -> p_transfer() | undefined.
 p_transfer(Deposit) ->
@@ -885,7 +889,6 @@ update_adjusment_index(Updater, Value, Revert) ->
     Index = adjustments_index(Revert),
     set_adjustments_index(Updater(Value, Index), Revert).
 
-
 %% Helpers
 
 -spec construct_p_transfer_id(id()) -> id().
@@ -912,9 +915,10 @@ maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}) ->
 maybe_migrate({p_transfer, PEvent}) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, deposit)};
 maybe_migrate({revert, _Payload} = Event) ->
-    {ID, RevertEvent} = ff_deposit_revert_utils:unwrap_event(Event),
-    Migrated = ff_deposit_revert:maybe_migrate(RevertEvent),
-    ff_deposit_revert_utils:wrap_event(ID, Migrated);
+    ff_deposit_revert_utils:maybe_migrate(Event);
+maybe_migrate({adjustment, _Payload} = Event) ->
+    ff_adjustment_utils:maybe_migrate(Event);
+
 % Old events
 maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
     #{

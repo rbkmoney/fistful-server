@@ -319,14 +319,14 @@ start_adjustment(Params, Deposit) ->
     case find_adjustment(AdjustmentID, Deposit) of
         {error, {unknown_adjustment, _}} ->
             do_start_adjustment(Params, Deposit);
-        {ok, _Revert} ->
+        {ok, _Adjustment} ->
             {ok, {undefined, []}}
     end.
 
 -spec find_adjustment(adjustment_id(), deposit()) ->
     {ok, adjustment()} | {error, unknown_adjustment_error()}.
-find_adjustment(RevertID, Deposit) ->
-    ff_adjustment_utils:get_by_id(RevertID, adjustments_index(Deposit)).
+find_adjustment(AdjustmentID, Deposit) ->
+    ff_adjustment_utils:get_by_id(AdjustmentID, adjustments_index(Deposit)).
 
 -spec adjustments(deposit()) -> [adjustment()].
 adjustments(Deposit) ->
@@ -578,8 +578,8 @@ p_transfer_status(Deposit) ->
 -spec adjustments_index(deposit()) -> adjustments().
 adjustments_index(Deposit) ->
     case maps:find(adjustments, Deposit) of
-        {ok, Reverts} ->
-            Reverts;
+        {ok, Adjustments} ->
+            Adjustments;
         error ->
             ff_adjustment_utils:new_index()
     end.
@@ -885,9 +885,9 @@ save_adjustable_info(_Ev, Deposit) ->
 
 -spec update_adjusment_index(fun((any(), adjustments()) -> adjustments()), any(), deposit()) ->
     deposit().
-update_adjusment_index(Updater, Value, Revert) ->
-    Index = adjustments_index(Revert),
-    set_adjustments_index(Updater(Value, Index), Revert).
+update_adjusment_index(Updater, Value, Deposit) ->
+    Index = adjustments_index(Deposit),
+    set_adjustments_index(Updater(Value, Index), Deposit).
 
 %% Helpers
 

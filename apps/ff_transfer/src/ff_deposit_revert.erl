@@ -228,14 +228,14 @@ start_adjustment(Params, Revert) ->
     case find_adjustment(AdjustmentID, Revert) of
         {error, {unknown_adjustment, _}} ->
             do_start_adjustment(Params, Revert);
-        {ok, _Revert} ->
+        {ok, _Adjustment} ->
             {ok, {undefined, []}}
     end.
 
 -spec find_adjustment(adjustment_id(), revert()) ->
     {ok, adjustment()} | {error, unknown_adjustment_error()}.
-find_adjustment(RevertID, Revert) ->
-    ff_adjustment_utils:get_by_id(RevertID, adjustments_index(Revert)).
+find_adjustment(AdjustmentID, Revert) ->
+    ff_adjustment_utils:get_by_id(AdjustmentID, adjustments_index(Revert)).
 
 -spec adjustments(revert()) -> [adjustment()].
 adjustments(Revert) ->
@@ -438,8 +438,8 @@ p_transfer_status(Revert) ->
 -spec adjustments_index(revert()) -> adjustments().
 adjustments_index(Revert) ->
     case maps:find(adjustments, Revert) of
-        {ok, Reverts} ->
-            Reverts;
+        {ok, Adjustments} ->
+            Adjustments;
         error ->
             ff_adjustment_utils:new_index()
     end.

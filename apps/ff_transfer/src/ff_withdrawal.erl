@@ -360,14 +360,14 @@ start_adjustment(Params, Withdrawal) ->
     case find_adjustment(AdjustmentID, Withdrawal) of
         {error, {unknown_adjustment, _}} ->
             do_start_adjustment(Params, Withdrawal);
-        {ok, _Revert} ->
+        {ok, _Adjustment} ->
             {ok, {undefined, []}}
     end.
 
 -spec find_adjustment(adjustment_id(), withdrawal()) ->
     {ok, adjustment()} | {error, unknown_adjustment_error()}.
-find_adjustment(RevertID, Withdrawal) ->
-    ff_adjustment_utils:get_by_id(RevertID, adjustments_index(Withdrawal)).
+find_adjustment(AdjustmentID, Withdrawal) ->
+    ff_adjustment_utils:get_by_id(AdjustmentID, adjustments_index(Withdrawal)).
 
 -spec adjustments(withdrawal()) -> [adjustment()].
 adjustments(Withdrawal) ->
@@ -450,8 +450,8 @@ add_external_id(ExternalID, Event) ->
 -spec adjustments_index(withdrawal()) -> adjustments().
 adjustments_index(Withdrawal) ->
     case maps:find(adjustments, Withdrawal) of
-        {ok, Reverts} ->
-            Reverts;
+        {ok, Adjustments} ->
+            Adjustments;
         error ->
             ff_adjustment_utils:new_index()
     end.
@@ -1177,9 +1177,9 @@ save_adjustable_info(_Ev, Withdrawal) ->
 
 -spec update_adjusment_index(fun((any(), adjustments()) -> adjustments()), any(), withdrawal()) ->
     withdrawal().
-update_adjusment_index(Updater, Value, Revert) ->
-    Index = adjustments_index(Revert),
-    set_adjustments_index(Updater(Value, Index), Revert).
+update_adjusment_index(Updater, Value, Withdrawal) ->
+    Index = adjustments_index(Withdrawal),
+    set_adjustments_index(Updater(Value, Index), Withdrawal).
 
 %% Failure helpers
 

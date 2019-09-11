@@ -112,7 +112,7 @@ events(ID, Range) ->
     end.
 
 -spec start_adjustment(id(), adjustment_params()) ->
-    {ok, events()} |
+    ok |
     {error, start_adjustment_error()}.
 
 start_adjustment(WithdrawalID, Params) ->

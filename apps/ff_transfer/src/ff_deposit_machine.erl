@@ -127,21 +127,21 @@ events(ID, Range) ->
     end.
 
 -spec start_revert(id(), revert_params()) ->
-    {ok, events()} |
+    ok |
     {error, start_revert_error()}.
 
 start_revert(ID, Params) ->
     call(ID, {start_revert, Params}).
 
 -spec start_revert_adjustment(id(), revert_id(), revert_adjustment_params()) ->
-    {ok, events()} |
+    ok |
     {error, start_revert_adjustment_error()}.
 
 start_revert_adjustment(DepositID, RevertID, Params) ->
     call(DepositID, {start_revert_adjustment, RevertID, Params}).
 
 -spec start_adjustment(id(), adjustment_params()) ->
-    {ok, events()} |
+    ok |
     {error, start_adjustment_error()}.
 
 start_adjustment(DepositID, Params) ->

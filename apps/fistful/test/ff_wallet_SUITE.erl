@@ -35,6 +35,8 @@
 -import(ct_helper, [cfg/2]).
 -import(ff_pipeline, [unwrap/1]).
 
+-include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
+
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
 -type group_name()     :: ct_helper:group_name().
@@ -44,17 +46,17 @@
 
 all() ->
     [
-        % get_missing_fails,
-        % create_missing_identity_fails,
-        % create_missing_currency_fails,
-        % create_error_party_blocked,
-        % create_error_party_suspended,
-        % create_error_contract_party_does_not_exist,
-        % create_error_contract_party_not_found,
-        % create_error_terms_not_allowed_currency
-        create_error_terms_undefined_wallet_terms
-        % create_error_terms_not_reduced,
-        % create_wallet_ok
+        get_missing_fails,
+        create_missing_identity_fails,
+        create_missing_currency_fails,
+        create_error_party_blocked,
+        create_error_party_suspended,
+        create_error_contract_party_does_not_exist,
+        create_error_contract_party_not_found,
+        create_error_terms_not_allowed_currency,
+        create_error_terms_undefined_wallet_terms,
+        create_error_terms_not_reduced,
+        create_wallet_ok
     ].
 
 -spec init_per_suite(config()) -> config().
@@ -193,7 +195,7 @@ create_error_party_suspended(C) ->
     ).
 
 create_error_contract_party_not_found(C) ->
-    % QUE
+    % WIP
     ID         = genlib:unique(),
     % Party      = create_party(C),
     IdentityID = create_identity(<<"FAKE">>, C),
@@ -208,7 +210,7 @@ create_error_contract_party_not_found(C) ->
     ).
 
 create_error_contract_party_does_not_exist(C) ->
-    % QUE
+    % WIP
     ID         = genlib:unique(),
     Party      = create_party(C),
     IdentityID = create_identity(Party, C),
@@ -237,6 +239,7 @@ create_error_terms_not_allowed_currency(C) ->
     ).
 
 create_error_terms_undefined_wallet_terms(C) ->
+    % WIP
     ID         = genlib:unique(),
     Party      = create_party(C),
     IdentityID = create_identity(Party, C),
@@ -252,6 +255,7 @@ create_error_terms_undefined_wallet_terms(C) ->
     ).
 
 create_error_terms_not_reduced(C) ->
+    % WIP
     ID         = genlib:unique(),
     Party      = create_party(C),
     IdentityID = create_identity(Party, C),
@@ -405,9 +409,3 @@ construct_userinfo() ->
 
 construct_usertype() ->
     {service_user, #payproc_ServiceUser{}}.
-
-construct_useridentity() ->
-    #{
-        id    => <<"fistful">>,
-        realm => <<"service">>
-    }.

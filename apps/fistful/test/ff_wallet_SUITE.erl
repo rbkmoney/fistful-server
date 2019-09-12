@@ -161,7 +161,7 @@ create_error_party_blocked(C) ->
     Party      = create_party(C),
     IdentityID = create_identity(Party, C),
     Service    = {dmsl_payment_processing_thrift, 'PartyManagement'},
-    Args       = [ff_party:construct_userinfo(), Party, <<"BECAUSE">>],
+    Args       = [construct_userinfo(), Party, <<"BECAUSE">>],
     Request    = {Service, 'Block', Args},
     _          = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
     {error, {party, {inaccessible, blocked}}} = ff_wallet_machine:create(
@@ -179,7 +179,7 @@ create_error_party_suspended(C) ->
     Party      = create_party(C),
     IdentityID = create_identity(Party, C),
     Service    = {dmsl_payment_processing_thrift, 'PartyManagement'},
-    Args       = [ff_party:construct_userinfo(), Party],
+    Args       = [construct_userinfo(), Party],
     Request    = {Service, 'Suspend', Args},
     _          = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
     {error, {party, {inaccessible, suspended}}} = ff_wallet_machine:create(
@@ -398,4 +398,16 @@ get_default_termset() ->
                 }
             ]}
         }
+    }.
+
+construct_userinfo() ->
+    #payproc_UserInfo{id = <<"fistful">>, type = construct_usertype()}.
+
+construct_usertype() ->
+    {service_user, #payproc_ServiceUser{}}.
+
+construct_useridentity() ->
+    #{
+        id    => <<"fistful">>,
+        realm => <<"service">>
     }.

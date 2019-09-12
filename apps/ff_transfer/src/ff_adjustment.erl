@@ -179,8 +179,8 @@ p_transfer_status(Adjustment) ->
     case p_transfer(Adjustment) of
         undefined ->
             undefined;
-        #{status := Status} ->
-            Status
+        Transfer ->
+            ff_postings_transfer:status(Transfer)
     end.
 
 -spec deduce_activity(adjustment()) ->

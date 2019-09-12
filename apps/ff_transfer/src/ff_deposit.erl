@@ -571,8 +571,8 @@ p_transfer_status(Deposit) ->
     case p_transfer(Deposit) of
         undefined ->
             undefined;
-        #{status := Status} ->
-            Status
+        Transfer ->
+            ff_postings_transfer:status(Transfer)
     end.
 
 -spec adjustments_index(deposit()) -> adjustments().

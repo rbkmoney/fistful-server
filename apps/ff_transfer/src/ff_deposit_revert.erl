@@ -431,8 +431,8 @@ p_transfer_status(Revert) ->
     case p_transfer(Revert) of
         undefined ->
             undefined;
-        #{status := Status} ->
-            Status
+        Transfer ->
+            ff_postings_transfer:status(Transfer)
     end.
 
 -spec adjustments_index(revert()) -> adjustments().

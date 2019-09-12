@@ -429,8 +429,8 @@ p_transfer_status(Withdrawal) ->
     case p_transfer(Withdrawal) of
         undefined ->
             undefined;
-        #{status := Status} ->
-            Status
+        Transfer ->
+            ff_postings_transfer:status(Transfer)
     end.
 
 -spec route_selection_status(withdrawal()) -> unknown | found.

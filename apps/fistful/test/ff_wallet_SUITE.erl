@@ -162,10 +162,7 @@ create_error_party_blocked(C) ->
     ID         = genlib:unique(),
     Party      = create_party(C),
     IdentityID = create_identity(Party, C),
-    Service    = {dmsl_payment_processing_thrift, 'PartyManagement'},
-    Args       = [construct_userinfo(), Party, <<"BECAUSE">>],
-    Request    = {Service, 'Block', Args},
-    _          = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
+    ok         = block_party(Party, C),
     {error, {party, {inaccessible, blocked}}} = ff_wallet_machine:create(
         ID,
         #{
@@ -180,10 +177,7 @@ create_error_party_suspended(C) ->
     ID         = genlib:unique(),
     Party      = create_party(C),
     IdentityID = create_identity(Party, C),
-    Service    = {dmsl_payment_processing_thrift, 'PartyManagement'},
-    Args       = [construct_userinfo(), Party],
-    Request    = {Service, 'Suspend', Args},
-    _          = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
+    ok         = suspend_party(Party, C),
     {error, {party, {inaccessible, suspended}}} = ff_wallet_machine:create(
         ID,
         #{
@@ -199,6 +193,8 @@ create_error_contract_party_not_found(C) ->
     ID         = genlib:unique(),
     % Party      = create_party(C),
     IdentityID = create_identity(<<"FAKE">>, C),
+    % call to computewallettermsnew should fail
+    % with #payproc_PartyNotFound{}
     {error, {contract, {party_not_found, _}}} = ff_wallet_machine:create(
         ID,
         #{
@@ -214,6 +210,8 @@ create_error_contract_party_does_not_exist(C) ->
     ID         = genlib:unique(),
     Party      = create_party(C),
     IdentityID = create_identity(Party, C),
+    % call to computewallettermsnew should fail
+    % with #payproc_PartyNotExistsYet{}
     {error, {contract, {party_not_exists_yet, _}}} = ff_wallet_machine:create(
         ID,
         #{
@@ -239,33 +237,29 @@ create_error_terms_not_allowed_currency(C) ->
     ).
 
 create_error_terms_undefined_wallet_terms(C) ->
-    % WIP
     ID         = genlib:unique(),
     Party      = create_party(C),
-    IdentityID = create_identity(Party, C),
-    % CUSTOM?
+    IdentityID = create_identity(Party, <<"good-one">>, <<"undefined">>, C),
     {error, {terms, {invalid_terms, undefined_wallet_terms}}} = ff_wallet_machine:create(
         ID,
         #{
             identity => IdentityID,
             name     => <<"HAHA YES">>,
-            currency => <<"EUR">>
+            currency => <<"USD">>
         },
         ff_ctx:new()
     ).
 
 create_error_terms_not_reduced(C) ->
-    % WIP
     ID         = genlib:unique(),
     Party      = create_party(C),
-    IdentityID = create_identity(Party, C),
-    % CUSTOM?
-    {error, {terms, {not_reduced, {_Name, _TermsPart}}}} = ff_wallet_machine:create(
+    IdentityID = create_identity(Party, <<"good-one">>, <<"irreducible">>, C),
+    {error, {terms, {invalid_terms, {not_reduced, _}}}} = ff_wallet_machine:create(
         ID,
         #{
             identity => IdentityID,
             name     => <<"HAHA YES">>,
-            currency => <<"EOS">>
+            currency => <<"USD">>
         },
         ff_ctx:new()
     ).
@@ -345,7 +339,30 @@ get_provider_config() ->
                             contractor_level => none
                         }
                     }
+                },
+                <<"undefined">> => #{
+                    name => <<"Well, a undefined">>,
+                    contract_template_id => 2,
+                    initial_level => <<"peasant">>,
+                    levels => #{
+                        <<"peasant">> => #{
+                            name => <<"Well, a peasant">>,
+                            contractor_level => none
+                        }
+                    }
+                },
+                <<"irreducible">> => #{
+                    name => <<"Well, a irreducible">>,
+                    contract_template_id => 3,
+                    initial_level => <<"peasant">>,
+                    levels => #{
+                        <<"peasant">> => #{
+                            name => <<"Well, a peasant">>,
+                            contractor_level => none
+                        }
+                    }
                 }
+
             }
         }
     }.
@@ -375,7 +392,12 @@ get_domain_config(C) ->
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
+        ct_domain:contract_template(?tmpl(2), ?trms(2)),
+        ct_domain:contract_template(?tmpl(3), ?trms(3)),
+
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(get_default_termset())]),
+        ct_domain:term_set_hierarchy(?trms(2), [ct_domain:timed_term_set(get_undefined_termset())]),
+        ct_domain:term_set_hierarchy(?trms(3), [ct_domain:timed_term_set(get_irreducible_termset())]),
 
         ct_domain:currency(?cur(<<"RUB">>)),
         ct_domain:currency(?cur(<<"USD">>)),
@@ -404,8 +426,32 @@ get_default_termset() ->
         }
     }.
 
+get_undefined_termset() ->
+    #domain_TermSet{}.
+
+get_irreducible_termset() ->
+    #domain_TermSet{
+        wallets = #domain_WalletServiceTerms{
+            currencies = {decisions, []}
+        }
+    }.
+
 construct_userinfo() ->
     #payproc_UserInfo{id = <<"fistful">>, type = construct_usertype()}.
 
 construct_usertype() ->
     {service_user, #payproc_ServiceUser{}}.
+
+suspend_party(Party, C) ->
+    Service = {dmsl_payment_processing_thrift, 'PartyManagement'},
+    Args    = [construct_userinfo(), Party],
+    Request = {Service, 'Suspend', Args},
+    _       = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
+    ok.
+
+block_party(Party, C) ->
+    Service    = {dmsl_payment_processing_thrift, 'PartyManagement'},
+    Args       = [construct_userinfo(), Party, <<"BECAUSE">>],
+    Request    = {Service, 'Block', Args},
+    _          = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
+    ok.

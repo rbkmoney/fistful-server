@@ -156,8 +156,6 @@ create_missing_identity_fails(_C) ->
         ff_ctx:new()
     ).
 
-<<<<<<< HEAD
-=======
 create_error_party_blocked(C) ->
     ID         = genlib:unique(),
     Party      = create_party(C),
@@ -193,7 +191,7 @@ create_error_contract_party_not_found(C) ->
     ID         = genlib:unique(),
     % Party      = create_party(C),
     IdentityID = create_identity(<<"FAKE">>, C),
-    % call to computewallettermsnew should fail
+    % call to 'ComputeWalletTermsNew' should fail
     % with #payproc_PartyNotFound{}
     {error, {contract, {party_not_found, _}}} = ff_wallet_machine:create(
         ID,
@@ -210,7 +208,7 @@ create_error_contract_party_does_not_exist(C) ->
     ID         = genlib:unique(),
     Party      = create_party(C),
     IdentityID = create_identity(Party, C),
-    % call to computewallettermsnew should fail
+    % call to 'ComputeWalletTermsNew' should fail
     % with #payproc_PartyNotExistsYet{}
     {error, {contract, {party_not_exists_yet, _}}} = ff_wallet_machine:create(
         ID,
@@ -226,7 +224,7 @@ create_error_terms_not_allowed_currency(C) ->
     ID         = genlib:unique(),
     Party      = create_party(C),
     IdentityID = create_identity(Party, C),
-    {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} = ff_wallet_machine:create(
+    {error, {terms, {terms_violation, {not_allowed_currency, _}}}} = ff_wallet_machine:create(
         ID,
         #{
             identity => IdentityID,

@@ -17,8 +17,8 @@
     status        => status(),
     external_id   => id(),
     limit_checks  => [limit_check_details()],
-    reverts       => reverts(),
-    adjustments   => adjustments()
+    reverts       => reverts_index(),
+    adjustments   => adjustments_index()
 }.
 -type params() :: #{
     id            := id(),
@@ -176,11 +176,11 @@
 -type currency_id()           :: ff_currency:id().
 -type external_id()           :: id().
 -type legacy_event()          :: any().
--type reverts()               :: ff_deposit_revert_utils:index().
+-type reverts_index()         :: ff_deposit_revert_utils:index().
 -type failure()               :: ff_failure:failure().
 -type adjustment()            :: ff_adjustment:adjustment().
 -type adjustment_id()         :: ff_adjustment:id().
--type adjustments()           :: ff_adjustment_utils:index().
+-type adjustments_index()     :: ff_adjustment_utils:index().
 -type final_cash_flow()       :: ff_cash_flow:final_cash_flow().
 
 -type transfer_params() :: #{
@@ -575,7 +575,7 @@ p_transfer_status(Deposit) ->
             ff_postings_transfer:status(Transfer)
     end.
 
--spec adjustments_index(deposit()) -> adjustments().
+-spec adjustments_index(deposit()) -> adjustments_index().
 adjustments_index(Deposit) ->
     case maps:find(adjustments, Deposit) of
         {ok, Adjustments} ->
@@ -584,7 +584,7 @@ adjustments_index(Deposit) ->
             ff_adjustment_utils:new_index()
     end.
 
--spec set_adjustments_index(adjustments(), deposit()) -> deposit().
+-spec set_adjustments_index(adjustments_index(), deposit()) -> deposit().
 set_adjustments_index(Adjustments, Deposit) ->
     Deposit#{adjustments => Adjustments}.
 
@@ -721,7 +721,7 @@ validate_revert_amount(Params) ->
 
 %% Revert helpers
 
--spec reverts_index(deposit()) -> reverts().
+-spec reverts_index(deposit()) -> reverts_index().
 reverts_index(Deposit) ->
     case maps:find(reverts, Deposit) of
         {ok, Reverts} ->
@@ -730,7 +730,7 @@ reverts_index(Deposit) ->
             ff_deposit_revert_utils:new_index()
     end.
 
--spec set_reverts_index(reverts(), deposit()) -> deposit().
+-spec set_reverts_index(reverts_index(), deposit()) -> deposit().
 set_reverts_index(Reverts, Deposit) ->
     Deposit#{reverts => Reverts}.
 
@@ -883,8 +883,9 @@ save_adjustable_info({p_transfer, {status_changed, committed}}, Deposit) ->
 save_adjustable_info(_Ev, Deposit) ->
     Deposit.
 
--spec update_adjusment_index(fun((any(), adjustments()) -> adjustments()), any(), deposit()) ->
-    deposit().
+-spec update_adjusment_index(Updater, Value, deposit()) -> deposit() when
+    Updater :: fun((Value, adjustments_index()) -> adjustments_index()),
+    Value :: any().
 update_adjusment_index(Updater, Value, Deposit) ->
     Index = adjustments_index(Deposit),
     set_adjustments_index(Updater(Value, Index), Deposit).

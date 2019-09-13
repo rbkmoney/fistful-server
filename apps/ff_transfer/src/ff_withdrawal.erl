@@ -21,7 +21,7 @@
     p_transfer    => p_transfer(),
     resource      => destination_resource(),
     limit_checks  => [limit_check_details()],
-    adjustments   => adjustments(),
+    adjustments   => adjustments_index(),
     status        => status(),
     external_id   => id()
 }.
@@ -190,7 +190,7 @@
 -type session_result()        :: ff_withdrawal_session:session_result().
 -type adjustment()            :: ff_adjustment:adjustment().
 -type adjustment_id()         :: ff_adjustment:id().
--type adjustments()           :: ff_adjustment_utils:index().
+-type adjustments_index()     :: ff_adjustment_utils:index().
 
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
@@ -447,7 +447,7 @@ add_external_id(undefined, Event) ->
 add_external_id(ExternalID, Event) ->
     Event#{external_id => ExternalID}.
 
--spec adjustments_index(withdrawal()) -> adjustments().
+-spec adjustments_index(withdrawal()) -> adjustments_index().
 adjustments_index(Withdrawal) ->
     case maps:find(adjustments, Withdrawal) of
         {ok, Adjustments} ->
@@ -456,7 +456,7 @@ adjustments_index(Withdrawal) ->
             ff_adjustment_utils:new_index()
     end.
 
--spec set_adjustments_index(adjustments(), withdrawal()) -> withdrawal().
+-spec set_adjustments_index(adjustments_index(), withdrawal()) -> withdrawal().
 set_adjustments_index(Adjustments, Withdrawal) ->
     Withdrawal#{adjustments => Adjustments}.
 
@@ -1175,8 +1175,9 @@ save_adjustable_info({p_transfer, {status_changed, committed}}, Withdrawal) ->
 save_adjustable_info(_Ev, Withdrawal) ->
     Withdrawal.
 
--spec update_adjusment_index(fun((any(), adjustments()) -> adjustments()), any(), withdrawal()) ->
-    withdrawal().
+-spec update_adjusment_index(Updater, Value, withdrawal()) -> withdrawal() when
+    Updater :: fun((Value, adjustments_index()) -> adjustments_index()),
+    Value :: any().
 update_adjusment_index(Updater, Value, Withdrawal) ->
     Index = adjustments_index(Withdrawal),
     set_adjustments_index(Updater(Value, Index), Withdrawal).

@@ -21,16 +21,13 @@
 
 -type validate_deposit_creation_error() ::
     currency_validation_error() |
-    invalid_deposit_terms_error() |
-    {bad_deposit_amount, Amount :: integer()} |
-    get_contract_terms_error().
+    {bad_deposit_amount, Amount :: integer()}.
 
 -type get_contract_terms_error() ::
     {party_not_found, id()} |
     {party_not_exists_yet, id()}.
 
 -type validate_withdrawal_creation_error() ::
-    invalid_withdrawal_terms_error() |
     currency_validation_error() |
     withdrawal_currency_error() |
     cash_range_validation_error().
@@ -89,9 +86,6 @@
     invalid_wallet_terms_error() |
     {invalid_terms, not_reduced_error()} |
     {invalid_terms, {undefined_withdrawal_terms, wallet_terms()}}.
-
--type invalid_deposit_terms_error() ::
-    invalid_wallet_terms_error().
 
 -type invalid_wallet_terms_error() ::
     {invalid_terms, not_reduced_error()} |
@@ -248,7 +242,7 @@ validate_account_creation(Terms, CurrencyID) ->
 validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
-        valid = unwrap(validate_withdrawal_terms_is_reduced(WalletTerms)),
+        {ok, valid} = validate_withdrawal_terms_is_reduced(WalletTerms),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms)),
         #domain_WalletServiceTerms{withdrawals = WithdrawalTerms} = WalletTerms,
         valid = unwrap(validate_withdrawal_wallet_currency(CurrencyID, Account)),
@@ -264,9 +258,9 @@ validate_deposit_creation(_Wallet, {Amount, _Currency} = _Cash)
     when Amount < 1 -> {error, {bad_deposit_amount, Amount}};
 validate_deposit_creation(Wallet, {_Amount, CurrencyID} = Cash) ->
     do(fun () ->
-        Terms = unwrap(get_contract_terms(Wallet, Cash, ff_time:now())),
+        {ok, Terms} = get_contract_terms(Wallet, Cash, ff_time:now()),
         #domain_TermSet{wallets = WalletTerms} = Terms,
-        valid = unwrap(validate_wallet_currencies_term_is_reduced(WalletTerms)),
+        {ok, valid} = validate_wallet_currencies_term_is_reduced(WalletTerms),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 

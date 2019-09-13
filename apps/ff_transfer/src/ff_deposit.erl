@@ -899,7 +899,7 @@ construct_p_transfer_id(ID) ->
 build_failure(limit_check, Deposit) ->
     {failed, Details} = limit_check_status(Deposit),
     #{
-        code => <<"unknown">>,
+        code => <<"account_limit_exceeded">>,
         reason => genlib:format(Details)
     }.
 

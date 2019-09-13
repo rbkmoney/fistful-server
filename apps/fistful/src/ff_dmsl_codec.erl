@@ -85,7 +85,7 @@ unmarshal(failure, #domain_Failure{
     genlib_map:compact(#{
         code => unmarshal(string, Code),
         reason => maybe_unmarshal(string, Reason),
-        sub => unmarshal(sub_failure, SubFailure)
+        sub => maybe_unmarshal(sub_failure, SubFailure)
     });
 unmarshal(sub_failure, #domain_SubFailure{
     code = Code,

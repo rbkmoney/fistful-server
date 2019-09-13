@@ -56,8 +56,7 @@
     {wallet, notfound} |
     {destination, notfound | unauthorized} |
     {terms, ff_party:validate_withdrawal_creation_error()} |
-    {destination_resource, {bin_data, not_found}} |
-    {contract, ff_party:get_contract_terms_error()}.
+    {destination_resource, {bin_data, not_found}}.
 
 -type route() :: #{
     provider_id := provider_id()
@@ -274,7 +273,7 @@ destination_resource(Withdrawal) ->
 
 -spec quote(withdrawal()) -> quote() | undefined.
 quote(T) ->
-    maps:get(quote, T, undefined).
+    maps:get(quote, params(T), undefined).
 
 -spec id(withdrawal()) -> id().
 id(#{id := V}) ->
@@ -330,13 +329,13 @@ create(Params) ->
         PartyID = ff_identity:party(Identity),
         ContractID = ff_identity:contract(Identity),
         VS = collect_varset(make_varset_params(Body, Wallet, Destination, Resource)),
-        Terms = unwrap(contract, ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now())),
+        {ok, Terms} = ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now()),
         valid = unwrap(terms, ff_party:validate_withdrawal_creation(Terms, Body, WalletAccount)),
 
         TransferParams = genlib_map:compact(#{
             wallet_id => WalletID,
             destination_id => DestinationID,
-            quote => maps:get(quote, Params, undefined)
+            quote => Quote
         }),
         ExternalID = maps:get(external_id, Params, undefined),
         [
@@ -1207,7 +1206,7 @@ build_failure({inconsistent_quote_route, FoundProviderID}, Withdrawal) ->
         found => FoundProviderID
     }},
     #{
-        code => <<"unknown">>,
+        code => <<"inconsistent_quote_route">>,
         reason => genlib:format(Details)
     };
 build_failure(session, Withdrawal) ->

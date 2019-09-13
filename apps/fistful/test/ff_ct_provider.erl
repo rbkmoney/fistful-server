@@ -12,6 +12,7 @@
 -export([get_quote/2]).
 
 -define(DUMMY_QUOTE, {obj, #{{str, <<"test">>} => {str, <<"test">>}}}).
+-define(DUMMY_QUOTE_ERROR, {obj, #{{str, <<"test">>} => {str, <<"error">>}}}).
 
 %%
 %% Internal types
@@ -73,8 +74,13 @@ start(Opts) ->
     Status :: {success, TrxInfo} | {failure, failure()},
     Timer :: {deadline, binary()} | {timeout, integer()},
     TrxInfo :: #{id => binary()}.
-process_withdrawal(#{quote := #wthadpt_Quote{quote_data = QuoteData}}, State, _Options) ->
-    QuoteData = ?DUMMY_QUOTE,
+process_withdrawal(#{quote := #wthadpt_Quote{quote_data = QuoteData}}, State, _Options) when
+    QuoteData =:= ?DUMMY_QUOTE_ERROR
+->
+    {ok, {finish, {failure, <<"test_error">>}}, State};
+process_withdrawal(#{quote := #wthadpt_Quote{quote_data = QuoteData}}, State, _Options) when
+    QuoteData =:= ?DUMMY_QUOTE
+->
     {ok, {finish, {success, #{id => <<"test">>}}}, State};
 process_withdrawal(_Withdrawal, State, _Options) ->
     {ok, {finish, {success, #{id => <<"test">>}}}, State}.

@@ -1,7 +1,7 @@
 -module(ff_ct_provider).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
--include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 %% API
 -export([start/0]).

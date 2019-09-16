@@ -1,6 +1,6 @@
 -module(ff_payment_institution).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: #{

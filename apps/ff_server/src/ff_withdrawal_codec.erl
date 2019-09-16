@@ -2,7 +2,7 @@
 
 -behaviour(ff_codec).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_cashflow_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").

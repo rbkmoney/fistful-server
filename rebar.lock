@@ -101,7 +101,7 @@
   0},
  {<<"payproc_errors">>,
   {git,"git@github.com:rbkmoney/payproc-errors-erlang.git",
-       {ref,"9c720534eb88edc6ba47af084939efabceb9b2d6"}},
+       {ref,"77cc445a4bb1496854586853646e543579ac1212"}},
   0},
  {<<"quickrand">>,{pkg,<<"quickrand">>,<<"1.7.3">>},1},
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.7.1">>},1},

@@ -9,7 +9,7 @@
 
 -module(ff_party).
 
--include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 
 -type id()          :: dmsl_domain_thrift:'PartyID'().
 -type contract_id() :: dmsl_domain_thrift:'ContractID'().

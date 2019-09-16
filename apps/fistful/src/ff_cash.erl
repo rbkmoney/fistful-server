@@ -1,6 +1,6 @@
 -module(ff_cash).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([decode/1]).
 -export([encode/1]).

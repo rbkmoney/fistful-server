@@ -11,7 +11,7 @@
         woody,
         wapi_woody_client,
         erl_health,
-        dmsl,
+        damsel,
         identdocstore_proto,
         fistful_reporter_proto,
         file_storage_proto,

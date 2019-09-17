@@ -56,7 +56,8 @@
 -type create_error() ::
     {source, notfound | unauthorized} |
     {wallet, notfound} |
-    ff_party:validate_deposit_creation_error().
+    ff_party:validate_deposit_creation_error() |
+    {inconsistent_currency, {Deposit :: currency_id(), Source :: currency_id(), Wallet :: currency_id()}}.
 
 -type revert_params() :: #{
     id            := id(),
@@ -156,7 +157,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Internal types
 
@@ -164,6 +165,7 @@
 -type process_result()        :: {action(), [event()]}.
 -type cash_flow_plan()        :: ff_cash_flow:cash_flow_plan().
 -type source_id()             :: ff_source:id().
+-type source()                :: ff_source:source().
 -type wallet_id()             :: ff_wallet:id().
 -type wallet()                :: ff_wallet:wallet().
 -type revert()                :: ff_deposit_revert:revert().
@@ -250,8 +252,7 @@ create(Params) ->
         #{id := ID, source_id := SourceID, wallet_id := WalletID, body := Body} = Params,
         Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
-        valid =  unwrap(ff_party:validate_deposit_creation(Wallet, Body)),
-        ok = unwrap(source, valid(authorized, ff_source:status(Source))),
+        valid =  unwrap(validate_deposit_creation(Params, Source, Wallet)),
         ExternalID = maps:get(external_id, Params, undefined),
         TransferParams = #{
             wallet_id             => WalletID,
@@ -601,6 +602,46 @@ effective_final_cash_flow(Deposit) ->
 is_childs_active(Deposit) ->
     ff_adjustment_utils:is_active(adjustments_index(Deposit)) orelse
         ff_deposit_revert_utils:is_active(reverts_index(Deposit)).
+
+%% Deposit validators
+
+-spec validate_deposit_creation(params(), source(), wallet()) ->
+    {ok, valid} |
+    {error, create_error()}.
+validate_deposit_creation(Params, Source, Wallet) ->
+    #{body := Body} = Params,
+    do(fun() ->
+        valid = unwrap(ff_party:validate_deposit_creation(Wallet, Body)),
+        valid = unwrap(validate_deposit_currency(Body, Source, Wallet)),
+        valid = unwrap(validate_source_status(Source))
+    end).
+
+-spec validate_deposit_currency(body(), source(), wallet()) ->
+    {ok, valid} |
+    {error, {inconsistent_currency, {currency_id(), currency_id(), currency_id()}}}.
+validate_deposit_currency(Body, Source, Wallet) ->
+    SourceCurrencyID = ff_account:currency(ff_source:account(Source)),
+    WalletCurrencyID = ff_account:currency(ff_wallet:account(Wallet)),
+    case Body of
+        {_Amount, DepositCurencyID} when
+            DepositCurencyID =:= SourceCurrencyID andalso
+            DepositCurencyID =:= WalletCurrencyID
+        ->
+            {ok, valid};
+        {_Amount, DepositCurencyID} ->
+            {error, {inconsistent_currency, {DepositCurencyID, SourceCurrencyID, WalletCurrencyID}}}
+    end.
+
+-spec validate_source_status(source()) ->
+    {ok, valid} |
+    {error, {source, ff_source:status()}}.
+validate_source_status(Source) ->
+    case ff_source:status(Source) of
+        authorized ->
+            {ok, valid};
+        unauthorized ->
+            {error, {source, unauthorized}}
+    end.
 
 %% Limit helpers
 

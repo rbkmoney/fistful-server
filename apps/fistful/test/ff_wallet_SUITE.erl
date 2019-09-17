@@ -289,7 +289,7 @@ get_provider_config() ->
                             contractor_level => none
                         }
                     }
-                k
+                }
             }
         }
     }.

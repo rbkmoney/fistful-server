@@ -149,7 +149,7 @@ create_error_currency_not_found(C) ->
 
 create_error_party_blocked(C) ->
     Party      = create_party(C),
-    Currency   = <<"RBK.MONEY">>,
+    Currency   = <<"RUB">>,
     ID         = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
     ok         = block_party(Party, C),
@@ -166,7 +166,7 @@ create_error_party_blocked(C) ->
 
 create_error_party_suspended(C) ->
     Party      = create_party(C),
-    Currency   = <<"RBK.MONEY">>,
+    Currency   = <<"RUB">>,
     ID         = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
     ok         = suspend_party(Party, C),

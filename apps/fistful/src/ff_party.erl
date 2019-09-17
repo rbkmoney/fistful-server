@@ -176,8 +176,7 @@ get_wallet_payment_institution_id(Wallet) ->
 
 -spec get_contract_terms(wallet(), body(), timestamp()) -> Result when
     Result :: {ok, terms()} | {error, Error},
-    Error ::
-        get_contract_terms_error().
+    Error :: get_contract_terms_error().
 
 get_contract_terms(Wallet, Body, Timestamp) ->
     WalletID = ff_wallet:id(Wallet),
@@ -219,14 +218,12 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp) ->
 
 -spec validate_account_creation(terms(), currency_id()) -> Result when
     Result :: {ok, valid} | {error, Error},
-    Error ::
-        {invalid_terms, _Details} |
-        currency_validation_error().
+    Error :: currency_validation_error().
 
 validate_account_creation(Terms, CurrencyID) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
-        valid = unwrap(validate_wallet_currencies_term_is_reduced(WalletTerms)),
+        {ok, valid} = validate_wallet_currencies_term_is_reduced(WalletTerms),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 

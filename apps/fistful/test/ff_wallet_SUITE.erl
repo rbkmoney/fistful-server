@@ -41,13 +41,13 @@
 all() ->
     [
         get_error_not_found,
-        create_ok
-        % create_error_id_exists,
-        % create_error_identity_not_found,
-        % create_error_currency_not_found,
-        % create_error_party_blocked,
-        % create_error_party_suspended,
-        % create_error_terms_not_allowed_currency
+        create_ok,
+        create_error_id_exists,
+        create_error_identity_not_found,
+        create_error_currency_not_found,
+        create_error_party_blocked,
+        create_error_party_suspended,
+        create_error_terms_not_allowed_currency
     ].
 
 -spec init_per_suite(config()) -> config().
@@ -136,10 +136,10 @@ get_error_not_found(_C) ->
     {error, notfound} = ff_wallet_machine:get(genlib:unique()).
 
 create_ok(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
+    ID         = genlib:unique(),
+    Party      = create_party(C),
     IdentityID = create_identity(Party, C),
-    ok = ff_wallet_machine:create(
+    ok         = ff_wallet_machine:create(
         ID,
         #{
             identity => IdentityID,
@@ -148,18 +148,18 @@ create_ok(C) ->
         },
         ff_ctx:new()
     ),
-    Wallet = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
+    Wallet           = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
     {ok, accessible} = ff_wallet:is_accessible(Wallet),
-    Account = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
+    Account          = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
     {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
     0 = ff_indef:current(Amount),
     ok.
 
 create_error_id_exists(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
+    ID         = genlib:unique(),
+    Party      = create_party(C),
     IdentityID = create_identity(Party, C),
-    ok = ff_wallet_machine:create(
+    ok         = ff_wallet_machine:create(
         ID,
         #{
             identity => IdentityID,

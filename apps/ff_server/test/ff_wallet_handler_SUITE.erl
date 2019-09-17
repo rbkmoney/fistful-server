@@ -1,6 +1,7 @@
 -module(ff_wallet_handler_SUITE).
 
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).

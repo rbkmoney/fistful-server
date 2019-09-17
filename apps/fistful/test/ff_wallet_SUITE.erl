@@ -29,6 +29,7 @@
 -import(ct_helper, [cfg/2]).
 -import(ff_pipeline, [unwrap/1]).
 
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 
 -type config()         :: ct_helper:config().
@@ -133,120 +134,72 @@ end_per_testcase(_Name, _C) ->
 %%
 
 get_error_not_found(_C) ->
-    {error, notfound} = ff_wallet_machine:get(genlib:unique()).
+    ?assertMatch({error, notfound}, ff_wallet_machine:get(genlib:unique())).
 
 create_ok(C) ->
-    ID         = genlib:unique(),
-    Party      = create_party(C),
-    IdentityID = create_identity(Party, C),
-    ok         = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ),
-    Wallet           = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
-    {ok, accessible} = ff_wallet:is_accessible(Wallet),
-    Account          = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
-    {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
-    0 = ff_indef:current(Amount),
-    ok.
+    ID                  = genlib:unique(),
+    Party               = create_party(C),
+    IdentityID          = create_identity(Party, C),
+    WalletParams        = construct_wallet_params(IdentityID),
+    CreateResult        = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    Wallet              = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
+    Accessibility       = unwrap(ff_wallet:is_accessible(Wallet)),
+    Account             = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
+    {Amount, <<"RUB">>} = unwrap(ff_transaction:balance(Account)),
+    CurrentAmount       = ff_indef:current(Amount),
+    ?assertMatch(ok,         CreateResult),
+    ?assertMatch(accessible, Accessibility),
+    ?assertMatch(0,          CurrentAmount).
 
 create_error_id_exists(C) ->
-    ID         = genlib:unique(),
-    Party      = create_party(C),
-    IdentityID = create_identity(Party, C),
-    ok         = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ),
-    {error, exists} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ).
+    ID            = genlib:unique(),
+    Party         = create_party(C),
+    IdentityID    = create_identity(Party, C),
+    WalletParams  = construct_wallet_params(IdentityID),
+    CreateResult0 = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    CreateResult1 = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch(ok, CreateResult0),
+    ?assertMatch({error, exists}, CreateResult1).
 
 create_error_identity_not_found(_C) ->
-    ID = genlib:unique(),
-    {error, {identity, notfound}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => genlib:unique(),
-            name     => <<"HAHA NO">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ).
+    ID           = genlib:unique(),
+    WalletParams = construct_wallet_params(genlib:unique()),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch({error, {identity, notfound}}, CreateResult).
 
 create_error_currency_not_found(C) ->
-    ID         = genlib:unique(),
-    Party      = create_party(C),
-    IdentityID = create_identity(Party, C),
-    {error, {currency, notfound}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"EOS">>
-        },
-        ff_ctx:new()
-    ).
+    ID           = genlib:unique(),
+    Party        = create_party(C),
+    IdentityID   = create_identity(Party, C),
+    WalletParams = construct_wallet_params(IdentityID, <<"EOS">>),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch({error, {currency, notfound}}, CreateResult).
 
 create_error_party_blocked(C) ->
-    ID         = genlib:unique(),
-    Party      = create_party(C),
-    IdentityID = create_identity(Party, C),
-    ok         = block_party(Party, C),
-    {error, {party, {inaccessible, blocked}}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ).
+    ID           = genlib:unique(),
+    Party        = create_party(C),
+    IdentityID   = create_identity(Party, C),
+    ok           = block_party(Party, C),
+    WalletParams = construct_wallet_params(IdentityID),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch({error, {party, {inaccessible, blocked}}}, CreateResult).
 
 create_error_party_suspended(C) ->
-    ID         = genlib:unique(),
-    Party      = create_party(C),
-    IdentityID = create_identity(Party, C),
-    ok         = suspend_party(Party, C),
-    {error, {party, {inaccessible, suspended}}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ).
+    ID           = genlib:unique(),
+    Party        = create_party(C),
+    IdentityID   = create_identity(Party, C),
+    ok           = suspend_party(Party, C),
+    WalletParams = construct_wallet_params(IdentityID),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch({error, {party, {inaccessible, suspended}}}, CreateResult).
 
 create_error_terms_not_allowed_currency(C) ->
-    ID         = genlib:unique(),
-    Party      = create_party(C),
-    IdentityID = create_identity(Party, C),
-    {error, {terms, {terms_violation, {not_allowed_currency, _}}}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"USD">>
-        },
-        ff_ctx:new()
-    ).
+    ID           = genlib:unique(),
+    Party        = create_party(C),
+    IdentityID   = create_identity(Party, C),
+    WalletParams = construct_wallet_params(IdentityID, <<"USD">>),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch({error, {terms, {terms_violation, {not_allowed_currency, _}}}}, CreateResult).
 
 %%
 
@@ -347,6 +300,19 @@ get_default_termset() ->
             ]}
         }
     }.
+
+construct_wallet_params(IdentityID) ->
+        #{
+            identity => IdentityID,
+            name     => <<"HAHA YES">>,
+            currency => <<"RUB">>
+        }.
+construct_wallet_params(IdentityID, Currency) ->
+        #{
+            identity => IdentityID,
+            name     => <<"HAHA YES">>,
+            currency => Currency
+        }.
 
 construct_userinfo() ->
     #payproc_UserInfo{id = <<"fistful">>, type = construct_usertype()}.

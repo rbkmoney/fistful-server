@@ -6,29 +6,23 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
--export([get_missing_fails/1]).
--export([create_missing_identity_fails/1]).
--export([create_missing_currency_fails/1]).
+-export([get_error_not_found/1]).
+-export([create_ok/1]).
+-export([create_error_id_exists/1]).
+-export([create_error_identity_not_found/1]).
+-export([create_error_currency_not_found/1]).
 -export([create_error_party_blocked/1]).
 -export([create_error_party_suspended/1]).
--export([create_error_contract_party_does_not_exist/1]).
--export([create_error_contract_party_not_found/1]).
 -export([create_error_terms_not_allowed_currency/1]).
--export([create_error_terms_undefined_wallet_terms/1]).
--export([create_error_terms_not_reduced/1]).
--export([create_wallet_ok/1]).
 
--spec get_missing_fails(config()) -> test_return().
--spec create_missing_identity_fails(config()) -> test_return().
--spec create_missing_currency_fails(config()) -> test_return().
+-spec get_error_not_found(config()) -> test_return().
+-spec create_ok(config()) -> test_return().
+-spec create_error_id_exists(config()) -> test_return().
+-spec create_error_identity_not_found(config()) -> test_return().
+-spec create_error_currency_not_found(config()) -> test_return().
 -spec create_error_party_blocked(config()) -> test_return().
 -spec create_error_party_suspended(config()) -> test_return().
--spec create_error_contract_party_does_not_exist(config()) -> test_return().
--spec create_error_contract_party_not_found(config()) -> test_return().
 -spec create_error_terms_not_allowed_currency(config()) -> test_return().
--spec create_error_terms_undefined_wallet_terms(config()) -> test_return().
--spec create_error_terms_not_reduced(config()) -> test_return().
--spec create_wallet_ok(config()) -> test_return().
 
 %%
 
@@ -46,17 +40,14 @@
 
 all() ->
     [
-        get_missing_fails,
-        create_missing_identity_fails,
-        create_missing_currency_fails,
+        get_error_not_found,
+        create_ok,
+        create_error_id_exists,
+        create_error_identity_not_found,
+        create_error_currency_not_found,
         create_error_party_blocked,
         create_error_party_suspended,
-        create_error_contract_party_does_not_exist,
-        create_error_contract_party_not_found,
-        create_error_terms_not_allowed_currency,
-        create_error_terms_undefined_wallet_terms,
-        create_error_terms_not_reduced,
-        create_wallet_ok
+        create_error_terms_not_allowed_currency
     ].
 
 -spec init_per_suite(config()) -> config().
@@ -141,10 +132,53 @@ end_per_testcase(_Name, _C) ->
 
 %%
 
-get_missing_fails(_C) ->
+get_error_not_found(_C) ->
     {error, notfound} = ff_wallet_machine:get(genlib:unique()).
 
-create_missing_identity_fails(_C) ->
+create_ok(C) ->
+    ID = genlib:unique(),
+    Party = create_party(C),
+    IdentityID = create_identity(Party, C),
+    ok = ff_wallet_machine:create(
+        ID,
+        #{
+            identity => IdentityID,
+            name     => <<"HAHA YES">>,
+            currency => <<"RUB">>
+        },
+        ff_ctx:new()
+    ),
+    Wallet = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
+    {ok, accessible} = ff_wallet:is_accessible(Wallet),
+    Account = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
+    {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
+    0 = ff_indef:current(Amount),
+    ok.
+
+create_error_id_exists(C) ->
+    ID = genlib:unique(),
+    Party = create_party(C),
+    IdentityID = create_identity(Party, C),
+    ok = ff_wallet_machine:create(
+        ID,
+        #{
+            identity => IdentityID,
+            name     => <<"HAHA YES">>,
+            currency => <<"RUB">>
+        },
+        ff_ctx:new()
+    ),
+    {error, exists} = ff_wallet_machine:create(
+        ID,
+        #{
+            identity => IdentityID,
+            name     => <<"HAHA YES">>,
+            currency => <<"RUB">>
+        },
+        ff_ctx:new()
+    ).
+
+create_error_identity_not_found(_C) ->
     ID = genlib:unique(),
     {error, {identity, notfound}} = ff_wallet_machine:create(
         ID,
@@ -152,6 +186,20 @@ create_missing_identity_fails(_C) ->
             identity => genlib:unique(),
             name     => <<"HAHA NO">>,
             currency => <<"RUB">>
+        },
+        ff_ctx:new()
+    ).
+
+create_error_currency_not_found(C) ->
+    ID = genlib:unique(),
+    Party = create_party(C),
+    IdentityID = create_identity(Party, C),
+    {error, {currency, notfound}} = ff_wallet_machine:create(
+        ID,
+        #{
+            identity => IdentityID,
+            name     => <<"HAHA YES">>,
+            currency => <<"EOS">>
         },
         ff_ctx:new()
     ).
@@ -186,40 +234,6 @@ create_error_party_suspended(C) ->
         ff_ctx:new()
     ).
 
-create_error_contract_party_not_found(C) ->
-    % WIP
-    ID         = genlib:unique(),
-    % Party      = create_party(C),
-    IdentityID = create_identity(<<"FAKE">>, C),
-    % call to 'ComputeWalletTermsNew' should fail
-    % with #payproc_PartyNotFound{}
-    {error, {contract, {party_not_found, _}}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ).
-
-create_error_contract_party_does_not_exist(C) ->
-    % WIP
-    ID         = genlib:unique(),
-    Party      = create_party(C),
-    IdentityID = create_identity(Party, C),
-    % call to 'ComputeWalletTermsNew' should fail
-    % with #payproc_PartyNotExistsYet{}
-    {error, {contract, {party_not_exists_yet, _}}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ).
-
 create_error_terms_not_allowed_currency(C) ->
     ID         = genlib:unique(),
     Party      = create_party(C),
@@ -233,68 +247,6 @@ create_error_terms_not_allowed_currency(C) ->
         },
         ff_ctx:new()
     ).
-
-create_error_terms_undefined_wallet_terms(C) ->
-    ID         = genlib:unique(),
-    Party      = create_party(C),
-    IdentityID = create_identity(Party, <<"good-one">>, <<"undefined">>, C),
-    {error, {terms, {invalid_terms, undefined_wallet_terms}}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"USD">>
-        },
-        ff_ctx:new()
-    ).
-
-create_error_terms_not_reduced(C) ->
-    ID         = genlib:unique(),
-    Party      = create_party(C),
-    IdentityID = create_identity(Party, <<"good-one">>, <<"irreducible">>, C),
-    {error, {terms, {invalid_terms, {not_reduced, _}}}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"USD">>
-        },
-        ff_ctx:new()
-    ).
-
-create_missing_currency_fails(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
-    IdentityID = create_identity(Party, C),
-    {error, {currency, notfound}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"EOS">>
-        },
-        ff_ctx:new()
-    ).
-
-create_wallet_ok(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
-    IdentityID = create_identity(Party, C),
-    ok = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ),
-    Wallet = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
-    {ok, accessible} = ff_wallet:is_accessible(Wallet),
-    Account = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
-    {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
-    0 = ff_indef:current(Amount),
-    ok.
 
 %%
 
@@ -390,16 +342,11 @@ get_domain_config(C) ->
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
-        ct_domain:contract_template(?tmpl(2), ?trms(2)),
-        ct_domain:contract_template(?tmpl(3), ?trms(3)),
 
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(get_default_termset())]),
-        ct_domain:term_set_hierarchy(?trms(2), [ct_domain:timed_term_set(get_undefined_termset())]),
-        ct_domain:term_set_hierarchy(?trms(3), [ct_domain:timed_term_set(get_irreducible_termset())]),
 
         ct_domain:currency(?cur(<<"RUB">>)),
         ct_domain:currency(?cur(<<"USD">>)),
-        ct_domain:currency(?cur(<<"EUR">>)),
 
         ct_domain:category(?cat(1), <<"Generic Store">>, live),
 
@@ -421,16 +368,6 @@ get_default_termset() ->
                     )}
                 }
             ]}
-        }
-    }.
-
-get_undefined_termset() ->
-    #domain_TermSet{}.
-
-get_irreducible_termset() ->
-    #domain_TermSet{
-        wallets = #domain_WalletServiceTerms{
-            currencies = {decisions, []}
         }
     }.
 

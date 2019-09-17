@@ -339,7 +339,7 @@ get_provider_config() ->
                     }
                 },
                 <<"undefined">> => #{
-                    name => <<"Well, a undefined">>,
+                    name => <<"Well, an undefined">>,
                     contract_template_id => 2,
                     initial_level => <<"peasant">>,
                     levels => #{
@@ -350,7 +350,7 @@ get_provider_config() ->
                     }
                 },
                 <<"irreducible">> => #{
-                    name => <<"Well, a irreducible">>,
+                    name => <<"Well, an irreducible">>,
                     contract_template_id => 3,
                     initial_level => <<"peasant">>,
                     levels => #{

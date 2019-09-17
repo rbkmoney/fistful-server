@@ -85,16 +85,6 @@ currency(?cur(<<"RUB">> = SymCode) = Ref) ->
             exponent      = 2
         }
     }};
-currency(?cur(<<"EUR">> = SymCode) = Ref) ->
-    {currency, #domain_CurrencyObject{
-        ref = Ref,
-        data = #domain_Currency{
-            name          = <<"€uro"/utf8>>,
-            numeric_code  = 978,
-            symbolic_code = SymCode,
-            exponent      = 2
-        }
-    }};
 currency(?cur(<<"USD">> = SymCode) = Ref) ->
     {currency, #domain_CurrencyObject{
         ref = Ref,

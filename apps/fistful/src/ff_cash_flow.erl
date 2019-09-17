@@ -1,6 +1,6 @@
 -module(ff_cash_flow).
 
--include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 
 -export([make_empty_final/0]).
 -export([gather_used_accounts/1]).

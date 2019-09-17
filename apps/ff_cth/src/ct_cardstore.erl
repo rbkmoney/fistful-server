@@ -4,7 +4,7 @@
 
 %%
 
--include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("damsel/include/dmsl_cds_thrift.hrl").
 
 -spec bank_card(binary(), {1..12, 2000..9999}, ct_helper:config()) ->
     #{

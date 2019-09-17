@@ -1,7 +1,7 @@
 -module(ff_ct_provider_handler).
 -behaviour(woody_server_thrift_handler).
 
--include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
+-include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).

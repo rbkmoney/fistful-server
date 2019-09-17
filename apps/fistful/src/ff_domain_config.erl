@@ -9,7 +9,7 @@
 
 %%
 
--include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
 -type ref()         :: dmsl_domain_config_thrift:'Reference'().
 -type object_data() :: _.

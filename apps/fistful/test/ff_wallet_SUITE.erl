@@ -41,13 +41,13 @@
 all() ->
     [
         get_error_not_found,
-        create_ok,
-        create_error_id_exists,
-        create_error_identity_not_found,
-        create_error_currency_not_found,
-        create_error_party_blocked,
-        create_error_party_suspended,
-        create_error_terms_not_allowed_currency
+        create_ok
+        % create_error_id_exists,
+        % create_error_identity_not_found,
+        % create_error_currency_not_found,
+        % create_error_party_blocked,
+        % create_error_party_suspended,
+        % create_error_terms_not_allowed_currency
     ].
 
 -spec init_per_suite(config()) -> config().
@@ -191,8 +191,8 @@ create_error_identity_not_found(_C) ->
     ).
 
 create_error_currency_not_found(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
+    ID         = genlib:unique(),
+    Party      = create_party(C),
     IdentityID = create_identity(Party, C),
     {error, {currency, notfound}} = ff_wallet_machine:create(
         ID,
@@ -289,30 +289,7 @@ get_provider_config() ->
                             contractor_level => none
                         }
                     }
-                },
-                <<"undefined">> => #{
-                    name => <<"Well, an undefined">>,
-                    contract_template_id => 2,
-                    initial_level => <<"peasant">>,
-                    levels => #{
-                        <<"peasant">> => #{
-                            name => <<"Well, a peasant">>,
-                            contractor_level => none
-                        }
-                    }
-                },
-                <<"irreducible">> => #{
-                    name => <<"Well, an irreducible">>,
-                    contract_template_id => 3,
-                    initial_level => <<"peasant">>,
-                    levels => #{
-                        <<"peasant">> => #{
-                            name => <<"Well, a peasant">>,
-                            contractor_level => none
-                        }
-                    }
-                }
-
+                k
             }
         }
     }.

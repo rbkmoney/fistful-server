@@ -23,7 +23,7 @@
     {created, account()}.
 
 -type create_error() ::
-    {terms, ff_party:currency_validation_error()} |
+    {terms, ff_party:validate_account_creation_error()} |
     {party, ff_party:inaccessibility()}.
 
 -export_type([id/0]).

@@ -19,6 +19,9 @@
     email := binary()
 }.
 
+-type validate_account_creation_error() ::
+    currency_validation_error().
+
 -type validate_deposit_creation_error() ::
     currency_validation_error() |
     {invalid_terms, _Details} |
@@ -41,6 +44,7 @@
 -export_type([wallet_id/0]).
 -export_type([party_params/0]).
 -export_type([validate_deposit_creation_error/0]).
+-export_type([validate_account_creation_error/0]).
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_withdrawal_creation_error/0]).
 -export_type([cash/0]).

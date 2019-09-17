@@ -14,7 +14,6 @@
 %%
 
 -import(ct_helper, [cfg/2]).
--import(ff_pipeline, [unwrap/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -153,7 +152,8 @@ create_ok(C) ->
         },
         ff_ctx:new()
     ),
-    I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
+    {ok, IdentityMachine} = ff_identity_machine:get(ID),
+    I1 = ff_identity_machine:identity(IdentityMachine),
     {ok, accessible} = ff_identity:is_accessible(I1),
     Party = ff_identity:party(I1),
     Party = ff_identity:party(I1).

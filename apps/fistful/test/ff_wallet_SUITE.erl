@@ -6,20 +6,31 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
--export([get_missing_fails/1]).
--export([create_missing_identity_fails/1]).
--export([create_missing_currency_fails/1]).
--export([create_wallet_ok/1]).
+-export([get_error_not_found/1]).
+-export([create_ok/1]).
+-export([create_error_id_exists/1]).
+-export([create_error_identity_not_found/1]).
+-export([create_error_currency_not_found/1]).
+-export([create_error_party_blocked/1]).
+-export([create_error_party_suspended/1]).
+-export([create_error_terms_not_allowed_currency/1]).
 
--spec get_missing_fails(config()) -> test_return().
--spec create_missing_identity_fails(config()) -> test_return().
--spec create_missing_currency_fails(config()) -> test_return().
--spec create_wallet_ok(config()) -> test_return().
+-spec get_error_not_found(config()) -> test_return().
+-spec create_ok(config()) -> test_return().
+-spec create_error_id_exists(config()) -> test_return().
+-spec create_error_identity_not_found(config()) -> test_return().
+-spec create_error_currency_not_found(config()) -> test_return().
+-spec create_error_party_blocked(config()) -> test_return().
+-spec create_error_party_suspended(config()) -> test_return().
+-spec create_error_terms_not_allowed_currency(config()) -> test_return().
 
 %%
 
 -import(ct_helper, [cfg/2]).
 -import(ff_pipeline, [unwrap/1]).
+
+-include_lib("stdlib/include/assert.hrl").
+-include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -30,10 +41,14 @@
 
 all() ->
     [
-        get_missing_fails,
-        create_missing_identity_fails,
-        create_missing_currency_fails,
-        create_wallet_ok
+        get_error_not_found,
+        create_ok,
+        create_error_id_exists,
+        create_error_identity_not_found,
+        create_error_currency_not_found,
+        create_error_party_blocked,
+        create_error_party_suspended,
+        create_error_terms_not_allowed_currency
     ].
 
 -spec init_per_suite(config()) -> config().
@@ -118,54 +133,73 @@ end_per_testcase(_Name, _C) ->
 
 %%
 
-get_missing_fails(_C) ->
-    {error, notfound} = ff_wallet_machine:get(genlib:unique()).
+get_error_not_found(_C) ->
+    ?assertMatch({error, notfound}, ff_wallet_machine:get(genlib:unique())).
 
-create_missing_identity_fails(_C) ->
-    ID = genlib:unique(),
-    {error, {identity, notfound}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => genlib:unique(),
-            name     => <<"HAHA NO">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ).
+create_ok(C) ->
+    ID                  = genlib:unique(),
+    Party               = create_party(C),
+    IdentityID          = create_identity(Party, C),
+    WalletParams        = construct_wallet_params(IdentityID),
+    CreateResult        = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    Wallet              = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
+    Accessibility       = unwrap(ff_wallet:is_accessible(Wallet)),
+    Account             = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
+    {Amount, <<"RUB">>} = unwrap(ff_transaction:balance(Account)),
+    CurrentAmount       = ff_indef:current(Amount),
+    ?assertMatch(ok,         CreateResult),
+    ?assertMatch(accessible, Accessibility),
+    ?assertMatch(0,          CurrentAmount).
 
-create_missing_currency_fails(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
-    IdentityID = create_identity(Party, C),
-    {error, {currency, notfound}} = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"EOS">>
-        },
-        ff_ctx:new()
-    ).
+create_error_id_exists(C) ->
+    ID            = genlib:unique(),
+    Party         = create_party(C),
+    IdentityID    = create_identity(Party, C),
+    WalletParams  = construct_wallet_params(IdentityID),
+    CreateResult0 = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    CreateResult1 = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch(ok, CreateResult0),
+    ?assertMatch({error, exists}, CreateResult1).
 
-create_wallet_ok(C) ->
-    ID = genlib:unique(),
-    Party = create_party(C),
-    IdentityID = create_identity(Party, C),
-    ok = ff_wallet_machine:create(
-        ID,
-        #{
-            identity => IdentityID,
-            name     => <<"HAHA YES">>,
-            currency => <<"RUB">>
-        },
-        ff_ctx:new()
-    ),
-    Wallet = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
-    {ok, accessible} = ff_wallet:is_accessible(Wallet),
-    Account = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
-    {ok, {Amount, <<"RUB">>}} = ff_transaction:balance(Account),
-    0 = ff_indef:current(Amount),
-    ok.
+create_error_identity_not_found(_C) ->
+    ID           = genlib:unique(),
+    WalletParams = construct_wallet_params(genlib:unique()),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch({error, {identity, notfound}}, CreateResult).
+
+create_error_currency_not_found(C) ->
+    ID           = genlib:unique(),
+    Party        = create_party(C),
+    IdentityID   = create_identity(Party, C),
+    WalletParams = construct_wallet_params(IdentityID, <<"EOS">>),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch({error, {currency, notfound}}, CreateResult).
+
+create_error_party_blocked(C) ->
+    ID           = genlib:unique(),
+    Party        = create_party(C),
+    IdentityID   = create_identity(Party, C),
+    ok           = block_party(Party, C),
+    WalletParams = construct_wallet_params(IdentityID),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch({error, {party, {inaccessible, blocked}}}, CreateResult).
+
+create_error_party_suspended(C) ->
+    ID           = genlib:unique(),
+    Party        = create_party(C),
+    IdentityID   = create_identity(Party, C),
+    ok           = suspend_party(Party, C),
+    WalletParams = construct_wallet_params(IdentityID),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch({error, {party, {inaccessible, suspended}}}, CreateResult).
+
+create_error_terms_not_allowed_currency(C) ->
+    ID           = genlib:unique(),
+    Party        = create_party(C),
+    IdentityID   = create_identity(Party, C),
+    WalletParams = construct_wallet_params(IdentityID, <<"USD">>),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    ?assertMatch({error, {terms, {terms_violation, {not_allowed_currency, _}}}}, CreateResult).
 
 %%
 
@@ -238,6 +272,7 @@ get_domain_config(C) ->
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
+
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(get_default_termset())]),
 
         ct_domain:currency(?cur(<<"RUB">>)),
@@ -265,3 +300,36 @@ get_default_termset() ->
             ]}
         }
     }.
+
+construct_wallet_params(IdentityID) ->
+        #{
+            identity => IdentityID,
+            name     => <<"HAHA YES">>,
+            currency => <<"RUB">>
+        }.
+construct_wallet_params(IdentityID, Currency) ->
+        #{
+            identity => IdentityID,
+            name     => <<"HAHA YES">>,
+            currency => Currency
+        }.
+
+construct_userinfo() ->
+    #payproc_UserInfo{id = <<"fistful">>, type = construct_usertype()}.
+
+construct_usertype() ->
+    {service_user, #payproc_ServiceUser{}}.
+
+suspend_party(Party, C) ->
+    Service = {dmsl_payment_processing_thrift, 'PartyManagement'},
+    Args    = [construct_userinfo(), Party],
+    Request = {Service, 'Suspend', Args},
+    _       = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
+    ok.
+
+block_party(Party, C) ->
+    Service    = {dmsl_payment_processing_thrift, 'PartyManagement'},
+    Args       = [construct_userinfo(), Party, <<"BECAUSE">>],
+    Request    = {Service, 'Block', Args},
+    _          = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
+    ok.

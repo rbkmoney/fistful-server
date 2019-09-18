@@ -63,11 +63,7 @@ ctx(St) ->
 }.
 
 -spec create(id(), params(), ctx()) ->
-    ok |
-    {error,
-        ff_wallet:create_error() |
-        exists
-    }.
+    ok | {error, exists | ff_wallet:create_error() }.
 
 create(ID, Params = #{identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
     do(fun () ->

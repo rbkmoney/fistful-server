@@ -16,3 +16,4 @@ docker-compose.yml
 
 # wapi
 apps/swag_*
+tags

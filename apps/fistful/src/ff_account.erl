@@ -23,9 +23,7 @@
     {created, account()}.
 
 -type create_error() ::
-    {accounter, any()} |
-    {contract, any()} |
-    {terms, any()} |
+    {terms, ff_party:validate_account_creation_error()} |
     {party, ff_party:inaccessibility()}.
 
 -export_type([id/0]).
@@ -78,13 +76,7 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
 %% Actuators
 
 -spec create(id(), identity(), currency()) ->
-    {ok, [event()]} |
-    {error,
-        {accounter, any()} |
-        {contract, any()} |
-        {terms, any()} |
-        {party, ff_party:inaccessibility()}
-    }.
+    {ok, [event()]} | {error, create_error()}.
 
 create(ID, Identity, Currency) ->
     do(fun () ->
@@ -96,11 +88,11 @@ create(ID, Identity, Currency) ->
             wallet_id => ID,
             currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
         },
-        Terms = unwrap(contract, ff_party:get_contract_terms(
+        {ok, Terms} = ff_party:get_contract_terms(
             PartyID, ContractID, TermVarset, ff_time:now()
-        )),
+        ),
         valid = unwrap(terms, ff_party:validate_account_creation(Terms, CurrencyID)),
-        AccounterID = unwrap(accounter, create_account(ID, Currency)),
+        {ok, AccounterID} = create_account(ID, Currency),
         [{created, #{
             id       => ID,
             identity => ff_identity:id(Identity),

@@ -25,7 +25,7 @@
 %%
 
 -include_lib("ff_cth/include/ct_domain.hrl").
--include_lib("dmsl/include/dmsl_accounter_thrift.hrl").
+-include_lib("damsel/include/dmsl_accounter_thrift.hrl").
 
 -define(dtp(Type), dmsl_domain_thrift:Type()).
 

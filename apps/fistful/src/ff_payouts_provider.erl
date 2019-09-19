@@ -1,6 +1,6 @@
 -module(ff_payouts_provider).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -type withdrawal_provider() :: #{
     id := id(),

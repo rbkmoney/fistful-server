@@ -6,7 +6,7 @@
 
 -module(ff_transaction).
 
--include_lib("dmsl/include/dmsl_accounter_thrift.hrl").
+-include_lib("damsel/include/dmsl_accounter_thrift.hrl").
 
 %%
 

@@ -1,7 +1,7 @@
 -module(ff_withdrawal_adjustment_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("dmsl/include/dmsl_accounter_thrift.hrl").
+-include_lib("damsel/include/dmsl_accounter_thrift.hrl").
 
 %% Common test API
 

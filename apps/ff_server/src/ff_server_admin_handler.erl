@@ -73,6 +73,8 @@ handle_function_('CreateDeposit', [Params], Context, Opts) ->
             woody_error:raise(business, #fistful_DestinationNotFound{});
         {error, {terms_violation, {not_allowed_currency, _More}}} ->
             woody_error:raise(business, #fistful_DepositCurrencyInvalid{});
+        {error, {inconsistent_currency, _Details}} ->
+            woody_error:raise(business, #fistful_DepositCurrencyInvalid{});
         {error, {bad_deposit_amount, _Amount}} ->
             woody_error:raise(business, #fistful_DepositAmountInvalid{});
         {error, Error} ->

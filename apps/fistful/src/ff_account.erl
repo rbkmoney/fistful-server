@@ -9,7 +9,7 @@
 
 -module(ff_account).
 
--include_lib("dmsl/include/dmsl_accounter_thrift.hrl").
+-include_lib("damsel/include/dmsl_accounter_thrift.hrl").
 
 -type id() :: binary().
 -type account() :: #{

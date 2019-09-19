@@ -2,7 +2,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").

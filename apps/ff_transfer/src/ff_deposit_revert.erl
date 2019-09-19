@@ -20,7 +20,7 @@
     reason        => reason(),
     external_id   => id(),
     limit_checks  => [limit_check_details()],
-    adjustments   => adjustments()
+    adjustments   => adjustments_index()
 }.
 
 -type params() :: #{
@@ -137,7 +137,7 @@
 -type cash_range()        :: ff_range:range(cash()).
 -type adjustment()        :: ff_adjustment:adjustment().
 -type adjustment_id()     :: ff_adjustment:id().
--type adjustments()       :: ff_adjustment_utils:index().
+-type adjustments_index() :: ff_adjustment_utils:index().
 -type final_cash_flow()   :: ff_cash_flow:final_cash_flow().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
@@ -431,11 +431,11 @@ p_transfer_status(Revert) ->
     case p_transfer(Revert) of
         undefined ->
             undefined;
-        #{status := Status} ->
-            Status
+        Transfer ->
+            ff_postings_transfer:status(Transfer)
     end.
 
--spec adjustments_index(revert()) -> adjustments().
+-spec adjustments_index(revert()) -> adjustments_index().
 adjustments_index(Revert) ->
     case maps:find(adjustments, Revert) of
         {ok, Adjustments} ->
@@ -448,7 +448,7 @@ adjustments_index(Revert) ->
 p_transfer(T) ->
     maps:get(p_transfer, T, undefined).
 
--spec set_adjustments_index(adjustments(), revert()) -> revert().
+-spec set_adjustments_index(adjustments_index(), revert()) -> revert().
 set_adjustments_index(Adjustments, Revert) ->
     Revert#{adjustments => Adjustments}.
 
@@ -591,8 +591,9 @@ save_adjustable_info({p_transfer, {status_changed, committed}}, Revert) ->
 save_adjustable_info(_Ev, Revert) ->
     Revert.
 
--spec update_adjusment_index(fun((any(), adjustments()) -> adjustments()), any(), revert()) ->
-    revert().
+-spec update_adjusment_index(Updater, Value, revert()) -> revert() when
+    Updater :: fun((Value, adjustments_index()) -> adjustments_index()),
+    Value :: any().
 update_adjusment_index(Updater, Value, Revert) ->
     Index = adjustments_index(Revert),
     set_adjustments_index(Updater(Value, Index), Revert).

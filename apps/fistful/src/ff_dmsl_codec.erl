@@ -1,6 +1,6 @@
 -module(ff_dmsl_codec).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([unmarshal/2]).
 -export([marshal/2]).

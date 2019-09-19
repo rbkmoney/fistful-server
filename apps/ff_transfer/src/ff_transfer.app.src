@@ -11,7 +11,7 @@
         ff_core,
         machinery,
         machinery_extra,
-        dmsl,
+        damsel,
         fistful
     ]},
     {env, []},

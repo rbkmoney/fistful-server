@@ -4,8 +4,8 @@
 
 -module(ff_withdrawal).
 
--include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
--include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
+-include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 -type id() :: binary().
 
@@ -21,7 +21,7 @@
     p_transfer    => p_transfer(),
     resource      => destination_resource(),
     limit_checks  => [limit_check_details()],
-    adjustments   => adjustments(),
+    adjustments   => adjustments_index(),
     status        => status(),
     external_id   => id()
 }.
@@ -55,6 +55,7 @@
 -type create_error() ::
     {wallet, notfound} |
     {destination, notfound | unauthorized} |
+    {inconsistent_currency, {Withdrawal :: currency_id(), Wallet :: currency_id(), Destination :: currency_id()}} |
     {terms, ff_party:validate_withdrawal_creation_error()} |
     {destination_resource, {bin_data, not_found}}.
 
@@ -176,6 +177,7 @@
 -type wallet_id()             :: ff_wallet:id().
 -type wallet()                :: ff_wallet:wallet().
 -type destination_id()        :: ff_destination:id().
+-type destination()           :: ff_destination:destination().
 -type process_result()        :: {action(), [event()]}.
 -type final_cash_flow()       :: ff_cash_flow:final_cash_flow().
 -type external_id()           :: id() | undefined.
@@ -189,7 +191,8 @@
 -type session_result()        :: ff_withdrawal_session:session_result().
 -type adjustment()            :: ff_adjustment:adjustment().
 -type adjustment_id()         :: ff_adjustment:id().
--type adjustments()           :: ff_adjustment_utils:index().
+-type adjustments_index()     :: ff_adjustment_utils:index().
+-type currency_id()           :: ff_currency:id().
 
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
@@ -314,23 +317,14 @@ create(Params) ->
     do(fun() ->
         #{id := ID, wallet_id := WalletID, destination_id := DestinationID, body := Body} = Params,
         Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
-        WalletAccount = ff_wallet:account(Wallet),
         Destination = ff_destination:get(
             unwrap(destination, ff_destination:get_machine(DestinationID))
         ),
-        ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
-
         Quote = maps:get(quote, Params, undefined),
         ResourceID = quote_resource_id(Quote),
 
         Resource = unwrap(destination_resource, ff_destination:resource_full(Destination, ResourceID)),
-        {ok, IdentityMachine} = ff_identity_machine:get(ff_wallet:identity(Wallet)),
-        Identity = ff_identity_machine:identity(IdentityMachine),
-        PartyID = ff_identity:party(Identity),
-        ContractID = ff_identity:contract(Identity),
-        VS = collect_varset(make_varset_params(Body, Wallet, Destination, Resource)),
-        {ok, Terms} = ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now()),
-        valid = unwrap(terms, ff_party:validate_withdrawal_creation(Terms, Body, WalletAccount)),
+        valid = unwrap(validate_withdrawal_creation(Body, Wallet, Destination, Resource)),
 
         TransferParams = genlib_map:compact(#{
             wallet_id => WalletID,
@@ -428,8 +422,8 @@ p_transfer_status(Withdrawal) ->
     case p_transfer(Withdrawal) of
         undefined ->
             undefined;
-        #{status := Status} ->
-            Status
+        Transfer ->
+            ff_postings_transfer:status(Transfer)
     end.
 
 -spec route_selection_status(withdrawal()) -> unknown | found.
@@ -446,7 +440,7 @@ add_external_id(undefined, Event) ->
 add_external_id(ExternalID, Event) ->
     Event#{external_id => ExternalID}.
 
--spec adjustments_index(withdrawal()) -> adjustments().
+-spec adjustments_index(withdrawal()) -> adjustments_index().
 adjustments_index(Withdrawal) ->
     case maps:find(adjustments, Withdrawal) of
         {ok, Adjustments} ->
@@ -455,7 +449,7 @@ adjustments_index(Withdrawal) ->
             ff_adjustment_utils:new_index()
     end.
 
--spec set_adjustments_index(adjustments(), withdrawal()) -> withdrawal().
+-spec set_adjustments_index(adjustments_index(), withdrawal()) -> withdrawal().
 set_adjustments_index(Adjustments, Withdrawal) ->
     Withdrawal#{adjustments => Adjustments}.
 
@@ -989,6 +983,58 @@ session_processing_status(Withdrawal) ->
             failed
     end.
 
+%% Withdrawal validators
+
+-spec validate_withdrawal_creation(body(), wallet(), destination(), destination_resource()) ->
+    {ok, valid} |
+    {error, create_error()}.
+validate_withdrawal_creation(Body, Wallet, Destination, Resource) ->
+    do(fun() ->
+        valid = unwrap(terms, validate_withdrawal_creation_terms(Body, Wallet, Destination, Resource)),
+        valid = unwrap(validate_withdrawal_currency(Body, Wallet, Destination)),
+        valid = unwrap(validate_destination_status(Destination))
+    end).
+
+-spec validate_withdrawal_creation_terms(body(), wallet(), destination(), destination_resource()) ->
+    {ok, valid} |
+    {error, ff_party:validate_withdrawal_creation_error()}.
+validate_withdrawal_creation_terms(Body, Wallet, Destination, Resource) ->
+    WalletAccount = ff_wallet:account(Wallet),
+    {ok, IdentityMachine} = ff_identity_machine:get(ff_wallet:identity(Wallet)),
+    Identity = ff_identity_machine:identity(IdentityMachine),
+    PartyID = ff_identity:party(Identity),
+    ContractID = ff_identity:contract(Identity),
+    VS = collect_varset(make_varset_params(Body, Wallet, Destination, Resource)),
+    {ok, Terms} = ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now()),
+    ff_party:validate_withdrawal_creation(Terms, Body, WalletAccount).
+
+-spec validate_withdrawal_currency(body(), wallet(), destination()) ->
+    {ok, valid} |
+    {error, {inconsistent_currency, {currency_id(), currency_id(), currency_id()}}}.
+validate_withdrawal_currency(Body, Wallet, Destination) ->
+    DestiantionCurrencyID = ff_account:currency(ff_destination:account(Destination)),
+    WalletCurrencyID = ff_account:currency(ff_wallet:account(Wallet)),
+    case Body of
+        {_Amount, WithdrawalCurencyID} when
+            WithdrawalCurencyID =:= DestiantionCurrencyID andalso
+            WithdrawalCurencyID =:= WalletCurrencyID
+        ->
+            {ok, valid};
+        {_Amount, WithdrawalCurencyID} ->
+            {error, {inconsistent_currency, {WithdrawalCurencyID, WalletCurrencyID, DestiantionCurrencyID}}}
+    end.
+
+-spec validate_destination_status(destination()) ->
+    {ok, valid} |
+    {error, {destinaiton, ff_destination:status()}}.
+validate_destination_status(Destination) ->
+    case ff_destination:status(Destination) of
+        authorized ->
+            {ok, valid};
+        unauthorized ->
+            {error, {destinaiton, unauthorized}}
+    end.
+
 %% Limit helpers
 
 -spec limit_checks(withdrawal()) ->
@@ -1174,8 +1220,9 @@ save_adjustable_info({p_transfer, {status_changed, committed}}, Withdrawal) ->
 save_adjustable_info(_Ev, Withdrawal) ->
     Withdrawal.
 
--spec update_adjusment_index(fun((any(), adjustments()) -> adjustments()), any(), withdrawal()) ->
-    withdrawal().
+-spec update_adjusment_index(Updater, Value, withdrawal()) -> withdrawal() when
+    Updater :: fun((Value, adjustments_index()) -> adjustments_index()),
+    Value :: any().
 update_adjusment_index(Updater, Value, Withdrawal) ->
     Index = adjustments_index(Withdrawal),
     set_adjustments_index(Updater(Value, Index), Withdrawal).

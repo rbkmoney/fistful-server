@@ -12,7 +12,7 @@
 
 -module(ff_provider).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("ff_cth/include/ct_domain.hrl").
 
 -type id()       :: binary().

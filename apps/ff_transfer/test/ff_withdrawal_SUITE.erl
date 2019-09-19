@@ -1,7 +1,7 @@
 -module(ff_withdrawal_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("dmsl/include/dmsl_accounter_thrift.hrl").
+-include_lib("damsel/include/dmsl_accounter_thrift.hrl").
 
 %% Common test API
 
@@ -22,6 +22,7 @@
 -export([create_cashlimit_validation_error_test/1]).
 -export([create_withdrawal_currency_validation_error_test/1]).
 -export([create_wallet_currency_validation_error_test/1]).
+-export([create_destination_currency_validation_error_test/1]).
 -export([create_currency_validation_error_test/1]).
 -export([create_destination_resource_notfound_test/1]).
 -export([create_destination_notfound_test/1]).
@@ -57,6 +58,7 @@ groups() ->
             create_cashlimit_validation_error_test,
             create_withdrawal_currency_validation_error_test,
             create_wallet_currency_validation_error_test,
+            create_destination_currency_validation_error_test,
             create_currency_validation_error_test,
             create_destination_resource_notfound_test,
             create_destination_notfound_test,
@@ -263,6 +265,23 @@ create_wallet_currency_validation_error_test(C) ->
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
     ?assertMatch({error, {terms, {invalid_withdrawal_currency, <<"USD">>, {wallet_currency, <<"RUB">>}}}}, Result).
 
+-spec create_destination_currency_validation_error_test(config()) -> test_return().
+create_destination_currency_validation_error_test(C) ->
+    Cash = {100, <<"RUB">>},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, <<"USD_CURRENCY">>, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => {100, <<"RUB">>}
+    },
+    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    ?assertMatch({error, {inconsistent_currency, {<<"RUB">>, <<"RUB">>, <<"USD">>}}}, Result).
+
 -spec create_currency_validation_error_test(config()) -> test_return().
 create_currency_validation_error_test(C) ->
     Cash = {100, <<"RUB">>},
@@ -458,7 +477,12 @@ get_account_balance(Account) ->
 generate_id() ->
     ff_id:generate_snowflake_id().
 
+create_destination(IID, <<"USD_CURRENCY">>, C) ->
+    create_destination(IID, <<"USD">>, undefined, C);
 create_destination(IID, Token, C) ->
+    create_destination(IID, <<"RUB">>, Token, C).
+
+create_destination(IID, Currency, Token, C) ->
     ID = generate_id(),
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     NewStoreResource = case Token of
@@ -468,7 +492,7 @@ create_destination(IID, Token, C) ->
             StoreSource#{token => Token}
         end,
     Resource = {bank_card, NewStoreResource},
-    Params = #{identity => IID, name => <<"XDesination">>, currency => <<"RUB">>, resource => Resource},
+    Params = #{identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
     ok = ff_destination:create(ID, Params, ff_ctx:new()),
     authorized = ct_helper:await(
         authorized,

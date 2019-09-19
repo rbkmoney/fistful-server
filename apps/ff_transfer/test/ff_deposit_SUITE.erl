@@ -1,7 +1,7 @@
 -module(ff_deposit_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 
 %% Common test API
 

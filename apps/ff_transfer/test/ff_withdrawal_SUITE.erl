@@ -133,7 +133,8 @@ session_fail_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
     ?assertMatch({failed, #{code := <<"test_error">>}}, Result),
-    ok = await_wallet_balance(WithdrawalCash, WalletID).
+    Balance = make_balance(WithdrawalCash),
+    Balance = get_wallet_balance(WalletID).
 
 -spec quote_fail_test(config()) -> test_return().
 quote_fail_test(C) ->
@@ -204,7 +205,8 @@ limit_check_fail_test(C) ->
             code := <<"amount">>
         }
     }}, Result),
-    ok = await_wallet_balance(Cash, WalletID).
+    Balance = make_balance(Cash),
+    Balance = get_wallet_balance(WalletID).
 
 -spec create_cashlimit_validation_error_test(config()) -> test_return().
 create_cashlimit_validation_error_test(C) ->
@@ -372,7 +374,8 @@ create_ok_test(C) ->
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
     succeeded = await_final_withdrawal_status(WithdrawalID),
-    ok = await_wallet_balance({0, <<"RUB">>}, WalletID),
+    Balance = make_balance({0, <<"RUB">>}),
+    Balance = get_wallet_balance(WalletID),
     Withdrawal = get_withdrawal(WithdrawalID),
     WalletID = ff_withdrawal:wallet_id(Withdrawal),
     DestinationID = ff_withdrawal:destination_id(Withdrawal),
@@ -457,8 +460,11 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ),
     ID.
 
-await_wallet_balance({Amount, Currency}, ID) ->
-    Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
+make_balance({Amount, Currency}) ->
+    {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency}.
+
+await_wallet_balance(Cash, ID) ->
+    Balance = make_balance(Cash),
     Balance = ct_helper:await(
         Balance,
         fun () -> get_wallet_balance(ID) end,

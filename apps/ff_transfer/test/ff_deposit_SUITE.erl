@@ -111,7 +111,8 @@ limit_check_fail_test(C) ->
             code := <<"amount">>
         }
     }}, Result),
-    ok = await_wallet_balance({0, <<"RUB">>}, WalletID).
+    Balance = make_balance({0, <<"RUB">>}),
+    Balance = get_wallet_balance(WalletID).
 
 -spec create_bad_amount_test(config()) -> test_return().
 create_bad_amount_test(C) ->
@@ -203,7 +204,8 @@ create_ok_test(C) ->
     },
     ok = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
     succeeded = await_final_deposit_status(DepositID),
-    ok = await_wallet_balance(DepositCash, WalletID),
+    Balance = make_balance(DepositCash),
+    Balance = get_wallet_balance(WalletID),
     Deposit = get_deposit(DepositID),
     DepositCash = ff_deposit:body(Deposit),
     WalletID = ff_deposit:wallet_id(Deposit),
@@ -284,8 +286,11 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ),
     ID.
 
-await_wallet_balance({Amount, Currency}, ID) ->
-    Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
+make_balance({Amount, Currency}) ->
+    {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency}.
+
+await_wallet_balance(Cash, ID) ->
+    Balance = make_balance(Cash),
     Balance = ct_helper:await(
         Balance,
         fun () -> get_wallet_balance(ID) end,

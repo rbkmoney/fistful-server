@@ -16,13 +16,13 @@
 
 %% Tests
 
--export([deposit_limit_check_fail_test/1]).
--export([deposit_create_bad_amount_test/1]).
--export([deposit_create_currency_validation_error_test/1]).
--export([deposit_create_source_notfound_test/1]).
--export([deposit_create_wallet_notfound_test/1]).
--export([deposit_create_ok_test/1]).
--export([unknown_deposit_test/1]).
+-export([limit_check_fail_test/1]).
+-export([create_bad_amount_test/1]).
+-export([create_currency_validation_error_test/1]).
+-export([create_source_notfound_test/1]).
+-export([create_wallet_notfound_test/1]).
+-export([create_ok_test/1]).
+-export([unknown_test/1]).
 
 %% Internal types
 
@@ -45,13 +45,13 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            deposit_limit_check_fail_test,
-            deposit_create_bad_amount_test,
-            deposit_create_currency_validation_error_test,
-            deposit_create_source_notfound_test,
-            deposit_create_wallet_notfound_test,
-            deposit_create_ok_test,
-            unknown_deposit_test
+            limit_check_fail_test,
+            create_bad_amount_test,
+            create_currency_validation_error_test,
+            create_source_notfound_test,
+            create_wallet_notfound_test,
+            create_ok_test,
+            unknown_test
         ]}
     ].
 
@@ -89,8 +89,8 @@ end_per_testcase(_Name, _C) ->
 
 %% Tests
 
--spec deposit_limit_check_fail_test(config()) -> test_return().
-deposit_limit_check_fail_test(C) ->
+-spec limit_check_fail_test(config()) -> test_return().
+limit_check_fail_test(C) ->
     #{
         wallet_id := WalletID,
         source_id := SourceID
@@ -105,10 +105,16 @@ deposit_limit_check_fail_test(C) ->
     },
     ok = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
     Result = await_final_deposit_status(DepositID),
-    ?assertMatch({failed, #{code := <<"account_limit_exceeded">>}}, Result).
+    ?assertMatch({failed, #{
+        code := <<"account_limit_exceeded">>,
+        sub := #{
+            code := <<"amount">>
+        }
+    }}, Result),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalletID).
 
--spec deposit_create_bad_amount_test(config()) -> test_return().
-deposit_create_bad_amount_test(C) ->
+-spec create_bad_amount_test(config()) -> test_return().
+create_bad_amount_test(C) ->
     #{
         wallet_id := WalletID,
         source_id := SourceID
@@ -124,8 +130,8 @@ deposit_create_bad_amount_test(C) ->
     Result = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
     ?assertMatch({error, {bad_deposit_amount, 0}}, Result).
 
--spec deposit_create_currency_validation_error_test(config()) -> test_return().
-deposit_create_currency_validation_error_test(C) ->
+-spec create_currency_validation_error_test(config()) -> test_return().
+create_currency_validation_error_test(C) ->
     #{
         wallet_id := WalletID,
         source_id := SourceID
@@ -148,8 +154,8 @@ deposit_create_currency_validation_error_test(C) ->
     },
     ?assertMatch({error, {terms_violation, {not_allowed_currency, Details}}}, Result).
 
--spec deposit_create_source_notfound_test(config()) -> test_return().
-deposit_create_source_notfound_test(C) ->
+-spec create_source_notfound_test(config()) -> test_return().
+create_source_notfound_test(C) ->
     #{
         wallet_id := WalletID
     } = prepare_standard_environment(<<"RUB">>, C),
@@ -164,8 +170,8 @@ deposit_create_source_notfound_test(C) ->
     Result = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
     ?assertMatch({error, {source, notfound}}, Result).
 
--spec deposit_create_wallet_notfound_test(config()) -> test_return().
-deposit_create_wallet_notfound_test(C) ->
+-spec create_wallet_notfound_test(config()) -> test_return().
+create_wallet_notfound_test(C) ->
     #{
         source_id := SourceID
     } = prepare_standard_environment(<<"RUB">>, C),
@@ -180,25 +186,32 @@ deposit_create_wallet_notfound_test(C) ->
     Result = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
     ?assertMatch({error, {wallet, notfound}}, Result).
 
--spec deposit_create_ok_test(config()) -> test_return().
-deposit_create_ok_test(C) ->
+-spec create_ok_test(config()) -> test_return().
+create_ok_test(C) ->
     #{
         wallet_id := WalletID,
         source_id := SourceID
     } = prepare_standard_environment(<<"RUB">>, C),
     DepositID = generate_id(),
+    DepositCash = {5000, <<"RUB">>},
     DepositParams = #{
         id            => DepositID,
-        body          => {5000, <<"RUB">>},
+        body          => DepositCash,
         source_id     => SourceID,
         wallet_id     => WalletID,
-        external_id   => generate_id()
+        external_id   => DepositID
     },
     ok = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
-    succeeded = await_final_deposit_status(DepositID).
+    succeeded = await_final_deposit_status(DepositID),
+    ok = await_wallet_balance(DepositCash, WalletID),
+    Deposit = get_deposit(DepositID),
+    DepositCash = ff_deposit:body(Deposit),
+    WalletID = ff_deposit:wallet_id(Deposit),
+    SourceID = ff_deposit:source_id(Deposit),
+    DepositID = ff_deposit:external_id(Deposit).
 
--spec unknown_deposit_test(config()) -> test_return().
-unknown_deposit_test(_C) ->
+-spec unknown_test(config()) -> test_return().
+unknown_test(_C) ->
     DepositID = <<"unknown_deposit">>,
     Result = ff_deposit_machine:get(DepositID),
     ?assertMatch({error, {unknown_deposit, DepositID}}, Result).
@@ -283,10 +296,6 @@ await_wallet_balance({Amount, Currency}, ID) ->
 get_wallet_balance(ID) ->
     {ok, Machine} = ff_wallet_machine:get(ID),
     get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
-
-% get_source_balance(ID) ->
-%     {ok, Machine} = ff_source:get_machine(ID),
-%     get_account_balance(ff_source:account(ff_source:get(Machine))).
 
 get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),

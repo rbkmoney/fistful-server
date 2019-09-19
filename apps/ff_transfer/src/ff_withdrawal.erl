@@ -1206,7 +1206,7 @@ build_failure({inconsistent_quote_route, FoundProviderID}, Withdrawal) ->
         found => FoundProviderID
     }},
     #{
-        code => <<"inconsistent_quote_route">>,
+        code => <<"unknown">>,
         reason => genlib:format(Details)
     };
 build_failure(session, Withdrawal) ->

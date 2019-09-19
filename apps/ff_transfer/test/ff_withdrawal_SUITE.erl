@@ -15,19 +15,19 @@
 -export([end_per_testcase/2]).
 
 %% Tests
--export([withdrawal_session_fail_test/1]).
--export([withdrawal_quote_fail_test/1]).
--export([withdrawal_route_not_found_fail_test/1]).
--export([withdrawal_limit_check_fail_test/1]).
--export([withdrawal_create_cashlimit_validation_error_test/1]).
--export([withdrawal_create_withdrawal_currency_validation_error_test/1]).
--export([withdrawal_create_wallet_currency_validation_error_test/1]).
--export([withdrawal_create_currency_validation_error_test/1]).
--export([withdrawal_create_destination_resource_notfound_test/1]).
--export([withdrawal_create_destination_notfound_test/1]).
--export([withdrawal_create_wallet_notfound_test/1]).
--export([withdrawal_ok_test/1]).
--export([unknown_withdrawal_test/1]).
+-export([session_fail_test/1]).
+-export([quote_fail_test/1]).
+-export([route_not_found_fail_test/1]).
+-export([limit_check_fail_test/1]).
+-export([create_cashlimit_validation_error_test/1]).
+-export([create_withdrawal_currency_validation_error_test/1]).
+-export([create_wallet_currency_validation_error_test/1]).
+-export([create_currency_validation_error_test/1]).
+-export([create_destination_resource_notfound_test/1]).
+-export([create_destination_notfound_test/1]).
+-export([create_wallet_notfound_test/1]).
+-export([create_ok_test/1]).
+-export([unknown_test/1]).
 
 %% Internal types
 
@@ -50,19 +50,19 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            withdrawal_session_fail_test,
-            withdrawal_quote_fail_test,
-            withdrawal_route_not_found_fail_test,
-            withdrawal_limit_check_fail_test,
-            withdrawal_create_cashlimit_validation_error_test,
-            withdrawal_create_withdrawal_currency_validation_error_test,
-            withdrawal_create_wallet_currency_validation_error_test,
-            withdrawal_create_currency_validation_error_test,
-            withdrawal_create_destination_resource_notfound_test,
-            withdrawal_create_destination_notfound_test,
-            withdrawal_create_wallet_notfound_test,
-            withdrawal_ok_test,
-            unknown_withdrawal_test
+            session_fail_test,
+            quote_fail_test,
+            route_not_found_fail_test,
+            limit_check_fail_test,
+            create_cashlimit_validation_error_test,
+            create_withdrawal_currency_validation_error_test,
+            create_wallet_currency_validation_error_test,
+            create_currency_validation_error_test,
+            create_destination_resource_notfound_test,
+            create_destination_notfound_test,
+            create_wallet_notfound_test,
+            create_ok_test,
+            unknown_test
         ]}
     ].
 
@@ -100,8 +100,8 @@ end_per_testcase(_Name, _C) ->
 
 %% Tests
 
--spec withdrawal_session_fail_test(config()) -> test_return().
-withdrawal_session_fail_test(C) ->
+-spec session_fail_test(config()) -> test_return().
+session_fail_test(C) ->
     Party = create_party(C),
     Currency = <<"RUB">>,
     WithdrawalCash = {100, Currency},
@@ -130,10 +130,11 @@ withdrawal_session_fail_test(C) ->
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
-    ?assertMatch({failed, #{code := <<"test_error">>}}, Result).
+    ?assertMatch({failed, #{code := <<"test_error">>}}, Result),
+    ok = await_wallet_balance(WithdrawalCash, WalletID).
 
--spec withdrawal_quote_fail_test(config()) -> test_return().
-withdrawal_quote_fail_test(C) ->
+-spec quote_fail_test(config()) -> test_return().
+quote_fail_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID,
@@ -159,10 +160,10 @@ withdrawal_quote_fail_test(C) ->
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
-    ?assertMatch({failed, #{code := <<"inconsistent_quote_route">>}}, Result).
+    ?assertMatch({failed, #{code := <<"unknown">>}}, Result).
 
--spec withdrawal_route_not_found_fail_test(config()) -> test_return().
-withdrawal_route_not_found_fail_test(C) ->
+-spec route_not_found_fail_test(config()) -> test_return().
+route_not_found_fail_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID,
@@ -179,8 +180,8 @@ withdrawal_route_not_found_fail_test(C) ->
     Result = await_final_withdrawal_status(WithdrawalID),
     ?assertMatch({failed, #{code := <<"no_route_found">>}}, Result).
 
--spec withdrawal_limit_check_fail_test(config()) -> test_return().
-withdrawal_limit_check_fail_test(C) ->
+-spec limit_check_fail_test(config()) -> test_return().
+limit_check_fail_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID,
@@ -195,10 +196,16 @@ withdrawal_limit_check_fail_test(C) ->
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
-    ?assertMatch({failed, #{code := <<"account_limit_exceeded">>}}, Result).
+    ?assertMatch({failed, #{
+        code := <<"account_limit_exceeded">>,
+        sub := #{
+            code := <<"amount">>
+        }
+    }}, Result),
+    ok = await_wallet_balance(Cash, WalletID).
 
--spec withdrawal_create_cashlimit_validation_error_test(config()) -> test_return().
-withdrawal_create_cashlimit_validation_error_test(C) ->
+-spec create_cashlimit_validation_error_test(config()) -> test_return().
+create_cashlimit_validation_error_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID,
@@ -216,8 +223,8 @@ withdrawal_create_cashlimit_validation_error_test(C) ->
     Details = {terms_violation, {cash_range, {{20000000, <<"RUB">>}, CashRange}}},
     ?assertMatch({error, {terms, Details}}, Result).
 
--spec withdrawal_create_withdrawal_currency_validation_error_test(config()) -> test_return().
-withdrawal_create_withdrawal_currency_validation_error_test(C) ->
+-spec create_withdrawal_currency_validation_error_test(config()) -> test_return().
+create_withdrawal_currency_validation_error_test(C) ->
     Cash = {100, <<"USD">>},
     #{
         wallet_id := WalletID,
@@ -239,8 +246,8 @@ withdrawal_create_withdrawal_currency_validation_error_test(C) ->
     },
     ?assertMatch({error, {terms, {terms_violation, {not_allowed_currency, Details}}}}, Result).
 
--spec withdrawal_create_wallet_currency_validation_error_test(config()) -> test_return().
-withdrawal_create_wallet_currency_validation_error_test(C) ->
+-spec create_wallet_currency_validation_error_test(config()) -> test_return().
+create_wallet_currency_validation_error_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID,
@@ -256,8 +263,8 @@ withdrawal_create_wallet_currency_validation_error_test(C) ->
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
     ?assertMatch({error, {terms, {invalid_withdrawal_currency, <<"USD">>, {wallet_currency, <<"RUB">>}}}}, Result).
 
--spec withdrawal_create_currency_validation_error_test(config()) -> test_return().
-withdrawal_create_currency_validation_error_test(C) ->
+-spec create_currency_validation_error_test(config()) -> test_return().
+create_currency_validation_error_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID,
@@ -280,8 +287,8 @@ withdrawal_create_currency_validation_error_test(C) ->
     },
     ?assertMatch({error, {terms, {terms_violation, {not_allowed_currency, Details}}}}, Result).
 
--spec withdrawal_create_destination_resource_notfound_test(config()) -> test_return().
-withdrawal_create_destination_resource_notfound_test(C) ->
+-spec create_destination_resource_notfound_test(config()) -> test_return().
+create_destination_resource_notfound_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID,
@@ -297,8 +304,8 @@ withdrawal_create_destination_resource_notfound_test(C) ->
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
     ?assertMatch({error, {destination_resource, {bin_data, not_found}}}, Result).
 
--spec withdrawal_create_destination_notfound_test(config()) -> test_return().
-withdrawal_create_destination_notfound_test(C) ->
+-spec create_destination_notfound_test(config()) -> test_return().
+create_destination_notfound_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID
@@ -313,8 +320,8 @@ withdrawal_create_destination_notfound_test(C) ->
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
     ?assertMatch({error, {destination, notfound}}, Result).
 
--spec withdrawal_create_wallet_notfound_test(config()) -> test_return().
-withdrawal_create_wallet_notfound_test(C) ->
+-spec create_wallet_notfound_test(config()) -> test_return().
+create_wallet_notfound_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         destination_id := DestinationID
@@ -329,8 +336,8 @@ withdrawal_create_wallet_notfound_test(C) ->
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
     ?assertMatch({error, {wallet, notfound}}, Result).
 
--spec withdrawal_ok_test(config()) -> test_return().
-withdrawal_ok_test(C) ->
+-spec create_ok_test(config()) -> test_return().
+create_ok_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         wallet_id := WalletID,
@@ -341,13 +348,20 @@ withdrawal_ok_test(C) ->
         id => WithdrawalID,
         destination_id => DestinationID,
         wallet_id => WalletID,
-        body => Cash
+        body => Cash,
+        external_id => WithdrawalID
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
-    succeeded = await_final_withdrawal_status(WithdrawalID).
+    succeeded = await_final_withdrawal_status(WithdrawalID),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalletID),
+    Withdrawal = get_withdrawal(WithdrawalID),
+    WalletID = ff_withdrawal:wallet_id(Withdrawal),
+    DestinationID = ff_withdrawal:destination_id(Withdrawal),
+    Cash = ff_withdrawal:body(Withdrawal),
+    WithdrawalID = ff_withdrawal:external_id(Withdrawal).
 
--spec unknown_withdrawal_test(config()) -> test_return().
-unknown_withdrawal_test(_C) ->
+-spec unknown_test(config()) -> test_return().
+unknown_test(_C) ->
     WithdrawalID = <<"unknown_withdrawal">>,
     Result = ff_withdrawal_machine:get(WithdrawalID),
     ?assertMatch({error, {unknown_withdrawal, WithdrawalID}}, Result).
@@ -444,8 +458,6 @@ get_account_balance(Account) ->
 generate_id() ->
     ff_id:generate_snowflake_id().
 
-% create_destination(IID, C) ->
-%     create_destination(IID, undefined, C).
 create_destination(IID, Token, C) ->
     ID = generate_id(),
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),

@@ -900,7 +900,10 @@ build_failure(limit_check, Deposit) ->
     {failed, Details} = limit_check_status(Deposit),
     #{
         code => <<"account_limit_exceeded">>,
-        reason => genlib:format(Details)
+        reason => genlib:format(Details),
+        sub => #{
+            code => <<"amount">>
+        }
     }.
 
 %% Migration

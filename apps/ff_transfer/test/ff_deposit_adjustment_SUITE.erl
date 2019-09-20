@@ -144,9 +144,9 @@ adjustment_can_change_status_to_succeeded_test(C) ->
     #{
         wallet_id := WalletID,
         source_id := SourceID
-    } = prepare_standard_environment({10000000, <<"RUB">>}, C),
-    ?assertEqual(?final_balance(10000000, <<"RUB">>), get_wallet_balance(WalletID)),
-    ?assertEqual(?final_balance(-10000000, <<"RUB">>), get_source_balance(SourceID)),
+    } = prepare_standard_environment({5000000, <<"RUB">>}, C),
+    ?assertEqual(?final_balance(5000000, <<"RUB">>), get_wallet_balance(WalletID)),
+    ?assertEqual(?final_balance(-5000000, <<"RUB">>), get_source_balance(SourceID)),
     DepositID = generate_id(),
     Params = #{
         id => DepositID,
@@ -161,8 +161,8 @@ adjustment_can_change_status_to_succeeded_test(C) ->
     }),
     ?assertMatch(succeeded, get_adjustment_status(DepositID, AdjustmentID)),
     ?assertMatch(succeeded, get_deposit_status(DepositID)),
-    ?assertEqual(?final_balance(10000100, <<"RUB">>), get_wallet_balance(WalletID)),
-    ?assertEqual(?final_balance(-10000100, <<"RUB">>), get_source_balance(SourceID)).
+    ?assertEqual(?final_balance(5000100, <<"RUB">>), get_wallet_balance(WalletID)),
+    ?assertEqual(?final_balance(-5000100, <<"RUB">>), get_source_balance(SourceID)).
 
 -spec adjustment_can_not_change_status_to_pending_test(config()) -> test_return().
 adjustment_can_not_change_status_to_pending_test(C) ->

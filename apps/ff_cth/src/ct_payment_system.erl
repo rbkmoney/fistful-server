@@ -543,6 +543,7 @@ domain_config(Options, C) ->
 
         ct_domain:currency(?cur(<<"RUB">>)),
         ct_domain:currency(?cur(<<"USD">>)),
+        ct_domain:currency(?cur(<<"EUR">>)),
 
         ct_domain:category(?cat(1), <<"Generic Store">>, live),
 
@@ -560,15 +561,15 @@ default_termset(Options) ->
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
-                        {inclusive, ?cash(       0, <<"RUB">>)},
-                        {exclusive, ?cash(10000001, <<"RUB">>)}
+                        {inclusive, ?cash(      0, <<"RUB">>)},
+                        {exclusive, ?cash(5000001, <<"RUB">>)}
                     )}
                 },
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
                     then_ = {value, ?cashrng(
                         {inclusive, ?cash(       0, <<"USD">>)},
-                        {exclusive, ?cash(10000000, <<"USD">>)}
+                        {exclusive, ?cash(10000001, <<"USD">>)}
                     )}
                 }
             ]},
@@ -579,7 +580,21 @@ default_termset(Options) ->
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {value, ?cashrng(
                             {inclusive, ?cash(       0, <<"RUB">>)},
-                            {exclusive, ?cash(10000000, <<"RUB">>)}
+                            {exclusive, ?cash(10000001, <<"RUB">>)}
+                        )}
+                    },
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"EUR">>)},
+                            {exclusive, ?cash(10000001, <<"EUR">>)}
+                        )}
+                    },
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"USD">>)},
+                            {exclusive, ?cash(10000001, <<"USD">>)}
                         )}
                     }
                 ]},
@@ -596,6 +611,60 @@ default_termset(Options) ->
                     #domain_CashFlowDecision{
                         if_   = {all_of, ?ordset([
                             {condition, {currency_is, ?cur(<<"RUB">>)}},
+                            {condition, {payment_tool, {bank_card, #domain_BankCardCondition{
+                                definition = {payment_system, #domain_PaymentSystemCondition{
+                                    payment_system_is = visa
+                                }}
+                            }}}}
+                        ])},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {all_of, ?ordset([
+                            {condition, {currency_is, ?cur(<<"EUR">>)}},
+                            {condition, {payment_tool, {bank_card, #domain_BankCardCondition{
+                                definition = {payment_system, #domain_PaymentSystemCondition{
+                                    payment_system_is = visa
+                                }}
+                            }}}}
+                        ])},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {all_of, ?ordset([
+                            {condition, {currency_is, ?cur(<<"USD">>)}},
                             {condition, {payment_tool, {bank_card, #domain_BankCardCondition{
                                 definition = {payment_system, #domain_PaymentSystemCondition{
                                     payment_system_is = visa
@@ -657,15 +726,15 @@ company_termset(Options) ->
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
-                        {inclusive, ?cash(       0, <<"RUB">>)},
-                        {exclusive, ?cash(10000000, <<"RUB">>)}
+                        {inclusive, ?cash(      0, <<"RUB">>)},
+                        {exclusive, ?cash(5000000, <<"RUB">>)}
                     )}
                 },
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
                     then_ = {value, ?cashrng(
-                        {inclusive, ?cash(       0, <<"USD">>)},
-                        {exclusive, ?cash(10000000, <<"USD">>)}
+                        {inclusive, ?cash(      0, <<"USD">>)},
+                        {exclusive, ?cash(5000000, <<"USD">>)}
                     )}
                 }
             ]}

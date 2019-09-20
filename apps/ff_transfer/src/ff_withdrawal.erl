@@ -276,7 +276,7 @@ destination_resource(Withdrawal) ->
 
 -spec quote(withdrawal()) -> quote() | undefined.
 quote(T) ->
-    maps:get(quote, T, undefined).
+    maps:get(quote, params(T), undefined).
 
 -spec id(withdrawal()) -> id().
 id(#{id := V}) ->

@@ -183,7 +183,7 @@ get_withdrawal_events_ok(C) ->
 
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_withdrawal_machine:events(WdrID, {undefined, 1000, forward}),
 
     AlienEvents = lists:filter(fun(Ev) ->
         Ev#wthd_SinkEvent.source =/= WdrID
@@ -266,7 +266,7 @@ get_create_deposit_events_ok(C) ->
     SrcID   = create_source(IID, C),
     DepID   = process_deposit(SrcID, WalID),
 
-    {ok, RawEvents} = ff_deposit:events(DepID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_deposit_machine:events(DepID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
     MaxID = get_max_sinkevent_id(Events),
@@ -363,19 +363,11 @@ create_source(IID, C) ->
 
 process_deposit(SrcID, WalID) ->
     DepID = generate_id(),
-    ok = ff_deposit:create(
-        DepID,
-        #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
+    ok = ff_deposit_machine:create(
+        #{id => DepID, source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
         ff_ctx:new()
     ),
-    succeeded = ct_helper:await(
-        succeeded,
-        fun () ->
-            {ok, DepM} = ff_deposit:get_machine(DepID),
-            ff_deposit:status(ff_deposit:get(DepM))
-        end,
-        genlib_retry:linear(15, 1000)
-    ),
+    succeeded = await_final_deposit_status(DepID),
     DepID.
 
 create_destination(IID, C) ->
@@ -392,19 +384,11 @@ create_destination(IID, C) ->
 
 process_withdrawal(WalID, DestID) ->
     WdrID = generate_id(),
-    ok = ff_withdrawal:create(
-        WdrID,
-        #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
+    ok = ff_withdrawal_machine:create(
+        #{id => WdrID, wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
         ff_ctx:new()
     ),
-    succeeded = ct_helper:await(
-        succeeded,
-        fun () ->
-            {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
-            ff_withdrawal:status(ff_withdrawal:get(WdrM))
-        end,
-        genlib_retry:linear(15, 1000)
-    ),
+    succeeded = await_final_withdrawal_status(WdrID),
     true = ct_helper:await(
         true,
         fun () ->
@@ -417,6 +401,53 @@ process_withdrawal(WalID, DestID) ->
     ),
     WdrID.
 
+get_deposit(DepositID) ->
+    {ok, Machine} = ff_deposit_machine:get(DepositID),
+    ff_deposit_machine:deposit(Machine).
+
+get_deposit_status(DepositID) ->
+    ff_deposit:status(get_deposit(DepositID)).
+
+await_final_deposit_status(DepositID) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            {ok, Machine} = ff_deposit_machine:get(DepositID),
+            Deposit = ff_deposit_machine:deposit(Machine),
+            case ff_deposit:is_finished(Deposit) of
+                false ->
+                    {not_finished, Deposit};
+                true ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(90, 1000)
+    ),
+    get_deposit_status(DepositID).
+
+get_withdrawal(WithdrawalID) ->
+    {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
+    ff_withdrawal_machine:withdrawal(Machine).
+
+get_withdrawal_status(WithdrawalID) ->
+    ff_withdrawal:status(get_withdrawal(WithdrawalID)).
+
+await_final_withdrawal_status(WithdrawalID) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
+            Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
+            case ff_withdrawal:is_finished(Withdrawal) of
+                false ->
+                    {not_finished, Withdrawal};
+                true ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(90, 1000)
+    ),
+    get_withdrawal_status(WithdrawalID).
 
 -spec get_max_sinkevent_id(list(evsink_event())) -> evsink_id().
 
@@ -478,11 +509,17 @@ search_event_commited(Events, WdrID) ->
     TransferCommited = lists:filter(fun(Ev) ->
         Payload = Ev#wthd_SinkEvent.payload,
         Changes = Payload#wthd_EventSinkPayload.changes,
-        Res = lists:filter(fun is_commited_ev/1, Changes),
-        length(Res) =/= 0
+        lists:any(fun is_commited_ev/1, Changes)
     end, ClearEv),
 
     length(TransferCommited) =/= 0.
 
-is_commited_ev({transfer, {status_changed, {committed, #wthd_TransferCommitted{}}}}) -> true;
-is_commited_ev(_Other) -> false.
+is_commited_ev({transfer, #wthd_TransferChange{payload = TransferEvent}}) ->
+    case TransferEvent of
+        {status_changed, #transfer_StatusChange{status = {committed, #transfer_Committed{}}}} ->
+            true;
+        _Other ->
+            false
+    end;
+is_commited_ev(_Other) ->
+    false.

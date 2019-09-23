@@ -85,7 +85,7 @@ encode_trx(#{id := Id} = TrxInfo) ->
     #domain_TransactionInfo{id = Id, timestamp = Timestamp, extra = Extra}.
 
 encode_failure(Failure) ->
-    Failure.
+    #domain_Failure{code = Failure}.
 
 encode_timer(Timer) ->
     Timer.

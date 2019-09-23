@@ -591,28 +591,54 @@ create_withdrawal(WalletID, DestID, C, QuoteToken) ->
     ),
     maps:get(<<"id">>, Withdrawal).
 
+% TODO: Use this function variant after fistful-magista protocol update
+% check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
+%     ct_helper:await(
+%         ok,
+%         fun () ->
+%             R = call_api(fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
+%                          #{qs_val => #{
+%                              <<"withdrawalID">> => WithdrawalID,
+%                              <<"limit">> => 100
+%                             }},
+%                          ct_helper:cfg(context, C)),
+%             case R of
+%                 {ok, #{<<"result">> := []}} ->
+%                     R;
+%                 {ok, Withdrawal} ->
+%                     #{<<"result">> := [
+%                         #{<<"wallet">> := WalletID,
+%                           <<"destination">> := DestID,
+%                           <<"body">> := #{
+%                               <<"amount">> := 100,
+%                               <<"currency">> := <<"RUB">>
+%                           }
+%                     }]} = Withdrawal,
+%                     ok;
+%                 _ ->
+%                     R
+%             end
+%         end,
+%         {linear, 20, 1000}
+%     ).
+
 check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
     ct_helper:await(
         ok,
         fun () ->
-            R = call_api(fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
-                         #{qs_val => #{
-                             <<"withdrawalID">> => WithdrawalID,
-                             <<"limit">> => 100
-                            }},
+            R = call_api(fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
+                         #{binding => #{<<"withdrawalID">> => WithdrawalID}},
                          ct_helper:cfg(context, C)),
             case R of
-                {ok, #{<<"result">> := []}} ->
-                    R;
                 {ok, Withdrawal} ->
-                    #{<<"result">> := [
-                        #{<<"wallet">> := WalletID,
-                          <<"destination">> := DestID,
-                          <<"body">> := #{
-                              <<"amount">> := 100,
-                              <<"currency">> := <<"RUB">>
-                          }
-                    }]} = Withdrawal,
+                    #{
+                        <<"wallet">> := WalletID,
+                        <<"destination">> := DestID,
+                        <<"body">> := #{
+                            <<"amount">> := 100,
+                            <<"currency">> := <<"RUB">>
+                        }
+                    } = Withdrawal,
                     ok;
                 _ ->
                     R

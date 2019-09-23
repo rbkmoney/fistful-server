@@ -31,6 +31,7 @@ unmarshal_destination_params(Params) ->
 
 marshal_destination(Destination) ->
     #dst_Destination{
+        id          = marshal(id,       ff_destination:id(Destination)),
         name        = marshal(string,   ff_destination:name(Destination)),
         resource    = marshal(resource, ff_destination:resource(Destination)),
         external_id = marshal(id,       ff_destination:external_id(Destination)),
@@ -43,6 +44,7 @@ marshal_destination(Destination) ->
 
 unmarshal_destination(Dest) ->
     genlib_map:compact(#{
+        id          => unmarshal(id,           Dest#dst_Destination.id),
         account     => maybe_unmarshal(account, Dest#dst_Destination.account),
         resource    => unmarshal(resource,     Dest#dst_Destination.resource),
         name        => unmarshal(string,       Dest#dst_Destination.name),
@@ -130,9 +132,11 @@ destination_test() ->
         token => <<"token auth">>
     }},
     AAID = 12345,
+    AccountID = genlib:unique(),
     In = #{
+        id => AccountID,
         account => #{
-            id       => genlib:unique(),
+            id       => AccountID,
             identity => genlib:unique(),
             currency => <<"RUN">>,
             accounter_account_id => AAID

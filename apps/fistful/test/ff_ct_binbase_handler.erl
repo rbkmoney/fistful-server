@@ -12,6 +12,18 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
+handle_function('GetByCardToken', [<<"TEST_NOTFOUND">>], _Context, _Opts) ->
+   woody_error:raise(business, #binbase_BinNotFound{});
+handle_function('GetByCardToken', [<<"USD_COUNTRY">>], _Context, _Opts) ->
+   {ok, #binbase_ResponseData{
+        bin_data = #binbase_BinData{
+            payment_system = <<"VISA">>,
+            bank_name = <<"uber">>,
+            iso_country_code = <<"USA">>,
+            bin_data_id = {i, 123}
+        },
+        version = 1
+    }};
 handle_function('GetByCardToken', [_Token], _Context, _Opts) ->
    {ok, #binbase_ResponseData{
         bin_data = #binbase_BinData{

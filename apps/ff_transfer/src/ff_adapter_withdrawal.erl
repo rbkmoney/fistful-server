@@ -80,18 +80,9 @@
     cavv_algorithm => binary(),
     three_ds_verification => binary()
 }.
--type failure_code()          :: binary().
--type failure_reason()        :: binary().
 
--type failure()               :: #{
-    code := failure_code(),
-    reason => failure_reason(),
-    sub => sub_failure()
-}.
--type sub_failure()           :: #{
-    code := failure_code(),
-    sub => sub_failure()
-}.
+-type failure()               :: ff_failure:failure().
+
 -type adapter_state()         :: ff_adapter:state().
 -type process_result()        ::
     {ok, intent(), adapter_state()} |

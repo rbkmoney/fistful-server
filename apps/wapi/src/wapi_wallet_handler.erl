@@ -359,7 +359,7 @@ process_request('CreateQuote', Params, Context, _Opts) ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>)
             );
-        {error, {route, _}} ->
+        {error, {route, route_not_found}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Provider not found">>)
             );

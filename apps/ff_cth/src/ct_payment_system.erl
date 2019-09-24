@@ -94,11 +94,7 @@ start_processing_apps(Options) ->
             ]])},
             {providers, identity_provider_config(Options)}
         ]},
-        {ff_transfer, [
-            {withdrawal,
-                #{provider => withdrawal_provider_config(Options)}
-            }
-        ]}
+        ff_transfer
     ]),
     SuiteSup = ct_sup:start(),
     BeOpts = machinery_backend_options(Options),
@@ -109,9 +105,9 @@ start_processing_apps(Options) ->
             construct_handler(ff_external_id                , "external_id"           , BeConf),
             construct_handler(ff_wallet_machine             , "wallet_v2"             , BeConf),
             construct_handler(ff_instrument_machine         , "source_v1"             , BeConf),
-            construct_handler(ff_transfer_machine           , "deposit_v1"            , BeConf),
+            construct_handler(ff_deposit_machine            , "deposit_v1"            , BeConf),
             construct_handler(ff_instrument_machine         , "destination_v2"        , BeConf),
-            construct_handler(ff_transfer_machine           , "withdrawal_v2"         , BeConf),
+            construct_handler(ff_withdrawal_machine         , "withdrawal_v2"         , BeConf),
             construct_handler(ff_withdrawal_session_machine , "withdrawal/session_v2" , BeConf)
         ],
         BeOpts
@@ -193,7 +189,7 @@ construct_handler(Module, Suffix, BeConf) ->
 get_admin_routes() ->
     Path = <<"/v1/admin">>,
     woody_server_thrift_http_handler:get_routes(#{
-        handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
+        handlers => [{Path, {{ff_proto_fistful_admin_thrift, 'FistfulAdmin'}, {ff_server_admin_handler, []}}}],
         event_handler => scoper_woody_event_handler
     }).
 
@@ -446,49 +442,6 @@ identity_provider_config(Options) ->
     },
     maps:get(identity_provider_config, Options, Default).
 
--spec withdrawal_provider_config(options()) ->
-    #{id() => ff_withdrawal_provider:provider()}.
-withdrawal_provider_config(Options) ->
-    Default = #{
-        <<"mocketbank">> => #{
-            adapter => ff_woody_client:new(<<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
-            accounts => #{},
-            fee => #{
-                <<"RUB">> => #{
-                    postings => [
-                        #{
-                            sender => {system, settlement},
-                            receiver => {provider, settlement},
-                            volume => {product, {min_of, [
-                                {fixed, {10, <<"RUB">>}},
-                                {share, {genlib_rational:new(5, 100), operation_amount, round_half_towards_zero}}
-                            ]}}
-                        }
-                    ]
-                }
-            }
-        },
-        <<"quotebank">> => #{
-            adapter => ff_woody_client:new(<<"http://localhost:8022/quotebank">>),
-            accounts => #{},
-            fee => #{
-                <<"RUB">> => #{
-                    postings => [
-                        #{
-                            sender => {system, settlement},
-                            receiver => {provider, settlement},
-                            volume => {product, {min_of, [
-                                {fixed, {10, <<"RUB">>}},
-                                {share, {genlib_rational:new(5, 100), operation_amount, round_half_towards_zero}}
-                            ]}}
-                        }
-                    ]
-                }
-            }
-        }
-    },
-    maps:get(withdrawal_provider_config, Options, Default).
-
 services(Options) ->
     Default = #{
         accounter      => "http://shumway:8022/accounter",
@@ -547,6 +500,10 @@ domain_config(Options, C) ->
                     #domain_WithdrawalProviderDecision{
                         if_ = {condition, {payment_tool, {crypto_currency, #domain_CryptoCurrencyCondition{}}}},
                         then_ = {value, [?wthdr_prv(2)]}
+                    },
+                    #domain_WithdrawalProviderDecision{
+                        if_ = {constant, true},
+                        then_ = {value, []}
                     }
                 ]}
             }
@@ -586,6 +543,7 @@ domain_config(Options, C) ->
 
         ct_domain:currency(?cur(<<"RUB">>)),
         ct_domain:currency(?cur(<<"USD">>)),
+        ct_domain:currency(?cur(<<"EUR">>)),
 
         ct_domain:category(?cat(1), <<"Generic Store">>, live),
 
@@ -603,15 +561,15 @@ default_termset(Options) ->
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
-                        {inclusive, ?cash(       0, <<"RUB">>)},
-                        {exclusive, ?cash(10000001, <<"RUB">>)}
+                        {inclusive, ?cash(      0, <<"RUB">>)},
+                        {exclusive, ?cash(5000001, <<"RUB">>)}
                     )}
                 },
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
                     then_ = {value, ?cashrng(
                         {inclusive, ?cash(       0, <<"USD">>)},
-                        {exclusive, ?cash(10000000, <<"USD">>)}
+                        {exclusive, ?cash(10000001, <<"USD">>)}
                     )}
                 }
             ]},
@@ -622,7 +580,21 @@ default_termset(Options) ->
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {value, ?cashrng(
                             {inclusive, ?cash(       0, <<"RUB">>)},
-                            {exclusive, ?cash(10000000, <<"RUB">>)}
+                            {exclusive, ?cash(10000001, <<"RUB">>)}
+                        )}
+                    },
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"EUR">>)},
+                            {exclusive, ?cash(10000001, <<"EUR">>)}
+                        )}
+                    },
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"USD">>)},
+                            {exclusive, ?cash(10000001, <<"USD">>)}
                         )}
                     }
                 ]},
@@ -639,6 +611,60 @@ default_termset(Options) ->
                     #domain_CashFlowDecision{
                         if_   = {all_of, ?ordset([
                             {condition, {currency_is, ?cur(<<"RUB">>)}},
+                            {condition, {payment_tool, {bank_card, #domain_BankCardCondition{
+                                definition = {payment_system, #domain_PaymentSystemCondition{
+                                    payment_system_is = visa
+                                }}
+                            }}}}
+                        ])},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {all_of, ?ordset([
+                            {condition, {currency_is, ?cur(<<"EUR">>)}},
+                            {condition, {payment_tool, {bank_card, #domain_BankCardCondition{
+                                definition = {payment_system, #domain_PaymentSystemCondition{
+                                    payment_system_is = visa
+                                }}
+                            }}}}
+                        ])},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {all_of, ?ordset([
+                            {condition, {currency_is, ?cur(<<"USD">>)}},
                             {condition, {payment_tool, {bank_card, #domain_BankCardCondition{
                                 definition = {payment_system, #domain_PaymentSystemCondition{
                                     payment_system_is = visa
@@ -700,15 +726,15 @@ company_termset(Options) ->
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
-                        {inclusive, ?cash(       0, <<"RUB">>)},
-                        {exclusive, ?cash(10000000, <<"RUB">>)}
+                        {inclusive, ?cash(      0, <<"RUB">>)},
+                        {exclusive, ?cash(5000000, <<"RUB">>)}
                     )}
                 },
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
                     then_ = {value, ?cashrng(
-                        {inclusive, ?cash(       0, <<"USD">>)},
-                        {exclusive, ?cash(10000000, <<"USD">>)}
+                        {inclusive, ?cash(      0, <<"USD">>)},
+                        {exclusive, ?cash(5000000, <<"USD">>)}
                     )}
                 }
             ]}

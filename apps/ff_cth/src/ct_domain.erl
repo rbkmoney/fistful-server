@@ -75,6 +75,16 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
 -spec currency(?dtp('CurrencyRef')) ->
     object().
 
+currency(?cur(<<"EUR">> = SymCode) = Ref) ->
+    {currency, #domain_CurrencyObject{
+        ref = Ref,
+        data = #domain_Currency{
+            name          = <<"Europe"/utf8>>,
+            numeric_code  = 978,
+            symbolic_code = SymCode,
+            exponent      = 2
+        }
+    }};
 currency(?cur(<<"RUB">> = SymCode) = Ref) ->
     {currency, #domain_CurrencyObject{
         ref = Ref,

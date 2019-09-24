@@ -64,7 +64,7 @@
 %% Accessors
 
 -spec account(instrument(_)) ->
-    account().
+    account() | undefined.
 
 account(#{account := V}) ->
     V;
@@ -82,10 +82,15 @@ account(_) ->
 -spec resource(instrument(T)) ->
     resource(T).
 -spec status(instrument(_)) ->
-    status().
+    status() | undefined.
 
 id(Instrument) ->
-    ff_account:id(account(Instrument)).
+    case account(Instrument) of
+        undefined ->
+            undefined;
+        Account ->
+            ff_account:id(Account)
+    end.
 name(#{name := V}) ->
     V.
 identity(Instrument) ->

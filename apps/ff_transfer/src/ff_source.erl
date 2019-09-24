@@ -60,7 +60,7 @@
 -spec identity(source()) -> identity().
 -spec currency(source()) -> currency().
 -spec resource(source()) -> resource().
--spec status(source())   -> status().
+-spec status(source())   -> status() | undefined.
 
 id(Source)       -> ff_instrument:id(Source).
 name(Source)     -> ff_instrument:name(Source).

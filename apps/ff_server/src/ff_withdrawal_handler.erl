@@ -30,8 +30,7 @@ handle_function(Func, Args, Context, Opts) ->
 handle_function_('Create', [Params], Context, Opts) ->
     ID = Params#wthd_WithdrawalParams.id,
     Ctx = Params#wthd_WithdrawalParams.context,
-    case ff_withdrawal:create(
-        ID,
+    case ff_withdrawal_machine:create(
         ff_withdrawal_codec:unmarshal_withdrawal_params(Params),
         ff_withdrawal_codec:unmarshal(ctx, Ctx)
     ) of
@@ -47,30 +46,27 @@ handle_function_('Create', [Params], Context, Opts) ->
             woody_error:raise(business, #fistful_DestinationUnauthorized{});
         {error, {terms, {invalid_withdrawal_currency, CurrencyID, {wallet_currency, CurrencyID2}}}} ->
             woody_error:raise(business, ff_withdrawal_codec:marshal_currency_invalid({CurrencyID, CurrencyID2}));
-        {error, {terms, {terms_violation, {cash_range, {CashIn, CashRangeIn}}}}} ->
-            %% TODO after ff_party changes, del dmsl_codec
-            Cash  = ff_dmsl_codec:unmarshal(cash, CashIn),
-            Range = ff_dmsl_codec:unmarshal(cash_range, CashRangeIn),
-            woody_error:raise(business, ff_withdrawal_codec:marshal_cash_range_error({Cash, Range}));
+        {error, {terms, {terms_violation, {cash_range, {Cash, CashRange}}}}} ->
+            woody_error:raise(business, ff_withdrawal_codec:marshal_cash_range_error({Cash, CashRange}));
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 handle_function_('Get', [ID], _Context, _Opts) ->
-    case ff_withdrawal:get_machine(ID) of
+    case ff_withdrawal_machine:get(ID) of
         {ok, Machine} ->
-            Ctx = ff_withdrawal:ctx(Machine),
+            Ctx = ff_withdrawal_machine:ctx(Machine),
             Context = ff_withdrawal_codec:marshal(ctx, Ctx),
-            Withdrawal = ff_withdrawal_codec:marshal_withdrawal(ff_withdrawal:get(Machine)),
+            Withdrawal = ff_withdrawal_codec:marshal_withdrawal(ff_withdrawal_machine:withdrawal(Machine)),
             {ok, Withdrawal#wthd_Withdrawal{context = Context}};
-        {error, notfound} ->
-            woody_error:raise(business, #fistful_DestinationNotFound{})
+        {error, {unknown_withdrawal, _ID}} ->
+            woody_error:raise(business, #fistful_WithdrawalNotFound{})
     end;
 handle_function_('GetEvents', [WithdrawalID, RangeParams], _Context, _Opts) ->
     Range = ff_codec:unmarshal(range, RangeParams),
-    case ff_withdrawal:events(WithdrawalID, Range) of
+    case ff_withdrawal_machine:events(WithdrawalID, Range) of
         {ok, Events} ->
             {ok, [ff_withdrawal_codec:marshal_event(Ev) || Ev <- Events]};
-        {error, notfound} ->
+        {error, {unknown_withdrawal, _ID}} ->
             woody_error:raise(business, #fistful_WithdrawalNotFound{})
     end.
 

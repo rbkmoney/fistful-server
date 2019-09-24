@@ -334,9 +334,8 @@ create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         Quote = unwrap(maybe_check_quote_token(Params, Context)),
         WithdrawalParams = from_swag(withdrawal_params, Params),
-        ff_withdrawal:create(
-            ID,
-            genlib_map:compact(WithdrawalParams#{quote => Quote}),
+        ff_withdrawal_machine:create(
+            genlib_map:compact(WithdrawalParams#{id => ID, quote => Quote}),
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
@@ -710,7 +709,7 @@ get_event_type({withdrawal, event})         -> withdrawal_event.
 get_collector({identity, challenge_event}, Id) ->
     fun(C, L) -> unwrap(ff_identity_machine:events(Id, {C, L, forward})) end;
 get_collector({withdrawal, event}, Id) ->
-    fun(C, L) -> unwrap(ff_withdrawal:events(Id, {C, L, forward})) end.
+    fun(C, L) -> unwrap(ff_withdrawal_machine:events(Id, {C, L, forward})) end.
 
 collect_events(Collector, Filter, Cursor, Limit) ->
     collect_events(Collector, Filter, Cursor, Limit, []).
@@ -750,7 +749,7 @@ get_state(Resource, Id, Context) ->
 do_get_state(identity,    Id) -> ff_identity_machine:get(Id);
 do_get_state(wallet,      Id) -> ff_wallet_machine:get(Id);
 do_get_state(destination, Id) -> ff_destination:get_machine(Id);
-do_get_state(withdrawal,  Id) -> ff_withdrawal:get_machine(Id).
+do_get_state(withdrawal,  Id) -> ff_withdrawal_machine:get(Id).
 
 check_resource(Resource, Id, Context) ->
     _ = get_state(Resource, Id, Context),
@@ -1374,7 +1373,7 @@ to_swag(crypto_wallet_currency, ethereum)     -> <<"Ethereum">>;
 to_swag(crypto_wallet_currency, zcash)        -> <<"Zcash">>;
 
 to_swag(withdrawal, State) ->
-    Withdrawal = ff_withdrawal:get(State),
+    Withdrawal = ff_withdrawal_machine:withdrawal(State),
     WapiCtx = get_ctx(State),
     to_swag(map, maps:merge(
         #{

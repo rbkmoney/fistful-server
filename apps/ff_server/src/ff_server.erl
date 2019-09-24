@@ -63,8 +63,8 @@ init([]) ->
         contruct_backend_childspec('ff/wallet_v2'             , ff_wallet_machine),
         contruct_backend_childspec('ff/source_v1'             , ff_instrument_machine),
         contruct_backend_childspec('ff/destination_v2'        , ff_instrument_machine),
-        contruct_backend_childspec('ff/deposit_v1'            , ff_transfer_machine),
-        contruct_backend_childspec('ff/withdrawal_v2'         , ff_transfer_machine),
+        contruct_backend_childspec('ff/deposit_v1'            , ff_deposit_machine),
+        contruct_backend_childspec('ff/withdrawal_v2'         , ff_withdrawal_machine),
         contruct_backend_childspec('ff/withdrawal/session_v2' , ff_withdrawal_session_machine)
     ]),
     ok = application:set_env(fistful, backends, maps:from_list(Backends)),
@@ -155,7 +155,7 @@ get_admin_routes() ->
     Path = maps:get(path, Opts, <<"/v1/admin">>),
     Limits = genlib_map:get(handler_limits, Opts),
     woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {{ff_proto_fistful_thrift, 'FistfulAdmin'}, {ff_server_handler, []}}}],
+        handlers => [{Path, {{ff_proto_fistful_admin_thrift, 'FistfulAdmin'}, {ff_server_admin_handler, []}}}],
         event_handler => scoper_woody_event_handler,
         handler_limits => Limits
     })).

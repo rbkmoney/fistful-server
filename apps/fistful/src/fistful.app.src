@@ -9,6 +9,7 @@
         stdlib,
         genlib,
         ff_core,
+        snowflake,
         machinery,
         machinery_extra,
         woody,

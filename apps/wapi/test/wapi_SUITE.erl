@@ -602,57 +602,36 @@ create_withdrawal(WalletID, DestID, C, QuoteToken) ->
     ),
     maps:get(<<"id">>, Withdrawal).
 
-% TODO: Use this function variant after fistful-magista protocol update
-% check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
-%     ct_helper:await(
-%         ok,
-%         fun () ->
-%             R = call_api(fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
-%                          #{qs_val => #{
-%                              <<"withdrawalID">> => WithdrawalID,
-%                              <<"limit">> => 100
-%                             }},
-%                          ct_helper:cfg(context, C)),
-%             case R of
-%                 {ok, #{<<"result">> := []}} ->
-%                     R;
-%                 {ok, Withdrawal} ->
-%                     #{<<"result">> := [
-%                         #{<<"wallet">> := WalletID,
-%                           <<"destination">> := DestID,
-%                           <<"body">> := #{
-%                               <<"amount">> := 100,
-%                               <<"currency">> := <<"RUB">>
-%                           }
-%                     }]} = Withdrawal,
-%                     ok;
-%                 _ ->
-%                     R
-%             end
-%         end,
-%         {linear, 20, 1000}
-%     ).
-
 check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
     ct_helper:await(
         ok,
         fun () ->
-            case get_withdrawal(WithdrawalID, C) of
-                {ok, Withdrawal} ->
-                    #{
-                        <<"wallet">> := WalletID,
-                        <<"destination">> := DestID,
-                        <<"body">> := #{
-                            <<"amount">> := 100,
-                            <<"currency">> := <<"RUB">>
-                        }
-                    } = Withdrawal,
+            case get_magista_withdrawal(WithdrawalID, C) of
+                {ok, Withdrawals} ->
+                    #{<<"result">> := [
+                        #{<<"wallet">> := WalletID,
+                          <<"destination">> := DestID,
+                          <<"body">> := #{
+                              <<"amount">> := 100,
+                              <<"currency">> := <<"RUB">>
+                          }
+                    }]} = Withdrawals,
                     ok;
                 Other ->
                     Other
             end
         end,
         {linear, 20, 1000}
+    ).
+
+get_magista_withdrawal(WithdrawalID, C) ->
+    call_api(
+        fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
+        #{qs_val => #{
+            <<"withdrawalID">> => WithdrawalID,
+            <<"limit">> => 100
+        }},
+        ct_helper:cfg(context, C)
     ).
 
 get_withdrawal(WithdrawalID, C) ->

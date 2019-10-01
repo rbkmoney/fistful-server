@@ -35,7 +35,7 @@ handle_function_('CreateSource', [Params], Context, Opts) ->
             name     => Params#ff_admin_SourceParams.name,
             currency => ff_codec:unmarshal(currency_ref, Params#ff_admin_SourceParams.currency),
             resource => ff_source_codec:unmarshal(resource, Params#ff_admin_SourceParams.resource)
-        }, ff_ctx:new())
+        }, ff_entity_context:new())
     of
         ok ->
             handle_function_('GetSource', [SourceID], Context, Opts);
@@ -62,7 +62,7 @@ handle_function_('CreateDeposit', [Params], Context, Opts) ->
         wallet_id   => Params#ff_admin_DepositParams.destination,
         body        => ff_codec:unmarshal(cash, Params#ff_admin_DepositParams.body)
     },
-    case handle_create_result(ff_deposit_machine:create(DepositParams, ff_ctx:new())) of
+    case handle_create_result(ff_deposit_machine:create(DepositParams, ff_entity_context:new())) of
         ok ->
             handle_function_('GetDeposit', [DepositID], Context, Opts);
         {error, {source, notfound}} ->

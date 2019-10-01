@@ -1,10 +1,10 @@
 %%%
-%%% Internal client context
+%%% Persistent entity context
 %%%
 
--module(ff_ctx).
+-module(ff_entity_context).
 
--type ctx() :: #{namespace() => md()}.
+-type context() :: #{namespace() => md()}.
 
 -type namespace() :: binary().
 -type md()        :: %% as stolen from `machinery_msgpack`
@@ -17,7 +17,7 @@
     [md()]             |
     #{md() => md()}    .
 
--export_type([ctx/0]).
+-export_type([context/0]).
 -export_type([md/0]).
 
 -export([new/0]).
@@ -26,11 +26,11 @@
 %%
 
 -spec new() ->
-    ctx().
+    context().
 new() ->
     #{}.
 
--spec get(namespace(), ctx()) ->
+-spec get(namespace(), context()) ->
     {ok, md()}       |
     {error, notfound}.
 get(Ns, Ctx) ->

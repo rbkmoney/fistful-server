@@ -141,7 +141,7 @@ create_ok(C) ->
     Party               = create_party(C),
     IdentityID          = create_identity(Party, C),
     WalletParams        = construct_wallet_params(IdentityID),
-    CreateResult        = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    CreateResult        = ff_wallet_machine:create(ID, WalletParams, ff_entity_context:new()),
     Wallet              = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
     Accessibility       = unwrap(ff_wallet:is_accessible(Wallet)),
     Account             = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
@@ -156,15 +156,15 @@ create_error_id_exists(C) ->
     Party         = create_party(C),
     IdentityID    = create_identity(Party, C),
     WalletParams  = construct_wallet_params(IdentityID),
-    CreateResult0 = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
-    CreateResult1 = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    CreateResult0 = ff_wallet_machine:create(ID, WalletParams, ff_entity_context:new()),
+    CreateResult1 = ff_wallet_machine:create(ID, WalletParams, ff_entity_context:new()),
     ?assertMatch(ok, CreateResult0),
     ?assertMatch({error, exists}, CreateResult1).
 
 create_error_identity_not_found(_C) ->
     ID           = genlib:unique(),
     WalletParams = construct_wallet_params(genlib:unique()),
-    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_entity_context:new()),
     ?assertMatch({error, {identity, notfound}}, CreateResult).
 
 create_error_currency_not_found(C) ->
@@ -172,7 +172,7 @@ create_error_currency_not_found(C) ->
     Party        = create_party(C),
     IdentityID   = create_identity(Party, C),
     WalletParams = construct_wallet_params(IdentityID, <<"EOS">>),
-    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_entity_context:new()),
     ?assertMatch({error, {currency, notfound}}, CreateResult).
 
 create_error_party_blocked(C) ->
@@ -181,7 +181,7 @@ create_error_party_blocked(C) ->
     IdentityID   = create_identity(Party, C),
     ok           = block_party(Party, C),
     WalletParams = construct_wallet_params(IdentityID),
-    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_entity_context:new()),
     ?assertMatch({error, {party, {inaccessible, blocked}}}, CreateResult).
 
 create_error_party_suspended(C) ->
@@ -190,7 +190,7 @@ create_error_party_suspended(C) ->
     IdentityID   = create_identity(Party, C),
     ok           = suspend_party(Party, C),
     WalletParams = construct_wallet_params(IdentityID),
-    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_entity_context:new()),
     ?assertMatch({error, {party, {inaccessible, suspended}}}, CreateResult).
 
 create_error_terms_not_allowed_currency(C) ->
@@ -198,7 +198,7 @@ create_error_terms_not_allowed_currency(C) ->
     Party        = create_party(C),
     IdentityID   = create_identity(Party, C),
     WalletParams = construct_wallet_params(IdentityID, <<"USD">>),
-    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_ctx:new()),
+    CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_entity_context:new()),
     ?assertMatch({error, {terms, {terms_violation, {not_allowed_currency, _}}}}, CreateResult).
 
 %%
@@ -222,7 +222,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
             provider => ProviderID,
             class    => ClassID
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 

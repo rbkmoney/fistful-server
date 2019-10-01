@@ -135,7 +135,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -157,7 +157,7 @@ create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
         Type,
         ID,
         #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_ctx:new(),
+        ff_entity_context:new(),
         C
     ),
     ID.

@@ -103,7 +103,7 @@ limit_check_fail_test(C) ->
         wallet_id     => WalletID,
         external_id   => generate_id()
     },
-    ok = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
+    ok = ff_deposit_machine:create(DepositParams, ff_entity_context:new()),
     Result = await_final_deposit_status(DepositID),
     ?assertMatch({failed, #{
         code := <<"account_limit_exceeded">>,
@@ -127,7 +127,7 @@ create_bad_amount_test(C) ->
         wallet_id     => WalletID,
         external_id   => generate_id()
     },
-    Result = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
+    Result = ff_deposit_machine:create(DepositParams, ff_entity_context:new()),
     ?assertMatch({error, {bad_deposit_amount, 0}}, Result).
 
 -spec create_currency_validation_error_test(config()) -> test_return().
@@ -144,7 +144,7 @@ create_currency_validation_error_test(C) ->
         wallet_id     => WalletID,
         external_id   => generate_id()
     },
-    Result = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
+    Result = ff_deposit_machine:create(DepositParams, ff_entity_context:new()),
     Details = {
         <<"EUR">>,
         [
@@ -167,7 +167,7 @@ create_source_notfound_test(C) ->
         wallet_id     => WalletID,
         external_id   => generate_id()
     },
-    Result = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
+    Result = ff_deposit_machine:create(DepositParams, ff_entity_context:new()),
     ?assertMatch({error, {source, notfound}}, Result).
 
 -spec create_wallet_notfound_test(config()) -> test_return().
@@ -183,7 +183,7 @@ create_wallet_notfound_test(C) ->
         wallet_id     => <<"unknown_wallet">>,
         external_id   => generate_id()
     },
-    Result = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
+    Result = ff_deposit_machine:create(DepositParams, ff_entity_context:new()),
     ?assertMatch({error, {wallet, notfound}}, Result).
 
 -spec create_ok_test(config()) -> test_return().
@@ -201,7 +201,7 @@ create_ok_test(C) ->
         wallet_id     => WalletID,
         external_id   => DepositID
     },
-    ok = ff_deposit_machine:create(DepositParams, ff_ctx:new()),
+    ok = ff_deposit_machine:create(DepositParams, ff_entity_context:new()),
     succeeded = await_final_deposit_status(DepositID),
     ok = await_wallet_balance(DepositCash, WalletID),
     Deposit = get_deposit(DepositID),
@@ -271,7 +271,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -280,7 +280,7 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ok = ff_wallet_machine:create(
         ID,
         #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -308,7 +308,7 @@ create_source(IID, _C) ->
     ID = generate_id(),
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
     Params = #{identity => IID, name => <<"XSource">>, currency => <<"RUB">>, resource => SrcResource},
-    ok = ff_source:create(ID, Params, ff_ctx:new()),
+    ok = ff_source:create(ID, Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->

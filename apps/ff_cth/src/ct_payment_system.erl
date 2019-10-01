@@ -279,7 +279,7 @@ create_identity(ID, PartyID, ProviderID, ClassID) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => PartyID, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 

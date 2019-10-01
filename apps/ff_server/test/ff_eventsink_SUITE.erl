@@ -114,7 +114,7 @@ get_identity_events_ok(C) ->
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ICID = genlib:unique(),
     D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
@@ -159,7 +159,7 @@ get_create_wallet_events_ok(C) ->
             name     => <<"EVENTS TEST">>,
             currency => <<"RUB">>
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
@@ -317,7 +317,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -326,7 +326,7 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ok = ff_wallet_machine:create(
         ID,
         #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -336,7 +336,7 @@ create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
         Type,
         ID,
         #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_ctx:new(),
+        ff_entity_context:new(),
         C
     ),
     ID.
@@ -365,7 +365,7 @@ process_deposit(SrcID, WalID) ->
     DepID = generate_id(),
     ok = ff_deposit_machine:create(
         #{id => DepID, source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     succeeded = await_final_deposit_status(DepID),
     DepID.
@@ -386,7 +386,7 @@ process_withdrawal(WalID, DestID) ->
     WdrID = generate_id(),
     ok = ff_withdrawal_machine:create(
         #{id => WdrID, wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     succeeded = await_final_withdrawal_status(WdrID),
     true = ct_helper:await(

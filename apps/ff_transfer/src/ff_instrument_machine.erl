@@ -8,7 +8,7 @@
 
 -type id()          :: machinery:id().
 -type ns()          :: machinery:namespace().
--type ctx()         :: ff_ctx:ctx().
+-type ctx()         :: ff_entity_context:context().
 -type instrument(T) :: ff_instrument:instrument(T).
 
 -type st(T) ::

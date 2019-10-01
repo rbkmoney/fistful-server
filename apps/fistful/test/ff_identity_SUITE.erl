@@ -129,7 +129,7 @@ create_missing_fails(_C) ->
             provider => <<"who">>,
             class    => <<"person">>
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     {error, {identity_class, notfound}} = ff_identity_machine:create(
         ID,
@@ -138,7 +138,7 @@ create_missing_fails(_C) ->
             provider => <<"good-one">>,
             class    => <<"nosrep">>
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ).
 
 create_ok(C) ->
@@ -151,7 +151,7 @@ create_ok(C) ->
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
     {ok, accessible} = ff_identity:is_accessible(I1),
@@ -168,7 +168,7 @@ identify_ok(C) ->
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ICID = genlib:unique(),
     {ok, S1} = ff_identity_machine:get(ID),

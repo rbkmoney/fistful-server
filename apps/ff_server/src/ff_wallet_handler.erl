@@ -64,7 +64,7 @@ encode(wallet, {ID, Machine}) ->
         context     = encode(context, Ctx)
     };
 encode(context, Ctx) ->
-    ff_context:wrap(Ctx);
+    ff_entity_context_codec:marshal(Ctx);
 encode(account, Account) ->
     #account_Account{
         id       = ff_account:id(Account),
@@ -86,5 +86,5 @@ decode(wallet_params, Params) ->
 decode(context, undefined) ->
     undefined;
 decode(context, Ctx) ->
-    ff_context:unwrap(Ctx).
+    ff_entity_context_codec:unmarshal(Ctx).
 

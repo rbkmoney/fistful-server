@@ -101,7 +101,7 @@ create_destination_ok(Resource, C) ->
     ID = genlib:unique(),
     ExternalId = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #dst_DestinationParams{
         id          = ID,
         identity    = IdentityID,
@@ -157,6 +157,6 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.

@@ -78,7 +78,7 @@ create_identity_ok(_C) ->
     ProvID  = <<"good-one">>,
     ClassID = <<"person">>,
     Ctx = #{<<"NS">> => #{<<"owner">> => PartyID}},
-    Context = ff_context:wrap(Ctx),
+    Context = ff_entity_context_codec:marshal(Ctx),
     Identity = create_identity(EID, PartyID, ProvID, ClassID, Context),
     IID = Identity#idnt_Identity.id,
     {ok, Identity_} = call_api('Get', [IID]),
@@ -88,7 +88,7 @@ create_identity_ok(_C) ->
     PartyID = Identity_#idnt_Identity.party,
     ClassID = Identity_#idnt_Identity.cls,
     false   = Identity_#idnt_Identity.blocked,
-    Ctx     = ff_context:unwrap(Identity_#idnt_Identity.context),
+    Ctx     = ff_entity_context_codec:unmarshal(Identity_#idnt_Identity.context),
     ok.
 
 run_challenge_ok(C) ->
@@ -99,7 +99,7 @@ run_challenge_ok(C) ->
     ProvID      = <<"good-one">>,
     ClassID     = <<"person">>,
     ChlClassID  = <<"sword-initiation">>,
-    IdentityState = create_identity(EID, PartyID, ProvID, ClassID, ff_context:wrap(Context)),
+    IdentityState = create_identity(EID, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
 
     IID = IdentityState#idnt_Identity.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
@@ -113,7 +113,7 @@ run_challenge_ok(C) ->
 
 
 get_challenge_event_ok(C) ->
-    Context = ff_context:wrap(#{<<"NS">> => #{}}),
+    Context = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     ProvID     = <<"good-one">>,
     ClassID    = <<"person">>,
     EID        = genlib:unique(),
@@ -152,7 +152,7 @@ get_challenge_event_ok(C) ->
     ?assertNotEqual(undefined, Identity2#idnt_Identity.level).
 
 get_event_unknown_identity_ok(_C) ->
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     EID = genlib:unique(),
     PID     = create_party(),
     ProvID  = <<"good-one">>,
@@ -165,7 +165,7 @@ get_event_unknown_identity_ok(_C) ->
     {exception, {fistful_IdentityNotFound}} = call_api('GetEvents', [<<"bad id">>, Range]).
 
 start_challenge_token_fail(C) ->
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     EID = genlib:unique(),
     PID = create_party(),
     ProvID     = <<"good-one">>,
@@ -195,7 +195,7 @@ get_challenges_ok(C) ->
     ProvID      = <<"good-one">>,
     ClassID     = <<"person">>,
     ChlClassID  = <<"sword-initiation">>,
-    Identity = create_identity(EID, PartyID, ProvID, ClassID, ff_context:wrap(Context)),
+    Identity = create_identity(EID, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
 
     IID = Identity#idnt_Identity.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),

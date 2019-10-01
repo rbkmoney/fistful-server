@@ -11,7 +11,7 @@
 -type id()        :: machinery:id().
 -type namespace() :: machinery:namespace().
 -type timestamp() :: machinery:timestamp().
--type ctx()       :: ff_ctx:ctx().
+-type ctx()       :: ff_entity_context:context().
 
 -type st(Model) :: #{
     model         := Model,
@@ -123,7 +123,7 @@ get(Mod, NS, ID) ->
 collapse(Mod, #{history := History, aux_state := #{ctx := Ctx}}) ->
     collapse_history(Mod, History, #{ctx => Ctx});
 collapse(Mod, #{history := History}) ->
-    collapse_history(Mod, History, #{ctx => ff_ctx:new()}).
+    collapse_history(Mod, History, #{ctx => ff_entity_context:new()}).
 
 collapse_history(Mod, History, St0) ->
     lists:foldl(fun (Ev, St) -> merge_event(Mod, Ev, St) end, St0, History).

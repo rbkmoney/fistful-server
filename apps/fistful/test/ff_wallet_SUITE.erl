@@ -30,7 +30,7 @@
 -import(ff_pipeline, [unwrap/1]).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -65,7 +65,7 @@ init_per_suite(C) ->
         {fistful, [
             {services, #{
                 'partymgmt' => "http://hellgate:8022/v1/processing/partymgmt",
-                'accounter' => "http://shumway:8022/accounter"
+                'accounter' => "http://shumway:8022/shumpune"
             }},
             {backends, #{
                 'ff/identity'  => Be,
@@ -102,7 +102,7 @@ init_per_suite(C) ->
             {started_apps , StartedApps},
             {suite_sup    , SuiteSup},
             {services     , #{
-                'accounter' => ff_woody_client:new("http://shumway:8022/accounter")
+                'accounter' => ff_woody_client:new("http://shumway:8022/shumpune")
             }}
         | C]
     ),

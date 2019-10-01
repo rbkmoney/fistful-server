@@ -6,12 +6,12 @@
 
 -module(ff_transaction).
 
--include_lib("damsel/include/dmsl_accounter_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %%
 
--type id()       :: dmsl_accounter_thrift:'PlanID'().
--type account()  :: dmsl_accounter_thrift:'AccountID'().
+-type id()       :: shumpune_shumpune_thrift:'PlanID'().
+-type account()  :: shumpune_shumpune_thrift:'AccountID'().
 -type amount()   :: dmsl_domain_thrift:'Amount'().
 -type body()     :: ff_cash:cash().
 -type posting()  :: {account(), account(), body()}.
@@ -36,8 +36,10 @@
 -spec balance(account()) ->
     {ok, balance()}.
 
-balance(Account) ->
-    get_account_by_id(Account).
+balance(AccountID) ->
+    {ok, Balance} = get_balance_by_id(AccountID),
+    {ok, Account} = get_account_by_id(AccountID),
+    {ok, build_account_balance(Account, Balance)}.
 
 -spec prepare(id(), [posting()]) ->
     {ok, affected()}.
@@ -62,53 +64,61 @@ cancel(ID, Postings) ->
 get_account_by_id(ID) ->
     case call('GetAccountByID', [ID]) of
         {ok, Account} ->
-            {ok, decode_account_balance(Account)};
+            {ok, Account};
+        {exception, Unexpected} ->
+            error(Unexpected)
+    end.
+
+get_balance_by_id(ID) ->
+    case call('GetBalanceByID', [ID, {latest, #shumpune_LatestClock{}}]) of
+        {ok, Balance} ->
+            {ok, Balance};
         {exception, Unexpected} ->
             error(Unexpected)
     end.
 
 hold(PlanChange) ->
     case call('Hold', [PlanChange]) of
-        {ok, #accounter_PostingPlanLog{affected_accounts = Affected}} ->
-            {ok, decode_affected(Affected)};
+        {ok, Clock} ->
+            {ok, Clock};
         {exception, Unexpected} ->
             error(Unexpected)
     end.
 
 commit_plan(Plan) ->
     case call('CommitPlan', [Plan]) of
-        {ok, #accounter_PostingPlanLog{affected_accounts = Affected}} ->
-            {ok, decode_affected(Affected)};
+        {ok, Clock} ->
+            {ok, Clock};
         {exception, Unexpected} ->
             error(Unexpected)
     end.
 
 rollback_plan(Plan) ->
     case call('RollbackPlan', [Plan]) of
-        {ok, #accounter_PostingPlanLog{affected_accounts = Affected}} ->
-            {ok, decode_affected(Affected)};
+        {ok, Clock} ->
+            {ok, Clock};
         {exception, Unexpected} ->
             error(Unexpected)
     end.
 
 call(Function, Args) ->
-    Service = {dmsl_accounter_thrift, 'Accounter'},
+    Service = {shumpune_shumpune_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}).
 
 encode_plan_change(ID, Postings) ->
-    #accounter_PostingPlanChange{
+    #shumpune_PostingPlanChange{
         id    = ID,
         batch = encode_batch(Postings)
     }.
 
 encode_plan(ID, Postings) ->
-    #accounter_PostingPlan{
+    #shumpune_PostingPlan{
         id         = ID,
         batch_list = [encode_batch(Postings)]
     }.
 
 encode_batch(Postings) ->
-    #accounter_PostingBatch{
+    #shumpune_PostingBatch{
         id       = 1, % TODO
         postings = [
             encode_posting(Source, Destination, Body)
@@ -117,7 +127,7 @@ encode_batch(Postings) ->
     }.
 
 encode_posting(Source, Destination, {Amount, Currency}) ->
-    #accounter_Posting{
+    #shumpune_Posting{
         from_id           = Source,
         to_id             = Destination,
         amount            = Amount,
@@ -125,13 +135,13 @@ encode_posting(Source, Destination, {Amount, Currency}) ->
         description       = <<"TODO">>
     }.
 
-decode_affected(M) ->
-    maps:map(fun (_, A) -> decode_account_balance(A) end, M).
-
-decode_account_balance(#accounter_Account{
-    own_amount = Own,
-    max_available_amount = MaxAvail,
-    min_available_amount = MinAvail,
-    currency_sym_code = Currency
-}) ->
+build_account_balance(
+    #shumpune_Account{
+        currency_sym_code = Currency
+    },
+    #shumpune_Balance{
+        own_amount = Own,
+        max_available_amount = MaxAvail,
+        min_available_amount = MinAvail
+    }) ->
     {ff_indef:new(MinAvail, Own, MaxAvail), Currency}.

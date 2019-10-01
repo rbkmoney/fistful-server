@@ -9,7 +9,8 @@
 
 -module(ff_account).
 
--include_lib("damsel/include/dmsl_accounter_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 -type id() :: binary().
 -type account() :: #{
@@ -51,7 +52,7 @@
 -type currency() :: ff_currency:currency().
 -type identity_id() :: ff_identity:id().
 -type currency_id() :: ff_currency:id().
--type accounter_account_id() :: dmsl_accounter_thrift:'AccountID'().
+-type accounter_account_id() :: shumpune_shumpune_thrift:'AccountID'().
 
 %% Accessors
 
@@ -140,11 +141,11 @@ create_account(ID, Currency) ->
     end.
 
 construct_prototype(CurrencyCode, Description) ->
-    #accounter_AccountPrototype{
+    #shumpune_AccountPrototype{
         currency_sym_code = CurrencyCode,
         description = Description
     }.
 
 call_accounter(Function, Args) ->
-    Service = {dmsl_accounter_thrift, 'Accounter'},
+    Service = {shumpune_shumpune_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}).

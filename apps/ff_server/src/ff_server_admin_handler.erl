@@ -1,26 +1,21 @@
 -module(ff_server_admin_handler).
--behaviour(woody_server_thrift_handler).
+-behaviour(ff_woody_wrapper).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
 
-%% woody_server_thrift_handler callbacks
--export([handle_function/4]).
+%% ff_woody_wrapper callbacks
+-export([handle_function/3]).
 
 %%
-%% woody_server_thrift_handler callbacks
+%% ff_woody_wrapper callbacks
 %%
 
--spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
+-spec handle_function(woody:func(), woody:args(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function(Func, Args, Context, Opts) ->
-    scoper:scope(fistful, #{function => Func},
+handle_function(Func, Args, Opts) ->
+    scoper:scope(fistful_admin, #{},
         fun() ->
-            ok = ff_woody_ctx:set(Context),
-            try
-                handle_function_(Func, Args, Context, Opts)
-            after
-                ff_woody_ctx:unset()
-            end
+            handle_function_(Func, Args, Opts)
         end
     ).
 
@@ -28,7 +23,7 @@ handle_function(Func, Args, Context, Opts) ->
 %% Internals
 %%
 
-handle_function_('CreateSource', [Params], Context, Opts) ->
+handle_function_('CreateSource', [Params], Opts) ->
     SourceID = Params#ff_admin_SourceParams.id,
     case ff_source:create(SourceID, #{
             identity => Params#ff_admin_SourceParams.identity_id,
@@ -38,7 +33,7 @@ handle_function_('CreateSource', [Params], Context, Opts) ->
         }, ff_entity_context:new())
     of
         ok ->
-            handle_function_('GetSource', [SourceID], Context, Opts);
+            handle_function_('GetSource', [SourceID], Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {currency, notfound}} ->
@@ -46,7 +41,7 @@ handle_function_('CreateSource', [Params], Context, Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('GetSource', [ID], _Context, _Opts) ->
+handle_function_('GetSource', [ID], _Opts) ->
     case ff_source:get_machine(ID) of
         {ok, Machine} ->
             Source = ff_source:get(Machine),
@@ -54,7 +49,7 @@ handle_function_('GetSource', [ID], _Context, _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_SourceNotFound{})
     end;
-handle_function_('CreateDeposit', [Params], Context, Opts) ->
+handle_function_('CreateDeposit', [Params], Opts) ->
     DepositID = Params#ff_admin_DepositParams.id,
     DepositParams = #{
         id          => DepositID,
@@ -64,7 +59,7 @@ handle_function_('CreateDeposit', [Params], Context, Opts) ->
     },
     case handle_create_result(ff_deposit_machine:create(DepositParams, ff_entity_context:new())) of
         ok ->
-            handle_function_('GetDeposit', [DepositID], Context, Opts);
+            handle_function_('GetDeposit', [DepositID], Opts);
         {error, {source, notfound}} ->
             woody_error:raise(business, #fistful_SourceNotFound{});
         {error, {source, unauthorized}} ->
@@ -80,7 +75,7 @@ handle_function_('CreateDeposit', [Params], Context, Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('GetDeposit', [ID], _Context, _Opts) ->
+handle_function_('GetDeposit', [ID], _Opts) ->
     case ff_deposit_machine:get(ID) of
         {ok, Machine} ->
             Deposit = ff_deposit_machine:deposit(Machine),

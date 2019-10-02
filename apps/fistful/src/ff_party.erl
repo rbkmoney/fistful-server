@@ -439,7 +439,7 @@ get_woody_ctx() ->
     %  - Move auth logic from hellgate to capi the same way as it works
     %    in wapi & fistful. Then the following dirty user_identity hack
     %    will not be necessary anymore.
-    reset_useridentity(ff_woody_ctx:get()).
+    reset_useridentity(ff_context:get_woody_context(ff_context:load())).
 
 reset_useridentity(Ctx) ->
     woody_user_identity:put(construct_useridentity(), maps:without([meta], Ctx)).

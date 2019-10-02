@@ -88,13 +88,13 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 %%
 
@@ -103,7 +103,7 @@ end_per_testcase(_Name, _C) ->
 get_identity_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
-    Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
+    Service = identity_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -148,7 +148,7 @@ get_create_wallet_events_ok(C) ->
     Party = create_party(C),
     IdentityID = create_identity(Party, C),
 
-    Service = {{ff_proto_wallet_thrift, 'EventSink'}, <<"/v1/eventsink/wallet">>},
+    Service = wallet_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -170,7 +170,7 @@ get_create_wallet_events_ok(C) ->
 -spec get_withdrawal_events_ok(config()) -> test_return().
 
 get_withdrawal_events_ok(C) ->
-    Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
+    Service = withdrawal_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
     Party   = create_party(C),
@@ -195,10 +195,7 @@ get_withdrawal_events_ok(C) ->
 -spec get_withdrawal_session_events_ok(config()) -> test_return().
 
 get_withdrawal_session_events_ok(C) ->
-    Service = {
-        {ff_proto_withdrawal_session_thrift, 'EventSink'},
-        <<"/v1/eventsink/withdrawal/session">>
-    },
+    Service = withdrawal_session_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -222,7 +219,7 @@ get_withdrawal_session_events_ok(C) ->
 -spec get_create_destination_events_ok(config()) -> test_return().
 
 get_create_destination_events_ok(C) ->
-    Service = {{ff_proto_destination_thrift, 'EventSink'}, <<"/v1/eventsink/destination">>},
+    Service = destination_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -239,7 +236,7 @@ get_create_destination_events_ok(C) ->
 -spec get_create_source_events_ok(config()) -> test_return().
 
 get_create_source_events_ok(C) ->
-    Service = {{ff_proto_source_thrift, 'EventSink'}, <<"/v1/eventsink/source">>},
+    Service = source_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -256,7 +253,7 @@ get_create_source_events_ok(C) ->
 -spec get_create_deposit_events_ok(config()) -> test_return().
 
 get_create_deposit_events_ok(C) ->
-    Service = {{ff_proto_deposit_thrift, 'EventSink'}, <<"/v1/eventsink/deposit">>},
+    Service = deposit_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -276,16 +273,14 @@ get_create_deposit_events_ok(C) ->
 
 get_shifted_create_identity_events_ok(C) ->
     #{suite_sup := SuiteSup} = ct_helper:cfg(payment_system, C),
-    Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
+    Service = identity_event_sink,
     StartEventNum = 3,
-    IdentityRoute = create_sink_route({<<"/v1/eventsink/identity">>,
-        {{ff_proto_identity_thrift, 'EventSink'}, {ff_eventsink_handler,
-        #{
-            ns          => <<"ff/identity">>,
-            publisher   => ff_identity_eventsink_publisher,
-            start_event => StartEventNum,
-            schema      => machinery_mg_schema_generic
-        }}}}),
+    IdentityRoute = create_sink_route(Service, {ff_eventsink_handler, #{
+        ns          => <<"ff/identity">>,
+        publisher   => ff_identity_eventsink_publisher,
+        start_event => StartEventNum,
+        schema      => machinery_mg_schema_generic
+    }}),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
         #{
@@ -392,7 +387,7 @@ process_withdrawal(WalID, DestID) ->
     true = ct_helper:await(
         true,
         fun () ->
-            Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
+            Service = withdrawal_event_sink,
             {ok, Events} = call_eventsink_handler('GetEvents',
                 Service, [#'evsink_EventRange'{'after' = 0, limit = 1000}]),
             search_event_commited(Events, WdrID)
@@ -469,17 +464,19 @@ unwrap_last_sinkevent_id({ok, EventID}) ->
 unwrap_last_sinkevent_id({exception, #'evsink_NoLastEvent'{}}) ->
     0.
 
--spec call_eventsink_handler(atom(), tuple(), list()) ->
+-spec call_eventsink_handler(atom(), ff_services:service_name(), list()) ->
     {ok, woody:result()} |
     {exception, woody_error:business_error()}.
 
-call_eventsink_handler(Function, Service, Args) ->
-    call_handler(Function, Service, Args, <<"8022">>).
+call_eventsink_handler(Function, ServiceName, Args) ->
+    call_handler(Function, ServiceName, Args, <<"8022">>).
 
-call_route_handler(Function, Service, Args) ->
-    call_handler(Function, Service, Args, <<"8040">>).
+call_route_handler(Function, ServiceName, Args) ->
+    call_handler(Function, ServiceName, Args, <<"8040">>).
 
-call_handler(Function, {Service, Path}, Args, Port) ->
+call_handler(Function, ServiceName, Args, Port) ->
+    Service = ff_services:get_service(ServiceName),
+    Path = erlang:list_to_binary(ff_services:get_service_path(ServiceName)),
     Request = {Service, Function, Args},
     Client  = ff_woody_client:new(#{
         url           => <<"http://localhost:", Port/binary, Path/binary>>,
@@ -487,14 +484,21 @@ call_handler(Function, {Service, Path}, Args, Port) ->
     }),
     ff_woody_client:call(Client, Request).
 
-create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
+create_sink_route(ServiceName, {Handler, Cfg}) ->
+    Service = ff_services:get_service(ServiceName),
+    Path = ff_services:get_service_path(ServiceName),
     NewCfg = Cfg#{
         client => #{
             event_handler => scoper_woody_event_handler,
             url => "http://machinegun:8022/v1/event_sink"
         }},
+    PartyClient = party_client:create_client(),
+    WrapperOptions = #{
+        handler => {Handler, NewCfg},
+        party_client => PartyClient
+    },
     woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {Module, {Handler, NewCfg}}}],
+        handlers => [{Path, {Service, {ff_woody_wrapper, WrapperOptions}}}],
         event_handler => scoper_woody_event_handler
     })).
 

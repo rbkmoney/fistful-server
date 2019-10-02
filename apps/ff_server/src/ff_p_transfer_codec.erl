@@ -5,6 +5,7 @@
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_transfer_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_cashflow_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 -export([marshal/2]).
 -export([unmarshal/2]).
@@ -32,6 +33,8 @@ marshal(event, {created, Transfer}) ->
     {created, #transfer_CreatedChange{transfer = marshal(transfer, Transfer)}};
 marshal(event, {status_changed, Status}) ->
     {status_changed, #transfer_StatusChange{status = marshal(status, Status)}};
+marshal(event, {clock_updated, Clock}) ->
+    {clock_updated, #transfer_ClockChange{clock = marshal(clock, Clock)}};
 
 marshal(transfer, #{final_cash_flow := Cashflow}) ->
     #transfer_Transfer{
@@ -78,6 +81,11 @@ marshal(status, committed) ->
 marshal(status, cancelled) ->
     {cancelled, #transfer_Cancelled{}};
 
+marshal(clock, {latest, #shumpune_LatestClock{}}) ->
+    {latest, #transfer_LatestClock{}};
+marshal(clock, {vector, #shumpune_VectorClock{state = State}}) ->
+    {vector, #transfer_VectorClock{state = State}};
+
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -92,6 +100,8 @@ unmarshal(event, {created, #transfer_CreatedChange{transfer = Transfer}}) ->
     {created, unmarshal(transfer, Transfer)};
 unmarshal(event, {status_changed, #transfer_StatusChange{status = Status}}) ->
     {status_changed, unmarshal(status, Status)};
+unmarshal(event, {clock_updated, #transfer_ClockChange{clock = Clock}}) ->
+    {clock_updated, unmarshal(clock, Clock)};
 
 unmarshal(transfer, #transfer_Transfer{
     cashflow = Cashflow
@@ -136,6 +146,11 @@ unmarshal(status, {committed, #transfer_Committed{}}) ->
     committed;
 unmarshal(status, {cancelled, #transfer_Cancelled{}}) ->
     cancelled;
+
+unmarshal(clock, {latest, #transfer_LatestClock{}}) ->
+    {latest, #shumpune_LatestClock{}};
+unmarshal(clock, {vector, #transfer_VectorClock{state = State}}) ->
+    {vector, #shumpune_VectorClock{state = State}};
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

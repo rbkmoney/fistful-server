@@ -139,9 +139,8 @@ prepare(Transfer = #{status := created}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
     do(fun () ->
-        _Clock = unwrap(ff_transaction:prepare(ID, construct_trx_postings(CashFlow))),
-%%        [{clock_updated, Clock}, {status_changed, prepared}]
-        [{status_changed, prepared}]
+        Clock = unwrap(ff_transaction:prepare(ID, construct_trx_postings(CashFlow))),
+        [{clock_updated, Clock}, {status_changed, prepared}]
     end);
 prepare(#{status := prepared}) ->
     {ok, []};
@@ -162,8 +161,8 @@ commit(Transfer = #{status := prepared}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
     do(fun () ->
-        _Clock = unwrap(ff_transaction:commit(ID, construct_trx_postings(CashFlow))),
-        [{status_changed, committed}]
+        Clock = unwrap(ff_transaction:commit(ID, construct_trx_postings(CashFlow))),
+        [{clock_updated, Clock}, {status_changed, committed}]
     end);
 commit(#{status := committed}) ->
     {ok, []};
@@ -180,8 +179,8 @@ cancel(Transfer = #{status := prepared}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
     do(fun () ->
-        _Clock = unwrap(ff_transaction:cancel(ID, construct_trx_postings(CashFlow))),
-        [{status_changed, cancelled}]
+        Clock = unwrap(ff_transaction:cancel(ID, construct_trx_postings(CashFlow))),
+        [{clock_updated, Clock}, {status_changed, cancelled}]
     end);
 cancel(#{status := cancelled}) ->
     {ok, []};

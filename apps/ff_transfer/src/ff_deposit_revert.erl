@@ -8,6 +8,7 @@
 
 -type id()       :: binary().
 -type reason()   :: binary().
+-type clock()    :: ff_transaction:clock().
 
 -opaque revert() :: #{
     version       := ?ACTUAL_FORMAT_VERSION,
@@ -374,7 +375,8 @@ process_limit_check(Revert) ->
     Body = body(Revert),
     {ok, WalletMachine} = ff_wallet_machine:get(wallet_id(Revert)),
     Wallet = ff_wallet_machine:wallet(WalletMachine),
-    Events = case validate_wallet_limits(Wallet, Body) of
+    Clock = get_clock(Revert),
+    Events = case validate_wallet_limits(Wallet, Body, Clock) of
         {ok, valid} ->
             [{limit_check, {wallet, ok}}];
         {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
@@ -629,11 +631,11 @@ is_limit_check_ok({wallet, ok}) ->
 is_limit_check_ok({wallet, {failed, _Details}}) ->
     false.
 
--spec validate_wallet_limits(wallet(), cash()) ->
+-spec validate_wallet_limits(wallet(), cash(), clock()) ->
     {ok, valid} |
     {error, validation_error()}.
-validate_wallet_limits(Wallet, Body) ->
-    case ff_party:validate_wallet_limits(Wallet, Body) of
+validate_wallet_limits(Wallet, Body, Clock) ->
+    case ff_party:validate_wallet_limits(Wallet, Body, Clock) of
         {ok, valid} = Result ->
             Result;
         {error, {terms_violation, {cash_range, {Cash, CashRange}}}} ->
@@ -653,3 +655,8 @@ build_failure(limit_check, Revert) ->
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->
     <<"ff/deposit_revert/", ID/binary>>.
+
+get_clock(#{clock := Clock}) ->
+    Clock;
+get_clock(_) ->
+    ff_transaction:default_clock().

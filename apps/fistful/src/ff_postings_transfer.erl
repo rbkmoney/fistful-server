@@ -14,6 +14,7 @@
 -module(ff_postings_transfer).
 
 -type final_cash_flow()  :: ff_cash_flow:final_cash_flow().
+-type clock()            :: shumpune_shumpune_thrift:'Clock'().
 
 -type status() ::
     created   |
@@ -29,6 +30,7 @@
 
 -type event() ::
     {created, transfer()} |
+    {clock_updated, clock()} |
     {status_changed, status()}.
 
 -export_type([transfer/0]).
@@ -138,6 +140,7 @@ prepare(Transfer = #{status := created}) ->
     CashFlow = final_cash_flow(Transfer),
     do(fun () ->
         _Clock = unwrap(ff_transaction:prepare(ID, construct_trx_postings(CashFlow))),
+%%        [{clock_updated, Clock}, {status_changed, prepared}]
         [{status_changed, prepared}]
     end);
 prepare(#{status := prepared}) ->
@@ -192,6 +195,8 @@ cancel(#{status := Status}) ->
 
 apply_event({created, Transfer}, undefined) ->
     Transfer;
+apply_event({clock_updated, Clock}, Transfer) ->
+    Transfer#{clock => Clock};
 apply_event({status_changed, S}, Transfer) ->
     Transfer#{status => S}.
 

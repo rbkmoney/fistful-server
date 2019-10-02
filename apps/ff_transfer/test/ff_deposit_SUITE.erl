@@ -298,7 +298,10 @@ get_wallet_balance(ID) ->
     get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
 
 get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        ff_account:accounter_account_id(Account),
+        ff_transaction:default_clock()
+    ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 generate_id() ->

@@ -4,7 +4,8 @@
 
 -module(ff_deposit).
 
--type id() :: binary().
+-type id()    :: binary().
+-type clock() :: ff_transaction:clock().
 
 -define(ACTUAL_FORMAT_VERSION, 2).
 -opaque deposit() :: #{
@@ -504,7 +505,8 @@ process_limit_check(Deposit) ->
     Body = body(Deposit),
     {ok, WalletMachine} = ff_wallet_machine:get(wallet_id(Deposit)),
     Wallet = ff_wallet_machine:wallet(WalletMachine),
-    Events = case validate_wallet_limits(Wallet, Body) of
+    Clock = get_clock(Deposit),
+    Events = case validate_wallet_limits(Wallet, Body, Clock) of
         {ok, valid} ->
             [{limit_check, {wallet, ok}}];
         {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
@@ -674,11 +676,11 @@ is_limit_check_ok({wallet, ok}) ->
 is_limit_check_ok({wallet, {failed, _Details}}) ->
     false.
 
--spec validate_wallet_limits(wallet(), cash()) ->
+-spec validate_wallet_limits(wallet(), cash(), clock()) ->
     {ok, valid} |
     {error, {terms_violation, {wallet_limit, {cash_range, {cash(), cash_range()}}}}}.
-validate_wallet_limits(Wallet, Body) ->
-    case ff_party:validate_wallet_limits(Wallet, Body) of
+validate_wallet_limits(Wallet, Body, Clock) ->
+    case ff_party:validate_wallet_limits(Wallet, Body, Clock) of
         {ok, valid} = Result ->
             Result;
         {error, {terms_violation, {cash_range, {Cash, CashRange}}}} ->
@@ -1010,3 +1012,8 @@ maybe_migrate({status_changed, {failed, LegacyFailure}}) ->
 % Other events
 maybe_migrate(Ev) ->
     Ev.
+
+get_clock(#{clock := Clock}) ->
+    Clock;
+get_clock(_) ->
+    ff_transaction:default_clock().

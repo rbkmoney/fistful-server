@@ -394,7 +394,10 @@ get_destination_balance(ID) ->
     get_account_balance(ff_destination:account(ff_destination:get(Machine))).
 
 get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        ff_account:accounter_account_id(Account),
+        ff_transaction:default_clock()
+    ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->

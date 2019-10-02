@@ -145,7 +145,7 @@ create_ok(C) ->
     Wallet              = ff_wallet_machine:wallet(unwrap(ff_wallet_machine:get(ID))),
     Accessibility       = unwrap(ff_wallet:is_accessible(Wallet)),
     Account             = ff_account:accounter_account_id(ff_wallet:account(Wallet)),
-    {Amount, <<"RUB">>} = unwrap(ff_transaction:balance(Account)),
+    {Amount, <<"RUB">>} = unwrap(ff_transaction:balance(Account, ff_transaction:default_clock())),
     CurrentAmount       = ff_indef:current(Amount),
     ?assertMatch(ok,         CreateResult),
     ?assertMatch(accessible, Accessibility),

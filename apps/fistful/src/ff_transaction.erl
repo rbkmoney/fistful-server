@@ -12,6 +12,7 @@
 
 -type id()       :: shumpune_shumpune_thrift:'PlanID'().
 -type account()  :: shumpune_shumpune_thrift:'AccountID'().
+-type clock()    :: shumpune_shumpune_thrift:'Clock'().
 -type amount()   :: dmsl_domain_thrift:'Amount'().
 -type body()     :: ff_cash:cash().
 -type posting()  :: {account(), account(), body()}.
@@ -22,10 +23,12 @@
 -export_type([body/0]).
 -export_type([account/0]).
 -export_type([posting/0]).
+-export_type([clock/0]).
 
 %% TODO
 %%  - Module name is misleading then
--export([balance/1]).
+-export([balance/2]).
+-export([default_clock/0]).
 
 -export([prepare/2]).
 -export([commit/2]).
@@ -33,13 +36,17 @@
 
 %%
 
--spec balance(account()) ->
+-spec balance(account(), clock()) ->
     {ok, balance()}.
 
-balance(AccountID) ->
-    {ok, Balance} = get_balance_by_id(AccountID),
+balance(AccountID, Clock) ->
+    {ok, Balance} = get_balance_by_id(AccountID, Clock),
     {ok, Account} = get_account_by_id(AccountID),
     {ok, build_account_balance(Account, Balance)}.
+
+-spec default_clock() -> clock().
+default_clock() ->
+    {latest, #shumpune_LatestClock{}}.
 
 -spec prepare(id(), [posting()]) ->
     {ok, affected()}.
@@ -69,8 +76,8 @@ get_account_by_id(ID) ->
             error(Unexpected)
     end.
 
-get_balance_by_id(ID) ->
-    case call('GetBalanceByID', [ID, {latest, #shumpune_LatestClock{}}]) of
+get_balance_by_id(ID, Clock) ->
+    case call('GetBalanceByID', [ID, Clock]) of
         {ok, Balance} ->
             {ok, Balance};
         {exception, Unexpected} ->

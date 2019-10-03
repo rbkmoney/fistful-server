@@ -24,8 +24,7 @@
     limit_checks  => [limit_check_details()],
     adjustments   => adjustments_index(),
     status        => status(),
-    external_id   => id(),
-    clock         => clock()
+    external_id   => id()
 }.
 -type params() :: #{
     id                   := id(),
@@ -642,7 +641,7 @@ process_limit_check(Withdrawal) ->
     Body = body(Withdrawal),
     {ok, WalletMachine} = ff_wallet_machine:get(wallet_id(Withdrawal)),
     Wallet = ff_wallet_machine:wallet(WalletMachine),
-    Clock = get_clock(Withdrawal),
+    Clock = get_clock(p_transfer(Withdrawal)),
     Events = case validate_wallet_limits(Wallet, Body, Clock) of
         {ok, valid} ->
             [{limit_check, {wallet, ok}}];

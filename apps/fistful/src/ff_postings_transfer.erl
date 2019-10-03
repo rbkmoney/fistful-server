@@ -14,7 +14,7 @@
 -module(ff_postings_transfer).
 
 -type final_cash_flow()  :: ff_cash_flow:final_cash_flow().
--type clock()            :: shumpune_shumpune_thrift:'Clock'().
+-type clock()            :: ff_clock:clock().
 
 -type status() ::
     created   |
@@ -25,7 +25,8 @@
 -type transfer() :: #{
     id                := id(),
     final_cash_flow   := final_cash_flow(),
-    status            => status()
+    status            => status(),
+    clock             => clock()
 }.
 
 -type event() ::

@@ -19,7 +19,8 @@
     external_id   => id(),
     limit_checks  => [limit_check_details()],
     reverts       => reverts_index(),
-    adjustments   => adjustments_index()
+    adjustments   => adjustments_index(),
+    clock         => clock()
 }.
 -type params() :: #{
     id            := id(),

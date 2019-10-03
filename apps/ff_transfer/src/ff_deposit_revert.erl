@@ -21,7 +21,8 @@
     reason        => reason(),
     external_id   => id(),
     limit_checks  => [limit_check_details()],
-    adjustments   => adjustments_index()
+    adjustments   => adjustments_index(),
+    clock         => clock()
 }.
 
 -type params() :: #{

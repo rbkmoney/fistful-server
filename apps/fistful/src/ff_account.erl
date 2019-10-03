@@ -12,6 +12,7 @@
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 -type id() :: binary().
+-type accounter_account_id() :: shumpune_shumpune_thrift:'AccountID'().
 -type account() :: #{
     id := id(),
     identity := identity_id(),
@@ -27,6 +28,7 @@
     {party, ff_party:inaccessibility()}.
 
 -export_type([id/0]).
+-export_type([accounter_account_id/0]).
 -export_type([account/0]).
 -export_type([event/0]).
 -export_type([create_error/0]).
@@ -51,7 +53,6 @@
 -type currency() :: ff_currency:currency().
 -type identity_id() :: ff_identity:id().
 -type currency_id() :: ff_currency:id().
--type accounter_account_id() :: shumpune_shumpune_thrift:'AccountID'().
 
 %% Accessors
 

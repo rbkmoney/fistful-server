@@ -435,7 +435,7 @@ set_wallet_balance({Amount, Currency}, ID) ->
 get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(
         Account,
-        ff_transaction:latest_clock()
+        ff_clock:latest_clock()
     ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 

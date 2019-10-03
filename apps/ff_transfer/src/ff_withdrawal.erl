@@ -1382,4 +1382,4 @@ maybe_migrate(Ev) ->
 get_clock(#{clock := Clock}) ->
     Clock;
 get_clock(_) ->
-    ff_transaction:latest_clock().
+    ff_clock:latest_clock().

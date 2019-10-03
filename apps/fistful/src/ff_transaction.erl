@@ -11,13 +11,13 @@
 %%
 
 -type id()       :: shumpune_shumpune_thrift:'PlanID'().
--type account()  :: shumpune_shumpune_thrift:'AccountID'().
--type clock()    :: shumpune_shumpune_thrift:'Clock'().
+-type account()  :: ff_account:account().
+-type account_id()  :: ff_account:accounter_account_id().
+-type clock()    :: ff_clock:clock().
 -type amount()   :: dmsl_domain_thrift:'Amount'().
 -type body()     :: ff_cash:cash().
--type posting()  :: {account(), account(), body()}.
+-type posting()  :: {account_id(), account_id(), body()}.
 -type balance()  :: {ff_indef:indef(amount()), ff_currency:id()}.
--type affected() :: #{account() => balance()}.
 
 -export_type([id/0]).
 -export_type([body/0]).
@@ -28,7 +28,6 @@
 %% TODO
 %%  - Module name is misleading then
 -export([balance/2]).
--export([latest_clock/0]).
 
 -export([prepare/2]).
 -export([commit/2]).
@@ -45,24 +44,20 @@ balance(Account, Clock) ->
     {ok, Balance} = get_balance_by_id(AccountID, Clock),
     {ok, build_account_balance(Balance, Currency)}.
 
--spec latest_clock() -> clock().
-latest_clock() ->
-    {latest, #shumpune_LatestClock{}}.
-
 -spec prepare(id(), [posting()]) ->
-    {ok, affected()}.
+    {ok, clock()}.
 
 prepare(ID, Postings) ->
     hold(encode_plan_change(ID, Postings)).
 
 -spec commit(id(), [posting()]) ->
-    {ok, affected()}.
+    {ok, clock()}.
 
 commit(ID, Postings) ->
     commit_plan(encode_plan(ID, Postings)).
 
 -spec cancel(id(), [posting()]) ->
-    {ok, affected()}.
+    {ok, clock()}.
 
 cancel(ID, Postings) ->
     rollback_plan(encode_plan(ID, Postings)).
@@ -70,7 +65,7 @@ cancel(ID, Postings) ->
 %% Woody stuff
 
 get_balance_by_id(ID, Clock) ->
-    case call('GetBalanceByID', [ID, Clock]) of
+    case call('GetBalanceByID', [ID, ff_clock:marshal(shumpune, Clock)]) of
         {ok, Balance} ->
             {ok, Balance};
         {exception, Unexpected} ->
@@ -80,7 +75,7 @@ get_balance_by_id(ID, Clock) ->
 hold(PlanChange) ->
     case call('Hold', [PlanChange]) of
         {ok, Clock} ->
-            {ok, Clock};
+            {ok, ff_clock:unmarshal(shumpune, Clock)};
         {exception, Unexpected} ->
             error(Unexpected)
     end.
@@ -88,7 +83,7 @@ hold(PlanChange) ->
 commit_plan(Plan) ->
     case call('CommitPlan', [Plan]) of
         {ok, Clock} ->
-            {ok, Clock};
+            {ok, ff_clock:unmarshal(shumpune, Clock)};
         {exception, Unexpected} ->
             error(Unexpected)
     end.
@@ -96,7 +91,7 @@ commit_plan(Plan) ->
 rollback_plan(Plan) ->
     case call('RollbackPlan', [Plan]) of
         {ok, Clock} ->
-            {ok, Clock};
+            {ok, ff_clock:unmarshal(shumpune, Clock)};
         {exception, Unexpected} ->
             error(Unexpected)
     end.

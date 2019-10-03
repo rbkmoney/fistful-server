@@ -270,7 +270,7 @@ get_wallet_account(WalletID, Context) ->
         Account = ff_wallet:account(ff_wallet_machine:wallet(get_state(wallet, WalletID, Context))),
         {Amounts, Currency} = unwrap(ff_transaction:balance(
             Account,
-            ff_transaction:latest_clock()
+            ff_clock:latest_clock()
         )),
         to_swag(wallet_account, {ff_indef:current(Amounts), ff_indef:expmin(Amounts), Currency})
     end).

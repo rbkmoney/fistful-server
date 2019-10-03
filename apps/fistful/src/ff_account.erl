@@ -9,7 +9,6 @@
 
 -module(ff_account).
 
--include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 -type id() :: binary().
@@ -84,14 +83,14 @@ create(ID, Identity, Currency) ->
         ContractID = ff_identity:contract(Identity),
         PartyID = ff_identity:party(Identity),
         accessible = unwrap(party, ff_party:is_accessible(PartyID)),
-        CurrencyID = ff_currency:id(Currency),
         TermVarset = #{
             wallet_id => ID,
-            currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
+            currency => ff_currency:to_domain_ref(Currency)
         },
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID, ContractID, TermVarset, ff_time:now()
         ),
+        CurrencyID = ff_currency:id(Currency),
         valid = unwrap(terms, ff_party:validate_account_creation(Terms, CurrencyID)),
         {ok, AccounterID} = create_account(ID, Currency),
         [{created, #{

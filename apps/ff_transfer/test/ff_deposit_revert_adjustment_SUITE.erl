@@ -477,8 +477,8 @@ set_wallet_balance({Amount, Currency}, ID) ->
 
 get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(
-        ff_account:accounter_account_id(Account),
-        ff_transaction:default_clock()
+        Account,
+        ff_transaction:latest_clock()
     ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 

@@ -8,7 +8,6 @@
 
 -type id()       :: binary().
 -type reason()   :: binary().
--type clock()    :: ff_transaction:clock().
 
 -opaque revert() :: #{
     version       := ?ACTUAL_FORMAT_VERSION,
@@ -141,6 +140,7 @@
 -type adjustment_id()     :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
 -type final_cash_flow()   :: ff_cash_flow:final_cash_flow().
+-type clock()             :: ff_transaction:clock().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -660,4 +660,4 @@ construct_p_transfer_id(ID) ->
 get_clock(#{clock := Clock}) ->
     Clock;
 get_clock(_) ->
-    ff_transaction:default_clock().
+    ff_transaction:latest_clock().

@@ -587,7 +587,7 @@ validate_currency(CurrencyID, Currencies) ->
 validate_account_balance(Account, CashRange, Clock) ->
     do(fun() ->
         {Amounts, CurrencyID} = unwrap(ff_transaction:balance(
-                ff_account:accounter_account_id(Account),
+                Account,
                 Clock
             )),
         ExpMinCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmin(Amounts), CurrencyID}),

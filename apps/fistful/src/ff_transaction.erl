@@ -28,7 +28,7 @@
 %% TODO
 %%  - Module name is misleading then
 -export([balance/2]).
--export([default_clock/0]).
+-export([latest_clock/0]).
 
 -export([prepare/2]).
 -export([commit/2]).
@@ -39,13 +39,14 @@
 -spec balance(account(), clock()) ->
     {ok, balance()}.
 
-balance(AccountID, Clock) ->
+balance(Account, Clock) ->
+    AccountID = ff_account:accounter_account_id(Account),
+    Currency = ff_account:currency(Account),
     {ok, Balance} = get_balance_by_id(AccountID, Clock),
-    {ok, Account} = get_account_by_id(AccountID),
-    {ok, build_account_balance(Account, Balance)}.
+    {ok, build_account_balance(Balance, Currency)}.
 
--spec default_clock() -> clock().
-default_clock() ->
+-spec latest_clock() -> clock().
+latest_clock() ->
     {latest, #shumpune_LatestClock{}}.
 
 -spec prepare(id(), [posting()]) ->
@@ -67,14 +68,6 @@ cancel(ID, Postings) ->
     rollback_plan(encode_plan(ID, Postings)).
 
 %% Woody stuff
-
-get_account_by_id(ID) ->
-    case call('GetAccountByID', [ID]) of
-        {ok, Account} ->
-            {ok, Account};
-        {exception, Unexpected} ->
-            error(Unexpected)
-    end.
 
 get_balance_by_id(ID, Clock) ->
     case call('GetBalanceByID', [ID, Clock]) of
@@ -143,12 +136,10 @@ encode_posting(Source, Destination, {Amount, Currency}) ->
     }.
 
 build_account_balance(
-    #shumpune_Account{
-        currency_sym_code = Currency
-    },
     #shumpune_Balance{
         own_amount = Own,
         max_available_amount = MaxAvail,
         min_available_amount = MinAvail
-    }) ->
+    },
+    Currency) ->
     {ff_indef:new(MinAvail, Own, MaxAvail), Currency}.

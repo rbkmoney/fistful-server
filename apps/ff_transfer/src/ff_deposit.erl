@@ -5,7 +5,6 @@
 -module(ff_deposit).
 
 -type id()    :: binary().
--type clock() :: ff_transaction:clock().
 
 -define(ACTUAL_FORMAT_VERSION, 2).
 -opaque deposit() :: #{
@@ -186,6 +185,7 @@
 -type adjustment_id()         :: ff_adjustment:id().
 -type adjustments_index()     :: ff_adjustment_utils:index().
 -type final_cash_flow()       :: ff_cash_flow:final_cash_flow().
+-type clock()                 :: ff_transaction:clock().
 
 -type transfer_params() :: #{
     source_id             := source_id(),
@@ -1017,4 +1017,4 @@ maybe_migrate(Ev) ->
 get_clock(#{clock := Clock}) ->
     Clock;
 get_clock(_) ->
-    ff_transaction:default_clock().
+    ff_transaction:latest_clock().

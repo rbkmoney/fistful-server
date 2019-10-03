@@ -25,7 +25,6 @@
 -export([get/1]).
 -export([symcode/1]).
 -export([id/1]).
--export([to_domain_ref/1]).
 
 %% Pipeline
 
@@ -58,10 +57,3 @@ get(ID) ->
             exponent => Currency#domain_Currency.exponent
         }
     end).
-
--spec to_domain_ref(currency()) -> dmsl_domain_thrift:'CurrencyRef'().
-
-to_domain_ref(Currency) ->
-    #domain_CurrencyRef{
-        symbolic_code = ff_currency:id(Currency)
-    }.

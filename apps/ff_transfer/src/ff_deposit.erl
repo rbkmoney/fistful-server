@@ -1013,7 +1013,8 @@ maybe_migrate({status_changed, {failed, LegacyFailure}}) ->
 maybe_migrate(Ev) ->
     Ev.
 
-get_clock(#{clock := Clock}) ->
-    Clock;
-get_clock(_) ->
-    ff_clock:latest_clock().
+get_clock(T) ->
+    case ff_postings_transfer:clock(T) of
+        undefined -> ff_clock:latest_clock();
+        Clock -> Clock
+    end.

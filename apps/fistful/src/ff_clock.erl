@@ -11,7 +11,7 @@
 -type version() :: non_neg_integer().
 -type kind() :: transfer | shumpune.
 
--type clock() :: #{
+-opaque clock() :: #{
     version := version(),
     type := type(),
     state => binary() | undefined

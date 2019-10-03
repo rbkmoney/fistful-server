@@ -42,6 +42,7 @@
 -export([id/1]).
 -export([final_cash_flow/1]).
 -export([status/1]).
+-export([clock/1]).
 
 -export([create/2]).
 -export([prepare/1]).
@@ -70,6 +71,8 @@
     final_cash_flow().
 -spec status(transfer()) ->
     status().
+-spec clock(transfer()) ->
+    clock() | undefined.
 
 id(#{id := V}) ->
     V.
@@ -77,6 +80,10 @@ final_cash_flow(#{final_cash_flow := V}) ->
     V.
 status(#{status := V}) ->
     V.
+clock(#{clock := V}) ->
+    V;
+clock(_) ->
+    undefined.
 
 %%
 

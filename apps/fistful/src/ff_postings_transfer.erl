@@ -83,7 +83,7 @@ status(#{status := V}) ->
 clock(#{clock := V}) ->
     V;
 clock(_) ->
-    undefined.
+    ff_clock:latest_clock().
 
 %%
 

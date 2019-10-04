@@ -641,7 +641,7 @@ process_limit_check(Withdrawal) ->
     Body = body(Withdrawal),
     {ok, WalletMachine} = ff_wallet_machine:get(wallet_id(Withdrawal)),
     Wallet = ff_wallet_machine:wallet(WalletMachine),
-    Clock = get_clock(p_transfer(Withdrawal)),
+    Clock = ff_postings_transfer:clock(p_transfer(Withdrawal)),
     Events = case validate_wallet_limits(Wallet, Body, Clock) of
         {ok, valid} ->
             [{limit_check, {wallet, ok}}];
@@ -1377,9 +1377,3 @@ maybe_migrate({session_finished, SessionID}) ->
 % Other events
 maybe_migrate(Ev) ->
     Ev.
-
-get_clock(T) ->
-    case ff_postings_transfer:clock(T) of
-        undefined -> ff_clock:latest_clock();
-        Clock -> Clock
-    end.

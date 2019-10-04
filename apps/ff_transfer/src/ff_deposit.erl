@@ -505,7 +505,7 @@ process_limit_check(Deposit) ->
     Body = body(Deposit),
     {ok, WalletMachine} = ff_wallet_machine:get(wallet_id(Deposit)),
     Wallet = ff_wallet_machine:wallet(WalletMachine),
-    Clock = get_clock(p_transfer(Deposit)),
+    Clock = ff_postings_transfer:clock(p_transfer(Deposit)),
     Events = case validate_wallet_limits(Wallet, Body, Clock) of
         {ok, valid} ->
             [{limit_check, {wallet, ok}}];
@@ -1012,9 +1012,3 @@ maybe_migrate({status_changed, {failed, LegacyFailure}}) ->
 % Other events
 maybe_migrate(Ev) ->
     Ev.
-
-get_clock(T) ->
-    case ff_postings_transfer:clock(T) of
-        undefined -> ff_clock:latest_clock();
-        Clock -> Clock
-    end.

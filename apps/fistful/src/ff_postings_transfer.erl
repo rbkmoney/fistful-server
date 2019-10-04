@@ -72,7 +72,7 @@
 -spec status(transfer()) ->
     status().
 -spec clock(transfer()) ->
-    clock() | undefined.
+    clock().
 
 id(#{id := V}) ->
     V.

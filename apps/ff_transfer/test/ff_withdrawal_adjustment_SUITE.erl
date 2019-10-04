@@ -410,31 +410,19 @@ await_wallet_balance({Amount, Currency}, ID) ->
     ),
     ok.
 
-get_destination_balance(ID) ->
-    {ok, Machine} = ff_destination:get_machine(ID),
-    Account = ff_wallet:account(ff_wallet_machine:wallet(Machine)),
-    Clock = get_clock(p_transfer(ff_deposit_machine:deposit(Machine))),
-    get_account_balance(Account, Clock).
-
 get_wallet_balance(ID) ->
     {ok, Machine} = ff_wallet_machine:get(ID),
-    Account = ff_wallet:account(ff_wallet_machine:wallet(Machine)),
-    Clock = get_clock(p_transfer(ff_deposit_machine:deposit(Machine))),
-    get_account_balance(Account, Clock).
+    get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
 
-p_transfer(T) ->
-    maps:get(p_transfer, T, #{}).
+get_destination_balance(ID) ->
+    {ok, Machine} = ff_destination:get_machine(ID),
+    get_account_balance(ff_destination:account(ff_destination:get(Machine))).
 
-get_clock(T) ->
-    case ff_postings_transfer:clock(T) of
-        undefined ->
-            ff_clock:latest_clock();
-        Clock ->
-            Clock
-    end.
-
-get_account_balance(Account, Clock) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(Account, Clock),
+get_account_balance(Account) ->
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        Account,
+        ff_clock:latest_clock()
+    ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 generate_id() ->
@@ -459,8 +447,7 @@ set_wallet_balance({Amount, Currency}, ID) ->
     {ok, Machine} = ff_wallet_machine:get(ID),
     Account = ff_wallet:account(ff_wallet_machine:wallet(Machine)),
     AccounterID = ff_account:accounter_account_id(Account),
-    Clock = ff_clock:latest_clock(),
-    {CurrentAmount, _, Currency} = get_account_balance(Account, Clock),
+    {CurrentAmount, _, Currency} = get_account_balance(Account),
     {ok, AnotherAccounterID} = create_account(Currency),
     Postings = [{AnotherAccounterID, AccounterID, {Amount - CurrentAmount, Currency}}],
     {ok, _} = ff_transaction:prepare(TransactionID, Postings),

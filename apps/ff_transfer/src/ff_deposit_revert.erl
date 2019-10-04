@@ -656,8 +656,7 @@ build_failure(limit_check, Revert) ->
 construct_p_transfer_id(ID) ->
     <<"ff/deposit_revert/", ID/binary>>.
 
-get_clock(T) ->
-    case ff_postings_transfer:clock(T) of
-        undefined -> ff_clock:latest_clock();
-        Clock -> Clock
-    end.
+get_clock(#{clock := Clock}) ->
+    Clock;
+get_clock(_) ->
+    ff_clock:latest_clock().

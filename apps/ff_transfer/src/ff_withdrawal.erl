@@ -1378,8 +1378,7 @@ maybe_migrate({session_finished, SessionID}) ->
 maybe_migrate(Ev) ->
     Ev.
 
-get_clock(T) ->
-    case ff_postings_transfer:clock(T) of
-        undefined -> ff_clock:latest_clock();
-        Clock -> Clock
-    end.
+get_clock(#{clock := Clock}) ->
+    Clock;
+get_clock(_) ->
+    ff_clock:latest_clock().

@@ -42,7 +42,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:4b9804fade0fef5fa0ad8cfe4a9748dc8c5574e7
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:06aafab126c403eef3800625c19ae6eace1f5124
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -52,7 +52,6 @@ services:
       shumway:
         condition: service_healthy
     volumes:
-      - ./test/hellgate/sys.config:/opt/hellgate/releases/0.1/sys.config
       - ./test/log/hellgate:/var/log/hellgate
     healthcheck:
       test: "curl http://localhost:8022/"

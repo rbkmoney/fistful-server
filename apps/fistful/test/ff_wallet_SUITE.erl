@@ -149,7 +149,7 @@ create_error_terms_not_allowed_currency(C) ->
     ExpectedError = {terms, {terms_violation, {not_allowed_currency, {<<"EUR">>, [
         #domain_CurrencyRef{symbolic_code = <<"RUB">>},
         #domain_CurrencyRef{symbolic_code = <<"USD">>}
-    ]}}},
+    ]}}}},
     ?assertMatch({error, ExpectedError}, CreateResult).
 
 %%

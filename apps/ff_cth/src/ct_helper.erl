@@ -202,7 +202,10 @@ stop_app(AppName) ->
 -spec set_context(config()) -> ok.
 
 set_context(C) ->
-    ok = ff_context:save(ff_context:create(#{woody_context => cfg('$woody_ctx', C)})).
+    ok = ff_context:save(ff_context:create(#{
+        party_client => party_client:create_client(),
+        woody_context => cfg('$woody_ctx', C)
+    })).
 
 -spec unset_context() -> ok.
 

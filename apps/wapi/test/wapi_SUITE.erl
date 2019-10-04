@@ -86,6 +86,7 @@ end_per_suite(C) ->
 
 init_per_group(G, C) ->
     ok = ff_context:save(ff_context:create(#{
+        party_client => party_client:create_client(),
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
     })),
     Party = create_party(C),

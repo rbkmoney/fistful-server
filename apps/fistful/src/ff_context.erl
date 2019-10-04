@@ -75,8 +75,12 @@ get_woody_context(Context) ->
     WoodyContext.
 
 -spec set_woody_context(woody_context(), context()) -> context().
-set_woody_context(WoodyContext, Context) ->
-    Context#{woody_context => WoodyContext}.
+set_woody_context(WoodyContext, #{party_client_context := PartyContext0} = Context) ->
+    PartyContext1 = party_client_context:set_woody_context(WoodyContext, PartyContext0),
+    Context#{
+        woody_context => WoodyContext,
+        party_client_context => PartyContext1
+    }.
 
 -spec get_party_client(context()) -> party_client().
 get_party_client(#{party_client := PartyClient}) ->

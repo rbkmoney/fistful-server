@@ -14,6 +14,7 @@
 -type id()          :: dmsl_domain_thrift:'PartyID'().
 -type contract_id() :: dmsl_domain_thrift:'ContractID'().
 -type wallet_id()   :: dmsl_domain_thrift:'WalletID'().
+-type revision()    :: dmsl_domain_thrift:'PartyRevision'().
 
 -type party_params() :: #{
     email := binary()
@@ -28,6 +29,7 @@
 
 -type get_contract_terms_error() ::
     {party_not_found, id()} |
+    {contract_not_found, id()} |
     {party_not_exists_yet, id()}.
 
 -type validate_withdrawal_creation_error() ::
@@ -55,12 +57,13 @@
 -export([create/2]).
 -export([is_accessible/1]).
 -export([create_contract/2]).
+-export([get_revision/1]).
 -export([change_contractor_level/3]).
 -export([validate_account_creation/2]).
 -export([validate_withdrawal_creation/3]).
 -export([validate_deposit_creation/2]).
 -export([validate_wallet_limits/2]).
--export([get_contract_terms/4]).
+-export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_wallet_payment_institution_id/1]).
 
@@ -74,6 +77,7 @@
 -type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
 -type domain_cash() :: dmsl_domain_thrift:'Cash'().
 -type domain_cash_range() :: dmsl_domain_thrift:'CashRange'().
+-type domain_revision() :: ff_domain_config:revision().
 -type timestamp() :: ff_time:timestamp_ms().
 -type wallet() :: ff_wallet:wallet().
 -type payment_institution_id() :: ff_payment_institution:id().
@@ -126,6 +130,20 @@ is_accessible(ID) ->
             {error, {inaccessible, suspended}};
         #domain_Party{} ->
             {ok, accessible}
+    end.
+
+-spec get_revision(id()) ->
+    {ok, revision()} | {error, {party_not_found, id()}}.
+
+get_revision(ID) ->
+    {Client, Context} = get_party_client(),
+    case party_client_thrift:get_revision(ID, Client, Context) of
+        {ok, Revision} ->
+            {ok, Revision};
+        {error, #payproc_PartyNotFound{}} ->
+            {error, {party_not_found, ID}};
+        {error, Unexpected} ->
+            error(Unexpected)
     end.
 
 %%
@@ -205,24 +223,46 @@ get_contract_terms(Wallet, Body, Timestamp) ->
             wallet_id => WalletID,
             currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
         },
-        unwrap(get_contract_terms(PartyID, ContractID, TermVarset, Timestamp))
+        PartyRevision = unwrap(get_revision(PartyID)),
+        DomainRevision = ff_domain_config:head(),
+        unwrap(get_contract_terms(PartyID, ContractID, TermVarset, Timestamp, PartyRevision, DomainRevision))
     end).
 
--spec get_contract_terms(PartyID :: id(), contract_id(), hg_selector:varset(), timestamp()) -> Result when
+-spec get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) -> Result when
+    PartyID :: id(),
+    ContractID :: contract_id(),
+    Varset :: hg_selector:varset(),
+    Timestamp :: timestamp(),
+    PartyRevision :: revision(),
+    DomainRevision :: domain_revision(),
     Result :: {ok, terms()} | {error, Error},
     Error :: get_contract_terms_error().
 
-get_contract_terms(PartyID, ContractID, Varset, Timestamp) ->
+get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) ->
     DomainVarset = encode_varset(Varset),
-    Args = [PartyID, ContractID, ff_time:to_rfc3339(Timestamp), DomainVarset],
-    case call('ComputeWalletTermsNew', Args) of
+    TimestampStr = ff_time:to_rfc3339(Timestamp),
+    DomainRevision = ff_domain_config:head(),
+    {Client, Context} = get_party_client(),
+    Result = party_client_thrift:compute_contract_terms(
+        PartyID,
+        ContractID,
+        TimestampStr,
+        {revision, PartyRevision},
+        DomainRevision,
+        DomainVarset,
+        Client,
+        Context
+    ),
+    case Result of
         {ok, Terms} ->
             {ok, Terms};
-        {exception, #payproc_PartyNotFound{}} ->
+        {error, #payproc_PartyNotFound{}} ->
             {error, {party_not_found, PartyID}};
-        {exception, #payproc_PartyNotExistsYet{}} ->
+        {error, #payproc_ContractNotFound{}} ->
+            {error, {contract_not_found, PartyID}};
+        {error, #payproc_PartyNotExistsYet{}} ->
             {error, {party_not_exists_yet, PartyID}};
-        {exception, Unexpected} ->
+        {error, Unexpected} ->
             erlang:error({unexpected, Unexpected})
     end.
 
@@ -293,46 +333,54 @@ generate_uuid() ->
 %% Party management client
 
 do_create_party(ID, Params) ->
-    case call('Create', [ID, construct_party_params(Params)]) of
-        {ok, ok} ->
+    {Client, Context} = get_party_client(),
+    case party_client_thrift:create(ID, construct_party_params(Params), Client, Context) of
+        ok ->
             ok;
-        {exception, #payproc_PartyExists{}} ->
+        {error, #payproc_PartyExists{}} ->
             {error, exists};
-        {exception, Unexpected} ->
+        {error, Unexpected} ->
             error(Unexpected)
     end.
 
 do_get_party(ID) ->
-    case call('Get', [ID]) of
-        {ok, #domain_Party{} = Party} ->
+    {Client, Context} = get_party_client(),
+    Result = do(fun() ->
+        Revision = unwrap(party_client_thrift:get_revision(ID, Client, Context)),
+        unwrap(party_client_thrift:checkout(ID, {revision, Revision}, Client, Context))
+    end),
+    case Result of
+        {ok, Party} ->
             Party;
-        {exception, Unexpected} ->
-            error(Unexpected)
+        {error, Reason} ->
+            error(Reason)
     end.
 
 do_get_contract(ID, ContractID) ->
-    case call('GetContract', [ID, ContractID]) of
+    {Client, Context} = get_party_client(),
+    case party_client_thrift:get_contract(ID, ContractID, Client, Context) of
         {ok, #domain_Contract{} = Contract} ->
             {ok, Contract};
-        {exception, #payproc_PartyNotFound{}} ->
+        {error, #payproc_PartyNotFound{}} ->
             {error, {party_not_found, ID}};
-        {exception, #payproc_ContractNotFound{}} ->
+        {error, #payproc_ContractNotFound{}} ->
             {error, {contract_not_found, ContractID}};
-        {exception, Unexpected} ->
+        {error, Unexpected} ->
             error(Unexpected)
     end.
 
 do_create_claim(ID, Changeset) ->
-    case call('CreateClaim', [ID, Changeset]) of
+    {Client, Context} = get_party_client(),
+    case party_client_thrift:create_claim(ID, Changeset, Client, Context) of
         {ok, Claim} ->
             {ok, Claim};
-        {exception, #payproc_InvalidChangeset{
+        {error, #payproc_InvalidChangeset{
             reason = {invalid_wallet, #payproc_InvalidWallet{reason = {contract_terms_violated, _}}}
         }} ->
             {error, invalid};
-        {exception, #payproc_InvalidPartyStatus{status = Status}} ->
+        {error, #payproc_InvalidPartyStatus{status = Status}} ->
             {error, construct_inaccessibilty(Status)};
-        {exception, Unexpected} ->
+        {error, Unexpected} ->
             error(Unexpected)
     end.
 
@@ -342,14 +390,36 @@ do_accept_claim(ID, Claim) ->
     %    such a way which may cause conflicts.
     ClaimID  = Claim#payproc_Claim.id,
     Revision = Claim#payproc_Claim.revision,
-    case call('AcceptClaim', [ID, ClaimID, Revision]) of
-        {ok, ok} ->
+    {Client, Context} = get_party_client(),
+    case party_client_thrift:accept_claim(ID, ClaimID, Revision, Client, Context) of
+        ok ->
             accepted;
-        {exception, #payproc_InvalidClaimStatus{status = {accepted, _}}} ->
+        {error, #payproc_InvalidClaimStatus{status = {accepted, _}}} ->
             accepted;
-        {exception, Unexpected} ->
+        {error, Unexpected} ->
             error(Unexpected)
     end.
+
+get_party_client() ->
+    % TODO
+    %  - Move auth logic from hellgate to capi the same way as it works
+    %    in wapi & fistful. Then the following dirty user_identity hack
+    %    will not be necessary anymore.
+    Context0 = ff_context:load(),
+    WoodyContextWithoutMeta = maps:without([meta], ff_context:get_woody_context(Context0)),
+    Context1 = ff_context:set_woody_context(WoodyContextWithoutMeta, Context0),
+    Context2 = ff_context:set_user_identity(construct_user_identity(), Context1),
+    Client = ff_context:get_party_client(Context2),
+    ClientContext = ff_context:get_party_client_context(Context2),
+    {Client, ClientContext}.
+
+-spec construct_user_identity() ->
+    woody_user_identity:user_identity().
+construct_user_identity() ->
+    #{
+        id    => <<"fistful">>,
+        realm => <<"service">>
+    }.
 
 construct_inaccessibilty({blocking, _}) ->
     {inaccessible, blocked};
@@ -419,38 +489,6 @@ construct_level_changeset(ContractID, ContractorLevel) ->
             {identification_level_modification, ContractorLevel}
         )
     ].
-
-construct_userinfo() ->
-    #payproc_UserInfo{id = <<"fistful">>, type = construct_usertype()}.
-
-construct_usertype() ->
-    {service_user, #payproc_ServiceUser{}}.
-
-construct_useridentity() ->
-    #{
-        id    => <<"fistful">>,
-        realm => <<"service">>
-    }.
-
-%% Woody stuff
-
-get_woody_ctx() ->
-    % TODO
-    %  - Move auth logic from hellgate to capi the same way as it works
-    %    in wapi & fistful. Then the following dirty user_identity hack
-    %    will not be necessary anymore.
-    reset_useridentity(ff_context:get_woody_context(ff_context:load())).
-
-reset_useridentity(Ctx) ->
-    woody_user_identity:put(construct_useridentity(), maps:without([meta], Ctx)).
-
-call(Function, Args0) ->
-    % TODO
-    %  - Ideally, we should provide `Client` here explicitly.
-    Service  = {dmsl_payment_processing_thrift, 'PartyManagement'},
-    Args     = [construct_userinfo() | Args0],
-    ff_woody_client:call(partymgmt, {Service, Function, Args}, get_woody_ctx()).
-
 
 %% Terms stuff
 

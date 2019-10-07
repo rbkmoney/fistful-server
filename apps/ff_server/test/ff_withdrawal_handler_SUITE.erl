@@ -77,13 +77,13 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 
 -spec create_withdrawal_ok(config()) -> test_return().
@@ -102,7 +102,7 @@ create_withdrawal_ok(C) ->
         amount = 1000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = WalletID,
@@ -139,7 +139,7 @@ create_withdrawal_wallet_currency_fail(C) ->
         amount = 1000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">> }
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = WalletID,
@@ -163,7 +163,7 @@ create_withdrawal_cashrange_fail(C) ->
         amount = -1000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = WalletID,
@@ -191,7 +191,7 @@ create_withdrawal_destination_fail(C) ->
         amount = -1000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = WalletID,
@@ -213,7 +213,7 @@ create_withdrawal_wallet_fail(C) ->
         amount = -1000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = BadWalletID,
@@ -234,7 +234,7 @@ get_events_ok(C) ->
         amount = 2000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = WalletID,
@@ -312,7 +312,7 @@ create_identity() ->
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     IdentityID.
 
@@ -323,7 +323,7 @@ create_wallet(Currency, Amount) ->
         id = WalletID,
         name = <<"BigBossWallet">>,
         external_id = ExternalID,
-        context = ff_ctx:new(),
+        context = ff_entity_context:new(),
         account_params = #account_AccountParams{
             identity_id   = IdentityID,
             symbolic_code = Currency

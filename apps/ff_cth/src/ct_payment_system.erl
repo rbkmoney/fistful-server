@@ -7,10 +7,7 @@
 %% API types
 
 -type options() :: #{
-    machinery_backend_config => map(),
-    machinery_backend_options => map(),
     identity_provider_config => map(),
-    withdrawal_provider_config => #{id() => ff_withdrawal_provider:provider()},
     services => map(),
     domain_config => list(),
     default_termset => dmsl_domain_thrift:'TermSet'(),
@@ -62,91 +59,41 @@ do_setup(Options0, C0) ->
     },
     {ok, Processing0} = start_processing_apps(Options),
     C1 = ct_helper:makeup_cfg([ct_helper:woody_ctx()], [{services, services(Options)} | C0]),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     ok = setup_dominant(Options, C1),
     ok = timer:sleep(3000),
     ok = configure_processing_apps(Options),
-    ok = ff_woody_ctx:unset(),
+    ok = ct_helper:unset_context(),
     [{payment_system, Processing0} | C1].
 
 start_processing_apps(Options) ->
-    BeConf = machinery_backend_config(Options),
-    Be = {machinery_mg_backend, BeConf#{
-        client => ff_woody_client:new(<<"http://machinegun:8022/v1/automaton">>)
-    }},
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
-        {sasl, [{sasl_error_logger, false}]},
         scoper,
         woody,
         dmt_client,
         {fistful, [
             {services, services(Options)},
-            {backends, maps:from_list([{NS, Be} || NS <- [
-                'ff/identity'              ,
-                'ff/sequence'              ,
-                'ff/external_id'           ,
-                'ff/wallet_v2'             ,
-                'ff/source_v1'             ,
-                'ff/deposit_v1'            ,
-                'ff/destination_v2'        ,
-                'ff/withdrawal_v2'         ,
-                'ff/withdrawal/session_v2'
-            ]])},
             {providers, identity_provider_config(Options)}
         ]},
-        ff_transfer
+        ff_server
     ]),
     SuiteSup = ct_sup:start(),
-    BeOpts = machinery_backend_options(Options),
-    Routes = machinery_mg_backend:get_routes(
-        [
-            construct_handler(ff_identity_machine           , "identity"              , BeConf),
-            construct_handler(ff_sequence                   , "sequence"              , BeConf),
-            construct_handler(ff_external_id                , "external_id"           , BeConf),
-            construct_handler(ff_wallet_machine             , "wallet_v2"             , BeConf),
-            construct_handler(ff_instrument_machine         , "source_v1"             , BeConf),
-            construct_handler(ff_deposit_machine            , "deposit_v1"            , BeConf),
-            construct_handler(ff_instrument_machine         , "destination_v2"        , BeConf),
-            construct_handler(ff_withdrawal_machine         , "withdrawal_v2"         , BeConf),
-            construct_handler(ff_withdrawal_session_machine , "withdrawal/session_v2" , BeConf)
-        ],
-        BeOpts
-    ),
-
-    AdminRoutes      = get_admin_routes(),
-    WalletRoutes     = ff_server:get_routes(
-        {<<"/v1/wallet">>, {{ff_proto_wallet_thrift, 'Management'}, {ff_wallet_handler, []}}, #{}}),
-    DestRoutes       = ff_server:get_routes(
-        {<<"/v1/destination">>, {{ff_proto_destination_thrift, 'Management'}, {ff_destination_handler, []}}, #{}}),
-    WithdrawalRoutes = ff_server:get_routes(
-        {<<"/v1/withdrawal">>, {{ff_proto_withdrawal_thrift, 'Management'}, {ff_withdrawal_handler, []}}, #{}}),
-    IdentityRoutes   = ff_server:get_routes(
-        {<<"/v1/identity">>, {{ff_proto_identity_thrift, 'Management'}, {ff_identity_handler, []}}, #{}}),
-    DummyProviderRoute = ff_server:get_routes(
-        {<<"/quotebank">>, {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'}, {ff_ct_provider_handler, []}}, #{}}),
-    DummyBinbaseRoute = ff_server:get_routes(
-        {<<"/binbase">>, {{binbase_binbase_thrift, 'Binbase'}, {ff_ct_binbase_handler, []}}, #{}}),
-    RepairRoutes     = get_repair_routes(),
-    EventsinkRoutes  = get_eventsink_routes(BeConf),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
-        BeOpts#{
-            ip                => {0, 0, 0, 0},
-            port              => 8022,
-            handlers          => [],
-
-            additional_routes => lists:flatten([
-                Routes,
-                AdminRoutes,
-                WalletRoutes,
-                DestRoutes,
-                WithdrawalRoutes,
-                IdentityRoutes,
-                EventsinkRoutes,
-                RepairRoutes,
-                DummyProviderRoute,
-                DummyBinbaseRoute
-            ])
+        #{
+            ip                => {127, 0, 0, 1},
+            port              => 8222,
+            handlers          => [
+                {
+                    <<"/quotebank">>,
+                    {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'}, {ff_ct_provider_handler, []}}
+                },
+                {
+                    <<"/binbase">>,
+                    {{binbase_binbase_thrift, 'Binbase'}, {ff_ct_binbase_handler, []}}
+                }
+            ],
+            event_handler     => scoper_woody_event_handler
         }
     )),
     Processing = #{
@@ -181,66 +128,6 @@ configure_processing_apps(Options) ->
     PIIID = quote_payment_inst_identity_id(Options),
     PRIID = quote_provider_identity_id(Options),
     ok = create_crunch_identity(PIIID, PRIID, <<"quote-owner">>).
-
-construct_handler(Module, Suffix, BeConf) ->
-    {{fistful, Module},
-        #{path => ff_string:join(["/v1/stateproc/ff/", Suffix]), backend_config => BeConf}}.
-
-get_admin_routes() ->
-    Path = <<"/v1/admin">>,
-    woody_server_thrift_http_handler:get_routes(#{
-        handlers => [{Path, {{ff_proto_fistful_admin_thrift, 'FistfulAdmin'}, {ff_server_admin_handler, []}}}],
-        event_handler => scoper_woody_event_handler
-    }).
-
-get_eventsink_routes(BeConf) ->
-    IdentityRoute = create_sink_route({<<"/v1/eventsink/identity">>,
-        {{ff_proto_identity_thrift, 'EventSink'}, {ff_eventsink_handler,
-        make_sink_handler_cfg(<<"ff/identity">>, ff_identity_eventsink_publisher, BeConf)}}}),
-    WalletRoute = create_sink_route({<<"/v1/eventsink/wallet">>,
-        {{ff_proto_wallet_thrift, 'EventSink'}, {ff_eventsink_handler,
-        make_sink_handler_cfg(<<"ff/wallet_v2">>, ff_wallet_eventsink_publisher, BeConf)}}}),
-    WithdrawalSessionRoute = create_sink_route({<<"/v1/eventsink/withdrawal/session">>,
-        {{ff_proto_withdrawal_session_thrift, 'EventSink'}, {ff_eventsink_handler,
-            make_sink_handler_cfg(
-                <<"ff/withdrawal/session_v2">>,
-                ff_withdrawal_session_eventsink_publisher,
-                BeConf
-            )
-        }}}),
-    WithdrawalRoute = create_sink_route({<<"/v1/eventsink/withdrawal">>,
-        {{ff_proto_withdrawal_thrift, 'EventSink'}, {ff_eventsink_handler,
-        make_sink_handler_cfg(<<"ff/withdrawal_v2">>, ff_withdrawal_eventsink_publisher, BeConf)}}}),
-    DestinationRoute = create_sink_route({<<"/v1/eventsink/destination">>,
-        {{ff_proto_destination_thrift, 'EventSink'}, {ff_eventsink_handler,
-        make_sink_handler_cfg(<<"ff/destination_v2">>, ff_destination_eventsink_publisher, BeConf)}}}),
-    SourceRoute = create_sink_route({<<"/v1/eventsink/source">>,
-        {{ff_proto_source_thrift, 'EventSink'}, {ff_eventsink_handler,
-        make_sink_handler_cfg(<<"ff/source_v1">>, ff_source_eventsink_publisher, BeConf)}}}),
-    DepositRoute = create_sink_route({<<"/v1/eventsink/deposit">>,
-        {{ff_proto_deposit_thrift, 'EventSink'}, {ff_eventsink_handler,
-        make_sink_handler_cfg(<<"ff/deposit_v1">>, ff_deposit_eventsink_publisher, BeConf)}}}),
-    lists:flatten([
-        IdentityRoute,
-        WalletRoute,
-        WithdrawalRoute,
-        WithdrawalSessionRoute,
-        DestinationRoute,
-        SourceRoute,
-        DepositRoute
-    ]).
-
-get_repair_routes() ->
-    Handlers = [
-        {
-            <<"withdrawal/session">>,
-            {{ff_proto_withdrawal_session_thrift, 'Repairer'}, {ff_withdrawal_session_repair, #{}}}
-        }
-    ],
-    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{<<"/v1/repair/", N/binary>>, H} || {N, H} <- Handlers],
-        event_handler => scoper_woody_event_handler
-    })).
 
 create_crunch_identity(Options) ->
     PaymentInstIdentityID = payment_inst_identity_id(Options),
@@ -279,7 +166,7 @@ create_identity(ID, PartyID, ProviderID, ClassID) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => PartyID, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -294,31 +181,7 @@ do_set_env([Key | Path], Value, Env) ->
     SubEnv = maps:get(Key, Env, #{}),
     Env#{Key => do_set_env(Path, Value, SubEnv)}.
 
-create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
-    NewCfg = Cfg#{
-        client => #{
-            event_handler => scoper_woody_event_handler,
-            url => "http://machinegun:8022/v1/event_sink"
-        }},
-    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {Module, {Handler, NewCfg}}}],
-        event_handler => scoper_woody_event_handler
-    })).
-
-make_sink_handler_cfg(NS, Publisher, Cfg) ->
-    Cfg#{
-        ns => NS,
-        publisher => Publisher,
-        start_event => 0
-    }.
-
 %% Default options
-
-machinery_backend_config(Options) ->
-    maps:get(machinery_backend_config, Options, #{schema => machinery_mg_schema_generic}).
-
-machinery_backend_options(Options) ->
-    maps:get(machinery_backend_options, Options, #{event_handler => scoper_woody_event_handler}).
 
 identity_provider_config(Options) ->
     Default = #{
@@ -444,12 +307,14 @@ identity_provider_config(Options) ->
 
 services(Options) ->
     Default = #{
+        eventsink      => "http://machinegun:8022/v1/event_sink",
+        automaton      => "http://machinegun:8022/v1/automaton",
         accounter      => "http://shumway:8022/accounter",
         cds            => "http://cds:8022/v1/storage",
         identdocstore  => "http://cds:8022/v1/identity_document_storage",
         partymgmt      => "http://hellgate:8022/v1/processing/partymgmt",
         identification => "http://identification:8022/v1/identification",
-        binbase        => "http://localhost:8022/binbase"
+        binbase        => "http://localhost:8222/binbase"
     },
     maps:get(services, Options, Default).
 
@@ -530,7 +395,7 @@ domain_config(Options, C) ->
         ct_domain:inspector(?insp(1), <<"Low Life">>, ?prx(1), #{<<"risk_score">> => <<"low">>}),
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
-        ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8022/quotebank">>),
+        ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8222/quotebank">>),
 
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),

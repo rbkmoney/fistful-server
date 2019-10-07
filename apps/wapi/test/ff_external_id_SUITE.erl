@@ -46,7 +46,12 @@ groups() -> [].
 init_per_suite(C) ->
     ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
-        ct_payment_system:setup()
+        ct_payment_system:setup(#{
+            optional_apps => [
+                wapi_woody_client,
+                wapi
+            ]
+        })
     ], C).
 
 -spec end_per_suite(config()) -> _.
@@ -72,13 +77,13 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 %%
 

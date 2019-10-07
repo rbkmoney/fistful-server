@@ -169,7 +169,7 @@ marshal(integer, V) when is_integer(V) ->
 marshal(bool, V) when is_boolean(V) ->
     V;
 marshal(context, V) when is_map(V) ->
-    ff_context:wrap(V);
+    ff_entity_context_codec:marshal(V);
 
 % Catch this up in thrift validation
 marshal(_, Other) ->
@@ -303,7 +303,7 @@ unmarshal(sub_failure, Failure) ->
         sub => maybe_unmarshal(sub_failure, Failure#'SubFailure'.sub)
     });
 
-unmarshal(context, V) -> ff_context:unwrap(V);
+unmarshal(context, V) -> ff_entity_context_codec:unmarshal(V);
 
 unmarshal(range, #evsink_EventRange{
     'after' = Cursor,

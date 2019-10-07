@@ -88,8 +88,10 @@ create(ID, Identity, Currency) ->
             wallet_id => ID,
             currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
         },
+        {ok, PartyRevision} = ff_party:get_revision(PartyID),
+        DomainRevision = ff_domain_config:head(),
         {ok, Terms} = ff_party:get_contract_terms(
-            PartyID, ContractID, TermVarset, ff_time:now()
+            PartyID, ContractID, TermVarset, ff_time:now(), PartyRevision, DomainRevision
         ),
         valid = unwrap(terms, ff_party:validate_account_creation(Terms, CurrencyID)),
         {ok, AccounterID} = create_account(ID, Currency),

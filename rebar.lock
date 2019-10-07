@@ -22,7 +22,7 @@
  {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.7.3">>},1},
  {<<"damsel">>,
   {git,"git@github.com:rbkmoney/damsel.git",
-       {ref,"4339b6c286741fc9a4bc851a92eb58ebbcce81ab"}},
+       {ref,"3c234cea67299a2683e49ecc0d28405785bc1466"}},
   0},
  {<<"dmt_client">>,
   {git,"git@github.com:rbkmoney/dmt_client.git",
@@ -99,6 +99,10 @@
   {git,"https://github.com/rbkmoney/parse_trans.git",
        {ref,"5ee45f5bfa6c04329bea3281977b774f04c89f11"}},
   0},
+ {<<"party_client">>,
+  {git,"git@github.com:rbkmoney/party_client_erlang.git",
+       {ref,"b7a524466bce1dd15b6e2a3c0ef1ae6242939ade"}},
+  0},
  {<<"payproc_errors">>,
   {git,"git@github.com:rbkmoney/payproc-errors-erlang.git",
        {ref,"77cc445a4bb1496854586853646e543579ac1212"}},
@@ -127,7 +131,7 @@
   0},
  {<<"woody_user_identity">>,
   {git,"git@github.com:rbkmoney/woody_erlang_user_identity.git",
-       {ref,"6eca18a62ccd7f0b3b62f9b2119b328b1798859d"}},
+       {ref,"b56a349c1b4720b7e913c4da1f5cdc16302e90f0"}},
   0}]}.
 [
 {pkg_hash,[

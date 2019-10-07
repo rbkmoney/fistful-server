@@ -85,12 +85,12 @@ end_per_group(_, _) ->
 -spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 %% Tests
 
@@ -154,7 +154,7 @@ adjustment_can_change_status_to_succeeded_test(C) ->
         source_id => SourceID,
         body => {100, <<"RUB">>}
     },
-    ok = ff_deposit_machine:create(Params, ff_ctx:new()),
+    ok = ff_deposit_machine:create(Params, ff_entity_context:new()),
     ?assertMatch({failed, _}, await_final_deposit_status(DepositID)),
     AdjustmentID = process_adjustment(DepositID, #{
         change => {change_status, succeeded}
@@ -318,7 +318,7 @@ get_adjustment(DepositID, AdjustmentID) ->
 
 process_deposit(DepositParams) ->
     DepositID = generate_id(),
-    ok = ff_deposit_machine:create(DepositParams#{id => DepositID}, ff_ctx:new()),
+    ok = ff_deposit_machine:create(DepositParams#{id => DepositID}, ff_entity_context:new()),
     succeeded = await_final_deposit_status(DepositID),
     DepositID.
 
@@ -386,7 +386,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -395,7 +395,7 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ok = ff_wallet_machine:create(
         ID,
         #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -427,7 +427,7 @@ create_source(IID, _C) ->
     ID = generate_id(),
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
     Params = #{identity => IID, name => <<"XSource">>, currency => <<"RUB">>, resource => SrcResource},
-    ok = ff_source:create(ID, Params, ff_ctx:new()),
+    ok = ff_source:create(ID, Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->

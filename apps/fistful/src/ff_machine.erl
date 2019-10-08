@@ -145,7 +145,7 @@ emit_timestamped_events(Events, Ts) ->
 
 merge_event(Mod, {_ID, _Ts, TsEvent}, St0) ->
     {Ev, St1} = merge_timestamped_event(TsEvent, St0),
-    Model1 = Mod:apply_event(Ev, maps:get(model, St1, undefined)),
+    Model1 = Mod:apply_event(Ev, maps:get(model, St1, undefined), maps:get(ctx, St1, undefined)),
     St1#{model => Model1}.
 
 merge_timestamped_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->

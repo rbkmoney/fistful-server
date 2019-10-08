@@ -16,7 +16,7 @@
 -export([get_adapter_with_opts/1]).
 
 %% ff_machine
--export([apply_event/2]).
+-export([apply_event/3]).
 -export([maybe_migrate/1]).
 
 %% ff_repair
@@ -98,9 +98,9 @@ create(ID, Data, Params) ->
     Session = create_session(ID, Data, Params),
     {ok, [{created, Session}]}.
 
--spec apply_event(event(), undefined | session()) ->
+-spec apply_event(event(), undefined | session(), ff_entity_context:context()) ->
     session().
-apply_event(Ev, S) ->
+apply_event(Ev, S, _Ctx) ->
     apply_event_(maybe_migrate(Ev), S).
 
 -spec apply_event_(event(), undefined | session()) ->

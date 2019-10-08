@@ -91,7 +91,7 @@
 -export([start_challenge/4]).
 -export([poll_challenge_completion/2]).
 
--export([apply_event/2]).
+-export([apply_event/3]).
 
 %% Pipeline
 
@@ -279,16 +279,19 @@ add_external_id(ExternalID, Event) ->
 
 %%
 
--spec apply_event(event(), ff_maybe:maybe(identity())) ->
+-spec apply_event(event(), ff_maybe:maybe(identity()), ff_entity_context:context()) ->
     identity().
 
-apply_event({created, Identity}, undefined) ->
+apply_event(Ev, Identity, _Ctx) ->
+    apply_event_(Ev, Identity).
+
+apply_event_({created, Identity}, undefined) ->
     Identity;
-apply_event({level_changed, L}, Identity) ->
+apply_event_({level_changed, L}, Identity) ->
     Identity#{level => L};
-apply_event({effective_challenge_changed, ID}, Identity) ->
+apply_event_({effective_challenge_changed, ID}, Identity) ->
     Identity#{effective => ID};
-apply_event({{challenge, ID}, Ev}, Identity) ->
+apply_event_({{challenge, ID}, Ev}, Identity) ->
     with_challenges(
         fun (Cs) ->
             with_challenge(

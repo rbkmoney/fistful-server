@@ -9,7 +9,7 @@
 
 -type id() :: binary().
 
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 -opaque withdrawal() :: #{
     version       := ?ACTUAL_FORMAT_VERSION,
     id            := id(),
@@ -23,7 +23,8 @@
     limit_checks  => [limit_check_details()],
     adjustments   => adjustments_index(),
     status        => status(),
-    external_id   => id()
+    external_id   => id(),
+    meta_data     => ff_entity_context:md()
 }.
 -type params() :: #{
     id                   := id(),
@@ -164,7 +165,7 @@
 
 %% Event source
 
--export([apply_event/2]).
+-export([apply_event/3]).
 -export([maybe_migrate/1]).
 
 %% Pipeline
@@ -741,7 +742,7 @@ process_transfer_fail(FailType, Withdrawal) ->
 
 -spec handle_child_result(process_result(), withdrawal()) -> process_result().
 handle_child_result({undefined, Events} = Result, Withdrawal) ->
-    NextWithdrawal = lists:foldl(fun(E, Acc) -> apply_event(E, Acc) end, Withdrawal, Events),
+    NextWithdrawal = lists:foldl(fun(E, Acc) -> apply_event(E, Acc, ff_entity_context:new()) end, Withdrawal, Events),
     case is_active(NextWithdrawal) of
         true ->
             {continue, Events};
@@ -1271,9 +1272,9 @@ build_failure(session, Withdrawal) ->
 
 %%
 
--spec apply_event(event() | legacy_event(), ff_maybe:maybe(withdrawal())) ->
+-spec apply_event(event() | legacy_event(), ff_maybe:maybe(withdrawal()), ff_entity_context:context()) ->
     withdrawal().
-apply_event(Ev, T0) ->
+apply_event(Ev, T0, _Ctx) ->
     Migrated = maybe_migrate(Ev),
     T1 = apply_event_(Migrated, T0),
     T2 = save_adjustable_info(Migrated, T1),
@@ -1316,6 +1317,12 @@ maybe_migrate({p_transfer, PEvent}) ->
 maybe_migrate({adjustment, _Payload} = Event) ->
     ff_adjustment_utils:maybe_migrate(Event);
 % Old events
+maybe_migrate({created, #{version := 2, transfer_type := withdrawal} = T}) ->
+    #{id := ID} = T,
+    Ctx = ff_withdrawal_machine:ctx(unwrap(ff_withdrawal_machine:get(ID))),
+    maybe_migrate({created, T#{
+        meta_data => maps:get(<<"com.rbkmoney.wapi">>, Ctx, nil)
+    }});
 maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
     #{
         version     := 1,

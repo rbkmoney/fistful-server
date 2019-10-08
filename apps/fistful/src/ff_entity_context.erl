@@ -7,7 +7,7 @@
 -type context() :: #{namespace() => md()}.
 
 -type namespace() :: binary().
--type md()        :: %% as stolen from `machinery_msgpack`
+-type md()        ::
     nil                |
     boolean()          |
     integer()          |
@@ -15,7 +15,7 @@
     binary()           | %% string
     {binary, binary()} | %% binary
     [md()]             |
-    #{md() => md()}    .
+    #{binary() => md()}    .
 
 -export_type([context/0]).
 -export_type([md/0]).

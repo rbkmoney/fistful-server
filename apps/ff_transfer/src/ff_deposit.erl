@@ -152,7 +152,7 @@
 
 %% Event source
 
--export([apply_event/2]).
+-export([apply_event/3]).
 -export([maybe_migrate/1]).
 
 %% Pipeline
@@ -360,9 +360,9 @@ is_finished(#{status := pending}) ->
 
 %% Events utils
 
--spec apply_event(event() | legacy_event(), deposit() | undefined) ->
+-spec apply_event(event() | legacy_event(), deposit() | undefined, ff_entity_context:context()) ->
     deposit().
-apply_event(Ev, T0) ->
+apply_event(Ev, T0, _Ctx) ->
     Migrated = maybe_migrate(Ev),
     T1 = apply_event_(Migrated, T0),
     T2 = save_adjustable_info(Migrated, T1),
@@ -555,7 +555,7 @@ make_final_cash_flow(WalletID, SourceID, Body) ->
 
 -spec handle_child_result(process_result(), deposit()) -> process_result().
 handle_child_result({undefined, Events} = Result, Deposit) ->
-    NextDeposit = lists:foldl(fun(E, Acc) -> apply_event(E, Acc) end, Deposit, Events),
+    NextDeposit = lists:foldl(fun(E, Acc) -> apply_event(E, Acc, ff_entity_context:new()) end, Deposit, Events),
     case is_active(NextDeposit) of
         true ->
             {continue, Events};

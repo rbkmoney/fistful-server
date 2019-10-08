@@ -45,7 +45,7 @@
 -export([is_accessible/1]).
 -export([close/1]).
 
--export([apply_event/2]).
+-export([apply_event/3]).
 
 %% Internal types
 
@@ -145,12 +145,12 @@ add_external_id(ExternalID, Event) ->
 
 %%
 
--spec apply_event(event(), undefined | wallet()) ->
+-spec apply_event(event(), undefined | wallet(), ff_entity_context:context()) ->
     wallet().
 
-apply_event({created, Wallet}, undefined) ->
+apply_event({created, Wallet}, undefined, _) ->
     Wallet;
-apply_event({account, Ev}, Wallet) ->
+apply_event({account, Ev}, Wallet, _) ->
     Account = maps:get(account, Wallet, undefined),
     Wallet#{account => ff_account:apply_event(Ev, Account)}.
 

@@ -9,6 +9,8 @@
 
 -module(ff_instrument).
 
+-define(ACTUAL_FORMAT_VERSION, 1).
+
 -type id()          :: binary().
 -type external_id() :: id() | undefined.
 -type name()        :: binary().
@@ -21,13 +23,16 @@
     authorized.
 
 -type instrument(T) :: #{
+    version     := ?ACTUAL_FORMAT_VERSION,
     account     := account() | undefined,
     resource    := resource(T),
     name        := name(),
     status      := status() | undefined,
-    external_id => id()
+    external_id => id(),
+    meta_data   => ff_entity_context:md()
 }.
 
+-type legacy_event()          :: any().
 -type event(T) ::
     {created, instrument(T)} |
     {account, ff_account:event()} |
@@ -55,7 +60,7 @@
 
 -export([is_accessible/1]).
 
--export([apply_event/2]).
+-export([apply_event/3]).
 
 %% Pipeline
 
@@ -153,14 +158,32 @@ add_external_id(ExternalID, Event) ->
 
 %%
 
--spec apply_event(event(T), ff_maybe:maybe(instrument(T))) ->
+-spec apply_event(event(T), ff_maybe:maybe(instrument(T)), ff_entity_context:context()) ->
     instrument(T).
 
-apply_event({created, Instrument}, undefined) ->
+apply_event(Ev, Instrument, Ctx) ->
+    apply_event_(maybe_migrate(Ev, Ctx), Instrument).
+
+apply_event_({created, Instrument}, undefined) ->
     Instrument;
-apply_event({status_changed, S}, Instrument) ->
+apply_event_({status_changed, S}, Instrument) ->
     Instrument#{status => S};
-apply_event({account, Ev}, Instrument = #{account := Account}) ->
+apply_event_({account, Ev}, Instrument = #{account := Account}) ->
     Instrument#{account => ff_account:apply_event(Ev, Account)};
-apply_event({account, Ev}, Instrument) ->
-    apply_event({account, Ev}, Instrument#{account => undefined}).
+apply_event_({account, Ev}, Instrument) ->
+    apply_event_({account, Ev}, Instrument#{account => undefined}).
+
+-spec maybe_migrate(event(T) | legacy_event(), ff_entity_context:context()) ->
+    event(T).
+% Actual events
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _) ->
+    Ev;
+% Old events
+maybe_migrate({created, Instrument}, Ctx) ->
+    maybe_migrate({created, Instrument#{
+        meta_data => Ctx
+    }}, Ctx);
+
+% Other events
+maybe_migrate(Ev, _) ->
+    Ev.

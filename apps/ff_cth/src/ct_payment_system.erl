@@ -713,6 +713,42 @@ default_termset(Options) ->
                         ]}
                     }
                 ]}
+            },
+            p2p = #domain_P2pServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10000001, <<"RUB">>)}
+                        )}
+                    }
+                ]},
+                operation_plan = {decisions, [
+                    #domain_OperationPlanDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            #domain_OperationPlanPosting{
+                                source = {wallet, receiver_destination},
+                                destination = {system, settlement},
+                                volume = ?share(10, 100, operation_amount)
+                            }
+                        ]}
+                    },
+                    #domain_OperationPlanDecision{
+                        if_ = {condition, {p2p_tool, #domain_P2PToolCondition{
+                            sender_is = {bank_card, #domain_BankCardCondition{}}
+                        }}},
+                        then_ = {value, [
+                            #domain_OperationPlanPosting{
+                                source = {wallet, receiver_destination},
+                                destination = {system, settlement},
+                                volume = ?share(1, 100, operation_amount)
+                            }
+                        ]}
+                    }
+                ]}
             }
         }
     },

@@ -42,7 +42,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:4b9804fade0fef5fa0ad8cfe4a9748dc8c5574e7
+    image: dr2.rbkmoney.com/bukabjaka/hellgate:123935754cc29e62b21e92f4bb074efa93f41143
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -82,7 +82,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr.rbkmoney.com/rbkmoney/dominant:5a2be39e1035bf590af2e2a638062d6964708e05
+    image: dr2.rbkmoney.com/bukabjaka/dominant:386a5256859cd6e56cea5efb7356d8487efdce1d
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -200,3 +200,4 @@ services:
       - SERVICE_NAME=ffmagista-db
 
 EOF
+#     # image: dr2.rbkmoney.com/rbkmoney/hellgate:4b9804fade0fef5fa0ad8cfe4a9748dc8c5574e7

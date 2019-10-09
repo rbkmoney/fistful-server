@@ -1,0 +1,23 @@
+{application, p2p, [
+    {description,
+        "Personal To Personal transfer processing"
+    },
+    {vsn, "1"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        genlib,
+        ff_core,
+        machinery,
+        machinery_extra,
+        damsel,
+        fistful
+    ]},
+    {env, []},
+    {modules, []},
+    {maintainers, [
+    ]},
+    {licenses, []},
+    {links, ["https://github.com/rbkmoney/fistful-server"]}
+]}.

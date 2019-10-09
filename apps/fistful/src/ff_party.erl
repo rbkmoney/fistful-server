@@ -215,6 +215,7 @@ get_contract_terms(Wallet, Body, Timestamp) ->
 get_contract_terms(PartyID, ContractID, Varset, Timestamp) ->
     DomainVarset = encode_varset(Varset),
     Args = [PartyID, ContractID, ff_time:to_rfc3339(Timestamp), DomainVarset],
+    ct:print("Args: ~p", [Args]),
     case call('ComputeWalletTermsNew', Args) of
         {ok, Terms} ->
             {ok, Terms};

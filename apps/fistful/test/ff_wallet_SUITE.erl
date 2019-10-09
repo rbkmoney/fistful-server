@@ -30,7 +30,7 @@
 -import(ff_pipeline, [unwrap/1]).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().

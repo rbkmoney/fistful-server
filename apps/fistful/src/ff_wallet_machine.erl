@@ -11,7 +11,7 @@
 
 -type id()        :: machinery:id().
 -type wallet()    :: ff_wallet:wallet().
--type ctx()       :: ff_ctx:ctx().
+-type ctx()       :: ff_entity_context:context().
 
 -type st()        :: ff_machine:st(wallet()).
 

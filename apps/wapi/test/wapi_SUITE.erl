@@ -69,8 +69,8 @@ init_per_suite(C) ->
         ct_payment_system:setup(#{
             default_termset => get_default_termset(),
             optional_apps => [
-                wapi,
-                wapi_woody_client
+                wapi_woody_client,
+                wapi
             ]
         })
     ], C).
@@ -85,7 +85,10 @@ end_per_suite(C) ->
 -spec init_per_group(group_name(), config()) -> config().
 
 init_per_group(G, C) ->
-    ok = ff_woody_ctx:set(woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)),
+    ok = ff_context:save(ff_context:create(#{
+        party_client => party_client:create_client(),
+        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
+    })),
     Party = create_party(C),
     Token = issue_token(Party, [{[party], write}], unlimited),
     Context = get_context("localhost:8080", Token),
@@ -102,13 +105,13 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 -define(ID_PROVIDER, <<"good-one">>).
 -define(ID_PROVIDER2, <<"good-two">>).

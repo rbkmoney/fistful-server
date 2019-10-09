@@ -79,13 +79,13 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 %%
 
@@ -354,7 +354,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -363,7 +363,7 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ok = ff_wallet_machine:create(
         ID,
         #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -403,7 +403,7 @@ create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
         Type,
         ID,
         #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_ctx:new(),
+        ff_entity_context:new(),
         C
     ),
     ID.
@@ -442,7 +442,7 @@ process_deposit(SrcID, WalID) ->
     DepID = generate_id(),
     ok = ff_deposit_machine:create(
         #{id => DepID, source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     succeeded = ct_helper:await(
         succeeded,
@@ -506,7 +506,7 @@ process_withdrawal(WalID, DestID, Params) ->
     WdrID = generate_id(),
     ok = ff_withdrawal_machine:create(
         Params#{id => WdrID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     succeeded = ct_helper:await(
         succeeded,

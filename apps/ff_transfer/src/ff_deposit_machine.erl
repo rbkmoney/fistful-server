@@ -75,7 +75,7 @@
 
 %% Internal types
 
--type ctx()           :: ff_ctx:ctx().
+-type ctx()           :: ff_entity_context:context().
 -type revert_params() :: ff_deposit:revert_params().
 -type revert_id()     :: ff_deposit_revert:id().
 

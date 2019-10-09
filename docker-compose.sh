@@ -52,7 +52,6 @@ services:
       shumway:
         condition: service_healthy
     volumes:
-      - ./test/hellgate/sys.config:/opt/hellgate/releases/0.1/sys.config
       - ./test/log/hellgate:/var/log/hellgate
     healthcheck:
       test: "curl http://localhost:8022/"

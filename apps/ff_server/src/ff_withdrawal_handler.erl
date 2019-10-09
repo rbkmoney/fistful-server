@@ -1,33 +1,28 @@
 -module(ff_withdrawal_handler).
--behaviour(woody_server_thrift_handler).
+-behaviour(ff_woody_wrapper).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
-%% woody_server_thrift_handler callbacks
--export([handle_function/4]).
+%% ff_woody_wrapper callbacks
+-export([handle_function/3]).
 
 %%
-%% woody_server_thrift_handler callbacks
+%% ff_woody_wrapper callbacks
 %%
--spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
+-spec handle_function(woody:func(), woody:args(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function(Func, Args, Context, Opts) ->
-    scoper:scope(withdrawal, #{function => Func},
+handle_function(Func, Args, Opts) ->
+    scoper:scope(withdrawal, #{},
         fun() ->
-            ok = ff_woody_ctx:set(Context),
-            try
-                handle_function_(Func, Args, Context, Opts)
-            after
-                ff_woody_ctx:unset()
-            end
+            handle_function_(Func, Args, Opts)
         end
     ).
 
 %%
 %% Internals
 %%
-handle_function_('Create', [Params], Context, Opts) ->
+handle_function_('Create', [Params], Opts) ->
     ID = Params#wthd_WithdrawalParams.id,
     Ctx = Params#wthd_WithdrawalParams.context,
     case ff_withdrawal_machine:create(
@@ -35,7 +30,7 @@ handle_function_('Create', [Params], Context, Opts) ->
         ff_withdrawal_codec:unmarshal(ctx, Ctx)
     ) of
         ok ->
-            handle_function_('Get', [ID], Context, Opts);
+            handle_function_('Get', [ID], Opts);
         {error, exists} ->
             woody_error:raise(business, #fistful_IDExists{});
         {error, {wallet, notfound}} ->
@@ -51,7 +46,7 @@ handle_function_('Create', [Params], Context, Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Get', [ID], _Context, _Opts) ->
+handle_function_('Get', [ID], _Opts) ->
     case ff_withdrawal_machine:get(ID) of
         {ok, Machine} ->
             Ctx = ff_withdrawal_machine:ctx(Machine),
@@ -61,7 +56,7 @@ handle_function_('Get', [ID], _Context, _Opts) ->
         {error, {unknown_withdrawal, _ID}} ->
             woody_error:raise(business, #fistful_WithdrawalNotFound{})
     end;
-handle_function_('GetEvents', [WithdrawalID, RangeParams], _Context, _Opts) ->
+handle_function_('GetEvents', [WithdrawalID, RangeParams], _Opts) ->
     Range = ff_codec:unmarshal(range, RangeParams),
     case ff_withdrawal_machine:events(WithdrawalID, Range) of
         {ok, Events} ->

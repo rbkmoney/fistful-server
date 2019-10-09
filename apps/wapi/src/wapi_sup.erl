@@ -45,11 +45,16 @@ get_authorizer_child_specs() ->
 get_authorizer_child_spec(jwt, Options) ->
     wapi_authorizer_jwt:get_child_spec(Options).
 
--spec get_logic_handler_info() -> {Handlers :: #{atom() => module()}, [Spec :: supervisor:child_spec()] | []} .
+-spec get_logic_handler_info() ->
+    {wapi_swagger_server:logic_handlers(), [supervisor:child_spec()]}.
 
 get_logic_handler_info() ->
+    HandlerOptions = #{
+        %% TODO: Remove after fistful and wapi split
+        party_client => party_client:create_client()
+    },
     {#{
-        wallet  => wapi_wallet_handler
+        wallet  => {wapi_wallet_handler, HandlerOptions}
     }, []}.
 
 -spec enable_health_logging(erl_health:check()) ->

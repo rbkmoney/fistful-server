@@ -1,5 +1,6 @@
 -module(wapi_SUITE).
 
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 
@@ -12,14 +13,15 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
--export([withdrawal_to_bank_card/1]).
--export([withdrawal_to_crypto_wallet/1]).
+-export([withdrawal_to_bank_card_test/1]).
+-export([withdrawal_to_crypto_wallet_test/1]).
 -export([woody_retry_test/1]).
 -export([quote_encode_decode_test/1]).
 -export([get_quote_test/1]).
 -export([get_quote_without_destination_test/1]).
 -export([get_quote_without_destination_fail_test/1]).
--export([quote_withdrawal/1]).
+-export([unknown_withdrawal_test/1]).
+-export([quote_withdrawal_test/1]).
 -export([not_allowed_currency_test/1]).
 
 -type config()         :: ct_helper:config().
@@ -43,15 +45,16 @@ all() ->
 groups() ->
     [
         {default, [sequence, {repeat, 2}], [
-            withdrawal_to_bank_card,
-            withdrawal_to_crypto_wallet
+            withdrawal_to_bank_card_test,
+            withdrawal_to_crypto_wallet_test,
+            unknown_withdrawal_test
         ]},
         {quote, [], [
             quote_encode_decode_test,
             get_quote_test,
             get_quote_without_destination_test,
             get_quote_without_destination_fail_test,
-            quote_withdrawal
+            quote_withdrawal_test
         ]},
         {woody, [], [
             woody_retry_test
@@ -119,9 +122,9 @@ end_per_testcase(_Name, _C) ->
 
 -spec woody_retry_test(config()) -> test_return().
 
--spec withdrawal_to_bank_card(config()) -> test_return().
+-spec withdrawal_to_bank_card_test(config()) -> test_return().
 
-withdrawal_to_bank_card(C) ->
+withdrawal_to_bank_card_test(C) ->
     Name          = <<"Keyn Fawkes">>,
     Provider      = ?ID_PROVIDER,
     Class         = ?ID_CLASS,
@@ -141,9 +144,9 @@ withdrawal_to_bank_card(C) ->
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
--spec withdrawal_to_crypto_wallet(config()) -> test_return().
+-spec withdrawal_to_crypto_wallet_test(config()) -> test_return().
 
-withdrawal_to_crypto_wallet(C) ->
+withdrawal_to_crypto_wallet_test(C) ->
     Name          = <<"Tyler Durden">>,
     Provider      = ?ID_PROVIDER2,
     Class         = ?ID_CLASS,
@@ -160,6 +163,11 @@ withdrawal_to_crypto_wallet(C) ->
 
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
+
+-spec unknown_withdrawal_test(config()) -> test_return().
+
+unknown_withdrawal_test(C) ->
+    ?assertEqual({error,{404,#{}}}, get_withdrawal(<<"unexist withdrawal">>, C)).
 
 -spec quote_encode_decode_test(config()) -> test_return().
 
@@ -305,9 +313,9 @@ get_quote_without_destination_fail_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec quote_withdrawal(config()) -> test_return().
+-spec quote_withdrawal_test(config()) -> test_return().
 
-quote_withdrawal(C) ->
+quote_withdrawal_test(C) ->
     Name          = <<"Keyn Fawkes">>,
     Provider      = <<"quote-owner">>,
     Class         = ?ID_CLASS,
@@ -629,10 +637,7 @@ check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
     ct_helper:await(
         ok,
         fun () ->
-            R = call_api(fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
-                         #{binding => #{<<"withdrawalID">> => WithdrawalID}},
-                         ct_helper:cfg(context, C)),
-            case R of
+            case get_withdrawal(WithdrawalID, C) of
                 {ok, Withdrawal} ->
                     #{
                         <<"wallet">> := WalletID,
@@ -643,11 +648,18 @@ check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
                         }
                     } = Withdrawal,
                     ok;
-                _ ->
-                    R
+                Other ->
+                    Other
             end
         end,
         {linear, 20, 1000}
+    ).
+
+get_withdrawal(WithdrawalID, C) ->
+    call_api(
+        fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
+        #{binding => #{<<"withdrawalID">> => WithdrawalID}},
+        ct_helper:cfg(context, C)
     ).
 
 %%

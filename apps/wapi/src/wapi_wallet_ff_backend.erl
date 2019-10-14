@@ -343,14 +343,14 @@ create_withdrawal(Params, Context) ->
 
 -spec get_withdrawal(id(), ctx()) -> result(map(),
     {withdrawal, unauthorized} |
-    {withdrawal, notfound}
+    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}}
 ).
 get_withdrawal(WithdrawalId, Context) ->
     do(fun() -> to_swag(withdrawal, get_state(withdrawal, WithdrawalId, Context)) end).
 
 -spec get_withdrawal_events(params(), ctx()) -> result([map()],
     {withdrawal, unauthorized} |
-    {withdrawal, notfound}
+    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}}
 ).
 get_withdrawal_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, Context) ->
     Cursor = genlib_map:get('eventCursor', Params),
@@ -364,7 +364,7 @@ get_withdrawal_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limi
 
 -spec get_withdrawal_event(id(), integer(), ctx()) -> result(map(),
     {withdrawal, unauthorized} |
-    {withdrawal, notfound}     |
+    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}} |
     {event, notfound}
 ).
 get_withdrawal_event(WithdrawalId, EventId, Context) ->

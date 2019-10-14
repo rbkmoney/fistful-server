@@ -1,7 +1,7 @@
 -module(ff_withdrawal_adjustment_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("damsel/include/dmsl_accounter_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
 
@@ -419,7 +419,10 @@ get_destination_balance(ID) ->
     get_account_balance(ff_destination:account(ff_destination:get(Machine))).
 
 get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        Account,
+        ff_clock:latest_clock()
+    ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 generate_id() ->
@@ -461,11 +464,11 @@ create_account(CurrencyCode) ->
     end.
 
 construct_account_prototype(CurrencyCode, Description) ->
-    #accounter_AccountPrototype{
+    #shumpune_AccountPrototype{
         currency_sym_code = CurrencyCode,
         description = Description
     }.
 
 call_accounter(Function, Args) ->
-    Service = {dmsl_accounter_thrift, 'Accounter'},
+    Service = {shumpune_shumpune_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}, woody_context:new()).

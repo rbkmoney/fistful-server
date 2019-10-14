@@ -297,8 +297,17 @@ get_wallet_balance(ID) ->
     {ok, Machine} = ff_wallet_machine:get(ID),
     get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
 
+%% NOTE: This function can flap tests after switch to shumpune
+%% because of potentially wrong Clock. In common case it should be passed
+%% from caller after applying changes to account balance.
+%% This will work fine with shumway because it return LatestClock on any
+%% balance changes, therefore it will broke tests with shumpune
+%% because of proper clocks.
 get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        Account,
+        ff_clock:latest_clock()
+    ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 generate_id() ->

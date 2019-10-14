@@ -14,6 +14,7 @@
 -type id()          :: dmsl_domain_thrift:'PartyID'().
 -type contract_id() :: dmsl_domain_thrift:'ContractID'().
 -type wallet_id()   :: dmsl_domain_thrift:'WalletID'().
+-type clock()       :: ff_transaction:clock().
 -type revision()    :: dmsl_domain_thrift:'PartyRevision'().
 
 -type party_params() :: #{
@@ -62,7 +63,7 @@
 -export([validate_account_creation/2]).
 -export([validate_withdrawal_creation/3]).
 -export([validate_deposit_creation/2]).
--export([validate_wallet_limits/2]).
+-export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_wallet_payment_institution_id/1]).
@@ -555,11 +556,11 @@ validate_wallet_terms_currency(CurrencyID, Terms) ->
     } = Terms,
     validate_currency(CurrencyID, Currencies).
 
--spec validate_wallet_limits(wallet(), body()) ->
+-spec validate_wallet_limits(wallet(), body(), clock()) ->
     {ok, valid} |
     {error, invalid_wallet_terms_error()} |
     {error, cash_range_validation_error()}.
-validate_wallet_limits(Wallet, Body) ->
+validate_wallet_limits(Wallet, Body, Clock) ->
     do(fun () ->
         {ok, Terms} = get_contract_terms(Wallet, Body, ff_time:now()),
         #domain_TermSet{wallets = WalletTerms} = Terms,
@@ -568,7 +569,7 @@ validate_wallet_limits(Wallet, Body) ->
             wallet_limit = {value, CashRange}
         } = WalletTerms,
         Account = ff_wallet:account(Wallet),
-        valid = unwrap(validate_account_balance(Account, CashRange))
+        valid = unwrap(validate_account_balance(Account, CashRange, Clock))
     end).
 
 -spec validate_wallet_limits_terms_is_reduced(wallet_terms()) ->
@@ -618,13 +619,14 @@ validate_currency(CurrencyID, Currencies) ->
             {error, {terms_violation, {not_allowed_currency, {CurrencyID, Currencies}}}}
     end.
 
--spec validate_account_balance(ff_account:account(), domain_cash_range()) ->
+-spec validate_account_balance(ff_account:account(), domain_cash_range(), clock()) ->
     {ok, valid} |
     {error, cash_range_validation_error()}.
-validate_account_balance(Account, CashRange) ->
+validate_account_balance(Account, CashRange, Clock) ->
     do(fun() ->
         {Amounts, CurrencyID} = unwrap(ff_transaction:balance(
-                ff_account:accounter_account_id(Account)
+                Account,
+                Clock
             )),
         ExpMinCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmin(Amounts), CurrencyID}),
         ExpMaxCash = ff_dmsl_codec:marshal(cash, {ff_indef:expmax(Amounts), CurrencyID}),

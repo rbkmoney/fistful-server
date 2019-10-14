@@ -19,13 +19,14 @@
 -export([start/2]).
 -export([stop/1]).
 
--export([get_routes/1]).
-
 %% Supervisor
 
 -behaviour(supervisor).
 
 -export([init/1]).
+
+-define(DEFAULT_HANDLING_TIMEOUT, 30000).  % 30 seconds
+
 %%
 
 -spec start() ->
@@ -54,60 +55,67 @@ stop(_State) ->
     {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 
 init([]) ->
-    % TODO
-    %  - Make it palatable
-    {Backends, Handlers} = lists:unzip([
-        contruct_backend_childspec('ff/external_id'           , ff_external_id),
-        contruct_backend_childspec('ff/sequence'              , ff_sequence),
-        contruct_backend_childspec('ff/identity'              , ff_identity_machine),
-        contruct_backend_childspec('ff/wallet_v2'             , ff_wallet_machine),
-        contruct_backend_childspec('ff/source_v1'             , ff_instrument_machine),
-        contruct_backend_childspec('ff/destination_v2'        , ff_instrument_machine),
-        contruct_backend_childspec('ff/deposit_v1'            , ff_deposit_machine),
-        contruct_backend_childspec('ff/withdrawal_v2'         , ff_withdrawal_machine),
-        contruct_backend_childspec('ff/withdrawal/session_v2' , ff_withdrawal_session_machine)
-    ]),
-    ok = application:set_env(fistful, backends, maps:from_list(Backends)),
-
-    IpEnv          = genlib_app:env(?MODULE, ip, "::0"),
+    IpEnv          = genlib_app:env(?MODULE, ip, "::1"),
     Port           = genlib_app:env(?MODULE, port, 8022),
     HealthCheck    = genlib_app:env(?MODULE, health_check, #{}),
     WoodyOptsEnv   = genlib_app:env(?MODULE, woody_opts, #{}),
     RouteOptsEnv   = genlib_app:env(?MODULE, route_opts, #{}),
 
+    PartyClient = party_client:create_client(),
+    DefaultTimeout = genlib_app:env(?MODULE, default_woody_handling_timeout, ?DEFAULT_HANDLING_TIMEOUT),
+    WrapperOpts = #{
+        party_client => PartyClient,
+        default_handling_timeout => DefaultTimeout
+    },
+
     {ok, Ip}       = inet:parse_address(IpEnv),
     WoodyOpts      = maps:with([net_opts, handler_limits], WoodyOptsEnv),
     RouteOpts      = RouteOptsEnv#{event_handler => scoper_woody_event_handler},
 
-    Routes = lists:merge(lists:map(fun get_routes/1, [
-        {<<"/v1/wallet">>,      {{ff_proto_wallet_thrift, 'Management'}, {ff_wallet_handler, []}}, WoodyOpts},
-        {<<"/v1/identity">>,    {{ff_proto_identity_thrift, 'Management'}, {ff_identity_handler, []}}, WoodyOpts},
-        {<<"/v1/destination">>, {{ff_proto_destination_thrift, 'Management'}, {ff_destination_handler, []}}, WoodyOpts},
-        {<<"/v1/withdrawal">>,  {{ff_proto_withdrawal_thrift, 'Management'}, {ff_withdrawal_handler, []}}, WoodyOpts}
-    ])),
+    % TODO
+    %  - Make it palatable
+    {Backends, Handlers} = lists:unzip([
+        contruct_backend_childspec('ff/external_id'           , ff_external_id               , PartyClient),
+        contruct_backend_childspec('ff/sequence'              , ff_sequence                  , PartyClient),
+        contruct_backend_childspec('ff/identity'              , ff_identity_machine          , PartyClient),
+        contruct_backend_childspec('ff/wallet_v2'             , ff_wallet_machine            , PartyClient),
+        contruct_backend_childspec('ff/source_v1'             , ff_instrument_machine        , PartyClient),
+        contruct_backend_childspec('ff/destination_v2'        , ff_instrument_machine        , PartyClient),
+        contruct_backend_childspec('ff/deposit_v1'            , ff_deposit_machine           , PartyClient),
+        contruct_backend_childspec('ff/withdrawal_v2'         , ff_withdrawal_machine        , PartyClient),
+        contruct_backend_childspec('ff/withdrawal/session_v2' , ff_withdrawal_session_machine, PartyClient)
+    ]),
+    ok = application:set_env(fistful, backends, maps:from_list(Backends)),
 
-    ChildSpec = woody_server:child_spec(
+    Services = [
+        {fistful_admin, ff_server_admin_handler},
+        {wallet_management, ff_wallet_handler},
+        {identity_management, ff_identity_handler},
+        {destination_management, ff_destination_handler},
+        {withdrawal_management, ff_withdrawal_handler},
+        {withdrawal_session_repairer, ff_withdrawal_session_repair}
+    ] ++ get_eventsink_handlers(),
+    WoodyHandlers = [get_handler(Service, Handler, WrapperOpts) || {Service, Handler} <- Services],
+
+    ServicesChildSpec = woody_server:child_spec(
         ?MODULE,
         maps:merge(
             WoodyOpts,
             #{
                 ip                => Ip,
                 port              => Port,
-                handlers          => [],
+                handlers          => WoodyHandlers,
                 event_handler     => scoper_woody_event_handler,
                 additional_routes =>
                     machinery_mg_backend:get_routes(Handlers, RouteOpts) ++
-                    get_admin_routes() ++
-                    Routes ++
-                    get_eventsink_routes() ++
-                    get_repair_routes(WoodyOpts) ++
                     [erl_health_handle:get_route(enable_health_logging(HealthCheck))]
             }
         )
     ),
+    PartyClientSpec = party_client:child_spec(party_client, PartyClient),
     % TODO
     %  - Zero thoughts given while defining this strategy.
-    {ok, {#{strategy => one_for_one}, [ChildSpec]}}.
+    {ok, {#{strategy => one_for_one}, [PartyClientSpec, ServicesChildSpec]}}.
 
 -spec enable_health_logging(erl_health:check()) ->
     erl_health:check().
@@ -116,25 +124,21 @@ enable_health_logging(Check) ->
     EvHandler = {erl_health_event_handler, []},
     maps:map(fun (_, V = {_, _, _}) -> #{runner => V, event_handler => EvHandler} end, Check).
 
--spec get_routes({binary(), woody:th_handler(), map()}) ->
-    [woody_server_thrift_http_handler:route(_)].
+-spec get_handler(ff_services:service_name(), woody:handler(_), map()) ->
+    woody:http_handler(woody:th_handler()).
 
-get_routes({Path, Handler, Opts}) ->
-    Limits = genlib_map:get(handler_limits, Opts),
-    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, Handler}],
-        event_handler => scoper_woody_event_handler,
-        handler_limits => Limits
-    })).
+get_handler(Service, Handler, WrapperOpts) ->
+    {Path, ServiceSpec} = ff_services:get_service_spec(Service),
+    {Path, {ServiceSpec, wrap_handler(Handler, WrapperOpts)}}.
 
-contruct_backend_childspec(NS, Handler) ->
+contruct_backend_childspec(NS, Handler, PartyClient) ->
     Be = {machinery_mg_backend, #{
         schema => machinery_mg_schema_generic,
-        client => get_service_client('automaton')
+        client => get_service_client(automaton)
     }},
     {
         {NS, Be},
-        {{fistful, Handler},
+        {{fistful, #{handler => Handler, party_client => PartyClient}},
             #{
                 path           => ff_string:join(["/v1/stateproc/", NS]),
                 backend_config => #{schema => machinery_mg_schema_generic}
@@ -143,82 +147,42 @@ contruct_backend_childspec(NS, Handler) ->
     }.
 
 get_service_client(ServiceID) ->
-    case genlib_app:env(?MODULE, services, #{}) of
+    case genlib_app:env(fistful, services, #{}) of
         #{ServiceID := V} ->
             ff_woody_client:new(V);
         #{} ->
-            error({'woody service undefined', ServiceID})
+            error({unknown_service, ServiceID})
     end.
 
-get_admin_routes() ->
-    Opts = genlib_app:env(?MODULE, admin, #{}),
-    Path = maps:get(path, Opts, <<"/v1/admin">>),
-    Limits = genlib_map:get(handler_limits, Opts),
-    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {{ff_proto_fistful_admin_thrift, 'FistfulAdmin'}, {ff_server_admin_handler, []}}}],
-        event_handler => scoper_woody_event_handler,
-        handler_limits => Limits
-    })).
-
-get_eventsink_routes() ->
-    Url = maps:get(eventsink, genlib_app:env(?MODULE, services, #{}),
-        "http://machinegun:8022/v1/event_sink"),
+get_eventsink_handlers() ->
+    Client = get_service_client(eventsink),
     Cfg = #{
         schema => machinery_mg_schema_generic,
-        client => #{
-            event_handler => scoper_woody_event_handler,
-            url => Url
-        }
+        client => Client
     },
-    get_eventsink_route(withdrawal_session, {<<"/v1/eventsink/withdrawal/session">>,
-        {
-            {ff_proto_withdrawal_session_thrift, 'EventSink'},
-            {ff_withdrawal_session_eventsink_publisher, Cfg}
-        }}) ++
-    get_eventsink_route(deposit,        {<<"/v1/eventsink/deposit">>,
-        {{ff_proto_deposit_thrift,      'EventSink'}, {ff_deposit_eventsink_publisher, Cfg}}}) ++
-    get_eventsink_route(source,         {<<"/v1/eventsink/source">>,
-        {{ff_proto_source_thrift,       'EventSink'}, {ff_source_eventsink_publisher, Cfg}}}) ++
-    get_eventsink_route(destination,    {<<"/v1/eventsink/destination">>,
-        {{ff_proto_destination_thrift,  'EventSink'}, {ff_destination_eventsink_publisher, Cfg}}}) ++
-    get_eventsink_route(identity,       {<<"/v1/eventsink/identity">>,
-        {{ff_proto_identity_thrift,     'EventSink'}, {ff_identity_eventsink_publisher, Cfg}}}) ++
-    get_eventsink_route(wallet,         {<<"/v1/eventsink/wallet">>,
-        {{ff_proto_wallet_thrift,       'EventSink'}, {ff_wallet_eventsink_publisher, Cfg}}}) ++
-    get_eventsink_route(withdrawal,     {<<"/v1/eventsink/withdrawal">>,
-        {{ff_proto_withdrawal_thrift,   'EventSink'}, {ff_withdrawal_eventsink_publisher, Cfg}}}).
+    Publishers = [
+        {deposit, deposit_event_sink, ff_deposit_eventsink_publisher},
+        {source, source_event_sink, ff_source_eventsink_publisher},
+        {destination, destination_event_sink, ff_destination_eventsink_publisher},
+        {identity, identity_event_sink, ff_identity_eventsink_publisher},
+        {wallet, wallet_event_sink, ff_wallet_eventsink_publisher},
+        {withdrawal, withdrawal_event_sink, ff_withdrawal_eventsink_publisher},
+        {withdrawal_session, withdrawal_session_event_sink, ff_withdrawal_session_eventsink_publisher}
+    ],
+    [get_eventsink_handler(Name, Service, Publisher, Cfg) || {Name, Service, Publisher} <- Publishers].
 
-get_eventsink_route(RouteType, {DefPath, {Module, {Publisher, Cfg}}}) ->
-    RouteMap = genlib_app:env(?MODULE, eventsink, #{}),
-    case maps:get(RouteType, RouteMap, undefined) of
-        undefined ->
-            erlang:error({eventsink_undefined, RouteType});
-        Opts ->
-            Path = maps:get(path, Opts, DefPath),
+get_eventsink_handler(Name, Service, Publisher, Config) ->
+    Sinks = genlib_app:env(?MODULE, eventsink, #{}),
+    case maps:find(Name, Sinks) of
+        {ok, Opts} ->
             NS = maps:get(namespace, Opts),
             StartEvent = maps:get(start_event, Opts, 0),
-            Limits = genlib_map:get(handler_limits, Opts),
-            woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-                handlers => [
-                    {Path, {Module, {
-                        ff_eventsink_handler,
-                        Cfg#{ns => NS, publisher => Publisher, start_event => StartEvent}
-                }}}],
-                event_handler => scoper_woody_event_handler,
-                handler_limits => Limits
-            }))
+            FullConfig = Config#{ns => NS, publisher => Publisher, start_event => StartEvent},
+            {Service, {ff_eventsink_handler, FullConfig}};
+        error ->
+            erlang:error({unknown_eventsink, Name, Sinks})
     end.
 
-get_repair_routes(WoodyOpts) ->
-    Limits = genlib_map:get(handler_limits, WoodyOpts),
-    Handlers = [
-        {
-            <<"withdrawal/session">>,
-            {{ff_proto_withdrawal_session_thrift, 'Repairer'}, {ff_withdrawal_session_repair, #{}}}
-        }
-    ],
-    woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{<<"/v1/repair/", N/binary>>, H} || {N, H} <- Handlers],
-        event_handler => scoper_woody_event_handler,
-        handler_limits => Limits
-    })).
+wrap_handler(Handler, WrapperOpts) ->
+    FullOpts = maps:merge(#{handler => Handler}, WrapperOpts),
+    {ff_woody_wrapper, FullOpts}.

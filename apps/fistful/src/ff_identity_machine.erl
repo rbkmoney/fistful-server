@@ -20,7 +20,7 @@
 
 -type id()        :: machinery:id().
 -type identity()  :: ff_identity:identity().
--type ctx()       :: ff_ctx:ctx().
+-type ctx()       :: ff_entity_context:context().
 
 -type st() :: ff_machine:st(identity()).
 

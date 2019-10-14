@@ -1,28 +1,20 @@
 -module(ff_withdrawal_session_repair).
 
--behaviour(woody_server_thrift_handler).
+-behaviour(ff_woody_wrapper).
 
--export([handle_function/4]).
+-export([handle_function/3]).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
 
--type options() :: #{}.
+-type options() :: undefined.
 
 %%
-%% woody_server_thrift_handler callbacks
+%% ff_woody_wrapper callbacks
 %%
 
--spec handle_function(woody:func(), woody:args(), woody_context:ctx(), options()) ->
+-spec handle_function(woody:func(), woody:args(), options()) ->
     {ok, woody:result()} | no_return().
-handle_function(Func, Args, Context, Opts) ->
-    ok = ff_woody_ctx:set(Context),
-    try
-        do_handle_function(Func, Args, Context, Opts)
-    after
-        ff_woody_ctx:unset()
-    end.
-
-do_handle_function('Repair', [ID, Scenario], _Context, _Opts) ->
+handle_function('Repair', [ID, Scenario], _Opts) ->
     DecodedScenario = ff_codec:unmarshal(ff_withdrawal_session_codec, repair_scenario, Scenario),
     case ff_withdrawal_session_machine:repair(ID, DecodedScenario) of
         ok ->

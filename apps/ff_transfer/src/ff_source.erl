@@ -8,7 +8,7 @@
 
 -module(ff_source).
 
--type ctx()      :: ff_ctx:ctx().
+-type ctx()      :: ff_entity_context:context().
 -type id()       :: ff_instrument:id().
 -type name()     :: ff_instrument:name().
 -type account()  :: ff_account:account().

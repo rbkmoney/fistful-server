@@ -800,7 +800,11 @@ make_final_cash_flow(Params) ->
     Identity = ff_identity_machine:identity(IdentityMachine),
     PartyID = ff_identity:party(Identity),
     ContractID = ff_identity:contract(Identity),
-    {ok, Terms} = ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now()),
+    {ok, PartyRevision} = ff_party:get_revision(PartyID),
+    DomainRevision = ff_domain_config:head(),
+    {ok, Terms} = ff_party:get_contract_terms(
+        PartyID, ContractID, VS, ff_time:now(), PartyRevision, DomainRevision
+    ),
     {ok, WalletCashFlowPlan} = ff_party:get_withdrawal_cash_flow_plan(Terms),
     {ok, CashFlowPlan} = ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee),
     Constants = #{
@@ -1007,7 +1011,11 @@ validate_withdrawal_creation_terms(Body, Wallet, Destination, Resource) ->
     PartyID = ff_identity:party(Identity),
     ContractID = ff_identity:contract(Identity),
     VS = collect_varset(make_varset_params(Body, Wallet, Destination, Resource)),
-    {ok, Terms} = ff_party:get_contract_terms(PartyID, ContractID, VS, ff_time:now()),
+    {ok, PartyRevision} = ff_party:get_revision(PartyID),
+    DomainRevision = ff_domain_config:head(),
+    {ok, Terms} = ff_party:get_contract_terms(
+        PartyID, ContractID, VS, ff_time:now(), PartyRevision, DomainRevision
+    ),
     ff_party:validate_withdrawal_creation(Terms, Body, WalletAccount).
 
 -spec validate_withdrawal_currency(body(), wallet(), destination()) ->

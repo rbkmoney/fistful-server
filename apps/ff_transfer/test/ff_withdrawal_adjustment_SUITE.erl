@@ -86,12 +86,12 @@ end_per_group(_, _) ->
 -spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 %% Tests
 
@@ -155,7 +155,7 @@ adjustment_can_change_status_to_succeeded_test(C) ->
         destination_id => DestinationID,
         body => {1000, <<"RUB">>}
     },
-    ok = ff_withdrawal_machine:create(Params, ff_ctx:new()),
+    ok = ff_withdrawal_machine:create(Params, ff_entity_context:new()),
     ?assertMatch({failed, _}, await_final_withdrawal_status(WithdrawalID)),
     AdjustmentID = process_adjustment(WithdrawalID, #{
         change => {change_status, succeeded}
@@ -320,7 +320,7 @@ get_adjustment(WithdrawalID, AdjustmentID) ->
 
 process_withdrawal(WithdrawalParams) ->
     WithdrawalID = generate_id(),
-    ok = ff_withdrawal_machine:create(WithdrawalParams#{id => WithdrawalID}, ff_ctx:new()),
+    ok = ff_withdrawal_machine:create(WithdrawalParams#{id => WithdrawalID}, ff_entity_context:new()),
     succeeded = await_final_withdrawal_status(WithdrawalID),
     WithdrawalID.
 
@@ -388,7 +388,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -397,7 +397,7 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ok = ff_wallet_machine:create(
         ID,
         #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -432,7 +432,7 @@ create_destination(IID, C) ->
     ID = generate_id(),
     Resource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
     Params = #{identity => IID, name => <<"XDesination">>, currency => <<"RUB">>, resource => Resource},
-    ok = ff_destination:create(ID, Params, ff_ctx:new()),
+    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->

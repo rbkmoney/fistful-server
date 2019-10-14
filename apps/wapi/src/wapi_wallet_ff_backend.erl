@@ -769,7 +769,7 @@ add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
     Context#{?CTX_NS => Ctx#{Key => Value}}.
 
 get_ctx(State) ->
-    unwrap(ff_ctx:get(?CTX_NS, ff_machine:ctx(State))).
+    unwrap(ff_entity_context:get(?CTX_NS, ff_machine:ctx(State))).
 
 get_hash(State) ->
     maps:get(?PARAMS_HASH, get_ctx(State)).

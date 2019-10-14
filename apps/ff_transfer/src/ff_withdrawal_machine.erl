@@ -65,7 +65,7 @@
 
 %% Internal types
 
--type ctx() :: ff_ctx:ctx().
+-type ctx() :: ff_entity_context:context().
 
 -type adjustment_params() :: ff_withdrawal:adjustment_params().
 

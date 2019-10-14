@@ -1,39 +1,34 @@
 -module(ff_wallet_handler).
--behaviour(woody_server_thrift_handler).
+-behaviour(ff_woody_wrapper).
 
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
-%% woody_server_thrift_handler callbacks
--export([handle_function/4]).
+%% ff_woody_wrapper callbacks
+-export([handle_function/3]).
 
 %%
-%% woody_server_thrift_handler callbacks
+%% ff_woody_wrapper callbacks
 %%
--spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
+-spec handle_function(woody:func(), woody:args(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function(Func, Args, Context, Opts) ->
-    scoper:scope(fistful, #{function => Func},
+handle_function(Func, Args, Opts) ->
+    scoper:scope(wallet, #{},
         fun() ->
-            ok = ff_woody_ctx:set(Context),
-            try
-                handle_function_(Func, Args, Context, Opts)
-            after
-                ff_woody_ctx:unset()
-            end
+            handle_function_(Func, Args, Opts)
         end
     ).
 
 %%
 %% Internals
 %%
-handle_function_('Create', [Params], Context, Opts) ->
+handle_function_('Create', [Params], Opts) ->
     WalletID = Params#wlt_WalletParams.id,
     case ff_wallet_machine:create(WalletID,
         decode(wallet_params, Params),
         decode(context, Params#wlt_WalletParams.context))
     of
         ok ->
-            handle_function_('Get', [WalletID], Context, Opts);
+            handle_function_('Get', [WalletID], Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {currency, notfound}} ->
@@ -44,7 +39,7 @@ handle_function_('Create', [Params], Context, Opts) ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 
-handle_function_('Get', [ID], _Context, _Opts) ->
+handle_function_('Get', [ID], _Opts) ->
     case ff_wallet_machine:get(ID) of
         {ok, Machine} ->
             {ok, encode(wallet, {ID, Machine})};
@@ -64,7 +59,7 @@ encode(wallet, {ID, Machine}) ->
         context     = encode(context, Ctx)
     };
 encode(context, Ctx) ->
-    ff_context:wrap(Ctx);
+    ff_entity_context_codec:marshal(Ctx);
 encode(account, Account) ->
     #account_Account{
         id       = ff_account:id(Account),
@@ -86,5 +81,5 @@ decode(wallet_params, Params) ->
 decode(context, undefined) ->
     undefined;
 decode(context, Ctx) ->
-    ff_context:unwrap(Ctx).
+    ff_entity_context_codec:unmarshal(Ctx).
 

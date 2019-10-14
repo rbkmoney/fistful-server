@@ -94,12 +94,12 @@ end_per_group(_, _) ->
 -spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 %% Tests
 
@@ -131,7 +131,7 @@ session_fail_test(C) ->
             }
         }
     },
-    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
     ?assertMatch({failed, #{code := <<"test_error">>}}, Result),
     ok = await_wallet_balance(WithdrawalCash, WalletID).
@@ -161,7 +161,7 @@ quote_fail_test(C) ->
             }
         }
     },
-    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
     ?assertMatch({failed, #{code := <<"unknown">>}}, Result).
 
@@ -179,7 +179,7 @@ route_not_found_fail_test(C) ->
         wallet_id => WalletID,
         body => Cash
     },
-    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
     ?assertMatch({failed, #{code := <<"no_route_found">>}}, Result).
 
@@ -197,7 +197,7 @@ limit_check_fail_test(C) ->
         wallet_id => WalletID,
         body => {200, <<"RUB">>}
     },
-    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
     ?assertMatch({failed, #{
         code := <<"account_limit_exceeded">>,
@@ -221,7 +221,7 @@ create_cashlimit_validation_error_test(C) ->
         wallet_id => WalletID,
         body => {20000000, <<"RUB">>}
     },
-    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     CashRange = {{inclusive, {0, <<"RUB">>}}, {exclusive, {10000001, <<"RUB">>}}},
     Details = {terms_violation, {cash_range, {{20000000, <<"RUB">>}, CashRange}}},
     ?assertMatch({error, {terms, Details}}, Result).
@@ -240,7 +240,7 @@ create_withdrawal_currency_validation_error_test(C) ->
         wallet_id => WalletID,
         body => Cash
     },
-    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Details = {
         <<"USD">>,
         [
@@ -263,7 +263,7 @@ create_wallet_currency_validation_error_test(C) ->
         wallet_id => WalletID,
         body => {100, <<"USD">>}
     },
-    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertMatch({error, {terms, {invalid_withdrawal_currency, <<"USD">>, {wallet_currency, <<"RUB">>}}}}, Result).
 
 -spec create_destination_currency_validation_error_test(config()) -> test_return().
@@ -280,7 +280,7 @@ create_destination_currency_validation_error_test(C) ->
         wallet_id => WalletID,
         body => {100, <<"RUB">>}
     },
-    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertMatch({error, {inconsistent_currency, {<<"RUB">>, <<"RUB">>, <<"USD">>}}}, Result).
 
 -spec create_currency_validation_error_test(config()) -> test_return().
@@ -297,7 +297,7 @@ create_currency_validation_error_test(C) ->
         wallet_id => WalletID,
         body => {100, <<"EUR">>}
     },
-    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Details = {
         <<"EUR">>,
         [
@@ -321,7 +321,7 @@ create_destination_resource_notfound_test(C) ->
         wallet_id => WalletID,
         body => Cash
     },
-    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertMatch({error, {destination_resource, {bin_data, not_found}}}, Result).
 
 -spec create_destination_notfound_test(config()) -> test_return().
@@ -337,7 +337,7 @@ create_destination_notfound_test(C) ->
         wallet_id => WalletID,
         body => Cash
     },
-    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertMatch({error, {destination, notfound}}, Result).
 
 -spec create_wallet_notfound_test(config()) -> test_return().
@@ -353,7 +353,7 @@ create_wallet_notfound_test(C) ->
         wallet_id => <<"unknown_wallet">>,
         body => Cash
     },
-    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertMatch({error, {wallet, notfound}}, Result).
 
 -spec create_ok_test(config()) -> test_return().
@@ -371,7 +371,7 @@ create_ok_test(C) ->
         body => Cash,
         external_id => WithdrawalID
     },
-    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_ctx:new()),
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     succeeded = await_final_withdrawal_status(WithdrawalID),
     ok = await_wallet_balance({0, <<"RUB">>}, WalletID),
     Withdrawal = get_withdrawal(WithdrawalID),
@@ -445,7 +445,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -454,7 +454,7 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ok = ff_wallet_machine:create(
         ID,
         #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -497,7 +497,7 @@ create_destination(IID, Currency, Token, C) ->
         end,
     Resource = {bank_card, NewStoreResource},
     Params = #{identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
-    ok = ff_destination:create(ID, Params, ff_ctx:new()),
+    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->

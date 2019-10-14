@@ -167,7 +167,7 @@ withdrawal_to_crypto_wallet_test(C) ->
 -spec unknown_withdrawal_test(config()) -> test_return().
 
 unknown_withdrawal_test(C) ->
-    ?assertEqual({error,{404,#{}}}, get_withdrawal(<<"unexist withdrawal">>, C)).
+    ?assertEqual({error, {404, #{}}}, get_withdrawal(<<"unexist withdrawal">>, C)).
 
 -spec quote_encode_decode_test(config()) -> test_return().
 

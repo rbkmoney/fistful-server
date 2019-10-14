@@ -309,7 +309,7 @@ services(Options) ->
     Default = #{
         eventsink      => "http://machinegun:8022/v1/event_sink",
         automaton      => "http://machinegun:8022/v1/automaton",
-        accounter      => "http://shumway:8022/accounter",
+        accounter      => "http://shumway:8022/shumpune",
         cds            => "http://cds:8022/v1/storage",
         identdocstore  => "http://cds:8022/v1/identity_document_storage",
         partymgmt      => "http://hellgate:8022/v1/processing/partymgmt",

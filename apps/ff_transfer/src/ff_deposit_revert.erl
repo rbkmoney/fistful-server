@@ -139,6 +139,7 @@
 -type adjustment_id()     :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
 -type final_cash_flow()   :: ff_cash_flow:final_cash_flow().
+-type clock()             :: ff_transaction:clock().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -374,7 +375,8 @@ process_limit_check(Revert) ->
     Body = body(Revert),
     {ok, WalletMachine} = ff_wallet_machine:get(wallet_id(Revert)),
     Wallet = ff_wallet_machine:wallet(WalletMachine),
-    Events = case validate_wallet_limits(Wallet, Body) of
+    Clock = ff_postings_transfer:clock(p_transfer(Revert)),
+    Events = case validate_wallet_limits(Wallet, Body, Clock) of
         {ok, valid} ->
             [{limit_check, {wallet, ok}}];
         {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
@@ -629,11 +631,11 @@ is_limit_check_ok({wallet, ok}) ->
 is_limit_check_ok({wallet, {failed, _Details}}) ->
     false.
 
--spec validate_wallet_limits(wallet(), cash()) ->
+-spec validate_wallet_limits(wallet(), cash(), clock()) ->
     {ok, valid} |
     {error, validation_error()}.
-validate_wallet_limits(Wallet, Body) ->
-    case ff_party:validate_wallet_limits(Wallet, Body) of
+validate_wallet_limits(Wallet, Body, Clock) ->
+    case ff_party:validate_wallet_limits(Wallet, Body, Clock) of
         {ok, valid} = Result ->
             Result;
         {error, {terms_violation, {cash_range, {Cash, CashRange}}}} ->

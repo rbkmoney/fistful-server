@@ -15,6 +15,7 @@
 -type contract_id() :: dmsl_domain_thrift:'ContractID'().
 -type wallet_id()   :: dmsl_domain_thrift:'WalletID'().
 -type revision()    :: dmsl_domain_thrift:'PartyRevision'().
+-type terms()       :: dmsl_domain_thrift:'TermSet'().
 
 -type party_params() :: #{
     email := binary()
@@ -38,6 +39,8 @@
     cash_range_validation_error().
 
 -export_type([id/0]).
+-export_type([revision/0]).
+-export_type([terms/0]).
 -export_type([contract_id/0]).
 -export_type([wallet_id/0]).
 -export_type([party_params/0]).
@@ -65,12 +68,11 @@
 -export([validate_wallet_limits/2]).
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
--export([get_wallet_payment_institution_id/1]).
+-export([get_identity_payment_institution_id/1]).
 
 %% Internal types
 -type body() :: ff_transaction:body().
 -type cash() :: ff_cash:cash().
--type terms() :: dmsl_domain_thrift:'TermSet'().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'().
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
 -type currency_id() :: ff_currency:id().
@@ -183,18 +185,15 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
         ok
     end).
 
--spec get_wallet_payment_institution_id(wallet()) -> Result when
+-spec get_identity_payment_institution_id(ff_identity:identity()) -> Result when
     Result :: {ok, payment_institution_id()} | {error, Error},
     Error ::
         {party_not_found, id()} |
         {contract_not_found, id()} |
         no_return().
 
-get_wallet_payment_institution_id(Wallet) ->
-    IdentityID = ff_wallet:identity(Wallet),
+get_identity_payment_institution_id(Identity) ->
     do(fun() ->
-        {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
-        Identity = ff_identity_machine:identity(IdentityMachine),
         PartyID = ff_identity:party(Identity),
         ContractID = ff_identity:contract(Identity),
         Contract = unwrap(do_get_contract(PartyID, ContractID)),

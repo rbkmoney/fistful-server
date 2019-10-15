@@ -39,7 +39,14 @@
 
 %% Macro helpers
 
--define(final_balance(Amount, Currency), {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency}).
+-define(final_balance(Cash), {
+    element(1, Cash),
+    {
+        {inclusive, element(1, Cash)}, {inclusive, element(1, Cash)}
+    },
+    element(2, Cash)
+}).
+-define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
 
 %% API
 
@@ -133,7 +140,7 @@ session_fail_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
     ?assertMatch({failed, #{code := <<"test_error">>}}, Result),
-    ok = await_wallet_balance(WithdrawalCash, WalletID).
+    ?assertEqual(?final_balance(WithdrawalCash), get_wallet_balance(WalletID)).
 
 -spec quote_fail_test(config()) -> test_return().
 quote_fail_test(C) ->
@@ -162,7 +169,8 @@ quote_fail_test(C) ->
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
-    ?assertMatch({failed, #{code := <<"unknown">>}}, Result).
+    ?assertMatch({failed, #{code := <<"unknown">>}}, Result),
+    ?assertEqual(?final_balance(Cash), get_wallet_balance(WalletID)).
 
 -spec route_not_found_fail_test(config()) -> test_return().
 route_not_found_fail_test(C) ->
@@ -204,7 +212,7 @@ limit_check_fail_test(C) ->
             code := <<"amount">>
         }
     }}, Result),
-    ok = await_wallet_balance(Cash, WalletID).
+    ?assertEqual(?final_balance(Cash), get_wallet_balance(WalletID)).
 
 -spec create_cashlimit_validation_error_test(config()) -> test_return().
 create_cashlimit_validation_error_test(C) ->
@@ -372,7 +380,7 @@ create_ok_test(C) ->
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     succeeded = await_final_withdrawal_status(WithdrawalID),
-    ok = await_wallet_balance({0, <<"RUB">>}, WalletID),
+    ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
     Withdrawal = get_withdrawal(WithdrawalID),
     WalletID = ff_withdrawal:wallet_id(Withdrawal),
     DestinationID = ff_withdrawal:destination_id(Withdrawal),

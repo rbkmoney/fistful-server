@@ -1,10 +1,11 @@
 %% P2P adapter client
+
 -module(p2p_adapter).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_p2p_adapter_thrift.hrl").
 
-%% API
+%% Exports
 
 -export([process/2]).
 -export([handle_callback/3]).
@@ -19,7 +20,7 @@
 -type process_result()  :: p2p_adapter_thrift:'ProcessResult'().
 -type callback_result() :: p2p_adapter_thrift:'CallbackResult'().
 
-%% Implementation
+%% API
 
 -spec process(context(), route()) ->
     {ok, process_result()} | no_return().
@@ -31,6 +32,8 @@ process(Context, Route) ->
 handle_callback(Callback, Context, Route) ->
     issue_call('HandleCallback', [Callback, Context], Route).
 
+%% Implementation
+
 issue_call(Function, Args, Route) ->
     Opts    = get_call_options(Route),
     Client  = ff_woody_client:new(Opts),
@@ -40,10 +43,10 @@ issue_call(Function, Args, Route) ->
 get_route_provider_ref(#domain_PaymentRoute{provider = ProviderRef}) ->
     ProviderRef.
 
-% TODO: mostly copypasta from hg_proxy, might require more ff specific tweaks
+% TODO: mostly copypasta from hg_proxy, might require more ff/p2p specific tweaks
 get_call_options(Route) ->
-    Revision       = ff_domain_config:head(),
     ProviderRef    = get_route_provider_ref(Route),
+    Revision       = ff_domain_config:head(),
     {ok, Provider} = ff_domain_config:get(Revision, ProviderRef),
     get_call_options(Provider#domain_Provider.proxy, Revision).
 

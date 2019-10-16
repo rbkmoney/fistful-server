@@ -37,7 +37,7 @@ handle_callback(Callback, Context, Route) ->
 issue_call(Function, Args, Route) ->
     Opts    = get_call_options(Route),
     Client  = ff_woody_client:new(Opts),
-    Request = {'Adapter', Function, Args},
+    Request = {{p2p_adapter_thrift, 'Adapter'}, Function, Args},
     ff_woody_client:call(Client, Request).
 
 get_route_provider_ref(#domain_PaymentRoute{provider = ProviderRef}) ->

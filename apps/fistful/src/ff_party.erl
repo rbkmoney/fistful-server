@@ -240,7 +240,6 @@ get_contract_terms(Wallet, Body, Timestamp) ->
 get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) ->
     DomainVarset = encode_varset(Varset),
     TimestampStr = ff_time:to_rfc3339(Timestamp),
-    DomainRevision = ff_domain_config:head(),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_contract_terms(
         PartyID,

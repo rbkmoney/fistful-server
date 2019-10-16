@@ -806,14 +806,13 @@ make_final_cash_flow(Withdrawal) ->
     Body = body(Withdrawal),
     WalletID = wallet_id(Withdrawal),
     {ok, Wallet} = get_wallet(WalletID),
-    Quote = quote(Withdrawal),
     Route = route(Withdrawal),
     DomainRevision = ensure_domain_revision_defined([domain_revision(Withdrawal)]),
     {ok, Destination} = get_destination(destination_id(Withdrawal)),
     Resource = destination_resource(Withdrawal),
     Identity = get_wallet_identity(Wallet),
     PartyID = ff_identity:party(get_wallet_identity(Wallet)),
-    PartyRevision = ensure_party_revision_defined(PartyID, [quote_party_revision(Quote)]),
+    PartyRevision = ensure_party_revision_defined(PartyID, [party_revision(Withdrawal)]),
     ContractID = ff_identity:contract(Identity),
     Timestamp = operation_timestamp(Withdrawal),
     VarsetParams = genlib_map:compact(#{
@@ -845,7 +844,7 @@ make_final_cash_flow(Withdrawal) ->
     ProviderFee = ff_payouts_provider:compute_fees(Provider, PartyVarset),
 
     {ok, Terms} = ff_party:get_contract_terms(
-        PartyID, ContractID, build_party_varset(VarsetParams), Timestamp, PartyRevision, DomainRevision
+        PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
     ),
     {ok, WalletCashFlowPlan} = ff_party:get_withdrawal_cash_flow_plan(Terms),
     {ok, CashFlowPlan} = ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee),

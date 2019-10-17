@@ -149,6 +149,7 @@
 -type domain_revision()   :: ff_domain_config:revision().
 -type identity()          :: ff_identity:identity().
 -type terms()             :: ff_party:terms().
+-type clock()             :: ff_transaction:clock().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -419,7 +420,8 @@ process_limit_check(Revert) ->
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
     ),
-    Events = case validate_wallet_limits(Terms, Wallet) of
+    Clock = ff_postings_transfer:clock(p_transfer(Revert)),
+    Events = case validate_wallet_limits(Terms, Wallet, Clock) of
         {ok, valid} ->
             [{limit_check, {wallet, ok}}];
         {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
@@ -677,11 +679,11 @@ is_limit_check_ok({wallet, ok}) ->
 is_limit_check_ok({wallet, {failed, _Details}}) ->
     false.
 
--spec validate_wallet_limits(terms(), wallet()) ->
+-spec validate_wallet_limits(terms(), wallet(), clock()) ->
     {ok, valid} |
     {error, validation_error()}.
-validate_wallet_limits(Terms, Wallet) ->
-    case ff_party:validate_wallet_limits(Terms, Wallet) of
+validate_wallet_limits(Terms, Wallet, Clock) ->
+    case ff_party:validate_wallet_limits(Terms, Wallet, Clock) of
         {ok, valid} = Result ->
             Result;
         {error, {terms_violation, {cash_range, {Cash, CashRange}}}} ->

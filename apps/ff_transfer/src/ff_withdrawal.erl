@@ -8,6 +8,7 @@
 -include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 -type id() :: binary().
+-type clock() :: ff_transaction:clock().
 
 -define(ACTUAL_FORMAT_VERSION, 2).
 -opaque withdrawal() :: #{
@@ -732,7 +733,8 @@ process_limit_check(Withdrawal) ->
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
     ),
-    Events = case validate_wallet_limits(Terms, Wallet) of
+    Clock = ff_postings_transfer:clock(p_transfer(Withdrawal)),
+    Events = case validate_wallet_limits(Terms, Wallet, Clock) of
         {ok, valid} ->
             [{limit_check, {wallet, ok}}];
         {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
@@ -1218,11 +1220,11 @@ is_limit_check_ok({wallet, ok}) ->
 is_limit_check_ok({wallet, {failed, _Details}}) ->
     false.
 
--spec validate_wallet_limits(terms(), wallet()) ->
+-spec validate_wallet_limits(terms(), wallet(), clock()) ->
     {ok, valid} |
     {error, {terms_violation, {wallet_limit, {cash_range, {cash(), cash_range()}}}}}.
-validate_wallet_limits(Terms, Wallet) ->
-    case ff_party:validate_wallet_limits(Terms, Wallet) of
+validate_wallet_limits(Terms, Wallet, Clock) ->
+    case ff_party:validate_wallet_limits(Terms, Wallet, Clock) of
         {ok, valid} = Result ->
             Result;
         {error, {terms_violation, {cash_range, {Cash, CashRange}}}} ->

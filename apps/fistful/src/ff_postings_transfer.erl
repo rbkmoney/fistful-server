@@ -14,6 +14,7 @@
 -module(ff_postings_transfer).
 
 -type final_cash_flow()  :: ff_cash_flow:final_cash_flow().
+-type clock()            :: ff_clock:clock().
 
 -type status() ::
     created   |
@@ -24,11 +25,13 @@
 -type transfer() :: #{
     id                := id(),
     final_cash_flow   := final_cash_flow(),
-    status            => status()
+    status            => status(),
+    clock             => clock()
 }.
 
 -type event() ::
     {created, transfer()} |
+    {clock_updated, clock()} |
     {status_changed, status()}.
 
 -export_type([transfer/0]).
@@ -39,6 +42,7 @@
 -export([id/1]).
 -export([final_cash_flow/1]).
 -export([status/1]).
+-export([clock/1]).
 
 -export([create/2]).
 -export([prepare/1]).
@@ -67,6 +71,8 @@
     final_cash_flow().
 -spec status(transfer()) ->
     status().
+-spec clock(transfer()) ->
+    clock().
 
 id(#{id := V}) ->
     V.
@@ -74,6 +80,10 @@ final_cash_flow(#{final_cash_flow := V}) ->
     V.
 status(#{status := V}) ->
     V.
+clock(#{clock := V}) ->
+    V;
+clock(_) ->
+    ff_clock:latest_clock().
 
 %%
 
@@ -137,8 +147,8 @@ prepare(Transfer = #{status := created}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
     do(fun () ->
-        _Affected = unwrap(ff_transaction:prepare(ID, construct_trx_postings(CashFlow))),
-        [{status_changed, prepared}]
+        Clock = unwrap(ff_transaction:prepare(ID, construct_trx_postings(CashFlow))),
+        [{clock_updated, Clock}, {status_changed, prepared}]
     end);
 prepare(#{status := prepared}) ->
     {ok, []};
@@ -159,8 +169,8 @@ commit(Transfer = #{status := prepared}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
     do(fun () ->
-        _Affected = unwrap(ff_transaction:commit(ID, construct_trx_postings(CashFlow))),
-        [{status_changed, committed}]
+        Clock = unwrap(ff_transaction:commit(ID, construct_trx_postings(CashFlow))),
+        [{clock_updated, Clock}, {status_changed, committed}]
     end);
 commit(#{status := committed}) ->
     {ok, []};
@@ -177,8 +187,8 @@ cancel(Transfer = #{status := prepared}) ->
     ID = id(Transfer),
     CashFlow = final_cash_flow(Transfer),
     do(fun () ->
-        _Affected = unwrap(ff_transaction:cancel(ID, construct_trx_postings(CashFlow))),
-        [{status_changed, cancelled}]
+        Clock = unwrap(ff_transaction:cancel(ID, construct_trx_postings(CashFlow))),
+        [{clock_updated, Clock}, {status_changed, cancelled}]
     end);
 cancel(#{status := cancelled}) ->
     {ok, []};
@@ -192,6 +202,8 @@ cancel(#{status := Status}) ->
 
 apply_event({created, Transfer}, undefined) ->
     Transfer;
+apply_event({clock_updated, Clock}, Transfer) ->
+    Transfer#{clock => Clock};
 apply_event({status_changed, S}, Transfer) ->
     Transfer#{status => S}.
 

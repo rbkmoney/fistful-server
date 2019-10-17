@@ -112,6 +112,7 @@ adjustment_can_change_status_to_failed_test(C) ->
     ExternalID = ff_adjustment:external_id(get_adjustment(DepositID, AdjustmentID)),
     ?assertEqual(<<"true_unique_id">>, ExternalID),
     ?assertEqual({failed, Failure},  get_deposit_status(DepositID)),
+    assert_adjustment_same_revisions(DepositID, AdjustmentID),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_source_balance(SourceID)).
 
@@ -125,17 +126,19 @@ adjustment_can_change_failure_test(C) ->
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(-100, <<"RUB">>), get_source_balance(SourceID)),
     Failure1 = #{code => <<"one">>},
-    _ = process_adjustment(DepositID, #{
+    AdjustmentID1 = process_adjustment(DepositID, #{
         change => {change_status, {failed, Failure1}}
     }),
     ?assertEqual({failed, Failure1},  get_deposit_status(DepositID)),
+    assert_adjustment_same_revisions(DepositID, AdjustmentID1),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_source_balance(SourceID)),
     Failure2 = #{code => <<"two">>},
-    _ = process_adjustment(DepositID, #{
+    AdjustmentID2 = process_adjustment(DepositID, #{
         change => {change_status, {failed, Failure2}}
     }),
     ?assertEqual({failed, Failure2},  get_deposit_status(DepositID)),
+    assert_adjustment_same_revisions(DepositID, AdjustmentID2),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_source_balance(SourceID)).
 
@@ -161,6 +164,7 @@ adjustment_can_change_status_to_succeeded_test(C) ->
     }),
     ?assertMatch(succeeded, get_adjustment_status(DepositID, AdjustmentID)),
     ?assertMatch(succeeded, get_deposit_status(DepositID)),
+    assert_adjustment_same_revisions(DepositID, AdjustmentID),
     ?assertEqual(?final_balance(5000100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(-5000100, <<"RUB">>), get_source_balance(SourceID)).
 
@@ -406,6 +410,14 @@ await_wallet_balance({Amount, Currency}, ID) ->
         fun () -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
+    ok.
+
+assert_adjustment_same_revisions(DepositID, AdjustmentID) ->
+    Adjustment = get_adjustment(DepositID, AdjustmentID),
+    Deposit = get_deposit(DepositID),
+    ?assertEqual(ff_deposit:domain_revision(Deposit), ff_adjustment:domain_revision(Adjustment)),
+    ?assertEqual(ff_deposit:party_revision(Deposit), ff_adjustment:party_revision(Adjustment)),
+    ?assertEqual(ff_deposit:created_at(Deposit), ff_adjustment:operation_timestamp(Adjustment)),
     ok.
 
 get_wallet_balance(ID) ->

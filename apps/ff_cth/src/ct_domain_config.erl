@@ -13,6 +13,7 @@
 -export([remove/1]).
 -export([reset/1]).
 -export([cleanup/0]).
+-export([bump_revision/0]).
 
 %%
 
@@ -152,3 +153,12 @@ reset(Revision) ->
 cleanup() ->
     Domain = all(head()),
     remove(maps:values(Domain)).
+
+-spec bump_revision() -> ok | no_return().
+
+bump_revision() ->
+    Commit = #'Commit'{ops = []},
+    Revision = dmt_client:get_last_version(),
+    Revision = dmt_client:commit(Revision, Commit) - 1,
+    _ = all(Revision + 1),
+    ok.

@@ -11,6 +11,8 @@
 
 -export([from_result/1]).
 -export([to_list/1]).
+-export([get_defined/1]).
+-export([get_defined/2]).
 
 %%
 
@@ -29,3 +31,20 @@ to_list(undefined) ->
     [];
 to_list(T) ->
     [T].
+
+-spec get_defined([maybe(T)]) ->
+    T.
+
+get_defined([]) ->
+    erlang:error(badarg);
+get_defined([Value | _Tail]) when Value =/= undefined ->
+    Value;
+get_defined([undefined | Tail]) ->
+    get_defined(Tail).
+
+
+-spec get_defined(maybe(T), maybe(T)) ->
+    T.
+
+get_defined(V1, V2) ->
+    get_defined([V1, V2]).

@@ -16,6 +16,7 @@
 -type wallet_id()   :: dmsl_domain_thrift:'WalletID'().
 -type clock()       :: ff_transaction:clock().
 -type revision()    :: dmsl_domain_thrift:'PartyRevision'().
+-type terms()       :: dmsl_domain_thrift:'TermSet'().
 
 -type party_params() :: #{
     email := binary()
@@ -39,6 +40,8 @@
     cash_range_validation_error().
 
 -export_type([id/0]).
+-export_type([revision/0]).
+-export_type([terms/0]).
 -export_type([contract_id/0]).
 -export_type([wallet_id/0]).
 -export_type([party_params/0]).
@@ -66,12 +69,10 @@
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
--export([get_wallet_payment_institution_id/1]).
+-export([get_identity_payment_institution_id/1]).
 
 %% Internal types
--type body() :: ff_transaction:body().
 -type cash() :: ff_cash:cash().
--type terms() :: dmsl_domain_thrift:'TermSet'().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'().
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
 -type currency_id() :: ff_currency:id().
@@ -184,49 +185,20 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
         ok
     end).
 
--spec get_wallet_payment_institution_id(wallet()) -> Result when
+-spec get_identity_payment_institution_id(ff_identity:identity()) -> Result when
     Result :: {ok, payment_institution_id()} | {error, Error},
     Error ::
         {party_not_found, id()} |
         {contract_not_found, id()} |
         no_return().
 
-get_wallet_payment_institution_id(Wallet) ->
-    IdentityID = ff_wallet:identity(Wallet),
+get_identity_payment_institution_id(Identity) ->
     do(fun() ->
-        {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
-        Identity = ff_identity_machine:identity(IdentityMachine),
         PartyID = ff_identity:party(Identity),
         ContractID = ff_identity:contract(Identity),
         Contract = unwrap(do_get_contract(PartyID, ContractID)),
         #domain_PaymentInstitutionRef{id = ID} = Contract#domain_Contract.payment_institution,
         ID
-    end).
-
--spec get_contract_terms(wallet(), body(), timestamp()) -> Result when
-    Result :: {ok, terms()} | {error, Error},
-    Error :: get_contract_terms_error().
-
-get_contract_terms(Wallet, Body, Timestamp) ->
-    WalletID = ff_wallet:id(Wallet),
-    IdentityID = ff_wallet:identity(Wallet),
-    do(fun() ->
-        {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
-        Identity = ff_identity_machine:identity(IdentityMachine),
-        PartyID = ff_identity:party(Identity),
-        ContractID = ff_identity:contract(Identity),
-        % TODO this is not level itself! Dont know how to get it here.
-        % Currently we use Contract's level in PartyManagement, but I'm not sure about correctness of this.
-        % Level = ff_identity:level(Identity),
-        {_Amount, CurrencyID} = Body,
-        TermVarset = #{
-            cost => ff_dmsl_codec:marshal(cash, Body),
-            wallet_id => WalletID,
-            currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
-        },
-        PartyRevision = unwrap(get_revision(PartyID)),
-        DomainRevision = ff_domain_config:head(),
-        unwrap(get_contract_terms(PartyID, ContractID, TermVarset, Timestamp, PartyRevision, DomainRevision))
     end).
 
 -spec get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) -> Result when
@@ -242,7 +214,6 @@ get_contract_terms(Wallet, Body, Timestamp) ->
 get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) ->
     DomainVarset = encode_varset(Varset),
     TimestampStr = ff_time:to_rfc3339(Timestamp),
-    DomainRevision = ff_domain_config:head(),
     {Client, Context} = get_party_client(),
     Result = party_client_thrift:compute_contract_terms(
         PartyID,
@@ -293,15 +264,14 @@ validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
         valid = unwrap(validate_withdrawal_cash_limit(Cash, WithdrawalTerms))
     end).
 
--spec validate_deposit_creation(wallet(), cash()) -> Result when
+-spec validate_deposit_creation(terms(), cash()) -> Result when
     Result :: {ok, valid} | {error, Error},
     Error :: validate_deposit_creation_error().
 
-validate_deposit_creation(_Wallet, {Amount, _Currency} = _Cash)
+validate_deposit_creation(_Terms, {Amount, _Currency} = _Cash)
     when Amount < 1 -> {error, {bad_deposit_amount, Amount}};
-validate_deposit_creation(Wallet, {_Amount, CurrencyID} = Cash) ->
+validate_deposit_creation(Terms, {_Amount, CurrencyID} = _Cash) ->
     do(fun () ->
-        {ok, Terms} = get_contract_terms(Wallet, Cash, ff_time:now()),
         #domain_TermSet{wallets = WalletTerms} = Terms,
         {ok, valid} = validate_wallet_currencies_term_is_reduced(WalletTerms),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
@@ -556,13 +526,12 @@ validate_wallet_terms_currency(CurrencyID, Terms) ->
     } = Terms,
     validate_currency(CurrencyID, Currencies).
 
--spec validate_wallet_limits(wallet(), body(), clock()) ->
+-spec validate_wallet_limits(terms(), wallet(), clock()) ->
     {ok, valid} |
     {error, invalid_wallet_terms_error()} |
     {error, cash_range_validation_error()}.
-validate_wallet_limits(Wallet, Body, Clock) ->
+validate_wallet_limits(Terms, Wallet, Clock) ->
     do(fun () ->
-        {ok, Terms} = get_contract_terms(Wallet, Body, ff_time:now()),
         #domain_TermSet{wallets = WalletTerms} = Terms,
         valid = unwrap(validate_wallet_limits_terms_is_reduced(WalletTerms)),
         #domain_WalletServiceTerms{

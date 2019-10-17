@@ -21,6 +21,7 @@
 -export([create_currency_validation_error_test/1]).
 -export([create_source_notfound_test/1]).
 -export([create_wallet_notfound_test/1]).
+-export([preserve_revisions_test/1]).
 -export([create_ok_test/1]).
 -export([unknown_test/1]).
 
@@ -50,6 +51,7 @@ groups() ->
             create_currency_validation_error_test,
             create_source_notfound_test,
             create_wallet_notfound_test,
+            preserve_revisions_test,
             create_ok_test,
             unknown_test
         ]}
@@ -185,6 +187,27 @@ create_wallet_notfound_test(C) ->
     },
     Result = ff_deposit_machine:create(DepositParams, ff_entity_context:new()),
     ?assertMatch({error, {wallet, notfound}}, Result).
+
+-spec preserve_revisions_test(config()) -> test_return().
+preserve_revisions_test(C) ->
+    #{
+        wallet_id := WalletID,
+        source_id := SourceID
+    } = prepare_standard_environment(<<"RUB">>, C),
+    DepositID = generate_id(),
+    DepositCash = {5000, <<"RUB">>},
+    DepositParams = #{
+        id            => DepositID,
+        body          => DepositCash,
+        source_id     => SourceID,
+        wallet_id     => WalletID,
+        external_id   => DepositID
+    },
+    ok = ff_deposit_machine:create(DepositParams, ff_entity_context:new()),
+    Deposit = get_deposit(DepositID),
+    ?assertNotEqual(undefined, ff_deposit:domain_revision(Deposit)),
+    ?assertNotEqual(undefined, ff_deposit:party_revision(Deposit)),
+    ?assertNotEqual(undefined, ff_deposit:created_at(Deposit)).
 
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->

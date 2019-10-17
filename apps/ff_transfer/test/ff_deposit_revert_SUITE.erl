@@ -102,6 +102,7 @@ end_per_testcase(_Name, _C) ->
 -spec revert_ok_test(config()) -> test_return().
 revert_ok_test(C) ->
     #{
+        party_id := PartyID,
         deposit_id := DepositID,
         wallet_id := WalletID,
         source_id := SourceID
@@ -116,7 +117,11 @@ revert_ok_test(C) ->
     ?assertEqual(undefined, ff_deposit_revert:external_id(Revert)),
     ?assertEqual({5000, <<"RUB">>}, ff_deposit_revert:body(Revert)),
     ?assertEqual(SourceID, ff_deposit_revert:source_id(Revert)),
-    ?assertEqual(WalletID, ff_deposit_revert:wallet_id(Revert)).
+    ?assertEqual(WalletID, ff_deposit_revert:wallet_id(Revert)),
+    DomainRevision = ff_domain_config:head(),
+    ?assertEqual(DomainRevision, ff_deposit_revert:domain_revision(Revert)),
+    {ok, PartyRevision} = ff_party:get_revision(PartyID),
+    ?assertEqual(PartyRevision, ff_deposit_revert:party_revision(Revert)).
 
 -spec multiple_reverts_ok_test(config()) -> test_return().
 multiple_reverts_ok_test(C) ->

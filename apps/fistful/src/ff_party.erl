@@ -74,6 +74,7 @@
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
+-export([get_p2p_transfer_cash_flow_plan/1]).
 -export([get_identity_payment_institution_id/1]).
 
 %% Internal types
@@ -307,6 +308,20 @@ get_withdrawal_cash_flow_plan(Terms) ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
             withdrawals = #domain_WithdrawalServiceTerms{
+                cash_flow = CashFlow
+            }
+        }
+    } = Terms,
+    {value, DomainPostings} = CashFlow,
+    Postings = ff_cash_flow:decode_domain_postings(DomainPostings),
+    {ok, #{postings => Postings}}.
+
+-spec get_p2p_transfer_cash_flow_plan(terms()) ->
+    {ok, ff_cash_flow:cash_flow_plan()} | {error, _Error}.
+get_p2p_transfer_cash_flow_plan(Terms) ->
+    #domain_TermSet{
+        wallets = #domain_WalletServiceTerms{
+            p2p = #domain_P2PServiceTerms{
                 cash_flow = CashFlow
             }
         }

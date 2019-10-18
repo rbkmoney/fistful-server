@@ -7,7 +7,8 @@
     id              := id(),
     system_accounts := dmsl_domain_thrift:'SystemAccountSetSelector'(),
     identity        := binary(),
-    providers       := dmsl_domain_thrift:'WithdrawalProviderSelector'()
+    providers       := dmsl_domain_thrift:'WithdrawalProviderSelector'(),
+    p2p_providers   := dmsl_domain_thrift:'P2PProviderSelector'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -29,6 +30,7 @@
 -export([ref/1]).
 -export([get/2]).
 -export([compute_withdrawal_providers/2]).
+-export([compute_p2p_transfer_providers/2]).
 -export([compute_system_accounts/2]).
 
 %% Pipeline
@@ -70,6 +72,17 @@ compute_withdrawal_providers(#{providers := ProviderSelector}, VS) ->
             Error
     end.
 
+-spec compute_p2p_transfer_providers(payment_institution(), hg_selector:varset()) ->
+    {ok, [ff_payouts_provider:id()]} | {error, term()}.
+
+compute_p2p_transfer_providers(#{p2p_providers := ProviderSelector}, VS) ->
+    case hg_selector:reduce_to_value(ProviderSelector, VS) of
+        {ok, Providers} ->
+            {ok, [ProviderID || #domain_P2PProviderRef{id = ProviderID} <- Providers]};
+        Error ->
+            Error
+    end.
+
 -spec compute_system_accounts(payment_institution(), hg_selector:varset()) ->
     {ok, system_accounts()} | {error, term()}.
 
@@ -88,13 +101,15 @@ compute_system_accounts(PaymentInstitution, VS) ->
 decode(ID, #domain_PaymentInstitution{
     wallet_system_account_set = SystemAccounts,
     identity = Identity,
-    withdrawal_providers = Providers
+    withdrawal_providers = Providers,
+    p2p_providers = P2PProviders
 }) ->
     #{
         id              => ID,
         system_accounts => SystemAccounts,
         identity        => Identity,
-        providers       => Providers
+        providers       => Providers,
+        p2p_providers   => P2PProviders
     }.
 
 decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts}) ->

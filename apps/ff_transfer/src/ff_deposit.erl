@@ -8,17 +8,20 @@
 
 -define(ACTUAL_FORMAT_VERSION, 2).
 -opaque deposit() :: #{
-    version       := ?ACTUAL_FORMAT_VERSION,
-    id            := id(),
-    transfer_type := deposit,
-    body          := body(),
-    params        := transfer_params(),
-    p_transfer    => p_transfer(),
-    status        => status(),
-    external_id   => id(),
-    limit_checks  => [limit_check_details()],
-    reverts       => reverts_index(),
-    adjustments   => adjustments_index()
+    version         := ?ACTUAL_FORMAT_VERSION,
+    id              := id(),
+    transfer_type   := deposit,
+    body            := body(),
+    params          := transfer_params(),
+    party_revision  => party_revision(),
+    domain_revision => domain_revision(),
+    created_at      => ff_time:timestamp_ms(),
+    p_transfer      => p_transfer(),
+    status          => status(),
+    external_id     => id(),
+    limit_checks    => [limit_check_details()],
+    reverts         => reverts_index(),
+    adjustments     => adjustments_index()
 }.
 -type params() :: #{
     id            := id(),
@@ -131,6 +134,9 @@
 -export([body/1]).
 -export([status/1]).
 -export([external_id/1]).
+-export([party_revision/1]).
+-export([domain_revision/1]).
+-export([created_at/1]).
 
 %% API
 -export([create/1]).
@@ -184,6 +190,10 @@
 -type adjustment_id()         :: ff_adjustment:id().
 -type adjustments_index()     :: ff_adjustment_utils:index().
 -type final_cash_flow()       :: ff_cash_flow:final_cash_flow().
+-type party_revision()        :: ff_party:revision().
+-type domain_revision()       :: ff_domain_config:revision().
+-type identity()              :: ff_identity:identity().
+-type terms()                 :: ff_party:terms().
 -type clock()                 :: ff_transaction:clock().
 
 -type transfer_params() :: #{
@@ -243,6 +253,18 @@ p_transfer(Deposit) ->
 external_id(Deposit) ->
     maps:get(external_id, Deposit, undefined).
 
+-spec party_revision(deposit()) -> party_revision() | undefined.
+party_revision(T) ->
+    maps:get(party_revision, T, undefined).
+
+-spec domain_revision(deposit()) -> domain_revision() | undefined.
+domain_revision(T) ->
+    maps:get(domain_revision, T, undefined).
+
+-spec created_at(deposit()) -> ff_time:timestamp_ms() | undefined.
+created_at(T) ->
+    maps:get(created_at, T, undefined).
+
 %% API
 
 -spec create(params()) ->
@@ -252,8 +274,23 @@ create(Params) ->
     do(fun() ->
         #{id := ID, source_id := SourceID, wallet_id := WalletID, body := Body} = Params,
         Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
-        Wallet = ff_wallet_machine:wallet(unwrap(wallet, ff_wallet_machine:get(WalletID))),
-        valid =  unwrap(validate_deposit_creation(Params, Source, Wallet)),
+        CreatedAt = ff_time:now(),
+        DomainRevision = ff_domain_config:head(),
+        Wallet = unwrap(wallet, get_wallet(WalletID)),
+        Identity = get_wallet_identity(Wallet),
+        PartyID = ff_identity:party(Identity),
+        {ok, PartyRevision} = ff_party:get_revision(PartyID),
+        ContractID = ff_identity:contract(Identity),
+        {_Amount, Currency} = Body,
+        Varset = genlib_map:compact(#{
+            currency => ff_dmsl_codec:marshal(currency_ref, Currency),
+            cost => ff_dmsl_codec:marshal(cash, Body),
+            wallet_id => WalletID
+        }),
+        {ok, Terms} = ff_party:get_contract_terms(
+            PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
+        ),
+        valid =  unwrap(validate_deposit_creation(Terms, Params, Source, Wallet)),
         ExternalID = maps:get(external_id, Params, undefined),
         TransferParams = #{
             wallet_id             => WalletID,
@@ -272,11 +309,14 @@ create(Params) ->
         },
         [
             {created, add_external_id(ExternalID, #{
-                version       => ?ACTUAL_FORMAT_VERSION,
-                id            => ID,
-                transfer_type => deposit,
-                body          => Body,
-                params        => TransferParams
+                version         => ?ACTUAL_FORMAT_VERSION,
+                id              => ID,
+                transfer_type   => deposit,
+                body            => Body,
+                params          => TransferParams,
+                party_revision  => PartyRevision,
+                domain_revision => DomainRevision,
+                created_at      => CreatedAt
             })},
             {status_changed, pending}
         ]
@@ -503,10 +543,25 @@ create_p_transfer(Deposit) ->
     process_result().
 process_limit_check(Deposit) ->
     Body = body(Deposit),
-    {ok, WalletMachine} = ff_wallet_machine:get(wallet_id(Deposit)),
-    Wallet = ff_wallet_machine:wallet(WalletMachine),
+    WalletID = wallet_id(Deposit),
+    DomainRevision = operation_domain_revision(Deposit),
+    {ok, Wallet} = get_wallet(WalletID),
+    Identity = get_wallet_identity(Wallet),
+    PartyID = ff_identity:party(Identity),
+    PartyRevision = operation_party_revision(Deposit),
+    ContractID = ff_identity:contract(Identity),
+    {_Amount, Currency} = Body,
+    Timestamp = operation_timestamp(Deposit),
+    Varset = genlib_map:compact(#{
+        currency => ff_dmsl_codec:marshal(currency_ref, Currency),
+        cost => ff_dmsl_codec:marshal(cash, Body),
+        wallet_id => WalletID
+    }),
+    {ok, Terms} = ff_party:get_contract_terms(
+        PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision
+    ),
     Clock = ff_postings_transfer:clock(p_transfer(Deposit)),
-    Events = case validate_wallet_limits(Wallet, Body, Clock) of
+    Events = case validate_wallet_limits(Terms, Wallet, Clock) of
         {ok, valid} ->
             [{limit_check, {wallet, ok}}];
         {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
@@ -605,15 +660,42 @@ is_childs_active(Deposit) ->
     ff_adjustment_utils:is_active(adjustments_index(Deposit)) orelse
         ff_deposit_revert_utils:is_active(reverts_index(Deposit)).
 
+-spec operation_timestamp(deposit()) -> ff_time:timestamp_ms().
+operation_timestamp(Deposit) ->
+    ff_maybe:get_defined(created_at(Deposit), ff_time:now()).
+
+-spec operation_party_revision(deposit()) ->
+    domain_revision().
+operation_party_revision(Deposit) ->
+    case party_revision(Deposit) of
+        undefined ->
+            {ok, Wallet} = get_wallet(wallet_id(Deposit)),
+            PartyID = ff_identity:party(get_wallet_identity(Wallet)),
+            {ok, Revision} = ff_party:get_revision(PartyID),
+            Revision;
+        Revision ->
+            Revision
+    end.
+
+-spec operation_domain_revision(deposit()) ->
+    domain_revision().
+operation_domain_revision(Deposit) ->
+    case domain_revision(Deposit) of
+        undefined ->
+            ff_domain_config:head();
+        Revision ->
+            Revision
+    end.
+
 %% Deposit validators
 
--spec validate_deposit_creation(params(), source(), wallet()) ->
+-spec validate_deposit_creation(terms(), params(), source(), wallet()) ->
     {ok, valid} |
     {error, create_error()}.
-validate_deposit_creation(Params, Source, Wallet) ->
+validate_deposit_creation(Terms, Params, Source, Wallet) ->
     #{body := Body} = Params,
     do(fun() ->
-        valid = unwrap(ff_party:validate_deposit_creation(Wallet, Body)),
+        valid = unwrap(ff_party:validate_deposit_creation(Terms, Body)),
         valid = unwrap(validate_deposit_currency(Body, Source, Wallet)),
         valid = unwrap(validate_source_status(Source))
     end).
@@ -676,11 +758,11 @@ is_limit_check_ok({wallet, ok}) ->
 is_limit_check_ok({wallet, {failed, _Details}}) ->
     false.
 
--spec validate_wallet_limits(wallet(), cash(), clock()) ->
+-spec validate_wallet_limits(terms(), wallet(), clock()) ->
     {ok, valid} |
     {error, {terms_violation, {wallet_limit, {cash_range, {cash(), cash_range()}}}}}.
-validate_wallet_limits(Wallet, Body, Clock) ->
-    case ff_party:validate_wallet_limits(Wallet, Body, Clock) of
+validate_wallet_limits(Terms, Wallet, Clock) ->
+    case ff_party:validate_wallet_limits(Terms, Wallet, Clock) of
         {ok, valid} = Result ->
             Result;
         {error, {terms_violation, {cash_range, {Cash, CashRange}}}} ->
@@ -881,7 +963,10 @@ make_adjustment_params(Params, Deposit) ->
     genlib_map:compact(#{
         id => ID,
         changes_plan => make_adjustment_change(Change, Deposit),
-        external_id => genlib_map:get(external_id, Params)
+        external_id => genlib_map:get(external_id, Params),
+        domain_revision => operation_domain_revision(Deposit),
+        party_revision => operation_party_revision(Deposit),
+        operation_timestamp => operation_timestamp(Deposit)
     }).
 
 -spec make_adjustment_change(adjustment_change(), deposit()) ->
@@ -949,6 +1034,21 @@ build_failure(limit_check, Deposit) ->
             code => <<"amount">>
         }
     }.
+
+-spec get_wallet(wallet_id()) ->
+    {ok, wallet()} | {error, notfound}.
+get_wallet(WalletID) ->
+    do(fun() ->
+        WalletMachine = unwrap(ff_wallet_machine:get(WalletID)),
+        ff_wallet_machine:wallet(WalletMachine)
+    end).
+
+-spec get_wallet_identity(wallet()) ->
+    identity().
+get_wallet_identity(Wallet) ->
+    IdentityID = ff_wallet:identity(Wallet),
+    {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
+    ff_identity_machine:identity(IdentityMachine).
 
 %% Migration
 

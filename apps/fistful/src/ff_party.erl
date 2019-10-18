@@ -38,6 +38,10 @@
     withdrawal_currency_error() |
     cash_range_validation_error().
 
+-type validate_p2p_transfer_creation_error() ::
+    currency_validation_error() |
+    cash_range_validation_error().
+
 -export_type([id/0]).
 -export_type([contract_id/0]).
 -export_type([wallet_id/0]).
@@ -62,6 +66,7 @@
 -export([change_contractor_level/3]).
 -export([validate_account_creation/2]).
 -export([validate_withdrawal_creation/3]).
+-export([validate_p2p_transfer_creation/2]).
 -export([validate_deposit_creation/2]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
@@ -74,6 +79,7 @@
 -type terms() :: dmsl_domain_thrift:'TermSet'().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'().
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
+-type p2p_transfer_terms() :: dmsl_domain_thrift:'P2PServiceTerms'().
 -type currency_id() :: ff_currency:id().
 -type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
 -type domain_cash() :: dmsl_domain_thrift:'Cash'().
@@ -99,6 +105,11 @@
 -type invalid_wallet_terms_error() ::
     {invalid_terms, not_reduced_error()} |
     {invalid_terms, undefined_wallet_terms}.
+
+-type invalid_p2p_transfer_terms_error() ::
+    {invalid_terms, not_reduced_error()} |
+    {invalid_terms, {undefined_p2p_transfer_terms, wallet_terms()}}.
+
 
 %% Pipeline
 
@@ -305,6 +316,19 @@ validate_deposit_creation(Wallet, {_Amount, CurrencyID} = Cash) ->
         #domain_TermSet{wallets = WalletTerms} = Terms,
         {ok, valid} = validate_wallet_currencies_term_is_reduced(WalletTerms),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
+    end).
+
+-spec validate_p2p_transfer_creation(terms(), cash()) -> Result when
+    Result :: {ok, valid} | {error, Error},
+    Error :: validate_p2p_transfer_creation_error().
+
+validate_p2p_transfer_creation(Terms, {_, CurrencyID} = Cash) ->
+    #domain_TermSet{wallets = WalletTerms} = Terms,
+    do(fun () ->
+        {ok, valid} = validate_p2p_transfer_terms_is_reduced(WalletTerms),
+        #domain_WalletServiceTerms{p2p = P2PTransferTerms} = WalletTerms,
+        valid = unwrap(validate_p2p_transfer_terms_currency(CurrencyID, P2PTransferTerms)),
+        valid = unwrap(validate_p2p_transfer_cash_limit(Cash, P2PTransferTerms))
     end).
 
 -spec get_withdrawal_cash_flow_plan(terms()) ->
@@ -658,6 +682,42 @@ compare_cash(
     {_, #domain_Cash{amount = Am, currency = C}}
 ) ->
     Fun(A, Am).
+
+-spec validate_p2p_transfer_terms_is_reduced(wallet_terms() | undefined) ->
+    {ok, valid} | {error, invalid_p2p_transfer_terms_error()}.
+validate_p2p_transfer_terms_is_reduced(undefined) ->
+    {error, {invalid_terms, undefined_wallet_terms}};
+validate_p2p_transfer_terms_is_reduced(#domain_WalletServiceTerms{p2p = undefined} = WalletTerms) ->
+    {error, {invalid_terms, {undefined_p2p_transfer_terms, WalletTerms}}};
+validate_p2p_transfer_terms_is_reduced(#domain_WalletServiceTerms{p2p = P2PTransferTerms}) ->
+    #domain_P2PServiceTerms{
+        currencies = P2PTransferCurrenciesSelector,
+        cash_limit = CashLimitSelector,
+        cash_flow = CashFlowSelector,
+        fees = FeesSelector
+    } = P2PTransferTerms,
+    do_validate_terms_is_reduced([
+        {p2p_transfer_currencies, P2PTransferCurrenciesSelector},
+        {p2p_transfer_cash_limit, CashLimitSelector},
+        {p2p_transfer_cash_flow, CashFlowSelector},
+        {p2p_transfer_fees, FeesSelector}
+    ]).
+
+-spec validate_p2p_transfer_terms_currency(currency_id(), p2p_transfer_terms()) ->
+    {ok, valid} | {error, currency_validation_error()}.
+validate_p2p_transfer_terms_currency(CurrencyID, Terms) ->
+    #domain_P2PServiceTerms{
+        currencies = {value, Currencies}
+    } = Terms,
+    validate_currency(CurrencyID, Currencies).
+
+-spec validate_p2p_transfer_cash_limit(cash(), p2p_transfer_terms()) ->
+    {ok, valid} | {error, cash_range_validation_error()}.
+validate_p2p_transfer_cash_limit(Cash, Terms) ->
+    #domain_P2PServiceTerms{
+        cash_limit = {value, CashRange}
+    } = Terms,
+    validate_cash_range(ff_dmsl_codec:marshal(cash, Cash), CashRange).
 
 %% Varset stuff
 

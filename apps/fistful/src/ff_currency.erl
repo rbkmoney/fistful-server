@@ -26,6 +26,7 @@
 -export([symcode/1]).
 -export([id/1]).
 -export([to_domain_ref/1]).
+-export([from_iso_country/1]).
 
 %% Pipeline
 
@@ -63,3 +64,11 @@ get(ID) ->
 
 to_domain_ref(Currency) ->
     ff_dmsl_codec:marshal(currency_ref, ff_currency:id(Currency)).
+
+-spec from_iso_country(ff_bin_data:iso_country_code()) ->
+    symcode() | no_return().
+
+from_iso_country(rus) ->
+    <<"RUB">>;
+from_iso_country(ISO) ->
+    erlang:error({unknown_iso_code, ISO}).

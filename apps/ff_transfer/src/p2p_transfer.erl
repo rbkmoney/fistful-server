@@ -40,6 +40,9 @@
     external_id => id()
 }.
 
+-type resource_full_id() ::
+    #{binary() => ff_bin_data:bin_data_id()}.
+
 -type resource() ::
     {raw, resource_raw()}.
 
@@ -93,7 +96,7 @@
     {identity, notfound} |
     %% TODO add this validation
     % {terms, ff_party:validate_p2p_transfer_creation_error()} |
-    {resource_full, {bin_data, not_found, resource_owner()}}.
+    {{resource_full, resource_owner()}, {bin_data, not_found}}.
 
 -type route() :: #{
     provider_id := provider_id()
@@ -196,7 +199,6 @@
 -type adjustment() :: ff_adjustment:adjustment().
 -type adjustment_id() :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
--type currency_id() :: ff_currency:id().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
 -type terms() :: ff_party:terms().
@@ -321,10 +323,10 @@ create(Params) ->
         Timestamp = ff_maybe:get_defined(exchange_timestamp(Exchange), CreatedAt),
         PartyRevision = ensure_party_revision_defined(PartyID, exchange_party_revision(Exchange)),
         DomainRevision = ensure_domain_revision_defined(exchange_domain_revision(Exchange)),
-        ResourceIDSender = ff_maybe:get_defined(exchange_resource_id_sender(Exchange), SenderSrc),
-        ResourceSender = unwrap(resource_full, ff_destination:resource_full(ResourceIDSender)),
-        ResourceIDReceiver = ff_maybe:get_defined(exchange_resource_id_receiver(Exchange), ReceiverSrc),
-        ResourceReceiver = unwrap(resource_full, ff_destination:resource_full(ResourceIDReceiver)),
+        ResourceIDSender = exchange_resource_id_sender(Exchange),
+        ResourceSender = unwrap({resource_full, sender}, make_resource_full(SenderSrc, ResourceIDSender)),
+        ResourceIDReceiver = exchange_resource_id_receiver(Exchange),
+        ResourceReceiver = unwrap({resource_full, receiver}, make_resource_full(ReceiverSrc, ResourceIDReceiver)),
 
         ContractID = ff_identity:contract(Identity),
         VarsetParams = genlib_map:compact(#{
@@ -336,20 +338,21 @@ create(Params) ->
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID, ContractID, build_party_varset(VarsetParams), Timestamp, PartyRevision, DomainRevision
         ),
-        valid = unwrap(validate_p2p_transfer_creation(Terms, Body, ResourceSender, ResourceReceiver)),
+        valid = unwrap(validate_p2p_transfer_creation(Terms, Body)),
 
         ExternalID = maps:get(external_id, Params, undefined),
         [
-            {created, add_external_id(ExternalID, #{
+            {created, genlib_map:compact(add_external_id(ExternalID, #{
                 version => ?ACTUAL_FORMAT_VERSION,
                 id => ID,
+                identity_id => IdentityID,
                 transfer_type => p2p_transfer,
                 body => Body,
                 created_at => CreatedAt,
                 party_revision => PartyRevision,
                 domain_revision => DomainRevision,
                 exchange => Exchange
-            })},
+            }))},
             {status_changed, pending},
             {resource_got, ResourceSender, ResourceReceiver}
         ]
@@ -504,6 +507,22 @@ operation_domain_revision(P2PTransfer) ->
             Revision
     end.
 
+-spec make_resource_full(resource(), ff_maybe:maybe(resource_full_id())) ->
+    {ok, resource_full()} | {error, {bin_data, not_found}}.
+make_resource_full({raw, #{token := Token} = RawBankCard}, ResourceID) ->
+    do(fun() ->
+        UnwrappedResourceID = unwrap_resource_id(ResourceID),
+        BinData = unwrap(bin_data, ff_bin_data:get(Token, UnwrappedResourceID)),
+        KeyList = [payment_system, bank_name, iso_country_code, card_type],
+        ExtendData = maps:with(KeyList, BinData),
+        {raw_full, maps:merge(RawBankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})}
+    end).
+
+unwrap_resource_id(undefined) ->
+    undefined;
+unwrap_resource_id(#{<<"bank_card">> := ID}) ->
+    ID.
+
 %% Processing helpers
 
 -spec deduce_activity(p2p_transfer()) ->
@@ -583,7 +602,7 @@ do_process_transfer(adjustment, P2PTransfer) ->
     process_result().
 process_risk_scoring(_P2PTransfer) ->
     {continue, [
-        {risk_score_changed, #{risk_score => low}}
+        {risk_score_changed, low}
     ]}.
 
 -spec process_routing(p2p_transfer()) ->
@@ -681,7 +700,7 @@ construct_p_transfer_id(ID) ->
     process_result().
 process_session_poll(P2PTransfer) ->
     SessionID = session_id(P2PTransfer),
-    {continue, [{session_finished, {SessionID, ok}}]}.
+    {continue, [{session_finished, {SessionID, {success, #{}}}}]}.
 
 -spec process_transfer_finish(p2p_transfer()) ->
     process_result().
@@ -749,8 +768,8 @@ make_final_cash_flow(P2PTransfer) ->
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
     ),
-    {ok, WalletCashFlowPlan} = ff_party:get_p2p_transfer_cash_flow_plan(Terms),
-    {ok, CashFlowPlan} = ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee),
+    {ok, P2PCashFlowPlan} = ff_party:get_p2p_transfer_cash_flow_plan(Terms),
+    {ok, CashFlowPlan} = ff_cash_flow:add_fee(P2PCashFlowPlan, ProviderFee),
     Constants = #{
         operation_amount => Body
     },
@@ -798,9 +817,7 @@ build_party_varset(#{
         currency => ff_dmsl_codec:marshal(currency_ref, CurrencyID),
         cost => ff_dmsl_codec:marshal(cash, Body),
         party_id => PartyID,
-        payout_method => #domain_PayoutMethodRef{id = wallet_info},
-        transfer_tool_sender => TransferToolSender,
-        transfer_tool_receiver => TransferToolReceiver
+        p2p_tool => #domain_P2PTool{sender = TransferToolSender, receiver = TransferToolReceiver}
     }).
 
 -spec construct_payment_tool(resource_full()) ->
@@ -890,36 +907,13 @@ session_processing_status(P2PTransfer) ->
 
 %% P2PTransfer validators
 
--spec validate_p2p_transfer_creation(terms(), body(), resource_full(), resource_full()) ->
+-spec validate_p2p_transfer_creation(terms(), body()) ->
     {ok, valid} |
     {error, create_error()}.
-validate_p2p_transfer_creation(Terms, Body, Sender, Receiver) ->
+validate_p2p_transfer_creation(Terms, Body) ->
     do(fun() ->
-        valid = unwrap(terms, ff_party:validate_p2p_transfer_creation(Terms, Body)),
-        valid = unwrap(validate_p2p_transfer_currency(Body, Sender, Receiver))
+        valid = unwrap(terms, ff_party:validate_p2p_transfer_creation(Terms, Body))
     end).
-
--spec validate_p2p_transfer_currency(body(), resource_full(), resource_full()) ->
-    {ok, valid} |
-    {error, {inconsistent_currency, {currency_id(), currency_id(), currency_id()}}}.
-validate_p2p_transfer_currency(Body, Sender, Receiver) ->
-    CurrencyIDSender = currency(Sender),
-    CurrencyIDReceiver = currency(Receiver),
-    case Body of
-        {_Amount, P2PTransferCurencyID} when
-            P2PTransferCurencyID =:= CurrencyIDSender andalso
-            P2PTransferCurencyID =:= CurrencyIDReceiver
-        ->
-            {ok, valid};
-        {_Amount, P2PTransferCurencyID} ->
-            {error, {inconsistent_currency, {P2PTransferCurencyID, CurrencyIDSender, CurrencyIDReceiver}}}
-    end.
-
--spec currency(resource_full()) ->
-    currency_id().
-
-currency({raw_full, #{iso_country_code := ISO}}) ->
-    ff_currency:from_iso_country(ISO).
 
 %% Adjustment validators
 

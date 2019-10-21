@@ -386,7 +386,17 @@ domain_config(Options, C) ->
                 realm                     = live,
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = quote_payment_inst_identity_id(Options),
-                withdrawal_providers      = {value, [?wthdr_prv(3)]}
+                withdrawal_providers      = {value, [?wthdr_prv(3)]},
+                p2p_providers = {decisions, [
+                    #domain_P2PProviderDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [?p2p_prv(1)]}
+                    },
+                    #domain_P2PProviderDecision{
+                        if_ = {constant, true},
+                        then_ = {value, []}
+                    }
+                ]}
             }
         }},
 
@@ -400,6 +410,7 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), quote_provider_identity_id(Options), C),
+        ct_domain:p2p_provider(?p2p_prv(1), ?prx(3), quote_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),
@@ -576,6 +587,46 @@ default_termset(Options) ->
                                 ?share(10, 100, operation_amount)
                             )
                         ]}
+                    }
+                ]}
+            },
+            p2p = #domain_P2PServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10000001, <<"RUB">>)}
+                        )}
+                    },
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"EUR">>)},
+                            {exclusive, ?cash(10000001, <<"EUR">>)}
+                        )}
+                    },
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"USD">>)},
+                            {exclusive, ?cash(10000001, <<"USD">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, []}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, []}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, []}
                     }
                 ]}
             }

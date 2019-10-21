@@ -579,7 +579,7 @@ default_termset(Options) ->
                     }
                 ]}
             },
-            p2p = #domain_P2pServiceTerms{
+            p2p = #domain_P2PServiceTerms{
                 currencies = {value, ?ordset([?cur(<<"RUB">>)])},
                 cash_limit = {decisions, [
                     #domain_CashLimitDecision{
@@ -590,26 +590,31 @@ default_termset(Options) ->
                         )}
                     }
                 ]},
-                operation_plan = {decisions, [
-                    #domain_OperationPlanDecision{
+                cash_flow = {value, [
+                    #domain_CashFlowPosting{
+                        source = {wallet, receiver_destination},
+                        destination = {system, settlement},
+                        volume = ?fixed(50, <<"RUB">>)}
+                ]},
+                fees = {decisions, [
+                    #domain_FeeDecision{
                         if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, [
-                            #domain_OperationPlanPosting{
-                                source = {wallet, receiver_destination},
-                                destination = {system, settlement},
-                                volume = ?share(10, 100, operation_amount)
-                            }
-                        ]}
-                    },
-                    #domain_OperationPlanDecision{
-                        if_ = {condition, {p2p_tool, #domain_P2PToolCondition{
-                            sender_is = {bank_card, #domain_BankCardCondition{}}
-                        }}},
-                        then_ = {value, [
-                            #domain_OperationPlanPosting{
-                                source = {wallet, receiver_destination},
-                                destination = {system, settlement},
-                                volume = ?share(1, 100, operation_amount)
+                        then_ = {decisions, [
+                            #domain_FeeDecision{
+                                if_ = {condition, {cost_in, ?cashrng(
+                                        {inclusive, ?cash(   0, <<"RUB">>)},
+                                        {exclusive, ?cash(3000, <<"RUB">>)}
+                                    )}
+                                },
+                                then_ = {value, #domain_Fees{fees = #{surplus => ?fixed(50, <<"RUB">>)}}}
+                            },
+                            #domain_FeeDecision{
+                                if_ = {condition, {cost_in, ?cashrng(
+                                        {inclusive, ?cash(3000, <<"RUB">>)},
+                                        {exclusive, ?cash(300000, <<"RUB">>)}
+                                    )}
+                                },
+                                then_ = {value, #domain_Fees{fees = #{surplus => ?share(4, 100, operation_amount)}}}
                             }
                         ]}
                     }

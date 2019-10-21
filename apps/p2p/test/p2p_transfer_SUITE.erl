@@ -14,6 +14,7 @@
 -export([end_per_testcase/2]).
 
 -export([get_fee_ok_test/1]).
+-export([get_fee_bad_token_test/1]).
 
 %% Internal types
 
@@ -27,7 +28,8 @@
 
 -spec all() -> [test_case_name() | {group, group_name()}].
 all() -> [
-        get_fee_ok_test
+        get_fee_ok_test,
+        get_fee_bad_token_test
 ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -61,25 +63,46 @@ end_per_group(_, _) ->
 -spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok.
 
 -spec get_fee_ok_test(config()) -> test_return().
 get_fee_ok_test(C) ->
-    Cash = {100, <<"RUB">>},
-    Sender   = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    Receiver = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    Cash = {2500, <<"RUB">>},
+    CardSender   = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    CardReceiver = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     #{
         wallet_id := WalletID
     } = prepare_standard_environment(Cash, C),
     {ok, Machine} = ff_wallet_machine:get(WalletID),
     Wallet = ff_wallet_machine:wallet(Machine),
-    p2p_transfer:get_operation_plan(Wallet, Sender, Receiver),
+    {ok, Sender} = p2p_instrument:create({bank_card, CardSender}),
+    {ok, Receiver} = p2p_instrument:create({bank_card, CardReceiver}),
+    ct:print(" >>> Sender: ~p", [Sender]),
+    {ok, Token} = p2p_fees:get_fee_token(Cash, Wallet, Sender, Receiver),
+    ct:print("TOKEN: ~p~n", [Token]),
     ok.
+
+-spec get_fee_bad_token_test(config()) -> test_return().
+get_fee_bad_token_test(_) ->
+    Sender = #
+        {details => #{
+            bank_name => <<"sber">>,
+            bin => <<"415039">>,
+            bin_data_id => 123,
+            iso_country_code => usa,
+            masked_pan => <<"0900">>,
+            payment_system => visa},
+        token => <<"2Gl5fJQAgCka5uYJmwyGdp">>,
+        type => bank_card
+    },
+    MobileCommerce = #{type => mobile, token => <<"+79123456789">>},
+    {error, {sender_instrument, {bank_card_country, usa}}} = p2p_transfer:valid_instruments(Sender, Sender),
+    {error, {sender_instrument, {bank_card_type, mobile}}} = p2p_transfer:valid_instruments(MobileCommerce, Sender).
 
 %% Utils
 
@@ -116,7 +139,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -125,7 +148,7 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ok = ff_wallet_machine:create(
         ID,
         #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -165,7 +188,7 @@ create_destination(IID, Currency, Token, C) ->
         end,
     Resource = {bank_card, NewStoreResource},
     Params = #{identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
-    ok = ff_destination:create(ID, Params, ff_ctx:new()),
+    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->

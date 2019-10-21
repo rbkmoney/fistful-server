@@ -1,6 +1,6 @@
 -module(p2p_instrument).
 
--type instrument_type() :: {bank_card, bank_card()}.
+-type instrument_type() :: bank_card.
 -type bank_card_details() :: #{
     token               := binary(),
     payment_system      := atom(),
@@ -28,14 +28,30 @@
 -export_type([instrument/0]).
 
 -export([create/1]).
-
+-export([type/1]).
+-export([country_code/1]).
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/2]).
 
+%% Accessories
+
+-spec type(instrument()) -> instrument_type().
+-spec country_code(instrument()) -> atom() | undefined.
+
+type(#{type := Type}) ->
+    Type.
+
+country_code(Instrument) ->
+    case maps:get(details, Instrument, undefined) of
+        undefined -> undefined;
+        Details ->
+            maps:get(iso_country_code, Details, undefined)
+    end.
+
 %% API
 
--spec create(instrument_type()) ->
+-spec create({instrument_type(), bank_card()}) ->
     {ok, instrument()} |
     {error, {bin_data, not_found}}.
 
@@ -49,11 +65,11 @@ create({bank_card, #{token := Token, bin := Bin, masked_pan := MaskedPan}}) ->
             masked_pan  => MaskedPan,
             bin_data_id => ff_bin_data:id(BinData)
         },
-        {ok, #{
+        #{
             type    => bank_card,
             token   => Token,
             details => BankCardDetails
-        }}
+        }
     end);
 create(_UnknownInstrumentType) ->
     not_impl.

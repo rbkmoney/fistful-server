@@ -42,7 +42,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/bukabjaka/hellgate:123935754cc29e62b21e92f4bb074efa93f41143
+    image: dr2.rbkmoney.com/bukabjaka/hellgate:46842de0e6c7baf7c6407eadb82969bf27749192
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -52,6 +52,7 @@ services:
       shumway:
         condition: service_healthy
     volumes:
+      - ./test/hellgate/sys.config:/opt/hellgate/releases/0.1/sys.config
       - ./test/log/hellgate:/var/log/hellgate
     healthcheck:
       test: "curl http://localhost:8022/"
@@ -81,7 +82,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr2.rbkmoney.com/bukabjaka/dominant:386a5256859cd6e56cea5efb7356d8487efdce1d
+    image: dr2.rbkmoney.com/bukabjaka/dominant:fcf8bd5919ff35e2731e08a55eb6b08d300b1998
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:

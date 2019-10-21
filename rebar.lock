@@ -21,13 +21,8 @@
   0},
  {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.7.3">>},1},
  {<<"damsel">>,
-<<<<<<< HEAD
-  {git,"git@github.com:0x42/damsel_release.git",
-       {ref,"14f42cead02ded77f81e2edad1bd41f16076a118"}},
-=======
   {git,"git@github.com:rbkmoney/damsel.git",
-       {ref,"3c234cea67299a2683e49ecc0d28405785bc1466"}},
->>>>>>> master
+       {ref,"9e208848f470bfe1e027d6e75a41fbc133606e8d"}},
   0},
  {<<"dmt_client">>,
   {git,"git@github.com:rbkmoney/dmt_client.git",

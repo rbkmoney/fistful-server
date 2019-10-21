@@ -37,7 +37,7 @@ handle_callback(Callback, Context, Route) ->
 issue_call(Function, Args, Route) ->
     Opts    = get_call_options(Route),
     Client  = ff_woody_client:new(Opts),
-    Request = {{p2p_adapter_thrift, 'Adapter'}, Function, Args},
+    Request = {{dmsl_p2p_adapter_thrift, 'P2PAdapter'}, Function, Args},
     ff_woody_client:call(Client, Request).
 
 get_route_provider_ref(#domain_PaymentRoute{provider = ProviderRef}) ->
@@ -47,11 +47,11 @@ get_route_provider_ref(#domain_PaymentRoute{provider = ProviderRef}) ->
 get_call_options(Route) ->
     ProviderRef    = get_route_provider_ref(Route),
     Revision       = ff_domain_config:head(),
-    {ok, Provider} = ff_domain_config:get(Revision, ProviderRef),
+    {ok, Provider} = ff_domain_config:object({provider, ProviderRef}),
     get_call_options(Provider#domain_Provider.proxy, Revision).
 
 get_call_options(#domain_Proxy{ref = ProxyRef}, Revision) ->
-    {ok, ProxyDef} = ff_domain_config:get(Revision, {proxy, ProxyRef}),
+    {ok, ProxyDef} = ff_domain_config:object(Revision, {proxy, ProxyRef}),
     construct_call_options(ProxyDef).
 
 construct_call_options(#domain_ProxyDefinition{url = Url}) ->

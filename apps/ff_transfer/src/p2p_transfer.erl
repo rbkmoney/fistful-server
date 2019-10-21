@@ -192,7 +192,7 @@
 -type session_id() :: id().
 -type failure() :: ff_failure:failure().
 %% FIXME change to real result type
--type session_result() :: ok. %p2p_transfer_session:session_result().
+-type session_result() :: {success, ff_adapter:trx_info()} | {failed, ff_adapter:failure()}.
 -type adjustment() :: ff_adjustment:adjustment().
 -type adjustment_id() :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
@@ -306,10 +306,10 @@ created_at(T) ->
 create(Params) ->
     do(fun() ->
         #{
-            id := ID, 
-            body := Body, 
-            identity_id := IdentityID, 
-            sender_resource := SenderSrc, 
+            id := ID,
+            body := Body,
+            identity_id := IdentityID,
+            sender_resource := SenderSrc,
             receiver_resource := ReceiverSrc
         } = Params,
         CreatedAt = ff_time:now(),
@@ -438,7 +438,7 @@ risk_score_status(P2PTransfer) ->
         undefined ->
             unknown;
         _Known ->
-            found
+            scored
     end.
 
 -spec route_selection_status(p2p_transfer()) -> unknown | found.
@@ -598,7 +598,7 @@ process_routing(P2PTransfer) ->
             process_transfer_fail(route_not_found, P2PTransfer)
     end.
 
--spec do_process_routing(p2p_transfer()) -> 
+-spec do_process_routing(p2p_transfer()) ->
     {ok, provider_id()} | {error, route_not_found}.
 do_process_routing(P2PTransfer) ->
     DomainRevision = operation_domain_revision(P2PTransfer),
@@ -648,8 +648,8 @@ choose_provider(Providers, VS) ->
     boolean().
 validate_p2p_transfers_terms(ID, VS) ->
     % TODO Change to p2p provider module
-    Provider = unwrap(ff_payouts_provider:get(ID)),
-    case ff_payouts_provider:validate_terms(Provider, VS) of
+    Provider = unwrap(ff_p2p_provider:get(ID)),
+    case ff_p2p_provider:validate_terms(Provider, VS) of
         {ok, valid} ->
             true;
         {error, _Error} ->
@@ -733,8 +733,8 @@ make_final_cash_flow(P2PTransfer) ->
 
     {_Amount, CurrencyID} = Body,
     #{provider_id := ProviderID} = Route,
-    {ok, Provider} = ff_payouts_provider:get(ProviderID),
-    ProviderAccounts = ff_payouts_provider:accounts(Provider),
+    {ok, Provider} = ff_p2p_provider:get(ProviderID),
+    ProviderAccounts = ff_p2p_provider:accounts(Provider),
     ProviderAccount = maps:get(CurrencyID, ProviderAccounts, undefined),
 
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
@@ -744,7 +744,7 @@ make_final_cash_flow(P2PTransfer) ->
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-    ProviderFee = ff_payouts_provider:compute_fees(Provider, PartyVarset),
+    ProviderFee = ff_p2p_provider:compute_fees(Provider, PartyVarset),
 
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
@@ -786,9 +786,9 @@ get_identity(IdentityID) ->
 -spec build_party_varset(party_varset_params()) ->
     party_varset().
 build_party_varset(#{
-    body := Body, 
-    party_id := PartyID, 
-    sender := ResourceSender, 
+    body := Body,
+    party_id := PartyID,
+    sender := ResourceSender,
     receiver := ResourceReceiver
 }) ->
     {_, CurrencyID} = Body,
@@ -1057,19 +1057,19 @@ update_adjusment_index(Updater, Value, P2PTransfer) ->
 %% Failure helpers
 
 -spec build_failure(fail_type(), p2p_transfer()) -> failure().
-build_failure(risk_score_is_too_high, _P2PTransfer) ->
-    #{
-        code => <<"risk_score_is_too_high">>
-    };
+% build_failure(risk_score_is_too_high, _P2PTransfer) ->
+%     #{
+%         code => <<"risk_score_is_too_high">>
+%     };
 build_failure(route_not_found, _P2PTransfer) ->
     #{
         code => <<"no_route_found">>
     };
-build_failure({invalid_exchange, Details}, _P2PTransfer) ->
-    #{
-        code => <<"unknown">>,
-        reason => genlib:format(Details)
-    };
+% build_failure({invalid_exchange, Details}, _P2PTransfer) ->
+%     #{
+%         code => <<"unknown">>,
+%         reason => genlib:format(Details)
+%     };
 build_failure(session, P2PTransfer) ->
     Result = session_result(P2PTransfer),
     {failed, Failure} = Result,

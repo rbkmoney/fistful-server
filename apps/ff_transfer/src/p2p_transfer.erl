@@ -28,7 +28,8 @@
     p_transfer => p_transfer(),
     adjustments => adjustments_index(),
     status => status(),
-    external_id => id()
+    external_id => id(),
+    deadline => deadline()
 }.
 -type params() :: #{
     id := id(),
@@ -37,7 +38,8 @@
     sender_resource := resource(),
     receiver_resource := resource(),
     exchange => exchange(),
-    external_id => id()
+    external_id => id(),
+    deadline => deadline()
 }.
 
 -type resource_full_id() ::
@@ -144,6 +146,7 @@
 -export_type([action/0]).
 -export_type([adjustment_params/0]).
 -export_type([start_adjustment_error/0]).
+-export_type([resource_full/0]).
 
 %% Transfer logic callbacks
 
@@ -163,6 +166,7 @@
 -export([party_revision/1]).
 -export([domain_revision/1]).
 -export([resource_full/2]).
+-export([deadline/1]).
 
 %% API
 
@@ -204,6 +208,7 @@
 -type terms() :: ff_party:terms().
 -type party_varset() :: hg_selector:varset().
 -type risk_score() :: p2p_inspector:risk_score().
+-type deadline() :: p2p_session:deadline().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -300,6 +305,10 @@ domain_revision(T) ->
 created_at(T) ->
     maps:get(created_at, T, undefined).
 
+-spec deadline(p2p_transfer()) -> deadline() | undefined.
+deadline(T) ->
+    maps:get(deadline, T, undefined).
+
 %% API
 
 -spec create(params()) ->
@@ -341,8 +350,9 @@ create(Params) ->
         valid = unwrap(validate_p2p_transfer_creation(Terms, Body)),
 
         ExternalID = maps:get(external_id, Params, undefined),
+        Deadline = maps:get(deadline, Params, undefined),
         [
-            {created, genlib_map:compact(add_external_id(ExternalID, #{
+            {created, genlib_map:compact(#{
                 version => ?ACTUAL_FORMAT_VERSION,
                 id => ID,
                 identity_id => IdentityID,
@@ -351,8 +361,10 @@ create(Params) ->
                 created_at => CreatedAt,
                 party_revision => PartyRevision,
                 domain_revision => DomainRevision,
-                exchange => Exchange
-            }))},
+                exchange => Exchange,
+                external_id => ExternalID,
+                deadline => Deadline
+            })},
             {status_changed, pending},
             {resource_got, ResourceSender, ResourceReceiver}
         ]
@@ -452,11 +464,6 @@ route_selection_status(P2PTransfer) ->
         _Known ->
             found
     end.
-
-add_external_id(undefined, Event) ->
-    Event;
-add_external_id(ExternalID, Event) ->
-    Event#{external_id => ExternalID}.
 
 -spec adjustments_index(p2p_transfer()) -> adjustments_index().
 adjustments_index(P2PTransfer) ->
@@ -687,6 +694,18 @@ process_p_transfer_creation(P2PTransfer) ->
     process_result().
 process_session_creation(P2PTransfer) ->
     ID = construct_session_id(id(P2PTransfer)),
+    TransferParams = genlib_map:compact(#{
+        id => id(P2PTransfer),
+        cash => body(P2PTransfer),
+        sender => resource_full(P2PTransfer, sender),
+        receiver => resource_full(P2PTransfer, receiver),
+        deadline => deadline(P2PTransfer)
+    }),
+    #{provider_id := ProviderID} = route(P2PTransfer),
+    Params = #{
+        provider_id => ProviderID
+    },
+    _AnyResultIsOK = p2p_session_machine:create(ID, TransferParams, Params),
     {continue, [{session_started, ID}]}.
 
 construct_session_id(ID) ->
@@ -700,7 +719,14 @@ construct_p_transfer_id(ID) ->
     process_result().
 process_session_poll(P2PTransfer) ->
     SessionID = session_id(P2PTransfer),
-    {continue, [{session_finished, {SessionID, {success, #{}}}}]}.
+    {ok, SessionMachine} = p2p_session_machine:get(SessionID),
+    Session = p2p_session_machine:session(SessionMachine),
+    case p2p_session:status(Session) of
+        active ->
+            {poll, []};
+        {finished, Result} ->
+            {continue, [{session_finished, {SessionID, Result}}]}
+    end.
 
 -spec process_transfer_finish(p2p_transfer()) ->
     process_result().

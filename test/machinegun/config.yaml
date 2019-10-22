@@ -78,6 +78,13 @@ namespaces:
             machine_id: ff/p2p_transfer_v1
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/p2p_transfer_v1
+  ff/p2p_transfer/session_v1:
+      event_sinks:
+        machine:
+            type: machine
+            machine_id: ff/p2p_transfer/session_v1
+      processor:
+          url: http://fistful-server:8022/v1/stateproc/ff/p2p_transfer/session_v1
 
   ff/sequence:
       processor:

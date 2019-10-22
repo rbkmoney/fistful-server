@@ -32,15 +32,15 @@
 %%
 
 -type id() :: machinery:id().
--type data() :: p2p_session:data().
+-type transfer_params() :: p2p_session:transfer_params().
 -type params() :: p2p_session:params().
 
--type machine()      :: ff_machine:machine(event()).
--type result()       :: ff_machine:result(event()).
+-type machine() :: ff_machine:machine(event()).
+-type result() :: ff_machine:result(event()).
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
--type st()        :: ff_machine:st(session()).
+-type st() :: ff_machine:st(session()).
 -type session() :: p2p_session:session().
 -type event() :: p2p_session:event().
 
@@ -60,11 +60,11 @@ session(St) ->
 
 %%
 
--spec create(id(), data(), params()) ->
+-spec create(id(), transfer_params(), params()) ->
     ok | {error, exists}.
-create(ID, Data, Params) ->
+create(ID, TransferParams, Params) ->
     do(fun () ->
-        Events = unwrap(p2p_session:create(ID, Data, Params)),
+        Events = unwrap(p2p_session:create(ID, TransferParams, Params)),
         unwrap(machinery:start(?NS, ID, Events, backend()))
     end).
 

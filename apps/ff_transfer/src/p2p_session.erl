@@ -27,10 +27,11 @@
 %%
 
 -type session() :: #{
-    id            := id(),
-    status        := status(),
-    provider_id   := ff_p2p_provider:id(),
-    adapter       := adapter_with_opts(),
+    id := id(),
+    status := status(),
+    transfer_params := transfer_params(),
+    provider_id := ff_p2p_provider:id(),
+    adapter := adapter_with_opts(),
     adapter_state => ff_adapter:state()
 }.
 
@@ -43,31 +44,34 @@
     | {next_state, ff_adapter:state()}
     | {finished, session_result()}.
 
--type data() :: #{
-    id         := id(),
-    cash       := ff_transaction:body(),
-    sender     := ff_identity:identity(),
-    receiver   := ff_identity:identity()
+-type transfer_params() :: #{
+    id := id(),
+    cash := ff_transaction:body(),
+    sender := p2p_transfer:resource_full(),
+    receiver := p2p_transfer:resource_full(),
+    deadline => deadline()
 }.
 
+-type deadline() :: binary().
+
 -type params() :: #{
-    resource := ff_destination:resource_full(),
     provider_id := ff_p2p_provider:id()
 }.
 
--export_type([data/0]).
 -export_type([event/0]).
+-export_type([transfer_params/0]).
 -export_type([params/0]).
 -export_type([status/0]).
 -export_type([session/0]).
 -export_type([session_result/0]).
+-export_type([deadline/0]).
 
 %%
 %% Internal types
 %%
 -type id() :: machinery:id().
 
--type auxst()        :: undefined.
+-type auxst() :: undefined.
 
 -type result() :: machinery:result(event(), auxst()).
 -type adapter_with_opts() :: {ff_p2p_provider:adapter(), ff_p2p_provider:adapter_opts()}.
@@ -89,14 +93,15 @@ status(#{status := V}) ->
 
 %%
 
--spec create(id(), data(), params()) ->
+-spec create(id(), transfer_params(), params()) ->
     {ok, [event()]}.
-create(ID, _Data, #{provider_id := ProviderID}) ->
+create(ID, TransferParams, #{provider_id := ProviderID}) ->
     Session = #{
-        id         => ID,
-        provider   => ProviderID,
-        adapter    => get_adapter_with_opts(ProviderID),
-        status     => active
+        id => ID,
+        transfer_params => TransferParams,
+        provider_id => ProviderID,
+        adapter => get_adapter_with_opts(ProviderID),
+        status => active
     },
     {ok, [{created, Session}]}.
 
@@ -109,7 +114,7 @@ get_adapter_with_opts(ProviderID) ->
 process_session(_Session) ->
     % ASt = maps:get(adapter_state, Session, undefined),
     % TODO add here p2p adapter call
-    process_intent({finish, {success, #{id => <<"Some id">>, extra => #{}}}}).
+    process_intent({finish, {success, #{id => <<"Some trx id">>, extra => #{}}}}).
 
 % process_intent(Intent, NextASt) ->
 %     #{events := Events0} = Result = process_intent(Intent),

@@ -207,7 +207,7 @@
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
--type provider_id() :: pos_integer().
+-type provider_id() :: ff_p2p_provider:id().
 
 -type legacy_event() :: any().
 

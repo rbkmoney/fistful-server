@@ -7,7 +7,7 @@
     id              := id(),
     system_accounts := dmsl_domain_thrift:'SystemAccountSetSelector'(),
     identity        := binary(),
-    providers       := dmsl_domain_thrift:'WithdrawalProviderSelector'(),
+    withdrawal_providers := dmsl_domain_thrift:'WithdrawalProviderSelector'(),
     p2p_providers   := dmsl_domain_thrift:'P2PProviderSelector'()
 }.
 
@@ -64,7 +64,7 @@ get(ID, DomainRevision) ->
 -spec compute_withdrawal_providers(payment_institution(), hg_selector:varset()) ->
     {ok, [ff_payouts_provider:id()]} | {error, term()}.
 
-compute_withdrawal_providers(#{providers := ProviderSelector}, VS) ->
+compute_withdrawal_providers(#{withdrawal_providers := ProviderSelector}, VS) ->
     case hg_selector:reduce_to_value(ProviderSelector, VS) of
         {ok, Providers} ->
             {ok, [ProviderID || #domain_WithdrawalProviderRef{id = ProviderID} <- Providers]};
@@ -101,14 +101,14 @@ compute_system_accounts(PaymentInstitution, VS) ->
 decode(ID, #domain_PaymentInstitution{
     wallet_system_account_set = SystemAccounts,
     identity = Identity,
-    withdrawal_providers = Providers,
+    withdrawal_providers = WithdrawalProviders,
     p2p_providers = P2PProviders
 }) ->
     #{
         id              => ID,
         system_accounts => SystemAccounts,
         identity        => Identity,
-        providers       => Providers,
+        withdrawal_providers => WithdrawalProviders,
         p2p_providers   => P2PProviders
     }.
 

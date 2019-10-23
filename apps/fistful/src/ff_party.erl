@@ -53,6 +53,7 @@
 -export_type([validate_account_creation_error/0]).
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_withdrawal_creation_error/0]).
+-export_type([validate_p2p_transfer_creation_error/0]).
 -export_type([cash/0]).
 -export_type([cash_range/0]).
 
@@ -317,7 +318,7 @@ get_withdrawal_cash_flow_plan(Terms) ->
     {ok, #{postings => Postings}}.
 
 -spec get_p2p_transfer_cash_flow_plan(terms()) ->
-    {ok, ff_cash_flow:cash_flow_plan()} | {error, _Error}.
+    {ok, ff_cash_flow:cash_flow_plan()}.
 get_p2p_transfer_cash_flow_plan(Terms) ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{

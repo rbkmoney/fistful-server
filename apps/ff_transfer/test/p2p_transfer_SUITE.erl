@@ -103,15 +103,15 @@ route_not_found_fail_test(C) ->
     Cash = {100, <<"USD">>},
     #{
         identity_id := IdentityID,
-        sender_resource := ResourceSender,
-        receiver_resource := ResourceReceiver
+        sender := ResourceSender,
+        receiver := ResourceReceiver
     } = prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
         identity_id => IdentityID,
-        sender_resource => ResourceSender,
-        receiver_resource => ResourceReceiver,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
         body => Cash
     },
     ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
@@ -123,15 +123,15 @@ create_cashlimit_validation_error_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         identity_id := IdentityID,
-        sender_resource := ResourceSender,
-        receiver_resource := ResourceReceiver
+        sender := ResourceSender,
+        receiver := ResourceReceiver
     } = prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
         identity_id => IdentityID,
-        sender_resource => ResourceSender,
-        receiver_resource => ResourceReceiver,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
         body => {20000000, <<"RUB">>},
         external_id => P2PTransferID
     },
@@ -145,15 +145,15 @@ create_currency_validation_error_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         identity_id := IdentityID,
-        sender_resource := ResourceSender,
-        receiver_resource := ResourceReceiver
+        sender := ResourceSender,
+        receiver := ResourceReceiver
     } = prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
         identity_id => IdentityID,
-        sender_resource => ResourceSender,
-        receiver_resource => ResourceReceiver,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
         body => {100, <<"EUR">>},
         external_id => P2PTransferID
     },
@@ -172,35 +172,35 @@ create_sender_resource_notfound_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         identity_id := IdentityID,
-        sender_resource := ResourceSender,
-        receiver_resource := ResourceReceiver
+        sender := ResourceSender,
+        receiver := ResourceReceiver
     } = prepare_standard_environment(Cash, <<"TEST_NOTFOUND">>, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
         identity_id => IdentityID,
-        sender_resource => ResourceSender,
-        receiver_resource => ResourceReceiver,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
         body => Cash,
         external_id => P2PTransferID
     },
     Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    ?assertMatch({error, {{resource_full, sender}, {bin_data, not_found}}}, Result).
+    ?assertMatch({error, {resource_full, {sender, {bin_data, not_found}}}}, Result).
 
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         identity_id := IdentityID,
-        sender_resource := ResourceSender,
-        receiver_resource := ResourceReceiver
+        sender := ResourceSender,
+        receiver := ResourceReceiver
     } = prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
         identity_id => IdentityID,
-        sender_resource => ResourceSender,
-        receiver_resource => ResourceReceiver,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
         body => Cash,
         external_id => P2PTransferID
     },
@@ -218,15 +218,15 @@ preserve_revisions_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         identity_id := IdentityID,
-        sender_resource := ResourceSender,
-        receiver_resource := ResourceReceiver
+        sender := ResourceSender,
+        receiver := ResourceReceiver
     } = prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
         identity_id => IdentityID,
-        sender_resource => ResourceSender,
-        receiver_resource => ResourceReceiver,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
         body => Cash,
         external_id => P2PTransferID
     },
@@ -254,8 +254,8 @@ prepare_standard_environment(_P2PTransferCash, Token, C) ->
     ResourceReceiver = create_resource_raw(Token, C),
     #{
         identity_id => IdentityID,
-        sender_resource => ResourceSender,
-        receiver_resource => ResourceReceiver,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
         party_id => PartyID
     }.
 
@@ -288,9 +288,6 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
-% create_person_identity(Party, C) ->
-%     create_person_identity(Party, C, <<"good-one">>).
-
 create_person_identity(Party, C, ProviderID) ->
     create_identity(Party, ProviderID, <<"person">>, C).
 
@@ -314,4 +311,4 @@ create_resource_raw(Token, C) ->
         Token ->
             StoreSource#{token => Token}
         end,
-    {raw, NewStoreResource}.
+    {raw, #{resource => NewStoreResource}}.

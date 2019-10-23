@@ -156,7 +156,7 @@ decode_accounts(Identity, Accounts) ->
     ).
 
 decode_adapter(#domain_Proxy{ref = ProxyRef, additional = ProviderOpts}) ->
-    Proxy = unwrap(ff_domain_config:object({proxy, ProxyRef})),
+    {ok, Proxy} = ff_domain_config:object({proxy, ProxyRef}),
     #domain_ProxyDefinition{
         url = URL,
         options = ProxyOpts

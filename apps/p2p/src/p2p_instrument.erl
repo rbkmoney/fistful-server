@@ -1,6 +1,7 @@
 -module(p2p_instrument).
 
--type instrument_type() :: bank_card.
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
+
 -type bank_card_details() :: #{
     token               := binary(),
     payment_system      := atom(),
@@ -12,43 +13,63 @@
     bin_data_id         => ff_bin_data:bin_data_id()
 }.
 
--opaque bank_card() :: #{
-    token      := binary(),
-    bin        => binary(),
-    masked_pan => binary()
+-type bank_card() :: #{
+    token          := binary(),
+    bin            => binary(),
+    masked_pan     => binary()
 }.
 
--opaque instrument() :: #{
-    type    := instrument_type(),
-    token   := binary(),
-    details := bank_card_details() | undefined
-}.
+-type instrument_type() :: bank_card.
 
--export_type([bank_card/0]).
+-opaque instrument() :: {bank_card, bank_card_details()}.
+
 -export_type([instrument/0]).
 
 -export([create/1]).
--export([type/1]).
+-export([construct_payment_tool/1]).
+-export([token/1]).
 -export([country_code/1]).
+-export([bin_data_id/1]).
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/2]).
 
 %% Accessories
 
--spec type(instrument()) -> instrument_type().
+-spec token(instrument()) -> binary().
+
+token({bank_card, #{token := Token}}) ->
+    Token.
+
+-spec bin(instrument()) -> binary().
+
+bin({bank_card, #{bin := Bin}}) ->
+    Bin.
+
+-spec masked_pan(instrument()) -> binary().
+
+masked_pan({bank_card, #{masked_pan := MaskedPan}}) ->
+    MaskedPan.
+
+-spec payment_system(instrument()) -> atom().
+
+payment_system({bank_card, #{payment_system := PaymentSystem}}) ->
+    PaymentSystem.
+
 -spec country_code(instrument()) -> atom() | undefined.
 
-type(#{type := Type}) ->
-    Type.
+country_code({bank_card, BankCardDetails}) ->
+    maps:get(iso_country_code, BankCardDetails, undefined).
 
-country_code(Instrument) ->
-    case maps:get(details, Instrument, undefined) of
-        undefined -> undefined;
-        Details ->
-            maps:get(iso_country_code, Details, undefined)
-    end.
+-spec bank_name(instrument()) -> binary() | undefined.
 
+bank_name({bank_card, BankCardDetails}) ->
+    maps:get(bank_card, BankCardDetails, undefined).
+
+-spec bin_data_id(instrument()) -> binary() | undefined.
+
+bin_data_id({bank_card, BankCardDetails}) ->
+    maps:get(bin_data_id, BankCardDetails, undefined).
 %% API
 
 -spec create({instrument_type(), bank_card()}) ->
@@ -61,15 +82,28 @@ create({bank_card, #{token := Token, bin := Bin, masked_pan := MaskedPan}}) ->
         KeyList = [payment_system, bank_name, iso_country_code, card_type],
         ExtendData = maps:with(KeyList, BinData),
         BankCardDetails = ExtendData#{
+            token       => Token,
             bin         => Bin,
             masked_pan  => MaskedPan,
             bin_data_id => ff_bin_data:id(BinData)
         },
-        #{
-            type    => bank_card,
-            token   => Token,
-            details => BankCardDetails
-        }
+        {bank_card, BankCardDetails}
     end);
 create(_UnknownInstrumentType) ->
+    not_impl.
+
+
+-spec construct_payment_tool(instrument()) ->
+    dmsl_domain_thrift:'PaymentTool'().
+
+construct_payment_tool({bank_card, _} = ResourceBankCard) ->
+    {bank_card, #domain_BankCard{
+        token           = token(ResourceBankCard),
+        bin             = bin(ResourceBankCard),
+        masked_pan      = masked_pan(ResourceBankCard),
+        payment_system  = payment_system(ResourceBankCard),
+        issuer_country  = country_code(ResourceBankCard),
+        bank_name       = bank_name(ResourceBankCard)
+    }};
+construct_payment_tool(_UnknownInstrument) ->
     not_impl.

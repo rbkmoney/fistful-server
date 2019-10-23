@@ -86,6 +86,7 @@
 -export_type([final_cash_flow/0]).
 -export_type([plan_account/0]).
 
+-export_type([volume_finalize_error/0]).
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).

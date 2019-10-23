@@ -601,22 +601,44 @@ default_termset(Options) ->
                         if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {decisions, [
                             #domain_FeeDecision{
-                                if_ = {condition, {cost_in, ?cashrng(
-                                        {inclusive, ?cash(   0, <<"RUB">>)},
-                                        {exclusive, ?cash(3000, <<"RUB">>)}
-                                    )}
-                                },
+                                if_ = {condition, {p2p_tool, #domain_P2PToolCondition{
+                                    sender_is = {bank_card, #domain_BankCardCondition{
+                                        definition = {payment_system, #domain_PaymentSystemCondition{
+                                            payment_system_is = visa
+                                        }}
+                                    }},
+                                    receiver_is = {bank_card, #domain_BankCardCondition{
+                                        definition = {payment_system, #domain_PaymentSystemCondition{
+                                            payment_system_is = visa
+                                        }}
+                                    }}
+                                }}},
                                 then_ = {value, #domain_Fees{fees = #{surplus => ?fixed(50, <<"RUB">>)}}}
-                            },
-                            #domain_FeeDecision{
-                                if_ = {condition, {cost_in, ?cashrng(
-                                        {inclusive, ?cash(3000, <<"RUB">>)},
-                                        {exclusive, ?cash(300000, <<"RUB">>)}
-                                    )}
-                                },
-                                then_ = {value, #domain_Fees{fees = #{surplus => ?share(4, 100, operation_amount)}}}
                             }
                         ]}
+                        % {decisions, [
+                        %     #domain_FeeDecision{
+                        %         if_ = {condition, {cost_in, ?cashrng(
+                        %                 {inclusive, ?cash(   0, <<"RUB">>)},
+                        %                 {exclusive, ?cash(7692, <<"RUB">>)}
+                        %             )}
+                        %         },
+                        %         then_ = {decisions, [
+                        %             #domain_FeeDecision{
+                        %                 if_ = {condition, {}},
+                        %                 then_ = {value, #domain_Fees{fees = #{surplus => ?fixed(50, <<"RUB">>)}}}
+                        %             }
+                        %         ]}
+                        %     },
+                        %     #domain_FeeDecision{
+                        %         if_ = {condition, {cost_in, ?cashrng(
+                        %                 {inclusive, ?cash(7692, <<"RUB">>)},
+                        %                 {exclusive, ?cash(300000, <<"RUB">>)}
+                        %             )}
+                        %         },
+                        %         then_ = {value, #domain_Fees{fees = #{surplus => ?share(65, 10000, operation_amount)}}}
+                        %     }
+                        % ]}
                     }
                 ]}
             }

@@ -1,6 +1,6 @@
 {application, p2p, [
     {description,
-        "Personal To Personal transfer processing"
+        "Person-to-person transfer processing"
     },
     {vsn, "1"},
     {registered, []},

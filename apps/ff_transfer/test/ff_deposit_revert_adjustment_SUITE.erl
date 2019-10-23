@@ -1,7 +1,7 @@
 -module(ff_deposit_revert_adjustment_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("damsel/include/dmsl_accounter_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
 
@@ -116,6 +116,7 @@ adjustment_can_change_status_to_failed_test(C) ->
     ExternalID = ff_adjustment:external_id(get_adjustment(DepositID, RevertID, AdjustmentID)),
     ?assertEqual(<<"true_unique_id">>, ExternalID),
     ?assertEqual({failed, Failure},  get_revert_status(DepositID, RevertID)),
+    assert_adjustment_same_revisions(DepositID, RevertID, AdjustmentID),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(-100, <<"RUB">>), get_source_balance(SourceID)),
     _ = process_revert(DepositID, #{body   => {100, <<"RUB">>}}).
@@ -131,17 +132,19 @@ adjustment_can_change_failure_test(C) ->
     ?assertEqual(?final_balance(50, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(-50, <<"RUB">>), get_source_balance(SourceID)),
     Failure1 = #{code => <<"one">>},
-    _ = process_adjustment(DepositID, RevertID, #{
+    AdjustmentID1 = process_adjustment(DepositID, RevertID, #{
         change => {change_status, {failed, Failure1}}
     }),
     ?assertEqual({failed, Failure1},  get_revert_status(DepositID, RevertID)),
+    assert_adjustment_same_revisions(DepositID, RevertID, AdjustmentID1),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(-100, <<"RUB">>), get_source_balance(SourceID)),
     Failure2 = #{code => <<"two">>},
-    _ = process_adjustment(DepositID, RevertID, #{
+    AdjustmentID2 = process_adjustment(DepositID, RevertID, #{
         change => {change_status, {failed, Failure2}}
     }),
     ?assertEqual({failed, Failure2},  get_revert_status(DepositID, RevertID)),
+    assert_adjustment_same_revisions(DepositID, RevertID, AdjustmentID2),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(-100, <<"RUB">>), get_source_balance(SourceID)).
 
@@ -166,6 +169,7 @@ adjustment_can_change_status_to_succeeded_test(C) ->
     }),
     ?assertMatch(succeeded, get_adjustment_status(DepositID, RevertID, AdjustmentID)),
     ?assertMatch(succeeded, get_revert_status(DepositID, RevertID)),
+    assert_adjustment_same_revisions(DepositID, RevertID, AdjustmentID),
     ?assertEqual(?final_balance(-10, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_source_balance(SourceID)).
 
@@ -417,6 +421,14 @@ await_final_adjustment_status(DepositID, RevertID, AdjustmentID) ->
     ),
     ff_adjustment:status(get_adjustment(DepositID, RevertID, AdjustmentID)).
 
+assert_adjustment_same_revisions(DepositID, RevertID, AdjustmentID) ->
+    Adjustment = get_adjustment(DepositID, RevertID, AdjustmentID),
+    Revert = get_revert(DepositID, RevertID),
+    ?assertEqual(ff_deposit_revert:domain_revision(Revert), ff_adjustment:domain_revision(Adjustment)),
+    ?assertEqual(ff_deposit_revert:party_revision(Revert), ff_adjustment:party_revision(Adjustment)),
+    ?assertEqual(ff_deposit_revert:created_at(Revert), ff_adjustment:operation_timestamp(Adjustment)),
+    ok.
+
 create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
@@ -476,7 +488,10 @@ set_wallet_balance({Amount, Currency}, ID) ->
     ok.
 
 get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        Account,
+        ff_clock:latest_clock()
+    ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 generate_id() ->
@@ -506,11 +521,11 @@ create_account(CurrencyCode) ->
     end.
 
 construct_account_prototype(CurrencyCode, Description) ->
-    #accounter_AccountPrototype{
+    #shumpune_AccountPrototype{
         currency_sym_code = CurrencyCode,
         description = Description
     }.
 
 call_accounter(Function, Args) ->
-    Service = {dmsl_accounter_thrift, 'Accounter'},
+    Service = {shumpune_shumpune_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}, woody_context:new()).

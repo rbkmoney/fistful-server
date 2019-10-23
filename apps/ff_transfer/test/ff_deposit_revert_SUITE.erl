@@ -1,7 +1,7 @@
 -module(ff_deposit_revert_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("damsel/include/dmsl_accounter_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
 
@@ -102,6 +102,7 @@ end_per_testcase(_Name, _C) ->
 -spec revert_ok_test(config()) -> test_return().
 revert_ok_test(C) ->
     #{
+        party_id := PartyID,
         deposit_id := DepositID,
         wallet_id := WalletID,
         source_id := SourceID
@@ -116,7 +117,11 @@ revert_ok_test(C) ->
     ?assertEqual(undefined, ff_deposit_revert:external_id(Revert)),
     ?assertEqual({5000, <<"RUB">>}, ff_deposit_revert:body(Revert)),
     ?assertEqual(SourceID, ff_deposit_revert:source_id(Revert)),
-    ?assertEqual(WalletID, ff_deposit_revert:wallet_id(Revert)).
+    ?assertEqual(WalletID, ff_deposit_revert:wallet_id(Revert)),
+    DomainRevision = ff_domain_config:head(),
+    ?assertEqual(DomainRevision, ff_deposit_revert:domain_revision(Revert)),
+    {ok, PartyRevision} = ff_party:get_revision(PartyID),
+    ?assertEqual(PartyRevision, ff_deposit_revert:party_revision(Revert)).
 
 -spec multiple_reverts_ok_test(config()) -> test_return().
 multiple_reverts_ok_test(C) ->
@@ -433,7 +438,10 @@ set_wallet_balance({Amount, Currency}, ID) ->
     ok.
 
 get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        Account,
+        ff_clock:latest_clock()
+    ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 generate_id() ->
@@ -463,11 +471,11 @@ create_account(CurrencyCode) ->
     end.
 
 construct_account_prototype(CurrencyCode, Description) ->
-    #accounter_AccountPrototype{
+    #shumpune_AccountPrototype{
         currency_sym_code = CurrencyCode,
         description = Description
     }.
 
 call_accounter(Function, Args) ->
-    Service = {dmsl_accounter_thrift, 'Accounter'},
+    Service = {shumpune_shumpune_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}, woody_context:new()).

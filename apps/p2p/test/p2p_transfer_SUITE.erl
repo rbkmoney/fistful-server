@@ -22,19 +22,16 @@
 -type group_name()     :: ct_helper:group_name().
 -type test_return()    :: _ | no_return().
 
-
 %% API
 
 -spec all() -> [test_case_name() | {group, group_name()}].
 all() -> [
         get_fee_ok_test
-        % get_fee_bad_token_test
 ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
-    [
-    ].
+    [].
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
@@ -71,7 +68,7 @@ end_per_testcase(_Name, _C) ->
 
 -spec get_fee_ok_test(config()) -> test_return().
 get_fee_ok_test(C) ->
-    Cash = {2500, <<"RUB">>},
+    Cash = {22500, <<"RUB">>},
     CardSender   = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     CardReceiver = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     #{
@@ -82,21 +79,22 @@ get_fee_ok_test(C) ->
     Identity = ff_wallet:identity(Wallet),
     {ok, Sender} = p2p_instrument:create({bank_card, CardSender}),
     {ok, Receiver} = p2p_instrument:create({bank_card, CardReceiver}),
-    {ok, {Fee, _}} = p2p_fees:get_fee_token(Cash, Identity, Sender, Receiver),
-    ?assertEqual({50, <<"RUB">>}, Fee).
+    {ok, {Fee, CashVolume, _}} = p2p_fees:get_fee_token(Cash, Identity, Sender, Receiver),
+    ?assertEqual({share,{{65, 10000},operation_amount,default}}, CashVolume),
+    ?assertEqual({146, <<"RUB">>}, Fee).
 
 %% Utils
 
-prepare_standard_environment(WithdrawalCash, C) ->
-    prepare_standard_environment(WithdrawalCash, undefined, C).
+prepare_standard_environment(Cash, C) ->
+    prepare_standard_environment(Cash, undefined, C).
 
-prepare_standard_environment({_Amount, Currency} = WithdrawalCash, Token, C) ->
+prepare_standard_environment({_Amount, Currency} =Cash, Token, C) ->
     Party = create_party(C),
     IdentityID = create_person_identity(Party, C),
     WalletID = create_wallet(IdentityID, <<"My wallet">>, Currency, C),
     ok = await_wallet_balance({0, Currency}, WalletID),
     DestinationID = create_destination(IdentityID, Token, C),
-    ok = set_wallet_balance(WithdrawalCash, WalletID),
+    ok = set_wallet_balance(Cash, WalletID),
     #{
         identity_id => IdentityID,
         party_id => Party,
@@ -147,7 +145,10 @@ get_wallet_balance(ID) ->
     get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
 
 get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        Account,
+        ff_clock:latest_clock()
+    ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 generate_id() ->

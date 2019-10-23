@@ -309,7 +309,7 @@ services(Options) ->
     Default = #{
         eventsink      => "http://machinegun:8022/v1/event_sink",
         automaton      => "http://machinegun:8022/v1/automaton",
-        accounter      => "http://shumway:8022/accounter",
+        accounter      => "http://shumway:8022/shumpune",
         cds            => "http://cds:8022/v1/storage",
         identdocstore  => "http://cds:8022/v1/identity_document_storage",
         partymgmt      => "http://hellgate:8022/v1/processing/partymgmt",
@@ -613,32 +613,26 @@ default_termset(Options) ->
                                         }}
                                     }}
                                 }}},
-                                then_ = {value, #domain_Fees{fees = #{surplus => ?fixed(50, <<"RUB">>)}}}
+                                then_ = {decisions, [
+                                    #domain_FeeDecision{
+                                        if_ = {condition, {cost_in, ?cashrng(
+                                                {inclusive, ?cash(   0, <<"RUB">>)},
+                                                {exclusive, ?cash(7692, <<"RUB">>)}
+                                            )}
+                                        },
+                                        then_ = {value, #domain_Fees{fees = #{surplus => ?fixed(50, <<"RUB">>)}}}
+                                    },
+                                    #domain_FeeDecision{
+                                        if_ = {condition, {cost_in, ?cashrng(
+                                                {inclusive, ?cash(7692, <<"RUB">>)},
+                                                {exclusive, ?cash(300000, <<"RUB">>)}
+                                            )}
+                                        },
+                                        then_ = {value, #domain_Fees{fees = #{surplus => ?share(65, 10000, operation_amount)}}}
+                                    }
+                                ]}
                             }
                         ]}
-                        % {decisions, [
-                        %     #domain_FeeDecision{
-                        %         if_ = {condition, {cost_in, ?cashrng(
-                        %                 {inclusive, ?cash(   0, <<"RUB">>)},
-                        %                 {exclusive, ?cash(7692, <<"RUB">>)}
-                        %             )}
-                        %         },
-                        %         then_ = {decisions, [
-                        %             #domain_FeeDecision{
-                        %                 if_ = {condition, {}},
-                        %                 then_ = {value, #domain_Fees{fees = #{surplus => ?fixed(50, <<"RUB">>)}}}
-                        %             }
-                        %         ]}
-                        %     },
-                        %     #domain_FeeDecision{
-                        %         if_ = {condition, {cost_in, ?cashrng(
-                        %                 {inclusive, ?cash(7692, <<"RUB">>)},
-                        %                 {exclusive, ?cash(300000, <<"RUB">>)}
-                        %             )}
-                        %         },
-                        %         then_ = {value, #domain_Fees{fees = #{surplus => ?share(65, 10000, operation_amount)}}}
-                        %     }
-                        % ]}
                     }
                 ]}
             }

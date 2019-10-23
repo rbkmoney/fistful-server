@@ -9,15 +9,6 @@
 -type plan_constant() :: operation_amount | surplus.
 -type identity_id()   :: ff_identity:id().
 -type instrument()    :: #{token := binary(), bin_data_id => ff_bin_data:bin_data_id()}.
--type token_payload() :: #{
-    amount            := cash(),
-    party_revision    := ff_party:revision(),
-    domain_revision   := ff_party:domain_revision(),
-    created_at        := ff_time:timestamp_ms(),
-    identity_id       := identity_id(),
-    sender            := instrument(),
-    receiver          := instrument()
-}.
 -type surplus_cash_volume()       :: ff_cash_flow:plan_volume().
 -type get_contract_terms_error()  :: ff_party:get_contract_terms_error().
 -type validate_p2p_error()        :: ff_party:validate_p2p_error().
@@ -25,8 +16,14 @@
 
 -type fees()    :: #{fees => #{plan_constant() => surplus_cash_volume()}}.
 -opaque token() :: #{
-    version := number(),
-    payload := token_payload()
+    amount            := cash(),
+    party_revision    := ff_party:revision(),
+    domain_revision   := ff_domain_config:revision(),
+    created_at        := ff_time:timestamp_ms(),
+    expires_on        := ff_time:timestamp_ms(),
+    identity_id       := identity_id(),
+    sender            := instrument(),
+    receiver          := instrument()
 }.
 
 -export_type([token/0]).
@@ -34,8 +31,6 @@
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
 
--export([surplus_cash/1]).
--export([surplus_cash_volume/1]).
 -export([get_fee_token/4]).
 
 -import(ff_pipeline, [do/1, unwrap/2]).
@@ -47,16 +42,6 @@
 surplus(#{fees := Fees}) ->
     maps:get(surplus, Fees, undefined).
 
--spec surplus_cash(token()) ->
-    cash() | undefined.
-surplus_cash(#{version := 1, payload := Payload}) ->
-    maps:get(surplus_cash, Payload, undefined).
-
--spec surplus_cash_volume(token()) ->
-    surplus_cash_volume() | undefined.
-surplus_cash_volume(#{version := 1, payload := Payload}) ->
-    maps:get(surplus_cash_volume, Payload, undefined).
-
 -spec instrument(p2p_instrument:instrument()) ->
     instrument().
 instrument(Instrument) ->
@@ -66,22 +51,15 @@ instrument(Instrument) ->
     }).
 
 %%
--spec create(token_payload()) ->
-    token().
-create(Payload) ->
-    #{
-        version => 1,
-        payload => Payload
-    }.
 
 -spec get_fee_token(cash(), identity_id(), sender(), receiver()) ->
-    {ok, {cash(), p2p_fees:token()}} |
+    {ok, {cash() | undefined, surplus_cash_volume() | undefined, p2p_fees:token()}} |
+    {error, {identity,   not_found}} |
     {error, {party,      get_contract_terms_error()}} |
-    {error, {validation, validate_p2p_error()}}       |
-    {error, {cash_flow,  volume_finalize_error()}}.
-get_fee_token({Amount, _} = Cash, IdentityID, Sender, Receiver) ->
+    {error, {validation, validate_p2p_error()}}.
+get_fee_token(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
-        {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
+        IdentityMachine = unwrap(identity, ff_identity_machine:get(IdentityID)),
         Identity = ff_identity_machine:identity(IdentityMachine),
         PartyID = ff_identity:party(Identity),
         ContractID = ff_identity:contract(Identity),
@@ -89,28 +67,30 @@ get_fee_token({Amount, _} = Cash, IdentityID, Sender, Receiver) ->
         DomainRevision = ff_domain_config:head(),
         VS = create_varset(PartyID, Cash, Sender, Receiver),
         Timestamp = ff_time:now(),
+        ExpiresOn = create_expires_on(Timestamp),
         Terms = unwrap(party, ff_party:get_contract_terms(
             PartyID, ContractID, VS, Timestamp, PartyRevision, DomainRevision)),
         valid = unwrap(validation, ff_party:validate_p2p_limits(Terms, Cash)),
         Fees = get_fees_from_terms(Terms),
         SurplusCashVolume = surplus(Fees),
-        SurplusCash = unwrap(cash_flow, compute_surplus_volume(SurplusCashVolume, Amount)),
-        Token = create(genlib_map:compact(#{
+        SurplusCash = unwrap(cash_flow, compute_surplus_volume(SurplusCashVolume, Cash)),
+        Token = #{
             amount => Cash,
             party_revision => PartyRevision,
             domain_revision => DomainRevision,
             created_at => Timestamp,
+            expires_on => ExpiresOn,
             identity_id => IdentityID,
             sender => instrument(Sender),
             receiver => instrument(Receiver)
-        })),
-        {SurplusCash, Token}
+        },
+        {SurplusCash, SurplusCashVolume, Token}
     end).
 
-compute_surplus_volume(undefined, _Amount) ->
+compute_surplus_volume(undefined, _Cash) ->
     {ok, undefined};
-compute_surplus_volume(CashVolume, Amount) ->
-    Constants = #{operation_amount => Amount},
+compute_surplus_volume(CashVolume, Cash) ->
+    Constants = #{operation_amount => Cash},
     ff_cash_flow:compute_volume(CashVolume, Constants).
 
 %%
@@ -122,6 +102,9 @@ create_varset(PartyID, {_, Currency} = Cash, Sender, Receiver) ->
         cost     => encode_cash(Cash),
         p2p_tool => encode_p2p_tool(Sender, Receiver)
     }.
+
+create_expires_on(Timestamp) ->
+    Timestamp + 15 * 60 * 1000.
 
 encode_cash({Amount, Currency}) ->
     #domain_Cash{

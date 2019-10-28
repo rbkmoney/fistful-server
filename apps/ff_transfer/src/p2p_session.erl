@@ -58,6 +58,8 @@
     provider_id := ff_p2p_provider:id()
 }.
 
+-type session_already_finished_error() :: {session_already_finished, id()}.
+
 -export_type([event/0]).
 -export_type([transfer_params/0]).
 -export_type([params/0]).
@@ -65,6 +67,7 @@
 -export_type([session/0]).
 -export_type([session_result/0]).
 -export_type([deadline/0]).
+-export_type([session_already_finished_error/0]).
 
 %%
 %% Internal types

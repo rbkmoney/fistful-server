@@ -27,6 +27,7 @@
     risk_score => risk_score(),
     p_transfer => p_transfer(),
     adjustments => adjustments_index(),
+    callbacks => callbacks_index(),
     status => status(),
     external_id => id(),
     deadline => deadline()
@@ -127,6 +128,13 @@
 
 -type unknown_adjustment_error() :: ff_adjustment_utils:unknown_adjustment_error().
 
+-type callback_params() :: p2p_callback:params().
+-type process_callback_response() :: p2p_callback:response().
+-type start_process_callback_error() :: p2p_session:session_already_finished_error().
+-type unknown_p2p_callback_error() :: p2p_callback_utils:unknown_p2p_callback_error().
+-type p2p_callback() :: p2p_callback:p2p_callback().
+-type p2p_callback_tag() :: p2p_callback:tag().
+
 -type invalid_status_change_error() ::
     {invalid_status_change, {unavailable_status, status()}} |
     {invalid_status_change, {already_has_status, status()}}.
@@ -147,6 +155,9 @@
 -export_type([adjustment_params/0]).
 -export_type([start_adjustment_error/0]).
 -export_type([resource_full/0]).
+-export_type([callback_params/0]).
+-export_type([process_callback_response/0]).
+-export_type([start_process_callback_error/0]).
 
 %% Transfer logic callbacks
 
@@ -177,6 +188,8 @@
 -export([find_adjustment/2]).
 -export([adjustments/1]).
 
+-export([process_callback/2]).
+
 %% Event source
 
 -export([apply_event/2]).
@@ -203,6 +216,7 @@
 -type adjustment() :: ff_adjustment:adjustment().
 -type adjustment_id() :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
+-type callbacks_index() :: p2p_callback_utils:index().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
 -type terms() :: ff_party:terms().
@@ -391,6 +405,23 @@ find_adjustment(AdjustmentID, P2PTransfer) ->
 adjustments(P2PTransfer) ->
     ff_adjustment_utils:adjustments(adjustments_index(P2PTransfer)).
 
+-spec process_callback(callback_params(), p2p_transfer()) ->
+    {ok, {process_callback_response(), process_result()}} |
+    {error, session_not_started | start_process_callback_error() | failure()}.
+process_callback(#{tag := CallbackTag}, P2PTransfer) ->
+    case find_callback(CallbackTag, P2PTransfer) of
+        %% TODO add exeption to proto
+        {error, {unknown_p2p_callback, _}} ->
+            {error, #{code => <<"unknown_p2p_callback">>}};
+        {ok, Callback} ->
+            do_process_callback(CallbackTag, Callback, P2PTransfer)
+    end.
+
+-spec find_callback(adjustment_id(), p2p_transfer()) ->
+    {ok, p2p_callback()} | {error, unknown_p2p_callback_error()}.
+find_callback(CallbackTag, P2PTransfer) ->
+    p2p_callback_utils:get_by_tag(CallbackTag, callbacks_index(P2PTransfer)).
+
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(p2p_transfer()) -> boolean().
 is_active(#{status := succeeded} = P2PTransfer) ->
@@ -430,6 +461,16 @@ do_start_adjustment(Params, P2PTransfer) ->
         #{id := AdjustmentID} = Params,
         {Action, Events} = unwrap(ff_adjustment:create(AdjustmentParams)),
         {Action, ff_adjustment_utils:wrap_events(AdjustmentID, Events)}
+    end).
+
+-spec do_process_callback(p2p_callback_tag(), p2p_callback(), p2p_transfer()) ->
+    {ok, {process_callback_response(), process_result()}} |
+    {error, session_not_started | start_process_callback_error()}.
+
+do_process_callback(CallbackTag, Callback, P2PTransfer) ->
+    do(fun() ->
+        valid = unwrap(validate_process_callback(P2PTransfer)),
+        p2p_callback_utils:process_p2p_callback(CallbackTag, Callback)
     end).
 
 %% Internal getters
@@ -529,6 +570,15 @@ unwrap_resource_id(undefined) ->
     undefined;
 unwrap_resource_id(#{<<"bank_card">> := ID}) ->
     ID.
+
+-spec callbacks_index(p2p_transfer()) -> callbacks_index().
+callbacks_index(P2PTransfer) ->
+    case maps:find(callbacks, P2PTransfer) of
+        {ok, Callbacks} ->
+            Callbacks;
+        error ->
+            p2p_callback_utils:new_index()
+    end.
 
 %% Processing helpers
 
@@ -1073,6 +1123,22 @@ save_adjustable_info(_Ev, P2PTransfer) ->
 update_adjusment_index(Updater, Value, P2PTransfer) ->
     Index = adjustments_index(P2PTransfer),
     set_adjustments_index(Updater(Value, Index), P2PTransfer).
+
+%% Callback helpers
+
+-spec validate_process_callback(p2p_transfer()) ->
+    {ok, valid} | {error, session_not_started | start_process_callback_error()}.
+
+validate_process_callback(P2PTransfer) ->
+    case session_processing_status(P2PTransfer) of
+        pending ->
+            {ok, valid};
+        undefined ->
+            %% TODO add exeption to proto
+            {error, session_not_started};
+        _Finished ->
+            {error, {session_already_finished, session_id(P2PTransfer)}}
+    end.
 
 %% Failure helpers
 

@@ -68,9 +68,11 @@
 -type ctx() :: ff_entity_context:context().
 
 -type adjustment_params() :: p2p_transfer:adjustment_params().
+-type callback_params() :: p2p_transfer:callback_params().
 
 -type call() ::
-    {start_adjustment, adjustment_params()}.
+    {start_adjustment, adjustment_params()} |
+    {process_callback, callback_params()}.
 
 -define(NS, 'ff/p2p_transfer_v1').
 
@@ -163,10 +165,15 @@ process_timeout(Machine, _, _Opts) ->
     process_result(p2p_transfer:process_transfer(P2PTransfer), St).
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) ->
-    no_return().
+    {Response, result()} | no_return() when
+    Response ::
+        ok | p2p_transfer:process_callback_response() |
+        {error, p2p_transfer:start_adjustment_error() | p2p_transfer:start_process_callback_error()}.
 
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
     do_start_adjustment(Params, Machine);
+process_call({process_callback, Params}, Machine, _, _Opts) ->
+    do_process_callback(Params, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
@@ -218,4 +225,16 @@ call(ID, Call) ->
             Reply;
         {error, notfound} ->
             {error, {unknown_p2p_transfer, ID}}
+    end.
+
+-spec do_process_callback(callback_params(), machine()) -> {Response, result()} when
+    Response :: p2p_transfer:process_callback_response() | {error, p2p_transfer:start_process_callback_error()}.
+
+do_process_callback(Params, Machine) ->
+    St = ff_machine:collapse(p2p_transfer, Machine),
+    case p2p_transfer:process_callback(Params, p2p_transfer(St)) of
+        {ok, {Response, Result}} ->
+            {Response, process_result(Result, St)};
+        {error, _Reason} = Error ->
+            {Error, #{}}
     end.

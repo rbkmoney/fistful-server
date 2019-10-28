@@ -15,7 +15,7 @@
 -export([process/1]).
 -export([handle_callback/1]).
 
--import(ct_helper, [cfg/2]).
+% -import(ct_helper, [cfg/2]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -30,20 +30,14 @@ all() -> [
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    SuiteSup     = ct_sup:start(),
-    _            = ct_helper:start_apps([dmt_client]),
-    DomainConfig = [construct_proxy(), construct_terminal(), construct_provider()],
-    ok           = ct_domain_config:insert(DomainConfig),
-    % TODO: add dummy adapter
-    % Adapter  = dummy_p2p_adapter:start(),
-    [{suite_sup, SuiteSup}, {started_apps, []} | C].
+    ct_helper:makeup_cfg([
+        ct_helper:test_case_name(init),
+        ct_payment_system:setup(#{})
+    ], C).
 
 -spec end_per_suite(config()) -> ok.
 end_per_suite(C) ->
-    ok = ct_domain_config:cleanup(),
-    ok = ct_sup:stop(cfg(suite_sup, C)),
-    ok = ct_helper:stop_apps(cfg(started_apps, C)),
-    ok.
+    ok = ct_payment_system:shutdown(C).
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
 
@@ -59,89 +53,37 @@ end_per_testcase(_Name, _C) ->
 
 -spec process(config()) -> test_return().
 process(_C) ->
-    Context     = construct_context(),
-    ProviderRef = #domain_ProviderRef{id = 111},
-    TerminalRef = #domain_TerminalRef{id = 111},
-    Route       = #domain_PaymentRoute{provider = ProviderRef, terminal = TerminalRef},
-    Result      = p2p_adapter:process(Context, Route),
-    ?assertMatch({ok, #p2p_adapter_ProcessResult{}}, Result),
+    Adapter        = ff_woody_client:new(<<"http://localhost:8222/p2p">>),
+    TransferParams = construct_transfer_params(),
+    AdapterState   = <<>>,
+    AdapterOpts    = #{},
+    Result         = p2p_adapter:process(Adapter, TransferParams, AdapterState, AdapterOpts),
+    ?assertMatch({ok, {{finish, success}, #{next_state := _, transaction_info := _}}}, Result),
     ok.
 
 -spec handle_callback(config()) -> test_return().
 handle_callback(_C) ->
-    Context     = construct_context(),
-    Callback    = #p2p_adapter_Callback{tag = <<"p2p">>, payload = <<>>},
-    ProviderRef = #domain_ProviderRef{id = 111},
-    TerminalRef = #domain_TerminalRef{id = 111},
-    Route       = #domain_PaymentRoute{provider = ProviderRef, terminal = TerminalRef},
-    Result      = p2p_adapter:handle_callback(Callback, Context, Route),
-    ?assertMatch({ok, #p2p_adapter_CallbackResult{}}, Result),
+    Adapter        = ff_woody_client:new(<<"http://localhost:8222/p2p">>),
+    TransferParams = construct_transfer_params(),
+    Callback       = #{tag => <<"p2p">>, payload => <<>>},
+    AdapterState   = <<>>,
+    AdapterOpts    = #{},
+    Result         = p2p_adapter:handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts),
+    ?assertMatch({ok, {{finish, success}, <<"payload">>, #{next_state := _, transaction_info := _}}}, Result),
     ok.
 
-construct_context() ->
-    #p2p_adapter_Context{
-        session   = #p2p_adapter_Session{},
-        operation = {process, #p2p_adapter_ProcessOperationInfo{
-            body     = #p2p_adapter_Cash{
-                amount   = 1,
-                currency = #domain_Currency{
-                    name          = <<"US Dollar">>,
-                    symbolic_code = <<"USD">>,
-                    numeric_code  = 840,
-                    exponent      = 2
-                }
-            },
-            sender   = {disposable, #domain_DisposablePaymentResource{
-                payment_tool = {bank_card, #domain_BankCard{
-                    token          = <<>>,
-                    payment_system = visa,
-                    bin            = <<>>,
-                    masked_pan     = <<>>
-                }}
-            }},
-            receiver = {disposable, #domain_DisposablePaymentResource{
-                payment_tool = {bank_card, #domain_BankCard{
-                    token          = <<>>,
-                    payment_system = visa,
-                    bin            = <<>>,
-                    masked_pan     = <<>>
-                }}
-            }}
-        }}
+construct_transfer_params() ->
+    #{
+        id       => <<"1">>,
+        cash     => {10, <<"USD">>},
+        sender   => construct_resource(),
+        receiver => construct_resource()
     }.
 
-construct_provider() ->
-    {provider, #domain_ProviderObject{
-        ref  = #domain_ProviderRef{id = 111},
-        data = #domain_Provider{
-            name        = <<"Provider">>,
-            description = <<"Provider">>,
-            abs_account = <<"abs">>,
-            terminal    = {value, [#domain_ProviderTerminalRef{id = 111}]},
-            proxy       = #domain_Proxy{
-                ref        = #domain_ProxyRef{id = 111},
-                additional = #{}
-            }
-        }
-    }}.
-
-construct_terminal() ->
-    {terminal, #domain_TerminalObject{
-        ref  = #domain_TerminalRef{id = 111},
-        data = #domain_Terminal{
-            name          = <<"Terminal">>,
-            description   = <<"Terminal">>,
-            risk_coverage = low
-        }
-    }}.
-
-construct_proxy() ->
-    {proxy, #domain_ProxyObject{
-        ref  = #domain_ProxyRef{id = 111},
-        data = #domain_ProxyDefinition{
-            name        = <<"Proxy">>,
-            description = <<"Proxy">>,
-            url         = <<"127.0.0.1:10001/dummy">>,
-            options     = #{}
-        }
+construct_resource() ->
+    {raw_full, #{
+        token          => <<"token">>,
+        bin            => <<"bin">>,
+        payment_system => visa,
+        masked_pan     => <<"masked_pan">>
     }}.

@@ -1,12 +1,13 @@
 {application, p2p, [
-    {description, "P2P" },
+    {description,
+        "Person-to-person transfer processing"
+    },
     {vsn, "1"},
     {registered, []},
     {applications, [
         kernel,
         stdlib,
         genlib,
-        dmt_client,
         ff_core,
         machinery,
         machinery_extra,
@@ -15,7 +16,8 @@
     ]},
     {env, []},
     {modules, []},
-    {maintainers, []},
+    {maintainers, [
+    ]},
     {licenses, []},
     {links, ["https://github.com/rbkmoney/fistful-server"]}
 ]}.

@@ -1,7 +1,8 @@
 -module(ff_withdrawal_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("damsel/include/dmsl_accounter_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
 
@@ -28,6 +29,9 @@
 -export([create_destination_notfound_test/1]).
 -export([create_wallet_notfound_test/1]).
 -export([create_ok_test/1]).
+-export([quota_ok_test/1]).
+-export([preserve_revisions_test/1]).
+-export([use_quota_revisions_test/1]).
 -export([unknown_test/1]).
 
 %% Internal types
@@ -39,13 +43,23 @@
 
 %% Macro helpers
 
--define(final_balance(Amount, Currency), {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency}).
+-define(final_balance(Cash), {
+    element(1, Cash),
+    {
+        {inclusive, element(1, Cash)}, {inclusive, element(1, Cash)}
+    },
+    element(2, Cash)
+}).
+-define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
 
 %% API
 
 -spec all() -> [test_case_name() | {group, group_name()}].
 all() ->
-    [{group, default}].
+    [
+        {group, default},
+        {group, non_parallel}
+    ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
@@ -64,7 +78,12 @@ groups() ->
             create_destination_notfound_test,
             create_wallet_notfound_test,
             create_ok_test,
+            quota_ok_test,
+            preserve_revisions_test,
             unknown_test
+        ]},
+        {non_parallel, [sequence], [
+            use_quota_revisions_test
         ]}
     ].
 
@@ -133,7 +152,7 @@ session_fail_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
     ?assertMatch({failed, #{code := <<"test_error">>}}, Result),
-    ok = await_wallet_balance(WithdrawalCash, WalletID).
+    ?assertEqual(?final_balance(WithdrawalCash), get_wallet_balance(WalletID)).
 
 -spec quote_fail_test(config()) -> test_return().
 quote_fail_test(C) ->
@@ -162,7 +181,8 @@ quote_fail_test(C) ->
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
-    ?assertMatch({failed, #{code := <<"unknown">>}}, Result).
+    ?assertMatch({failed, #{code := <<"unknown">>}}, Result),
+    ?assertEqual(?final_balance(Cash), get_wallet_balance(WalletID)).
 
 -spec route_not_found_fail_test(config()) -> test_return().
 route_not_found_fail_test(C) ->
@@ -204,7 +224,7 @@ limit_check_fail_test(C) ->
             code := <<"amount">>
         }
     }}, Result),
-    ok = await_wallet_balance(Cash, WalletID).
+    ?assertEqual(?final_balance(Cash), get_wallet_balance(WalletID)).
 
 -spec create_cashlimit_validation_error_test(config()) -> test_return().
 create_cashlimit_validation_error_test(C) ->
@@ -371,13 +391,104 @@ create_ok_test(C) ->
         external_id => WithdrawalID
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-    succeeded = await_final_withdrawal_status(WithdrawalID),
-    ok = await_wallet_balance({0, <<"RUB">>}, WalletID),
+    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),
+    ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
     Withdrawal = get_withdrawal(WithdrawalID),
-    WalletID = ff_withdrawal:wallet_id(Withdrawal),
-    DestinationID = ff_withdrawal:destination_id(Withdrawal),
-    Cash = ff_withdrawal:body(Withdrawal),
-    WithdrawalID = ff_withdrawal:external_id(Withdrawal).
+    ?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
+    ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
+    ?assertEqual(Cash, ff_withdrawal:body(Withdrawal)),
+    ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)).
+
+-spec quota_ok_test(config()) -> test_return().
+quota_ok_test(C) ->
+    Cash = {100, <<"RUB">>},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        quote => #{
+            cash_from   => Cash,
+            cash_to     => {2120, <<"USD">>},
+            created_at  => <<"2016-03-22T06:12:27Z">>,
+            expires_on  => <<"2016-03-22T06:12:27Z">>,
+            quote_data  => #{
+                <<"version">> => 1,
+                <<"quote_data">> => #{<<"test">> => <<"test">>},
+                <<"provider_id">> => 1
+            }
+        }
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
+
+-spec preserve_revisions_test(config()) -> test_return().
+preserve_revisions_test(C) ->
+    Cash = {100, <<"RUB">>},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    Withdrawal = get_withdrawal(WithdrawalID),
+    ?assertNotEqual(undefined, ff_withdrawal:domain_revision(Withdrawal)),
+    ?assertNotEqual(undefined, ff_withdrawal:party_revision(Withdrawal)),
+    ?assertNotEqual(undefined, ff_withdrawal:created_at(Withdrawal)).
+
+-spec use_quota_revisions_test(config()) -> test_return().
+use_quota_revisions_test(C) ->
+    Cash = {100, <<"RUB">>},
+    #{
+        party_id := PartyID,
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    Time = ff_time:now(),
+    DomainRevision = ff_domain_config:head(),
+    {ok, PartyRevision} = ff_party:get_revision(PartyID),
+    ok = ct_domain_config:bump_revision(),
+    ok = make_dummy_party_change(PartyID),
+    ?assertNotEqual(DomainRevision, ff_domain_config:head()),
+    ?assertNotEqual({ok, PartyRevision}, ff_party:get_revision(PartyID)),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        quote => #{
+            cash_from   => Cash,
+            cash_to     => {2120, <<"USD">>},
+            created_at  => <<"2016-03-22T06:12:27Z">>,
+            expires_on  => <<"2016-03-22T06:12:27Z">>,
+            quote_data  => #{
+                <<"version">> => 1,
+                <<"quote_data">> => #{<<"test">> => <<"test">>},
+                <<"provider_id">> => 1,
+                <<"timestamp">> => Time,
+                <<"domain_revision">> => DomainRevision,
+                <<"party_revision">> => PartyRevision
+            }
+        }
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    Withdrawal = get_withdrawal(WithdrawalID),
+    ?assertEqual(DomainRevision, ff_withdrawal:domain_revision(Withdrawal)),
+    ?assertEqual(PartyRevision, ff_withdrawal:party_revision(Withdrawal)),
+    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
@@ -471,7 +582,10 @@ get_wallet_balance(ID) ->
     get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
 
 get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        Account,
+        ff_clock:latest_clock()
+    ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 generate_id() ->
@@ -525,11 +639,20 @@ create_account(CurrencyCode) ->
     end.
 
 construct_account_prototype(CurrencyCode, Description) ->
-    #accounter_AccountPrototype{
+    #shumpune_AccountPrototype{
         currency_sym_code = CurrencyCode,
         description = Description
     }.
 
 call_accounter(Function, Args) ->
-    Service = {dmsl_accounter_thrift, 'Accounter'},
+    Service = {shumpune_shumpune_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}, woody_context:new()).
+
+
+make_dummy_party_change(PartyID) ->
+    {ok, _ContractID} = ff_party:create_contract(PartyID, #{
+        payinst           => #domain_PaymentInstitutionRef{id = 1},
+        contract_template => #domain_ContractTemplateRef{id = 1},
+        contractor_level  => full
+    }),
+    ok.

@@ -313,7 +313,7 @@ services(Options) ->
     Default = #{
         eventsink      => "http://machinegun:8022/v1/event_sink",
         automaton      => "http://machinegun:8022/v1/automaton",
-        accounter      => "http://shumway:8022/accounter",
+        accounter      => "http://shumway:8022/shumpune",
         cds            => "http://cds:8022/v1/storage",
         identdocstore  => "http://cds:8022/v1/identity_document_storage",
         partymgmt      => "http://hellgate:8022/v1/processing/partymgmt",
@@ -579,6 +579,63 @@ default_termset(Options) ->
                                 {system, subagent},
                                 ?share(10, 100, operation_amount)
                             )
+                        ]}
+                    }
+                ]}
+            },
+            p2p = #domain_P2PServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10000001, <<"RUB">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {value, [
+                    #domain_CashFlowPosting{
+                        source = {wallet, receiver_destination},
+                        destination = {system, settlement},
+                        volume = ?fixed(50, <<"RUB">>)}
+                ]},
+                fees = {decisions, [
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {decisions, [
+                            #domain_FeeDecision{
+                                if_ = {condition, {p2p_tool, #domain_P2PToolCondition{
+                                    sender_is = {bank_card, #domain_BankCardCondition{
+                                        definition = {payment_system, #domain_PaymentSystemCondition{
+                                            payment_system_is = visa
+                                        }}
+                                    }},
+                                    receiver_is = {bank_card, #domain_BankCardCondition{
+                                        definition = {payment_system, #domain_PaymentSystemCondition{
+                                            payment_system_is = visa
+                                        }}
+                                    }}
+                                }}},
+                                then_ = {decisions, [
+                                    #domain_FeeDecision{
+                                        if_ = {condition, {cost_in, ?cashrng(
+                                                {inclusive, ?cash(   0, <<"RUB">>)},
+                                                {exclusive, ?cash(7692, <<"RUB">>)}
+                                            )}
+                                        },
+                                        then_ = {value, #domain_Fees{fees = #{surplus => ?fixed(50, <<"RUB">>)}}}
+                                    },
+                                    #domain_FeeDecision{
+                                        if_ = {condition, {cost_in, ?cashrng(
+                                                {inclusive, ?cash(7692, <<"RUB">>)},
+                                                {exclusive, ?cash(300000, <<"RUB">>)}
+                                            )}
+                                        },
+                                        then_ = {value, #domain_Fees{fees = #{surplus => ?share(65, 10000, operation_amount)}}}
+                                    }
+                                ]}
+                            }
                         ]}
                     }
                 ]}

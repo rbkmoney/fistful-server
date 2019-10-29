@@ -5,18 +5,25 @@
 -type id()       :: binary().
 
 -opaque adjustment() :: #{
-    version          := ?ACTUAL_FORMAT_VERSION,
-    id               := id(),
-    changes_plan     := changes(),
-    status           := status(),
-    external_id      => id(),
-    p_transfer       => p_transfer() | undefined
+    version := ?ACTUAL_FORMAT_VERSION,
+    id := id(),
+    status := status(),
+    created_at := ff_time:timestamp_ms(),
+    changes_plan := changes(),
+    party_revision := party_revision(),
+    domain_revision := domain_revision(),
+    operation_timestamp := ff_time:timestamp_ms(),
+    external_id => id(),
+    p_transfer => p_transfer() | undefined
 }.
 
 -type params() :: #{
-    id            := id(),
-    changes_plan  := changes(),
-    external_id   => id()
+    id := id(),
+    changes_plan := changes(),
+    party_revision := party_revision(),
+    domain_revision := domain_revision(),
+    operation_timestamp := ff_time:timestamp_ms(),
+    external_id => id()
 }.
 
 -type changes() :: #{
@@ -55,6 +62,10 @@
 -export([changes_plan/1]).
 -export([external_id/1]).
 -export([p_transfer/1]).
+-export([created_at/1]).
+-export([operation_timestamp/1]).
+-export([party_revision/1]).
+-export([domain_revision/1]).
 
 %% API
 
@@ -80,6 +91,8 @@
 -type process_result()  :: {action(), [event()]}.
 -type legacy_event()    :: any().
 -type external_id()     :: id().
+-type party_revision()  :: ff_party:revision().
+-type domain_revision() :: ff_domain_config:revision().
 
 -type activity() ::
     p_transfer_start |
@@ -109,6 +122,22 @@ external_id(T) ->
 p_transfer(T) ->
     maps:get(p_transfer, T, undefined).
 
+-spec party_revision(adjustment()) -> party_revision().
+party_revision(#{party_revision := V}) ->
+    V.
+
+-spec domain_revision(adjustment()) -> domain_revision().
+domain_revision(#{domain_revision := V}) ->
+    V.
+
+-spec created_at(adjustment()) -> ff_time:timestamp_ms().
+created_at(#{created_at := V}) ->
+    V.
+
+-spec operation_timestamp(adjustment()) -> ff_time:timestamp_ms().
+operation_timestamp(#{operation_timestamp := V}) ->
+    V.
+
 %% API
 
 -spec create(params()) ->
@@ -116,15 +145,22 @@ p_transfer(T) ->
 
 create(Params) ->
     #{
-        id            := ID,
-        changes_plan  := Changes
+        id := ID,
+        changes_plan := Changes,
+        party_revision := PartyRevision,
+        domain_revision := DomainRevision,
+        operation_timestamp := Timestamp
     } = Params,
     Adjustment = genlib_map:compact(#{
-        version         => ?ACTUAL_FORMAT_VERSION,
-        id              => ID,
-        changes_plan    => Changes,
-        status          => pending,
-        external_id     => maps:get(external_id, Params, undefined)
+        version => ?ACTUAL_FORMAT_VERSION,
+        id => ID,
+        changes_plan => Changes,
+        status => pending,
+        created_at => ff_time:now(),
+        party_revision => PartyRevision,
+        domain_revision => DomainRevision,
+        operation_timestamp => Timestamp,
+        external_id => maps:get(external_id, Params, undefined)
     }),
     {ok, {continue, [{created, Adjustment}]}}.
 

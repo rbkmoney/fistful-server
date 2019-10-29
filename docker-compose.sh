@@ -42,7 +42,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:06aafab126c403eef3800625c19ae6eace1f5124
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:44194bd2098816741773012354af3e773aab3637
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -52,6 +52,7 @@ services:
       shumway:
         condition: service_healthy
     volumes:
+      - ./test/hellgate/sys.config:/opt/hellgate/releases/0.1/sys.config
       - ./test/log/hellgate:/var/log/hellgate
     healthcheck:
       test: "curl http://localhost:8022/"
@@ -81,7 +82,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr.rbkmoney.com/rbkmoney/dominant:5a2be39e1035bf590af2e2a638062d6964708e05
+    image: dr2.rbkmoney.com/rbkmoney/dominant:fc441a842ef0b777749e1e818337d63dda715a43
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -96,8 +97,8 @@ services:
       retries: 10
 
   shumway:
-    image: dr.rbkmoney.com/rbkmoney/shumway:7a5f95ee1e8baa42fdee9c08cc0ae96cd7187d55
-    restart: always
+    image: dr2.rbkmoney.com/rbkmoney/shumway:d36bcf5eb8b1dbba634594cac11c97ae9c66db9f
+    restart: unless-stopped
     entrypoint:
       - java
       - -Xmx512m
@@ -106,6 +107,7 @@ services:
       - --spring.datasource.url=jdbc:postgresql://shumway-db:5432/shumway
       - --spring.datasource.username=postgres
       - --spring.datasource.password=postgres
+      - --management.metrics.export.statsd.enabled=false
     depends_on:
       - shumway-db
     healthcheck:

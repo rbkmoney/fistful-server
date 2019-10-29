@@ -9,6 +9,8 @@
 -export([combine/2]).
 -export([inverse/1]).
 -export([decode_domain_postings/1]).
+-export([decode_domain_plan_volume/1]).
+-export([compute_volume/2]).
 
 %% Domain types
 -type plan_posting() :: #{
@@ -84,6 +86,7 @@
 -export_type([final_cash_flow/0]).
 -export_type([plan_account/0]).
 
+-export_type([volume_finalize_error/0]).
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).

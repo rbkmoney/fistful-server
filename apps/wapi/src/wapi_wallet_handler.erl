@@ -323,25 +323,35 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of
-        {ok, Withdrawal}                    -> wapi_handler_utils:reply_ok(200, Withdrawal);
-        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(404);
-        {error, {withdrawal, unauthorized}} -> wapi_handler_utils:reply_ok(404)
+        {ok, Withdrawal} ->
+            wapi_handler_utils:reply_ok(200, Withdrawal);
+        {error, {withdrawal, {unknown_withdrawal, WithdrawalId}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
     end;
 process_request('PollWithdrawalEvents', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal_events(Params, Context) of
-        {ok, Events}                        -> wapi_handler_utils:reply_ok(200, Events);
-        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(404);
-        {error, {withdrawal, unauthorized}} -> wapi_handler_utils:reply_ok(404)
+        {ok, Events} ->
+            wapi_handler_utils:reply_ok(200, Events);
+        {error, {withdrawal, {unknown_withdrawal, _WithdrawalId}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
     end;
 process_request('GetWithdrawalEvents', #{
     'withdrawalID' := WithdrawalId,
     'eventID'      := EventId
 }, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal_event(WithdrawalId, EventId, Context) of
-        {ok, Event}           -> wapi_handler_utils:reply_ok(200, Event);
-        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(404);
-        {error, {withdrawal, unauthorized}} -> wapi_handler_utils:reply_ok(404);
-        {error, {event, notfound}}          -> wapi_handler_utils:reply_ok(404)
+        {ok, Event} ->
+            wapi_handler_utils:reply_ok(200, Event);
+        {error, {withdrawal, {unknown_withdrawal, WithdrawalId}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {event, notfound}} ->
+            wapi_handler_utils:reply_ok(404)
     end;
 process_request('ListWithdrawals', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:list_withdrawals(Params, Context) of

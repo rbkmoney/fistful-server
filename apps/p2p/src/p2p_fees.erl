@@ -17,7 +17,7 @@
 -type volume_finalize_error()     :: ff_cash_flow:volume_finalize_error().
 
 -type fees()    :: #{fees => #{plan_constant() => surplus_cash_volume()}}.
--opaque token() :: #{
+-opaque fee_quote() :: #{
     amount            := cash(),
     party_revision    := ff_party:revision(),
     domain_revision   := ff_domain_config:revision(),
@@ -28,12 +28,12 @@
     receiver          := instrument()
 }.
 
--export_type([token/0]).
+-export_type([fee_quote/0]).
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
 
--export([get_fee_token/4]).
+-export([get_fee_quote/4]).
 
 -import(ff_pipeline, [do/1, unwrap/2]).
 
@@ -54,13 +54,13 @@ instrument(Instrument) ->
 
 %%
 
--spec get_fee_token(cash(), identity_id(), sender(), receiver()) ->
-    {ok, {cash() | undefined, surplus_cash_volume() | undefined, p2p_fees:token()}} |
+-spec get_fee_quote(cash(), identity_id(), sender(), receiver()) ->
+    {ok, {cash() | undefined, surplus_cash_volume() | undefined, fee_quote()}} |
     {error, {identity,   not_found}} |
     {error, {party,      get_contract_terms_error()}} |
     {error, {p2p_tool,   not_allow}} |
     {error, {validation, validate_p2p_error()}}.
-get_fee_token(Cash, IdentityID, Sender, Receiver) ->
+get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
         IdentityMachine = unwrap(identity, ff_identity_machine:get(IdentityID)),
         Identity = ff_identity_machine:identity(IdentityMachine),
@@ -78,7 +78,7 @@ get_fee_token(Cash, IdentityID, Sender, Receiver) ->
         Fees = get_fees_from_terms(Terms),
         SurplusCashVolume = surplus(Fees),
         SurplusCash = unwrap(cash_flow, compute_surplus_volume(SurplusCashVolume, Cash)),
-        Token = #{
+        Quote = #{
             amount => Cash,
             party_revision => PartyRevision,
             domain_revision => DomainRevision,
@@ -88,7 +88,7 @@ get_fee_token(Cash, IdentityID, Sender, Receiver) ->
             sender => instrument(Sender),
             receiver => instrument(Receiver)
         },
-        {SurplusCash, SurplusCashVolume, Token}
+        {SurplusCash, SurplusCashVolume, Quote}
     end).
 
 compute_surplus_volume(undefined, _Cash) ->

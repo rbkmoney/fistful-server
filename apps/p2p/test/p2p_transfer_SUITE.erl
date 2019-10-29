@@ -81,7 +81,7 @@ get_fee_ok_test(C) ->
     Identity = ff_wallet:identity(Wallet),
     {ok, Sender} = p2p_instrument:create({bank_card, CardSender}),
     {ok, Receiver} = p2p_instrument:create({bank_card, CardReceiver}),
-    {ok, {Fee, CashVolume, _}} = p2p_fees:get_fee_token(Cash, Identity, Sender, Receiver),
+    {ok, {Fee, CashVolume, _}} = p2p_fees:get_fee_quote(Cash, Identity, Sender, Receiver),
     ?assertEqual({share, {{65, 10000}, operation_amount, default}}, CashVolume),
     ?assertEqual({146, <<"RUB">>}, Fee).
 
@@ -102,7 +102,7 @@ visa_to_nspkmir_not_allow_test(C) ->
         masked_pan => Pan,
         token => <<"NSPK MIR">>
     }}),
-    Result = p2p_fees:get_fee_token(Cash, Identity, Sender, Receiver),
+    Result = p2p_fees:get_fee_quote(Cash, Identity, Sender, Receiver),
     ?assertEqual({error, {p2p_tool, not_allow}}, Result).
 
 %% Utils

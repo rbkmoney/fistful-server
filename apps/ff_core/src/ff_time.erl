@@ -30,5 +30,5 @@ add_interval(Timestamp, {Date, Time}) ->
     Ms = Timestamp rem 1000,
     {D, T} = calendar:system_time_to_local_time(Timestamp, millisecond),
     NewDate = genlib_time:daytime_to_unixtime({genlib_time:shift_date(D, Date), T}),
-    Foo = genlib_time:add_duration(NewDate, Time),
-    Foo*1000 + Ms.
+    DateTime = genlib_time:add_duration(NewDate, Time),
+    DateTime*1000 + Ms.

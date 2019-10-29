@@ -28,6 +28,7 @@
     p_transfer => p_transfer(),
     adjustments => adjustments_index(),
     callbacks => callbacks_index(),
+    user_interactions => user_interactions_index(),
     status => status(),
     external_id => id(),
     deadline => deadline()
@@ -222,6 +223,7 @@
 -type adjustment_id() :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
 -type callbacks_index() :: p2p_callback_utils:index().
+-type user_interactions_index() :: p2p_user_interaction_utils:index().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
 -type terms() :: ff_party:terms().

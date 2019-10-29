@@ -89,7 +89,7 @@ start_processing_apps(Options) ->
                     {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'}, {ff_ct_provider_handler, []}}
                 },
                 {
-                    <<"/p2p">>,
+                    <<"/p2p_adapter">>,
                     {{dmsl_p2p_adapter_thrift, 'P2PAdapter'}, {p2p_ct_provider_handler, []}}
                 },
                 {

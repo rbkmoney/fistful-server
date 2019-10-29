@@ -395,6 +395,7 @@ create(Params) ->
                 receiver_info => get_receiver_info(Receiver),
                 party_revision => PartyRevision,
                 domain_revision => DomainRevision,
+                deadline => Deadline,
                 external_id => ExternalID,
                 fees => Fees
             })},
@@ -781,8 +782,8 @@ process_session_creation(P2PTransfer) ->
     TransferParams = genlib_map:compact(#{
         id => id(P2PTransfer),
         cash => body(P2PTransfer),
-        sender => resource_full(P2PTransfer, sender),
-        receiver => resource_full(P2PTransfer, receiver),
+        sender => sender_resource(P2PTransfer),
+        receiver => receiver_resource(P2PTransfer),
         deadline => deadline(P2PTransfer)
     }),
     #{provider_id := ProviderID} = route(P2PTransfer),
@@ -790,7 +791,7 @@ process_session_creation(P2PTransfer) ->
         provider_id => ProviderID
     },
     _AnyResultIsOK = p2p_session_machine:create(ID, TransferParams, Params),
-    {continue, [{session_started, ID}]}.
+    {continue, [{session, {started, ID}}]}.
 
 construct_session_id(ID) ->
     ID.
@@ -809,7 +810,7 @@ process_session_poll(P2PTransfer) ->
         active ->
             {poll, []};
         {finished, Result} ->
-            {continue, [{session_finished, {SessionID, Result}}]}
+            {continue, [{session, {finished, {SessionID, Result}}}]}
     end.
 
 -spec process_transfer_finish(p2p_transfer()) ->

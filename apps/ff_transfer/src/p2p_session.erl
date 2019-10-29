@@ -15,6 +15,8 @@
 
 -export([get_adapter_with_opts/1]).
 
+-export([process_callback/2]).
+
 %% ff_machine
 -export([apply_event/2]).
 -export([maybe_migrate/1]).
@@ -32,17 +34,21 @@
     transfer_params := transfer_params(),
     provider_id := ff_p2p_provider:id(),
     adapter := adapter_with_opts(),
-    adapter_state => ff_adapter:state()
+    adapter_state => ff_adapter:state(),
+    callbacks => callbacks_index(),
+    user_interactions => user_interactions_index()
 }.
 
 -type session_result() :: {success, ff_adapter:trx_info()} | {failed, ff_adapter:failure()}.
 
--type status() :: active
-    | {finished, session_result()}.
+-type status() :: 
+    active |
+    {finished, session_result()}.
 
--type event() :: {created, session()}
-    | {next_state, ff_adapter:state()}
-    | {finished, session_result()}.
+-type event() :: 
+    {created, session()} |
+    {next_state, ff_adapter:state()} |
+    {finished, session_result()}.
 
 -type transfer_params() :: #{
     id := id(),
@@ -58,7 +64,11 @@
     provider_id := ff_p2p_provider:id()
 }.
 
--type session_already_finished_error() :: {session_already_finished, id()}.
+-type callback_params() :: p2p_callback:params().
+-type process_callback_response() :: p2p_callback:response().
+-type process_callback_error() :: 
+    {session_already_finished, id()} |
+    {unknown_p2p_callback, p2p_callback_tag()}.
 
 -export_type([event/0]).
 -export_type([transfer_params/0]).
@@ -67,7 +77,9 @@
 -export_type([session/0]).
 -export_type([session_result/0]).
 -export_type([deadline/0]).
--export_type([session_already_finished_error/0]).
+-export_type([callback_params/0]).
+-export_type([process_callback_response/0]).
+-export_type([process_callback_error/0]).
 
 %%
 %% Internal types
@@ -75,18 +87,33 @@
 -type id() :: machinery:id().
 
 -type auxst() :: undefined.
+-type action() :: poll | continue | undefined.
 
 -type result() :: machinery:result(event(), auxst()).
+-type process_result() :: {action(), [event()]}.
 -type adapter_with_opts() :: {ff_p2p_provider:adapter(), ff_p2p_provider:adapter_opts()}.
 -type legacy_event() :: any().
 
+-type callbacks_index() :: p2p_callback_utils:index().
+-type unknown_p2p_callback_error() :: p2p_callback_utils:unknown_p2p_callback_error().
+-type p2p_callback() :: p2p_callback:p2p_callback().
+-type p2p_callback_tag() :: p2p_callback:tag().
+
+-type user_interactions_index() :: p2p_user_interaction_utils:index().
+
 %% Pipeline
 
--import(ff_pipeline, [unwrap/1]).
+-import(ff_pipeline, [unwrap/1, do/1]).
 
 %%
 %% API
 %%
+
+-spec id(session()) ->
+    id().
+
+id(#{id := V}) ->
+    V.
 
 -spec status(session()) ->
     status().
@@ -144,6 +171,55 @@ set_session_result(Result, #{status := active}) ->
         events => [{finished, Result}],
         action => unset_timer
     }.
+
+-spec process_callback(callback_params(), session()) ->
+    {ok, {process_callback_response(), process_result()}} |
+    {error, process_callback_error()}.
+process_callback(#{tag := CallbackTag}, Session) ->
+    case find_callback(CallbackTag, Session) of
+        %% TODO add exeption to proto
+        {error, {unknown_p2p_callback, _}} = Error ->
+            Error;
+        {ok, Callback} ->
+            do_process_callback(CallbackTag, Callback, Session)
+    end.
+
+-spec find_callback(p2p_callback_tag(), session()) ->
+    {ok, p2p_callback()} | {error, unknown_p2p_callback_error()}.
+find_callback(CallbackTag, Session) ->
+    p2p_callback_utils:get_by_tag(CallbackTag, callbacks_index(Session)).
+
+-spec do_process_callback(p2p_callback_tag(), p2p_callback(), session()) ->
+    {ok, {process_callback_response(), process_result()}} |
+    {error, process_callback_error()}.
+
+do_process_callback(CallbackTag, Callback, Session) ->
+    do(fun() ->
+        valid = unwrap(validate_process_callback(Session)),
+        p2p_callback_utils:process_p2p_callback(CallbackTag, Callback)
+    end).
+
+-spec callbacks_index(session()) -> callbacks_index().
+callbacks_index(Session) ->
+    case maps:find(callbacks, Session) of
+        {ok, Callbacks} ->
+            Callbacks;
+        error ->
+            p2p_callback_utils:new_index()
+    end.
+
+%% Callback helpers
+
+-spec validate_process_callback(session()) ->
+    {ok, valid} | {error, process_callback_error()}.
+
+validate_process_callback(Session) ->
+    case status(Session) of
+        active ->
+            {ok, valid};
+        _Finished ->
+            {error, {session_already_finished, id(Session)}}
+    end.
 
 %% Events apply
 

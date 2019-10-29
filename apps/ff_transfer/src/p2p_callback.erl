@@ -5,7 +5,7 @@
 -type tag() :: binary().
 -type payload() :: binary().
 
--opaque p2p_callback() :: #{
+-opaque callback() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
     tag := tag(),
     status => status(),
@@ -32,7 +32,7 @@
 
 -type legacy_event() :: any().
 -type event() ::
-    {created, p2p_callback()} |
+    {created, callback()} |
     {succeeded, processed_callback()} |
     {status_changed, status()}.
 
@@ -40,7 +40,7 @@
 -export_type([event/0]).
 -export_type([response/0]).
 -export_type([status/0]).
--export_type([p2p_callback/0]).
+-export_type([callback/0]).
 -export_type([params/0]).
 
 %% Accessors
@@ -68,15 +68,15 @@
 
 %% Accessors
 
--spec tag(p2p_callback()) -> tag().
+-spec tag(callback()) -> tag().
 tag(#{tag := V}) ->
     V.
 
--spec status(p2p_callback()) -> status().
+-spec status(callback()) -> status().
 status(#{status := V}) ->
     V.
 
--spec response(p2p_callback()) -> response() | undefined.
+-spec response(callback()) -> response() | undefined.
 response(C) ->
     maps:get(response, C, undefined).
 
@@ -93,20 +93,20 @@ create(#{tag := Tag}) ->
     {ok, {continue, [{created, Callback}, {status_changed, pending}]}}.
 
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
--spec is_active(p2p_callback()) -> boolean().
+-spec is_active(callback()) -> boolean().
 is_active(#{status := succeeded}) ->
     false;
 is_active(#{status := pending}) ->
     true.
 
 %% Сущность приняла статус, который не будет меняться без внешних воздействий.
--spec is_finished(p2p_callback()) -> boolean().
+-spec is_finished(callback()) -> boolean().
 is_finished(#{status := succeeded}) ->
     true;
 is_finished(#{status := pending}) ->
     false.
 
--spec process_callback(p2p_callback()) ->
+-spec process_callback(callback()) ->
     {response(), process_result()}.
 process_callback(Callback) ->
     case status(Callback) of
@@ -124,19 +124,19 @@ process_callback(Callback) ->
 
 %% Internals
 
--spec update_status(status(), p2p_callback()) -> p2p_callback().
+-spec update_status(status(), callback()) -> callback().
 update_status(Status, Callback) ->
     Callback#{status := Status}.
 
 %% Events utils
 
--spec apply_event(event() | legacy_event(), p2p_callback() | undefined) ->
-    p2p_callback().
+-spec apply_event(event() | legacy_event(), callback() | undefined) ->
+    callback().
 apply_event(Ev, T) ->
     apply_event_(maybe_migrate(Ev), T).
 
--spec apply_event_(event(), p2p_callback() | undefined) ->
-    p2p_callback().
+-spec apply_event_(event(), callback() | undefined) ->
+    callback().
 apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->

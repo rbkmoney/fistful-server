@@ -41,14 +41,17 @@
 
 -type session_result() :: {success, ff_adapter:trx_info()} | {failed, ff_adapter:failure()}.
 
--type status() :: 
+-type status() ::
     active |
     {finished, session_result()}.
 
--type event() :: 
+-type event() ::
     {created, session()} |
     {next_state, ff_adapter:state()} |
-    {finished, session_result()}.
+    {finished, session_result()} |
+    wrapped_callback_event().
+
+-type wrapped_callback_event() :: p2p_callback_utils:wrapped_event().
 
 -type transfer_params() :: #{
     id := id(),
@@ -66,9 +69,9 @@
 
 -type callback_params() :: p2p_callback:params().
 -type process_callback_response() :: p2p_callback:response().
--type process_callback_error() :: 
+-type process_callback_error() ::
     {session_already_finished, id()} |
-    {unknown_p2p_callback, p2p_callback_tag()}.
+    p2p_callback_utils:unknown_callback_error().
 
 -export_type([event/0]).
 -export_type([transfer_params/0]).
@@ -95,8 +98,8 @@
 -type legacy_event() :: any().
 
 -type callbacks_index() :: p2p_callback_utils:index().
--type unknown_p2p_callback_error() :: p2p_callback_utils:unknown_p2p_callback_error().
--type p2p_callback() :: p2p_callback:p2p_callback().
+-type unknown_p2p_callback_error() :: p2p_callback_utils:unknown_callback_error().
+-type p2p_callback() :: p2p_callback:callback().
 -type p2p_callback_tag() :: p2p_callback:tag().
 
 -type user_interactions_index() :: p2p_user_interaction_utils:index().
@@ -178,7 +181,7 @@ set_session_result(Result, #{status := active}) ->
 process_callback(#{tag := CallbackTag}, Session) ->
     case find_callback(CallbackTag, Session) of
         %% TODO add exeption to proto
-        {error, {unknown_p2p_callback, _}} = Error ->
+        {error, {unknown_callback, _}} = Error ->
             Error;
         {ok, Callback} ->
             do_process_callback(CallbackTag, Callback, Session)
@@ -196,7 +199,7 @@ find_callback(CallbackTag, Session) ->
 do_process_callback(CallbackTag, Callback, Session) ->
     do(fun() ->
         valid = unwrap(validate_process_callback(Session)),
-        p2p_callback_utils:process_p2p_callback(CallbackTag, Callback)
+        p2p_callback_utils:process_callback(CallbackTag, Callback)
     end).
 
 -spec callbacks_index(session()) -> callbacks_index().
@@ -235,7 +238,19 @@ apply_event_({created, Session}, undefined) ->
 apply_event_({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
 apply_event_({finished, Result}, Session) ->
-    set_session_status({finished, Result}, Session).
+    set_session_status({finished, Result}, Session);
+apply_event_({callback, _Ev} = Event, T) ->
+    apply_callback_event(Event, T).
+
+-spec apply_callback_event(wrapped_callback_event(), session()) -> session().
+apply_callback_event(WrappedEvent, Session) ->
+    Adjustments0 = callbacks_index(Session),
+    Adjustments1 = p2p_callback_utils:apply_event(WrappedEvent, Adjustments0),
+    set_callbacks_index(Adjustments1, Session).
+
+-spec set_callbacks_index(callbacks_index(), session()) -> session().
+set_callbacks_index(Callbacks, Session) ->
+    Session#{callbacks => Callbacks}.
 
 -spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->

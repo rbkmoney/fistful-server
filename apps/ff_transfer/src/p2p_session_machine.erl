@@ -107,7 +107,7 @@ p2p_session(St) ->
     ff_machine:model(St).
 
 -spec process_callback(id(), callback_params()) ->
-    {ok, process_callback_response()} | 
+    {ok, process_callback_response()} |
     {error, process_callback_error()}.
 
 process_callback(SessionID, Params) ->
@@ -140,8 +140,8 @@ process_timeout(Machine, _, _Opts) ->
 
 -spec process_call(any(), machine(), handler_args(), handler_opts()) ->
     {Response, result()} | no_return() when
-    Response :: 
-        {ok, process_callback_response()} | 
+    Response ::
+        {ok, process_callback_response()} |
         {error, p2p_session:process_callback_error()}.
 
 process_call({process_callback, Params}, Machine, _, _Opts) ->
@@ -200,8 +200,8 @@ call(ID, Call) ->
     end.
 
 -spec do_process_callback(callback_params(), machine()) -> {Response, result()} when
-    Response :: 
-        {ok, process_callback_response()} | 
+    Response ::
+        {ok, process_callback_response()} |
         {error, p2p_session:process_callback_error()}.
 
 do_process_callback(Params, Machine) ->

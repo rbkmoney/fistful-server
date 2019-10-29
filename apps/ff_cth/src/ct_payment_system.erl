@@ -13,9 +13,9 @@
     default_termset => dmsl_domain_thrift:'TermSet'(),
     company_termset => dmsl_domain_thrift:'TermSet'(),
     payment_inst_identity_id => id(),
-    quote_payment_inst_identity_id => id(),
+    dummy_payment_inst_identity_id => id(),
     provider_identity_id => id(),
-    quote_provider_identity_id => id(),
+    dummy_provider_identity_id => id(),
     optional_apps => list()
 }.
 -opaque system() :: #{
@@ -53,9 +53,9 @@ shutdown(C) ->
 do_setup(Options0, C0) ->
     Options = Options0#{
         payment_inst_identity_id => genlib:unique(),
-        quote_payment_inst_identity_id => genlib:unique(),
+        dummy_payment_inst_identity_id => genlib:unique(),
         provider_identity_id => genlib:unique(),
-        quote_provider_identity_id => genlib:unique()
+        dummy_provider_identity_id => genlib:unique()
     },
     {ok, Processing0} = start_processing_apps(Options),
     C1 = ct_helper:makeup_cfg([ct_helper:woody_ctx()], [{services, services(Options)} | C0]),
@@ -125,8 +125,8 @@ configure_processing_apps(Options) ->
         create_company_account()
     ),
     ok = create_crunch_identity(Options),
-    PIIID = quote_payment_inst_identity_id(Options),
-    PRIID = quote_provider_identity_id(Options),
+    PIIID = dummy_payment_inst_identity_id(Options),
+    PRIID = dummy_provider_identity_id(Options),
     ok = create_crunch_identity(PIIID, PRIID, <<"quote-owner">>).
 
 create_crunch_identity(Options) ->
@@ -328,11 +328,11 @@ payment_inst_identity_id(Options) ->
 provider_identity_id(Options) ->
     maps:get(provider_identity_id, Options).
 
-quote_payment_inst_identity_id(Options) ->
-    maps:get(quote_payment_inst_identity_id, Options).
+dummy_payment_inst_identity_id(Options) ->
+    maps:get(dummy_payment_inst_identity_id, Options).
 
-quote_provider_identity_id(Options) ->
-    maps:get(quote_provider_identity_id, Options).
+dummy_provider_identity_id(Options) ->
+    maps:get(dummy_provider_identity_id, Options).
 
 domain_config(Options, C) ->
     Default = [
@@ -385,7 +385,7 @@ domain_config(Options, C) ->
                 residences                = ['rus'],
                 realm                     = live,
                 wallet_system_account_set = {value, ?sas(1)},
-                identity                  = quote_payment_inst_identity_id(Options),
+                identity                  = dummy_payment_inst_identity_id(Options),
                 withdrawal_providers      = {value, [?wthdr_prv(3)]},
                 p2p_providers = {decisions, [
                     #domain_P2PProviderDecision{
@@ -409,8 +409,8 @@ domain_config(Options, C) ->
 
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), quote_provider_identity_id(Options), C),
-        ct_domain:p2p_provider(?p2p_prv(1), ?prx(3), quote_provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
+        ct_domain:p2p_provider(?p2p_prv(1), ?prx(3), dummy_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),

@@ -7,21 +7,21 @@
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 
 -type id() :: binary().
-% -type clock() :: ff_transaction:clock().
 
 -define(ACTUAL_FORMAT_VERSION, 1).
 -opaque p2p_transfer() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
     id := id(),
-    transfer_type := p2p_transfer,
     body := body(),
     identity_id := identity_id(),
-    sender_resource := resource_full(),
-    receiver_resource := resource_full(),
     created_at := ff_time:timestamp_ms(),
     party_revision := party_revision(),
     domain_revision := domain_revision(),
-    exchange => exchange(),
+    sender_info => transmitter_info(),
+    receiver_info => transmitter_info(),
+    sender_resource => resource_full(),
+    receiver_resource => resource_full(),
+    fees => fees(),
     session => session(),
     route => route(),
     risk_score => risk_score(),
@@ -36,21 +36,35 @@
     id := id(),
     identity_id := identity_id(),
     body := body(),
-    sender_resource := resource(),
-    receiver_resource := resource(),
-    exchange => exchange(),
-    external_id => id(),
-    deadline => deadline()
+    sender := sender(),
+    receiver := receiver(),
+    fees => fees(),
+    external_id => id()
+}.
+
+-type contact_info() :: #{
+    phone_number => binary(),
+    email => binary()
+}.
+
+-type transmitter_info() ::#{
+    contact_info => contact_info()
 }.
 
 -type resource_full_id() ::
     #{binary() => ff_bin_data:bin_data_id()}.
 
+-type sender() ::
+    {raw, #{resource := resource_raw(), contact_info => contact_info()}}.
+
+-type receiver() ::
+    {raw, #{resource := resource_raw(), contact_info => contact_info()}}.
+
 -type resource() ::
     {raw, resource_raw()}.
 
 -type resource_full() ::
-    {raw_full, resource_raw_full()} .
+    {raw_full, resource_raw_full()}.
 
 -type resource_raw() :: #{
     token          := binary(),
@@ -58,13 +72,7 @@
     masked_pan     => binary()
 }.
 
--type exchange() :: #{
-    created_at := ff_time:timestamp_ms(),
-    party_revision := party_revision(),
-    domain_revision := domain_revision(),
-    sender_resource_id := ff_bin_data:bin_data_id(),
-    receiver_resource_id := ff_bin_data:bin_data_id()
-}.
+-type fees() :: #{binary() => any()}.
 
 -type resource_raw_full() :: #{
     token               := binary(),
@@ -88,27 +96,23 @@
     {risk_score_changed, risk_score()} |
     {route_changed, route()} |
     {p_transfer, ff_postings_transfer:event()} |
-    {session_started, session_id()} |
-    {session_finished, {session_id(), session_result()}} |
+    {session, session_event()} |
     {status_changed, status()} |
     wrapped_adjustment_event().
+
+-type session_event() ::
+    {started, session_id()} |
+    {finished, {session_id(), session_result()}}.
 
 -type resource_owner() :: sender | receiver.
 
 -type create_error() ::
     {identity, notfound} |
-    %% TODO add this validation
-    % {terms, ff_party:validate_p2p_transfer_creation_error()} |
-    {{resource_full, resource_owner()}, {bin_data, not_found}}.
+    {terms, ff_party:validate_p2p_transfer_creation_error()} |
+    {resource_full, {resource_owner(), {bin_data, not_found}}}.
 
 -type route() :: #{
     provider_id := provider_id()
-}.
-
--type prepared_route() :: #{
-    route := route(),
-    party_revision := party_revision(),
-    domain_revision := domain_revision()
 }.
 
 -type adjustment_params() :: #{
@@ -149,7 +153,6 @@
 -export_type([params/0]).
 -export_type([event/0]).
 -export_type([route/0]).
--export_type([prepared_route/0]).
 -export_type([create_error/0]).
 -export_type([action/0]).
 -export_type([adjustment_params/0]).
@@ -170,14 +173,16 @@
 -export([identity_id/1]).
 -export([status/1]).
 -export([risk_score/1]).
--export([exchange/1]).
+-export([fees/1]).
 -export([route/1]).
 -export([external_id/1]).
 -export([created_at/1]).
 -export([party_revision/1]).
 -export([domain_revision/1]).
--export([resource_full/2]).
--export([deadline/1]).
+-export([sender_info/1]).
+-export([receiver_info/1]).
+-export([sender_resource/1]).
+-export([receiver_resource/1]).
 
 %% API
 
@@ -258,22 +263,36 @@
 -type fail_type() ::
     risk_score_is_too_high |
     route_not_found |
-    {invalid_exchange, _TODO} |
+    {invalid_fees, _TODO} |
     session.
 
 %% Accessors
 
--spec resource_full(p2p_transfer(), resource_owner()) ->
-    resource_full().
-resource_full(#{sender_resource := Resource}, sender) ->
-    Resource;
-resource_full(#{receiver_resource := Resource}, receiver) ->
-    Resource.
+-spec sender_info(p2p_transfer()) ->
+    transmitter_info() | undefined.
+sender_info(T) ->
+    maps:get(sender_info, T, undefined).
+
+-spec receiver_info(p2p_transfer()) ->
+    transmitter_info() | undefined.
+receiver_info(T) ->
+    maps:get(receiver_info, T, undefined).
+
+-spec sender_resource(p2p_transfer()) ->
+    resource_full() | undefined.
+sender_resource(T) ->
+    maps:get(sender_resource, T, undefined).
+
+-spec receiver_resource(p2p_transfer()) ->
+    resource_full() | undefined.
+receiver_resource(T) ->
+    maps:get(receiver_resource, T, undefined).
+
 %%
 
--spec exchange(p2p_transfer()) -> exchange() | undefined.
-exchange(T) ->
-    maps:get(exchange, T, undefined).
+-spec fees(p2p_transfer()) -> fees() | undefined.
+fees(T) ->
+    maps:get(fees, T, undefined).
 
 -spec id(p2p_transfer()) -> id().
 id(#{id := V}) ->
@@ -307,17 +326,17 @@ route(T) ->
 external_id(T) ->
     maps:get(external_id, T, undefined).
 
--spec party_revision(p2p_transfer()) -> party_revision() | undefined.
+-spec party_revision(p2p_transfer()) -> party_revision().
 party_revision(T) ->
-    maps:get(party_revision, T, undefined).
+    maps:get(party_revision, T).
 
--spec domain_revision(p2p_transfer()) -> domain_revision() | undefined.
+-spec domain_revision(p2p_transfer()) -> domain_revision().
 domain_revision(T) ->
-    maps:get(domain_revision, T, undefined).
+    maps:get(domain_revision, T).
 
--spec created_at(p2p_transfer()) -> ff_time:timestamp_ms() | undefined.
+-spec created_at(p2p_transfer()) -> ff_time:timestamp_ms().
 created_at(T) ->
-    maps:get(created_at, T, undefined).
+    maps:get(created_at, T).
 
 -spec deadline(p2p_transfer()) -> deadline() | undefined.
 deadline(T) ->
@@ -334,22 +353,22 @@ create(Params) ->
             id := ID,
             body := Body,
             identity_id := IdentityID,
-            sender_resource := SenderSrc,
-            receiver_resource := ReceiverSrc
+            sender := Sender,
+            receiver := Receiver
         } = Params,
         CreatedAt = ff_time:now(),
 
-        Identity = get_identity(IdentityID),
+        Identity = unwrap(identity, get_identity(IdentityID)),
         PartyID = ff_identity:party(Identity),
 
-        Exchange = maps:get(exchange, Params, undefined),
-        Timestamp = ff_maybe:get_defined(exchange_timestamp(Exchange), CreatedAt),
-        PartyRevision = ensure_party_revision_defined(PartyID, exchange_party_revision(Exchange)),
-        DomainRevision = ensure_domain_revision_defined(exchange_domain_revision(Exchange)),
-        ResourceIDSender = exchange_resource_id_sender(Exchange),
-        ResourceSender = unwrap({resource_full, sender}, make_resource_full(SenderSrc, ResourceIDSender)),
-        ResourceIDReceiver = exchange_resource_id_receiver(Exchange),
-        ResourceReceiver = unwrap({resource_full, receiver}, make_resource_full(ReceiverSrc, ResourceIDReceiver)),
+        Fees = maps:get(fees, Params, undefined),
+        Timestamp = ff_maybe:get_defined(fees_timestamp(Fees), CreatedAt),
+
+        PartyRevision = get_party_revision(PartyID, fees_party_revision(Fees)),
+        DomainRevision = get_domain_revision(fees_domain_revision(Fees)),
+
+        ResourceSender = unwrap(resource_full, make_sender_resource(Sender, Fees)),
+        ResourceReceiver = unwrap(resource_full, make_receiver_resource(Receiver, Fees)),
 
         ContractID = ff_identity:contract(Identity),
         VarsetParams = genlib_map:compact(#{
@@ -370,14 +389,14 @@ create(Params) ->
                 version => ?ACTUAL_FORMAT_VERSION,
                 id => ID,
                 identity_id => IdentityID,
-                transfer_type => p2p_transfer,
                 body => Body,
                 created_at => CreatedAt,
+                sender_info => get_sender_info(Sender),
+                receiver_info => get_receiver_info(Receiver),
                 party_revision => PartyRevision,
                 domain_revision => DomainRevision,
-                exchange => Exchange,
                 external_id => ExternalID,
-                deadline => Deadline
+                fees => Fees
             })},
             {status_changed, pending},
             {resource_got, ResourceSender, ResourceReceiver}
@@ -528,31 +547,50 @@ effective_final_cash_flow(P2PTransfer) ->
             CashFlow
     end.
 
--spec operation_timestamp(p2p_transfer()) -> ff_time:timestamp_ms().
-operation_timestamp(P2PTransfer) ->
-    QuoteTimestamp = exchange_timestamp(exchange(P2PTransfer)),
-    ff_maybe:get_defined([QuoteTimestamp, created_at(P2PTransfer), ff_time:now()]).
+-spec get_sender_info(sender()) ->
+    transmitter_info() | undefined.
 
--spec operation_party_revision(p2p_transfer()) ->
-    domain_revision().
-operation_party_revision(P2PTransfer) ->
-    case party_revision(P2PTransfer) of
+get_sender_info({raw, Raw}) ->
+    case maps:get(contact_info, Raw, undefined) of
         undefined ->
-            PartyID = ff_identity:party(get_identity(identity_id(P2PTransfer))),
-            {ok, Revision} = ff_party:get_revision(PartyID),
-            Revision;
-        Revision ->
-            Revision
+            undefined;
+        Info ->
+            #{contact_info => Info}
     end.
 
--spec operation_domain_revision(p2p_transfer()) ->
-    domain_revision().
-operation_domain_revision(P2PTransfer) ->
-    case domain_revision(P2PTransfer) of
+-spec get_receiver_info(receiver()) ->
+    transmitter_info() | undefined.
+
+get_receiver_info({raw, Raw}) ->
+    case maps:get(contact_info, Raw, undefined) of
         undefined ->
-            ff_domain_config:head();
-        Revision ->
-            Revision
+            undefined;
+        Info ->
+            #{contact_info => Info}
+    end.
+
+-spec make_sender_resource(sender(), fees() | undefined) ->
+    {ok, resource_full()} | {error, {bin_data, not_found}}.
+
+make_sender_resource({raw, #{resource := Resource}}, Fees) ->
+    ResourceID = fees_resource_id_sender(Fees),
+    case make_resource_full({raw, Resource}, ResourceID) of
+        {ok, _ResourceFull} = Result ->
+            Result;
+        {error, {bin_data, not_found} = Details} ->
+            {error, {sender, Details}}
+    end.
+
+-spec make_receiver_resource(receiver(), fees() | undefined) ->
+    {ok, resource_full()} | {error, {bin_data, not_found}}.
+
+make_receiver_resource({raw, #{resource := Resource}}, Fees) ->
+    ResourceID = fees_resource_id_receiver(Fees),
+    case make_resource_full({raw, Resource}, ResourceID) of
+        {ok, _ResourceFull} = Result ->
+            Result;
+        {error, {bin_data, not_found} = Details} ->
+            {error, {receiver, Details}}
     end.
 
 -spec make_resource_full(resource(), ff_maybe:maybe(resource_full_id())) ->
@@ -677,10 +715,10 @@ process_routing(P2PTransfer) ->
 -spec do_process_routing(p2p_transfer()) ->
     {ok, provider_id()} | {error, route_not_found}.
 do_process_routing(P2PTransfer) ->
-    DomainRevision = operation_domain_revision(P2PTransfer),
-    ResourceSender = resource_full(P2PTransfer, sender),
-    ResourceReceiver = resource_full(P2PTransfer, receiver),
-    Identity = get_identity(identity_id(P2PTransfer)),
+    DomainRevision = domain_revision(P2PTransfer),
+    ResourceSender = sender_resource(P2PTransfer),
+    ResourceReceiver = receiver_resource(P2PTransfer),
+    {ok, Identity} = get_identity(identity_id(P2PTransfer)),
     PartyID = ff_identity:party(Identity),
     VarsetParams = genlib_map:compact(#{
         body => body(P2PTransfer),
@@ -703,11 +741,8 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
         {ok, Providers}  ->
             choose_provider(Providers, PartyVarset);
         {error, {misconfiguration, _Details} = Error} ->
-            %% TODO: Do not interpret such error as an empty route list.
-            %% The current implementation is made for compatibility reasons.
-            %% Try to remove and follow the tests.
             _ = logger:warning("Route search failed: ~p", [Error]),
-            {error, route_not_found}
+            erlang:error(Error)
     end.
 
 -spec choose_provider([provider_id()], party_varset()) ->
@@ -723,7 +758,6 @@ choose_provider(Providers, VS) ->
 -spec validate_p2p_transfers_terms(provider_id(), party_varset()) ->
     boolean().
 validate_p2p_transfers_terms(ID, VS) ->
-    % TODO Change to p2p provider module
     Provider = unwrap(ff_p2p_provider:get(ID)),
     case ff_p2p_provider:validate_terms(Provider, VS) of
         {ok, valid} ->
@@ -810,14 +844,14 @@ is_childs_active(P2PTransfer) ->
 make_final_cash_flow(P2PTransfer) ->
     Body = body(P2PTransfer),
     Route = route(P2PTransfer),
-    DomainRevision = operation_domain_revision(P2PTransfer),
-    ResourceSender = resource_full(P2PTransfer, sender),
-    ResourceReceiver = resource_full(P2PTransfer, receiver),
-    Identity = get_identity(identity_id(P2PTransfer)),
+    DomainRevision = domain_revision(P2PTransfer),
+    ResourceSender = sender_resource(P2PTransfer),
+    ResourceReceiver = receiver_resource(P2PTransfer),
+    {ok, Identity} = get_identity(identity_id(P2PTransfer)),
     PartyID = ff_identity:party(Identity),
-    PartyRevision = operation_party_revision(P2PTransfer),
+    PartyRevision = party_revision(P2PTransfer),
     ContractID = ff_identity:contract(Identity),
-    Timestamp = operation_timestamp(P2PTransfer),
+    Timestamp = created_at(P2PTransfer),
     VarsetParams = genlib_map:compact(#{
         body => body(P2PTransfer),
         party_id => PartyID,
@@ -857,26 +891,28 @@ make_final_cash_flow(P2PTransfer) ->
     {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
     FinalCashFlow.
 
--spec ensure_domain_revision_defined(domain_revision() | undefined) ->
+-spec get_domain_revision(domain_revision() | undefined) ->
     domain_revision().
-ensure_domain_revision_defined(undefined) ->
+get_domain_revision(undefined) ->
     ff_domain_config:head();
-ensure_domain_revision_defined(Revision) ->
+get_domain_revision(Revision) ->
     Revision.
 
--spec ensure_party_revision_defined(party_id(), party_revision() | undefined) ->
+-spec get_party_revision(party_id(), party_revision() | undefined) ->
     domain_revision().
-ensure_party_revision_defined(PartyID, undefined) ->
+get_party_revision(PartyID, undefined) ->
     {ok, Revision} = ff_party:get_revision(PartyID),
     Revision;
-ensure_party_revision_defined(_PartyID, Revision) ->
+get_party_revision(_PartyID, Revision) ->
     Revision.
 
 -spec get_identity(identity_id()) ->
-    identity() | no_return().
+    {ok, identity()} | {error, notfound}.
 get_identity(IdentityID) ->
-    IdentityMachine = unwrap(identity, ff_identity_machine:get(IdentityID)),
-    ff_identity_machine:identity(IdentityMachine).
+    do(fun() ->
+        IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
+        ff_identity_machine:identity(IdentityMachine)
+    end).
 
 -spec build_party_varset(party_varset_params()) ->
     party_varset().
@@ -908,37 +944,37 @@ construct_payment_tool({raw_full, ResourceRaw}) ->
         bank_name       = maps:get(bank_name, ResourceRaw, undefined)
     }}.
 
-%% Exchange helpers
+%% Fees helpers
 
-exchange_resource_id_sender(undefined) ->
+fees_resource_id_sender(undefined) ->
     undefined;
-exchange_resource_id_sender(Data) ->
+fees_resource_id_sender(Data) ->
     maps:get(<<"resource_id_sender">>, Data, undefined).
 
-exchange_resource_id_receiver(undefined) ->
+fees_resource_id_receiver(undefined) ->
     undefined;
-exchange_resource_id_receiver(Data) ->
+fees_resource_id_receiver(Data) ->
     maps:get(<<"resource_id_receiver">>, Data, undefined).
 
--spec exchange_timestamp(exchange() | undefined) ->
+-spec fees_timestamp(fees() | undefined) ->
     ff_time:timestamp_ms() | undefined.
-exchange_timestamp(undefined) ->
+fees_timestamp(undefined) ->
     undefined;
-exchange_timestamp(Data) ->
+fees_timestamp(Data) ->
     maps:get(<<"timestamp">>, Data, undefined).
 
--spec exchange_party_revision(exchange() | undefined) ->
+-spec fees_party_revision(fees() | undefined) ->
     party_revision() | undefined.
-exchange_party_revision(undefined) ->
+fees_party_revision(undefined) ->
     undefined;
-exchange_party_revision(Data) ->
+fees_party_revision(Data) ->
     maps:get(<<"party_revision">>, Data, undefined).
 
--spec exchange_domain_revision(exchange() | undefined) ->
+-spec fees_domain_revision(fees() | undefined) ->
     domain_revision() | undefined.
-exchange_domain_revision(undefined) ->
+fees_domain_revision(undefined) ->
     undefined;
-exchange_domain_revision(Data) ->
+fees_domain_revision(Data) ->
     maps:get(<<"domain_revision">>, Data, undefined).
 
 %% Session management
@@ -1070,9 +1106,9 @@ make_adjustment_params(Params, P2PTransfer) ->
         id => ID,
         changes_plan => make_adjustment_change(Change, P2PTransfer),
         external_id => genlib_map:get(external_id, Params),
-        domain_revision => operation_domain_revision(P2PTransfer),
-        party_revision => operation_party_revision(P2PTransfer),
-        operation_timestamp => operation_timestamp(P2PTransfer)
+        domain_revision => domain_revision(P2PTransfer),
+        party_revision => party_revision(P2PTransfer),
+        operation_timestamp => created_at(P2PTransfer)
     }).
 
 -spec make_adjustment_change(adjustment_change(), p2p_transfer()) ->
@@ -1151,7 +1187,7 @@ build_failure(route_not_found, _P2PTransfer) ->
     #{
         code => <<"no_route_found">>
     };
-% build_failure({invalid_exchange, Details}, _P2PTransfer) ->
+% build_failure({invalid_fees, Details}, _P2PTransfer) ->
 %     #{
 %         code => <<"unknown">>,
 %         reason => genlib:format(Details)
@@ -1182,10 +1218,10 @@ apply_event_({resource_got, Sender, Receiver}, T0) ->
     maps:put(receiver_resource, Receiver, T1);
 apply_event_({p_transfer, Ev}, T) ->
     T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))};
-apply_event_({session_started, SessionID}, T) ->
+apply_event_({session, {started, SessionID}}, T) ->
     Session = #{id => SessionID},
     maps:put(session, Session, T);
-apply_event_({session_finished, {SessionID, Result}}, T) ->
+apply_event_({session, {finished, {SessionID, Result}}}, T) ->
     #{id := SessionID} = Session = session(T),
     maps:put(session, Session#{result => Result}, T);
 apply_event_({risk_score_changed, RiskScore}, T) ->

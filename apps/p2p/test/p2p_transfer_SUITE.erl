@@ -14,6 +14,7 @@
 -export([end_per_testcase/2]).
 
 -export([get_fee_ok_test/1]).
+-export([visa_to_nspkmir_not_allow_test/1]).
 
 %% Internal types
 
@@ -26,7 +27,8 @@
 
 -spec all() -> [test_case_name() | {group, group_name()}].
 all() -> [
-        get_fee_ok_test
+        get_fee_ok_test,
+        visa_to_nspkmir_not_allow_test
 ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -80,8 +82,24 @@ get_fee_ok_test(C) ->
     {ok, Sender} = p2p_instrument:create({bank_card, CardSender}),
     {ok, Receiver} = p2p_instrument:create({bank_card, CardReceiver}),
     {ok, {Fee, CashVolume, _}} = p2p_fees:get_fee_token(Cash, Identity, Sender, Receiver),
-    ?assertEqual({share,{{65, 10000},operation_amount,default}}, CashVolume),
+    ?assertEqual({share, {{65, 10000}, operation_amount, default}}, CashVolume),
     ?assertEqual({146, <<"RUB">>}, Fee).
+
+-spec visa_to_nspkmir_not_allow_test(config()) -> test_return().
+visa_to_nspkmir_not_allow_test(C) ->
+    Cash = {22500, <<"RUB">>},
+    CardSender   = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    CardReceiver = ct_cardstore:bank_card(<<"2204399999000900">>, {12, 2025}, C),
+    #{
+        wallet_id := WalletID
+    } = prepare_standard_environment(Cash, C),
+    {ok, Machine} = ff_wallet_machine:get(WalletID),
+    Wallet = ff_wallet_machine:wallet(Machine),
+    Identity = ff_wallet:identity(Wallet),
+    {ok, Sender} = p2p_instrument:create({bank_card, CardSender}),
+    {ok, Receiver} = p2p_instrument:create({bank_card, CardReceiver}),
+    Result = p2p_fees:get_fee_token(Cash, Identity, Sender, Receiver),
+    ?assertEqual({error, {p2p_tool, not_allow}}, Result).
 
 %% Utils
 

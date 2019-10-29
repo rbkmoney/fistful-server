@@ -1,6 +1,5 @@
 -module(p2p_adapter_SUITE).
 
-% -include("hg_ct_domain.hrl").
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
@@ -14,8 +13,6 @@
 
 -export([process/1]).
 -export([handle_callback/1]).
-
-% -import(ct_helper, [cfg/2]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -53,23 +50,23 @@ end_per_testcase(_Name, _C) ->
 
 -spec process(config()) -> test_return().
 process(_C) ->
-    Adapter        = ff_woody_client:new(<<"http://localhost:8222/p2p">>),
+    Adapter        = ff_woody_client:new(<<"http://localhost:8222/p2p_adapter">>),
     TransferParams = construct_transfer_params(),
     AdapterState   = <<>>,
     AdapterOpts    = #{},
     Result         = p2p_adapter:process(Adapter, TransferParams, AdapterState, AdapterOpts),
-    ?assertMatch({ok, {{finish, success}, #{next_state := _, transaction_info := _}}}, Result),
+    ?assertMatch({ok, {{finish, success}, #{}}}, Result),
     ok.
 
 -spec handle_callback(config()) -> test_return().
 handle_callback(_C) ->
-    Adapter        = ff_woody_client:new(<<"http://localhost:8222/p2p">>),
+    Adapter        = ff_woody_client:new(<<"http://localhost:8222/p2p_adapter">>),
     TransferParams = construct_transfer_params(),
     Callback       = #{tag => <<"p2p">>, payload => <<>>},
     AdapterState   = <<>>,
     AdapterOpts    = #{},
     Result         = p2p_adapter:handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts),
-    ?assertMatch({ok, {{finish, success}, <<"payload">>, #{next_state := _, transaction_info := _}}}, Result),
+    ?assertMatch({ok, {{finish, success}, <<"payload">>, #{}}}, Result),
     ok.
 
 construct_transfer_params() ->

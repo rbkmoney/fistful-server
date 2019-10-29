@@ -24,7 +24,7 @@ handle_function('GetByCardToken', [<<"USD_COUNTRY">>], _Context, _Opts) ->
         },
         version = 1
     }};
-handle_function('GetByCardToken', [<<"1vLWRdTbpnRBGHjUyiDoJP">>], _Context, _Opts) ->
+handle_function('GetByCardToken', [<<"NSPK MIR">>], _Context, _Opts) ->
     {ok, #binbase_ResponseData{
         bin_data = #binbase_BinData{
             payment_system = <<"NSPK MIR">>,

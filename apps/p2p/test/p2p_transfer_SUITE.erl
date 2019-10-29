@@ -89,7 +89,7 @@ get_fee_ok_test(C) ->
 visa_to_nspkmir_not_allow_test(C) ->
     Cash = {22500, <<"RUB">>},
     CardSender   = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    CardReceiver = ct_cardstore:bank_card(<<"2204399999000900">>, {12, 2025}, C),
+    #{bin := Bin, masked_pan := Pan} = ct_cardstore:bank_card(<<"2204399999000900">>, {12, 2025}, C),
     #{
         wallet_id := WalletID
     } = prepare_standard_environment(Cash, C),
@@ -97,7 +97,11 @@ visa_to_nspkmir_not_allow_test(C) ->
     Wallet = ff_wallet_machine:wallet(Machine),
     Identity = ff_wallet:identity(Wallet),
     {ok, Sender} = p2p_instrument:create({bank_card, CardSender}),
-    {ok, Receiver} = p2p_instrument:create({bank_card, CardReceiver}),
+    {ok, Receiver} = p2p_instrument:create({bank_card, #{
+        bin => Bin,
+        masked_pan => Pan,
+        token => <<"NSPK MIR">>
+    }}),
     Result = p2p_fees:get_fee_token(Cash, Identity, Sender, Receiver),
     ?assertEqual({error, {p2p_tool, not_allow}}, Result).
 

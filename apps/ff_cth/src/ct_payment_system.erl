@@ -584,6 +584,15 @@ default_termset(Options) ->
                 ]}
             },
             p2p = #domain_P2PServiceTerms{
+                allow = {any_of, ordsets:from_list([
+                    {condition, {p2p_tool, #domain_P2PToolCondition{
+                        sender_is = {bank_card, #domain_BankCardCondition{
+                            definition = {payment_system, #domain_PaymentSystemCondition{payment_system_is = visa}}}
+                        },
+                        receiver_is = {bank_card, #domain_BankCardCondition{
+                            definition = {payment_system, #domain_PaymentSystemCondition{payment_system_is = visa}}}}
+                    }}}
+                ])},
                 currencies = {value, ?ordset([?cur(<<"RUB">>)])},
                 cash_limit = {decisions, [
                     #domain_CashLimitDecision{
@@ -632,13 +641,18 @@ default_termset(Options) ->
                                                 {exclusive, ?cash(300000, <<"RUB">>)}
                                             )}
                                         },
-                                        then_ = {value, #domain_Fees{fees = #{surplus => ?share(65, 10000, operation_amount)}}}
+                                        then_ = {value, #domain_Fees{
+                                            fees = #{surplus => ?share(65, 10000, operation_amount)}
+                                        }}
                                     }
                                 ]}
                             }
                         ]}
                     }
-                ]}
+                ]},
+                quote_lifetime = {interval, #domain_LifetimeInterval{
+                    days = 1, minutes = 1, seconds = 1
+                }}
             }
         }
     },

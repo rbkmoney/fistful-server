@@ -72,7 +72,7 @@ get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
         CreatedAt = ff_time:now(),
         Terms = unwrap(party, ff_party:get_contract_terms(
             PartyID, ContractID, VS, CreatedAt, PartyRevision, DomainRevision)),
-        valid = unwrap(validation, ff_party:validate_p2p_limits(Terms, Cash)),
+        valid = unwrap(validation, ff_party:validate_p2p    (Terms, Cash)),
         ExpiresOn = get_expire_time(Terms, CreatedAt),
         true = unwrap(p2p_tool, allow_p2p_tool(Terms)),
         Fees = get_fees_from_terms(Terms),

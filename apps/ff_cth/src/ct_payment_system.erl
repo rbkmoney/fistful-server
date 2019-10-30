@@ -595,7 +595,7 @@ default_termset(Options) ->
                 ]}
             },
             p2p = #domain_P2PServiceTerms{
-				currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
+                currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
                 allow = {any_of, ordsets:from_list([
                     {condition, {p2p_tool, #domain_P2PToolCondition{
                         sender_is = {bank_card, #domain_BankCardCondition{

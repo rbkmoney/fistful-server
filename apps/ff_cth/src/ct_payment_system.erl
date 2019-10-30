@@ -89,6 +89,10 @@ start_processing_apps(Options) ->
                     {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'}, {ff_ct_provider_handler, []}}
                 },
                 {
+                    <<"/p2p_adapter">>,
+                    {{dmsl_p2p_adapter_thrift, 'P2PAdapter'}, {p2p_ct_provider_handler, []}}
+                },
+                {
                     <<"/binbase">>,
                     {{binbase_binbase_thrift, 'Binbase'}, {ff_ct_binbase_handler, []}}
                 }
@@ -592,6 +596,15 @@ default_termset(Options) ->
             },
             p2p = #domain_P2PServiceTerms{
                 currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
+                allow = {any_of, ordsets:from_list([
+                    {condition, {p2p_tool, #domain_P2PToolCondition{
+                        sender_is = {bank_card, #domain_BankCardCondition{
+                            definition = {payment_system, #domain_PaymentSystemCondition{payment_system_is = visa}}}
+                        },
+                        receiver_is = {bank_card, #domain_BankCardCondition{
+                            definition = {payment_system, #domain_PaymentSystemCondition{payment_system_is = visa}}}}
+                    }}}
+                ])},
                 cash_limit = {decisions, [
                     #domain_CashLimitDecision{
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
@@ -628,7 +641,51 @@ default_termset(Options) ->
                         if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
                         then_ = {value, []}
                     }
-                ]}
+                ]},
+                fees = {decisions, [
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {decisions, [
+                            #domain_FeeDecision{
+                                if_ = {condition, {p2p_tool, #domain_P2PToolCondition{
+                                    sender_is = {bank_card, #domain_BankCardCondition{
+                                        definition = {payment_system, #domain_PaymentSystemCondition{
+                                            payment_system_is = visa
+                                        }}
+                                    }},
+                                    receiver_is = {bank_card, #domain_BankCardCondition{
+                                        definition = {payment_system, #domain_PaymentSystemCondition{
+                                            payment_system_is = visa
+                                        }}
+                                    }}
+                                }}},
+                                then_ = {decisions, [
+                                    #domain_FeeDecision{
+                                        if_ = {condition, {cost_in, ?cashrng(
+                                                {inclusive, ?cash(   0, <<"RUB">>)},
+                                                {exclusive, ?cash(7692, <<"RUB">>)}
+                                            )}
+                                        },
+                                        then_ = {value, #domain_Fees{fees = #{surplus => ?fixed(50, <<"RUB">>)}}}
+                                    },
+                                    #domain_FeeDecision{
+                                        if_ = {condition, {cost_in, ?cashrng(
+                                                {inclusive, ?cash(7692, <<"RUB">>)},
+                                                {exclusive, ?cash(300000, <<"RUB">>)}
+                                            )}
+                                        },
+                                        then_ = {value, #domain_Fees{
+                                            fees = #{surplus => ?share(65, 10000, operation_amount)}
+                                        }}
+                                    }
+                                ]}
+                            }
+                        ]}
+                    }
+                ]},
+                quote_lifetime = {interval, #domain_LifetimeInterval{
+                    days = 1, minutes = 1, seconds = 1
+                }}
             }
         }
     },

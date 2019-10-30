@@ -107,7 +107,7 @@
 
 -type create_error() ::
     {identity, notfound} |
-    {terms, ff_party:validate_p2p_transfer_creation_error()} |
+    {terms, ff_party:validate_p2p_error()} |
     {resource_full, {resource_owner(), {bin_data, not_found}}}.
 
 -type route() :: #{
@@ -366,7 +366,7 @@ create(Params) ->
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID, ContractID, build_party_varset(VarsetParams), Timestamp, PartyRevision, DomainRevision
         ),
-        valid = unwrap(validate_p2p_transfer_creation(Terms, Body)),
+        valid = unwrap(validate_p2p(Terms, Body)),
 
         ExternalID = maps:get(external_id, Params, undefined),
         Deadline = maps:get(deadline, Params, undefined),
@@ -829,7 +829,7 @@ make_final_cash_flow(P2PTransfer) ->
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
     ),
-    {ok, P2PCashFlowPlan} = ff_party:get_p2p_transfer_cash_flow_plan(Terms),
+    {ok, P2PCashFlowPlan} = ff_party:get_p2p_cash_flow_plan(Terms),
     {ok, CashFlowPlan} = ff_cash_flow:add_fee(P2PCashFlowPlan, ProviderFee),
     Constants = #{
         operation_amount => Body
@@ -970,12 +970,12 @@ session_processing_status(P2PTransfer) ->
 
 %% P2PTransfer validators
 
--spec validate_p2p_transfer_creation(terms(), body()) ->
+-spec validate_p2p(terms(), body()) ->
     {ok, valid} |
     {error, create_error()}.
-validate_p2p_transfer_creation(Terms, Body) ->
+validate_p2p(Terms, Body) ->
     do(fun() ->
-        valid = unwrap(terms, ff_party:validate_p2p_transfer_creation(Terms, Body))
+        valid = unwrap(terms, ff_party:validate_p2p(Terms, Body))
     end).
 
 %% Adjustment validators

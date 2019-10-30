@@ -1,4 +1,4 @@
--module(p2p_transfer_SUITE).
+-module(ff_p2p_transfer_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").

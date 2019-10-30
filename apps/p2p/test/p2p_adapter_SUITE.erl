@@ -50,31 +50,30 @@ end_per_testcase(_Name, _C) ->
 
 -spec process(config()) -> test_return().
 process(_C) ->
-    Adapter        = ff_woody_client:new(<<"http://localhost:8222/p2p_adapter">>),
-    TransferParams = construct_transfer_params(),
-    AdapterState   = <<>>,
-    AdapterOpts    = #{},
-    Result         = p2p_adapter:process(Adapter, TransferParams, AdapterState, AdapterOpts),
+    Adapter = ff_woody_client:new(<<"http://localhost:8222/p2p_adapter">>),
+    Context = construct_context(),
+    Result  = p2p_adapter:process(Adapter, Context),
     ?assertMatch({ok, {{finish, success}, #{}}}, Result),
     ok.
 
 -spec handle_callback(config()) -> test_return().
 handle_callback(_C) ->
-    Adapter        = ff_woody_client:new(<<"http://localhost:8222/p2p_adapter">>),
-    TransferParams = construct_transfer_params(),
-    Callback       = #{tag => <<"p2p">>, payload => <<>>},
-    AdapterState   = <<>>,
-    AdapterOpts    = #{},
-    Result         = p2p_adapter:handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts),
+    Adapter  = ff_woody_client:new(<<"http://localhost:8222/p2p_adapter">>),
+    Context  = construct_context(),
+    Callback = #{tag => <<"p2p">>, payload => <<>>},
+    Result   = p2p_adapter:handle_callback(Adapter, Callback, Context),
     ?assertMatch({ok, {{finish, success}, <<"payload">>, #{}}}, Result),
     ok.
 
-construct_transfer_params() ->
+construct_context() ->
     #{
-        id       => <<"1">>,
-        cash     => {10, <<"USD">>},
-        sender   => construct_resource(),
-        receiver => construct_resource()
+        id            => <<"1">>,
+        cash          => {10, <<"USD">>},
+        sender        => construct_resource(),
+        receiver      => construct_resource(),
+        deadline      => <<>>,
+        adapter_state => <<>>,
+        adapter_opts  => #{}
     }.
 
 construct_resource() ->

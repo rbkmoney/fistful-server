@@ -84,6 +84,6 @@ maybe_migrate(Event) ->
 -spec process_callback(tag(), callback()) ->
     {response(), {action(), [wrapped_event()]}}.
 process_callback(Tag, P2PCallback) ->
-    {Response, {P2PCallbackAction, Events}} = p2p_callback:process_callback(P2PCallback),
+    {Response, Events} = p2p_callback:process_callback(P2PCallback),
     WrappedEvents = wrap_events(Tag, Events),
-    {Response, {P2PCallbackAction, WrappedEvents}}.
+    {Response, {undefined, WrappedEvents}}.

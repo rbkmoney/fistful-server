@@ -17,6 +17,11 @@
 
 -export([process_callback/2]).
 
+%% Accessors
+
+-export([transfer_params/1]).
+-export([adapter/1]).
+
 %% ff_machine
 -export([apply_event/2]).
 -export([maybe_migrate/1]).
@@ -34,12 +39,10 @@
     transfer_params := transfer_params(),
     provider_id := ff_p2p_provider:id(),
     adapter := adapter_with_opts(),
-    adapter_state => ff_adapter:state(),
+    adapter_state => adapter_state(),
     callbacks => callbacks_index(),
     user_interactions => user_interactions_index()
 }.
-
--type session_result() :: {success, ff_adapter:trx_info()} | {failed, ff_adapter:failure()}.
 
 -type status() ::
     active |
@@ -47,19 +50,18 @@
 
 -type event() ::
     {created, session()} |
-    {next_state, ff_adapter:state()} |
+    {next_state, adapter_state()} |
+    {transaction_bound, ff_adapter:trx_info()} |
     {finished, session_result()} |
-    wrapped_callback_event().
+    wrapped_callback_event() |
+    wrapped_user_interaction_event().
 
 -type wrapped_callback_event() :: p2p_callback_utils:wrapped_event().
+-type wrapped_user_interaction_event() :: p2p_user_interaction_utils:wrapped_event().
 
--type transfer_params() :: #{
-    id := id(),
-    cash := ff_transaction:body(),
-    sender := p2p_transfer:resource_full(),
-    receiver := p2p_transfer:resource_full(),
-    deadline => deadline()
-}.
+-type transfer_params() :: p2p_adapter:transfer_params().
+-type adapter_state() :: p2p_adapter:adapter_state().
+-type session_result() :: p2p_adapter:finish_status().
 
 -type deadline() :: binary().
 
@@ -87,6 +89,7 @@
 %%
 %% Internal types
 %%
+
 -type id() :: machinery:id().
 
 -type auxst() :: undefined.
@@ -124,6 +127,16 @@ id(#{id := V}) ->
 status(#{status := V}) ->
     V.
 
+%% Accessors
+
+-spec transfer_params(session()) -> transfer_params().
+transfer_params(#{transfer_params := V}) ->
+    V.
+
+-spec adapter(session()) -> adapter_with_opts().
+adapter(#{adapter := V}) ->
+    V.
+
 %%
 
 -spec create(id(), transfer_params(), params()) ->
@@ -144,28 +157,69 @@ get_adapter_with_opts(ProviderID) ->
     {ff_p2p_provider:adapter(Provider), ff_p2p_provider:adapter_opts(Provider)}.
 
 -spec process_session(session()) -> result().
-process_session(_Session) ->
-    % ASt = maps:get(adapter_state, Session, undefined),
-    % TODO add here p2p adapter call
-    process_intent({finish, {success, #{id => <<"Some trx id">>, extra => #{}}}}).
+process_session(Session) ->
+    ASt = maps:get(adapter_state, Session, undefined),
+    {Adapter, Opts} = adapter(Session),
+    {ok, {Intent, Data}} = p2p_adapter:process(Adapter, transfer_params(Session), ASt, Opts),
+    Events0 = process_next_state(Data, []),
+    Events1 = process_trx_info(Data, Events0),
+    process_intent(Intent, Events1, Session).
 
-% process_intent(Intent, NextASt) ->
-%     #{events := Events0} = Result = process_intent(Intent),
-%     Events1 = Events0 ++ [{next_state, NextASt}],
-%     Result#{events => Events1}.
-% process_intent({sleep, Timer}) ->
-%     #{
-%         events => [],
-%         action => timer_action(Timer)
-%     };
-process_intent({finish, Result}) ->
+process_next_state(#{next_state := NextState}, Events) ->
+    Events ++ [{next_state, NextState}];
+process_next_state(_, Events) ->
+    Events.
+
+process_trx_info(#{transaction_info := TrxInfo}, Events) ->
+    Events ++ [{transaction_bound, TrxInfo}];
+process_trx_info(_, Events) ->
+    Events.
+
+process_intent({sleep, #{timer := Timer, callback_tag := Tag} = Data}, Events0, Session) ->
+    UserInteraction = maps:get(user_interaction, Data, undefined),
+    Events1 = process_callback(Tag, Session, Events0),
+    Events2 = process_user_interaction(UserInteraction, Session, Events1),
     #{
-        events => [{finished, Result}]
+        events => Events2,
+        action => timer_action(Timer)
+    };
+process_intent({finish, Result}, Events, _Session) ->
+    #{
+        events => Events ++ [{finished, Result}]
     }.
 
-% -spec timer_action({deadline, binary()} | {timeout, non_neg_integer()}) -> machinery:action().
-% timer_action(Timer) ->
-%     {set_timer, Timer}.
+process_callback(Tag, Session, Events) ->
+    case p2p_callback_utils:get_by_tag(Tag, callbacks_index(Session)) of
+        {ok, _Callback} ->
+            Events;
+        {error, {unknown_callback, Tag}} ->
+            {ok, CallbackEvents} = p2p_callback:create(#{tag => Tag}),
+            Events ++ p2p_callback_utils:wrap_events(Tag, CallbackEvents)
+    end.
+
+process_user_interaction(undefined, _Session, Events) ->
+    Events;
+process_user_interaction({ID, finish}, Session, Events) ->
+    case p2p_user_interaction_utils:get_by_id(ID, user_interactions_index(Session)) of
+        {ok, UserInteraction} ->
+            Events ++ p2p_user_interaction_utils:finish(ID, UserInteraction);
+        {error, {unknown_user_interaction, ID} = Error} ->
+            _ = logger:warning("Process user interaction failed: ~p", [Error]),
+            erlang:error(Error)
+    end;
+process_user_interaction({ID, {create, Content}}, Session, Events) ->
+    case p2p_user_interaction_utils:get_by_id(ID, user_interactions_index(Session)) of
+        {ok, _UserInteraction} ->
+            %% TODO check if this uint same
+            Events;
+        {error, {unknown_user_interaction, ID}} ->
+            {ok, UserInteractionEvents} = p2p_user_interaction:create(#{id => ID, content => Content}),
+            Events ++ p2p_user_interaction_utils:wrap_events(ID, UserInteractionEvents)
+    end.
+
+-spec timer_action({deadline, binary()} | {timeout, non_neg_integer()}) -> machinery:action().
+timer_action(Timer) ->
+    {set_timer, Timer}.
 
 -spec set_session_result(session_result(), session()) ->
     result().
@@ -211,6 +265,15 @@ callbacks_index(Session) ->
             p2p_callback_utils:new_index()
     end.
 
+-spec user_interactions_index(session()) -> user_interactions_index().
+user_interactions_index(Session) ->
+    case maps:find(user_interactions, Session) of
+        {ok, Callbacks} ->
+            Callbacks;
+        error ->
+            p2p_user_interaction_utils:new_index()
+    end.
+
 %% Callback helpers
 
 -spec validate_process_callback(session()) ->
@@ -240,17 +303,29 @@ apply_event_({next_state, AdapterState}, Session) ->
 apply_event_({finished, Result}, Session) ->
     set_session_status({finished, Result}, Session);
 apply_event_({callback, _Ev} = Event, T) ->
-    apply_callback_event(Event, T).
+    apply_callback_event(Event, T);
+apply_event_({user_interaction, _Ev} = Event, T) ->
+    apply_user_interaction_event(Event, T).
 
 -spec apply_callback_event(wrapped_callback_event(), session()) -> session().
 apply_callback_event(WrappedEvent, Session) ->
-    Adjustments0 = callbacks_index(Session),
-    Adjustments1 = p2p_callback_utils:apply_event(WrappedEvent, Adjustments0),
-    set_callbacks_index(Adjustments1, Session).
+    Callbacks0 = callbacks_index(Session),
+    Callbacks1 = p2p_callback_utils:apply_event(WrappedEvent, Callbacks0),
+    set_callbacks_index(Callbacks1, Session).
 
 -spec set_callbacks_index(callbacks_index(), session()) -> session().
 set_callbacks_index(Callbacks, Session) ->
     Session#{callbacks => Callbacks}.
+
+-spec apply_user_interaction_event(wrapped_user_interaction_event(), session()) -> session().
+apply_user_interaction_event(WrappedEvent, Session) ->
+    UserInteractions0 = user_interactions_index(Session),
+    UserInteractions1 = p2p_user_interaction_utils:apply_event(WrappedEvent, UserInteractions0),
+    set_user_interactions_index(UserInteractions1, Session).
+
+-spec set_user_interactions_index(user_interactions_index(), session()) -> session().
+set_user_interactions_index(UserInteractions, Session) ->
+    Session#{user_interactions => UserInteractions}.
 
 -spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->

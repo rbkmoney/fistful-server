@@ -63,8 +63,7 @@
 
 %% Internal types
 
--type action() :: machinery:action() | undefined.
--type process_result() :: {action(), [event()]}.
+-type process_result() :: [event()].
 
 %% Accessors
 
@@ -90,7 +89,7 @@ create(#{tag := Tag}) ->
         version => ?ACTUAL_FORMAT_VERSION,
         tag => Tag
     },
-    {ok, {continue, [{created, Callback}, {status_changed, pending}]}}.
+    {ok, [{created, Callback}, {status_changed, pending}]}.
 
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(callback()) -> boolean().
@@ -113,13 +112,13 @@ process_callback(Callback) ->
         pending ->
             % TODO add here p2p adapter call
             Response = #{payload => <<"Test payload">>},
-            {Response, {undefined, [
+            {Response, [
                 {succeeded, #{payload => <<"Test payload">>, response => <<"Test response">>}},
                 {status_changed, succeeded}
-            ]}};
+            ]};
         succeeded ->
             Response = response(Callback),
-            {Response, {undefined, []}}
+            {Response, []}
     end.
 
 %% Internals

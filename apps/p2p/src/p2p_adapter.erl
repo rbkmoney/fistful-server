@@ -32,7 +32,7 @@
 
 -type transaction_info()            :: ff_adapter:trx_info().
 
--type resource()                    :: any(). % FIXME p2p_transfer:resource_full(),
+-type resource()                    :: p2p_transfer:resource_full().
 
 -type cash()                        :: ff_cash:cash().
 -type currency()                    :: ff_currency:currency().
@@ -80,50 +80,8 @@
 }.
 
 -type user_interaction()            :: {id(), user_interaction_intent()}.
--type user_interaction_intent()     :: finish | {create, user_interaction_content()}.
--type user_interaction_content()    :: user_interaction_redirect()
-                                     | user_interaction_receipt()
-                                     | user_interaction_crypto()
-                                     | user_interaction_qr_code().
-
--type user_interaction_redirect()   :: #{
-    type    := redirect,
-    content := redirect()
-}.
-
--type user_interaction_receipt()    :: #{
-    type       := payment_terminal_receipt,
-    payment_id := payment_id(),
-    timestamp  := timestamp()
-}.
-
--type user_interaction_crypto()     :: #{
-    type           := crypto_currency_transfer_request,
-    crypto_address := crypto_address(),
-    crypto_cash    := crypto_cash()
-}.
-
--type user_interaction_qr_code()    :: #{
-    type    := qr_code_show_request,
-    payload := qr_code_payload()
-}.
-
--type redirect()                    :: redirect_get() | redirect_post().
--type redirect_get()                :: {get, uri()}.
--type redirect_post()               :: {post, uri(), form()}.
--type uri()                         :: binary().
--type form()                        :: #{binary() => template()}.
--type template()                    :: binary().
-
--type payment_id()                  :: binary().
--type timestamp()                   :: binary().
-
--type crypto_address()              :: binary().
--type crypto_cash()                 :: {crypto_amount(), crypto_symbolic_code()}.
--type crypto_amount()               :: genlib_rational:t().
--type crypto_symbolic_code()        :: binary().
-
--type qr_code_payload()             :: binary().
+-type user_interaction_intent()     :: p2p_user_interaction:intent().
+-type user_interaction_content()    :: p2p_user_interaction:content().
 
 -type transfer_params()             :: #{
     id       := id(),
@@ -132,6 +90,10 @@
     receiver := resource(),
     deadline => deadline()
 }.
+
+-export_type([transfer_params/0]).
+-export_type([adapter_state/0]).
+-export_type([finish_status/0]).
 
 %% API
 

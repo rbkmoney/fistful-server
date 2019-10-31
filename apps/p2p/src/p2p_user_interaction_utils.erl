@@ -35,7 +35,6 @@
 -type id() :: p2p_user_interaction:id().
 -type user_interaction() :: p2p_user_interaction:user_interaction().
 -type event() :: p2p_user_interaction:event().
--type action() :: machinery:action() | undefined.
 
 %% API
 
@@ -81,8 +80,8 @@ maybe_migrate(Event) ->
     wrap_event(ID, Migrated).
 
 -spec finish(id(), user_interaction()) ->
-    {action(), [wrapped_event()]}.
+    [wrapped_event()].
 finish(ID, UserInteraction) ->
-    {UserInteractionAction, Events} = p2p_user_interaction:finish(UserInteraction),
+    Events = p2p_user_interaction:finish(UserInteraction),
     WrappedEvents = wrap_events(ID, Events),
-    {UserInteractionAction, WrappedEvents}.
+    WrappedEvents.

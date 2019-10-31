@@ -12,7 +12,7 @@
 -opaque user_interaction() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
     id := id(),
-    intent := intent(),
+    content := content(),
     status => status()
 }.
 -type intent() :: finish | {create, content()}.
@@ -58,7 +58,7 @@
 
 -type params() :: #{
     id := id(),
-    intent := intent()
+    content := content()
 }.
 
 -type status() ::
@@ -75,6 +75,8 @@
 -export_type([status/0]).
 -export_type([user_interaction/0]).
 -export_type([params/0]).
+-export_type([intent/0]).
+-export_type([content/0]).
 
 %% Accessors
 
@@ -95,8 +97,7 @@
 
 %% Internal types
 
--type action() :: machinery:action() | undefined.
--type process_result() :: {action(), [event()]}.
+-type process_result() :: [event()].
 
 %% Accessors
 
@@ -113,13 +114,13 @@ status(#{status := V}) ->
 -spec create(params()) ->
     {ok, process_result()}.
 
-create(#{id := ID, intent := Intent}) ->
+create(#{id := ID, content := Content}) ->
     UserInteraction = #{
         version => ?ACTUAL_FORMAT_VERSION,
         id => ID,
-        intent => Intent
+        content => Content
     },
-    {ok, {continue, [{created, UserInteraction}, {status_changed, pending}]}}.
+    {ok, [{created, UserInteraction}, {status_changed, pending}]}.
 
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(user_interaction()) -> boolean().
@@ -138,9 +139,9 @@ is_finished(#{status := pending}) ->
 -spec finish(user_interaction()) ->
     process_result().
 finish(#{status := pending}) ->
-    {undefined, [{status_changed, finished}]};
+    [{status_changed, finished}];
 finish(#{status := finished}) ->
-    {undefined, []}.
+    [].
 
 %% Internals
 

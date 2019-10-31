@@ -14,7 +14,6 @@
 -export([create/3]).
 -export([get/1]).
 -export([events/2]).
--export([p2p_session/1]).
 -export([process_callback/2]).
 -export([repair/2]).
 
@@ -57,7 +56,6 @@
 -type session() :: p2p_session:session().
 -type event() :: p2p_session:event().
 
--type p2p_session() :: p2p_session:session().
 -type callback_params() :: p2p_session:callback_params().
 -type process_callback_response() :: p2p_session:process_callback_response().
 
@@ -68,6 +66,12 @@
 %%
 %% API
 %%
+
+-spec get(id()) ->
+    {ok, st()}        |
+    {error, notfound} .
+get(ID) ->
+    ff_machine:get(p2p_session, ?NS, ID).
 
 -spec session(st()) -> session().
 
@@ -84,12 +88,6 @@ create(ID, TransferParams, Params) ->
         unwrap(machinery:start(?NS, ID, Events, backend()))
     end).
 
--spec get(id()) ->
-    {ok, st()}        |
-    {error, notfound} .
-get(ID) ->
-    ff_machine:get(p2p_session, ?NS, ID).
-
 -spec events(id(), machinery:range()) ->
     {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
     {error, notfound}.
@@ -99,12 +97,6 @@ events(ID, Range) ->
         #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
-
--spec p2p_session(st()) ->
-    p2p_session().
-
-p2p_session(St) ->
-    ff_machine:model(St).
 
 -spec process_callback(id(), callback_params()) ->
     {ok, process_callback_response()} |
@@ -206,7 +198,7 @@ call(ID, Call) ->
 
 do_process_callback(Params, Machine) ->
     St = ff_machine:collapse(p2p_session, Machine),
-    case p2p_session:process_callback(Params, p2p_session(St)) of
+    case p2p_session:process_callback(Params, session(St)) of
         {ok, {Response, Result}} ->
             {{ok, Response}, process_result(Result, St)};
         {error, _Reason} = Error ->

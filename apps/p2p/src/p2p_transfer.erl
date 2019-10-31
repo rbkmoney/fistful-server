@@ -203,8 +203,7 @@
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type session_id() :: id().
 -type failure() :: ff_failure:failure().
-%% FIXME change to real result type
--type session_result() :: {success, ff_adapter:trx_info()} | {failed, ff_adapter:failure()}.
+-type session_result() :: p2p_session:session_result().
 -type adjustment() :: ff_adjustment:adjustment().
 -type adjustment_id() :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
@@ -756,6 +755,8 @@ process_session_poll(P2PTransfer) ->
     SessionID = session_id(P2PTransfer),
     {ok, SessionMachine} = p2p_session_machine:get(SessionID),
     Session = p2p_session_machine:session(SessionMachine),
+    % {continue, [{session, {finished, {SessionID, {success, #{id => Session, extra => #{}}}}}}]}.
+    % error({test, Session}),
     case p2p_session:status(Session) of
         active ->
             {poll, []};
@@ -962,9 +963,9 @@ session_processing_status(P2PTransfer) ->
             undefined;
         unknown ->
             pending;
-        {success, _TrxInfo} ->
+        success ->
             succeeded;
-        {failed, _Failure} ->
+        {failure, _Failure} ->
             failed
     end.
 
@@ -1129,7 +1130,7 @@ build_failure(route_not_found, _P2PTransfer) ->
 %     };
 build_failure(session, P2PTransfer) ->
     Result = session_result(P2PTransfer),
-    {failed, Failure} = Result,
+    {failure, Failure} = Result,
     Failure.
 
 %%

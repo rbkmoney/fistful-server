@@ -131,7 +131,17 @@ issue_token(ACL, LifeTime) ->
 
 issue_token(PartyID, ACL, LifeTime) ->
     Claims = #{?STRING => ?STRING},
-    wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime).
+    DomainRoles = #{
+        <<"wallet-api">> => uac_acl:from_list(ACL)
+    },
+    uac_authorizer_jwt:issue(
+        wapi_utils:get_unique_id(),
+        LifeTime,
+        PartyID,
+        DomainRoles,
+        Claims,
+        wapi
+    ).
 
 -spec get_context(binary()) ->
     wapi_client_lib:context().

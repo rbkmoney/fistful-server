@@ -89,11 +89,20 @@ start_wapi(Config) ->
         {port, ?WAPI_PORT},
         {realm, <<"external">>},
         {public_endpoint, <<"localhost:8080">>},
-        {authorizers, #{
+        {access_conf, #{
             jwt => #{
                 signee => wapi,
                 keyset => #{
                     wapi => {pem_file, get_keysource("keys/local/private.pem", Config)}
+                }
+            },
+            access => #{
+                domain_name => <<"wallet-api">>,
+                resource_hierarchy => #{
+                     party => #{
+                        wallets           => #{},
+                        destinations      => #{}
+                    }
                 }
             }
         }}

@@ -27,6 +27,8 @@ init([]) ->
     HealthCheck = enable_health_logging(genlib_app:env(wapi, health_check, #{})),
     HealthRoutes = [{'_', [erl_health_handle:get_route(HealthCheck)]}],
     SwaggerSpec = wapi_swagger_server:child_spec(HealthRoutes, LogicHandlers),
+    UacConf = genlib_app:env(wapi, access_conf),
+    ok = uac:configure(UacConf),
     {ok, {
         {one_for_all, 0, 1},
             AuthorizerSpecs ++ LogicHandlerSpecs ++ [SwaggerSpec]

@@ -24,9 +24,15 @@
 
 -spec authorize_api_key(operation_id(), api_key(), handler_opts()) ->
     false | {true, wapi_auth:context()}.
-authorize_api_key(OperationID, ApiKey, Opts) ->
+authorize_api_key(OperationID, ApiKey, _Opts) ->
     ok = scoper:add_scope('swag.server', #{api => wallet, operation_id => OperationID}),
-    wapi_auth:authorize_api_key(OperationID, ApiKey, Opts).
+    case uac:authorize_api_key(ApiKey, #{}) of
+        {ok, Context} ->
+            {true, Context};
+        {error, Error} ->
+            _ = logger:info("Api key authorization failed due to ~p", [Error]),
+            false
+    end.
 
 -spec handle_request(swag_server_wallet:operation_id(), req_data(), request_context(), handler_opts()) ->
     request_result().

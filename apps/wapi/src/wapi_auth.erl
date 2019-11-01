@@ -1,6 +1,5 @@
 -module(wapi_auth).
 
--export([authorize_api_key/3]).
 -export([authorize_operation/3]).
 -export([issue_access_token/2]).
 -export([issue_access_token/3]).
@@ -21,56 +20,6 @@
 -export_type([consumer/0]).
 
 -type operation_id() :: wapi_handler:operation_id().
-
--type api_key() ::
-    swag_server_wallet:api_key().
-
--type handler_opts() :: wapi_handler:opts().
-
--spec authorize_api_key(operation_id(), api_key(), handler_opts()) ->
-    {true, context()}. %% | false.
-
-authorize_api_key(OperationID, ApiKey, _Opts) ->
-    case parse_api_key(ApiKey) of
-        {ok, {Type, Credentials}} ->
-            case do_authorize_api_key(OperationID, Type, Credentials) of
-                {ok, Context} ->
-                    {true, Context};
-                {error, Error} ->
-                    _ = log_auth_error(OperationID, Error),
-                    false
-            end;
-        {error, Error} ->
-            _ = log_auth_error(OperationID, Error),
-            false
-    end.
-
-log_auth_error(OperationID, Error) ->
-    logger:info("API Key authorization failed for ~p due to ~p", [OperationID, Error]).
-
--spec parse_api_key(ApiKey :: api_key()) ->
-    {ok, {bearer, Credentials :: binary()}} | {error, Reason :: atom()}.
-
-parse_api_key(ApiKey) ->
-    case ApiKey of
-        <<"Bearer ", Credentials/binary>> ->
-            {ok, {bearer, Credentials}};
-        _ ->
-            {error, unsupported_auth_scheme}
-    end.
-
--spec do_authorize_api_key(
-    OperationID :: operation_id(),
-    Type :: atom(),
-    Credentials :: binary()
-) ->
-    {ok, Context :: context()} | {error, Reason :: atom()}.
-
-do_authorize_api_key(_OperationID, bearer, Token) ->
-    % NOTE
-    % We are knowingly delegating actual request authorization to the logic handler
-    % so we could gather more data to perform fine-grained access control.
-    wapi_authorizer_jwt:verify(Token).
 
 %%
 
@@ -202,13 +151,13 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
     {claims(), uac_authorizer_jwt:domain_roles()}.
 resolve_token_spec({destinations, DestinationId}) ->
     Claims = #{},
-    DomainRoles = #{<<"wallets-api">> => uac_acl:from_list(
+    DomainRoles = #{<<"wallet-api">> => uac_acl:from_list(
         [{[party, {destinations, DestinationId}], write}]
     )},
     {Claims, DomainRoles};
 resolve_token_spec({wallets, WalletId, #{<<"amount">> := Amount, <<"currency">> := Currency}}) ->
     Claims = #{<<"amount">> => Amount, <<"currency">> => Currency},
-    DomainRoles = #{<<"wallets-api">> => uac_acl:from_list(
+    DomainRoles = #{<<"wallet-api">> => uac_acl:from_list(
         [{[party, {wallets, WalletId}], write}]
     )},
     {Claims, DomainRoles}.

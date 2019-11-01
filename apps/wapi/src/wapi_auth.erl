@@ -12,8 +12,8 @@
 
 -export([get_resource_hierarchy/0]).
 
--type context () :: wapi_authorizer_jwt:t().
--type claims  () :: wapi_authorizer_jwt:claims().
+-type context () :: uac_authorizer_jwt:t().
+-type claims  () :: uac_authorizer_jwt:claims().
 -type consumer() :: client | merchant | provider.
 
 -export_type([context /0]).
@@ -188,35 +188,44 @@ issue_access_token(PartyID, TokenSpec) ->
 -spec issue_access_token(wapi_handler_utils:owner(), token_spec(), wapi_authorizer_jwt:expiration()) ->
     wapi_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec, Expiration) ->
-    {Claims, ACL} = resolve_token_spec(TokenSpec),
-    wapi_utils:unwrap(wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, Expiration)).
-
--type acl() :: [{wapi_acl:scope(), wapi_acl:permission()}].
+    {Claims, DomainRoles} = resolve_token_spec(TokenSpec),
+    wapi_utils:unwrap(uac_authorizer_jwt:issue(
+        wapi_utils:get_unique_id(),
+        Expiration,
+        PartyID,
+        DomainRoles,
+        Claims,
+        wapi
+    )).
 
 -spec resolve_token_spec(token_spec()) ->
-    {claims(), acl()}.
+    {claims(), uac_authorizer_jwt:domain_roles()}.
 resolve_token_spec({destinations, DestinationId}) ->
     Claims = #{},
-    ACL = [{[party, {destinations, DestinationId}], write}],
-    {Claims, ACL};
+    DomainRoles = #{<<"wallets-api">> => uac_acl:from_list(
+        [{[party, {destinations, DestinationId}], write}]
+    )},
+    {Claims, DomainRoles};
 resolve_token_spec({wallets, WalletId, #{<<"amount">> := Amount, <<"currency">> := Currency}}) ->
     Claims = #{<<"amount">> => Amount, <<"currency">> => Currency},
-    ACL    = [{[party, {wallets, WalletId}], write}],
-    {Claims, ACL}.
+    DomainRoles = #{<<"wallets-api">> => uac_acl:from_list(
+        [{[party, {wallets, WalletId}], write}]
+    )},
+    {Claims, DomainRoles}.
 
 -spec get_subject_id(context()) -> binary().
 
-get_subject_id({{SubjectID, _ACL}, _}) ->
+get_subject_id({_Id, {SubjectID, _ACL}, _}) ->
     SubjectID.
 
 -spec get_claims(context()) -> claims().
 
-get_claims({_Subject, Claims}) ->
+get_claims({_Id, _Subject, Claims}) ->
     Claims.
 
 -spec get_claim(binary(), context()) -> term().
 
-get_claim(ClaimName, {_Subject, Claims}) ->
+get_claim(ClaimName, {_Id, _Subject, Claims}) ->
     maps:get(ClaimName, Claims).
 
 -spec get_claim(binary(), context(), term()) -> term().

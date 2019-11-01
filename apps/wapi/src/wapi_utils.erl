@@ -20,6 +20,8 @@
 
 -export([parse_deadline/1]).
 
+-export([get_unique_id/0]).
+
 -type binding_value() :: binary().
 -type url()           :: binary().
 -type path()          :: binary().
@@ -246,6 +248,10 @@ clamp_max_deadline(Value) when is_integer(Value)->
             Value
     end.
 
+-spec get_unique_id() -> binary().
+get_unique_id() ->
+    <<ID:64>> = snowflake:new(),
+    genlib_format:format_int_base(ID, 62).
 %%
 
 -ifdef(TEST).

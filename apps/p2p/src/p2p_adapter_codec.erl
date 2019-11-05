@@ -10,23 +10,24 @@
 %% Exports
 
 -export([encode_callback/1]).
--export([encode_context/1]).
+-export([encode_context/3]).
 
 -export([decode_callback/1]).
 -export([decode_process_result/1]).
 -export([decode_handle_callback_result/1]).
-% -export([decode_process_callback_result/1]).
 
 -type callback()                    :: p2p_adapter:callback().
 -type p2p_callback()                :: dmsl_p2p_adapter_thrift:'Callback'().
 
--type context()                     :: p2p_adapter:context().
+-type transfer_params()             :: p2p_adapter:transfer_params().
+-type adapter_state()               :: p2p_adapter:adapter_state().
+-type adapter_opts()                :: p2p_adapter:adapter_opts().
 -type p2p_context()                 :: dmsl_p2p_adapter_thrift:'Context'().
 
 -type p2p_session()                 :: dmsl_p2p_adapter_thrift:'Session'().
 -type p2p_operation_info()          :: dmsl_p2p_adapter_thrift:'OperationInfo'().
 
--type resource()                    :: any(). % FIXME p2p_transfer:resource_full(),
+-type resource()                    :: p2p_transfer:resource_full().
 -type p2p_payment_resource()        :: dmsl_p2p_adapter_thrift:'PaymentResource'().
 -type p2p_cash()                    :: dmsl_p2p_adapter_thrift:'Cash'().
 
@@ -49,7 +50,6 @@
 
 -type user_interaction_type()       :: dmsl_user_interaction_thrift:'UserInteraction'().
 
-
 %% API
 
 % Encoders
@@ -62,13 +62,13 @@ encode_callback(#{tag := Tag, payload := Payload}) ->
         payload = Payload
     }.
 
--spec encode_context(context()) ->
+-spec encode_context(transfer_params(), adapter_state(), adapter_opts()) ->
     p2p_context().
-encode_context(Context) ->
+encode_context(TransferParams, AdapterState, AdapterOpts) ->
     #p2p_adapter_Context{
-        session   = encode_session(Context),
-        operation = encode_operation_info(Context),
-        options   = maps:get(adapter_opts, Context, #{})
+        session   = encode_session(AdapterState),
+        operation = encode_operation_info(TransferParams),
+        options   = AdapterOpts
     }.
 
 % Decoders
@@ -92,26 +92,24 @@ decode_callback(#p2p_adapter_Callback{tag = Tag, payload = Payload}) ->
 
 % Encoders
 
--spec encode_session(context()) ->
+-spec encode_session(transfer_params()) ->
     p2p_session().
-encode_session(#{adapter_state := AdapterState}) ->
-    #p2p_adapter_Session{state = AdapterState};
-encode_session(#{}) ->
-    #p2p_adapter_Session{state = undefined}.
+encode_session(AdapterState) ->
+    #p2p_adapter_Session{state = AdapterState}.
 
--spec encode_operation_info(context()) ->
+-spec encode_operation_info(transfer_params()) ->
     p2p_operation_info().
-encode_operation_info(Context) ->
+encode_operation_info(TransferParams) ->
     #{
         cash     := Cash,
         sender   := Sender,
         receiver := Receiver
-    } = Context,
+    } = TransferParams,
     {process, #p2p_adapter_ProcessOperationInfo{
         body     = encode_cash(Cash),
         sender   = encode_resource(Sender),
         receiver = encode_resource(Receiver),
-        deadline = maps:get(deadline, Context, undefined)
+        deadline = maps:get(deadline, TransferParams, undefined)
     }}.
 
 -spec encode_cash(cash()) ->
@@ -195,14 +193,14 @@ decode_user_interaction(undefined) ->
     undefined.
 
 -spec decode_user_interaction_intent(p2p_user_interaction_intent()) ->
-    p2p_adapter:user_interaction_intent().
+    p2p_user_interaction:intent().
 decode_user_interaction_intent({finish, #p2p_adapter_UserInteractionFinish{}}) ->
     finish;
 decode_user_interaction_intent({create, #p2p_adapter_UserInteractionCreate{user_interaction = UserInteractionType}}) ->
     {create, decode_user_interaction_type(UserInteractionType)}.
 
 -spec decode_user_interaction_type(user_interaction_type()) ->
-    p2p_adapter:user_interaction_content().
+    p2p_user_interaction:content().
 decode_user_interaction_type({redirect, {get_request, #'BrowserGetRequest'{uri = URI}}}) ->
     #{type => redirect, content => {get, URI}};
 decode_user_interaction_type({redirect, {post_request, #'BrowserPostRequest'{uri = URI, form = Form}}}) ->

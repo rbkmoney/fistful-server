@@ -9,6 +9,7 @@
 %% API
 
 -export([status/1]).
+-export([is_finished/1]).
 
 -export([create/3]).
 -export([process_session/1]).
@@ -21,6 +22,7 @@
 
 -export([transfer_params/1]).
 -export([adapter/1]).
+-export([adapter_state/1]).
 
 %% ff_machine
 -export([apply_event/2]).
@@ -69,7 +71,7 @@
     provider_id := ff_p2p_provider:id()
 }.
 
--type callback_params() :: p2p_callback:params().
+-type callback_params() :: p2p_callback:process_params().
 -type process_callback_response() :: p2p_callback:response().
 -type process_callback_error() ::
     {session_already_finished, id()} |
@@ -127,6 +129,14 @@ id(#{id := V}) ->
 status(#{status := V}) ->
     V.
 
+%% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
+%% изменением дочерних сущностей, например запуском adjustment.
+-spec is_finished(session()) -> boolean().
+is_finished(#{status := {finished, _}}) ->
+    true;
+is_finished(#{status := active}) ->
+    false.
+
 %% Accessors
 
 -spec transfer_params(session()) -> transfer_params().
@@ -135,6 +145,10 @@ transfer_params(#{transfer_params := V}) ->
 
 -spec adapter(session()) -> adapter_with_opts().
 adapter(#{adapter := V}) ->
+    V.
+
+-spec adapter_state(session()) -> adapter_state().
+adapter_state(#{adapter_state := V}) ->
     V.
 
 %%
@@ -177,7 +191,7 @@ process_trx_info(_, Events) ->
 
 process_intent({sleep, #{timer := Timer, callback_tag := Tag} = Data}, Events0, Session) ->
     UserInteraction = maps:get(user_interaction, Data, undefined),
-    Events1 = process_callback(Tag, Session, Events0),
+    Events1 = process_intent_callback(Tag, Session, Events0),
     Events2 = process_user_interaction(UserInteraction, Session, Events1),
     #{
         events => Events2,
@@ -188,7 +202,7 @@ process_intent({finish, Result}, Events, _Session) ->
         events => Events ++ [{finished, Result}]
     }.
 
-process_callback(Tag, Session, Events) ->
+process_intent_callback(Tag, Session, Events) ->
     case p2p_callback_utils:get_by_tag(Tag, callbacks_index(Session)) of
         {ok, _Callback} ->
             Events;
@@ -232,13 +246,15 @@ set_session_result(Result, #{status := active}) ->
 -spec process_callback(callback_params(), session()) ->
     {ok, {process_callback_response(), process_result()}} |
     {error, process_callback_error()}.
-process_callback(#{tag := CallbackTag}, Session) ->
+process_callback(#{tag := CallbackTag} = Params, Session) ->
     case find_callback(CallbackTag, Session) of
         %% TODO add exeption to proto
         {error, {unknown_callback, _}} = Error ->
             Error;
-        {ok, Callback} ->
-            do_process_callback(CallbackTag, Callback, Session)
+        {ok, Callback0} ->
+            Payload = maps:get(payload, Params),
+            Callback1 = p2p_callback:set_callback_payload(Payload, Callback0),
+            do_process_callback(CallbackTag, Callback1, Session)
     end.
 
 -spec find_callback(p2p_callback_tag(), session()) ->

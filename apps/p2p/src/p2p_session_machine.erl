@@ -69,9 +69,15 @@
 
 -spec get(id()) ->
     {ok, st()}        |
-    {error, notfound} .
+    {error, unknown_p2p_session_error()}.
+
 get(ID) ->
-    ff_machine:get(p2p_session, ?NS, ID).
+    case ff_machine:get(p2p_session, ?NS, ID) of
+        {ok, _Machine} = Result ->
+            Result;
+        {error, notfound} ->
+            {error, {unknown_p2p_session, ID}}
+    end.
 
 -spec session(st()) -> session().
 

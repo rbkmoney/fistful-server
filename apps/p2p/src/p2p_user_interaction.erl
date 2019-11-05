@@ -147,7 +147,7 @@ finish(#{status := finished}) ->
 
 -spec update_status(status(), user_interaction()) -> user_interaction().
 update_status(Status, UserInteraction) ->
-    UserInteraction#{status := Status}.
+    UserInteraction#{status => Status}.
 
 %% Events utils
 

@@ -21,6 +21,7 @@
 
 -export([transfer_params/1]).
 -export([adapter/1]).
+-export([adapter_state/1]).
 
 %% ff_machine
 -export([apply_event/2]).
@@ -137,6 +138,10 @@ transfer_params(#{transfer_params := V}) ->
 adapter(#{adapter := V}) ->
     V.
 
+-spec adapter_state(session()) -> adapter_state() | undefined.
+adapter_state(Session = #{}) ->
+    maps:get(adapter_state, Session, undefined).
+
 %%
 
 -spec create(id(), transfer_params(), params()) ->
@@ -158,7 +163,7 @@ get_adapter_with_opts(ProviderID) ->
 
 -spec process_session(session()) -> result().
 process_session(Session) ->
-    ASt = maps:get(adapter_state, Session, undefined),
+    ASt = adapter_state(Session),
     {Adapter, Opts} = adapter(Session),
     {ok, {Intent, Data}} = p2p_adapter:process(Adapter, transfer_params(Session), ASt, Opts),
     Events0 = process_next_state(Data, []),

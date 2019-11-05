@@ -19,12 +19,7 @@
 -type id()                          :: binary().
 -type deadline()                    :: binary().
 
--type callback_tag()                :: binary().
--type callback_payload()            :: binary().
--type callback()                    :: #{
-    tag     := callback_tag(),
-    payload := callback_payload()
-}.
+-type callback()                    :: p2p_callback:process_params().
 
 -type adapter()                     :: ff_adapter:adapter().
 -type adapter_opts()                :: ff_adapter:opts().
@@ -61,7 +56,7 @@
 -type process_result()              :: {ok, {intent(), result_data()}}.
 -type handle_callback_result()      :: {ok, {intent(), callback_response_payload(), result_data()}}.
 
--type callback_response_payload()   :: binary().
+-type callback_response_payload()   :: p2p_callback:response().
 
 -type intent()                      :: {finish, finish_status()}
                                      | {sleep , sleep_status()}.
@@ -70,7 +65,7 @@
 
 -type sleep_status()                :: #{
     timer            := timer(),
-    callback_tag     := callback_tag(),
+    callback_tag     := p2p_callback:tag(),
     user_interaction => user_interaction()
 }.
 
@@ -249,7 +244,7 @@ decode_intent({sleep,  #p2p_adapter_SleepIntent{
 -spec decode_callback_response(p2p_callback_response()) ->
     callback_response_payload().
 decode_callback_response(#p2p_adapter_CallbackResponse{payload = Payload}) ->
-    Payload.
+    #{payload => Payload}.
 
 -spec decode_user_interaction(p2p_user_interaction()) -> user_interaction();
                              (undefined)              -> undefined.

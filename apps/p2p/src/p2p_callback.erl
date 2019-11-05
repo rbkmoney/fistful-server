@@ -55,7 +55,7 @@
 -export([create/1]).
 -export([is_active/1]).
 -export([is_finished/1]).
--export([process_callback/1]).
+-export([process_response/2]).
 -export([set_callback_payload/2]).
 
 %% Event source
@@ -107,20 +107,17 @@ is_finished(#{status := succeeded}) ->
 is_finished(#{status := pending}) ->
     false.
 
--spec process_callback(callback()) ->
-    {response(), process_result()}.
-process_callback(Callback) ->
+-spec process_response(response(), callback()) ->
+    process_result().
+process_response(Response, Callback) ->
     case status(Callback) of
         pending ->
-            % TODO add here p2p adapter call
-            Response = #{payload => <<"Test payload">>},
-            {Response, [
+            [
                 {succeeded, Response},
                 {status_changed, succeeded}
-            ]};
+            ];
         succeeded ->
-            Response = response(Callback),
-            {Response, []}
+            []
     end.
 
 -spec set_callback_payload(payload(), callback()) ->

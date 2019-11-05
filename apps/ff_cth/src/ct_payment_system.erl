@@ -681,6 +681,12 @@ default_termset(Options) ->
                                 ]}
                             }
                         ]}
+                    },
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
                     }
                 ]},
                 quote_lifetime = {interval, #domain_LifetimeInterval{

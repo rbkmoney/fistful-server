@@ -185,7 +185,7 @@ create_sender_resource_notfound_test(C) ->
         external_id => P2PTransferID
     },
     Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    ?assertMatch({error, {resource_full, {sender, {bin_data, not_found}}}}, Result).
+    ?assertMatch({error, {sender, {bin_data, not_found}}}, Result).
 
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->
@@ -311,4 +311,4 @@ create_resource_raw(Token, C) ->
         Token ->
             StoreSource#{token => Token}
         end,
-    {raw, #{resource => NewStoreResource}}.
+    p2p_participant:create(resource, NewStoreResource).

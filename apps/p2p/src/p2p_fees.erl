@@ -16,7 +16,7 @@
 -type validate_p2p_error()        :: ff_party:validate_p2p_error().
 -type volume_finalize_error()     :: ff_cash_flow:volume_finalize_error().
 
--type fees()    :: #{fees => #{plan_constant() => surplus_cash_volume()}}.
+-type fees()        :: #{fees => #{plan_constant() => surplus_cash_volume()}}.
 -opaque fee_quote() :: #{
     amount            := cash(),
     party_revision    := ff_party:revision(),
@@ -33,9 +33,13 @@
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
 
+-export([created_at/1]).
+-export([domain_revision/1]).
+-export([party_revision/1]).
+-export([sender_id/1]).
+-export([receiver_id/1]).
 -export([get_fee_quote/4]).
-
--import(ff_pipeline, [do/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessories
 
@@ -43,6 +47,32 @@
     surplus_cash_volume() | undefined.
 surplus(#{fees := Fees}) ->
     maps:get(surplus, Fees, undefined).
+
+-spec created_at(fee_quote()) ->
+    ff_time:timestamp_ms().
+created_at(#{created_at := Time}) ->
+    Time.
+
+-spec domain_revision(fee_quote()) ->
+    ff_domain_config:revision().
+domain_revision(#{domain_revision := Revision}) ->
+    Revision.
+
+-spec party_revision(fee_quote()) ->
+    ff_party:revision().
+party_revision(#{party_revision := Revision}) ->
+    Revision.
+
+
+-spec sender_id(fee_quote()) ->
+    ff_bin_data:bin_data_id().
+sender_id(#{sender := Sender}) ->
+    maps:get(bin_data_id, Sender).
+
+-spec receiver_id(fee_quote()) ->
+    ff_bin_data:bin_data_id().
+receiver_id(#{receiver := Receiver}) ->
+    maps:get(bin_data_id, Receiver).
 
 -spec instrument(p2p_instrument:instrument()) ->
     instrument().
@@ -59,7 +89,7 @@ instrument(Instrument) ->
     {error, {identity,   not_found}} |
     {error, {party,      get_contract_terms_error()}} |
     {error, {p2p_tool,   not_allow}} |
-    {error, {validation, validate_p2p_error()}}.
+    {error, validate_p2p_error()}.
 get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
         IdentityMachine = unwrap(identity, ff_identity_machine:get(IdentityID)),
@@ -68,11 +98,17 @@ get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
         ContractID = ff_identity:contract(Identity),
         {ok, PartyRevision} = ff_party:get_revision(PartyID),
         DomainRevision = ff_domain_config:head(),
-        VS = create_varset(PartyID, Cash, Sender, Receiver),
+        Params = #{
+            cash => Cash,
+            party_id => PartyID,
+            sender => Sender,
+            receiver => Receiver
+        },
+        VS = p2p_party:create_varset(Params),
         CreatedAt = ff_time:now(),
         Terms = unwrap(party, ff_party:get_contract_terms(
             PartyID, ContractID, VS, CreatedAt, PartyRevision, DomainRevision)),
-        valid = unwrap(validation, ff_party:validate_p2p    (Terms, Cash)),
+        valid = unwrap(ff_party:validate_p2p(Terms, Cash)),
         ExpiresOn = get_expire_time(Terms, CreatedAt),
         true = unwrap(p2p_tool, allow_p2p_tool(Terms)),
         Fees = get_fees_from_terms(Terms),
@@ -98,29 +134,6 @@ compute_surplus_volume(CashVolume, Cash) ->
     ff_cash_flow:compute_volume(CashVolume, Constants).
 
 %%
-
-create_varset(PartyID, {_, Currency} = Cash, Sender, Receiver) ->
-    #{
-        party_id => PartyID,
-        currency => encode_currency(Currency),
-        cost     => encode_cash(Cash),
-        p2p_tool => encode_p2p_tool(Sender, Receiver)
-    }.
-
-encode_cash({Amount, Currency}) ->
-    #domain_Cash{
-        amount   = Amount,
-        currency = encode_currency(Currency)
-    }.
-
-encode_currency(Currency) ->
-    #domain_CurrencyRef{symbolic_code = Currency}.
-
-encode_p2p_tool(Sender, Receiver) ->
-    #domain_P2PTool{
-        sender = p2p_instrument:construct_payment_tool(Sender),
-        receiver = p2p_instrument:construct_payment_tool(Receiver)
-    }.
 
 -spec get_fees_from_terms(terms()) ->
     fees().

@@ -2,6 +2,8 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
+-define(LIFETIME_MS_DEFAULT, 900000). %% 15min in milliseconds
+
 -type sender()        :: p2p_instrument:instrument().
 -type receiver()      :: p2p_instrument:instrument().
 -type cash()          :: ff_cash:cash().
@@ -15,7 +17,7 @@
 -type volume_finalize_error()     :: ff_cash_flow:volume_finalize_error().
 
 -type fees()    :: #{fees => #{plan_constant() => surplus_cash_volume()}}.
--opaque token() :: #{
+-opaque fee_quote() :: #{
     amount            := cash(),
     party_revision    := ff_party:revision(),
     domain_revision   := ff_domain_config:revision(),
@@ -26,12 +28,12 @@
     receiver          := instrument()
 }.
 
--export_type([token/0]).
+-export_type([fee_quote/0]).
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
 
--export([get_fee_token/4]).
+-export([get_fee_quote/4]).
 
 -import(ff_pipeline, [do/1, unwrap/2]).
 
@@ -52,12 +54,13 @@ instrument(Instrument) ->
 
 %%
 
--spec get_fee_token(cash(), identity_id(), sender(), receiver()) ->
-    {ok, {cash() | undefined, surplus_cash_volume() | undefined, p2p_fees:token()}} |
+-spec get_fee_quote(cash(), identity_id(), sender(), receiver()) ->
+    {ok, {cash() | undefined, surplus_cash_volume() | undefined, fee_quote()}} |
     {error, {identity,   not_found}} |
     {error, {party,      get_contract_terms_error()}} |
+    {error, {p2p_tool,   not_allow}} |
     {error, {validation, validate_p2p_error()}}.
-get_fee_token(Cash, IdentityID, Sender, Receiver) ->
+get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
         IdentityMachine = unwrap(identity, ff_identity_machine:get(IdentityID)),
         Identity = ff_identity_machine:identity(IdentityMachine),
@@ -66,25 +69,26 @@ get_fee_token(Cash, IdentityID, Sender, Receiver) ->
         {ok, PartyRevision} = ff_party:get_revision(PartyID),
         DomainRevision = ff_domain_config:head(),
         VS = create_varset(PartyID, Cash, Sender, Receiver),
-        Timestamp = ff_time:now(),
-        ExpiresOn = create_expires_on(Timestamp),
+        CreatedAt = ff_time:now(),
         Terms = unwrap(party, ff_party:get_contract_terms(
-            PartyID, ContractID, VS, Timestamp, PartyRevision, DomainRevision)),
-        valid = unwrap(validation, ff_party:validate_p2p_limits(Terms, Cash)),
+            PartyID, ContractID, VS, CreatedAt, PartyRevision, DomainRevision)),
+        valid = unwrap(validation, ff_party:validate_p2p    (Terms, Cash)),
+        ExpiresOn = get_expire_time(Terms, CreatedAt),
+        true = unwrap(p2p_tool, allow_p2p_tool(Terms)),
         Fees = get_fees_from_terms(Terms),
         SurplusCashVolume = surplus(Fees),
         SurplusCash = unwrap(cash_flow, compute_surplus_volume(SurplusCashVolume, Cash)),
-        Token = #{
+        Quote = #{
             amount => Cash,
             party_revision => PartyRevision,
             domain_revision => DomainRevision,
-            created_at => Timestamp,
+            created_at => CreatedAt,
             expires_on => ExpiresOn,
             identity_id => IdentityID,
             sender => instrument(Sender),
             receiver => instrument(Receiver)
         },
-        {SurplusCash, SurplusCashVolume, Token}
+        {SurplusCash, SurplusCashVolume, Quote}
     end).
 
 compute_surplus_volume(undefined, _Cash) ->
@@ -102,9 +106,6 @@ create_varset(PartyID, {_, Currency} = Cash, Sender, Receiver) ->
         cost     => encode_cash(Cash),
         p2p_tool => encode_p2p_tool(Sender, Receiver)
     }.
-
-create_expires_on(Timestamp) ->
-    Timestamp + 15 * 60 * 1000.
 
 encode_cash({Amount, Currency}) ->
     #domain_Cash{
@@ -142,3 +143,49 @@ decode_domain_fees({value, #domain_Fees{fees = Fees}}) ->
         ff_cash_flow:decode_domain_plan_volume(Value)
     end, Fees),
     #{fees => FeeDecode}.
+
+-spec allow_p2p_tool(terms()) ->
+    {ok, true} | {error, not_allow}.
+allow_p2p_tool(Terms) ->
+    #domain_TermSet{wallets = WalletTerms} = Terms,
+    #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,
+    #domain_P2PServiceTerms{allow = Constant} = P2PServiceTerms,
+    case Constant of
+        {constant, true} -> {ok, true};
+        {constant, false} -> {error, not_allow}
+    end.
+
+-spec get_expire_time(terms(), ff_time:timestamp_ms()) ->
+    ff_time:timestamp_ms().
+get_expire_time(Terms, CreatedAt) ->
+    #domain_TermSet{wallets = WalletTerms} = Terms,
+    #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,
+    #domain_P2PServiceTerms{quote_lifetime = Lifetime} = P2PServiceTerms,
+    case Lifetime of
+        undefined ->
+            CreatedAt + ?LIFETIME_MS_DEFAULT;
+        {interval, LifetimeInterval} ->
+            DateTime = decode_lifetime_interval(LifetimeInterval),
+            ff_time:add_interval(CreatedAt, DateTime)
+    end.
+
+decode_lifetime_interval(LifetimeInterval) ->
+    #domain_LifetimeInterval{
+        years = YY,
+        months = MM,
+        days = DD,
+        hours = HH,
+        minutes = Min,
+        seconds = Sec
+    } = LifetimeInterval,
+    Date = {nvl(YY), nvl(MM), nvl(DD)},
+    Time = {nvl(HH), nvl(Min), nvl(Sec)},
+    {Date, Time}.
+
+nvl(Val) ->
+    nvl(Val, 0).
+
+nvl(undefined, Default) ->
+    Default;
+nvl(Val, _) ->
+    Val.

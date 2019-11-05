@@ -30,6 +30,7 @@
 -export([token/1]).
 -export([country_code/1]).
 -export([bin_data_id/1]).
+
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/2]).

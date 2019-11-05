@@ -75,7 +75,7 @@
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_p2p_cash_flow_plan/1]).
--export([validate_p2p_limits/2]).
+-export([validate_p2p/2]).
 -export([get_identity_payment_institution_id/1]).
 
 %% Internal types
@@ -290,11 +290,11 @@ validate_deposit_creation(Terms, {_Amount, CurrencyID} = _Cash) ->
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 
--spec validate_p2p_limits(terms(), cash()) -> Result when
+-spec validate_p2p(terms(), cash()) -> Result when
     Result :: {ok, valid} | {error, Error},
     Error :: validate_p2p_error().
 
-validate_p2p_limits(Terms, {_, CurrencyID} = Cash) ->
+validate_p2p(Terms, {_, CurrencyID} = Cash) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
         valid = unwrap(validate_p2p_terms_is_reduced(WalletTerms)),

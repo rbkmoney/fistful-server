@@ -60,28 +60,8 @@
 -type intent()                :: {finish, status()} | {sleep, timer()}.
 -type status()                :: {success, trx_info()} | {failure, failure()}.
 -type timer()                 :: dmsl_base_thrift:'Timer'().
--type trx_info()              :: #{
-    id := binary(),
-    timestamp => binary(),
-    extra := #{binary() => binary()},
-    additional_info => additional_trx_info()
-}.
--type additional_trx_info()   :: #{
-    rrn => binary(),
-    approval_code => binary(),
-    acs_url => binary(),
-    pareq => binary(),
-    md => binary(),
-    term_url => binary(),
-    pares => binary(),
-    eci => binary(),
-    cavv => binary(),
-    xid => binary(),
-    cavv_algorithm => binary(),
-    three_ds_verification => binary()
-}.
-
--type failure()               :: ff_failure:failure().
+-type trx_info()              :: ff_adapter:trx_info().
+-type failure()               :: ff_adapter:failure().
 
 -type adapter_state()         :: ff_adapter:state().
 -type process_result()        ::

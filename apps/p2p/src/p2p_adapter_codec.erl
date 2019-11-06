@@ -205,22 +205,23 @@ decode_user_interaction_type({redirect, {get_request, #'BrowserGetRequest'{uri =
     #{type => redirect, content => {get, URI}};
 decode_user_interaction_type({redirect, {post_request, #'BrowserPostRequest'{uri = URI, form = Form}}}) ->
     #{type => redirect, content => {post, URI, Form}};
+% unused
 % TYPO IN PROTOCOL: reciept instead of receipt
-decode_user_interaction_type({payment_terminal_reciept, Receipt}) ->
-    ID        = Receipt#'PaymentTerminalReceipt'.short_payment_id,
-    Timestamp = Receipt#'PaymentTerminalReceipt'.due,
-    #{type => payment_terminal_receipt, payment_id => ID, timestamp => Timestamp};
-decode_user_interaction_type({crypto_currency_transfer_request, Crypto}) ->
-    Address    = Crypto#'CryptoCurrencyTransferRequest'.crypto_address,
-    Cash       = Crypto#'CryptoCurrencyTransferRequest'.crypto_cash,
-    Amount     = Cash#'CryptoCash'.crypto_amount,
-    SymCode    = Cash#'CryptoCash'.crypto_symbolic_code,
-    Quantity   = Amount#'Rational'.q,
-    Part       = Amount#'Rational'.p,
-    CryptoCash = {{Quantity, Part}, SymCode},
-    #{type => crypto_currency_transfer_request, crypto_address => Address, crypto_cash => CryptoCash};
-decode_user_interaction_type({qr_code_show_request, Payload}) ->
-    #{type => qr_code_show_request, payload => Payload}.
+% decode_user_interaction_type({payment_terminal_reciept, Receipt}) ->
+%     ID        = Receipt#'PaymentTerminalReceipt'.short_payment_id,
+%     Timestamp = Receipt#'PaymentTerminalReceipt'.due,
+%     #{type => payment_terminal_receipt, payment_id => ID, timestamp => Timestamp};
+% decode_user_interaction_type({crypto_currency_transfer_request, Crypto}) ->
+%     Address    = Crypto#'CryptoCurrencyTransferRequest'.crypto_address,
+%     Cash       = Crypto#'CryptoCurrencyTransferRequest'.crypto_cash,
+%     Amount     = Cash#'CryptoCash'.crypto_amount,
+%     SymCode    = Cash#'CryptoCash'.crypto_symbolic_code,
+%     Quantity   = Amount#'Rational'.q,
+%     Part       = Amount#'Rational'.p,
+%     CryptoCash = {{Quantity, Part}, SymCode},
+%     #{type => crypto_currency_transfer_request, crypto_address => Address, crypto_cash => CryptoCash};
+% decode_user_interaction_type({qr_code_show_request, Payload}) ->
+%     #{type => qr_code_show_request, payload => Payload}.
 
 -spec decode_transaction_info(domain_transaction_info()) -> transaction_info();
                              (undefined)                 -> undefined.

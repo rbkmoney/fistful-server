@@ -66,7 +66,7 @@ handle_callback(_C) ->
     AdapterOpts    = #{},
     Callback       = #{tag => <<"p2p">>, payload => <<>>},
     Result         = p2p_adapter:handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts),
-    ?assertMatch({ok, {{finish, success}, <<"payload">>, #{}}}, Result),
+    ?assertMatch({ok, {{finish, success}, #{payload := <<"payload">>}, #{}}}, Result),
     ok.
 
 construct_transfer_params() ->

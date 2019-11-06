@@ -56,7 +56,7 @@
 -type session() :: p2p_session:session().
 -type event() :: p2p_session:event().
 
--type callback_params() :: p2p_session:callback_params().
+-type callback_params() :: p2p_session:p2p_callback_params().
 -type process_callback_response() :: p2p_session:process_callback_response().
 
 %% Pipeline
@@ -69,9 +69,15 @@
 
 -spec get(id()) ->
     {ok, st()}        |
-    {error, notfound} .
+    {error, unknown_p2p_session_error()}.
+
 get(ID) ->
-    ff_machine:get(p2p_session, ?NS, ID).
+    case ff_machine:get(p2p_session, ?NS, ID) of
+        {ok, _Machine} = Result ->
+            Result;
+        {error, notfound} ->
+            {error, {unknown_p2p_session, ID}}
+    end.
 
 -spec session(st()) -> session().
 
@@ -159,30 +165,6 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
 backend() ->
     fistful:backend(?NS).
 
-process_result({Action, Events}, St) ->
-    genlib_map:compact(#{
-        events => set_events(Events),
-        action => set_action(Action, St)
-    }).
-
-set_events([]) ->
-    undefined;
-set_events(Events) ->
-    ff_machine:emit_events(Events).
-
-set_action(continue, _St) ->
-    continue;
-set_action(undefined, _St) ->
-    undefined;
-set_action(poll, St) ->
-    Now = machinery_time:now(),
-    {set_timer, {timeout, compute_poll_timeout(Now, St)}}.
-
-compute_poll_timeout(Now, St) ->
-    MaxTimeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
-    Timeout0 = machinery_time:interval(Now, ff_machine:updated(St)) div 1000,
-    erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
-
 call(ID, Call) ->
     case machinery:call(?NS, ID, Call, backend()) of
         {ok, Reply} ->
@@ -200,7 +182,7 @@ do_process_callback(Params, Machine) ->
     St = ff_machine:collapse(p2p_session, Machine),
     case p2p_session:process_callback(Params, session(St)) of
         {ok, {Response, Result}} ->
-            {{ok, Response}, process_result(Result, St)};
+            {{ok, Response}, Result};
         {error, _Reason} = Error ->
             {Error, #{}}
     end.

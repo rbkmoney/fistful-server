@@ -21,19 +21,19 @@
     tag := tag()
 }.
 
+-type process_params() :: #{
+    tag := tag(),
+    payload := payload()
+}.
+
 -type status() ::
     pending |
     succeeded.
 
--type processed_callback() :: #{
-    payload => payload(),
-    response => response()
-}.
-
 -type legacy_event() :: any().
 -type event() ::
     {created, callback()} |
-    {succeeded, processed_callback()} |
+    {succeeded, response()} |
     {status_changed, status()}.
 
 -export_type([tag/0]).
@@ -42,6 +42,7 @@
 -export_type([status/0]).
 -export_type([callback/0]).
 -export_type([params/0]).
+-export_type([process_params/0]).
 
 %% Accessors
 
@@ -54,7 +55,8 @@
 -export([create/1]).
 -export([is_active/1]).
 -export([is_finished/1]).
--export([process_callback/1]).
+-export([process_response/2]).
+-export([set_callback_payload/2]).
 
 %% Event source
 
@@ -105,27 +107,33 @@ is_finished(#{status := succeeded}) ->
 is_finished(#{status := pending}) ->
     false.
 
--spec process_callback(callback()) ->
-    {response(), process_result()}.
-process_callback(Callback) ->
+-spec process_response(response(), callback()) ->
+    process_result().
+process_response(Response, Callback) ->
     case status(Callback) of
         pending ->
-            % TODO add here p2p adapter call
-            Response = #{payload => <<"Test payload">>},
-            {Response, [
-                {succeeded, #{payload => <<"Test payload">>, response => <<"Test response">>}},
+            [
+                {succeeded, Response},
                 {status_changed, succeeded}
-            ]};
+            ];
         succeeded ->
-            Response = response(Callback),
-            {Response, []}
+            []
     end.
+
+-spec set_callback_payload(payload(), callback()) ->
+    callback().
+set_callback_payload(Payload, Callback) ->
+    Callback#{payload => Payload}.
 
 %% Internals
 
 -spec update_status(status(), callback()) -> callback().
 update_status(Status, Callback) ->
-    Callback#{status := Status}.
+    Callback#{status => Status}.
+
+-spec update_response(response(), callback()) -> callback().
+update_response(Response, Callback) ->
+    Callback#{response => Response}.
 
 %% Events utils
 
@@ -139,7 +147,9 @@ apply_event(Ev, T) ->
 apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
-    update_status(S, T).
+    update_status(S, T);
+apply_event_({succeeded, R}, T) ->
+    update_response(R, T).
 
 -spec maybe_migrate(event() | legacy_event()) ->
     event().

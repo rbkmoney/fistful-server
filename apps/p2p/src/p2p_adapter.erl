@@ -52,10 +52,7 @@
 
 -type transaction_info()            :: ff_adapter:transaction_info().
 
--type callback()                    :: #{
-    tag     := callback_tag(),
-    payload := callback_payload()
-}.
+-type callback()                    :: p2p_callback:process_params().
 
 -type callback_tag()                :: binary().
 -type callback_payload()            :: binary().
@@ -63,10 +60,10 @@
 -type p2p_process_result()          :: dmsl_p2p_adapter_thrift:'ProcessResult'().
 -type p2p_callback_result()         :: dmsl_p2p_adapter_thrift:'CallbackResult'().
 
--type process_result()              :: {ok, {intent(), result_data()}}.
--type handle_callback_result()      :: {ok, {intent(), callback_response_payload(), result_data()}}.
+-type process_result()              :: {intent(), result_data()}.
+-type handle_callback_result()      :: {intent(), callback_response_payload(), result_data()}.
 
--type callback_response_payload()   :: binary().
+-type callback_response_payload()   :: p2p_callback:response().
 
 -type result_data()                 :: #{
     next_state       => adapter_state(),
@@ -81,7 +78,7 @@
 
 -type sleep_status()                :: #{
     timer            := timer(),
-    callback_tag     := callback_tag(),
+    callback_tag     := p2p_callback:tag(),
     user_interaction => user_interaction()
 }.
 
@@ -93,26 +90,26 @@
 %% API
 
 -spec process(adapter(), transfer_params(), adapter_state(), adapter_opts()) ->
-    process_result().
+    {ok, process_result()}.
 process(Adapter, TransferParams, AdapterState, AdapterOpts) ->
     do_process(Adapter, TransferParams, AdapterState, AdapterOpts).
 
 -spec handle_callback(adapter(), callback(), transfer_params(), adapter_state(), adapter_opts()) ->
-    handle_callback_result().
+    {ok, handle_callback_result()}.
 handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts) ->
     do_handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts).
 
 %% Implementation
 
 -spec do_process(adapter(), transfer_params(), adapter_state(), adapter_opts()) ->
-    process_result().
+    {ok, process_result()}.
 do_process(Adapter, TransferParams, AdapterState, AdapterOpts) ->
     Context = p2p_adapter_codec:encode_context(TransferParams, AdapterState, AdapterOpts),
     {ok, Result}   = call(Adapter, 'Process', [Context]),
     p2p_adapter_codec:decode_process_result(Result).
 
 -spec do_handle_callback(adapter(), callback(), transfer_params(), adapter_state(), adapter_opts()) ->
-    handle_callback_result().
+    {ok, handle_callback_result()}.
 do_handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts) ->
     EncodedCallback = p2p_adapter_codec:encode_callback(Callback),
     Context         = p2p_adapter_codec:encode_context(TransferParams, AdapterState, AdapterOpts),

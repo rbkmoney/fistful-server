@@ -11,6 +11,8 @@
 
 -export([get_resource_hierarchy/0]).
 
+-export([get_access_config/0]).
+
 -type context () :: uac_authorizer_jwt:t().
 -type claims  () :: uac_authorizer_jwt:claims().
 -type consumer() :: client | merchant | provider.
@@ -89,8 +91,8 @@ authorize_resource_by_grant(_, _) ->
     {error, missing}.
 
 authorize_resource_by_grant(Resource, Grant, Access, Params) ->
-    case wapi_authorizer_jwt:verify(Grant) of
-        {ok, {{_, ACL}, Claims}} ->
+    case uac_authorizer_jwt:verify(Grant, #{}) of
+        {ok, {_Id, {_, ACL}, Claims}} ->
             verify_claims(Resource, verify_access(Access, ACL, Claims), Params);
         Error = {error, _} ->
             Error
@@ -106,7 +108,7 @@ get_resource_accesses(wallet, ID) ->
 
 verify_access(Access, ACL, Claims) ->
     case lists:all(
-        fun ({Scope, Permission}) -> lists:member(Permission, wapi_acl:match(Scope, ACL)) end,
+        fun ({Scope, Permission}) -> lists:member(Permission, uac_acl:match(Scope, ACL)) end,
         Access
     ) of
         true  -> {ok, Claims};
@@ -130,12 +132,12 @@ verify_claims(_, _, _) ->
     {wallets, WalletID :: binary(), Asset :: map()}.
 
 -spec issue_access_token(wapi_handler_utils:owner(), token_spec()) ->
-    wapi_authorizer_jwt:token().
+    uac_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec) ->
     issue_access_token(PartyID, TokenSpec, unlimited).
 
--spec issue_access_token(wapi_handler_utils:owner(), token_spec(), wapi_authorizer_jwt:expiration()) ->
-    wapi_authorizer_jwt:token().
+-spec issue_access_token(wapi_handler_utils:owner(), token_spec(), uac_authorizer_jwt:expiration()) ->
+    uac_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec, Expiration) ->
     {Claims, DomainRoles} = resolve_token_spec(TokenSpec),
     wapi_utils:unwrap(uac_authorizer_jwt:issue(
@@ -148,7 +150,7 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
     )).
 
 -spec resolve_token_spec(token_spec()) ->
-    {claims(), uac_authorizer_jwt:domain_roles()}.
+    {claims(), uac_authorizer_jwt:domains()}.
 resolve_token_spec({destinations, DestinationId}) ->
     Claims = #{},
     DomainRoles = #{<<"wallet-api">> => uac_acl:from_list(
@@ -179,7 +181,7 @@ get_claim(ClaimName, {_Id, _Subject, Claims}) ->
 
 -spec get_claim(binary(), context(), term()) -> term().
 
-get_claim(ClaimName, {_Subject, Claims}, Default) ->
+get_claim(ClaimName, {_Id, _Subject, Claims}, Default) ->
     maps:get(ClaimName, Claims, Default).
 
 %%
@@ -190,6 +192,14 @@ get_claim(ClaimName, {_Subject, Claims}, Default) ->
 
 %% get_operation_access('CreateWithdrawal'     , #{'WithdrawalParameters' := #{<<"walletGrant">> => }}) ->
 %%     [{[payment_resources], write}].
+
+-spec get_access_config() -> map().
+
+get_access_config() ->
+    #{
+        domain_name => <<"wallet-api">>,
+        resource_hierarchy => get_resource_hierarchy()
+    }.
 
 -spec get_resource_hierarchy() -> #{atom() => map()}.
 

@@ -10,7 +10,6 @@
 % TODO
 % Extend interface to support proper keystore manipulation
 
--export([issue/2]).
 -export([verify/1]).
 -export([verify/2]).
 
@@ -30,7 +29,7 @@
 }.
 -type token()      :: binary().
 -type claims()     :: #{binary() => term()}.
--type subject()    :: {subject_id(), wapi_acl:t()}.
+-type subject()    :: {subject_id(), uac_acl:t()}.
 -type subject_id() :: binary().
 -type t()          :: {subject(), claims()}.
 -type expiration() ::
@@ -185,49 +184,6 @@ construct_key(KID, JWK) ->
 
 %%
 
--spec issue(t(), expiration()) ->
-    {ok, token()} |
-    {error,
-        nonexistent_signee
-    }.
-
-issue(Auth, Expiration) ->
-    case get_signee_key() of
-        Key = #{} ->
-            Claims = construct_final_claims(Auth, Expiration),
-            sign(Key, Claims);
-        undefined ->
-            {error, nonexistent_signee}
-    end.
-
-construct_final_claims({{Subject, ACL}, Claims}, Expiration) ->
-    maps:merge(
-        Claims#{
-            <<"jti">> => unique_id(),
-            <<"sub">> => Subject,
-            <<"exp">> => get_expires_at(Expiration)
-        },
-        encode_roles(wapi_acl:encode(ACL))
-    ).
-
-get_expires_at({lifetime, Lt}) ->
-    genlib_time:unow() + Lt;
-get_expires_at({deadline, Dl}) ->
-    Dl;
-get_expires_at(unlimited) ->
-    0.
-
-unique_id() ->
-    <<ID:64>> = snowflake:new(),
-    genlib_format:format_int_base(ID, 62).
-
-sign(#{kid := KID, jwk := JWK, signer := #{} = JWS}, Claims) ->
-    JWT = jose_jwt:sign(JWK, JWS#{<<"kid">> => KID}, Claims),
-    {_Modules, Token} = jose_jws:compact(JWT),
-    {ok, Token}.
-
-%%
-
 -spec verify(token()) ->
     {ok, t()} |
     {error,
@@ -357,16 +313,6 @@ check_expiration(C, undefined) ->
 check_expiration(C, V) ->
     throw({invalid_token, {badarg, {C, V}}}).
 
-%%
-
-encode_roles(Roles) ->
-    #{
-        <<"resource_access">> => #{
-            <<"wallet-api">> => #{
-                <<"roles">> => Roles
-            }
-        }
-    }.
 
 %% TODO common-api is not a typo here.
 %% Set the correct resources as soon as defined.

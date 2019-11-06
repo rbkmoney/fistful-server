@@ -30,7 +30,7 @@ authorize_api_key(OperationID, ApiKey, _Opts) ->
         {ok, Context} ->
             {true, Context};
         {error, Error} ->
-            _ = logger:info("Api key authorization failed due to ~p", [Error]),
+            _ = logger:info("API Key authorization failed for ~p due to ~p", [OperationID, Error]),
             false
     end.
 

@@ -27,6 +27,8 @@
 -type config()          :: [{atom(), any()}].
 -type app_name() :: atom().
 
+-define(SIGNEE, wapi).
+
 -spec init_suite(module(), config()) ->
     config().
 init_suite(Module, Config) ->
@@ -91,18 +93,9 @@ start_wapi(Config) ->
         {public_endpoint, <<"localhost:8080">>},
         {access_conf, #{
             jwt => #{
-                signee => wapi,
+                signee => ?SIGNEE,
                 keyset => #{
                     wapi => {pem_file, get_keysource("keys/local/private.pem", Config)}
-                }
-            },
-            access => #{
-                domain_name => <<"wallet-api">>,
-                resource_hierarchy => #{
-                     party => #{
-                        wallets           => #{},
-                        destinations      => #{}
-                    }
                 }
             }
         }}
@@ -140,7 +133,7 @@ issue_token(PartyID, ACL, LifeTime) ->
         PartyID,
         DomainRoles,
         Claims,
-        wapi
+        ?SIGNEE
     ).
 
 -spec get_context(binary()) ->

@@ -4,9 +4,9 @@
 -export([verify/1]).
 
 %%internal
--type kid()        :: wapi_authorizer_jwt:kid().
+-type kid()        :: wapi_authorizer_jwt:kid(). % The code is to be removed
 -type key()        :: wapi_authorizer_jwt:key().
--type token()      :: wapi_authorizer_jwt:token().
+-type token()      :: uac_authorizer_jwt:token().
 
 -spec verify(token()) ->
     {ok, binary()} |

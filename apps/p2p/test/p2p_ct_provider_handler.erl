@@ -72,9 +72,10 @@ handle_function_('Process', [
 }], _Ctx, _Opts) ->
     case State of
         undefined ->
+            ct:print("kek process"),
             {ok, #p2p_adapter_ProcessResult{
                 intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1000},
+                    timer = {timeout, 1},
                     callback_tag = <<"simple_tag">>
                 }},
                 next_state = <<"simple_sleep">>
@@ -103,7 +104,26 @@ handle_function_('Process', [_Context], _Ctx, _Opts) ->
             status = {success, #p2p_adapter_Success{}}
         }}
     }};
+
+handle_function_('HandleCallback', [
+    #p2p_adapter_Callback{tag = <<"simple_tag">>},
+    #p2p_adapter_Context{
+        operation = {process, #p2p_adapter_ProcessOperationInfo{body = #p2p_adapter_Cash{amount = 999}}},
+        session = #p2p_adapter_Session{state = State}
+}], _Ctx, _Opts) ->
+    ct:print("kek handle"),
+    case State of
+        <<"simple_sleep">> ->
+            {ok, #p2p_adapter_CallbackResult{
+                response = #p2p_adapter_CallbackResponse{payload = <<"podliva">>},
+                intent = {finish, #p2p_adapter_FinishIntent{
+                    status = {success, #p2p_adapter_Success{}}
+                }},
+                next_state = <<"sleep_finished">>
+            }}
+    end;
 handle_function_('HandleCallback', [_Callback, _Context], _Ctx, _Opts) ->
+    ct:print("kek handle wrong"),
     {ok, #p2p_adapter_CallbackResult{
         response = #p2p_adapter_CallbackResponse{payload = <<"payload">>},
         intent = {finish, #p2p_adapter_FinishIntent{

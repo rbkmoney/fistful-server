@@ -204,7 +204,7 @@ process_intent({finish, Result}, Events, _Session) ->
 
 process_intent_callback(Tag, Session, Events) ->
     case p2p_callback_utils:get_by_tag(Tag, callbacks_index(Session)) of
-        {ok, Callback} ->
+        {ok, _Callback} ->
             Events;
         {error, {unknown_callback, Tag}} ->
             {ok, CallbackEvents} = p2p_callback:create(#{tag => Tag}),
@@ -251,7 +251,15 @@ set_session_result(Result, #{status := active}) ->
 -spec process_callback(p2p_callback_params(), session()) ->
     {ok, {process_callback_response(), result()}} |
     {error, process_callback_error()}.
-process_callback(#{tag := CallbackTag} = Params, Session) ->
+process_callback(Params, Session) ->
+    case status(Session) of
+        active ->
+            process_callback_(Params, Session);
+        {finished, _} ->
+            {error, {session_already_finished, id(Session)}}
+    end.
+
+process_callback_(#{tag := CallbackTag} = Params, Session) ->
     case find_callback(CallbackTag, Session) of
         %% TODO add exeption to proto
         {error, {unknown_callback, _}} = Error ->
@@ -338,8 +346,8 @@ apply_event_({finished, Result}, Session) ->
     set_session_status({finished, Result}, Session);
 apply_event_({callback, _Ev} = Event, Session) ->
     apply_callback_event(Event, Session);
-apply_event_({user_interaction, _Ev} = Event, T) ->
-    apply_user_interaction_event(Event, T).
+apply_event_({user_interaction, _Ev} = Event, Session) ->
+    apply_user_interaction_event(Event, Session).
 
 -spec apply_callback_event(wrapped_callback_event(), session()) -> session().
 apply_callback_event(WrappedEvent, Session) ->

@@ -15,7 +15,6 @@
 -export([get/1]).
 -export([events/2]).
 -export([process_callback/1]).
--export([process_callback/2]).
 -export([repair/2]).
 
 %% machinery
@@ -113,13 +112,6 @@ events(Ref, Range) ->
 process_callback(#{tag := Tag} = Params) ->
     call({tag, Tag}, {process_callback, Params}).
 
--spec process_callback(ref(), callback_params()) ->
-    {ok, process_callback_response()} |
-    {error, process_callback_error()}.
-
-process_callback(SessionID, Params) ->
-    call(SessionID, {process_callback, Params}).
-
 -spec repair(ref(), ff_repair:scenario()) ->
     ok | {error, notfound | working}.
 repair(Ref, Scenario) ->
@@ -190,6 +182,8 @@ call(Ref, Call) ->
 do_process_callback(Params, Machine) ->
     St = ff_machine:collapse(p2p_session, Machine),
     case p2p_session:process_callback(Params, session(St)) of
+        {ok, {Response, #{events := Events} = Result}} ->
+            {{ok, Response}, Result#{events => ff_machine:emit_events(Events)}};
         {ok, {Response, Result}} ->
             {{ok, Response}, Result};
         {error, _Reason} = Error ->

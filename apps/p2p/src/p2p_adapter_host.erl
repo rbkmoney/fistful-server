@@ -37,7 +37,7 @@ handle_function_('ProcessCallback', [Callback], _Opts) ->
         {error, {session_already_finished, ID}} ->
             {TransferParams, AdapterState, AdapterOpts} = get_context_params(ID),
             Context = p2p_adapter_codec:encode_context(TransferParams, AdapterState, AdapterOpts),
-            Result  = #p2p_adapter_ProcessCallbackFinished{response = Context},
+            Result = #p2p_adapter_ProcessCallbackFinished{response = Context},
             {ok, {finished, Result}};
         {error, {unknown_p2p_session, _ID}} ->
             woody_error:raise(business, #p2p_adapter_SessionNotFound{})

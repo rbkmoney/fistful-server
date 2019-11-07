@@ -195,7 +195,7 @@ process_intent({sleep, #{timer := Timer, callback_tag := Tag} = Data}, Events0, 
     Events2 = process_user_interaction(UserInteraction, Session, Events1),
     #{
         events => Events2,
-        action => timer_action(Timer)
+        action => [tag_action(Tag), timer_action(Timer)]
     };
 process_intent({finish, Result}, Events, _Session) ->
     #{
@@ -204,11 +204,12 @@ process_intent({finish, Result}, Events, _Session) ->
 
 process_intent_callback(Tag, Session, Events) ->
     case p2p_callback_utils:get_by_tag(Tag, callbacks_index(Session)) of
-        {ok, _Callback} ->
+        {ok, Callback} ->
             Events;
         {error, {unknown_callback, Tag}} ->
             {ok, CallbackEvents} = p2p_callback:create(#{tag => Tag}),
-            Events ++ p2p_callback_utils:wrap_events(Tag, CallbackEvents)
+            CBEvents = p2p_callback_utils:wrap_events(Tag, CallbackEvents),
+            Events ++ CBEvents
     end.
 
 process_user_interaction(undefined, _Session, Events) ->
@@ -234,6 +235,10 @@ process_user_interaction({ID, {create, Content}}, Session, Events) ->
 -spec timer_action({deadline, binary()} | {timeout, non_neg_integer()}) -> machinery:action().
 timer_action(Timer) ->
     {set_timer, Timer}.
+
+-spec tag_action(machinery:tag()) -> machinery:action().
+tag_action(Tag) ->
+    {tag, Tag}.
 
 -spec set_session_result(session_result(), session()) ->
     result().
@@ -331,8 +336,8 @@ apply_event_({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
 apply_event_({finished, Result}, Session) ->
     set_session_status({finished, Result}, Session);
-apply_event_({callback, _Ev} = Event, T) ->
-    apply_callback_event(Event, T);
+apply_event_({callback, _Ev} = Event, Session) ->
+    apply_callback_event(Event, Session);
 apply_event_({user_interaction, _Ev} = Event, T) ->
     apply_user_interaction_event(Event, T).
 

@@ -35,11 +35,11 @@ handle_function_('Process', [
                     user_interaction = #p2p_adapter_UserInteraction{
                         id = <<"test_user_interaction">>,
                         intent = {create, #p2p_adapter_UserInteractionCreate{
-                            user_interaction = {qr_code_show_request, #'QrCodeShowRequest'{
-                                qr_code = #'QrCode'{
-                                    payload = <<"data">>
+                            user_interaction = {redirect,
+                                {get_request,
+                                    #'BrowserGetRequest'{uri = <<"uri">>}
                                 }
-                            }}
+                            }
                         }}
                     }
                 }},
@@ -74,7 +74,7 @@ handle_function_('Process', [
         undefined ->
             {ok, #p2p_adapter_ProcessResult{
                 intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1},
+                    timer = {timeout, 1000},
                     callback_tag = <<"simple_tag">>
                 }},
                 next_state = <<"simple_sleep">>
@@ -115,3 +115,10 @@ handle_function_('HandleCallback', [_Callback, _Context], _Ctx, _Opts) ->
 %% Internals
 %%
 
+% call_adapter_host(#p2p_adapter_Callback{} = Callback) ->
+%     Service  = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
+%     Function = 'ProcessCallback',
+%     Args     = [Callback],
+%     Request  = {Service, Function, Args},
+%     Client   = ff_woody_client:new(<<"http://fistful-server:8022/v1/p2p_adapter_host">>),
+%     ff_woody_client:call(Client, Request).

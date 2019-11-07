@@ -803,17 +803,18 @@ create_entity(Type, Params, CreateFun, Context = #{woody_context := WoodyCtx}) -
     IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
     case bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx) of
         {ok, ID} ->
-            case CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))) of
-                ok ->
-                    do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
-                {error, exists} ->
-                    get_and_compare_hash(Type, ID, Hash, Context);
-                {error, E} ->
-                    throw(E)
-            end;
+            Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
+            handle_create_entity_result(Result, Type, ID, Hash, Context);
         {error, {external_id_conflict, ID}} ->
             {error, {external_id_conflict, ID, ExternalID}}
     end.
+
+handle_create_entity_result(ok, Type, ID, _Hash, Context) ->
+    do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
+handle_create_entity_result({error, exists}, Type, ID, Hash, Context) ->
+    get_and_compare_hash(Type, ID, Hash, Context);
+handle_create_entity_result({error, E}, _Type, _ID, _Hash, _Context) ->
+    throw(E).
 
 get_and_compare_hash(Type, ID, Hash, Context) ->
     case do(fun() -> get_state(Type, ID, Context) end) of

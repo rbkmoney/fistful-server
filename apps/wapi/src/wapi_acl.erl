@@ -63,9 +63,7 @@ compute_scope_priority([], _, P) ->
 compute_permission_priority(read) ->
     0;
 compute_permission_priority(write) ->
-    0;
-compute_permission_priority(V) ->
-    error({badarg, {permission, V}}).
+    0.
 
 %%
 

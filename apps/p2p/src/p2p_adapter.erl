@@ -54,9 +54,6 @@
 
 -type callback()                    :: p2p_callback:process_params().
 
--type callback_tag()                :: binary().
--type callback_payload()            :: binary().
-
 -type p2p_process_result()          :: dmsl_p2p_adapter_thrift:'ProcessResult'().
 -type p2p_callback_result()         :: dmsl_p2p_adapter_thrift:'CallbackResult'().
 
@@ -105,7 +102,7 @@ handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts) ->
     {ok, process_result()}.
 do_process(Adapter, TransferParams, AdapterState, AdapterOpts) ->
     Context = p2p_adapter_codec:encode_context(TransferParams, AdapterState, AdapterOpts),
-    {ok, Result}   = call(Adapter, 'Process', [Context]),
+    {ok, Result} = call(Adapter, 'Process', [Context]),
     p2p_adapter_codec:decode_process_result(Result).
 
 -spec do_handle_callback(adapter(), callback(), transfer_params(), adapter_state(), adapter_opts()) ->

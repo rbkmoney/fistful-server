@@ -193,6 +193,8 @@ process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
         {error, {conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:reply_error(409, #{<<"id">> => ID, <<"externalID">> => ExternalID});
         {error, invalid} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>));
         {error, {terms, {terms_violation, {not_allowed_currency, _Data}}}} ->
@@ -255,6 +257,8 @@ process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) 
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
         {error, {conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:reply_error(409, #{<<"id">> => ID, <<"externalID">> => ExternalID});
         {error, invalid} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>))
     end;
@@ -294,6 +298,8 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:reply_error(409, #{<<"id">> => ID, <<"externalID">> => ExternalID});
         {error, {wallet, {inaccessible, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Inaccessible source or destination">>)

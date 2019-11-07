@@ -812,7 +812,7 @@ create_entity(Type, Params, CreateFun, Context = #{woody_context := WoodyCtx}) -
 handle_create_entity_result(ok, Type, ID, _Hash, Context) ->
     do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
 handle_create_entity_result({error, exists}, Type, ID, Hash, Context) ->
-    get_and_compare_hash(Type, ID, Hash, Context);
+    get_and_compare_hash(Type, ID, Hash, Context); %%TODO maybe just return the state akin to the previous clause
 handle_create_entity_result({error, E}, _Type, _ID, _Hash, _Context) ->
     throw(E).
 

@@ -2,6 +2,7 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_p2p_adapter_thrift.hrl").
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
@@ -40,6 +41,7 @@
     element(2, Cash)
 }).
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
+-define(CALLBACK(Tag, Payload), #p2p_adapter_Callback{tag = Tag, payload = Payload}).
 
 %% API
 
@@ -53,11 +55,11 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            user_interaction_ok_test,
-            callback_ok_test,
-            fail_ok_test,
-            create_ok_test,
-            unknown_test
+            % user_interaction_ok_test,
+            callback_ok_test
+            % fail_ok_test,
+            % create_ok_test,
+            % unknown_test
         ]}
     ].
 
@@ -134,7 +136,15 @@ callback_ok_test(C) ->
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     %% TODO call process callback here
+    WrongTagCallback = ?CALLBACK(<<"tag">>, <<"payload">>),
+    Callback         = ?CALLBACK(<<"simple_tag">>, <<"payload">>),
+    ?assertMatch({ok, {succeeded, _}}, call_host(Callback)),
+    ok = timer:sleep(1000),
+    ?assertEqual({exception, #p2p_adapter_SessionNotFound{}}, call_host(WrongTagCallback)),
+    % ok = timer:sleep(1000),
     ok = timer:sleep(3000),
+    _WrongTagResult = call_host(WrongTagCallback),
+    ?assertMatch({ok, {finished, _}}, call_host(Callback)),
     ?assertEqual({finished, success}, await_final_p2p_session_status(P2PSessionID)),
     P2PSession = get_p2p_session(P2PSessionID),
     ?assertEqual(<<"sleep_finished">>, p2p_session:adapter_state(P2PSession)).
@@ -235,4 +245,10 @@ create_resource_raw(Token, C) ->
             StoreSource#{token => Token}
     end.
 
-
+call_host(Callback) ->
+    Service  = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
+    Function = 'ProcessCallback',
+    Args     = [Callback],
+    Request  = {Service, Function, Args},
+    Client   = ff_woody_client:new(<<"http://fistful-server:8022/v1/p2p_adapter_host">>),
+    ff_woody_client:call(Client, Request).

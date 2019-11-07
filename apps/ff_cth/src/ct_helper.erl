@@ -93,7 +93,7 @@ start_app(wapi = AppName) ->
         {port, 8080},
         {realm, <<"external">>},
         {public_endpoint, <<"localhost:8080">>},
-        {authorizers, #{
+        {access_conf, #{
             jwt => #{
                 signee => wapi,
                 keyset => #{

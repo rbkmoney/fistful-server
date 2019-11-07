@@ -183,7 +183,7 @@ decode_intent({sleep,  #p2p_adapter_SleepIntent{
 -spec decode_callback_response(p2p_callback_response()) ->
     p2p_adapter:callback_response_payload().
 decode_callback_response(#p2p_adapter_CallbackResponse{payload = Payload}) ->
-    Payload.
+    #{payload => Payload}.
 
 -spec decode_user_interaction(p2p_user_interaction()) -> p2p_adapter:user_interaction();
                              (undefined)              -> undefined.
@@ -196,15 +196,21 @@ decode_user_interaction(undefined) ->
     p2p_user_interaction:intent().
 decode_user_interaction_intent({finish, #p2p_adapter_UserInteractionFinish{}}) ->
     finish;
-decode_user_interaction_intent({create, #p2p_adapter_UserInteractionCreate{user_interaction = UserInteractionType}}) ->
+decode_user_interaction_intent({create, #p2p_adapter_UserInteractionCreate{
+    user_interaction = UserInteractionType
+}}) ->
     {create, decode_user_interaction_type(UserInteractionType)}.
 
 -spec decode_user_interaction_type(user_interaction_type()) ->
     p2p_user_interaction:content().
-decode_user_interaction_type({redirect, {get_request, #'BrowserGetRequest'{uri = URI}}}) ->
+decode_user_interaction_type({redirect, {get_request,
+    #'BrowserGetRequest'{uri = URI}
+}}) ->
     #{type => redirect, content => {get, URI}};
-decode_user_interaction_type({redirect, {post_request, #'BrowserPostRequest'{uri = URI, form = Form}}}) ->
-    #{type => redirect, content => {post, URI, Form}};
+decode_user_interaction_type({redirect, {post_request,
+    #'BrowserPostRequest'{uri = URI, form = Form}
+}}) ->
+    #{type => redirect, content => {post, URI, Form}}.
 % unused
 % TYPO IN PROTOCOL: reciept instead of receipt
 % decode_user_interaction_type({payment_terminal_reciept, Receipt}) ->

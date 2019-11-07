@@ -72,6 +72,7 @@ init_per_suite(C) ->
         ct_payment_system:setup(#{
             default_termset => get_default_termset(),
             optional_apps => [
+                bender_client,
                 wapi_woody_client,
                 wapi
             ]

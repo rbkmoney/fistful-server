@@ -153,6 +153,12 @@ start_app(ff_server = AppName) ->
         }}
     ]), #{}};
 
+start_app(bender_client = AppName) ->
+    {start_app_with(AppName, [
+        {service_url, <<"http://bender:8022/v1/bender">>},
+        {deadline, 60000}
+    ]), #{}};
+
 start_app({AppName, AppEnv}) ->
     {start_app_with(AppName, AppEnv), #{}};
 

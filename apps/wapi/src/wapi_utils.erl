@@ -250,8 +250,7 @@ clamp_max_deadline(Value) when is_integer(Value)->
 
 -spec get_unique_id() -> binary().
 get_unique_id() ->
-    <<ID:64>> = snowflake:new(),
-    genlib_format:format_int_base(ID, 62).
+    ff_id:generate_snowflake_id().
 %%
 
 -ifdef(TEST).

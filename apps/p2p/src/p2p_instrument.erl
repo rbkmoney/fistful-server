@@ -4,13 +4,13 @@
 
 -type bank_card_details() :: #{
     token               := binary(),
-    payment_system      := atom(),
-    bin                 := binary(),
-    masked_pan          := binary(),
+    payment_system      => atom(),
+    bin                 => binary(),
+    masked_pan          => binary(),
     bank_name           => binary(),
     iso_country_code    => atom(),
     card_type           => charge_card | credit | debit | credit_or_debit,
-    bin_data_id         => ff_bin_data:bin_data_id()
+    bin_data_id         := ff_bin_data:bin_data_id()
 }.
 
 -type bank_card() :: #{
@@ -43,15 +43,15 @@
 token({bank_card, {_, #{token := Token}}}) ->
     Token.
 
--spec bin(instrument()) -> binary().
+-spec bin(instrument()) -> binary() | undefined.
 
-bin({bank_card, {_, #{bin := Bin}}}) ->
-    Bin.
+bin({bank_card, {_, BankCard}}) ->
+    maps:get(bin, BankCard).
 
--spec masked_pan(instrument()) -> binary().
+-spec masked_pan(instrument()) -> binary() | undefined.
 
-masked_pan({bank_card, {_, #{masked_pan := MaskedPan}}}) ->
-    MaskedPan.
+masked_pan({bank_card, {_, BankCard}}) ->
+    maps:get(masked_pan, BankCard).
 
 -spec payment_system(instrument()) -> atom().
 
@@ -70,8 +70,8 @@ bank_name({bank_card, {full, BankCardDetails}}) ->
 
 -spec bin_data_id(instrument()) -> binary() | undefined.
 
-bin_data_id({bank_card, {full, BankCardDetails}}) ->
-    maps:get(bin_data_id, BankCardDetails, undefined).
+bin_data_id({bank_card, {full, #{bin_data_id := BinDataID}}}) ->
+    BinDataID.
 
 %% API
 

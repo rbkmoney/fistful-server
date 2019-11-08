@@ -10,6 +10,7 @@
     receiver    := p2p_instrument:instrument()
 }.
 
+-export_type([varset/0]).
 -export([create_varset/1]).
 
 -spec create_varset(varset_params()) ->

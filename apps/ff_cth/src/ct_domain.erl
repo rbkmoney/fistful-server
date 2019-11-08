@@ -10,6 +10,7 @@
 -export([contract_template/2]).
 -export([inspector/3]).
 -export([inspector/4]).
+-export([p2p_inspector/4]).
 -export([proxy/2]).
 -export([proxy/3]).
 -export([proxy/4]).
@@ -209,6 +210,23 @@ inspector(Ref, Name, ProxyRef, Additional) ->
                 ref        = ProxyRef,
                 additional = Additional
             }
+        }
+    }}.
+
+-spec p2p_inspector(?dtp('P2PInspectorRef'), binary(), ?dtp('ProxyRef'), ?dtp('ProxyOptions')) ->
+    object().
+
+p2p_inspector(Ref, Name, ProxyRef, Additional) ->
+    {p2p_inspector, #domain_P2PInspectorObject{
+        ref  = Ref,
+        data = #domain_P2PInspector{
+            name        = Name,
+            description = <<>>,
+            proxy = #domain_Proxy{
+                ref        = ProxyRef,
+                additional = Additional
+            },
+            fallback_risk_score = #{<<"fraud">> => low}
         }
     }}.
 

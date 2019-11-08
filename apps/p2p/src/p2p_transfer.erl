@@ -65,6 +65,9 @@
 -type create_error() ::
     {identity, notfound} |
     {terms, ff_party:validate_p2p_error()} |
+    {party, ff_party:get_contract_terms_error()} |
+    {p2p_tool, not_allow} |
+    {cash_flow, ff_cash_flow:volume_finalize_error()} |
     {resource_owner(), {bin_data, not_found}}.
 
 -type route() :: #{
@@ -278,6 +281,19 @@ fee_created_at(T) ->
     Fees = fees(T),
     p2p_fees:created_at(Fees).
 
+-spec create_varset(identity(), p2p_transfer()) -> p2p_party:varset().
+create_varset(Identity, P2PTransfer) ->
+    Sender = p2p_participant:instrument(sender_resource(P2PTransfer)),
+    Receiver = p2p_participant:instrument(receiver_resource(P2PTransfer)),
+    PartyID = ff_identity:party(Identity),
+    Params = #{
+        party_id => PartyID,
+        cash => body(P2PTransfer),
+        sender => Sender,
+        receiver => Receiver
+    },
+    p2p_party:create_varset(Params).
+
 %% API
 
 -spec create(params()) ->
@@ -306,8 +322,6 @@ create(Params) ->
                 identity_id => IdentityID,
                 body => Body,
                 created_at => CreatedAt,
-                sender => Sender,
-                receiver => Receiver,
                 external_id => ExternalID,
                 fees => FeeQuote
             })},
@@ -317,12 +331,14 @@ create(Params) ->
     end).
 
 get_quote(undefined, {Body, IdentityID, SenderFull, ReceiverFull}) ->
-    Sender = p2p_participant:instrument(SenderFull),
-    Receiver = p2p_participant:instrument(ReceiverFull),
-    {_, _, FeeQuote} = unwrap(terms, p2p_fees:get_fee_quote(Body, IdentityID, Sender, Receiver)),
-    {ok, FeeQuote};
+    do(fun() ->
+        Sender = p2p_participant:instrument(SenderFull),
+        Receiver = p2p_participant:instrument(ReceiverFull),
+        {_, _, FeeQuote} = unwrap(p2p_fees:get_fee_quote(Body, IdentityID, Sender, Receiver)),
+        FeeQuote
+    end);
 get_quote(FeeQuote, _) ->
-    FeeQuote.
+    {ok, FeeQuote}.
 
 -spec start_adjustment(adjustment_params(), p2p_transfer()) ->
     {ok, process_result()} |
@@ -518,10 +534,25 @@ do_process_transfer(adjustment, P2PTransfer) ->
 
 -spec process_risk_scoring(p2p_transfer()) ->
     process_result().
-process_risk_scoring(_P2PTransfer) ->
+process_risk_scoring(P2PTransfer) ->
+    RiskScoring = do_risk_scoring(P2PTransfer),
     {continue, [
-        {risk_score_changed, low}
+        {risk_score_changed, RiskScoring}
     ]}.
+
+-spec do_risk_scoring(p2p_transfer()) ->
+    process_result().
+do_risk_scoring(P2PTransfer) ->
+    DomainRevision = domain_revision(P2PTransfer),
+    {ok, Identity} = get_identity(identity_id(P2PTransfer)),
+    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
+    PartyVarset = create_varset(Identity, P2PTransfer),
+    {ok, InspectorRef} = ff_payment_institution:compute_p2p_inspector(PaymentInstitution, PartyVarset),
+    {ok, Inspector} = ff_domain_config:object(DomainRevision, {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}),
+    ScoreID = <<"fraud">>,
+    Scores = p2p_inspector:inspect(P2PTransfer, DomainRevision, [ScoreID], Inspector),
+    maps:get(ScoreID, Scores).
 
 -spec process_routing(p2p_transfer()) ->
     process_result().
@@ -539,19 +570,11 @@ process_routing(P2PTransfer) ->
     {ok, provider_id()} | {error, route_not_found}.
 do_process_routing(P2PTransfer) ->
     DomainRevision = domain_revision(P2PTransfer),
-    Sender = p2p_participant:instrument(sender_resource(P2PTransfer)),
-    Receiver = p2p_participant:instrument(receiver_resource(P2PTransfer)),
     {ok, Identity} = get_identity(identity_id(P2PTransfer)),
-    PartyID = ff_identity:party(Identity),
-    VarsetParams = genlib_map:compact(#{
-        cash => body(P2PTransfer),
-        party_id => PartyID,
-        sender => Sender,
-        receiver => Receiver
-    }),
 
     do(fun() ->
-        unwrap(prepare_route(p2p_party:create_varset(VarsetParams), Identity, DomainRevision))
+        VarSet = create_varset(Identity, P2PTransfer),
+        unwrap(prepare_route(VarSet, Identity, DomainRevision))
     end).
 
 -spec prepare_route(party_varset(), identity(), domain_revision()) ->
@@ -649,20 +672,12 @@ make_final_cash_flow(P2PTransfer) ->
     Body = body(P2PTransfer),
     Route = route(P2PTransfer),
     DomainRevision = domain_revision(P2PTransfer),
-    Sender = p2p_participant:instrument(sender_resource(P2PTransfer)),
-    Receiver = p2p_participant:instrument(receiver_resource(P2PTransfer)),
     {ok, Identity} = get_identity(identity_id(P2PTransfer)),
     PartyID = ff_identity:party(Identity),
     PartyRevision = party_revision(P2PTransfer),
     ContractID = ff_identity:contract(Identity),
     Timestamp = fee_created_at(P2PTransfer),
-    VarsetParams = genlib_map:compact(#{
-        cash => body(P2PTransfer),
-        party_id => PartyID,
-        sender => Sender,
-        receiver => Receiver
-    }),
-    PartyVarset = p2p_party:create_varset(VarsetParams),
+    PartyVarset = create_varset(Identity, P2PTransfer),
 
     {_Amount, CurrencyID} = Body,
     #{provider_id := ProviderID} = Route,

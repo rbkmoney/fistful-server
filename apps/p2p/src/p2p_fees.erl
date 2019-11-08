@@ -39,7 +39,7 @@
 -export([sender_id/1]).
 -export([receiver_id/1]).
 -export([get_fee_quote/4]).
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/2]).
 
 %% Accessories
 
@@ -89,7 +89,8 @@ instrument(Instrument) ->
     {error, {identity,   not_found}} |
     {error, {party,      get_contract_terms_error()}} |
     {error, {p2p_tool,   not_allow}} |
-    {error, validate_p2p_error()}.
+    {error, {cash_flow,  volume_finalize_error()}} |
+    {error, {terms, validate_p2p_error()}}.
 get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
         IdentityMachine = unwrap(identity, ff_identity_machine:get(IdentityID)),
@@ -108,7 +109,7 @@ get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
         CreatedAt = ff_time:now(),
         Terms = unwrap(party, ff_party:get_contract_terms(
             PartyID, ContractID, VS, CreatedAt, PartyRevision, DomainRevision)),
-        valid = unwrap(ff_party:validate_p2p(Terms, Cash)),
+        valid = unwrap(terms, ff_party:validate_p2p(Terms, Cash)),
         ExpiresOn = get_expire_time(Terms, CreatedAt),
         true = unwrap(p2p_tool, allow_p2p_tool(Terms)),
         Fees = get_fees_from_terms(Terms),
@@ -177,7 +178,7 @@ get_expire_time(Terms, CreatedAt) ->
     case Lifetime of
         undefined ->
             CreatedAt + ?LIFETIME_MS_DEFAULT;
-        {interval, LifetimeInterval} ->
+        {value, {interval, LifetimeInterval}} ->
             DateTime = decode_lifetime_interval(LifetimeInterval),
             ff_time:add_interval(CreatedAt, DateTime)
     end.

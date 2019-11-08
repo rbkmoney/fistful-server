@@ -391,7 +391,8 @@ domain_config(Options, C) ->
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = dummy_payment_inst_identity_id(Options),
                 withdrawal_providers      = {value, [?wthdr_prv(3)]},
-                p2p_providers = {decisions, [
+                p2p_inspector             = {value, ?p2p_insp(1)},
+                p2p_providers             = {decisions, [
                     #domain_P2PProviderDecision{
                         if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {value, [?p2p_prv(1)]}
@@ -407,9 +408,11 @@ domain_config(Options, C) ->
         ct_domain:system_account_set(?sas(1), <<"System">>, ?cur(<<"RUB">>), C),
 
         ct_domain:inspector(?insp(1), <<"Low Life">>, ?prx(1), #{<<"risk_score">> => <<"low">>}),
+        ct_domain:p2p_inspector(?p2p_insp(1), <<"Low Life">>, ?prx(4), #{<<"risk_score">> => <<"low">>}),
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
         ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8222/quotebank">>),
+        ct_domain:proxy(?prx(4), <<"P2P inspector proxy">>, <<"http://localhost:8223/inspector">>),
 
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
@@ -689,9 +692,9 @@ default_termset(Options) ->
                                 }}
                     }
                 ]},
-                quote_lifetime = {interval, #domain_LifetimeInterval{
+                quote_lifetime = {value, {interval, #domain_LifetimeInterval{
                     days = 1, minutes = 1, seconds = 1
-                }}
+                }}}
             }
         }
     },

@@ -31,6 +31,7 @@
 -export([get/2]).
 -export([compute_withdrawal_providers/2]).
 -export([compute_p2p_transfer_providers/2]).
+-export([compute_p2p_inspector/2]).
 -export([compute_system_accounts/2]).
 
 %% Pipeline
@@ -83,6 +84,18 @@ compute_p2p_transfer_providers(#{p2p_providers := ProviderSelector}, VS) ->
             Error
     end.
 
+-spec compute_p2p_inspector(payment_institution(), hg_selector:varset()) ->
+    {ok, [ff_payouts_provider:id()]} | {error, term()}.
+compute_p2p_inspector(#{p2p_inspector := ProviderSelector} = PS, _VS) when ProviderSelector =:= undefined ->
+    {error, {misconfiguration, {'No p2p inspector in a given payment_institution', PS}}};
+compute_p2p_inspector(#{p2p_inspector := ProviderSelector}, VS) ->
+    case hg_selector:reduce_to_value(ProviderSelector, VS) of
+        {ok, #domain_P2PInspectorRef{id = InspectorID}} ->
+            {ok, InspectorID};
+        Error ->
+            Error
+    end.
+
 -spec compute_system_accounts(payment_institution(), hg_selector:varset()) ->
     {ok, system_accounts()} | {error, term()}.
 
@@ -102,14 +115,16 @@ decode(ID, #domain_PaymentInstitution{
     wallet_system_account_set = SystemAccounts,
     identity = Identity,
     withdrawal_providers = WithdrawalProviders,
-    p2p_providers = P2PProviders
+    p2p_providers = P2PProviders,
+    p2p_inspector = P2PInspector
 }) ->
     #{
         id              => ID,
         system_accounts => SystemAccounts,
         identity        => Identity,
         withdrawal_providers => WithdrawalProviders,
-        p2p_providers   => P2PProviders
+        p2p_providers   => P2PProviders,
+        p2p_inspector   => P2PInspector
     }.
 
 decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts}) ->

@@ -1,6 +1,7 @@
 -module(p2p_participant).
 
 -import(ff_pipeline, [do/1, unwrap/1]).
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -type contact_info() :: #{
     phone_number => binary(),
@@ -21,6 +22,8 @@
 -export([instrument/1]).
 -export([contact_info/1]).
 -export([get_full_instrument/1]).
+
+-export([encode_contact_info/1]).
 
 -spec instrument(participant()) ->
     p2p_instrument:instrument().
@@ -60,3 +63,11 @@ get_full_instrument({resource, _Resource} = Participant) ->
     end);
 get_full_instrument(Other) ->
     error({get_full_instrument, {not_impl, Other}}).
+
+-spec encode_contact_info(contact_info()) ->
+    dmsl_domain_thrift:'ContactInfo'().
+encode_contact_info(ContactInfo) ->
+    #domain_ContactInfo{
+        phone_number = maps:get(phone_number, ContactInfo, undefined),
+        email = maps:get(email, ContactInfo, undefined)
+    }.

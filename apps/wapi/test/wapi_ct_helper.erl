@@ -17,6 +17,7 @@
 -export([mock_services/2]).
 -export([mock_services_/2]).
 -export([get_lifetime/0]).
+-export([create_auth_ctx/1]).
 
 -define(WAPI_IP,        "::").
 -define(WAPI_PORT,      8080).
@@ -236,4 +237,12 @@ get_lifetime(YY, MM, DD) ->
        <<"years">>  => YY,
        <<"months">> => MM,
        <<"days">>   => DD
+    }.
+
+-spec create_auth_ctx(ff_party:id()) ->
+    wapi_handler:context().
+
+create_auth_ctx(PartyID) ->
+    #{
+        swagger_context => #{auth_context => {?STRING, {PartyID, empty}, empty}}
     }.

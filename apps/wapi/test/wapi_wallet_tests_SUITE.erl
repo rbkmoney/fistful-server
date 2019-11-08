@@ -371,10 +371,5 @@ create_identity(C) ->
         <<"class">> => <<"person">>,
         <<"name">> => <<"HAHA NO2">>
     },
-    wapi_wallet_ff_backend:create_identity(Params, create_auth_ctx(PartyID)).
-
-create_auth_ctx(PartyID) ->
-    #{
-        swagger_context => #{auth_context => {{PartyID, empty}, empty}}
-    }.
+    wapi_wallet_ff_backend:create_identity(Params, wapi_ct_helper:create_auth_ctx(PartyID)).
 

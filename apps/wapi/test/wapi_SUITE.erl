@@ -364,7 +364,7 @@ woody_retry_test(C) ->
         currencyID => <<"RUB">>,
         limit      => <<"123">>
     },
-    Ctx = create_auth_ctx(<<"12332">>),
+    Ctx = wapi_ct_helper:create_auth_ctx(<<"12332">>),
     T1 = erlang:monotonic_time(),
     try
         wapi_wallet_ff_backend:list_wallets(Params, Ctx#{woody_context => ct_helper:get_woody_ctx(C)})
@@ -397,11 +397,6 @@ create_party(_C) ->
 
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).
-
-create_auth_ctx(PartyID) ->
-    #{
-        swagger_context => #{auth_context => {<<"TEST-ID">>, {PartyID, empty}, empty}}
-    }.
 
 %%
 

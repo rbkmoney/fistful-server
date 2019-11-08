@@ -22,6 +22,7 @@ start_link() ->
 -spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 
 init([]) ->
+    AuthorizerSpecs = get_authorizer_child_specs(),
     {LogicHandlers, LogicHandlerSpecs} = get_logic_handler_info(),
     HealthCheck = enable_health_logging(genlib_app:env(wapi, health_check, #{})),
     HealthRoutes = [{'_', [erl_health_handle:get_route(HealthCheck)]}],
@@ -30,8 +31,21 @@ init([]) ->
     ok = uac:configure(UacConf),
     {ok, {
         {one_for_all, 0, 1},
-            LogicHandlerSpecs ++ [SwaggerSpec]
+            AuthorizerSpecs ++ LogicHandlerSpecs ++ [SwaggerSpec]
     }}.
+
+-spec get_authorizer_child_specs() -> [supervisor:child_spec()].
+
+get_authorizer_child_specs() ->
+    Authorizers = genlib_app:env(wapi, authorizers, #{}),
+    [
+        get_authorizer_child_spec(jwt, maps:get(jwt, Authorizers))
+    ].
+
+-spec get_authorizer_child_spec(Name :: atom(), Options :: #{}) -> supervisor:child_spec().
+
+get_authorizer_child_spec(jwt, Options) ->
+    wapi_authorizer_jwt:get_child_spec(Options).
 
 -spec get_logic_handler_info() ->
     {wapi_swagger_server:logic_handlers(), [supervisor:child_spec()]}.

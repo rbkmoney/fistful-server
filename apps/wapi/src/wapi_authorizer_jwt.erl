@@ -2,6 +2,7 @@
 
 %%
 
+-export([get_child_spec/1]).
 -export([init/1]).
 
 -export([store_key/2]).
@@ -47,12 +48,48 @@
 
 %%
 
+-type options() :: #{
+    %% The set of keys used to sign issued tokens and verify signatures on such
+    %% tokens.
+    keyset => keyset(),
+    %% The name of a key used exclusively to sign any issued token.
+    %% If not set any token issue is destined to fail.
+    signee => keyname()
+}.
+
 -type keyset() :: #{
     keyname() => keysource()
 }.
 
 -type keysource() ::
     {pem_file, file:filename()}.
+
+-spec get_child_spec(options()) ->
+    supervisor:child_spec() | no_return().
+
+get_child_spec(Options) ->
+    #{
+        id => ?MODULE,
+        start => {supervisor, start_link, [?MODULE, parse_options(Options)]},
+        type => supervisor
+    }.
+
+parse_options(Options) ->
+    Keyset = maps:get(keyset, Options, #{}),
+    _ = is_map(Keyset) orelse exit({invalid_option, keyset, Keyset}),
+    _ = genlib_map:foreach(
+        fun (K, V) ->
+            is_keysource(V) orelse exit({invalid_option, K, V})
+        end,
+        Keyset
+    ),
+    Signee = maps:find(signee, Options),
+    {Keyset, Signee}.
+
+is_keysource({pem_file, Fn}) ->
+    is_list(Fn) orelse is_binary(Fn);
+is_keysource(_) ->
+    false.
 
 %%
 

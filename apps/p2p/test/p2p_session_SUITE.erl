@@ -21,7 +21,7 @@
 -export([user_interaction_ok_test/1]).
 -export([wrong_callback_tag_test/1]).
 -export([callback_ok_test/1]).
--export([fail_ok_test/1]).
+-export([create_fail_test/1]).
 -export([create_ok_test/1]).
 -export([unknown_test/1]).
 
@@ -59,7 +59,7 @@ groups() ->
             user_interaction_ok_test,
             wrong_callback_tag_test,
             callback_ok_test,
-            fail_ok_test,
+            create_fail_test,
             create_ok_test,
             unknown_test
         ]}
@@ -182,16 +182,13 @@ wrong_callback_tag_test(C) ->
     P2PSession = get_p2p_session(P2PSessionID),
     ?assertEqual(<<"wrong_finished">>, p2p_session:adapter_state(P2PSession)).
 
--spec fail_ok_test(config()) -> test_return().
-fail_ok_test(C) ->
+-spec create_fail_test(config()) -> test_return().
+create_fail_test(C) ->
     Cash = {1001, <<"RUB">>},
-    TokenPrefix = <<"token_fail_">>,
-    TokenRandomised = generate_id(),
-    Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
     #{
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, Token, C),
+    } = prepare_standard_environment(Cash, C),
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
@@ -206,13 +203,10 @@ fail_ok_test(C) ->
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->
     Cash = {100, <<"RUB">>},
-    TokenPrefix = <<"token_create_">>,
-    TokenRandomised = generate_id(),
-    Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
     #{
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, Token, C),
+    } = prepare_standard_environment(Cash, C),
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
@@ -232,8 +226,8 @@ unknown_test(_C) ->
 
 %% Utils
 
-% prepare_standard_environment(P2PTransferCash, C) ->
-%     prepare_standard_environment(P2PTransferCash, undefined, C).
+prepare_standard_environment(P2PTransferCash, C) ->
+    prepare_standard_environment(P2PTransferCash, undefined, C).
 
 prepare_standard_environment(_P2PTransferCash, Token, C) ->
     ResourceSender = create_resource_raw(Token, C),

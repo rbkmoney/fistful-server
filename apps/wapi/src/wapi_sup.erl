@@ -37,7 +37,7 @@ init([]) ->
 -spec get_authorizer_child_specs() -> [supervisor:child_spec()].
 
 get_authorizer_child_specs() ->
-    Authorizers = genlib_app:env(wapi, authorizers, #{}),
+    Authorizers = genlib_app:env(wapi, access_conf, #{}),
     [
         get_authorizer_child_spec(jwt, maps:get(jwt, Authorizers))
     ].

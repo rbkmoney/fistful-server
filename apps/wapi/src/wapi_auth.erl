@@ -33,6 +33,8 @@
 -type auth_details() :: auth_method() | [{resource(), auth_details()}].
 -type auth_error()   :: [{resource(), [{auth_method(), atom()}]}].
 
+-define(SIGNEE, wapi).
+
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
     {ok, auth_details()}  | {error, auth_error()}.
 
@@ -146,7 +148,7 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
         PartyID,
         DomainRoles,
         Claims,
-        wapi
+        ?SIGNEE
     )).
 
 -spec resolve_token_spec(token_spec()) ->

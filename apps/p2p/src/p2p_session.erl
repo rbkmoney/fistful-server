@@ -74,7 +74,7 @@
 
 -type p2p_callback_params() :: p2p_callback:process_params().
 -type process_callback_response() :: p2p_callback:response().
--type process_callback_error() :: {session_already_finished, id()}.
+-type process_callback_error() :: {session_already_finished, p2p_adapter:context()}.
 
 -export_type([event/0]).
 -export_type([operation_info/0]).
@@ -170,12 +170,8 @@ get_adapter_with_opts(ProviderID) ->
 
 -spec process_session(session()) -> result().
 process_session(Session) ->
-    {Adapter, Opts} = adapter(Session),
-    Context = #{
-        session   => adapter_state(Session),
-        operation => operation_info(Session),
-        options   => Opts
-    },
+    {Adapter, _Opts} = adapter(Session),
+    Context = build_adapter_context(Session),
     {ok, {Intent, Data}} = p2p_adapter:process(Adapter, Context),
     Events0 = process_next_state(Data, []),
     Events1 = process_trx_info(Data, Events0),
@@ -260,8 +256,19 @@ process_callback(#{tag := CallbackTag} = Params, Session) ->
             Status = p2p_callback:status(Callback),
             do_process_callback(Status, Params, Callback, Session);
         {finished, _} ->
-            {error, {session_already_finished, id(Session)}}
+            Context = build_adapter_context(Session),
+            {error, {session_already_finished, Context}}
     end.
+
+-spec build_adapter_context(session()) ->
+    p2p_adapter:context().
+build_adapter_context(Session) ->
+    {_Adapter, AdapterOpts} = adapter(Session),
+    #{
+        session   => adapter_state(Session),
+        operation => operation_info(Session),
+        options   => AdapterOpts
+    }.
 
 -spec find_callback(p2p_callback_tag(), session()) ->
     {ok, p2p_callback()} | {error, unknown_p2p_callback_error()}.

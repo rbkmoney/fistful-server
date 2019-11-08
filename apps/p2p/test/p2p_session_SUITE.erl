@@ -119,13 +119,15 @@ user_interaction_ok_test(C) ->
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     Callback = ?CALLBACK(Token, <<"podliva">>),
-    ok = timer:sleep(2000),
+    State0 = <<"user_sleep">>,
+    State1 = <<"user_callback">>,
+    State2 = <<"user_sleep_finished">>,
+    ?assertMatch(State0, await_p2p_session_adapter_state(P2PSessionID, State0)),
     ?assertMatch({ok, {succeeded, _}}, call_host(Callback)),
-    ok = timer:sleep(1000),
-    ?assertEqual({finished, success}, await_final_p2p_session_status(P2PSessionID)),
-    ?assertMatch({ok, {finished, _}}, call_host(Callback)),
-    P2PSession = get_p2p_session(P2PSessionID),
-    ?assertEqual(<<"user_sleep_finished">>, p2p_session:adapter_state(P2PSession)).
+    ?assertMatch(State1, await_p2p_session_adapter_state(P2PSessionID, State1)),
+    ?assertMatch({finished, success}, await_final_p2p_session_status(P2PSessionID)),
+    ?assertMatch(State2, await_p2p_session_adapter_state(P2PSessionID, State2)),
+    ?assertMatch({ok, {finished, _}}, call_host(Callback)).
 
 -spec callback_ok_test(config()) -> test_return().
 callback_ok_test(C) ->
@@ -147,13 +149,15 @@ callback_ok_test(C) ->
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     Callback = ?CALLBACK(Token, <<"podliva">>),
-    ok = timer:sleep(2000),
+    State0 = <<"simple_sleep">>,
+    State1 = <<"simple_callback">>,
+    State2 = <<"sleep_finished">>,
+    ?assertMatch(State0, await_p2p_session_adapter_state(P2PSessionID, State0)),
     ?assertMatch({ok, {succeeded, _}}, call_host(Callback)),
-    ok = timer:sleep(1000),
-    ?assertEqual({finished, success}, await_final_p2p_session_status(P2PSessionID)),
-    ?assertMatch({ok, {finished, _}}, call_host(Callback)),
-    P2PSession = get_p2p_session(P2PSessionID),
-    ?assertEqual(<<"sleep_finished">>, p2p_session:adapter_state(P2PSession)).
+    ?assertMatch(State1, await_p2p_session_adapter_state(P2PSessionID, State1)),
+    ?assertMatch({finished, success}, await_final_p2p_session_status(P2PSessionID)),
+    ?assertMatch(State2, await_p2p_session_adapter_state(P2PSessionID, State2)),
+    ?assertMatch({ok, {finished, _}}, call_host(Callback)).
 
 -spec wrong_callback_tag_test(config()) -> test_return().
 wrong_callback_tag_test(C) ->
@@ -175,12 +179,13 @@ wrong_callback_tag_test(C) ->
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     WrongCallback = ?CALLBACK(<<"WRONG">>, <<"podliva">>),
-    ok = timer:sleep(2000),
-    ?assertEqual({exception, #p2p_adapter_SessionNotFound{}}, call_host(WrongCallback)),
-    ok = timer:sleep(1000),
-    ?assertEqual({finished, success}, await_final_p2p_session_status(P2PSessionID)),
-    P2PSession = get_p2p_session(P2PSessionID),
-    ?assertEqual(<<"wrong_finished">>, p2p_session:adapter_state(P2PSession)).
+    State0 = <<"wrong">>,
+    State1 = <<"wrong_finished">>,
+    ?assertMatch(State0, await_p2p_session_adapter_state(P2PSessionID, State0)),
+    ?assertMatch({exception, #p2p_adapter_SessionNotFound{}}, call_host(WrongCallback)),
+    ?assertMatch(State1, await_p2p_session_adapter_state(P2PSessionID, State1)),
+    ?assertMatch({finished, success}, await_final_p2p_session_status(P2PSessionID)),
+    ?assertMatch({exception, #p2p_adapter_SessionNotFound{}}, call_host(WrongCallback)).
 
 -spec create_fail_test(config()) -> test_return().
 create_fail_test(C) ->
@@ -249,6 +254,15 @@ get_p2p_session(P2PSessionID) ->
 
 get_p2p_session_status(P2PSessionID) ->
     p2p_session:status(get_p2p_session(P2PSessionID)).
+
+await_p2p_session_adapter_state(P2PSessionID, State) ->
+    Poller = fun() -> adapter_state_poller(P2PSessionID) end,
+    Retry = genlib_retry:linear(10, 1000),
+    ct_helper:await(State, Poller, Retry).
+
+adapter_state_poller(P2PSessionID) ->
+    P2PSession = get_p2p_session(P2PSessionID),
+    p2p_session:adapter_state(P2PSession).
 
 await_final_p2p_session_status(P2PSessionID) ->
     finished = ct_helper:await(

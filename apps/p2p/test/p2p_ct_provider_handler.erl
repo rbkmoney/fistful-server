@@ -109,6 +109,13 @@ handle_function_('Process', [?ADAPTER_CONTEXT(999, Token, State)], _Ctx, _Opts) 
                 }},
                 next_state = <<"simple_sleep">>
             }};
+        <<"simple_sleep">> ->
+            {ok, #p2p_adapter_ProcessResult{
+                intent = {sleep, #p2p_adapter_SleepIntent{
+                    timer = {timeout, 1},
+                    callback_tag = Token
+                }}
+            }};
         <<"simple_callback">> ->
             {ok, #p2p_adapter_ProcessResult{
                 intent = {finish, #p2p_adapter_FinishIntent{

@@ -400,7 +400,7 @@ get_context(Endpoint, Token) ->
 
 create_auth_ctx(PartyID) ->
     #{
-        swagger_context => #{auth_context => {{PartyID, empty}, empty}}
+        swagger_context => #{auth_context => {<<"TEST-ID">>, {PartyID, empty}, empty}}
     }.
 
 %%

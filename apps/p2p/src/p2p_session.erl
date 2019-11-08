@@ -251,22 +251,14 @@ set_session_result(Result, #{status := active}) ->
 -spec process_callback(p2p_callback_params(), session()) ->
     {ok, {process_callback_response(), result()}} |
     {error, process_callback_error()}.
-process_callback(Params, Session) ->
+process_callback_(#{tag := CallbackTag} = Params, Session) ->
     case status(Session) of
         active ->
-            process_callback_(Params, Session);
+            {ok, Callback} = find_callback(CallbackTag, Session),
+            Status = p2p_callback:status(Callback),
+            do_process_callback(Status, Params, Callback, Session);
         {finished, _} ->
             {error, {session_already_finished, id(Session)}}
-    end.
-
-process_callback_(#{tag := CallbackTag} = Params, Session) ->
-    case find_callback(CallbackTag, Session) of
-        %% TODO add exeption to proto
-        {error, {unknown_callback, _}} = Error ->
-            Error;
-        {ok, Callback} ->
-            Status = p2p_callback:status(Callback),
-            do_process_callback(Status, Params, Callback, Session)
     end.
 
 -spec find_callback(p2p_callback_tag(), session()) ->

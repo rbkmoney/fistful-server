@@ -127,6 +127,10 @@ id(#{id := V}) ->
 status(#{status := V}) ->
     V.
 
+-spec adapter_state(session()) -> adapter_state() | undefined.
+adapter_state(Session = #{}) ->
+    maps:get(adapter_state, Session, undefined).
+
 %% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
 %% изменением дочерних сущностей, например запуском adjustment.
 -spec is_finished(session()) -> boolean().
@@ -144,10 +148,6 @@ transfer_params(#{transfer_params := V}) ->
 -spec adapter(session()) -> adapter_with_opts().
 adapter(#{adapter := V}) ->
     V.
-
--spec adapter_state(session()) -> adapter_state() | undefined.
-adapter_state(Session = #{}) ->
-    maps:get(adapter_state, Session, undefined).
 
 %%
 

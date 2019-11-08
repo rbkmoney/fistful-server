@@ -50,7 +50,7 @@
 -type adapter_state()               :: dmsl_p2p_adapter_thrift:'AdapterState'() | undefined.
 -type adapter_opts()                :: ff_adapter:opts().
 
--type transaction_info()            :: ff_adapter:transaction_info().
+-type transaction_info()            :: ff_adapter:trx_info().
 
 -type callback()                    :: p2p_callback:process_params().
 

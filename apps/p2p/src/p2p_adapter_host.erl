@@ -43,7 +43,7 @@ handle_function_('ProcessCallback', [Callback], _Opts) ->
             woody_error:raise(business, #p2p_adapter_SessionNotFound{})
     end.
 
--spec get_context_params(p2p_session:id()) ->
+-spec get_context_params(machinery:id()) ->
     {p2p_adapter:transfer_params(), p2p_adapter:adapter_state(), p2p_adapter:adapter_opts()}.
 get_context_params(SessionID) ->
     {ok, SessionState} = p2p_session_machine:get(SessionID),

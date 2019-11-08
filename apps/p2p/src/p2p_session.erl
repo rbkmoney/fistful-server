@@ -74,9 +74,7 @@
 
 -type p2p_callback_params() :: p2p_callback:process_params().
 -type process_callback_response() :: p2p_callback:response().
--type process_callback_error() ::
-    {session_already_finished, id()} |
-    p2p_callback_utils:unknown_callback_error().
+-type process_callback_error() :: {session_already_finished, id()}.
 
 -export_type([event/0]).
 -export_type([transfer_params/0]).
@@ -251,7 +249,7 @@ set_session_result(Result, #{status := active}) ->
 -spec process_callback(p2p_callback_params(), session()) ->
     {ok, {process_callback_response(), result()}} |
     {error, process_callback_error()}.
-process_callback_(#{tag := CallbackTag} = Params, Session) ->
+process_callback(#{tag := CallbackTag} = Params, Session) ->
     case status(Session) of
         active ->
             {ok, Callback} = find_callback(CallbackTag, Session),

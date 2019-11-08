@@ -46,7 +46,7 @@
 -type p2p_callback_response()       :: dmsl_p2p_adapter_thrift:'CallbackResponse'().
 
 -type domain_transaction_info()     :: dmsl_domain_thrift:'TransactionInfo'().
--type transaction_info()            :: ff_adapter:transaction_info().
+-type transaction_info()            :: ff_adapter:trx_info().
 
 -type user_interaction_type()       :: dmsl_user_interaction_thrift:'UserInteraction'().
 
@@ -74,12 +74,12 @@ encode_context(TransferParams, AdapterState, AdapterOpts) ->
 % Decoders
 
 -spec decode_process_result(p2p_process_result()) ->
-    p2p_adapter:process_result().
+    {ok, p2p_adapter:process_result()}.
 decode_process_result(Result = #p2p_adapter_ProcessResult{intent = Intent}) ->
     {ok, {decode_intent(Intent), decode_process_result_data(Result)}}.
 
 -spec decode_handle_callback_result(p2p_callback_result()) ->
-    p2p_adapter:handle_callback_result().
+    {ok, p2p_adapter:handle_callback_result()}.
 decode_handle_callback_result(Result = #p2p_adapter_CallbackResult{intent = Intent, response = Response}) ->
     {ok, {decode_intent(Intent), decode_callback_response(Response), decode_callback_result_data(Result)}}.
 
@@ -92,7 +92,7 @@ decode_callback(#p2p_adapter_Callback{tag = Tag, payload = Payload}) ->
 
 % Encoders
 
--spec encode_session(transfer_params()) ->
+-spec encode_session(adapter_state()) ->
     p2p_session().
 encode_session(AdapterState) ->
     #p2p_adapter_Session{state = AdapterState}.

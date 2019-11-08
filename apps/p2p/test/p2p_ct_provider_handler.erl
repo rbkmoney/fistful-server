@@ -23,7 +23,14 @@ handle_function(Func, Args, Ctx, Opts) ->
 
 handle_function_('Process', [
     #p2p_adapter_Context{
-        operation = {process, #p2p_adapter_ProcessOperationInfo{body = #p2p_adapter_Cash{amount = 101}}},
+        operation = {process, #p2p_adapter_ProcessOperationInfo{
+            body = #p2p_adapter_Cash{amount = 101},
+            sender = {disposable, #domain_DisposablePaymentResource{
+                payment_tool = {bank_card, #domain_BankCard{
+                    token = Token
+                }}
+            }}
+        }},
         session = #p2p_adapter_Session{state = State}
 }], _Ctx, _Opts) ->
     case State of
@@ -31,7 +38,7 @@ handle_function_('Process', [
             {ok, #p2p_adapter_ProcessResult{
                 intent = {sleep, #p2p_adapter_SleepIntent{
                     timer = {timeout, 1},
-                    callback_tag = <<"user_tag">>,
+                    callback_tag = Token,
                     user_interaction = #p2p_adapter_UserInteraction{
                         id = <<"test_user_interaction">>,
                         intent = {create, #p2p_adapter_UserInteractionCreate{
@@ -49,15 +56,14 @@ handle_function_('Process', [
             {ok, #p2p_adapter_ProcessResult{
                 intent = {sleep, #p2p_adapter_SleepIntent{
                     timer = {timeout, 1},
-                    callback_tag = <<"user_tag">>,
+                    callback_tag = Token,
                     user_interaction = #p2p_adapter_UserInteraction{
                         id = <<"test_user_interaction">>,
                         intent = {finish, #p2p_adapter_UserInteractionFinish{}}
                     }
-                }},
-                next_state = <<"user_finish_sleep">>
+                }}
             }};
-        <<"user_finish_sleep">> ->
+        <<"user_callback">> ->
             {ok, #p2p_adapter_ProcessResult{
                 intent = {finish, #p2p_adapter_FinishIntent{
                     status = {success, #p2p_adapter_Success{}}
@@ -67,20 +73,55 @@ handle_function_('Process', [
     end;
 handle_function_('Process', [
     #p2p_adapter_Context{
-        operation = {process, #p2p_adapter_ProcessOperationInfo{body = #p2p_adapter_Cash{amount = 999}}},
+        operation = {process, #p2p_adapter_ProcessOperationInfo{
+            body = #p2p_adapter_Cash{amount = 99},
+            sender = {disposable, #domain_DisposablePaymentResource{
+                payment_tool = {bank_card, #domain_BankCard{
+                    token = Token
+                }}
+            }}
+        }},
         session = #p2p_adapter_Session{state = State}
 }], _Ctx, _Opts) ->
     case State of
         undefined ->
-            ct:print("kek process"),
             {ok, #p2p_adapter_ProcessResult{
                 intent = {sleep, #p2p_adapter_SleepIntent{
                     timer = {timeout, 1},
-                    callback_tag = <<"simple_tag">>
+                    callback_tag = Token
+                }},
+                next_state = <<"wrong">>
+            }};
+        <<"wrong">> ->
+            {ok, #p2p_adapter_ProcessResult{
+                intent = {finish, #p2p_adapter_FinishIntent{
+                    status = {success, #p2p_adapter_Success{}}
+                }},
+                next_state = <<"wrong_finished">>
+            }}
+    end;
+handle_function_('Process', [
+    #p2p_adapter_Context{
+        operation = {process, #p2p_adapter_ProcessOperationInfo{
+            body = #p2p_adapter_Cash{amount = 999},
+            sender = {disposable, #domain_DisposablePaymentResource{
+                payment_tool = {bank_card, #domain_BankCard{
+                    token = Token
+                }}
+            }}
+        }},
+        session = #p2p_adapter_Session{state = State}
+}], _Ctx, _Opts) ->
+    case State of
+        undefined ->
+            {ok, #p2p_adapter_ProcessResult{
+                intent = {sleep, #p2p_adapter_SleepIntent{
+                    timer = {timeout, 1},
+                    callback_tag = Token
                 }},
                 next_state = <<"simple_sleep">>
             }};
-        <<"simple_sleep">> ->
+        <<"simple_callback">> ->
             {ok, #p2p_adapter_ProcessResult{
                 intent = {finish, #p2p_adapter_FinishIntent{
                     status = {success, #p2p_adapter_Success{}}
@@ -98,7 +139,6 @@ handle_function_('Process', [
         }}
     }};
 handle_function_('Process', [_Context], _Ctx, _Opts) ->
-    % error({test, _Context}),
     {ok, #p2p_adapter_ProcessResult{
         intent = {finish, #p2p_adapter_FinishIntent{
             status = {success, #p2p_adapter_Success{}}
@@ -106,24 +146,36 @@ handle_function_('Process', [_Context], _Ctx, _Opts) ->
     }};
 
 handle_function_('HandleCallback', [
-    #p2p_adapter_Callback{tag = <<"simple_tag">>},
+    #p2p_adapter_Callback{tag = Token},
     #p2p_adapter_Context{
-        operation = {process, #p2p_adapter_ProcessOperationInfo{body = #p2p_adapter_Cash{amount = 999}}},
+        operation = {process, #p2p_adapter_ProcessOperationInfo{
+            sender = {disposable, #domain_DisposablePaymentResource{
+                payment_tool = {bank_card, #domain_BankCard{
+                    token = Token
+                }}
+            }}
+        }},
         session = #p2p_adapter_Session{state = State}
 }], _Ctx, _Opts) ->
-    ct:print("kek handle"),
     case State of
+        <<"user_sleep">> ->
+            {ok, #p2p_adapter_CallbackResult{
+                response = #p2p_adapter_CallbackResponse{payload = <<"podliva">>},
+                intent = {finish, #p2p_adapter_FinishIntent{
+                    status = {success, #p2p_adapter_Success{}}
+                }},
+                next_state = <<"user_callback">>
+            }};
         <<"simple_sleep">> ->
             {ok, #p2p_adapter_CallbackResult{
                 response = #p2p_adapter_CallbackResponse{payload = <<"podliva">>},
                 intent = {finish, #p2p_adapter_FinishIntent{
                     status = {success, #p2p_adapter_Success{}}
                 }},
-                next_state = <<"sleep_finished">>
+                next_state = <<"simple_callback">>
             }}
     end;
 handle_function_('HandleCallback', [_Callback, _Context], _Ctx, _Opts) ->
-    ct:print("kek handle wrong"),
     {ok, #p2p_adapter_CallbackResult{
         response = #p2p_adapter_CallbackResponse{payload = <<"payload">>},
         intent = {finish, #p2p_adapter_FinishIntent{
@@ -134,11 +186,3 @@ handle_function_('HandleCallback', [_Callback, _Context], _Ctx, _Opts) ->
 %%
 %% Internals
 %%
-
-% call_adapter_host(#p2p_adapter_Callback{} = Callback) ->
-%     Service  = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
-%     Function = 'ProcessCallback',
-%     Args     = [Callback],
-%     Request  = {Service, Function, Args},
-%     Client   = ff_woody_client:new(<<"http://fistful-server:8022/v1/p2p_adapter_host">>),
-%     ff_woody_client:call(Client, Request).

@@ -103,7 +103,7 @@ handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts) ->
 do_process(Adapter, TransferParams, AdapterState, AdapterOpts) ->
     Context = p2p_adapter_codec:encode_context(TransferParams, AdapterState, AdapterOpts),
     {ok, Result} = call(Adapter, 'Process', [Context]),
-    p2p_adapter_codec:decode_process_result(Result).
+    {ok, p2p_adapter_codec:decode_process_result(Result)}.
 
 -spec do_handle_callback(adapter(), callback(), transfer_params(), adapter_state(), adapter_opts()) ->
     {ok, handle_callback_result()}.
@@ -111,7 +111,7 @@ do_handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts)
     EncodedCallback = p2p_adapter_codec:encode_callback(Callback),
     Context         = p2p_adapter_codec:encode_context(TransferParams, AdapterState, AdapterOpts),
     {ok, Result}    = call(Adapter, 'HandleCallback', [EncodedCallback, Context]),
-    p2p_adapter_codec:decode_handle_callback_result(Result).
+    {ok, p2p_adapter_codec:decode_handle_callback_result(Result)}.
 
 -spec call(adapter(), 'Process',        [any()]) -> {ok, p2p_process_result()}  | no_return();
           (adapter(), 'HandleCallback', [any()]) -> {ok, p2p_callback_result()} | no_return().

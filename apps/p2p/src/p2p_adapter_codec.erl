@@ -74,14 +74,14 @@ encode_context(TransferParams, AdapterState, AdapterOpts) ->
 % Decoders
 
 -spec decode_process_result(p2p_process_result()) ->
-    {ok, p2p_adapter:process_result()}.
+    p2p_adapter:process_result().
 decode_process_result(Result = #p2p_adapter_ProcessResult{intent = Intent}) ->
-    {ok, {decode_intent(Intent), decode_process_result_data(Result)}}.
+    {decode_intent(Intent), decode_process_result_data(Result)}.
 
 -spec decode_handle_callback_result(p2p_callback_result()) ->
-    {ok, p2p_adapter:handle_callback_result()}.
+    p2p_adapter:handle_callback_result().
 decode_handle_callback_result(Result = #p2p_adapter_CallbackResult{intent = Intent, response = Response}) ->
-    {ok, {decode_intent(Intent), decode_callback_response(Response), decode_callback_result_data(Result)}}.
+    {decode_intent(Intent), decode_callback_response(Response), decode_callback_result_data(Result)}.
 
 -spec decode_callback(p2p_callback()) ->
     callback().
@@ -211,23 +211,6 @@ decode_user_interaction_type({redirect, {post_request,
     #'BrowserPostRequest'{uri = URI, form = Form}
 }}) ->
     #{type => redirect, content => {post, URI, Form}}.
-% unused
-% TYPO IN PROTOCOL: reciept instead of receipt
-% decode_user_interaction_type({payment_terminal_reciept, Receipt}) ->
-%     ID        = Receipt#'PaymentTerminalReceipt'.short_payment_id,
-%     Timestamp = Receipt#'PaymentTerminalReceipt'.due,
-%     #{type => payment_terminal_receipt, payment_id => ID, timestamp => Timestamp};
-% decode_user_interaction_type({crypto_currency_transfer_request, Crypto}) ->
-%     Address    = Crypto#'CryptoCurrencyTransferRequest'.crypto_address,
-%     Cash       = Crypto#'CryptoCurrencyTransferRequest'.crypto_cash,
-%     Amount     = Cash#'CryptoCash'.crypto_amount,
-%     SymCode    = Cash#'CryptoCash'.crypto_symbolic_code,
-%     Quantity   = Amount#'Rational'.q,
-%     Part       = Amount#'Rational'.p,
-%     CryptoCash = {{Quantity, Part}, SymCode},
-%     #{type => crypto_currency_transfer_request, crypto_address => Address, crypto_cash => CryptoCash};
-% decode_user_interaction_type({qr_code_show_request, Payload}) ->
-%     #{type => qr_code_show_request, payload => Payload}.
 
 -spec decode_transaction_info(domain_transaction_info()) -> transaction_info();
                              (undefined)                 -> undefined.

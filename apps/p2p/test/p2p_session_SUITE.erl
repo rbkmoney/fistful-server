@@ -297,5 +297,4 @@ call_host(Callback) ->
     Function = 'ProcessCallback',
     Args     = [Callback],
     Request  = {Service, Function, Args},
-    Client   = ff_woody_client:new(<<"http://fistful-server:8022/v1/p2p_adapter_host">>),
-    ff_woody_client:call(Client, Request).
+    ff_woody_client:call(p2p_adapter_host, Request).

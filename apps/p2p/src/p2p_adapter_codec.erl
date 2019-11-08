@@ -10,7 +10,7 @@
 %% Exports
 
 -export([encode_callback/1]).
--export([encode_context/3]).
+-export([encode_context/1]).
 
 -export([decode_callback/1]).
 -export([decode_process_result/1]).
@@ -19,9 +19,9 @@
 -type callback()                    :: p2p_adapter:callback().
 -type p2p_callback()                :: dmsl_p2p_adapter_thrift:'Callback'().
 
--type transfer_params()             :: p2p_adapter:transfer_params().
+-type context()                     :: p2p_adapter:context().
+-type operation_info()              :: p2p_adapter:operation_info().
 -type adapter_state()               :: p2p_adapter:adapter_state().
--type adapter_opts()                :: p2p_adapter:adapter_opts().
 -type p2p_context()                 :: dmsl_p2p_adapter_thrift:'Context'().
 
 -type p2p_session()                 :: dmsl_p2p_adapter_thrift:'Session'().
@@ -62,12 +62,18 @@ encode_callback(#{tag := Tag, payload := Payload}) ->
         payload = Payload
     }.
 
--spec encode_context(transfer_params(), adapter_state(), adapter_opts()) ->
+-spec encode_context(context()) ->
     p2p_context().
-encode_context(TransferParams, AdapterState, AdapterOpts) ->
+encode_context(Context) ->
+    #{
+        session   := AdapterState,
+        operation := OperationInfo,
+        options   := AdapterOpts
+
+    } = Context,
     #p2p_adapter_Context{
         session   = encode_session(AdapterState),
-        operation = encode_operation_info(TransferParams),
+        operation = encode_operation_info(OperationInfo),
         options   = AdapterOpts
     }.
 
@@ -97,27 +103,25 @@ decode_callback(#p2p_adapter_Callback{tag = Tag, payload = Payload}) ->
 encode_session(AdapterState) ->
     #p2p_adapter_Session{state = AdapterState}.
 
--spec encode_operation_info(transfer_params()) ->
+-spec encode_operation_info(operation_info()) ->
     p2p_operation_info().
-encode_operation_info(TransferParams) ->
+encode_operation_info(OperationInfo) ->
     #{
-        cash     := Cash,
+        body     := Cash,
         sender   := Sender,
         receiver := Receiver
-    } = TransferParams,
+    } = OperationInfo,
     {process, #p2p_adapter_ProcessOperationInfo{
         body     = encode_cash(Cash),
         sender   = encode_resource(Sender),
         receiver = encode_resource(Receiver),
-        deadline = maps:get(deadline, TransferParams, undefined)
+        deadline = maps:get(deadline, OperationInfo, undefined)
     }}.
 
 -spec encode_cash(cash()) ->
     p2p_cash().
-encode_cash({Amount, CurrencyID}) ->
-    {ok, Currency} = ff_currency:get(CurrencyID),
-    DomainCurrency = encode_currency(Currency),
-    #p2p_adapter_Cash{amount = Amount, currency = DomainCurrency}.
+encode_cash({Amount, Currency}) ->
+    #p2p_adapter_Cash{amount = Amount, currency = encode_currency(Currency)}.
 
 -spec encode_currency(currency()) ->
     domain_currency().

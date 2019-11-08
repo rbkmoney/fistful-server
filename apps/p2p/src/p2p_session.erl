@@ -21,7 +21,7 @@
 %% Accessors
 
 -export([id/1]).
--export([transfer_params/1]).
+-export([operation_info/1]).
 -export([adapter/1]).
 -export([adapter_state/1]).
 
@@ -39,7 +39,7 @@
 -type session() :: #{
     id := id(),
     status := status(),
-    transfer_params := transfer_params(),
+    operation_info := operation_info(),
     provider_id := ff_p2p_provider:id(),
     adapter := adapter_with_opts(),
     adapter_state => adapter_state(),
@@ -62,7 +62,7 @@
 -type wrapped_callback_event() :: p2p_callback_utils:wrapped_event().
 -type wrapped_user_interaction_event() :: p2p_user_interaction_utils:wrapped_event().
 
--type transfer_params() :: p2p_adapter:transfer_params().
+-type operation_info() :: p2p_adapter:operation_info().
 -type adapter_state() :: p2p_adapter:adapter_state().
 -type session_result() :: p2p_adapter:finish_status().
 
@@ -77,7 +77,7 @@
 -type process_callback_error() :: {session_already_finished, id()}.
 
 -export_type([event/0]).
--export_type([transfer_params/0]).
+-export_type([operation_info/0]).
 -export_type([params/0]).
 -export_type([status/0]).
 -export_type([session/0]).
@@ -141,8 +141,8 @@ is_finished(#{status := active}) ->
 
 %% Accessors
 
--spec transfer_params(session()) -> transfer_params().
-transfer_params(#{transfer_params := V}) ->
+-spec operation_info(session()) -> operation_info().
+operation_info(#{operation_info := V}) ->
     V.
 
 -spec adapter(session()) -> adapter_with_opts().
@@ -151,12 +151,12 @@ adapter(#{adapter := V}) ->
 
 %%
 
--spec create(id(), transfer_params(), params()) ->
+-spec create(id(), operation_info(), params()) ->
     {ok, [event()]}.
-create(ID, TransferParams, #{provider_id := ProviderID}) ->
+create(ID, OperationInfo, #{provider_id := ProviderID}) ->
     Session = #{
         id => ID,
-        transfer_params => TransferParams,
+        operation_info => OperationInfo,
         provider_id => ProviderID,
         adapter => get_adapter_with_opts(ProviderID),
         status => active
@@ -170,9 +170,13 @@ get_adapter_with_opts(ProviderID) ->
 
 -spec process_session(session()) -> result().
 process_session(Session) ->
-    ASt = adapter_state(Session),
     {Adapter, Opts} = adapter(Session),
-    {ok, {Intent, Data}} = p2p_adapter:process(Adapter, transfer_params(Session), ASt, Opts),
+    Context = #{
+        session   => adapter_state(Session),
+        operation => operation_info(Session),
+        options   => Opts
+    },
+    {ok, {Intent, Data}} = p2p_adapter:process(Adapter, Context),
     Events0 = process_next_state(Data, []),
     Events1 = process_trx_info(Data, Events0),
     process_intent(Intent, Events1, Session).
@@ -273,15 +277,13 @@ do_process_callback(succeeded, _Params, Callback, _Session) ->
 do_process_callback(pending, Params, Callback, Session) ->
     do(fun() ->
         valid = unwrap(validate_process_callback(Session)),
-        ASt = adapter_state(Session),
         {Adapter, Opts} = adapter(Session),
-        {ok, {Intent, Response, Data}} = p2p_adapter:handle_callback(
-            Adapter,
-            Params,
-            transfer_params(Session),
-            ASt,
-            Opts
-        ),
+        Context = #{
+            session   => adapter_state(Session),
+            operation => operation_info(Session),
+            options   => Opts
+        },
+        {ok, {Intent, Response, Data}} = p2p_adapter:handle_callback(Adapter, Params, Context),
         Events0 = p2p_callback_utils:process_response(Response, Callback),
         Events1 = process_next_state(Data, Events0),
         Events2 = process_trx_info(Data, Events1),

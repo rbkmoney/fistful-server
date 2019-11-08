@@ -101,7 +101,8 @@ end_per_testcase(_Name, _C) ->
 
 -spec user_interaction_ok_test(config()) -> test_return().
 user_interaction_ok_test(C) ->
-    Cash = {101, <<"RUB">>},
+    {ok, Currency} = ff_currency:get(<<"RUB">>),
+    Cash = {101, Currency},
     TokenPrefix = <<"token_interaction_">>,
     TokenRandomised = generate_id(),
     Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
@@ -115,7 +116,7 @@ user_interaction_ok_test(C) ->
         id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
-        cash => Cash
+        body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     Callback = ?CALLBACK(Token, <<"podliva">>),
@@ -131,7 +132,8 @@ user_interaction_ok_test(C) ->
 
 -spec callback_ok_test(config()) -> test_return().
 callback_ok_test(C) ->
-    Cash = {999, <<"RUB">>},
+    {ok, Currency} = ff_currency:get(<<"RUB">>),
+    Cash = {999, Currency},
     TokenPrefix = <<"token_callback_">>,
     TokenRandomised = generate_id(),
     Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
@@ -142,10 +144,10 @@ callback_ok_test(C) ->
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
-        id => <<"p2p_transfer_id">>,
+        % id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
-        cash => Cash
+        body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     Callback = ?CALLBACK(Token, <<"podliva">>),
@@ -161,7 +163,8 @@ callback_ok_test(C) ->
 
 -spec wrong_callback_tag_test(config()) -> test_return().
 wrong_callback_tag_test(C) ->
-    Cash = {99, <<"RUB">>},
+    {ok, Currency} = ff_currency:get(<<"RUB">>),
+    Cash = {99, Currency},
     TokenPrefix = <<"token_wrong_">>,
     TokenRandomised = generate_id(),
     Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
@@ -172,10 +175,10 @@ wrong_callback_tag_test(C) ->
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
-        id => <<"p2p_transfer_id">>,
+        % id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
-        cash => Cash
+        body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     WrongCallback = ?CALLBACK(<<"WRONG">>, <<"podliva">>),
@@ -189,7 +192,8 @@ wrong_callback_tag_test(C) ->
 
 -spec create_fail_test(config()) -> test_return().
 create_fail_test(C) ->
-    Cash = {1001, <<"RUB">>},
+    {ok, Currency} = ff_currency:get(<<"RUB">>),
+    Cash = {1001, Currency},
     #{
         sender := ResourceSender,
         receiver := ResourceReceiver
@@ -197,17 +201,18 @@ create_fail_test(C) ->
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
-        id => <<"p2p_transfer_id">>,
+        % id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
-        cash => Cash
+        body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     ?assertEqual({finished, {failure, #{code => <<"test_failure">>}}}, await_final_p2p_session_status(P2PSessionID)).
 
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->
-    Cash = {100, <<"RUB">>},
+    {ok, Currency} = ff_currency:get(<<"RUB">>),
+    Cash = {100, Currency},
     #{
         sender := ResourceSender,
         receiver := ResourceReceiver
@@ -215,10 +220,10 @@ create_ok_test(C) ->
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
-        id => <<"p2p_transfer_id">>,
+        % id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
-        cash => Cash
+        body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     ?assertEqual({finished, success}, await_final_p2p_session_status(P2PSessionID)).

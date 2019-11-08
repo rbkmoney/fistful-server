@@ -35,20 +35,21 @@ handle_function_('ProcessCallback', [Callback], _Opts) ->
             Result = #p2p_adapter_ProcessCallbackSucceeded{response = CallbackResponse},
             {ok, {succeeded, Result}};
         {error, {session_already_finished, ID}} ->
-            {TransferParams, AdapterState, AdapterOpts} = get_context_params(ID),
-            Context = p2p_adapter_codec:encode_context(TransferParams, AdapterState, AdapterOpts),
+            Context = p2p_adapter_codec:encode_context(get_context(ID)),
             Result = #p2p_adapter_ProcessCallbackFinished{response = Context},
             {ok, {finished, Result}};
         {error, {unknown_p2p_session, _ID}} ->
             woody_error:raise(business, #p2p_adapter_SessionNotFound{})
     end.
 
--spec get_context_params(machinery:id()) ->
-    {p2p_adapter:transfer_params(), p2p_adapter:adapter_state(), p2p_adapter:adapter_opts()}.
-get_context_params(SessionID) ->
+-spec get_context(machinery:id()) ->
+    p2p_adapter:context().
+get_context(SessionID) ->
     {ok, SessionState} = p2p_session_machine:get(SessionID),
     Session = p2p_session_machine:session(SessionState),
-    TransferParams = p2p_session:transfer_params(Session),
-    AdapterState = p2p_session:adapter_state(Session),
     {_Adapter, AdapterOpts} = p2p_session:adapter(Session),
-    {TransferParams, AdapterState, AdapterOpts}.
+    #{
+        session   => p2p_session:adapter_state(Session),
+        operation => p2p_session:operation_info(Session),
+        options   => AdapterOpts
+    }.

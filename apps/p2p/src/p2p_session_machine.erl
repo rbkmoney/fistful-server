@@ -45,7 +45,7 @@
 
 -type ref() :: machinery:ref().
 -type id() :: machinery:id().
--type transfer_params() :: p2p_session:transfer_params().
+-type operation_info() :: p2p_session:operation_info().
 -type params() :: p2p_session:params().
 
 -type machine() :: ff_machine:machine(event()).
@@ -87,11 +87,11 @@ session(St) ->
 
 %%
 
--spec create(id(), transfer_params(), params()) ->
+-spec create(id(), operation_info(), params()) ->
     ok | {error, exists}.
-create(ID, TransferParams, Params) ->
+create(ID, OperationInfo, Params) ->
     do(fun () ->
-        Events = unwrap(p2p_session:create(ID, TransferParams, Params)),
+        Events = unwrap(p2p_session:create(ID, OperationInfo, Params)),
         unwrap(machinery:start(?NS, ID, Events, backend()))
     end).
 

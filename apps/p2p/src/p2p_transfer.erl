@@ -728,9 +728,11 @@ process_p_transfer_creation(P2PTransfer) ->
     process_result().
 process_session_creation(P2PTransfer) ->
     ID = construct_session_id(id(P2PTransfer)),
-    TransferParams = genlib_map:compact(#{
-        id => id(P2PTransfer),
-        cash => body(P2PTransfer),
+    {Amount, CurrencyID} = body(P2PTransfer),
+    {ok, Currency} = ff_currency:get(CurrencyID),
+    OperationInfo = genlib_map:compact(#{
+        % id => id(P2PTransfer),
+        body => {Amount, Currency},
         sender => sender_resource(P2PTransfer),
         receiver => receiver_resource(P2PTransfer),
         deadline => deadline(P2PTransfer)
@@ -739,7 +741,7 @@ process_session_creation(P2PTransfer) ->
     Params = #{
         provider_id => ProviderID
     },
-    _AnyResultIsOK = p2p_session_machine:create(ID, TransferParams, Params),
+    _AnyResultIsOK = p2p_session_machine:create(ID, OperationInfo, Params),
     {continue, [{session, {started, ID}}]}.
 
 construct_session_id(ID) ->

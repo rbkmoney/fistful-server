@@ -28,14 +28,13 @@
 -type p2p_operation_info()          :: dmsl_p2p_adapter_thrift:'OperationInfo'().
 
 -type resource()                    :: p2p_adapter:resource().
-
 -type p2p_payment_resource()        :: dmsl_p2p_adapter_thrift:'PaymentResource'().
--type p2p_cash()                    :: dmsl_p2p_adapter_thrift:'Cash'().
 
 -type cash()                        :: p2p_adapter:cash().
+-type p2p_cash()                    :: dmsl_p2p_adapter_thrift:'Cash'().
 
+-type currency()                    :: p2p_adapter:currency().
 -type domain_currency()             :: dmsl_domain_thrift:'Currency'().
--type currency()                    :: ff_currency:currency().
 
 -type p2p_process_result()          :: dmsl_p2p_adapter_thrift:'ProcessResult'().
 -type p2p_callback_result()         :: dmsl_p2p_adapter_thrift:'CallbackResult'().
@@ -82,13 +81,31 @@ encode_context(Context) ->
 
 -spec decode_process_result(p2p_process_result()) ->
     p2p_adapter:process_result().
-decode_process_result(Result = #p2p_adapter_ProcessResult{intent = Intent}) ->
-    {decode_intent(Intent), decode_process_result_data(Result)}.
+decode_process_result(#p2p_adapter_ProcessResult{
+    intent     = Intent,
+    next_state = NextState,
+    trx        = TransactionInfo
+}) ->
+    genlib_map:compact(#{
+        intent           => decode_intent(Intent),
+        next_state       => NextState,
+        transaction_info => decode_transaction_info(TransactionInfo)
+    }).
 
 -spec decode_handle_callback_result(p2p_callback_result()) ->
     p2p_adapter:handle_callback_result().
-decode_handle_callback_result(Result = #p2p_adapter_CallbackResult{intent = Intent, response = Response}) ->
-    {decode_intent(Intent), decode_callback_response(Response), decode_callback_result_data(Result)}.
+decode_handle_callback_result(#p2p_adapter_CallbackResult{
+    intent     = Intent,
+    next_state = NextState,
+    trx        = TransactionInfo,
+    response   = Response
+}) ->
+    genlib_map:compact(#{
+        intent           => decode_intent(Intent),
+        response         => decode_callback_response(Response),
+        next_state       => NextState,
+        transaction_info => decode_transaction_info(TransactionInfo)
+    }).
 
 -spec decode_callback(p2p_callback()) ->
     callback().
@@ -152,16 +169,6 @@ encode_resource(Resource) ->
     }}.
 
 % Decoders
-
--spec decode_process_result_data(p2p_process_result()) ->
-    p2p_adapter:result_data().
-decode_process_result_data(#p2p_adapter_ProcessResult{next_state = NextState, trx = TransactionInfo}) ->
-    genlib_map:compact(#{next_state => NextState, transaction_info => decode_transaction_info(TransactionInfo)}).
-
--spec decode_callback_result_data(p2p_callback_result()) ->
-    p2p_adapter:result_data().
-decode_callback_result_data(#p2p_adapter_CallbackResult{next_state = NextState, trx = TransactionInfo}) ->
-    genlib_map:compact(#{next_state => NextState, transaction_info => decode_transaction_info(TransactionInfo)}).
 
 -spec decode_intent(p2p_intent()) ->
     p2p_adapter:intent().

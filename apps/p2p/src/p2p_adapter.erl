@@ -15,23 +15,23 @@
 -export([handle_callback/3]).
 
 -export_type([callback/0]).
+-export_type([context/0]).
 
--export_type([intent/0]).
--export_type([user_interaction/0]).
--export_type([callback_response_payload/0]).
+-export_type([adapter_state/0]).
+-export_type([adapter_opts/0]).
+
+-export_type([operation_info/0]).
+-export_type([cash/0]).
+-export_type([currency/0]).
+-export_type([resource/0]).
 
 -export_type([process_result/0]).
 -export_type([handle_callback_result/0]).
 
--export_type([result_data/0]).
-
--export_type([context/0]).
--export_type([cash/0]).
--export_type([resource/0]).
--export_type([operation_info/0]).
--export_type([adapter_state/0]).
--export_type([adapter_opts/0]).
+-export_type([intent/0]).
 -export_type([finish_status/0]).
+-export_type([user_interaction/0]).
+-export_type([callback_response_payload/0]).
 
 %% Types
 
@@ -52,7 +52,14 @@
 
 -type id()                          :: binary().
 -type cash()                        :: {integer(), currency()}.
--type currency()                    :: ff_currency:currency().
+-type currency()                    :: #{
+    name     := binary(),
+    symcode  := symcode(),
+    numcode  := integer(),
+    exponent := non_neg_integer()
+}.
+
+-type symcode()                     :: binary().
 
 -type resource()                    :: #{
     token          := binary(),
@@ -73,15 +80,20 @@
 -type p2p_process_result()          :: dmsl_p2p_adapter_thrift:'ProcessResult'().
 -type p2p_callback_result()         :: dmsl_p2p_adapter_thrift:'CallbackResult'().
 
--type process_result()              :: {intent(), result_data()}.
--type handle_callback_result()      :: {intent(), callback_response_payload(), result_data()}.
-
--type callback_response_payload()   :: p2p_callback:response().
-
--type result_data()                 :: #{
+-type process_result()              :: #{
+    intent           := intent(),
     next_state       => adapter_state(),
     transaction_info => transaction_info()
 }.
+
+-type handle_callback_result()      :: #{
+    intent           := intent(),
+    response         := callback_response_payload(),
+    next_state       => adapter_state(),
+    transaction_info => transaction_info()
+}.
+
+-type callback_response_payload()   :: p2p_callback:response().
 
 -type intent()                      :: {finish, finish_status()}
                                      | {sleep , sleep_status()}.

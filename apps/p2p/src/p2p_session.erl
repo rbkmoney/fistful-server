@@ -21,7 +21,7 @@
 %% Accessors
 
 -export([id/1]).
--export([operation_info/1]).
+-export([transfer_params/1]).
 -export([adapter/1]).
 -export([adapter_state/1]).
 
@@ -39,7 +39,7 @@
 -type session() :: #{
     id := id(),
     status := status(),
-    operation_info := operation_info(),
+    transfer_params := transfer_params(),
     provider_id := ff_p2p_provider:id(),
     adapter := adapter_with_opts(),
     adapter_state => adapter_state(),
@@ -62,6 +62,16 @@
 -type wrapped_callback_event() :: p2p_callback_utils:wrapped_event().
 -type wrapped_user_interaction_event() :: p2p_user_interaction_utils:wrapped_event().
 
+-type transfer_params() :: #{
+    id       := id(),
+    body     := body(),
+    sender   := p2p_transfer:resource_full(),
+    receiver := p2p_transfer:resource_full(),
+    deadline => deadline()
+}.
+
+-type body() :: ff_transaction:body().
+
 -type operation_info() :: p2p_adapter:operation_info().
 -type adapter_state() :: p2p_adapter:adapter_state().
 -type session_result() :: p2p_adapter:finish_status().
@@ -77,7 +87,7 @@
 -type process_callback_error() :: {session_already_finished, p2p_adapter:context()}.
 
 -export_type([event/0]).
--export_type([operation_info/0]).
+-export_type([transfer_params/0]).
 -export_type([params/0]).
 -export_type([status/0]).
 -export_type([session/0]).
@@ -141,8 +151,8 @@ is_finished(#{status := active}) ->
 
 %% Accessors
 
--spec operation_info(session()) -> operation_info().
-operation_info(#{operation_info := V}) ->
+-spec transfer_params(session()) -> transfer_params().
+transfer_params(#{transfer_params := V}) ->
     V.
 
 -spec adapter(session()) -> adapter_with_opts().
@@ -151,12 +161,12 @@ adapter(#{adapter := V}) ->
 
 %%
 
--spec create(id(), operation_info(), params()) ->
+-spec create(id(), transfer_params(), params()) ->
     {ok, [event()]}.
-create(ID, OperationInfo, #{provider_id := ProviderID}) ->
+create(ID, TransferParams, #{provider_id := ProviderID}) ->
     Session = #{
         id => ID,
-        operation_info => OperationInfo,
+        transfer_params => TransferParams,
         provider_id => ProviderID,
         adapter => get_adapter_with_opts(ProviderID),
         status => active
@@ -172,9 +182,10 @@ get_adapter_with_opts(ProviderID) ->
 process_session(Session) ->
     {Adapter, _Opts} = adapter(Session),
     Context = build_adapter_context(Session),
-    {ok, {Intent, Data}} = p2p_adapter:process(Adapter, Context),
-    Events0 = process_next_state(Data, []),
-    Events1 = process_trx_info(Data, Events0),
+    {ok, ProcessResult} = p2p_adapter:process(Adapter, Context),
+    #{intent := Intent} = ProcessResult,
+    Events0 = process_next_state(ProcessResult, []),
+    Events1 = process_trx_info(ProcessResult, Events0),
     process_intent(Intent, Events1, Session).
 
 process_next_state(#{next_state := NextState}, Events) ->
@@ -266,8 +277,44 @@ build_adapter_context(Session) ->
     {_Adapter, AdapterOpts} = adapter(Session),
     #{
         session   => adapter_state(Session),
-        operation => operation_info(Session),
+        operation => build_operation_info(transfer_params(Session)),
         options   => AdapterOpts
+    }.
+
+-spec build_operation_info(transfer_params()) ->
+    operation_info().
+build_operation_info(TransferParams) ->
+    Body     = build_operation_info_body(TransferParams),
+    Sender   = build_operation_info_resource(maps:get(sender, TransferParams)),
+    Receiver = build_operation_info_resource(maps:get(receiver, TransferParams)),
+    Deadline = maps:get(deadline, TransferParams, undefined),
+    genlib_map:compact(#{
+        body     => Body,
+        sender   => Sender,
+        receiver => Receiver,
+        deadline => Deadline
+    }).
+
+-spec build_operation_info_body(transfer_params()) ->
+    p2p_adapter:cash().
+build_operation_info_body(TransferParams) ->
+    {Amount, CurrencyID} = maps:get(body, TransferParams),
+    {ok, Currency}       = ff_currency:get(CurrencyID),
+    {Amount, #{
+        name      => maps:get(name, Currency),
+        symcode   => maps:get(symcode, Currency),
+        numcode   => maps:get(numcode, Currency),
+        exponent  => maps:get(exponent, Currency)
+    }}.
+
+-spec build_operation_info_resource(p2p_transfer:resource_full()) ->
+    p2p_adapter:resource().
+build_operation_info_resource({raw_full, Resource}) ->
+    #{
+        token          => maps:get(token, Resource),
+        bin            => maps:get(bin, Resource),
+        payment_system => maps:get(payment_system, Resource),
+        masked_pan     => maps:get(masked_pan, Resource)
     }.
 
 -spec find_callback(p2p_callback_tag(), session()) ->
@@ -284,16 +331,13 @@ do_process_callback(succeeded, _Params, Callback, _Session) ->
 do_process_callback(pending, Params, Callback, Session) ->
     do(fun() ->
         valid = unwrap(validate_process_callback(Session)),
-        {Adapter, Opts} = adapter(Session),
-        Context = #{
-            session   => adapter_state(Session),
-            operation => operation_info(Session),
-            options   => Opts
-        },
-        {ok, {Intent, Response, Data}} = p2p_adapter:handle_callback(Adapter, Params, Context),
+        {Adapter, _Opts} = adapter(Session),
+        Context = build_adapter_context(Session),
+        {ok, HandleCallbackResult} = p2p_adapter:handle_callback(Adapter, Params, Context),
+        #{intent := Intent, response := Response} = HandleCallbackResult,
         Events0 = p2p_callback_utils:process_response(Response, Callback),
-        Events1 = process_next_state(Data, Events0),
-        Events2 = process_trx_info(Data, Events1),
+        Events1 = process_next_state(HandleCallbackResult, Events0),
+        Events2 = process_trx_info(HandleCallbackResult, Events1),
         {Response, process_intent(Intent, Events2, Session)}
     end).
 

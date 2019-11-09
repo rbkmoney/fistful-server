@@ -26,6 +26,8 @@
 -export_type([result_data/0]).
 
 -export_type([context/0]).
+-export_type([cash/0]).
+-export_type([resource/0]).
 -export_type([operation_info/0]).
 -export_type([adapter_state/0]).
 -export_type([adapter_opts/0]).
@@ -49,8 +51,16 @@
 }.
 
 -type id()                          :: binary().
--type cash()                        :: ff_cash:cash().
--type resource()                    :: p2p_transfer:resource_full().
+-type cash()                        :: {integer(), currency()}.
+-type currency()                    :: ff_currency:currency().
+
+-type resource()                    :: #{
+    token          := binary(),
+    bin            := binary(),
+    payment_system := atom(),
+    masked_pan     := binary()
+}.
+
 -type deadline()                    :: binary().
 
 -type adapter_state()               :: dmsl_p2p_adapter_thrift:'AdapterState'() | undefined.

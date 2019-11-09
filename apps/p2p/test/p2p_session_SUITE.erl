@@ -101,8 +101,7 @@ end_per_testcase(_Name, _C) ->
 
 -spec user_interaction_ok_test(config()) -> test_return().
 user_interaction_ok_test(C) ->
-    {ok, Currency} = ff_currency:get(<<"RUB">>),
-    Cash = {101, Currency},
+    Cash = {101, <<"RUB">>},
     TokenPrefix = <<"token_interaction_">>,
     TokenRandomised = generate_id(),
     Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
@@ -132,8 +131,7 @@ user_interaction_ok_test(C) ->
 
 -spec callback_ok_test(config()) -> test_return().
 callback_ok_test(C) ->
-    {ok, Currency} = ff_currency:get(<<"RUB">>),
-    Cash = {999, Currency},
+    Cash = {999, <<"RUB">>},
     TokenPrefix = <<"token_callback_">>,
     TokenRandomised = generate_id(),
     Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
@@ -144,7 +142,7 @@ callback_ok_test(C) ->
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
-        % id => <<"p2p_transfer_id">>,
+        id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
         body => Cash
@@ -163,8 +161,7 @@ callback_ok_test(C) ->
 
 -spec wrong_callback_tag_test(config()) -> test_return().
 wrong_callback_tag_test(C) ->
-    {ok, Currency} = ff_currency:get(<<"RUB">>),
-    Cash = {99, Currency},
+    Cash = {99, <<"RUB">>},
     TokenPrefix = <<"token_wrong_">>,
     TokenRandomised = generate_id(),
     Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
@@ -175,7 +172,7 @@ wrong_callback_tag_test(C) ->
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
-        % id => <<"p2p_transfer_id">>,
+        id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
         body => Cash
@@ -192,8 +189,7 @@ wrong_callback_tag_test(C) ->
 
 -spec create_fail_test(config()) -> test_return().
 create_fail_test(C) ->
-    {ok, Currency} = ff_currency:get(<<"RUB">>),
-    Cash = {1001, Currency},
+    Cash = {1001, <<"RUB">>},
     #{
         sender := ResourceSender,
         receiver := ResourceReceiver
@@ -201,7 +197,7 @@ create_fail_test(C) ->
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
-        % id => <<"p2p_transfer_id">>,
+        id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
         body => Cash
@@ -211,8 +207,7 @@ create_fail_test(C) ->
 
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->
-    {ok, Currency} = ff_currency:get(<<"RUB">>),
-    Cash = {100, Currency},
+    Cash = {100, <<"RUB">>},
     #{
         sender := ResourceSender,
         receiver := ResourceReceiver
@@ -220,7 +215,7 @@ create_ok_test(C) ->
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
-        % id => <<"p2p_transfer_id">>,
+        id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
         body => Cash
@@ -262,7 +257,7 @@ get_p2p_session_status(P2PSessionID) ->
 
 await_p2p_session_adapter_state(P2PSessionID, State) ->
     Poller = fun() -> adapter_state_poller(P2PSessionID) end,
-    Retry = genlib_retry:linear(10, 1000),
+    Retry = genlib_retry:linear(15, 1000),
     ct_helper:await(State, Poller, Retry).
 
 adapter_state_poller(P2PSessionID) ->
@@ -281,7 +276,7 @@ await_final_p2p_session_status(P2PSessionID) ->
                     finished
             end
         end,
-        genlib_retry:linear(10, 1000)
+        genlib_retry:linear(15, 1000)
     ),
     get_p2p_session_status(P2PSessionID).
 

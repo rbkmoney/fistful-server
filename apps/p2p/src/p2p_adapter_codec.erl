@@ -27,11 +27,12 @@
 -type p2p_session()                 :: dmsl_p2p_adapter_thrift:'Session'().
 -type p2p_operation_info()          :: dmsl_p2p_adapter_thrift:'OperationInfo'().
 
--type resource()                    :: p2p_transfer:resource_full().
+-type resource()                    :: p2p_adapter:resource().
+
 -type p2p_payment_resource()        :: dmsl_p2p_adapter_thrift:'PaymentResource'().
 -type p2p_cash()                    :: dmsl_p2p_adapter_thrift:'Cash'().
 
--type cash()                        :: ff_cash:cash().
+-type cash()                        :: p2p_adapter:cash().
 
 -type domain_currency()             :: dmsl_domain_thrift:'Currency'().
 -type currency()                    :: ff_currency:currency().
@@ -140,18 +141,13 @@ encode_currency(#{
 
 -spec encode_resource(resource()) ->
     p2p_payment_resource().
-encode_resource({raw_full, #{
-    token          := Token,
-    payment_system := PaymentSystem,
-    bin            := BIN,
-    masked_pan     := MaskedPan
-}}) ->
+encode_resource(Resource) ->
     {disposable, #domain_DisposablePaymentResource{
         payment_tool = {bank_card, #domain_BankCard{
-            token          = Token,
-            payment_system = PaymentSystem,
-            bin            = BIN,
-            masked_pan     = MaskedPan
+            token          = maps:get(token, Resource),
+            payment_system = maps:get(payment_system, Resource),
+            bin            = maps:get(bin, Resource),
+            masked_pan     = maps:get(masked_pan, Resource)
         }}
     }}.
 

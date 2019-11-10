@@ -38,9 +38,7 @@ handle_function_('ProcessCallback', [Callback], _Opts) ->
         {ok, CallbackResponse} ->
             {ok, p2p_adapter_codec:marshal(process_callback_result, {succeeded, CallbackResponse})};
         {error, {session_already_finished, Context}} ->
-            Response = p2p_adapter_codec:marshal(process_callback_result, {finished, Context}),
-            ct:print("CONTEXT\n~p\nRESPONSE\n~p", [Context, Response]),
-            {ok, Response};
+            {ok, p2p_adapter_codec:marshal(process_callback_result, {finished, Context})};
         {error, {unknown_p2p_session, _Ref}} ->
             woody_error:raise(business, #p2p_adapter_SessionNotFound{})
     end.

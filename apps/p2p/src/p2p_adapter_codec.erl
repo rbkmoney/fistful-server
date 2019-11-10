@@ -68,9 +68,9 @@
              (context,                 context())                 -> p2p_context();
              (session,                 adapter_state())           -> p2p_session();
              (operation_info,          operation_info())          -> p2p_operation_info();
-             (resource,                resource())                -> p2p_payment_resource();
              (body,                    cash())                    -> p2p_cash();
-             (currency,                currency())                -> domain_currency().
+             (currency,                currency())                -> domain_currency();
+             (resource,                resource())                -> p2p_payment_resource().
 marshal(process_callback_result, {succeeded, Response}) ->
     {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
         response = marshal(callback_response, Response)
@@ -144,11 +144,10 @@ marshal(resource, #{
                (callback_response,        p2p_callback_response())       -> callback_response();
                (user_interaction_intent,  p2p_user_interaction_intent()) -> user_interaction_intent();
                (user_interaction_content, domain_user_interaction())     -> user_interaction_content();
-               (transaction_info,         domain_transaction_info())     -> transaction_info();
                (callback,                 p2p_callback())                -> callback();
                (context,                  p2p_context())                 -> context();
-               (operation_info,           p2p_operation_info())          -> operation_info();
                (session,                  p2p_session())                 -> adapter_state();
+               (operation_info,           p2p_operation_info())          -> operation_info();
                (body,                     p2p_cash())                    -> cash();
                (currency,                 domain_currency())             -> currency();
                (resource,                 p2p_payment_resource())        -> resource().

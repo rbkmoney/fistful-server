@@ -31,86 +31,86 @@
 -export_type([intent/0]).
 -export_type([finish_status/0]).
 -export_type([user_interaction/0]).
--export_type([callback_response_payload/0]).
+-export_type([callback_response/0]).
 
 %% Types
 
--type adapter()                     :: ff_adapter:adapter().
+-type adapter()                 :: ff_adapter:adapter().
 
--type context()                     :: #{
+-type context()                 :: #{
     session   := adapter_state(),
     operation := operation_info(),
     options   := #{binary() => binary()}
 }.
 
--type operation_info()              :: #{
+-type operation_info()          :: #{
     body     := cash(),
     sender   := resource(),
     receiver := resource(),
     deadline => deadline()
 }.
 
--type id()                          :: binary().
--type cash()                        :: {integer(), currency()}.
--type currency()                    :: #{
+-type id()                      :: binary().
+-type cash()                    :: {integer(), currency()}.
+-type currency()                :: #{
     name     := binary(),
     symcode  := symcode(),
     numcode  := integer(),
     exponent := non_neg_integer()
 }.
 
--type symcode()                     :: binary().
+-type symcode()                 :: binary().
 
--type resource()                    :: #{
+-type resource()                :: #{
     token          := binary(),
     bin            := binary(),
     payment_system := atom(),
     masked_pan     := binary()
 }.
 
--type deadline()                    :: binary().
+-type deadline()                :: binary().
 
--type adapter_state()               :: dmsl_p2p_adapter_thrift:'AdapterState'() | undefined.
--type adapter_opts()                :: ff_adapter:opts().
+-type adapter_state()           :: dmsl_p2p_adapter_thrift:'AdapterState'() | undefined.
+-type adapter_opts()            :: ff_adapter:opts().
 
--type transaction_info()            :: ff_adapter:trx_info().
+-type transaction_info()        :: ff_adapter:trx_info().
 
--type callback()                    :: p2p_callback:process_params().
+-type callback()                :: p2p_callback:process_params().
 
--type p2p_process_result()          :: dmsl_p2p_adapter_thrift:'ProcessResult'().
--type p2p_callback_result()         :: dmsl_p2p_adapter_thrift:'CallbackResult'().
+-type p2p_process_result()      :: dmsl_p2p_adapter_thrift:'ProcessResult'().
+-type p2p_callback_result()     :: dmsl_p2p_adapter_thrift:'CallbackResult'().
 
--type process_result()              :: #{
+-type process_result()          :: #{
     intent           := intent(),
     next_state       => adapter_state(),
     transaction_info => transaction_info()
 }.
 
--type handle_callback_result()      :: #{
+-type handle_callback_result()  :: #{
     intent           := intent(),
-    response         := callback_response_payload(),
+    response         := callback_response(),
     next_state       => adapter_state(),
     transaction_info => transaction_info()
 }.
 
--type callback_response_payload()   :: p2p_callback:response().
+-type callback_response()       :: p2p_callback:response().
 
--type intent()                      :: {finish, finish_status()}
-                                     | {sleep , sleep_status()}.
+-type intent()                  :: {finish, finish_status()}
+                                 | {sleep , sleep_status()}.
 
--type finish_status()               :: success | {failure, failure()}.
--type failure()                     :: ff_failure:failure().
+-type finish_status()           :: success | {failure, failure()}.
+-type failure()                 :: ff_failure:failure().
 
--type sleep_status()                :: #{
+-type sleep_status()            :: #{
     timer            := timer(),
     callback_tag     := p2p_callback:tag(),
     user_interaction => user_interaction()
 }.
 
--type timer()                       :: dmsl_base_thrift:'Timer'().
+-type timer()                   :: dmsl_base_thrift:'Timer'().
 
--type user_interaction()            :: {id(), user_interaction_intent()}.
--type user_interaction_intent()     :: p2p_user_interaction:intent().
+-type user_interaction()        :: {id(), user_interaction_intent()}.
+-type user_interaction_intent() :: p2p_user_interaction:intent().
 
 %% API
 
@@ -129,17 +129,17 @@ handle_callback(Adapter, Callback, Context) ->
 -spec do_process(adapter(), context()) ->
     {ok, process_result()}.
 do_process(Adapter, Context) ->
-    EncodedContext = p2p_adapter_codec:encode_context(Context),
+    EncodedContext = p2p_adapter_codec:marshal(context, Context),
     {ok, Result} = call(Adapter, 'Process', [EncodedContext]),
-    {ok, p2p_adapter_codec:decode_process_result(Result)}.
+    {ok, p2p_adapter_codec:unmarshal(process_result, Result)}.
 
 -spec do_handle_callback(adapter(), callback(), context()) ->
     {ok, handle_callback_result()}.
 do_handle_callback(Adapter, Callback, Context) ->
-    EncodedCallback = p2p_adapter_codec:encode_callback(Callback),
-    EncodedContext  = p2p_adapter_codec:encode_context(Context),
+    EncodedCallback = p2p_adapter_codec:marshal(callback, Callback),
+    EncodedContext  = p2p_adapter_codec:marshal(context, Context),
     {ok, Result}    = call(Adapter, 'HandleCallback', [EncodedCallback, EncodedContext]),
-    {ok, p2p_adapter_codec:decode_handle_callback_result(Result)}.
+    {ok, p2p_adapter_codec:unmarshal(handle_callback_result, Result)}.
 
 -spec call(adapter(), 'Process',        [any()]) -> {ok, p2p_process_result()}  | no_return();
           (adapter(), 'HandleCallback', [any()]) -> {ok, p2p_callback_result()} | no_return().

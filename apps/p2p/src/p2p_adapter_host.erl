@@ -12,7 +12,12 @@
 
 -export([handle_function/3]).
 
+-export_type([process_callback_result/0]).
+
 %% Types
+
+-type process_callback_result()     :: {succeeded, p2p_callback:response()}
+                                     | {finished,  p2p_adapter:context()}.
 
 -type p2p_process_callback_result() :: dmsl_p2p_adapter_thrift:'ProcessCallbackResult'().
 
@@ -28,17 +33,14 @@ handle_function(Func, Args, Opts) ->
 -spec handle_function_('ProcessCallback', woody:args(), woody:options()) ->
     {ok, p2p_process_callback_result()} | no_return().
 handle_function_('ProcessCallback', [Callback], _Opts) ->
-    DecodedCallback = p2p_adapter_codec:decode_callback(Callback),
+    DecodedCallback = p2p_adapter_codec:unmarshal(callback, Callback),
     case p2p_session_machine:process_callback(DecodedCallback) of
-        {ok, #{payload := Payload}} ->
-            CallbackResponse = #p2p_adapter_CallbackResponse{payload = Payload},
-            Result = #p2p_adapter_ProcessCallbackSucceeded{response = CallbackResponse},
-            {ok, {succeeded, Result}};
+        {ok, CallbackResponse} ->
+            {ok, p2p_adapter_codec:marshal(process_callback_result, {succeeded, CallbackResponse})};
         {error, {session_already_finished, Context}} ->
-            Result = #p2p_adapter_ProcessCallbackFinished{
-                response = p2p_adapter_codec:encode_context(Context)
-            },
-            {ok, {finished, Result}};
-        {error, {unknown_p2p_session, _ID}} ->
+            Response = p2p_adapter_codec:marshal(process_callback_result, {finished, Context}),
+            ct:print("CONTEXT\n~p\nRESPONSE\n~p", [Context, Response]),
+            {ok, Response};
+        {error, {unknown_p2p_session, _Ref}} ->
             woody_error:raise(business, #p2p_adapter_SessionNotFound{})
     end.

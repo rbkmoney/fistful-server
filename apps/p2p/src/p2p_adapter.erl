@@ -107,6 +107,8 @@
     user_interaction => user_interaction()
 }.
 
+-type transfer_params()         :: p2p_session:transfer_params().
+
 -type timer()                   :: dmsl_base_thrift:'Timer'().
 
 -type user_interaction()        :: {id(), user_interaction_intent()}.
@@ -123,6 +125,11 @@ process(Adapter, Context) ->
     {ok, handle_callback_result()}.
 handle_callback(Adapter, Callback, Context) ->
     do_handle_callback(Adapter, Callback, Context).
+
+-spec build_adapter_context(adapter_state(), transfer_params(), adapter_opts()) ->
+    context().
+build_adapter_context(AdapterState, TransferParams, AdapterOpts) ->
+    do_build_adapter_context(AdapterState, TransferParams, AdapterOpts).
 
 %% Implementation
 
@@ -146,3 +153,48 @@ do_handle_callback(Adapter, Callback, Context) ->
 call(Adapter, Function, Args) ->
     Request = {?SERVICE, Function, Args},
     ff_woody_client:call(Adapter, Request).
+
+-spec do_build_adapter_context(adapter_state(), transfer_params(), adapter_opts()) ->
+    context().
+do_build_adapter_context(AdapterState, TransferParams, AdapterOpts) ->
+    #{
+        session   => AdapterState,
+        operation => build_operation_info(TransferParams),
+        options   => AdapterOpts
+    }.
+
+-spec build_operation_info(transfer_params()) ->
+    operation_info().
+build_operation_info(TransferParams) ->
+    Body     = build_operation_info_body(TransferParams),
+    Sender   = build_operation_info_resource(maps:get(sender, TransferParams)),
+    Receiver = build_operation_info_resource(maps:get(receiver, TransferParams)),
+    Deadline = maps:get(deadline, TransferParams, undefined),
+    genlib_map:compact(#{
+        body     => Body,
+        sender   => Sender,
+        receiver => Receiver,
+        deadline => Deadline
+    }).
+
+-spec build_operation_info_body(transfer_params()) ->
+    cash().
+build_operation_info_body(TransferParams) ->
+    {Amount, CurrencyID} = maps:get(body, TransferParams),
+    {ok, Currency}       = ff_currency:get(CurrencyID),
+    {Amount, #{
+        name      => maps:get(name, Currency),
+        symcode   => maps:get(symcode, Currency),
+        numcode   => maps:get(numcode, Currency),
+        exponent  => maps:get(exponent, Currency)
+    }}.
+
+-spec build_operation_info_resource(p2p_transfer:resource_full()) ->
+    resource().
+build_operation_info_resource({raw_full, Resource}) ->
+    {bank_card, #{
+        token          => maps:get(token, Resource),
+        bin            => maps:get(bin, Resource),
+        payment_system => maps:get(payment_system, Resource),
+        masked_pan     => maps:get(masked_pan, Resource)
+    }}.

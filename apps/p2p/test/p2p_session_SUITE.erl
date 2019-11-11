@@ -118,7 +118,7 @@ user_interaction_ok_test(C) ->
         body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
-    Callback = ?CALLBACK(Token, <<"podliva">>),
+    Callback = ?CALLBACK(Token, <<"payload">>),
     State0 = <<"user_sleep">>,
     State1 = <<"user_callback">>,
     State2 = <<"user_sleep_finished">>,
@@ -148,7 +148,7 @@ callback_ok_test(C) ->
         body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
-    Callback = ?CALLBACK(Token, <<"podliva">>),
+    Callback = ?CALLBACK(Token, <<"payload">>),
     State0 = <<"simple_sleep">>,
     State1 = <<"simple_callback">>,
     State2 = <<"sleep_finished">>,
@@ -178,7 +178,7 @@ wrong_callback_tag_test(C) ->
         body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
-    WrongCallback = ?CALLBACK(<<"WRONG">>, <<"podliva">>),
+    WrongCallback = ?CALLBACK(<<"WRONG">>, <<"payload">>),
     State0 = <<"wrong">>,
     State1 = <<"wrong_finished">>,
     ?assertMatch(State0, await_p2p_session_adapter_state(P2PSessionID, State0)),

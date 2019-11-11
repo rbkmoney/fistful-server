@@ -799,7 +799,7 @@ create_entity(Type, Params, CreateFun, Context = #{woody_context := WoodyCtx}) -
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     Hash       = erlang:phash2(Params),
     PartyID    = wapi_handler_utils:get_owner(Context),
-    case gen_id_by_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx) of
+    case gen_id(Type, PartyID, ExternalID, Hash, WoodyCtx) of
         {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
             handle_create_entity_result(Result, Type, ID, Hash, Context);
@@ -870,11 +870,23 @@ get_contract_id_from_identity(IdentityID, Context) ->
 
 %% ID Gen
 
+gen_id(withdrawal = Type, PartyID, ExternalID, Hash, WoodyCtx) ->
+    gen_id_by_snowflake(Type, PartyID, ExternalID, Hash, WoodyCtx);
+gen_id(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
+    gen_id_by_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx).
+
+gen_id_by_snowflake(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
+    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx, #{}).
+
 gen_id_by_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
     TypeBin = atom_to_binary(Type, utf8),
     FistfulID = get_old_sequence_id(Type),
-    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, TypeBin, PartyID, ExternalID),
-    bender_client:gen_by_sequence(IdempotentKey, TypeBin, Hash, WoodyCtx, #{}, #{minimum => FistfulID + 1}).
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
+    Offset = 1001, %% Can be removed after ff_external_id retirement
+    bender_client:gen_by_sequence(IdempotentKey, TypeBin, Hash, WoodyCtx, #{},
+        #{minimum => FistfulID + Offset}
+    ).
 
 get_old_sequence_id(Type) ->
     NS = 'ff/sequence',

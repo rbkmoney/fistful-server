@@ -26,7 +26,7 @@
 -spec handle_function(woody:func(), woody:args(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(p2p_adater_host, #{}, fun() -> handle_function_(Func, Args, Opts) end).
+    scoper:scope(p2p_adapter_host, #{}, fun() -> handle_function_(Func, Args, Opts) end).
 
 %% Implementation
 

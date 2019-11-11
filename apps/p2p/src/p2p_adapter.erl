@@ -42,7 +42,7 @@
 -type context()                 :: #{
     session   := adapter_state(),
     operation := operation_info(),
-    options   := #{binary() => binary()}
+    options   := adapter_opts()
 }.
 
 -type operation_info()          :: #{

@@ -55,6 +55,8 @@
 -export([get_webhook/3]).
 -export([delete_webhook/3]).
 
+-export([quote_p2p_transfer/2]).
+
 %% Types
 
 -type ctx()         :: wapi_handler:context().
@@ -631,6 +633,38 @@ delete_webhook(WebhookID, IdentityID, Context) ->
         end
     end).
 
+-spec quote_p2p_transfer(params(), ctx()) -> result(map(),
+    {identity,   not_found} |
+    {party, not_found} |
+    {p2p_tool, not_allow} |
+    {currency, not_allowed} |
+    {cash_range, out_of_range}
+).
+quote_p2p_transfer(Params, Context) ->
+    do(fun () ->
+        #{
+            sender := Sender,
+            receiver := Receiver,
+            identity_id := IdentityID,
+            body := Body
+        } = from_swag(quote_p2p_params, Params),
+        PartyID = wapi_handler_utils:get_owner(Context),
+        case p2p_fees:get_fee_quote(Body, IdentityID, Sender, Receiver) of
+            {ok, {SurplusCash, _SurplusCashVolume, Quote}} ->
+                to_swag(p2p_transfer_quote, {SurplusCash, Quote, PartyID});
+            {error, {identity,   not_found}} ->
+                throw({identity,   not_found});
+            {error, {party, _PartyError}} ->
+                throw({party, not_found});
+            {error, {p2p_tool, not_allow}} ->
+                throw({p2p_tool, not_allow});
+            {error, {validation, {terms_violation, {not_allowed_currency, _Details}}}} ->
+                throw({currency, not_allowed});
+            {error, {validation, {terms_violation, {cash_range, _CashBounds}}}} ->
+                throw({cash_range, out_of_range})
+        end
+    end).
+
 %% Internal functions
 
 encode_webhook_id(WebhookID) ->
@@ -698,6 +732,32 @@ create_quote_token(#{
         <<"createdAt">>     => to_swag(timestamp, CreatedAt),
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"quoteData">>     => QuoteData
+    }),
+    JSONData = jsx:encode(Data),
+    {ok, Token} = wapi_signer:sign(JSONData),
+    Token.
+
+create_p2p_quote_token(#{
+    amount          := Cash,
+    party_revision  := PartyRevision,
+    domain_revision := DomainRevision,
+    created_at      := CreatedAt,
+    expires_on      := ExpiresOn,
+    identity_id     := IdentityID,
+    sender          := Sender,
+    receiver        := Receiver
+}, PartyID) ->
+    Data = genlib_map:compact(#{
+        <<"version">>        => 1,
+        <<"amount">>         => Cash,
+        <<"partyRevision">>  => PartyRevision,
+        <<"domainRevision">> => DomainRevision,
+        <<"createdAt">>      => to_swag(timestamp, CreatedAt),
+        <<"expiresOn">>      => to_swag(timestamp, ExpiresOn),
+        <<"partyID">>        => PartyID,
+        <<"identityID">>     => IdentityID,
+        <<"sender">>         => Sender,
+        <<"receiver">>       => Receiver
     }),
     JSONData = jsx:encode(Data),
     {ok, Token} = wapi_signer:sign(JSONData),
@@ -1161,6 +1221,35 @@ from_swag(destination_resource, Resource = #{
         currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
         tag      => Tag
     })};
+from_swag(quote_p2p_params, Params) ->
+    add_external_id(#{
+        sender      => from_swag(sender_resource, maps:get(<<"sender">>, Params)),
+        receiver    => from_swag(receiver_resource, maps:get(<<"receiver">>, Params)),
+        identity_id => maps:get(<<"identityID">>, Params),
+        body        => from_swag(withdrawal_body, maps:get(<<"body">>, Params))
+    }, Params);
+from_swag(sender_resource, #{
+    <<"type">> := <<"BankCardSenderResource">>,
+    <<"token">> := WapiToken
+}) ->
+    BankCard = wapi_utils:base64url_to_map(WapiToken),
+    {bank_card, #{
+        token          => maps:get(<<"token">>, BankCard),
+        payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
+        bin            => maps:get(<<"bin">>, BankCard),
+        masked_pan     => maps:get(<<"lastDigits">>, BankCard)
+    }};
+from_swag(receiver_resource, #{
+    <<"type">> := <<"BankCardReceiverResource">>,
+    <<"token">> := WapiToken
+}) ->
+    BankCard = wapi_utils:base64url_to_map(WapiToken),
+    {bank_card, #{
+        token          => maps:get(<<"token">>, BankCard),
+        payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
+        bin            => maps:get(<<"bin">>, BankCard),
+        masked_pan     => maps:get(<<"lastDigits">>, BankCard)
+    }};
 
 from_swag(crypto_wallet_currency, <<"Bitcoin">>)     -> bitcoin;
 from_swag(crypto_wallet_currency, <<"Litecoin">>)    -> litecoin;
@@ -1515,6 +1604,24 @@ to_swag(quote, {#{
         <<"createdAt">>     => to_swag(timestamp, CreatedAt),
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"quoteToken">>    => Token
+    };
+
+to_swag(p2p_transfer_quote, {Cash, #{
+    expires_on := ExpiresOn
+} = Token, PartyID}) ->
+    #{
+        <<"customerFee">> => to_swag(withdrawal_body, Cash),
+        <<"expiresOn">>   => to_swag(timestamp, ExpiresOn),
+        <<"token">>       => create_p2p_quote_token(Token, PartyID)
+    };
+
+to_swag(p2p_fee_instrument, #{
+    token       := Token,
+    bin_data_id := BinDataID
+}) ->
+    #{
+        <<"token">>     => Token,
+        <<"BinDataID">> => BinDataID
     };
 
 to_swag(webhook, #webhooker_Webhook{

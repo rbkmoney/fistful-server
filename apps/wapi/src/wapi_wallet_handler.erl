@@ -522,6 +522,28 @@ process_request('DeleteWebhookByID', #{identityID := IdentityID, webhookID := We
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
+    end;
+
+%% P2P
+process_request('QuoteP2PTransfer', #{quoteParams := Params}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:quote_p2p_transfer(Params, Context) of
+        {ok, Quote} ->
+            wapi_handler_utils:reply_ok(201, Quote);
+        {error, {identity,   not_found}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {party, not_found}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such party">>));
+        {error, {p2p_tool,   not_allow}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Sender/Receiver resource not allowed">>));
+        {error, {currency, not_allowed}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, {cash_range, out_of_range}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Cash number not in range">>))
     end.
 
 %% Internal functions

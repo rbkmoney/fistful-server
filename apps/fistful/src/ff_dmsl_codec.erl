@@ -139,6 +139,20 @@ unmarshal(user_interaction, {redirect, {post_request,
 }}) ->
     #{type => redirect, content => {post, URI, Form}};
 
+unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
+    payment_tool = {bank_card, #domain_BankCard{
+        token          = Token,
+        payment_system = PaymentSystem,
+        bin            = Bin,
+        masked_pan     = MaskedPan
+    }}
+}}) ->
+    {bank_card, #{
+        token           => Token,
+        payment_system  => PaymentSystem,
+        bin             => Bin,
+        masked_pan      => MaskedPan
+    }};
 
 unmarshal(amount, V) ->
     unmarshal(integer, V);
@@ -182,6 +196,21 @@ marshal(currency, #{
         numeric_code  = Numcode,
         exponent      = Exponent
     };
+
+marshal(resource, {bank_card, #{
+    token           := Token,
+    payment_system  := PaymentSystem,
+    bin             := Bin,
+    masked_pan      := MaskedPan
+}}) ->
+    {disposable, #domain_DisposablePaymentResource{
+        payment_tool = {bank_card, #domain_BankCard{
+            token          = Token,
+            payment_system = PaymentSystem,
+            bin            = Bin,
+            masked_pan     = MaskedPan
+        }}
+    }};
 
 marshal(amount, V) ->
     marshal(integer, V);

@@ -3,13 +3,28 @@
 -module(p2p_adapter_codec).
 
 -include_lib("damsel/include/dmsl_base_thrift.hrl").
--include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_p2p_adapter_thrift.hrl").
 
 %% Exports
 
 -export([marshal/2]).
 -export([unmarshal/2]).
+
+-type type_name() :: atom() | {list, atom()}.
+-type codec()     :: module().
+
+-type encoded_value()  :: encoded_value(any()).
+-type encoded_value(T) :: T.
+
+-type decoded_value()  :: decoded_value(any()).
+-type decoded_value(T) :: T.
+
+-export_type([codec/0]).
+-export_type([type_name/0]).
+-export_type([encoded_value/0]).
+-export_type([encoded_value/1]).
+-export_type([decoded_value/0]).
+-export_type([decoded_value/1]).
 
 -type process_result()              :: p2p_adapter:process_result().
 -type p2p_process_result()          :: dmsl_p2p_adapter_thrift:'ProcessResult'().
@@ -32,9 +47,6 @@
 -type adapter_state()               :: p2p_adapter:adapter_state().
 -type p2p_session()                 :: dmsl_p2p_adapter_thrift:'Session'().
 
--type resource()                    :: p2p_adapter:resource().
--type p2p_payment_resource()        :: dmsl_p2p_adapter_thrift:'PaymentResource'().
-
 -type cash()                        :: p2p_adapter:cash().
 -type p2p_cash()                    :: dmsl_p2p_adapter_thrift:'Cash'().
 
@@ -50,9 +62,6 @@
 -type callback_response()           :: p2p_callback:response().
 -type p2p_callback_response()       :: dmsl_p2p_adapter_thrift:'CallbackResponse'().
 
--type transaction_info()            :: ff_adapter:transaction_info().
--type domain_transaction_info()     :: dmsl_domain_thrift:'TransactionInfo'().
-
 %% API
 
 -spec marshal(process_callback_result, process_callback_result()) -> p2p_process_callback_result();
@@ -61,8 +70,7 @@
              (context,                 context())                 -> p2p_context();
              (session,                 adapter_state())           -> p2p_session();
              (operation_info,          operation_info())          -> p2p_operation_info();
-             (body,                    cash())                    -> p2p_cash();
-             (resource,                resource())                -> p2p_payment_resource().
+             (body,                    cash())                    -> p2p_cash().
 marshal(process_callback_result, {succeeded, Response}) ->
     {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
         response = marshal(callback_response, Response)
@@ -71,6 +79,7 @@ marshal(process_callback_result, {finished, Context}) ->
     {finished, #p2p_adapter_ProcessCallbackFinished{
         response = marshal(context, Context)
     }};
+
 marshal(callback_response, #{payload := Payload}) ->
     #p2p_adapter_CallbackResponse{payload = Payload};
 
@@ -101,8 +110,8 @@ marshal(operation_info, OperationInfo = #{
 }) ->
     {process, #p2p_adapter_ProcessOperationInfo{
         body     = marshal(body,     Cash),
-        sender   = marshal(resource, Sender),
-        receiver = marshal(resource, Receiver),
+        sender   = ff_dmsl_codec:marshal(resource, Sender),
+        receiver = ff_dmsl_codec:marshal(resource, Receiver),
         deadline = maps:get(deadline, OperationInfo, undefined)
     }};
 
@@ -110,34 +119,19 @@ marshal(body, {Amount, Currency}) ->
     #p2p_adapter_Cash{
         amount   = Amount,
         currency = ff_dmsl_codec:marshal(currency, Currency)
-    };
-
-marshal(resource, {bank_card, #{
-    token           := Token,
-    payment_system  := PaymentSystem,
-    bin             := Bin,
-    masked_pan      := MaskedPan
-}}) ->
-    {disposable, #domain_DisposablePaymentResource{
-        payment_tool = {bank_card, #domain_BankCard{
-            token          = Token,
-            payment_system = PaymentSystem,
-            bin            = Bin,
-            masked_pan     = MaskedPan
-        }}
-    }}.
+    }.
 
 -spec unmarshal(process_result,           p2p_process_result())          -> process_result();
                (handle_callback_result,   p2p_callback_result())         -> handle_callback_result();
                (intent,                   p2p_intent())                  -> intent();
                (callback_response,        p2p_callback_response())       -> callback_response();
+               (user_interaction,         p2p_user_interaction())        -> user_interaction();
                (user_interaction_intent,  p2p_user_interaction_intent()) -> user_interaction_intent();
                (callback,                 p2p_callback())                -> callback();
                (context,                  p2p_context())                 -> context();
                (session,                  p2p_session())                 -> adapter_state();
                (operation_info,           p2p_operation_info())          -> operation_info();
-               (body,                     p2p_cash())                    -> cash();
-               (resource,                 p2p_payment_resource())        -> resource().
+               (body,                     p2p_cash())                    -> cash().
 unmarshal(process_result, #p2p_adapter_ProcessResult{
     intent     = Intent,
     next_state = NextState,
@@ -177,8 +171,13 @@ unmarshal(intent, {sleep,  #p2p_adapter_SleepIntent{
         user_interaction => maybe_unmarshal(user_interaction, UserInteraction)
     })};
 
+
 unmarshal(callback_response, #p2p_adapter_CallbackResponse{payload = Payload}) ->
     #{payload => Payload};
+
+unmarshal(user_interaction, #p2p_adapter_UserInteraction{id = ID, intent = UIIntent}) ->
+    {ID, unmarshal(user_interaction_intent, UIIntent)};
+
 unmarshal(user_interaction_intent, {finish, #p2p_adapter_UserInteractionFinish{}}) ->
     finish;
 unmarshal(user_interaction_intent, {create, #p2p_adapter_UserInteractionCreate{
@@ -214,35 +213,19 @@ unmarshal(operation_info, {process, #p2p_adapter_ProcessOperationInfo{
 }}) ->
     genlib_map:compact(#{
         body     => unmarshal(body,     Body),
-        sender   => unmarshal(resource, Sender),
-        receiver => unmarshal(resource, Receiver),
+        sender   => ff_dmsl_codec:unmarshal(resource, Sender),
+        receiver => ff_dmsl_codec:unmarshal(resource, Receiver),
         deadline => Deadline
     });
 
 unmarshal(body, #p2p_adapter_Cash{amount = Amount, currency = Currency}) ->
-    {Amount, ff_dmsl_codec:unmarshal(currency, Currency)};
+    {Amount, ff_dmsl_codec:unmarshal(currency, Currency)}.
 
-unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
-    payment_tool = {bank_card, #domain_BankCard{
-        token          = Token,
-        payment_system = PaymentSystem,
-        bin            = Bin,
-        masked_pan     = MaskedPan
-    }}
-}}) ->
-    {bank_card, #{
-        token           => Token,
-        payment_system  => PaymentSystem,
-        bin             => Bin,
-        masked_pan      => MaskedPan
-    }}.
+% Internal
 
--spec maybe_unmarshal(atom(),           undefined)                 -> undefined;
-                     (transaction_info, domain_transaction_info()) -> transaction_info();
-                     (user_interaction, p2p_user_interaction())    -> user_interaction().
 maybe_unmarshal(_Type, undefined) ->
     undefined;
-maybe_unmarshal(transaction_info, TransactionInfo = #domain_TransactionInfo{}) ->
+maybe_unmarshal(transaction_info, TransactionInfo) ->
     ff_dmsl_codec:unmarshal(transaction_info, TransactionInfo);
-maybe_unmarshal(user_interaction, #p2p_adapter_UserInteraction{id = ID, intent = UIIntent}) ->
-    {ID, unmarshal(user_interaction_intent, UIIntent)}.
+maybe_unmarshal(user_interaction, UserInteraction) ->
+    unmarshal(user_interaction, UserInteraction).

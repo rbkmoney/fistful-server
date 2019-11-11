@@ -123,12 +123,12 @@ marshal(currency, #{
         numeric_code  = Numcode,
         exponent      = Exponent
     };
-marshal(resource, #{
+marshal(resource, {bank_card, #{
     token           := Token,
     payment_system  := PaymentSystem,
     bin             := Bin,
     masked_pan      := MaskedPan
-}) ->
+}}) ->
     {disposable, #domain_DisposablePaymentResource{
         payment_tool = {bank_card, #domain_BankCard{
             token          = Token,
@@ -254,12 +254,12 @@ unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
         masked_pan     = MaskedPan
     }}
 }}) ->
-    #{
+    {bank_card, #{
         token           => Token,
         payment_system  => PaymentSystem,
         bin             => Bin,
         masked_pan      => MaskedPan
-    }.
+    }}.
 
 -spec maybe_unmarshal(atom(),           undefined)                 -> undefined;
                      (transaction_info, domain_transaction_info()) -> transaction_info();

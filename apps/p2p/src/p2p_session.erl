@@ -310,12 +310,12 @@ build_operation_info_body(TransferParams) ->
 -spec build_operation_info_resource(p2p_transfer:resource_full()) ->
     p2p_adapter:resource().
 build_operation_info_resource({raw_full, Resource}) ->
-    #{
+    {bank_card, #{
         token          => maps:get(token, Resource),
         bin            => maps:get(bin, Resource),
         payment_system => maps:get(payment_system, Resource),
         masked_pan     => maps:get(masked_pan, Resource)
-    }.
+    }}.
 
 -spec find_callback(p2p_callback_tag(), session()) ->
     {ok, p2p_callback()} | {error, unknown_p2p_callback_error()}.

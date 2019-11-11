@@ -61,12 +61,12 @@
 
 -type symcode()                 :: binary().
 
--type resource()                :: #{
+-type resource()                :: {bank_card, #{
     token          := binary(),
     bin            := binary(),
     payment_system := atom(),
     masked_pan     := binary()
-}.
+}}.
 
 -type deadline()                :: binary().
 

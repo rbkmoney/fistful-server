@@ -880,17 +880,41 @@ gen_id_by_snowflake(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
     bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx, #{}).
 
 gen_id_by_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
-    TypeBin = atom_to_binary(Type, utf8),
-    FistfulID = get_old_sequence_id(Type),
-    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
-    Offset = 1001, %% Can be removed after ff_external_id retirement
-    bender_client:gen_by_sequence(IdempotentKey, TypeBin, Hash, WoodyCtx, #{},
-        #{minimum => FistfulID + Offset}
-    ).
+    try
+        {ok, BenderID} = gen_bender_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx),
+        {ok, FistfulID} = gen_ff_sequence(Type, PartyID, ExternalID),
+        ID = choose_sequence_id(BenderID, FistfulID),
+        {ok, ID}
+    catch
+        throw:({external_id_conflict, _ID} = Error) ->
+            {error, Error}
+    end.
 
-get_old_sequence_id(Type) ->
-    NS = 'ff/sequence',
-    ff_sequence:get(NS, ff_string:join($/, [Type, id]), fistful:backend(NS)).
+construct_external_id(_PartyID, undefined) ->
+    undefined;
+construct_external_id(PartyID, ExternalID) ->
+    <<PartyID/binary, "/", ExternalID/binary>>.
+
+gen_ff_sequence(Type, PartyID, ExternalID) ->
+    ff_external_id:check_in(Type, construct_external_id(PartyID, ExternalID)).
+
+gen_bender_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
+    TypeBin = atom_to_binary(Type, utf8),
+    case bender_client:gen_by_sequence(IdempotentKey, TypeBin, Hash, WoodyCtx) of
+        {ok, _ID} = Result ->
+            Result;
+        {error, {external_id_conflict, _ID} = Error} ->
+            throw(Error)
+    end.
+
+choose_sequence_id(ID1, ID2) ->
+    Int1 = binary_to_integer(ID1),
+    Int2 = binary_to_integer(ID2),
+    case max(Int1, Int2) of
+        Int1 -> ID1;
+        Int2 -> ID2
+    end.
 
 create_report_request(#{
     party_id     := PartyID,

@@ -280,33 +280,25 @@ fistful_id_is_compatible(C) ->
     },
     Party = create_party(C),
     Ctx = create_context(Party, C),
-    %% Get current bender id
-    {ok, #{<<"id">> := CurrentID}} =
+    {ok, Identity1} =
         wapi_wallet_ff_backend:create_identity(Params0, Ctx),
-    %% Sync fistful sequence
-    ok = spoof_fistful_sequence(identity, Party, binary_to_integer(CurrentID)),
-    %% Offset fistful sequence
-    StartID = get_fistful_sequence(identity),
-    Offset = 3,
-    ok = spoof_fistful_sequence(identity, Party, Offset),
-    %% Check bender id correct
+    CurrentID = binary_to_integer(maps:get(<<"id">>, Identity1)),
+    ok = bump_bender_seq_to(identity, CurrentID + 1000, Party, C),
     Params1 = Params0#{<<"externalID">> => genlib:unique()},
-    TargetID = integer_to_binary(StartID + Offset + 1),
+    TargetID = integer_to_binary(CurrentID + 1000 + 1),
     {ok, #{<<"id">> := TargetID}} =
         wapi_wallet_ff_backend:create_identity(Params1, Ctx).
 
 %%
 
-spoof_fistful_sequence(_Type, _PartyID, 0) ->
-    ok;
-spoof_fistful_sequence(Type, PartyID, Offset) ->
-    ExternalID = genlib:unique(),
-    {ok, _} = ff_external_id:check_in(Type, <<PartyID/binary, "/", ExternalID/binary>>),
-    spoof_fistful_sequence(Type, PartyID, Offset - 1).
-
-get_fistful_sequence(Type) ->
-    NS = 'ff/sequence',
-    ff_sequence:get(NS, ff_string:join($/, [Type, id]), fistful:backend(NS)).
+bump_bender_seq_to(SeqID, TargetID, PartyID, C) ->
+    SeqBin = atom_to_binary(SeqID, utf8),
+    IdempotentKey = bender_client:get_idempotent_key(<<"wapi">>, SeqID, PartyID, genlib:unique()),
+    {ok, ID} = bender_client:gen_by_sequence(IdempotentKey, SeqBin, <<>>, ct_helper:get_woody_ctx(C), #{},
+        #{minimum => TargetID}
+    ),
+    true = binary_to_integer(ID) >= TargetID,
+    ok.
 
 wait_for_destination_authorized(DestID) ->
     authorized = ct_helper:await(

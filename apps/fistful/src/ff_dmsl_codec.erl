@@ -1,6 +1,7 @@
 -module(ff_dmsl_codec).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_user_interaction_thrift.hrl").
 
 -export([unmarshal/2]).
 -export([marshal/2]).
@@ -116,6 +117,29 @@ unmarshal(currency_ref, #domain_CurrencyRef{
 }) ->
     unmarshal(string, SymbolicCode);
 
+unmarshal(currency, #domain_Currency{
+    name          = Name,
+    symbolic_code = Symcode,
+    numeric_code  = Numcode,
+    exponent      = Exponent
+}) ->
+    #{
+        name     => Name,
+        symcode  => Symcode,
+        numcode  => Numcode,
+        exponent => Exponent
+    };
+
+unmarshal(user_interaction, {redirect, {get_request,
+    #'BrowserGetRequest'{uri = URI}
+}}) ->
+    #{type => redirect, content => {get, URI}};
+unmarshal(user_interaction, {redirect, {post_request,
+    #'BrowserPostRequest'{uri = URI, form = Form}
+}}) ->
+    #{type => redirect, content => {post, URI, Form}};
+
+
 unmarshal(amount, V) ->
     unmarshal(integer, V);
 unmarshal(string, V) when is_binary(V) ->
@@ -144,6 +168,19 @@ marshal(cash_range, {{BoundLower, CashLower}, {BoundUpper, CashUpper}}) ->
 marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
     #domain_CurrencyRef{
         symbolic_code = CurrencyID
+    };
+
+marshal(currency, #{
+    name     := Name,
+    symcode  := Symcode,
+    numcode  := Numcode,
+    exponent := Exponent
+}) ->
+    #domain_Currency{
+        name          = Name,
+        symbolic_code = Symcode,
+        numeric_code  = Numcode,
+        exponent      = Exponent
     };
 
 marshal(amount, V) ->

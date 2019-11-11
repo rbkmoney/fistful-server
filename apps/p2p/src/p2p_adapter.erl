@@ -14,6 +14,8 @@
 -export([process/2]).
 -export([handle_callback/3]).
 
+-export([build_context/3]).
+
 -export_type([callback/0]).
 -export_type([context/0]).
 
@@ -73,7 +75,7 @@
 -type adapter_state()           :: dmsl_p2p_adapter_thrift:'AdapterState'() | undefined.
 -type adapter_opts()            :: ff_adapter:opts().
 
--type transaction_info()        :: ff_adapter:trx_info().
+-type transaction_info()        :: ff_adapter:transaction_info().
 
 -type callback()                :: p2p_callback:process_params().
 
@@ -126,10 +128,10 @@ process(Adapter, Context) ->
 handle_callback(Adapter, Callback, Context) ->
     do_handle_callback(Adapter, Callback, Context).
 
--spec build_adapter_context(adapter_state(), transfer_params(), adapter_opts()) ->
+-spec build_context(adapter_state(), transfer_params(), adapter_opts()) ->
     context().
-build_adapter_context(AdapterState, TransferParams, AdapterOpts) ->
-    do_build_adapter_context(AdapterState, TransferParams, AdapterOpts).
+build_context(AdapterState, TransferParams, AdapterOpts) ->
+    do_build_context(AdapterState, TransferParams, AdapterOpts).
 
 %% Implementation
 
@@ -154,9 +156,9 @@ call(Adapter, Function, Args) ->
     Request = {?SERVICE, Function, Args},
     ff_woody_client:call(Adapter, Request).
 
--spec do_build_adapter_context(adapter_state(), transfer_params(), adapter_opts()) ->
+-spec do_build_context(adapter_state(), transfer_params(), adapter_opts()) ->
     context().
-do_build_adapter_context(AdapterState, TransferParams, AdapterOpts) ->
+do_build_context(AdapterState, TransferParams, AdapterOpts) ->
     #{
         session   => AdapterState,
         operation => build_operation_info(TransferParams),

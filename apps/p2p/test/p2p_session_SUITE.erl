@@ -42,7 +42,22 @@
     element(2, Cash)
 }).
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
+
 -define(CALLBACK(Tag, Payload), #p2p_adapter_Callback{tag = Tag, payload = Payload}).
+
+-define(PROCESS_CALLBACK_SUCCESS(Payload), {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
+    response = #p2p_adapter_CallbackResponse{
+        payload = Payload
+    }
+}}).
+
+-define(PROCESS_CALLBACK_FINISHED(AdapterState), {finished, #p2p_adapter_ProcessCallbackFinished{
+    response = #p2p_adapter_Context{
+        session = #p2p_adapter_Session{
+            state = AdapterState
+        }
+    }
+}}).
 
 %% API
 
@@ -119,15 +134,12 @@ user_interaction_ok_test(C) ->
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     Callback = ?CALLBACK(Token, <<"payload">>),
-    State0 = <<"user_sleep">>,
-    State1 = <<"user_callback">>,
-    State2 = <<"user_sleep_finished">>,
-    ?assertMatch(State0, await_p2p_session_adapter_state(P2PSessionID, State0)),
-    ?assertMatch({ok, {succeeded, _}}, call_host(Callback)),
-    ?assertMatch(State1, await_p2p_session_adapter_state(P2PSessionID, State1)),
+    ?assertMatch(<<"user_sleep">>, await_p2p_session_adapter_state(P2PSessionID, <<"user_sleep">>)),
+    ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"user_payload">>)}, call_host(Callback)),
+    ?assertMatch(<<"user_callback">>, get_p2p_session_adapter_state(P2PSessionID)),
     ?assertMatch({finished, success}, await_final_p2p_session_status(P2PSessionID)),
-    ?assertMatch(State2, await_p2p_session_adapter_state(P2PSessionID, State2)),
-    ?assertMatch({ok, {finished, _}}, call_host(Callback)).
+    ?assertMatch(<<"user_sleep_finished">>, await_p2p_session_adapter_state(P2PSessionID, <<"user_sleep_finished">>)),
+    ?assertMatch({ok, ?PROCESS_CALLBACK_FINISHED(<<"user_sleep_finished">>)}, call_host(Callback)).
 
 -spec callback_ok_test(config()) -> test_return().
 callback_ok_test(C) ->
@@ -149,15 +161,12 @@ callback_ok_test(C) ->
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     Callback = ?CALLBACK(Token, <<"payload">>),
-    State0 = <<"simple_sleep">>,
-    State1 = <<"simple_callback">>,
-    State2 = <<"sleep_finished">>,
-    ?assertMatch(State0, await_p2p_session_adapter_state(P2PSessionID, State0)),
-    ?assertMatch({ok, {succeeded, _}}, call_host(Callback)),
-    ?assertMatch(State1, await_p2p_session_adapter_state(P2PSessionID, State1)),
+    ?assertMatch(<<"simple_sleep">>, await_p2p_session_adapter_state(P2PSessionID, <<"simple_sleep">>)),
+    ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"simple_payload">>)}, call_host(Callback)),
+    ?assertMatch(<<"simple_callback">>, get_p2p_session_adapter_state(P2PSessionID)),
     ?assertMatch({finished, success}, await_final_p2p_session_status(P2PSessionID)),
-    ?assertMatch(State2, await_p2p_session_adapter_state(P2PSessionID, State2)),
-    ?assertMatch({ok, {finished, _}}, call_host(Callback)).
+    ?assertMatch(<<"sleep_finished">>, await_p2p_session_adapter_state(P2PSessionID, <<"sleep_finished">>)),
+    ?assertMatch({ok, ?PROCESS_CALLBACK_FINISHED(<<"sleep_finished">>)}, call_host(Callback)).
 
 -spec wrong_callback_tag_test(config()) -> test_return().
 wrong_callback_tag_test(C) ->
@@ -256,11 +265,11 @@ get_p2p_session_status(P2PSessionID) ->
     p2p_session:status(get_p2p_session(P2PSessionID)).
 
 await_p2p_session_adapter_state(P2PSessionID, State) ->
-    Poller = fun() -> adapter_state_poller(P2PSessionID) end,
+    Poller = fun() -> get_p2p_session_adapter_state(P2PSessionID) end,
     Retry = genlib_retry:linear(15, 1000),
     ct_helper:await(State, Poller, Retry).
 
-adapter_state_poller(P2PSessionID) ->
+get_p2p_session_adapter_state(P2PSessionID) ->
     P2PSession = get_p2p_session(P2PSessionID),
     p2p_session:adapter_state(P2PSession).
 

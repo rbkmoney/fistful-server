@@ -141,7 +141,7 @@ handle_function_('HandleCallback', [?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_
     case State of
         <<"user_sleep">> ->
             {ok, #p2p_adapter_CallbackResult{
-                response = #p2p_adapter_CallbackResponse{payload = <<"podliva">>},
+                response = #p2p_adapter_CallbackResponse{payload = <<"user_payload">>},
                 intent = {finish, #p2p_adapter_FinishIntent{
                     status = {success, #p2p_adapter_Success{}}
                 }},
@@ -149,7 +149,7 @@ handle_function_('HandleCallback', [?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_
             }};
         <<"simple_sleep">> ->
             {ok, #p2p_adapter_CallbackResult{
-                response = #p2p_adapter_CallbackResponse{payload = <<"podliva">>},
+                response = #p2p_adapter_CallbackResponse{payload = <<"simple_payload">>},
                 intent = {finish, #p2p_adapter_FinishIntent{
                     status = {success, #p2p_adapter_Success{}}
                 }},
@@ -158,7 +158,7 @@ handle_function_('HandleCallback', [?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_
     end;
 handle_function_('HandleCallback', [_Callback, _Context], _Ctx, _Opts) ->
     {ok, #p2p_adapter_CallbackResult{
-        response = #p2p_adapter_CallbackResponse{payload = <<"payload">>},
+        response = #p2p_adapter_CallbackResponse{payload = <<"handle_payload">>},
         intent = {finish, #p2p_adapter_FinishIntent{
             status = {success, #p2p_adapter_Success{}}
         }}

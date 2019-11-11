@@ -17,6 +17,7 @@
 -export([idempotency_destination_conflict/1]).
 -export([idempotency_withdrawal_ok/1]).
 -export([idempotency_withdrawal_conflict/1]).
+-export([fistful_id_is_compatible/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -34,7 +35,8 @@ all() ->
         idempotency_destination_ok,
         idempotency_destination_conflict,
         idempotency_withdrawal_ok,
-        idempotency_withdrawal_conflict
+        idempotency_withdrawal_conflict,
+        fistful_id_is_compatible
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -266,7 +268,45 @@ idempotency_withdrawal_conflict(C) ->
     {error, {external_id_conflict, ID, ExternalID}} =
         wapi_wallet_ff_backend:create_withdrawal(NewParams, create_context(Party, C)).
 
+-spec fistful_id_is_compatible(config()) ->
+    test_return().
+
+fistful_id_is_compatible(C) ->
+    Params0 = #{
+        <<"provider">> => <<"good-one">>,
+        <<"class">> => <<"person">>,
+        <<"name">> => <<"someone">>,
+        <<"externalID">> => genlib:unique()
+    },
+    Party = create_party(C),
+    Ctx = create_context(Party, C),
+    %% Get current bender id
+    {ok, #{<<"id">> := CurrentID}} =
+        wapi_wallet_ff_backend:create_identity(Params0, Ctx),
+    %% Sync fistful sequence
+    ok = spoof_fistful_sequence(identity, Party, binary_to_integer(CurrentID)),
+    %% Offset fistful sequence
+    StartID = get_fistful_sequence(identity),
+    Offset = 3,
+    ok = spoof_fistful_sequence(identity, Party, Offset),
+    %% Check bender id correct
+    Params1 = Params0#{<<"externalID">> => genlib:unique()},
+    TargetID = integer_to_binary(StartID + Offset + 1),
+    {ok, #{<<"id">> := TargetID}} =
+        wapi_wallet_ff_backend:create_identity(Params1, Ctx).
+
 %%
+
+spoof_fistful_sequence(_Type, _PartyID, 0) ->
+    ok;
+spoof_fistful_sequence(Type, PartyID, Offset) ->
+    ExternalID = genlib:unique(),
+    {ok, _} = ff_external_id:check_in(Type, <<PartyID/binary, "/", ExternalID/binary>>),
+    spoof_fistful_sequence(Type, PartyID, Offset - 1).
+
+get_fistful_sequence(Type) ->
+    NS = 'ff/sequence',
+    ff_sequence:get(NS, ff_string:join($/, [Type, id]), fistful:backend(NS)).
 
 wait_for_destination_authorized(DestID) ->
     authorized = ct_helper:await(

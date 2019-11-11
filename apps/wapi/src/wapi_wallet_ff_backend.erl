@@ -181,14 +181,13 @@ create_identity_challenge(IdentityId, Params, Context = #{woody_context := Woody
     Type          = identity_challenge,
     Hash          = erlang:phash2(Params),
     PartyID       = wapi_handler_utils:get_owner(Context),
-    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, undefined),
-    {ok, ChallengeId} = bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx),
+    {ok, ChallengeID} = gen_id_by_sequence(Type, PartyID, undefined, Hash, WoodyCtx),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
         ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
-            maps:merge(#{id => ChallengeId}, from_swag(identity_challenge_params, Params)
+            maps:merge(#{id => ChallengeID}, from_swag(identity_challenge_params, Params)
         ))),
-        unwrap(get_identity_challenge(IdentityId, ChallengeId, Context))
+        unwrap(get_identity_challenge(IdentityId, ChallengeID, Context))
     end).
 
 -spec get_identity_challenge(id(), id(), ctx()) -> result(map(),
@@ -797,11 +796,10 @@ check_resource_access(true)  -> ok;
 check_resource_access(false) -> {error, unauthorized}.
 
 create_entity(Type, Params, CreateFun, Context = #{woody_context := WoodyCtx}) ->
-    ExternalID    = maps:get(<<"externalID">>, Params, undefined),
-    Hash          = erlang:phash2(Params),
-    PartyID       = wapi_handler_utils:get_owner(Context),
-    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
-    case bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx) of
+    ExternalID = maps:get(<<"externalID">>, Params, undefined),
+    Hash       = erlang:phash2(Params),
+    PartyID    = wapi_handler_utils:get_owner(Context),
+    case gen_id_by_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx) of
         {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
             handle_create_entity_result(Result, Type, ID, Hash, Context);
@@ -869,6 +867,18 @@ valid(Val1, Val2) ->
 get_contract_id_from_identity(IdentityID, Context) ->
     State = get_state(identity, IdentityID, Context),
     ff_identity:contract(ff_machine:model(State)).
+
+%% ID Gen
+
+gen_id_by_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
+    TypeBin = atom_to_binary(Type, utf8),
+    FistfulID = get_old_sequence_id(Type),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, TypeBin, PartyID, ExternalID),
+    bender_client:gen_by_sequence(IdempotentKey, TypeBin, Hash, WoodyCtx, #{}, #{minimum => FistfulID + 1}).
+
+get_old_sequence_id(Type) ->
+    NS = 'ff/sequence',
+    ff_sequence:get(NS, ff_string:join($/, [Type, id]), fistful:backend(NS)).
 
 create_report_request(#{
     party_id     := PartyID,

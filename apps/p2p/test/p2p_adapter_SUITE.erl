@@ -62,7 +62,7 @@ handle_callback(_C) ->
     Context  = construct_context(),
     Callback = #{tag => <<"p2p">>, payload => <<>>},
     Result   = p2p_adapter:handle_callback(Adapter, Callback, Context),
-    Response = #{payload => <<"payload">>},
+    Response = #{payload => <<"handle_payload">>},
     ?assertMatch({ok, #{intent := {finish, success}, response := Response}}, Result),
     ok.
 
@@ -82,9 +82,9 @@ construct_operation_info() ->
     }.
 
 construct_resource() ->
-    #{
+    {bank_card, #{
         token          => <<"token">>,
         bin            => <<"bin">>,
         payment_system => visa,
         masked_pan     => <<"masked_pan">>
-    }.
+    }}.

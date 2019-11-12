@@ -142,16 +142,18 @@ handle_function_('HandleCallback', [?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_
         <<"user_sleep">> ->
             {ok, #p2p_adapter_CallbackResult{
                 response = #p2p_adapter_CallbackResponse{payload = <<"user_payload">>},
-                intent = {finish, #p2p_adapter_FinishIntent{
-                    status = {success, #p2p_adapter_Success{}}
+                intent = {sleep, #p2p_adapter_SleepIntent{
+                    timer = {timeout, 1},
+                    callback_tag = Token
                 }},
                 next_state = <<"user_callback">>
             }};
         <<"simple_sleep">> ->
             {ok, #p2p_adapter_CallbackResult{
                 response = #p2p_adapter_CallbackResponse{payload = <<"simple_payload">>},
-                intent = {finish, #p2p_adapter_FinishIntent{
-                    status = {success, #p2p_adapter_Success{}}
+                intent = {sleep, #p2p_adapter_SleepIntent{
+                    timer = {timeout, 1},
+                    callback_tag = Token
                 }},
                 next_state = <<"simple_callback">>
             }}

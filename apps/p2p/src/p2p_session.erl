@@ -209,7 +209,8 @@ process_intent({sleep, #{timer := Timer, callback_tag := Tag} = Data}, Events0, 
     };
 process_intent({finish, Result}, Events, _Session) ->
     #{
-        events => Events ++ [{finished, Result}]
+        events => Events ++ [{finished, Result}],
+        action => unset_timer
     }.
 
 process_intent_callback(Tag, Session, Events) ->

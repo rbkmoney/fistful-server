@@ -4,7 +4,6 @@
 
 -include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
--include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([marshal/2]).
 -export([unmarshal/2]).

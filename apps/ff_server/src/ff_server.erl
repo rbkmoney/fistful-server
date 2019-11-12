@@ -91,6 +91,7 @@ init([]) ->
 
     Services = [
         {fistful_admin, ff_server_admin_handler},
+        {p2p_adapter_host, p2p_adapter_host},
         {wallet_management, ff_wallet_handler},
         {identity_management, ff_identity_handler},
         {destination_management, ff_destination_handler},

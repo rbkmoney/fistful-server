@@ -311,14 +311,15 @@ identity_provider_config(Options) ->
 
 services(Options) ->
     Default = #{
-        eventsink      => "http://machinegun:8022/v1/event_sink",
-        automaton      => "http://machinegun:8022/v1/automaton",
-        accounter      => "http://shumway:8022/shumpune",
-        cds            => "http://cds:8022/v1/storage",
-        identdocstore  => "http://cds:8022/v1/identity_document_storage",
-        partymgmt      => "http://hellgate:8022/v1/processing/partymgmt",
-        identification => "http://identification:8022/v1/identification",
-        binbase        => "http://localhost:8222/binbase"
+        p2p_adapter_host => "http://fistful-server:8022/v1/p2p_adapter_host",
+        eventsink        => "http://machinegun:8022/v1/event_sink",
+        automaton        => "http://machinegun:8022/v1/automaton",
+        accounter        => "http://shumway:8022/shumpune",
+        cds              => "http://cds:8022/v1/storage",
+        identdocstore    => "http://cds:8022/v1/identity_document_storage",
+        partymgmt        => "http://hellgate:8022/v1/processing/partymgmt",
+        identification   => "http://identification:8022/v1/identification",
+        binbase          => "http://localhost:8222/binbase"
     },
     maps:get(services, Options, Default).
 

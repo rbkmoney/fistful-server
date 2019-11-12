@@ -14,7 +14,7 @@
 -export([create/3]).
 -export([get/1]).
 -export([events/2]).
--export([process_callback/2]).
+-export([process_callback/1]).
 -export([repair/2]).
 
 %% machinery
@@ -35,7 +35,7 @@
     unknown_p2p_session_error().
 
 -type unknown_p2p_session_error() ::
-    {unknown_p2p_session, id()}.
+    {unknown_p2p_session, ref()}.
 
 -export_type([process_callback_error/0]).
 
@@ -43,6 +43,7 @@
 %% Internal types
 %%
 
+-type ref() :: machinery:ref().
 -type id() :: machinery:id().
 -type transfer_params() :: p2p_session:transfer_params().
 -type params() :: p2p_session:params().
@@ -67,16 +68,16 @@
 %% API
 %%
 
--spec get(id()) ->
+-spec get(ref()) ->
     {ok, st()}        |
     {error, unknown_p2p_session_error()}.
 
-get(ID) ->
-    case ff_machine:get(p2p_session, ?NS, ID) of
+get(Ref) ->
+    case ff_machine:get(p2p_session, ?NS, Ref) of
         {ok, _Machine} = Result ->
             Result;
         {error, notfound} ->
-            {error, {unknown_p2p_session, ID}}
+            {error, {unknown_p2p_session, Ref}}
     end.
 
 -spec session(st()) -> session().
@@ -98,23 +99,23 @@ create(ID, TransferParams, Params) ->
     {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
     {error, notfound}.
 
-events(ID, Range) ->
+events(Ref, Range) ->
     do(fun () ->
-        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
+        #{history := History} = unwrap(machinery:get(?NS, Ref, Range, backend())),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 
--spec process_callback(id(), callback_params()) ->
+-spec process_callback(callback_params()) ->
     {ok, process_callback_response()} |
     {error, process_callback_error()}.
 
-process_callback(SessionID, Params) ->
-    call(SessionID, {process_callback, Params}).
+process_callback(#{tag := Tag} = Params) ->
+    call({tag, Tag}, {process_callback, Params}).
 
--spec repair(id(), ff_repair:scenario()) ->
+-spec repair(ref(), ff_repair:scenario()) ->
     ok | {error, notfound | working}.
-repair(ID, Scenario) ->
-    machinery:repair(?NS, ID, Scenario, backend()).
+repair(Ref, Scenario) ->
+    machinery:repair(?NS, Ref, Scenario, backend()).
 
 %% machinery callbacks
 
@@ -165,12 +166,12 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
 backend() ->
     fistful:backend(?NS).
 
-call(ID, Call) ->
-    case machinery:call(?NS, ID, Call, backend()) of
+call(Ref, Call) ->
+    case machinery:call(?NS, Ref, Call, backend()) of
         {ok, Reply} ->
             Reply;
         {error, notfound} ->
-            {error, {unknown_p2p_session, ID}}
+            {error, {unknown_p2p_session, Ref}}
     end.
 
 -spec do_process_callback(callback_params(), machine()) -> {Response, result()} when
@@ -181,6 +182,8 @@ call(ID, Call) ->
 do_process_callback(Params, Machine) ->
     St = ff_machine:collapse(p2p_session, Machine),
     case p2p_session:process_callback(Params, session(St)) of
+        {ok, {Response, #{events := Events} = Result}} ->
+            {{ok, Response}, Result#{events => ff_machine:emit_events(Events)}};
         {ok, {Response, Result}} ->
             {{ok, Response}, Result};
         {error, _Reason} = Error ->

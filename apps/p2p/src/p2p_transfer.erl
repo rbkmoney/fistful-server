@@ -730,7 +730,7 @@ process_session_creation(P2PTransfer) ->
     ID = construct_session_id(id(P2PTransfer)),
     TransferParams = genlib_map:compact(#{
         id => id(P2PTransfer),
-        cash => body(P2PTransfer),
+        body => body(P2PTransfer),
         sender => sender_resource(P2PTransfer),
         receiver => receiver_resource(P2PTransfer),
         deadline => deadline(P2PTransfer)

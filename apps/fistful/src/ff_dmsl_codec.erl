@@ -1,6 +1,7 @@
 -module(ff_dmsl_codec).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_user_interaction_thrift.hrl").
 
 -export([unmarshal/2]).
 -export([marshal/2]).
@@ -116,6 +117,43 @@ unmarshal(currency_ref, #domain_CurrencyRef{
 }) ->
     unmarshal(string, SymbolicCode);
 
+unmarshal(currency, #domain_Currency{
+    name          = Name,
+    symbolic_code = Symcode,
+    numeric_code  = Numcode,
+    exponent      = Exponent
+}) ->
+    #{
+        name     => Name,
+        symcode  => Symcode,
+        numcode  => Numcode,
+        exponent => Exponent
+    };
+
+unmarshal(user_interaction, {redirect, {get_request,
+    #'BrowserGetRequest'{uri = URI}
+}}) ->
+    #{type => redirect, content => {get, URI}};
+unmarshal(user_interaction, {redirect, {post_request,
+    #'BrowserPostRequest'{uri = URI, form = Form}
+}}) ->
+    #{type => redirect, content => {post, URI, Form}};
+
+unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
+    payment_tool = {bank_card, #domain_BankCard{
+        token          = Token,
+        payment_system = PaymentSystem,
+        bin            = Bin,
+        masked_pan     = MaskedPan
+    }}
+}}) ->
+    {bank_card, #{
+        token           => Token,
+        payment_system  => PaymentSystem,
+        bin             => Bin,
+        masked_pan      => MaskedPan
+    }};
+
 unmarshal(amount, V) ->
     unmarshal(integer, V);
 unmarshal(string, V) when is_binary(V) ->
@@ -145,6 +183,34 @@ marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
     #domain_CurrencyRef{
         symbolic_code = CurrencyID
     };
+
+marshal(currency, #{
+    name     := Name,
+    symcode  := Symcode,
+    numcode  := Numcode,
+    exponent := Exponent
+}) ->
+    #domain_Currency{
+        name          = Name,
+        symbolic_code = Symcode,
+        numeric_code  = Numcode,
+        exponent      = Exponent
+    };
+
+marshal(resource, {bank_card, #{
+    token           := Token,
+    payment_system  := PaymentSystem,
+    bin             := Bin,
+    masked_pan      := MaskedPan
+}}) ->
+    {disposable, #domain_DisposablePaymentResource{
+        payment_tool = {bank_card, #domain_BankCard{
+            token          = Token,
+            payment_system = PaymentSystem,
+            bin            = Bin,
+            masked_pan     = MaskedPan
+        }}
+    }};
 
 marshal(amount, V) ->
     marshal(integer, V);

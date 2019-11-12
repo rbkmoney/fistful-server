@@ -54,7 +54,7 @@
 -type event() ::
     {created, session()} |
     {next_state, adapter_state()} |
-    {transaction_bound, ff_adapter:trx_info()} |
+    {transaction_bound, ff_adapter:transaction_info()} |
     {finished, session_result()} |
     wrapped_callback_event() |
     wrapped_user_interaction_event().
@@ -62,7 +62,16 @@
 -type wrapped_callback_event() :: p2p_callback_utils:wrapped_event().
 -type wrapped_user_interaction_event() :: p2p_user_interaction_utils:wrapped_event().
 
--type transfer_params() :: p2p_adapter:transfer_params().
+-type transfer_params() :: #{
+    id       := id(),
+    body     := body(),
+    sender   := p2p_transfer:resource_full(),
+    receiver := p2p_transfer:resource_full(),
+    deadline => deadline()
+}.
+
+-type body() :: ff_transaction:body().
+
 -type adapter_state() :: p2p_adapter:adapter_state().
 -type session_result() :: p2p_adapter:finish_status().
 
@@ -74,9 +83,7 @@
 
 -type p2p_callback_params() :: p2p_callback:process_params().
 -type process_callback_response() :: p2p_callback:response().
--type process_callback_error() ::
-    {session_already_finished, id()} |
-    p2p_callback_utils:unknown_callback_error().
+-type process_callback_error() :: {session_already_finished, p2p_adapter:context()}.
 
 -export_type([event/0]).
 -export_type([transfer_params/0]).
@@ -129,6 +136,10 @@ id(#{id := V}) ->
 status(#{status := V}) ->
     V.
 
+-spec adapter_state(session()) -> adapter_state() | undefined.
+adapter_state(Session = #{}) ->
+    maps:get(adapter_state, Session, undefined).
+
 %% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
 %% изменением дочерних сущностей, например запуском adjustment.
 -spec is_finished(session()) -> boolean().
@@ -145,10 +156,6 @@ transfer_params(#{transfer_params := V}) ->
 
 -spec adapter(session()) -> adapter_with_opts().
 adapter(#{adapter := V}) ->
-    V.
-
--spec adapter_state(session()) -> adapter_state().
-adapter_state(#{adapter_state := V}) ->
     V.
 
 %%
@@ -172,11 +179,14 @@ get_adapter_with_opts(ProviderID) ->
 
 -spec process_session(session()) -> result().
 process_session(Session) ->
-    ASt = maps:get(adapter_state, Session, undefined),
-    {Adapter, Opts} = adapter(Session),
-    {ok, {Intent, Data}} = p2p_adapter:process(Adapter, transfer_params(Session), ASt, Opts),
-    Events0 = process_next_state(Data, []),
-    Events1 = process_trx_info(Data, Events0),
+    {Adapter, AdapterOpts} = adapter(Session),
+    TransferParams = transfer_params(Session),
+    AdapterState = adapter_state(Session),
+    Context = p2p_adapter:build_context(AdapterState, TransferParams, AdapterOpts),
+    {ok, ProcessResult} = p2p_adapter:process(Adapter, Context),
+    #{intent := Intent} = ProcessResult,
+    Events0 = process_next_state(ProcessResult, []),
+    Events1 = process_transaction_info(ProcessResult, Events0),
     process_intent(Intent, Events1, Session).
 
 process_next_state(#{next_state := NextState}, Events) ->
@@ -184,9 +194,9 @@ process_next_state(#{next_state := NextState}, Events) ->
 process_next_state(_, Events) ->
     Events.
 
-process_trx_info(#{transaction_info := TrxInfo}, Events) ->
+process_transaction_info(#{transaction_info := TrxInfo}, Events) ->
     Events ++ [{transaction_bound, TrxInfo}];
-process_trx_info(_, Events) ->
+process_transaction_info(_, Events) ->
     Events.
 
 process_intent({sleep, #{timer := Timer, callback_tag := Tag} = Data}, Events0, Session) ->
@@ -195,11 +205,12 @@ process_intent({sleep, #{timer := Timer, callback_tag := Tag} = Data}, Events0, 
     Events2 = process_user_interaction(UserInteraction, Session, Events1),
     #{
         events => Events2,
-        action => timer_action(Timer)
+        action => [tag_action(Tag), timer_action(Timer)]
     };
 process_intent({finish, Result}, Events, _Session) ->
     #{
-        events => Events ++ [{finished, Result}]
+        events => Events ++ [{finished, Result}],
+        action => unset_timer
     }.
 
 process_intent_callback(Tag, Session, Events) ->
@@ -208,7 +219,8 @@ process_intent_callback(Tag, Session, Events) ->
             Events;
         {error, {unknown_callback, Tag}} ->
             {ok, CallbackEvents} = p2p_callback:create(#{tag => Tag}),
-            Events ++ p2p_callback_utils:wrap_events(Tag, CallbackEvents)
+            CBEvents = p2p_callback_utils:wrap_events(Tag, CallbackEvents),
+            Events ++ CBEvents
     end.
 
 process_user_interaction(undefined, _Session, Events) ->
@@ -235,6 +247,10 @@ process_user_interaction({ID, {create, Content}}, Session, Events) ->
 timer_action(Timer) ->
     {set_timer, Timer}.
 
+-spec tag_action(machinery:tag()) -> machinery:action().
+tag_action(Tag) ->
+    {tag, Tag}.
+
 -spec set_session_result(session_result(), session()) ->
     result().
 set_session_result(Result, #{status := active}) ->
@@ -247,13 +263,17 @@ set_session_result(Result, #{status := active}) ->
     {ok, {process_callback_response(), result()}} |
     {error, process_callback_error()}.
 process_callback(#{tag := CallbackTag} = Params, Session) ->
-    case find_callback(CallbackTag, Session) of
-        %% TODO add exeption to proto
-        {error, {unknown_callback, _}} = Error ->
-            Error;
-        {ok, Callback} ->
+    case status(Session) of
+        active ->
+            {ok, Callback} = find_callback(CallbackTag, Session),
             Status = p2p_callback:status(Callback),
-            do_process_callback(Status, Params, Callback, Session)
+            do_process_callback(Status, Params, Callback, Session);
+        {finished, _} ->
+            {_Adapter, AdapterOpts} = adapter(Session),
+            TransferParams = transfer_params(Session),
+            AdapterState = adapter_state(Session),
+            Context = p2p_adapter:build_context(AdapterState, TransferParams, AdapterOpts),
+            {error, {session_already_finished, Context}}
     end.
 
 -spec find_callback(p2p_callback_tag(), session()) ->
@@ -270,18 +290,15 @@ do_process_callback(succeeded, _Params, Callback, _Session) ->
 do_process_callback(pending, Params, Callback, Session) ->
     do(fun() ->
         valid = unwrap(validate_process_callback(Session)),
-        ASt = maps:get(adapter_state, Session, undefined),
-        {Adapter, Opts} = adapter(Session),
-        {ok, {Intent, Response, Data}} = p2p_adapter:handle_callback(
-            Adapter,
-            Params,
-            transfer_params(Session),
-            ASt,
-            Opts
-        ),
+        {Adapter, AdapterOpts} = adapter(Session),
+        TransferParams = transfer_params(Session),
+        AdapterState = adapter_state(Session),
+        Context = p2p_adapter:build_context(AdapterState, TransferParams, AdapterOpts),
+        {ok, HandleCallbackResult} = p2p_adapter:handle_callback(Adapter, Params, Context),
+        #{intent := Intent, response := Response} = HandleCallbackResult,
         Events0 = p2p_callback_utils:process_response(Response, Callback),
-        Events1 = process_next_state(Data, Events0),
-        Events2 = process_trx_info(Data, Events1),
+        Events1 = process_next_state(HandleCallbackResult, Events0),
+        Events2 = process_transaction_info(HandleCallbackResult, Events1),
         {Response, process_intent(Intent, Events2, Session)}
     end).
 
@@ -331,10 +348,10 @@ apply_event_({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
 apply_event_({finished, Result}, Session) ->
     set_session_status({finished, Result}, Session);
-apply_event_({callback, _Ev} = Event, T) ->
-    apply_callback_event(Event, T);
-apply_event_({user_interaction, _Ev} = Event, T) ->
-    apply_user_interaction_event(Event, T).
+apply_event_({callback, _Ev} = Event, Session) ->
+    apply_callback_event(Event, Session);
+apply_event_({user_interaction, _Ev} = Event, Session) ->
+    apply_user_interaction_event(Event, Session).
 
 -spec apply_callback_event(wrapped_callback_event(), session()) -> session().
 apply_callback_event(WrappedEvent, Session) ->

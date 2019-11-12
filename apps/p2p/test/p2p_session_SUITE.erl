@@ -2,6 +2,7 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_p2p_adapter_thrift.hrl").
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
@@ -18,8 +19,9 @@
 %% Tests
 
 -export([user_interaction_ok_test/1]).
+-export([wrong_callback_tag_test/1]).
 -export([callback_ok_test/1]).
--export([fail_ok_test/1]).
+-export([create_fail_test/1]).
 -export([create_ok_test/1]).
 -export([unknown_test/1]).
 
@@ -41,6 +43,22 @@
 }).
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
 
+-define(CALLBACK(Tag, Payload), #p2p_adapter_Callback{tag = Tag, payload = Payload}).
+
+-define(PROCESS_CALLBACK_SUCCESS(Payload), {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
+    response = #p2p_adapter_CallbackResponse{
+        payload = Payload
+    }
+}}).
+
+-define(PROCESS_CALLBACK_FINISHED(AdapterState), {finished, #p2p_adapter_ProcessCallbackFinished{
+    response = #p2p_adapter_Context{
+        session = #p2p_adapter_Session{
+            state = AdapterState
+        }
+    }
+}}).
+
 %% API
 
 -spec all() -> [test_case_name() | {group, group_name()}].
@@ -54,8 +72,9 @@ groups() ->
     [
         {default, [parallel], [
             user_interaction_ok_test,
+            wrong_callback_tag_test,
             callback_ok_test,
-            fail_ok_test,
+            create_fail_test,
             create_ok_test,
             unknown_test
         ]}
@@ -98,49 +117,87 @@ end_per_testcase(_Name, _C) ->
 -spec user_interaction_ok_test(config()) -> test_return().
 user_interaction_ok_test(C) ->
     Cash = {101, <<"RUB">>},
+    TokenPrefix = <<"token_interaction_">>,
+    TokenRandomised = generate_id(),
+    Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
     #{
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
+    } = prepare_standard_environment(Cash, Token, C),
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
         id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
-        cash => Cash
+        body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
-    %% TODO call process callback here
-    ok = timer:sleep(3000),
-    ?assertEqual({finished, success}, await_final_p2p_session_status(P2PSessionID)),
-    P2PSession = get_p2p_session(P2PSessionID),
-    ?assertEqual(<<"user_sleep_finished">>, p2p_session:adapter_state(P2PSession)).
+    Callback = ?CALLBACK(Token, <<"payload">>),
+    ?assertMatch(<<"user_sleep">>, await_p2p_session_adapter_state(P2PSessionID, <<"user_sleep">>)),
+    ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"user_payload">>)}, call_host(Callback)),
+    ?assertMatch(<<"user_callback">>, get_p2p_session_adapter_state(P2PSessionID)),
+    ?assertMatch({finished, success}, await_final_p2p_session_status(P2PSessionID)),
+    ?assertMatch(<<"user_sleep_finished">>, await_p2p_session_adapter_state(P2PSessionID, <<"user_sleep_finished">>)),
+    ?assertMatch({ok, ?PROCESS_CALLBACK_FINISHED(<<"user_sleep_finished">>)}, call_host(Callback)).
 
 -spec callback_ok_test(config()) -> test_return().
 callback_ok_test(C) ->
     Cash = {999, <<"RUB">>},
+    TokenPrefix = <<"token_callback_">>,
+    TokenRandomised = generate_id(),
+    Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
     #{
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
+    } = prepare_standard_environment(Cash, Token, C),
     P2PSessionID = generate_id(),
     P2PProviderID = 1,
     P2PSessionParams = #{
         id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
-        cash => Cash
+        body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
-    %% TODO call process callback here
-    ok = timer:sleep(3000),
-    ?assertEqual({finished, success}, await_final_p2p_session_status(P2PSessionID)),
-    P2PSession = get_p2p_session(P2PSessionID),
-    ?assertEqual(<<"sleep_finished">>, p2p_session:adapter_state(P2PSession)).
+    Callback = ?CALLBACK(Token, <<"payload">>),
+    ?assertMatch(<<"simple_sleep">>, await_p2p_session_adapter_state(P2PSessionID, <<"simple_sleep">>)),
+    ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"simple_payload">>)}, call_host(Callback)),
+    ?assertMatch(<<"simple_callback">>, get_p2p_session_adapter_state(P2PSessionID)),
+    ?assertMatch({finished, success}, await_final_p2p_session_status(P2PSessionID)),
+    ?assertMatch(<<"sleep_finished">>, await_p2p_session_adapter_state(P2PSessionID, <<"sleep_finished">>)),
+    ?assertMatch({ok, ?PROCESS_CALLBACK_FINISHED(<<"sleep_finished">>)}, call_host(Callback)).
 
--spec fail_ok_test(config()) -> test_return().
-fail_ok_test(C) ->
+-spec wrong_callback_tag_test(config()) -> test_return().
+wrong_callback_tag_test(C) ->
+    Cash = {99, <<"RUB">>},
+    TokenPrefix = <<"token_wrong_">>,
+    TokenRandomised = generate_id(),
+    Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
+    #{
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = prepare_standard_environment(Cash, Token, C),
+    P2PSessionID = generate_id(),
+    P2PProviderID = 1,
+    P2PSessionParams = #{
+        id => <<"p2p_transfer_id">>,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        body => Cash
+    },
+    ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
+    WrongCallback = ?CALLBACK(<<"WRONG">>, <<"payload">>),
+    State0 = <<"wrong">>,
+    State1 = <<"wrong_finished">>,
+    ?assertMatch(State0, await_p2p_session_adapter_state(P2PSessionID, State0)),
+    ?assertMatch({exception, #p2p_adapter_SessionNotFound{}}, call_host(WrongCallback)),
+    ?assertMatch(State1, await_p2p_session_adapter_state(P2PSessionID, State1)),
+    ?assertMatch({finished, success}, await_final_p2p_session_status(P2PSessionID)),
+    ?assertMatch({exception, #p2p_adapter_SessionNotFound{}}, call_host(WrongCallback)).
+
+-spec create_fail_test(config()) -> test_return().
+create_fail_test(C) ->
     Cash = {1001, <<"RUB">>},
     #{
         sender := ResourceSender,
@@ -152,7 +209,7 @@ fail_ok_test(C) ->
         id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
-        cash => Cash
+        body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     ?assertEqual({finished, {failure, #{code => <<"test_failure">>}}}, await_final_p2p_session_status(P2PSessionID)).
@@ -170,7 +227,7 @@ create_ok_test(C) ->
         id => <<"p2p_transfer_id">>,
         sender => ResourceSender,
         receiver => ResourceReceiver,
-        cash => Cash
+        body => Cash
     },
     ok = p2p_session_machine:create(P2PSessionID, P2PSessionParams, #{provider_id => P2PProviderID}),
     ?assertEqual({finished, success}, await_final_p2p_session_status(P2PSessionID)).
@@ -207,6 +264,15 @@ get_p2p_session(P2PSessionID) ->
 get_p2p_session_status(P2PSessionID) ->
     p2p_session:status(get_p2p_session(P2PSessionID)).
 
+await_p2p_session_adapter_state(P2PSessionID, State) ->
+    Poller = fun() -> get_p2p_session_adapter_state(P2PSessionID) end,
+    Retry = genlib_retry:linear(15, 1000),
+    ct_helper:await(State, Poller, Retry).
+
+get_p2p_session_adapter_state(P2PSessionID) ->
+    P2PSession = get_p2p_session(P2PSessionID),
+    p2p_session:adapter_state(P2PSession).
+
 await_final_p2p_session_status(P2PSessionID) ->
     finished = ct_helper:await(
         finished,
@@ -219,7 +285,7 @@ await_final_p2p_session_status(P2PSessionID) ->
                     finished
             end
         end,
-        genlib_retry:linear(10, 1000)
+        genlib_retry:linear(15, 1000)
     ),
     get_p2p_session_status(P2PSessionID).
 
@@ -235,4 +301,9 @@ create_resource_raw(Token, C) ->
             StoreSource#{token => Token}
     end.
 
-
+call_host(Callback) ->
+    Service  = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
+    Function = 'ProcessCallback',
+    Args     = [Callback],
+    Request  = {Service, Function, Args},
+    ff_woody_client:call(p2p_adapter_host, Request).

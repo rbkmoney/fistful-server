@@ -17,7 +17,7 @@
 -export([idempotency_destination_conflict/1]).
 -export([idempotency_withdrawal_ok/1]).
 -export([idempotency_withdrawal_conflict/1]).
--export([fistful_id_is_compatible/1]).
+-export([fistful_to_bender_migration/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -36,7 +36,7 @@ all() ->
         idempotency_destination_conflict,
         idempotency_withdrawal_ok,
         idempotency_withdrawal_conflict,
-        fistful_id_is_compatible
+        fistful_to_bender_migration
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -268,10 +268,10 @@ idempotency_withdrawal_conflict(C) ->
     {error, {external_id_conflict, ID, ExternalID}} =
         wapi_wallet_ff_backend:create_withdrawal(NewParams, create_context(Party, C)).
 
--spec fistful_id_is_compatible(config()) ->
+-spec fistful_to_bender_migration(config()) ->
     test_return().
 
-fistful_id_is_compatible(C) ->
+fistful_to_bender_migration(C) ->
     Params0 = #{
         <<"provider">> => <<"good-one">>,
         <<"class">> => <<"person">>,

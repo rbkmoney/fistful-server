@@ -187,7 +187,7 @@ create_sender_resource_notfound_test(C) ->
         external_id => P2PTransferID
     },
     Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    ?assertMatch({error, {sender_resource, {bin_data, not_found}}}, Result).
+    ?assertMatch({error, {sender, {bin_data, not_found}}}, Result).
 
 -spec create_receiver_resource_notfound_test(config()) -> test_return().
 create_receiver_resource_notfound_test(C) ->
@@ -207,7 +207,7 @@ create_receiver_resource_notfound_test(C) ->
         external_id => P2PTransferID
     },
     Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    ?assertMatch({error, {receiver_resource, {bin_data, not_found}}}, Result).
+    ?assertMatch({error, {receiver, {bin_data, not_found}}}, Result).
 
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->

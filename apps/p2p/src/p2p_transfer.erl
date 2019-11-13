@@ -332,8 +332,8 @@ create(TransferParams) ->
         ExternalID = maps:get(external_id, TransferParams, undefined),
 
         CreatedAt = ff_time:now(),
-        {ok, SenderResource} = unwrap(sender_resource, p2p_participant:get_disposable_resource(Sender)),
-        {ok, ReceiverResource} = unwrap(receiver_resource, p2p_participant:get_disposable_resource(Receiver)),
+        {ok, SenderResource} = unwrap(sender, p2p_participant:get_disposable_resource(Sender)),
+        {ok, ReceiverResource} = unwrap(receiver, p2p_participant:get_disposable_resource(Receiver)),
         Params = #{
             cash => Body,
             sender => SenderResource,

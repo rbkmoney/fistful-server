@@ -4,17 +4,27 @@
 
 -define(LIFETIME_MS_DEFAULT, 900000). %% 15min in milliseconds
 
--type sender()                    :: ff_resource:resource().
--type receiver()                  :: ff_resource:resource().
+-type sender()                    :: ff_resource:resource_params().
+-type receiver()                  :: ff_resource:resource_params().
 -type cash()                      :: ff_cash:cash().
 -type terms()                     :: ff_party:terms().
 -type plan_constant()             :: operation_amount | surplus.
 -type identity_id()               :: ff_identity:id().
--type compact_resource()          :: #{token := binary(), bin_data_id => ff_bin_data:bin_data_id()}.
+-type compact_resource()          :: compact_bank_card_resource() | compact_crypto_wallet_resource().
 -type surplus_cash_volume()       :: ff_cash_flow:plan_volume().
 -type get_contract_terms_error()  :: ff_party:get_contract_terms_error().
 -type validate_p2p_error()        :: ff_party:validate_p2p_error().
 -type volume_finalize_error()     :: ff_cash_flow:volume_finalize_error().
+
+-type compact_bank_card_resource() :: #{
+    type := bank_card,
+    token := binary(),
+    bin_data_id => ff_bin_data:bin_data_id()
+}.
+
+-type compact_crypto_wallet_resource() :: #{
+    type := crypto_wallet
+}.
 
 -type fees()        :: #{fees => #{plan_constant() => surplus_cash_volume()}}.
 -opaque fee_quote() :: #{
@@ -74,14 +84,16 @@ sender_id(#{sender := Sender}) ->
 receiver_id(#{receiver := Receiver}) ->
     maps:get(bin_data_id, Receiver).
 
--spec compact(ff_resource:disposable_resource()) ->
+-spec compact(ff_resource:resource()) ->
     compact_resource().
-compact(Resource) ->
-    {bank_card, BankCard} = ff_resource:disposable_resource_tool(Resource),
+compact({bank_card, BankCard}) ->
     genlib_map:compact(#{
+        type => bank_card,
         token => ff_resource:token(BankCard),
         bin_data_id => ff_resource:bin_data_id(BankCard)
-    }).
+    });
+compact({crypto_wallet, _CryptoWallet}) ->
+    #{type => crypto_wallet}.
 
 %%
 
@@ -91,11 +103,12 @@ compact(Resource) ->
     {error, {party,      get_contract_terms_error()}} |
     {error, {p2p_tool,   not_allow}} |
     {error, {cash_flow,  volume_finalize_error()}} |
+    {error, {p2p_transfer:resource_owner(), {bin_data, not_found}}} |
     {error, {terms, validate_p2p_error()}}.
 get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
-        {ok, SenderResource} = ff_resource:create_disposable_resource(Sender),
-        {ok, ReceiverResource} = ff_resource:create_disposable_resource(Receiver),
+        SenderResource = unwrap(sender, ff_resource:create_disposable_resource(Sender)),
+        ReceiverResource = unwrap(receiver, ff_resource:create_disposable_resource(Receiver)),
         Params = #{
             cash => Cash,
             sender => SenderResource,
@@ -117,8 +130,8 @@ get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
             created_at => CreatedAt,
             expires_on => ExpiresOn,
             identity_id => IdentityID,
-            sender => compact(SenderResource),
-            receiver => compact(ReceiverResource)
+            sender => compact(ff_resource:resource(SenderResource)),
+            receiver => compact(ff_resource:resource(ReceiverResource))
         },
         {SurplusCash, SurplusCashVolume, Quote}
     end).

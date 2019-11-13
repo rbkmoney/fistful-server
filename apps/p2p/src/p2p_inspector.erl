@@ -87,14 +87,12 @@ encode_transfer_info(P2PTransfer) ->
     Cash = ff_dmsl_codec:marshal(cash, p2p_transfer:body(P2PTransfer)),
     Sender = p2p_transfer:sender_resource(P2PTransfer),
     Receiver = p2p_transfer:receiver_resource(P2PTransfer),
-    SenderInfo = p2p_transfer:sender_info(P2PTransfer),
-    ReceiverInfo = p2p_transfer:receiver_info(P2PTransfer),
     Transfer = #p2p_insp_Transfer{
         id = ID,
         identity = #p2p_insp_Identity{id = IdentityID},
         created_at = CreatedAt,
-        sender = encode_raw(ff_dmsl_codec:marshal(payment_resource_payer, {Sender, SenderInfo})),
-        receiver = encode_raw(ff_dmsl_codec:marshal(payment_resource_payer, {Receiver, ReceiverInfo})),
+        sender = encode_raw(ff_dmsl_codec:marshal(payment_resource_payer, Sender)),
+        receiver = encode_raw(ff_dmsl_codec:marshal(payment_resource_payer, Receiver)),
         cost = Cash
     },
     #p2p_insp_TransferInfo{transfer = Transfer}.

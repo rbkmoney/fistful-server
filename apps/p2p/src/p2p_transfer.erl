@@ -10,9 +10,6 @@
 
 -define(ACTUAL_FORMAT_VERSION, 1).
 
--type participant()         :: p2p_participant:participant().
--type disposable_resource() :: ff_resource:disposable_resource().
-
 -opaque p2p_transfer() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
     id := id(),
@@ -26,8 +23,8 @@
     party_revision := ff_party:revision(),
     status := status(),
 
-    sender_resource => ff_resource:disposable_resource(),
-    receiver_resource => ff_resource:disposable_resource(),
+    sender_resource => disposable_resource(),
+    receiver_resource => disposable_resource(),
     quote => quote(),
     session => session(),
     route => route(),
@@ -64,9 +61,11 @@
     {status_changed, status()} |
     wrapped_adjustment_event().
 
--type session_event() ::
-    {started, session_id()} |
-    {finished, {session_id(), session_result()}}.
+-type session_event() :: {session_id(), session_event_payload()}.
+
+-type session_event_payload() ::
+    started |
+    {finished, session_result()}.
 
 -type resource_owner() :: sender | receiver.
 
@@ -116,6 +115,7 @@
 -export_type([adjustment_params/0]).
 -export_type([start_adjustment_error/0]).
 -export_type([domain_revision/0]).
+-export_type([resource_owner/0]).
 %% Transfer logic callbacks
 
 -export([process_transfer/1]).
@@ -134,8 +134,6 @@
 -export([operation_timestamp/1]).
 -export([party_revision/1]).
 -export([domain_revision/1]).
--export([sender_info/1]).
--export([receiver_info/1]).
 -export([sender_resource/1]).
 -export([receiver_resource/1]).
 
@@ -158,7 +156,6 @@
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Internal types
--type contact_info() :: p2p_participant:contact_info().
 -type body() :: ff_transaction:body(). %% Why is not ff_cash:cash()
 -type identity() :: ff_identity:identity().
 -type identity_id() :: ff_identity:id().
@@ -177,6 +174,8 @@
 -type domain_revision() :: ff_domain_config:revision().
 -type party_varset() :: hg_selector:varset().
 -type risk_score() :: p2p_inspector:risk_score().
+-type participant() :: p2p_participant:participant().
+-type disposable_resource() :: ff_resource:disposable_resource().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -211,30 +210,16 @@
 
 %% Accessors
 
--spec sender_info(p2p_transfer()) ->
-    contact_info().
-sender_info(#{sender := Sender}) ->
-    p2p_participant:contact_info(Sender).
-
--spec receiver_info(p2p_transfer()) ->
-    contact_info().
-receiver_info(#{receiver := Receiver}) ->
-    p2p_participant:contact_info(Receiver).
-
 -spec sender_resource(p2p_transfer()) ->
-    ff_resource:disposable_resource() | undefined.
+    disposable_resource() | undefined.
 sender_resource(T) ->
     maps:get(sender_resource, T, undefined).
 
 -spec receiver_resource(p2p_transfer()) ->
-    ff_resource:disposable_resource() | undefined.
+    disposable_resource() | undefined.
 receiver_resource(T) ->
     maps:get(receiver_resource, T, undefined).
 
-if_def({Tag, undefined}) ->
-    error({error, {Tag, undefined}});
-if_def({_Tag, Value}) ->
-    Value.
 %%
 
 -spec quote(p2p_transfer()) -> quote() | undefined.
@@ -291,10 +276,8 @@ operation_timestamp(#{operation_timestamp := Timestamp}) ->
 
 -spec create_varset(identity(), p2p_transfer()) -> p2p_party:varset().
 create_varset(Identity, P2PTransfer) ->
-    Sender = if_def(
-        {sender_resource, sender_resource(P2PTransfer)}),
-    Receiver = if_def(
-        {receiver_resource, receiver_resource(P2PTransfer)}),
+    Sender = validate_definition(sender_resource, sender_resource(P2PTransfer)),
+    Receiver = validate_definition(receiver_resource, receiver_resource(P2PTransfer)),
 
     PartyID = ff_identity:party(Identity),
     Params = #{
@@ -332,8 +315,8 @@ create(TransferParams) ->
         ExternalID = maps:get(external_id, TransferParams, undefined),
 
         CreatedAt = ff_time:now(),
-        {ok, SenderResource} = unwrap(sender, p2p_participant:get_disposable_resource(Sender)),
-        {ok, ReceiverResource} = unwrap(receiver, p2p_participant:get_disposable_resource(Receiver)),
+        SenderResource = unwrap(sender, p2p_participant:get_disposable_resource(Sender)),
+        ReceiverResource = unwrap(receiver, p2p_participant:get_disposable_resource(Receiver)),
         Params = #{
             cash => Body,
             sender => SenderResource,
@@ -651,7 +634,7 @@ process_p_transfer_creation(P2PTransfer) ->
     process_result().
 process_session_creation(P2PTransfer) ->
     ID = construct_session_id(id(P2PTransfer)),
-    {continue, [{session, {started, ID}}]}.
+    {continue, [{session, {ID, started}}]}.
 
 construct_session_id(ID) ->
     ID.
@@ -664,7 +647,7 @@ construct_p_transfer_id(ID) ->
     process_result().
 process_session_poll(P2PTransfer) ->
     SessionID = session_id(P2PTransfer),
-    {continue, [{session, {finished, {SessionID, {success, #{}}}}}]}.
+    {continue, [{session, {SessionID, {finished, {success, #{}}}}}]}.
 
 -spec process_transfer_finish(p2p_transfer()) ->
     process_result().
@@ -939,6 +922,11 @@ build_failure(session, P2PTransfer) ->
     {failed, Failure} = Result,
     Failure.
 
+validate_definition(Tag, undefined) ->
+    error({Tag, undefined});
+validate_definition(_Tag, Value) ->
+    Value.
+
 %%
 
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(p2p_transfer())) ->
@@ -960,10 +948,10 @@ apply_event_({resource_got, Sender, Receiver}, T0) ->
     maps:put(receiver_resource, Receiver, T1);
 apply_event_({p_transfer, Ev}, T) ->
     T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))};
-apply_event_({session, {started, SessionID}}, T) ->
+apply_event_({session, {SessionID, started}}, T) ->
     Session = #{id => SessionID},
     maps:put(session, Session, T);
-apply_event_({session, {finished, {SessionID, Result}}}, T) ->
+apply_event_({session, {SessionID, {finished, Result}}}, T) ->
     #{id := SessionID} = Session = session(T),
     maps:put(session, Session#{result => Result}, T);
 apply_event_({risk_score_changed, RiskScore}, T) ->
@@ -978,3 +966,4 @@ apply_event_({adjustment, _Ev} = Event, T) ->
 % Actual events
 maybe_migrate(Ev) ->
     Ev.
+

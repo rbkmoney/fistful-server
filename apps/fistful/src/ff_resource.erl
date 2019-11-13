@@ -1,44 +1,64 @@
 -module(ff_resource).
 
+-type bin_data_id() :: ff_bin_data:bin_data_id().
+
 -opaque bank_card() :: #{
-    token               := binary(),
-    bin                 => binary(),
-    payment_system      := atom(), % TODO
-    masked_pan          => binary(),
-    bank_name           => binary(),
-    iso_country_code    => atom(),
-    card_type           => charge_card | credit | debit | credit_or_debit,
-    bin_data_id         := ff_bin_data:bin_data_id()
+    token := binary(),
+    bin => binary(),
+    payment_system := atom(), % TODO
+    masked_pan => binary(),
+    bank_name => binary(),
+    iso_country_code => atom(),
+    card_type => charge_card | credit | debit | credit_or_debit,
+    bin_data_id => bin_data_id()
 }.
 
--type bank_card_resource() :: #{
-    token      := binary(),
-    bin        => binary(),
+-type bank_card_params() :: #{
+    token := binary(),
+    bin => binary(),
     masked_pan => binary()
 }.
--type crypto_wallet_resource() :: #{
-    id       := binary(),
+
+-type crypto_wallet_params() :: #{
+    id := binary(),
     currency := atom(),
-    tag      => binary()
+    tag => binary()
 }.
 
--type resource()        :: {bank_card,  bank_card_resource()} |
-                           {crypto_wallet, crypto_wallet_resource()}.
--type resource_full()   :: {bank_card, bank_card()} |
-                           {crypto_wallet, crypto_wallet()}.
--type crypto_wallet()   :: crypto_wallet_resource().
+-type resource_id() :: {bank_card, bin_data_id()}.
+-type resource_params() :: {bank_card,  bank_card_params()} |
+                           {crypto_wallet, crypto_wallet_params()}.
+-type resource() :: {bank_card, bank_card()} |
+                    {crypto_wallet, crypto_wallet()}.
+-type crypto_wallet() :: crypto_wallet_params().
 
--opaque disposable_resource() :: #{tool := resource_full()}.
+-type contact_info() :: #{
+    phone_number => binary(),
+    email => binary()
+}.
+
+-type disposable_resource_params() :: #{
+    params := resource_params(),
+    contact_info => contact_info()
+}.
+
+-type disposable_resource() :: #{
+    resource := resource(),
+    contact_info => contact_info()
+}.
 
 -export_type([resource/0]).
+-export_type([resource_id/0]).
+-export_type([resource_params/0]).
 -export_type([bank_card/0]).
 -export_type([crypto_wallet/0]).
 -export_type([disposable_resource/0]).
+-export_type([disposable_resource_params/0]).
+-export_type([contact_info/0]).
 
--export([resource_full/1]).
--export([resource_full/2]).
+-export([create_resource/1]).
+-export([create_resource/2]).
 -export([create_disposable_resource/1]).
--export([disposable_resource_tool/1]).
 -export([bin/1]).
 -export([bin_data_id/1]).
 -export([token/1]).
@@ -46,16 +66,12 @@
 -export([payment_system/1]).
 -export([country_code/1]).
 -export([bank_name/1]).
+-export([resource/1]).
+-export([contact_info/1]).
 
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
-
--spec disposable_resource_tool(disposable_resource()) ->
-    resource_full().
-
-disposable_resource_tool(#{tool := ResourceFull}) ->
-    ResourceFull.
 
 -spec token(bank_card()) ->
     binary().
@@ -93,40 +109,47 @@ country_code(BankCard) ->
 bank_name(BankCard) ->
     maps:get(bank_name, BankCard, undefined).
 
+-spec resource(disposable_resource()) ->
+    resource().
+resource(Resource) ->
+    maps:get(resource, Resource).
 
--spec resource_full(resource()) ->
-    {ok, resource_full()} |
+-spec contact_info(disposable_resource()) ->
+    contact_info() | undefined.
+contact_info(Resource) ->
+    maps:get(contact_info, Resource, undefined).
+
+-spec create_resource(resource()) ->
+    {ok, resource()} |
     {error, {bin_data, not_found}}.
 
-resource_full(Resource) ->
-    resource_full(Resource, undefined).
+create_resource(Resource) ->
+    create_resource(Resource, undefined).
 
--spec resource_full(resource(), binary() | undefined) ->
-    {ok, resource_full()} |
+-spec create_resource(resource_params(), resource_id() | undefined) ->
+    {ok, resource()} |
     {error, {bin_data, not_found}}.
 
-resource_full({bank_card, #{token := Token} = BankCard}, ResourceID) ->
+create_resource({bank_card, #{token := Token} = BankCard}, {bank_card, ResourceID}) ->
     do(fun() ->
         BinData = unwrap(bin_data, ff_bin_data:get(Token, ResourceID)),
         KeyList = [payment_system, bank_name, iso_country_code, card_type],
         ExtendData = maps:with(KeyList, BinData),
         {bank_card, maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})}
     end);
-resource_full({crypto_wallet, CryptoWallet}, _ResourceID) ->
-    {ok, CryptoWallet};
-resource_full(Other, _) ->
-    error({resource_full, {not_impl, Other}}).
+create_resource({crypto_wallet, CryptoWallet}, _ResourceID) ->
+    {ok, CryptoWallet}.
 
--spec create_disposable_resource(resource()) ->
+-spec create_disposable_resource(disposable_resource_params()) ->
     {ok, disposable_resource()} |
     {error, {bin_data, not_found}}.
 
-create_disposable_resource({bank_card, _} = Resource) ->
+create_disposable_resource(Data = #{params := Params}) ->
     do(fun() ->
-        ResourceFull = unwrap(resource_full(Resource)),
-        #{
-            tool => ResourceFull
-        }
-    end);
-create_disposable_resource(Resource) ->
-    error({create_disposable_resource, {not_impl, Resource}}).
+        ContactInfo = maps:get(contact_info, Data, undefined),
+        Resource = unwrap(create_resource(Params)),
+        genlib_map:compact(#{
+            resource => Resource,
+            contact_info => ContactInfo
+        })
+    end).

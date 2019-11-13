@@ -2,58 +2,38 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--type contact_info() :: #{
-    phone_number => binary(),
-    email        => binary()
-}.
-
 %% In future we can add source&destination  or maybe recurrent
--opaque participant() :: {resource, #{
-                            resource     := ff_resource:resource(),
-                            contact_info := contact_info()
-                        }}.
+-opaque participant() :: {resource, disposable_resource_params()}.
 
--export_type([contact_info/0]).
 -export_type([participant/0]).
 
+-type disposable_resource_params() :: ff_resource:disposable_resource_params().
+-type disposable_resource() :: ff_resource:disposable_resource().
+-type resource_params() :: ff_resource:resource_params().
+
 -export([create/2]).
--export([resource/1]).
--export([contact_info/1]).
+-export([create/3]).
 -export([get_disposable_resource/1]).
 
 -import(ff_pipeline, [do/1, unwrap/1]).
 
-
--spec resource(participant()) ->
-    ff_resource:resource().
-resource({resource, P}) ->
-    maps:get(resource, P).
-
--spec contact_info(participant()) ->
-    contact_info().
-contact_info({resource, Resource}) ->
-    maps:get(contact_info, Resource).
-
--spec create(resource, {bank_card, ff_resource:resource()}) ->
+-spec create(resource, resource_params()) ->
     participant().
-create(resource, {bank_card, _} = BankCardResource) ->
-    create(resource, BankCardResource, #{}).
+create(resource, Params) ->
+    {resource, #{params => Params}}.
 
--spec create(resource, {bank_card, ff_resource:resource()}, contact_info()) ->
+-spec create(resource, resource_params(), ff_resource:contact_info()) ->
     participant().
-create(resource, BankCard, ContactInfo) ->
+create(resource, Params, ContactInfo) ->
     {resource, #{
-        resource => BankCard,
+        params => Params,
         contact_info => ContactInfo
     }}.
 
 -spec get_disposable_resource(participant()) ->
-    {ok, ff_resource:disposable_resource()} |
-    {error, {bin_data, not_found}} | no_return().
-get_disposable_resource({resource, _Resource} = Participant) ->
+    {ok, disposable_resource()} |
+    {error, {bin_data, not_found}}.
+get_disposable_resource({resource, Params}) ->
     do(fun() ->
-        ResourceFull = unwrap(ff_resource:resource_full(resource(Participant))),
-        ff_resource:create_disposable_resource(ResourceFull)
-    end);
-get_disposable_resource(Participant) ->
-    error({get_disposable_resource, {not_impl, Participant}}).
+        unwrap(ff_resource:create_disposable_resource(Params))
+    end).

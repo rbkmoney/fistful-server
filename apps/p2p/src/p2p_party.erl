@@ -32,8 +32,8 @@
 create_varset(#{cash := Cash} = Params) ->
     {_, Currency} = Cash,
     #{sender := Sender, receiver := Receiver} = Params,
-    SenderResource = ff_resource:disposable_resource_tool(Sender),
-    ReceiverResource = ff_resource:disposable_resource_tool(Receiver),
+    SenderResource = ff_resource:resource(Sender),
+    ReceiverResource = ff_resource:resource(Receiver),
     #{
         party_id => maps:get(party_id, Params),
         currency => ff_dmsl_codec:marshal(currency_ref, Currency),

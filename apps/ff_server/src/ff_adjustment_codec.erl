@@ -72,8 +72,8 @@ marshal(Prefix, status, succeeded) ->
     {succeeded, {record_adjustment(Prefix, <<"Succeeded">>)}};
 
 marshal(Prefix, changes_plan, ChangesPlan) ->
-    NewCashFlow = maps:get(new_cash_flow, ChangesPlan, undefined),    
-    NewStatus = maps:get(new_status, ChangesPlan, undefined),    
+    NewCashFlow = maps:get(new_cash_flow, ChangesPlan, undefined),
+    NewStatus = maps:get(new_status, ChangesPlan, undefined),
     {
         record_adjustment(Prefix, <<"ChangesPlan">>),
         maybe_marshal(Prefix, new_cash_flow, NewCashFlow),
@@ -148,7 +148,7 @@ unmarshal(changes_plan, {
     _ChangesPlan,
     NewCashFlow,
     NewStatus
-}) ->  
+}) ->
     genlib_map:compact(#{
         new_cash_flow => maybe_unmarshal(new_cash_flow, NewCashFlow),
         new_status => maybe_unmarshal(target_status, NewStatus)

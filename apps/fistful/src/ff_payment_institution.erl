@@ -4,11 +4,12 @@
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: #{
-    id              := id(),
-    system_accounts := dmsl_domain_thrift:'SystemAccountSetSelector'(),
-    identity        := binary(),
-    withdrawal_providers := dmsl_domain_thrift:'WithdrawalProviderSelector'(),
-    p2p_providers   := dmsl_domain_thrift:'P2PProviderSelector'()
+    id                      := id(),
+    system_accounts         := dmsl_domain_thrift:'SystemAccountSetSelector'(),
+    identity                := binary(),
+    withdrawal_providers    := dmsl_domain_thrift:'WithdrawalProviderSelector'(),
+    p2p_providers           := dmsl_domain_thrift:'P2PProviderSelector'(),
+    p2p_inspector           := dmsl_domain_thrift:'P2PInspectorSelector'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -85,11 +86,11 @@ compute_p2p_transfer_providers(#{p2p_providers := ProviderSelector}, VS) ->
     end.
 
 -spec compute_p2p_inspector(payment_institution(), hg_selector:varset()) ->
-    {ok, [ff_payouts_provider:id()]} | {error, term()}.
-compute_p2p_inspector(#{p2p_inspector := ProviderSelector} = PS, _VS) when ProviderSelector =:= undefined ->
+    {ok, p2p_inspector:id()} | {error, term()}.
+compute_p2p_inspector(#{p2p_inspector := InspectorSelector} = PS, _VS) when InspectorSelector =:= undefined ->
     {error, {misconfiguration, {'No p2p inspector in a given payment_institution', PS}}};
-compute_p2p_inspector(#{p2p_inspector := ProviderSelector}, VS) ->
-    case hg_selector:reduce_to_value(ProviderSelector, VS) of
+compute_p2p_inspector(#{p2p_inspector := InspectorSelector}, VS) ->
+    case hg_selector:reduce_to_value(InspectorSelector, VS) of
         {ok, #domain_P2PInspectorRef{id = InspectorID}} ->
             {ok, InspectorID};
         Error ->

@@ -6,8 +6,8 @@
 
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 
--type event() :: ff_eventsink_publisher:event(ff_source:event()).
--type sinkevent() :: ff_eventsink_publisher:sinkevent(ff_proto_source_thrift:'SinkEvent'()).
+-type event() :: ff_eventsink_publisher:event(p2p_transfer:event()).
+-type sinkevent() :: ff_eventsink_publisher:sinkevent(ff_proto_p2p_transfer_thrift:'SinkEvent'()).
 
 -spec publish_events(list(event())) ->
     list(sinkevent()).

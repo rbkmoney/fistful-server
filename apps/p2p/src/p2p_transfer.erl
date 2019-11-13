@@ -17,6 +17,7 @@
     body := body(),
     identity_id := identity_id(),
     created_at := ff_time:timestamp_ms(),
+    status := status(),
     sender => participant(),
     receiver => participant(),
     fees => fees(),
@@ -25,7 +26,6 @@
     risk_score => risk_score(),
     p_transfer => p_transfer(),
     adjustments => adjustments_index(),
-    status => status(),
     external_id => id()
 }.
 
@@ -319,13 +319,13 @@ create(Params) ->
             {created, genlib_map:compact(#{
                 version => ?ACTUAL_FORMAT_VERSION,
                 id => ID,
+                status => pending,
                 identity_id => IdentityID,
                 body => Body,
                 created_at => CreatedAt,
                 external_id => ExternalID,
                 fees => FeeQuote
             })},
-            {status_changed, pending},
             {resource_got, SenderFull, ReceiverFull}
         ]
     end).
@@ -541,7 +541,7 @@ process_risk_scoring(P2PTransfer) ->
     ]}.
 
 -spec do_risk_scoring(p2p_transfer()) ->
-    process_result().
+    risk_score().
 do_risk_scoring(P2PTransfer) ->
     DomainRevision = domain_revision(P2PTransfer),
     {ok, Identity} = get_identity(identity_id(P2PTransfer)),
@@ -549,7 +549,10 @@ do_risk_scoring(P2PTransfer) ->
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     PartyVarset = create_varset(Identity, P2PTransfer),
     {ok, InspectorRef} = ff_payment_institution:compute_p2p_inspector(PaymentInstitution, PartyVarset),
-    {ok, Inspector} = ff_domain_config:object(DomainRevision, {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}),
+    {ok, Inspector} = ff_domain_config:object(
+        DomainRevision,
+        {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}
+    ),
     ScoreID = <<"fraud">>,
     Scores = p2p_inspector:inspect(P2PTransfer, DomainRevision, [ScoreID], Inspector),
     maps:get(ScoreID, Scores).

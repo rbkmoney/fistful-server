@@ -4,13 +4,15 @@
 -type scores()          :: #{binary() => risk_score()}.
 -type inspector()       :: dmsl_domain_thrift:'P2PInspector'().
 -type transfer()        :: p2p_transfer:p2p_transfer().
--type domain_revision() :: p2p_transfer:domain_revision().
+-type domain_revision() :: integer().%p2p_transfer:domain_revision().
+-type id()              :: dmsl_domain_thrift:'ObjectID'().
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_proxy_inspector_p2p_thrift.hrl").
 
 -export_type([risk_score/0]).
 -export_type([scores/0]).
+-export_type([id/0]).
 
 -export([inspect/4]).
 

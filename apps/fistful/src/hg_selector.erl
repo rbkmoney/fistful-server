@@ -25,6 +25,7 @@
     dmsl_domain_thrift:'CumulativeLimitSelector'() |
     dmsl_domain_thrift:'WithdrawalProviderSelector'() |
     dmsl_domain_thrift:'P2PProviderSelector'() |
+    dmsl_domain_thrift:'P2PInspectorSelector'() |
     dmsl_domain_thrift:'TimeSpanSelector'().
 
 -type value() ::

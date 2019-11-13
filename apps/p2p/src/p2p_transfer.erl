@@ -10,22 +10,30 @@
 
 -define(ACTUAL_FORMAT_VERSION, 1).
 
--type participant() :: p2p_participant:participant().
+-type participant()         :: p2p_participant:participant().
+-type disposable_resource() :: ff_resource:disposable_resource().
+
 -opaque p2p_transfer() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
     id := id(),
     body := body(),
     identity_id := identity_id(),
     created_at := ff_time:timestamp_ms(),
-    sender => participant(),
-    receiver => participant(),
-    fees => fees(),
+    operation_timestamp := ff_time:timestamp_ms(),
+    sender := participant(),
+    receiver := participant(),
+    domain_revision := ff_domain_config:revision(),
+    party_revision := ff_party:revision(),
+    status := status(),
+
+    sender_resource => ff_resource:disposable_resource(),
+    receiver_resource => ff_resource:disposable_resource(),
+    quote => quote(),
     session => session(),
     route => route(),
     risk_score => risk_score(),
     p_transfer => p_transfer(),
     adjustments => adjustments_index(),
-    status => status(),
     external_id => id()
 }.
 
@@ -35,11 +43,11 @@
     body := body(),
     sender := participant(),
     receiver := participant(),
-    fees => fees(),
+    quote => quote(),
     external_id => id()
 }.
 
--type fees() :: p2p_fees:fee_quote().
+-type quote() :: p2p_fees:fee_quote().
 
 -type status() ::
     pending         |
@@ -48,7 +56,7 @@
 
 -type event() ::
     {created, p2p_transfer()} |
-    {resource_got, participant(), participant()} |
+    {resource_got, disposable_resource(), disposable_resource()} |
     {risk_score_changed, risk_score()} |
     {route_changed, route()} |
     {p_transfer, ff_postings_transfer:event()} |
@@ -64,8 +72,6 @@
 
 -type create_error() ::
     {identity, notfound} |
-    {terms, ff_party:validate_p2p_error()} |
-    {party, ff_party:get_contract_terms_error()} |
     {p2p_tool, not_allow} |
     {cash_flow, ff_cash_flow:volume_finalize_error()} |
     {resource_owner(), {bin_data, not_found}}.
@@ -109,7 +115,7 @@
 -export_type([action/0]).
 -export_type([adjustment_params/0]).
 -export_type([start_adjustment_error/0]).
-
+-export_type([domain_revision/0]).
 %% Transfer logic callbacks
 
 -export([process_transfer/1]).
@@ -121,10 +127,11 @@
 -export([identity_id/1]).
 -export([status/1]).
 -export([risk_score/1]).
--export([fees/1]).
+-export([quote/1]).
 -export([route/1]).
 -export([external_id/1]).
 -export([created_at/1]).
+-export([operation_timestamp/1]).
 -export([party_revision/1]).
 -export([domain_revision/1]).
 -export([sender_info/1]).
@@ -206,29 +213,33 @@
 
 -spec sender_info(p2p_transfer()) ->
     contact_info().
-sender_info(T) ->
-    maps:get(sender_info, T, undefined).
+sender_info(#{sender := Sender}) ->
+    p2p_participant:contact_info(Sender).
 
 -spec receiver_info(p2p_transfer()) ->
     contact_info().
-receiver_info(T) ->
-    maps:get(receiver_info, T, undefined).
+receiver_info(#{receiver := Receiver}) ->
+    p2p_participant:contact_info(Receiver).
 
 -spec sender_resource(p2p_transfer()) ->
-    p2p_participant:participant() | undefined.
+    ff_resource:disposable_resource() | undefined.
 sender_resource(T) ->
-    maps:get(sender, T, undefined).
+    maps:get(sender_resource, T, undefined).
 
 -spec receiver_resource(p2p_transfer()) ->
-    p2p_participant:participant() | undefined.
+    ff_resource:disposable_resource() | undefined.
 receiver_resource(T) ->
-    maps:get(receiver, T, undefined).
+    maps:get(receiver_resource, T, undefined).
 
+if_def({Tag, undefined}) ->
+    error({error, {Tag, undefined}});
+if_def({_Tag, Value}) ->
+    Value.
 %%
 
--spec fees(p2p_transfer()) -> fees() | undefined.
-fees(T) ->
-    maps:get(fees, T, undefinfed).
+-spec quote(p2p_transfer()) -> quote() | undefined.
+quote(T) ->
+    maps:get(quote, T, undefinfed).
 
 -spec id(p2p_transfer()) -> id().
 id(#{id := V}) ->
@@ -263,28 +274,28 @@ external_id(T) ->
     maps:get(external_id, T, undefined).
 
 -spec party_revision(p2p_transfer()) -> party_revision().
-party_revision(T) ->
-    Fees = fees(T),
-    p2p_fees:party_revision(Fees).
+party_revision(#{party_revision := PartyRevision}) ->
+    PartyRevision.
 
 -spec domain_revision(p2p_transfer()) -> domain_revision().
-domain_revision(T) ->
-    Fees = fees(T),
-    p2p_fees:domain_revision(Fees).
+domain_revision(#{domain_revision := DomainRevision}) ->
+    DomainRevision.
 
 -spec created_at(p2p_transfer()) -> ff_time:timestamp_ms().
 created_at(T) ->
     maps:get(created_at, T).
 
--spec fee_created_at(p2p_transfer()) -> ff_time:timestamp_ms().
-fee_created_at(T) ->
-    Fees = fees(T),
-    p2p_fees:created_at(Fees).
+-spec operation_timestamp(p2p_transfer()) -> ff_time:timestamp_ms().
+operation_timestamp(#{operation_timestamp := Timestamp}) ->
+    Timestamp.
 
 -spec create_varset(identity(), p2p_transfer()) -> p2p_party:varset().
 create_varset(Identity, P2PTransfer) ->
-    Sender = p2p_participant:instrument(sender_resource(P2PTransfer)),
-    Receiver = p2p_participant:instrument(receiver_resource(P2PTransfer)),
+    Sender = if_def(
+        {sender_resource, sender_resource(P2PTransfer)}),
+    Receiver = if_def(
+        {receiver_resource, receiver_resource(P2PTransfer)}),
+
     PartyID = ff_identity:party(Identity),
     Params = #{
         party_id => PartyID,
@@ -294,12 +305,21 @@ create_varset(Identity, P2PTransfer) ->
     },
     p2p_party:create_varset(Params).
 
+create_contract_params(undefined, Params) ->
+    Params;
+create_contract_params(Quote, Params) ->
+    Params#{
+        party_revision => p2p_fees:party_revision(Quote),
+        domain_revision => p2p_fees:domain_revision(Quote),
+        timestamp => p2p_fees:created_at(Quote)
+    }.
+
 %% API
 
 -spec create(params()) ->
     {ok, [event()]} |
     {error, create_error()}.
-create(Params) ->
+create(TransferParams) ->
     do(fun() ->
         #{
             id := ID,
@@ -307,14 +327,24 @@ create(Params) ->
             identity_id := IdentityID,
             sender := Sender,
             receiver := Receiver
-        } = Params,
-        CreatedAt = ff_time:now(),
-        SenderFull = unwrap(sender, p2p_participant:get_full_instrument(Sender)),
-        ReceiverFull = unwrap(receiver, p2p_participant:get_full_instrument(Receiver)),
+        } = TransferParams,
+        Quote = maps:get(quote, TransferParams, undefined),
+        ExternalID = maps:get(external_id, TransferParams, undefined),
 
-        Fees = maps:get(fees, Params, undefined),
-        FeeQuote = unwrap(get_quote(Fees, {Body, IdentityID, SenderFull, ReceiverFull})),
-        ExternalID = maps:get(external_id, Params, undefined),
+        CreatedAt = ff_time:now(),
+        {ok, SenderResource} = unwrap(sender_resource, p2p_participant:get_disposable_resource(Sender)),
+        {ok, ReceiverResource} = unwrap(receiver_resource, p2p_participant:get_disposable_resource(Receiver)),
+        Params = #{
+            cash => Body,
+            sender => SenderResource,
+            receiver => ReceiverResource
+        },
+        ContractParams = create_contract_params(Quote, Params),
+        {OperationTimestamp, PartyRevision, DomainRevision, Terms} =
+            unwrap(p2p_party:get_contract_terms(IdentityID, ContractParams)),
+        valid = unwrap(terms, ff_party:validate_p2p(Terms, Body)),
+        true = unwrap(p2p_tool, p2p_party:allow_p2p_tool(Terms)),
+        %% TODO add deadline
         [
             {created, genlib_map:compact(#{
                 version => ?ACTUAL_FORMAT_VERSION,
@@ -322,23 +352,18 @@ create(Params) ->
                 identity_id => IdentityID,
                 body => Body,
                 created_at => CreatedAt,
+                operation_timestamp => OperationTimestamp,
                 external_id => ExternalID,
-                fees => FeeQuote
+                sender => Sender,
+                receiver => Receiver,
+                domain_revision => DomainRevision,
+                party_revision => PartyRevision,
+                quote => Quote
             })},
             {status_changed, pending},
-            {resource_got, SenderFull, ReceiverFull}
+            {resource_got, SenderResource, ReceiverResource}
         ]
     end).
-
-get_quote(undefined, {Body, IdentityID, SenderFull, ReceiverFull}) ->
-    do(fun() ->
-        Sender = p2p_participant:instrument(SenderFull),
-        Receiver = p2p_participant:instrument(ReceiverFull),
-        {_, _, FeeQuote} = unwrap(p2p_fees:get_fee_quote(Body, IdentityID, Sender, Receiver)),
-        FeeQuote
-    end);
-get_quote(FeeQuote, _) ->
-    {ok, FeeQuote}.
 
 -spec start_adjustment(adjustment_params(), p2p_transfer()) ->
     {ok, process_result()} |
@@ -541,7 +566,7 @@ process_risk_scoring(P2PTransfer) ->
     ]}.
 
 -spec do_risk_scoring(p2p_transfer()) ->
-    process_result().
+    risk_score().
 do_risk_scoring(P2PTransfer) ->
     DomainRevision = domain_revision(P2PTransfer),
     {ok, Identity} = get_identity(identity_id(P2PTransfer)),
@@ -549,7 +574,9 @@ do_risk_scoring(P2PTransfer) ->
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     PartyVarset = create_varset(Identity, P2PTransfer),
     {ok, InspectorRef} = ff_payment_institution:compute_p2p_inspector(PaymentInstitution, PartyVarset),
-    {ok, Inspector} = ff_domain_config:object(DomainRevision, {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}),
+    {ok, Inspector} = ff_domain_config:object(
+        DomainRevision, {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}
+    ),
     ScoreID = <<"fraud">>,
     Scores = p2p_inspector:inspect(P2PTransfer, DomainRevision, [ScoreID], Inspector),
     maps:get(ScoreID, Scores).
@@ -676,7 +703,7 @@ make_final_cash_flow(P2PTransfer) ->
     PartyID = ff_identity:party(Identity),
     PartyRevision = party_revision(P2PTransfer),
     ContractID = ff_identity:contract(Identity),
-    Timestamp = fee_created_at(P2PTransfer),
+    Timestamp = operation_timestamp(P2PTransfer),
     PartyVarset = create_varset(Identity, P2PTransfer),
 
     {_Amount, CurrencyID} = Body,
@@ -929,8 +956,8 @@ apply_event_({created, T}, undefined) ->
 apply_event_({status_changed, Status}, T) ->
     maps:put(status, Status, T);
 apply_event_({resource_got, Sender, Receiver}, T0) ->
-    T1 = maps:put(sender, Sender, T0),
-    maps:put(receiver, Receiver, T1);
+    T1 = maps:put(sender_resource, Sender, T0),
+    maps:put(receiver_resource, Receiver, T1);
 apply_event_({p_transfer, Ev}, T) ->
     T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))};
 apply_event_({session, {started, SessionID}}, T) ->

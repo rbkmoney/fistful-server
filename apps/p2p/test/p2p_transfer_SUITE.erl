@@ -20,6 +20,7 @@
 -export([create_cashlimit_validation_error_test/1]).
 -export([create_currency_validation_error_test/1]).
 -export([create_sender_resource_notfound_test/1]).
+-export([create_receiver_resource_notfound_test/1]).
 -export([create_ok_test/1]).
 -export([preserve_revisions_test/1]).
 -export([unknown_test/1]).
@@ -58,6 +59,7 @@ groups() ->
             create_cashlimit_validation_error_test,
             create_currency_validation_error_test,
             create_sender_resource_notfound_test,
+            create_receiver_resource_notfound_test,
             create_ok_test,
             preserve_revisions_test,
             unknown_test
@@ -174,7 +176,7 @@ create_sender_resource_notfound_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, <<"TEST_NOTFOUND">>, C),
+    } = prepare_standard_environment(Cash, <<"TEST_NOTFOUND_SENDER">>, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
@@ -185,7 +187,27 @@ create_sender_resource_notfound_test(C) ->
         external_id => P2PTransferID
     },
     Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    ?assertMatch({error, {sender, {bin_data, not_found}}}, Result).
+    ?assertMatch({error, {sender_resource, {bin_data, not_found}}}, Result).
+
+-spec create_receiver_resource_notfound_test(config()) -> test_return().
+create_receiver_resource_notfound_test(C) ->
+    Cash = {100, <<"RUB">>},
+    #{
+        identity_id := IdentityID,
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = prepare_standard_environment(Cash, <<"TEST_NOTFOUND_RECEIVER">>, C),
+    P2PTransferID = generate_id(),
+    P2PTransferParams = #{
+        id => P2PTransferID,
+        identity_id => IdentityID,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        body => Cash,
+        external_id => P2PTransferID
+    },
+    Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
+    ?assertMatch({error, {receiver_resource, {bin_data, not_found}}}, Result).
 
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->
@@ -250,8 +272,18 @@ prepare_standard_environment(P2PTransferCash, C) ->
 prepare_standard_environment(_P2PTransferCash, Token, C) ->
     PartyID = create_party(C),
     IdentityID = create_person_identity(PartyID, C, <<"quote-owner">>),
-    ResourceSender = create_resource_raw(Token, C),
-    ResourceReceiver = create_resource_raw(Token, C),
+    {ResourceSender, ResourceReceiver} = case Token of
+        <<"TEST_NOTFOUND_SENDER">> = T -> {
+            create_resource_raw(T, C),
+            create_resource_raw(undefined, C)
+        };
+        <<"TEST_NOTFOUND_RECEIVER">> = T -> {
+            create_resource_raw(undefined, C),
+            create_resource_raw(T, C)
+        };
+        Other -> {create_resource_raw(Other, C), create_resource_raw(Other, C)}
+    end,
+    % ct:print(" >>> ~p", [{ResourceSender, ResourceReceiver}]),
     #{
         identity_id => IdentityID,
         sender => ResourceSender,
@@ -311,4 +343,4 @@ create_resource_raw(Token, C) ->
         Token ->
             StoreSource#{token => Token}
         end,
-    p2p_participant:create(resource, NewStoreResource).
+    p2p_participant:create(resource, {bank_card, NewStoreResource}).

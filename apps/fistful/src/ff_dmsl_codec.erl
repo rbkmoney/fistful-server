@@ -1,6 +1,7 @@
 -module(ff_dmsl_codec).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_proxy_inspector_p2p_thrift.hrl").
 
 -export([unmarshal/2]).
 -export([marshal/2]).
@@ -144,6 +145,37 @@ marshal(cash_range, {{BoundLower, CashLower}, {BoundUpper, CashUpper}}) ->
 marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
     #domain_CurrencyRef{
         symbolic_code = CurrencyID
+    };
+
+marshal(payment_resource_payer, {Resource, ContactInfo}) ->
+    #domain_PaymentResourcePayer{
+        resource = marshal(disposable_resource, Resource),
+        contact_info = marshal(contact_info, ContactInfo)
+    };
+marshal(disposable_resource, DisposableResource) ->
+    Resource = ff_resource:disposable_resource_tool(DisposableResource),
+    #domain_DisposablePaymentResource{
+        payment_tool = marshal(resource, Resource)
+    };
+marshal(resource, {bank_card, BankCard}) ->
+    {bank_card, #domain_BankCard{
+        token           = ff_resource:token(BankCard),
+        bin             = ff_resource:bin(BankCard),
+        masked_pan      = ff_resource:masked_pan(BankCard),
+        payment_system  = ff_resource:payment_system(BankCard),
+        issuer_country  = ff_resource:country_code(BankCard),
+        bank_name       = ff_resource:bank_name(BankCard)
+    }};
+marshal(contact_info, ContactInfo) ->
+    #domain_ContactInfo{
+        phone_number = maps:get(phone_number, ContactInfo, undefined),
+        email = maps:get(email, ContactInfo, undefined)
+    };
+
+marshal(p2p_tool, {Sender, Receiver}) ->
+    #domain_P2PTool{
+        sender = marshal(resource, Sender),
+        receiver = marshal(resource, Receiver)
     };
 
 marshal(amount, V) ->

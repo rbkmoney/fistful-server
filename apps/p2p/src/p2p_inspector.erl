@@ -4,7 +4,7 @@
 -type scores()          :: #{binary() => risk_score()}.
 -type inspector()       :: dmsl_domain_thrift:'P2PInspector'().
 -type transfer()        :: p2p_transfer:p2p_transfer().
--type domain_revision() :: p2p_transfer:domain_revision().
+-type domain_revision() :: ff_domain_config:revision().
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_proxy_inspector_p2p_thrift.hrl").
@@ -37,7 +37,12 @@ inspect(P2PTransfer, DomainRevision, RiskTypes, Inspector) ->
     end.
 
 issue_call(Client, Request, undefined) ->
-    ff_woody_client:call(Client, Request);
+    case ff_woody_client:call(Client, Request) of
+        {ok, InspectResult} ->
+            {ok, decode_inspect_result(InspectResult)};
+        {exception, _} = Error ->
+            Error
+    end;
 issue_call(Client, Request, Default) ->
     try ff_woody_client:call(Client, Request) of
         {ok, InspectResult}  ->
@@ -82,32 +87,23 @@ encode_transfer_info(P2PTransfer) ->
     Cash = ff_dmsl_codec:marshal(cash, p2p_transfer:body(P2PTransfer)),
     Sender = p2p_transfer:sender_resource(P2PTransfer),
     Receiver = p2p_transfer:receiver_resource(P2PTransfer),
+    SenderInfo = p2p_transfer:sender_info(P2PTransfer),
+    ReceiverInfo = p2p_transfer:receiver_info(P2PTransfer),
     Transfer = #p2p_insp_Transfer{
         id = ID,
         identity = #p2p_insp_Identity{id = IdentityID},
         created_at = CreatedAt,
-        sender = encode_payer(Sender),
-        receiver = encode_payer(Receiver),
+        sender = encode_raw(ff_dmsl_codec:marshal(payment_resource_payer, {Sender, SenderInfo})),
+        receiver = encode_raw(ff_dmsl_codec:marshal(payment_resource_payer, {Receiver, ReceiverInfo})),
         cost = Cash
     },
     #p2p_insp_TransferInfo{transfer = Transfer}.
 
-encode_payer(Participant) ->
-    Instrument = p2p_participant:instrument(Participant),
-    ContactInfo = p2p_participant:encode_contact_info(
-        p2p_participant:contact_info(Participant)
-    ),
-    Resource = #domain_DisposablePaymentResource{
-        payment_tool = p2p_instrument:construct_payment_tool(Instrument)
-    },
-    PaymentResource = #domain_PaymentResourcePayer{
-        resource = Resource,
-        contact_info = ContactInfo
-    },
-    {raw, #p2p_insp_Raw{
-        payer = {payment_resource, PaymentResource}
-    }}.
-
 decode_inspect_result(InspectResult) ->
     #p2p_insp_InspectResult{scores = Scores} = InspectResult,
     Scores.
+
+encode_raw(PaymentResource) ->
+    {raw, #p2p_insp_Raw{
+        payer = {payment_resource, PaymentResource}
+    }}.

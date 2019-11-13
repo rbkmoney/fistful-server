@@ -1,6 +1,5 @@
 -module(p2p_participant).
 
--import(ff_pipeline, [do/1, unwrap/1]).
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -type contact_info() :: #{
@@ -8,66 +7,53 @@
     email        => binary()
 }.
 
--type participant_type() :: resource.
-%% In future we can add source&destination
+%% In future we can add source&destination  or maybe recurrent
 -opaque participant() :: {resource, #{
-                            instrument   := p2p_instrument:instrument(),
-                            contact_info := contact_info()}
-                        }.
+                            resource     := ff_resource:resource(),
+                            contact_info := contact_info()
+                        }}.
 
 -export_type([contact_info/0]).
 -export_type([participant/0]).
 
--export([create/2, create/3]).
--export([instrument/1]).
+-export([create/2]).
+-export([resource/1]).
 -export([contact_info/1]).
--export([get_full_instrument/1]).
+-export([get_disposable_resource/1]).
 
--export([encode_contact_info/1]).
+-import(ff_pipeline, [do/1, unwrap/1]).
 
--spec instrument(participant()) ->
-    p2p_instrument:instrument().
-instrument({resource, Resource}) ->
-    maps:get(instrument, Resource).
+
+-spec resource(participant()) ->
+    ff_resource:resource().
+resource({resource, P}) ->
+    maps:get(resource, P).
 
 -spec contact_info(participant()) ->
     contact_info().
 contact_info({resource, Resource}) ->
     maps:get(contact_info, Resource).
 
--spec create(participant_type(), p2p_instrument:bank_card()) ->
+-spec create(resource, {bank_card, ff_resource:resource()}) ->
     participant().
-create(resource, BankCard) ->
-    {resource, #{
-        instrument => p2p_instrument:create(BankCard),
-        contact_info => #{}
-    }}.
+create(resource, {bank_card, _} = BankCardResource) ->
+    create(resource, BankCardResource, #{}).
 
--spec create(participant_type(), p2p_instrument:bank_card(), contact_info()) ->
+-spec create(resource, {bank_card, ff_resource:resource()}, contact_info()) ->
     participant().
 create(resource, BankCard, ContactInfo) ->
     {resource, #{
-        instrument => p2p_instrument:create(BankCard),
+        resource => BankCard,
         contact_info => ContactInfo
     }}.
 
--spec get_full_instrument(participant()) ->
-    {ok, participant()} | {error, {bin_data, not_found}}.
-get_full_instrument({resource, _Resource} = Participant) ->
+-spec get_disposable_resource(participant()) ->
+    {ok, ff_resource:disposable_resource()} |
+    {error, {bin_data, not_found}} | no_return().
+get_disposable_resource({resource, _Resource} = Participant) ->
     do(fun() ->
-        InstrumentFull = unwrap(p2p_instrument:extend(instrument(Participant))),
-        {resource, #{
-            instrument   => InstrumentFull,
-            contact_info => contact_info(Participant)
-        }}
+        ResourceFull = unwrap(ff_resource:resource_full(resource(Participant))),
+        ff_resource:create_disposable_resource(ResourceFull)
     end);
-get_full_instrument(Other) ->
-    error({get_full_instrument, {not_impl, Other}}).
-
--spec encode_contact_info(contact_info()) ->
-    dmsl_domain_thrift:'ContactInfo'().
-encode_contact_info(ContactInfo) ->
-    #domain_ContactInfo{
-        phone_number = maps:get(phone_number, ContactInfo, undefined),
-        email = maps:get(email, ContactInfo, undefined)
-    }.
+get_disposable_resource(Participant) ->
+    error({get_disposable_resource, {not_impl, Participant}}).

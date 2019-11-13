@@ -4,13 +4,13 @@
 
 -define(LIFETIME_MS_DEFAULT, 900000). %% 15min in milliseconds
 
--type sender()        :: p2p_instrument:instrument().
--type receiver()      :: p2p_instrument:instrument().
--type cash()          :: ff_cash:cash().
--type terms()         :: ff_party:terms().
--type plan_constant() :: operation_amount | surplus.
--type identity_id()   :: ff_identity:id().
--type instrument()    :: #{token := binary(), bin_data_id => ff_bin_data:bin_data_id()}.
+-type sender()                    :: ff_resource:resource().
+-type receiver()                  :: ff_resource:resource().
+-type cash()                      :: ff_cash:cash().
+-type terms()                     :: ff_party:terms().
+-type plan_constant()             :: operation_amount | surplus.
+-type identity_id()               :: ff_identity:id().
+-type compact_resource()          :: #{token := binary(), bin_data_id => ff_bin_data:bin_data_id()}.
 -type surplus_cash_volume()       :: ff_cash_flow:plan_volume().
 -type get_contract_terms_error()  :: ff_party:get_contract_terms_error().
 -type validate_p2p_error()        :: ff_party:validate_p2p_error().
@@ -24,8 +24,8 @@
     created_at        := ff_time:timestamp_ms(),
     expires_on        := ff_time:timestamp_ms(),
     identity_id       := identity_id(),
-    sender            := instrument(),
-    receiver          := instrument()
+    sender            := compact_resource(),
+    receiver          := compact_resource()
 }.
 
 -export_type([fee_quote/0]).
@@ -39,7 +39,7 @@
 -export([sender_id/1]).
 -export([receiver_id/1]).
 -export([get_fee_quote/4]).
--import(ff_pipeline, [do/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessories
 
@@ -74,12 +74,13 @@ sender_id(#{sender := Sender}) ->
 receiver_id(#{receiver := Receiver}) ->
     maps:get(bin_data_id, Receiver).
 
--spec instrument(p2p_instrument:instrument()) ->
-    instrument().
-instrument(Instrument) ->
+-spec compact(ff_resource:disposable_resource()) ->
+    compact_resource().
+compact(Resource) ->
+    {bank_card, BankCard} = ff_resource:disposable_resource_tool(Resource),
     genlib_map:compact(#{
-        token => p2p_instrument:token(Instrument),
-        bin_data_id => p2p_instrument:bin_data_id(Instrument)
+        token => ff_resource:token(BankCard),
+        bin_data_id => ff_resource:bin_data_id(BankCard)
     }).
 
 %%
@@ -93,28 +94,22 @@ instrument(Instrument) ->
     {error, {terms, validate_p2p_error()}}.
 get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
-        IdentityMachine = unwrap(identity, ff_identity_machine:get(IdentityID)),
-        Identity = ff_identity_machine:identity(IdentityMachine),
-        PartyID = ff_identity:party(Identity),
-        ContractID = ff_identity:contract(Identity),
-        {ok, PartyRevision} = ff_party:get_revision(PartyID),
-        DomainRevision = ff_domain_config:head(),
+        {ok, SenderResource} = ff_resource:create_disposable_resource(Sender),
+        {ok, ReceiverResource} = ff_resource:create_disposable_resource(Receiver),
         Params = #{
             cash => Cash,
-            party_id => PartyID,
-            sender => Sender,
-            receiver => Receiver
-        },
-        VS = p2p_party:create_varset(Params),
-        CreatedAt = ff_time:now(),
-        Terms = unwrap(party, ff_party:get_contract_terms(
-            PartyID, ContractID, VS, CreatedAt, PartyRevision, DomainRevision)),
+            sender => SenderResource,
+            receiver => ReceiverResource},
+        {CreatedAt, PartyRevision, DomainRevision, Terms} =
+            unwrap(p2p_party:get_contract_terms(IdentityID, Params)),
         valid = unwrap(terms, ff_party:validate_p2p(Terms, Cash)),
+
         ExpiresOn = get_expire_time(Terms, CreatedAt),
-        true = unwrap(p2p_tool, allow_p2p_tool(Terms)),
+        true = unwrap(p2p_tool, p2p_party:allow_p2p_tool(Terms)),
         Fees = get_fees_from_terms(Terms),
         SurplusCashVolume = surplus(Fees),
         SurplusCash = unwrap(cash_flow, compute_surplus_volume(SurplusCashVolume, Cash)),
+
         Quote = #{
             amount => Cash,
             party_revision => PartyRevision,
@@ -122,8 +117,8 @@ get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
             created_at => CreatedAt,
             expires_on => ExpiresOn,
             identity_id => IdentityID,
-            sender => instrument(Sender),
-            receiver => instrument(Receiver)
+            sender => compact(SenderResource),
+            receiver => compact(ReceiverResource)
         },
         {SurplusCash, SurplusCashVolume, Quote}
     end).
@@ -158,16 +153,7 @@ decode_domain_fees({value, #domain_Fees{fees = Fees}}) ->
     end, Fees),
     #{fees => FeeDecode}.
 
--spec allow_p2p_tool(terms()) ->
-    {ok, true} | {error, not_allow}.
-allow_p2p_tool(Terms) ->
-    #domain_TermSet{wallets = WalletTerms} = Terms,
-    #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,
-    #domain_P2PServiceTerms{allow = Constant} = P2PServiceTerms,
-    case Constant of
-        {constant, true} -> {ok, true};
-        {constant, false} -> {error, not_allow}
-    end.
+
 
 -spec get_expire_time(terms(), ff_time:timestamp_ms()) ->
     ff_time:timestamp_ms().

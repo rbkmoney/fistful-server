@@ -47,7 +47,7 @@
     external_id => id()
 }.
 
--type quote() :: p2p_fees:fee_quote().
+-type quote() :: p2p_quote:fee_quote().
 
 -type status() ::
     pending         |
@@ -309,9 +309,9 @@ create_contract_params(undefined, Params) ->
     Params;
 create_contract_params(Quote, Params) ->
     Params#{
-        party_revision => p2p_fees:party_revision(Quote),
-        domain_revision => p2p_fees:domain_revision(Quote),
-        timestamp => p2p_fees:created_at(Quote)
+        party_revision => p2p_quote:party_revision(Quote),
+        domain_revision => p2p_quote:domain_revision(Quote),
+        timestamp => p2p_quote:created_at(Quote)
     }.
 
 %% API

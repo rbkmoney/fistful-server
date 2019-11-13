@@ -18,6 +18,9 @@
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
+marshal({list, T}, V) ->
+    [marshal(T, E) || E <- V];
+
 marshal(event, {created, Transfer}) ->
     {created, marshal(transfer, Transfer)};
 marshal(event, {status_changed, Status}) ->
@@ -25,7 +28,7 @@ marshal(event, {status_changed, Status}) ->
 marshal(event, {resource_got, Sender, Receiver}) ->
     {resource, marshal(resource_got, {Sender, Receiver})};
 marshal(event, {risk_score_changed, RiskScore}) ->
-    {risk_score, marshal(risk_score, RiskScore)};
+    {risk_score, #p2p_transfer_RiskScoreChange{score = marshal(risk_score, RiskScore)}};
 marshal(event, {route_changed, Route}) ->
     {route, marshal(route, Route)};
 marshal(event, {p_transfer, TransferChange}) ->
@@ -49,11 +52,11 @@ marshal(transfer, Transfer = #{
     #p2p_transfer_P2PTransfer{
         owner = marshal(id, IdentityID),
         sender = {resource, #p2p_transfer_DisposableResource{
-            resource = {crypto_wallet, #'CryptoWallet'{id = <<"TestID">>, currency = bitcoin}}, 
+            resource = {crypto_wallet, #'CryptoWallet'{id = <<"TestID">>, currency = bitcoin}},
             contact_info = #'ContactInfo'{}
         }},
         receiver = {resource, #p2p_transfer_DisposableResource{
-            resource = {crypto_wallet, #'CryptoWallet'{id = <<"TestID">>, currency = bitcoin}}, 
+            resource = {crypto_wallet, #'CryptoWallet'{id = <<"TestID">>, currency = bitcoin}},
             contact_info = #'ContactInfo'{}
         }},
         body = marshal(cash, Body),
@@ -78,9 +81,12 @@ marshal(status, {failed, Failure}) ->
 
 marshal(resource_got, {Sender, Receiver}) ->
     #p2p_transfer_ResourceChange{payload = {got, #p2p_transfer_ResourceGot{
-        sender = marshal(resource, Sender),
-        receiver = marshal(resource, Receiver)
+        sender = marshal(participant, Sender),
+        receiver = marshal(participant, Receiver)
     }}};
+
+marshal(participant, {resource, #{instrument := {bank_card, {full, Resource}}}}) ->
+    marshal(resource, {bank_card, Resource});
 
 marshal(risk_score, low) ->
     low;
@@ -135,7 +141,7 @@ unmarshal(event, {status_changed, #p2p_transfer_StatusChange{status = Status}}) 
 unmarshal(event, {resource, #p2p_transfer_ResourceChange{
         payload = {got, #p2p_transfer_ResourceGot{sender = Sender, receiver = Receiver}
 }}}) ->
-    {resource_got, unmarshal(resource_got, {Sender, Receiver})};
+    unmarshal(resource_got, {Sender, Receiver});
 unmarshal(event, {risk_score, #p2p_transfer_RiskScoreChange{score = RiskScore}}) ->
     {risk_score_changed, unmarshal(risk_score, RiskScore)};
 unmarshal(event, {route, #p2p_transfer_RouteChange{route = Route}}) ->
@@ -147,7 +153,7 @@ unmarshal(event, {session, #p2p_transfer_SessionChange{id = ID, payload = Payloa
 unmarshal(event, {adjustment, #p2p_transfer_AdjustmentChange{id = ID, payload = Payload}}) ->
     {adjustment, #{
         id => ff_adjustment_codec:unmarshal(id, ID),
-        payload => ff_adjustment_codec:unmarshal(session_payload, Payload)
+        payload => ff_adjustment_codec:unmarshal(event, Payload)
     }};
 
 unmarshal(transfer, #p2p_transfer_P2PTransfer{
@@ -168,8 +174,8 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
         identity_id => unmarshal(id, IdentityID),
         body => unmarshal(cash, Body),
         created_at => ff_time:from_rfc3339(unmarshal(timestamp, CreatedAt)),
-        quote => unmarshal(quote, FeeQuote),
-        external_id => unmarshal(id, ExternalID)
+        fees => maybe_unmarshal(quote, FeeQuote),
+        external_id => maybe_unmarshal(id, ExternalID)
     });
 
 unmarshal(quote, #p2p_transfer_P2PQuote{}) ->
@@ -183,7 +189,10 @@ unmarshal(status, {failed, #p2p_status_Failed{failure = Failure}}) ->
     {failed, unmarshal(failure, Failure)};
 
 unmarshal(resource_got, {Sender, Receiver}) ->
-    {resource_got, unmarshal(resource, Sender), unmarshal(resource, Receiver)};
+    {resource_got, unmarshal(participant, Sender), unmarshal(participant, Receiver)};
+
+unmarshal(participant, Resource) ->
+    {resource, #{instrument => {bank_card, {full, unmarshal(resource, Resource)}}}};
 
 unmarshal(risk_score, low) ->
     low;
@@ -231,46 +240,64 @@ maybe_marshal(Type, Value) ->
 
 -spec p2p_transfer_codec_test() -> _.
 p2p_transfer_codec_test() ->
-    ok.
-    % FinalCashFlow = #{
-    %     postings => []
-    % },
+    FinalCashFlow = #{
+        postings => []
+    },
 
-    % CashFlowChange = #{
-    %     old_cash_flow_inverted => FinalCashFlow,
-    %     new_cash_flow => FinalCashFlow
-    % },
+    CashFlowChange = #{
+        old_cash_flow_inverted => FinalCashFlow,
+        new_cash_flow => FinalCashFlow
+    },
 
-    % Plan = #{
-    %     new_cash_flow => CashFlowChange,
-    %     new_status => succeeded
-    % },
+    Plan = #{
+        new_cash_flow => CashFlowChange,
+        new_status => succeeded
+    },
 
-    % Adjustment = #{
-    %     id => genlib:unique(),
-    %     status => pending,
-    %     changes_plan => Plan,
-    %     created_at => ff_time:now(),
-    %     domain_revision => 123,
-    %     party_revision => 321,
-    %     operation_timestamp => ff_time:now(),
-    %     external_id => genlib:unique()
-    % },
+    Adjustment = #{
+        id => genlib:unique(),
+        status => pending,
+        changes_plan => Plan,
+        created_at => ff_time:now(),
+        domain_revision => 123,
+        party_revision => 321,
+        operation_timestamp => ff_time:now(),
+        external_id => genlib:unique()
+    },
 
-    % Transfer = #{
-    %     final_cash_flow => FinalCashFlow
-    % },
+    Participant = {resource, #{
+        instrument   => {bank_card, {full, #{
+            token => genlib:unique(),
+            bin_data_id => {binary, genlib:unique()}
+        }}}}
+    },
 
-    % Events = [
-    %     {created, p2p_transfer()} |
-    %     {resource_got, participant(), participant()} |
-    %     {risk_score_changed, risk_score()} |
-    %     {route_changed, route()} |
-    %     {p_transfer, ff_postings_transfer:event()} |
-    %     {session, session_event()} |
-    %     {status_changed, status()} |
-    %     wrapped_adjustment_event()
-    % ],
-    % ?assertEqual(Events, unmarshal({list, event}, marshal(Prefix, {list, event}, Events))).
+    P2PTransfer = #{
+        status => pending,
+        identity_id => genlib:unique(),
+        body => {123, <<"RUB">>},
+        created_at => ff_time:now(),
+        fees => #{},
+        external_id => genlib:unique()
+    },
+
+    PTransfer = #{
+        final_cash_flow => FinalCashFlow
+    },
+
+    Events = [
+        {created, P2PTransfer},
+        {resource_got, Participant, Participant},
+        {risk_score_changed, low},
+        {route_changed, #{provider_id => genlib:unique()}},
+        {p_transfer, {created, PTransfer}},
+        {session, {started, genlib:unique()}},
+        {status_changed, succeeded},
+        {adjustment, #{id => genlib:unique(), payload => {created, Adjustment}}}
+    ],
+    Marshaled = marshal({list, event}, Events),
+    io:format("Marshaled - ~p~n", [Marshaled]),
+    Unmarshaled = unmarshal({list, event}, Marshaled),
+    ?assertEqual(Events, Unmarshaled).
 
 -endif.

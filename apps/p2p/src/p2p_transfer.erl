@@ -124,7 +124,7 @@
 
 -export([id/1]).
 -export([body/1]).
--export([identity_id/1]).
+-export([owner/1]).
 -export([status/1]).
 -export([risk_score/1]).
 -export([quote/1]).
@@ -249,8 +249,8 @@ id(#{id := V}) ->
 body(#{body := V}) ->
     V.
 
--spec identity_id(p2p_transfer()) -> identity_id().
-identity_id(#{identity_id := V}) ->
+-spec owner(p2p_transfer()) -> identity_id().
+owner(#{owner := V}) ->
     V.
 
 -spec status(p2p_transfer()) -> status() | undefined.
@@ -344,12 +344,12 @@ create(TransferParams) ->
             unwrap(p2p_party:get_contract_terms(IdentityID, ContractParams)),
         valid = unwrap(terms, ff_party:validate_p2p(Terms, Body)),
         true = unwrap(p2p_tool, p2p_party:allow_p2p_tool(Terms)),
-        %% TODO add deadline
+
         [
             {created, genlib_map:compact(#{
                 version => ?ACTUAL_FORMAT_VERSION,
                 id => ID,
-                identity_id => IdentityID,
+                owner => IdentityID,
                 body => Body,
                 created_at => CreatedAt,
                 operation_timestamp => OperationTimestamp,
@@ -358,9 +358,9 @@ create(TransferParams) ->
                 receiver => Receiver,
                 domain_revision => DomainRevision,
                 party_revision => PartyRevision,
-                quote => Quote
+                quote => Quote,
+                status => pending
             })},
-            {status_changed, pending},
             {resource_got, SenderResource, ReceiverResource}
         ]
     end).
@@ -569,7 +569,7 @@ process_risk_scoring(P2PTransfer) ->
     risk_score().
 do_risk_scoring(P2PTransfer) ->
     DomainRevision = domain_revision(P2PTransfer),
-    {ok, Identity} = get_identity(identity_id(P2PTransfer)),
+    {ok, Identity} = get_identity(owner(P2PTransfer)),
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     PartyVarset = create_varset(Identity, P2PTransfer),
@@ -597,7 +597,7 @@ process_routing(P2PTransfer) ->
     {ok, provider_id()} | {error, route_not_found}.
 do_process_routing(P2PTransfer) ->
     DomainRevision = domain_revision(P2PTransfer),
-    {ok, Identity} = get_identity(identity_id(P2PTransfer)),
+    {ok, Identity} = get_identity(owner(P2PTransfer)),
 
     do(fun() ->
         VarSet = create_varset(Identity, P2PTransfer),
@@ -699,7 +699,7 @@ make_final_cash_flow(P2PTransfer) ->
     Body = body(P2PTransfer),
     Route = route(P2PTransfer),
     DomainRevision = domain_revision(P2PTransfer),
-    {ok, Identity} = get_identity(identity_id(P2PTransfer)),
+    {ok, Identity} = get_identity(owner(P2PTransfer)),
     PartyID = ff_identity:party(Identity),
     PartyRevision = party_revision(P2PTransfer),
     ContractID = ff_identity:contract(Identity),

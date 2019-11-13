@@ -96,14 +96,14 @@ bank_name(BankCard) ->
 
 -spec resource_full(resource()) ->
     {ok, resource_full()} |
-    {error, {bin_data, not_found}} | no_return().
+    {error, {bin_data, not_found}}.
 
 resource_full(Resource) ->
     resource_full(Resource, undefined).
 
 -spec resource_full(resource(), binary() | undefined) ->
     {ok, resource_full()} |
-    {error, {bin_data, not_found}} | no_return().
+    {error, {bin_data, not_found}}.
 
 resource_full({bank_card, #{token := Token} = BankCard}, ResourceID) ->
     do(fun() ->
@@ -119,7 +119,7 @@ resource_full(Other, _) ->
 
 -spec create_disposable_resource(resource()) ->
     {ok, disposable_resource()} |
-    {error, {bin_data, not_found}} | no_return().
+    {error, {bin_data, not_found}}.
 
 create_disposable_resource({bank_card, _} = Resource) ->
     do(fun() ->

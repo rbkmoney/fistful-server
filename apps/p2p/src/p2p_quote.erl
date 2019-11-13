@@ -1,4 +1,4 @@
--module(p2p_fees).
+-module(p2p_quote).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 

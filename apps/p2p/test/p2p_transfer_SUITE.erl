@@ -229,7 +229,7 @@ create_ok_test(C) ->
     ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
     ?assertEqual(succeeded, await_final_p2p_transfer_status(P2PTransferID)),
     P2PTransfer = get_p2p_transfer(P2PTransferID),
-    ?assertEqual(IdentityID, p2p_transfer:identity_id(P2PTransfer)),
+    ?assertEqual(IdentityID, p2p_transfer:owner(P2PTransfer)),
     % ?assertEqual(ResourceSender, p2p_transfer:resource_full(P2PTransfer, sender)),
     % ?assertEqual(ResourceReceiver, p2p_transfer:resource_full(P2PTransfer, receiver)),
     ?assertEqual(Cash, p2p_transfer:body(P2PTransfer)),

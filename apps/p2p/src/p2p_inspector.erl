@@ -14,7 +14,7 @@
 
 -export([inspect/4]).
 
--spec inspect(transfer(), domain_revision(), [binary()], inspector()) -> scores() | no_return().
+-spec inspect(transfer(), domain_revision(), [binary()], inspector()) -> scores().
 inspect(P2PTransfer, DomainRevision, RiskTypes, Inspector) ->
     #domain_P2PInspector{
         fallback_risk_score = FallBackRiskScore,
@@ -82,7 +82,7 @@ create_request(P2PTransfer, RiskTypes, Options) ->
 
 encode_transfer_info(P2PTransfer) ->
     ID = p2p_transfer:id(P2PTransfer),
-    IdentityID = p2p_transfer:identity_id(P2PTransfer),
+    IdentityID = p2p_transfer:owner(P2PTransfer),
     CreatedAt = ff_time:to_rfc3339(p2p_transfer:created_at(P2PTransfer)),
     Cash = ff_dmsl_codec:marshal(cash, p2p_transfer:body(P2PTransfer)),
     Sender = p2p_transfer:sender_resource(P2PTransfer),

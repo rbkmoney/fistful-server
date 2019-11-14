@@ -177,11 +177,10 @@ get_identity_challenges(IdentityId, Statuses, Context) ->
     {challenge, {level, _}}            |
     {challenge, conflict}
 ).
-create_identity_challenge(IdentityId, Params, Context = #{woody_context := WoodyCtx}) ->
+create_identity_challenge(IdentityId, Params, Context) ->
     Type          = identity_challenge,
     Hash          = erlang:phash2(Params),
-    PartyID       = wapi_handler_utils:get_owner(Context),
-    {ok, ChallengeID} = gen_id_by_sequence(Type, PartyID, undefined, Hash, WoodyCtx),
+    {ok, ChallengeID} = gen_id(Type, undefined, Hash, Context),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
         ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
@@ -795,11 +794,10 @@ check_resource_access(HandlerCtx, State) ->
 check_resource_access(true)  -> ok;
 check_resource_access(false) -> {error, unauthorized}.
 
-create_entity(Type, Params, CreateFun, Context = #{woody_context := WoodyCtx}) ->
+create_entity(Type, Params, CreateFun, Context) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     Hash       = erlang:phash2(Params),
-    PartyID    = wapi_handler_utils:get_owner(Context),
-    case gen_id(Type, PartyID, ExternalID, Hash, WoodyCtx) of
+    case gen_id(Type, ExternalID, Hash, Context) of
         {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
             handle_create_entity_result(Result, Type, ID, Hash, Context);
@@ -870,21 +868,22 @@ get_contract_id_from_identity(IdentityID, Context) ->
 
 %% ID Gen
 
-gen_id(withdrawal = Type, PartyID, ExternalID, Hash, WoodyCtx) ->
-    gen_id_by_snowflake(Type, PartyID, ExternalID, Hash, WoodyCtx);
-gen_id(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
-    gen_id_by_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx).
+gen_id(withdrawal = Type, ExternalID, Hash, Context) ->
+    gen_id_by_snowflake(Type, ExternalID, Hash, Context);
+gen_id(Type, ExternalID, Hash, Context) ->
+    gen_id_by_sequence(Type, ExternalID, Hash, Context).
 
-gen_id_by_snowflake(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
+gen_id_by_snowflake(Type, ExternalID, Hash, Context = #{woody_context := WoodyCtx}) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
     IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
-    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx, #{}).
+    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx).
 
-gen_id_by_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
+gen_id_by_sequence(Type, ExternalID, Hash, Context = #{woody_context := WoodyCtx}) ->
     try
-        {ok, BenderID} = gen_bender_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx),
-        {ok, FistfulID} = gen_ff_sequence(Type, PartyID, ExternalID),
-        ID = choose_sequence_id(BenderID, FistfulID),
-        {ok, ID}
+        PartyID = wapi_handler_utils:get_owner(Context),
+        Result = {ok, FistfulID} = gen_ff_sequence(Type, PartyID, ExternalID),
+        ok = sync_bender(Type, ExternalID, FistfulID, PartyID, Hash, WoodyCtx),
+        Result
     catch
         throw:({external_id_conflict, _ID} = Error) ->
             {error, Error}
@@ -898,22 +897,15 @@ construct_external_id(PartyID, ExternalID) ->
 gen_ff_sequence(Type, PartyID, ExternalID) ->
     ff_external_id:check_in(Type, construct_external_id(PartyID, ExternalID)).
 
-gen_bender_sequence(Type, PartyID, ExternalID, Hash, WoodyCtx) ->
+sync_bender(_Type, undefined, _FistfulID, _PartyID, _Hash, _WoodyCtx) ->
+    ok;
+sync_bender(Type, ExternalID, FistfulID, PartyID, Hash, WoodyCtx) ->
     IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
-    TypeBin = atom_to_binary(Type, utf8),
-    case bender_client:gen_by_sequence(IdempotentKey, TypeBin, Hash, WoodyCtx) of
-        {ok, _ID} = Result ->
-            Result;
+    case bender_client:gen_by_constant(IdempotentKey, FistfulID, Hash, WoodyCtx) of
+        {ok, FistfulID} ->
+            ok;
         {error, {external_id_conflict, _ID} = Error} ->
             throw(Error)
-    end.
-
-choose_sequence_id(ID1, ID2) ->
-    Int1 = binary_to_integer(ID1),
-    Int2 = binary_to_integer(ID2),
-    case max(Int1, Int2) of
-        Int1 -> ID1;
-        Int2 -> ID2
     end.
 
 create_report_request(#{

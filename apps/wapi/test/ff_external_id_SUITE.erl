@@ -17,7 +17,7 @@
 -export([idempotency_destination_conflict/1]).
 -export([idempotency_withdrawal_ok/1]).
 -export([idempotency_withdrawal_conflict/1]).
--export([fistful_to_bender_migration/1]).
+-export([fistful_to_bender_sync/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -36,7 +36,7 @@ all() ->
         idempotency_destination_conflict,
         idempotency_withdrawal_ok,
         idempotency_withdrawal_conflict,
-        fistful_to_bender_migration
+        fistful_to_bender_sync
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -268,37 +268,27 @@ idempotency_withdrawal_conflict(C) ->
     {error, {external_id_conflict, ID, ExternalID}} =
         wapi_wallet_ff_backend:create_withdrawal(NewParams, create_context(Party, C)).
 
--spec fistful_to_bender_migration(config()) ->
+-spec fistful_to_bender_sync(config()) ->
     test_return().
 
-fistful_to_bender_migration(C) ->
+fistful_to_bender_sync(C) ->
+    ExternalID = genlib:unique(),
     Params0 = #{
         <<"provider">> => <<"good-one">>,
         <<"class">> => <<"person">>,
         <<"name">> => <<"someone">>,
-        <<"externalID">> => genlib:unique()
+        <<"externalID">> => ExternalID
     },
     Party = create_party(C),
     Ctx = create_context(Party, C),
-    {ok, Identity1} =
-        wapi_wallet_ff_backend:create_identity(Params0, Ctx),
-    CurrentID = binary_to_integer(maps:get(<<"id">>, Identity1)),
-    ok = bump_bender_seq_to(identity, CurrentID + 1000, Party, C),
-    Params1 = Params0#{<<"externalID">> => genlib:unique()},
-    TargetID = integer_to_binary(CurrentID + 1000 + 1),
-    {ok, #{<<"id">> := TargetID}} =
-        wapi_wallet_ff_backend:create_identity(Params1, Ctx).
+    {ok, #{<<"id">> := ID}} = wapi_wallet_ff_backend:create_identity(Params0, Ctx),
+    {ok, ID, _Ctx} = get_bender_id(identity, ExternalID, Party, C).
 
 %%
 
-bump_bender_seq_to(SeqID, TargetID, PartyID, C) ->
-    SeqBin = atom_to_binary(SeqID, utf8),
-    IdempotentKey = bender_client:get_idempotent_key(<<"wapi">>, SeqID, PartyID, genlib:unique()),
-    {ok, ID} = bender_client:gen_by_sequence(IdempotentKey, SeqBin, <<>>, ct_helper:get_woody_ctx(C), #{},
-        #{minimum => TargetID}
-    ),
-    true = binary_to_integer(ID) >= TargetID,
-    ok.
+get_bender_id(Type, ExternalID, PartyID, C) ->
+    IdempotentKey = bender_client:get_idempotent_key(<<"wapi">>, Type, PartyID, ExternalID),
+    bender_client:get_internal_id(IdempotentKey, ct_helper:get_woody_ctx(C)).
 
 wait_for_destination_authorized(DestID) ->
     authorized = ct_helper:await(

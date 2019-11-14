@@ -17,6 +17,7 @@
 -export([mock_services/2]).
 -export([mock_services_/2]).
 -export([get_lifetime/0]).
+-export([create_auth_ctx/1]).
 
 -define(WAPI_IP,        "::").
 -define(WAPI_PORT,      8080).
@@ -26,6 +27,8 @@
 %%
 -type config()          :: [{atom(), any()}].
 -type app_name() :: atom().
+
+-define(SIGNEE, wapi).
 
 -spec init_suite(module(), config()) ->
     config().
@@ -89,9 +92,9 @@ start_wapi(Config) ->
         {port, ?WAPI_PORT},
         {realm, <<"external">>},
         {public_endpoint, <<"localhost:8080">>},
-        {authorizers, #{
+        {access_conf, #{
             jwt => #{
-                signee => wapi,
+                signee => ?SIGNEE,
                 keyset => #{
                     wapi => {pem_file, get_keysource("keys/local/private.pem", Config)}
                 }
@@ -122,7 +125,17 @@ issue_token(ACL, LifeTime) ->
 
 issue_token(PartyID, ACL, LifeTime) ->
     Claims = #{?STRING => ?STRING},
-    wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime).
+    DomainRoles = #{
+        <<"wallet-api">> => uac_acl:from_list(ACL)
+    },
+    uac_authorizer_jwt:issue(
+        wapi_utils:get_unique_id(),
+        LifeTime,
+        PartyID,
+        DomainRoles,
+        Claims,
+        ?SIGNEE
+    ).
 
 -spec get_context(binary()) ->
     wapi_client_lib:context().
@@ -224,4 +237,12 @@ get_lifetime(YY, MM, DD) ->
        <<"years">>  => YY,
        <<"months">> => MM,
        <<"days">>   => DD
+    }.
+
+-spec create_auth_ctx(ff_party:id()) ->
+    wapi_handler:context().
+
+create_auth_ctx(PartyID) ->
+    #{
+        swagger_context => #{auth_context => {?STRING, {PartyID, empty}, empty}}
     }.

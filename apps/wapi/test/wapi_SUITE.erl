@@ -93,7 +93,7 @@ init_per_group(G, C) ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
     })),
     Party = create_party(C),
-    Token = issue_token(Party, [{[party], write}], unlimited),
+    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited),
     Context = get_context("localhost:8080", Token),
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
     [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].
@@ -364,7 +364,7 @@ woody_retry_test(C) ->
         currencyID => <<"RUB">>,
         limit      => <<"123">>
     },
-    Ctx = create_auth_ctx(<<"12332">>),
+    Ctx = wapi_ct_helper:create_auth_ctx(<<"12332">>),
     T1 = erlang:monotonic_time(),
     try
         wapi_wallet_ff_backend:list_wallets(Params, Ctx#{woody_context => ct_helper:get_woody_ctx(C)})
@@ -395,18 +395,8 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
-issue_token(PartyID, ACL, LifeTime) ->
-    Claims = #{?STRING => ?STRING},
-    {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
-    Token.
-
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).
-
-create_auth_ctx(PartyID) ->
-    #{
-        swagger_context => #{auth_context => {{PartyID, empty}, empty}}
-    }.
 
 %%
 

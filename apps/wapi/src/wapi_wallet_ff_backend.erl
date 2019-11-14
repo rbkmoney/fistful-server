@@ -133,7 +133,6 @@ get_identity(IdentityId, Context) ->
     {provider, notfound}       |
     {identity_class, notfound} |
     {email, notfound}          |
-    {conflict, id()}           |
     {external_id_conflict, id(), external_id()}
 ).
 create_identity(Params, Context) ->
@@ -251,7 +250,6 @@ get_wallet(WalletID, Context) ->
 -spec create_wallet(params(), ctx()) -> result(map(),
     invalid                  |
     {identity, unauthorized} |
-    {conflict, id()}         |
     {external_id_conflict, id(), external_id()} |
     {inaccessible, _}        |
     ff_wallet:create_error()
@@ -310,7 +308,6 @@ get_destination(DestinationID, Context) ->
     {identity, notfound}        |
     {currency, notfound}        |
     {inaccessible, _}           |
-    {conflict, id()}            |
     {external_id_conflict, id(), external_id()}
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
@@ -328,7 +325,6 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {source, notfound}            |
     {destination, notfound}       |
     {destination, unauthorized}   |
-    {conflict, id()}              |
     {external_id_conflict, id(), external_id()} |
     {provider, notfound}          |
     {wallet, {inaccessible, _}}   |
@@ -800,30 +796,30 @@ create_entity(Type, Params, CreateFun, Context) ->
     case gen_id(Type, ExternalID, Hash, Context) of
         {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
-            handle_create_entity_result(Result, Type, ID, Hash, Context);
+            handle_create_entity_result(Result, Type, ExternalID, ID, Hash, Context);
         {error, {external_id_conflict, ID}} ->
             {error, {external_id_conflict, ID, ExternalID}}
     end.
 
-handle_create_entity_result(ok, Type, ID, _Hash, Context) ->
+handle_create_entity_result(ok, Type, _ExternalID, ID, _Hash, Context) ->
     do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
-handle_create_entity_result({error, exists}, Type, ID, Hash, Context) ->
-    get_and_compare_hash(Type, ID, Hash, Context); %%TODO maybe just return the state akin to the previous clause
-handle_create_entity_result({error, E}, _Type, _ID, _Hash, _Context) ->
+handle_create_entity_result({error, exists}, Type, ExternalID, ID, Hash, Context) ->
+    get_and_compare_hash(Type, ExternalID, ID, Hash, Context); %%TODO maybe just return the state akin to the previous clause
+handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Hash, _Context) ->
     throw(E).
 
-get_and_compare_hash(Type, ID, Hash, Context) ->
+get_and_compare_hash(Type, ExternalID, ID, Hash, Context) ->
     case do(fun() -> get_state(Type, ID, Context) end) of
         {ok, State} ->
-            compare_hash(Hash, get_hash(State), {ID, to_swag(Type, State)});
+            compare_hash(Hash, get_hash(State), {ID, ExternalID, to_swag(Type, State)});
         Error ->
             Error
     end.
 
-compare_hash(Hash, Hash, {_, Data}) ->
+compare_hash(Hash, Hash, {_, _, Data}) ->
     {ok, Data};
-compare_hash(_, _, {ID, _}) ->
-    {error, {conflict, ID}}.
+compare_hash(_, _, {ID, ExternalID, _}) ->
+    {error, {external_id_conflict, ID, ExternalID}}.
 
 with_party(Context, Fun) ->
     try Fun()

@@ -99,8 +99,6 @@ process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {identity_class, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity class">>));
-        {error, {conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
         {error, {external_id_conflict, ID, ExternalID}} ->
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {email, notfound}} ->
@@ -191,8 +189,6 @@ process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
         {error, {inaccessible, _}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
-        {error, {conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
         {error, {external_id_conflict, ID, ExternalID}} ->
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, invalid} ->
@@ -255,8 +251,6 @@ process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) 
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
         {error, {inaccessible, _}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
-        {error, {conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
         {error, {external_id_conflict, ID, ExternalID}} ->
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, invalid} ->
@@ -296,8 +290,6 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
         {error, {provider, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
-        {error, {conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
         {error, {external_id_conflict, ID, ExternalID}} ->
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {wallet, {inaccessible, _}}} ->

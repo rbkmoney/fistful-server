@@ -525,7 +525,7 @@ process_request('DeleteWebhookByID', #{identityID := IdentityID, webhookID := We
     end;
 
 %% P2P
-process_request('QuoteP2PTransfer', #{quoteParams := Params}, Context, _Opts) ->
+process_request('QuoteP2PTransfer', #{'QuoteParameters' := Params}, Context, _Opts) ->
     case wapi_wallet_ff_backend:quote_p2p_transfer(Params, Context) of
         {ok, Quote} ->
             wapi_handler_utils:reply_ok(201, Quote);

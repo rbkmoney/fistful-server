@@ -30,7 +30,8 @@
     create_webhook_ok_test/1,
     get_webhooks_ok_test/1,
     get_webhook_ok_test/1,
-    delete_webhook_ok_test/1
+    delete_webhook_ok_test/1,
+    quote_p2p_transfer_ok_test/1
 ]).
 
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
@@ -68,7 +69,8 @@ groups() ->
                 create_webhook_ok_test,
                 get_webhooks_ok_test,
                 get_webhook_ok_test,
-                delete_webhook_ok_test
+                delete_webhook_ok_test,
+                quote_p2p_transfer_ok_test
             ]
         }
     ].
@@ -352,6 +354,39 @@ delete_webhook_ok_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
+-spec quote_p2p_transfer_ok_test(config()) ->
+    _.
+quote_p2p_transfer_ok_test(C) ->
+    SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    #{
+        wallet_id := WalletID
+    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    {ok, Machine} = ff_wallet_machine:get(WalletID),
+    Wallet = ff_wallet_machine:wallet(Machine),
+    IdentityID = ff_wallet:identity(Wallet),
+    {ok, _} = call_api(
+        fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResource">>,
+                    <<"token">> => SenderToken
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
 %%
 
 -spec call_api(function(), map(), wapi_client_lib:context()) ->
@@ -393,3 +428,10 @@ issue_token(PartyID, ACL, LifeTime) ->
     {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
     Token.
 
+create_bank_card_token(BankCard) ->
+    wapi_utils:map_to_base64url(genlib_map:compact(#{
+        <<"token">>         => maps:get(token, BankCard),
+        <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
+        <<"bin">>           => genlib_map:get(bin, BankCard),
+        <<"lastDigits">>    => genlib_map:get(masked_pan, BankCard)
+    })).

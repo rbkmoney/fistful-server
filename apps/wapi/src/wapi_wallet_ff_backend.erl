@@ -59,7 +59,7 @@
 -type ctx()         :: wapi_handler:context().
 -type params()      :: map().
 -type id()          :: binary() | undefined.
--type external_id() :: binary() | undefined.
+-type external_id() :: binary().
 -type result()      :: result(map()).
 -type result(T)     :: result(T, notfound).
 -type result(T, E)  :: {ok, T} | {error, E}.

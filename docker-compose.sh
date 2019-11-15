@@ -160,6 +160,17 @@ services:
       timeout: 1s
       retries: 10
 
+  bender:
+    image: dr2.rbkmoney.com/rbkmoney/bender:2fcb2711d3d0adec0685926dafdab832b7506091
+    command: /opt/bender/bin/bender foreground
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 20
+    depends_on:
+      - machinegun
+
   shumway-db:
     image: dr.rbkmoney.com/rbkmoney/postgres:9.6
     environment:

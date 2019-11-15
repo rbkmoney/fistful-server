@@ -38,7 +38,8 @@
     sender := sender(),
     receiver := receiver(),
     fees => fees(),
-    external_id => id()
+    external_id => id(),
+    deadline => deadline()
 }.
 
 -type contact_info() :: #{

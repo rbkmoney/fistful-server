@@ -5,6 +5,7 @@
 
 -export([now/0]).
 -export([to_rfc3339/1]).
+-export([from_rfc3339/1]).
 -export([add_interval/2]).
 
 -export_type([timestamp_ms/0]).
@@ -23,6 +24,11 @@ now() ->
 to_rfc3339(Timestamp) ->
     {ok, BTimestamp} = rfc3339:format(Timestamp, millisecond),
     BTimestamp.
+
+-spec from_rfc3339(binary()) -> timestamp_ms().
+from_rfc3339(BTimestamp) ->
+    {ok, Timestamp} = rfc3339:to_time(BTimestamp, millisecond),
+    Timestamp.
 
 -spec add_interval(timestamp_ms(), datetime_interval()) ->
     timestamp_ms().

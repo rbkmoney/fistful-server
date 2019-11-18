@@ -107,8 +107,8 @@ compact({crypto_wallet, _CryptoWallet}) ->
     {error, {terms, validate_p2p_error()}}.
 get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
-        SenderResource = unwrap(sender, ff_resource:create_disposable_resource(Sender)),
-        ReceiverResource = unwrap(receiver, ff_resource:create_disposable_resource(Receiver)),
+        SenderResource = unwrap(sender, ff_resource:create_resource(Sender)),
+        ReceiverResource = unwrap(receiver, ff_resource:create_resource(Receiver)),
         Params = #{
             cash => Cash,
             sender => SenderResource,
@@ -130,8 +130,8 @@ get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
             created_at => CreatedAt,
             expires_on => ExpiresOn,
             identity_id => IdentityID,
-            sender => compact(ff_resource:resource(SenderResource)),
-            receiver => compact(ff_resource:resource(ReceiverResource))
+            sender => compact(SenderResource),
+            receiver => compact(ReceiverResource)
         },
         {SurplusCash, SurplusCashVolume, Quote}
     end).

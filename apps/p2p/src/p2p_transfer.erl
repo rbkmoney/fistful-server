@@ -14,7 +14,7 @@
     version := ?ACTUAL_FORMAT_VERSION,
     id := id(),
     body := body(),
-    identity_id := identity_id(),
+    owner := identity_id(),
     created_at := ff_time:timestamp_ms(),
     operation_timestamp := ff_time:timestamp_ms(),
     sender := participant(),
@@ -23,8 +23,8 @@
     party_revision := ff_party:revision(),
     status := status(),
 
-    sender_resource => disposable_resource(),
-    receiver_resource => disposable_resource(),
+    sender_resource => resource(),
+    receiver_resource => resource(),
     quote => quote(),
     session => session(),
     route => route(),
@@ -53,7 +53,7 @@
 
 -type event() ::
     {created, p2p_transfer()} |
-    {resource_got, disposable_resource(), disposable_resource()} |
+    {resource_got, resource(), resource()} |
     {risk_score_changed, risk_score()} |
     {route_changed, route()} |
     {p_transfer, ff_postings_transfer:event()} |
@@ -116,6 +116,7 @@
 -export_type([start_adjustment_error/0]).
 -export_type([domain_revision/0]).
 -export_type([resource_owner/0]).
+
 %% Transfer logic callbacks
 
 -export([process_transfer/1]).
@@ -134,6 +135,8 @@
 -export([operation_timestamp/1]).
 -export([party_revision/1]).
 -export([domain_revision/1]).
+-export([sender/1]).
+-export([receiver/1]).
 -export([sender_resource/1]).
 -export([receiver_resource/1]).
 
@@ -175,7 +178,7 @@
 -type party_varset() :: hg_selector:varset().
 -type risk_score() :: p2p_inspector:risk_score().
 -type participant() :: p2p_participant:participant().
--type disposable_resource() :: ff_resource:disposable_resource().
+-type resource() :: ff_resource:resource().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -210,13 +213,23 @@
 
 %% Accessors
 
+-spec sender(p2p_transfer()) ->
+    participant().
+sender(#{sender := Sender}) ->
+    Sender.
+
+-spec receiver(p2p_transfer()) ->
+    participant().
+receiver(#{receiver := Receiver}) ->
+    Receiver.
+
 -spec sender_resource(p2p_transfer()) ->
-    disposable_resource() | undefined.
+    resource() | undefined.
 sender_resource(T) ->
     maps:get(sender_resource, T, undefined).
 
 -spec receiver_resource(p2p_transfer()) ->
-    disposable_resource() | undefined.
+    resource() | undefined.
 receiver_resource(T) ->
     maps:get(receiver_resource, T, undefined).
 
@@ -315,8 +328,8 @@ create(TransferParams) ->
         ExternalID = maps:get(external_id, TransferParams, undefined),
 
         CreatedAt = ff_time:now(),
-        SenderResource = unwrap(sender, p2p_participant:get_disposable_resource(Sender)),
-        ReceiverResource = unwrap(receiver, p2p_participant:get_disposable_resource(Receiver)),
+        SenderResource = unwrap(sender, p2p_participant:get_resource(Sender)),
+        ReceiverResource = unwrap(receiver, p2p_participant:get_resource(Receiver)),
         Params = #{
             cash => Body,
             sender => SenderResource,

@@ -6,8 +6,8 @@
 -type terms()           :: ff_party:terms().
 -type contract_params() :: #{
     cash            := ff_cash:cash(),
-    sender          := ff_resource:disposable_resource(),
-    receiver        := ff_resource:disposable_resource(),
+    sender          := ff_resource:resource(),
+    receiver        := ff_resource:resource(),
     party_revision  => ff_party:revision(),
     domain_revision => ff_domain_config:revision(),
     timestamp       => ff_time:timestamp_ms()
@@ -16,8 +16,8 @@
 -type varset_params() :: #{
     cash        := ff_cash:cash(),
     party_id    := ff_party:id(),
-    sender      := ff_resource:disposable_resource(),
-    receiver    := ff_resource:disposable_resource()
+    sender      := ff_resource:resource(),
+    receiver    := ff_resource:resource()
 }.
 
 -export_type([varset/0]).
@@ -29,16 +29,13 @@
 
 -spec create_varset(varset_params()) ->
     varset().
-create_varset(#{cash := Cash} = Params) ->
+create_varset(#{cash := Cash, sender := Sender, receiver := Receiver} = Params) ->
     {_, Currency} = Cash,
-    #{sender := Sender, receiver := Receiver} = Params,
-    SenderResource = ff_resource:resource(Sender),
-    ReceiverResource = ff_resource:resource(Receiver),
     #{
         party_id => maps:get(party_id, Params),
         currency => ff_dmsl_codec:marshal(currency_ref, Currency),
         cost     => ff_dmsl_codec:marshal(cash, Cash),
-        p2p_tool => ff_dmsl_codec:marshal(p2p_tool, {SenderResource, ReceiverResource})
+        p2p_tool => ff_dmsl_codec:marshal(p2p_tool, {Sender, Receiver})
     }.
 
 -spec get_contract_terms(identity_id(), contract_params()) ->

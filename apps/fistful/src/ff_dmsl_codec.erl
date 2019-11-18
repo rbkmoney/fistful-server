@@ -147,16 +147,12 @@ marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
         symbolic_code = CurrencyID
     };
 
-marshal(payment_resource_payer, Payer = #{resource := Resource}) ->
-    ContactInfo = maps:get(contact_info, Payer, undefined),
+marshal(payment_resource_payer, {Resource, ContactInfo}) ->
     #domain_PaymentResourcePayer{
-        resource = marshal(disposable_resource, Resource),
+        resource = #domain_DisposablePaymentResource{
+            payment_tool = marshal(resource, Resource)
+        },
         contact_info = marshal(contact_info, ContactInfo)
-    };
-marshal(disposable_resource, DisposableResource) ->
-    Resource = ff_resource:resource(DisposableResource),
-    #domain_DisposablePaymentResource{
-        payment_tool = marshal(resource, Resource)
     };
 marshal(resource, {bank_card, BankCard}) ->
     {bank_card, #domain_BankCard{

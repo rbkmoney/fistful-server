@@ -5,10 +5,10 @@
 -opaque bank_card() :: #{
     token := binary(),
     bin => binary(),
-    payment_system := atom(), % TODO
+    payment_system := ff_bin_data:payment_system(),
     masked_pan => binary(),
     bank_name => binary(),
-    iso_country_code => atom(),
+    iso_country_code => ff_bin_data:iso_country_code(),
     card_type => charge_card | credit | debit | credit_or_debit,
     bin_data_id => bin_data_id()
 }.
@@ -32,33 +32,14 @@
                     {crypto_wallet, crypto_wallet()}.
 -type crypto_wallet() :: crypto_wallet_params().
 
--type contact_info() :: #{
-    phone_number => binary(),
-    email => binary()
-}.
-
--type disposable_resource_params() :: #{
-    params := resource_params(),
-    contact_info => contact_info()
-}.
-
--type disposable_resource() :: #{
-    resource := resource(),
-    contact_info => contact_info()
-}.
-
 -export_type([resource/0]).
 -export_type([resource_id/0]).
 -export_type([resource_params/0]).
 -export_type([bank_card/0]).
 -export_type([crypto_wallet/0]).
--export_type([disposable_resource/0]).
--export_type([disposable_resource_params/0]).
--export_type([contact_info/0]).
 
 -export([create_resource/1]).
 -export([create_resource/2]).
--export([create_disposable_resource/1]).
 -export([bin/1]).
 -export([bin_data_id/1]).
 -export([token/1]).
@@ -66,12 +47,10 @@
 -export([payment_system/1]).
 -export([country_code/1]).
 -export([bank_name/1]).
--export([resource/1]).
--export([contact_info/1]).
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(ff_pipeline, [do/1, unwrap/2]).
 
 -spec token(bank_card()) ->
     binary().
@@ -109,16 +88,6 @@ country_code(BankCard) ->
 bank_name(BankCard) ->
     maps:get(bank_name, BankCard, undefined).
 
--spec resource(disposable_resource()) ->
-    resource().
-resource(Resource) ->
-    maps:get(resource, Resource).
-
--spec contact_info(disposable_resource()) ->
-    contact_info() | undefined.
-contact_info(Resource) ->
-    maps:get(contact_info, Resource, undefined).
-
 -spec create_resource(resource()) ->
     {ok, resource()} |
     {error, {bin_data, not_found}}.
@@ -139,17 +108,3 @@ create_resource({bank_card, #{token := Token} = BankCard}, {bank_card, ResourceI
     end);
 create_resource({crypto_wallet, CryptoWallet}, _ResourceID) ->
     {ok, CryptoWallet}.
-
--spec create_disposable_resource(disposable_resource_params()) ->
-    {ok, disposable_resource()} |
-    {error, {bin_data, not_found}}.
-
-create_disposable_resource(Data = #{params := Params}) ->
-    do(fun() ->
-        ContactInfo = maps:get(contact_info, Data, undefined),
-        Resource = unwrap(create_resource(Params)),
-        genlib_map:compact(#{
-            resource => Resource,
-            contact_info => ContactInfo
-        })
-    end).

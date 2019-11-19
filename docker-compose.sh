@@ -169,7 +169,7 @@ services:
       - SERVICE_NAME=shumway-db
 
   fistful-magista:
-    image: dr2.rbkmoney.com/rbkmoney/fistful-magista:79acc7d2191470fa1ee1930d0fcb825e01d2e7de
+    image: dr.rbkmoney.com/rbkmoney/fistful-magista:fed290bccd48627822fda47f9dc2fe0cd1d3a5ad
     restart: always
     entrypoint:
       - java
@@ -178,7 +178,6 @@ services:
       - /opt/fistful-magista/fistful-magista.jar
       - --spring.datasource.url=jdbc:postgresql://ffmagista-db:5432/ffmagista
       - --spring.datasource.username=postgres
-      - --fistful.polling.enabled=true
       - --withdrawal.polling.url=http://fistful-server:8022/v1/eventsink/withdrawal
       - --identity.polling.url=http://fistful-server:8022/v1/eventsink/identity
       - --wallet.polling.url=http://fistful-server:8022/v1/eventsink/wallet

@@ -44,7 +44,7 @@
     external_id => id()
 }.
 
--type quote() :: p2p_quote:fee_quote().
+-type quote() :: p2p_quote:quote().
 
 -type status() ::
     pending         |
@@ -159,7 +159,7 @@
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Internal types
--type body() :: ff_transaction:body(). %% Why is not ff_cash:cash()
+-type body() :: ff_cash:cash().
 -type identity() :: ff_identity:identity().
 -type identity_id() :: ff_identity:id().
 -type process_result() :: {action(), [event()]}.
@@ -206,9 +206,7 @@
     finish.
 
 -type fail_type() ::
-    risk_score_is_too_high |
     route_not_found |
-    {invalid_fees, _TODO} |
     session.
 
 %% Accessors
@@ -301,9 +299,9 @@ create_varset(Identity, P2PTransfer) ->
     },
     p2p_party:create_varset(Params).
 
-create_contract_params(undefined, Params) ->
+merge_contract_params(undefined, Params) ->
     Params;
-create_contract_params(Quote, Params) ->
+merge_contract_params(Quote, Params) ->
     Params#{
         party_revision => p2p_quote:party_revision(Quote),
         domain_revision => p2p_quote:domain_revision(Quote),
@@ -326,20 +324,24 @@ create(TransferParams) ->
         } = TransferParams,
         Quote = maps:get(quote, TransferParams, undefined),
         ExternalID = maps:get(external_id, TransferParams, undefined),
-
+        % TODO add bindata id here from quote
         CreatedAt = ff_time:now(),
         SenderResource = unwrap(sender, p2p_participant:get_resource(Sender)),
         ReceiverResource = unwrap(receiver, p2p_participant:get_resource(Receiver)),
+        Identity = unwrap(identity, get_identity(IdentityID)),
+        {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
         Params = #{
             cash => Body,
             sender => SenderResource,
-            receiver => ReceiverResource
+            receiver => ReceiverResource,
+            party_revision => PartyRevision,
+            domain_revision => ff_domain_config:head(),
+            timestamp => ff_time:now()
         },
-        ContractParams = create_contract_params(Quote, Params),
+        ContractParams = merge_contract_params(Quote, Params),
         {OperationTimestamp, PartyRevision, DomainRevision, Terms} =
-            unwrap(p2p_party:get_contract_terms(IdentityID, ContractParams)),
+            unwrap(p2p_party:get_contract_terms(Identity, ContractParams)),
         valid = unwrap(terms, ff_party:validate_p2p(Terms, Body)),
-        true = unwrap(p2p_tool, p2p_party:allow_p2p_tool(Terms)),
 
         [
             {created, genlib_map:compact(#{
@@ -556,9 +558,9 @@ do_process_transfer(adjustment, P2PTransfer) ->
 -spec process_risk_scoring(p2p_transfer()) ->
     process_result().
 process_risk_scoring(P2PTransfer) ->
-    RiskScoring = do_risk_scoring(P2PTransfer),
+    RiskScore = do_risk_scoring(P2PTransfer),
     {continue, [
-        {risk_score_changed, RiskScoring}
+        {risk_score_changed, RiskScore}
     ]}.
 
 -spec do_risk_scoring(p2p_transfer()) ->
@@ -575,7 +577,8 @@ do_risk_scoring(P2PTransfer) ->
     ),
     ScoreID = <<"fraud">>,
     Scores = p2p_inspector:inspect(P2PTransfer, DomainRevision, [ScoreID], Inspector),
-    maps:get(ScoreID, Scores).
+    Score = maps:get(ScoreID, Scores),
+    ff_dmsl_codec:unmarshal(risk_score, Score).
 
 -spec process_routing(p2p_transfer()) ->
     process_result().
@@ -606,13 +609,8 @@ do_process_routing(P2PTransfer) ->
 prepare_route(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    case ff_payment_institution:compute_p2p_transfer_providers(PaymentInstitution, PartyVarset) of
-        {ok, Providers}  ->
-            choose_provider(Providers, PartyVarset);
-        {error, {misconfiguration, _Details} = Error} ->
-            _ = logger:warning("Route search failed: ~p", [Error]),
-            erlang:error(Error)
-    end.
+    {ok, Providers} = ff_payment_institution:compute_p2p_transfer_providers(PaymentInstitution, PartyVarset),
+    choose_provider(Providers, PartyVarset).
 
 -spec choose_provider([provider_id()], party_varset()) ->
     {ok, provider_id()} | {error, route_not_found}.
@@ -917,19 +915,10 @@ update_adjusment_index(Updater, Value, P2PTransfer) ->
 %% Failure helpers
 
 -spec build_failure(fail_type(), p2p_transfer()) -> failure().
-% build_failure(risk_score_is_too_high, _P2PTransfer) ->
-%     #{
-%         code => <<"risk_score_is_too_high">>
-%     };
 build_failure(route_not_found, _P2PTransfer) ->
     #{
         code => <<"no_route_found">>
     };
-% build_failure({invalid_fees, Details}, _P2PTransfer) ->
-%     #{
-%         code => <<"unknown">>,
-%         reason => genlib:format(Details)
-%     };
 build_failure(session, P2PTransfer) ->
     Result = session_result(P2PTransfer),
     {failed, Failure} = Result,

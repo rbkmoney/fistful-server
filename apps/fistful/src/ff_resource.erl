@@ -3,13 +3,13 @@
 -type bin_data_id() :: ff_bin_data:bin_data_id().
 
 -opaque bank_card() :: #{
-    token := binary(),
-    bin => binary(),
-    payment_system := ff_bin_data:payment_system(),
-    masked_pan => binary(),
-    bank_name => binary(),
-    iso_country_code => ff_bin_data:iso_country_code(),
-    card_type => charge_card | credit | debit | credit_or_debit,
+    token := token(),
+    bin => bin(),
+    payment_system := payment_system(),
+    masked_pan => masked_pan(),
+    bank_name => bank_name(),
+    iso_country_code => iso_country_code(),
+    card_type => card_type(),
     bin_data_id => bin_data_id()
 }.
 
@@ -32,11 +32,27 @@
                     {crypto_wallet, crypto_wallet()}.
 -type crypto_wallet() :: crypto_wallet_params().
 
+-type token() :: binary().
+-type bin() :: binary().
+-type payment_system() :: ff_bin_data:payment_system().
+-type masked_pan() :: binary().
+-type bank_name() :: binary().
+-type iso_country_code() :: ff_bin_data:iso_country_code().
+-type card_type() :: charge_card | credit | debit | credit_or_debit.
+
 -export_type([resource/0]).
 -export_type([resource_id/0]).
 -export_type([resource_params/0]).
 -export_type([bank_card/0]).
 -export_type([crypto_wallet/0]).
+
+-export_type([token/0]).
+-export_type([bin/0]).
+-export_type([payment_system/0]).
+-export_type([masked_pan/0]).
+-export_type([bank_name/0]).
+-export_type([iso_country_code/0]).
+-export_type([card_type/0]).
 
 -export([create_resource/1]).
 -export([create_resource/2]).
@@ -53,38 +69,38 @@
 -import(ff_pipeline, [do/1, unwrap/2]).
 
 -spec token(bank_card()) ->
-    binary().
+    token().
 token(#{token := Token}) ->
     Token.
 
 -spec bin(bank_card()) ->
-    binary().
+    bin().
 bin(BankCard) ->
     maps:get(bin, BankCard, undefined).
 
 -spec bin_data_id(bank_card()) ->
-    binary().
+    bin_data_id().
 bin_data_id(#{bin_data_id := BinDataID}) ->
     BinDataID.
 
 
 -spec masked_pan(bank_card()) ->
-    binary().
+    masked_pan().
 masked_pan(BankCard) ->
     maps:get(masked_pan, BankCard, undefined).
 
 -spec payment_system(bank_card()) ->
-    atom().
+    payment_system().
 payment_system(#{payment_system := PaymentSystem}) ->
     PaymentSystem.
 
 -spec country_code(bank_card()) ->
-    atom().
+    iso_country_code().
 country_code(BankCard) ->
     maps:get(iso_country_code, BankCard, undefined).
 
 -spec bank_name(bank_card()) ->
-    binary().
+    bank_name().
 bank_name(BankCard) ->
     maps:get(bank_name, BankCard, undefined).
 
@@ -99,6 +115,13 @@ create_resource(Resource) ->
     {ok, resource()} |
     {error, {bin_data, not_found}}.
 
+create_resource({bank_card, #{token := Token} = BankCard}, undefined) ->
+    do(fun() ->
+        BinData = unwrap(bin_data, ff_bin_data:get(Token, undefined)),
+        KeyList = [payment_system, bank_name, iso_country_code, card_type],
+        ExtendData = maps:with(KeyList, BinData),
+        {bank_card, maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})}
+    end);
 create_resource({bank_card, #{token := Token} = BankCard}, {bank_card, ResourceID}) ->
     do(fun() ->
         BinData = unwrap(bin_data, ff_bin_data:get(Token, ResourceID)),

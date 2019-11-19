@@ -638,15 +638,63 @@ default_termset(Options) ->
                 cash_flow = {decisions, [
                     #domain_CashFlowDecision{
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, []}
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
                     },
                     #domain_CashFlowDecision{
                         if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
-                        then_ = {value, []}
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
                     },
                     #domain_CashFlowDecision{
                         if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
-                        then_ = {value, []}
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
                     }
                 ]},
                 fees = {decisions, [

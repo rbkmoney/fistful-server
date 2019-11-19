@@ -1,7 +1,8 @@
 -module(p2p_inspector).
 
 -type risk_score()      :: low | high | fatal.
--type scores()          :: #{binary() => risk_score()}.
+-type score_id()        :: binary().
+-type scores()          :: #{score_id() => risk_score()}.
 -type inspector()       :: dmsl_domain_thrift:'P2PInspector'().
 -type transfer()        :: p2p_transfer:p2p_transfer().
 -type domain_revision() :: ff_domain_config:revision().
@@ -14,7 +15,7 @@
 
 -export([inspect/4]).
 
--spec inspect(transfer(), domain_revision(), [binary()], inspector()) -> scores().
+-spec inspect(transfer(), domain_revision(), [score_id()], inspector()) -> scores().
 inspect(P2PTransfer, DomainRevision, RiskTypes, Inspector) ->
     #domain_P2PInspector{
         fallback_risk_score = FallBackRiskScore,

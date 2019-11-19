@@ -8,8 +8,8 @@
 -export_type([participant/0]).
 
 -type resource() :: ff_resource:resource().
+-type resource_id() :: ff_resource:resource_id().
 -type resource_params() :: ff_resource:resource_params().
--type bin_data_id() :: ff_bin_data:bin_data_id().
 
 -type contact_info() :: #{
     phone_number => binary(),
@@ -52,10 +52,10 @@ create(payer, ResourceParams, ContactInfo) ->
 get_resource(Participant) ->
     get_resource(Participant, undefined).
 
--spec get_resource(participant(), bin_data_id() | undefined) ->
+-spec get_resource(participant(), resource_id() | undefined) ->
     {ok, resource()} |
     {error, {bin_data, not_found}}.
-get_resource({payer, #{resource_params := ResourceParams}}, BinDataID) ->
+get_resource({payer, #{resource_params := ResourceParams}}, ResourceID) ->
     do(fun() ->
-        unwrap(ff_resource:create_resource(ResourceParams, BinDataID))
+        unwrap(ff_resource:create_resource(ResourceParams, ResourceID))
     end).

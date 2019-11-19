@@ -9,6 +9,7 @@
 -type cash()                      :: ff_cash:cash().
 -type terms()                     :: ff_party:terms().
 -type plan_constant()             :: operation_amount | surplus.
+-type identity()                  :: ff_identity:identity().
 -type identity_id()               :: ff_identity:id().
 -type compact_resource()          :: compact_bank_card_resource() | compact_crypto_wallet_resource().
 -type surplus_cash_volume()       :: ff_cash_flow:plan_volume().
@@ -27,7 +28,7 @@
 }.
 
 -type fees()        :: #{fees => #{plan_constant() => surplus_cash_volume()}}.
--opaque fee_quote() :: #{
+-opaque quote() :: #{
     amount            := cash(),
     party_revision    := ff_party:revision(),
     domain_revision   := ff_domain_config:revision(),
@@ -38,7 +39,7 @@
     receiver          := compact_resource()
 }.
 
--export_type([fee_quote/0]).
+-export_type([quote/0]).
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
@@ -48,7 +49,7 @@
 -export([party_revision/1]).
 -export([sender_id/1]).
 -export([receiver_id/1]).
--export([get_fee_quote/4]).
+-export([get_quote/4]).
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessories
@@ -58,28 +59,28 @@
 surplus(#{fees := Fees}) ->
     maps:get(surplus, Fees, undefined).
 
--spec created_at(fee_quote()) ->
+-spec created_at(quote()) ->
     ff_time:timestamp_ms().
 created_at(#{created_at := Time}) ->
     Time.
 
--spec domain_revision(fee_quote()) ->
+-spec domain_revision(quote()) ->
     ff_domain_config:revision().
 domain_revision(#{domain_revision := Revision}) ->
     Revision.
 
--spec party_revision(fee_quote()) ->
+-spec party_revision(quote()) ->
     ff_party:revision().
 party_revision(#{party_revision := Revision}) ->
     Revision.
 
 
--spec sender_id(fee_quote()) ->
+-spec sender_id(quote()) ->
     ff_bin_data:bin_data_id().
 sender_id(#{sender := Sender}) ->
     maps:get(bin_data_id, Sender).
 
--spec receiver_id(fee_quote()) ->
+-spec receiver_id(quote()) ->
     ff_bin_data:bin_data_id().
 receiver_id(#{receiver := Receiver}) ->
     maps:get(bin_data_id, Receiver).
@@ -97,28 +98,32 @@ compact({crypto_wallet, _CryptoWallet}) ->
 
 %%
 
--spec get_fee_quote(cash(), identity_id(), sender(), receiver()) ->
-    {ok, {cash() | undefined, surplus_cash_volume() | undefined, fee_quote()}} |
+-spec get_quote(cash(), identity_id(), sender(), receiver()) ->
+    {ok, {cash() | undefined, surplus_cash_volume() | undefined, quote()}} |
     {error, {identity,   not_found}} |
     {error, {party,      get_contract_terms_error()}} |
-    {error, {p2p_tool,   not_allow}} |
     {error, {cash_flow,  volume_finalize_error()}} |
     {error, {p2p_transfer:resource_owner(), {bin_data, not_found}}} |
     {error, {terms, validate_p2p_error()}}.
-get_fee_quote(Cash, IdentityID, Sender, Receiver) ->
+get_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
         SenderResource = unwrap(sender, ff_resource:create_resource(Sender)),
         ReceiverResource = unwrap(receiver, ff_resource:create_resource(Receiver)),
+        Identity = unwrap(identity, get_identity(IdentityID)),
+        {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
         Params = #{
             cash => Cash,
             sender => SenderResource,
-            receiver => ReceiverResource},
+            receiver => ReceiverResource,
+            party_revision => PartyRevision,
+            domain_revision => ff_domain_config:head(),
+            timestamp => ff_time:now()
+        },
         {CreatedAt, PartyRevision, DomainRevision, Terms} =
-            unwrap(p2p_party:get_contract_terms(IdentityID, Params)),
+            unwrap(p2p_party:get_contract_terms(Identity, Params)),
         valid = unwrap(terms, ff_party:validate_p2p(Terms, Cash)),
 
         ExpiresOn = get_expire_time(Terms, CreatedAt),
-        true = unwrap(p2p_tool, p2p_party:allow_p2p_tool(Terms)),
         Fees = get_fees_from_terms(Terms),
         SurplusCashVolume = surplus(Fees),
         SurplusCash = unwrap(cash_flow, compute_surplus_volume(SurplusCashVolume, Cash)),
@@ -143,6 +148,14 @@ compute_surplus_volume(CashVolume, Cash) ->
     ff_cash_flow:compute_volume(CashVolume, Constants).
 
 %%
+
+-spec get_identity(identity_id()) ->
+    {ok, identity()} | {error, notfound}.
+get_identity(IdentityID) ->
+    do(fun() ->
+        IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
+        ff_identity_machine:identity(IdentityMachine)
+    end).
 
 -spec get_fees_from_terms(terms()) ->
     fees().

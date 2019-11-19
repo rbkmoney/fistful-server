@@ -117,6 +117,13 @@ unmarshal(currency_ref, #domain_CurrencyRef{
 }) ->
     unmarshal(string, SymbolicCode);
 
+unmarshal(risk_score, low) ->
+    low;
+unmarshal(risk_score, high) ->
+    high;
+unmarshal(risk_score, fatal) ->
+    fatal;
+
 unmarshal(amount, V) ->
     unmarshal(integer, V);
 unmarshal(string, V) when is_binary(V) ->
@@ -176,6 +183,13 @@ marshal(p2p_tool, {Sender, Receiver}) ->
         sender = marshal(resource, Sender),
         receiver = marshal(resource, Receiver)
     };
+
+marshal(risk_score, low) ->
+    low;
+marshal(risk_score, high) ->
+    high;
+marshal(risk_score, fatal) ->
+    fatal;
 
 marshal(amount, V) ->
     marshal(integer, V);

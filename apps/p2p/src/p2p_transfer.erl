@@ -324,10 +324,15 @@ create(TransferParams) ->
         } = TransferParams,
         Quote = maps:get(quote, TransferParams, undefined),
         ExternalID = maps:get(external_id, TransferParams, undefined),
-        % TODO add bindata id here from quote
+        {SenderResourceID, ReceiverResourceID} = case Quote of
+            undefined ->
+                {undefined, undefined};
+            Quote ->
+                {p2p_quote:sender_id(Quote), p2p_quote:receiver_id(Quote)}
+        end,
         CreatedAt = ff_time:now(),
-        SenderResource = unwrap(sender, p2p_participant:get_resource(Sender)),
-        ReceiverResource = unwrap(receiver, p2p_participant:get_resource(Receiver)),
+        SenderResource = unwrap(sender, p2p_participant:get_resource(Sender, SenderResourceID)),
+        ReceiverResource = unwrap(receiver, p2p_participant:get_resource(Receiver, ReceiverResourceID)),
         Identity = unwrap(identity, get_identity(IdentityID)),
         {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
         Params = #{

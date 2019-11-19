@@ -101,7 +101,7 @@ visa_to_nspkmir_not_allow_test(C) ->
         token => <<"NSPK MIR">>
     }},
     Result = p2p_quote:get_quote(Cash, Identity, Sender, Receiver),
-    ?assertEqual({error, {terms, {terms_violation,{p2p_allow,false}}}}, Result).
+    ?assertEqual({error, {terms, {terms_violation, p2p_forbidden}}}, Result).
 
 %% Utils
 

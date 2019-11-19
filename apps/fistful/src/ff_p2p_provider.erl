@@ -98,7 +98,7 @@ validate_terms(#{p2p_terms := P2PTerms}, VS) ->
     } = P2PTerms,
     do(fun () ->
         valid = unwrap(validate_currencies(CurrenciesSelector, VS)),
-        valid = unwrap(validate_fees(FeeSelector, VS)),
+        valid = unwrap(validate_fee_term_is_reduced(FeeSelector, VS)),
         valid = unwrap(validate_cash_limit(CashLimitSelector, VS))
     end).
 
@@ -113,7 +113,7 @@ validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
             {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
     end.
 
-validate_fees(FeeSelector, VS) ->
+validate_fee_term_is_reduced(FeeSelector, VS) ->
     {ok, _Fees} = hg_selector:reduce_to_value(FeeSelector, VS),
     {ok, valid}.
 

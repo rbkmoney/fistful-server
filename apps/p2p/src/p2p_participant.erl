@@ -24,6 +24,7 @@
 -export([create/2]).
 -export([create/3]).
 -export([get_resource/1]).
+-export([get_resource/2]).
 -export([contact_info/1]).
 
 -import(ff_pipeline, [do/1, unwrap/1]).

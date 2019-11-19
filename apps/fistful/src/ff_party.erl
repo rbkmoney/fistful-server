@@ -41,7 +41,7 @@
 
 -type validate_p2p_error() ::
     currency_validation_error() |
-    p2p_allow_validation_error() |
+    p2p_forbidden_error() |
     cash_range_validation_error().
 
 -export_type([id/0]).
@@ -98,7 +98,7 @@
 -type currency_validation_error() :: {terms_violation, {not_allowed_currency, _Details}}.
 -type withdrawal_currency_error() :: {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}.
 -type cash_range_validation_error() :: {terms_violation, {cash_range, {cash(), cash_range()}}}.
--type p2p_allow_validation_error() :: {terms_violation, {p2p_allow, false}}.
+-type p2p_forbidden_error() :: {terms_violation, p2p_forbidden}.
 
 -type not_reduced_error() :: {not_reduced, {Name :: atom(), TermsPart :: any()}}.
 
@@ -658,14 +658,14 @@ validate_p2p_cash_limit(Cash, Terms) ->
     validate_cash_range(ff_dmsl_codec:marshal(cash, Cash), CashRange).
 
 -spec validate_p2p_allow(p2p_terms()) ->
-    {ok, valid} | {error, p2p_allow_validation_error()}.
+    {ok, valid} | {error, p2p_forbidden_error()}.
 validate_p2p_allow(P2PServiceTerms) ->
     #domain_P2PServiceTerms{allow = Constant} = P2PServiceTerms,
     case Constant of
         {constant, true} ->
             {ok, valid};
         {constant, false} ->
-            {error, {terms_violation, {p2p_allow, false}}}
+            {error, {terms_violation, p2p_forbidden}}
     end.
 
 -spec validate_currency(currency_id(), ordsets:ordset(currency_ref())) ->

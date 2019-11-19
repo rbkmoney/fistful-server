@@ -13,6 +13,8 @@
 -type external_id()  :: binary() | undefined.
 
 -export([check_in/2]).
+-export([bind/3]).
+-export([get/2]).
 
 -export_type([external_id/0]).
 -export_type([check_result/0]).
@@ -50,21 +52,55 @@ check_in(EntityName, ExternalID) ->
     ID = create_id(EntityName, ExternalID),
     check_in_(EntityName, ID).
 
+-spec bind(entity_name(), external_id(), sequence()) ->
+    check_result().
+
+bind(EntityName, ExternalID, InternalID) ->
+    ID = create_id(EntityName, ExternalID),
+    start_(ID, InternalID).
+
+-spec get(entity_name(), external_id()) ->
+    check_result() | {error, notfound}.
+
+get(EntityName, ExternalID) ->
+    ID = create_id(EntityName, ExternalID),
+    get_(ID).
+
+%%
+
 check_in_(EntityName, ID) ->
+    case get_(ID) of
+        {ok, _Seq} = Ok ->
+            Ok;
+        {error, notfound} ->
+            NextID = next_id(EntityName),
+            bind_(EntityName, ID, NextID)
+    end.
+
+bind_(EntityName, ID, Seq) ->
+    case start_(ID, Seq) of
+        {ok, Seq} = Ok->
+            Ok;
+        {error, exists} ->
+            check_in_(EntityName, ID)
+    end.
+
+%%
+
+get_(ID) ->
     case machinery:get(?NS, ID, {undefined, 0, forward}, backend()) of
         {ok, #{aux_state := Seq}} ->
             {ok, Seq};
-        {error, notfound} ->
-            NextID = next_id(EntityName),
-            start_(EntityName, ID, NextID)
+        {error, notfound} = Error ->
+            Error
     end.
 
-start_(EntityName, ID, Seq) ->
-    case machinery:start(?NS, ID, Seq, backend()) of
+start_(ID, InternalID) ->
+    case machinery:start(?NS, ID, InternalID, backend()) of
         ok ->
-            {ok, Seq};
-        {error, exists} ->
-            check_in_(EntityName, ID)
+            {ok, InternalID};
+        {error, exists} = Error ->
+            Error
     end.
 
 %% Machinery

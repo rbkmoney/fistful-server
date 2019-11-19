@@ -282,13 +282,12 @@ fistful_to_bender_sync(C) ->
     Party = create_party(C),
     Ctx = create_context(Party, C),
     {ok, #{<<"id">> := ID}} = wapi_wallet_ff_backend:create_identity(Params0, Ctx),
-    {ok, ID, _Ctx} = get_bender_id(identity, ExternalID, Party, C).
+    {ok, ID} = get_ff_internal_id(identity, ExternalID).
 
 %%
 
-get_bender_id(Type, ExternalID, PartyID, C) ->
-    IdempotentKey = bender_client:get_idempotent_key(<<"wapi">>, Type, PartyID, ExternalID),
-    bender_client:get_internal_id(IdempotentKey, ct_helper:get_woody_ctx(C)).
+get_ff_internal_id(Type, ExternalID) ->
+    ff_external_id:get(Type, ExternalID).
 
 wait_for_destination_authorized(DestID) ->
     authorized = ct_helper:await(

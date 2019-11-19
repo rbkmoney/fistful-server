@@ -343,4 +343,4 @@ create_resource_raw(Token, C) ->
         Token ->
             StoreSource#{token => Token}
         end,
-    p2p_participant:create(resource, {bank_card, NewStoreResource}).
+    p2p_participant:create(raw, {bank_card, NewStoreResource}).

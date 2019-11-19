@@ -3,7 +3,7 @@
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 %% In future we can add source&destination  or maybe recurrent
--opaque participant() :: {payer, payer_params()}.
+-opaque participant() :: {raw, raw_params()}.
 
 -export_type([participant/0]).
 
@@ -16,7 +16,7 @@
     email => binary()
 }.
 
--type payer_params() :: #{
+-type raw_params() :: #{
     resource_params := resource_params(),
     contact_info => contact_info()
 }.
@@ -30,18 +30,18 @@
 
 -spec contact_info(participant()) ->
     contact_info() | undefined.
-contact_info({payer, Payer}) ->
-    maps:get(contact_info, Payer, undefined).
+contact_info({raw, Raw}) ->
+    maps:get(contact_info, Raw, undefined).
 
--spec create(payer, resource_params()) ->
+-spec create(raw, resource_params()) ->
     participant().
-create(payer, ResourceParams) ->
-    {payer, #{resource_params => ResourceParams}}.
+create(raw, ResourceParams) ->
+    {raw, #{resource_params => ResourceParams}}.
 
--spec create(payer, resource_params(), contact_info()) ->
+-spec create(raw, resource_params(), contact_info()) ->
     participant().
-create(payer, ResourceParams, ContactInfo) ->
-    {payer, #{
+create(raw, ResourceParams, ContactInfo) ->
+    {raw, #{
         resource_params => ResourceParams,
         contact_info => ContactInfo
     }}.
@@ -55,7 +55,7 @@ get_resource(Participant) ->
 -spec get_resource(participant(), resource_id() | undefined) ->
     {ok, resource()} |
     {error, {bin_data, not_found}}.
-get_resource({payer, #{resource_params := ResourceParams}}, ResourceID) ->
+get_resource({raw, #{resource_params := ResourceParams}}, ResourceID) ->
     do(fun() ->
         unwrap(ff_resource:create_resource(ResourceParams, ResourceID))
     end).

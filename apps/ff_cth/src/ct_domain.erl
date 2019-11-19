@@ -65,6 +65,25 @@ p2p_provider(Ref, ProxyRef, IdentityID, C) ->
                             )
                         ]}
                     }
+                ]},
+                fees = {decisions, [
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, #domain_Fees{
+                            fees = #{surplus => ?share(1, 1, operation_amount)}
+                        }}
+                    },
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, #domain_Fees{
+                            fees = #{surplus => ?share(1, 1, operation_amount)}
+                        }}
+                    }#domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, #domain_Fees{
+                            fees = #{surplus => ?share(1, 1, operation_amount)}
+                        }}
+                    }
                 ]}
             },
             accounts = #{

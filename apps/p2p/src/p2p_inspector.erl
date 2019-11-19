@@ -6,12 +6,18 @@
 -type inspector()       :: dmsl_domain_thrift:'P2PInspector'().
 -type transfer()        :: p2p_transfer:p2p_transfer().
 -type domain_revision() :: ff_domain_config:revision().
+-type payment_resource_payer() :: #{
+    resource := ff_resource:resource(),
+    contact_info => p2p_participant:contact_info(),
+    client_info => p2p_transfer:client_info()
+}.
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_proxy_inspector_p2p_thrift.hrl").
 
 -export_type([risk_score/0]).
 -export_type([scores/0]).
+-export_type([payment_resource_payer/0]).
 
 -export([inspect/4]).
 
@@ -87,15 +93,15 @@ encode_transfer_info(P2PTransfer) ->
     CreatedAt = ff_time:to_rfc3339(p2p_transfer:created_at(P2PTransfer)),
     Cash = ff_dmsl_codec:marshal(cash, p2p_transfer:body(P2PTransfer)),
     Sender = p2p_transfer:sender_resource(P2PTransfer),
-    SenderContactInfo = p2p_participant:contact_info(p2p_transfer:sender(P2PTransfer)),
+    ContactInfo = p2p_participant:contact_info(p2p_transfer:sender(P2PTransfer)),
     Receiver = p2p_transfer:receiver_resource(P2PTransfer),
-    ReceiverContactInfo = p2p_participant:contact_info(p2p_transfer:receiver(P2PTransfer)),
+    ClientInfo = p2p_transfer:client_info(P2PTransfer),
     Transfer = #p2p_insp_Transfer{
         id = ID,
         identity = #p2p_insp_Identity{id = IdentityID},
         created_at = CreatedAt,
-        sender = encode_raw(ff_dmsl_codec:marshal(payment_resource_payer, {Sender, SenderContactInfo})),
-        receiver = encode_raw(ff_dmsl_codec:marshal(payment_resource_payer, {Receiver, ReceiverContactInfo})),
+        sender = encode_raw(make_payment_resource_payer(Sender, ClientInfo, ContactInfo)),
+        receiver = encode_raw(make_payment_resource_payer(Receiver, ClientInfo, undefined)),
         cost = Cash
     },
     #p2p_insp_TransferInfo{transfer = Transfer}.
@@ -108,3 +114,11 @@ encode_raw(PaymentResource) ->
     {raw, #p2p_insp_Raw{
         payer = {payment_resource, PaymentResource}
     }}.
+
+make_payment_resource_payer(Resource, ClientInfo, ContactInfo) ->
+    Payer = genlib_map:compact(#{
+        resource => Resource,
+        contact_info => ClientInfo,
+        client_info => ContactInfo
+    }),
+    ff_dmsl_codec:marshal(payment_resource_payer, Payer).

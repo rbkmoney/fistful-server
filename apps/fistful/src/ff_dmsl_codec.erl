@@ -154,10 +154,13 @@ marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
         symbolic_code = CurrencyID
     };
 
-marshal(payment_resource_payer, {Resource, ContactInfo}) ->
+marshal(payment_resource_payer, Payer = #{resource := Resource}) ->
+    ClientInfo = maps:get(client_info, Payer, undefined),
+    ContactInfo = maps:get(contact_info, Payer, undefined),
     #domain_PaymentResourcePayer{
         resource = #domain_DisposablePaymentResource{
-            payment_tool = marshal(resource, Resource)
+            payment_tool = marshal(resource, Resource),
+            client_info = marshal(client_info, ClientInfo)
         },
         contact_info = marshal(contact_info, ContactInfo)
     };
@@ -176,6 +179,16 @@ marshal(contact_info, ContactInfo) ->
     #domain_ContactInfo{
         phone_number = maps:get(phone_number, ContactInfo, undefined),
         email = maps:get(email, ContactInfo, undefined)
+    };
+
+marshal(client_info, undefined) ->
+    #domain_ClientInfo{};
+marshal(client_info, ClientInfo) ->
+    IPAddress = maps:get(ip_address, ClientInfo, undefined),
+    Fingerprint = maps:get(fingerprint, ClientInfo, undefined),
+    #domain_ClientInfo{
+        ip_address = IPAddress,
+        fingerprint = Fingerprint
     };
 
 marshal(p2p_tool, {Sender, Receiver}) ->

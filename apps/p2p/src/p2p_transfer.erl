@@ -25,6 +25,7 @@
 
     sender_resource => resource(),
     receiver_resource => resource(),
+    client_info => client_info(),
     quote => quote(),
     session => session(),
     route => route(),
@@ -41,10 +42,16 @@
     sender := participant(),
     receiver := participant(),
     quote => quote(),
+    client_info => client_info(),
     external_id => id()
 }.
 
 -type quote() :: p2p_quote:quote().
+
+-type client_info() :: #{
+    ip_address => binary(),
+    fingerprint => binary()
+}.
 
 -type status() ::
     pending         |
@@ -116,6 +123,7 @@
 -export_type([start_adjustment_error/0]).
 -export_type([domain_revision/0]).
 -export_type([resource_owner/0]).
+-export_type([client_info/0]).
 
 %% Transfer logic callbacks
 
@@ -133,6 +141,7 @@
 -export([external_id/1]).
 -export([created_at/1]).
 -export([operation_timestamp/1]).
+-export([client_info/1]).
 -export([party_revision/1]).
 -export([domain_revision/1]).
 -export([sender/1]).
@@ -190,7 +199,6 @@
     id := session_id(),
     result => session_result()
 }.
-
 
 -type activity() ::
     risk_scoring |
@@ -285,6 +293,10 @@ created_at(T) ->
 operation_timestamp(#{operation_timestamp := Timestamp}) ->
     Timestamp.
 
+-spec client_info(p2p_transfer()) -> client_info() | undefined.
+client_info(T) ->
+    maps:get(client_info, T, undefined).
+
 -spec create_varset(identity(), p2p_transfer()) -> p2p_party:varset().
 create_varset(Identity, P2PTransfer) ->
     Sender = validate_definition(sender_resource, sender_resource(P2PTransfer)),
@@ -308,6 +320,15 @@ merge_contract_params(Quote, Params) ->
         timestamp => p2p_quote:created_at(Quote)
     }.
 
+get_resource(sender, Params, undefined) ->
+    p2p_participant:get_resource(Params);
+get_resource(sender, Params, Quote) ->
+    p2p_participant:get_resource(Params, p2p_quote:sender_id(Quote));
+get_resource(receiver, Params, undefined) ->
+    p2p_participant:get_resource(Params);
+get_resource(receiver, Params, Quote) ->
+    p2p_participant:get_resource(Params, p2p_quote:receiver_id(Quote)).
+
 %% API
 
 -spec create(params()) ->
@@ -323,16 +344,11 @@ create(TransferParams) ->
             receiver := Receiver
         } = TransferParams,
         Quote = maps:get(quote, TransferParams, undefined),
+        ClientInfo = maps:get(client_info, TransferParams, undefined),
         ExternalID = maps:get(external_id, TransferParams, undefined),
-        {SenderResourceID, ReceiverResourceID} = case Quote of
-            undefined ->
-                {undefined, undefined};
-            Quote ->
-                {p2p_quote:sender_id(Quote), p2p_quote:receiver_id(Quote)}
-        end,
         CreatedAt = ff_time:now(),
-        SenderResource = unwrap(sender, p2p_participant:get_resource(Sender, SenderResourceID)),
-        ReceiverResource = unwrap(receiver, p2p_participant:get_resource(Receiver, ReceiverResourceID)),
+        SenderResource = unwrap(sender, get_resource(sender, Sender, Quote)),
+        ReceiverResource = unwrap(receiver, get_resource(receiver, Receiver, Quote)),
         Identity = unwrap(identity, get_identity(IdentityID)),
         {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
         Params = #{
@@ -362,6 +378,7 @@ create(TransferParams) ->
                 domain_revision => DomainRevision,
                 party_revision => PartyRevision,
                 quote => Quote,
+                client_info => ClientInfo,
                 status => pending
             })},
             {resource_got, SenderResource, ReceiverResource}

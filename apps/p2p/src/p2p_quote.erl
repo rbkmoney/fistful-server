@@ -74,16 +74,19 @@ domain_revision(#{domain_revision := Revision}) ->
 party_revision(#{party_revision := Revision}) ->
     Revision.
 
-
 -spec sender_id(quote()) ->
-    ff_bin_data:bin_data_id().
-sender_id(#{sender := Sender}) ->
-    maps:get(bin_data_id, Sender).
+    ff_resource:resource_id() | undefined.
+sender_id(#{sender := #{type := bank_card, bin_data_id := BinDataID}}) ->
+    {bank_card, BinDataID};
+sender_id(_) ->
+    undefined.
 
 -spec receiver_id(quote()) ->
-    ff_bin_data:bin_data_id().
-receiver_id(#{receiver := Receiver}) ->
-    maps:get(bin_data_id, Receiver).
+    ff_resource:resource_id() | undefined.
+receiver_id(#{receiver := #{type := bank_card, bin_data_id := BinDataID}}) ->
+    {bank_card, BinDataID};
+receiver_id(_) ->
+    undefined.
 
 -spec compact(ff_resource:resource()) ->
     compact_resource().

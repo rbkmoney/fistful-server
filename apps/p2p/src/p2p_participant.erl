@@ -6,6 +6,7 @@
 -opaque participant() :: {raw, raw_params()}.
 
 -export_type([participant/0]).
+-export_type([contact_info/0]).
 
 -type resource() :: ff_resource:resource().
 -type resource_id() :: ff_resource:resource_id().

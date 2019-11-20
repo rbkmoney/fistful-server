@@ -93,6 +93,10 @@ start_processing_apps(Options) ->
                     {{dmsl_p2p_adapter_thrift, 'P2PAdapter'}, {p2p_ct_provider_handler, []}}
                 },
                 {
+                    <<"/p2p_inspector">>,
+                    {{dmsl_proxy_inspector_p2p_thrift, 'InspectorProxy'}, {p2p_ct_inspector_handler, []}}
+                },
+                {
                     <<"/binbase">>,
                     {{binbase_binbase_thrift, 'Binbase'}, {ff_ct_binbase_handler, []}}
                 }
@@ -412,7 +416,7 @@ domain_config(Options, C) ->
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
         ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8222/quotebank">>),
-        ct_domain:proxy(?prx(4), <<"P2P inspector proxy">>, <<"http://localhost:8223/inspector">>),
+        ct_domain:proxy(?prx(4), <<"P2P inspector proxy">>, <<"http://localhost:8222/p2p_inspector">>),
 
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
@@ -634,15 +638,33 @@ default_termset(Options) ->
                 cash_flow = {decisions, [
                     #domain_CashFlowDecision{
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, []}
+                        then_ = {value, [
+                            ?cfpost(
+                                {system, settlement},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
                     },
                     #domain_CashFlowDecision{
                         if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
-                        then_ = {value, []}
+                        then_ = {value, [
+                            ?cfpost(
+                                {system, settlement},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
                     },
                     #domain_CashFlowDecision{
                         if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
-                        then_ = {value, []}
+                        then_ = {value, [
+                            ?cfpost(
+                                {system, settlement},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
                     }
                 ]},
                 fees = {decisions, [

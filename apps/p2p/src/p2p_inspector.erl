@@ -1,22 +1,27 @@
 -module(p2p_inspector).
 
 -type risk_score()      :: low | high | fatal.
--type scores()          :: #{binary() => risk_score()}.
+-type score_id()        :: binary().
+-type scores()          :: #{score_id() => risk_score()}.
 -type inspector()       :: dmsl_domain_thrift:'P2PInspector'().
 -type transfer()        :: p2p_transfer:p2p_transfer().
--type domain_revision() :: integer().%p2p_transfer:domain_revision().
--type id()              :: dmsl_domain_thrift:'ObjectID'().
+-type domain_revision() :: ff_domain_config:revision().
+-type payment_resource_payer() :: #{
+    resource := ff_resource:resource(),
+    contact_info => p2p_participant:contact_info(),
+    client_info => p2p_transfer:client_info()
+}.
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_proxy_inspector_p2p_thrift.hrl").
 
 -export_type([risk_score/0]).
 -export_type([scores/0]).
--export_type([id/0]).
+-export_type([payment_resource_payer/0]).
 
 -export([inspect/4]).
 
--spec inspect(transfer(), domain_revision(), [binary()], inspector()) -> scores() | no_return().
+-spec inspect(transfer(), domain_revision(), [score_id()], inspector()) -> scores().
 inspect(P2PTransfer, DomainRevision, RiskTypes, Inspector) ->
     #domain_P2PInspector{
         fallback_risk_score = FallBackRiskScore,
@@ -39,7 +44,12 @@ inspect(P2PTransfer, DomainRevision, RiskTypes, Inspector) ->
     end.
 
 issue_call(Client, Request, undefined) ->
-    ff_woody_client:call(Client, Request);
+    case ff_woody_client:call(Client, Request) of
+        {ok, InspectResult} ->
+            {ok, decode_inspect_result(InspectResult)};
+        {exception, _} = Error ->
+            Error
+    end;
 issue_call(Client, Request, Default) ->
     try ff_woody_client:call(Client, Request) of
         {ok, InspectResult}  ->
@@ -79,37 +89,37 @@ create_request(P2PTransfer, RiskTypes, Options) ->
 
 encode_transfer_info(P2PTransfer) ->
     ID = p2p_transfer:id(P2PTransfer),
-    IdentityID = p2p_transfer:identity_id(P2PTransfer),
+    IdentityID = p2p_transfer:owner(P2PTransfer),
     CreatedAt = ff_time:to_rfc3339(p2p_transfer:created_at(P2PTransfer)),
     Cash = ff_dmsl_codec:marshal(cash, p2p_transfer:body(P2PTransfer)),
     Sender = p2p_transfer:sender_resource(P2PTransfer),
+    SenderContactInfo = p2p_participant:contact_info(p2p_transfer:sender(P2PTransfer)),
     Receiver = p2p_transfer:receiver_resource(P2PTransfer),
+    ReceiverContactInfo = p2p_participant:contact_info(p2p_transfer:receiver(P2PTransfer)),
+    ClientInfo = p2p_transfer:client_info(P2PTransfer),
     Transfer = #p2p_insp_Transfer{
         id = ID,
         identity = #p2p_insp_Identity{id = IdentityID},
         created_at = CreatedAt,
-        sender = encode_payer(Sender),
-        receiver = encode_payer(Receiver),
+        sender = encode_raw(make_payment_resource_payer(Sender, ClientInfo, SenderContactInfo)),
+        receiver = encode_raw(make_payment_resource_payer(Receiver, ClientInfo, ReceiverContactInfo)),
         cost = Cash
     },
     #p2p_insp_TransferInfo{transfer = Transfer}.
 
-encode_payer(Participant) ->
-    Instrument = p2p_participant:instrument(Participant),
-    ContactInfo = p2p_participant:encode_contact_info(
-        p2p_participant:contact_info(Participant)
-    ),
-    Resource = #domain_DisposablePaymentResource{
-        payment_tool = p2p_instrument:construct_payment_tool(Instrument)
-    },
-    PaymentResource = #domain_PaymentResourcePayer{
-        resource = Resource,
-        contact_info = ContactInfo
-    },
+decode_inspect_result(InspectResult) ->
+    #p2p_insp_InspectResult{scores = Scores} = InspectResult,
+    Scores.
+
+encode_raw(PaymentResource) ->
     {raw, #p2p_insp_Raw{
         payer = {payment_resource, PaymentResource}
     }}.
 
-decode_inspect_result(InspectResult) ->
-    #p2p_insp_InspectResult{scores = Scores} = InspectResult,
-    Scores.
+make_payment_resource_payer(Resource, ClientInfo, ContactInfo) ->
+    Payer = genlib_map:compact(#{
+        resource => Resource,
+        contact_info => ClientInfo,
+        client_info => ContactInfo
+    }),
+    ff_dmsl_codec:marshal(payment_resource_payer, Payer).

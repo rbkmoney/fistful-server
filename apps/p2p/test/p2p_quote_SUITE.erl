@@ -1,4 +1,4 @@
--module(p2p_fee_SUITE).
+-module(p2p_quote_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_accounter_thrift.hrl").
@@ -72,16 +72,14 @@ end_per_testcase(_Name, _C) ->
 get_fee_ok_test(C) ->
     Cash = {22500, <<"RUB">>},
     CardSender   = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    CardReceiver = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     #{
         wallet_id := WalletID
     } = prepare_standard_environment(Cash, C),
     {ok, Machine} = ff_wallet_machine:get(WalletID),
     Wallet = ff_wallet_machine:wallet(Machine),
     Identity = ff_wallet:identity(Wallet),
-    {ok, Sender} = p2p_instrument:extend({bank_card, {short, CardSender}}),
-    {ok, Receiver} = p2p_instrument:extend({bank_card, {short, CardReceiver}}),
-    {ok, {Fee, CashVolume, _}} = p2p_fees:get_fee_quote(Cash, Identity, Sender, Receiver),
+    Sender = {bank_card, CardSender},
+    {ok, {Fee, CashVolume, _}} = p2p_quote:get_quote(Cash, Identity, Sender, Sender),
     ?assertEqual({share, {{65, 10000}, operation_amount, default}}, CashVolume),
     ?assertEqual({146, <<"RUB">>}, Fee).
 
@@ -96,14 +94,14 @@ visa_to_nspkmir_not_allow_test(C) ->
     {ok, Machine} = ff_wallet_machine:get(WalletID),
     Wallet = ff_wallet_machine:wallet(Machine),
     Identity = ff_wallet:identity(Wallet),
-    {ok, Sender}    = p2p_instrument:extend({bank_card, {short, CardSender}}),
-    {ok, Receiver}  = p2p_instrument:extend({bank_card, {short, #{
+    Sender = {bank_card, CardSender},
+    Receiver = {bank_card, #{
         bin => Bin,
         masked_pan => Pan,
         token => <<"NSPK MIR">>
-    }}}),
-    Result = p2p_fees:get_fee_quote(Cash, Identity, Sender, Receiver),
-    ?assertEqual({error, {p2p_tool, not_allow}}, Result).
+    }},
+    Result = p2p_quote:get_quote(Cash, Identity, Sender, Receiver),
+    ?assertEqual({error, {terms, {terms_violation, p2p_forbidden}}}, Result).
 
 %% Utils
 

@@ -4,12 +4,12 @@
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: #{
-    id                      := id(),
-    system_accounts         := dmsl_domain_thrift:'SystemAccountSetSelector'(),
-    identity                := binary(),
-    withdrawal_providers    := dmsl_domain_thrift:'WithdrawalProviderSelector'(),
-    p2p_providers           := dmsl_domain_thrift:'P2PProviderSelector'(),
-    p2p_inspector           := dmsl_domain_thrift:'P2PInspectorSelector'()
+    id                   := id(),
+    system_accounts      := dmsl_domain_thrift:'SystemAccountSetSelector'(),
+    identity             := binary(),
+    withdrawal_providers := dmsl_domain_thrift:'WithdrawalProviderSelector'(),
+    p2p_providers        := dmsl_domain_thrift:'P2PProviderSelector'(),
+    p2p_inspector        := dmsl_domain_thrift:'P2PInspectorSelector'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -120,12 +120,12 @@ decode(ID, #domain_PaymentInstitution{
     p2p_inspector = P2PInspector
 }) ->
     #{
-        id              => ID,
-        system_accounts => SystemAccounts,
-        identity        => Identity,
+        id                   => ID,
+        system_accounts      => SystemAccounts,
+        identity             => Identity,
         withdrawal_providers => WithdrawalProviders,
-        p2p_providers   => P2PProviders,
-        p2p_inspector   => P2PInspector
+        p2p_providers        => P2PProviders,
+        p2p_inspector        => P2PInspector
     }.
 
 decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts}) ->

@@ -649,9 +649,7 @@ quote_p2p_transfer(Params, Context) ->
             body := Body
         } = from_swag(quote_p2p_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
-        {ok, SenderInstrument} = p2p_instrument:create(Sender),
-        {ok, ReceiverInstrument} = p2p_instrument:create(Receiver),
-        case p2p_fees:get_fee_quote(Body, IdentityID, SenderInstrument, ReceiverInstrument) of
+        case p2p_quote:get_quote(Body, IdentityID, Sender, Receiver) of
             {ok, {SurplusCash, _SurplusCashVolume, Quote}} ->
                 to_swag(p2p_transfer_quote, {SurplusCash, Quote, PartyID});
             {error, {identity,   not_found}} ->

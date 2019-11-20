@@ -360,11 +360,8 @@ quote_p2p_transfer_ok_test(C) ->
     SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
     ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
     #{
-        wallet_id := WalletID
+        identity_id := IdentityID
     } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
-    {ok, Machine} = ff_wallet_machine:get(WalletID),
-    Wallet = ff_wallet_machine:wallet(Machine),
-    IdentityID = ff_wallet:identity(Wallet),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
         #{

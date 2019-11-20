@@ -188,6 +188,7 @@
 -type risk_score() :: p2p_inspector:risk_score().
 -type participant() :: p2p_participant:participant().
 -type resource() :: ff_resource:resource().
+-type contract_params() :: p2p_party:contract_params().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -311,6 +312,8 @@ create_varset(Identity, P2PTransfer) ->
     },
     p2p_party:create_varset(Params).
 
+-spec merge_contract_params(p2p_quote:quote() | undefined, contract_params()) ->
+    contract_params().
 merge_contract_params(undefined, Params) ->
     Params;
 merge_contract_params(Quote, Params) ->
@@ -319,15 +322,6 @@ merge_contract_params(Quote, Params) ->
         domain_revision => p2p_quote:domain_revision(Quote),
         timestamp => p2p_quote:created_at(Quote)
     }.
-
-get_resource(sender, Params, undefined) ->
-    p2p_participant:get_resource(Params);
-get_resource(sender, Params, Quote) ->
-    p2p_participant:get_resource(Params, p2p_quote:sender_id(Quote));
-get_resource(receiver, Params, undefined) ->
-    p2p_participant:get_resource(Params);
-get_resource(receiver, Params, Quote) ->
-    p2p_participant:get_resource(Params, p2p_quote:receiver_id(Quote)).
 
 %% API
 
@@ -347,8 +341,8 @@ create(TransferParams) ->
         ClientInfo = maps:get(client_info, TransferParams, undefined),
         ExternalID = maps:get(external_id, TransferParams, undefined),
         CreatedAt = ff_time:now(),
-        SenderResource = unwrap(sender, get_resource(sender, Sender, Quote)),
-        ReceiverResource = unwrap(receiver, get_resource(receiver, Receiver, Quote)),
+        SenderResource = unwrap(sender, prepare_resource(sender, Sender, Quote)),
+        ReceiverResource = unwrap(receiver, prepare_resource(receiver, Receiver, Quote)),
         Identity = unwrap(identity, get_identity(IdentityID)),
         {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
         Params = #{
@@ -448,6 +442,19 @@ do_start_adjustment(Params, P2PTransfer) ->
     end).
 
 %% Internal getters
+
+-spec prepare_resource(sender | receiver, p2p_participant:participant(), p2p_quote:quote() | undefined) ->
+    {ok, resource()} |
+    {error, {bin_data, not_found}}.
+
+prepare_resource(sender, Params, undefined) ->
+    p2p_participant:get_resource(Params);
+prepare_resource(sender, Params, Quote) ->
+    p2p_participant:get_resource(Params, p2p_quote:sender_id(Quote));
+prepare_resource(receiver, Params, undefined) ->
+    p2p_participant:get_resource(Params);
+prepare_resource(receiver, Params, Quote) ->
+    p2p_participant:get_resource(Params, p2p_quote:receiver_id(Quote)).
 
 -spec p_transfer(p2p_transfer()) -> p_transfer() | undefined.
 p_transfer(P2PTransfer) ->

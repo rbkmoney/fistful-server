@@ -22,6 +22,7 @@
 }.
 
 -export_type([varset/0]).
+-export_type([contract_params/0]).
 -export([create_varset/1]).
 -export([get_contract_terms/2]).
 

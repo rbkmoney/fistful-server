@@ -86,6 +86,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -218,21 +219,27 @@ create_ok_test(C) ->
         receiver := ResourceReceiver
     } = prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
+    ClientInfo = #{
+        ip_address => <<"some ip_address">>,
+        fingerprint => <<"some fingerprint">>
+    },
     P2PTransferParams = #{
         id => P2PTransferID,
         identity_id => IdentityID,
         sender => ResourceSender,
         receiver => ResourceReceiver,
         body => Cash,
+        client_info => ClientInfo,
         external_id => P2PTransferID
     },
     ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
     ?assertEqual(succeeded, await_final_p2p_transfer_status(P2PTransferID)),
     P2PTransfer = get_p2p_transfer(P2PTransferID),
     ?assertEqual(IdentityID, p2p_transfer:owner(P2PTransfer)),
-    % ?assertEqual(ResourceSender, p2p_transfer:resource_full(P2PTransfer, sender)),
-    % ?assertEqual(ResourceReceiver, p2p_transfer:resource_full(P2PTransfer, receiver)),
+    ?assertEqual(ResourceSender, p2p_transfer:sender(P2PTransfer)),
+    ?assertEqual(ResourceReceiver, p2p_transfer:receiver(P2PTransfer)),
     ?assertEqual(Cash, p2p_transfer:body(P2PTransfer)),
+    ?assertEqual(ClientInfo, p2p_transfer:client_info(P2PTransfer)),
     ?assertEqual(P2PTransferID, p2p_transfer:external_id(P2PTransfer)).
 
 -spec preserve_revisions_test(config()) -> test_return().

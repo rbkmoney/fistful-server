@@ -160,7 +160,7 @@ marshal(payment_resource_payer, Payer = #{resource := Resource}) ->
     #domain_PaymentResourcePayer{
         resource = #domain_DisposablePaymentResource{
             payment_tool = marshal(resource, Resource),
-            client_info = marshal(client_info, ClientInfo)
+            client_info = maybe_marshal(client_info, ClientInfo)
         },
         contact_info = marshal(contact_info, ContactInfo)
     };
@@ -181,8 +181,6 @@ marshal(contact_info, ContactInfo) ->
         email = maps:get(email, ContactInfo, undefined)
     };
 
-marshal(client_info, undefined) ->
-    #domain_ClientInfo{};
 marshal(client_info, ClientInfo) ->
     IPAddress = maps:get(ip_address, ClientInfo, undefined),
     Fingerprint = maps:get(fingerprint, ClientInfo, undefined),
@@ -213,3 +211,8 @@ marshal(integer, V) when is_integer(V) ->
 
 marshal(_, Other) ->
     Other.
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).

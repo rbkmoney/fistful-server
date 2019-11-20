@@ -93,15 +93,16 @@ encode_transfer_info(P2PTransfer) ->
     CreatedAt = ff_time:to_rfc3339(p2p_transfer:created_at(P2PTransfer)),
     Cash = ff_dmsl_codec:marshal(cash, p2p_transfer:body(P2PTransfer)),
     Sender = p2p_transfer:sender_resource(P2PTransfer),
-    ContactInfo = p2p_participant:contact_info(p2p_transfer:sender(P2PTransfer)),
+    SenderContactInfo = p2p_participant:contact_info(p2p_transfer:sender(P2PTransfer)),
     Receiver = p2p_transfer:receiver_resource(P2PTransfer),
+    ReceiverContactInfo = p2p_participant:contact_info(p2p_transfer:receiver(P2PTransfer)),
     ClientInfo = p2p_transfer:client_info(P2PTransfer),
     Transfer = #p2p_insp_Transfer{
         id = ID,
         identity = #p2p_insp_Identity{id = IdentityID},
         created_at = CreatedAt,
-        sender = encode_raw(make_payment_resource_payer(Sender, ClientInfo, ContactInfo)),
-        receiver = encode_raw(make_payment_resource_payer(Receiver, ClientInfo, undefined)),
+        sender = encode_raw(make_payment_resource_payer(Sender, ClientInfo, SenderContactInfo)),
+        receiver = encode_raw(make_payment_resource_payer(Receiver, ClientInfo, ReceiverContactInfo)),
         cost = Cash
     },
     #p2p_insp_TransferInfo{transfer = Transfer}.

@@ -113,12 +113,10 @@ unmarshal(cash_range, #domain_CashRange{
         {BoundUpper, unmarshal(cash, CashUpper)}
     };
 
-unmarshal(currency_ref, #domain_CurrencyRef{
-    symbolic_code = SymbolicCode
-}) ->
+unmarshal(currency_ref, #domain_CurrencyRef{symbolic_code = SymbolicCode}) ->
     unmarshal(string, SymbolicCode);
 
-	unmarshal(risk_score, low) ->
+unmarshal(risk_score, low) ->
     low;
 unmarshal(risk_score, high) ->
     high;
@@ -204,21 +202,6 @@ marshal(currency, #{
         numeric_code  = Numcode,
         exponent      = Exponent
     };
-
-marshal(resource, {bank_card, #{
-    token           := Token,
-    payment_system  := PaymentSystem,
-    bin             := Bin,
-    masked_pan      := MaskedPan
-}}) ->
-    {disposable, #domain_DisposablePaymentResource{
-        payment_tool = {bank_card, #domain_BankCard{
-            token          = Token,
-            payment_system = PaymentSystem,
-            bin            = Bin,
-            masked_pan     = MaskedPan
-        }}
-    }};
 
 marshal(payment_resource_payer, Payer = #{resource := Resource}) ->
     ClientInfo = maps:get(client_info, Payer, undefined),

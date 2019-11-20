@@ -65,8 +65,8 @@
 -type transfer_params() :: #{
     id       := id(),
     body     := body(),
-    sender   := p2p_transfer:resource_full(),
-    receiver := p2p_transfer:resource_full(),
+    sender   := ff_resource:resource(),
+    receiver := ff_resource:resource(),
     deadline => deadline()
 }.
 
@@ -75,7 +75,7 @@
 -type adapter_state() :: p2p_adapter:adapter_state().
 -type session_result() :: p2p_adapter:finish_status().
 
--type deadline() :: binary().
+-type deadline() :: p2p_adapter:deadline().
 
 -type params() :: #{
     provider_id := ff_p2p_provider:id()

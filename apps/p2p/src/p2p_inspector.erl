@@ -122,3 +122,4 @@ make_payment_resource_payer(Resource, ClientInfo, ContactInfo) ->
         contact_info => ClientInfo,
         client_info => ContactInfo
     }),
+    ff_dmsl_codec:marshal(payment_resource_payer, Payer).

@@ -174,7 +174,6 @@
 -type body() :: ff_cash:cash().
 -type identity() :: ff_identity:identity().
 -type identity_id() :: ff_identity:id().
--type party_id() :: ff_party:id().
 -type process_result() :: {action(), [event()]}.
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 -type external_id() :: id() | undefined.
@@ -187,7 +186,6 @@
 -type adjustments_index() :: ff_adjustment_utils:index().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
--type terms() :: ff_party:terms().
 -type party_varset() :: hg_selector:varset().
 -type risk_score() :: p2p_inspector:risk_score().
 -type participant() :: p2p_participant:participant().
@@ -349,7 +347,7 @@ create(TransferParams) ->
         Quote = maps:get(quote, TransferParams, undefined),
         ClientInfo = maps:get(client_info, TransferParams, undefined),
         ExternalID = maps:get(external_id, TransferParams, undefined),
-		Deadline = maps:get(deadline, Params, undefined),
+        Deadline = maps:get(deadline, TransferParams, undefined),
         CreatedAt = ff_time:now(),
         SenderResource = unwrap(sender, prepare_resource(sender, Sender, Quote)),
         ReceiverResource = unwrap(receiver, prepare_resource(receiver, Receiver, Quote)),
@@ -716,7 +714,7 @@ process_session_poll(P2PTransfer) ->
         active ->
             {poll, []};
         {finished, Result} ->
-        	SessionID = session_id(P2PTransfer),
+            SessionID = session_id(P2PTransfer),
             {continue, [{session, {SessionID, {finished, Result}}}]}
     end.
 

@@ -417,13 +417,13 @@ domain_config(Options, C) ->
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
         ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8222/quotebank">>),
-        ct_domain:proxy(?prx(4), <<"P2P adapter">>, <<"http://localhost:8222/p2p_adapter">>),
-		ct_domain:proxy(?prx(5), <<"P2P inspector proxy">>, <<"http://localhost:8222/p2p_inspector">>),
-		
+        ct_domain:proxy(?prx(4), <<"P2P inspector proxy">>, <<"http://localhost:8222/p2p_inspector">>),
+        ct_domain:proxy(?prx(5), <<"P2P adapter">>, <<"http://localhost:8222/p2p_adapter">>),
+
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
-        ct_domain:p2p_provider(?p2p_prv(1), ?prx(4), dummy_provider_identity_id(Options), C),
+        ct_domain:p2p_provider(?p2p_prv(1), ?prx(5), dummy_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),

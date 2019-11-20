@@ -25,7 +25,7 @@
 -export_type([operation_info/0]).
 -export_type([cash/0]).
 -export_type([currency/0]).
--export_type([resource/0]).
+-export_type([deadline/0]).
 
 -export_type([process_result/0]).
 -export_type([handle_callback_result/0]).
@@ -63,12 +63,7 @@
 
 -type symcode()                 :: binary().
 
--type resource()                :: {bank_card, #{
-    token          := binary(),
-    bin            := binary(),
-    payment_system := atom(),
-    masked_pan     := binary()
-}}.
+-type resource()                :: ff_resource:resource().
 
 -type deadline()                :: binary().
 
@@ -169,8 +164,8 @@ do_build_context(AdapterState, TransferParams, AdapterOpts) ->
     operation_info().
 build_operation_info(TransferParams) ->
     Body     = build_operation_info_body(TransferParams),
-    Sender   = build_operation_info_resource(maps:get(sender, TransferParams)),
-    Receiver = build_operation_info_resource(maps:get(receiver, TransferParams)),
+    Sender   = maps:get(sender, TransferParams),
+    Receiver = maps:get(receiver, TransferParams),
     Deadline = maps:get(deadline, TransferParams, undefined),
     genlib_map:compact(#{
         body     => Body,
@@ -189,14 +184,4 @@ build_operation_info_body(TransferParams) ->
         symcode   => maps:get(symcode, Currency),
         numcode   => maps:get(numcode, Currency),
         exponent  => maps:get(exponent, Currency)
-    }}.
-
--spec build_operation_info_resource(p2p_transfer:resource_full()) ->
-    resource().
-build_operation_info_resource({raw_full, Resource}) ->
-    {bank_card, #{
-        token          => maps:get(token, Resource),
-        bin            => maps:get(bin, Resource),
-        payment_system => maps:get(payment_system, Resource),
-        masked_pan     => maps:get(masked_pan, Resource)
     }}.

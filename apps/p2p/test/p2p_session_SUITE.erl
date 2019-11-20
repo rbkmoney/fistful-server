@@ -247,15 +247,15 @@ prepare_standard_environment(_P2PTransferCash, Token, C) ->
     ResourceSender = create_resource_raw(Token, C),
     ResourceReceiver = create_resource_raw(Token, C),
     #{
-        sender => make_resource_full(ResourceSender),
-        receiver => make_resource_full(ResourceReceiver)
+        sender => prepare_resource(ResourceSender),
+        receiver => prepare_resource(ResourceReceiver)
     }.
 
-make_resource_full(#{token := Token} = RawBankCard) ->
+prepare_resource(#{token := Token} = RawBankCard) ->
     {ok, BinData} = ff_bin_data:get(Token, undefined),
     KeyList = [payment_system, bank_name, iso_country_code, card_type],
     ExtendData = maps:with(KeyList, BinData),
-    {raw_full, maps:merge(RawBankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})}.
+    {bank_card, maps:merge(RawBankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})}.
 
 get_p2p_session(P2PSessionID) ->
     {ok, Machine} = p2p_session_machine:get(P2PSessionID),

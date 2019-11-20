@@ -62,6 +62,9 @@
 -type callback_response()           :: p2p_callback:response().
 -type p2p_callback_response()       :: dmsl_p2p_adapter_thrift:'CallbackResponse'().
 
+-type resource()                    :: ff_resource:resource().
+-type disposable_resource()         :: dmsl_p2p_adapter_thrift:'PaymentResource'().
+
 %% API
 
 -spec marshal(process_callback_result, process_callback_result()) -> p2p_process_callback_result();
@@ -70,6 +73,7 @@
              (context,                 context())                 -> p2p_context();
              (session,                 adapter_state())           -> p2p_session();
              (operation_info,          operation_info())          -> p2p_operation_info();
+             (resource,                resource())                -> disposable_resource();
              (body,                    cash())                    -> p2p_cash().
 marshal(process_callback_result, {succeeded, Response}) ->
     {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
@@ -110,9 +114,14 @@ marshal(operation_info, OperationInfo = #{
 }) ->
     {process, #p2p_adapter_ProcessOperationInfo{
         body     = marshal(body,     Cash),
-        sender   = ff_dmsl_codec:marshal(resource, Sender),
-        receiver = ff_dmsl_codec:marshal(resource, Receiver),
+        sender   = marshal(resource, Sender),
+        receiver = marshal(resource, Receiver),
         deadline = maps:get(deadline, OperationInfo, undefined)
+    }};
+
+marshal(resource, Resource) ->
+    {disposable, #domain_DisposablePaymentResource{
+        payment_tool = ff_dmsl_codec:marshal(resource, Resource)
     }};
 
 marshal(body, {Amount, Currency}) ->

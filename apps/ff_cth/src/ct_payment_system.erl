@@ -93,6 +93,10 @@ start_processing_apps(Options) ->
                     {{dmsl_p2p_adapter_thrift, 'P2PAdapter'}, {p2p_ct_provider_handler, []}}
                 },
                 {
+                    <<"/p2p_inspector">>,
+                    {{dmsl_proxy_inspector_p2p_thrift, 'InspectorProxy'}, {p2p_ct_inspector_handler, []}}
+                },
+                {
                     <<"/binbase">>,
                     {{binbase_binbase_thrift, 'Binbase'}, {ff_ct_binbase_handler, []}}
                 }
@@ -392,7 +396,8 @@ domain_config(Options, C) ->
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = dummy_payment_inst_identity_id(Options),
                 withdrawal_providers      = {value, [?wthdr_prv(3)]},
-                p2p_providers = {decisions, [
+                p2p_inspector             = {value, ?p2p_insp(1)},
+                p2p_providers             = {decisions, [
                     #domain_P2PProviderDecision{
                         if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {value, [?p2p_prv(1)]}
@@ -408,11 +413,13 @@ domain_config(Options, C) ->
         ct_domain:system_account_set(?sas(1), <<"System">>, ?cur(<<"RUB">>), C),
 
         ct_domain:inspector(?insp(1), <<"Low Life">>, ?prx(1), #{<<"risk_score">> => <<"low">>}),
+        ct_domain:p2p_inspector(?p2p_insp(1), <<"Low Life">>, ?prx(4), #{<<"risk_score">> => <<"low">>}),
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
         ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8222/quotebank">>),
         ct_domain:proxy(?prx(4), <<"P2P adapter">>, <<"http://localhost:8222/p2p_adapter">>),
-
+		ct_domain:proxy(?prx(5), <<"P2P inspector proxy">>, <<"http://localhost:8222/p2p_inspector">>),
+		
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
@@ -633,15 +640,33 @@ default_termset(Options) ->
                 cash_flow = {decisions, [
                     #domain_CashFlowDecision{
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, []}
+                        then_ = {value, [
+                            ?cfpost(
+                                {system, settlement},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
                     },
                     #domain_CashFlowDecision{
                         if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
-                        then_ = {value, []}
+                        then_ = {value, [
+                            ?cfpost(
+                                {system, settlement},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
                     },
                     #domain_CashFlowDecision{
                         if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
-                        then_ = {value, []}
+                        then_ = {value, [
+                            ?cfpost(
+                                {system, settlement},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
                     }
                 ]},
                 fees = {decisions, [
@@ -683,11 +708,17 @@ default_termset(Options) ->
                                 ]}
                             }
                         ]}
+                    },
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
                     }
                 ]},
-                quote_lifetime = {interval, #domain_LifetimeInterval{
+                quote_lifetime = {value, {interval, #domain_LifetimeInterval{
                     days = 1, minutes = 1, seconds = 1
-                }}
+                }}}
             }
         }
     },

@@ -14,6 +14,10 @@
     {ok, woody:result()} | no_return().
 handle_function('GetByCardToken', [<<"TEST_NOTFOUND">>], _Context, _Opts) ->
     woody_error:raise(business, #binbase_BinNotFound{});
+handle_function('GetByCardToken', [<<"TEST_NOTFOUND_SENDER">>], _Context, _Opts) ->
+    woody_error:raise(business, #binbase_BinNotFound{});
+handle_function('GetByCardToken', [<<"TEST_NOTFOUND_RECEIVER">>], _Context, _Opts) ->
+    woody_error:raise(business, #binbase_BinNotFound{});
 handle_function('GetByCardToken', [<<"USD_COUNTRY">>], _Context, _Opts) ->
     {ok, #binbase_ResponseData{
         bin_data = #binbase_BinData{

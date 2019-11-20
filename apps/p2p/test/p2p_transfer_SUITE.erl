@@ -108,7 +108,7 @@ route_not_found_fail_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
@@ -128,7 +128,7 @@ create_cashlimit_validation_error_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
@@ -150,7 +150,7 @@ create_currency_validation_error_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
@@ -177,7 +177,7 @@ create_sender_resource_notfound_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, <<"TEST_NOTFOUND_SENDER">>, C),
+    } = p2p_tests_utils:prepare_standard_environment(Cash, <<"TEST_NOTFOUND_SENDER">>, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
@@ -197,7 +197,7 @@ create_receiver_resource_notfound_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, <<"TEST_NOTFOUND_RECEIVER">>, C),
+    } = p2p_tests_utils:prepare_standard_environment(Cash, <<"TEST_NOTFOUND_RECEIVER">>, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
@@ -217,7 +217,7 @@ create_ok_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
     ClientInfo = #{
         ip_address => <<"some ip_address">>,
@@ -249,7 +249,7 @@ preserve_revisions_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
@@ -272,31 +272,6 @@ unknown_test(_C) ->
     ?assertMatch({error, {unknown_p2p_transfer, P2PTransferID}}, Result).
 
 %% Utils
-
-prepare_standard_environment(P2PTransferCash, C) ->
-    prepare_standard_environment(P2PTransferCash, undefined, C).
-
-prepare_standard_environment(_P2PTransferCash, Token, C) ->
-    PartyID = create_party(C),
-    IdentityID = create_person_identity(PartyID, C, <<"quote-owner">>),
-    {ResourceSender, ResourceReceiver} = case Token of
-        <<"TEST_NOTFOUND_SENDER">> = T -> {
-            create_resource_raw(T, C),
-            create_resource_raw(undefined, C)
-        };
-        <<"TEST_NOTFOUND_RECEIVER">> = T -> {
-            create_resource_raw(undefined, C),
-            create_resource_raw(T, C)
-        };
-        Other -> {create_resource_raw(Other, C), create_resource_raw(Other, C)}
-    end,
-    % ct:print(" >>> ~p", [{ResourceSender, ResourceReceiver}]),
-    #{
-        identity_id => IdentityID,
-        sender => ResourceSender,
-        receiver => ResourceReceiver,
-        party_id => PartyID
-    }.
 
 get_p2p_transfer(P2PTransferID) ->
     {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
@@ -322,32 +297,5 @@ await_final_p2p_transfer_status(P2PTransferID) ->
     ),
     get_p2p_transfer_status(P2PTransferID).
 
-create_party(_C) ->
-    ID = genlib:bsuuid(),
-    _ = ff_party:create(ID),
-    ID.
-
-create_person_identity(Party, C, ProviderID) ->
-    create_identity(Party, ProviderID, <<"person">>, C).
-
-create_identity(Party, ProviderID, ClassID, _C) ->
-    ID = genlib:unique(),
-    ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
-        ff_entity_context:new()
-    ),
-    ID.
-
 generate_id() ->
     ff_id:generate_snowflake_id().
-
-create_resource_raw(Token, C) ->
-    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    NewStoreResource = case Token of
-        undefined ->
-            StoreSource;
-        Token ->
-            StoreSource#{token => Token}
-        end,
-    p2p_participant:create(raw, {bank_card, NewStoreResource}).

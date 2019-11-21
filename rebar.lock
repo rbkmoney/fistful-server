@@ -21,7 +21,7 @@
  {<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.6.3">>},0},
  {<<"cowboy_access_log">>,
   {git,"git@github.com:rbkmoney/cowboy_access_log.git",
-       {ref,"98e3b278e29da1bd298140349d68d8ebaeeec31e"}},
+       {ref,"584196154be4c888bef1482481642e5517b6946b"}},
   0},
  {<<"cowboy_cors">>,
   {git,"https://github.com/rbkmoney/cowboy_cors.git",

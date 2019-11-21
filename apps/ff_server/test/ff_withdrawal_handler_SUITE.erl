@@ -1,5 +1,6 @@
 -module(ff_withdrawal_handler_SUITE).
 
+-include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
@@ -76,13 +77,13 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 
 -spec create_withdrawal_ok(config()) -> test_return().
@@ -101,7 +102,7 @@ create_withdrawal_ok(C) ->
         amount = 1000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = WalletID,
@@ -120,7 +121,7 @@ create_withdrawal_ok(C) ->
     Body          = Withdrawal#wthd_Withdrawal.body,
 
     {succeeded, _} = ct_helper:await(
-        {succeeded, #wthd_WithdrawalSucceeded{}},
+        {succeeded, #wthd_status_Succeeded{}},
         fun() ->
             {ok, W} = call_service(withdrawal, 'Get', [ID]),
             W#wthd_Withdrawal.status
@@ -138,7 +139,7 @@ create_withdrawal_wallet_currency_fail(C) ->
         amount = 1000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">> }
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = WalletID,
@@ -162,7 +163,7 @@ create_withdrawal_cashrange_fail(C) ->
         amount = -1000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = WalletID,
@@ -190,7 +191,7 @@ create_withdrawal_destination_fail(C) ->
         amount = -1000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = WalletID,
@@ -212,7 +213,7 @@ create_withdrawal_wallet_fail(C) ->
         amount = -1000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = BadWalletID,
@@ -233,7 +234,7 @@ get_events_ok(C) ->
         amount = 2000,
         currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
     },
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
         id          = ID,
         source      = WalletID,
@@ -249,8 +250,8 @@ get_events_ok(C) ->
         limit   = 1000,
         'after' = undefined
     },
-    {succeeded, #wthd_WithdrawalSucceeded{}} = ct_helper:await(
-        {succeeded, #wthd_WithdrawalSucceeded{}},
+    {succeeded, #wthd_status_Succeeded{}} = ct_helper:await(
+        {succeeded, #wthd_status_Succeeded{}},
         fun () ->
             {ok, Events} = call_service(withdrawal, 'GetEvents', [ID, Range]),
             lists:foldl(fun(#wthd_Event{change = {status_changed, Status}}, _AccIn) -> Status;
@@ -288,7 +289,7 @@ call_service(destination, Fun, Args) ->
     ff_woody_client:call(Client, Request).
 
 call_admin(Fun, Args) ->
-    Service = {ff_proto_fistful_thrift, 'FistfulAdmin'},
+    Service = {ff_proto_fistful_admin_thrift, 'FistfulAdmin'},
     Request = {Service, Fun, Args},
     Client  = ff_woody_client:new(#{
         url           => <<"http://localhost:8022/v1/admin">>,
@@ -311,7 +312,7 @@ create_identity() ->
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     IdentityID.
 
@@ -322,7 +323,7 @@ create_wallet(Currency, Amount) ->
         id = WalletID,
         name = <<"BigBossWallet">>,
         external_id = ExternalID,
-        context = ff_ctx:new(),
+        context = ff_entity_context:new(),
         account_params = #account_AccountParams{
             identity_id   = IdentityID,
             symbolic_code = Currency
@@ -365,24 +366,24 @@ add_money(WalletID, IdentityID, Amount, Currency) ->
     SrcID = genlib:unique(),
 
     % Create source
-    {ok, _Src1} = call_admin('CreateSource', [#fistful_SourceParams{
+    {ok, _Src1} = call_admin('CreateSource', [#ff_admin_SourceParams{
         id       = SrcID,
         name     = <<"HAHA NO">>,
         identity_id = IdentityID,
         currency = #'CurrencyRef'{symbolic_code = Currency},
-        resource = #fistful_SourceResource{details = <<"Infinite source of cash">>}
+        resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
     }]),
 
-    authorized = ct_helper:await(
-        authorized,
+    {authorized, #src_Authorized{}} = ct_helper:await(
+        {authorized, #src_Authorized{}},
         fun () ->
             {ok, Src} = call_admin('GetSource', [SrcID]),
-            Src#fistful_Source.status
+            Src#src_Source.status
         end
     ),
 
     % Process deposit
-    {ok, Dep1} = call_admin('CreateDeposit', [#fistful_DepositParams{
+    {ok, Dep1} = call_admin('CreateDeposit', [#ff_admin_DepositParams{
         id          = genlib:unique(),
         source      = SrcID,
         destination = WalletID,
@@ -391,13 +392,13 @@ add_money(WalletID, IdentityID, Amount, Currency) ->
             currency = #'CurrencyRef'{symbolic_code = Currency}
         }
     }]),
-    DepID = Dep1#fistful_Deposit.id,
-    {pending, _} = Dep1#fistful_Deposit.status,
+    DepID = Dep1#deposit_Deposit.id,
+    {pending, _} = Dep1#deposit_Deposit.status,
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
             {ok, Dep} = call_admin('GetDeposit', [DepID]),
-            {Status, _} = Dep#fistful_Deposit.status,
+            {Status, _} = Dep#deposit_Deposit.status,
             Status
         end,
         genlib_retry:linear(15, 1000)

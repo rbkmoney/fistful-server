@@ -2,12 +2,13 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--include_lib("dmsl/include/dmsl_domain_config_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("jose/include/jose_jwk.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
+-include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
@@ -30,7 +31,11 @@
     reports_with_wrong_identity_ok_test/1,
     download_file_ok_test/1,
     create_wallet/1,
-    get_wallet/1
+    get_wallet/1,
+    create_webhook_ok_test/1,
+    get_webhooks_ok_test/1,
+    get_webhook_ok_test/1,
+    delete_webhook_ok_test/1
 ]).
 
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
@@ -66,7 +71,11 @@ groups() ->
                 reports_with_wrong_identity_ok_test,
                 download_file_ok_test,
                 create_wallet,
-                get_wallet
+                get_wallet,
+                create_webhook_ok_test,
+                get_webhooks_ok_test,
+                get_webhook_ok_test,
+                delete_webhook_ok_test
             ]
         }
     ].
@@ -83,8 +92,9 @@ init_per_suite(Config) ->
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
             optional_apps => [
-                wapi,
-                wapi_woody_client
+                bender_client,
+                wapi_woody_client,
+                wapi
             ]
         })
     ], Config).
@@ -99,7 +109,10 @@ end_per_suite(C) ->
 -spec init_per_group(group_name(), config()) ->
     config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = ff_woody_ctx:set(woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)),
+    ok = ff_context:save(ff_context:create(#{
+        party_client => party_client:create_client(),
+        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
+    })),
     Party = create_party(Config),
     Token = issue_token(Party, [{[party], write}], unlimited),
     Config1 = [{party, Party} | Config],
@@ -116,13 +129,13 @@ end_per_group(_Group, _C) ->
     config().
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
 -spec end_per_testcase(test_case_name(), config()) ->
     config().
 end_per_testcase(_Name, C) ->
-    ok = ff_woody_ctx:unset(),
+    ok = ct_helper:unset_context(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
@@ -278,6 +291,29 @@ create_wallet(C) ->
                 <<"name">> => ?STRING,
                 <<"identity">> => ?STRING,
                 <<"currency">> => ?RUB
+                   }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec create_webhook_ok_test(config()) ->
+    _.
+create_webhook_ok_test(C) ->
+    {ok, Identity} = create_identity(C),
+    IdentityID = maps:get(<<"id">>, Identity),
+    wapi_ct_helper:mock_services([{webhook_manager, fun
+        ('Create', _) -> {ok, ?WEBHOOK(?DESTINATION_EVENT_FILTER)}
+    end}], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_webhooks_api:create_webhook/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"url">> => ?STRING,
+                <<"scope">> => #{
+                    <<"topic">> => <<"DestinationsTopic">>,
+                    <<"eventTypes">> => [<<"DestinationCreated">>]
+                }
             }
         },
         ct_helper:cfg(context, C)
@@ -295,6 +331,66 @@ get_wallet(C) ->
         #{
             binding => #{
                 <<"walletID">> => ?STRING
+            }
+        },
+    ct_helper:cfg(context, C)
+).
+
+-spec get_webhooks_ok_test(config()) ->
+    _.
+get_webhooks_ok_test(C) ->
+    {ok, Identity} = create_identity(C),
+    IdentityID = maps:get(<<"id">>, Identity),
+    wapi_ct_helper:mock_services([{webhook_manager, fun
+        ('GetList', _) -> {ok, [?WEBHOOK(?WITHDRAWAL_EVENT_FILTER), ?WEBHOOK(?DESTINATION_EVENT_FILTER)]}
+    end}], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_webhooks_api:get_webhooks/3,
+        #{
+            qs_val => #{
+                <<"identityID">> => IdentityID
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec get_webhook_ok_test(config()) ->
+    _.
+get_webhook_ok_test(C) ->
+    {ok, Identity} = create_identity(C),
+    IdentityID = maps:get(<<"id">>, Identity),
+    wapi_ct_helper:mock_services([{webhook_manager, fun
+        ('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)}
+    end}], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_webhooks_api:get_webhook_by_id/3,
+        #{
+            binding => #{
+                <<"webhookID">> => integer_to_binary(?INTEGER)
+            },
+            qs_val => #{
+                <<"identityID">> => IdentityID
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec delete_webhook_ok_test(config()) ->
+    _.
+delete_webhook_ok_test(C) ->
+    {ok, Identity} = create_identity(C),
+    IdentityID = maps:get(<<"id">>, Identity),
+    wapi_ct_helper:mock_services([{webhook_manager, fun
+        ('Delete', _) -> {ok, ok}
+    end}], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_webhooks_api:delete_webhook_by_id/3,
+        #{
+            binding => #{
+                <<"webhookID">> => integer_to_binary(?INTEGER)
+            },
+            qs_val => #{
+                <<"identityID">> => IdentityID
             }
         },
         ct_helper:cfg(context, C)
@@ -321,7 +417,15 @@ create_identity(C) ->
         <<"class">> => <<"person">>,
         <<"name">> => <<"HAHA NO2">>
     },
-    wapi_wallet_ff_backend:create_identity(Params, create_auth_ctx(PartyID)).
+    wapi_wallet_ff_backend:create_identity(Params, create_context(PartyID, C)).
+
+create_context(PartyID, C) ->
+    maps:merge(create_auth_ctx(PartyID), create_woody_ctx(C)).
+
+create_woody_ctx(C) ->
+    #{
+        woody_context => ct_helper:get_woody_ctx(C)
+    }.
 
 create_auth_ctx(PartyID) ->
     #{

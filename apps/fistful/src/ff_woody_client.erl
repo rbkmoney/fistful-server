@@ -7,7 +7,7 @@
 
 -type url()            :: woody:url().
 -type event_handler()  :: woody:ev_handler().
--type transport_opts() :: woody_client_thrift_http_transport:options().
+-type transport_opts() :: woody_client_thrift_http_transport:transport_options().
 -type context()        :: woody_context:ctx().
 
 -type service_id()     :: atom().
@@ -58,7 +58,7 @@ new(Url) when is_binary(Url); is_list(Url) ->
     {exception, woody_error:business_error()}.
 
 call(ServiceIdOrClient, Request) ->
-    call(ServiceIdOrClient, Request, ff_woody_ctx:get()).
+    call(ServiceIdOrClient, Request, ff_context:get_woody_context(ff_context:load())).
 
 -spec call(service_id() | client(), woody:request(), woody_context:ctx()) ->
     {ok, woody:result()}                      |

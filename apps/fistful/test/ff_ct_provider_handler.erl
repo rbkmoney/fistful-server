@@ -1,7 +1,7 @@
 -module(ff_ct_provider_handler).
 -behaviour(woody_server_thrift_handler).
 
--include_lib("dmsl/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
+-include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
@@ -17,7 +17,15 @@ handle_function('ProcessWithdrawal', [Withdrawal, InternalState, Options], _Cont
     DState = decode_state(InternalState),
     DOptions = decode_options(Options),
     {ok, Intent, NewState} = ff_ct_provider:process_withdrawal(DWithdrawal, DState, DOptions),
-    {ok, encode_intent(Intent), encode_state(NewState)}.
+    {ok, #wthadpt_ProcessResult{
+        intent = encode_intent(Intent),
+        next_state = encode_state(NewState)
+    }};
+handle_function('GetQuote', [QuoteParams, Options], _Context, _Opts) ->
+    Params = decode_quote_params(QuoteParams),
+    DOptions = decode_options(Options),
+    {ok, Quote} = ff_ct_provider:get_quote(Params, DOptions),
+    {ok, encode_quote(Quote)}.
 
 %%
 %% Internals
@@ -28,24 +36,41 @@ decode_withdrawal(#wthadpt_Withdrawal{
     body = Body,
     destination = Destination,
     sender = Sender,
-    receiver = Receiver
+    receiver = Receiver,
+    quote = Quote
 }) ->
     #{
         id => Id,
         body => Body,
         destination => Destination,
         sender => Sender,
-        receiver => Receiver
+        receiver => Receiver,
+        quote => Quote
+    }.
+
+decode_quote_params(#wthadpt_GetQuoteParams{
+    idempotency_id = IdempotencyID,
+    currency_from = CurrencyFrom,
+    currency_to = CurrencyTo,
+    exchange_cash = Cash
+}) ->
+    #{
+        idempotency_id => IdempotencyID,
+        currency_from => CurrencyFrom,
+        currency_to => CurrencyTo,
+        exchange_cash => Cash
     }.
 
 decode_options(Options) ->
     Options.
 
-decode_state({string, EncodedState}) ->
-    erlang:binary_to_term(EncodedState, [safe]).
+decode_state(State) ->
+    State.
+
+%%
 
 encode_state(State) ->
-    {string, erlang:term_to_binary(State)}.
+    State.
 
 encode_intent({finish, {success, TrxInfo}}) ->
     {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = encode_trx(TrxInfo)}}}};
@@ -60,7 +85,22 @@ encode_trx(#{id := Id} = TrxInfo) ->
     #domain_TransactionInfo{id = Id, timestamp = Timestamp, extra = Extra}.
 
 encode_failure(Failure) ->
-    Failure.
+    #domain_Failure{code = Failure}.
 
 encode_timer(Timer) ->
     Timer.
+
+encode_quote(#{
+    cash_from := CashFrom,
+    cash_to := CashTo,
+    created_at := CreatedAt,
+    expires_on := ExpiresOn,
+    quote_data := QuoteData
+}) ->
+    #wthadpt_Quote{
+        cash_from = CashFrom,
+        cash_to = CashTo,
+        created_at = CreatedAt,
+        expires_on = ExpiresOn,
+        quote_data = QuoteData
+    }.

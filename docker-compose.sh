@@ -28,7 +28,7 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr.rbkmoney.com/rbkmoney/wapi:cbd351653a16ceb57a67c44cd99d0fbc34cc9c29
+    image: dr2.rbkmoney.com/rbkmoney/wapi:64b6aaa39e4d0abed03d6fb752f3906c076e3f40
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/var/keys/wapi/private.pem
@@ -42,7 +42,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:4b9804fade0fef5fa0ad8cfe4a9748dc8c5574e7
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:06aafab126c403eef3800625c19ae6eace1f5124
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -82,7 +82,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr.rbkmoney.com/rbkmoney/dominant:5a2be39e1035bf590af2e2a638062d6964708e05
+    image: dr2.rbkmoney.com/rbkmoney/dominant:eb749809b862ccee409c27befbd996fa21632dfd
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -97,8 +97,8 @@ services:
       retries: 10
 
   shumway:
-    image: dr.rbkmoney.com/rbkmoney/shumway:7a5f95ee1e8baa42fdee9c08cc0ae96cd7187d55
-    restart: always
+    image: dr2.rbkmoney.com/rbkmoney/shumway:d36bcf5eb8b1dbba634594cac11c97ae9c66db9f
+    restart: unless-stopped
     entrypoint:
       - java
       - -Xmx512m
@@ -107,6 +107,7 @@ services:
       - --spring.datasource.url=jdbc:postgresql://shumway-db:5432/shumway
       - --spring.datasource.username=postgres
       - --spring.datasource.password=postgres
+      - --management.metrics.export.statsd.enabled=false
     depends_on:
       - shumway-db
     healthcheck:
@@ -158,6 +159,17 @@ services:
       interval: 5s
       timeout: 1s
       retries: 10
+
+  bender:
+    image: dr2.rbkmoney.com/rbkmoney/bender:2fcb2711d3d0adec0685926dafdab832b7506091
+    command: /opt/bender/bin/bender foreground
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 20
+    depends_on:
+      - machinegun
 
   shumway-db:
     image: dr.rbkmoney.com/rbkmoney/postgres:9.6

@@ -9,9 +9,10 @@
 
 -module(ff_account).
 
--include_lib("dmsl/include/dmsl_accounter_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 -type id() :: binary().
+-type accounter_account_id() :: shumpune_shumpune_thrift:'AccountID'().
 -type account() :: #{
     id := id(),
     identity := identity_id(),
@@ -23,12 +24,11 @@
     {created, account()}.
 
 -type create_error() ::
-    {accounter, any()} |
-    {contract, any()} |
-    {terms, any()} |
+    {terms, ff_party:validate_account_creation_error()} |
     {party, ff_party:inaccessibility()}.
 
 -export_type([id/0]).
+-export_type([accounter_account_id/0]).
 -export_type([account/0]).
 -export_type([event/0]).
 -export_type([create_error/0]).
@@ -51,9 +51,8 @@
 
 -type identity() :: ff_identity:identity().
 -type currency() :: ff_currency:currency().
--type identity_id() :: ff_identity:id(id()).
+-type identity_id() :: ff_identity:id().
 -type currency_id() :: ff_currency:id().
--type accounter_account_id() :: dmsl_accounter_thrift:'AccountID'().
 
 %% Accessors
 
@@ -78,29 +77,25 @@ accounter_account_id(#{accounter_account_id := AccounterID}) ->
 %% Actuators
 
 -spec create(id(), identity(), currency()) ->
-    {ok, [event()]} |
-    {error,
-        {accounter, any()} |
-        {contract, any()} |
-        {terms, any()} |
-        {party, ff_party:inaccessibility()}
-    }.
+    {ok, [event()]} | {error, create_error()}.
 
 create(ID, Identity, Currency) ->
     do(fun () ->
         ContractID = ff_identity:contract(Identity),
         PartyID = ff_identity:party(Identity),
         accessible = unwrap(party, ff_party:is_accessible(PartyID)),
-        CurrencyID = ff_currency:id(Currency),
         TermVarset = #{
             wallet_id => ID,
-            currency => #domain_CurrencyRef{symbolic_code = CurrencyID}
+            currency => ff_currency:to_domain_ref(Currency)
         },
-        Terms = unwrap(contract, ff_party:get_contract_terms(
-            PartyID, ContractID, TermVarset, ff_time:now()
-        )),
+        {ok, PartyRevision} = ff_party:get_revision(PartyID),
+        DomainRevision = ff_domain_config:head(),
+        {ok, Terms} = ff_party:get_contract_terms(
+            PartyID, ContractID, TermVarset, ff_time:now(), PartyRevision, DomainRevision
+        ),
+        CurrencyID = ff_currency:id(Currency),
         valid = unwrap(terms, ff_party:validate_account_creation(Terms, CurrencyID)),
-        AccounterID = unwrap(accounter, create_account(ID, Currency)),
+        {ok, AccounterID} = create_account(ID, Currency),
         [{created, #{
             id       => ID,
             identity => ff_identity:id(Identity),
@@ -148,11 +143,11 @@ create_account(ID, Currency) ->
     end.
 
 construct_prototype(CurrencyCode, Description) ->
-    #accounter_AccountPrototype{
+    #shumpune_AccountPrototype{
         currency_sym_code = CurrencyCode,
         description = Description
     }.
 
 call_accounter(Function, Args) ->
-    Service = {dmsl_accounter_thrift, 'Accounter'},
+    Service = {shumpune_shumpune_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}).

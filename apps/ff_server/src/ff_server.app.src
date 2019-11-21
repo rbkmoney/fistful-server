@@ -10,12 +10,11 @@
         stdlib,
         woody,
         erl_health,
-        lager,
         scoper,
+        party_client,
         fistful,
         ff_transfer,
-        fistful_proto,
-        wapi
+        fistful_proto
     ]},
     {env, []},
     {modules, []},

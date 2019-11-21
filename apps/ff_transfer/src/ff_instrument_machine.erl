@@ -7,8 +7,8 @@
 %% API
 
 -type id()          :: machinery:id().
--type ns()          :: machinery:ns().
--type ctx()         :: ff_ctx:ctx().
+-type ns()          :: machinery:namespace().
+-type ctx()         :: ff_entity_context:context().
 -type instrument(T) :: ff_instrument:instrument(T).
 
 -type st(T) ::
@@ -17,6 +17,7 @@
 -export_type([id/0]).
 -export_type([st/1]).
 -export_type([events/1]).
+-export_type([params/1]).
 
 -export([create/4]).
 -export([get/2]).

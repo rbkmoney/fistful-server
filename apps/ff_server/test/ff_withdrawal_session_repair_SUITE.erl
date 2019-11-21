@@ -2,7 +2,7 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -66,13 +66,13 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 %% Tests
 
@@ -93,9 +93,9 @@ repair_failed_session_with_success(C) ->
             }
         }}
     }}]),
-    Expected = {success, #domain_TransactionInfo{
-        id = SessionID,
-        extra = #{}
+    Expected = {success, #{
+        id => SessionID,
+        extra => #{}
     }},
     ?assertMatch({finished, Expected}, get_session_status(SessionID)).
 
@@ -115,8 +115,8 @@ repair_failed_session_with_failure(C) ->
             }
         }}
     }}]),
-    Expected = {failed, #domain_Failure{
-        code = SessionID
+    Expected = {failed, #{
+        code => SessionID
     }},
     ?assertMatch({finished, Expected}, get_session_status(SessionID)).
 
@@ -135,7 +135,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -157,7 +157,7 @@ create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
         Type,
         ID,
         #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_ctx:new(),
+        ff_entity_context:new(),
         C
     ),
     ID.
@@ -175,8 +175,11 @@ create_failed_session(IdentityID, DestinationID, _C) ->
         sender      => IdentityID,
         receiver    => IdentityID
     },
+    {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
+    Destination = ff_destination:get(DestinationMachine),
+    DestinationResource = ff_destination:resource_full(Destination),
     SessionParams = #{
-        destination => DestinationID,
+        resource => DestinationResource,
         provider_id => 1
     },
     ok = ff_withdrawal_session_machine:create(ID, TransferData, SessionParams),

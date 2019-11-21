@@ -75,7 +75,8 @@ create(ID, Data, Params) ->
     end).
 
 -spec get(id()) ->
-    ff_map:result(session()).
+    {ok, st()}        |
+    {error, notfound} .
 get(ID) ->
     ff_machine:get(ff_withdrawal_session, ?NS, ID).
 
@@ -102,7 +103,7 @@ init(Events, #{}, _, _Opts) ->
     #{
         events => ff_machine:emit_events(Events),
         action => continue,
-        aux_state => #{ctx => ff_ctx:new()}
+        aux_state => #{ctx => ff_entity_context:new()}
     }.
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) ->

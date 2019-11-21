@@ -31,6 +31,7 @@ unmarshal_destination_params(Params) ->
 
 marshal_destination(Destination) ->
     #dst_Destination{
+        id          = marshal(id,       ff_destination:id(Destination)),
         name        = marshal(string,   ff_destination:name(Destination)),
         resource    = marshal(resource, ff_destination:resource(Destination)),
         external_id = marshal(id,       ff_destination:external_id(Destination)),
@@ -43,6 +44,7 @@ marshal_destination(Destination) ->
 
 unmarshal_destination(Dest) ->
     genlib_map:compact(#{
+        id          => unmarshal(id,           Dest#dst_Destination.id),
         account     => maybe_unmarshal(account, Dest#dst_Destination.account),
         resource    => unmarshal(resource,     Dest#dst_Destination.resource),
         name        => unmarshal(string,       Dest#dst_Destination.name),
@@ -60,33 +62,6 @@ marshal(event, {account, AccountChange}) ->
 marshal(event, {status_changed, StatusChange}) ->
     {status, marshal(status_change, StatusChange)};
 
-marshal(resource, {bank_card, BankCard}) ->
-    {bank_card, marshal(bank_card, BankCard)};
-marshal(resource, {crypto_wallet, CryptoWallet}) ->
-    {crypto_wallet, marshal(crypto_wallet, CryptoWallet)};
-
-marshal(bank_card, BankCard = #{
-    token := Token
-}) ->
-    PaymentSystem = maps:get(payment_system, BankCard, undefined),
-    Bin = maps:get(bin, BankCard, undefined),
-    MaskedPan = maps:get(masked_pan, BankCard, undefined),
-    #'BankCard'{
-        token = marshal(string, Token),
-        payment_system = PaymentSystem,
-        bin = marshal(string, Bin),
-        masked_pan = marshal(string, MaskedPan)
-    };
-
-marshal(crypto_wallet, #{
-    id       := CryptoWalletID,
-    currency := CryptoWalletCurrency
-}) ->
-    #'CryptoWallet'{
-        id       = marshal(string, CryptoWalletID),
-        currency = CryptoWalletCurrency
-    };
-
 marshal(status, authorized) ->
     {authorized, #dst_Authorized{}};
 marshal(status, unauthorized) ->
@@ -102,7 +77,6 @@ marshal(ctx, Ctx) ->
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
-
 
 -spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
     ff_codec:decoded_value().
@@ -122,45 +96,6 @@ unmarshal(event, {account, AccountChange}) ->
     {account, unmarshal(account_change, AccountChange)};
 unmarshal(event, {status, StatusChange}) ->
     {status_changed, unmarshal(status_change, StatusChange)};
-
-unmarshal(resource, {bank_card, BankCard}) ->
-    {bank_card, unmarshal(bank_card, BankCard)};
-unmarshal(resource, {crypto_wallet, CryptoWallet}) ->
-    {crypto_wallet, unmarshal(crypto_wallet, CryptoWallet)};
-
-unmarshal(bank_card, BankCard = #{
-    token := Token
-}) ->
-    PaymentSystem = maps:get(payment_system, BankCard, undefined),
-    Bin = maps:get(bin, BankCard, undefined),
-    MaskedPan = maps:get(masked_pan, BankCard, undefined),
-    #'BankCard'{
-        token = unmarshal(string, Token),
-        payment_system = PaymentSystem,
-        bin = unmarshal(string, Bin),
-        masked_pan = unmarshal(string, MaskedPan)
-    };
-unmarshal(bank_card, #'BankCard'{
-    token = Token,
-    payment_system = PaymentSystem,
-    bin = Bin,
-    masked_pan = MaskedPan
-}) ->
-    genlib_map:compact(#{
-        token => unmarshal(string, Token),
-        payment_system => PaymentSystem,
-        bin => maybe_unmarshal(string, Bin),
-        masked_pan => maybe_unmarshal(string, MaskedPan)
-    });
-
-unmarshal(crypto_wallet, #'CryptoWallet'{
-    id       = CryptoWalletID,
-    currency = CryptoWalletCurrency
-}) ->
-    #{
-        id       => unmarshal(string, CryptoWalletID),
-        currency => CryptoWalletCurrency
-    };
 
 unmarshal(status, {authorized, #dst_Authorized{}}) ->
     authorized;
@@ -197,9 +132,11 @@ destination_test() ->
         token => <<"token auth">>
     }},
     AAID = 12345,
+    AccountID = genlib:unique(),
     In = #{
+        id => AccountID,
         account => #{
-            id       => genlib:unique(),
+            id       => AccountID,
             identity => genlib:unique(),
             currency => <<"RUN">>,
             accounter_account_id => AAID

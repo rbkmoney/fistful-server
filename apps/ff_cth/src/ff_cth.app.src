@@ -9,7 +9,7 @@
         stdlib,
         genlib,
         woody,
-        dmsl
+        damsel
     ]},
     {env, []},
     {modules, []},

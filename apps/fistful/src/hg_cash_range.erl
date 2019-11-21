@@ -1,7 +1,7 @@
 %% TODO merge with ff_range
 
 -module(hg_cash_range).
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([is_inside/2]).
 

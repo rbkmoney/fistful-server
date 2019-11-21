@@ -33,7 +33,7 @@ all() ->
 -spec init_per_suite(config()) -> config().
 
 init_per_suite(C) ->
-    {StartedApps, _StartupCtx} = ct_helper:start_apps([lager, fistful]),
+    {StartedApps, _StartupCtx} = ct_helper:start_apps([fistful]),
     SuiteSup         = ct_sup:start(),
     BackendOpts      = #{name => ?MODULE},
     BackendChildSpec = machinery_gensrv_backend:child_spec(ff_limit, BackendOpts),

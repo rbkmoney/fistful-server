@@ -18,14 +18,14 @@
 -type operation_id()    :: swag_server_wallet:operation_id().
 -type api_key()         :: swag_server_wallet:api_key().
 -type request_context() :: swag_server_wallet:request_context().
--type handler_opts()    :: swag_server_wallet:handler_opts().
+-type handler_opts()    :: swag_server_wallet:handler_opts(_).
 
 %% API
 
 -spec authorize_api_key(operation_id(), api_key(), handler_opts()) ->
     false | {true, wapi_auth:context()}.
 authorize_api_key(OperationID, ApiKey, Opts) ->
-    ok = scoper:add_meta(#{api => wallet, operation_id => OperationID}),
+    ok = scoper:add_scope('swag.server', #{api => wallet, operation_id => OperationID}),
     wapi_auth:authorize_api_key(OperationID, ApiKey, Opts).
 
 -spec handle_request(swag_server_wallet:operation_id(), req_data(), request_context(), handler_opts()) ->
@@ -99,8 +99,8 @@ process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {identity_class, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity class">>));
-        {error, {conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {email, notfound}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"NotFound">>,
@@ -189,10 +189,12 @@ process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
         {error, {inaccessible, _}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
-        {error, {conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, invalid} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>))
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>));
+        {error, {terms, {terms_violation, {not_allowed_currency, _Data}}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not allowed">>))
     end;
 process_request('GetWalletAccount', #{'walletID' := WalletId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_wallet_account(WalletId, Context) of
@@ -249,8 +251,8 @@ process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) 
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
         {error, {inaccessible, _}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
-        {error, {conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, invalid} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>))
     end;
@@ -288,8 +290,8 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
         {error, {provider, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
-        {error, {conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {wallet, {inaccessible, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Inaccessible source or destination">>)
@@ -301,34 +303,80 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {wallet, {provider, invalid}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>)
+            );
+        {error, {quote_invalid_party, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal owner differs from quote`s one">>)
+            );
+        {error, {quote_invalid_wallet, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal wallet differs from quote`s one">>)
+            );
+        {error, {quote, {invalid_destination, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal destination differs from quote`s one">>)
+            );
+        {error, {quote, {invalid_body, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal body differs from quote`s one">>)
             )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of
-        {ok, Withdrawal}                    -> wapi_handler_utils:reply_ok(200, Withdrawal);
-        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(404);
-        {error, {withdrawal, unauthorized}} -> wapi_handler_utils:reply_ok(404)
+        {ok, Withdrawal} ->
+            wapi_handler_utils:reply_ok(200, Withdrawal);
+        {error, {withdrawal, {unknown_withdrawal, WithdrawalId}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
     end;
 process_request('PollWithdrawalEvents', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal_events(Params, Context) of
-        {ok, Events}                        -> wapi_handler_utils:reply_ok(200, Events);
-        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(404);
-        {error, {withdrawal, unauthorized}} -> wapi_handler_utils:reply_ok(404)
+        {ok, Events} ->
+            wapi_handler_utils:reply_ok(200, Events);
+        {error, {withdrawal, {unknown_withdrawal, _WithdrawalId}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
     end;
 process_request('GetWithdrawalEvents', #{
     'withdrawalID' := WithdrawalId,
     'eventID'      := EventId
 }, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal_event(WithdrawalId, EventId, Context) of
-        {ok, Event}           -> wapi_handler_utils:reply_ok(200, Event);
-        {error, {withdrawal, notfound}}     -> wapi_handler_utils:reply_ok(404);
-        {error, {withdrawal, unauthorized}} -> wapi_handler_utils:reply_ok(404);
-        {error, {event, notfound}}          -> wapi_handler_utils:reply_ok(404)
+        {ok, Event} ->
+            wapi_handler_utils:reply_ok(200, Event);
+        {error, {withdrawal, {unknown_withdrawal, WithdrawalId}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {event, notfound}} ->
+            wapi_handler_utils:reply_ok(404)
     end;
 process_request('ListWithdrawals', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:list_withdrawals(Params, Context) of
         {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
         {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
+    end;
+process_request('CreateQuote', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:create_quote(Params, Context) of
+        {ok, Promise} -> wapi_handler_utils:reply_ok(202, Promise);
+        {error, {destination, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Destination not found">>)
+            );
+        {error, {destination, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>)
+            );
+        {error, {route, route_not_found}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Provider not found">>)
+            );
+        {error, {wallet, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Wallet not found">>)
+            )
     end;
 
 %% Residences
@@ -426,6 +474,48 @@ process_request('ListDeposits', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:list_deposits(Params, Context) of
         {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
         {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
+    end;
+
+%% Webhooks
+process_request('CreateWebhook', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:create_webhook(Params, Context) of
+        {ok, Webhook} -> wapi_handler_utils:reply_ok(201, Webhook);
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {wallet, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
+        {error, {wallet, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>))
+    end;
+process_request('GetWebhooks', #{identityID := IdentityID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_webhooks(IdentityID, Context) of
+        {ok, Webhooks} -> wapi_handler_utils:reply_ok(200, Webhooks);
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
+    end;
+process_request('GetWebhookByID', #{identityID := IdentityID, webhookID := WebhookID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_webhook(WebhookID, IdentityID, Context) of
+        {ok, Webhook} -> wapi_handler_utils:reply_ok(200, Webhook);
+        {error, notfound} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
+    end;
+process_request('DeleteWebhookByID', #{identityID := IdentityID, webhookID := WebhookID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:delete_webhook(WebhookID, IdentityID, Context) of
+        ok -> wapi_handler_utils:reply_ok(204);
+        {error, notfound} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
     end.
 
 %% Internal functions

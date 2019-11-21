@@ -4,7 +4,7 @@
 
 -include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([marshal/2]).
 -export([unmarshal/2]).
@@ -47,83 +47,88 @@ marshal(session_finished_status, failed) ->
 
 marshal(withdrawal, Params = #{
     id := WithdrawalID,
-    destination := Destination,
+    resource := Resource,
     cash := Cash
 }) ->
     SenderIdentity = maps:get(sender, Params, undefined),
     ReceiverIdentity = maps:get(receiver, Params, undefined),
     #wthd_session_Withdrawal{
         id = marshal(id, WithdrawalID),
-        destination = ff_destination_codec:marshal_destination(Destination),
+        destination_resource = marshal(resource, Resource),
         cash = marshal(cash, Cash),
         sender   = ff_identity_codec:marshal_identity(SenderIdentity),
         receiver = ff_identity_codec:marshal_identity(ReceiverIdentity)
     };
 
 marshal(msgpack_value, V) ->
-    marshal_dmsl(V);
+    marshal_msgpack(V);
 
 marshal(session_result, {success, TransactionInfo}) ->
     {success, #wthd_session_SessionResultSuccess{
         trx_info = marshal(transaction_info, TransactionInfo)
     }};
-% TODO change all dmsl types to fistfull types
-marshal(transaction_info, #domain_TransactionInfo{
-    id = TransactionID,
-    timestamp = Timestamp,
-    extra = Extra
+
+marshal(transaction_info, TransactionInfo = #{
+    id := TransactionID,
+    extra := Extra
 }) ->
+    Timestamp = maps:get(timestamp, TransactionInfo, undefined),
+    AddInfo = maps:get(additional_info, TransactionInfo, undefined),
     #'TransactionInfo'{
         id = marshal(id, TransactionID),
         timestamp = marshal(timestamp, Timestamp),
-        extra = Extra
+        extra = Extra,
+        additional_info = marshal(additional_transaction_info, AddInfo)
     };
+
+marshal(additional_transaction_info, AddInfo = #{}) ->
+    #'AdditionalTransactionInfo'{
+        rrn = marshal(string, maps:get(rrn, AddInfo, undefined)),
+        approval_code = marshal(string, maps:get(approval_code, AddInfo, undefined)),
+        acs_url = marshal(string, maps:get(acs_url, AddInfo, undefined)),
+        pareq = marshal(string, maps:get(pareq, AddInfo, undefined)),
+        md = marshal(string, maps:get(md, AddInfo, undefined)),
+        term_url = marshal(string, maps:get(term_url, AddInfo, undefined)),
+        pares = marshal(string, maps:get(pares, AddInfo, undefined)),
+        eci = marshal(string, maps:get(eci, AddInfo, undefined)),
+        cavv = marshal(string, maps:get(cavv, AddInfo, undefined)),
+        xid = marshal(string, maps:get(xid, AddInfo, undefined)),
+        cavv_algorithm = marshal(string, maps:get(cavv_algorithm, AddInfo, undefined)),
+        three_ds_verification = marshal(
+            three_ds_verification,
+            maps:get(three_ds_verification, AddInfo, undefined)
+        )
+    };
+
+marshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
 
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_session_SessionResultFailed{
-        failure = marshal(failure, Failure)
+        failure = ff_codec:marshal(failure, Failure)
     }};
-
-marshal(failure, #domain_Failure{
-    code = Code,
-    reason = Reason,
-    sub = SubFailure
-}) ->
-    #'Failure'{
-        code = marshal(string, Code),
-        reason = marshal(string, Reason),
-        sub = marshal(sub_failure, SubFailure)
-    };
-marshal(sub_failure, #domain_SubFailure{
-    code = Code,
-    sub = SubFailure
-}) ->
-    #'SubFailure'{
-        code = marshal(string, Code),
-        sub = marshal(sub_failure, SubFailure)
-    };
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-% Convert msgpack from dmsl to fistful proto
-marshal_dmsl({nl, #msgpack_Nil{}}) ->
-    {nl, #msgp_Nil{}};
-marshal_dmsl({arr, List}) when is_list(List) ->
-    {arr, [marshal_dmsl(V) || V <- List]};
-marshal_dmsl({obj, Map}) when is_map(Map) ->
-    {obj, maps:fold(
-        fun (K, V, Acc) ->
-            NewK = marshal_dmsl(K),
-            NewV = marshal_dmsl(V),
-            Acc#{NewK => NewV}
-        end,
-        #{},
-        Map
-    )};
-marshal_dmsl(Other) ->
-    Other.
-
+marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};
+marshal_msgpack(V) when is_boolean(V) -> {b, V};
+marshal_msgpack(V) when is_integer(V) -> {i, V};
+marshal_msgpack(V) when is_float(V)   -> V;
+marshal_msgpack(V) when is_binary(V)  -> {str, V}; % Assuming well-formed UTF-8 bytestring.
+marshal_msgpack({binary, V}) when is_binary(V) ->
+    {bin, V};
+marshal_msgpack(V) when is_list(V) ->
+    {arr, [marshal_msgpack(ListItem) || ListItem <- V]};
+marshal_msgpack(V) when is_map(V) ->
+    {obj, maps:fold(fun(Key, Value, Map) -> Map#{marshal_msgpack(Key) => marshal_msgpack(Value)} end, #{}, V)};
+marshal_msgpack(undefined) ->
+    undefined.
 
 -spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
     ff_codec:decoded_value().
@@ -170,78 +175,91 @@ unmarshal(session_finished_status, {failed, #wthd_session_SessionFinishedFailed{
 
 unmarshal(withdrawal, #wthd_session_Withdrawal{
     id = WithdrawalID,
-    destination = Destination,
+    destination_resource = Resource,
     cash = Cash,
     sender = SenderIdentity,
     receiver = ReceiverIdentity
 }) ->
     genlib_map:compact(#{
         id => unmarshal(id, WithdrawalID),
-        destination => ff_destination_codec:unmarshal_destination(Destination),
+        resource => unmarshal(resource, Resource),
         cash => unmarshal(cash, Cash),
         sender => ff_identity_codec:unmarshal(identity, SenderIdentity),
         receiver => ff_identity_codec:unmarshal(identity, ReceiverIdentity)
     });
 
 unmarshal(msgpack_value, V) ->
-    unmarshal_dmsl(V);
+    unmarshal_msgpack(V);
 
 unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = Trx}}) ->
     {success, unmarshal(transaction_info, Trx)};
-% TODO change all dmsl types to fistfull types
 unmarshal(transaction_info, #'TransactionInfo'{
     id = TransactionID,
     timestamp = Timestamp,
-    extra = Extra
+    extra = Extra,
+    additional_info = AddInfo
 }) ->
-    #domain_TransactionInfo{
-        id = unmarshal(id, TransactionID),
-        timestamp = maybe_unmarshal(timestamp, Timestamp),
-        extra = Extra
-    };
+    genlib_map:compact(#{
+        id => unmarshal(string, TransactionID),
+        timestamp => maybe_unmarshal(string, Timestamp),
+        extra => Extra,
+        additional_info => maybe_unmarshal(additional_transaction_info, AddInfo)
+    });
+
+unmarshal(additional_transaction_info, #'AdditionalTransactionInfo'{
+    rrn = RRN,
+    approval_code = ApprovalCode,
+    acs_url = AcsURL,
+    pareq = Pareq,
+    md = MD,
+    term_url = TermURL,
+    pares = Pares,
+    eci = ECI,
+    cavv = CAVV,
+    xid = XID,
+    cavv_algorithm = CAVVAlgorithm,
+    three_ds_verification = ThreeDSVerification
+}) ->
+    genlib_map:compact(#{
+        rrn => maybe_unmarshal(string, RRN),
+        approval_code => maybe_unmarshal(string, ApprovalCode),
+        acs_url => maybe_unmarshal(string, AcsURL),
+        pareq => maybe_unmarshal(string, Pareq),
+        md => maybe_unmarshal(string, MD),
+        term_url => maybe_unmarshal(string, TermURL),
+        pares => maybe_unmarshal(string, Pares),
+        eci => maybe_unmarshal(string, ECI),
+        cavv => maybe_unmarshal(string, CAVV),
+        xid => maybe_unmarshal(string, XID),
+        cavv_algorithm => maybe_unmarshal(string, CAVVAlgorithm),
+        three_ds_verification => maybe_unmarshal(three_ds_verification, ThreeDSVerification)
+    });
+
+unmarshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
 
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
-    {failed, unmarshal(failure, Failure)};
-
-unmarshal(failure, #'Failure'{
-    code = Code,
-    reason = Reason,
-    sub = SubFailure
-}) ->
-    #domain_Failure{
-        code = unmarshal(string, Code),
-        reason = maybe_unmarshal(string, Reason),
-        sub = maybe_unmarshal(sub_failure, SubFailure)
-    };
-unmarshal(sub_failure, #'SubFailure'{
-    code = Code,
-    sub = SubFailure
-}) ->
-    #domain_SubFailure{
-        code = unmarshal(string, Code),
-        sub = maybe_unmarshal(sub_failure, SubFailure)
-    };
+    {failed, ff_codec:unmarshal(failure, Failure)};
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
-% Convert msgpack from fistful proto to dmsl
-unmarshal_dmsl({nl, #msgp_Nil{}}) ->
-    {nl, #msgpack_Nil{}};
-unmarshal_dmsl({arr, List}) when is_list(List) ->
-    {arr, [unmarshal_dmsl(V) || V <- List]};
-unmarshal_dmsl({obj, Map}) when is_map(Map) ->
-    {obj, maps:fold(
-        fun (K, V, Acc) ->
-            NewK = unmarshal_dmsl(K),
-            NewV = unmarshal_dmsl(V),
-            Acc#{NewK => NewV}
-        end,
-        #{},
-        Map
-    )};
-unmarshal_dmsl(Other) ->
-    Other.
+unmarshal_msgpack({nl,  #msgp_Nil{}})        -> nil;
+unmarshal_msgpack({b,   V}) when is_boolean(V) -> V;
+unmarshal_msgpack({i,   V}) when is_integer(V) -> V;
+unmarshal_msgpack({flt, V}) when is_float(V)   -> V;
+unmarshal_msgpack({str, V}) when is_binary(V)  -> V; % Assuming well-formed UTF-8 bytestring.
+unmarshal_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
+unmarshal_msgpack({arr, V}) when is_list(V)    -> [unmarshal_msgpack(ListItem) || ListItem <- V];
+unmarshal_msgpack({obj, V}) when is_map(V)     ->
+    maps:fold(fun(Key, Value, Map) -> Map#{unmarshal_msgpack(Key) => unmarshal_msgpack(Value)} end, #{}, V);
+unmarshal_msgpack(undefined) ->
+    undefined.
 
 %% Internals
 

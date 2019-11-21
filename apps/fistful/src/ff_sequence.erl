@@ -94,7 +94,7 @@ process_call({increment, Inc}, #{aux_state := Seq0}, _, _Opts) ->
         aux_state => Seq1
     }}.
 
--spec process_repair(ff_repair:scenario(), machine(), machinery:handler_args(), machinery:handler_opts(_)) ->
+-spec process_repair(ff_repair:scenario(), machine(), machinery:handler_args(_), machinery:handler_opts(_)) ->
     no_return().
 
 process_repair(_RepairArgs, _Machine, _Args, _Opts) ->

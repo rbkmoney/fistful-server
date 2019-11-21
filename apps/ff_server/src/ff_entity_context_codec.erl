@@ -1,17 +1,17 @@
--module(ff_context).
+-module(ff_entity_context_codec).
 
 -include_lib("fistful_proto/include/ff_proto_msgpack_thrift.hrl").
 
--type ctx()::ff_ctx:ctx().
+-type ctx()::ff_entity_context:context().
 
 
--export([wrap/1]).
--export([unwrap/1]).
+-export([marshal/1]).
+-export([unmarshal/1]).
 
 %% snatch from https://github.com/rbkmoney/erlang_capi/blob/v2/apps/capi/src/capi_msgpack.erl
--spec unwrap(map()) ->
+-spec unmarshal(map()) ->
     ctx().
-unwrap(Ctx) when is_map(Ctx) ->
+unmarshal(Ctx) when is_map(Ctx) ->
     maps:map(fun(_NS, V) -> unwrap_(V) end, Ctx).
 
 unwrap_({nl, #msgp_Nil{}})           -> nil;
@@ -24,8 +24,8 @@ unwrap_({arr, V}) when is_list(V)    -> [unwrap_(ListItem) || ListItem <- V];
 unwrap_({obj, V}) when is_map(V)     ->
     maps:fold(fun(Key, Value, Map) -> Map#{unwrap_(Key) => unwrap_(Value)} end, #{}, V).
 
--spec wrap(map()) -> ctx().
-wrap(Value) when is_map(Value) ->
+-spec marshal(map()) -> ctx().
+marshal(Value) when is_map(Value) ->
     maps:map(fun(_K, V) -> wrap_(V) end, Value).
 
 wrap_(nil)                  -> {nl, #msgp_Nil{}};
@@ -56,7 +56,7 @@ unwrap_test() ->
     MsgPack = {arr, [Obj2]},
     Ctx = #{<<"namespace">> => MsgPack},
 
-    UnwrapMsgPack = unwrap(Ctx),
+    UnwrapMsgPack = unmarshal(Ctx),
     ?assertEqual(#{<<"namespace">> => [#{1 => #{<<"Key">> => <<"Value">>}}]}, UnwrapMsgPack).
 
 -spec wrap_test() -> _.
@@ -64,7 +64,7 @@ wrap_test() ->
     Str = <<"Привет, Dude!">>,
     Obj = #{123 => Str},
     Arr = [Obj],
-    MsgPack = wrap(#{<<"NS">> => Arr}),
+    MsgPack = marshal(#{<<"NS">> => Arr}),
     ?assertEqual(#{<<"NS">> => {arr, [{obj, #{ {i, 123} => {str, Str} }}]}}, MsgPack).
 
 -spec wrap_empty_obj_test() -> _.

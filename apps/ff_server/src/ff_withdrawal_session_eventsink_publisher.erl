@@ -41,7 +41,7 @@ publish_event(#{
         payload       = #wthd_session_Event{
             sequence   = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
-            changes    = [marshal(event, Payload)]
+            changes    = [marshal(event, ff_withdrawal_session:maybe_migrate(Payload))]
         }
     }.
 

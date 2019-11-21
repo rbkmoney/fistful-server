@@ -9,6 +9,9 @@
 
 -export([makeup_cfg/2]).
 
+-export([set_context/1]).
+-export([unset_context/0]).
+
 -export([woody_ctx/0]).
 -export([get_woody_ctx/1]).
 
@@ -62,21 +65,9 @@ start_apps(AppNames) ->
 
 -spec start_app(app_name() | app_with_env()) -> {[Started :: app_name()], startup_ctx()}.
 
-start_app(lager = AppName) ->
-    {start_app_with(AppName, [
-        {async_threshold, 1},
-        {async_threshold_window, 0},
-        {error_logger_hwm, 600},
-        {suppress_application_start_stop, false},
-        {suppress_supervisor_start_stop, false},
-        {handlers, [
-            {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
-        ]}
-    ]), #{}};
-
 start_app(scoper = AppName) ->
     {start_app_with(AppName, [
-        {storage, scoper_storage_lager}
+        {storage, scoper_storage_logger}
     ]), #{}};
 
 start_app(woody = AppName) ->
@@ -135,42 +126,38 @@ start_app(ff_server = AppName) ->
     {start_app_with(AppName, [
         {ip, "::"},
         {port, 8022},
-        {services, #{
-            'automaton' => "http://machinegun:8022/v1/automaton"
-        }},
         {admin, #{
             path => <<"/v1/admin">>
         }},
         {eventsink, #{
             identity => #{
-                namespace => <<"ff/identity">>,
-                path => <<"/v1/eventsink/identity">>
+                namespace => <<"ff/identity">>
             },
             wallet => #{
-                namespace => <<"ff/wallet_v2">>,
-                path => <<"/v1/eventsink/wallet">>
+                namespace => <<"ff/wallet_v2">>
             },
             withdrawal => #{
-                namespace => <<"ff/withdrawal_v2">>,
-                path => <<"/v1/eventsink/withdrawal">>
+                namespace => <<"ff/withdrawal_v2">>
             },
             deposit => #{
-                namespace => <<"ff/deposit_v1">>,
-                path => <<"/v1/eventsink/deposit">>
+                namespace => <<"ff/deposit_v1">>
             },
             destination => #{
-                namespace => <<"ff/destination_v2">>,
-                path => <<"/v1/eventsink/destination">>
+                namespace => <<"ff/destination_v2">>
             },
             source => #{
-                namespace => <<"ff/source_v1">>,
-                path => <<"/v1/eventsink/source">>
+                namespace => <<"ff/source_v1">>
             },
             withdrawal_session => #{
-                namespace => <<"ff/withdrawal/session_v2">>,
-                path => <<"/v1/eventsink/withdrawal/session">>
+                namespace => <<"ff/withdrawal/session_v2">>
             }
         }}
+    ]), #{}};
+
+start_app(bender_client = AppName) ->
+    {start_app_with(AppName, [
+        {service_url, <<"http://bender:8022/v1/bender">>},
+        {deadline, 60000}
     ]), #{}};
 
 start_app({AppName, AppEnv}) ->
@@ -218,6 +205,19 @@ stop_app(AppName) ->
         {error, Reason} ->
             exit({unload_app_failed, AppName, Reason})
     end.
+
+-spec set_context(config()) -> ok.
+
+set_context(C) ->
+    ok = ff_context:save(ff_context:create(#{
+        party_client => party_client:create_client(),
+        woody_context => cfg('$woody_ctx', C)
+    })).
+
+-spec unset_context() -> ok.
+
+unset_context() ->
+    ok = ff_context:cleanup().
 
 %%
 

@@ -1,6 +1,6 @@
 -module(ff_payment_institution).
 
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: #{
@@ -27,7 +27,7 @@
 -export([id/1]).
 
 -export([ref/1]).
--export([get/1]).
+-export([get/2]).
 -export([compute_withdrawal_providers/2]).
 -export([compute_system_accounts/2]).
 
@@ -49,13 +49,13 @@ id(#{id := ID}) ->
 ref(ID) ->
     #domain_PaymentInstitutionRef{id = ID}.
 
--spec get(id()) ->
+-spec get(id(), ff_domain_config:revision()) ->
     {ok, payment_institution()} |
     {error, notfound}.
 
-get(ID) ->
+get(ID, DomainRevision) ->
     do(fun () ->
-        PaymentInstitution = unwrap(ff_domain_config:object({payment_institution, ref(ID)})),
+        PaymentInstitution = unwrap(ff_domain_config:object(DomainRevision, {payment_institution, ref(ID)})),
         decode(ID, PaymentInstitution)
     end).
 

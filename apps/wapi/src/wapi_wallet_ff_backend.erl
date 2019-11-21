@@ -808,8 +808,10 @@ handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Context) ->
 
 sync_ff_external(_Type, undefined, _BenderID, _Context) ->
     ok;
-sync_ff_external(Type, ExternalID, BenderID, _Context) ->
-    {ok, BenderID} = ff_external_id:bind(Type, ExternalID, BenderID),
+sync_ff_external(Type, ExternalID, BenderID, Context) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    FistfulID = ff_external_id:construct_external_id(PartyID, ExternalID),
+    {ok, BenderID} = ff_external_id:bind(Type, FistfulID, BenderID),
     ok.
 
 with_party(Context, Fun) ->
@@ -858,20 +860,27 @@ get_contract_id_from_identity(IdentityID, Context) ->
 gen_id(Type, ExternalID, Hash, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),
     IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
-    gen_id_(Type, IdempotentKey, Hash, Context).
+    gen_id_by_type(Type, IdempotentKey, Hash, Context).
 
-gen_id_(withdrawal = Type, IdempotentKey, Hash, Context) ->
-    gen_id_by_snowflake(Type, IdempotentKey, Hash, Context);
-gen_id_(Type, IdempotentKey, Hash, Context) ->
-    gen_id_by_sequence(Type, IdempotentKey, Hash, Context).
+gen_id_by_type(withdrawal = Type, IdempotentKey, Hash, Context) ->
+    gen_snowflake_id(Type, IdempotentKey, Hash, Context);
+gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
+    gen_sequence_id(Type, IdempotentKey, Hash, Context).
 
-gen_id_by_snowflake(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx).
 
-gen_id_by_sequence(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
-    %% TODO minimum offset
-    bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
+    FistfulSequence = get_fistful_sequence_value(Type),
+    Offset = 10000, %% Offset for migration purposes
+    bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx, #{},
+        #{minimum => FistfulSequence + Offset}
+    ).
+
+get_fistful_sequence_value(Type) ->
+    NS = 'ff/sequence',
+    ff_sequence:get(NS, ff_string:join($/, [Type, id]), fistful:backend(NS)).
 
 create_report_request(#{
     party_id     := PartyID,

@@ -14,7 +14,9 @@
 
 -export([check_in/2]).
 -export([bind/3]).
--export([get/2]).
+-export([get_internal_id/2]).
+
+-export([construct_external_id/2]).
 
 -export_type([external_id/0]).
 -export_type([check_result/0]).
@@ -59,12 +61,20 @@ bind(EntityName, ExternalID, InternalID) ->
     ID = create_id(EntityName, ExternalID),
     start_(ID, InternalID).
 
--spec get(entity_name(), external_id()) ->
+-spec get_internal_id(entity_name(), external_id()) ->
     check_result() | {error, notfound}.
 
-get(EntityName, ExternalID) ->
+get_internal_id(EntityName, ExternalID) ->
     ID = create_id(EntityName, ExternalID),
     get_(ID).
+
+-spec construct_external_id(ff_party:id(), external_id()) ->
+    external_id().
+
+construct_external_id(_PartyID, undefined) ->
+    undefined;
+construct_external_id(PartyID, ExternalID) ->
+    <<PartyID/binary, "/", ExternalID/binary>>.
 
 %%
 

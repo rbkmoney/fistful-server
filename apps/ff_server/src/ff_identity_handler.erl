@@ -84,13 +84,9 @@ handle_function_('GetChallenges', [ID], _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;
-<<<<<<< HEAD
-handle_function_('GetEvents', [IdentityID, RangeParams], _Context, _Opts) ->
-    Range = ff_identity_codec:unmarshal(ev_range, RangeParams),
-=======
+
 handle_function_('GetEvents', [IdentityID, RangeParams], _Opts) ->
     Range = ff_identity_codec:unmarshal(range, RangeParams),
->>>>>>> master
     case ff_identity_machine:events(IdentityID, Range) of
         {ok, EventList} ->
             Events = [ff_identity_codec:marshal_identity_event(Event) || Event <- EventList],

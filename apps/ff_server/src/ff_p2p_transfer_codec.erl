@@ -43,30 +43,34 @@ marshal(event, {adjustment, #{id := ID, payload := Payload}}) ->
 
 marshal(transfer, Transfer = #{
     status := Status,
-    identity_id := IdentityID,
+    owner := Owner,
+    sender := Sender,
+    receiver := Receiver,
     body := Body,
+    domain_revision := DomainRevision,
+    party_revision := PartyRevision,
+    operation_timestamp := OperationTimestamp,
     created_at := CreatedAt
 }) ->
     ExternalID = maps:get(external_id, Transfer, undefined),
-    FeeQuote = maps:get(fees, Transfer, undefined),
+    Quote = maps:get(quote, Transfer, undefined),
+    Deadline = maps:get(deadline, Transfer, undefined),
+    ClientInfo = maps:get(client_info, Transfer, undefined),
+
     #p2p_transfer_P2PTransfer{
-        owner = marshal(id, IdentityID),
-        sender = {resource, #p2p_transfer_DisposableResource{
-            resource = {crypto_wallet, #'CryptoWallet'{id = <<"TestID">>, currency = bitcoin}},
-            contact_info = #'ContactInfo'{}
-        }},
-        receiver = {resource, #p2p_transfer_DisposableResource{
-            resource = {crypto_wallet, #'CryptoWallet'{id = <<"TestID">>, currency = bitcoin}},
-            contact_info = #'ContactInfo'{}
-        }},
+        owner = marshal(id, Owner),
+        sender = marshal(participant, Sender),
+        receiver = marshal(participant, Receiver),
         body = marshal(cash, Body),
         status = marshal(status, Status),
-        created_at = marshal(timestamp, ff_time:to_rfc3339(CreatedAt)),
-        domain_revision = 123,
-        party_revision = 321,
-        operation_timestamp = marshal(timestamp, ff_time:to_rfc3339(ff_time:now())),
-        quote = maybe_marshal(quote, FeeQuote),
-        external_id = maybe_marshal(id, ExternalID)
+        created_at = marshal(timestamp, CreatedAt),
+        domain_revision = marshal(integer, DomainRevision),
+        party_revision = marshal(integer, PartyRevision),
+        operation_timestamp = marshal(timestamp, OperationTimestamp),
+        quote = maybe_marshal(quote, Quote),
+        external_id = maybe_marshal(id, ExternalID),
+        client_info = maybe_marshal(client_info, ClientInfo),
+        deadline = maybe_marshal(timestamp, Deadline)
     };
 
 marshal(quote, #{}) ->
@@ -79,14 +83,34 @@ marshal(status, succeeded) ->
 marshal(status, {failed, Failure}) ->
     {failed, #p2p_status_Failed{failure = marshal(failure, Failure)}};
 
+marshal(participant, {raw, #{resource_params := Resource} = Raw}) ->
+    ContactInfo = maps:get(contact_info, Raw, undefined),
+    {resource, #p2p_transfer_RawResource{
+        resource = marshal(resource, Resource),
+        contact_info = maybe_marshal(contact_info, ContactInfo)
+    }};
+
+marshal(contact_info, ContactInfo) ->
+    PhoneNumber = maps:get(phone_number, ContactInfo, undefined),
+    Email = maps:get(email, ContactInfo, undefined),
+    #'ContactInfo'{
+        phone_number = marshal(string, PhoneNumber),
+        email = marshal(string, Email)
+    };
+
+marshal(client_info, ClientInfo) ->
+    IPAddress = maps:get(ip_address, ClientInfo, undefined),
+    Fingerprint = maps:get(fingerprint, ClientInfo, undefined),
+    #'ClientInfo'{
+        ip_address = marshal(string, IPAddress),
+        fingerprint = marshal(string, Fingerprint)
+    };
+
 marshal(resource_got, {Sender, Receiver}) ->
     #p2p_transfer_ResourceChange{payload = {got, #p2p_transfer_ResourceGot{
-        sender = marshal(participant, Sender),
-        receiver = marshal(participant, Receiver)
+        sender = marshal(resource, Sender),
+        receiver = marshal(resource, Receiver)
     }}};
-
-marshal(participant, {resource, #{instrument := {bank_card, {full, Resource}}}}) ->
-    marshal(resource, {bank_card, Resource});
 
 marshal(risk_score, low) ->
     low;
@@ -100,12 +124,12 @@ marshal(route, #{provider_id := ProviderID}) ->
         provider_id =  marshal(id, ProviderID)
     }};
 
-marshal(session, {started, SessionID}) ->
+marshal(session, {SessionID, started}) ->
     #p2p_transfer_SessionChange{
         id = marshal(id, SessionID),
         payload = {started, #p2p_transfer_SessionStarted{}}
     };
-marshal(session, {finished, {SessionID, SessionResult}}) ->
+marshal(session, {SessionID, {finished, SessionResult}}) ->
     #p2p_transfer_SessionChange{
         id = marshal(id, SessionID),
         payload = {finished, #p2p_transfer_SessionFinished{
@@ -117,6 +141,9 @@ marshal(session_result, {success, TrxInfo}) ->
     {succeeded, #p2p_transfer_SessionSucceeded{trx_info = marshal(transaction_info, TrxInfo)}};
 marshal(session_result, {failed, Failure}) ->
     {failed, #p2p_transfer_SessionFailed{failure = marshal(failure, Failure)}};
+
+marshal(timestamp, Timestamp) when is_integer(Timestamp) ->
+    ff_time:to_rfc3339(Timestamp);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -157,24 +184,31 @@ unmarshal(event, {adjustment, #p2p_transfer_AdjustmentChange{id = ID, payload = 
     }};
 
 unmarshal(transfer, #p2p_transfer_P2PTransfer{
-    owner = IdentityID,
-    % sender = Sender,
-    % receiver = Receiver,
+    owner = Owner,
+    sender = Sender,
+    receiver = Receiver,
     body = Body,
     status = Status,
     created_at = CreatedAt,
-    % domain_revision = DomainRevision,
-    % party_revision = PartyRevision,
-    % operation_timestamp = OperationTimestamp,
-    quote = FeeQuote,
+    domain_revision = DomainRevision,
+    party_revision = PartyRevision,
+    operation_timestamp = OperationTimestamp,
+    quote = Quote,
+    client_info = ClientInfo,
     external_id = ExternalID
 }) ->
     genlib_map:compact(#{
         status => unmarshal(status, Status),
-        identity_id => unmarshal(id, IdentityID),
+        owner => unmarshal(id, Owner),
         body => unmarshal(cash, Body),
+        sender => unmarshal(participant, Sender),
+        receiver => unmarshal(participant, Receiver),
+        domain_revision => unmarshal(integer, DomainRevision),
+        party_revision => unmarshal(integer, PartyRevision),
+        operation_timestamp => ff_time:from_rfc3339(unmarshal(timestamp, OperationTimestamp)),
         created_at => ff_time:from_rfc3339(unmarshal(timestamp, CreatedAt)),
-        fees => maybe_unmarshal(quote, FeeQuote),
+        quote => maybe_unmarshal(quote, Quote),
+        client_info => maybe_unmarshal(client_info, ClientInfo),
         external_id => maybe_unmarshal(id, ExternalID)
     });
 
@@ -189,10 +223,34 @@ unmarshal(status, {failed, #p2p_status_Failed{failure = Failure}}) ->
     {failed, unmarshal(failure, Failure)};
 
 unmarshal(resource_got, {Sender, Receiver}) ->
-    {resource_got, unmarshal(participant, Sender), unmarshal(participant, Receiver)};
+    {resource_got, unmarshal(resource, Sender), unmarshal(resource, Receiver)};
 
-unmarshal(participant, Resource) ->
-    {resource, #{instrument => {bank_card, {full, unmarshal(resource, Resource)}}}};
+unmarshal(participant, {resource, #p2p_transfer_RawResource{
+    resource = Resource,
+    contact_info = ContactInfo
+}}) ->
+    {raw, genlib_map:compact(#{
+        resource_params => unmarshal(resource, Resource),
+        contact_info => maybe_unmarshal(contact_info, ContactInfo)
+    })};
+
+unmarshal(contact_info, #'ContactInfo'{
+    phone_number = PhoneNumber,
+    email = Email
+}) ->
+    genlib_map:compact(#{
+        phone_number => maybe_unmarshal(string, PhoneNumber),
+        email => maybe_unmarshal(string, Email)
+    });
+
+unmarshal(client_info, #'ClientInfo'{
+    ip_address = IPAddress,
+    fingerprint = Fingerprint
+}) ->
+    genlib_map:compact(#{
+        ip_address => maybe_unmarshal(string, IPAddress),
+        fingerprint => maybe_unmarshal(string, Fingerprint)
+    });
 
 unmarshal(risk_score, low) ->
     low;
@@ -205,9 +263,9 @@ unmarshal(route, #p2p_transfer_Route{provider_id = ProviderID}) ->
     #{provider_id => unmarshal(id, ProviderID)};
 
 unmarshal(session, {SessionID, {started, #p2p_transfer_SessionStarted{}}}) ->
-    {started, SessionID};
+    {SessionID, started};
 unmarshal(session, {SessionID, {finished, #p2p_transfer_SessionFinished{result = SessionResult}}}) ->
-    {finished, {SessionID, unmarshal(session_result, SessionResult)}};
+    {SessionID, {finished, unmarshal(session_result, SessionResult)}};
 
 unmarshal(session_result, {succeeded, #p2p_transfer_SessionSucceeded{trx_info = TrxInfo}}) ->
     {success, unmarshal(transaction_info, TrxInfo)};
@@ -265,19 +323,27 @@ p2p_transfer_codec_test() ->
         external_id => genlib:unique()
     },
 
-    Participant = {resource, #{
-        instrument   => {bank_card, {full, #{
-            token => genlib:unique(),
-            bin_data_id => {binary, genlib:unique()}
-        }}}}
-    },
+    Resource = {bank_card, #{
+        token => genlib:unique(),
+        bin_data_id => {binary, genlib:unique()}
+    }},
+
+    Participant = {raw, #{
+        resource_params => Resource,
+        contact_info => #{}
+    }},
 
     P2PTransfer = #{
         status => pending,
-        identity_id => genlib:unique(),
+        owner => genlib:unique(),
         body => {123, <<"RUB">>},
         created_at => ff_time:now(),
-        fees => #{},
+        sender => Participant,
+        receiver => Participant,
+        quote => #{},
+        domain_revision => 123,
+        party_revision => 321,
+        operation_timestamp => ff_time:now(),
         external_id => genlib:unique()
     },
 
@@ -287,17 +353,14 @@ p2p_transfer_codec_test() ->
 
     Events = [
         {created, P2PTransfer},
-        {resource_got, Participant, Participant},
+        {resource_got, Resource, Resource},
         {risk_score_changed, low},
         {route_changed, #{provider_id => genlib:unique()}},
         {p_transfer, {created, PTransfer}},
-        {session, {started, genlib:unique()}},
+        {session, {genlib:unique(), started}},
         {status_changed, succeeded},
         {adjustment, #{id => genlib:unique(), payload => {created, Adjustment}}}
     ],
-    Marshaled = marshal({list, event}, Events),
-    io:format("Marshaled - ~p~n", [Marshaled]),
-    Unmarshaled = unmarshal({list, event}, Marshaled),
-    ?assertEqual(Events, Unmarshaled).
+    ?assertEqual(Events, unmarshal({list, event}, marshal({list, event}, Events))).
 
 -endif.

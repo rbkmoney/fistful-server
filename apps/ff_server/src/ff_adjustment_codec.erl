@@ -202,9 +202,6 @@ adjustment_codec_test() ->
         adjustment => <<"adjustment">>,
         status => <<"status">>
     },
-    % ?assertEqual(123, unmarshal(integer, 123)).
-    % ?assertEqual(123, marshal(Prefix, integer, 123)).
-    % ?assertEqual(123, unmarshal(integer, marshal(Prefix, integer, 123))).
 
     FinalCashFlow = #{
         postings => []

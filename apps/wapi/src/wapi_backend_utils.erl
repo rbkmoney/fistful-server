@@ -5,8 +5,8 @@
 -define(PARAMS_HASH, <<"params_hash">>).
 
 %% Context
--type md()      :: ff_ctx:md().
--type context() :: ff_ctx:ctx().
+-type md()      :: ff_entity_context:md().
+-type context() :: ff_entity_context:context().
 -type params()  :: map().
 
 -export([make_id/1, make_id/2]).

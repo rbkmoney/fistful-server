@@ -59,39 +59,39 @@ handle_function_('Get', [ID], _Opts) ->
     end.
 
 
-encode(wallet, {ID, Machine}) ->
-    Wallet = ff_wallet_machine:wallet(Machine),
-    Ctx = ff_wallet_machine:ctx(Machine),
-    #wlt_Wallet{
-        id          = ID,
-        name        = ff_wallet:name(Wallet),
-        blocking    = ff_wallet:blocking(Wallet),
-        account     = encode(account, ff_wallet:account(Wallet)),
-        external_id = ff_wallet:external_id(Wallet),
-        context     = encode(context, Ctx)
-    };
-encode(context, Ctx) ->
-    ff_entity_context_codec:marshal(Ctx);
-encode(account, Account) ->
-    #account_Account{
-        id       = ff_account:id(Account),
-        identity = ff_account:identity(Account),
-        currency = encode(currency, ff_account:currency(Account)),
-        accounter_account_id = ff_account:accounter_account_id(Account)
-    };
-encode(currency, CurrencyId) ->
-    #'CurrencyRef'{symbolic_code = CurrencyId}.
+% encode(wallet, {ID, Machine}) ->
+%     Wallet = ff_wallet_machine:wallet(Machine),
+%     Ctx = ff_wallet_machine:ctx(Machine),
+%     #wlt_Wallet{
+%         id          = ID,
+%         name        = ff_wallet:name(Wallet),
+%         blocking    = ff_wallet:blocking(Wallet),
+%         account     = encode(account, ff_wallet:account(Wallet)),
+%         external_id = ff_wallet:external_id(Wallet),
+%         context     = encode(context, Ctx)
+%     };
+% encode(context, Ctx) ->
+%     ff_entity_context_codec:marshal(Ctx);
+% encode(account, Account) ->
+%     #account_Account{
+%         id       = ff_account:id(Account),
+%         identity = ff_account:identity(Account),
+%         currency = encode(currency, ff_account:currency(Account)),
+%         accounter_account_id = ff_account:accounter_account_id(Account)
+%     };
+% encode(currency, CurrencyId) ->
+%     #'CurrencyRef'{symbolic_code = CurrencyId}.
 
-decode(wallet_params, Params) ->
-    AccountParams = Params#wlt_WalletParams.account_params,
-    #{
-        name        => Params#wlt_WalletParams.name,
-        identity    => AccountParams#account_AccountParams.identity_id,
-        currency    => AccountParams#account_AccountParams.symbolic_code,
-        external_id => Params#wlt_WalletParams.external_id
-    };
-decode(context, undefined) ->
-    undefined;
-decode(context, Ctx) ->
-    ff_entity_context_codec:unmarshal(Ctx).
+% decode(wallet_params, Params) ->
+%     AccountParams = Params#wlt_WalletParams.account_params,
+%     #{
+%         name        => Params#wlt_WalletParams.name,
+%         identity    => AccountParams#account_AccountParams.identity_id,
+%         currency    => AccountParams#account_AccountParams.symbolic_code,
+%         external_id => Params#wlt_WalletParams.external_id
+%     };
+% decode(context, undefined) ->
+%     undefined;
+% decode(context, Ctx) ->
+%     ff_entity_context_codec:unmarshal(Ctx).
 

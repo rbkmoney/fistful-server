@@ -77,9 +77,13 @@ service_call(Params, Ctx) ->
     wapi_handler_utils:service_call(Params, Ctx).
 
 compose_wallet_params(ParamsIn, WoodyContext) ->
+    ExternalID = maps:get(<<"externalID">>, ParamsIn, undefined),
+    Hash       = erlang:phash2(ParamsIn),
+    Context    = create_context(ParamsIn, WoodyContext),
+    {ok, ID}   = gen_id(Type, ExternalID, Hash, Context),
     genlib_map:compact(ParamsIn#{
-        <<"id">>      => create_id(ParamsIn, WoodyContext),
-        <<"context">> => create_context(ParamsIn, WoodyContext)
+        <<"id">>      => ID,
+        <<"context">> => Context
     }).
 
 create_id(ParamsIn, WoodyContext) ->
@@ -128,7 +132,7 @@ marshal(account_params, {IdentityID, CurrencyID}) ->
     };
 
 marshal(context, Ctx) ->
-    ff_context:wrap(Ctx);
+    ff_codec:marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -164,7 +168,7 @@ unmarshal(blocked, blocked) ->
     true;
 
 unmarshal(context, Ctx) ->
-    ff_context:unwrap(Ctx);
+    ff_codec:unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

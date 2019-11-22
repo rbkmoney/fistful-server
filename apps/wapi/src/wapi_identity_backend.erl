@@ -65,9 +65,6 @@ unmarshal(blocked, false) ->
 unmarshal(blocked, true) ->
     true;
 
-unmarshal(context, Ctx) ->
-    ff_context:unwrap(Ctx);
-
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 

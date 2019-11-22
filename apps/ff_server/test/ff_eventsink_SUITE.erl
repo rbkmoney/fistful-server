@@ -9,6 +9,7 @@
 -include_lib("fistful_proto/include/ff_proto_source_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_deposit_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -27,6 +28,7 @@
 -export([get_create_source_events_ok/1]).
 -export([get_create_deposit_events_ok/1]).
 -export([get_shifted_create_identity_events_ok/1]).
+-export([get_create_p2p_transfer_events_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -49,7 +51,8 @@ all() ->
         get_create_source_events_ok,
         get_create_deposit_events_ok,
         get_withdrawal_session_events_ok,
-        get_shifted_create_identity_events_ok
+        get_shifted_create_identity_events_ok,
+        get_create_p2p_transfer_events_ok
     ].
 
 
@@ -296,6 +299,70 @@ get_shifted_create_identity_events_ok(C) ->
     MaxID = get_max_sinkevent_id(Events),
     MaxID = StartEventNum + 1.
 
+-spec get_create_p2p_transfer_events_ok(config()) -> test_return().
+
+get_create_p2p_transfer_events_ok(C) ->
+    ID = genlib:unique(),
+    Party = create_party(C),
+    timer:sleep(3000),
+    IID = create_person_identity(Party, C),
+    Service = p2p_transfer_event_sink,
+    LastEvent = unwrap_last_sinkevent_id(
+        call_eventsink_handler('GetLastEventID', Service, [])),
+
+    Resource = {bank_card, #{
+        token => genlib:unique(),
+        bin => <<"some bin">>,
+        masked_pan => <<"some masked_pan">>
+    }},
+
+    Participant = {raw, #{
+        resource_params => Resource,
+        contact_info => #{}
+    }},
+
+    Cash = {123, <<"RUB">>},
+
+    CompactResource = #{
+        type => bank_card,
+        token => genlib:unique(),
+        bin_data_id => {binary, genlib:unique()}
+    },
+
+    Quote = #{
+        amount            => Cash,
+        party_revision    => 1,
+        domain_revision   => 1,
+        created_at        => ff_time:now(),
+        expires_on        => ff_time:now(),
+        identity_id       => ID,
+        sender            => CompactResource,
+        receiver          => CompactResource
+    },
+
+    ok = p2p_transfer_machine:create(
+        #{
+            id => ID,
+            identity_id => IID,
+            body => Cash,
+            sender => Participant,
+            receiver => Participant,
+            quote => Quote,
+            client_info => #{
+                ip_address => <<"some ip_address">>,
+                fingerprint => <<"some fingerprint">>
+            },
+            external_id => ID
+        },
+        ff_entity_context:new()
+    ),
+
+    {ok, RawEvents} = p2p_transfer_machine:events(ID, {undefined, 1000, forward}),
+    {ok, Events} = call_eventsink_handler('GetEvents',
+        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
+    MaxID = get_max_sinkevent_id(Events),
+    MaxID = LastEvent + length(RawEvents).
+
 create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
@@ -455,7 +522,8 @@ get_sinkevent_id(#'idnt_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'dst_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'src_SinkEvent'{id = ID}) -> ID;
 get_sinkevent_id(#'deposit_SinkEvent'{id = ID}) -> ID;
-get_sinkevent_id(#'wthd_session_SinkEvent'{id = ID}) -> ID.
+get_sinkevent_id(#'wthd_session_SinkEvent'{id = ID}) -> ID;
+get_sinkevent_id(#'p2p_transfer_SinkEvent'{id = ID}) -> ID.
 
 -spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
 

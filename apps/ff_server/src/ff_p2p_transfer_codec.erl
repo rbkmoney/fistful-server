@@ -22,7 +22,7 @@ marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
 marshal(event, {created, Transfer}) ->
-    {created, marshal(transfer, Transfer)};
+    {created, #p2p_transfer_CreatedChange{p2p_transfer = marshal(transfer, Transfer)}};
 marshal(event, {status_changed, Status}) ->
     {status_changed, #p2p_transfer_StatusChange{status = marshal(status, Status)}};
 marshal(event, {resource_got, Sender, Receiver}) ->
@@ -161,7 +161,7 @@ unmarshal(repair_scenario, {add_events, #p2p_transfer_AddEventsRepair{events = E
         actions => maybe_unmarshal(complex_action, Action)
     })};
 
-unmarshal(event, {created, Transfer}) ->
+unmarshal(event, {created, #p2p_transfer_CreatedChange{p2p_transfer = Transfer}}) ->
     {created, unmarshal(transfer, Transfer)};
 unmarshal(event, {status_changed, #p2p_transfer_StatusChange{status = Status}}) ->
     {status_changed, unmarshal(status, Status)};

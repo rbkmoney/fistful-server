@@ -56,6 +56,7 @@
 -export([delete_webhook/3]).
 
 -export([quote_p2p_transfer/2]).
+-export([create_p2p_transfer/2]).
 
 %% Types
 
@@ -638,7 +639,11 @@ delete_webhook(WebhookID, IdentityID, Context) ->
     {party, not_found} |
     {p2p_tool, not_allow} |
     {currency, not_allowed} |
-    {cash_range, out_of_range}
+    {cash_range, out_of_range} |
+    {cash_flow, volume_finalize_error} |
+    {sender, not_found} |
+    {receiver, not_found} |
+    p2p_forbidden
 ).
 quote_p2p_transfer(Params, Context) ->
     do(fun () ->
@@ -656,12 +661,72 @@ quote_p2p_transfer(Params, Context) ->
                 throw({identity,   not_found});
             {error, {party, _PartyError}} ->
                 throw({party, not_found});
+            {error, {cash_flow, _VolumeFinalizeError}} ->
+                throw({cash_flow, volume_finalize_error});
+            {error, {sender, {bin_data, not_found}}} ->
+                throw({sender, not_found});
+            {error, {receiver, {bin_data, not_found}}} ->
+                throw({receiver, not_found});
+            {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
+                throw({currency, not_allowed});
+            {error, {terms, {terms_violation, {cash_range, _CashBounds}}}} ->
+                throw({cash_range, out_of_range});
+            {error, {terms, {terms_violation, p2p_forbidden}}} ->
+                throw(p2p_forbidden)
+        end
+    end).
+
+-spec create_p2p_transfer(params(), ctx()) -> result(map(),
+    {identity,   not_found} |
+    {party, not_found} |
+    {p2p_tool, not_allowed} |
+    {currency, not_allowed} |
+    {cash_flow, volume_finalize_error} |
+    {sender, not_found} |
+    {receiver, not_found} |
+    {token, not_match} |
+    {token, not_match_params} |
+    {token, expired} |
+    {token, not_decodable} |
+    {token, not_verified} |
+    {token, wrong_party_id}
+).
+create_p2p_transfer(Params, Context) ->
+    do(fun () ->
+        #{
+            identity_id := IdentityID,
+            body := Body,
+            sender := Sender,
+            receiver := Receiver,
+            token := Token,
+            external_id := ExternalID
+        } = ParsedParams = from_swag(create_p2p_params, Params),
+        PartyID = wapi_handler_utils:get_owner(Context),
+        {ok, DecodedToken} = prepare_p2p_quote_token(Token, PartyID, ParsedParams),
+        ParamsHash = erlang:phash2(ParsedParams),
+        {ok, Id} = gen_id(p2p_transfer, ExternalID, ParamsHash, Context),
+        CreateParams = #{
+            id => Id,
+            identity_id => IdentityID,
+            body => Body,
+            sender => {raw, #{resource_params => Sender}},
+            receiver => {raw, #{resource_params => Receiver}},
+            quote => DecodedToken,
+            external_id => ExternalID
+        },
+        case p2p_transfer:create(CreateParams) of
+            {ok, Events} ->
+                to_swag(p2p_transfer_events, Events);
             {error, {p2p_tool, not_allow}} ->
                 throw({p2p_tool, not_allow});
-            {error, {validation, {terms_violation, {not_allowed_currency, _Details}}}} ->
-                throw({currency, not_allowed});
-            {error, {validation, {terms_violation, {cash_range, _CashBounds}}}} ->
-                throw({cash_range, out_of_range})
+            {error, {identity, notfound}} ->
+                throw({identity, notfound});
+            {error, {cash_flow, _VolumeFinalizeError}} ->
+                throw({cash_flow, volume_finalize_error});
+            {error, {sender, {bin_data, not_found}}} ->
+                throw({sender, not_found});
+            {error, {receiver, {bin_data, not_found}}} ->
+                throw({receiver, not_found})
         end
     end).
 
@@ -756,12 +821,103 @@ create_p2p_quote_token(#{
         <<"expiresOn">>      => ff_time:to_rfc3339(ExpiresOn),
         <<"partyID">>        => PartyID,
         <<"identityID">>     => IdentityID,
-        <<"sender">>         => to_swag(sender_resource, Sender),
-        <<"receiver">>       => to_swag(sender_resource, Receiver)
+        <<"sender">>         => to_swag(compact_sender_resource, Sender),
+        <<"receiver">>       => to_swag(compact_receiver_resource, Receiver)
     }),
     JSONData = jsx:encode(Data),
     {ok, Token} = wapi_signer:sign(JSONData),
     Token.
+
+verify_p2p_quote_token(Token) ->
+    case wapi_signer:verify(Token) of
+        {ok, VerifiedToken} ->
+            {ok, VerifiedToken};
+        {error, _Error} ->
+            throw({token, not_verified})
+    end.
+
+decode_p2p_quote_token(Token) ->
+    try jsx:decode(Token) of
+        #{
+            <<"version">>        := 1,
+            <<"amount">>         := Cash,
+            <<"partyRevision">>  := PartyRevision,
+            <<"domainRevision">> := DomainRevision,
+            <<"createdAt">>      := CreatedAt,
+            <<"expiresOn">>      := ExpiresOn,
+            <<"partyID">>        := PartyID,
+            <<"identityID">>     := IdentityID,
+            <<"sender">>         := Sender,
+            <<"receiver">>       := Receiver
+        } ->
+            DecodedToken = #{
+                amount          => from_swag(withdrawal_body, Cash),
+                party_revision  => PartyRevision,
+                domain_revision => DomainRevision,
+                created_at      => ff_time:from_rfc3339(CreatedAt),
+                expires_on      => ff_time:from_rfc3339(ExpiresOn),
+                identity_id     => IdentityID,
+                sender          => from_swag(compact_sender_resource, Sender),
+                receiver        => from_swag(compact_receiver_resource, Receiver)
+            },
+            {ok, {DecodedToken, PartyID}};
+        _ ->
+            throw({token, not_match})
+    catch
+        _ ->
+            throw({token, not_decodable})
+    end.
+
+validate_p2p_quote_token(
+    #{
+        amount          := Cash,
+        party_revision  := _PartyRevision,
+        domain_revision := _DomainRevision,
+        created_at      := CreatedAt,
+        expires_on      := ExpiresOn,
+        identity_id     := IdentityID,
+        sender          := #{
+            type := bank_card,
+            token := SenderToken
+        },
+        receiver        := #{
+            type := bank_card,
+            token := ReceiverToken
+        }
+    },
+    #{
+        sender := {bank_card, #{
+            token := SenderToken
+        }},
+        receiver := {bank_card, #{
+            token := ReceiverToken
+        }},
+        identity_id := IdentityID,
+        body := Cash
+    }
+) ->
+    Timestamp = ff_time:now(),
+    case Timestamp of
+        _ when ExpiresOn < Timestamp ->
+            throw({token, expired});
+        _ when CreatedAt < Timestamp, ExpiresOn > Timestamp ->
+            ok
+    end;
+validate_p2p_quote_token(_Quote, _Params) ->
+    throw({token, not_match_params}).
+
+prepare_p2p_quote_token(undefined, _PartyID, _Params) ->
+    {ok, undefined};
+prepare_p2p_quote_token(Token, PartyID, Params) ->
+    {ok, VerifiedToken} = verify_p2p_quote_token(Token),
+    {ok, {DecodedToken, TokenPartyID}} = decode_p2p_quote_token(VerifiedToken),
+    ok = validate_p2p_quote_token(DecodedToken, Params),
+    case TokenPartyID of
+        PartyID ->
+            {ok, DecodedToken};
+        _OtherPartyID ->
+            throw({token, wrong_party_id})
+    end.
 
 filter_identity_challenge_status(Filter, Status) ->
     maps:get(<<"status">>, to_swag(challenge_status, Status)) =:= Filter.
@@ -1250,6 +1406,35 @@ from_swag(receiver_resource, #{
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }};
+from_swag(compact_sender_resource, #{
+    <<"type">> := <<"bank_card">>,
+    <<"token">> := Token,
+    <<"binDataID">> := BinDataID
+}) ->
+    to_swag(map, #{
+        type => bank_card,
+        token => Token,
+        bin_data_id => BinDataID
+    });
+from_swag(compact_receiver_resource, #{
+    <<"type">> := <<"bank_card">>,
+    <<"token">> := Token,
+    <<"binDataID">> := BinDataID
+}) ->
+    to_swag(map, #{
+        type => bank_card,
+        token => Token,
+        bin_data_id => BinDataID
+    });
+from_swag(create_p2p_params, Params) ->
+    add_external_id(#{
+        sender      => from_swag(sender_resource, maps:get(<<"sender">>, Params)),
+        receiver    => from_swag(receiver_resource, maps:get(<<"receiver">>, Params)),
+        identity_id => maps:get(<<"identityID">>, Params),
+        body        => from_swag(withdrawal_body, maps:get(<<"body">>, Params)),
+        quote_token => maps:get(<<"quoteToken">>, Params, undefined),
+        metadata    => maps:get(<<"metadata">>, Params, #{})
+    }, Params);
 
 from_swag(crypto_wallet_currency, <<"Bitcoin">>)     -> bitcoin;
 from_swag(crypto_wallet_currency, <<"Litecoin">>)    -> litecoin;
@@ -1484,6 +1669,26 @@ to_swag(destination_resource, {crypto_wallet, CryptoWallet}) ->
         <<"id">>       => maps:get(id, CryptoWallet),
         <<"currency">> => to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet)),
         <<"tag">>      => maps:get(tag, CryptoWallet, undefined)
+    });
+to_swag(compact_sender_resource, #{
+    type := bank_card,
+    token := Token,
+    bin_data_id := BinDataID
+}) ->
+    to_swag(map, #{
+        <<"type">> => <<"bank_card">>,
+        <<"token">> => Token,
+        <<"binDataID">> => BinDataID
+    });
+to_swag(compact_receiver_resource, #{
+    type := bank_card,
+    token := Token,
+    bin_data_id := BinDataID
+}) ->
+    to_swag(map, #{
+        <<"type">> => <<"bank_card">>,
+        <<"token">> => Token,
+        <<"binDataID">> => BinDataID
     });
 
 to_swag(pan_last_digits, MaskedPan) ->

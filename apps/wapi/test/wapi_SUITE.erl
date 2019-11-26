@@ -25,6 +25,8 @@
 -export([quote_withdrawal_test/1]).
 -export([not_allowed_currency_test/1]).
 
+-export([consume_eventsinks/1]).
+
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
 -type group_name()     :: ct_helper:group_name().
@@ -39,6 +41,7 @@ all() ->
     , {group, quote}
     , {group, woody}
     , {group, errors}
+    , {group, eventsink}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -63,6 +66,9 @@ groups() ->
         ]},
         {errors, [], [
             not_allowed_currency_test
+        ]},
+        {eventsink, [], [
+            consume_eventsinks
         ]}
     ].
 
@@ -757,3 +763,51 @@ not_allowed_currency_test(C) ->
         }},
         ct_helper:cfg(context, C)
     ).
+
+-spec consume_eventsinks(config()) -> test_return().
+
+consume_eventsinks(_) ->
+    EventSinks = [
+          deposit_event_sink
+        , source_event_sink
+        , destination_event_sink
+        , identity_event_sink
+        , wallet_event_sink
+        , withdrawal_event_sink
+        , withdrawal_session_event_sink
+    ],
+    [ok = consume_eventsink(EventSink) || EventSink <- EventSinks].
+
+%%
+
+-include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
+
+consume_eventsink(ServiceName) ->
+    consume_eventsink(ServiceName, undefined, 1000).
+
+consume_eventsink(ServiceName, After, Limit) ->
+    Range = #'evsink_EventRange'{'after' = After, limit = Limit},
+    {ok, Events} = call_handler('GetEvents', ServiceName, [Range]),
+    case length(Events) of
+        N when N >= Limit ->
+            consume_eventsink(ServiceName, get_max_sinkevent_id(Events), Limit);
+        _ ->
+            ok
+    end.
+
+get_max_sinkevent_id(Events) when is_list(Events) ->
+    lists:max([get_sinkevent_id(Ev) || Ev <- Events]).
+
+get_sinkevent_id(Ev) ->
+    % {wlt_SinkEvent, ID, ...}
+    erlang:element(2, Ev).
+
+call_handler(Function, ServiceName, Args) ->
+    Service = ff_services:get_service(ServiceName),
+    Path = erlang:list_to_binary(ff_services:get_service_path(ServiceName)),
+    Request = {Service, Function, Args},
+    Client  = ff_woody_client:new(#{
+        url           => <<"http://localhost:8022", Path/binary>>,
+        event_handler => scoper_woody_event_handler
+    }),
+    ff_woody_client:call(Client, Request).

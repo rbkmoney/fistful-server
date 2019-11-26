@@ -266,7 +266,7 @@ get_quote_without_destination_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
 
     CashFrom = #{
-        <<"amount">> => 100,
+        <<"amount">> => 123,
         <<"currency">> => <<"RUB">>
     },
 

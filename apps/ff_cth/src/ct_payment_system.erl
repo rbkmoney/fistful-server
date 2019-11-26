@@ -386,7 +386,36 @@ domain_config(Options, C) ->
                 realm                     = live,
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = quote_payment_inst_identity_id(Options),
-                withdrawal_providers      = {value, [?wthdr_prv(3)]}
+                withdrawal_providers      = {decisions, [
+                    #domain_WithdrawalProviderDecision{
+                        if_ = {condition, {cost_in, #domain_CashRange{
+                            upper = {inclusive, #domain_Cash{
+                                amount = 123,
+                                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+                            }},
+                            lower = {inclusive, #domain_Cash{
+                                amount = 123,
+                                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+                            }}
+                        }}},
+                        then_ = {value, [?wthdr_prv(3)]}
+                    },
+                    #domain_WithdrawalProviderDecision{
+                        if_ = {condition, {payment_tool, {crypto_currency, #domain_CryptoCurrencyCondition{
+                            definition = {crypto_currency_is, litecoin}
+                        }}}},
+                        then_ = {value, [?wthdr_prv(3)]}
+                    },
+                    #domain_WithdrawalProviderDecision{
+                        if_ = {
+                            condition,
+                            {payment_tool, {bank_card, #domain_BankCardCondition{
+                                definition = {issuer_country_is, 'rus'}
+                            }}}
+                        },
+                        then_ = {value, [?wthdr_prv(3)]}
+                    }
+                ]}
             }
         }},
 
@@ -409,6 +438,7 @@ domain_config(Options, C) ->
         ct_domain:currency(?cur(<<"RUB">>)),
         ct_domain:currency(?cur(<<"USD">>)),
         ct_domain:currency(?cur(<<"EUR">>)),
+        ct_domain:currency(?cur(<<"BTC">>)),
 
         ct_domain:category(?cat(1), <<"Generic Store">>, live),
 

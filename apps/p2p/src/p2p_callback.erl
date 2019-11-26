@@ -33,7 +33,7 @@
 -type legacy_event() :: any().
 -type event() ::
     {created, callback()} |
-    {succeeded, response()} |
+    {finished, response()} |
     {status_changed, status()}.
 
 -export_type([tag/0]).
@@ -56,7 +56,6 @@
 -export([is_active/1]).
 -export([is_finished/1]).
 -export([process_response/2]).
--export([set_callback_payload/2]).
 
 %% Event source
 
@@ -113,17 +112,10 @@ process_response(Response, Callback) ->
     case status(Callback) of
         pending ->
             [
-                {succeeded, Response},
+                {finished, Response},
                 {status_changed, succeeded}
-            ];
-        succeeded ->
-            []
+            ]
     end.
-
--spec set_callback_payload(payload(), callback()) ->
-    callback().
-set_callback_payload(Payload, Callback) ->
-    Callback#{payload => Payload}.
 
 %% Internals
 
@@ -148,7 +140,7 @@ apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
     update_status(S, T);
-apply_event_({succeeded, R}, T) ->
+apply_event_({finished, R}, T) ->
     update_response(R, T).
 
 -spec maybe_migrate(event() | legacy_event()) ->

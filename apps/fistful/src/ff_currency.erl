@@ -67,7 +67,7 @@ get(ID) ->
 get(ID, DomainRevision) ->
     do(fun () ->
         Currency = unwrap(ff_domain_config:object(
-            DomainRevision, 
+            DomainRevision,
             {currency, #domain_CurrencyRef{symbolic_code = ID}}
         )),
         #{

@@ -79,8 +79,6 @@
 
 -type create_error() ::
     {identity, notfound} |
-    %% FIXME
-    {p2p_tool, not_allow} |
     {terms, ff_party:validate_p2p_error()} |
     {cash_flow, ff_cash_flow:volume_finalize_error()} |
     {resource_owner(), {bin_data, not_found}}.
@@ -696,8 +694,12 @@ process_session_creation(P2PTransfer) ->
         domain_revision => domain_revision(P2PTransfer),
         party_revision => party_revision(P2PTransfer)
     },
-    _AnyResultIsOK = p2p_session_machine:create(ID, TransferParams, Params),
-    {continue, [{session, {ID, started}}]}.
+    case p2p_session_machine:create(ID, TransferParams, Params) of
+        ok ->
+            {continue, [{session, {ID, started}}]};
+        {error, exists} ->
+            {continue, [{session, {ID, started}}]}
+    end.
 
 construct_session_id(ID) ->
     ID.

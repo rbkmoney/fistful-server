@@ -155,7 +155,7 @@ build_context(Params = #{
           (adapter(), 'HandleCallback', [any()]) -> {ok, p2p_callback_result()} | no_return().
 call(Adapter, Function, Args) ->
     Request = {?SERVICE, Function, Args},
-    ff_woody_client:call(Adapter, Request). 
+    ff_woody_client:call(Adapter, Request).
 
 -spec build_operation_info(build_context_params()) ->
     operation_info().

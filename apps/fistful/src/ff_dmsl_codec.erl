@@ -139,11 +139,11 @@ unmarshal(currency, #domain_Currency{
 unmarshal(user_interaction, {redirect, {get_request,
     #'BrowserGetRequest'{uri = URI}
 }}) ->
-    #{type => redirect, content => {get, URI}};
+    {redirect, #{content => {get, URI}}};
 unmarshal(user_interaction, {redirect, {post_request,
     #'BrowserPostRequest'{uri = URI, form = Form}
 }}) ->
-    #{type => redirect, content => {post, URI, Form}};
+    {redirect, #{content => {post, URI, Form}}};
 
 unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
     payment_tool = {bank_card, #domain_BankCard{

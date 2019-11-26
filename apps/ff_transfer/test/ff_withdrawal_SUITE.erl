@@ -445,9 +445,7 @@ crypto_quota_ok_test(C) ->
         body           => Cash,
         destination_id => DestinationID
     },
-    % {error, Error} = ff_withdrawal:get_quote(Params),
     {ok, _Quote} = ff_withdrawal:get_quote(Params).
-    % ?assertEqual({route, route_not_found}, Error).
 
 -spec preserve_revisions_test(config()) -> test_return().
 preserve_revisions_test(C) ->

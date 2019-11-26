@@ -776,38 +776,4 @@ consume_eventsinks(_) ->
         , withdrawal_event_sink
         , withdrawal_session_event_sink
     ],
-    [ok = consume_eventsink(EventSink) || EventSink <- EventSinks].
-
-%%
-
--include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
-
-consume_eventsink(ServiceName) ->
-    consume_eventsink(ServiceName, undefined, 1000).
-
-consume_eventsink(ServiceName, After, Limit) ->
-    Range = #'evsink_EventRange'{'after' = After, limit = Limit},
-    {ok, Events} = call_handler('GetEvents', ServiceName, [Range]),
-    case length(Events) of
-        N when N >= Limit ->
-            consume_eventsink(ServiceName, get_max_sinkevent_id(Events), Limit);
-        _ ->
-            ok
-    end.
-
-get_max_sinkevent_id(Events) when is_list(Events) ->
-    lists:max([get_sinkevent_id(Ev) || Ev <- Events]).
-
-get_sinkevent_id(Ev) ->
-    % {wlt_SinkEvent, ID, ...}
-    erlang:element(2, Ev).
-
-call_handler(Function, ServiceName, Args) ->
-    Service = ff_services:get_service(ServiceName),
-    Path = erlang:list_to_binary(ff_services:get_service_path(ServiceName)),
-    Request = {Service, Function, Args},
-    Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022", Path/binary>>,
-        event_handler => scoper_woody_event_handler
-    }),
-    ff_woody_client:call(Client, Request).
+    [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].

@@ -76,7 +76,7 @@ fold(FoldFun, State0, ChunkSize, Sink, Cursor) ->
 get_max_event_id(Events) when is_list(Events) ->
     lists:foldl(fun (Ev, Max) -> erlang:max(get_event_id(Ev), Max) end, 0, Events).
 
--spec get_event_id(list(event())) -> event_id().
+-spec get_event_id(event()) -> event_id().
 
 get_event_id(#'wlt_SinkEvent'{id = ID}) -> ID;
 get_event_id(#'wthd_SinkEvent'{id = ID}) -> ID;

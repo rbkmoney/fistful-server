@@ -390,11 +390,11 @@ domain_config(Options, C) ->
                     #domain_WithdrawalProviderDecision{
                         if_ = {condition, {cost_in, #domain_CashRange{
                             upper = {inclusive, #domain_Cash{
-                                amount = 123, 
+                                amount = 123,
                                 currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
                             }},
                             lower = {inclusive, #domain_Cash{
-                                amount = 123, 
+                                amount = 123,
                                 currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
                             }}
                         }}},

@@ -526,9 +526,6 @@ make_bank_card_resource(CardToken) ->
         <<"token">> => CardToken
     }.
 
-make_crypto_wallet_resource() ->
-    make_crypto_wallet_resource('Ethereum').
-
 make_crypto_wallet_resource(Currency) ->
     make_crypto_wallet_resource(Currency, undefined).
 

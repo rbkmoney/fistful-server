@@ -59,7 +59,7 @@ check_in(EntityName, ExternalID) ->
 
 bind(EntityName, ExternalID, InternalID) ->
     ID = create_id(EntityName, ExternalID),
-    start_(ID, InternalID).
+    bind_(ID, InternalID).
 
 -spec get_internal_id(entity_name(), external_id()) ->
     check_result() | {error, notfound}.
@@ -84,15 +84,15 @@ check_in_(EntityName, ID) ->
             Ok;
         {error, notfound} ->
             NextID = next_id(EntityName),
-            bind_(EntityName, ID, NextID)
+            bind_(ID, NextID)
     end.
 
-bind_(EntityName, ID, Seq) ->
+bind_(ID, Seq) ->
     case start_(ID, Seq) of
         {ok, Seq} = Ok->
             Ok;
         {error, exists} ->
-            check_in_(EntityName, ID)
+            get_(ID)
     end.
 
 %%

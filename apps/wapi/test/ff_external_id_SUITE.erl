@@ -283,7 +283,7 @@ bender_to_fistful_sync(C) ->
     Ctx = create_context(Party, C),
     %% Offset for migration purposes
     FFSeqStart = 42,
-    BenderOffset = 10000,
+    BenderOffset = 100000,
     ok = offset_ff_sequence(identity, FFSeqStart),
     TargetID = integer_to_binary(FFSeqStart + BenderOffset),
     {ok, #{<<"id">> := TargetID}} = wapi_wallet_ff_backend:create_identity(Params0, Ctx),

@@ -798,10 +798,11 @@ create_entity(Type, Params, CreateFun, Context) ->
             {error, {external_id_conflict, ID, ExternalID}}
     end.
 
-handle_create_entity_result(ok, Type, ExternalID, ID, Context) ->
+handle_create_entity_result(Result, Type, ExternalID, ID, Context) when
+    Result =:= ok;
+    Result =:= {error, exists}
+->
     ok = sync_ff_external(Type, ExternalID, ID, Context),
-    do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
-handle_create_entity_result({error, exists}, Type, _ExternalID, ID, Context) ->
     do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
 handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Context) ->
     throw(E).
@@ -873,7 +874,7 @@ gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
 gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
     FistfulSequence = get_fistful_sequence_value(Type),
-    Offset = 10000, %% Offset for migration purposes
+    Offset = 100000, %% Offset for migration purposes
     bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx, #{},
         #{minimum => FistfulSequence + Offset}
     ).

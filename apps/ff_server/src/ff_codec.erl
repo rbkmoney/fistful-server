@@ -13,7 +13,7 @@
 
 %% Types
 
--type type_name() :: atom() | {list, atom()}.
+-type type_name() :: atom() | {maybe, atom()} | {list, atom()}.
 -type codec() :: module().
 
 -type encoded_value() :: encoded_value(any()).
@@ -111,11 +111,10 @@ marshal(crypto_data, #{
 }) ->
     {bitcoin_cash, #'CryptoDataBitcoinCash'{}};
 marshal(crypto_data, #{
-    currency := ripple,
-    tag := Tag
-}) ->
+    currency := ripple
+} = Data) ->
     {ripple, #'CryptoDataRipple'{
-        tag = marshal(string, Tag)
+        tag = marshal({maybe, string}, maps:get(tag, Data, undefined))
     }};
 marshal(crypto_data, #{
     currency := ethereum
@@ -170,6 +169,11 @@ marshal(bool, V) when is_boolean(V) ->
     V;
 marshal(context, V) when is_map(V) ->
     ff_entity_context_codec:marshal(V);
+
+marshal({maybe, _}, undefined) ->
+    undefined;
+marshal({maybe, T}, V) ->
+    marshal(T, V);
 
 % Catch this up in thrift validation
 marshal(_, Other) ->

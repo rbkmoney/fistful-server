@@ -13,6 +13,7 @@
 
 -export([create_bank_card_destination_ok/1]).
 -export([create_crypto_wallet_destination_ok/1]).
+-export([create_ripple_wallet_destination_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -30,7 +31,8 @@ groups() ->
     [
         {default, [parallel], [
             create_bank_card_destination_ok,
-            create_crypto_wallet_destination_ok
+            create_crypto_wallet_destination_ok,
+            create_ripple_wallet_destination_ok
         ]}
     ].
 
@@ -90,6 +92,16 @@ create_crypto_wallet_destination_ok(C) ->
     }},
     create_destination_ok(Resource, C).
 
+-spec create_ripple_wallet_destination_ok(config()) -> test_return().
+
+create_ripple_wallet_destination_ok(C) ->
+    Resource = {crypto_wallet, #'CryptoWallet'{
+        id = <<"ab843336bf7738dc697522fbb90508de">>,
+        currency = ripple,
+        data = {ripple, #'CryptoDataRipple'{}}
+    }},
+    create_destination_ok(Resource, C).
+
 %%----------------------------------------------------------------------
 %%  Internal functions
 %%----------------------------------------------------------------------
@@ -132,7 +144,9 @@ create_destination_ok(Resource, C) ->
             Status
         end,
         genlib_retry:linear(15, 1000)
-    ).
+    ),
+
+    {ok, #dst_Destination{}} = call_service('Get', [ID]).
 
 call_service(Fun, Args) ->
     Service = {ff_proto_destination_thrift, 'Management'},

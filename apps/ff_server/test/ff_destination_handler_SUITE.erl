@@ -98,7 +98,7 @@ create_ripple_wallet_destination_ok(C) ->
     Resource = {crypto_wallet, #'CryptoWallet'{
         id = <<"ab843336bf7738dc697522fbb90508de">>,
         currency = ripple,
-        data = {ripple, #'CryptoDataRipple'{}}
+        data = {ripple, #'CryptoDataRipple'{tag = <<>>}}
     }},
     create_destination_ok(Resource, C).
 

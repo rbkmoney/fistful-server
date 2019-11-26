@@ -24,6 +24,8 @@
 -export([transfer_params/1]).
 -export([adapter/1]).
 -export([adapter_state/1]).
+-export([party_revision/1]).
+-export([domain_revision/1]).
 
 %% ff_machine
 -export([apply_event/2]).
@@ -41,6 +43,8 @@
     status := status(),
     transfer_params := transfer_params(),
     provider_id := ff_p2p_provider:id(),
+    domain_revision := domain_revision(),
+    party_revision := party_revision(),
     adapter := adapter_with_opts(),
     adapter_state => adapter_state(),
     callbacks => callbacks_index(),
@@ -78,7 +82,9 @@
 -type deadline() :: p2p_adapter:deadline().
 
 -type params() :: #{
-    provider_id := ff_p2p_provider:id()
+    provider_id := ff_p2p_provider:id(),
+    domain_revision := domain_revision(),
+    party_revision := party_revision()
 }.
 
 -type p2p_callback_params() :: p2p_callback:process_params().
@@ -115,6 +121,8 @@
 -type p2p_callback_status() :: p2p_callback:status().
 
 -type user_interactions_index() :: p2p_user_interaction_utils:index().
+-type party_revision() :: ff_party:revision().
+-type domain_revision() :: ff_domain_config:revision().
 
 %% Pipeline
 
@@ -140,6 +148,14 @@ status(#{status := V}) ->
 adapter_state(Session = #{}) ->
     maps:get(adapter_state, Session, undefined).
 
+-spec party_revision(session()) -> party_revision().
+party_revision(#{party_revision := PartyRevision}) ->
+    PartyRevision.
+
+-spec domain_revision(session()) -> domain_revision().
+domain_revision(#{domain_revision := DomainRevision}) ->
+    DomainRevision.
+
 %% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
 %% изменением дочерних сущностей, например запуском adjustment.
 -spec is_finished(session()) -> boolean().
@@ -159,14 +175,19 @@ adapter(#{adapter := V}) ->
     V.
 
 %%
-
 -spec create(id(), transfer_params(), params()) ->
     {ok, [event()]}.
-create(ID, TransferParams, #{provider_id := ProviderID}) ->
+create(ID, TransferParams, #{
+    provider_id := ProviderID,
+    domain_revision := DomainRevision, 
+    party_revision := PartyRevision
+}) ->
     Session = #{
         id => ID,
         transfer_params => TransferParams,
         provider_id => ProviderID,
+        domain_revision => DomainRevision,
+        party_revision => PartyRevision,
         adapter => get_adapter_with_opts(ProviderID),
         status => active
     },
@@ -179,10 +200,8 @@ get_adapter_with_opts(ProviderID) ->
 
 -spec process_session(session()) -> result().
 process_session(Session) ->
-    {Adapter, AdapterOpts} = adapter(Session),
-    TransferParams = transfer_params(Session),
-    AdapterState = adapter_state(Session),
-    Context = p2p_adapter:build_context(AdapterState, TransferParams, AdapterOpts),
+    {Adapter, _AdapterOpts} = adapter(Session),
+    Context = p2p_adapter:build_context(collect_build_context_params(Session)),
     {ok, ProcessResult} = p2p_adapter:process(Adapter, Context),
     #{intent := Intent} = ProcessResult,
     Events0 = process_next_state(ProcessResult, []),
@@ -269,10 +288,8 @@ process_callback(#{tag := CallbackTag} = Params, Session) ->
             Status = p2p_callback:status(Callback),
             do_process_callback(Status, Params, Callback, Session);
         {finished, _} ->
-            {_Adapter, AdapterOpts} = adapter(Session),
-            TransferParams = transfer_params(Session),
-            AdapterState = adapter_state(Session),
-            Context = p2p_adapter:build_context(AdapterState, TransferParams, AdapterOpts),
+            {_Adapter, _AdapterOpts} = adapter(Session),
+            Context = p2p_adapter:build_context(collect_build_context_params(Session)),
             {error, {session_already_finished, Context}}
     end.
 
@@ -290,10 +307,8 @@ do_process_callback(succeeded, _Params, Callback, _Session) ->
 do_process_callback(pending, Params, Callback, Session) ->
     do(fun() ->
         valid = unwrap(validate_process_callback(Session)),
-        {Adapter, AdapterOpts} = adapter(Session),
-        TransferParams = transfer_params(Session),
-        AdapterState = adapter_state(Session),
-        Context = p2p_adapter:build_context(AdapterState, TransferParams, AdapterOpts),
+        {Adapter, _AdapterOpts} = adapter(Session),
+        Context = p2p_adapter:build_context(collect_build_context_params(Session)),
         {ok, HandleCallbackResult} = p2p_adapter:handle_callback(Adapter, Params, Context),
         #{intent := Intent, response := Response} = HandleCallbackResult,
         Events0 = p2p_callback_utils:process_response(Response, Callback),
@@ -319,6 +334,18 @@ user_interactions_index(Session) ->
         error ->
             p2p_user_interaction_utils:new_index()
     end.
+
+-spec collect_build_context_params(session()) -> 
+    p2p_adapter:build_context_params().
+collect_build_context_params(Session) ->
+    {_Adapter, AdapterOpts} = adapter(Session),
+    #{
+        adapter_state   => adapter_state(Session),
+        transfer_params => transfer_params(Session),
+        adapter_opts    => AdapterOpts,
+        domain_revision => domain_revision(Session),
+        party_revision  => party_revision(Session)
+    }.
 
 %% Callback helpers
 

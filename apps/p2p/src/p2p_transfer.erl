@@ -19,8 +19,8 @@
     operation_timestamp := ff_time:timestamp_ms(),
     sender := participant(),
     receiver := participant(),
-    domain_revision := ff_domain_config:revision(),
-    party_revision := ff_party:revision(),
+    domain_revision := party_revision(),
+    party_revision := domain_revision(),
     status := status(),
 
     sender_resource => resource(),
@@ -692,7 +692,9 @@ process_session_creation(P2PTransfer) ->
     }),
     #{provider_id := ProviderID} = route(P2PTransfer),
     Params = #{
-        provider_id => ProviderID
+        provider_id => ProviderID,
+        domain_revision => domain_revision(P2PTransfer),
+        party_revision => party_revision(P2PTransfer)
     },
     _AnyResultIsOK = p2p_session_machine:create(ID, TransferParams, Params),
     {continue, [{session, {ID, started}}]}.

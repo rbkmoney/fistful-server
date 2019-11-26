@@ -23,6 +23,7 @@
 -export_type([currency/0]).
 
 -export([get/1]).
+-export([get/2]).
 -export([symcode/1]).
 -export([id/1]).
 -export([to_domain_ref/1]).
@@ -50,6 +51,25 @@ id(#{id := ID}) ->
 get(ID) ->
     do(fun () ->
         Currency = unwrap(ff_domain_config:object({currency, #domain_CurrencyRef{symbolic_code = ID}})),
+        #{
+            id       => ID,
+            name     => Currency#domain_Currency.name,
+            symcode  => Currency#domain_Currency.symbolic_code,
+            numcode  => Currency#domain_Currency.numeric_code,
+            exponent => Currency#domain_Currency.exponent
+        }
+    end).
+
+-spec get(id(), ff_domain_config:revision()) ->
+    {ok, currency()} |
+    {error, notfound}.
+
+get(ID, DomainRevision) ->
+    do(fun () ->
+        Currency = unwrap(ff_domain_config:object(
+            DomainRevision, 
+            {currency, #domain_CurrencyRef{symbolic_code = ID}}
+        )),
         #{
             id       => ID,
             name     => Currency#domain_Currency.name,

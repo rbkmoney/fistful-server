@@ -117,9 +117,6 @@ end_per_testcase(_Name, _C) ->
 -spec user_interaction_ok_test(config()) -> test_return().
 user_interaction_ok_test(C) ->
     Cash = {101, <<"RUB">>},
-    TokenPrefix = <<"token_interaction_">>,
-    TokenRandomised = generate_id(),
-    Token = <<TokenPrefix/binary, TokenRandomised/binary>>,
     #{
         session_id := SessionID,
         transfer_params := TransferParams,
@@ -132,8 +129,7 @@ user_interaction_ok_test(C) ->
     ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"user_payload">>)}, call_host(Callback)),
     ?assertMatch(<<"user_callback">>, get_p2p_session_adapter_state(SessionID)),
     ?assertMatch({finished, success}, await_final_p2p_session_status(SessionID)),
-    ?assertMatch(<<"user_sleep_finished">>, await_p2p_session_adapter_state(SessionID, <<"user_sleep_finished">>)),
-    ?assertMatch({ok, ?PROCESS_CALLBACK_FINISHED(<<"user_sleep_finished">>)}, call_host(Callback)).
+    ?assertMatch(<<"user_sleep_finished">>, await_p2p_session_adapter_state(SessionID, <<"user_sleep_finished">>)).
 
 -spec callback_ok_test(config()) -> test_return().
 callback_ok_test(C) ->
@@ -150,8 +146,7 @@ callback_ok_test(C) ->
     ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"simple_payload">>)}, call_host(Callback)),
     ?assertMatch(<<"simple_callback">>, get_p2p_session_adapter_state(SessionID)),
     ?assertMatch({finished, success}, await_final_p2p_session_status(SessionID)),
-    ?assertMatch(<<"sleep_finished">>, await_p2p_session_adapter_state(SessionID, <<"sleep_finished">>)),
-    ?assertMatch({ok, ?PROCESS_CALLBACK_FINISHED(<<"sleep_finished">>)}, call_host(Callback)).
+    ?assertMatch(<<"sleep_finished">>, await_p2p_session_adapter_state(SessionID, <<"sleep_finished">>)).
 
 -spec wrong_callback_tag_test(config()) -> test_return().
 wrong_callback_tag_test(C) ->
@@ -216,7 +211,7 @@ prepare_standard_environment(TokenPrefix, TransferCash, C) ->
     ResourceSender = create_resource_raw(Token, C),
     ResourceReceiver = create_resource_raw(Token, C),
     SessionID = generate_id(),
-    TransferParams = #{
+    SessionParams = #{
         id => <<"p2p_transfer_id">>,
         sender => prepare_resource(ResourceSender),
         receiver => prepare_resource(ResourceReceiver),
@@ -224,7 +219,7 @@ prepare_standard_environment(TokenPrefix, TransferCash, C) ->
     },
     DomainRevision = ff_domain_config:head(),
     {ok, PartyRevision} = ff_party:get_revision(PartyID),
-    SessionParams = #{
+    TransferParams = #{
         provider_id => 1,
         domain_revision => DomainRevision,
         party_revision => PartyRevision
@@ -292,7 +287,7 @@ create_party(_C) ->
     ID.
 
 call_host(Callback) ->
-    Service  = {dmsl_p2p_adapter_thrift, 'AdapterHost'},
+    Service  = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
     Function = 'ProcessCallback',
     Args     = [Callback],
     Request  = {Service, Function, Args},

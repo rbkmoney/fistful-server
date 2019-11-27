@@ -699,7 +699,8 @@ create_p2p_transfer(Params, Context) ->
             sender := Sender,
             receiver := Receiver,
             token := Token,
-            external_id := ExternalID
+            external_id := ExternalID,
+            metadata := Metadata
         } = ParsedParams = from_swag(create_p2p_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
         {ok, DecodedToken} = prepare_p2p_quote_token(Token, PartyID, ParsedParams),
@@ -714,9 +715,11 @@ create_p2p_transfer(Params, Context) ->
             quote => DecodedToken,
             external_id => ExternalID
         },
-        case p2p_transfer:create(CreateParams) of
-            {ok, Events} ->
-                to_swag(p2p_transfer_events, Events);
+        case p2p_transfer_machine:create(CreateParams, Metadata) of
+            ok ->
+                {ok, P2PTransferState} = p2p_transfer_machine:get(Id),
+                P2PTransfer = p2p_transfer_machine:p2p_transfer(P2PTransferState),
+                to_swag(p2p_transfer, {P2PTransfer, Metadata});
             {error, {p2p_tool, not_allow}} ->
                 throw({p2p_tool, not_allow});
             {error, {identity, notfound}} ->
@@ -1670,6 +1673,22 @@ to_swag(destination_resource, {crypto_wallet, CryptoWallet}) ->
         <<"currency">> => to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet)),
         <<"tag">>      => maps:get(tag, CryptoWallet, undefined)
     });
+to_swag(sender_resource, {raw, #{resource_params := {bank_card, BankCard}}}) ->
+    to_swag(map, #{
+        <<"type">>          => <<"BankCardSenderResource">>,
+        <<"token">>         => maps:get(token, BankCard),
+        <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
+        <<"bin">>           => genlib_map:get(bin, BankCard),
+        <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
+    });
+to_swag(receiver_resource, {raw, #{resource_params := {bank_card, BankCard}}}) ->
+    to_swag(map, #{
+        <<"type">>          => <<"BankCardReceiverResource">>,
+        <<"token">>         => maps:get(token, BankCard),
+        <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
+        <<"bin">>           => genlib_map:get(bin, BankCard),
+        <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
+    });
 to_swag(compact_sender_resource, #{
     type := bank_card,
     token := Token,
@@ -1820,6 +1839,26 @@ to_swag(p2p_transfer_quote, {Cash, #{
         <<"token">>       => create_p2p_quote_token(Token, PartyID)
     };
 
+to_swag(p2p_transfer, {#{
+    version := 1,
+    id := Id,
+    body := Cash,
+    created_at := CreatedAt,
+    sender := Sender,
+    receiver := Receiver,
+    status := Status
+} = P2PTransfer, Metadata}) ->
+    #{
+        <<"id">> => Id,
+        <<"createdAt">> => ff_time:to_rfc3339(CreatedAt),
+        <<"body">> => to_swag(withdrawal_body, Cash),
+        <<"sender">> => to_swag(sender_resource, Sender),
+        <<"receiver">> => to_swag(receiver_resource, Receiver),
+        <<"status">> => to_swag(p2p_transfer_status, Status),
+        <<"externalID">> => maps:get(external_id, P2PTransfer),
+        <<"metadata">> => Metadata
+    };
+
 to_swag(p2p_fee_instrument, #{
     token       := Token,
     bin_data_id := BinDataID
@@ -1828,6 +1867,29 @@ to_swag(p2p_fee_instrument, #{
         <<"token">>     => Token,
         <<"BinDataID">> => BinDataID
     };
+
+to_swag(p2p_transfer_status, pending) ->
+    #{
+        <<"status">> => <<"Pending">>
+    };
+to_swag(p2p_transfer_status, succeeded) ->
+    #{
+        <<"status">> => <<"Succeeded">>
+    };
+to_swag(p2p_transfer_status, {failed, P2PTransferFailure}) ->
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => to_swag(sub_failure, P2PTransferFailure)
+    };
+to_swag(sub_failure, #{
+    code := Code
+} = SubError) ->
+    to_swag(map, #{
+        <<"code">> => Code,
+        <<"subError">> => to_swag(sub_failure, maps:get(failure, SubError, undefined))
+    });
+to_swag(sub_failure, undefined) ->
+    undefined;
 
 to_swag(webhook, #webhooker_Webhook{
     id = ID,

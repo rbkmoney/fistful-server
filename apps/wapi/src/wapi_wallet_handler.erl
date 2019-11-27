@@ -567,7 +567,7 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {party, not_found}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such party">>));
-        {error, {p2p_tool,   not_allow}} ->
+        {error, {p2p_tool,   not_allowed}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Sender/Receiver resource not allowed">>));
         {error, {cash_flow, volume_finalize_error}} ->

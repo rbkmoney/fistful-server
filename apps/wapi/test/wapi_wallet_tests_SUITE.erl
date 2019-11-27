@@ -30,8 +30,12 @@
     create_webhook_ok_test/1,
     get_webhooks_ok_test/1,
     get_webhook_ok_test/1,
-    delete_webhook_ok_test/1,
-    quote_p2p_transfer_ok_test/1
+    delete_webhook_ok_test/1
+]).
+
+-export([
+    quote_p2p_transfer_ok_test/1,
+    create_p2p_transfer_ok_test/1
 ]).
 
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
@@ -52,7 +56,8 @@ init([]) ->
     [test_case_name()].
 all() ->
     [
-        {group, base}
+        {group, base},
+        {group, p2p}
     ].
 
 -spec groups() ->
@@ -69,10 +74,13 @@ groups() ->
                 create_webhook_ok_test,
                 get_webhooks_ok_test,
                 get_webhook_ok_test,
-                delete_webhook_ok_test,
-                quote_p2p_transfer_ok_test
+                delete_webhook_ok_test
             ]
-        }
+        },
+        {p2p, [], [
+            quote_p2p_transfer_ok_test,
+            create_p2p_transfer_ok_test
+        ]}
     ].
 
 %%
@@ -101,7 +109,7 @@ end_per_suite(C) ->
 
 -spec init_per_group(group_name(), config()) ->
     config().
-init_per_group(Group, Config) when Group =:= base ->
+init_per_group(Group, Config) when Group =:= base; Group =:= p2p ->
     ok = ff_context:save(ff_context:create(#{
         party_client => party_client:create_client(),
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
@@ -364,6 +372,36 @@ quote_p2p_transfer_ok_test(C) ->
     } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResource">>,
+                    <<"token">> => SenderToken
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec create_p2p_transfer_ok_test(config()) ->
+    _.
+create_p2p_transfer_ok_test(C) ->
+    SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    #{
+        identity_id := IdentityID
+    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
             body => #{
                 <<"identityID">> => IdentityID,

@@ -587,7 +587,7 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
                 wapi_handler_utils:get_error_msg(<<"Token content doesn't match parameters">>));
         {error, {token, expired}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token content doesn't match parameters">>));
+                wapi_handler_utils:get_error_msg(<<"Token content expired">>));
         {error, {token, not_decodable}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Token isn't recognized">>));

@@ -698,12 +698,12 @@ create_p2p_transfer(Params, Context) ->
             body := Body,
             sender := Sender,
             receiver := Receiver,
-            token := Token,
-            external_id := ExternalID,
+            quote_token := QuoteToken,
             metadata := Metadata
         } = ParsedParams = from_swag(create_p2p_params, Params),
+        ExternalID = maps:get(?EXTERNAL_ID, ParsedParams, undefined),
         PartyID = wapi_handler_utils:get_owner(Context),
-        {ok, DecodedToken} = prepare_p2p_quote_token(Token, PartyID, ParsedParams),
+        {ok, DecodedToken} = prepare_p2p_quote_token(QuoteToken, PartyID, ParsedParams),
         ParamsHash = erlang:phash2(ParsedParams),
         {ok, Id} = gen_id(p2p_transfer, ExternalID, ParamsHash, Context),
         CreateParams = #{
@@ -1848,16 +1848,16 @@ to_swag(p2p_transfer, {#{
     receiver := Receiver,
     status := Status
 } = P2PTransfer, Metadata}) ->
-    #{
+    to_swag(map, #{
         <<"id">> => Id,
         <<"createdAt">> => ff_time:to_rfc3339(CreatedAt),
         <<"body">> => to_swag(withdrawal_body, Cash),
         <<"sender">> => to_swag(sender_resource, Sender),
         <<"receiver">> => to_swag(receiver_resource, Receiver),
         <<"status">> => to_swag(p2p_transfer_status, Status),
-        <<"externalID">> => maps:get(external_id, P2PTransfer),
+        <<"externalID">> => maps:get(external_id, P2PTransfer, undefined),
         <<"metadata">> => Metadata
-    };
+    });
 
 to_swag(p2p_fee_instrument, #{
     token       := Token,

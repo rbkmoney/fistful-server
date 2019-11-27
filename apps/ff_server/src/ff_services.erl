@@ -14,7 +14,7 @@
 -type service_name() :: atom().
 -type service_spec() :: {Path :: string(), service()}.
 
--spec get_service(Name :: atom()) -> service().
+-spec get_service(service_name()) -> service().
 get_service(fistful_admin) ->
     {ff_proto_fistful_admin_thrift, 'FistfulAdmin'};
 get_service(deposit_event_sink) ->
@@ -42,11 +42,11 @@ get_service(destination_management) ->
 get_service(withdrawal_management) ->
     {ff_proto_withdrawal_thrift, 'Management'}.
 
--spec get_service_spec(Name :: atom()) -> service_spec().
+-spec get_service_spec(service_name()) -> service_spec().
 get_service_spec(Name) ->
     {get_service_path(Name), get_service(Name)}.
 
--spec get_service_path(Name :: atom()) -> string().
+-spec get_service_path(service_name()) -> string().
 get_service_path(fistful_admin) ->
     "/v1/admin";
 get_service_path(deposit_event_sink) ->

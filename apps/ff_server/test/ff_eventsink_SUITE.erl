@@ -304,7 +304,6 @@ get_shifted_create_identity_events_ok(C) ->
 get_create_p2p_transfer_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
-    timer:sleep(3000),
     IID = create_person_identity(Party, C),
     Service = p2p_transfer_event_sink,
     LastEvent = unwrap_last_sinkevent_id(

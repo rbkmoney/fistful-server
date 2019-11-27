@@ -35,7 +35,8 @@
 
 -export([
     quote_p2p_transfer_ok_test/1,
-    create_p2p_transfer_ok_test/1
+    create_p2p_transfer_ok_test/1,
+    create_p2p_transfer_with_token_ok_test/1
 ]).
 
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
@@ -79,7 +80,8 @@ groups() ->
         },
         {p2p, [], [
             quote_p2p_transfer_ok_test,
-            create_p2p_transfer_ok_test
+            create_p2p_transfer_ok_test,
+            create_p2p_transfer_with_token_ok_test
         ]}
     ].
 
@@ -417,6 +419,58 @@ create_p2p_transfer_ok_test(C) ->
                     <<"type">> => <<"BankCardReceiverResource">>,
                     <<"token">> => ReceiverToken
                 }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec create_p2p_transfer_with_token_ok_test(config()) ->
+    _.
+create_p2p_transfer_with_token_ok_test(C) ->
+    SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    #{
+        identity_id := IdentityID
+    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    {ok, #{<<"token">> := Token}} = call_api(
+        fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResource">>,
+                    <<"token">> => SenderToken
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    {ok, _} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResource">>,
+                    <<"token">> => SenderToken
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"token">> => ReceiverToken
+                },
+                <<"quoteToken">> => Token
             }
         },
         ct_helper:cfg(context, C)

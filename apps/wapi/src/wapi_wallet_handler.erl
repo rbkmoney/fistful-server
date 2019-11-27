@@ -590,7 +590,7 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
                 wapi_handler_utils:get_error_msg(<<"Token content expired">>));
         {error, {token, not_decodable}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token isn't recognized">>));
+                wapi_handler_utils:get_error_msg(<<"Token can't be decoded">>));
         {error, {token, not_verified}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));

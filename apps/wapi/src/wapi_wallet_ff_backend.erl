@@ -840,7 +840,7 @@ verify_p2p_quote_token(Token) ->
     end.
 
 decode_p2p_quote_token(Token) ->
-    try jsx:decode(Token) of
+    try jsx:decode(Token, [return_maps]) of
         #{
             <<"version">>        := 1,
             <<"amount">>         := Cash,
@@ -864,7 +864,8 @@ decode_p2p_quote_token(Token) ->
                 receiver        => from_swag(compact_receiver_resource, Receiver)
             },
             {ok, {DecodedToken, PartyID}};
-        _ ->
+        Decoded ->
+            logger:error("couldn't decode: ~p", [Decoded]),
             throw({token, not_match})
     catch
         _ ->

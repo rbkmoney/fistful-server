@@ -186,6 +186,8 @@ do_process_callback(Params, Machine) ->
             {{ok, Response}, Result#{events => ff_machine:emit_events(Events)}};
         {ok, {Response, Result}} ->
             {{ok, Response}, Result};
-        {error, _Reason} = Error ->
-            {Error, #{}}
+        {error, {Reason, #{events := Events} = Result}} ->
+            {{error, Reason}, Result#{events => ff_machine:emit_events(Events)}};
+        {error, {Reason, Result}} ->
+            {{error, Reason}, Result}
     end.

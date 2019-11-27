@@ -91,7 +91,9 @@
 
 -type p2p_callback_params() :: p2p_callback:process_params().
 -type process_callback_response() :: p2p_callback:response().
--type process_callback_error() :: {session_already_finished, p2p_adapter:context()}.
+-type process_callback_error() ::
+    {session_already_finished, p2p_adapter:context()} |
+    {adapter, p2p_adapter:timeout_error()}.
 
 -export_type([event/0]).
 -export_type([transfer_params/0]).
@@ -127,7 +129,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [unwrap/1, do/1]).
+-import(ff_pipeline, [unwrap/2, unwrap/1, do/1]).
 
 %%
 %% API
@@ -202,13 +204,23 @@ get_adapter_with_opts(ProviderID) ->
 
 -spec process_session(session()) -> result().
 process_session(Session) ->
-    {Adapter, _AdapterOpts} = adapter(Session),
-    Context = p2p_adapter:build_context(collect_build_context_params(Session)),
-    {ok, ProcessResult} = p2p_adapter:process(Adapter, Context),
-    #{intent := Intent} = ProcessResult,
-    Events0 = process_next_state(ProcessResult, []),
-    Events1 = process_transaction_info(ProcessResult, Events0),
-    process_intent(Intent, Events1, Session).
+    case do_process_session(Session) of
+        {ok, Result} ->
+            Result;
+        {error, Error} ->
+            build_failure_result(Error)
+    end.
+
+do_process_session(Session) ->
+    do(fun() ->
+        {Adapter, _AdapterOpts} = adapter(Session),
+        Context = p2p_adapter:build_context(collect_build_context_params(Session)),
+        ProcessResult = unwrap(adapter, p2p_adapter:process(Adapter, Context)),
+        #{intent := Intent} = ProcessResult,
+        Events0 = process_next_state(ProcessResult, []),
+        Events1 = process_transaction_info(ProcessResult, Events0),
+        process_intent(Intent, Events1, Session)
+    end).
 
 process_next_state(#{next_state := NextState}, Events) ->
     Events ++ [{next_state, NextState}];
@@ -278,7 +290,7 @@ set_session_result(Result, #{status := active}) ->
 
 -spec process_callback(p2p_callback_params(), session()) ->
     {ok, {process_callback_response(), result()}} |
-    {error, process_callback_error()}.
+    {error, {process_callback_error(), result()}}.
 process_callback(#{tag := CallbackTag} = Params, Session) ->
     {ok, Callback} = find_callback(CallbackTag, Session),
     case p2p_callback:status(Callback) of
@@ -287,11 +299,11 @@ process_callback(#{tag := CallbackTag} = Params, Session) ->
         pending ->
             case status(Session) of
                 active ->
-                    do_process_callback(Params, Callback, Session);
+                    handle_process_callback_result(do_process_callback(Params, Callback, Session));
                 {finished, _} ->
                     {_Adapter, _AdapterOpts} = adapter(Session),
                     Context = p2p_adapter:build_context(collect_build_context_params(Session)),
-                    {error, {session_already_finished, Context}}
+                    {error, {{session_already_finished, Context}, #{}}}
             end
     end.
 
@@ -308,13 +320,30 @@ do_process_callback(Params, Callback, Session) ->
     do(fun() ->
         {Adapter, _AdapterOpts} = adapter(Session),
         Context = p2p_adapter:build_context(collect_build_context_params(Session)),
-        {ok, HandleCallbackResult} = p2p_adapter:handle_callback(Adapter, Params, Context),
+        HandleCallbackResult = unwrap(adapter, p2p_adapter:handle_callback(Adapter, Params, Context)),
         #{intent := Intent, response := Response} = HandleCallbackResult,
         Events0 = p2p_callback_utils:process_response(Response, Callback),
         Events1 = process_next_state(HandleCallbackResult, Events0),
         Events2 = process_transaction_info(HandleCallbackResult, Events1),
         {Response, process_intent(Intent, Events2, Session)}
     end).
+
+handle_process_callback_result({ok, _} = Result) ->
+    Result;
+handle_process_callback_result({error, {adapter, _Error} = Reason}) ->
+    {error, {Reason, build_failure_result(Reason)}}.
+
+build_failure_result(Failure) ->
+    #{
+        events => [{finished, {failure, build_failure(Failure)}}],
+        action => undefined
+    }.
+
+build_failure({adapter, {deadline_reached, _Deadline} = Details}) ->
+    #{
+        code => <<"unknown">>,
+        reason => genlib:format(Details)
+    }.
 
 -spec callbacks_index(session()) -> callbacks_index().
 callbacks_index(Session) ->

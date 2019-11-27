@@ -31,9 +31,11 @@
 
 -export([get_destinations/2]).
 -export([get_destination/2]).
+-export([get_destination_by_external_id/2]).
 -export([create_destination/2]).
 -export([create_withdrawal/2]).
 -export([get_withdrawal/2]).
+-export([get_withdrawal_by_external_id/2]).
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
 -export([list_withdrawals/2]).
@@ -302,6 +304,21 @@ get_destinations(_Params, _Context) ->
 get_destination(DestinationID, Context) ->
     do(fun() -> to_swag(destination, get_state(destination, DestinationID, Context)) end).
 
+-spec get_destination_by_external_id(id(), ctx()) -> result(map(),
+    {destination, unauthorized} |
+    {destination, notfound}     |
+    {external_id, {unknown_external_id, id()}}
+).
+get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, destination, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
+        {ok, DestinationID, _CtxData} ->
+            get_destination(DestinationID, Context);
+        {error, internal_id_not_found} ->
+            {error, {external_id, {unknown_external_id, ExternalID}}}
+    end.
+
 -spec create_destination(params(), ctx()) -> result(map(),
     invalid                     |
     {identity, unauthorized}    |
@@ -352,6 +369,21 @@ create_withdrawal(Params, Context) ->
 ).
 get_withdrawal(WithdrawalId, Context) ->
     do(fun() -> to_swag(withdrawal, get_state(withdrawal, WithdrawalId, Context)) end).
+
+-spec get_withdrawal_by_external_id(id(), ctx()) -> result(map(),
+    {withdrawal, unauthorized} |
+    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}} |
+    {external_id, {unknown_external_id, id()}}
+).
+get_withdrawal_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, withdrawal, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
+        {ok, WithdrawalId, _CtxData} ->
+            get_withdrawal(WithdrawalId, Context);
+        {error, internal_id_not_found} ->
+            {error, {external_id, {unknown_external_id, ExternalID}}}
+    end.
 
 -spec get_withdrawal_events(params(), ctx()) -> result([map()],
     {withdrawal, unauthorized} |

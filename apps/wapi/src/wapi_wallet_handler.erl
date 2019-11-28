@@ -559,8 +559,8 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters' := Params}, Context, _Op
     end;
 process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_p2p_transfer(Params, Context) of
-        {ok, Quote} ->
-            wapi_handler_utils:reply_ok(202, Quote);
+        {ok, P2PTransfer} ->
+            wapi_handler_utils:reply_ok(202, P2PTransfer);
         {error, {identity,   not_found}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
@@ -597,6 +597,15 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {token, wrong_party_id}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Token is owned by other party">>))
+    end;
+process_request('GetP2PTransfer', #{'p2pTransferID' := ID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_p2p_transfer(ID, Context) of
+        {ok, P2PTransfer} ->
+            wapi_handler_utils:reply_ok(200, P2PTransfer);
+        {error, {p2p_transfer, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {p2p_transfer, not_found}} ->
+            wapi_handler_utils:reply_ok(404)
     end.
 
 %% Internal functions

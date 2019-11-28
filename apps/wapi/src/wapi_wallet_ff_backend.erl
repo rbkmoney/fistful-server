@@ -57,6 +57,7 @@
 
 -export([quote_p2p_transfer/2]).
 -export([create_p2p_transfer/2]).
+-export([get_p2p_transfer/2]).
 
 %% Types
 
@@ -715,7 +716,11 @@ create_p2p_transfer(Params, Context) ->
             quote => DecodedToken,
             external_id => ExternalID
         },
-        case p2p_transfer_machine:create(CreateParams, Metadata) of
+        TransferContext = #{
+            metadata => Metadata,
+            party_id => PartyID
+        },
+        case p2p_transfer_machine:create(CreateParams, TransferContext) of
             ok ->
                 {ok, P2PTransferState} = p2p_transfer_machine:get(Id),
                 P2PTransfer = p2p_transfer_machine:p2p_transfer(P2PTransferState),
@@ -730,6 +735,28 @@ create_p2p_transfer(Params, Context) ->
                 throw({sender, not_found});
             {error, {receiver, {bin_data, not_found}}} ->
                 throw({receiver, not_found})
+        end
+    end).
+
+-spec get_p2p_transfer(params(), ctx()) -> result(map(),
+    {p2p_transfer, unauthorized} |
+    {p2p_transfer, not_found}
+).
+get_p2p_transfer(ID, Context) ->
+    do(fun () ->
+        PartyID = wapi_handler_utils:get_owner(Context),
+        case p2p_transfer_machine:get(ID) of
+            {ok, P2PTransferState} ->
+                case p2p_transfer_machine:ctx(P2PTransferState) of
+                    #{party_id := PartyID} = TransferContext ->
+                        P2PTransfer = p2p_transfer_machine:p2p_transfer(P2PTransferState),
+                        Metadata = maps:get(metadata, TransferContext),
+                        to_swag(p2p_transfer, {P2PTransfer, Metadata});
+                    _ ->
+                        throw({p2p_transfer, unauthorized})
+                end;
+            {error, {unknown_p2p_transfer, ID}} ->
+                throw({p2p_transfer, not_found})
         end
     end).
 

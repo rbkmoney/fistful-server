@@ -35,7 +35,6 @@
 -export_type([user_interaction/0]).
 -export_type([callback_response/0]).
 -export_type([build_context_params/0]).
--export_type([timeout_error/0]).
 
 %% Types
 
@@ -121,32 +120,22 @@
 -type user_interaction()        :: {id(), user_interaction_intent()}.
 -type user_interaction_intent() :: p2p_user_interaction:intent().
 
--type timeout_error()           :: {deadline_reached, deadline()}.
-
--import(ff_pipeline, [unwrap/1, do/1]).
-
 %% API
 
 -spec process(adapter(), context()) ->
-    {ok, process_result()} | {error, timeout_error()}.
-process(Adapter, Context = #{operation := OperationInfo}) ->
-     do(fun() ->
-        _ = unwrap(to_timeout(maps:get(deadline, OperationInfo, undefined))),
-        EncodedContext = p2p_adapter_codec:marshal(context, Context),
-        {ok, Result} = call(Adapter, 'Process', [EncodedContext]),
-        {ok, p2p_adapter_codec:unmarshal(process_result, Result)}
-    end).
+    {ok, process_result()}.
+process(Adapter, Context) ->
+    EncodedContext = p2p_adapter_codec:marshal(context, Context),
+    {ok, Result} = call(Adapter, 'Process', [EncodedContext]),
+    {ok, p2p_adapter_codec:unmarshal(process_result, Result)}.
 
 -spec handle_callback(adapter(), callback(), context()) ->
-    {ok, handle_callback_result()} | {error, timeout_error()}.
-handle_callback(Adapter, Callback, Context = #{operation := OperationInfo}) ->
-    do(fun() ->
-        _ = unwrap(to_timeout(maps:get(deadline, OperationInfo, undefined))),
-        EncodedCallback = p2p_adapter_codec:marshal(callback, Callback),
-        EncodedContext  = p2p_adapter_codec:marshal(context, Context),
-        {ok, Result}    = call(Adapter, 'HandleCallback', [EncodedCallback, EncodedContext]),
-        {ok, p2p_adapter_codec:unmarshal(handle_callback_result, Result)}
-    end).
+    {ok, handle_callback_result()}.
+handle_callback(Adapter, Callback, Context) ->
+    EncodedCallback = p2p_adapter_codec:marshal(callback, Callback),
+    EncodedContext  = p2p_adapter_codec:marshal(context, Context),
+    {ok, Result}    = call(Adapter, 'HandleCallback', [EncodedCallback, EncodedContext]),
+    {ok, p2p_adapter_codec:unmarshal(handle_callback_result, Result)}.
 
 -spec build_context(build_context_params()) ->
     context().
@@ -193,15 +182,3 @@ build_operation_info_body(#{transfer_params := TransferParams, domain_revision :
         numcode   => maps:get(numcode, Currency),
         exponent  => maps:get(exponent, Currency)
     }}.
-
--spec to_timeout(deadline() | undefined) ->
-    {ok, timeout() | infinity} | {error, timeout_error()}.
-to_timeout(undefined) ->
-    {ok, infinity};
-to_timeout(Deadline) ->
-    case Deadline - ff_time:now() of
-        Timeout when Timeout > 0 ->
-            {ok, Timeout};
-        _ ->
-            {error, {deadline_reached, Deadline}}
-    end.

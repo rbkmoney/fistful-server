@@ -21,6 +21,7 @@
 -export([user_interaction_ok_test/1]).
 -export([wrong_callback_tag_test/1]).
 -export([callback_ok_test/1]).
+-export([create_deadline_fail_test/1]).
 -export([create_fail_test/1]).
 -export([create_ok_test/1]).
 -export([unknown_test/1]).
@@ -74,6 +75,7 @@ groups() ->
             user_interaction_ok_test,
             wrong_callback_tag_test,
             callback_ok_test,
+            create_deadline_fail_test,
             create_fail_test,
             create_ok_test,
             unknown_test
@@ -123,7 +125,7 @@ user_interaction_ok_test(C) ->
         session_params := SessionParams,
         token := Token
     } = prepare_standard_environment(<<"token_interaction_">>, Cash, C),
-    ok = p2p_session_machine:create(SessionID, SessionParams, TransferParams),
+    ok = p2p_session_machine:create(SessionID, TransferParams, SessionParams),
     Callback = ?CALLBACK(Token, <<"payload">>),
     ?assertMatch(<<"user_sleep">>, await_p2p_session_adapter_state(SessionID, <<"user_sleep">>)),
     ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"user_payload">>)}, call_host(Callback)),
@@ -140,7 +142,7 @@ callback_ok_test(C) ->
         session_params := SessionParams,
         token := Token
     } = prepare_standard_environment(<<"token_callback_">>, Cash, C),
-    ok = p2p_session_machine:create(SessionID, SessionParams, TransferParams),
+    ok = p2p_session_machine:create(SessionID, TransferParams, SessionParams),
     Callback = ?CALLBACK(Token, <<"payload">>),
     ?assertMatch(<<"simple_sleep">>, await_p2p_session_adapter_state(SessionID, <<"simple_sleep">>)),
     ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"simple_payload">>)}, call_host(Callback)),
@@ -156,15 +158,32 @@ wrong_callback_tag_test(C) ->
         transfer_params := TransferParams,
         session_params := SessionParams
     } = prepare_standard_environment(<<"token_wrong_">>, Cash, C),
-    ok = p2p_session_machine:create(SessionID, SessionParams, TransferParams),
+    ok = p2p_session_machine:create(SessionID, TransferParams, SessionParams),
     WrongCallback = ?CALLBACK(<<"WRONG">>, <<"payload">>),
     State0 = <<"wrong">>,
     State1 = <<"wrong_finished">>,
     ?assertMatch(State0, await_p2p_session_adapter_state(SessionID, State0)),
     ?assertMatch({exception, #p2p_adapter_SessionNotFound{}}, call_host(WrongCallback)),
     ?assertMatch(State1, await_p2p_session_adapter_state(SessionID, State1)),
-    ?assertMatch({finished, success}, await_final_p2p_session_status(SessionID)),
     ?assertMatch({exception, #p2p_adapter_SessionNotFound{}}, call_host(WrongCallback)).
+
+-spec create_deadline_fail_test(config()) -> test_return().
+create_deadline_fail_test(C) ->
+    Cash = {1001, <<"RUB">>},
+    #{
+        session_id := SessionID,
+        transfer_params := TransferParams,
+        session_params := SessionParams
+    } = prepare_standard_environment(Cash, C),
+    ok = p2p_session_machine:create(SessionID, TransferParams#{deadline => 0}, SessionParams),
+    Failure = #{
+        code => <<"authorization_failed">>,
+        reason => <<"{deadline_reached,0}">>,
+        sub => #{
+            code => <<"deadline_reached">>
+        }
+    },
+    ?assertMatch({finished, {failure, Failure}}, await_final_p2p_session_status(SessionID)).
 
 -spec create_fail_test(config()) -> test_return().
 create_fail_test(C) ->
@@ -174,7 +193,7 @@ create_fail_test(C) ->
         transfer_params := TransferParams,
         session_params := SessionParams
     } = prepare_standard_environment(Cash, C),
-    ok = p2p_session_machine:create(SessionID, SessionParams, TransferParams),
+    ok = p2p_session_machine:create(SessionID, TransferParams, SessionParams),
     ?assertEqual({finished, {failure, #{code => <<"test_failure">>}}}, await_final_p2p_session_status(SessionID)).
 
 -spec create_ok_test(config()) -> test_return().
@@ -185,7 +204,7 @@ create_ok_test(C) ->
         transfer_params := TransferParams,
         session_params := SessionParams
     } = prepare_standard_environment(Cash, C),
-    ok = p2p_session_machine:create(SessionID, SessionParams, TransferParams),
+    ok = p2p_session_machine:create(SessionID, TransferParams, SessionParams),
     ?assertEqual({finished, success}, await_final_p2p_session_status(SessionID)).
 
 -spec unknown_test(config()) -> test_return().
@@ -211,7 +230,7 @@ prepare_standard_environment(TokenPrefix, TransferCash, C) ->
     ResourceSender = create_resource_raw(Token, C),
     ResourceReceiver = create_resource_raw(Token, C),
     SessionID = generate_id(),
-    SessionParams = #{
+    TransferParams = #{
         id => <<"p2p_transfer_id">>,
         sender => prepare_resource(ResourceSender),
         receiver => prepare_resource(ResourceReceiver),
@@ -219,7 +238,7 @@ prepare_standard_environment(TokenPrefix, TransferCash, C) ->
     },
     DomainRevision = ff_domain_config:head(),
     {ok, PartyRevision} = ff_party:get_revision(PartyID),
-    TransferParams = #{
+    SessionParams = #{
         provider_id => 1,
         domain_revision => DomainRevision,
         party_revision => PartyRevision

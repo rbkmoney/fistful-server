@@ -30,6 +30,7 @@
 %% ff_machine
 -export([apply_event/2]).
 -export([maybe_migrate/1]).
+-export([check_deadline/1]).
 
 %% ff_repair
 -export([set_session_result/2]).
@@ -92,8 +93,9 @@
 -type p2p_callback_params() :: p2p_callback:process_params().
 -type process_callback_response() :: p2p_callback:response().
 -type process_callback_error() ::
-    {session_already_finished, p2p_adapter:context()} |
-    {adapter, p2p_adapter:timeout_error()}.
+    {session_already_finished, p2p_adapter:context()}.
+
+-type timeout_error() :: {deadline_reached, deadline()}.
 
 -export_type([event/0]).
 -export_type([transfer_params/0]).
@@ -105,6 +107,7 @@
 -export_type([p2p_callback_params/0]).
 -export_type([process_callback_response/0]).
 -export_type([process_callback_error/0]).
+-export_type([timeout_error/0]).
 
 %%
 %% Internal types
@@ -129,7 +132,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [unwrap/2, unwrap/1, do/1]).
+-import(ff_pipeline, [unwrap/1]).
 
 %%
 %% API
@@ -204,23 +207,13 @@ get_adapter_with_opts(ProviderID) ->
 
 -spec process_session(session()) -> result().
 process_session(Session) ->
-    case do_process_session(Session) of
-        {ok, Result} ->
-            Result;
-        {error, Error} ->
-            build_failure_result(Error)
-    end.
-
-do_process_session(Session) ->
-    do(fun() ->
-        {Adapter, _AdapterOpts} = adapter(Session),
-        Context = p2p_adapter:build_context(collect_build_context_params(Session)),
-        ProcessResult = unwrap(adapter, p2p_adapter:process(Adapter, Context)),
-        #{intent := Intent} = ProcessResult,
-        Events0 = process_next_state(ProcessResult, []),
-        Events1 = process_transaction_info(ProcessResult, Events0),
-        process_intent(Intent, Events1, Session)
-    end).
+    {Adapter, _AdapterOpts} = adapter(Session),
+    Context = p2p_adapter:build_context(collect_build_context_params(Session)),
+    {ok, ProcessResult} = p2p_adapter:process(Adapter, Context),
+    #{intent := Intent} = ProcessResult,
+    Events0 = process_next_state(ProcessResult, []),
+    Events1 = process_transaction_info(ProcessResult, Events0),
+    process_intent(Intent, Events1, Session).
 
 process_next_state(#{next_state := NextState}, Events) ->
     Events ++ [{next_state, NextState}];
@@ -299,7 +292,7 @@ process_callback(#{tag := CallbackTag} = Params, Session) ->
         pending ->
             case status(Session) of
                 active ->
-                    handle_process_callback_result(do_process_callback(Params, Callback, Session));
+                    do_process_callback(Params, Callback, Session);
                 {finished, _} ->
                     {_Adapter, _AdapterOpts} = adapter(Session),
                     Context = p2p_adapter:build_context(collect_build_context_params(Session)),
@@ -313,35 +306,24 @@ find_callback(CallbackTag, Session) ->
     p2p_callback_utils:get_by_tag(CallbackTag, callbacks_index(Session)).
 
 -spec do_process_callback(p2p_callback_params(), p2p_callback(), session()) ->
-    {ok, {process_callback_response(), result()}} |
-    {error, process_callback_error()}.
+    {ok, {process_callback_response(), result()}}.
 
 do_process_callback(Params, Callback, Session) ->
-    do(fun() ->
-        {Adapter, _AdapterOpts} = adapter(Session),
-        Context = p2p_adapter:build_context(collect_build_context_params(Session)),
-        HandleCallbackResult = unwrap(adapter, p2p_adapter:handle_callback(Adapter, Params, Context)),
-        #{intent := Intent, response := Response} = HandleCallbackResult,
-        Events0 = p2p_callback_utils:process_response(Response, Callback),
-        Events1 = process_next_state(HandleCallbackResult, Events0),
-        Events2 = process_transaction_info(HandleCallbackResult, Events1),
-        {Response, process_intent(Intent, Events2, Session)}
-    end).
+    {Adapter, _AdapterOpts} = adapter(Session),
+    Context = p2p_adapter:build_context(collect_build_context_params(Session)),
+    {ok, HandleCallbackResult} = p2p_adapter:handle_callback(Adapter, Params, Context),
+    #{intent := Intent, response := Response} = HandleCallbackResult,
+    Events0 = p2p_callback_utils:process_response(Response, Callback),
+    Events1 = process_next_state(HandleCallbackResult, Events0),
+    Events2 = process_transaction_info(HandleCallbackResult, Events1),
+    {ok, {Response, process_intent(Intent, Events2, Session)}}.
 
-handle_process_callback_result({ok, _} = Result) ->
-    Result;
-handle_process_callback_result({error, {adapter, _Error} = Reason}) ->
-    {error, {Reason, build_failure_result(Reason)}}.
-
-build_failure_result(Failure) ->
+build_failure({deadline_reached, _Deadline} = Details) ->
     #{
-        events => [{finished, {failure, build_failure(Failure)}}],
-        action => undefined
-    }.
-
-build_failure({adapter, {deadline_reached, _Deadline} = Details}) ->
-    #{
-        code => <<"unknown">>,
+        code => <<"authorization_failed">>,
+        sub => #{
+            code => <<"deadline_reached">>
+        },
         reason => genlib:format(Details)
     }.
 
@@ -424,3 +406,28 @@ set_session_status(SessionState, Session) ->
 % Other events
 maybe_migrate(Ev) ->
     Ev.
+
+-spec check_deadline(event()) ->
+    ok | {error, ff_failure:failure()}.
+
+check_deadline({created, Session}) ->
+    case to_timeout(maps:get(deadline, transfer_params(Session), undefined)) of
+        {ok, _Timeout} ->
+            ok;
+        {error, {deadline_reached, _Deadline} = Error} ->
+            {error, build_failure(Error)}
+    end;
+check_deadline(_) ->
+    ok.
+
+-spec to_timeout(deadline() | undefined) ->
+    {ok, timeout() | infinity} | {error, timeout_error()}.
+to_timeout(undefined) ->
+    {ok, infinity};
+to_timeout(Deadline) ->
+    case Deadline - ff_time:now() of
+        Timeout when Timeout > 0 ->
+            {ok, Timeout};
+        _ ->
+            {error, {deadline_reached, Deadline}}
+    end.

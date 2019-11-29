@@ -122,11 +122,21 @@ repair(Ref, Scenario) ->
 -spec init([event()], machine(), handler_args(), handler_opts()) ->
     result().
 init(Events, #{}, _, _Opts) ->
-    #{
-        events => ff_machine:emit_events(Events),
-        action => continue,
+    {NewEvents, NewAction} = case lists:foldl(
+        fun check_event/2,
+        ok,
+        Events
+    ) of
+        ok ->
+            {Events, continue};
+        {error, Failure} ->
+            {Events ++ [{finished, {failure, Failure}}], undefined}
+    end,
+    genlib_map:compact(#{
+        events => ff_machine:emit_events(NewEvents),
+        action => NewAction,
         aux_state => #{ctx => ff_entity_context:new()}
-    }.
+    }).
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) ->
     result().
@@ -186,8 +196,14 @@ do_process_callback(Params, Machine) ->
             {{ok, Response}, Result#{events => ff_machine:emit_events(Events)}};
         {ok, {Response, Result}} ->
             {{ok, Response}, Result};
-        {error, {Reason, #{events := Events} = Result}} ->
-            {{error, Reason}, Result#{events => ff_machine:emit_events(Events)}};
         {error, {Reason, Result}} ->
             {{error, Reason}, Result}
+    end.
+
+check_event(Event, Acc) ->
+    case Acc of
+        ok ->
+            p2p_session:check_deadline(Event);
+        _ ->
+            Acc
     end.

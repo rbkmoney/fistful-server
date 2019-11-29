@@ -244,7 +244,7 @@ process_intent_callback(undefined, _Session, Events) ->
     Events;
 process_intent_callback(Tag, Session, Events) ->
     case p2p_callback_utils:get_by_tag(Tag, callbacks_index(Session)) of
-        {error, {unknown_callback, Tag}} -> 
+        {error, {unknown_callback, Tag}} ->
             {ok, CallbackEvents} = p2p_callback:create(#{tag => Tag}),
             CBEvents = p2p_callback_utils:wrap_events(Tag, CallbackEvents),
             Events ++ CBEvents;

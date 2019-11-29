@@ -36,16 +36,17 @@
 -define(SIGNEE, wapi).
 
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
-    {ok, auth_details()}  | {error, auth_error()}.
+    ok  | {error, auth_error()}.
 
 authorize_operation('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context) ->
     authorize_withdrawal(Params, Context);
 %% TODO: implement authorization
-authorize_operation(_OperationID, _Req, _) ->
-    {ok, bearer_token}.
+authorize_operation(OperationID, Req, #{auth_context := AuthContext}) ->
+    OperationACL = get_operation_access(OperationID, Req),
+    uac:authorize_operation(OperationACL, AuthContext).
 
 authorize_withdrawal(Params, Context) ->
-    lists:foldl(
+    AuthResult = lists:foldl(
         fun(R, AuthState) ->
             case {authorize_resource(R, Params, Context), AuthState} of
                 {{ok, AuthMethod}, {ok, AuthData}}   -> {ok, [{R, AuthMethod} | AuthData]};
@@ -56,7 +57,11 @@ authorize_withdrawal(Params, Context) ->
         end,
         {ok, []},
         [destination, wallet]
-    ).
+    ),
+    case AuthResult of
+        {ok, _} -> ok;
+        {error, _} = Error -> Error
+    end.
 
 authorize_resource(Resource, Params, Context) ->
     %% TODO
@@ -194,6 +199,89 @@ get_claim(ClaimName, {_Id, _Subject, Claims}, Default) ->
 
 %% get_operation_access('CreateWithdrawal'     , #{'WithdrawalParameters' := #{<<"walletGrant">> => }}) ->
 %%     [{[payment_resources], write}].
+
+% TODO: specify ACLs
+get_operation_access('GetCurrency', _) ->
+    [];
+get_operation_access('ListDeposits', _) ->
+    [];
+get_operation_access('ListDestinations', _) ->
+    [];
+get_operation_access('CreateDestination', _) ->
+    [];
+get_operation_access('GetDestination', _) ->
+    [];
+get_operation_access('IssueDestinationGrant', _) ->
+    [];
+get_operation_access('DownloadFile', _) ->
+    [];
+get_operation_access('ListIdentities', _) ->
+    [];
+get_operation_access('CreateIdentity', _) ->
+    [];
+get_operation_access('GetIdentity', _) ->
+    [];
+get_operation_access('ListIdentityChallenges', _) ->
+    [];
+get_operation_access('StartIdentityChallenge', _) ->
+    [];
+get_operation_access('GetIdentityChallenge', _) ->
+    [];
+get_operation_access('PollIdentityChallengeEvents', _) ->
+    [];
+get_operation_access('GetIdentityChallengeEvent', _) ->
+    [];
+get_operation_access('CreateReport', _) ->
+    [];
+get_operation_access('GetReports', _) ->
+    [];
+get_operation_access('GetReport', _) ->
+    [];
+get_operation_access('ListProviders', _) ->
+    [];
+get_operation_access('GetProvider', _) ->
+    [];
+get_operation_access('ListProviderIdentityClasses', _) ->
+    [];
+get_operation_access('GetProviderIdentityClass', _) ->
+    [];
+get_operation_access('ListProviderIdentityLevels', _) ->
+    [];
+get_operation_access('GetProviderIdentityLevel', _) ->
+    [];
+get_operation_access('GetResidence', _) ->
+    [];
+get_operation_access('ListWallets', _) ->
+    [];
+get_operation_access('CreateWallet', _) ->
+    [];
+get_operation_access('GetWallet', _) ->
+    [];
+get_operation_access('GetWalletAccount', _) ->
+    [];
+get_operation_access('IssueWalletGrant', _) ->
+    [];
+get_operation_access('CreateWebhook', _) ->
+    [];
+get_operation_access('GetWebhooks', _) ->
+    [];
+get_operation_access('GetWebhookByID', _) ->
+    [];
+get_operation_access('DeleteWebhookByID', _) ->
+    [];
+get_operation_access('CreateQuote', _) ->
+    [];
+get_operation_access('ListWithdrawals', _) ->
+    [];
+get_operation_access('CreateWithdrawal', _) ->
+    [];
+get_operation_access('GetWithdrawal', _) ->
+    [];
+get_operation_access('PollWithdrawalEvents', _) ->
+    [];
+get_operation_access('GetWithdrawalEvents', _) ->
+    [].
+
 
 -spec get_access_config() -> map().
 

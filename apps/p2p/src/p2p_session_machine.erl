@@ -122,18 +122,10 @@ repair(Ref, Scenario) ->
 -spec init([event()], machine(), handler_args(), handler_opts()) ->
     result().
 init(Events, #{}, _, _Opts) ->
-    {NewEvents, NewAction} = case lists:foldl(
-        fun check_event/2,
-        ok,
-        Events
-    ) of
-        ok ->
-            {Events, continue};
-        {error, Failure} ->
-            {Events ++ [{finished, {failure, Failure}}], undefined}
-    end,
+    Session = lists:foldl(fun (Ev, St) -> p2p_session:apply_event(Ev, St) end, undefined, Events),
+    {InitEvents, NewAction} = p2p_session:init(Session, continue),
     genlib_map:compact(#{
-        events => ff_machine:emit_events(NewEvents),
+        events => ff_machine:emit_events(Events ++ InitEvents),
         action => NewAction,
         aux_state => #{ctx => ff_entity_context:new()}
     }).
@@ -198,12 +190,4 @@ do_process_callback(Params, Machine) ->
             {{ok, Response}, Result};
         {error, {Reason, Result}} ->
             {{error, Reason}, Result}
-    end.
-
-check_event(Event, Acc) ->
-    case Acc of
-        ok ->
-            p2p_session:check_deadline(Event);
-        _ ->
-            Acc
     end.

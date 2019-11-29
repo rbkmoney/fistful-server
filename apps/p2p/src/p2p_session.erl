@@ -30,7 +30,7 @@
 %% ff_machine
 -export([apply_event/2]).
 -export([maybe_migrate/1]).
--export([check_deadline/1]).
+-export([init/2]).
 
 %% ff_repair
 -export([set_session_result/2]).
@@ -118,6 +118,7 @@
 -type auxst() :: undefined.
 
 -type result() :: machinery:result(event(), auxst()).
+-type action() :: machinery:action().
 -type adapter_with_opts() :: {ff_p2p_provider:adapter(), ff_p2p_provider:adapter_opts()}.
 -type legacy_event() :: any().
 
@@ -414,18 +415,16 @@ set_session_status(SessionState, Session) ->
 maybe_migrate(Ev) ->
     Ev.
 
--spec check_deadline(event()) ->
-    ok | {error, ff_failure:failure()}.
+-spec init(session(), action()) ->
+    {list(event()), action() | undefined}.
 
-check_deadline({created, Session}) ->
+init(Session, Action) ->
     case to_timeout(maps:get(deadline, transfer_params(Session), undefined)) of
         {ok, _Timeout} ->
-            ok;
+            {[], Action};
         {error, {deadline_reached, _Deadline} = Error} ->
-            {error, build_failure(Error)}
-    end;
-check_deadline(_) ->
-    ok.
+            {[{finished, {failure, build_failure(Error)}}], undefined}
+    end.
 
 -spec to_timeout(deadline() | undefined) ->
     {ok, timeout() | infinity} | {error, timeout_error()}.

@@ -67,13 +67,15 @@ do_setup(Options0, C0) ->
     [{payment_system, Processing0} | C1].
 
 start_processing_apps(Options) ->
+    P2PAdapterAdr = <<"/p2p_adapter">>,
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
         scoper,
         woody,
         dmt_client,
         {fistful, [
             {services, services(Options)},
-            {providers, identity_provider_config(Options)}
+            {providers, identity_provider_config(Options)},
+            {test, #{p2p_adapter_adr => P2PAdapterAdr}}
         ]},
         ff_server
     ]),
@@ -89,7 +91,7 @@ start_processing_apps(Options) ->
                     {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'}, {ff_ct_provider_handler, []}}
                 },
                 {
-                    <<"/p2p_adapter">>,
+                    P2PAdapterAdr,
                     {{dmsl_p2p_adapter_thrift, 'P2PAdapter'}, {p2p_ct_provider_handler, []}}
                 },
                 {
@@ -344,6 +346,7 @@ dummy_provider_identity_id(Options) ->
     maps:get(dummy_provider_identity_id, Options).
 
 domain_config(Options, C) ->
+    P2PAdapterAdr = maps:get(p2p_adapter_adr, genlib_app:env(fistful, test, #{})),
     Default = [
 
         ct_domain:globals(?eas(1), [?payinst(1)]),
@@ -418,7 +421,7 @@ domain_config(Options, C) ->
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
         ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8222/quotebank">>),
         ct_domain:proxy(?prx(4), <<"P2P inspector proxy">>, <<"http://localhost:8222/p2p_inspector">>),
-        ct_domain:proxy(?prx(5), <<"P2P adapter">>, <<"http://localhost:8222/p2p_adapter">>),
+        ct_domain:proxy(?prx(5), <<"P2P adapter">>, <<"http://localhost:8222", P2PAdapterAdr/binary>>),
 
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),

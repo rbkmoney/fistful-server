@@ -243,10 +243,14 @@ process_intent({finish, Result}, Events, _Session) ->
 process_intent_callback(undefined, _Session, Events) ->
     Events;
 process_intent_callback(Tag, Session, Events) ->
-    {error, {unknown_callback, Tag}} = p2p_callback_utils:get_by_tag(Tag, callbacks_index(Session)),
-    {ok, CallbackEvents} = p2p_callback:create(#{tag => Tag}),
-    CBEvents = p2p_callback_utils:wrap_events(Tag, CallbackEvents),
-    Events ++ CBEvents.
+    case p2p_callback_utils:get_by_tag(Tag, callbacks_index(Session)) of
+        {error, {unknown_callback, Tag}} -> 
+            {ok, CallbackEvents} = p2p_callback:create(#{tag => Tag}),
+            CBEvents = p2p_callback_utils:wrap_events(Tag, CallbackEvents),
+            Events ++ CBEvents;
+        {ok, Callback} ->
+            erlang:error({callback_already_exists, Callback})
+    end.
 
 process_user_interaction(undefined, _Session, Events) ->
     Events;
@@ -258,10 +262,13 @@ process_user_interaction({ID, finish}, Session, Events) ->
             erlang:error(Error)
     end;
 process_user_interaction({ID, {create, Content}}, Session, Events) ->
-    {error, {unknown_user_interaction, ID}} =
-        p2p_user_interaction_utils:get_by_id(ID, user_interactions_index(Session)),
-    {ok, UserInteractionEvents} = p2p_user_interaction:create(#{id => ID, content => Content}),
-    Events ++ p2p_user_interaction_utils:wrap_events(ID, UserInteractionEvents).
+    case p2p_user_interaction_utils:get_by_id(ID, user_interactions_index(Session)) of
+        {error, {unknown_user_interaction, ID}} ->
+            {ok, UserInteractionEvents} = p2p_user_interaction:create(#{id => ID, content => Content}),
+            Events ++ p2p_user_interaction_utils:wrap_events(ID, UserInteractionEvents);
+        {ok, UI} ->
+            erlang:error({user_interaction_already_exists, UI})
+    end.
 
 -spec timer_action({deadline, binary()} | {timeout, non_neg_integer()}) -> machinery:action().
 timer_action(Timer) ->

@@ -34,13 +34,17 @@ marshal(session, #{
     id := ID,
     status := Status,
     transfer_params := TransferParams,
-    provider_id := ProviderID
+    provider_id := ProviderID,
+    domain_revision := DomainRevision,
+    party_revision := PartyRevision
 }) ->
     #p2p_session_Session{
         id = marshal(id, ID),
         status = marshal(status, Status),
         p2p_transfer = marshal(p2p_transfer, TransferParams),
-        provider = marshal(id, ProviderID)
+        provider = marshal(id, ProviderID),
+        party_revision = marshal(integer, PartyRevision),
+        domain_revision = marshal(integer, DomainRevision)
     };
 
 marshal(status, active) ->
@@ -111,7 +115,7 @@ marshal(user_interaction, #{id := ID, content := Content}) ->
         user_interaction = marshal(user_interaction_content, Content)
     };
 
-marshal(user_interaction_content, #{type := redirect, content := Redirect}) ->
+marshal(user_interaction_content, {redirect, #{content := Redirect}}) ->
     {redirect, marshal(redirect, Redirect)};
 
 marshal(redirect, {get, URI}) ->
@@ -171,13 +175,17 @@ unmarshal(session, #p2p_session_Session{
     id = ID,
     status = Status,
     p2p_transfer = P2PTransfer,
-    provider = ProviderID
+    provider = ProviderID,
+    party_revision = PartyRevision,
+    domain_revision = DomainRevision
 }) ->
     #{
         id => unmarshal(id, ID),
         status => unmarshal(status, Status),
         transfer_params => unmarshal(p2p_transfer, P2PTransfer),
-        provider_id => unmarshal(id, ProviderID)
+        provider_id => unmarshal(id, ProviderID),
+        party_revision => unmarshal(integer, PartyRevision),
+        domain_revision => unmarshal(integer, DomainRevision)
     };
 
 unmarshal(status, {active, #p2p_session_SessionActive{}}) ->
@@ -242,10 +250,9 @@ unmarshal(user_interaction, #p2p_session_UserInteraction{
     };
 
 unmarshal(user_interaction_content, {redirect, Redirect}) ->
-    #{
-        type => redirect,
+    {redirect, #{
         content => unmarshal(redirect, Redirect)
-    };
+    }};
 
 unmarshal(redirect, {get_request, #ui_BrowserGetRequest{uri = URI}}) ->
     {get, URI};
@@ -286,14 +293,13 @@ maybe_unmarshal(Type, Value) ->
 -include_lib("eunit/include/eunit.hrl").
 -spec test() -> _.
 
--spec adjustment_codec_test() -> _.
-adjustment_codec_test() ->
+-spec p2p_session_codec_test() -> _.
+p2p_session_codec_test() ->
     UserInteraction = #{
         id => genlib:unique(),
-        content => #{
-            type => redirect,
+        content => {redirect, #{
             content => {get, <<"URI">>}
-        }
+        }}
     },
 
     Callback = #{tag => <<"Tag">>},
@@ -320,7 +326,9 @@ adjustment_codec_test() ->
         id => genlib:unique(),
         status => active,
         transfer_params => TransferParams,
-        provider_id => genlib:unique()
+        provider_id => genlib:unique(),
+        party_revision => 123,
+        domain_revision => 321
     },
 
     Events = [

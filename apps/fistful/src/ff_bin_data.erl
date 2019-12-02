@@ -5,10 +5,11 @@
 
 -type token() :: binary().
 -type iso_country_code() :: atom().
+-type payment_system() :: atom().
 -type bin_data() :: #{
     token               := token(),
     id                  := bin_data_id(),
-    payment_system      := atom(),
+    payment_system      := payment_system(),
     bank_name           => binary(),
     iso_country_code    => iso_country_code(),
     card_type           => charge_card | credit | debit | credit_or_debit,
@@ -28,6 +29,7 @@
 -export_type([bin_data/0]).
 -export_type([bin_data_id/0]).
 -export_type([iso_country_code/0]).
+-export_type([payment_system/0]).
 
 -export([get/2]).
 -export([id/1]).

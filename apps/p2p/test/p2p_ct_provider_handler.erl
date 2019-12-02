@@ -66,7 +66,6 @@ handle_function_('Process', [?ADAPTER_CONTEXT(101, Token, State)], _Ctx, _Opts) 
             {ok, #p2p_adapter_ProcessResult{
                 intent = {sleep, #p2p_adapter_SleepIntent{
                     timer = {timeout, 1},
-                    callback_tag = Token,
                     user_interaction = #p2p_adapter_UserInteraction{
                         id = <<"test_user_interaction">>,
                         intent = {finish, #p2p_adapter_UserInteractionFinish{}}
@@ -112,8 +111,7 @@ handle_function_('Process', [?ADAPTER_CONTEXT(999, Token, State)], _Ctx, _Opts) 
         <<"simple_sleep">> ->
             {ok, #p2p_adapter_ProcessResult{
                 intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1},
-                    callback_tag = Token
+                    timer = {timeout, 1}
                 }}
             }};
         <<"simple_callback">> ->
@@ -143,8 +141,7 @@ handle_function_('HandleCallback', [?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_
             {ok, #p2p_adapter_CallbackResult{
                 response = #p2p_adapter_CallbackResponse{payload = <<"user_payload">>},
                 intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1},
-                    callback_tag = Token
+                    timer = {timeout, 1}
                 }},
                 next_state = <<"user_callback">>
             }};
@@ -152,8 +149,7 @@ handle_function_('HandleCallback', [?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_
             {ok, #p2p_adapter_CallbackResult{
                 response = #p2p_adapter_CallbackResponse{payload = <<"simple_payload">>},
                 intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1},
-                    callback_tag = Token
+                    timer = {timeout, 1}
                 }},
                 next_state = <<"simple_callback">>
             }}

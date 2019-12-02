@@ -18,27 +18,23 @@
 -type intent() :: finish | {create, content()}.
 -type content() :: redirect() | receipt() | crypto() | qr_code().
 
--type redirect() :: #{
-    type    := redirect,
+-type redirect() :: {redirect, #{
     content := redirect_get() | redirect_post()
-}.
+}}.
 
--type receipt() :: #{
-    type       := payment_terminal_receipt,
+-type receipt() :: {payment_terminal_receipt, #{
     payment_id := payment_id(),
     timestamp  := timestamp()
-}.
+}}.
 
--type crypto() :: #{
-    type           := crypto_currency_transfer_request,
+-type crypto() :: {crypto_currency_transfer_request, #{
     crypto_address := crypto_address(),
     crypto_cash    := crypto_cash()
-}.
+}}.
 
--type qr_code() :: #{
-    type    := qr_code_show_request,
+-type qr_code() :: {qr_code_show_request, #{
     payload := qr_code_payload()
-}.
+}}.
 
 -type redirect_get() :: {get, uri()}.
 -type redirect_post() :: {post, uri(), form()}.
@@ -140,8 +136,8 @@ is_finished(#{status := pending}) ->
     process_result().
 finish(#{status := pending}) ->
     [{status_changed, finished}];
-finish(#{status := finished}) ->
-    [].
+finish(#{status := finished, id := ID}) ->
+    erlang:error({user_interaction_already_finished, ID}).
 
 %% Internals
 

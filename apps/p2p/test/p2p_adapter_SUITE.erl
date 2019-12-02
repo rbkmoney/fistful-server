@@ -50,7 +50,8 @@ end_per_testcase(_Name, _C) ->
 
 -spec process(config()) -> test_return().
 process(_C) ->
-    Adapter = ff_woody_client:new(<<"http://localhost:8222/p2p_adapter">>),
+    P2PAdapterAdr = maps:get(p2p_adapter_adr, genlib_app:env(fistful, test, #{})),
+    Adapter = ff_woody_client:new(<<"http://localhost:8222", P2PAdapterAdr/binary>>),
     Context = construct_context(),
     Result  = p2p_adapter:process(Adapter, Context),
     ?assertMatch({ok, #{intent := {finish, success}}}, Result),
@@ -58,7 +59,8 @@ process(_C) ->
 
 -spec handle_callback(config()) -> test_return().
 handle_callback(_C) ->
-    Adapter  = ff_woody_client:new(<<"http://localhost:8222/p2p_adapter">>),
+    P2PAdapterAdr = maps:get(p2p_adapter_adr, genlib_app:env(fistful, test, #{})),
+    Adapter  = ff_woody_client:new(<<"http://localhost:8222", P2PAdapterAdr/binary>>),
     Context  = construct_context(),
     Callback = #{tag => <<"p2p">>, payload => <<>>},
     Result   = p2p_adapter:handle_callback(Adapter, Callback, Context),

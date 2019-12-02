@@ -122,11 +122,13 @@ repair(Ref, Scenario) ->
 -spec init([event()], machine(), handler_args(), handler_opts()) ->
     result().
 init(Events, #{}, _, _Opts) ->
-    #{
-        events => ff_machine:emit_events(Events),
-        action => continue,
+    Session = lists:foldl(fun (Ev, St) -> p2p_session:apply_event(Ev, St) end, undefined, Events),
+    {InitEvents, NewAction} = p2p_session:init(Session, continue),
+    genlib_map:compact(#{
+        events => ff_machine:emit_events(Events ++ InitEvents),
+        action => NewAction,
         aux_state => #{ctx => ff_entity_context:new()}
-    }.
+    }).
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) ->
     result().
@@ -186,6 +188,6 @@ do_process_callback(Params, Machine) ->
             {{ok, Response}, Result#{events => ff_machine:emit_events(Events)}};
         {ok, {Response, Result}} ->
             {{ok, Response}, Result};
-        {error, _Reason} = Error ->
-            {Error, #{}}
+        {error, {Reason, Result}} ->
+            {{error, Reason}, Result}
     end.

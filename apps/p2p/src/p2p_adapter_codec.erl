@@ -62,6 +62,11 @@
 -type callback_response()           :: p2p_callback:response().
 -type p2p_callback_response()       :: dmsl_p2p_adapter_thrift:'CallbackResponse'().
 
+-type resource()                    :: ff_resource:resource().
+-type disposable_resource()         :: dmsl_p2p_adapter_thrift:'PaymentResource'().
+
+-type deadline()                    :: p2p_adapter:deadline().
+
 %% API
 
 -spec marshal(process_callback_result, process_callback_result()) -> p2p_process_callback_result();
@@ -70,7 +75,9 @@
              (context,                 context())                 -> p2p_context();
              (session,                 adapter_state())           -> p2p_session();
              (operation_info,          operation_info())          -> p2p_operation_info();
-             (body,                    cash())                    -> p2p_cash().
+             (resource,                resource())                -> disposable_resource();
+             (body,                    cash())                    -> p2p_cash();
+             (deadline,                deadline())                -> binary().
 marshal(process_callback_result, {succeeded, Response}) ->
     {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
         response = marshal(callback_response, Response)
@@ -110,16 +117,29 @@ marshal(operation_info, OperationInfo = #{
 }) ->
     {process, #p2p_adapter_ProcessOperationInfo{
         body     = marshal(body,     Cash),
-        sender   = ff_dmsl_codec:marshal(resource, Sender),
-        receiver = ff_dmsl_codec:marshal(resource, Receiver),
-        deadline = maps:get(deadline, OperationInfo, undefined)
+        sender   = marshal(resource, Sender),
+        receiver = marshal(resource, Receiver),
+        deadline = maybe_marshal(deadline, maps:get(deadline, OperationInfo, undefined))
+    }};
+
+marshal(resource, Resource) ->
+    {disposable, #domain_DisposablePaymentResource{
+        payment_tool = ff_dmsl_codec:marshal(resource, Resource)
     }};
 
 marshal(body, {Amount, Currency}) ->
     #p2p_adapter_Cash{
         amount   = Amount,
         currency = ff_dmsl_codec:marshal(currency, Currency)
-    }.
+    };
+
+marshal(deadline, Deadline) ->
+    ff_time:to_rfc3339(Deadline).
+
+maybe_marshal(_T, undefined) ->
+    undefined;
+maybe_marshal(T, V) ->
+    marshal(T, V).
 
 -spec unmarshal(process_result,           p2p_process_result())          -> process_result();
                (handle_callback_result,   p2p_callback_result())         -> handle_callback_result();
@@ -131,7 +151,8 @@ marshal(body, {Amount, Currency}) ->
                (context,                  p2p_context())                 -> context();
                (session,                  p2p_session())                 -> adapter_state();
                (operation_info,           p2p_operation_info())          -> operation_info();
-               (body,                     p2p_cash())                    -> cash().
+               (body,                     p2p_cash())                    -> cash();
+               (deadline,                 binary())                      -> deadline().
 unmarshal(process_result, #p2p_adapter_ProcessResult{
     intent     = Intent,
     next_state = NextState,
@@ -215,11 +236,14 @@ unmarshal(operation_info, {process, #p2p_adapter_ProcessOperationInfo{
         body     => unmarshal(body,     Body),
         sender   => ff_dmsl_codec:unmarshal(resource, Sender),
         receiver => ff_dmsl_codec:unmarshal(resource, Receiver),
-        deadline => Deadline
+        deadline => maybe_unmarshal(deadline, Deadline)
     });
 
 unmarshal(body, #p2p_adapter_Cash{amount = Amount, currency = Currency}) ->
-    {Amount, ff_dmsl_codec:unmarshal(currency, Currency)}.
+    {Amount, ff_dmsl_codec:unmarshal(currency, Currency)};
+
+unmarshal(deadline, Deadline) ->
+    ff_time:from_rfc3339(Deadline).
 
 % Internal
 
@@ -228,4 +252,6 @@ maybe_unmarshal(_Type, undefined) ->
 maybe_unmarshal(transaction_info, TransactionInfo) ->
     ff_dmsl_codec:unmarshal(transaction_info, TransactionInfo);
 maybe_unmarshal(user_interaction, UserInteraction) ->
-    unmarshal(user_interaction, UserInteraction).
+    unmarshal(user_interaction, UserInteraction);
+maybe_unmarshal(deadline, Deadline) ->
+    unmarshal(deadline, Deadline).

@@ -17,11 +17,19 @@
 -type adapter_opts() :: map().
 
 -type p2p_provider_ref() :: dmsl_domain_thrift:'P2PProviderRef'().
+-type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
+-type cash() :: dmsl_domain_thrift:'Cash'().
+-type cash_range() :: dmsl_domain_thrift:'CashRange'().
+-type validate_terms_error() :: {terms_violation,
+                                    {not_allowed_currency, {currency_ref(), [currency_ref()]}} |
+                                    {cash_range, {cash(), cash_range()}}
+                                }.
 
 -export_type([id/0]).
 -export_type([p2p_provider/0]).
 -export_type([adapter/0]).
 -export_type([adapter_opts/0]).
+-export_type([validate_terms_error/0]).
 
 -export([id/1]).
 -export([accounts/1]).
@@ -77,14 +85,14 @@ get(ID) ->
 
 compute_fees(#{p2p_terms := P2PTerms}, VS) ->
     #domain_P2PProvisionTerms{cash_flow = CashFlowSelector} = P2PTerms,
-    CashFlow = unwrap(hg_selector:reduce_to_value(CashFlowSelector, VS)),
+    {ok, CashFlow} = hg_selector:reduce_to_value(CashFlowSelector, VS),
     #{
         postings => ff_cash_flow:decode_domain_postings(CashFlow)
     }.
 
 -spec validate_terms(p2p_provider(), hg_selector:varset()) ->
     {ok, valid} |
-    {error, Error :: term()}.
+    {error, validate_terms_error()}.
 
 validate_terms(#{p2p_terms := P2PTerms}, VS) ->
     #domain_P2PProvisionTerms{
@@ -94,14 +102,14 @@ validate_terms(#{p2p_terms := P2PTerms}, VS) ->
     } = P2PTerms,
     do(fun () ->
         valid = unwrap(validate_currencies(CurrenciesSelector, VS)),
-        valid = unwrap(validate_fees(FeeSelector, VS)),
+        valid = unwrap(validate_fee_term_is_reduced(FeeSelector, VS)),
         valid = unwrap(validate_cash_limit(CashLimitSelector, VS))
     end).
 
 %%
 
 validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
-    Currencies = unwrap(hg_selector:reduce_to_value(CurrenciesSelector, VS)),
+    {ok, Currencies} = hg_selector:reduce_to_value(CurrenciesSelector, VS),
     case ordsets:is_element(CurrencyRef, Currencies) of
         true ->
             {ok, valid};
@@ -109,12 +117,12 @@ validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
             {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
     end.
 
-validate_fees(_, _) ->
-    %% FIXME
+validate_fee_term_is_reduced(FeeSelector, VS) ->
+    {ok, _Fees} = hg_selector:reduce_to_value(FeeSelector, VS),
     {ok, valid}.
 
 validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
-    CashRange = unwrap(hg_selector:reduce_to_value(CashLimitSelector, VS)),
+    {ok, CashRange} = hg_selector:reduce_to_value(CashLimitSelector, VS),
     case hg_cash_range:is_inside(Cash, CashRange) of
         within ->
             {ok, valid};

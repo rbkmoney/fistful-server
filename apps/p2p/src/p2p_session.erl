@@ -24,10 +24,13 @@
 -export([transfer_params/1]).
 -export([adapter/1]).
 -export([adapter_state/1]).
+-export([party_revision/1]).
+-export([domain_revision/1]).
 
 %% ff_machine
 -export([apply_event/2]).
 -export([maybe_migrate/1]).
+-export([init/2]).
 
 %% ff_repair
 -export([set_session_result/2]).
@@ -35,12 +38,16 @@
 %%
 %% Types
 %%
+-define(ACTUAL_FORMAT_VERSION, 1).
 
--type session() :: #{
+-opaque session() :: #{
+    version := ?ACTUAL_FORMAT_VERSION,
     id := id(),
     status := status(),
     transfer_params := transfer_params(),
     provider_id := ff_p2p_provider:id(),
+    domain_revision := domain_revision(),
+    party_revision := party_revision(),
     adapter := adapter_with_opts(),
     adapter_state => adapter_state(),
     callbacks => callbacks_index(),
@@ -65,8 +72,8 @@
 -type transfer_params() :: #{
     id       := id(),
     body     := body(),
-    sender   := p2p_transfer:resource_full(),
-    receiver := p2p_transfer:resource_full(),
+    sender   := ff_resource:resource(),
+    receiver := ff_resource:resource(),
     deadline => deadline()
 }.
 
@@ -75,15 +82,20 @@
 -type adapter_state() :: p2p_adapter:adapter_state().
 -type session_result() :: p2p_adapter:finish_status().
 
--type deadline() :: ff_time:timestamp_ms().
+-type deadline() :: p2p_adapter:deadline().
 
 -type params() :: #{
-    provider_id := ff_p2p_provider:id()
+    provider_id := ff_p2p_provider:id(),
+    domain_revision := domain_revision(),
+    party_revision := party_revision()
 }.
 
 -type p2p_callback_params() :: p2p_callback:process_params().
 -type process_callback_response() :: p2p_callback:response().
--type process_callback_error() :: {session_already_finished, p2p_adapter:context()}.
+-type process_callback_error() ::
+    {session_already_finished, p2p_adapter:context()}.
+
+-type timeout_error() :: {deadline_reached, deadline()}.
 
 -export_type([event/0]).
 -export_type([transfer_params/0]).
@@ -95,6 +107,7 @@
 -export_type([p2p_callback_params/0]).
 -export_type([process_callback_response/0]).
 -export_type([process_callback_error/0]).
+-export_type([timeout_error/0]).
 
 %%
 %% Internal types
@@ -105,6 +118,7 @@
 -type auxst() :: undefined.
 
 -type result() :: machinery:result(event(), auxst()).
+-type action() :: machinery:action().
 -type adapter_with_opts() :: {ff_p2p_provider:adapter(), ff_p2p_provider:adapter_opts()}.
 -type legacy_event() :: any().
 
@@ -112,13 +126,14 @@
 -type unknown_p2p_callback_error() :: p2p_callback_utils:unknown_callback_error().
 -type p2p_callback() :: p2p_callback:callback().
 -type p2p_callback_tag() :: p2p_callback:tag().
--type p2p_callback_status() :: p2p_callback:status().
 
 -type user_interactions_index() :: p2p_user_interaction_utils:index().
+-type party_revision() :: ff_party:revision().
+-type domain_revision() :: ff_domain_config:revision().
 
 %% Pipeline
 
--import(ff_pipeline, [unwrap/1, do/1]).
+-import(ff_pipeline, [unwrap/1]).
 
 %%
 %% API
@@ -140,6 +155,14 @@ status(#{status := V}) ->
 adapter_state(Session = #{}) ->
     maps:get(adapter_state, Session, undefined).
 
+-spec party_revision(session()) -> party_revision().
+party_revision(#{party_revision := PartyRevision}) ->
+    PartyRevision.
+
+-spec domain_revision(session()) -> domain_revision().
+domain_revision(#{domain_revision := DomainRevision}) ->
+    DomainRevision.
+
 %% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
 %% изменением дочерних сущностей, например запуском adjustment.
 -spec is_finished(session()) -> boolean().
@@ -159,14 +182,20 @@ adapter(#{adapter := V}) ->
     V.
 
 %%
-
 -spec create(id(), transfer_params(), params()) ->
     {ok, [event()]}.
-create(ID, TransferParams, #{provider_id := ProviderID}) ->
+create(ID, TransferParams, #{
+    provider_id := ProviderID,
+    domain_revision := DomainRevision,
+    party_revision := PartyRevision
+}) ->
     Session = #{
+        version => ?ACTUAL_FORMAT_VERSION,
         id => ID,
         transfer_params => TransferParams,
         provider_id => ProviderID,
+        domain_revision => DomainRevision,
+        party_revision => PartyRevision,
         adapter => get_adapter_with_opts(ProviderID),
         status => active
     },
@@ -179,10 +208,8 @@ get_adapter_with_opts(ProviderID) ->
 
 -spec process_session(session()) -> result().
 process_session(Session) ->
-    {Adapter, AdapterOpts} = adapter(Session),
-    TransferParams = transfer_params(Session),
-    AdapterState = adapter_state(Session),
-    Context = p2p_adapter:build_context(AdapterState, TransferParams, AdapterOpts),
+    {Adapter, _AdapterOpts} = adapter(Session),
+    Context = p2p_adapter:build_context(collect_build_context_params(Session)),
     {ok, ProcessResult} = p2p_adapter:process(Adapter, Context),
     #{intent := Intent} = ProcessResult,
     Events0 = process_next_state(ProcessResult, []),
@@ -199,13 +226,14 @@ process_transaction_info(#{transaction_info := TrxInfo}, Events) ->
 process_transaction_info(_, Events) ->
     Events.
 
-process_intent({sleep, #{timer := Timer, callback_tag := Tag} = Data}, Events0, Session) ->
+process_intent({sleep, #{timer := Timer} = Data}, Events0, Session) ->
     UserInteraction = maps:get(user_interaction, Data, undefined),
+    Tag = maps:get(callback_tag, Data, undefined),
     Events1 = process_intent_callback(Tag, Session, Events0),
     Events2 = process_user_interaction(UserInteraction, Session, Events1),
     #{
         events => Events2,
-        action => [tag_action(Tag), timer_action(Timer)]
+        action => maybe_add_tag_action(Tag, [timer_action(Timer)])
     };
 process_intent({finish, Result}, Events, _Session) ->
     #{
@@ -213,14 +241,16 @@ process_intent({finish, Result}, Events, _Session) ->
         action => unset_timer
     }.
 
+process_intent_callback(undefined, _Session, Events) ->
+    Events;
 process_intent_callback(Tag, Session, Events) ->
     case p2p_callback_utils:get_by_tag(Tag, callbacks_index(Session)) of
-        {ok, _Callback} ->
-            Events;
         {error, {unknown_callback, Tag}} ->
             {ok, CallbackEvents} = p2p_callback:create(#{tag => Tag}),
             CBEvents = p2p_callback_utils:wrap_events(Tag, CallbackEvents),
-            Events ++ CBEvents
+            Events ++ CBEvents;
+        {ok, Callback} ->
+            erlang:error({callback_already_exists, Callback})
     end.
 
 process_user_interaction(undefined, _Session, Events) ->
@@ -230,26 +260,26 @@ process_user_interaction({ID, finish}, Session, Events) ->
         {ok, UserInteraction} ->
             Events ++ p2p_user_interaction_utils:finish(ID, UserInteraction);
         {error, {unknown_user_interaction, ID} = Error} ->
-            _ = logger:warning("Process user interaction failed: ~p", [Error]),
             erlang:error(Error)
     end;
 process_user_interaction({ID, {create, Content}}, Session, Events) ->
     case p2p_user_interaction_utils:get_by_id(ID, user_interactions_index(Session)) of
-        {ok, _UserInteraction} ->
-            %% TODO check if this uint same
-            Events;
         {error, {unknown_user_interaction, ID}} ->
             {ok, UserInteractionEvents} = p2p_user_interaction:create(#{id => ID, content => Content}),
-            Events ++ p2p_user_interaction_utils:wrap_events(ID, UserInteractionEvents)
+            Events ++ p2p_user_interaction_utils:wrap_events(ID, UserInteractionEvents);
+        {ok, UI} ->
+            erlang:error({user_interaction_already_exists, UI})
     end.
 
 -spec timer_action({deadline, binary()} | {timeout, non_neg_integer()}) -> machinery:action().
 timer_action(Timer) ->
     {set_timer, Timer}.
 
--spec tag_action(machinery:tag()) -> machinery:action().
-tag_action(Tag) ->
-    {tag, Tag}.
+-spec maybe_add_tag_action(machinery:tag(), [machinery:action()]) -> [machinery:action()].
+maybe_add_tag_action(undefined, Actions) ->
+    Actions;
+maybe_add_tag_action(Tag, Actions) ->
+    [{tag, Tag} | Actions].
 
 -spec set_session_result(session_result(), session()) ->
     result().
@@ -261,19 +291,21 @@ set_session_result(Result, #{status := active}) ->
 
 -spec process_callback(p2p_callback_params(), session()) ->
     {ok, {process_callback_response(), result()}} |
-    {error, process_callback_error()}.
+    {error, {process_callback_error(), result()}}.
 process_callback(#{tag := CallbackTag} = Params, Session) ->
-    case status(Session) of
-        active ->
-            {ok, Callback} = find_callback(CallbackTag, Session),
-            Status = p2p_callback:status(Callback),
-            do_process_callback(Status, Params, Callback, Session);
-        {finished, _} ->
-            {_Adapter, AdapterOpts} = adapter(Session),
-            TransferParams = transfer_params(Session),
-            AdapterState = adapter_state(Session),
-            Context = p2p_adapter:build_context(AdapterState, TransferParams, AdapterOpts),
-            {error, {session_already_finished, Context}}
+    {ok, Callback} = find_callback(CallbackTag, Session),
+    case p2p_callback:status(Callback) of
+        succeeded ->
+           {ok, {p2p_callback:response(Callback), #{}}};
+        pending ->
+            case status(Session) of
+                active ->
+                    do_process_callback(Params, Callback, Session);
+                {finished, _} ->
+                    {_Adapter, _AdapterOpts} = adapter(Session),
+                    Context = p2p_adapter:build_context(collect_build_context_params(Session)),
+                    {error, {{session_already_finished, Context}, #{}}}
+            end
     end.
 
 -spec find_callback(p2p_callback_tag(), session()) ->
@@ -281,26 +313,27 @@ process_callback(#{tag := CallbackTag} = Params, Session) ->
 find_callback(CallbackTag, Session) ->
     p2p_callback_utils:get_by_tag(CallbackTag, callbacks_index(Session)).
 
--spec do_process_callback(p2p_callback_status(), p2p_callback_params(), p2p_callback(), session()) ->
-    {ok, {process_callback_response(), result()}} |
-    {error, process_callback_error()}.
+-spec do_process_callback(p2p_callback_params(), p2p_callback(), session()) ->
+    {ok, {process_callback_response(), result()}}.
 
-do_process_callback(succeeded, _Params, Callback, _Session) ->
-    {ok, {p2p_callback:response(Callback), #{}}};
-do_process_callback(pending, Params, Callback, Session) ->
-    do(fun() ->
-        valid = unwrap(validate_process_callback(Session)),
-        {Adapter, AdapterOpts} = adapter(Session),
-        TransferParams = transfer_params(Session),
-        AdapterState = adapter_state(Session),
-        Context = p2p_adapter:build_context(AdapterState, TransferParams, AdapterOpts),
-        {ok, HandleCallbackResult} = p2p_adapter:handle_callback(Adapter, Params, Context),
-        #{intent := Intent, response := Response} = HandleCallbackResult,
-        Events0 = p2p_callback_utils:process_response(Response, Callback),
-        Events1 = process_next_state(HandleCallbackResult, Events0),
-        Events2 = process_transaction_info(HandleCallbackResult, Events1),
-        {Response, process_intent(Intent, Events2, Session)}
-    end).
+do_process_callback(Params, Callback, Session) ->
+    {Adapter, _AdapterOpts} = adapter(Session),
+    Context = p2p_adapter:build_context(collect_build_context_params(Session)),
+    {ok, HandleCallbackResult} = p2p_adapter:handle_callback(Adapter, Params, Context),
+    #{intent := Intent, response := Response} = HandleCallbackResult,
+    Events0 = p2p_callback_utils:process_response(Response, Callback),
+    Events1 = process_next_state(HandleCallbackResult, Events0),
+    Events2 = process_transaction_info(HandleCallbackResult, Events1),
+    {ok, {Response, process_intent(Intent, Events2, Session)}}.
+
+build_failure({deadline_reached, _Deadline} = Details) ->
+    #{
+        code => <<"authorization_failed">>,
+        sub => #{
+            code => <<"deadline_reached">>
+        },
+        reason => genlib:format(Details)
+    }.
 
 -spec callbacks_index(session()) -> callbacks_index().
 callbacks_index(Session) ->
@@ -320,18 +353,17 @@ user_interactions_index(Session) ->
             p2p_user_interaction_utils:new_index()
     end.
 
-%% Callback helpers
-
--spec validate_process_callback(session()) ->
-    {ok, valid} | {error, process_callback_error()}.
-
-validate_process_callback(Session) ->
-    case status(Session) of
-        active ->
-            {ok, valid};
-        _Finished ->
-            {error, {session_already_finished, id(Session)}}
-    end.
+-spec collect_build_context_params(session()) ->
+    p2p_adapter:build_context_params().
+collect_build_context_params(Session) ->
+    {_Adapter, AdapterOpts} = adapter(Session),
+    #{
+        adapter_state   => adapter_state(Session),
+        transfer_params => transfer_params(Session),
+        adapter_opts    => AdapterOpts,
+        domain_revision => domain_revision(Session),
+        party_revision  => party_revision(Session)
+    }.
 
 %% Events apply
 
@@ -382,3 +414,26 @@ set_session_status(SessionState, Session) ->
 % Other events
 maybe_migrate(Ev) ->
     Ev.
+
+-spec init(session(), action()) ->
+    {list(event()), action() | undefined}.
+
+init(Session, Action) ->
+    case to_timeout(maps:get(deadline, transfer_params(Session), undefined)) of
+        {ok, _Timeout} ->
+            {[], Action};
+        {error, {deadline_reached, _Deadline} = Error} ->
+            {[{finished, {failure, build_failure(Error)}}], undefined}
+    end.
+
+-spec to_timeout(deadline() | undefined) ->
+    {ok, timeout() | infinity} | {error, timeout_error()}.
+to_timeout(undefined) ->
+    {ok, infinity};
+to_timeout(Deadline) ->
+    case Deadline - ff_time:now() of
+        Timeout when Timeout > 0 ->
+            {ok, Timeout};
+        _ ->
+            {error, {deadline_reached, Deadline}}
+    end.

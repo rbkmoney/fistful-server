@@ -14,7 +14,7 @@
 -export([process/2]).
 -export([handle_callback/3]).
 
--export([build_context/3]).
+-export([build_context/1]).
 
 -export_type([callback/0]).
 -export_type([context/0]).
@@ -25,7 +25,7 @@
 -export_type([operation_info/0]).
 -export_type([cash/0]).
 -export_type([currency/0]).
--export_type([resource/0]).
+-export_type([deadline/0]).
 
 -export_type([process_result/0]).
 -export_type([handle_callback_result/0]).
@@ -34,6 +34,7 @@
 -export_type([finish_status/0]).
 -export_type([user_interaction/0]).
 -export_type([callback_response/0]).
+-export_type([build_context_params/0]).
 
 %% Types
 
@@ -63,14 +64,9 @@
 
 -type symcode()                 :: binary().
 
--type resource()                :: {bank_card, #{
-    token          := binary(),
-    bin            := binary(),
-    payment_system := atom(),
-    masked_pan     := binary()
-}}.
+-type resource()                :: ff_resource:resource().
 
--type deadline()                :: binary().
+-type deadline()                :: ff_time:timestamp_ms().
 
 -type adapter_state()           :: dmsl_p2p_adapter_thrift:'AdapterState'() | undefined.
 -type adapter_opts()            :: ff_adapter:opts().
@@ -109,6 +105,14 @@
     user_interaction => user_interaction()
 }.
 
+-type build_context_params()    :: #{
+    adapter_state   := adapter_state(),
+    transfer_params := transfer_params(),
+    adapter_opts    := adapter_opts(),
+    domain_revision := ff_domain_config:revision(),
+    party_revision  := ff_party:revision()
+}.
+
 -type transfer_params()         :: p2p_session:transfer_params().
 
 -type timer()                   :: dmsl_base_thrift:'Timer'().
@@ -121,34 +125,31 @@
 -spec process(adapter(), context()) ->
     {ok, process_result()}.
 process(Adapter, Context) ->
-    do_process(Adapter, Context).
-
--spec handle_callback(adapter(), callback(), context()) ->
-    {ok, handle_callback_result()}.
-handle_callback(Adapter, Callback, Context) ->
-    do_handle_callback(Adapter, Callback, Context).
-
--spec build_context(adapter_state(), transfer_params(), adapter_opts()) ->
-    context().
-build_context(AdapterState, TransferParams, AdapterOpts) ->
-    do_build_context(AdapterState, TransferParams, AdapterOpts).
-
-%% Implementation
-
--spec do_process(adapter(), context()) ->
-    {ok, process_result()}.
-do_process(Adapter, Context) ->
     EncodedContext = p2p_adapter_codec:marshal(context, Context),
     {ok, Result} = call(Adapter, 'Process', [EncodedContext]),
     {ok, p2p_adapter_codec:unmarshal(process_result, Result)}.
 
--spec do_handle_callback(adapter(), callback(), context()) ->
+-spec handle_callback(adapter(), callback(), context()) ->
     {ok, handle_callback_result()}.
-do_handle_callback(Adapter, Callback, Context) ->
+handle_callback(Adapter, Callback, Context) ->
     EncodedCallback = p2p_adapter_codec:marshal(callback, Callback),
     EncodedContext  = p2p_adapter_codec:marshal(context, Context),
     {ok, Result}    = call(Adapter, 'HandleCallback', [EncodedCallback, EncodedContext]),
     {ok, p2p_adapter_codec:unmarshal(handle_callback_result, Result)}.
+
+-spec build_context(build_context_params()) ->
+    context().
+build_context(Params = #{
+    adapter_state   := AdapterState,
+    adapter_opts    := AdapterOpts
+}) ->
+    #{
+        session   => AdapterState,
+        operation => build_operation_info(Params),
+        options   => AdapterOpts
+    }.
+
+%% Implementation
 
 -spec call(adapter(), 'Process',        [any()]) -> {ok, p2p_process_result()}  | no_return();
           (adapter(), 'HandleCallback', [any()]) -> {ok, p2p_callback_result()} | no_return().
@@ -156,21 +157,12 @@ call(Adapter, Function, Args) ->
     Request = {?SERVICE, Function, Args},
     ff_woody_client:call(Adapter, Request).
 
--spec do_build_context(adapter_state(), transfer_params(), adapter_opts()) ->
-    context().
-do_build_context(AdapterState, TransferParams, AdapterOpts) ->
-    #{
-        session   => AdapterState,
-        operation => build_operation_info(TransferParams),
-        options   => AdapterOpts
-    }.
-
--spec build_operation_info(transfer_params()) ->
+-spec build_operation_info(build_context_params()) ->
     operation_info().
-build_operation_info(TransferParams) ->
-    Body     = build_operation_info_body(TransferParams),
-    Sender   = build_operation_info_resource(maps:get(sender, TransferParams)),
-    Receiver = build_operation_info_resource(maps:get(receiver, TransferParams)),
+build_operation_info(Params = #{transfer_params := TransferParams}) ->
+    Body     = build_operation_info_body(Params),
+    Sender   = maps:get(sender, TransferParams),
+    Receiver = maps:get(receiver, TransferParams),
     Deadline = maps:get(deadline, TransferParams, undefined),
     genlib_map:compact(#{
         body     => Body,
@@ -179,24 +171,14 @@ build_operation_info(TransferParams) ->
         deadline => Deadline
     }).
 
--spec build_operation_info_body(transfer_params()) ->
+-spec build_operation_info_body(build_context_params()) ->
     cash().
-build_operation_info_body(TransferParams) ->
+build_operation_info_body(#{transfer_params := TransferParams, domain_revision := DomainRevision}) ->
     {Amount, CurrencyID} = maps:get(body, TransferParams),
-    {ok, Currency}       = ff_currency:get(CurrencyID),
+    {ok, Currency}       = ff_currency:get(CurrencyID, DomainRevision),
     {Amount, #{
         name      => maps:get(name, Currency),
         symcode   => maps:get(symcode, Currency),
         numcode   => maps:get(numcode, Currency),
         exponent  => maps:get(exponent, Currency)
-    }}.
-
--spec build_operation_info_resource(p2p_transfer:resource_full()) ->
-    resource().
-build_operation_info_resource({raw_full, Resource}) ->
-    {bank_card, #{
-        token          => maps:get(token, Resource),
-        bin            => maps:get(bin, Resource),
-        payment_system => maps:get(payment_system, Resource),
-        masked_pan     => maps:get(masked_pan, Resource)
     }}.

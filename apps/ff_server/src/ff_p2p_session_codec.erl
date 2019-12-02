@@ -65,12 +65,15 @@ marshal(p2p_transfer, Transfer = #{
         sender = marshal(resource, Sender),
         receiver = marshal(resource, Receiver),
         cash = marshal(cash, Body),
-        deadline = maybe_marshal(timestamp, ff_time:to_rfc3339(Deadline))
+        deadline = maybe_marshal(deadline, Deadline)
     };
+
+marshal(deadline, Deadline) ->
+    ff_time:to_rfc3339(Deadline);
 
 marshal(callback_change, #{tag := Tag, payload := Payload}) ->
     #p2p_session_CallbackChange{
-        tag = marshal(string, Tag), 
+        tag = marshal(string, Tag),
         payload = marshal(callback_event, Payload)
     };
 
@@ -91,7 +94,7 @@ marshal(callback_status, succeeded) ->
 
 marshal(user_interaction_change, #{id := ID, payload := Payload}) ->
     #p2p_session_UserInteractionChange{
-        id = marshal(id, ID), 
+        id = marshal(id, ID),
         payload = marshal(user_interaction_event, Payload)
     };
 
@@ -117,9 +120,9 @@ marshal(redirect, {post, URI, Form}) ->
     {post_request, #ui_BrowserPostRequest{uri = URI, form = marshal(form, Form)}};
 
 marshal(form, Form) when is_map(Form) ->
-    maps:fold(fun(Key, Value, Map) -> 
-        Map#{marshal(string, Key) => marshal(string, Value)} end, 
-        #{}, 
+    maps:fold(fun(Key, Value, Map) ->
+        Map#{marshal(string, Key) => marshal(string, Value)} end,
+        #{},
         Form
     );
 
@@ -234,13 +237,13 @@ unmarshal(user_interaction, #p2p_session_UserInteraction{
     user_interaction = Content
 }) ->
     #{
-        id => unmarshal(id, ID), 
+        id => unmarshal(id, ID),
         content => unmarshal(user_interaction_content, Content)
     };
 
 unmarshal(user_interaction_content, {redirect, Redirect}) ->
     #{
-        type => redirect, 
+        type => redirect,
         content => unmarshal(redirect, Redirect)
     };
 
@@ -250,9 +253,9 @@ unmarshal(redirect, {post_request, #ui_BrowserPostRequest{uri = URI, form = Form
     {post, URI, unmarshal(form, Form)};
 
 unmarshal(form, Form) when is_map(Form) ->
-    maps:fold(fun(Key, Value, Map) -> 
-        Map#{unmarshal(string, Key) => unmarshal(string, Value)} end, 
-        #{}, 
+    maps:fold(fun(Key, Value, Map) ->
+        Map#{unmarshal(string, Key) => unmarshal(string, Value)} end,
+        #{},
         Form
     );
 
@@ -288,7 +291,7 @@ adjustment_codec_test() ->
     UserInteraction = #{
         id => genlib:unique(),
         content => #{
-            type => redirect, 
+            type => redirect,
             content => {get, <<"URI">>}
         }
     },
@@ -332,4 +335,4 @@ adjustment_codec_test() ->
     io:format("marshaled ~p~n", [Marshaled]),
     ?assertEqual(Events, unmarshal({list, event}, Marshaled)).
 
--endif. 
+-endif.

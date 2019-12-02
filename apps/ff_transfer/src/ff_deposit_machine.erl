@@ -14,6 +14,7 @@
 -type st() :: ff_machine:st(deposit()).
 -type deposit() :: ff_deposit:deposit().
 -type external_id() :: id().
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type params() :: ff_deposit:params().
 -type create_error() ::
@@ -40,6 +41,7 @@
 -export_type([events/0]).
 -export_type([params/0]).
 -export_type([deposit/0]).
+-export_type([event_range/0]).
 -export_type([external_id/0]).
 -export_type([create_error/0]).
 -export_type([start_revert_error/0]).
@@ -50,6 +52,7 @@
 
 -export([create/2]).
 -export([get/1]).
+-export([get/2]).
 -export([events/2]).
 
 -export([start_revert/2]).
@@ -107,7 +110,14 @@ create(Params, Ctx) ->
     {error, unknown_deposit_error()}.
 
 get(ID) ->
-    case ff_machine:get(ff_deposit, ?NS, ID) of
+    get(ID, {undefined, undefined}).
+
+-spec get(id(), event_range()) ->
+    {ok, st()} |
+    {error, unknown_deposit_error()}.
+
+get(ID, {After, Limit}) ->
+    case ff_machine:get(ff_deposit, ?NS, ID, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
             Result;
         {error, notfound} ->

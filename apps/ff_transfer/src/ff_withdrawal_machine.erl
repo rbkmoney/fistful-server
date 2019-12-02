@@ -15,6 +15,7 @@
 -type withdrawal() :: ff_withdrawal:withdrawal().
 -type external_id() :: id().
 -type action() :: ff_withdrawal:action().
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type params() :: ff_withdrawal:params().
 -type create_error() ::
@@ -35,6 +36,7 @@
 -export_type([events/0]).
 -export_type([params/0]).
 -export_type([withdrawal/0]).
+-export_type([event_range/0]).
 -export_type([external_id/0]).
 -export_type([create_error/0]).
 -export_type([start_adjustment_error/0]).
@@ -43,6 +45,7 @@
 
 -export([create/2]).
 -export([get/1]).
+-export([get/2]).
 -export([events/2]).
 
 -export([start_adjustment/2]).
@@ -92,7 +95,14 @@ create(Params, Ctx) ->
     {error, unknown_withdrawal_error()}.
 
 get(ID) ->
-    case ff_machine:get(ff_withdrawal, ?NS, ID) of
+    get(ID, {undefined, undefined}).
+
+-spec get(id(), event_range()) ->
+    {ok, st()} |
+    {error, unknown_withdrawal_error()}.
+
+get(ID, {After, Limit}) ->
+    case ff_machine:get(ff_withdrawal, ?NS, ID, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
             Result;
         {error, notfound} ->

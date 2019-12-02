@@ -175,6 +175,7 @@
 -export([start_adjustment/2]).
 -export([find_adjustment/2]).
 -export([adjustments/1]).
+-export([effective_final_cash_flow/1]).
 
 %% Event source
 
@@ -408,6 +409,15 @@ find_adjustment(AdjustmentID, Withdrawal) ->
 adjustments(Withdrawal) ->
     ff_adjustment_utils:adjustments(adjustments_index(Withdrawal)).
 
+-spec effective_final_cash_flow(withdrawal()) -> final_cash_flow().
+effective_final_cash_flow(Withdrawal) ->
+    case ff_adjustment_utils:cash_flow(adjustments_index(Withdrawal)) of
+        undefined ->
+            ff_cash_flow:make_empty_final();
+        CashFlow ->
+            CashFlow
+    end.
+
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(withdrawal()) -> boolean().
 is_active(#{status := succeeded} = Withdrawal) ->
@@ -494,15 +504,6 @@ adjustments_index(Withdrawal) ->
 -spec set_adjustments_index(adjustments_index(), withdrawal()) -> withdrawal().
 set_adjustments_index(Adjustments, Withdrawal) ->
     Withdrawal#{adjustments => Adjustments}.
-
--spec effective_final_cash_flow(withdrawal()) -> final_cash_flow().
-effective_final_cash_flow(Withdrawal) ->
-    case ff_adjustment_utils:cash_flow(adjustments_index(Withdrawal)) of
-        undefined ->
-            ff_cash_flow:make_empty_final();
-        CashFlow ->
-            CashFlow
-    end.
 
 -spec operation_timestamp(withdrawal()) -> ff_time:timestamp_ms().
 operation_timestamp(Withdrawal) ->

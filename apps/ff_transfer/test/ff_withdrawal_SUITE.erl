@@ -261,7 +261,7 @@ create_withdrawal_currency_validation_error_test(C) ->
     },
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Details = {
-        <<"USD">>,
+        #domain_CurrencyRef{symbolic_code = <<"USD">>},
         [
             #domain_CurrencyRef{symbolic_code = <<"RUB">>}
         ]
@@ -318,7 +318,7 @@ create_currency_validation_error_test(C) ->
     },
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Details = {
-        <<"EUR">>,
+        #domain_CurrencyRef{symbolic_code = <<"EUR">>},
         [
             #domain_CurrencyRef{symbolic_code = <<"RUB">>},
             #domain_CurrencyRef{symbolic_code = <<"USD">>}

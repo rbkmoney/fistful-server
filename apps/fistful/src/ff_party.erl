@@ -86,7 +86,9 @@
 -type bound_type() :: 'exclusive' | 'inclusive'.
 -type cash_range() :: {{bound_type(), cash()}, {bound_type(), cash()}}.
 
--type currency_validation_error() :: {terms_violation, {not_allowed_currency, _Details}}.
+-type currency_validation_error() :: {terms_violation, {not_allowed_currency,
+    {currency_ref(), ordsets:ordset(currency_ref())}
+}}.
 -type withdrawal_currency_error() :: {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}.
 -type cash_range_validation_error() :: {terms_violation, {cash_range, {cash(), cash_range()}}}.
 
@@ -585,7 +587,7 @@ validate_currency(CurrencyID, Currencies) ->
         true ->
             {ok, valid};
         false ->
-            {error, {terms_violation, {not_allowed_currency, {CurrencyID, Currencies}}}}
+            {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
     end.
 
 -spec validate_account_balance(ff_account:account(), domain_cash_range(), clock()) ->

@@ -152,6 +152,7 @@
 -export([start_adjustment/2]).
 -export([find_adjustment/2]).
 -export([adjustments/1]).
+-export([effective_final_cash_flow/1]).
 
 %% Transfer logic callbacks
 -export([process_transfer/1]).
@@ -373,6 +374,15 @@ find_adjustment(AdjustmentID, Deposit) ->
 -spec adjustments(deposit()) -> [adjustment()].
 adjustments(Deposit) ->
     ff_adjustment_utils:adjustments(adjustments_index(Deposit)).
+
+-spec effective_final_cash_flow(deposit()) -> final_cash_flow().
+effective_final_cash_flow(Deposit) ->
+    case ff_adjustment_utils:cash_flow(adjustments_index(Deposit)) of
+        undefined ->
+            ff_cash_flow:make_empty_final();
+        CashFlow ->
+            CashFlow
+    end.
 
 -spec process_transfer(deposit()) ->
     process_result().
@@ -645,15 +655,6 @@ adjustments_index(Deposit) ->
 -spec set_adjustments_index(adjustments_index(), deposit()) -> deposit().
 set_adjustments_index(Adjustments, Deposit) ->
     Deposit#{adjustments => Adjustments}.
-
--spec effective_final_cash_flow(deposit()) -> final_cash_flow().
-effective_final_cash_flow(Deposit) ->
-    case ff_adjustment_utils:cash_flow(adjustments_index(Deposit)) of
-        undefined ->
-            ff_cash_flow:make_empty_final();
-        CashFlow ->
-            CashFlow
-    end.
 
 -spec is_childs_active(deposit()) -> boolean().
 is_childs_active(Deposit) ->

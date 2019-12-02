@@ -37,39 +37,8 @@ marshal(event, {clock_updated, Clock}) ->
 
 marshal(transfer, #{final_cash_flow := Cashflow}) ->
     #transfer_Transfer{
-        cashflow = marshal(final_cash_flow, Cashflow)
+        cashflow = ff_cash_flow_codec:marshal(final_cash_flow, Cashflow)
     };
-marshal(final_cash_flow, #{postings := Postings}) ->
-    #cashflow_FinalCashFlow{
-        postings = marshal({list, postings}, Postings)
-    };
-marshal(postings, Posting) ->
-    #{
-        sender := Sender,
-        receiver := Receiver,
-        volume := Cash
-    } = Posting,
-    Details = maps:get(details, Posting, undefined),
-    SenderAccount = final_account_to_final_cash_flow_account(Sender),
-    ReceiverAccount = final_account_to_final_cash_flow_account(Receiver),
-    #cashflow_FinalCashFlowPosting{
-        source      = marshal(final_cash_flow_account, SenderAccount),
-        destination = marshal(final_cash_flow_account, ReceiverAccount),
-        volume      = marshal(cash, Cash),
-        details     = marshal(string, Details)
-    };
-marshal(final_cash_flow_account, #{
-        account_type   := AccountType,
-        account_id     := AccountID
-}) ->
-    #cashflow_FinalCashFlowAccount{
-        account_type   = marshal(account_type, AccountType),
-        account_id     = marshal(id, AccountID)
-    };
-
-marshal(account_type, CashflowAccount) ->
-    % Mapped to thrift type WalletCashFlowAccount as is
-    CashflowAccount;
 
 marshal(status, created) ->
     {created, #transfer_Created{}};
@@ -100,40 +69,10 @@ unmarshal(event, {status_changed, #transfer_StatusChange{status = Status}}) ->
 unmarshal(event, {clock_updated, #transfer_ClockChange{clock = Clock}}) ->
     {clock_updated, unmarshal(clock, Clock)};
 
-unmarshal(transfer, #transfer_Transfer{
-    cashflow = Cashflow
-}) ->
+unmarshal(transfer, #transfer_Transfer{cashflow = Cashflow}) ->
     #{
-        cashflow => unmarshal(final_cash_flow, Cashflow)
+        cashflow => ff_cash_flow_codec:unmarshal(final_cash_flow, Cashflow)
     };
-unmarshal(final_cash_flow, #cashflow_FinalCashFlow{
-    postings = Postings
-}) ->
-    #{
-        postings => unmarshal({list, postings}, Postings)
-    };
-unmarshal(postings, #cashflow_FinalCashFlowPosting{
-    source = Source,
-    destination = Destination,
-    volume = Cash,
-    details = Details
-}) ->
-    genlib_map:compact(#{
-        source      => unmarshal(final_cash_flow_account, Source),
-        destination => unmarshal(final_cash_flow_account, Destination),
-        volume      => unmarshal(cash, Cash),
-        details     => maybe_unmarshal(string, Details)
-    });
-unmarshal(final_cash_flow_account, CashFlow = #cashflow_FinalCashFlowAccount{
-    account_type = _AccountType,
-    account_id   = _AccountID
-}) ->
-    % FIXME: Make protocol symmetric. final_cash_flow_account is unrecoverable from thrift now
-    erlang:error({not_implemented, {unmarshal, final_cash_flow_account}}, [final_cash_flow_account, CashFlow]);
-
-unmarshal(account_type, CashflowAccount) ->
-    % Mapped to thrift type WalletCashFlowAccount as is
-    CashflowAccount;
 
 unmarshal(status, {created, #transfer_Created{}}) ->
     created;

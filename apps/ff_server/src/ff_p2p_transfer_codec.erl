@@ -137,9 +137,9 @@ marshal(session, {SessionID, {finished, SessionResult}}) ->
         }}
     };
 
-marshal(session_result, {success, TrxInfo}) ->
-    {succeeded, #p2p_transfer_SessionSucceeded{trx_info = marshal(transaction_info, TrxInfo)}};
-marshal(session_result, {failed, Failure}) ->
+marshal(session_result, success) ->
+    {succeeded, #p2p_transfer_SessionSucceeded{}};
+marshal(session_result, {failure, Failure}) ->
     {failed, #p2p_transfer_SessionFailed{failure = marshal(failure, Failure)}};
 
 marshal(timestamp, Timestamp) when is_integer(Timestamp) ->
@@ -267,10 +267,10 @@ unmarshal(session, {SessionID, {started, #p2p_transfer_SessionStarted{}}}) ->
 unmarshal(session, {SessionID, {finished, #p2p_transfer_SessionFinished{result = SessionResult}}}) ->
     {SessionID, {finished, unmarshal(session_result, SessionResult)}};
 
-unmarshal(session_result, {succeeded, #p2p_transfer_SessionSucceeded{trx_info = TrxInfo}}) ->
-    {success, unmarshal(transaction_info, TrxInfo)};
+unmarshal(session_result, {succeeded, #p2p_transfer_SessionSucceeded{}}) ->
+    success;
 unmarshal(session_result, {failed, #p2p_transfer_SessionFailed{failure = Failure}}) ->
-    {failed, unmarshal(failure, Failure)};
+    {failure, unmarshal(failure, Failure)};
 
 unmarshal(timestamp, Timestamp) ->
     unmarshal(string, Timestamp);

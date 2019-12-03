@@ -164,6 +164,16 @@ currency(?cur(<<"USD">> = SymCode) = Ref) ->
             symbolic_code = SymCode,
             exponent      = 2
         }
+    }};
+currency(?cur(<<"BTC">> = SymCode) = Ref) ->
+    {currency, #domain_CurrencyObject{
+        ref = Ref,
+        data = #domain_Currency{
+            name          = <<"Bitcoin">>,
+            numeric_code  = 999,
+            symbolic_code = SymCode,
+            exponent      = 10
+        }
     }}.
 
 -spec category(?dtp('CategoryRef'), binary(), ?dtp('CategoryType')) ->

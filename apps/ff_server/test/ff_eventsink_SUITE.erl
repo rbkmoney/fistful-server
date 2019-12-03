@@ -1,15 +1,6 @@
 -module(ff_eventsink_SUITE).
 
--include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_source_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_deposit_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -34,11 +25,6 @@
 -type test_case_name() :: ct_helper:test_case_name().
 -type group_name()     :: ct_helper:group_name().
 -type test_return()    :: _ | no_return().
-
--type evsink_event() :: ff_proto_identity_thrift:'SinkEvent'() |
-                        ff_proto_wallet_thrift:'SinkEvent'() |
-                        ff_proto_withdrawal_thrift:'SinkEvent'().
--type evsink_id()    :: ff_proto_base_thrift:'EventID'().
 
 -spec all() -> [test_case_name()].
 
@@ -106,9 +92,8 @@ end_per_testcase(_Name, _C) ->
 get_identity_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
-    Service = identity_event_sink,
-    LastEvent = unwrap_last_sinkevent_id(
-        call_eventsink_handler('GetLastEventID', Service, [])),
+    Sink = identity_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
 
     ok = ff_identity_machine:create(
         ID,
@@ -139,9 +124,7 @@ get_identity_events_ok(C) ->
     ),
 
     {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000, forward}),
-    {ok, Events} = call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
+    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
 -spec get_create_wallet_events_ok(config()) -> test_return().
@@ -151,9 +134,8 @@ get_create_wallet_events_ok(C) ->
     Party = create_party(C),
     IdentityID = create_identity(Party, C),
 
-    Service = wallet_event_sink,
-    LastEvent = unwrap_last_sinkevent_id(
-        call_eventsink_handler('GetLastEventID', Service, [])),
+    Sink = wallet_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
 
     ok = ff_wallet_machine:create(
         ID,
@@ -165,17 +147,14 @@ get_create_wallet_events_ok(C) ->
         ff_entity_context:new()
     ),
     {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
-    {ok, Events} = call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
+    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
 -spec get_withdrawal_events_ok(config()) -> test_return().
 
 get_withdrawal_events_ok(C) ->
-    Service = withdrawal_event_sink,
-    LastEvent = unwrap_last_sinkevent_id(
-        call_eventsink_handler('GetLastEventID', Service, [])),
+    Sink = withdrawal_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
     Party   = create_party(C),
     IID     = create_person_identity(Party, C),
     WalID   = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
@@ -184,23 +163,20 @@ get_withdrawal_events_ok(C) ->
     DestID  = create_destination(IID, C),
     WdrID   = process_withdrawal(WalID, DestID),
 
-    {ok, Events} = call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
+    {Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     {ok, RawEvents} = ff_withdrawal_machine:events(WdrID, {undefined, 1000, forward}),
 
     AlienEvents = lists:filter(fun(Ev) ->
         Ev#wthd_SinkEvent.source =/= WdrID
     end, Events),
 
-    MaxID = get_max_sinkevent_id(Events),
     MaxID = LastEvent + length(RawEvents) + length(AlienEvents).
 
 -spec get_withdrawal_session_events_ok(config()) -> test_return().
 
 get_withdrawal_session_events_ok(C) ->
-    Service = withdrawal_session_event_sink,
-    LastEvent = unwrap_last_sinkevent_id(
-        call_eventsink_handler('GetLastEventID', Service, [])),
+    Sink = withdrawal_session_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
 
     Party   = create_party(C),
     IID     = create_person_identity(Party, C),
@@ -214,51 +190,42 @@ get_withdrawal_session_events_ok(C) ->
         WdrID,
         {undefined, 1000, forward}
     ),
-    {ok, Events} = call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
+    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
 -spec get_create_destination_events_ok(config()) -> test_return().
 
 get_create_destination_events_ok(C) ->
-    Service = destination_event_sink,
-    LastEvent = unwrap_last_sinkevent_id(
-        call_eventsink_handler('GetLastEventID', Service, [])),
+    Sink = destination_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
 
     Party   = create_party(C),
     IID     = create_person_identity(Party, C),
     DestID = create_destination(IID, C),
 
     {ok, RawEvents} = ff_destination:events(DestID, {undefined, 1000, forward}),
-    {ok, Events} = call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
+    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
 -spec get_create_source_events_ok(config()) -> test_return().
 
 get_create_source_events_ok(C) ->
-    Service = source_event_sink,
-    LastEvent = unwrap_last_sinkevent_id(
-        call_eventsink_handler('GetLastEventID', Service, [])),
+    Sink = source_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
 
     Party   = create_party(C),
     IID     = create_person_identity(Party, C),
     SrcID   = create_source(IID, C),
 
     {ok, RawEvents} = ff_source:events(SrcID, {undefined, 1000, forward}),
-    {ok, Events} = call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
+    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
 -spec get_create_deposit_events_ok(config()) -> test_return().
 
 get_create_deposit_events_ok(C) ->
-    Service = deposit_event_sink,
-    LastEvent = unwrap_last_sinkevent_id(
-        call_eventsink_handler('GetLastEventID', Service, [])),
+    Sink = deposit_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
 
     Party   = create_party(C),
     IID     = create_person_identity(Party, C),
@@ -267,9 +234,7 @@ get_create_deposit_events_ok(C) ->
     DepID   = process_deposit(SrcID, WalID),
 
     {ok, RawEvents} = ff_deposit_machine:events(DepID, {undefined, 1000, forward}),
-    {ok, Events} = call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
+    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
 -spec get_shifted_create_identity_events_ok(config()) -> test_return().
@@ -296,7 +261,7 @@ get_shifted_create_identity_events_ok(C) ->
     )),
     {ok, Events} = call_route_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = 0, limit = 1}]),
-    MaxID = get_max_sinkevent_id(Events),
+    MaxID = ct_eventsink:get_max_event_id(Events),
     MaxID = StartEventNum + 1.
 
 -spec get_create_p2p_transfer_events_ok(config()) -> test_return().
@@ -453,9 +418,8 @@ process_withdrawal(WalID, DestID) ->
     true = ct_helper:await(
         true,
         fun () ->
-            Service = withdrawal_event_sink,
-            {ok, Events} = call_eventsink_handler('GetEvents',
-                Service, [#'evsink_EventRange'{'after' = 0, limit = 1000}]),
+            Sink = withdrawal_event_sink,
+            {Events, _MaxID} = ct_eventsink:events(undefined, 1000, Sink),
             search_event_commited(Events, WdrID)
         end,
         genlib_retry:linear(15, 1000)
@@ -509,34 +473,6 @@ await_final_withdrawal_status(WithdrawalID) ->
         genlib_retry:linear(90, 1000)
     ),
     get_withdrawal_status(WithdrawalID).
-
--spec get_max_sinkevent_id(list(evsink_event())) -> evsink_id().
-
-get_max_sinkevent_id(Events) when is_list(Events) ->
-    lists:foldl(fun (Ev, Max) -> erlang:max(get_sinkevent_id(Ev), Max) end, 0, Events).
-
-get_sinkevent_id(#'wlt_SinkEvent'{id = ID}) -> ID;
-get_sinkevent_id(#'wthd_SinkEvent'{id = ID}) -> ID;
-get_sinkevent_id(#'idnt_SinkEvent'{id = ID}) -> ID;
-get_sinkevent_id(#'dst_SinkEvent'{id = ID}) -> ID;
-get_sinkevent_id(#'src_SinkEvent'{id = ID}) -> ID;
-get_sinkevent_id(#'deposit_SinkEvent'{id = ID}) -> ID;
-get_sinkevent_id(#'wthd_session_SinkEvent'{id = ID}) -> ID;
-get_sinkevent_id(#'p2p_transfer_SinkEvent'{id = ID}) -> ID.
-
--spec unwrap_last_sinkevent_id({ok | error, evsink_id()}) -> evsink_id().
-
-unwrap_last_sinkevent_id({ok, EventID}) ->
-    EventID;
-unwrap_last_sinkevent_id({exception, #'evsink_NoLastEvent'{}}) ->
-    0.
-
--spec call_eventsink_handler(atom(), ff_services:service_name(), list()) ->
-    {ok, woody:result()} |
-    {exception, woody_error:business_error()}.
-
-call_eventsink_handler(Function, ServiceName, Args) ->
-    call_handler(Function, ServiceName, Args, <<"8022">>).
 
 call_route_handler(Function, ServiceName, Args) ->
     call_handler(Function, ServiceName, Args, <<"8040">>).

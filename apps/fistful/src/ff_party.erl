@@ -742,7 +742,7 @@ encode_payment_method({bank_card, #domain_BankCard{payment_system = PaymentSyste
     #domain_PaymentMethodRef{
         id = {bank_card, PaymentSystem}
     };
-encode_payment_method({crypto_currency, #domain_CryptoWallet{crypto_currency = CryptoCurrency}}) ->
+encode_payment_method({crypto_currency, CryptoCurrency}) ->
     #domain_PaymentMethodRef{
         id = {crypto_currency, CryptoCurrency}
     }.

@@ -10,6 +10,8 @@
 -export([reply_error/2]).
 -export([reply_error/3]).
 
+-export([logic_error/2]).
+
 -export([service_call/2]).
 
 -export([throw_not_implemented/0]).
@@ -25,6 +27,9 @@
 -type handler_opts()    :: wapi_handler:opts().
 
 -type error_message() :: binary() | io_lib:chars().
+
+-type error_type() :: external_id_conflict.
+-type error_params() :: {ID :: binary(), ExternalID :: binary()}.
 
 -type status_code()   :: wapi_handler:status_code().
 -type headers()       :: wapi_handler:headers().
@@ -51,6 +56,16 @@ get_auth_context(#{swagger_context := #{auth_context := AuthContext}}) ->
     response_data().
 get_error_msg(Message) ->
     #{<<"message">> => genlib:to_binary(Message)}.
+
+-spec logic_error(error_type(), error_params()) ->
+    {error, {status_code(), #{}, response_data()}}.
+logic_error(external_id_conflict, {ID, ExternalID}) ->
+    Data = #{
+        <<"externalID">> => ExternalID,
+        <<"id">> => ID,
+        <<"message">> => <<"This 'externalID' has been used by another request">>
+    },
+    reply_error(409, Data).
 
 -spec reply_ok(status_code()) ->
     {ok, {status_code(), #{}, undefined}}.

@@ -1,6 +1,7 @@
 -module(ff_dmsl_codec).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_user_interaction_thrift.hrl").
 -include_lib("damsel/include/dmsl_proxy_inspector_p2p_thrift.hrl").
 
 -export([unmarshal/2]).
@@ -112,9 +113,7 @@ unmarshal(cash_range, #domain_CashRange{
         {BoundUpper, unmarshal(cash, CashUpper)}
     };
 
-unmarshal(currency_ref, #domain_CurrencyRef{
-    symbolic_code = SymbolicCode
-}) ->
+unmarshal(currency_ref, #domain_CurrencyRef{symbolic_code = SymbolicCode}) ->
     unmarshal(string, SymbolicCode);
 
 unmarshal(risk_score, low) ->
@@ -123,6 +122,43 @@ unmarshal(risk_score, high) ->
     high;
 unmarshal(risk_score, fatal) ->
     fatal;
+
+unmarshal(currency, #domain_Currency{
+    name          = Name,
+    symbolic_code = Symcode,
+    numeric_code  = Numcode,
+    exponent      = Exponent
+}) ->
+    #{
+        name     => Name,
+        symcode  => Symcode,
+        numcode  => Numcode,
+        exponent => Exponent
+    };
+
+unmarshal(user_interaction, {redirect, {get_request,
+    #'BrowserGetRequest'{uri = URI}
+}}) ->
+    {redirect, #{content => {get, URI}}};
+unmarshal(user_interaction, {redirect, {post_request,
+    #'BrowserPostRequest'{uri = URI, form = Form}
+}}) ->
+    {redirect, #{content => {post, URI, Form}}};
+
+unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
+    payment_tool = {bank_card, #domain_BankCard{
+        token          = Token,
+        payment_system = PaymentSystem,
+        bin            = Bin,
+        masked_pan     = MaskedPan
+    }}
+}}) ->
+    {bank_card, #{
+        token           => Token,
+        payment_system  => PaymentSystem,
+        bin             => Bin,
+        masked_pan      => MaskedPan
+    }};
 
 unmarshal(amount, V) ->
     unmarshal(integer, V);
@@ -152,6 +188,19 @@ marshal(cash_range, {{BoundLower, CashLower}, {BoundUpper, CashUpper}}) ->
 marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
     #domain_CurrencyRef{
         symbolic_code = CurrencyID
+    };
+
+marshal(currency, #{
+    name     := Name,
+    symcode  := Symcode,
+    numcode  := Numcode,
+    exponent := Exponent
+}) ->
+    #domain_Currency{
+        name          = Name,
+        symbolic_code = Symcode,
+        numeric_code  = Numcode,
+        exponent      = Exponent
     };
 
 marshal(payment_resource_payer, Payer = #{resource := Resource}) ->

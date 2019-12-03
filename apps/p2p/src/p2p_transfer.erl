@@ -19,8 +19,8 @@
     operation_timestamp := ff_time:timestamp_ms(),
     sender := participant(),
     receiver := participant(),
-    domain_revision := ff_domain_config:revision(),
-    party_revision := ff_party:revision(),
+    domain_revision := party_revision(),
+    party_revision := domain_revision(),
     status := status(),
 
     sender_resource => resource(),
@@ -32,6 +32,7 @@
     risk_score => risk_score(),
     p_transfer => p_transfer(),
     adjustments => adjustments_index(),
+    deadline => deadline(),
     external_id => id()
 }.
 
@@ -43,6 +44,7 @@
     receiver := participant(),
     quote => quote(),
     client_info => client_info(),
+    deadline => deadline(),
     external_id => id()
 }.
 
@@ -78,7 +80,7 @@
 
 -type create_error() ::
     {identity, notfound} |
-    {p2p_tool, not_allow} |
+    {terms, ff_party:validate_p2p_error()} |
     {cash_flow, ff_cash_flow:volume_finalize_error()} |
     {resource_owner(), {bin_data, not_found}}.
 
@@ -177,8 +179,7 @@
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type session_id() :: id().
 -type failure() :: ff_failure:failure().
-%% FIXME change to real result type
--type session_result() :: {success, ff_adapter:trx_info()} | {failed, ff_adapter:failure()}.
+-type session_result() :: p2p_session:session_result().
 -type adjustment() :: ff_adjustment:adjustment().
 -type adjustment_id() :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
@@ -189,10 +190,11 @@
 -type participant() :: p2p_participant:participant().
 -type resource() :: ff_resource:resource().
 -type contract_params() :: p2p_party:contract_params().
+-type deadline() :: p2p_session:deadline().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
--type provider_id() :: pos_integer().
+-type provider_id() :: ff_p2p_provider:id().
 
 -type legacy_event() :: any().
 
@@ -244,7 +246,7 @@ receiver_resource(T) ->
 
 -spec quote(p2p_transfer()) -> quote() | undefined.
 quote(T) ->
-    maps:get(quote, T, undefinfed).
+    maps:get(quote, T, undefined).
 
 -spec id(p2p_transfer()) -> id().
 id(#{id := V}) ->
@@ -294,6 +296,10 @@ created_at(T) ->
 operation_timestamp(#{operation_timestamp := Timestamp}) ->
     Timestamp.
 
+-spec deadline(p2p_transfer()) -> deadline() | undefined.
+deadline(T) ->
+    maps:get(deadline, T, undefined).
+
 -spec client_info(p2p_transfer()) -> client_info() | undefined.
 client_info(T) ->
     maps:get(client_info, T, undefined).
@@ -340,6 +346,7 @@ create(TransferParams) ->
         Quote = maps:get(quote, TransferParams, undefined),
         ClientInfo = maps:get(client_info, TransferParams, undefined),
         ExternalID = maps:get(external_id, TransferParams, undefined),
+        Deadline = maps:get(deadline, TransferParams, undefined),
         CreatedAt = ff_time:now(),
         SenderResource = unwrap(sender, prepare_resource(sender, Sender, Quote)),
         ReceiverResource = unwrap(receiver, prepare_resource(receiver, Receiver, Quote)),
@@ -373,7 +380,8 @@ create(TransferParams) ->
                 party_revision => PartyRevision,
                 quote => Quote,
                 client_info => ClientInfo,
-                status => pending
+                status => pending,
+                deadline => Deadline
             })},
             {resource_got, SenderResource, ReceiverResource}
         ]
@@ -674,7 +682,25 @@ process_p_transfer_creation(P2PTransfer) ->
     process_result().
 process_session_creation(P2PTransfer) ->
     ID = construct_session_id(id(P2PTransfer)),
-    {continue, [{session, {ID, started}}]}.
+    TransferParams = genlib_map:compact(#{
+        id => id(P2PTransfer),
+        body => body(P2PTransfer),
+        sender => sender_resource(P2PTransfer),
+        receiver => receiver_resource(P2PTransfer),
+        deadline => deadline(P2PTransfer)
+    }),
+    #{provider_id := ProviderID} = route(P2PTransfer),
+    Params = #{
+        provider_id => ProviderID,
+        domain_revision => domain_revision(P2PTransfer),
+        party_revision => party_revision(P2PTransfer)
+    },
+    case p2p_session_machine:create(ID, TransferParams, Params) of
+        ok ->
+            {continue, [{session, {ID, started}}]};
+        {error, exists} ->
+            {continue, [{session, {ID, started}}]}
+    end.
 
 construct_session_id(ID) ->
     ID.
@@ -687,7 +713,15 @@ construct_p_transfer_id(ID) ->
     process_result().
 process_session_poll(P2PTransfer) ->
     SessionID = session_id(P2PTransfer),
-    {continue, [{session, {SessionID, {finished, {success, #{}}}}}]}.
+    {ok, SessionMachine} = p2p_session_machine:get(SessionID),
+    Session = p2p_session_machine:session(SessionMachine),
+    case p2p_session:status(Session) of
+        active ->
+            {poll, []};
+        {finished, Result} ->
+            SessionID = session_id(P2PTransfer),
+            {continue, [{session, {SessionID, {finished, Result}}}]}
+    end.
 
 -spec process_transfer_finish(p2p_transfer()) ->
     process_result().
@@ -802,9 +836,9 @@ session_processing_status(P2PTransfer) ->
             undefined;
         unknown ->
             pending;
-        {success, _TrxInfo} ->
+        success ->
             succeeded;
-        {failed, _Failure} ->
+        {failure, _Failure} ->
             failed
     end.
 
@@ -950,7 +984,7 @@ build_failure(route_not_found, _P2PTransfer) ->
     };
 build_failure(session, P2PTransfer) ->
     Result = session_result(P2PTransfer),
-    {failed, Failure} = Result,
+    {failure, Failure} = Result,
     Failure.
 
 validate_definition(Tag, undefined) ->

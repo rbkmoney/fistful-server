@@ -67,13 +67,15 @@ do_setup(Options0, C0) ->
     [{payment_system, Processing0} | C1].
 
 start_processing_apps(Options) ->
+    P2PAdapterAdr = <<"/p2p_adapter">>,
     {StartedApps, _StartupCtx} = ct_helper:start_apps([
         scoper,
         woody,
         dmt_client,
         {fistful, [
             {services, services(Options)},
-            {providers, identity_provider_config(Options)}
+            {providers, identity_provider_config(Options)},
+            {test, #{p2p_adapter_adr => P2PAdapterAdr}}
         ]},
         ff_server
     ]),
@@ -89,7 +91,7 @@ start_processing_apps(Options) ->
                     {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'}, {ff_ct_provider_handler, []}}
                 },
                 {
-                    <<"/p2p_adapter">>,
+                    P2PAdapterAdr,
                     {{dmsl_p2p_adapter_thrift, 'P2PAdapter'}, {p2p_ct_provider_handler, []}}
                 },
                 {
@@ -315,14 +317,15 @@ identity_provider_config(Options) ->
 
 services(Options) ->
     Default = #{
-        eventsink      => "http://machinegun:8022/v1/event_sink",
-        automaton      => "http://machinegun:8022/v1/automaton",
-        accounter      => "http://shumway:8022/shumpune",
-        cds            => "http://cds:8022/v1/storage",
-        identdocstore  => "http://cds:8022/v1/identity_document_storage",
-        partymgmt      => "http://hellgate:8022/v1/processing/partymgmt",
-        identification => "http://identification:8022/v1/identification",
-        binbase        => "http://localhost:8222/binbase"
+        p2p_adapter_host => "http://fistful-server:8022/v1/p2p_adapter_host",
+        eventsink        => "http://machinegun:8022/v1/event_sink",
+        automaton        => "http://machinegun:8022/v1/automaton",
+        accounter        => "http://shumway:8022/shumpune",
+        cds              => "http://cds:8022/v1/storage",
+        identdocstore    => "http://cds:8022/v1/identity_document_storage",
+        partymgmt        => "http://hellgate:8022/v1/processing/partymgmt",
+        identification   => "http://identification:8022/v1/identification",
+        binbase          => "http://localhost:8222/binbase"
     },
     maps:get(services, Options, Default).
 
@@ -343,6 +346,7 @@ dummy_provider_identity_id(Options) ->
     maps:get(dummy_provider_identity_id, Options).
 
 domain_config(Options, C) ->
+    P2PAdapterAdr = maps:get(p2p_adapter_adr, genlib_app:env(fistful, test, #{})),
     Default = [
 
         ct_domain:globals(?eas(1), [?payinst(1)]),
@@ -417,11 +421,12 @@ domain_config(Options, C) ->
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
         ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8222/quotebank">>),
         ct_domain:proxy(?prx(4), <<"P2P inspector proxy">>, <<"http://localhost:8222/p2p_inspector">>),
+        ct_domain:proxy(?prx(5), <<"P2P adapter">>, <<"http://localhost:8222", P2PAdapterAdr/binary>>),
 
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
-        ct_domain:p2p_provider(?p2p_prv(1), ?prx(3), dummy_provider_identity_id(Options), C),
+        ct_domain:p2p_provider(?p2p_prv(1), ?prx(5), dummy_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),

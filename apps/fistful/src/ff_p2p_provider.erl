@@ -13,6 +13,8 @@
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
 -type accounts() :: #{ff_currency:id() => ff_account:account()}.
+-type adapter() :: ff_adapter:adapter().
+-type adapter_opts() :: map().
 
 -type p2p_provider_ref() :: dmsl_domain_thrift:'P2PProviderRef'().
 -type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
@@ -25,6 +27,8 @@
 
 -export_type([id/0]).
 -export_type([p2p_provider/0]).
+-export_type([adapter/0]).
+-export_type([adapter_opts/0]).
 -export_type([validate_terms_error/0]).
 
 -export([id/1]).

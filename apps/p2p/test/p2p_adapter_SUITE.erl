@@ -50,35 +50,41 @@ end_per_testcase(_Name, _C) ->
 
 -spec process(config()) -> test_return().
 process(_C) ->
-    Adapter        = ff_woody_client:new(<<"http://localhost:8222/p2p_adapter">>),
-    TransferParams = construct_transfer_params(),
-    AdapterState   = <<>>,
-    AdapterOpts    = #{},
-    Result         = p2p_adapter:process(Adapter, TransferParams, AdapterState, AdapterOpts),
-    ?assertMatch({ok, {{finish, success}, #{}}}, Result),
+    P2PAdapterAdr = maps:get(p2p_adapter_adr, genlib_app:env(fistful, test, #{})),
+    Adapter = ff_woody_client:new(<<"http://localhost:8222", P2PAdapterAdr/binary>>),
+    Context = construct_context(),
+    Result  = p2p_adapter:process(Adapter, Context),
+    ?assertMatch({ok, #{intent := {finish, success}}}, Result),
     ok.
 
 -spec handle_callback(config()) -> test_return().
 handle_callback(_C) ->
-    Adapter        = ff_woody_client:new(<<"http://localhost:8222/p2p_adapter">>),
-    TransferParams = construct_transfer_params(),
-    Callback       = #{tag => <<"p2p">>, payload => <<>>},
-    AdapterState   = <<>>,
-    AdapterOpts    = #{},
-    Result         = p2p_adapter:handle_callback(Adapter, Callback, TransferParams, AdapterState, AdapterOpts),
-    ?assertMatch({ok, {{finish, success}, <<"payload">>, #{}}}, Result),
+    P2PAdapterAdr = maps:get(p2p_adapter_adr, genlib_app:env(fistful, test, #{})),
+    Adapter  = ff_woody_client:new(<<"http://localhost:8222", P2PAdapterAdr/binary>>),
+    Context  = construct_context(),
+    Callback = #{tag => <<"p2p">>, payload => <<>>},
+    Result   = p2p_adapter:handle_callback(Adapter, Callback, Context),
+    Response = #{payload => <<"handle_payload">>},
+    ?assertMatch({ok, #{intent := {finish, success}, response := Response}}, Result),
     ok.
 
-construct_transfer_params() ->
+construct_context() ->
     #{
-        id       => <<"1">>,
-        cash     => {10, <<"USD">>},
-        sender   => construct_resource(),
-        receiver => construct_resource()
+        session   => <<>>,
+        operation => construct_operation_info(),
+        options   => #{}
+    }.
+
+construct_operation_info() ->
+    {ok, Currency} = ff_currency:get(<<"USD">>),
+    #{
+        body          => {10, Currency},
+        sender        => construct_resource(),
+        receiver      => construct_resource()
     }.
 
 construct_resource() ->
-    {raw_full, #{
+    {bank_card, #{
         token          => <<"token">>,
         bin            => <<"bin">>,
         payment_system => visa,

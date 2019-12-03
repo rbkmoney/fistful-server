@@ -163,7 +163,8 @@ process_timeout(Machine, _, _Opts) ->
     process_result(p2p_transfer:process_transfer(P2PTransfer), St).
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) ->
-    no_return().
+    {Response, result()} | no_return() when
+    Response :: ok | {error, p2p_transfer:start_adjustment_error()}.
 
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
     do_start_adjustment(Params, Machine);

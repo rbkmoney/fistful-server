@@ -873,15 +873,7 @@ gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
 
 gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
-    FistfulSequence = get_fistful_sequence_value(Type),
-    Offset = 100000, %% Offset for migration purposes
-    bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx, #{},
-        #{minimum => FistfulSequence + Offset}
-    ).
-
-get_fistful_sequence_value(Type) ->
-    NS = 'ff/sequence',
-    ff_sequence:get(NS, ff_string:join($/, [Type, id]), fistful:backend(NS)).
+    bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
 
 create_report_request(#{
     party_id     := PartyID,

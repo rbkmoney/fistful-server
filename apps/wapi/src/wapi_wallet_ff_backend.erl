@@ -775,9 +775,6 @@ add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
 get_ctx(State) ->
     unwrap(ff_entity_context:get(?CTX_NS, ff_machine:ctx(State))).
 
-get_hash(State) ->
-    maps:get(?PARAMS_HASH, get_ctx(State)).
-
 get_resource_owner(State) ->
     maps:get(<<"owner">>, get_ctx(State)).
 
@@ -793,42 +790,30 @@ check_resource_access(false) -> {error, unauthorized}.
 create_entity(Type, Params, CreateFun, Context) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     Hash       = erlang:phash2(Params),
-    {ok, ID}   = gen_id(Type, ExternalID, Hash, Context),
-    Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
-    handle_create_entity_result(Result, Type, ExternalID, ID, Hash, Context).
+    case gen_id(Type, ExternalID, Hash, Context) of
+        {ok, ID} ->
+            Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
+            handle_create_entity_result(Result, Type, ExternalID, ID, Context);
+        {error, {external_id_conflict, ID}} ->
+            {error, {external_id_conflict, ID, ExternalID}}
+    end.
 
-handle_create_entity_result(ok, Type, ExternalID, ID, Hash, Context) ->
-    ok = sync_bender(Type, ExternalID, ID, Hash, Context),
+handle_create_entity_result(Result, Type, ExternalID, ID, Context) when
+    Result =:= ok;
+    Result =:= {error, exists}
+->
+    ok = sync_ff_external(Type, ExternalID, ID, Context),
     do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
-handle_create_entity_result({error, exists}, Type, ExternalID, ID, Hash, Context) ->
-    get_and_compare_hash(Type, ExternalID, ID, Hash, Context);
-handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Hash, _Context) ->
+handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Context) ->
     throw(E).
 
-sync_bender(_Type, undefined, _FistfulID, _Hash, _Ctx) ->
+sync_ff_external(_Type, undefined, _BenderID, _Context) ->
     ok;
-sync_bender(Type, ExternalID, FistfulID, Hash, Context = #{woody_context := WoodyCtx}) ->
+sync_ff_external(Type, ExternalID, BenderID, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),
-    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
-    case bender_client:gen_by_constant(IdempotentKey, FistfulID, Hash, WoodyCtx) of
-        {ok, FistfulID} ->
-            ok;
-        Error ->
-            Error
-    end.
-
-get_and_compare_hash(Type, ExternalID, ID, Hash, Context) ->
-    case do(fun() -> get_state(Type, ID, Context) end) of
-        {ok, State} ->
-            compare_hash(Hash, get_hash(State), {ID, ExternalID, to_swag(Type, State)});
-        Error ->
-            Error
-    end.
-
-compare_hash(Hash, Hash, {_, _, Data}) ->
-    {ok, Data};
-compare_hash(_, _, {ID, ExternalID, _}) ->
-    {error, {external_id_conflict, ID, ExternalID}}.
+    FistfulID = ff_external_id:construct_external_id(PartyID, ExternalID),
+    {ok, BenderID} = ff_external_id:bind(Type, FistfulID, BenderID),
+    ok.
 
 with_party(Context, Fun) ->
     try Fun()
@@ -874,19 +859,29 @@ get_contract_id_from_identity(IdentityID, Context) ->
 %% ID Gen
 
 gen_id(Type, ExternalID, Hash, Context) ->
-    gen_id_by_sequence(Type, ExternalID, Hash, Context).
-
-gen_id_by_sequence(Type, ExternalID, _Hash, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),
-    gen_ff_sequence(Type, PartyID, ExternalID).
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
+    gen_id_by_type(Type, IdempotentKey, Hash, Context).
 
-construct_external_id(_PartyID, undefined) ->
-    undefined;
-construct_external_id(PartyID, ExternalID) ->
-    <<PartyID/binary, "/", ExternalID/binary>>.
+gen_id_by_type(withdrawal = Type, IdempotentKey, Hash, Context) ->
+    gen_snowflake_id(Type, IdempotentKey, Hash, Context);
+gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
+    gen_sequence_id(Type, IdempotentKey, Hash, Context).
 
-gen_ff_sequence(Type, PartyID, ExternalID) ->
-    ff_external_id:check_in(Type, construct_external_id(PartyID, ExternalID)).
+gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx).
+
+gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+    BinType = atom_to_binary(Type, utf8),
+    FistfulSequence = get_fistful_sequence_value(Type),
+    Offset = 100000, %% Offset for migration purposes
+    bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx, #{},
+        #{minimum => FistfulSequence + Offset}
+    ).
+
+get_fistful_sequence_value(Type) ->
+    NS = 'ff/sequence',
+    ff_sequence:get(NS, ff_string:join($/, [Type, id]), fistful:backend(NS)).
 
 create_report_request(#{
     party_id     := PartyID,

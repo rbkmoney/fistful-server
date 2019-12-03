@@ -60,6 +60,46 @@ marshal(event_id, V) ->
 marshal(blocked, V) ->
     marshal(bool, V);
 
+marshal(transaction_info, TransactionInfo = #{
+    id := TransactionID,
+    extra := Extra
+}) ->
+    Timestamp = maps:get(timestamp, TransactionInfo, undefined),
+    AddInfo = maps:get(additional_info, TransactionInfo, undefined),
+    #'TransactionInfo'{
+        id = marshal(id, TransactionID),
+        timestamp = marshal(timestamp, Timestamp),
+        extra = Extra,
+        additional_info = marshal(additional_transaction_info, AddInfo)
+    };
+
+marshal(additional_transaction_info, AddInfo = #{}) ->
+    #'AdditionalTransactionInfo'{
+        rrn = marshal(string, maps:get(rrn, AddInfo, undefined)),
+        approval_code = marshal(string, maps:get(approval_code, AddInfo, undefined)),
+        acs_url = marshal(string, maps:get(acs_url, AddInfo, undefined)),
+        pareq = marshal(string, maps:get(pareq, AddInfo, undefined)),
+        md = marshal(string, maps:get(md, AddInfo, undefined)),
+        term_url = marshal(string, maps:get(term_url, AddInfo, undefined)),
+        pares = marshal(string, maps:get(pares, AddInfo, undefined)),
+        eci = marshal(string, maps:get(eci, AddInfo, undefined)),
+        cavv = marshal(string, maps:get(cavv, AddInfo, undefined)),
+        xid = marshal(string, maps:get(xid, AddInfo, undefined)),
+        cavv_algorithm = marshal(string, maps:get(cavv_algorithm, AddInfo, undefined)),
+        three_ds_verification = marshal(
+            three_ds_verification,
+            maps:get(three_ds_verification, AddInfo, undefined)
+        )
+    };
+
+marshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
+
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
 marshal(account, #{
@@ -181,6 +221,56 @@ unmarshal(id, V) ->
     unmarshal(string, V);
 unmarshal(event_id, V) ->
     unmarshal(integer, V);
+
+unmarshal(transaction_info, #'TransactionInfo'{
+    id = TransactionID,
+    timestamp = Timestamp,
+    extra = Extra,
+    additional_info = AddInfo
+}) ->
+    genlib_map:compact(#{
+        id => unmarshal(string, TransactionID),
+        timestamp => maybe_unmarshal(string, Timestamp),
+        extra => Extra,
+        additional_info => maybe_unmarshal(additional_transaction_info, AddInfo)
+    });
+
+unmarshal(additional_transaction_info, #'AdditionalTransactionInfo'{
+    rrn = RRN,
+    approval_code = ApprovalCode,
+    acs_url = AcsURL,
+    pareq = Pareq,
+    md = MD,
+    term_url = TermURL,
+    pares = Pares,
+    eci = ECI,
+    cavv = CAVV,
+    xid = XID,
+    cavv_algorithm = CAVVAlgorithm,
+    three_ds_verification = ThreeDSVerification
+}) ->
+    genlib_map:compact(#{
+        rrn => maybe_unmarshal(string, RRN),
+        approval_code => maybe_unmarshal(string, ApprovalCode),
+        acs_url => maybe_unmarshal(string, AcsURL),
+        pareq => maybe_unmarshal(string, Pareq),
+        md => maybe_unmarshal(string, MD),
+        term_url => maybe_unmarshal(string, TermURL),
+        pares => maybe_unmarshal(string, Pares),
+        eci => maybe_unmarshal(string, ECI),
+        cavv => maybe_unmarshal(string, CAVV),
+        xid => maybe_unmarshal(string, XID),
+        cavv_algorithm => maybe_unmarshal(string, CAVVAlgorithm),
+        three_ds_verification => maybe_unmarshal(three_ds_verification, ThreeDSVerification)
+    });
+
+unmarshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
 
 unmarshal(complex_action, #ff_repairer_ComplexAction{
     timer = TimerAction,

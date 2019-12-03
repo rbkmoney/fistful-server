@@ -18,14 +18,14 @@
 
 -type opts() :: #{binary() => binary()}.
 
--type trx_info() :: #{
+-type transaction_info() :: #{
     id := binary(),
     timestamp => binary(),
     extra := #{binary() => binary()},
-    additional_info => additional_trx_info()
+    additional_info => additional_transaction_info()
 }.
 
--type additional_trx_info()   :: #{
+-type additional_transaction_info()   :: #{
     rrn => binary(),
     approval_code => binary(),
     acs_url => binary(),
@@ -45,5 +45,5 @@
 -export_type([adapter/0]).
 -export_type([state/0]).
 -export_type([opts/0]).
--export_type([trx_info/0]).
+-export_type([transaction_info/0]).
 -export_type([failure/0]).

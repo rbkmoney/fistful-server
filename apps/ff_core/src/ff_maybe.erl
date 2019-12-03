@@ -11,8 +11,6 @@
 
 -export([from_result/1]).
 -export([to_list/1]).
--export([apply/2]).
--export([apply/3]).
 -export([get_defined/1]).
 -export([get_defined/2]).
 
@@ -33,18 +31,6 @@ to_list(undefined) ->
     [];
 to_list(T) ->
     [T].
-
--spec apply(fun(), Arg :: undefined | term()) ->
-    term().
-apply(Fun, Arg) ->
-    ff_maybe:apply(Fun, Arg, undefined).
-
--spec apply(fun(), Arg :: undefined | term(), Default :: term()) ->
-    term().
-apply(Fun, Arg, _Default) when Arg =/= undefined ->
-    Fun(Arg);
-apply(_Fun, undefined, Default) ->
-    Default.
 
 -spec get_defined([maybe(T)]) ->
     T.

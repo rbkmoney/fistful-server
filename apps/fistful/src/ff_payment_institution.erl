@@ -4,12 +4,10 @@
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: #{
-    id                   := id(),
-    system_accounts      := dmsl_domain_thrift:'SystemAccountSetSelector'(),
-    identity             := binary(),
-    withdrawal_providers := dmsl_domain_thrift:'WithdrawalProviderSelector'(),
-    p2p_providers        := dmsl_domain_thrift:'P2PProviderSelector'(),
-    p2p_inspector        := dmsl_domain_thrift:'P2PInspectorSelector'()
+    id              := id(),
+    system_accounts := dmsl_domain_thrift:'SystemAccountSetSelector'(),
+    identity        := binary(),
+    providers       := dmsl_domain_thrift:'WithdrawalProviderSelector'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -31,8 +29,6 @@
 -export([ref/1]).
 -export([get/2]).
 -export([compute_withdrawal_providers/2]).
--export([compute_p2p_transfer_providers/2]).
--export([compute_p2p_inspector/2]).
 -export([compute_system_accounts/2]).
 
 %% Pipeline
@@ -66,34 +62,10 @@ get(ID, DomainRevision) ->
 -spec compute_withdrawal_providers(payment_institution(), hg_selector:varset()) ->
     {ok, [ff_payouts_provider:id()]} | {error, term()}.
 
-compute_withdrawal_providers(#{withdrawal_providers := ProviderSelector}, VS) ->
+compute_withdrawal_providers(#{providers := ProviderSelector}, VS) ->
     case hg_selector:reduce_to_value(ProviderSelector, VS) of
         {ok, Providers} ->
             {ok, [ProviderID || #domain_WithdrawalProviderRef{id = ProviderID} <- Providers]};
-        Error ->
-            Error
-    end.
-
--spec compute_p2p_transfer_providers(payment_institution(), hg_selector:varset()) ->
-    {ok, [ff_payouts_provider:id()]} | {error, term()}.
-
-compute_p2p_transfer_providers(#{p2p_providers := ProviderSelector}, VS) ->
-    case hg_selector:reduce_to_value(ProviderSelector, VS) of
-        {ok, Providers} ->
-            {ok, [ProviderID || #domain_P2PProviderRef{id = ProviderID} <- Providers]};
-        Error ->
-            Error
-    end.
-
--spec compute_p2p_inspector(payment_institution(), hg_selector:varset()) ->
-    {ok, ff_payouts_provider:id()} | {error, term()}.
-
-compute_p2p_inspector(#{p2p_inspector := ProviderSelector} = PS, _VS) when ProviderSelector =:= undefined ->
-    {error, {misconfiguration, {'No p2p inspector in a given payment_institution', PS}}};
-compute_p2p_inspector(#{p2p_inspector := ProviderSelector}, VS) ->
-    case hg_selector:reduce_to_value(ProviderSelector, VS) of
-        {ok, #domain_P2PInspectorRef{id = InspectorID}} ->
-            {ok, InspectorID};
         Error ->
             Error
     end.
@@ -116,17 +88,13 @@ compute_system_accounts(PaymentInstitution, VS) ->
 decode(ID, #domain_PaymentInstitution{
     wallet_system_account_set = SystemAccounts,
     identity = Identity,
-    withdrawal_providers = WithdrawalProviders,
-    p2p_providers = P2PProviders,
-    p2p_inspector = P2PInspector
+    withdrawal_providers = Providers
 }) ->
     #{
-        id                   => ID,
-        system_accounts      => SystemAccounts,
-        identity             => Identity,
-        withdrawal_providers => WithdrawalProviders,
-        p2p_providers        => P2PProviders,
-        p2p_inspector        => P2PInspector
+        id              => ID,
+        system_accounts => SystemAccounts,
+        identity        => Identity,
+        providers       => Providers
     }.
 
 decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts}) ->

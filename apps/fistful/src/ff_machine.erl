@@ -8,7 +8,7 @@
 
 -module(ff_machine).
 
--type id()        :: machinery:id().
+-type ref()       :: machinery:ref().
 -type namespace() :: machinery:namespace().
 -type timestamp() :: machinery:timestamp().
 -type ctx()       :: ff_entity_context:context().
@@ -108,13 +108,13 @@ times(St) ->
 
 %%
 
--spec get(module(), namespace(), id()) ->
+-spec get(module(), namespace(), ref()) ->
     {ok, st()} |
     {error, notfound}.
 
-get(Mod, NS, ID) ->
+get(Mod, NS, Ref) ->
     do(fun () ->
-        collapse(Mod, unwrap(machinery:get(NS, ID, fistful:backend(NS))))
+        collapse(Mod, unwrap(machinery:get(NS, Ref, fistful:backend(NS))))
     end).
 
 -spec collapse(module(), machine()) ->

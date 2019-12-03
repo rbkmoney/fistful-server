@@ -35,7 +35,8 @@
     adapter_state => ff_adapter:state()
 }.
 
--type session_result() :: {success, ff_adapter_withdrawal:trx_info()} | {failed, ff_adapter_withdrawal:failure()}.
+-type session_result() :: {success, ff_adapter_withdrawal:transaction_info()}
+                        | {failed, ff_adapter_withdrawal:failure()}.
 
 -type status() :: active
     | {finished, session_result()}.

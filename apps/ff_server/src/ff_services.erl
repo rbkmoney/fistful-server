@@ -17,6 +17,8 @@
 -spec get_service(Name :: atom()) -> service().
 get_service(fistful_admin) ->
     {ff_proto_fistful_admin_thrift, 'FistfulAdmin'};
+get_service(p2p_adapter_host) ->
+    {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'};
 get_service(deposit_event_sink) ->
     {ff_proto_deposit_thrift, 'EventSink'};
 get_service(source_event_sink) ->
@@ -40,7 +42,9 @@ get_service(identity_management) ->
 get_service(destination_management) ->
     {ff_proto_destination_thrift, 'Management'};
 get_service(withdrawal_management) ->
-    {ff_proto_withdrawal_thrift, 'Management'}.
+    {ff_proto_withdrawal_thrift, 'Management'};
+get_service(p2p_transfer_event_sink) ->
+    {ff_proto_p2p_transfer_thrift, 'EventSink'}.
 
 -spec get_service_spec(Name :: atom()) -> service_spec().
 get_service_spec(Name) ->
@@ -49,6 +53,8 @@ get_service_spec(Name) ->
 -spec get_service_path(Name :: atom()) -> string().
 get_service_path(fistful_admin) ->
     "/v1/admin";
+get_service_path(p2p_adapter_host) ->
+    "/v1/p2p_adapter_host";
 get_service_path(deposit_event_sink) ->
     "/v1/eventsink/deposit";
 get_service_path(source_event_sink) ->
@@ -72,4 +78,6 @@ get_service_path(identity_management) ->
 get_service_path(destination_management) ->
     "/v1/destination";
 get_service_path(withdrawal_management) ->
-    "/v1/withdrawal".
+    "/v1/withdrawal";
+get_service_path(p2p_transfer_event_sink) ->
+    "/v1/eventsink/p2p_transfer".

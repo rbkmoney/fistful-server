@@ -58,30 +58,10 @@
 
 -type adapter()               :: ff_adapter:adapter().
 -type intent()                :: {finish, status()} | {sleep, timer()}.
--type status()                :: {success, trx_info()} | {failure, failure()}.
+-type status()                :: {success, transaction_info()} | {failure, failure()}.
 -type timer()                 :: dmsl_base_thrift:'Timer'().
--type trx_info()              :: #{
-    id := binary(),
-    timestamp => binary(),
-    extra := #{binary() => binary()},
-    additional_info => additional_trx_info()
-}.
--type additional_trx_info()   :: #{
-    rrn => binary(),
-    approval_code => binary(),
-    acs_url => binary(),
-    pareq => binary(),
-    md => binary(),
-    term_url => binary(),
-    pares => binary(),
-    eci => binary(),
-    cavv => binary(),
-    xid => binary(),
-    cavv_algorithm => binary(),
-    three_ds_verification => binary()
-}.
-
--type failure()               :: ff_failure:failure().
+-type transaction_info()      :: ff_adapter:transaction_info().
+-type failure()               :: ff_adapter:failure().
 
 -type adapter_state()         :: ff_adapter:state().
 -type process_result()        ::
@@ -99,7 +79,7 @@
 
 -export_type([withdrawal/0]).
 -export_type([failure/0]).
--export_type([trx_info/0]).
+-export_type([transaction_info/0]).
 -export_type([quote/0]).
 -export_type([quote/1]).
 -export_type([quote_params/0]).

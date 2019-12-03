@@ -1,6 +1,8 @@
 -module(ff_dmsl_codec).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_user_interaction_thrift.hrl").
+-include_lib("damsel/include/dmsl_proxy_inspector_p2p_thrift.hrl").
 
 -export([unmarshal/2]).
 -export([marshal/2]).
@@ -111,10 +113,52 @@ unmarshal(cash_range, #domain_CashRange{
         {BoundUpper, unmarshal(cash, CashUpper)}
     };
 
-unmarshal(currency_ref, #domain_CurrencyRef{
-    symbolic_code = SymbolicCode
-}) ->
+unmarshal(currency_ref, #domain_CurrencyRef{symbolic_code = SymbolicCode}) ->
     unmarshal(string, SymbolicCode);
+
+unmarshal(risk_score, low) ->
+    low;
+unmarshal(risk_score, high) ->
+    high;
+unmarshal(risk_score, fatal) ->
+    fatal;
+
+unmarshal(currency, #domain_Currency{
+    name          = Name,
+    symbolic_code = Symcode,
+    numeric_code  = Numcode,
+    exponent      = Exponent
+}) ->
+    #{
+        name     => Name,
+        symcode  => Symcode,
+        numcode  => Numcode,
+        exponent => Exponent
+    };
+
+unmarshal(user_interaction, {redirect, {get_request,
+    #'BrowserGetRequest'{uri = URI}
+}}) ->
+    {redirect, #{content => {get, URI}}};
+unmarshal(user_interaction, {redirect, {post_request,
+    #'BrowserPostRequest'{uri = URI, form = Form}
+}}) ->
+    {redirect, #{content => {post, URI, Form}}};
+
+unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
+    payment_tool = {bank_card, #domain_BankCard{
+        token          = Token,
+        payment_system = PaymentSystem,
+        bin            = Bin,
+        masked_pan     = MaskedPan
+    }}
+}}) ->
+    {bank_card, #{
+        token           => Token,
+        payment_system  => PaymentSystem,
+        bin             => Bin,
+        masked_pan      => MaskedPan
+    }};
 
 unmarshal(amount, V) ->
     unmarshal(integer, V);
@@ -146,6 +190,67 @@ marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
         symbolic_code = CurrencyID
     };
 
+marshal(currency, #{
+    name     := Name,
+    symcode  := Symcode,
+    numcode  := Numcode,
+    exponent := Exponent
+}) ->
+    #domain_Currency{
+        name          = Name,
+        symbolic_code = Symcode,
+        numeric_code  = Numcode,
+        exponent      = Exponent
+    };
+
+marshal(payment_resource_payer, Payer = #{resource := Resource}) ->
+    ClientInfo = maps:get(client_info, Payer, undefined),
+    ContactInfo = maps:get(contact_info, Payer, undefined),
+    #domain_PaymentResourcePayer{
+        resource = #domain_DisposablePaymentResource{
+            payment_tool = marshal(resource, Resource),
+            client_info = maybe_marshal(client_info, ClientInfo)
+        },
+        contact_info = marshal(contact_info, ContactInfo)
+    };
+marshal(resource, {bank_card, BankCard}) ->
+    {bank_card, #domain_BankCard{
+        token           = ff_resource:token(BankCard),
+        bin             = ff_resource:bin(BankCard),
+        masked_pan      = ff_resource:masked_pan(BankCard),
+        payment_system  = ff_resource:payment_system(BankCard),
+        issuer_country  = ff_resource:country_code(BankCard),
+        bank_name       = ff_resource:bank_name(BankCard)
+    }};
+marshal(contact_info, undefined) ->
+    #domain_ContactInfo{};
+marshal(contact_info, ContactInfo) ->
+    #domain_ContactInfo{
+        phone_number = maps:get(phone_number, ContactInfo, undefined),
+        email = maps:get(email, ContactInfo, undefined)
+    };
+
+marshal(client_info, ClientInfo) ->
+    IPAddress = maps:get(ip_address, ClientInfo, undefined),
+    Fingerprint = maps:get(fingerprint, ClientInfo, undefined),
+    #domain_ClientInfo{
+        ip_address = IPAddress,
+        fingerprint = Fingerprint
+    };
+
+marshal(p2p_tool, {Sender, Receiver}) ->
+    #domain_P2PTool{
+        sender = marshal(resource, Sender),
+        receiver = marshal(resource, Receiver)
+    };
+
+marshal(risk_score, low) ->
+    low;
+marshal(risk_score, high) ->
+    high;
+marshal(risk_score, fatal) ->
+    fatal;
+
 marshal(amount, V) ->
     marshal(integer, V);
 marshal(string, V) when is_binary(V) ->
@@ -155,3 +260,8 @@ marshal(integer, V) when is_integer(V) ->
 
 marshal(_, Other) ->
     Other.
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).

@@ -398,7 +398,7 @@ domain_config(Options, C) ->
                 realm                     = live,
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = dummy_payment_inst_identity_id(Options),
-                withdrawal_providers      = withdrawal_providers      = {decisions, [
+                withdrawal_providers      = {decisions, [
                     #domain_WithdrawalProviderDecision{
                         if_ = {condition, {cost_in, #domain_CashRange{
                             upper = {inclusive, #domain_Cash{

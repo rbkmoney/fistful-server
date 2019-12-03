@@ -270,9 +270,8 @@ get_create_p2p_transfer_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
     IID = create_person_identity(Party, C),
-    Service = p2p_transfer_event_sink,
-    LastEvent = unwrap_last_sinkevent_id(
-        call_eventsink_handler('GetLastEventID', Service, [])),
+    Sink = p2p_transfer_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
 
     Resource = {bank_card, #{
         token => genlib:unique(),
@@ -322,9 +321,7 @@ get_create_p2p_transfer_events_ok(C) ->
     ),
 
     {ok, RawEvents} = p2p_transfer_machine:events(ID, {undefined, 1000, forward}),
-    {ok, Events} = call_eventsink_handler('GetEvents',
-        Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    MaxID = get_max_sinkevent_id(Events),
+    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
 create_identity(Party, C) ->

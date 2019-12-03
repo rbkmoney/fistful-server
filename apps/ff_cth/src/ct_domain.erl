@@ -10,7 +10,6 @@
 -export([contract_template/2]).
 -export([inspector/3]).
 -export([inspector/4]).
--export([p2p_inspector/4]).
 -export([proxy/2]).
 -export([proxy/3]).
 -export([proxy/4]).
@@ -22,7 +21,6 @@
 -export([timed_term_set/1]).
 -export([globals/2]).
 -export([withdrawal_provider/4]).
--export([p2p_provider/4]).
 
 %%
 
@@ -33,64 +31,6 @@
 
 -type object() ::
     dmsl_domain_thrift:'DomainObject'().
-
--spec p2p_provider(?dtp('P2PProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
-    object().
-
-p2p_provider(Ref, ProxyRef, IdentityID, C) ->
-    AccountID = account(<<"RUB">>, C),
-    {p2p_provider, #domain_P2PProviderObject{
-        ref = Ref,
-        data = #domain_P2PProvider{
-            name = <<"P2PProvider">>,
-            proxy = #domain_Proxy{ref = ProxyRef, additional = #{}},
-            identity = IdentityID,
-            p2p_terms = #domain_P2PProvisionTerms{
-                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
-                cash_limit = {value, ?cashrng(
-                    {inclusive, ?cash(       0, <<"RUB">>)},
-                    {exclusive, ?cash(10000000, <<"RUB">>)}
-                )},
-                cash_flow = {decisions, [
-                    #domain_CashFlowDecision{
-                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, [
-                            ?cfpost(
-                                {system, settlement},
-                                {provider, settlement},
-                                {product, {min_of, ?ordset([
-                                    ?fixed(10, <<"RUB">>),
-                                    ?share(5, 100, operation_amount, round_half_towards_zero)
-                                ])}}
-                            )
-                        ]}
-                    }
-                ]},
-                fees = {decisions, [
-                    #domain_FeeDecision{
-                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, #domain_Fees{
-                            fees = #{surplus => ?share(1, 1, operation_amount)}
-                        }}
-                    },
-                    #domain_FeeDecision{
-                        if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
-                        then_ = {value, #domain_Fees{
-                            fees = #{surplus => ?share(1, 1, operation_amount)}
-                        }}
-                    }#domain_FeeDecision{
-                        if_ = {condition, {currency_is, ?cur(<<"EUR">>)}},
-                        then_ = {value, #domain_Fees{
-                            fees = #{surplus => ?share(1, 1, operation_amount)}
-                        }}
-                    }
-                ]}
-            },
-            accounts = #{
-                ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
-            }
-        }
-    }}.
 
 -spec withdrawal_provider(?dtp('WithdrawalProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
     object().
@@ -223,22 +163,6 @@ inspector(Ref, Name, ProxyRef, Additional) ->
     {inspector, #domain_InspectorObject{
         ref  = Ref,
         data = #domain_Inspector{
-            name        = Name,
-            description = <<>>,
-            proxy = #domain_Proxy{
-                ref        = ProxyRef,
-                additional = Additional
-            }
-        }
-    }}.
-
--spec p2p_inspector(?dtp('P2PInspectorRef'), binary(), ?dtp('ProxyRef'), ?dtp('ProxyOptions')) ->
-    object().
-
-p2p_inspector(Ref, Name, ProxyRef, Additional) ->
-    {p2p_inspector, #domain_P2PInspectorObject{
-        ref  = Ref,
-        data = #domain_P2PInspector{
             name        = Name,
             description = <<>>,
             proxy = #domain_Proxy{

@@ -13,9 +13,9 @@
     default_termset => dmsl_domain_thrift:'TermSet'(),
     company_termset => dmsl_domain_thrift:'TermSet'(),
     payment_inst_identity_id => id(),
-    dummy_payment_inst_identity_id => id(),
+    quote_payment_inst_identity_id => id(),
     provider_identity_id => id(),
-    dummy_provider_identity_id => id(),
+    quote_provider_identity_id => id(),
     optional_apps => list()
 }.
 -opaque system() :: #{
@@ -53,9 +53,9 @@ shutdown(C) ->
 do_setup(Options0, C0) ->
     Options = Options0#{
         payment_inst_identity_id => genlib:unique(),
-        dummy_payment_inst_identity_id => genlib:unique(),
+        quote_payment_inst_identity_id => genlib:unique(),
         provider_identity_id => genlib:unique(),
-        dummy_provider_identity_id => genlib:unique()
+        quote_provider_identity_id => genlib:unique()
     },
     {ok, Processing0} = start_processing_apps(Options),
     C1 = ct_helper:makeup_cfg([ct_helper:woody_ctx()], [{services, services(Options)} | C0]),
@@ -91,10 +91,6 @@ start_processing_apps(Options) ->
                 {
                     <<"/p2p_adapter">>,
                     {{dmsl_p2p_adapter_thrift, 'P2PAdapter'}, {p2p_ct_provider_handler, []}}
-                },
-                {
-                    <<"/p2p_inspector">>,
-                    {{dmsl_proxy_inspector_p2p_thrift, 'InspectorProxy'}, {p2p_ct_inspector_handler, []}}
                 },
                 {
                     <<"/binbase">>,
@@ -133,8 +129,8 @@ configure_processing_apps(Options) ->
         create_company_account()
     ),
     ok = create_crunch_identity(Options),
-    PIIID = dummy_payment_inst_identity_id(Options),
-    PRIID = dummy_provider_identity_id(Options),
+    PIIID = quote_payment_inst_identity_id(Options),
+    PRIID = quote_provider_identity_id(Options),
     ok = create_crunch_identity(PIIID, PRIID, <<"quote-owner">>).
 
 create_crunch_identity(Options) ->
@@ -336,11 +332,11 @@ payment_inst_identity_id(Options) ->
 provider_identity_id(Options) ->
     maps:get(provider_identity_id, Options).
 
-dummy_payment_inst_identity_id(Options) ->
-    maps:get(dummy_payment_inst_identity_id, Options).
+quote_payment_inst_identity_id(Options) ->
+    maps:get(quote_payment_inst_identity_id, Options).
 
-dummy_provider_identity_id(Options) ->
-    maps:get(dummy_provider_identity_id, Options).
+quote_provider_identity_id(Options) ->
+    maps:get(quote_provider_identity_id, Options).
 
 domain_config(Options, C) ->
     Default = [
@@ -393,35 +389,21 @@ domain_config(Options, C) ->
                 residences                = ['rus'],
                 realm                     = live,
                 wallet_system_account_set = {value, ?sas(1)},
-                identity                  = dummy_payment_inst_identity_id(Options),
-                withdrawal_providers      = {value, [?wthdr_prv(3)]},
-                p2p_inspector             = {value, ?p2p_insp(1)},
-                p2p_providers             = {decisions, [
-                    #domain_P2PProviderDecision{
-                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, [?p2p_prv(1)]}
-                    },
-                    #domain_P2PProviderDecision{
-                        if_ = {constant, true},
-                        then_ = {value, []}
-                    }
-                ]}
+                identity                  = quote_payment_inst_identity_id(Options),
+                withdrawal_providers      = {value, [?wthdr_prv(3)]}
             }
         }},
 
         ct_domain:system_account_set(?sas(1), <<"System">>, ?cur(<<"RUB">>), C),
 
         ct_domain:inspector(?insp(1), <<"Low Life">>, ?prx(1), #{<<"risk_score">> => <<"low">>}),
-        ct_domain:p2p_inspector(?p2p_insp(1), <<"Low Life">>, ?prx(4), #{<<"risk_score">> => <<"low">>}),
         ct_domain:proxy(?prx(1), <<"Inspector proxy">>),
         ct_domain:proxy(?prx(2), <<"Mocket proxy">>, <<"http://adapter-mocketbank:8022/proxy/mocketbank/p2p-credit">>),
         ct_domain:proxy(?prx(3), <<"Quote proxy">>, <<"http://localhost:8222/quotebank">>),
-        ct_domain:proxy(?prx(4), <<"P2P inspector proxy">>, <<"http://localhost:8222/p2p_inspector">>),
 
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
-        ct_domain:p2p_provider(?p2p_prv(1), ?prx(3), dummy_provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), quote_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),
@@ -602,7 +584,6 @@ default_termset(Options) ->
                 ]}
             },
             p2p = #domain_P2PServiceTerms{
-                currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
                 allow = {any_of, ordsets:from_list([
                     {condition, {p2p_tool, #domain_P2PToolCondition{
                         sender_is = {bank_card, #domain_BankCardCondition{
@@ -612,6 +593,7 @@ default_termset(Options) ->
                             definition = {payment_system, #domain_PaymentSystemCondition{payment_system_is = visa}}}}
                     }}}
                 ])},
+                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
                 cash_limit = {decisions, [
                     #domain_CashLimitDecision{
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
@@ -619,53 +601,13 @@ default_termset(Options) ->
                             {inclusive, ?cash(       0, <<"RUB">>)},
                             {exclusive, ?cash(10000001, <<"RUB">>)}
                         )}
-                    },
-                    #domain_CashLimitDecision{
-                        if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
-                        then_ = {value, ?cashrng(
-                            {inclusive, ?cash(       0, <<"EUR">>)},
-                            {exclusive, ?cash(10000001, <<"EUR">>)}
-                        )}
-                    },
-                    #domain_CashLimitDecision{
-                        if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
-                        then_ = {value, ?cashrng(
-                            {inclusive, ?cash(       0, <<"USD">>)},
-                            {exclusive, ?cash(10000001, <<"USD">>)}
-                        )}
                     }
                 ]},
-                cash_flow = {decisions, [
-                    #domain_CashFlowDecision{
-                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, [
-                            ?cfpost(
-                                {system, settlement},
-                                {system, subagent},
-                                ?share(10, 100, operation_amount)
-                            )
-                        ]}
-                    },
-                    #domain_CashFlowDecision{
-                        if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
-                        then_ = {value, [
-                            ?cfpost(
-                                {system, settlement},
-                                {system, subagent},
-                                ?share(10, 100, operation_amount)
-                            )
-                        ]}
-                    },
-                    #domain_CashFlowDecision{
-                        if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
-                        then_ = {value, [
-                            ?cfpost(
-                                {system, settlement},
-                                {system, subagent},
-                                ?share(10, 100, operation_amount)
-                            )
-                        ]}
-                    }
+                cash_flow = {value, [
+                    #domain_CashFlowPosting{
+                        source = {wallet, receiver_destination},
+                        destination = {system, settlement},
+                        volume = ?fixed(50, <<"RUB">>)}
                 ]},
                 fees = {decisions, [
                     #domain_FeeDecision{
@@ -706,17 +648,11 @@ default_termset(Options) ->
                                 ]}
                             }
                         ]}
-                    },
-                    #domain_FeeDecision{
-                        if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
-                        then_ = {value, #domain_Fees{
-                                    fees = #{surplus => ?share(1, 1, operation_amount)}
-                                }}
                     }
                 ]},
-                quote_lifetime = {value, {interval, #domain_LifetimeInterval{
+                quote_lifetime = {interval, #domain_LifetimeInterval{
                     days = 1, minutes = 1, seconds = 1
-                }}}
+                }}
             }
         }
     },

@@ -30,7 +30,7 @@
 -type adapter_opts()                :: ff_adapter:opts().
 -type adapter_state()               :: dmsl_p2p_adapter_thrift:'AdapterState'().
 
--type transaction_info()            :: ff_adapter:trx_info().
+-type transaction_info()            :: ff_adapter:transaction_info().
 
 -type resource()                    :: any(). % FIXME p2p_transfer:resource_full(),
 

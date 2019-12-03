@@ -1,9 +1,7 @@
 -module(p2p_transfer_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("damsel/include/dmsl_domain_thrift.hrl").
--include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
-
+-include_lib("damsel/include/dmsl_accounter_thrift.hrl").
 %% Common test API
 
 -export([all/0]).
@@ -15,15 +13,8 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
-%% Tests
--export([route_not_found_fail_test/1]).
--export([create_cashlimit_validation_error_test/1]).
--export([create_currency_validation_error_test/1]).
--export([create_sender_resource_notfound_test/1]).
--export([create_receiver_resource_notfound_test/1]).
--export([create_ok_test/1]).
--export([preserve_revisions_test/1]).
--export([unknown_test/1]).
+-export([get_fee_ok_test/1]).
+-export([visa_to_nspkmir_not_allow_test/1]).
 
 %% Internal types
 
@@ -32,39 +23,17 @@
 -type group_name()     :: ct_helper:group_name().
 -type test_return()    :: _ | no_return().
 
-%% Macro helpers
-
--define(final_balance(Cash), {
-    element(1, Cash),
-    {
-        {inclusive, element(1, Cash)}, {inclusive, element(1, Cash)}
-    },
-    element(2, Cash)
-}).
--define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
-
 %% API
 
 -spec all() -> [test_case_name() | {group, group_name()}].
-all() ->
-    [
-        {group, default}
-    ].
+all() -> [
+        get_fee_ok_test,
+        visa_to_nspkmir_not_allow_test
+].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
-    [
-        {default, [parallel], [
-            route_not_found_fail_test,
-            create_cashlimit_validation_error_test,
-            create_currency_validation_error_test,
-            create_sender_resource_notfound_test,
-            create_receiver_resource_notfound_test,
-            create_ok_test,
-            preserve_revisions_test,
-            unknown_test
-        ]}
-    ].
+    [].
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
@@ -97,235 +66,71 @@ init_per_testcase(Name, C) ->
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, _C) ->
-    ok = ct_helper:unset_context().
+    ok.
 
-%% Tests
-
--spec route_not_found_fail_test(config()) -> test_return().
-route_not_found_fail_test(C) ->
-    Cash = {100, <<"USD">>},
+-spec get_fee_ok_test(config()) -> test_return().
+get_fee_ok_test(C) ->
+    Cash = {22500, <<"RUB">>},
+    CardSender   = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    CardReceiver = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     #{
-        identity_id := IdentityID,
-        sender := ResourceSender,
-        receiver := ResourceReceiver
+        wallet_id := WalletID
     } = prepare_standard_environment(Cash, C),
-    P2PTransferID = generate_id(),
-    P2PTransferParams = #{
-        id => P2PTransferID,
-        identity_id => IdentityID,
-        sender => ResourceSender,
-        receiver => ResourceReceiver,
-        body => Cash
-    },
-    ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    Result = await_final_p2p_transfer_status(P2PTransferID),
-    ?assertMatch({failed, #{code := <<"no_route_found">>}}, Result).
+    {ok, Machine} = ff_wallet_machine:get(WalletID),
+    Wallet = ff_wallet_machine:wallet(Machine),
+    Identity = ff_wallet:identity(Wallet),
+    {ok, Sender} = p2p_instrument:create({bank_card, CardSender}),
+    {ok, Receiver} = p2p_instrument:create({bank_card, CardReceiver}),
+    {ok, {Fee, CashVolume, _}} = p2p_fees:get_fee_quote(Cash, Identity, Sender, Receiver),
+    ?assertEqual({share, {{65, 10000}, operation_amount, default}}, CashVolume),
+    ?assertEqual({146, <<"RUB">>}, Fee).
 
--spec create_cashlimit_validation_error_test(config()) -> test_return().
-create_cashlimit_validation_error_test(C) ->
-    Cash = {100, <<"RUB">>},
+-spec visa_to_nspkmir_not_allow_test(config()) -> test_return().
+visa_to_nspkmir_not_allow_test(C) ->
+    Cash = {22500, <<"RUB">>},
+    CardSender   = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    #{bin := Bin, masked_pan := Pan} = ct_cardstore:bank_card(<<"2204399999000900">>, {12, 2025}, C),
     #{
-        identity_id := IdentityID,
-        sender := ResourceSender,
-        receiver := ResourceReceiver
+        wallet_id := WalletID
     } = prepare_standard_environment(Cash, C),
-    P2PTransferID = generate_id(),
-    P2PTransferParams = #{
-        id => P2PTransferID,
-        identity_id => IdentityID,
-        sender => ResourceSender,
-        receiver => ResourceReceiver,
-        body => {20000000, <<"RUB">>},
-        external_id => P2PTransferID
-    },
-    Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    CashRange = {{inclusive, {0, <<"RUB">>}}, {exclusive, {10000001, <<"RUB">>}}},
-    Details = {terms_violation, {cash_range, {{20000000, <<"RUB">>}, CashRange}}},
-    ?assertMatch({error, {terms, Details}}, Result).
-
--spec create_currency_validation_error_test(config()) -> test_return().
-create_currency_validation_error_test(C) ->
-    Cash = {100, <<"RUB">>},
-    #{
-        identity_id := IdentityID,
-        sender := ResourceSender,
-        receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
-    P2PTransferID = generate_id(),
-    P2PTransferParams = #{
-        id => P2PTransferID,
-        identity_id => IdentityID,
-        sender => ResourceSender,
-        receiver => ResourceReceiver,
-        body => {100, <<"EUR">>},
-        external_id => P2PTransferID
-    },
-    Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    Details = {
-        <<"EUR">>,
-        [
-            #domain_CurrencyRef{symbolic_code = <<"RUB">>},
-            #domain_CurrencyRef{symbolic_code = <<"USD">>}
-        ]
-    },
-    ?assertMatch({error, {terms, {terms_violation, {not_allowed_currency, Details}}}}, Result).
-
--spec create_sender_resource_notfound_test(config()) -> test_return().
-create_sender_resource_notfound_test(C) ->
-    Cash = {100, <<"RUB">>},
-    #{
-        identity_id := IdentityID,
-        sender := ResourceSender,
-        receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, <<"TEST_NOTFOUND_SENDER">>, C),
-    P2PTransferID = generate_id(),
-    P2PTransferParams = #{
-        id => P2PTransferID,
-        identity_id => IdentityID,
-        sender => ResourceSender,
-        receiver => ResourceReceiver,
-        body => Cash,
-        external_id => P2PTransferID
-    },
-    Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    ?assertMatch({error, {sender, {bin_data, not_found}}}, Result).
-
--spec create_receiver_resource_notfound_test(config()) -> test_return().
-create_receiver_resource_notfound_test(C) ->
-    Cash = {100, <<"RUB">>},
-    #{
-        identity_id := IdentityID,
-        sender := ResourceSender,
-        receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, <<"TEST_NOTFOUND_RECEIVER">>, C),
-    P2PTransferID = generate_id(),
-    P2PTransferParams = #{
-        id => P2PTransferID,
-        identity_id => IdentityID,
-        sender => ResourceSender,
-        receiver => ResourceReceiver,
-        body => Cash,
-        external_id => P2PTransferID
-    },
-    Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    ?assertMatch({error, {receiver, {bin_data, not_found}}}, Result).
-
--spec create_ok_test(config()) -> test_return().
-create_ok_test(C) ->
-    Cash = {100, <<"RUB">>},
-    #{
-        identity_id := IdentityID,
-        sender := ResourceSender,
-        receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
-    P2PTransferID = generate_id(),
-    ClientInfo = #{
-        ip_address => <<"some ip_address">>,
-        fingerprint => <<"some fingerprint">>
-    },
-    P2PTransferParams = #{
-        id => P2PTransferID,
-        identity_id => IdentityID,
-        sender => ResourceSender,
-        receiver => ResourceReceiver,
-        body => Cash,
-        client_info => ClientInfo,
-        external_id => P2PTransferID
-    },
-    ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    ?assertEqual(succeeded, await_final_p2p_transfer_status(P2PTransferID)),
-    P2PTransfer = get_p2p_transfer(P2PTransferID),
-    ?assertEqual(IdentityID, p2p_transfer:owner(P2PTransfer)),
-    ?assertEqual(ResourceSender, p2p_transfer:sender(P2PTransfer)),
-    ?assertEqual(ResourceReceiver, p2p_transfer:receiver(P2PTransfer)),
-    ?assertEqual(Cash, p2p_transfer:body(P2PTransfer)),
-    ?assertEqual(ClientInfo, p2p_transfer:client_info(P2PTransfer)),
-    ?assertEqual(P2PTransferID, p2p_transfer:external_id(P2PTransfer)).
-
--spec preserve_revisions_test(config()) -> test_return().
-preserve_revisions_test(C) ->
-    Cash = {100, <<"RUB">>},
-    #{
-        identity_id := IdentityID,
-        sender := ResourceSender,
-        receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
-    P2PTransferID = generate_id(),
-    P2PTransferParams = #{
-        id => P2PTransferID,
-        identity_id => IdentityID,
-        sender => ResourceSender,
-        receiver => ResourceReceiver,
-        body => Cash,
-        external_id => P2PTransferID
-    },
-    ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
-    P2PTransfer = get_p2p_transfer(P2PTransferID),
-    ?assertNotEqual(undefined, p2p_transfer:domain_revision(P2PTransfer)),
-    ?assertNotEqual(undefined, p2p_transfer:party_revision(P2PTransfer)),
-    ?assertNotEqual(undefined, p2p_transfer:created_at(P2PTransfer)).
-
--spec unknown_test(config()) -> test_return().
-unknown_test(_C) ->
-    P2PTransferID = <<"unknown_p2p_transfer">>,
-    Result = p2p_transfer_machine:get(P2PTransferID),
-    ?assertMatch({error, {unknown_p2p_transfer, P2PTransferID}}, Result).
+    {ok, Machine} = ff_wallet_machine:get(WalletID),
+    Wallet = ff_wallet_machine:wallet(Machine),
+    Identity = ff_wallet:identity(Wallet),
+    {ok, Sender} = p2p_instrument:create({bank_card, CardSender}),
+    {ok, Receiver} = p2p_instrument:create({bank_card, #{
+        bin => Bin,
+        masked_pan => Pan,
+        token => <<"NSPK MIR">>
+    }}),
+    Result = p2p_fees:get_fee_quote(Cash, Identity, Sender, Receiver),
+    ?assertEqual({error, {p2p_tool, not_allow}}, Result).
 
 %% Utils
 
-prepare_standard_environment(P2PTransferCash, C) ->
-    prepare_standard_environment(P2PTransferCash, undefined, C).
+prepare_standard_environment(Cash, C) ->
+    prepare_standard_environment(Cash, undefined, C).
 
-prepare_standard_environment(_P2PTransferCash, Token, C) ->
-    PartyID = create_party(C),
-    IdentityID = create_person_identity(PartyID, C, <<"quote-owner">>),
-    {ResourceSender, ResourceReceiver} = case Token of
-        <<"TEST_NOTFOUND_SENDER">> = T -> {
-            create_resource_raw(T, C),
-            create_resource_raw(undefined, C)
-        };
-        <<"TEST_NOTFOUND_RECEIVER">> = T -> {
-            create_resource_raw(undefined, C),
-            create_resource_raw(T, C)
-        };
-        Other -> {create_resource_raw(Other, C), create_resource_raw(Other, C)}
-    end,
-    % ct:print(" >>> ~p", [{ResourceSender, ResourceReceiver}]),
+prepare_standard_environment({_Amount, Currency} =Cash, Token, C) ->
+    Party = create_party(C),
+    IdentityID = create_person_identity(Party, C),
+    WalletID = create_wallet(IdentityID, <<"My wallet">>, Currency, C),
+    ok = await_wallet_balance({0, Currency}, WalletID),
+    DestinationID = create_destination(IdentityID, Token, C),
+    ok = set_wallet_balance(Cash, WalletID),
     #{
         identity_id => IdentityID,
-        sender => ResourceSender,
-        receiver => ResourceReceiver,
-        party_id => PartyID
+        party_id => Party,
+        wallet_id => WalletID,
+        destination_id => DestinationID
     }.
-
-get_p2p_transfer(P2PTransferID) ->
-    {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
-    p2p_transfer_machine:p2p_transfer(Machine).
-
-get_p2p_transfer_status(P2PTransferID) ->
-    p2p_transfer:status(get_p2p_transfer(P2PTransferID)).
-
-await_final_p2p_transfer_status(P2PTransferID) ->
-    finished = ct_helper:await(
-        finished,
-        fun () ->
-            {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
-            P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
-            case p2p_transfer:is_finished(P2PTransfer) of
-                false ->
-                    {not_finished, P2PTransfer};
-                true ->
-                    finished
-            end
-        end,
-        genlib_retry:linear(10, 1000)
-    ),
-    get_p2p_transfer_status(P2PTransferID).
 
 create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
+
+create_person_identity(Party, C) ->
+    create_person_identity(Party, C, <<"good-one">>).
 
 create_person_identity(Party, C, ProviderID) ->
     create_identity(Party, ProviderID, <<"person">>, C).
@@ -339,10 +144,45 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ),
     ID.
 
+create_wallet(IdentityID, Name, Currency, _C) ->
+    ID = genlib:unique(),
+    ok = ff_wallet_machine:create(
+        ID,
+        #{identity => IdentityID, name => Name, currency => Currency},
+        ff_entity_context:new()
+    ),
+    ID.
+
+await_wallet_balance({Amount, Currency}, ID) ->
+    Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
+    Balance = ct_helper:await(
+        Balance,
+        fun () -> get_wallet_balance(ID) end,
+        genlib_retry:linear(3, 500)
+    ),
+    ok.
+
+get_wallet_balance(ID) ->
+    {ok, Machine} = ff_wallet_machine:get(ID),
+    get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
+
+get_account_balance(Account) ->
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        Account,
+        ff_clock:latest_clock()
+    ),
+    {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
+
 generate_id() ->
     ff_id:generate_snowflake_id().
 
-create_resource_raw(Token, C) ->
+create_destination(IID, <<"USD_CURRENCY">>, C) ->
+    create_destination(IID, <<"USD">>, undefined, C);
+create_destination(IID, Token, C) ->
+    create_destination(IID, <<"RUB">>, Token, C).
+
+create_destination(IID, Currency, Token, C) ->
+    ID = generate_id(),
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     NewStoreResource = case Token of
         undefined ->
@@ -350,4 +190,45 @@ create_resource_raw(Token, C) ->
         Token ->
             StoreSource#{token => Token}
         end,
-    p2p_participant:create(raw, {bank_card, NewStoreResource}).
+    Resource = {bank_card, NewStoreResource},
+    Params = #{identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
+    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, Machine} = ff_destination:get_machine(ID),
+            ff_destination:status(ff_destination:get(Machine))
+        end
+    ),
+    ID.
+
+set_wallet_balance({Amount, Currency}, ID) ->
+    TransactionID = generate_id(),
+    {ok, Machine} = ff_wallet_machine:get(ID),
+    Account = ff_wallet:account(ff_wallet_machine:wallet(Machine)),
+    AccounterID = ff_account:accounter_account_id(Account),
+    {CurrentAmount, _, Currency} = get_account_balance(Account),
+    {ok, AnotherAccounterID} = create_account(Currency),
+    Postings = [{AnotherAccounterID, AccounterID, {Amount - CurrentAmount, Currency}}],
+    {ok, _} = ff_transaction:prepare(TransactionID, Postings),
+    {ok, _} = ff_transaction:commit(TransactionID, Postings),
+    ok.
+
+create_account(CurrencyCode) ->
+    Description = <<"ff_test">>,
+    case call_accounter('CreateAccount', [construct_account_prototype(CurrencyCode, Description)]) of
+        {ok, Result} ->
+            {ok, Result};
+        {exception, Exception} ->
+            {error, {exception, Exception}}
+    end.
+
+construct_account_prototype(CurrencyCode, Description) ->
+    #accounter_AccountPrototype{
+        currency_sym_code = CurrencyCode,
+        description = Description
+    }.
+
+call_accounter(Function, Args) ->
+    Service = {dmsl_accounter_thrift, 'Accounter'},
+    ff_woody_client:call(accounter, {Service, Function, Args}, woody_context:new()).

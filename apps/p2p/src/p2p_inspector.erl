@@ -1,6 +1,7 @@
 -module(p2p_inspector).
 
 -type risk_score()      :: low | high | fatal.
+-type id()              :: integer().
 -type score_id()        :: binary().
 -type scores()          :: #{score_id() => risk_score()}.
 -type inspector()       :: dmsl_domain_thrift:'P2PInspector'().
@@ -15,6 +16,7 @@
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_proxy_inspector_p2p_thrift.hrl").
 
+-export_type([id/0]).
 -export_type([risk_score/0]).
 -export_type([scores/0]).
 -export_type([payment_resource_payer/0]).

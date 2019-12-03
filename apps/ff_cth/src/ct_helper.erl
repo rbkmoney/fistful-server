@@ -149,6 +149,9 @@ start_app(ff_server = AppName) ->
             },
             withdrawal_session => #{
                 namespace => <<"ff/withdrawal/session_v2">>
+            },
+            p2p_transfer => #{
+                namespace => <<"ff/p2p_transfer_v1">>
             }
         }}
     ]), #{}};

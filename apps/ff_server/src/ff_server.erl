@@ -170,7 +170,8 @@ get_eventsink_handlers() ->
         {identity, identity_event_sink, ff_identity_eventsink_publisher},
         {wallet, wallet_event_sink, ff_wallet_eventsink_publisher},
         {withdrawal, withdrawal_event_sink, ff_withdrawal_eventsink_publisher},
-        {withdrawal_session, withdrawal_session_event_sink, ff_withdrawal_session_eventsink_publisher}
+        {withdrawal_session, withdrawal_session_event_sink, ff_withdrawal_session_eventsink_publisher},
+        {p2p_transfer, p2p_transfer_event_sink, ff_p2p_transfer_eventsink_publisher}
     ],
     [get_eventsink_handler(Name, Service, Publisher, Cfg) || {Name, Service, Publisher} <- Publishers].
 

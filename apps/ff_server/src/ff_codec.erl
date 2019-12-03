@@ -122,6 +122,7 @@ marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
     BankName = maps:get(bank_name, BankCard, undefined),
     IsoCountryCode = maps:get(iso_country_code, BankCard, undefined),
     CardType = maps:get(card_type, BankCard, undefined),
+    BinDataID = maps:get(bin_data_id, BankCard, undefined),
     {bank_card, #'BankCard'{
         token = marshal(string, Token),
         bin = marshal(string, Bin),
@@ -129,7 +130,8 @@ marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
         bank_name = marshal(string, BankName),
         payment_system = PaymentSystem,
         issuer_country = IsoCountryCode,
-        card_type = CardType
+        card_type = CardType,
+        bin_data_id = marshal_msgpack(BinDataID)
     }};
 marshal(resource, {crypto_wallet, CryptoWallet = #{id := ID, currency := Currency}}) ->
     {crypto_wallet, #'CryptoWallet'{
@@ -322,7 +324,8 @@ unmarshal(bank_card, #'BankCard'{
     bank_name = BankName,
     payment_system = PaymentSystem,
     issuer_country = IsoCountryCode,
-    card_type = CardType
+    card_type = CardType,
+    bin_data_id = BinDataID
 }) ->
     genlib_map:compact(#{
         token => unmarshal(string, Token),
@@ -331,7 +334,8 @@ unmarshal(bank_card, #'BankCard'{
         masked_pan => maybe_unmarshal(string, MaskedPan),
         bank_name => maybe_unmarshal(string, BankName),
         issuer_country => maybe_unmarshal(iso_country_code, IsoCountryCode),
-        card_type => maybe_unmarshal(card_type, CardType)
+        card_type => maybe_unmarshal(card_type, CardType),
+        bin_data_id => unmarshal_msgpack(BinDataID)
     });
 
 unmarshal(payment_system, V) when is_atom(V) ->
@@ -451,3 +455,29 @@ to_calendar_datetime(Date, Time = {H, _, S}) when H =:= 24 orelse S =:= 60 ->
     calendar:gregorian_seconds_to_datetime(Sec);
 to_calendar_datetime(Date, Time) ->
     {Date, Time}.
+
+marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};
+marshal_msgpack(V) when is_boolean(V) -> {b, V};
+marshal_msgpack(V) when is_integer(V) -> {i, V};
+marshal_msgpack(V) when is_float(V)   -> V;
+marshal_msgpack(V) when is_binary(V)  -> {str, V}; % Assuming well-formed UTF-8 bytestring.
+marshal_msgpack({binary, V}) when is_binary(V) ->
+    {bin, V};
+marshal_msgpack(V) when is_list(V) ->
+    {arr, [marshal_msgpack(ListItem) || ListItem <- V]};
+marshal_msgpack(V) when is_map(V) ->
+    {obj, maps:fold(fun(Key, Value, Map) -> Map#{marshal_msgpack(Key) => marshal_msgpack(Value)} end, #{}, V)};
+marshal_msgpack(undefined) ->
+    undefined.
+
+unmarshal_msgpack({nl,  #msgp_Nil{}})        -> nil;
+unmarshal_msgpack({b,   V}) when is_boolean(V) -> V;
+unmarshal_msgpack({i,   V}) when is_integer(V) -> V;
+unmarshal_msgpack({flt, V}) when is_float(V)   -> V;
+unmarshal_msgpack({str, V}) when is_binary(V)  -> V; % Assuming well-formed UTF-8 bytestring.
+unmarshal_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
+unmarshal_msgpack({arr, V}) when is_list(V)    -> [unmarshal_msgpack(ListItem) || ListItem <- V];
+unmarshal_msgpack({obj, V}) when is_map(V)     ->
+    maps:fold(fun(Key, Value, Map) -> Map#{unmarshal_msgpack(Key) => unmarshal_msgpack(Value)} end, #{}, V);
+unmarshal_msgpack(undefined) ->
+    undefined.

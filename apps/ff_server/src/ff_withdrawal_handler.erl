@@ -1,7 +1,6 @@
 -module(ff_withdrawal_handler).
 -behaviour(ff_woody_wrapper).
 
--include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 %% ff_woody_wrapper callbacks

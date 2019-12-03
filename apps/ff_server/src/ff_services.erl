@@ -42,7 +42,9 @@ get_service(identity_management) ->
 get_service(destination_management) ->
     {ff_proto_destination_thrift, 'Management'};
 get_service(withdrawal_management) ->
-    {ff_proto_withdrawal_thrift, 'Management'}.
+    {ff_proto_withdrawal_thrift, 'Management'};
+get_service(p2p_transfer_event_sink) ->
+    {ff_proto_p2p_transfer_thrift, 'EventSink'}.
 
 -spec get_service_spec(Name :: atom()) -> service_spec().
 get_service_spec(Name) ->
@@ -76,4 +78,6 @@ get_service_path(identity_management) ->
 get_service_path(destination_management) ->
     "/v1/destination";
 get_service_path(withdrawal_management) ->
-    "/v1/withdrawal".
+    "/v1/withdrawal";
+get_service_path(p2p_transfer_event_sink) ->
+    "/v1/eventsink/p2p_transfer".

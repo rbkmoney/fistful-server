@@ -93,7 +93,15 @@ init_per_group(G, C) ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
     })),
     Party = create_party(C),
-    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], read}, {[party], write}], unlimited),
+    BasePermissions = [
+        {[party], read},
+        {[party], write},
+        {[payment_resources], read},
+        {[payment_resources], write},
+        {[webhooks], read},
+        {[webhooks], write}
+    ],
+    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited),
     Context = get_context("localhost:8080", Token),
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
     [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].

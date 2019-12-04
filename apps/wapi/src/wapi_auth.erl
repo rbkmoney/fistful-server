@@ -38,14 +38,23 @@
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
     ok  | {error, auth_error()}.
 
-authorize_operation('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context) ->
-    authorize_withdrawal(Params, Context);
+authorize_operation('CreateWithdrawal' = OperationID,
+    #{'WithdrawalParameters' := Params} = Req,
+    #{swagger_context := #{auth_context := AuthContext}} = Context
+) ->
+    case authorize_withdrawal(Params, Context) of
+        {ok, _} ->
+            OperationACL = get_operation_access(OperationID, Req),
+            uac:authorize_operation(OperationACL, AuthContext);
+        {error, _} = Error ->
+            Error
+    end;
 authorize_operation(OperationID, Req, #{swagger_context := #{auth_context := AuthContext}}) ->
     OperationACL = get_operation_access(OperationID, Req),
     uac:authorize_operation(OperationACL, AuthContext).
 
 authorize_withdrawal(Params, Context) ->
-    AuthResult = lists:foldl(
+    lists:foldl(
         fun(R, AuthState) ->
             case {authorize_resource(R, Params, Context), AuthState} of
                 {{ok, AuthMethod}, {ok, AuthData}}   -> {ok, [{R, AuthMethod} | AuthData]};
@@ -56,11 +65,7 @@ authorize_withdrawal(Params, Context) ->
         end,
         {ok, []},
         [destination, wallet]
-    ),
-    case AuthResult of
-        {ok, _} -> ok;
-        {error, _} = Error -> Error
-    end.
+    ).
 
 authorize_resource(Resource, Params, Context) ->
     %% TODO
@@ -192,13 +197,6 @@ get_claim(ClaimName, {_Id, _Subject, Claims}, Default) ->
 
 %%
 
-%% TODO update for the wallet swag
-%% -spec get_operation_access(operation_id(), request_data()) ->
-%%     [{wapi_acl:scope(), wapi_acl:permission()}].
-
-%% get_operation_access('CreateWithdrawal'     , #{'WithdrawalParameters' := #{<<"walletGrant">> => }}) ->
-%%     [{[payment_resources], write}].
-
 get_operation_access('GetCurrency', _) ->
     [{[party], read}];
 get_operation_access('ListDeposits', _) ->
@@ -260,26 +258,25 @@ get_operation_access('GetWalletAccount', _) ->
 get_operation_access('IssueWalletGrant', _) ->
     [{[party], write}];
 get_operation_access('CreateWebhook', _) ->
-    [{[party], write}];
+    [{[webhooks], write}];
 get_operation_access('GetWebhooks', _) ->
-    [{[party], read}];
+    [{[webhooks], read}];
 get_operation_access('GetWebhookByID', _) ->
-    [{[party], read}];
+    [{[webhooks], read}];
 get_operation_access('DeleteWebhookByID', _) ->
-    [{[party], read}];
+    [{[webhooks], write}];
 get_operation_access('CreateQuote', _) ->
     [{[party], write}];
 get_operation_access('ListWithdrawals', _) ->
-    [{[party], read}];
-% Since we authorize CreateWithdrawal via authorize_withdrawal/2 this one is unreachable
-% get_operation_access('CreateWithdrawal', _) ->
-%     [];
+    [{[payment_resources], read}];
+get_operation_access('CreateWithdrawal', _) ->
+    [{[payment_resources], write}];
 get_operation_access('GetWithdrawal', _) ->
-    [{[party], read}];
+    [{[payment_resources], read}];
 get_operation_access('PollWithdrawalEvents', _) ->
-    [{[party], read}];
+    [{[payment_resources], read}];
 get_operation_access('GetWithdrawalEvents', _) ->
-    [{[party], read}].
+    [{[payment_resources], read}].
 
 
 -spec get_access_config() -> map().
@@ -298,5 +295,7 @@ get_resource_hierarchy() ->
         party => #{
             wallets           => #{},
             destinations      => #{}
-        }
+        },
+        webhooks          => #{},
+        payment_resources => #{}
     }.

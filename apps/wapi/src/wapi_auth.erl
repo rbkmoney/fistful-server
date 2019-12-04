@@ -40,7 +40,6 @@
 
 authorize_operation('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context) ->
     authorize_withdrawal(Params, Context);
-%% TODO: implement authorization
 authorize_operation(OperationID, Req, #{swagger_context := #{auth_context := AuthContext}}) ->
     OperationACL = get_operation_access(OperationID, Req),
     uac:authorize_operation(OperationACL, AuthContext).
@@ -273,8 +272,9 @@ get_operation_access('CreateQuote', _) ->
     [];
 get_operation_access('ListWithdrawals', _) ->
     [];
-get_operation_access('CreateWithdrawal', _) ->
-    [];
+% Since we authorize CreateWithdrawal via authorize_withdrawal/2 this one is unreachable
+% get_operation_access('CreateWithdrawal', _) ->
+%     [];
 get_operation_access('GetWithdrawal', _) ->
     [];
 get_operation_access('PollWithdrawalEvents', _) ->

@@ -41,7 +41,7 @@
 authorize_operation('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context) ->
     authorize_withdrawal(Params, Context);
 %% TODO: implement authorization
-authorize_operation(OperationID, Req, #{auth_context := AuthContext}) ->
+authorize_operation(OperationID, Req, #{swagger_context := #{auth_context := AuthContext}}) ->
     OperationACL = get_operation_access(OperationID, Req),
     uac:authorize_operation(OperationACL, AuthContext).
 

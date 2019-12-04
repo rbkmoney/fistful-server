@@ -4,6 +4,8 @@
 
 -export([get_child_spec/1]).
 -export([init/1]).
+-export([verify/1]).
+-export([verify/2]).
 
 -export([store_key/2]).
 -export([get_signee_key/0]).
@@ -87,6 +89,157 @@ is_keysource({pem_file, Fn}) ->
     is_list(Fn) orelse is_binary(Fn);
 is_keysource(_) ->
     false.
+
+-spec verify(token()) ->
+    {ok, t()} |
+    {error,
+        {invalid_token,
+            badarg |
+            {badarg, term()} |
+            {missing, atom()} |
+            expired |
+            {malformed_acl, term()}
+        } |
+        {nonexistent_key, kid()} |
+        invalid_operation |
+        invalid_signature
+    }.
+
+verify(Token) ->
+    verify(Token, fun verify_/2).
+
+-spec verify(token(), fun((key(), token()) -> Result)) ->
+    Result |
+    {error,
+        {invalid_token,
+            badarg |
+            {badarg, term()} |
+            {missing, atom()} |
+            expired |
+            {malformed_acl, term()}
+        } |
+        {nonexistent_key, kid()} |
+        invalid_operation |
+        invalid_signature
+    } when
+    Result :: {ok, binary() | t()}.
+
+verify(Token, VerifyFun) ->
+    try
+        {_, ExpandedToken} = jose_jws:expand(Token),
+        #{<<"protected">> := ProtectedHeader} = ExpandedToken,
+        Header = wapi_utils:base64url_to_map(ProtectedHeader),
+        Alg = get_alg(Header),
+        KID = get_kid(Header),
+        verify(KID, Alg, ExpandedToken, VerifyFun)
+    catch
+        %% from get_alg and get_kid
+        throw:Reason ->
+            {error, Reason};
+        %% TODO we're losing error information here, e.g. stacktrace
+        error:badarg = Reason ->
+            {error, {invalid_token, Reason}};
+        error:{badarg, _} = Reason ->
+            {error, {invalid_token, Reason}};
+        error:Reason ->
+            {error, {invalid_token, Reason}}
+    end.
+
+verify(KID, Alg, ExpandedToken, VerifyFun) ->
+    case get_key_by_kid(KID) of
+        #{jwk := JWK, verifier := Algs} ->
+            _ = lists:member(Alg, Algs) orelse throw(invalid_operation),
+            VerifyFun(JWK, ExpandedToken);
+        undefined ->
+            {error, {nonexistent_key, KID}}
+    end.
+
+verify_(JWK, ExpandedToken) ->
+    case jose_jwt:verify(JWK, ExpandedToken) of
+        {true, #jose_jwt{fields = Claims}, _JWS} ->
+            {#{subject_id := SubjectID}, Claims1} = validate_claims(Claims),
+            get_result(SubjectID, decode_roles(Claims1));
+        {false, _JWT, _JWS} ->
+            {error, invalid_signature}
+    end.
+
+validate_claims(Claims) ->
+    validate_claims(Claims, get_validators(), #{}).
+
+validate_claims(Claims, [{Name, Claim, Validator} | Rest], Acc) ->
+    V = Validator(Name, maps:get(Claim, Claims, undefined)),
+    validate_claims(maps:without([Claim], Claims), Rest, Acc#{Name => V});
+validate_claims(Claims, [], Acc) ->
+    {Acc, Claims}.
+
+get_result(SubjectID, {Roles, Claims}) ->
+    try
+        Subject = {SubjectID, wapi_acl:decode(Roles)},
+        {ok, {Subject, Claims}}
+    catch
+        error:{badarg, _} = Reason ->
+            throw({invalid_token, {malformed_acl, Reason}})
+    end.
+
+get_kid(#{<<"kid">> := KID}) when is_binary(KID) ->
+    KID;
+get_kid(#{}) ->
+    throw({invalid_token, {missing, kid}}).
+
+get_alg(#{<<"alg">> := Alg}) when is_binary(Alg) ->
+    Alg;
+get_alg(#{}) ->
+    throw({invalid_token, {missing, alg}}).
+
+%%
+
+get_validators() ->
+    [
+        {token_id   , <<"jti">> , fun check_presence/2},
+        {subject_id , <<"sub">> , fun check_presence/2},
+        {expires_at , <<"exp">> , fun check_expiration/2}
+    ].
+
+check_presence(_, V) when is_binary(V) ->
+    V;
+check_presence(C, undefined) ->
+    throw({invalid_token, {missing, C}}).
+
+check_expiration(_, Exp = 0) ->
+    Exp;
+check_expiration(_, Exp) when is_integer(Exp) ->
+    case genlib_time:unow() of
+        Now when Exp > Now ->
+            Exp;
+        _ ->
+            throw({invalid_token, expired})
+    end;
+check_expiration(C, undefined) ->
+    throw({invalid_token, {missing, C}});
+check_expiration(C, V) ->
+    throw({invalid_token, {badarg, {C, V}}}).
+
+
+%% TODO common-api is not a typo here.
+%% Set the correct resources as soon as defined.
+decode_roles(Claims = #{
+    <<"resource_access">> := #{
+        <<"common-api">> := #{
+            <<"roles">> := Roles
+        }
+    }
+}) when is_list(Roles) ->
+    {Roles, maps:remove(<<"resource_access">>, Claims)};
+decode_roles(Claims = #{
+    <<"resource_access">> := #{
+        <<"wallet-api">> := #{
+            <<"roles">> := Roles
+        }
+    }
+}) when is_list(Roles) ->
+    {Roles, maps:remove(<<"resource_access">>, Claims)};
+decode_roles(_) ->
+    throw({invalid_token, {missing, acl}}).
 
 %%
 
@@ -189,6 +342,9 @@ insert_key(Keyname, Key = #{kid := KID}) ->
 
 get_key_by_name(Keyname) ->
     lookup_value({keyname, Keyname}).
+
+get_key_by_kid(KID) ->
+    lookup_value({kid, KID}).
 
 set_signee(Keyname) ->
     insert_values(#{

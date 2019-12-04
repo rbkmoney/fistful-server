@@ -249,11 +249,11 @@ get_quote_test(C) ->
         ct_helper:cfg(context, C)
     ),
     CashFrom = maps:get(<<"cashFrom">>, Quote),
-    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(maps:get(<<"quoteToken">>, Quote), #{}),
+    {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
     #{
         <<"version">>       := 1,
         <<"cashFrom">>     := CashFrom
-    } = Data.
+    } = jsx:decode(JSONData, [return_maps]).
 
 -spec get_quote_without_destination_test(config()) -> test_return().
 
@@ -281,11 +281,11 @@ get_quote_without_destination_test(C) ->
         ct_helper:cfg(context, C)
     ),
     CashFrom = maps:get(<<"cashFrom">>, Quote),
-    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(maps:get(<<"quoteToken">>, Quote), #{}),
+    {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
     #{
         <<"version">>       := 1,
         <<"cashFrom">>     := CashFrom
-    } = Data.
+    } = jsx:decode(JSONData, [return_maps]).
 
 -spec get_quote_without_destination_fail_test(config()) -> test_return().
 

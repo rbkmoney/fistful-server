@@ -4,13 +4,14 @@
 
 -export([get_child_spec/1]).
 -export([init/1]).
--export([verify/1]).
--export([verify/2]).
 
 -export([store_key/2]).
 -export([get_signee_key/0]).
 % TODO
 % Extend interface to support proper keystore manipulation
+
+-export([verify/1]).
+-export([verify/2]).
 
 %%
 
@@ -89,6 +90,99 @@ is_keysource({pem_file, Fn}) ->
     is_list(Fn) orelse is_binary(Fn);
 is_keysource(_) ->
     false.
+
+%%
+
+-spec init({keyset(), {ok, keyname()} | error}) ->
+    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+
+init({Keyset, Signee}) ->
+    ok = create_table(),
+    KeyInfos = maps:map(fun ensure_store_key/2, Keyset),
+    ok = select_signee(Signee, KeyInfos),
+    {ok, {#{}, []}}.
+
+ensure_store_key(Keyname, Source) ->
+    case store_key(Keyname, Source) of
+        {ok, KeyInfo} ->
+            KeyInfo;
+        {error, Reason} ->
+            _ = logger:error("Error importing key ~p: ~p", [Keyname, Reason]),
+            exit({import_error, Keyname, Source, Reason})
+    end.
+
+select_signee({ok, Keyname}, KeyInfos) ->
+    case maps:find(Keyname, KeyInfos) of
+        {ok, #{sign := true}} ->
+            set_signee(Keyname);
+        {ok, KeyInfo} ->
+            _ = logger:error("Error setting signee: signing with ~p is not allowed", [Keyname]),
+            exit({invalid_signee, Keyname, KeyInfo});
+        error ->
+            _ = logger:error("Error setting signee: no key named ~p", [Keyname]),
+            exit({nonexstent_signee, Keyname})
+    end;
+select_signee(error, _KeyInfos) ->
+    ok.
+
+%%
+
+-type keyinfo() :: #{
+    kid    => kid(),
+    sign   => boolean(),
+    verify => boolean()
+}.
+
+-spec store_key(keyname(), {pem_file, file:filename()}) ->
+    {ok, keyinfo()} | {error, file:posix() | {unknown_key, _}}.
+
+store_key(Keyname, {pem_file, Filename}) ->
+    store_key(Keyname, {pem_file, Filename}, #{
+        kid => fun derive_kid_from_public_key_pem_entry/1
+    }).
+
+derive_kid_from_public_key_pem_entry(JWK) ->
+    JWKPublic = jose_jwk:to_public(JWK),
+    {_Module, PublicKey} = JWKPublic#jose_jwk.kty,
+    {_PemEntry, Data, _} = public_key:pem_entry_encode('SubjectPublicKeyInfo', PublicKey),
+    base64url:encode(crypto:hash(sha256, Data)).
+
+-type store_opts() :: #{
+    kid => fun ((key()) -> kid())
+}.
+
+-spec store_key(keyname(), {pem_file, file:filename()}, store_opts()) ->
+    {ok, keyinfo()} | {error, file:posix() | {unknown_key, _}}.
+
+store_key(Keyname, {pem_file, Filename}, Opts) ->
+    case jose_jwk:from_pem_file(Filename) of
+        JWK = #jose_jwk{} ->
+            Key = construct_key(derive_kid(JWK, Opts), JWK),
+            ok = insert_key(Keyname, Key),
+            {ok, get_key_info(Key)};
+        Error = {error, _} ->
+            Error
+    end.
+
+get_key_info(#{kid := KID, signer := Signer, verifier := Verifier}) ->
+    #{
+        kid    => KID,
+        sign   => Signer /= undefined,
+        verify => Verifier /= undefined
+    }.
+
+derive_kid(JWK, #{kid := DeriveFun}) when is_function(DeriveFun, 1) ->
+    DeriveFun(JWK).
+
+construct_key(KID, JWK) ->
+    #{
+        jwk      => JWK,
+        kid      => KID,
+        signer   => try jose_jwk:signer(JWK)   catch error:_ -> undefined end,
+        verifier => try jose_jwk:verifier(JWK) catch error:_ -> undefined end
+    }.
+
+%%
 
 -spec verify(token()) ->
     {ok, t()} |
@@ -240,97 +334,6 @@ decode_roles(Claims = #{
     {Roles, maps:remove(<<"resource_access">>, Claims)};
 decode_roles(_) ->
     throw({invalid_token, {missing, acl}}).
-
-%%
-
--spec init({keyset(), {ok, keyname()} | error}) ->
-    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
-
-init({Keyset, Signee}) ->
-    ok = create_table(),
-    KeyInfos = maps:map(fun ensure_store_key/2, Keyset),
-    ok = select_signee(Signee, KeyInfos),
-    {ok, {#{}, []}}.
-
-ensure_store_key(Keyname, Source) ->
-    case store_key(Keyname, Source) of
-        {ok, KeyInfo} ->
-            KeyInfo;
-        {error, Reason} ->
-            _ = logger:error("Error importing key ~p: ~p", [Keyname, Reason]),
-            exit({import_error, Keyname, Source, Reason})
-    end.
-
-select_signee({ok, Keyname}, KeyInfos) ->
-    case maps:find(Keyname, KeyInfos) of
-        {ok, #{sign := true}} ->
-            set_signee(Keyname);
-        {ok, KeyInfo} ->
-            _ = logger:error("Error setting signee: signing with ~p is not allowed", [Keyname]),
-            exit({invalid_signee, Keyname, KeyInfo});
-        error ->
-            _ = logger:error("Error setting signee: no key named ~p", [Keyname]),
-            exit({nonexstent_signee, Keyname})
-    end;
-select_signee(error, _KeyInfos) ->
-    ok.
-
-%%
-
--type keyinfo() :: #{
-    kid    => kid(),
-    sign   => boolean(),
-    verify => boolean()
-}.
-
--spec store_key(keyname(), {pem_file, file:filename()}) ->
-    {ok, keyinfo()} | {error, file:posix() | {unknown_key, _}}.
-
-store_key(Keyname, {pem_file, Filename}) ->
-    store_key(Keyname, {pem_file, Filename}, #{
-        kid => fun derive_kid_from_public_key_pem_entry/1
-    }).
-
-derive_kid_from_public_key_pem_entry(JWK) ->
-    JWKPublic = jose_jwk:to_public(JWK),
-    {_Module, PublicKey} = JWKPublic#jose_jwk.kty,
-    {_PemEntry, Data, _} = public_key:pem_entry_encode('SubjectPublicKeyInfo', PublicKey),
-    base64url:encode(crypto:hash(sha256, Data)).
-
--type store_opts() :: #{
-    kid => fun ((key()) -> kid())
-}.
-
--spec store_key(keyname(), {pem_file, file:filename()}, store_opts()) ->
-    {ok, keyinfo()} | {error, file:posix() | {unknown_key, _}}.
-
-store_key(Keyname, {pem_file, Filename}, Opts) ->
-    case jose_jwk:from_pem_file(Filename) of
-        JWK = #jose_jwk{} ->
-            Key = construct_key(derive_kid(JWK, Opts), JWK),
-            ok = insert_key(Keyname, Key),
-            {ok, get_key_info(Key)};
-        Error = {error, _} ->
-            Error
-    end.
-
-get_key_info(#{kid := KID, signer := Signer, verifier := Verifier}) ->
-    #{
-        kid    => KID,
-        sign   => Signer /= undefined,
-        verify => Verifier /= undefined
-    }.
-
-derive_kid(JWK, #{kid := DeriveFun}) when is_function(DeriveFun, 1) ->
-    DeriveFun(JWK).
-
-construct_key(KID, JWK) ->
-    #{
-        jwk      => JWK,
-        kid      => KID,
-        signer   => try jose_jwk:signer(JWK)   catch error:_ -> undefined end,
-        verifier => try jose_jwk:verifier(JWK) catch error:_ -> undefined end
-    }.
 
 %%
 

@@ -45,12 +45,12 @@ unmarshal(T, V) ->
 -spec pending_symmetry_test() -> _.
 pending_symmetry_test() ->
     Status = pending,
-    ?assertEqual(Status, unmarshal(status, marshal(status, Status)).
+    ?assertEqual(Status, unmarshal(status, marshal(status, Status))).
 
 -spec succeeded_symmetry_test() -> _.
 succeeded_symmetry_test() ->
     Status = succeeded,
-    ?assertEqual(Status, unmarshal(status, marshal(status, Status)).
+    ?assertEqual(Status, unmarshal(status, marshal(status, Status))).
 
 -spec failed_symmetry_test() -> _.
 failed_symmetry_test() ->
@@ -61,6 +61,6 @@ failed_symmetry_test() ->
             code => <<"sub">>
         }
     }},
-    ?assertEqual(Status, unmarshal(status, marshal(status, Status)).
+    ?assertEqual(Status, unmarshal(status, marshal(status, Status))).
 
 -endif.

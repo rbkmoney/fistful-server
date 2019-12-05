@@ -9,17 +9,6 @@
 -export([marshal/2]).
 -export([unmarshal/2]).
 
-%% Data transform
-
-final_account_to_final_cash_flow_account(#{
-    account := #{id := AccountID},
-    type := AccountType}
-) ->
-    #{account_type => AccountType, account_id => AccountID}.
-
--define(to_session_event(SessionID, Payload),
-    {session, #{id => SessionID, payload => Payload}}).
-
 %% API
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
@@ -28,11 +17,11 @@ final_account_to_final_cash_flow_account(#{
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
-marshal(event, {created, Transfer}) ->
+marshal(change, {created, Transfer}) ->
     {created, #transfer_CreatedChange{transfer = marshal(transfer, Transfer)}};
-marshal(event, {status_changed, Status}) ->
+marshal(change, {status_changed, Status}) ->
     {status_changed, #transfer_StatusChange{status = marshal(status, Status)}};
-marshal(event, {clock_updated, Clock}) ->
+marshal(change, {clock_updated, Clock}) ->
     {clock_updated, #transfer_ClockChange{clock = marshal(clock, Clock)}};
 
 marshal(transfer, #{final_cash_flow := Cashflow}) ->
@@ -62,11 +51,11 @@ marshal(T, V) ->
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
 
-unmarshal(event, {created, #transfer_CreatedChange{transfer = Transfer}}) ->
+unmarshal(change, {created, #transfer_CreatedChange{transfer = Transfer}}) ->
     {created, unmarshal(transfer, Transfer)};
-unmarshal(event, {status_changed, #transfer_StatusChange{status = Status}}) ->
+unmarshal(change, {status_changed, #transfer_StatusChange{status = Status}}) ->
     {status_changed, unmarshal(status, Status)};
-unmarshal(event, {clock_updated, #transfer_ClockChange{clock = Clock}}) ->
+unmarshal(change, {clock_updated, #transfer_ClockChange{clock = Clock}}) ->
     {clock_updated, unmarshal(clock, Clock)};
 
 unmarshal(transfer, #transfer_Transfer{cashflow = Cashflow}) ->
@@ -88,10 +77,3 @@ unmarshal(clock, Clock) ->
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
-
-%% Internals
-
-maybe_unmarshal(_Type, undefined) ->
-    undefined;
-maybe_unmarshal(Type, Value) ->
-    unmarshal(Type, Value).

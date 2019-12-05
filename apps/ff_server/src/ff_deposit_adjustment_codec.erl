@@ -12,12 +12,12 @@
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
-marshal(event, {created, Adjustment}) ->
+marshal(change, {created, Adjustment}) ->
     {created, #dep_adj_CreatedChange{adjustment = marshal(adjustment, Adjustment)}};
-marshal(event, {status_changed, Status}) ->
+marshal(change, {status_changed, Status}) ->
     {status_changed, #dep_adj_StatusChange{status = ff_deposit_status_codec:marshal(status, Status)}};
-marshal(event, {p_transfer, TransferChange}) ->
-    {transfer, #dep_adj_TransferChange{payload = ff_p_transfer_codec:marshal(event, TransferChange)}};
+marshal(change, {p_transfer, TransferChange}) ->
+    {transfer, #dep_adj_TransferChange{payload = ff_p_transfer_codec:marshal(change, TransferChange)}};
 
 marshal(adjustment, Adjustment) ->
     #dep_adj_Adjustment{
@@ -72,12 +72,12 @@ marshal(T, V) ->
 -spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
     ff_codec:decoded_value().
 
-unmarshal(event, {created, #dep_adj_CreatedChange{adjustment = Adjustment}}) ->
+unmarshal(change, {created, #dep_adj_CreatedChange{adjustment = Adjustment}}) ->
     {created, unmarshal(adjustment, Adjustment)};
-unmarshal(event, {status_changed, #dep_adj_StatusChange{status = Status}}) ->
+unmarshal(change, {status_changed, #dep_adj_StatusChange{status = Status}}) ->
     {status_changed, unmarshal(status, Status)};
-unmarshal(event, {transfer, #dep_adj_TransferChange{payload = TransferChange}}) ->
-    {p_transfer, ff_p_transfer_codec:unmarshal(event, TransferChange)};
+unmarshal(change, {transfer, #dep_adj_TransferChange{payload = TransferChange}}) ->
+    {p_transfer, ff_p_transfer_codec:unmarshal(change, TransferChange)};
 
 unmarshal(adjustment, Adjustment) ->
     #{

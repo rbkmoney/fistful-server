@@ -20,14 +20,31 @@
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
-marshal(event, {created, Deposit}) ->
+marshal(event, {EventID, _EventTimestamp, {ev, Timestamp, Change}}) ->
+    #deposit_Event{
+        event_id = ff_codec:marshal(event_id, EventID),
+        occured_at = ff_codec:marshal(timestamp, Timestamp),
+        change = marshal(change, Change)
+    };
+
+marshal(change, {created, Deposit}) ->
     {created, #deposit_CreatedChange{deposit = marshal(deposit, Deposit)}};
-marshal(event, {status_changed, Status}) ->
+marshal(change, {status_changed, Status}) ->
     {status_changed, #deposit_StatusChange{status = ff_deposit_status_codec:marshal(status, Status)}};
-marshal(event, {p_transfer, TransferChange}) ->
-    {transfer, #deposit_TransferChange{payload = ff_p_transfer_codec:marshal(event, TransferChange)}};
-marshal(event, {limit_check, Details}) ->
+marshal(change, {p_transfer, TransferChange}) ->
+    {transfer, #deposit_TransferChange{payload = ff_p_transfer_codec:marshal(change, TransferChange)}};
+marshal(change, {limit_check, Details}) ->
     {limit_check, #deposit_LimitCheckChange{details = ff_limit_check_codec:marshal(details, Details)}};
+marshal(change, {revert, #{id := ID, payload := Payload}}) ->
+    {revert, #deposit_RevertChange{
+        id = marshal(id, ID),
+        payload = ff_deposit_revert_codec:marshal(change, Payload)
+    }};
+marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
+    {adjustment, #deposit_AdjustmentChange{
+        id = marshal(id, ID),
+        payload = ff_deposit_adjustment_codec:marshal(change, Payload)
+    }};
 
 marshal(deposit, Deposit) ->
     #deposit_Deposit{
@@ -42,8 +59,8 @@ marshal(deposit_params, DepositParams) ->
     #deposit_DepositParams{
         id = marshal(id, maps:get(id, DepositParams)),
         body = marshal(cash, maps:get(body, DepositParams)),
-        wallet_id = marshal(id, maps:get(body, DepositParams)),
-        source_id = marshal(id, maps:get(body, DepositParams)),
+        wallet_id = marshal(id, maps:get(wallet_id, DepositParams)),
+        source_id = marshal(id, maps:get(source_id, DepositParams)),
         external_id = maybe_marshal(id, maps:get(external_id, DepositParams, undefined))
     };
 marshal(deposit_state, DepositState) ->
@@ -53,14 +70,17 @@ marshal(deposit_state, DepositState) ->
     } = DepositState,
     CashFlow = ff_deposit:effective_final_cash_flow(Deposit),
     Reverts = ff_deposit:reverts(Deposit),
-    Adjustments = ff_deposit:adjusments(Deposit),
+    Adjustments = ff_deposit:adjustments(Deposit),
     #deposit_DepositState{
         deposit = marshal(deposit, Deposit),
         context = marshal(context, Context),
-        effective_final_cash_flow = ff_cash_flow:marshal(final_cash_flow, CashFlow),
+        effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
         reverts = [ff_deposit_revert_codec:marshal(revert_state, R) || R <- Reverts],
         adjustments = [ff_deposit_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments]
     };
+
+marshal(status, Status) ->
+    ff_deposit_status_codec:marshal(status, Status);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -74,23 +94,37 @@ unmarshal({list, T}, V) ->
 
 unmarshal(repair_scenario, {add_events, #deposit_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
-        events => unmarshal({list, event}, Events),
+        events => unmarshal({list, change}, Events),
         actions => maybe_unmarshal(complex_action, Action)
     })};
 
-unmarshal(event, {created, #deposit_CreatedChange{deposit = Deposit}}) ->
+unmarshal(change, {created, #deposit_CreatedChange{deposit = Deposit}}) ->
     {created, unmarshal(deposit, Deposit)};
-unmarshal(event, {status_changed, #deposit_StatusChange{status = DepositStatus}}) ->
-    {status_changed, ff_deposit_status_codec:unmarshal(status, DepositStatus)};
-unmarshal(event, {transfer, #deposit_TransferChange{payload = TransferChange}}) ->
-    {p_transfer, ff_p_transfer_codec:unmarshal(event, TransferChange)};
-unmarshal(event, {limit_check, #deposit_LimitCheckChange{details = Details}}) ->
+unmarshal(change, {status_changed, #deposit_StatusChange{status = DepositStatus}}) ->
+    {status_changed, unmarshal(status, DepositStatus)};
+unmarshal(change, {transfer, #deposit_TransferChange{payload = TransferChange}}) ->
+    {p_transfer, ff_p_transfer_codec:unmarshal(change, TransferChange)};
+unmarshal(change, {limit_check, #deposit_LimitCheckChange{details = Details}}) ->
     {limit_check, ff_limit_check_codec:unmarshal(details, Details)};
+unmarshal(change, {revert, Change}) ->
+    {revert, #{
+        id => unmarshal(id, Change#deposit_RevertChange.id),
+        payload => ff_deposit_revert_codec:unmarshal(id, Change#deposit_RevertChange.payload)
+    }};
+unmarshal(change, {adjustment, Change}) ->
+    {revert, #{
+        id => unmarshal(id, Change#deposit_AdjustmentChange.id),
+        payload => ff_deposit_adjustment_codec:unmarshal(id, Change#deposit_AdjustmentChange.payload)
+    }};
+
+unmarshal(status, Status) ->
+    ff_deposit_status_codec:unmarshal(status, Status);
 
 unmarshal(deposit, Deposit) ->
     #{
         id => unmarshal(id, Deposit#deposit_Deposit.id),
         body => unmarshal(cash, Deposit#deposit_Deposit.body),
+        status => maybe_marshal(status, Deposit#deposit_Deposit.status),
         params => genlib_map:compact(#{
             wallet_id => unmarshal(id, Deposit#deposit_Deposit.wallet_id),
             source_id => unmarshal(id, Deposit#deposit_Deposit.source_id),
@@ -141,7 +175,7 @@ deposit_symmetry_test() ->
         status = {pending, #dep_status_Pending{}},
         id = genlib:unique()
     },
-    ?assertEqual(In, marshal(deposit, unmarshal(deposit, Encoded))).
+    ?assertEqual(Encoded, marshal(deposit, unmarshal(deposit, Encoded))).
 
 -spec deposit_params_symmetry_test() -> _.
 deposit_params_symmetry_test() ->
@@ -155,6 +189,6 @@ deposit_params_symmetry_test() ->
         external_id = undefined,
         id = genlib:unique()
     },
-    ?assertEqual(In, marshal(deposit_params, unmarshal(deposit_params, In))).
+    ?assertEqual(Encoded, marshal(deposit_params, unmarshal(deposit_params, Encoded))).
 
 -endif.

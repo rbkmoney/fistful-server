@@ -609,7 +609,9 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, Revert) ->
     CurrentCashFlow = effective_final_cash_flow(Revert),
     NewCashFlow = ff_cash_flow:make_empty_final(),
     #{
-        new_status => NewStatus,
+        new_status => #{
+            new_status => NewStatus
+        },
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => NewCashFlow
@@ -619,7 +621,9 @@ make_change_status_params({failed, _}, succeeded = NewStatus, Revert) ->
     CurrentCashFlow = effective_final_cash_flow(Revert),
     NewCashFlow = make_final_cash_flow(wallet_id(Revert), source_id(Revert), body(Revert)),
     #{
-        new_status => NewStatus,
+        new_status => #{
+            new_status => NewStatus
+        },
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => NewCashFlow
@@ -627,7 +631,9 @@ make_change_status_params({failed, _}, succeeded = NewStatus, Revert) ->
     };
 make_change_status_params({failed, _}, {failed, _} = NewStatus, _Revert) ->
     #{
-        new_status => NewStatus
+        new_status => #{
+            new_status => NewStatus
+        }
     }.
 
 -spec save_adjustable_info(event(), revert()) -> revert().

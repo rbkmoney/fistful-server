@@ -9,8 +9,8 @@
 %% API
 
 -type id() :: machinery:id().
--type event() :: ff_deposit:event().
--type events() :: [{integer(), ff_machine:timestamped_event(event())}].
+-type change() :: ff_deposit:event().
+-type event() :: {integer(), ff_machine:timestamped_event(change())}.
 -type st() :: ff_machine:st(deposit()).
 -type deposit() :: ff_deposit:deposit().
 -type external_id() :: id().
@@ -37,8 +37,8 @@
 
 -export_type([id/0]).
 -export_type([st/0]).
+-export_type([change/0]).
 -export_type([event/0]).
--export_type([events/0]).
 -export_type([params/0]).
 -export_type([deposit/0]).
 -export_type([event_range/0]).
@@ -124,12 +124,12 @@ get(ID, {After, Limit}) ->
             {error, {unknown_deposit, ID}}
     end.
 
--spec events(id(), machinery:range()) ->
-    {ok, events()} |
+-spec events(id(), event_range()) ->
+    {ok, [event()]} |
     {error, unknown_deposit_error()}.
 
-events(ID, Range) ->
-    case machinery:get(?NS, ID, Range, backend()) of
+events(ID, {After, Limit}) ->
+    case machinery:get(?NS, ID, {After, Limit, forward}, backend()) of
         {ok, #{history := History}} ->
             {ok, [{EventID, TsEv} || {EventID, _, TsEv} <- History]};
         {error, notfound} ->

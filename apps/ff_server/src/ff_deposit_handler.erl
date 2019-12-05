@@ -38,7 +38,9 @@ handle_function_('Create', [EncodedParams, EncodedContext], Opts) ->
             woody_error:raise(business, #fistful_SourceNotFound{});
         {error, {source, unauthorized}} ->
             woody_error:raise(business, #fistful_SourceUnauthorized{});
-        {error, {terms_violation, {not_allowed_currency, {Currency, Allowed}}}} ->
+        {error, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}} ->
+            Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
+            Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],
             woody_error:raise(business, #fistful_ForbiddenOperationCurrency{
                 currency = ff_codec:marshal(currency_ref, Currency),
                 allowed_currencies = ff_codec:marshal({set, currency_ref}, Allowed)
@@ -52,12 +54,10 @@ handle_function_('Create', [EncodedParams, EncodedContext], Opts) ->
         {error, {bad_deposit_amount, Amount}} ->
             woody_error:raise(business, #fistful_InvalidOperationAmount{
                 amount = ff_codec:marshal(cash, Amount)
-            });
-        {error, Error} ->
-            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
+            })
     end;
 handle_function_('Get', [ID, EventRange], _Opts) ->
-    ok = scoper:add_meta(maps:with(#{id => ID})),
+    ok = scoper:add_meta(#{id => ID}),
     case ff_deposit_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             Deposit = ff_deposit_machine:deposit(Machine),
@@ -70,11 +70,19 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end;
 handle_function_('GetContext', [ID], _Opts) ->
-    ok = scoper:add_meta(maps:with(#{id => ID})),
+    ok = scoper:add_meta(#{id => ID}),
     case ff_deposit_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
             Context = ff_deposit_machine:ctx(Machine),
             {ok, ff_codec:marshal(context, Context)};
+        {error, {unknown_deposit, ID}} ->
+            woody_error:raise(business, #fistful_DepositNotFound{})
+    end;
+handle_function_('GetEvents', [ID, EventRange], _Opts) ->
+    ok = scoper:add_meta(#{id => ID}),
+    case ff_deposit_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
+        {ok, Events} ->
+            {ok, [ff_deposit_codec:marshal(event, E) || E <- Events]};
         {error, {unknown_deposit, ID}} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end;
@@ -91,9 +99,7 @@ handle_function_('CreateAdjustment', [ID, EncodedParams], _Opts) ->
             {ok, Machine} = ff_deposit_machine:get(ID),
             Deposit = ff_deposit_machine:deposit(Machine),
             {ok, Adjustment} = ff_deposit:find_adjustment(AdjustmentID, Deposit),
-            {ok, ff_deposit_adjustment_codec:marshal(adjustment_state, #{
-                adjustment => Adjustment
-            })};
+            {ok, ff_deposit_adjustment_codec:marshal(adjustment_state, Adjustment)};
         {error, {unknown_deposit, ID}} ->
             woody_error:raise(business, #fistful_DepositNotFound{});
         {error, {invalid_deposit_status, Status}} ->
@@ -111,9 +117,7 @@ handle_function_('CreateAdjustment', [ID, EncodedParams], _Opts) ->
         {error, {another_adjustment_in_progress, AnotherID}} ->
             woody_error:raise(business, #deposit_AnotherAdjustmentInProgress{
                 another_adjustment_id = ff_codec:marshal(id, AnotherID)
-            });
-        {error, Error} ->
-            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
+            })
     end;
 handle_function_('CreateRevert', [ID, EncodedParams], _Opts) ->
     Params = ff_deposit_revert_codec:unmarshal(revert_params, EncodedParams),
@@ -128,9 +132,7 @@ handle_function_('CreateRevert', [ID, EncodedParams], _Opts) ->
             {ok, Machine} = ff_deposit_machine:get(ID),
             Deposit = ff_deposit_machine:deposit(Machine),
             {ok, Revert} = ff_deposit:find_revert(RevertID, Deposit),
-            {ok, ff_deposit_revert_codec:marshal(revert_state, #{
-                revert => Revert
-            })};
+            {ok, ff_deposit_revert_codec:marshal(revert_state, Revert)};
         {error, {unknown_deposit, ID}} ->
             woody_error:raise(business, #fistful_DepositNotFound{});
         {error, {invalid_deposit_status, Status}} ->
@@ -150,9 +152,7 @@ handle_function_('CreateRevert', [ID, EncodedParams], _Opts) ->
         {error, {invalid_revert_amount, Amount}} ->
             woody_error:raise(business, #fistful_InvalidOperationAmount{
                 amount = ff_codec:marshal(cash, Amount)
-            });
-        {error, Error} ->
-            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
+            })
     end;
 handle_function_('CreateRevertAdjustment', [ID, RevertID, EncodedParams], _Opts) ->
     Params = ff_deposit_revert_adjustment_codec:unmarshal(adjustment_params, EncodedParams),
@@ -169,9 +169,7 @@ handle_function_('CreateRevertAdjustment', [ID, RevertID, EncodedParams], _Opts)
             Deposit = ff_deposit_machine:deposit(Machine),
             {ok, Revert} = ff_deposit:find_revert(RevertID, Deposit),
             {ok, Adjustment} = ff_deposit_revert:find_adjustment(AdjustmentID, Revert),
-            {ok, ff_deposit_revert_adjustment_codec:marshal(adjustment_state, #{
-                adjustment => Adjustment
-            })};
+            {ok, ff_deposit_revert_adjustment_codec:marshal(adjustment_state, Adjustment)};
         {error, {unknown_deposit, ID}} ->
             woody_error:raise(business, #fistful_DepositNotFound{});
         {error, {unknown_revert, RevertID}} ->
@@ -193,7 +191,5 @@ handle_function_('CreateRevertAdjustment', [ID, RevertID, EncodedParams], _Opts)
         {error, {another_adjustment_in_progress, AnotherID}} ->
             woody_error:raise(business, #deposit_AnotherAdjustmentInProgress{
                 another_adjustment_id = ff_codec:marshal(id, AnotherID)
-            });
-        {error, Error} ->
-            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
+            })
     end.

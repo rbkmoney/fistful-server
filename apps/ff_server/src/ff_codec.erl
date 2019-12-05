@@ -13,7 +13,7 @@
 
 %% Types
 
--type type_name() :: atom() | {list, atom()}.
+-type type_name() :: atom() | {list, atom()} | {set, atom()}.
 -type codec() :: module().
 
 -type encoded_value() :: encoded_value(any()).

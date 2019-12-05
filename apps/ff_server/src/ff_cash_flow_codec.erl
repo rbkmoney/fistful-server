@@ -1,4 +1,4 @@
--module(ff_p_transfer_codec).
+-module(ff_cash_flow_codec).
 
 -behaviour(ff_codec).
 

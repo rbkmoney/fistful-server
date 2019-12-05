@@ -51,9 +51,11 @@ marshal(changes_plan, Plan) ->
         new_status = maybe_marshal(status_change_plan, maps:get(new_status, Plan, undefined))
     };
 marshal(cash_flow_change_plan, Plan) ->
+    OldCashFLow = ff_cash_flow_codec:marshal(final_cash_flow, maps:get(old_cash_flow_inverted, Plan)),
+    NewCashFlow = ff_cash_flow_codec:marshal(final_cash_flow, maps:get(new_cash_flow, Plan)),
     #dep_adj_CashFlowChangePlan{
-        old_cash_flow_inverted = marshal(final_cash_flow, maps:get(old_cash_flow_inverted, Plan)),
-        new_cash_flow = marshal(final_cash_flow, maps:get(new_cash_flow, Plan))
+        old_cash_flow_inverted = OldCashFLow,
+        new_cash_flow = NewCashFlow
     };
 marshal(status_change_plan, Plan) ->
     #dep_adj_StatusChangePlan{
@@ -111,8 +113,8 @@ unmarshal(cash_flow_change_plan, Plan) ->
     OldCashFlow = Plan#dep_adj_CashFlowChangePlan.old_cash_flow_inverted,
     NewCashFlow = Plan#dep_adj_CashFlowChangePlan.new_cash_flow,
     #{
-        old_cash_flow_inverted => unmarshal(final_cash_flow, OldCashFlow),
-        new_cash_flow => unmarshal(final_cash_flow, NewCashFlow)
+        old_cash_flow_inverted => ff_cash_flow_codec:unmarshal(final_cash_flow, OldCashFlow),
+        new_cash_flow => ff_cash_flow_codec:unmarshal(final_cash_flow, NewCashFlow)
     };
 unmarshal(status_change_plan, Plan) ->
     Status = Plan#dep_adj_StatusChangePlan.new_status,

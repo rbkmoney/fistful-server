@@ -25,6 +25,10 @@
 -export([unknown_test/1]).
 -export([get_context_test/1]).
 -export([get_events_test/1]).
+-export([create_adjustment_ok_test/1]).
+-export([create_adjustment_unavailable_status_error_test/1]).
+-export([create_adjustment_already_has_status_error_test/1]).
+-export([withdrawal_state_content_test/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -50,7 +54,11 @@ groups() ->
             create_wallet_notfound_test,
             unknown_test,
             get_context_test,
-            get_events_test
+            get_events_test,
+            create_adjustment_ok_test,
+            create_adjustment_unavailable_status_error_test,
+            create_adjustment_already_has_status_error_test,
+            withdrawal_state_content_test
         ]}
     ].
 
@@ -271,6 +279,93 @@ get_events_test(C) ->
     EncodedEvents = lists:map(fun ff_withdrawal_codec:marshal_event/1, ExpectedEvents),
     ?assertEqual(EncodedEvents, Events).
 
+-spec create_adjustment_ok_test(config()) -> test_return().
+create_adjustment_ok_test(C) ->
+    #{
+        withdrawal_id := WithdrawalID
+    } = prepare_standard_environment_with_withdrawal(C),
+    AdjustmentID = generate_id(),
+    ExternalID = generate_id(),
+    Params = #wthd_adj_AdjustmentParams{
+        id = AdjustmentID,
+        change = {change_status, #wthd_adj_ChangeStatusRequest{
+            new_status = {failed, #wthd_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+        }},
+        external_id = ExternalID
+    },
+    {ok, AdjustmentState} = call_service(withdrawal, 'CreateAdjustment', [WithdrawalID, Params]),
+    ExpectedAdjustment = get_adjustment(WithdrawalID, AdjustmentID),
+
+    Adjustment = AdjustmentState#wthd_adj_AdjustmentState.adjustment,
+    ?assertEqual(AdjustmentID, Adjustment#wthd_adj_Adjustment.id),
+    ?assertEqual(ExternalID, Adjustment#wthd_adj_Adjustment.external_id),
+    ?assertEqual(
+        ff_adjustment:created_at(ExpectedAdjustment),
+        ff_codec:unmarshal(timestamp_ms, Adjustment#wthd_adj_Adjustment.created_at)
+    ),
+    ?assertEqual(
+        ff_adjustment:domain_revision(ExpectedAdjustment),
+        Adjustment#wthd_adj_Adjustment.domain_revision
+    ),
+    ?assertEqual(
+        ff_adjustment:party_revision(ExpectedAdjustment),
+        Adjustment#wthd_adj_Adjustment.party_revision
+    ),
+    ?assertEqual(
+        ff_withdrawal_adjustment_codec:marshal(changes_plan, ff_adjustment:changes_plan(ExpectedAdjustment)),
+        Adjustment#wthd_adj_Adjustment.changes_plan
+    ).
+
+-spec create_adjustment_unavailable_status_error_test(config()) -> test_return().
+create_adjustment_unavailable_status_error_test(C) ->
+    #{
+        withdrawal_id := WithdrawalID
+    } = prepare_standard_environment_with_withdrawal(C),
+    Params = #wthd_adj_AdjustmentParams{
+        id = generate_id(),
+        change = {change_status, #wthd_adj_ChangeStatusRequest{
+            new_status = {pending, #wthd_status_Pending{}}
+        }}
+    },
+    Result = call_service(withdrawal, 'CreateAdjustment', [WithdrawalID, Params]),
+    ExpectedError = #wthd_ForbiddenStatusChange{
+        target_status = {pending, #wthd_status_Pending{}}
+    },
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec create_adjustment_already_has_status_error_test(config()) -> test_return().
+create_adjustment_already_has_status_error_test(C) ->
+    #{
+        withdrawal_id := WithdrawalID
+    } = prepare_standard_environment_with_withdrawal(C),
+    Params = #wthd_adj_AdjustmentParams{
+        id = generate_id(),
+        change = {change_status, #wthd_adj_ChangeStatusRequest{
+            new_status = {succeeded, #wthd_status_Succeeded{}}
+        }}
+    },
+    Result = call_service(withdrawal, 'CreateAdjustment', [WithdrawalID, Params]),
+    ExpectedError = #wthd_AlreadyHasStatus{
+        withdrawal_status = {succeeded, #wthd_status_Succeeded{}}
+    },
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec withdrawal_state_content_test(config()) -> test_return().
+withdrawal_state_content_test(C) ->
+    #{
+        withdrawal_id := WithdrawalID
+    } = prepare_standard_environment_with_withdrawal(C),
+    Params = #wthd_adj_AdjustmentParams{
+        id = generate_id(),
+        change = {change_status, #wthd_adj_ChangeStatusRequest{
+            new_status = {failed, #wthd_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+        }}
+    },
+    {ok, _AdjustmentState} = call_service(withdrawal, 'CreateAdjustment', [WithdrawalID, Params]),
+    {ok, WithdrawalState} = call_service(withdrawal, 'Get', [WithdrawalID, #'EventRange'{}]),
+    ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.sessions),
+    ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.adjustments).
+
 %%  Internals
 
 call_service(withdrawal, Fun, Args) ->
@@ -354,6 +449,10 @@ get_withdrawal(WithdrawalID) ->
 
 get_withdrawal_status(WithdrawalID) ->
     ff_withdrawal:status(get_withdrawal(WithdrawalID)).
+
+get_adjustment(WithdrawalID, AdjustmentID) ->
+    {ok, Adjustment} = ff_withdrawal:find_adjustment(AdjustmentID, get_withdrawal(WithdrawalID)),
+    Adjustment.
 
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(

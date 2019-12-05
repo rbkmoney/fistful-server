@@ -567,9 +567,6 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {party, not_found}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such party">>));
-        {error, {p2p_tool,   not_allowed}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Sender/Receiver resource not allowed">>));
         {error, {cash_flow, volume_finalize_error}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Cash flow term error">>));
@@ -598,7 +595,7 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Token is owned by other party">>))
     end;
-process_request('GetP2PTransfer', #{'p2pTransferID' := ID}, Context, _Opts) ->
+process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_p2p_transfer(ID, Context) of
         {ok, P2PTransfer} ->
             wapi_handler_utils:reply_ok(200, P2PTransfer);
@@ -606,6 +603,24 @@ process_request('GetP2PTransfer', #{'p2pTransferID' := ID}, Context, _Opts) ->
             wapi_handler_utils:reply_ok(404);
         {error, {p2p_transfer, not_found}} ->
             wapi_handler_utils:reply_ok(404)
+    end;
+process_request('GetP2PTransferEvents', #{p2pTransferID := ID, continuationToken := CT}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_p2p_transfer_events({ID, CT}, Context) of
+        {ok, P2PTransferEvents} ->
+            wapi_handler_utils:reply_ok(200, P2PTransferEvents);
+        {error, {p2p_transfer, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {p2p_transfer, not_found}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {token, not_match}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Token isn't recognized">>));
+        {error, {token, not_decodable}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Token can't be decoded">>));
+        {error, {token, not_verified}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>))
     end.
 
 %% Internal functions

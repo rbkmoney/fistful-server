@@ -58,6 +58,7 @@
 -export([quote_p2p_transfer/2]).
 -export([create_p2p_transfer/2]).
 -export([get_p2p_transfer/2]).
+-export([get_p2p_transfer_events/2]).
 
 %% Types
 
@@ -223,7 +224,7 @@ get_identity_challenge_events(Params = #{
         (_) ->
             false
     end,
-    get_events({identity, challenge_event}, IdentityId, Limit, Cursor, Filter, Context).
+    get_swag_events({identity, challenge_event}, IdentityId, Limit, Cursor, Filter, Context).
 
 -spec get_identity_challenge_event(params(), ctx()) -> result(map(),
     {identity, notfound}     |
@@ -383,7 +384,7 @@ get_withdrawal_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limi
         (_) ->
             false
     end,
-    get_events({withdrawal, event}, WithdrawalId, Limit, Cursor, Filter, Context).
+    get_swag_events({withdrawal, event}, WithdrawalId, Limit, Cursor, Filter, Context).
 
 -spec get_withdrawal_event(id(), integer(), ctx()) -> result(map(),
     {withdrawal, unauthorized} |
@@ -680,7 +681,7 @@ quote_p2p_transfer(Params, Context) ->
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     {identity,   not_found} |
     {party, not_found} |
-    {p2p_tool, not_allowed} |
+    {p2p_tool, not_allow} |
     {currency, not_allowed} |
     {cash_flow, volume_finalize_error} |
     {sender, not_found} |
@@ -717,16 +718,14 @@ create_p2p_transfer(Params, Context) ->
             external_id => ExternalID
         },
         TransferContext = #{
-            metadata => Metadata,
-            party_id => PartyID
+            <<"metadata">> => Metadata,
+            <<"party_id">> => PartyID
         },
         case p2p_transfer_machine:create(CreateParams, TransferContext) of
             ok ->
-                {ok, P2PTransferState} = p2p_transfer_machine:get(Id),
+                {ok, P2PTransferState} = do_get_state(p2p_transfer, Id),
                 P2PTransfer = p2p_transfer_machine:p2p_transfer(P2PTransferState),
                 to_swag(p2p_transfer, {P2PTransfer, Metadata});
-            {error, {p2p_tool, not_allow}} ->
-                throw({p2p_tool, not_allow});
             {error, {identity, notfound}} ->
                 throw({identity, notfound});
             {error, {cash_flow, _VolumeFinalizeError}} ->
@@ -744,20 +743,46 @@ create_p2p_transfer(Params, Context) ->
 ).
 get_p2p_transfer(ID, Context) ->
     do(fun () ->
-        PartyID = wapi_handler_utils:get_owner(Context),
-        case p2p_transfer_machine:get(ID) of
-            {ok, P2PTransferState} ->
-                case p2p_transfer_machine:ctx(P2PTransferState) of
-                    #{party_id := PartyID} = TransferContext ->
-                        P2PTransfer = p2p_transfer_machine:p2p_transfer(P2PTransferState),
-                        Metadata = maps:get(metadata, TransferContext),
-                        to_swag(p2p_transfer, {P2PTransfer, Metadata});
-                    _ ->
-                        throw({p2p_transfer, unauthorized})
-                end;
-            {error, {unknown_p2p_transfer, ID}} ->
-                throw({p2p_transfer, not_found})
-        end
+        State = get_state(p2p_transfer, ID, Context),
+        P2PTransfer = p2p_transfer_machine:p2p_transfer(State),
+        TransferContext = p2p_transfer_machine:ctx(State),
+        Metadata = maps:get(<<"metadata">>, TransferContext),
+        to_swag(p2p_transfer, {P2PTransfer, Metadata})
+    end).
+
+-spec get_p2p_transfer_events({id(), binary()}, ctx()) -> result(map(),
+    {p2p_transfer, unauthorized} |
+    {p2p_transfer, not_found} |
+    {token, not_match} |
+    {token, not_decodable} |
+    {token, not_verified}
+).
+get_p2p_transfer_events({ID, CT}, Context) ->
+    do(fun () ->
+        DecodedCT = prepare_p2p_transfer_event_continuation_token(CT),
+        P2PTransferEventID = maps:get(p2p_transfer_event_id, DecodedCT, undefined),
+        P2PSessionEventID = maps:get(p2p_session_event_id, DecodedCT, undefined),
+        Limit = 1000,
+        Filter =
+            fun
+                ({_ID, {ev, _Timestamp, {EventType, _}}}) when
+                    EventType =:= status_changed;
+                    EventType =:= user_interaction ->
+                    true;
+                (_) ->
+                    false
+            end,
+        {ok, P2PTransferEvents} = get_events({p2p_transfer, event}, ID, Limit, P2PTransferEventID, Filter, Context),
+        {ok, P2PSessionEvents} = get_events({p2p_session, event}, ID, Limit, P2PSessionEventID, Filter, Context),
+        MixedEvents = mix_events([P2PTransferEvents, P2PSessionEvents]),
+
+        {P2PTransferEventsLastID, _} = lists:last(P2PTransferEvents),
+        {P2PSessionEventsLastID, _} = lists:last(P2PSessionEvents),
+        ContinuationToken = #{
+            p2p_transfer_event_id => P2PTransferEventsLastID,
+            p2p_session_event_id => P2PSessionEventsLastID
+        },
+        to_swag(p2p_transfer_events, {MixedEvents, ContinuationToken})
     end).
 
 %% Internal functions
@@ -891,8 +916,7 @@ decode_p2p_quote_token(Token) ->
                 receiver        => from_swag(compact_receiver_resource, Receiver)
             },
             {ok, {DecodedToken, PartyID}};
-        Decoded ->
-            logger:error("couldn't decode: ~p", [Decoded]),
+        _Decoded ->
             throw({token, not_match})
     catch
         _ ->
@@ -950,17 +974,74 @@ prepare_p2p_quote_token(Token, PartyID, Params) ->
             throw({token, wrong_party_id})
     end.
 
+create_p2p_transfer_events_continuation_token(#{
+    p2p_transfer_event_id := P2PTransferEventID,
+    p2p_session_event_id := P2PSessionEventID
+}) ->
+    DecodedToken = #{
+        <<"version">>               => 1,
+        <<"p2p_transfer_event_id">> => P2PTransferEventID,
+        <<"p2p_session_event_id">>  => P2PSessionEventID
+    },
+    EncodedToken = jsx:encode(DecodedToken),
+    wapi_signer:sign(EncodedToken).
+
+prepare_p2p_transfer_event_continuation_token(undefined) ->
+    #{};
+prepare_p2p_transfer_event_continuation_token(CT) ->
+    {ok, VerifiedCT} = verify_p2p_transfer_event_continuation_token(CT),
+    {ok, DecodedCT} = decode_p2p_transfer_event_continuation_token(VerifiedCT),
+    DecodedCT.
+
+verify_p2p_transfer_event_continuation_token(CT) ->
+    case wapi_signer:verify(CT) of
+        {ok, VerifiedToken} ->
+            {ok, VerifiedToken};
+        {error, _Error} ->
+            throw({token, not_verified})
+    end.
+
+decode_p2p_transfer_event_continuation_token(CT) ->
+    try jsx:decode(CT, [return_maps]) of
+        #{
+            <<"version">>               := 1,
+            <<"p2p_transfer_event_id">> := P2PTransferEventID,
+            <<"p2p_session_event_id">>  := P2PSessionEventID
+        } ->
+            DecodedToken = #{
+                p2p_transfer_event_id => P2PTransferEventID,
+                p2p_session_event_id => P2PSessionEventID
+            },
+            {ok, DecodedToken};
+        _Decoded ->
+            throw({token, not_match})
+    catch
+        _ ->
+            throw({token, not_decodable})
+    end.
+
+mix_events(ListOfListOfEvents) ->
+    AppendedEvents = lists:append(ListOfListOfEvents),
+    Comparison =
+        fun ({_ID, {ev, FirstTimestamp, _Event}}, {_ID, {ev, SecondTimestamp, _Event}}) when
+            FirstTimestamp =< SecondTimestamp->
+                true;
+            (_, _) ->
+                false
+        end,
+    lists:sort(Comparison, AppendedEvents).
+
 filter_identity_challenge_status(Filter, Status) ->
     maps:get(<<"status">>, to_swag(challenge_status, Status)) =:= Filter.
 
 get_event(Type, ResourceId, EventId, Mapper, Context) ->
-    case get_events(Type, ResourceId, 1, EventId - 1, Mapper, Context) of
+    case get_swag_events(Type, ResourceId, 1, EventId - 1, Mapper, Context) of
         {ok, [Event]}      -> {ok, Event};
         {ok, []}           -> {error, {event, notfound}};
         Error = {error, _} -> Error
     end.
 
-get_events(Type = {Resource, _}, ResourceId, Limit, Cursor, Filter, Context) ->
+get_swag_events(Type = {Resource, _}, ResourceId, Limit, Cursor, Filter, Context) ->
     do(fun() ->
         _ = check_resource(Resource, ResourceId, Context),
         to_swag(
@@ -969,13 +1050,23 @@ get_events(Type = {Resource, _}, ResourceId, Limit, Cursor, Filter, Context) ->
         )
     end).
 
+get_events(Type = {Resource, _}, ResourceId, Limit, Cursor, Filter, Context) ->
+    do(fun() ->
+        _ = check_resource(Resource, ResourceId, Context),
+        collect_events(get_collector(Type, ResourceId), Filter, Cursor, Limit)
+    end).
+
 get_event_type({identity, challenge_event}) -> identity_challenge_event;
 get_event_type({withdrawal, event})         -> withdrawal_event.
 
 get_collector({identity, challenge_event}, Id) ->
     fun(C, L) -> unwrap(ff_identity_machine:events(Id, {C, L, forward})) end;
 get_collector({withdrawal, event}, Id) ->
-    fun(C, L) -> unwrap(ff_withdrawal_machine:events(Id, {C, L, forward})) end.
+    fun(C, L) -> unwrap(ff_withdrawal_machine:events(Id, {C, L, forward})) end;
+get_collector({p2p_transfer, event}, Id) ->
+    fun(C, L) -> unwrap(p2p_transfer_machine:events(Id, {C, L, forward})) end;
+get_collector({p2p_session, event}, Id) ->
+    fun(C, L) -> unwrap(p2p_session_machine:events(Id, {C, L, forward})) end.
 
 collect_events(Collector, Filter, Cursor, Limit) ->
     collect_events(Collector, Filter, Cursor, Limit, []).
@@ -1012,10 +1103,11 @@ get_state(Resource, Id, Context) ->
     ok    = unwrap(Resource, check_resource_access(Context, State)),
     State.
 
-do_get_state(identity,    Id) -> ff_identity_machine:get(Id);
-do_get_state(wallet,      Id) -> ff_wallet_machine:get(Id);
-do_get_state(destination, Id) -> ff_destination:get_machine(Id);
-do_get_state(withdrawal,  Id) -> ff_withdrawal_machine:get(Id).
+do_get_state(identity,     Id) -> ff_identity_machine:get(Id);
+do_get_state(wallet,       Id) -> ff_wallet_machine:get(Id);
+do_get_state(destination,  Id) -> ff_destination:get_machine(Id);
+do_get_state(withdrawal,   Id) -> ff_withdrawal_machine:get(Id);
+do_get_state(p2p_transfer, Id) -> p2p_transfer_machine:get(Id).
 
 check_resource(Resource, Id, Context) ->
     _ = get_state(Resource, Id, Context),
@@ -1633,6 +1725,79 @@ to_swag(identity_challenge_event_change, {status_changed, S}) ->
         #{<<"type">> => <<"IdentityChallengeStatusChanged">>},
         to_swag(challenge_status, S)
     ));
+
+to_swag(p2p_transfer_events, {Events, ContinuationToken}) ->
+    #{
+        <<"continuationToken">> => create_p2p_transfer_events_continuation_token(ContinuationToken),
+        <<"result">> => to_swag({lists, p2p_transfer_event}, Events)
+    };
+
+to_swag(p2p_transfer_event, {_ID, Ts, V}) ->
+    #{
+        <<"createdAt">> => to_swag(timestamp, Ts),
+        <<"change">>    => to_swag(p2p_transfer_event_change, V)
+    };
+
+to_swag(p2p_transfer_event_change, {status_changed, Status}) ->
+    ChangeType = #{
+        <<"changeType">> => <<"P2PTransferStatusChanged">>
+    },
+    TransferChange = to_swag(p2p_transfer_status, Status),
+    maps:merge(ChangeType, TransferChange);
+to_swag(p2p_transfer_event_change, {user_interaction, #{
+    id := ID,
+    payload := Payload
+}}) ->
+    #{
+        <<"changeType">> => <<"P2PTransferInteractionChanged">>,
+        <<"userInteractionID">> => ID,
+        <<"userInteractionChange">> => to_swag(p2p_transfer_user_interaction_change, Payload)
+    };
+
+to_swag(p2p_transfer_user_interaction_change, {created, #{
+    version := 1,
+    content := Content
+}}) ->
+    #{
+        <<"changeType">> => <<"UserInteractionCreated">>,
+        <<"userInteraction">> => to_swag(p2p_transfer_user_interaction, Content)
+    };
+to_swag(p2p_transfer_user_interaction_change, {status_changed, finished}) ->
+    #{
+        <<"changeType">> => <<"UserInteractionFinished">>
+    };
+
+to_swag(p2p_transfer_user_interaction, {redirect, #{
+    content := Redirect
+}}) ->
+    #{
+        <<"interactionType">> => <<"Redirect">>,
+        <<"request">> => to_swag(browser_request, Redirect)
+    };
+
+to_swag(browser_request, {get, URI}) ->
+    #{
+        <<"requestType">> => <<"BrowserGetRequest">>,
+        <<"uriTemplate">> => URI
+    };
+to_swag(browser_request, {post, URI, Form}) ->
+    #{
+        <<"requestType">> => <<"BrowserPostRequest">>,
+        <<"uriTemplate">> => URI,
+        <<"form">> => to_swag(user_interaction_form, Form)
+    };
+
+to_swag(user_interaction_form, Form) ->
+    maps:fold(
+        fun (Key, Template, AccIn) ->
+            FormField = #{
+                <<"key">> => Key,
+                <<"template">> => Template
+            },
+            AccIn ++ FormField
+        end,
+        [], Form
+    );
 
 to_swag(wallet, State) ->
     Wallet = ff_wallet_machine:wallet(State),

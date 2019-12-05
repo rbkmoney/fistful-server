@@ -601,7 +601,7 @@ process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
             wapi_handler_utils:reply_ok(200, P2PTransfer);
         {error, {p2p_transfer, unauthorized}} ->
             wapi_handler_utils:reply_ok(404);
-        {error, {p2p_transfer, not_found}} ->
+        {error, {p2p_transfer, {unknown_p2p_transfer, _ID}}} ->
             wapi_handler_utils:reply_ok(404)
     end;
 process_request('GetP2PTransferEvents', #{p2pTransferID := ID, continuationToken := CT}, Context, _Opts) ->

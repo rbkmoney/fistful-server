@@ -1029,9 +1029,12 @@ maybe_get_session_events(TransferID, Limit, P2PSessionEventID, Context) ->
         end,
     case maps:get(session, P2PTransfer, undefined) of
         #{id := SessionID} ->
-            {ok, P2PSessionEvents} =
-                get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context),
-            P2PSessionEvents;
+            case get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context) of
+                {ok, P2PSessionEvents} ->
+                    P2PSessionEvents;
+                {error, notfound} ->
+                    []
+            end;
         undefined ->
             []
     end
@@ -1733,10 +1736,10 @@ to_swag(identity_challenge_event_change, {status_changed, S}) ->
 to_swag(p2p_transfer_events, {Events, ContinuationToken}) ->
     #{
         <<"continuationToken">> => create_p2p_transfer_events_continuation_token(ContinuationToken),
-        <<"result">> => to_swag({lists, p2p_transfer_event}, Events)
+        <<"result">> => to_swag({list, p2p_transfer_event}, Events)
     };
 
-to_swag(p2p_transfer_event, {_ID, Ts, V}) ->
+to_swag(p2p_transfer_event, {_ID, {ev, Ts, V}}) ->
     #{
         <<"createdAt">> => to_swag(timestamp, Ts),
         <<"change">>    => to_swag(p2p_transfer_event_change, V)

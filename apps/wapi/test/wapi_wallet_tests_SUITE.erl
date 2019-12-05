@@ -563,7 +563,7 @@ get_p2p_transfer_events_ok_test(C) ->
         },
         ct_helper:cfg(context, C)
     ),
-    {ok, _} = call_api(
+    {ok, #{<<"result">> := []}} = call_api(
         fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
         #{
             binding => #{
@@ -571,7 +571,8 @@ get_p2p_transfer_events_ok_test(C) ->
             }
         },
         ct_helper:cfg(context, C)
-    ).
+    ),
+    ok = await_status_changed_events(TransferID, C).
 
 %%
 
@@ -621,3 +622,33 @@ create_bank_card_token(BankCard) ->
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => genlib_map:get(masked_pan, BankCard)
     })).
+
+await_status_changed_events(TransferID, C) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            Result = call_api(
+                fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
+                #{
+                    binding => #{
+                        <<"p2pTransferID">> => TransferID
+                    }
+                },
+                ct_helper:cfg(context, C)
+            ),
+            case Result of
+                {ok, #{<<"result">> := []}} ->
+                    not_finished;
+                {ok, [#{
+                    <<"change">> := #{
+                        <<"changeType">> := <<"P2PTransferStatusChanged">>,
+                        <<"status">> := <<"Succeeded">>
+                    },
+                    <<"createdAt">> := _Datetime
+                }]} ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok.

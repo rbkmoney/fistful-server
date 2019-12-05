@@ -25,6 +25,7 @@
 -export([get_identity_challenge_event/2]).
 
 -export([get_wallet/2]).
+-export([get_wallet_by_external_id/2]).
 -export([create_wallet/2]).
 -export([get_wallet_account/2]).
 -export([list_wallets/2]).
@@ -246,6 +247,16 @@ get_identity_challenge_event(#{
 ).
 get_wallet(WalletID, Context) ->
     do(fun() -> to_swag(wallet, get_state(wallet, WalletID, Context)) end).
+
+-spec get_wallet_by_external_id(external_id(), ctx()) -> result(map(),
+    {wallet, notfound}     |
+    {wallet, unauthorized}
+).
+get_wallet_by_external_id(ExternalID, #{woody_context := WoodyCtx} = Context) ->
+    case bender_client:get_internal_id(ExternalID, WoodyCtx) of
+        {ok, WalletID, _Ctx} -> get_wallet(WalletID, Context);
+        {error, internal_id_not_found} -> {error, {wallet, notfound}}
+    end.
 
 -spec create_wallet(params(), ctx()) -> result(map(),
     invalid                  |

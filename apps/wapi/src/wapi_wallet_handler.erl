@@ -177,6 +177,12 @@ process_request('GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
         {error, {wallet, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
+process_request('GetWalletByExternalID', #{externalID := ExternalID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_wallet_by_external_id(ExternalID, Context) of
+        {ok, Wallet}                    -> wapi_handler_utils:reply_ok(200, Wallet);
+        {error, {wallet, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
+    end;
 process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
     case wapi_wallet_ff_backend:create_wallet(Params, Context) of
         {ok, Wallet = #{<<"id">> := WalletId}} ->

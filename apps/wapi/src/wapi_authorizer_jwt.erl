@@ -235,6 +235,7 @@ sign(#{kid := KID, jwk := JWK, signer := #{} = JWS}, Claims) ->
             badarg |
             {badarg, term()} |
             {missing, atom()} |
+            % expired |
             {malformed_acl, term()}
         } |
         {nonexistent_key, kid()} |
@@ -252,6 +253,7 @@ verify(Token) ->
             badarg |
             {badarg, term()} |
             {missing, atom()} |
+            % expired |
             {malformed_acl, term()}
         } |
         {nonexistent_key, kid()} |
@@ -333,12 +335,30 @@ get_validators() ->
     [
         {token_id   , <<"jti">> , fun check_presence/2},
         {subject_id , <<"sub">> , fun check_presence/2}
+        % TODO: temporarily disabled
+        %       might make a comeback if we will be able
+        %       to issue long-term tokens
+        % {expires_at , <<"exp">> , fun check_expiration/2}
     ].
 
 check_presence(_, V) when is_binary(V) ->
     V;
 check_presence(C, undefined) ->
     throw({invalid_token, {missing, C}}).
+
+% check_expiration(_, Exp = 0) ->
+%     Exp;
+% check_expiration(_, Exp) when is_integer(Exp) ->
+%     case genlib_time:unow() of
+%         Now when Exp > Now ->
+%             Exp;
+%         _ ->
+%             throw({invalid_token, expired})
+%     end;
+% check_expiration(C, undefined) ->
+%     throw({invalid_token, {missing, C}});
+% check_expiration(C, V) ->
+%     throw({invalid_token, {badarg, {C, V}}}).
 
 %%
 

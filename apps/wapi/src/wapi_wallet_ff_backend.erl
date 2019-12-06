@@ -252,7 +252,7 @@ get_wallet(WalletID, Context) ->
     {wallet, notfound}     |
     {wallet, unauthorized}
 ).
-get_wallet_by_external_id(ExternalID, #{woody_context := _WoodyCtx} = Context) ->
+get_wallet_by_external_id(ExternalID, Context) ->
     AuthContext = wapi_handler_utils:get_auth_context(Context),
     PartyID = get_party_id(AuthContext),
     case ff_external_id:get_ff_internal_id(wallet, PartyID, ExternalID) of

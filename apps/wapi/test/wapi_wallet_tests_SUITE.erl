@@ -3,6 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
+-include_lib("damsel/include/dmsl_p2p_adapter_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
@@ -44,6 +45,8 @@
 
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
+
+-define(CALLBACK(Tag, Payload), #p2p_adapter_Callback{tag = Tag, payload = Payload}).
 
 -type test_case_name()  :: atom().
 -type config()          :: [{atom(), any()}].
@@ -537,18 +540,19 @@ get_p2p_transfer_not_found_test(C) ->
 -spec get_p2p_transfer_events_ok_test(config()) ->
     _.
 get_p2p_transfer_events_ok_test(C) ->
-    SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
-    ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    Token = create_token_with_prefix(<<"token_interaction_">>),
+    SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C), Token),
+    ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C), Token),
     #{
         identity_id := IdentityID
-    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    } = p2p_tests_utils:prepare_standard_environment({101, ?RUB}, C),
     {ok, #{<<"id">> := TransferID}} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
             body => #{
                 <<"identityID">> => IdentityID,
                 <<"body">> => #{
-                    <<"amount">> => ?INTEGER,
+                    <<"amount">> => 101,
                     <<"currency">> => ?RUB
                 },
                 <<"sender">> => #{
@@ -572,7 +576,10 @@ get_p2p_transfer_events_ok_test(C) ->
         },
         ct_helper:cfg(context, C)
     ),
-    ok = await_status_changed_events(TransferID, C).
+%%    Callback = ?CALLBACK(Token, <<"payload">>),
+    ok = await_user_interaction_created_events(TransferID, C),
+%%    _ = call_p2p_adapter(Callback),
+    ok = await_successful_transfer_events(TransferID, C).
 
 %%
 
@@ -615,15 +622,26 @@ issue_token(PartyID, ACL, LifeTime) ->
     {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
     Token.
 
+create_token_with_prefix(TokenPrefix) ->
+    TokenRandomised = generate_id(),
+    <<TokenPrefix/binary, TokenRandomised/binary>>.
+
 create_bank_card_token(BankCard) ->
+    Token = maps:get(token, BankCard),
+    create_bank_card_token(BankCard, Token).
+
+create_bank_card_token(BankCard, Token) ->
     wapi_utils:map_to_base64url(genlib_map:compact(#{
-        <<"token">>         => maps:get(token, BankCard),
+        <<"token">>         => Token,
         <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => genlib_map:get(masked_pan, BankCard)
     })).
 
-await_status_changed_events(TransferID, C) ->
+generate_id() ->
+    ff_id:generate_snowflake_id().
+
+await_user_interaction_created_events(TransferID, C) ->
     finished = ct_helper:await(
         finished,
         fun () ->
@@ -637,16 +655,82 @@ await_status_changed_events(TransferID, C) ->
                 ct_helper:cfg(context, C)
             ),
             case Result of
-                {ok, #{<<"result">> := []}} ->
-                    not_finished;
-                {ok, [#{
-                    <<"change">> := #{
-                        <<"changeType">> := <<"P2PTransferStatusChanged">>,
-                        <<"status">> := <<"Succeeded">>
+                {ok, #{<<"result">> := [
+                    #{
+                        <<"change">> := #{
+                            <<"changeType">> := <<"P2PTransferInteractionChanged">>,
+                            <<"userInteractionChange">> := #{
+                                <<"changeType">> := <<"UserInteractionCreated">>,
+                                <<"userInteraction">> := #{
+                                    <<"interactionType">> := <<"Redirect">>,
+                                    <<"request">> := #{
+                                        <<"requestType">> := <<"BrowserGetRequest">>,
+                                        <<"uriTemplate">> := <<"uri">>
+                                    }
+                                }
+                            },
+                            <<"userInteractionID">> := <<"test_user_interaction">>
+                        }
+                    } | _]}} ->
+                    finished;
+                {ok, #{<<"result">> := FinalWrongResult}} ->
+                    {not_finished, FinalWrongResult}
+            end
+        end,
+        genlib_retry:linear(15, 1000)
+    ),
+    ok.
+
+await_successful_transfer_events(TransferID, C) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            Result = call_api(
+                fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
+                #{
+                    binding => #{
+                        <<"p2pTransferID">> => TransferID
+                    }
+                },
+                ct_helper:cfg(context, C)
+            ),
+            case Result of
+                {ok, #{<<"result">> := [
+                    #{
+                        <<"change">> := #{
+                            <<"changeType">> := <<"P2PTransferInteractionChanged">>,
+                            <<"userInteractionChange">> := #{
+                                <<"changeType">> := <<"UserInteractionCreated">>,
+                                <<"userInteraction">> := #{
+                                    <<"interactionType">> := <<"Redirect">>,
+                                    <<"request">> := #{
+                                        <<"requestType">> := <<"BrowserGetRequest">>,
+                                        <<"uriTemplate">> := <<"uri">>
+                                    }
+                                }
+                            },
+                            <<"userInteractionID">> := <<"test_user_interaction">>
+                        }
                     },
-                    <<"createdAt">> := _Datetime
-                }]} ->
-                    finished
+                    #{
+                        <<"change">> := #{
+                            <<"changeType">> := <<"P2PTransferInteractionChanged">>,
+                            <<"userInteractionChange">> := #{
+                                <<"changeType">> := <<"UserInteractionFinished">>
+                            },
+                            <<"userInteractionID">> := <<"test_user_interaction">>
+                        }
+                    },
+                    #{
+                        <<"change">> := #{
+                            <<"changeType">> := <<"P2PTransferStatusChanged">>,
+                            <<"status">> := <<"Succeeded">>
+                        }
+                    }
+                    ]}} ->
+                    finished;
+                {ok, #{<<"result">> := FinalWrongResult}} ->
+                    {not_finished, FinalWrongResult}
             end
         end,
         genlib_retry:linear(15, 1000)

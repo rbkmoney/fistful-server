@@ -1000,11 +1000,20 @@ maybe_decode_event_id(Num) when is_integer(Num) ->
 mix_events(ListOfListOfEvents) ->
     AppendedEvents = lists:append(ListOfListOfEvents),
     Comparison =
-        fun ({_ID, {ev, FirstTimestamp, _Event}}, {_ID, {ev, SecondTimestamp, _Event}}) when
-            FirstTimestamp =< SecondTimestamp->
-                true;
-            (_, _) ->
-                false
+        fun({_FirstID, {ev, {FirstTimestamp, FirstUsec}, _FirstEvent}},
+            {_SecondID, {ev, {SecondTimestamp, SecondUsec}, _SecondEvent}}) ->
+            FTs = calendar:datetime_to_gregorian_seconds(FirstTimestamp),
+            STs = calendar:datetime_to_gregorian_seconds(SecondTimestamp),
+            case FTs of
+                _ when FTs < STs ->
+                    true;
+                _ when FTs =:= STs, FirstUsec < SecondUsec ->
+                    true;
+                _ when FTs =:= STs, FirstUsec =:= SecondUsec ->
+                    true;
+                _ ->
+                    false
+            end
         end,
     lists:sort(Comparison, AppendedEvents).
 
@@ -1021,22 +1030,21 @@ maybe_get_session_events(TransferID, Limit, P2PSessionEventID, Context) ->
     P2PTransfer = p2p_transfer_machine:p2p_transfer(get_state(p2p_transfer, TransferID, Context)),
     Filter =
         fun
+            ({_ID, {ev, _Timestamp, {user_interaction, #{payload := {status_changed, pending}}}}})->
+                false;
             ({_ID, {ev, _Timestamp, {EventType, _}}}) when
                 EventType =:= user_interaction ->
                 true;
             (_) ->
                 false
         end,
-    case maps:get(session, P2PTransfer, undefined) of
-        #{id := SessionID} ->
-            case get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context) of
-                {ok, P2PSessionEvents} ->
-                    P2PSessionEvents;
-                {error, notfound} ->
-                    []
-            end;
+    case p2p_transfer:session_id(P2PTransfer) of
         undefined ->
-            []
+            [];
+        SessionID ->
+            {ok, P2PSessionEvents} =
+                get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context),
+            P2PSessionEvents
     end
 .
 
@@ -1104,6 +1112,9 @@ enrich_proofs(Proofs, Context) ->
 enrich_proof({_, Token}, Context) ->
     wapi_privdoc_backend:get_proof(Token, Context).
 
+get_state(p2p_session, Id, _Context) ->
+    State = unwrap(p2p_session, do_get_state(p2p_session, Id)),
+    State;
 get_state(Resource, Id, Context) ->
     State = unwrap(Resource, do_get_state(Resource, Id)),
     ok    = unwrap(Resource, check_resource_access(Context, State)),

@@ -119,7 +119,7 @@ create_withdrawal_ok_test(C) ->
         body = Cash,
         external_id = ExternalID
     },
-    {ok, WithdrawalState} = call_service(withdrawal, 'Create', [Params, Ctx]),
+    {ok, WithdrawalState} = call_withdrawal('Create', [Params, Ctx]),
 
     Withdrawal = WithdrawalState#wthd_WithdrawalState.withdrawal,
     ?assertEqual(WithdrawalID, Withdrawal#wthd_Withdrawal.id),
@@ -130,7 +130,7 @@ create_withdrawal_ok_test(C) ->
     ?assertEqual(Ctx, WithdrawalState#wthd_WithdrawalState.context),
 
     succeeded = await_final_withdrawal_status(WithdrawalID),
-    {ok, FinalWithdrawalState} = call_service(withdrawal, 'Get', [WithdrawalID, #'EventRange'{}]),
+    {ok, FinalWithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
     ?assertMatch(
         {succeeded, _},
         (FinalWithdrawalState#wthd_WithdrawalState.withdrawal)#wthd_Withdrawal.status
@@ -149,7 +149,7 @@ create_cashlimit_validation_error_test(C) ->
         destination_id = DestinationID,
         body = make_cash({20000000, <<"RUB">>})
     },
-    Result = call_service(withdrawal, 'Create', [Params, #{}]),
+    Result = call_withdrawal('Create', [Params, #{}]),
     ExpectedError = #fistful_ForbiddenOperationAmount{
         amount = make_cash({20000000, <<"RUB">>}),
         allowed_range = #'CashRange'{
@@ -172,7 +172,7 @@ create_currency_validation_error_test(C) ->
         destination_id = DestinationID,
         body = Cash
     },
-    Result = call_service(withdrawal, 'Create', [Params, #{}]),
+    Result = call_withdrawal('Create', [Params, #{}]),
     ExpectedError = #fistful_ForbiddenOperationCurrency{
         currency = #'CurrencyRef'{symbolic_code = <<"USD">>},
         allowed_currencies = [
@@ -194,7 +194,7 @@ create_inconsistent_currency_validation_error_test(C) ->
         destination_id = DestinationID,
         body = make_cash({100, <<"RUB">>})
     },
-    Result = call_service(withdrawal, 'Create', [Params, #{}]),
+    Result = call_withdrawal('Create', [Params, #{}]),
     ExpectedError = #wthd_InconsistentWithdrawalCurrency{
         withdrawal_currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         destination_currency = #'CurrencyRef'{symbolic_code = <<"USD">>},
@@ -215,7 +215,7 @@ create_destination_resource_notfound_test(C) ->
         destination_id = DestinationID,
         body = Cash
     },
-    Result = call_service(withdrawal, 'Create', [Params, #{}]),
+    Result = call_withdrawal('Create', [Params, #{}]),
     ExpectedError = #wthd_NoDestinationResourceInfo{},
     ?assertEqual({exception, ExpectedError}, Result).
 
@@ -231,7 +231,7 @@ create_destination_notfound_test(C) ->
         destination_id = <<"unknown_destination">>,
         body = Cash
     },
-    Result = call_service(withdrawal, 'Create', [Params, #{}]),
+    Result = call_withdrawal('Create', [Params, #{}]),
     ExpectedError = #fistful_DestinationNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
@@ -247,14 +247,14 @@ create_wallet_notfound_test(C) ->
         destination_id = DestinationID,
         body = Cash
     },
-    Result = call_service(withdrawal, 'Create', [Params, #{}]),
+    Result = call_withdrawal('Create', [Params, #{}]),
     ExpectedError = #fistful_WalletNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
     WithdrawalID = <<"unknown_withdrawal">>,
-    Result = call_service(withdrawal, 'Get', [WithdrawalID, #'EventRange'{}]),
+    Result = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
     ExpectedError = #fistful_WithdrawalNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
@@ -264,7 +264,7 @@ get_context_test(C) ->
         withdrawal_id := WithdrawalID,
         context := Context
     } = prepare_standard_environment_with_withdrawal(C),
-    {ok, EncodedContext} = call_service(withdrawal, 'GetContext', [WithdrawalID]),
+    {ok, EncodedContext} = call_withdrawal('GetContext', [WithdrawalID]),
     ?assertEqual(Context, ff_entity_context_codec:unmarshal(EncodedContext)).
 
 -spec get_events_test(config()) -> test_return().
@@ -274,7 +274,7 @@ get_events_test(C) ->
     } = prepare_standard_environment_with_withdrawal(C),
     Range = {undefined, undefined},
     EncodedRange = ff_codec:marshal(event_range, Range),
-    {ok, Events} = call_service(withdrawal, 'GetEvents', [WithdrawalID, EncodedRange]),
+    {ok, Events} = call_withdrawal('GetEvents', [WithdrawalID, EncodedRange]),
     {ok, ExpectedEvents} = ff_withdrawal_machine:events(WithdrawalID, Range),
     EncodedEvents = lists:map(fun ff_withdrawal_codec:marshal_event/1, ExpectedEvents),
     ?assertEqual(EncodedEvents, Events).
@@ -293,7 +293,7 @@ create_adjustment_ok_test(C) ->
         }},
         external_id = ExternalID
     },
-    {ok, AdjustmentState} = call_service(withdrawal, 'CreateAdjustment', [WithdrawalID, Params]),
+    {ok, AdjustmentState} = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
     ExpectedAdjustment = get_adjustment(WithdrawalID, AdjustmentID),
 
     Adjustment = AdjustmentState#wthd_adj_AdjustmentState.adjustment,
@@ -327,7 +327,7 @@ create_adjustment_unavailable_status_error_test(C) ->
             new_status = {pending, #wthd_status_Pending{}}
         }}
     },
-    Result = call_service(withdrawal, 'CreateAdjustment', [WithdrawalID, Params]),
+    Result = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
     ExpectedError = #wthd_ForbiddenStatusChange{
         target_status = {pending, #wthd_status_Pending{}}
     },
@@ -344,7 +344,7 @@ create_adjustment_already_has_status_error_test(C) ->
             new_status = {succeeded, #wthd_status_Succeeded{}}
         }}
     },
-    Result = call_service(withdrawal, 'CreateAdjustment', [WithdrawalID, Params]),
+    Result = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
     ExpectedError = #wthd_AlreadyHasStatus{
         withdrawal_status = {succeeded, #wthd_status_Succeeded{}}
     },
@@ -361,37 +361,18 @@ withdrawal_state_content_test(C) ->
             new_status = {failed, #wthd_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
         }}
     },
-    {ok, _AdjustmentState} = call_service(withdrawal, 'CreateAdjustment', [WithdrawalID, Params]),
-    {ok, WithdrawalState} = call_service(withdrawal, 'Get', [WithdrawalID, #'EventRange'{}]),
+    {ok, _AdjustmentState} = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
+    {ok, WithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
     ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.sessions),
     ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.adjustments).
 
 %%  Internals
 
-call_service(withdrawal, Fun, Args) ->
-    Service = {ff_proto_withdrawal_thrift, 'Management'},
+call_withdrawal(Fun, Args) ->
+    ServiceName = withdrawal_management,
+    Service = ff_services:get_service(ServiceName),
     Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022/v1/withdrawal">>,
-        event_handler => scoper_woody_event_handler
-    }),
-    ff_woody_client:call(Client, Request);
-call_service(wallet, Fun, Args) ->
-    Service = {ff_proto_wallet_thrift, 'Management'},
-    Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022/v1/wallet">>,
-        event_handler => scoper_woody_event_handler
-    }),
-    ff_woody_client:call(Client, Request);
-call_service(destination, Fun, Args) ->
-    Service = {ff_proto_destination_thrift, 'Management'},
-    Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022/v1/destination">>,
-        event_handler => scoper_woody_event_handler
-    }),
-    ff_woody_client:call(Client, Request).
+    ff_woody_client:call(ServiceName, Request).
 
 prepare_standard_environment(Body, C) ->
     prepare_standard_environment(Body, undefined, C).
@@ -417,7 +398,7 @@ prepare_standard_environment(Body, Token, C) ->
 prepare_standard_environment_with_withdrawal(C) ->
     Cash = make_cash({1000, <<"RUB">>}),
     Env = prepare_standard_environment_with_withdrawal(Cash, C),
-    Env#{body => Env}.
+    Env#{body => Cash}.
 
 prepare_standard_environment_with_withdrawal(Cash, C) ->
     #{
@@ -435,7 +416,7 @@ prepare_standard_environment_with_withdrawal(Cash, C) ->
         body = Cash,
         external_id = ExternalID
     },
-    {ok, _WithdrawalState} = call_service(withdrawal, 'Create', [Params, EncodedContext]),
+    {ok, _WithdrawalState} = call_withdrawal('Create', [Params, EncodedContext]),
     succeeded = await_final_withdrawal_status(WithdrawalID),
     Env#{
         withdrawal_id => WithdrawalID,

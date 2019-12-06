@@ -18,7 +18,6 @@
 -export([idempotency_destination_conflict/1]).
 -export([idempotency_withdrawal_ok/1]).
 -export([idempotency_withdrawal_conflict/1]).
--export([bender_to_fistful_sync/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().

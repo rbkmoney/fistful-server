@@ -1,5 +1,13 @@
 service_name: machinegun
 
+# Erlang VM options.
+erlang:
+    # Path to a file which holds Erlang distribution cookie.
+    # The cookie is _sensitive_ piece of information so handle it with caution.
+    #
+    # Must be set, there's no default.
+    secret_cookie_file: "etc/cookie"
+
 namespaces:
 
   # Hellgate

@@ -90,13 +90,16 @@
 }.
 
 -type gen_args() :: #{
-    id            := id(),
-    body          := body(),
-    params        := params(),
-    transfer_type := withdrawal,
+    id              := id(),
+    body            := body(),
+    params          := params(),
+    transfer_type   := withdrawal,
 
-    status        => status(),
-    external_id   => external_id()
+    status          => status(),
+    external_id     => external_id(),
+    created_at      => ff_time:timestamp_ms(),
+    party_revision  => party_revision(),
+    domain_revision => domain_revision()
 }.
 
 -type limit_check_details() ::
@@ -334,7 +337,10 @@ created_at(T) ->
 -spec gen(gen_args()) ->
     withdrawal().
 gen(Args) ->
-    TypeKeys = [id, transfer_type, body, params, status, external_id],
+    TypeKeys = [
+        id, transfer_type, body, params, status, external_id,
+        domain_revision, party_revision, created_at
+    ],
     genlib_map:compact(maps:with(TypeKeys, Args)).
 
 -spec create(params()) ->

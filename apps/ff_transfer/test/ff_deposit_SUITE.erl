@@ -130,7 +130,7 @@ create_bad_amount_test(C) ->
         external_id   => generate_id()
     },
     Result = ff_deposit_machine:create(DepositParams, ff_entity_context:new()),
-    ?assertMatch({error, {bad_deposit_amount, 0}}, Result).
+    ?assertMatch({error, {bad_deposit_amount, {0, <<"RUB">>}}}, Result).
 
 -spec create_currency_validation_error_test(config()) -> test_return().
 create_currency_validation_error_test(C) ->

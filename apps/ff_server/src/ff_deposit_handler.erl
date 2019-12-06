@@ -182,11 +182,11 @@ handle_function_('CreateRevertAdjustment', [ID, RevertID, EncodedParams], _Opts)
             });
         {error, {invalid_status_change, {unavailable_status, Status}}} ->
             woody_error:raise(business, #deposit_ForbiddenRevertStatusChange{
-                target_status = ff_deposit_codec:marshal(status, Status)
+                target_status = ff_deposit_revert_codec:marshal(status, Status)
             });
         {error, {invalid_status_change, {already_has_status, Status}}} ->
             woody_error:raise(business, #deposit_RevertAlreadyHasStatus{
-                revert_status = ff_deposit_codec:marshal(status, Status)
+                revert_status = ff_deposit_revert_codec:marshal(status, Status)
             });
         {error, {another_adjustment_in_progress, AnotherID}} ->
             woody_error:raise(business, #deposit_AnotherAdjustmentInProgress{

@@ -49,8 +49,6 @@ marshal(revert_params, RevertParams) ->
     #deposit_revert_RevertParams{
         id = marshal(id, maps:get(id, RevertParams)),
         body = marshal(cash, maps:get(body, RevertParams)),
-        wallet_id = marshal(id, maps:get(wallet_id, RevertParams)),
-        source_id = marshal(id, maps:get(source_id, RevertParams)),
         reason = maybe_marshal(string, maps:get(reason, RevertParams, undefined)),
         external_id = maybe_marshal(id, maps:get(external_id, RevertParams, undefined))
     };
@@ -112,8 +110,6 @@ unmarshal(revert_params, Params) ->
     genlib_map:compact(#{
         id => unmarshal(id, Params#deposit_revert_RevertParams.id),
         body => unmarshal(cash, Params#deposit_revert_RevertParams.body),
-        wallet_id => unmarshal(id, Params#deposit_revert_RevertParams.wallet_id),
-        source_id => unmarshal(id, Params#deposit_revert_RevertParams.source_id),
         external_id => maybe_unmarshal(id, Params#deposit_revert_RevertParams.external_id),
         reason => maybe_unmarshal(string, Params#deposit_revert_RevertParams.reason)
     });
@@ -165,8 +161,6 @@ revert_params_symmetry_test() ->
             amount = 10101,
             currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
         },
-        source_id = genlib:unique(),
-        wallet_id = genlib:unique(),
         external_id = undefined,
         reason = <<"why not">>,
         id = genlib:unique()

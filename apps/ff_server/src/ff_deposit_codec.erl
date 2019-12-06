@@ -20,7 +20,7 @@
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
-marshal(event, {EventID, _EventTimestamp, {ev, Timestamp, Change}}) ->
+marshal(event, {EventID, {ev, Timestamp, Change}}) ->
     #deposit_Event{
         event_id = ff_codec:marshal(event_id, EventID),
         occured_at = ff_codec:marshal(timestamp, Timestamp),
@@ -53,7 +53,10 @@ marshal(deposit, Deposit) ->
         status = maybe_marshal(status, ff_deposit:status(Deposit)),
         wallet_id = marshal(id, ff_deposit:wallet_id(Deposit)),
         source_id = marshal(id, ff_deposit:source_id(Deposit)),
-        external_id = marshal(id, ff_deposit:external_id(Deposit))
+        external_id = maybe_marshal(id, ff_deposit:external_id(Deposit)),
+        domain_revision = maybe_marshal(domain_revision, ff_deposit:domain_revision(Deposit)),
+        party_revision = maybe_marshal(party_revision, ff_deposit:party_revision(Deposit)),
+        created_at = maybe_marshal(timestamp_ms, ff_deposit:created_at(Deposit))
     };
 marshal(deposit_params, DepositParams) ->
     #deposit_DepositParams{
@@ -128,8 +131,11 @@ unmarshal(deposit, Deposit) ->
         params => genlib_map:compact(#{
             wallet_id => unmarshal(id, Deposit#deposit_Deposit.wallet_id),
             source_id => unmarshal(id, Deposit#deposit_Deposit.source_id),
-            external_id => maybe_marshal(id, Deposit#deposit_Deposit.external_id)
-        })
+            external_id => maybe_unmarshal(id, Deposit#deposit_Deposit.external_id)
+        }),
+        party_revision => maybe_unmarshal(party_revision, Deposit#deposit_Deposit.party_revision),
+        domain_revision => maybe_unmarshal(domain_revision, Deposit#deposit_Deposit.domain_revision),
+        created_at => maybe_unmarshal(timestamp_ms, Deposit#deposit_Deposit.created_at)
     };
 
 unmarshal(deposit_params, DepositParams) ->
@@ -173,7 +179,10 @@ deposit_symmetry_test() ->
         wallet_id = genlib:unique(),
         external_id = undefined,
         status = {pending, #dep_status_Pending{}},
-        id = genlib:unique()
+        id = genlib:unique(),
+        domain_revision = 24500062,
+        party_revision = 140028,
+        created_at = <<"2025-01-01T00:00:00.001000Z">>
     },
     ?assertEqual(Encoded, marshal(deposit, unmarshal(deposit, Encoded))).
 

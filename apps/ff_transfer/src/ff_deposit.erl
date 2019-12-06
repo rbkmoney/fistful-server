@@ -839,7 +839,7 @@ validate_unreverted_amount(Params, Deposit) ->
 validate_revert_amount(Params) ->
     #{body := {RevertAmount, _Currency} = RevertBody} = Params,
     case RevertAmount of
-        Good when Good >= 0 ->
+        Good when Good > 0 ->
             {ok, valid};
         _Other ->
             {error, {invalid_revert_amount, RevertBody}}

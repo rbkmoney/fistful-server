@@ -28,7 +28,10 @@ marshal_withdrawal(Withdrawal) ->
         wallet_id = marshal(id, ff_withdrawal:wallet_id(Withdrawal)),
         destination_id = marshal(id, ff_withdrawal:destination_id(Withdrawal)),
         status = maybe_marshal(status, ff_withdrawal:status(Withdrawal)),
-        external_id = maybe_marshal(id, ff_withdrawal:external_id(Withdrawal))
+        external_id = maybe_marshal(id, ff_withdrawal:external_id(Withdrawal)),
+        domain_revision = maybe_marshal(domain_revision, ff_withdrawal:domain_revision(Withdrawal)),
+        party_revision = maybe_marshal(party_revision, ff_withdrawal:party_revision(Withdrawal)),
+        created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(Withdrawal))
     }.
 
 -spec unmarshal_withdrawal(ff_proto_withdrawal_thrift:'Withdrawal'()) ->
@@ -44,6 +47,9 @@ unmarshal_withdrawal(Withdrawal) ->
         }),
         status => maybe_unmarshal(status, Withdrawal#wthd_Withdrawal.status),
         external_id => maybe_unmarshal(id, Withdrawal#wthd_Withdrawal.external_id),
+        domain_revision => maybe_unmarshal(domain_revision, Withdrawal#wthd_Withdrawal.domain_revision),
+        party_revision => maybe_unmarshal(party_revision, Withdrawal#wthd_Withdrawal.party_revision),
+        created_at => maybe_unmarshal(timestamp_ms, Withdrawal#wthd_Withdrawal.created_at),
         transfer_type => withdrawal
     }).
 
@@ -250,7 +256,10 @@ withdrawal_symmetry_test() ->
         wallet_id = genlib:unique(),
         destination_id = genlib:unique(),
         external_id = genlib:unique(),
-        status = {pending, #wthd_status_Pending{}}
+        status = {pending, #wthd_status_Pending{}},
+        domain_revision = 1,
+        party_revision = 3,
+        created_at = <<"2099-01-01T00:00:00.123000Z">>
     },
     ?assertEqual(In, marshal_withdrawal(unmarshal_withdrawal(In))).
 

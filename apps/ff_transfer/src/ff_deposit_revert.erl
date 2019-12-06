@@ -246,7 +246,7 @@ create(Params) ->
         status          => pending,
         party_revision  => PartyRevision,
         domain_revision => DomainRevision,
-        created_at       => CreatedAt,
+        created_at      => CreatedAt,
         reason          => maps:get(reason, Params, undefined),
         external_id     => maps:get(external_id, Params, undefined)
     }),

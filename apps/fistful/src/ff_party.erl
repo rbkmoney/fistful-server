@@ -27,7 +27,7 @@
 
 -type validate_deposit_creation_error() ::
     currency_validation_error() |
-    {bad_deposit_amount, Amount :: integer()}.
+    {bad_deposit_amount, Cash :: cash()}.
 
 -type get_contract_terms_error() ::
     {party_not_found, id()} |
@@ -267,8 +267,8 @@ validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash) ->
     Result :: {ok, valid} | {error, Error},
     Error :: validate_deposit_creation_error().
 
-validate_deposit_creation(_Terms, {Amount, _Currency} = _Cash)
-    when Amount < 1 -> {error, {bad_deposit_amount, Amount}};
+validate_deposit_creation(_Terms, {Amount, _Currency} = Cash) when Amount < 1 ->
+    {error, {bad_deposit_amount, Cash}};
 validate_deposit_creation(Terms, {_Amount, CurrencyID} = _Cash) ->
     do(fun () ->
         #domain_TermSet{wallets = WalletTerms} = Terms,

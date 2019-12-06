@@ -121,13 +121,25 @@ create_withdrawal_ok_test(C) ->
     },
     {ok, WithdrawalState} = call_withdrawal('Create', [Params, Ctx]),
 
+    Expected = get_withdrawal(WithdrawalID),
     Withdrawal = WithdrawalState#wthd_WithdrawalState.withdrawal,
     ?assertEqual(WithdrawalID, Withdrawal#wthd_Withdrawal.id),
     ?assertEqual(ExternalID, Withdrawal#wthd_Withdrawal.external_id),
     ?assertEqual(WalletID, Withdrawal#wthd_Withdrawal.wallet_id),
     ?assertEqual(DestinationID, Withdrawal#wthd_Withdrawal.destination_id),
     ?assertEqual(Cash, Withdrawal#wthd_Withdrawal.body),
-    ?assertEqual(Ctx, WithdrawalState#wthd_WithdrawalState.context),
+    ?assertEqual(
+        ff_withdrawal:domain_revision(Expected),
+        Withdrawal#wthd_Withdrawal.domain_revision
+    ),
+    ?assertEqual(
+        ff_withdrawal:party_revision(Expected),
+        Withdrawal#wthd_Withdrawal.party_revision
+    ),
+    ?assertEqual(
+        ff_withdrawal:created_at(Expected),
+        ff_codec:unmarshal(timestamp_ms, Withdrawal#wthd_Withdrawal.created_at)
+    ),
 
     succeeded = await_final_withdrawal_status(WithdrawalID),
     {ok, FinalWithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
@@ -364,7 +376,11 @@ withdrawal_state_content_test(C) ->
     {ok, _AdjustmentState} = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
     {ok, WithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
     ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.sessions),
-    ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.adjustments).
+    ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.adjustments),
+    ?assertEqual(
+        {succeeded, #wthd_status_Succeeded{}},
+        (WithdrawalState#wthd_WithdrawalState.withdrawal)#wthd_Withdrawal.status
+    ).
 
 %%  Internals
 
@@ -372,7 +388,10 @@ call_withdrawal(Fun, Args) ->
     ServiceName = withdrawal_management,
     Service = ff_services:get_service(ServiceName),
     Request = {Service, Fun, Args},
-    ff_woody_client:call(ServiceName, Request).
+    Client  = ff_woody_client:new(#{
+        url => "http://localhost:8022" ++ ff_services:get_service_path(ServiceName)
+    }),
+    ff_woody_client:call(Client, Request).
 
 prepare_standard_environment(Body, C) ->
     prepare_standard_environment(Body, undefined, C).

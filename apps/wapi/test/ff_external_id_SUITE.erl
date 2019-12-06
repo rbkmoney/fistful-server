@@ -239,7 +239,8 @@ idempotency_withdrawal_ok(C) ->
     {ok, #{<<"id">> := ID}} =
         wapi_wallet_ff_backend:create_withdrawal(Params, create_context(Party, C)),
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_withdrawal(Params, create_context(Party, C)).
+        wapi_wallet_ff_backend:create_withdrawal(Params, create_context(Party, C)),
+    _ = binary_to_integer(ID).
 
 -spec idempotency_withdrawal_conflict(config()) ->
     test_return().

@@ -252,10 +252,12 @@ get_wallet(WalletID, Context) ->
     {wallet, notfound}     |
     {wallet, unauthorized}
 ).
-get_wallet_by_external_id(ExternalID, #{woody_context := WoodyCtx} = Context) ->
-    case bender_client:get_internal_id(ExternalID, WoodyCtx) of
-        {ok, WalletID, _Ctx} -> get_wallet(WalletID, Context);
-        {error, internal_id_not_found} -> {error, {wallet, notfound}}
+get_wallet_by_external_id(ExternalID, #{woody_context := _WoodyCtx} = Context) ->
+    AuthContext = wapi_handler_utils:get_auth_context(Context),
+    PartyID = get_party_id(AuthContext),
+    case ff_external_id:get_ff_internal_id(wallet, PartyID, ExternalID) of
+        {ok, WalletID} -> get_wallet(WalletID, Context);
+        {error, notfound} -> {error, {wallet, notfound}}
     end.
 
 -spec create_wallet(params(), ctx()) -> result(map(),
@@ -974,6 +976,10 @@ process_stat_result(StatType, Result) ->
         {exception, #fistfulstat_BadToken{reason = Reason}} ->
             {error, {400, [], bad_request_error(invalidRequest, Reason)}}
     end.
+
+get_party_id(AuthContext) ->
+    {{PartyID, _}, _} = AuthContext,
+    PartyID.
 
 get_time(Key, Req) ->
     case genlib_map:get(Key, Req) of

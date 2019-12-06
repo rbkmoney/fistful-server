@@ -52,7 +52,7 @@
 -export([get_quote/4]).
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
-%% Accessories
+%% Accessors
 
 -spec surplus(fees()) ->
     surplus_cash_volume() | undefined.

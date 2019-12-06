@@ -122,14 +122,10 @@ user_interaction_ok_test(C) ->
     #{
         session_id := SessionID,
         transfer_params := TransferParams,
-        session_params := SessionParams,
-        token := Token
+        session_params := SessionParams
     } = prepare_standard_environment(<<"token_interaction_">>, Cash, C),
     ok = p2p_session_machine:create(SessionID, TransferParams, SessionParams),
-    Callback = ?CALLBACK(Token, <<"payload">>),
     ?assertMatch(<<"user_sleep">>, await_p2p_session_adapter_state(SessionID, <<"user_sleep">>)),
-    ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"user_payload">>)}, call_host(Callback)),
-    ?assertMatch(<<"user_callback">>, get_p2p_session_adapter_state(SessionID)),
     ?assertMatch({finished, success}, await_final_p2p_session_status(SessionID)),
     ?assertMatch(<<"user_sleep_finished">>, await_p2p_session_adapter_state(SessionID, <<"user_sleep_finished">>)).
 

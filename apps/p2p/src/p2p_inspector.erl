@@ -35,11 +35,12 @@ inspect(P2PTransfer, DomainRevision, RiskTypes, Inspector) ->
     Adapter = get_adapter(ProxyRef, DomainRevision, ProxyAdditional),
     #{
         adapter := Client,
-        options := Options} = Adapter,
+        options := Options
+    } = Adapter,
     Request = create_request(P2PTransfer, RiskTypes, Options),
 
     case issue_call(Client, Request, FallBackRiskScore) of
-        {ok, RiskScores}  ->
+        {ok, RiskScores} ->
             RiskScores;
         {exception, Error} ->
             error(Error)

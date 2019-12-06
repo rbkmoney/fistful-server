@@ -431,7 +431,16 @@ domain_config(Options, C) ->
                 p2p_inspector             = {value, ?p2p_insp(1)},
                 p2p_providers             = {decisions, [
                     #domain_P2PProviderDecision{
-                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        if_ = {condition, {p2p_tool,
+                            #domain_P2PToolCondition{
+                                sender_is = {bank_card, #domain_BankCardCondition{
+                                    definition = {issuer_country_is, 'rus'}
+                                }},
+                                receiver_is = {bank_card, #domain_BankCardCondition{
+                                    definition = {issuer_country_is, 'rus'}
+                                }}
+                            }
+                        }},
                         then_ = {value, [?p2p_prv(1)]}
                     },
                     #domain_P2PProviderDecision{

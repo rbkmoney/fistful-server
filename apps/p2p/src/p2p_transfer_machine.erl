@@ -209,7 +209,7 @@ set_action(poll, St) ->
     {set_timer, {timeout, compute_poll_timeout(Now, St)}}.
 
 compute_poll_timeout(Now, St) ->
-    MaxTimeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
+    MaxTimeout = genlib_app:env(p2p_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
     Timeout0 = machinery_time:interval(Now, ff_machine:updated(St)) div 1000,
     erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
 

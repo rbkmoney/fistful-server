@@ -347,8 +347,8 @@ callbacks_index(Session) ->
 -spec user_interactions_index(session()) -> user_interactions_index().
 user_interactions_index(Session) ->
     case maps:find(user_interactions, Session) of
-        {ok, Callbacks} ->
-            Callbacks;
+        {ok, UserInteractions} ->
+            UserInteractions;
         error ->
             p2p_user_interaction_utils:new_index()
     end.

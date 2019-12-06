@@ -25,6 +25,36 @@
     session = #p2p_adapter_Session{state = State}
 }).
 
+-define(ADAPTER_PROCESS_RESULT(Intent, NextState), #p2p_adapter_ProcessResult{
+    intent = Intent,
+    next_state = NextState
+}).
+
+-define(ADAPTER_SLEEP_INTENT(Timeout, CallbackTag, UI), {sleep, #p2p_adapter_SleepIntent{
+    timer = {timeout, Timeout},
+    callback_tag = CallbackTag,
+    user_interaction = UI
+}}).
+
+-define(ADAPTER_FINISH_INTENT(Result), {finish, #p2p_adapter_FinishIntent{
+    status = Result
+}}).
+
+-define(ADAPTER_UI(ID, Intent), #p2p_adapter_UserInteraction{
+    id = ID,
+    intent = Intent
+}).
+
+-define(ADAPTER_UI_CREATED, {create, #p2p_adapter_UserInteractionCreate{
+    user_interaction = {redirect,
+        {get_request,
+            #'BrowserGetRequest'{uri = <<"uri">>}
+        }
+    }
+}}).
+
+-define(ADAPTER_UI_FINISH, {finish, #p2p_adapter_UserInteractionFinish{}}).
+
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
 
@@ -42,109 +72,74 @@ handle_function(Func, Args, Ctx, Opts) ->
         end
     ).
 
-handle_function_('Process', [?ADAPTER_CONTEXT(101, Token, State)], _Ctx, _Opts) ->
+handle_function_('Process', [?ADAPTER_CONTEXT(101, _Token, State)], _Ctx, _Opts) ->
     case State of
         undefined ->
-            {ok, #p2p_adapter_ProcessResult{
-                intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1},
-                    callback_tag = Token,
-                    user_interaction = #p2p_adapter_UserInteraction{
-                        id = <<"test_user_interaction">>,
-                        intent = {create, #p2p_adapter_UserInteractionCreate{
-                            user_interaction = {redirect,
-                                {get_request,
-                                    #'BrowserGetRequest'{uri = <<"uri">>}
-                                }
-                            }
-                        }}
-                    }
-                }},
-                next_state = <<"user_sleep">>
-            }};
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_SLEEP_INTENT(1, undefined, ?ADAPTER_UI(
+                    <<"test_user_interaction">>,
+                    ?ADAPTER_UI_CREATED
+                )),
+                <<"user_sleep">>
+            )};
         <<"user_sleep">> ->
-            {ok, #p2p_adapter_ProcessResult{
-                intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1},
-                    user_interaction = #p2p_adapter_UserInteraction{
-                        id = <<"test_user_interaction">>,
-                        intent = {finish, #p2p_adapter_UserInteractionFinish{}}
-                    }
-                }}
-            }};
-        <<"user_callback">> ->
-            {ok, #p2p_adapter_ProcessResult{
-                intent = {finish, #p2p_adapter_FinishIntent{
-                    status = {success, #p2p_adapter_Success{}}
-                }},
-                next_state = <<"user_sleep_finished">>
-            }}
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_SLEEP_INTENT(1, undefined, ?ADAPTER_UI(
+                    <<"test_user_interaction">>,
+                    ?ADAPTER_UI_FINISH
+                )),
+                <<"user_ui_finished">>
+            )};
+        <<"user_ui_finished">> ->
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_FINISH_INTENT({success, #p2p_adapter_Success{}}),
+                <<"user_sleep_finished">>
+            )}
     end;
 handle_function_('Process', [?ADAPTER_CONTEXT(99, Token, State)], _Ctx, _Opts) ->
     case State of
         undefined ->
-            {ok, #p2p_adapter_ProcessResult{
-                intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1},
-                    callback_tag = Token
-                }},
-                next_state = <<"wrong">>
-            }};
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_SLEEP_INTENT(1, Token, undefined),
+                <<"wrong">>
+            )};
         <<"wrong">> ->
-            {ok, #p2p_adapter_ProcessResult{
-                intent = {finish, #p2p_adapter_FinishIntent{
-                    status = {success, #p2p_adapter_Success{}}
-                }},
-                next_state = <<"wrong_finished">>
-            }}
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_FINISH_INTENT({success, #p2p_adapter_Success{}}),
+                <<"wrong_finished">>
+            )}
     end;
 handle_function_('Process', [?ADAPTER_CONTEXT(999, Token, State)], _Ctx, _Opts) ->
     case State of
         undefined ->
-            {ok, #p2p_adapter_ProcessResult{
-                intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1},
-                    callback_tag = Token
-                }},
-                next_state = <<"simple_sleep">>
-            }};
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_SLEEP_INTENT(1, Token, undefined),
+                <<"simple_sleep">>
+            )};
         <<"simple_sleep">> ->
-            {ok, #p2p_adapter_ProcessResult{
-                intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1}
-                }}
-            }};
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_SLEEP_INTENT(1, undefined, undefined),
+                undefined
+            )};
         <<"simple_callback">> ->
-            {ok, #p2p_adapter_ProcessResult{
-                intent = {finish, #p2p_adapter_FinishIntent{
-                    status = {success, #p2p_adapter_Success{}}
-                }},
-                next_state = <<"sleep_finished">>
-            }}
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_FINISH_INTENT({success, #p2p_adapter_Success{}}),
+                <<"sleep_finished">>
+            )}
     end;
 handle_function_('Process', [?ADAPTER_CONTEXT(1001)], _Ctx, _Opts) ->
-    {ok, #p2p_adapter_ProcessResult{
-        intent = {finish, #p2p_adapter_FinishIntent{
-            status = {failure, #domain_Failure{code = <<"test_failure">>}}
-        }}
-    }};
+    {ok, ?ADAPTER_PROCESS_RESULT(
+        ?ADAPTER_FINISH_INTENT({failure, #domain_Failure{code = <<"test_failure">>}}),
+        undefined
+    )};
 handle_function_('Process', [_Context], _Ctx, _Opts) ->
-    {ok, #p2p_adapter_ProcessResult{
-        intent = {finish, #p2p_adapter_FinishIntent{
-            status = {success, #p2p_adapter_Success{}}
-        }}
-    }};
+    {ok, ?ADAPTER_PROCESS_RESULT(
+        ?ADAPTER_FINISH_INTENT({success, #p2p_adapter_Success{}}),
+       undefined
+    )};
 
 handle_function_('HandleCallback', [?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_, Token, State)], _Ctx, _Opts) ->
     case State of
-        <<"user_sleep">> ->
-            {ok, #p2p_adapter_CallbackResult{
-                response = #p2p_adapter_CallbackResponse{payload = <<"user_payload">>},
-                intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1}
-                }},
-                next_state = <<"user_callback">>
-            }};
         <<"simple_sleep">> ->
             {ok, #p2p_adapter_CallbackResult{
                 response = #p2p_adapter_CallbackResponse{payload = <<"simple_payload">>},

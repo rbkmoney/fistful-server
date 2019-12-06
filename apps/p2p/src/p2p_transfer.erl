@@ -612,9 +612,14 @@ do_risk_scoring(P2PTransfer) ->
     {ok, Inspector} = ff_domain_config:object(
         DomainRevision, {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}
     ),
-    ScoreID = <<"fraud">>,
-    Scores = p2p_inspector:inspect(P2PTransfer, DomainRevision, [ScoreID], Inspector),
-    Score = maps:get(ScoreID, Scores),
+    Score = case genlib_app:env(p2p_transfer, score_id, undefined) of
+        undefined ->
+            _ = logger:warning("Fail to get env RiskScoreID set RiskScore to low"),
+            low;
+        ScoreID ->
+            Scores = p2p_inspector:inspect(P2PTransfer, DomainRevision, [ScoreID], Inspector),
+            maps:get(ScoreID, Scores)
+    end,
     ff_dmsl_codec:unmarshal(risk_score, Score).
 
 -spec process_routing(p2p_transfer()) ->

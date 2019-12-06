@@ -24,8 +24,6 @@
 -export([process_repair/4]).
 -export([process_call/4]).
 
--define(MAX_SESSION_POLL_TIMEOUT, 4 * 60 * 60).
-
 %%
 %% Types
 %%

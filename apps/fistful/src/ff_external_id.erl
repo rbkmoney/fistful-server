@@ -15,6 +15,7 @@
 -export([check_in/2]).
 -export([bind/3]).
 -export([get_internal_id/2]).
+-export([get_ff_internal_id/3]).
 
 -export([construct_external_id/2]).
 
@@ -67,6 +68,13 @@ bind(EntityName, ExternalID, InternalID) ->
 get_internal_id(EntityName, ExternalID) ->
     ID = create_id(EntityName, ExternalID),
     get_(ID).
+
+-spec get_ff_internal_id(entity_name(), ff_party:id(), external_id()) ->
+    check_result() | {error, notfound}.
+
+get_ff_internal_id(Type, PartyID, ExternalID) ->
+    FistfulID = construct_external_id(PartyID, ExternalID),
+    get_internal_id(Type, FistfulID).
 
 -spec construct_external_id(ff_party:id(), external_id()) ->
     external_id().

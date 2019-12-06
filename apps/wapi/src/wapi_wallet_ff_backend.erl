@@ -876,13 +876,15 @@ gen_id(Type, ExternalID, Hash, Context) ->
     IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
     gen_id_by_type(Type, IdempotentKey, Hash, Context).
 
-gen_id_by_type(withdrawal = Type, IdempotentKey, Hash, Context) ->
-    gen_snowflake_id(Type, IdempotentKey, Hash, Context);
+%@TODO: Bring back later
+%gen_id_by_type(withdrawal = Type, IdempotentKey, Hash, Context) ->
+%    gen_snowflake_id(Type, IdempotentKey, Hash, Context);
 gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
     gen_sequence_id(Type, IdempotentKey, Hash, Context).
 
-gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
-    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx).
+%@TODO: Bring back later
+%gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+%    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx).
 
 gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),

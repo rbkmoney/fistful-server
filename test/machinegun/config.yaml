@@ -86,5 +86,14 @@ namespaces:
   ff/external_id:
       processor:
           url: http://fistful-server:8022/v1/stateproc/ff/external_id
+
+  # Bender
+  bender_generator:
+    processor:
+      url: http://bender:8022/v1/stateproc/bender_generator
+  bender_sequence:
+    processor:
+      url: http://bender:8022/v1/stateproc/bender_sequence
+
 storage:
     type: memory

@@ -29,6 +29,7 @@
 -export([create_wallet_notfound_test/1]).
 -export([create_ok_test/1]).
 -export([quota_ok_test/1]).
+-export([crypto_quota_ok_test/1]).
 -export([preserve_revisions_test/1]).
 -export([use_quota_revisions_test/1]).
 -export([unknown_test/1]).
@@ -77,6 +78,7 @@ groups() ->
             create_wallet_notfound_test,
             create_ok_test,
             quota_ok_test,
+            crypto_quota_ok_test,
             preserve_revisions_test,
             unknown_test
         ]},
@@ -403,6 +405,24 @@ quota_ok_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
 
+-spec crypto_quota_ok_test(config()) -> test_return().
+crypto_quota_ok_test(C) ->
+    Currency = <<"RUB">>,
+    Cash = {100, Currency},
+    Party = create_party(C),
+    IdentityID = create_person_identity(Party, C, <<"quote-owner">>),
+    WalletID = create_wallet(IdentityID, <<"My wallet">>, Currency, C),
+    ok = await_wallet_balance({0, Currency}, WalletID),
+    DestinationID = create_crypto_destination(IdentityID, C),
+    Params = #{
+        wallet_id      => WalletID,
+        currency_from  => <<"RUB">>,
+        currency_to    => <<"BTC">>,
+        body           => Cash,
+        destination_id => DestinationID
+    },
+    {ok, _Quote} = ff_withdrawal:get_quote(Params).
+
 -spec preserve_revisions_test(config()) -> test_return().
 preserve_revisions_test(C) ->
     Cash = {100, <<"RUB">>},
@@ -589,6 +609,23 @@ create_destination(IID, Currency, Token, C) ->
         fun () ->
             {ok, Machine} = ff_destination:get_machine(ID),
             ff_destination:status(ff_destination:get(Machine))
+        end
+    ),
+    ID.
+
+create_crypto_destination(IID, _C) ->
+    ID = generate_id(),
+    Resource = {crypto_wallet, #{
+        id => <<"a30e277c07400c9940628828949efd48">>,
+        currency => litecoin
+    }},
+    Params = #{identity => IID, name => <<"CryptoDestination">>, currency => <<"RUB">>, resource => Resource},
+    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, DestM} = ff_destination:get_machine(ID),
+            ff_destination:status(ff_destination:get(DestM))
         end
     ),
     ID.

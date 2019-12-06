@@ -995,11 +995,7 @@ construct_payment_tool({bank_card, ResourceBankCard}) ->
     }};
 
 construct_payment_tool({crypto_wallet, CryptoWallet}) ->
-    {crypto_currency, #domain_CryptoWallet{
-        id              = maps:get(id, CryptoWallet),
-        crypto_currency = maps:get(currency, CryptoWallet),
-        destination_tag = maps:get(tag, CryptoWallet, undefined)
-    }}.
+   {crypto_currency, maps:get(currency, CryptoWallet)}.
 
 %% Quote helpers
 

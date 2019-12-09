@@ -768,7 +768,7 @@ not_allowed_currency_test(C) ->
 -spec consume_eventsinks(config()) -> test_return().
 
 consume_eventsinks(_) ->
-    _EventSinks = [
+    EventSinks = [
           deposit_event_sink
         , source_event_sink
         , destination_event_sink
@@ -776,6 +776,5 @@ consume_eventsinks(_) ->
         , wallet_event_sink
         , withdrawal_event_sink
         , withdrawal_session_event_sink
-    ].
-    % TODO: Uncomment when the adjustment encoder will be made
-    % [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
+    ],
+    [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].

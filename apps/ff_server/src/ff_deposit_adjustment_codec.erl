@@ -15,7 +15,7 @@
 marshal(change, {created, Adjustment}) ->
     {created, #dep_adj_CreatedChange{adjustment = marshal(adjustment, Adjustment)}};
 marshal(change, {status_changed, Status}) ->
-    {status_changed, #dep_adj_StatusChange{status = ff_deposit_status_codec:marshal(status, Status)}};
+    {status_changed, #dep_adj_StatusChange{status = marshal(status, Status)}};
 marshal(change, {p_transfer, TransferChange}) ->
     {transfer, #dep_adj_TransferChange{payload = ff_p_transfer_codec:marshal(change, TransferChange)}};
 

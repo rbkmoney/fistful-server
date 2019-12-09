@@ -15,7 +15,7 @@
 marshal(change, {created, Adjustment}) ->
     {created, #wthd_adj_CreatedChange{adjustment = marshal(adjustment, Adjustment)}};
 marshal(change, {status_changed, Status}) ->
-    {status_changed, #wthd_adj_StatusChange{status = ff_withdrawal_status_codec:marshal(status, Status)}};
+    {status_changed, #wthd_adj_StatusChange{status = marshal(status, Status)}};
 marshal(change, {p_transfer, TransferChange}) ->
     {transfer, #wthd_adj_TransferChange{payload = ff_p_transfer_codec:marshal(change, TransferChange)}};
 

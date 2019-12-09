@@ -39,11 +39,21 @@
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
 
+%% Accessors
+
+-export([amount/1]).
 -export([created_at/1]).
+-export([expires_on/1]).
 -export([domain_revision/1]).
 -export([party_revision/1]).
+-export([identity_id/1]).
+-export([sender/1]).
+-export([receiver/1]).
 -export([sender_id/1]).
 -export([receiver_id/1]).
+
+%% API
+
 -export([get_quote/4]).
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
@@ -54,9 +64,19 @@
 surplus(#{fees := Fees}) ->
     maps:get(surplus, Fees, undefined).
 
+-spec amount(quote()) ->
+    cash().
+amount(#{amount := Amount}) ->
+    Amount.
+
 -spec created_at(quote()) ->
     ff_time:timestamp_ms().
 created_at(#{created_at := Time}) ->
+    Time.
+
+-spec expires_on(quote()) ->
+    ff_time:timestamp_ms().
+expires_on(#{expires_on := Time}) ->
     Time.
 
 -spec domain_revision(quote()) ->
@@ -68,6 +88,21 @@ domain_revision(#{domain_revision := Revision}) ->
     ff_party:revision().
 party_revision(#{party_revision := Revision}) ->
     Revision.
+
+-spec identity_id(quote()) ->
+    identity_id().
+identity_id(#{identity_id := IdentityID}) ->
+    IdentityID.
+
+-spec sender(quote()) ->
+    compact_resource().
+sender(#{sender := Sender}) ->
+    Sender.
+
+-spec receiver(quote()) ->
+    compact_resource().
+receiver(#{receiver := Receiver}) ->
+    Receiver.
 
 -spec sender_id(quote()) ->
     ff_resource:resource_id().

@@ -656,7 +656,9 @@ quote_p2p_transfer(Params, Context) ->
         PartyID = wapi_handler_utils:get_owner(Context),
         case p2p_quote:get_quote(Body, IdentityID, Sender, Receiver) of
             {ok, {SurplusCash, _SurplusCashVolume, Quote}} ->
-                to_swag(p2p_transfer_quote, {SurplusCash, Quote, PartyID});
+                Token = create_p2p_quote_token(Quote, PartyID),
+                ExpiresOn = p2p_quote:expires_on(Quote),
+                to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn});
             {error, {identity,   not_found}} ->
                 throw({identity,   not_found});
             {error, {party, _PartyError}} ->
@@ -763,10 +765,10 @@ get_p2p_transfer_events({ID, CT}, Context) ->
 
         P2PTransferEventsLastID = maybe_get_last_event_id(P2PTransferEvents),
         P2PSessionEventsLastID = maybe_get_last_event_id(P2PSessionEvents),
-        ContinuationToken = #{
+        ContinuationToken = create_p2p_transfer_events_continuation_token(#{
             p2p_transfer_event_id => P2PTransferEventsLastID,
             p2p_session_event_id => P2PSessionEventsLastID
-        },
+        }),
         to_swag(p2p_transfer_events, {MixedEvents, ContinuationToken})
     end).
 
@@ -842,27 +844,18 @@ create_quote_token(#{
     {ok, Token} = wapi_signer:sign(JSONData),
     Token.
 
-create_p2p_quote_token(#{
-    amount          := Cash,
-    party_revision  := PartyRevision,
-    domain_revision := DomainRevision,
-    created_at      := CreatedAt,
-    expires_on      := ExpiresOn,
-    identity_id     := IdentityID,
-    sender          := Sender,
-    receiver        := Receiver
-}, PartyID) ->
+create_p2p_quote_token(Quote, PartyID) ->
     Data = genlib_map:compact(#{
         <<"version">>        => 1,
-        <<"amount">>         => to_swag(withdrawal_body, Cash),
-        <<"partyRevision">>  => PartyRevision,
-        <<"domainRevision">> => DomainRevision,
-        <<"createdAt">>      => ff_time:to_rfc3339(CreatedAt),
-        <<"expiresOn">>      => ff_time:to_rfc3339(ExpiresOn),
+        <<"amount">>         => to_swag(withdrawal_body, p2p_quote:amount(Quote)),
+        <<"partyRevision">>  => p2p_quote:party_revision(Quote),
+        <<"domainRevision">> => p2p_quote:domain_revision(Quote),
+        <<"createdAt">>      => ff_time:to_rfc3339(p2p_quote:created_at(Quote)),
+        <<"expiresOn">>      => ff_time:to_rfc3339(p2p_quote:expires_on(Quote)),
         <<"partyID">>        => PartyID,
-        <<"identityID">>     => IdentityID,
-        <<"sender">>         => to_swag(compact_sender_resource, Sender),
-        <<"receiver">>       => to_swag(compact_receiver_resource, Receiver)
+        <<"identityID">>     => p2p_quote:identity_id(Quote),
+        <<"sender">>         => to_swag(compact_sender_resource, p2p_quote:sender(Quote)),
+        <<"receiver">>       => to_swag(compact_receiver_resource, p2p_quote:receiver(Quote))
     }),
     JSONData = jsx:encode(Data),
     {ok, Token} = wapi_signer:sign(JSONData),
@@ -1748,7 +1741,7 @@ to_swag(identity_challenge_event_change, {status_changed, S}) ->
 
 to_swag(p2p_transfer_events, {Events, ContinuationToken}) ->
     #{
-        <<"continuationToken">> => create_p2p_transfer_events_continuation_token(ContinuationToken),
+        <<"continuationToken">> => ContinuationToken,
         <<"result">> => to_swag({list, p2p_transfer_event}, Events)
     };
 
@@ -2043,13 +2036,11 @@ to_swag(quote, {#{
         <<"quoteToken">>    => Token
     };
 
-to_swag(p2p_transfer_quote, {Cash, #{
-    expires_on := ExpiresOn
-} = Token, PartyID}) ->
+to_swag(p2p_transfer_quote, {Cash, Token, ExpiresOn}) ->
     #{
         <<"customerFee">> => to_swag(withdrawal_body, Cash),
         <<"expiresOn">>   => ff_time:to_rfc3339(ExpiresOn),
-        <<"token">>       => create_p2p_quote_token(Token, PartyID)
+        <<"token">>       => Token
     };
 
 to_swag(p2p_transfer, P2PTransferState) ->

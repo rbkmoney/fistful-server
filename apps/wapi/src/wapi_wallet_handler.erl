@@ -535,18 +535,15 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters' := Params}, Context, _Op
         {error, {party, not_found}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such party">>));
-        {error, {p2p_tool,   not_allow}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Sender/Receiver resource not allowed">>));
         {error, {cash_flow, volume_finalize_error}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Cash flow term error">>));
         {error, {sender, not_found}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Sender Recourse not found">>));
+                wapi_handler_utils:get_error_msg(<<"InvalidSenderResource">>));
         {error, {receiver, not_found}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Receiver Recourse not found">>));
+                wapi_handler_utils:get_error_msg(<<"InvalidReceiverResource">>));
         {error, {currency, not_allowed}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
@@ -564,36 +561,27 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {identity,   not_found}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
-        {error, {party, not_found}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"No such party">>));
         {error, {cash_flow, volume_finalize_error}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Cash flow term error">>));
         {error, {sender, not_found}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Sender Recourse not found">>));
+                wapi_handler_utils:get_error_msg(<<"InvalidSenderResource">>));
         {error, {receiver, not_found}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Receiver Recourse not found">>));
-        {error, {token, not_match}} ->
+                wapi_handler_utils:get_error_msg(<<"InvalidReceiverResource">>));
+        {error, {currency, not_allowed}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token isn't recognized">>));
-        {error, {token, not_match_params}} ->
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, {cash_range, out_of_range}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token content doesn't match parameters">>));
-        {error, {token, expired}} ->
+                wapi_handler_utils:get_error_msg(<<"Cash number not in range">>));
+        {error, p2p_forbidden} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token content expired">>));
-        {error, {token, not_decodable}} ->
+                wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>));
+        {error, {token, _TokenError}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token can't be decoded">>));
-        {error, {token, not_verified}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
-        {error, {token, wrong_party_id}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token is owned by other party">>))
+                wapi_handler_utils:get_error_msg(<<"Token isn't recognized">>))
     end;
 process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_p2p_transfer(ID, Context) of
@@ -612,15 +600,9 @@ process_request('GetP2PTransferEvents', #{p2pTransferID := ID, continuationToken
             wapi_handler_utils:reply_ok(404);
         {error, {p2p_transfer, not_found}} ->
             wapi_handler_utils:reply_ok(404);
-        {error, {token, not_match}} ->
+        {error, {token, _TokenError}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token isn't recognized">>));
-        {error, {token, not_decodable}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token can't be decoded">>));
-        {error, {token, not_verified}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>))
+                wapi_handler_utils:get_error_msg(<<"Continuation Token isn't recognized">>))
     end.
 
 %% Internal functions

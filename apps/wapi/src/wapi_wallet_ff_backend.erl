@@ -639,12 +639,10 @@ delete_webhook(WebhookID, IdentityID, Context) ->
 -spec quote_p2p_transfer(params(), ctx()) -> result(map(),
     {identity,   not_found} |
     {party, not_found} |
-    {p2p_tool, not_allow} |
+    {cash_flow, volume_finalize_error} |
+    {sender | receiver, not_found} |
     {currency, not_allowed} |
     {cash_range, out_of_range} |
-    {cash_flow, volume_finalize_error} |
-    {sender, not_found} |
-    {receiver, not_found} |
     p2p_forbidden
 ).
 quote_p2p_transfer(Params, Context) ->
@@ -680,18 +678,19 @@ quote_p2p_transfer(Params, Context) ->
 
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     {identity,   not_found} |
-    {party, not_found} |
-    {p2p_tool, not_allow} |
-    {currency, not_allowed} |
     {cash_flow, volume_finalize_error} |
-    {sender, not_found} |
-    {receiver, not_found} |
-    {token, not_match} |
-    {token, not_match_params} |
-    {token, expired} |
-    {token, not_decodable} |
-    {token, not_verified} |
-    {token, wrong_party_id}
+    {sender | receiver, not_found} |
+    {currency, not_allowed} |
+    {cash_range, out_of_range} |
+    p2p_forbidden |
+    {token,
+        not_match |
+        not_match_params |
+        expired |
+        not_decodable |
+        not_verified |
+        wrong_party_id
+    }
 ).
 create_p2p_transfer(Params, Context) ->
     CreateFun =
@@ -701,10 +700,27 @@ create_p2p_transfer(Params, Context) ->
             } = ParsedParams = from_swag(create_p2p_params, Params),
             PartyID = wapi_handler_utils:get_owner(Context),
             DecodedToken = prepare_p2p_quote_token(QuoteToken, PartyID, ParsedParams),
-            p2p_transfer_machine:create(
+            case p2p_transfer_machine:create(
                 genlib_map:compact(ParsedParams#{id => ID, quote => DecodedToken}),
                 add_meta_to_ctx([], Params, EntityCtx)
-            )
+            ) of
+                {ok, Result} ->
+                    {ok, Result};
+                {error, {identity,   not_found}} ->
+                    {error, {identity,   not_found}};
+                {error, {cash_flow, _VolumeFinalizeError}} ->
+                    {error, {cash_flow, volume_finalize_error}};
+                {error, {sender, {bin_data, not_found}}} ->
+                    {error, {sender, not_found}};
+                {error, {receiver, {bin_data, not_found}}} ->
+                    {error, {receiver, not_found}};
+                {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
+                    {error, {currency, not_allowed}};
+                {error, {terms, {terms_violation, {cash_range, _CashBounds}}}} ->
+                    {error, {cash_range, out_of_range}};
+                {error, {terms, {terms_violation, p2p_forbidden}}} ->
+                    {error, p2p_forbidden}
+            end
         end,
     do(fun () -> unwrap(create_entity(p2p_transfer, Params, CreateFun, Context)) end).
 
@@ -721,9 +737,11 @@ get_p2p_transfer(ID, Context) ->
 -spec get_p2p_transfer_events({id(), binary()}, ctx()) -> result(map(),
     {p2p_transfer, unauthorized} |
     {p2p_transfer, not_found} |
-    {token, not_match} |
-    {token, not_decodable} |
-    {token, not_verified}
+    {token,
+        not_match |
+        not_decodable |
+        not_verified
+    }
 ).
 get_p2p_transfer_events({ID, CT}, Context) ->
     do(fun () ->
@@ -999,23 +1017,7 @@ maybe_decode_event_id(Num) when is_integer(Num) ->
 
 mix_events(ListOfListOfEvents) ->
     AppendedEvents = lists:append(ListOfListOfEvents),
-    Comparison =
-        fun({_FirstID, {ev, {FirstTimestamp, FirstUsec}, _FirstEvent}},
-            {_SecondID, {ev, {SecondTimestamp, SecondUsec}, _SecondEvent}}) ->
-            FTs = calendar:datetime_to_gregorian_seconds(FirstTimestamp),
-            STs = calendar:datetime_to_gregorian_seconds(SecondTimestamp),
-            case FTs of
-                _ when FTs < STs ->
-                    true;
-                _ when FTs =:= STs, FirstUsec < SecondUsec ->
-                    true;
-                _ when FTs =:= STs, FirstUsec =:= SecondUsec ->
-                    true;
-                _ ->
-                    false
-            end
-        end,
-    lists:sort(Comparison, AppendedEvents).
+    lists:keysort(2, AppendedEvents).
 
 filter_identity_challenge_status(Filter, Status) ->
     maps:get(<<"status">>, to_swag(challenge_status, Status)) =:= Filter.

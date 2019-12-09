@@ -704,10 +704,10 @@ create_p2p_transfer(Params, Context) ->
                 genlib_map:compact(ParsedParams#{id => ID, quote => DecodedToken}),
                 add_meta_to_ctx([], Params, EntityCtx)
             ) of
-                {ok, Result} ->
-                    {ok, Result};
-                {error, {identity,   not_found}} ->
-                    {error, {identity,   not_found}};
+                ok ->
+                    ok;
+                {error, {identity, notfound}} ->
+                    {error, {identity, not_found}};
                 {error, {cash_flow, _VolumeFinalizeError}} ->
                     {error, {cash_flow, volume_finalize_error}};
                 {error, {sender, {bin_data, not_found}}} ->
@@ -1015,8 +1015,8 @@ maybe_decode_event_id(<<"undefined">>) ->
 maybe_decode_event_id(Num) when is_integer(Num) ->
     Num.
 
-mix_events(ListOfListOfEvents) ->
-    AppendedEvents = lists:append(ListOfListOfEvents),
+mix_events(EventsList) ->
+    AppendedEvents = lists:append(EventsList),
     lists:keysort(2, AppendedEvents).
 
 filter_identity_challenge_status(Filter, Status) ->

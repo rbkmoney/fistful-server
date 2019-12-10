@@ -252,12 +252,13 @@ get_wallet(WalletID, Context) ->
     {wallet, notfound}     |
     {wallet, unauthorized}
 ).
-get_wallet_by_external_id(ExternalID, Context) ->
+get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
     AuthContext = wapi_handler_utils:get_auth_context(Context),
     PartyID = get_party_id(AuthContext),
-    case ff_external_id:get_ff_internal_id(wallet, PartyID, ExternalID) of
-        {ok, WalletID} -> get_wallet(WalletID, Context);
-        {error, notfound} -> {error, {wallet, notfound}}
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, wallet, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
+        {ok, WalletID, _} -> get_wallet(WalletID, Context);
+        {error, internal_id_not_found} -> {error, {wallet, notfound}}
     end.
 
 -spec create_wallet(params(), ctx()) -> result(map(),

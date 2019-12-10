@@ -268,15 +268,15 @@ get_operation_access('DeleteWebhookByID', _) ->
 get_operation_access('CreateQuote', _) ->
     [{[party], write}];
 get_operation_access('ListWithdrawals', _) ->
-    [{[payment_resources], read}];
+    [{[withdrawals], read}];
 get_operation_access('CreateWithdrawal', _) ->
-    [{[payment_resources], write}];
+    [{[withdrawals], write}];
 get_operation_access('GetWithdrawal', _) ->
-    [{[payment_resources], read}];
+    [{[withdrawals], read}];
 get_operation_access('PollWithdrawalEvents', _) ->
-    [{[payment_resources], read}];
+    [{[withdrawals], read}];
 get_operation_access('GetWithdrawalEvents', _) ->
-    [{[payment_resources], read}].
+    [{[withdrawals], read}].
 
 
 -spec get_access_config() -> map().
@@ -296,6 +296,6 @@ get_resource_hierarchy() ->
             wallets           => #{},
             destinations      => #{}
         },
-        webhooks          => #{},
-        payment_resources => #{}
+        webhooks    => #{},
+        withdrawals => #{}
     }.

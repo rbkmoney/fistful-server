@@ -102,7 +102,8 @@ init_per_group(G, C) ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
     })),
     Party = create_party(C),
-    Token = issue_token(Party, [{[party], write}], unlimited),
+    % Token = issue_token(Party, [{[party], write}], unlimited),
+    Token = issue_token(Party, [{[party], write}], {deadline, 10}),
     Context = get_context("localhost:8080", Token),
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
     [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].

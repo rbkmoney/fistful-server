@@ -25,6 +25,7 @@
 -export([get_identity_challenge_event/2]).
 
 -export([get_wallet/2]).
+-export([get_wallet_by_external_id/2]).
 -export([create_wallet/2]).
 -export([get_wallet_account/2]).
 -export([list_wallets/2]).
@@ -246,6 +247,19 @@ get_identity_challenge_event(#{
 ).
 get_wallet(WalletID, Context) ->
     do(fun() -> to_swag(wallet, get_state(wallet, WalletID, Context)) end).
+
+-spec get_wallet_by_external_id(external_id(), ctx()) -> result(map(),
+    {wallet, notfound}     |
+    {wallet, unauthorized}
+).
+get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
+    AuthContext = wapi_handler_utils:get_auth_context(Context),
+    PartyID = get_party_id(AuthContext),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, wallet, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
+        {ok, WalletID, _} -> get_wallet(WalletID, Context);
+        {error, internal_id_not_found} -> {error, {wallet, notfound}}
+    end.
 
 -spec create_wallet(params(), ctx()) -> result(map(),
     invalid                  |
@@ -965,6 +979,10 @@ process_stat_result(StatType, Result) ->
         {exception, #fistfulstat_BadToken{reason = Reason}} ->
             {error, {400, [], bad_request_error(invalidRequest, Reason)}}
     end.
+
+get_party_id(AuthContext) ->
+    {{PartyID, _}, _} = AuthContext,
+    PartyID.
 
 get_time(Key, Req) ->
     case genlib_map:get(Key, Req) of

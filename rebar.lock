@@ -90,7 +90,7 @@
  {<<"jose">>,{pkg,<<"jose">>,<<"1.9.0">>},0},
  {<<"jsx">>,{pkg,<<"jsx">>,<<"2.8.2">>},0},
  {<<"libdecaf">>,
-  {git,"git://github.com/potatosalad/erlang-libdecaf.git",
+  {git,"https://github.com/potatosalad/erlang-libdecaf.git",
        {ref,"0561aeb228b12d37468a0058530094f0a55c3c26"}},
   0},
  {<<"machinery">>,

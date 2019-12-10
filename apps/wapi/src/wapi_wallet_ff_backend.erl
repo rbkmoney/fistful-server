@@ -788,7 +788,7 @@ check_resource_access(true)  -> ok;
 check_resource_access(false) -> {error, unauthorized}.
 
 create_entity(Type, Params, CreateFun, Context) ->
-    ExternalID = maps:get(<<"externalID">>, Params, undefined),
+    ExternalID = ensure_external_id_defined(maps:get(<<"externalID">>, Params, undefined)),
     Hash       = erlang:phash2(Params),
     case gen_id(Type, ExternalID, Hash, Context) of
         {ok, ID} ->
@@ -797,6 +797,11 @@ create_entity(Type, Params, CreateFun, Context) ->
         {error, {external_id_conflict, ID}} ->
             {error, {external_id_conflict, ID, ExternalID}}
     end.
+
+ensure_external_id_defined(undefined) ->
+    genlib:unique();
+ensure_external_id_defined(ExternalID) ->
+    ExternalID.
 
 handle_create_entity_result(Result, Type, ExternalID, ID, Context) when
     Result =:= ok;
@@ -807,8 +812,6 @@ handle_create_entity_result(Result, Type, ExternalID, ID, Context) when
 handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Context) ->
     throw(E).
 
-sync_ff_external(_Type, undefined, _BenderID, _Context) ->
-    ok;
 sync_ff_external(Type, ExternalID, BenderID, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),
     FistfulID = ff_external_id:construct_external_id(PartyID, ExternalID),

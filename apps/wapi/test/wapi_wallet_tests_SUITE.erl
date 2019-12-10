@@ -107,8 +107,8 @@ init_per_group(Group, Config) when Group =:= base ->
     BasePermissions = [
         {[party], read},
         {[party], write},
-        {[payment_resources], read},
-        {[payment_resources], write},
+        {[withdrawals], read},
+        {[withdrawals], write},
         {[webhooks], read},
         {[webhooks], write}
     ],

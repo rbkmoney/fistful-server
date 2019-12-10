@@ -96,8 +96,8 @@ init_per_group(G, C) ->
     BasePermissions = [
         {[party], read},
         {[party], write},
-        {[payment_resources], read},
-        {[payment_resources], write},
+        {[withdrawals], read},
+        {[withdrawals], write},
         {[webhooks], read},
         {[webhooks], write}
     ],

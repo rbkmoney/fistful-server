@@ -210,7 +210,7 @@ get_operation_access('GetDestination', _) ->
 get_operation_access('IssueDestinationGrant', _) ->
     [{[party], write}];
 get_operation_access('DownloadFile', _) ->
-    [{[party], write}];
+    [{[party], read}];
 get_operation_access('ListIdentities', _) ->
     [{[party], read}];
 get_operation_access('CreateIdentity', _) ->

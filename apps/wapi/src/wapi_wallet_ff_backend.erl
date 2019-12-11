@@ -679,7 +679,7 @@ quote_p2p_transfer(Params, Context) ->
     end).
 
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
-    {identity,   not_found} |
+    {identity, not_found} |
     {cash_flow, volume_finalize_error} |
     {sender | receiver, not_found} |
     {currency, not_allowed} |

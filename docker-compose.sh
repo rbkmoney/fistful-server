@@ -28,7 +28,7 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:64b6aaa39e4d0abed03d6fb752f3906c076e3f40
+    image: dr2.rbkmoney.com/rbkmoney/wapi:6678487f5d3bc1796a76b23ea5aa51ee2f77a7af
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/var/keys/wapi/private.pem

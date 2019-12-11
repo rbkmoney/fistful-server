@@ -1025,10 +1025,8 @@ maybe_get_session_events(TransferID, Limit, P2PSessionEventID, Context) ->
     P2PTransfer = p2p_transfer_machine:p2p_transfer(get_state(p2p_transfer, TransferID, Context)),
     Filter =
         fun
-            ({_ID, {ev, _Timestamp, {user_interaction, #{payload := {status_changed, pending}}}}})->
-                false;
-            ({_ID, {ev, _Timestamp, {EventType, _}}}) when
-                EventType =:= user_interaction ->
+            ({_ID, {ev, _Timestamp, {user_interaction, #{payload := Payload}}}}) when
+                Payload =/= {status_changed, pending} ->
                 true;
             (_) ->
                 false

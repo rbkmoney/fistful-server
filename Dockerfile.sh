@@ -8,6 +8,7 @@ EXPOSE 8022
 
 # wapi
 EXPOSE 8080
+RUN git config --global url."https://".insteadOf git://
 
 # A bit of magic below to get a proper branch name
 # even when the HEAD is detached (Hey Jenkins!

@@ -751,20 +751,12 @@ get_p2p_transfer_events({ID, CT}, Context) ->
         P2PTransferEventID = maps:get(p2p_transfer_event_id, DecodedCT, undefined),
         P2PSessionEventID = maps:get(p2p_session_event_id, DecodedCT, undefined),
         Limit = 1000,
-        Filter =
-            fun
-                ({_ID, {ev, _Timestamp, {EventType, _}}}) when
-                    EventType =:= status_changed ->
-                    true;
-                (_) ->
-                    false
-            end,
-        P2PSessionEvents = maybe_get_session_events(ID, Limit, P2PSessionEventID, Context),
-        {ok, P2PTransferEvents} = get_events({p2p_transfer, event}, ID, Limit, P2PTransferEventID, Filter, Context),
+        {P2PSessionEvents, P2PSessionEventsLastID} =
+            unwrap(maybe_get_session_events(ID, Limit, P2PSessionEventID, Context)),
+        {P2PTransferEvents, P2PTransferEventsLastID} =
+            unwrap(maybe_get_transfer_events(ID, Limit, P2PTransferEventID, Context)),
         MixedEvents = mix_events([P2PTransferEvents, P2PSessionEvents]),
 
-        P2PTransferEventsLastID = maybe_get_last_event_id(P2PTransferEvents),
-        P2PSessionEventsLastID = maybe_get_last_event_id(P2PSessionEvents),
         ContinuationToken = create_p2p_transfer_events_continuation_token(#{
             p2p_transfer_event_id => P2PTransferEventsLastID,
             p2p_session_event_id => P2PSessionEventsLastID
@@ -1015,31 +1007,41 @@ mix_events(EventsList) ->
 filter_identity_challenge_status(Filter, Status) ->
     maps:get(<<"status">>, to_swag(challenge_status, Status)) =:= Filter.
 
-maybe_get_last_event_id([]) ->
-    undefined;
-maybe_get_last_event_id(Events) ->
-    {EventsLastID, _} = lists:last(Events),
-    EventsLastID.
-
 maybe_get_session_events(TransferID, Limit, P2PSessionEventID, Context) ->
-    P2PTransfer = p2p_transfer_machine:p2p_transfer(get_state(p2p_transfer, TransferID, Context)),
-    Filter =
-        fun
-            ({_ID, {ev, _Timestamp, {user_interaction, #{payload := Payload}}}}) when
-                Payload =/= {status_changed, pending} ->
-                true;
-            (_) ->
-                false
-        end,
-    case p2p_transfer:session_id(P2PTransfer) of
-        undefined ->
-            [];
-        SessionID ->
-            {ok, P2PSessionEvents} =
-                get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context),
-            P2PSessionEvents
-    end
-.
+    do(fun() ->
+        P2PTransfer = p2p_transfer_machine:p2p_transfer(get_state(p2p_transfer, TransferID, Context)),
+        Filter =
+            fun
+                ({_ID, {ev, _Timestamp, {user_interaction, #{payload := Payload}}}}) when
+                    Payload =/= {status_changed, pending} ->
+                    true;
+                (_) ->
+                    false
+            end,
+        case p2p_transfer:session_id(P2PTransfer) of
+            undefined ->
+                {[], undefined};
+            SessionID ->
+                P2PSessionEvents =
+                    unwrap(get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context)),
+                P2PSessionEvents
+        end
+       end).
+
+maybe_get_transfer_events(TransferID, Limit, P2PTransferEventID, Context) ->
+    do(fun() ->
+        Filter =
+            fun
+                ({_ID, {ev, _Timestamp, {EventType, _}}}) when
+                    EventType =:= status_changed ->
+                    true;
+                (_) ->
+                    false
+            end,
+        P2PSessionEvents =
+            unwrap(get_events({p2p_transfer, event}, TransferID, Limit, P2PTransferEventID, Filter, Context)),
+        P2PSessionEvents
+       end).
 
 get_event(Type, ResourceId, EventId, Mapper, Context) ->
     case get_swag_events(Type, ResourceId, 1, EventId - 1, Mapper, Context) of
@@ -1048,12 +1050,12 @@ get_event(Type, ResourceId, EventId, Mapper, Context) ->
         Error = {error, _} -> Error
     end.
 
-get_swag_events(Type = {Resource, _}, ResourceId, Limit, Cursor, Filter, Context) ->
+get_swag_events(Type, ResourceId, Limit, Cursor, Filter, Context) ->
     do(fun() ->
-        _ = check_resource(Resource, ResourceId, Context),
+        {Events, _LastEventID} = unwrap(get_events(Type, ResourceId, Limit, Cursor, Filter, Context)),
         to_swag(
             {list, get_event_type(Type)},
-            collect_events(get_collector(Type, ResourceId), Filter, Cursor, Limit)
+            Events
         )
     end).
 
@@ -1076,23 +1078,26 @@ get_collector({p2p_session, event}, Id) ->
     fun(C, L) -> unwrap(p2p_session_machine:events(Id, {C, L, forward})) end.
 
 collect_events(Collector, Filter, Cursor, Limit) ->
-    collect_events(Collector, Filter, Cursor, Limit, []).
+    collect_events(Collector, Filter, Cursor, Limit, {[], undefined}).
 
-collect_events(Collector, Filter, Cursor, Limit, Acc) when Limit =:= undefined ->
+collect_events(Collector, Filter, Cursor, Limit, {AccEvents, LastEventID}) when Limit =:= undefined ->
     case Collector(Cursor, Limit) of
         Events1 when length(Events1) > 0 ->
             {_, Events2} = filter_events(Filter, Events1),
-            Acc ++ Events2;
+            {NewLastEventID, _} = lists:last(Events1),
+            {AccEvents ++ Events2, NewLastEventID};
         [] ->
-            Acc
+            {AccEvents, LastEventID}
     end;
-collect_events(Collector, Filter, Cursor, Limit, Acc) ->
+collect_events(Collector, Filter, Cursor, Limit, {AccEvents, LastEventID}) ->
     case Collector(Cursor, Limit) of
         Events1 when length(Events1) > 0 ->
             {CursorNext, Events2} = filter_events(Filter, Events1),
-            collect_events(Collector, Filter, CursorNext, Limit - length(Events2), Acc ++ Events2);
+            {NewLastEventID, _} = lists:last(Events1),
+            NewAcc = {AccEvents ++ Events2, NewLastEventID},
+            collect_events(Collector, Filter, CursorNext, Limit - length(Events2), NewAcc);
         [] ->
-            Acc
+            {AccEvents, LastEventID}
     end.
 
 filter_events(Filter, Events) ->

@@ -41,7 +41,7 @@ publish_event(#{
         payload       = #p2p_session_Event{
             sequence   = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
-            changes    = [marshal(event, p2p_session:maybe_migrate(Payload))]
+            changes    = [marshal(change, p2p_session:maybe_migrate(Payload))]
         }
     }.
 

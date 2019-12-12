@@ -72,6 +72,11 @@
     type => plan_account()
 }.
 
+-type volume_finalize_error() ::
+    {not_mapped_constant, plan_constant(), constant_mapping()} |
+    {incomparable, {currency_mismatch, {cash(), cash()}}} |
+    {operation_failed, {empty_list, plan_operation()}}.
+
 -export_type([plan_posting/0]).
 -export_type([plan_volume/0]).
 -export_type([plan_constant/0]).
@@ -101,10 +106,6 @@
     volume_finalize_error().
 -type account_finalize_error() ::
     {not_mapped_plan_account, plan_account(), account_mapping()}.
--type volume_finalize_error() ::
-    {not_mapped_constant, plan_constant(), constant_mapping()} |
-    {incomparable, {currency_mismatch, {cash(), cash()}}} |
-    {operation_failed, {empty_list, plan_operation()}}.
 
 %% API
 
@@ -195,6 +196,35 @@ decode_rounding_method(RoundingMethod) ->
 decode_rational(#'Rational'{p = P, q = Q}) ->
     genlib_rational:new(P, Q).
 
+-spec compute_volume(plan_volume(), constant_mapping()) ->
+    {ok, cash()} | {error, volume_finalize_error()}.
+compute_volume({fixed, Cash}, _Constants) ->
+    {ok, Cash};
+compute_volume({share, {Rational, Constant, RoundingMethod}}, Constants) ->
+    do(fun () ->
+        {Amount, Currency} = unwrap(get_constant_value(Constant, Constants)),
+        ResultAmount = genlib_rational:round(
+            genlib_rational:mul(
+                genlib_rational:new(Amount),
+                Rational
+            ),
+            get_genlib_rounding_method(RoundingMethod)
+        ),
+        {ResultAmount, Currency}
+    end);
+compute_volume({product, {Operation, PlanVolumes}}, Constants) ->
+    do(fun () ->
+        Volumes = unwrap(compute_volumes(PlanVolumes, Constants)),
+        unwrap(foldl_cash(Operation, Volumes))
+    end).
+
+-spec compute_volumes([plan_volume()], constant_mapping()) ->
+    {ok, [cash()]} | {error, volume_finalize_error()}.
+compute_volumes(Volumes, Constants) ->
+    do(fun () ->
+        [unwrap(compute_volume(V, Constants)) || V <- Volumes]
+    end).
+
 %% Internals
 
 %% Inversing
@@ -251,35 +281,6 @@ construct_final_account(PlanAccount, Accounts) ->
         error ->
             {error, {not_mapped_plan_account, PlanAccount, Accounts}}
     end.
-
--spec compute_volume(plan_volume(), constant_mapping()) ->
-    {ok, cash()} | {error, volume_finalize_error()}.
-compute_volume({fixed, Cash}, _Constants) ->
-    {ok, Cash};
-compute_volume({share, {Rational, Constant, RoundingMethod}}, Constants) ->
-    do(fun () ->
-        {Amount, Currency} = unwrap(get_constant_value(Constant, Constants)),
-        ResultAmount = genlib_rational:round(
-            genlib_rational:mul(
-                genlib_rational:new(Amount),
-                Rational
-            ),
-            get_genlib_rounding_method(RoundingMethod)
-        ),
-        {ResultAmount, Currency}
-    end);
-compute_volume({product, {Operation, PlanVolumes}}, Constants) ->
-    do(fun () ->
-        Volumes = unwrap(compute_volumes(PlanVolumes, Constants)),
-        unwrap(foldl_cash(Operation, Volumes))
-    end).
-
--spec compute_volumes([plan_volume()], constant_mapping()) ->
-    {ok, [cash()]} | {error, volume_finalize_error()}.
-compute_volumes(Volumes, Constants) ->
-    do(fun () ->
-        [unwrap(compute_volume(V, Constants)) || V <- Volumes]
-    end).
 
 -spec get_constant_value(plan_constant(), constant_mapping()) ->
     {ok, cash()} | {error, {not_mapped_constant, plan_constant(), constant_mapping()}}.

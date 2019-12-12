@@ -21,24 +21,24 @@
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
-marshal(event, {created, Transfer}) ->
+marshal(change, {created, Transfer}) ->
     {created, #p2p_transfer_CreatedChange{p2p_transfer = marshal(transfer, Transfer)}};
-marshal(event, {status_changed, Status}) ->
+marshal(change, {status_changed, Status}) ->
     {status_changed, #p2p_transfer_StatusChange{status = marshal(status, Status)}};
-marshal(event, {resource_got, Sender, Receiver}) ->
+marshal(change, {resource_got, Sender, Receiver}) ->
     {resource, marshal(resource_got, {Sender, Receiver})};
-marshal(event, {risk_score_changed, RiskScore}) ->
+marshal(change, {risk_score_changed, RiskScore}) ->
     {risk_score, #p2p_transfer_RiskScoreChange{score = marshal(risk_score, RiskScore)}};
-marshal(event, {route_changed, Route}) ->
+marshal(change, {route_changed, Route}) ->
     {route, marshal(route, Route)};
-marshal(event, {p_transfer, TransferChange}) ->
+marshal(change, {p_transfer, TransferChange}) ->
     {transfer, #p2p_transfer_TransferChange{payload = ff_p_transfer_codec:marshal(event, TransferChange)}};
-marshal(event, {session, Session}) ->
+marshal(change, {session, Session}) ->
     {session, marshal(session, Session)};
-marshal(event, {adjustment, #{id := ID, payload := Payload}}) ->
+marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
     {adjustment, #p2p_transfer_AdjustmentChange{
         id = ff_adjustment_codec:marshal(?PREFIX, id, ID),
-        payload = ff_adjustment_codec:marshal(?PREFIX, event, Payload)
+        payload = ff_adjustment_codec:marshal(?PREFIX, change, Payload)
     }};
 
 marshal(transfer, Transfer = #{
@@ -157,30 +157,30 @@ unmarshal({list, T}, V) ->
 
 unmarshal(repair_scenario, {add_events, #p2p_transfer_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
-        events => unmarshal({list, event}, Events),
+        events => unmarshal({list, change}, Events),
         actions => maybe_unmarshal(complex_action, Action)
     })};
 
-unmarshal(event, {created, #p2p_transfer_CreatedChange{p2p_transfer = Transfer}}) ->
+unmarshal(change, {created, #p2p_transfer_CreatedChange{p2p_transfer = Transfer}}) ->
     {created, unmarshal(transfer, Transfer)};
-unmarshal(event, {status_changed, #p2p_transfer_StatusChange{status = Status}}) ->
+unmarshal(change, {status_changed, #p2p_transfer_StatusChange{status = Status}}) ->
     {status_changed, unmarshal(status, Status)};
-unmarshal(event, {resource, #p2p_transfer_ResourceChange{
+unmarshal(change, {resource, #p2p_transfer_ResourceChange{
         payload = {got, #p2p_transfer_ResourceGot{sender = Sender, receiver = Receiver}
 }}}) ->
     unmarshal(resource_got, {Sender, Receiver});
-unmarshal(event, {risk_score, #p2p_transfer_RiskScoreChange{score = RiskScore}}) ->
+unmarshal(change, {risk_score, #p2p_transfer_RiskScoreChange{score = RiskScore}}) ->
     {risk_score_changed, unmarshal(risk_score, RiskScore)};
-unmarshal(event, {route, #p2p_transfer_RouteChange{route = Route}}) ->
+unmarshal(change, {route, #p2p_transfer_RouteChange{route = Route}}) ->
     {route_changed, unmarshal(route, Route)};
-unmarshal(event, {transfer, #p2p_transfer_TransferChange{payload = TransferChange}}) ->
+unmarshal(change, {transfer, #p2p_transfer_TransferChange{payload = TransferChange}}) ->
     {p_transfer, ff_p_transfer_codec:unmarshal(event, TransferChange)};
-unmarshal(event, {session, #p2p_transfer_SessionChange{id = ID, payload = Payload}}) ->
+unmarshal(change, {session, #p2p_transfer_SessionChange{id = ID, payload = Payload}}) ->
     {session, unmarshal(session, {ID, Payload})};
-unmarshal(event, {adjustment, #p2p_transfer_AdjustmentChange{id = ID, payload = Payload}}) ->
+unmarshal(change, {adjustment, #p2p_transfer_AdjustmentChange{id = ID, payload = Payload}}) ->
     {adjustment, #{
         id => ff_adjustment_codec:unmarshal(id, ID),
-        payload => ff_adjustment_codec:unmarshal(event, Payload)
+        payload => ff_adjustment_codec:unmarshal(change, Payload)
     }};
 
 unmarshal(transfer, #p2p_transfer_P2PTransfer{
@@ -351,7 +351,7 @@ p2p_transfer_codec_test() ->
         final_cash_flow => FinalCashFlow
     },
 
-    Events = [
+    Changes = [
         {created, P2PTransfer},
         {resource_got, Resource, Resource},
         {risk_score_changed, low},
@@ -361,6 +361,6 @@ p2p_transfer_codec_test() ->
         {status_changed, succeeded},
         {adjustment, #{id => genlib:unique(), payload => {created, Adjustment}}}
     ],
-    ?assertEqual(Events, unmarshal({list, event}, marshal({list, event}, Events))).
+    ?assertEqual(Changes, unmarshal({list, change}, marshal({list, change}, Changes))).
 
 -endif.

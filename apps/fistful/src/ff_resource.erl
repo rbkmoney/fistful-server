@@ -115,19 +115,17 @@ create_resource(Resource) ->
     {ok, resource()} |
     {error, {bin_data, not_found}}.
 
-create_resource({bank_card, #{token := Token} = BankCard}, undefined) ->
+create_resource({bank_card, #{token := Token} = BankCard}, ResourceID) ->
     do(fun() ->
-        BinData = unwrap(bin_data, ff_bin_data:get(Token, undefined)),
-        KeyList = [payment_system, bank_name, iso_country_code, card_type],
-        ExtendData = maps:with(KeyList, BinData),
-        {bank_card, maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})}
-    end);
-create_resource({bank_card, #{token := Token} = BankCard}, {bank_card, ResourceID}) ->
-    do(fun() ->
-        BinData = unwrap(bin_data, ff_bin_data:get(Token, ResourceID)),
+        BinData = unwrap(bin_data, get_bin_data(Token, ResourceID)),
         KeyList = [payment_system, bank_name, iso_country_code, card_type],
         ExtendData = maps:with(KeyList, BinData),
         {bank_card, maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})}
     end);
 create_resource({crypto_wallet, CryptoWallet}, _ResourceID) ->
     {ok, CryptoWallet}.
+
+get_bin_data(Token, undefined) ->
+    ff_bin_data:get(Token, undefined);
+get_bin_data(Token, {bank_card, ResourceID}) ->
+    ff_bin_data:get(Token, ResourceID).

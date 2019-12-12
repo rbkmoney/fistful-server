@@ -37,11 +37,11 @@ record_status(#{status := Prefix}, Name) ->
 marshal(Prefix, {list, T}, V) ->
     [marshal(Prefix, T, E) || E <- V];
 
-marshal(Prefix, event, {created, Adjustment}) ->
+marshal(Prefix, change, {created, Adjustment}) ->
     {created, {record_transfer(Prefix, <<"CreatedChange">>), marshal(Prefix, adjustment, Adjustment)}};
-marshal(Prefix, event, {p_transfer, TransferChange}) ->
+marshal(Prefix, change, {p_transfer, TransferChange}) ->
     {transfer, {record_transfer(Prefix, <<"TransferChange">>), ff_p_transfer_codec:marshal(event, TransferChange)}};
-marshal(Prefix, event, {status_changed, Status}) ->
+marshal(Prefix, change, {status_changed, Status}) ->
     {status_changed, {record_transfer(Prefix, <<"StatusChange">>), marshal(Prefix, status, Status)}};
 
 marshal(Prefix, adjustment, Adjustment = #{
@@ -110,11 +110,11 @@ marshal(_Prefix, T, V) ->
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
 
-unmarshal(event, {created, {_CreatedChange, Adjustment}}) ->
+unmarshal(change, {created, {_CreatedChange, Adjustment}}) ->
     {created, unmarshal(adjustment, Adjustment)};
-unmarshal(event, {transfer, {_TransferChange, Change}}) ->
+unmarshal(change, {transfer, {_TransferChange, Change}}) ->
     {p_transfer, ff_p_transfer_codec:unmarshal(event, Change)};
-unmarshal(event, {status_changed, {_StatusChange, Status}}) ->
+unmarshal(change, {status_changed, {_StatusChange, Status}}) ->
     {status_changed, unmarshal(status, Status)};
 
 unmarshal(adjustment, {
@@ -232,11 +232,11 @@ adjustment_codec_test() ->
         final_cash_flow => FinalCashFlow
     },
 
-    Events = [
+    Changes = [
         {created, Adjustment},
         {p_transfer, {created, Transfer}},
         {status_changed, pending}
     ],
-    ?assertEqual(Events, unmarshal({list, event}, marshal(Prefix, {list, event}, Events))).
+    ?assertEqual(Changes, unmarshal({list, change}, marshal(Prefix, {list, change}, Changes))).
 
 -endif.

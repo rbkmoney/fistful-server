@@ -17,17 +17,17 @@
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
-marshal(event, {created, Session}) ->
+marshal(change, {created, Session}) ->
     {created, #p2p_session_CreatedChange{session = marshal(session, Session)}};
-marshal(event, {next_state, AdapterState}) ->
+marshal(change, {next_state, AdapterState}) ->
     {adapter_state, #p2p_session_AdapterStateChange{state = AdapterState}};
-marshal(event, {transaction_bound, TransactionInfo}) ->
+marshal(change, {transaction_bound, TransactionInfo}) ->
     {transaction_bound, #p2p_session_TransactionBoundChange{trx_info = marshal(transaction_info, TransactionInfo)}};
-marshal(event, {finished, SessionResult}) ->
+marshal(change, {finished, SessionResult}) ->
     {finished, #p2p_session_ResultChange{result = marshal(session_result, SessionResult)}};
-marshal(event, {callback, CallbackChange}) ->
+marshal(change, {callback, CallbackChange}) ->
     {callback, marshal(callback_change, CallbackChange)};
-marshal(event, {user_interaction, UserInteractionChange}) ->
+marshal(change, {user_interaction, UserInteractionChange}) ->
     {ui, marshal(user_interaction_change, UserInteractionChange)};
 
 marshal(session, #{
@@ -146,26 +146,26 @@ unmarshal({list, T}, V) ->
 
 unmarshal(repair_scenario, {add_events, #p2p_session_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
-        events => unmarshal({list, event}, Events),
+        events => unmarshal({list, change}, Events),
         actions => maybe_unmarshal(complex_action, Action)
     })};
 unmarshal(repair_scenario, {set_session_result, #p2p_session_SetResultRepair{result = Result}}) ->
     {set_session_result, unmarshal(session_result, Result)};
 
-unmarshal(event, {created, #p2p_session_CreatedChange{session = Session}}) ->
+unmarshal(change, {created, #p2p_session_CreatedChange{session = Session}}) ->
     {created, unmarshal(session, Session)};
-unmarshal(event, {adapter_state, #p2p_session_AdapterStateChange{state = AdapterState}}) ->
+unmarshal(change, {adapter_state, #p2p_session_AdapterStateChange{state = AdapterState}}) ->
     {next_state, AdapterState};
-unmarshal(event, {transaction_bound, #p2p_session_TransactionBoundChange{trx_info = TransactionInfo}}) ->
+unmarshal(change, {transaction_bound, #p2p_session_TransactionBoundChange{trx_info = TransactionInfo}}) ->
     {transaction_bound, unmarshal(transaction_info, TransactionInfo)};
-unmarshal(event, {finished, #p2p_session_ResultChange{result = SessionResult}}) ->
+unmarshal(change, {finished, #p2p_session_ResultChange{result = SessionResult}}) ->
     {finished, unmarshal(session_result, SessionResult)};
-unmarshal(event, {callback, #p2p_session_CallbackChange{tag = Tag, payload = Payload}}) ->
+unmarshal(change, {callback, #p2p_session_CallbackChange{tag = Tag, payload = Payload}}) ->
     {callback, #{
         tag => unmarshal(string, Tag),
         payload => unmarshal(callback_event, Payload)
     }};
-unmarshal(event, {ui, #p2p_session_UserInteractionChange{id = ID, payload = Payload}}) ->
+unmarshal(change, {ui, #p2p_session_UserInteractionChange{id = ID, payload = Payload}}) ->
     {user_interaction, #{
         id => unmarshal(id, ID),
         payload => unmarshal(user_interaction_event, Payload)
@@ -331,7 +331,7 @@ p2p_session_codec_test() ->
         domain_revision => 321
     },
 
-    Events = [
+    Changes = [
         {created, Session},
         {next_state, <<"test state">>},
         {transaction_bound, TransactionInfo},
@@ -339,8 +339,8 @@ p2p_session_codec_test() ->
         {callback, #{tag => <<"Tag">>, payload => {created, Callback}}},
         {user_interaction, #{id => genlib:unique(), payload => {created, UserInteraction}}}
     ],
-    Marshaled = marshal({list, event}, Events),
+    Marshaled = marshal({list, change}, Changes),
     io:format("marshaled ~p~n", [Marshaled]),
-    ?assertEqual(Events, unmarshal({list, event}, Marshaled)).
+    ?assertEqual(Changes, unmarshal({list, change}, Marshaled)).
 
 -endif.

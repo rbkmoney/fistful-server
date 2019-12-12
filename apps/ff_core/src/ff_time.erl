@@ -11,8 +11,15 @@
 -export_type([timestamp_ms/0]).
 
 -type timestamp_ms()      :: integer().
--type interval()          :: {integer(), integer(), integer()}.
--type datetime_interval() :: {interval(), interval()}.
+-type year()              :: integer().
+-type month()             :: integer().
+-type day()               :: integer().
+-type hour()              :: integer().
+-type minute()            :: integer().
+-type second()            :: integer().
+-type date()              :: {year(), month(), day()}.
+-type time()              :: {hour(), minute(), second()}.
+-type datetime_interval() :: {date(), time()}.
 
 %% API
 
@@ -34,7 +41,8 @@ from_rfc3339(BTimestamp) ->
     timestamp_ms().
 add_interval(Timestamp, {Date, Time}) ->
     Ms = Timestamp rem 1000,
-    {D, T} = calendar:system_time_to_local_time(Timestamp, millisecond),
+    TSSeconds = erlang:convert_time_unit(Timestamp, native, second),
+    {D, T} = genlib_time:unixtime_to_daytime(TSSeconds),
     NewDate = genlib_time:daytime_to_unixtime({genlib_time:shift_date(D, Date), T}),
     DateTime = genlib_time:add_duration(NewDate, Time),
     DateTime*1000 + Ms.

@@ -35,7 +35,7 @@
 -export([id/1]).
 
 -spec get(token(), bin_data_id() | undefined) ->
-    {ok, bin_data() | undefined} | {error, not_found}.
+    {ok, bin_data()} | {error, not_found}.
 
 get(Token, undefined) ->
     case call_binbase('GetByCardToken', [Token]) of

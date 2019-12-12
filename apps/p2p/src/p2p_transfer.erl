@@ -615,7 +615,7 @@ do_risk_scoring(P2PTransfer) ->
     Score = case genlib_app:env(p2p_transfer, score_id, undefined) of
         undefined ->
             _ = logger:warning("Fail to get env RiskScoreID set RiskScore to low"),
-            low;
+            high;
         ScoreID ->
             Scores = p2p_inspector:inspect(P2PTransfer, DomainRevision, [ScoreID], Inspector),
             maps:get(ScoreID, Scores)

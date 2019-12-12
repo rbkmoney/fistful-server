@@ -11,21 +11,16 @@
 -type plan_constant()             :: operation_amount | surplus.
 -type identity()                  :: ff_identity:identity().
 -type identity_id()               :: ff_identity:id().
--type compact_resource()          :: compact_bank_card_resource() | compact_crypto_wallet_resource().
+-type compact_resource()          :: compact_bank_card_resource().
 -type surplus_cash_volume()       :: ff_cash_flow:plan_volume().
 -type get_contract_terms_error()  :: ff_party:get_contract_terms_error().
 -type validate_p2p_error()        :: ff_party:validate_p2p_error().
 -type volume_finalize_error()     :: ff_cash_flow:volume_finalize_error().
 
--type compact_bank_card_resource() :: #{
-    type := bank_card,
+-type compact_bank_card_resource() :: {bank_card, #{
     token := binary(),
-    bin_data_id => ff_bin_data:bin_data_id()
-}.
-
--type compact_crypto_wallet_resource() :: #{
-    type := crypto_wallet
-}.
+    bin_data_id := ff_bin_data:bin_data_id()
+}}.
 
 -type fees()        :: #{fees => #{plan_constant() => surplus_cash_volume()}}.
 -opaque quote() :: #{
@@ -75,29 +70,22 @@ party_revision(#{party_revision := Revision}) ->
     Revision.
 
 -spec sender_id(quote()) ->
-    ff_resource:resource_id() | undefined.
-sender_id(#{sender := #{type := bank_card, bin_data_id := BinDataID}}) ->
-    {bank_card, BinDataID};
-sender_id(_) ->
-    undefined.
+    ff_resource:resource_id().
+sender_id(#{sender := {bank_card, #{bin_data_id := BinDataID}}}) ->
+    {bank_card, BinDataID}.
 
 -spec receiver_id(quote()) ->
-    ff_resource:resource_id() | undefined.
-receiver_id(#{receiver := #{type := bank_card, bin_data_id := BinDataID}}) ->
-    {bank_card, BinDataID};
-receiver_id(_) ->
-    undefined.
+    ff_resource:resource_id().
+receiver_id(#{receiver := {bank_card, #{bin_data_id := BinDataID}}}) ->
+    {bank_card, BinDataID}.
 
 -spec compact(ff_resource:resource()) ->
     compact_resource().
 compact({bank_card, BankCard}) ->
-    genlib_map:compact(#{
-        type => bank_card,
+    {bank_card, #{
         token => ff_resource:token(BankCard),
         bin_data_id => ff_resource:bin_data_id(BankCard)
-    });
-compact({crypto_wallet, _CryptoWallet}) ->
-    #{type => crypto_wallet}.
+    }}.
 
 %%
 

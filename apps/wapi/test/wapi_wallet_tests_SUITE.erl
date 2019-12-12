@@ -36,8 +36,6 @@
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
--define(CALLBACK(Tag, Payload), #p2p_adapter_Callback{tag = Tag, payload = Payload}).
-
 -type test_case_name()  :: atom().
 -type config()          :: [{atom(), any()}].
 -type group_name()      :: atom().
@@ -53,8 +51,7 @@ init([]) ->
     [test_case_name()].
 all() ->
     [
-        {group, base},
-        {group, p2p}
+        {group, base}
     ].
 
 -spec groups() ->

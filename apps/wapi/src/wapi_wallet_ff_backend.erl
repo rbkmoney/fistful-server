@@ -702,7 +702,7 @@ create_p2p_transfer(Params, Context) ->
                 quote_token := QuoteToken
             } = ParsedParams = from_swag(create_p2p_params, Params),
             PartyID = wapi_handler_utils:get_owner(Context),
-            DecodedToken = unwrap(prepare_p2p_quote_token(QuoteToken, PartyID, ParsedParams)),
+            DecodedToken = unwrap(prepare_p2p_quote_token(QuoteToken, PartyID)),
             case p2p_transfer_machine:create(
                 genlib_map:compact(ParsedParams#{id => ID, quote => DecodedToken}),
                 add_meta_to_ctx([], Params, EntityCtx)
@@ -894,55 +894,12 @@ decode_p2p_quote_token(Token) ->
             {error, {token, not_decodable}}
     end.
 
-validate_p2p_quote_token(
-    #{
-        amount          := Cash,
-        party_revision  := _PartyRevision,
-        domain_revision := _DomainRevision,
-        created_at      := CreatedAt,
-        expires_on      := ExpiresOn,
-        identity_id     := IdentityID,
-        sender          := #{
-            type := bank_card,
-            token := SenderToken
-        },
-        receiver        := #{
-            type := bank_card,
-            token := ReceiverToken
-        }
-    },
-    #{
-        sender := {raw, #{
-            resource_params := {bank_card, #{
-                token := SenderToken
-            }}
-        }},
-        receiver := {raw, #{
-            resource_params := {bank_card, #{
-                token := ReceiverToken
-            }}
-        }},
-        identity_id := IdentityID,
-        body := Cash
-    }
-) ->
-    Timestamp = ff_time:now(),
-    case Timestamp of
-        _ when ExpiresOn < Timestamp ->
-            {error, {token, expired}};
-        _ when CreatedAt < Timestamp, ExpiresOn > Timestamp ->
-            ok
-    end;
-validate_p2p_quote_token(_Quote, _Params) ->
-    {error, {token, not_match_params}}.
-
-prepare_p2p_quote_token(undefined, _PartyID, _Params) ->
+prepare_p2p_quote_token(undefined, _PartyID) ->
     {ok, undefined};
-prepare_p2p_quote_token(Token, PartyID, Params) ->
+prepare_p2p_quote_token(Token, PartyID) ->
     do(fun() ->
         VerifiedToken = unwrap(verify_p2p_quote_token(Token)),
         {DecodedToken, TokenPartyID} = unwrap(decode_p2p_quote_token(VerifiedToken)),
-        ok = unwrap(validate_p2p_quote_token(DecodedToken, Params)),
         case TokenPartyID of
             PartyID ->
                 DecodedToken;
@@ -1009,6 +966,8 @@ maybe_decode_event_id(<<"undefined">>) ->
 maybe_decode_event_id(Num) when is_integer(Num) ->
     Num.
 
+-spec mix_events(list(list(p2p_transfer:event() | p2p_session:event()))) ->
+    list(p2p_transfer:event() | p2p_session:event()).
 mix_events(EventsList) ->
     AppendedEvents = lists:append(EventsList),
     lists:keysort(2, AppendedEvents).
@@ -2074,15 +2033,6 @@ to_swag(p2p_transfer, P2PTransferState) ->
         <<"externalID">> => maps:get(external_id, P2PTransfer, undefined),
         <<"metadata">> => Metadata
     });
-
-to_swag(p2p_fee_instrument, #{
-    token       := Token,
-    bin_data_id := BinDataID
-}) ->
-    #{
-        <<"token">>     => Token,
-        <<"BinDataID">> => BinDataID
-    };
 
 to_swag(p2p_transfer_status, pending) ->
     #{

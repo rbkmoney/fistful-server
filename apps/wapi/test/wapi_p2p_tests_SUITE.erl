@@ -52,7 +52,7 @@ all() ->
     [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
-        {p2p, [], [
+        {p2p, [parallel], [
             quote_p2p_transfer_ok_test,
             create_p2p_transfer_ok_test,
             create_p2p_transfer_with_token_ok_test,

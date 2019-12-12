@@ -38,7 +38,7 @@ publish_event(#{
         id            = marshal(event_id, ID),
         created_at    = marshal(timestamp, Dt),
         source        = marshal(id, SourceID),
-        payload       = #p2p_session_Event{
+        payload       = #p2p_session_EventSinkPayload{
             sequence   = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
             changes    = [marshal(change, p2p_session:maybe_migrate(Payload))]

@@ -23,9 +23,9 @@ handle_function(Func, Args, Opts) ->
 %% Internals
 %%
 
-handle_function_('Create', [EncodedParams, EncodedContext], Opts) ->
-    Params = ff_deposit_codec:unmarshal(deposit_params, EncodedParams),
-    Context = ff_deposit_codec:unmarshal(context, EncodedContext),
+handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
+    Params = ff_deposit_codec:unmarshal(deposit_params, MarshaledParams),
+    Context = ff_deposit_codec:unmarshal(context, MarshaledContext),
     ok = scoper:add_meta(maps:with([id, wallet_id, source_id, external_id], Params)),
     case ff_deposit_machine:create(Params, Context) of
         ok ->
@@ -86,8 +86,8 @@ handle_function_('GetEvents', [ID, EventRange], _Opts) ->
         {error, {unknown_deposit, ID}} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end;
-handle_function_('CreateAdjustment', [ID, EncodedParams], _Opts) ->
-    Params = ff_deposit_adjustment_codec:unmarshal(adjustment_params, EncodedParams),
+handle_function_('CreateAdjustment', [ID, MarshaledParams], _Opts) ->
+    Params = ff_deposit_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
     ok = scoper:add_meta(genlib_map:compact(#{
         id => ID,
@@ -119,8 +119,8 @@ handle_function_('CreateAdjustment', [ID, EncodedParams], _Opts) ->
                 another_adjustment_id = ff_codec:marshal(id, AnotherID)
             })
     end;
-handle_function_('CreateRevert', [ID, EncodedParams], _Opts) ->
-    Params = ff_deposit_revert_codec:unmarshal(revert_params, EncodedParams),
+handle_function_('CreateRevert', [ID, MarshaledParams], _Opts) ->
+    Params = ff_deposit_revert_codec:unmarshal(revert_params, MarshaledParams),
     RevertID = maps:get(id, Params),
     ok = scoper:add_meta(genlib_map:compact(#{
         id => ID,
@@ -154,8 +154,8 @@ handle_function_('CreateRevert', [ID, EncodedParams], _Opts) ->
                 amount = ff_codec:marshal(cash, Amount)
             })
     end;
-handle_function_('CreateRevertAdjustment', [ID, RevertID, EncodedParams], _Opts) ->
-    Params = ff_deposit_revert_adjustment_codec:unmarshal(adjustment_params, EncodedParams),
+handle_function_('CreateRevertAdjustment', [ID, RevertID, MarshaledParams], _Opts) ->
+    Params = ff_deposit_revert_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
     ok = scoper:add_meta(genlib_map:compact(#{
         id => ID,

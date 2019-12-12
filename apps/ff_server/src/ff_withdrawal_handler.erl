@@ -22,9 +22,9 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [EncodedParams, EncodedContext], Opts) ->
-    Params = ff_withdrawal_codec:unmarshal_withdrawal_params(EncodedParams),
-    Context = ff_withdrawal_codec:unmarshal(context, EncodedContext),
+handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
+    Params = ff_withdrawal_codec:unmarshal_withdrawal_params(MarshaledParams),
+    Context = ff_withdrawal_codec:unmarshal(context, MarshaledContext),
     ok = scoper:add_meta(maps:with([id, wallet_id, destination_id, external_id], Params)),
     case ff_withdrawal_machine:create(Params, Context) of
         ok ->
@@ -85,8 +85,8 @@ handle_function_('GetEvents', [ID, EventRange], _Opts) ->
         {error, {unknown_withdrawal, ID}} ->
             woody_error:raise(business, #fistful_WithdrawalNotFound{})
     end;
-handle_function_('CreateAdjustment', [ID, EncodedParams], _Opts) ->
-    Params = ff_withdrawal_adjustment_codec:unmarshal(adjustment_params, EncodedParams),
+handle_function_('CreateAdjustment', [ID, MarshaledParams], _Opts) ->
+    Params = ff_withdrawal_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
     ok = scoper:add_meta(genlib_map:compact(#{
         id => ID,

@@ -284,13 +284,9 @@ bender_to_fistful_sync(C) ->
     Ctx = create_context(Party, C),
     %% Offset for migration purposes
     {ok, #{<<"id">> := TargetID}} = wapi_wallet_ff_backend:create_identity(Params0, Ctx),
-    {ok, TargetID} = get_ff_internal_id(identity, Party, ExternalID).
+    {ok, TargetID} = ff_external_id:get_ff_internal_id(identity, Party, ExternalID).
 
 %%
-
-get_ff_internal_id(Type, PartyID, ExternalID) ->
-    FistfulID = ff_external_id:construct_external_id(PartyID, ExternalID),
-    ff_external_id:get_internal_id(Type, FistfulID).
 
 wait_for_destination_authorized(DestID) ->
     authorized = ct_helper:await(

@@ -1019,38 +1019,36 @@ filter_identity_challenge_status(Filter, Status) ->
 maybe_get_session_events(TransferID, Limit, P2PSessionEventID, Context) ->
     do(fun() ->
         P2PTransfer = p2p_transfer_machine:p2p_transfer(get_state(p2p_transfer, TransferID, Context)),
-        Filter =
-            fun
-                ({_ID, {ev, _Timestamp, {user_interaction, #{payload := Payload}}}}) when
-                    Payload =/= {status_changed, pending} ->
-                    true;
-                (_) ->
-                    false
-            end,
         case p2p_transfer:session_id(P2PTransfer) of
             undefined ->
                 {[], undefined};
             SessionID ->
                 P2PSessionEvents =
-                    unwrap(get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context)),
+                    unwrap(get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID,
+                        fun session_events_filter/1, Context)),
                 P2PSessionEvents
         end
        end).
 
 maybe_get_transfer_events(TransferID, Limit, P2PTransferEventID, Context) ->
     do(fun() ->
-        Filter =
-            fun
-                ({_ID, {ev, _Timestamp, {EventType, _}}}) when
-                    EventType =:= status_changed ->
-                    true;
-                (_) ->
-                    false
-            end,
         P2PSessionEvents =
-            unwrap(get_events({p2p_transfer, event}, TransferID, Limit, P2PTransferEventID, Filter, Context)),
+            unwrap(get_events({p2p_transfer, event}, TransferID, Limit, P2PTransferEventID,
+                fun transfer_events_filter/1, Context)),
         P2PSessionEvents
        end).
+
+session_events_filter({_ID, {ev, _Timestamp, {user_interaction, #{payload := Payload}}}})
+    when Payload =/= {status_changed, pending}
+->
+    true;
+session_events_filter(_) ->
+    false.
+
+transfer_events_filter({_ID, {ev, _Timestamp, {EventType, _}}}) when EventType =:= status_changed ->
+    true;
+transfer_events_filter(_) ->
+    false.
 
 get_event(Type, ResourceId, EventId, Mapper, Context) ->
     case get_swag_events(Type, ResourceId, 1, EventId - 1, Mapper, Context) of

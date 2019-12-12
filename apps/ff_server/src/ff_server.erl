@@ -96,7 +96,9 @@ init([]) ->
         {identity_management, ff_identity_handler},
         {destination_management, ff_destination_handler},
         {withdrawal_management, ff_withdrawal_handler},
-        {withdrawal_session_repairer, ff_withdrawal_session_repair}
+        {withdrawal_session_repairer, ff_withdrawal_session_repair},
+        {withdrawal_repairer, ff_withdrawal_repair},
+        {deposit_repairer, ff_deposit_repair}
     ] ++ get_eventsink_handlers(),
     WoodyHandlers = [get_handler(Service, Handler, WrapperOpts) || {Service, Handler} <- Services],
 

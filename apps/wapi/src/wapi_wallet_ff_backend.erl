@@ -638,13 +638,15 @@ delete_webhook(WebhookID, IdentityID, Context) ->
     end).
 
 -spec quote_p2p_transfer(params(), ctx()) -> result(map(),
-    {identity,   not_found} |
-    {party, not_found} |
-    {cash_flow, volume_finalize_error} |
-    {sender | receiver, not_found} |
-    {currency, not_allowed} |
-    {cash_range, out_of_range} |
-    p2p_forbidden
+    {identity, notfound} |
+    {party, ff_party:get_contract_terms_error()} |
+    {cash_flow, ff_cash_flow:volume_finalize_error()} |
+    {sender | receiver, {bin_data, not_found}} |
+    {terms, {terms_violation,
+        {not_allowed_currency, _Details} |
+        {cash_range, {ff_party:cash(), ff_party:cash_range()}} |
+        p2p_forbidden
+    }}
 ).
 quote_p2p_transfer(Params, Context) ->
     do(fun () ->
@@ -660,32 +662,20 @@ quote_p2p_transfer(Params, Context) ->
                 Token = create_p2p_quote_token(Quote, PartyID),
                 ExpiresOn = p2p_quote:expires_on(Quote),
                 to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn});
-            {error, {identity,   not_found}} ->
-                {error, {identity,   not_found}};
-            {error, {party, _PartyError}} ->
-                {error, {party, not_found}};
-            {error, {cash_flow, _VolumeFinalizeError}} ->
-                {error, {cash_flow, volume_finalize_error}};
-            {error, {sender, {bin_data, not_found}}} ->
-                {error, {sender, not_found}};
-            {error, {receiver, {bin_data, not_found}}} ->
-                {error, {receiver, not_found}};
-            {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
-                {error, {currency, not_allowed}};
-            {error, {terms, {terms_violation, {cash_range, _CashBounds}}}} ->
-                {error, {cash_range, out_of_range}};
-            {error, {terms, {terms_violation, p2p_forbidden}}} ->
-                {error, p2p_forbidden}
+            {error, _Error} = Result ->
+                Result
         end
     end).
 
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
-    {identity, not_found} |
-    {cash_flow, volume_finalize_error} |
-    {sender | receiver, not_found} |
-    {currency, not_allowed} |
-    {cash_range, out_of_range} |
-    p2p_forbidden |
+    {identity, notfound} |
+    {cash_flow, ff_cash_flow:volume_finalize_error()} |
+    {sender | receiver, {bin_data, not_found}} |
+    {terms, {terms_violation,
+        {not_allowed_currency, _Details} |
+        {cash_range, {ff_party:cash(), ff_party:cash_range()}} |
+        p2p_forbidden
+    }} |
     {token,
         not_match |
         not_match_params |
@@ -698,32 +688,17 @@ quote_p2p_transfer(Params, Context) ->
 create_p2p_transfer(Params, Context) ->
     CreateFun =
         fun(ID, EntityCtx) ->
-            #{
-                quote_token := QuoteToken
-            } = ParsedParams = from_swag(create_p2p_params, Params),
-            PartyID = wapi_handler_utils:get_owner(Context),
-            DecodedToken = unwrap(prepare_p2p_quote_token(QuoteToken, PartyID)),
-            case p2p_transfer_machine:create(
-                genlib_map:compact(ParsedParams#{id => ID, quote => DecodedToken}),
-                add_meta_to_ctx([], Params, EntityCtx)
-            ) of
-                ok ->
-                    ok;
-                {error, {identity, notfound}} ->
-                    {error, {identity, not_found}};
-                {error, {cash_flow, _VolumeFinalizeError}} ->
-                    {error, {cash_flow, volume_finalize_error}};
-                {error, {sender, {bin_data, not_found}}} ->
-                    {error, {sender, not_found}};
-                {error, {receiver, {bin_data, not_found}}} ->
-                    {error, {receiver, not_found}};
-                {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
-                    {error, {currency, not_allowed}};
-                {error, {terms, {terms_violation, {cash_range, _CashBounds}}}} ->
-                    {error, {cash_range, out_of_range}};
-                {error, {terms, {terms_violation, p2p_forbidden}}} ->
-                    {error, p2p_forbidden}
-            end
+            do(fun() ->
+                #{
+                    quote_token := QuoteToken
+                } = ParsedParams = from_swag(create_p2p_params, Params),
+                PartyID = wapi_handler_utils:get_owner(Context),
+                DecodedToken = unwrap(prepare_p2p_quote_token(QuoteToken, PartyID)),
+                p2p_transfer_machine:create(
+                    genlib_map:compact(ParsedParams#{id => ID, quote => DecodedToken}),
+                    add_meta_to_ctx([], Params, EntityCtx)
+                )
+               end)
         end,
     do(fun () -> unwrap(create_entity(p2p_transfer, Params, CreateFun, Context)) end).
 
@@ -838,7 +813,7 @@ create_quote_token(#{
     Token.
 
 create_p2p_quote_token(Quote, PartyID) ->
-    Data = genlib_map:compact(#{
+    Data = #{
         <<"version">>        => 1,
         <<"amount">>         => to_swag(withdrawal_body, p2p_quote:amount(Quote)),
         <<"partyRevision">>  => p2p_quote:party_revision(Quote),
@@ -849,7 +824,7 @@ create_p2p_quote_token(Quote, PartyID) ->
         <<"identityID">>     => p2p_quote:identity_id(Quote),
         <<"sender">>         => to_swag(compact_sender_resource, p2p_quote:sender(Quote)),
         <<"receiver">>       => to_swag(compact_receiver_resource, p2p_quote:receiver(Quote))
-    }),
+    },
     JSONData = jsx:encode(Data),
     {ok, Token} = wapi_signer:sign(JSONData),
     Token.
@@ -978,22 +953,22 @@ filter_identity_challenge_status(Filter, Status) ->
 maybe_get_session_events(TransferID, Limit, P2PSessionEventID, Context) ->
     do(fun() ->
         P2PTransfer = p2p_transfer_machine:p2p_transfer(get_state(p2p_transfer, TransferID, Context)),
+        Filter = fun session_events_filter/1,
         case p2p_transfer:session_id(P2PTransfer) of
             undefined ->
                 {[], undefined};
             SessionID ->
                 P2PSessionEvents =
-                    unwrap(get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID,
-                        fun session_events_filter/1, Context)),
+                    unwrap(get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context)),
                 P2PSessionEvents
         end
        end).
 
 maybe_get_transfer_events(TransferID, Limit, P2PTransferEventID, Context) ->
     do(fun() ->
+        Filter = fun transfer_events_filter/1,
         P2PSessionEvents =
-            unwrap(get_events({p2p_transfer, event}, TransferID, Limit, P2PTransferEventID,
-                fun transfer_events_filter/1, Context)),
+            unwrap(get_events({p2p_transfer, event}, TransferID, Limit, P2PTransferEventID, Filter, Context)),
         P2PSessionEvents
        end).
 

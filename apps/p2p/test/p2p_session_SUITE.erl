@@ -35,15 +35,6 @@
 
 %% Macro helpers
 
--define(final_balance(Cash), {
-    element(1, Cash),
-    {
-        {inclusive, element(1, Cash)}, {inclusive, element(1, Cash)}
-    },
-    element(2, Cash)
-}).
--define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
-
 -define(CALLBACK(Tag, Payload), #p2p_adapter_Callback{tag = Tag, payload = Payload}).
 
 -define(PROCESS_CALLBACK_SUCCESS(Payload), {succeeded, #p2p_adapter_ProcessCallbackSucceeded{

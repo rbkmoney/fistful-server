@@ -47,6 +47,7 @@
 -export([get/1]).
 -export([get/2]).
 -export([events/2]).
+-export([repair/2]).
 
 -export([start_adjustment/2]).
 
@@ -120,6 +121,11 @@ events(ID, {After, Limit}) ->
         {error, notfound} ->
             {error, {unknown_withdrawal, ID}}
     end.
+
+-spec repair(id(), ff_repair:scenario()) ->
+    ok | {error, notfound | working}.
+repair(ID, Scenario) ->
+    machinery:repair(?NS, ID, Scenario, backend()).
 
 -spec start_adjustment(id(), adjustment_params()) ->
     ok |

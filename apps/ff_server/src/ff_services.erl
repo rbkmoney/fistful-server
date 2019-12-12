@@ -33,6 +33,10 @@ get_service(withdrawal_session_event_sink) ->
     {ff_proto_withdrawal_session_thrift, 'EventSink'};
 get_service(withdrawal_session_repairer) ->
     {ff_proto_withdrawal_session_thrift, 'Repairer'};
+get_service(withdrawal_repairer) ->
+    {ff_proto_withdrawal_thrift, 'Repairer'};
+get_service(deposit_repairer) ->
+    {ff_proto_deposit_thrift, 'Repairer'};
 get_service(wallet_management) ->
     {ff_proto_wallet_thrift, 'Management'};
 get_service(identity_management) ->
@@ -67,6 +71,10 @@ get_service_path(withdrawal_session_event_sink) ->
     "/v1/eventsink/withdrawal/session";
 get_service_path(withdrawal_session_repairer) ->
     "/v1/repair/withdrawal/session";
+get_service_path(withdrawal_repairer) ->
+    "/v1/repair/withdrawal";
+get_service_path(deposit_repairer) ->
+    "/v1/repair/deposit";
 get_service_path(wallet_management) ->
     "/v1/wallet";
 get_service_path(identity_management) ->

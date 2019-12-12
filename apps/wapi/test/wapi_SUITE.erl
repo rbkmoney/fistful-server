@@ -24,6 +24,7 @@
 -export([unknown_withdrawal_test/1]).
 -export([quote_withdrawal_test/1]).
 -export([not_allowed_currency_test/1]).
+-export([get_wallet_by_external_id/1]).
 
 -export([consume_eventsinks/1]).
 
@@ -52,7 +53,8 @@ groups() ->
             withdrawal_to_bank_card_test,
             withdrawal_to_crypto_wallet_test,
             withdrawal_to_ripple_wallet_test,
-            unknown_withdrawal_test
+            unknown_withdrawal_test,
+            get_wallet_by_external_id
         ]},
         {quote, [], [
             quote_encode_decode_test,
@@ -409,6 +411,23 @@ woody_retry_test(C) ->
     true = (Time > 3000000) and (Time < 6000000),
     ok = application:set_env(wapi_woody_client, service_urls, Urls).
 
+-spec get_wallet_by_external_id(config()) ->
+    test_return().
+
+get_wallet_by_external_id(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ExternalID    = ?STRING,
+    WalletID      = create_wallet(IdentityID, #{<<"externalID">> => ExternalID}, C),
+    {ok, Wallet} = call_api(
+        fun swag_client_wallet_wallets_api:get_wallet_by_external_id/3,
+        #{qs_val => #{<<"externalID">> => ExternalID}},
+        ct_helper:cfg(context, C)
+    ),
+    WalletID = maps:get(<<"id">>, Wallet).
+
 %%
 
 -spec call_api(function(), map(), wapi_client_lib:context()) ->
@@ -475,16 +494,20 @@ check_identity(Name, IdentityID, Provider, Class, C) ->
     ok.
 
 create_wallet(IdentityID, C) ->
-    {ok, Wallet} = call_api(
-        fun swag_client_wallet_wallets_api:create_wallet/3,
-        #{body => #{
+    create_wallet(IdentityID, #{}, C).
+
+create_wallet(IdentityID, Params, C) ->
+    DefaultParams = #{
             <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
             <<"identity">> => IdentityID,
             <<"currency">> => <<"RUB">>,
             <<"metadata">> => #{
                 ?STRING => ?STRING
-             }
-        }},
+            }
+    },
+    {ok, Wallet} = call_api(
+        fun swag_client_wallet_wallets_api:create_wallet/3,
+        #{body => maps:merge(DefaultParams, Params)},
         ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, Wallet).

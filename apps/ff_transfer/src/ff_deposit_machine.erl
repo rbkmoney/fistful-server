@@ -54,6 +54,7 @@
 -export([get/1]).
 -export([get/2]).
 -export([events/2]).
+-export([repair/2]).
 
 -export([start_revert/2]).
 -export([start_revert_adjustment/3]).
@@ -135,6 +136,11 @@ events(ID, {After, Limit}) ->
         {error, notfound} ->
             {error, {unknown_deposit, ID}}
     end.
+
+-spec repair(id(), ff_repair:scenario()) ->
+    ok | {error, notfound | working}.
+repair(ID, Scenario) ->
+    machinery:repair(?NS, ID, Scenario, backend()).
 
 -spec start_revert(id(), revert_params()) ->
     ok |

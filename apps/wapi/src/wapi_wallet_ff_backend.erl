@@ -75,6 +75,7 @@
 -define(PARAMS_HASH, <<"params_hash">>).
 -define(EXTERNAL_ID, <<"externalID">>).
 -define(BENDER_DOMAIN, <<"wapi">>).
+-define(DEFAULT_EVENTS_LIMIT, 50).
 
 -dialyzer([{nowarn_function, [to_swag/2]}]).
 
@@ -660,21 +661,21 @@ quote_p2p_transfer(Params, Context) ->
                 ExpiresOn = p2p_quote:expires_on(Quote),
                 to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn});
             {error, {identity,   not_found}} ->
-                throw({identity,   not_found});
+                {error, {identity,   not_found}};
             {error, {party, _PartyError}} ->
-                throw({party, not_found});
+                {error, {party, not_found}};
             {error, {cash_flow, _VolumeFinalizeError}} ->
-                throw({cash_flow, volume_finalize_error});
+                {error, {cash_flow, volume_finalize_error}};
             {error, {sender, {bin_data, not_found}}} ->
-                throw({sender, not_found});
+                {error, {sender, not_found}};
             {error, {receiver, {bin_data, not_found}}} ->
-                throw({receiver, not_found});
+                {error, {receiver, not_found}};
             {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
-                throw({currency, not_allowed});
+                {error, {currency, not_allowed}};
             {error, {terms, {terms_violation, {cash_range, _CashBounds}}}} ->
-                throw({cash_range, out_of_range});
+                {error, {cash_range, out_of_range}};
             {error, {terms, {terms_violation, p2p_forbidden}}} ->
-                throw(p2p_forbidden)
+                {error, p2p_forbidden}
         end
     end).
 
@@ -701,7 +702,7 @@ create_p2p_transfer(Params, Context) ->
                 quote_token := QuoteToken
             } = ParsedParams = from_swag(create_p2p_params, Params),
             PartyID = wapi_handler_utils:get_owner(Context),
-            DecodedToken = prepare_p2p_quote_token(QuoteToken, PartyID, ParsedParams),
+            DecodedToken = unwrap(prepare_p2p_quote_token(QuoteToken, PartyID, ParsedParams)),
             case p2p_transfer_machine:create(
                 genlib_map:compact(ParsedParams#{id => ID, quote => DecodedToken}),
                 add_meta_to_ctx([], Params, EntityCtx)
@@ -747,10 +748,10 @@ get_p2p_transfer(ID, Context) ->
 ).
 get_p2p_transfer_events({ID, CT}, Context) ->
     do(fun () ->
-        DecodedCT = prepare_p2p_transfer_event_continuation_token(CT),
+        DecodedCT = unwrap(prepare_p2p_transfer_event_continuation_token(CT)),
         P2PTransferEventID = maps:get(p2p_transfer_event_id, DecodedCT, undefined),
         P2PSessionEventID = maps:get(p2p_session_event_id, DecodedCT, undefined),
-        Limit = 1000,
+        Limit = genlib_app:env(wapi, events_fetch_limit, ?DEFAULT_EVENTS_LIMIT),
         {P2PSessionEvents, P2PSessionEventsLastID} =
             unwrap(maybe_get_session_events(ID, Limit, P2PSessionEventID, Context)),
         {P2PTransferEvents, P2PTransferEventsLastID} =
@@ -936,17 +937,19 @@ validate_p2p_quote_token(_Quote, _Params) ->
     {error, {token, not_match_params}}.
 
 prepare_p2p_quote_token(undefined, _PartyID, _Params) ->
-    undefined;
+    {ok, undefined};
 prepare_p2p_quote_token(Token, PartyID, Params) ->
-    VerifiedToken = unwrap(verify_p2p_quote_token(Token)),
-    {DecodedToken, TokenPartyID} = unwrap(decode_p2p_quote_token(VerifiedToken)),
-    ok = unwrap(validate_p2p_quote_token(DecodedToken, Params)),
-    case TokenPartyID of
-        PartyID ->
-            DecodedToken;
-        _OtherPartyID ->
-            throw({token, wrong_party_id})
-    end.
+    do(fun() ->
+        VerifiedToken = unwrap(verify_p2p_quote_token(Token)),
+        {DecodedToken, TokenPartyID} = unwrap(decode_p2p_quote_token(VerifiedToken)),
+        ok = unwrap(validate_p2p_quote_token(DecodedToken, Params)),
+        case TokenPartyID of
+            PartyID ->
+                DecodedToken;
+            _OtherPartyID ->
+                {error, {token, wrong_party_id}}
+        end
+       end).
 
 create_p2p_transfer_events_continuation_token(#{
     p2p_transfer_event_id := P2PTransferEventID,
@@ -962,38 +965,44 @@ create_p2p_transfer_events_continuation_token(#{
     SignedToken.
 
 prepare_p2p_transfer_event_continuation_token(undefined) ->
-    #{};
+    {ok, #{}};
 prepare_p2p_transfer_event_continuation_token(CT) ->
-    {ok, VerifiedCT} = verify_p2p_transfer_event_continuation_token(CT),
-    {ok, DecodedCT} = decode_p2p_transfer_event_continuation_token(VerifiedCT),
-    DecodedCT.
+    do(fun() ->
+        VerifiedCT = unwrap(verify_p2p_transfer_event_continuation_token(CT)),
+        DecodedCT = unwrap(decode_p2p_transfer_event_continuation_token(VerifiedCT)),
+        DecodedCT
+       end).
 
 verify_p2p_transfer_event_continuation_token(CT) ->
-    case wapi_signer:verify(CT) of
-        {ok, VerifiedToken} ->
-            {ok, VerifiedToken};
-        {error, _Error} ->
-            throw({token, not_verified})
-    end.
+    do(fun() ->
+        case wapi_signer:verify(CT) of
+            {ok, VerifiedToken} ->
+                VerifiedToken;
+            {error, _Error} ->
+                {error, {token, not_verified}}
+        end
+       end).
 
 decode_p2p_transfer_event_continuation_token(CT) ->
-    try jsx:decode(CT, [return_maps]) of
-        #{
-            <<"version">>               := 1,
-            <<"p2p_transfer_event_id">> := P2PTransferEventID,
-            <<"p2p_session_event_id">>  := P2PSessionEventID
-        } ->
-            DecodedToken = #{
-                p2p_transfer_event_id => maybe_decode_event_id(P2PTransferEventID),
-                p2p_session_event_id => maybe_decode_event_id(P2PSessionEventID)
-            },
-            {ok, DecodedToken};
-        _Decoded ->
-            throw({token, not_match})
-    catch
-        _ ->
-            throw({token, not_decodable})
-    end.
+    do(fun() ->
+        try jsx:decode(CT, [return_maps]) of
+            #{
+                <<"version">>               := 1,
+                <<"p2p_transfer_event_id">> := P2PTransferEventID,
+                <<"p2p_session_event_id">>  := P2PSessionEventID
+            } ->
+                DecodedToken = #{
+                    p2p_transfer_event_id => maybe_decode_event_id(P2PTransferEventID),
+                    p2p_session_event_id => maybe_decode_event_id(P2PSessionEventID)
+                },
+                DecodedToken;
+            _Decoded ->
+                {error, {token, not_match}}
+        catch
+            _ ->
+                {error, {token, not_decodable}}
+        end
+       end).
 
 maybe_decode_event_id(<<"undefined">>) ->
     undefined;

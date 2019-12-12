@@ -292,13 +292,9 @@ bender_to_fistful_sync(C) ->
     ok = offset_ff_sequence(identity, FFSeqStart),
     TargetID = integer_to_binary(FFSeqStart + BenderOffset),
     {ok, #{<<"id">> := TargetID}} = wapi_wallet_ff_backend:create_identity(Params0, Ctx),
-    {ok, TargetID} = get_ff_internal_id(identity, Party, ExternalID).
+    {ok, TargetID} = ff_external_id:get_ff_internal_id(identity, Party, ExternalID).
 
 %%
-
-get_ff_internal_id(Type, PartyID, ExternalID) ->
-    FistfulID = ff_external_id:construct_external_id(PartyID, ExternalID),
-    ff_external_id:get_internal_id(Type, FistfulID).
 
 offset_ff_sequence(_Type, 0) ->
     ok;

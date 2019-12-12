@@ -966,8 +966,8 @@ maybe_decode_event_id(<<"undefined">>) ->
 maybe_decode_event_id(Num) when is_integer(Num) ->
     Num.
 
--spec mix_events(list(list(p2p_transfer:event() | p2p_session:event()))) ->
-    list(p2p_transfer:event() | p2p_session:event()).
+-spec mix_events(list(p2p_transfer_machine:events() | p2p_session_machine:events())) ->
+    [{id(), ff_machine:timestamped_event(p2p_transfer:event() | p2p_session:event())}].
 mix_events(EventsList) ->
     AppendedEvents = lists:append(EventsList),
     lists:keysort(2, AppendedEvents).

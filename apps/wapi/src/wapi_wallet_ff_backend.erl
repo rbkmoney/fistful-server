@@ -243,7 +243,7 @@ get_identity_challenge_event(#{
         (_) ->
             false
     end,
-    get_event({identity, challenge_event}, IdentityId, EventId, Mapper, Context).
+    get_swag_event({identity, challenge_event}, IdentityId, EventId, Mapper, Context).
 
 %% Wallets
 
@@ -399,7 +399,7 @@ get_withdrawal_event(WithdrawalId, EventId, Context) ->
         (_) ->
             false
     end,
-    get_event({withdrawal, event}, WithdrawalId, EventId, Mapper, Context).
+    get_swag_event({withdrawal, event}, WithdrawalId, EventId, Mapper, Context).
 
 -spec list_withdrawals(params(), ctx()) ->
     {ok, result_stat()} | {error, result_stat()}.
@@ -1009,7 +1009,7 @@ transfer_events_filter({_ID, {ev, _Timestamp, {EventType, _}}}) when EventType =
 transfer_events_filter(_) ->
     false.
 
-get_event(Type, ResourceId, EventId, Mapper, Context) ->
+get_swag_event(Type, ResourceId, EventId, Mapper, Context) ->
     case get_swag_events(Type, ResourceId, 1, EventId - 1, Mapper, Context) of
         {ok, [Event]}      -> {ok, Event};
         {ok, []}           -> {error, {event, notfound}};

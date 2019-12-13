@@ -664,7 +664,7 @@ quote_p2p_transfer(Params, Context) ->
     {token,
         {not_match, _NotMatchingToken} |
         {not_decodable, {_Class, _Exception}} |
-        not_verified |
+        {not_verified, _Error} |
         wrong_party_id
     }
 ).
@@ -701,7 +701,7 @@ get_p2p_transfer(ID, Context) ->
     {token,
         {not_match, _NotMatchingToken} |
         {not_decodable, {_Class, _Exception}} |
-        not_verified
+        {not_verified, _Error}
     }
 ).
 get_p2p_transfer_events({ID, CT}, Context) ->
@@ -816,8 +816,8 @@ verify_p2p_quote_token(Token) ->
     case wapi_signer:verify(Token) of
         {ok, VerifiedToken} ->
             {ok, VerifiedToken};
-        {error, _Error} ->
-            {error, {token, not_verified}}
+        {error, Error} ->
+            {error, {token, {not_verified, Error}}}
     end.
 
 decode_p2p_quote_token(Token) ->
@@ -893,8 +893,8 @@ verify_p2p_transfer_event_continuation_token(CT) ->
         case wapi_signer:verify(CT) of
             {ok, VerifiedToken} ->
                 VerifiedToken;
-            {error, _Error} ->
-                {error, {token, not_verified}}
+            {error, Error} ->
+                {error, {token, {not_verified, Error}}}
         end
        end).
 

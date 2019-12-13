@@ -829,9 +829,8 @@ decode_p2p_quote_token(Token) ->
             },
             PartyID = maps:get(<<"partyID">>, DecodedJson),
             {ok, {DecodedToken, PartyID}};
-        DecodedNotMatching ->
-            Version = maps:get(<<"version">>, DecodedNotMatching, undefined),
-            {error, {token, {unsupported_version, Version}}}
+        #{<<"version">> := UnsupportedVersion} when is_integer(UnsupportedVersion) ->
+            {error, {token, {unsupported_version, UnsupportedVersion}}}
     end.
 
 prepare_p2p_quote_token(undefined, _PartyID) ->
@@ -848,13 +847,13 @@ prepare_p2p_quote_token(Token, PartyID) ->
         end
     end).
 
-max_event_id(NewEventID, OldEventID) when is_integer(NewEventID); OldEventID =/= undefined ->
+max_event_id(NewEventID, OldEventID) when NewEventID  =:= undefined; is_integer(OldEventID) ->
     OldEventID;
-max_event_id(NewEventID, OldEventID) when NewEventID =/= undefined; is_integer(OldEventID) ->
+max_event_id(NewEventID, OldEventID) when is_integer(NewEventID); OldEventID =:= undefined ->
     NewEventID;
 max_event_id(NewEventID, OldEventID) when is_integer(NewEventID); is_integer(OldEventID) ->
     erlang:max(NewEventID, OldEventID);
-max_event_id(_NewEventID, _OldEventID) ->
+max_event_id(NewEventID, OldEventID) when NewEventID  =:= undefined; OldEventID =:= undefined ->
     undefined.
 
 create_p2p_transfer_events_continuation_token(#{
@@ -877,7 +876,7 @@ prepare_p2p_transfer_event_continuation_token(CT) ->
         VerifiedCT = unwrap(verify_p2p_transfer_event_continuation_token(CT)),
         DecodedCT = unwrap(decode_p2p_transfer_event_continuation_token(VerifiedCT)),
         DecodedCT
-       end).
+    end).
 
 verify_p2p_transfer_event_continuation_token(CT) ->
     do(fun() ->
@@ -887,7 +886,7 @@ verify_p2p_transfer_event_continuation_token(CT) ->
             {error, Error} ->
                 {error, {token, {not_verified, Error}}}
         end
-       end).
+    end).
 
 decode_p2p_transfer_event_continuation_token(CT) ->
     do(fun() ->
@@ -898,11 +897,10 @@ decode_p2p_transfer_event_continuation_token(CT) ->
                     p2p_session_event_id => maybe_decode_event_id(maps:get(<<"p2p_session_event_id">>, DecodedJson))
                 },
                 DecodedToken;
-            DecodedNotMatching ->
-                Version = maps:get(<<"version">>, DecodedNotMatching, undefined),
-                {error, {token, {unsupported_version, Version}}}
+            #{<<"version">> := UnsupportedVersion} when is_integer(UnsupportedVersion) ->
+                {error, {token, {unsupported_version, UnsupportedVersion}}}
         end
-       end).
+    end).
 
 maybe_decode_event_id(<<"undefined">>) ->
     undefined;

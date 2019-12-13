@@ -638,15 +638,7 @@ delete_webhook(WebhookID, IdentityID, Context) ->
     end).
 
 -spec quote_p2p_transfer(params(), ctx()) -> result(map(),
-    {identity, notfound} |
-    {party, ff_party:get_contract_terms_error()} |
-    {cash_flow, ff_cash_flow:volume_finalize_error()} |
-    {sender | receiver, {bin_data, not_found}} |
-    {terms, {terms_violation,
-        {not_allowed_currency, _Details} |
-        {cash_range, {ff_party:cash(), ff_party:cash_range()}} |
-        p2p_forbidden
-    }}
+    p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer(Params, Context) ->
     do(fun () ->
@@ -668,18 +660,9 @@ quote_p2p_transfer(Params, Context) ->
     end).
 
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
-    {identity, notfound} |
-    {cash_flow, ff_cash_flow:volume_finalize_error()} |
-    {sender | receiver, {bin_data, not_found}} |
-    {terms, {terms_violation,
-        {not_allowed_currency, _Details} |
-        {cash_range, {ff_party:cash(), ff_party:cash_range()}} |
-        p2p_forbidden
-    }} |
+    p2p_transfer:create_error() |
     {token,
         not_match |
-        not_match_params |
-        expired |
         not_decodable |
         not_verified |
         wrong_party_id
@@ -1491,21 +1474,19 @@ from_swag(compact_sender_resource, #{
     <<"token">> := Token,
     <<"binDataID">> := BinDataID
 }) ->
-    to_swag(map, #{
-        type => bank_card,
+    {bank_card, #{
         token => Token,
         bin_data_id => BinDataID
-    });
+    }};
 from_swag(compact_receiver_resource, #{
     <<"type">> := <<"bank_card">>,
     <<"token">> := Token,
     <<"binDataID">> := BinDataID
 }) ->
-    to_swag(map, #{
-        type => bank_card,
+    {bank_card, #{
         token => Token,
         bin_data_id => BinDataID
-    });
+    }};
 from_swag(create_p2p_params, Params) ->
     add_external_id(#{
         sender      => {raw, #{resource_params => from_swag(sender_resource, maps:get(<<"sender">>, Params))}},
@@ -1839,21 +1820,19 @@ to_swag(receiver_resource, {raw, #{resource_params := {bank_card, BankCard}}}) -
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
-to_swag(compact_sender_resource, #{
-    type := bank_card,
+to_swag(compact_sender_resource, {bank_card, #{
     token := Token,
     bin_data_id := BinDataID
-}) ->
+}}) ->
     to_swag(map, #{
         <<"type">> => <<"bank_card">>,
         <<"token">> => Token,
         <<"binDataID">> => BinDataID
     });
-to_swag(compact_receiver_resource, #{
-    type := bank_card,
+to_swag(compact_receiver_resource, {bank_card, #{
     token := Token,
     bin_data_id := BinDataID
-}) ->
+}}) ->
     to_swag(map, #{
         <<"type">> => <<"bank_card">>,
         <<"token">> => Token,

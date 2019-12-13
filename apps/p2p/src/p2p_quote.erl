@@ -17,6 +17,13 @@
 -type validate_p2p_error()        :: ff_party:validate_p2p_error().
 -type volume_finalize_error()     :: ff_cash_flow:volume_finalize_error().
 
+-type get_quote_error() ::
+    {identity,                      not_found} |
+    {party,                         get_contract_terms_error()} |
+    {cash_flow,                     volume_finalize_error()} |
+    {p2p_transfer:resource_owner(), {bin_data, not_found}} |
+    {terms,                         validate_p2p_error()}.
+
 -type compact_bank_card_resource() :: {bank_card, #{
     token := binary(),
     bin_data_id := ff_bin_data:bin_data_id()
@@ -38,6 +45,7 @@
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
+-export_type([get_quote_error/0]).
 
 %% Accessors
 
@@ -126,11 +134,7 @@ compact({bank_card, BankCard}) ->
 
 -spec get_quote(cash(), identity_id(), sender(), receiver()) ->
     {ok, {cash() | undefined, surplus_cash_volume() | undefined, quote()}} |
-    {error, {identity,   not_found}} |
-    {error, {party,      get_contract_terms_error()}} |
-    {error, {cash_flow,  volume_finalize_error()}} |
-    {error, {p2p_transfer:resource_owner(), {bin_data, not_found}}} |
-    {error, {terms, validate_p2p_error()}}.
+    {error, get_quote_error()}.
 get_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
         SenderResource = unwrap(sender, ff_resource:create_resource(Sender)),

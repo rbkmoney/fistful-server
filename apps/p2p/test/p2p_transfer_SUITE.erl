@@ -22,6 +22,7 @@
 -export([create_sender_resource_notfound_test/1]).
 -export([create_receiver_resource_notfound_test/1]).
 -export([create_ok_test/1]).
+-export([balance_check_ok_test/1]).
 -export([preserve_revisions_test/1]).
 -export([unknown_test/1]).
 
@@ -48,7 +49,8 @@
 -spec all() -> [test_case_name() | {group, group_name()}].
 all() ->
     [
-        {group, default}
+        {group, default},
+        {group, balance}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -63,6 +65,9 @@ groups() ->
             create_ok_test,
             preserve_revisions_test,
             unknown_test
+        ]},
+        {balance, [], [
+            balance_check_ok_test
         ]}
     ].
 
@@ -100,6 +105,47 @@ end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
 %% Tests
+
+-spec balance_check_ok_test(config()) -> test_return().
+balance_check_ok_test(C) ->
+    Amount = 100,
+    Currency = <<"RUB">>,
+    Cash = {Amount, Currency},
+    #{
+        identity_id := IdentityID,
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = prepare_standard_environment(Cash, C),
+    {ok, #domain_SystemAccountSet{accounts = Accounts}} =
+        ff_domain_config:object({system_account_set, #domain_SystemAccountSetRef{id = 1}}),
+    #domain_SystemAccount{
+        settlement = Settlement,
+        subagent = Subagent
+    } = maps:get(#domain_CurrencyRef{symbolic_code = Currency}, Accounts),
+    {SettlementAmountOnStart, _, _} = get_account_balance(Settlement, Currency),
+    {SubagentAmountOnStart, _, _} = get_account_balance(Subagent, Currency),
+    P2PTransferID = generate_id(),
+    ClientInfo = #{
+        ip_address => <<"some ip_address">>,
+        fingerprint => <<"some fingerprint">>
+    },
+    P2PTransferParams = #{
+        id => P2PTransferID,
+        identity_id => IdentityID,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        body => Cash,
+        client_info => ClientInfo,
+        external_id => P2PTransferID
+    },
+    ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
+    ?assertEqual(succeeded, await_final_p2p_transfer_status(P2PTransferID)),
+    SettlementBalanceOnEnd = get_account_balance(Settlement, Currency),
+    SubagentBalanceOnEnd = get_account_balance(Subagent, Currency),
+    SubagentEndCash = {SubagentAmountOnStart + 10, Currency},
+    SettlementEndCash = {SettlementAmountOnStart - 15, Currency},
+    ?assertEqual(?final_balance(SubagentEndCash), SubagentBalanceOnEnd),
+    ?assertEqual(?final_balance(SettlementEndCash), SettlementBalanceOnEnd).
 
 -spec route_not_found_fail_test(config()) -> test_return().
 route_not_found_fail_test(C) ->
@@ -299,3 +345,13 @@ await_final_p2p_transfer_status(P2PTransferID) ->
 
 generate_id() ->
     ff_id:generate_snowflake_id().
+
+get_account_balance(AccountID, Currency) ->
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        #{
+            currency => Currency,
+            accounter_account_id => AccountID
+        },
+        ff_clock:latest_clock()
+    ),
+    {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.

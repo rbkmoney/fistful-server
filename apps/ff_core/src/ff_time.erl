@@ -41,8 +41,41 @@ from_rfc3339(BTimestamp) ->
     timestamp_ms().
 add_interval(Timestamp, {Date, Time}) ->
     Ms = Timestamp rem 1000,
-    TSSeconds = erlang:convert_time_unit(Timestamp, native, second),
+    TSSeconds = erlang:convert_time_unit(Timestamp, millisecond, second),
     {D, T} = genlib_time:unixtime_to_daytime(TSSeconds),
     NewDate = genlib_time:daytime_to_unixtime({genlib_time:shift_date(D, Date), T}),
     DateTime = genlib_time:add_duration(NewDate, Time),
     DateTime*1000 + Ms.
+
+
+%% TESTS
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec add_second_interval_test() -> _.
+add_second_interval_test() ->
+    Timestamp = ff_time:now(),
+    NewTimestamp = add_interval(Timestamp, {{0, 0, 0}, {0, 0, 1}}),
+    ?assertEqual(Timestamp + 1000, NewTimestamp).
+
+-spec add_minute_interval_test() -> _.
+add_minute_interval_test() ->
+    Timestamp = ff_time:now(),
+    NewTimestamp = add_interval(Timestamp, {{0, 0, 0}, {0, 1, 0}}),
+    ?assertEqual(Timestamp + 60*1000, NewTimestamp).
+
+-spec add_hour_interval_test() -> _.
+add_hour_interval_test() ->
+    Timestamp = ff_time:now(),
+    NewTimestamp = add_interval(Timestamp, {{0, 0, 0}, {1, 0, 0}}),
+    ?assertEqual(Timestamp + 60*60*1000, NewTimestamp).
+
+-spec add_day_interval_test() -> _.
+add_day_interval_test() ->
+    Timestamp = ff_time:now(),
+    NewTimestamp = add_interval(Timestamp, {{0, 0, 1}, {0, 0, 0}}),
+    ?assertEqual(Timestamp + 24*60*60*1000, NewTimestamp).
+
+-endif.

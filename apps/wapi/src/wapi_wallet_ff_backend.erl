@@ -658,7 +658,7 @@ quote_p2p_transfer(Params, Context) ->
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     p2p_transfer:create_error() |
     {token,
-        {not_match, _NotMatchingToken} |
+        {unsupported_version, integer() | undefined} |
         {not_verified, _Error} |
         wrong_party_id
     }
@@ -694,7 +694,7 @@ get_p2p_transfer(ID, Context) ->
     {p2p_transfer, unauthorized} |
     {p2p_transfer, not_found} |
     {token,
-        {not_match, _NotMatchingToken} |
+        {unsupported_version, integer() | undefined} |
         {not_verified, _Error}
     }
 ).
@@ -711,8 +711,8 @@ get_p2p_transfer_events({ID, CT}, Context) ->
         MixedEvents = mix_events([P2PTransferEvents, P2PSessionEvents]),
 
         ContinuationToken = create_p2p_transfer_events_continuation_token(#{
-            p2p_transfer_event_id => P2PTransferEventsLastID,
-            p2p_session_event_id => P2PSessionEventsLastID
+            p2p_transfer_event_id => max_event_id(P2PTransferEventsLastID, P2PTransferEventID),
+            p2p_session_event_id => max_event_id(P2PSessionEventsLastID, P2PSessionEventID)
         }),
         to_swag(p2p_transfer_events, {MixedEvents, ContinuationToken})
     end).
@@ -830,7 +830,8 @@ decode_p2p_quote_token(Token) ->
             PartyID = maps:get(<<"partyID">>, DecodedJson),
             {ok, {DecodedToken, PartyID}};
         DecodedNotMatching ->
-            {error, {token, {not_match, DecodedNotMatching}}}
+            Version = maps:get(<<"version">>, DecodedNotMatching, undefined),
+            {error, {token, {unsupported_version, Version}}}
     end.
 
 prepare_p2p_quote_token(undefined, _PartyID) ->
@@ -845,7 +846,16 @@ prepare_p2p_quote_token(Token, PartyID) ->
             _OtherPartyID ->
                 {error, {token, wrong_party_id}}
         end
-       end).
+    end).
+
+max_event_id(NewEventID, OldEventID) when is_integer(NewEventID); OldEventID =/= undefined ->
+    OldEventID;
+max_event_id(NewEventID, OldEventID) when NewEventID =/= undefined; is_integer(OldEventID) ->
+    NewEventID;
+max_event_id(NewEventID, OldEventID) when is_integer(NewEventID); is_integer(OldEventID) ->
+    erlang:max(NewEventID, OldEventID);
+max_event_id(_NewEventID, _OldEventID) ->
+    undefined.
 
 create_p2p_transfer_events_continuation_token(#{
     p2p_transfer_event_id := P2PTransferEventID,
@@ -888,8 +898,9 @@ decode_p2p_transfer_event_continuation_token(CT) ->
                     p2p_session_event_id => maybe_decode_event_id(maps:get(<<"p2p_session_event_id">>, DecodedJson))
                 },
                 DecodedToken;
-            NotMatching ->
-                {error, {token, NotMatching}}
+            DecodedNotMatching ->
+                Version = maps:get(<<"version">>, DecodedNotMatching, undefined),
+                {error, {token, {unsupported_version, Version}}}
         end
        end).
 

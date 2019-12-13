@@ -287,21 +287,10 @@ bender_to_fistful_sync(C) ->
     Party = create_party(C),
     Ctx = create_context(Party, C),
     %% Offset for migration purposes
-    FFSeqStart = 42,
-    BenderOffset = 100000,
-    ok = offset_ff_sequence(identity, FFSeqStart),
-    TargetID = integer_to_binary(FFSeqStart + BenderOffset),
     {ok, #{<<"id">> := TargetID}} = wapi_wallet_ff_backend:create_identity(Params0, Ctx),
     {ok, TargetID} = ff_external_id:get_ff_internal_id(identity, Party, ExternalID).
 
 %%
-
-offset_ff_sequence(_Type, 0) ->
-    ok;
-offset_ff_sequence(Type, Amount) ->
-    NS = 'ff/sequence',
-    _ = ff_sequence:next(NS, ff_string:join($/, [Type, id]), fistful:backend(NS)),
-    offset_ff_sequence(Type, Amount - 1).
 
 wait_for_destination_authorized(DestID) ->
     authorized = ct_helper:await(

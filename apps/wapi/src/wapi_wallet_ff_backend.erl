@@ -676,7 +676,7 @@ create_p2p_transfer(Params, Context) ->
                     genlib_map:compact(ParsedParams#{id => ID, quote => DecodedToken}),
                     add_meta_to_ctx([], Params, EntityCtx)
                 )
-               end)
+            end)
         end,
     do(fun () -> unwrap(create_entity(p2p_transfer, Params, CreateFun, Context)) end).
 

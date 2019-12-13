@@ -286,11 +286,10 @@ get_create_p2p_transfer_events_ok(C) ->
 
     Cash = {123, <<"RUB">>},
 
-    CompactResource = #{
-        type => bank_card,
+    CompactResource = {bank_card, #{
         token => genlib:unique(),
         bin_data_id => {binary, genlib:unique()}
-    },
+    }},
 
     Quote = #{
         amount            => Cash,

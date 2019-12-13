@@ -115,7 +115,7 @@ balance_check_ok_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = prepare_standard_environment(Cash, C),
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
     {ok, #domain_SystemAccountSet{accounts = Accounts}} =
         ff_domain_config:object({system_account_set, #domain_SystemAccountSetRef{id = 1}}),
     #domain_SystemAccount{

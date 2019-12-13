@@ -662,8 +662,8 @@ quote_p2p_transfer(Params, Context) ->
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     p2p_transfer:create_error() |
     {token,
-        not_match |
-        not_decodable |
+        {not_match, _NotMatchingToken} |
+        {not_decodable, {_Class, _Exception}} |
         not_verified |
         wrong_party_id
     }
@@ -699,8 +699,8 @@ get_p2p_transfer(ID, Context) ->
     {p2p_transfer, unauthorized} |
     {p2p_transfer, not_found} |
     {token,
-        not_match |
-        not_decodable |
+        {not_match, _NotMatchingToken} |
+        {not_decodable, {_Class, _Exception}} |
         not_verified
     }
 ).
@@ -845,11 +845,11 @@ decode_p2p_quote_token(Token) ->
                 receiver        => from_swag(compact_receiver_resource, Receiver)
             },
             {ok, {DecodedToken, PartyID}};
-        _Decoded ->
-            {error, {token, not_match}}
+        DecodedNotMatching ->
+            {error, {token, {not_match, DecodedNotMatching}}}
     catch
-        _ ->
-            {error, {token, not_decodable}}
+        Class:Exception ->
+            {error, {token, {not_decodable, {Class, Exception}}}}
     end.
 
 prepare_p2p_quote_token(undefined, _PartyID) ->
@@ -911,11 +911,11 @@ decode_p2p_transfer_event_continuation_token(CT) ->
                     p2p_session_event_id => maybe_decode_event_id(P2PSessionEventID)
                 },
                 DecodedToken;
-            _Decoded ->
-                {error, {token, not_match}}
+            NotMatching ->
+                {error, {token, NotMatching}}
         catch
-            _ ->
-                {error, {token, not_decodable}}
+            Class:Exception ->
+                {error, {token, {not_decodable, {Class, Exception}}}}
         end
        end).
 

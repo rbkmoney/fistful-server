@@ -659,7 +659,7 @@ quote_p2p_transfer(Params, Context) ->
     p2p_transfer:create_error() |
     {token,
         {unsupported_version, integer() | undefined} |
-        {not_verified, _Error} |
+        {not_verified, invalid_signature} |
         wrong_party_id
     }
 ).
@@ -695,7 +695,7 @@ get_p2p_transfer(ID, Context) ->
     {p2p_transfer, not_found} |
     {token,
         {unsupported_version, integer() | undefined} |
-        {not_verified, _Error}
+        {not_verified, invalid_signature}
     }
 ).
 get_p2p_transfer_events({ID, CT}, Context) ->

@@ -579,7 +579,7 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {terms, {terms_violation, p2p_forbidden}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>));
-        {error, {token, {not_verified, _Error}}} ->
+        {error, {token, {not_verified, invalid_signature}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
         {error, {token, wrong_party_id}} ->
@@ -603,7 +603,7 @@ process_request('GetP2PTransferEvents', #{p2pTransferID := ID, continuationToken
             wapi_handler_utils:reply_ok(404);
         {error, {p2p_transfer, not_found}} ->
             wapi_handler_utils:reply_ok(404);
-        {error, {token, {not_verified, _Error}}} ->
+        {error, {token, {not_verified, invalid_signature}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Continuation Token can't be verified">>))
     end.

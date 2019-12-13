@@ -649,21 +649,16 @@ quote_p2p_transfer(Params, Context) ->
             body := Body
         } = from_swag(quote_p2p_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
-        case p2p_quote:get_quote(Body, IdentityID, Sender, Receiver) of
-            {ok, {SurplusCash, _SurplusCashVolume, Quote}} ->
-                Token = create_p2p_quote_token(Quote, PartyID),
-                ExpiresOn = p2p_quote:expires_on(Quote),
-                to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn});
-            {error, _Error} = Result ->
-                Result
-        end
+        {SurplusCash, _SurplusCashVolume, Quote} = unwrap(p2p_quote:get_quote(Body, IdentityID, Sender, Receiver)),
+        Token = create_p2p_quote_token(Quote, PartyID),
+        ExpiresOn = p2p_quote:expires_on(Quote),
+        to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn})
     end).
 
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     p2p_transfer:create_error() |
     {token,
         {not_match, _NotMatchingToken} |
-        {not_decodable, {_Class, _Exception}} |
         {not_verified, _Error} |
         wrong_party_id
     }
@@ -700,7 +695,6 @@ get_p2p_transfer(ID, Context) ->
     {p2p_transfer, not_found} |
     {token,
         {not_match, _NotMatchingToken} |
-        {not_decodable, {_Class, _Exception}} |
         {not_verified, _Error}
     }
 ).
@@ -821,35 +815,22 @@ verify_p2p_quote_token(Token) ->
     end.
 
 decode_p2p_quote_token(Token) ->
-    try jsx:decode(Token, [return_maps]) of
-        #{
-            <<"version">>        := 1,
-            <<"amount">>         := Cash,
-            <<"partyRevision">>  := PartyRevision,
-            <<"domainRevision">> := DomainRevision,
-            <<"createdAt">>      := CreatedAt,
-            <<"expiresOn">>      := ExpiresOn,
-            <<"partyID">>        := PartyID,
-            <<"identityID">>     := IdentityID,
-            <<"sender">>         := Sender,
-            <<"receiver">>       := Receiver
-        } ->
+    case jsx:decode(Token, [return_maps]) of
+        #{<<"version">> := 1} = DecodedJson ->
             DecodedToken = #{
-                amount          => from_swag(withdrawal_body, Cash),
-                party_revision  => PartyRevision,
-                domain_revision => DomainRevision,
-                created_at      => ff_time:from_rfc3339(CreatedAt),
-                expires_on      => ff_time:from_rfc3339(ExpiresOn),
-                identity_id     => IdentityID,
-                sender          => from_swag(compact_sender_resource, Sender),
-                receiver        => from_swag(compact_receiver_resource, Receiver)
+                amount          => from_swag(withdrawal_body, maps:get(<<"amount">>, DecodedJson)),
+                party_revision  => maps:get(<<"partyRevision">>, DecodedJson),
+                domain_revision => maps:get(<<"domainRevision">>, DecodedJson),
+                created_at      => ff_time:from_rfc3339(maps:get(<<"createdAt">>, DecodedJson)),
+                expires_on      => ff_time:from_rfc3339(maps:get(<<"expiresOn">>, DecodedJson)),
+                identity_id     => maps:get(<<"identityID">>, DecodedJson),
+                sender          => from_swag(compact_sender_resource, maps:get(<<"sender">>, DecodedJson)),
+                receiver        => from_swag(compact_receiver_resource, maps:get(<<"receiver">>, DecodedJson))
             },
+            PartyID = maps:get(<<"partyID">>, DecodedJson),
             {ok, {DecodedToken, PartyID}};
         DecodedNotMatching ->
             {error, {token, {not_match, DecodedNotMatching}}}
-    catch
-        Class:Exception ->
-            {error, {token, {not_decodable, {Class, Exception}}}}
     end.
 
 prepare_p2p_quote_token(undefined, _PartyID) ->
@@ -900,22 +881,15 @@ verify_p2p_transfer_event_continuation_token(CT) ->
 
 decode_p2p_transfer_event_continuation_token(CT) ->
     do(fun() ->
-        try jsx:decode(CT, [return_maps]) of
-            #{
-                <<"version">>               := 1,
-                <<"p2p_transfer_event_id">> := P2PTransferEventID,
-                <<"p2p_session_event_id">>  := P2PSessionEventID
-            } ->
+        case jsx:decode(CT, [return_maps]) of
+            #{<<"version">> := 1} = DecodedJson ->
                 DecodedToken = #{
-                    p2p_transfer_event_id => maybe_decode_event_id(P2PTransferEventID),
-                    p2p_session_event_id => maybe_decode_event_id(P2PSessionEventID)
+                    p2p_transfer_event_id => maybe_decode_event_id(maps:get(<<"p2p_transfer_event_id">>, DecodedJson)),
+                    p2p_session_event_id => maybe_decode_event_id(maps:get(<<"p2p_session_event_id">>, DecodedJson))
                 },
                 DecodedToken;
             NotMatching ->
                 {error, {token, NotMatching}}
-        catch
-            Class:Exception ->
-                {error, {token, {not_decodable, {Class, Exception}}}}
         end
        end).
 

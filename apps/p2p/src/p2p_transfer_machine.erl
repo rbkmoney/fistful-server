@@ -10,7 +10,8 @@
 
 -type id() :: machinery:id().
 -type event() :: p2p_transfer:event().
--type events() :: [{integer(), ff_machine:timestamped_event(event())}].
+-type event_id() :: integer().
+-type events() :: [{event_id(), ff_machine:timestamped_event(event())}].
 -type st() :: ff_machine:st(p2p_transfer()).
 -type p2p_transfer() :: p2p_transfer:p2p_transfer().
 -type external_id() :: id().

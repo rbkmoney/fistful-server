@@ -54,7 +54,8 @@
 -type st() :: ff_machine:st(session()).
 -type session() :: p2p_session:session().
 -type event() :: p2p_session:event().
--type events() :: [{integer(), ff_machine:timestamped_event(event())}].
+-type event_id() :: integer().
+-type events() :: [{event_id(), ff_machine:timestamped_event(event())}].
 
 -type callback_params() :: p2p_session:p2p_callback_params().
 -type process_callback_response() :: p2p_session:process_callback_response().

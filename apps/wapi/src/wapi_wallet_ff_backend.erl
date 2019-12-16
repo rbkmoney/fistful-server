@@ -799,8 +799,8 @@ create_p2p_quote_token(Quote, PartyID) ->
         <<"expiresOn">>      => ff_time:to_rfc3339(p2p_quote:expires_on(Quote)),
         <<"partyID">>        => PartyID,
         <<"identityID">>     => p2p_quote:identity_id(Quote),
-        <<"sender">>         => to_swag(compact_sender_resource, p2p_quote:sender(Quote)),
-        <<"receiver">>       => to_swag(compact_receiver_resource, p2p_quote:receiver(Quote))
+        <<"sender">>         => to_swag(compact_resource, p2p_quote:sender(Quote)),
+        <<"receiver">>       => to_swag(compact_resource, p2p_quote:receiver(Quote))
     },
     JSONData = jsx:encode(Data),
     {ok, Token} = wapi_signer:sign(JSONData),
@@ -824,8 +824,8 @@ decode_p2p_quote_token(Token) ->
                 created_at      => ff_time:from_rfc3339(maps:get(<<"createdAt">>, DecodedJson)),
                 expires_on      => ff_time:from_rfc3339(maps:get(<<"expiresOn">>, DecodedJson)),
                 identity_id     => maps:get(<<"identityID">>, DecodedJson),
-                sender          => from_swag(compact_sender_resource, maps:get(<<"sender">>, DecodedJson)),
-                receiver        => from_swag(compact_receiver_resource, maps:get(<<"receiver">>, DecodedJson))
+                sender          => from_swag(compact_resource, maps:get(<<"sender">>, DecodedJson)),
+                receiver        => from_swag(compact_resource, maps:get(<<"receiver">>, DecodedJson))
             },
             PartyID = maps:get(<<"partyID">>, DecodedJson),
             {ok, {DecodedToken, PartyID}};
@@ -1444,16 +1444,7 @@ from_swag(receiver_resource, #{
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }};
-from_swag(compact_sender_resource, #{
-    <<"type">> := <<"bank_card">>,
-    <<"token">> := Token,
-    <<"binDataID">> := BinDataID
-}) ->
-    {bank_card, #{
-        token => Token,
-        bin_data_id => BinDataID
-    }};
-from_swag(compact_receiver_resource, #{
+from_swag(compact_resource, #{
     <<"type">> := <<"bank_card">>,
     <<"token">> := Token,
     <<"binDataID">> := BinDataID
@@ -1795,16 +1786,7 @@ to_swag(receiver_resource, {raw, #{resource_params := {bank_card, BankCard}}}) -
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
-to_swag(compact_sender_resource, {bank_card, #{
-    token := Token,
-    bin_data_id := BinDataID
-}}) ->
-    to_swag(map, #{
-        <<"type">> => <<"bank_card">>,
-        <<"token">> => Token,
-        <<"binDataID">> => BinDataID
-    });
-to_swag(compact_receiver_resource, {bank_card, #{
+to_swag(compact_resource, {bank_card, #{
     token := Token,
     bin_data_id := BinDataID
 }}) ->

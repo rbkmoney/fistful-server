@@ -16,6 +16,7 @@
 -export([end_per_testcase/2]).
 
 %% Tests
+-export([create_ok_with_inspector_fail_test/1]).
 -export([route_not_found_fail_test/1]).
 -export([create_cashlimit_validation_error_test/1]).
 -export([create_currency_validation_error_test/1]).
@@ -57,6 +58,7 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
+            create_ok_with_inspector_fail_test,
             route_not_found_fail_test,
             create_cashlimit_validation_error_test,
             create_currency_validation_error_test,
@@ -146,6 +148,31 @@ balance_check_ok_test(C) ->
     SettlementEndCash = {SettlementAmountOnStart - 15, Currency},
     ?assertEqual(?final_balance(SubagentEndCash), SubagentBalanceOnEnd),
     ?assertEqual(?final_balance(SettlementEndCash), SettlementBalanceOnEnd).
+
+-spec create_ok_with_inspector_fail_test(config()) -> test_return().
+create_ok_with_inspector_fail_test(C) ->
+    Cash = {199, <<"RUB">>},
+    #{
+        identity_id := IdentityID,
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = prepare_standard_environment(Cash, C),
+    P2PTransferID = generate_id(),
+    ClientInfo = #{
+        ip_address => <<"some ip_address">>,
+        fingerprint => <<"some fingerprint">>
+    },
+    P2PTransferParams = #{
+        id => P2PTransferID,
+        identity_id => IdentityID,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        body => Cash,
+        client_info => ClientInfo,
+        external_id => P2PTransferID
+    },
+    ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
+    ?assertEqual(succeeded, await_final_p2p_transfer_status(P2PTransferID)).
 
 -spec route_not_found_fail_test(config()) -> test_return().
 route_not_found_fail_test(C) ->

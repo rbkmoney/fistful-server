@@ -77,7 +77,8 @@ start_processing_apps(Options) ->
             {providers, identity_provider_config(Options)},
             {test, #{p2p_adapter_adr => P2PAdapterAdr}}
         ]},
-        ff_server
+        ff_server,
+        p2p
     ]),
     SuiteSup = ct_sup:start(),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(

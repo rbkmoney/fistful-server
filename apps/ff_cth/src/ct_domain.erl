@@ -251,6 +251,7 @@ p2p_inspector(Ref, Name, ProxyRef, Additional) ->
         data = #domain_P2PInspector{
             name        = Name,
             description = <<>>,
+            fallback_risk_score = #{<<"fraud">> => high},
             proxy = #domain_Proxy{
                 ref        = ProxyRef,
                 additional = Additional

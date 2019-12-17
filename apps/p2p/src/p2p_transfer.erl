@@ -612,7 +612,7 @@ do_risk_scoring(P2PTransfer) ->
     {ok, Inspector} = ff_domain_config:object(
         DomainRevision, {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}
     ),
-    Score = case genlib_app:env(p2p_transfer, score_id, undefined) of
+    Score = case genlib_app:env(p2p, score_id, undefined) of
         undefined ->
             _ = logger:warning("Fail to get env RiskScoreID set RiskScore to low"),
             high;

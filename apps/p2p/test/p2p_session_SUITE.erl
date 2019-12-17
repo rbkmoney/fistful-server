@@ -297,4 +297,4 @@ call_host(Callback) ->
     Function = 'ProcessCallback',
     Args     = [Callback],
     Request  = {Service, Function, Args},
-    ff_woody_client:call(p2p_adapter_host, Request).
+    ff_woody_client:call(ff_p2p_adapter_host, Request).

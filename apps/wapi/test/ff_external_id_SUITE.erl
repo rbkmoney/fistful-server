@@ -28,7 +28,6 @@
 
 all() ->
     [
-        bender_to_fistful_sync,
         idempotency_identity_ok,
         idempotency_identity_conflict,
         idempotency_wallet_ok,
@@ -272,23 +271,6 @@ idempotency_withdrawal_conflict(C) ->
     NewParams = Params#{<<"body">> => Body#{<<"amount">> => <<"100">>}},
     {error, {external_id_conflict, ID, ExternalID}} =
         wapi_wallet_ff_backend:create_withdrawal(NewParams, create_context(Party, C)).
-
--spec bender_to_fistful_sync(config()) ->
-    test_return().
-
-bender_to_fistful_sync(C) ->
-    ExternalID = genlib:unique(),
-    Params0 = #{
-        <<"provider">> => <<"good-one">>,
-        <<"class">> => <<"person">>,
-        <<"name">> => <<"someone">>,
-        <<"externalID">> => ExternalID
-    },
-    Party = create_party(C),
-    Ctx = create_context(Party, C),
-    %% Offset for migration purposes
-    {ok, #{<<"id">> := TargetID}} = wapi_wallet_ff_backend:create_identity(Params0, Ctx),
-    {ok, TargetID} = ff_external_id:get_ff_internal_id(identity, Party, ExternalID).
 
 %%
 

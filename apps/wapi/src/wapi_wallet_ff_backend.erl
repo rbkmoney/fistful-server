@@ -847,14 +847,10 @@ prepare_p2p_quote_token(Token, PartyID) ->
         end
     end).
 
-max_event_id(NewEventID, OldEventID) when NewEventID  =:= undefined; is_integer(OldEventID) ->
-    OldEventID;
-max_event_id(NewEventID, OldEventID) when is_integer(NewEventID); OldEventID =:= undefined ->
-    NewEventID;
-max_event_id(NewEventID, OldEventID) when is_integer(NewEventID); is_integer(OldEventID) ->
+max_event_id(NewEventID, OldEventID) when is_integer(NewEventID) andalso is_integer(OldEventID) ->
     erlang:max(NewEventID, OldEventID);
-max_event_id(NewEventID, OldEventID) when NewEventID  =:= undefined; OldEventID =:= undefined ->
-    undefined.
+max_event_id(NewEventID, OldEventID) ->
+    genlib:define(NewEventID, OldEventID).
 
 create_p2p_transfer_events_continuation_token(#{
     p2p_transfer_event_id := P2PTransferEventID,

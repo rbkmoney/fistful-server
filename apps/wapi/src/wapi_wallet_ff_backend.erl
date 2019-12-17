@@ -917,15 +917,13 @@ maybe_get_session_events(TransferID, Limit, P2PSessionEventID, Context) ->
             SessionID ->
                 unwrap(get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context))
         end
-       end).
+    end).
 
 maybe_get_transfer_events(TransferID, Limit, P2PTransferEventID, Context) ->
     do(fun() ->
         Filter = fun transfer_events_filter/1,
-        P2PSessionEvents =
-            unwrap(get_events({p2p_transfer, event}, TransferID, Limit, P2PTransferEventID, Filter, Context)),
-        P2PSessionEvents
-       end).
+        unwrap(get_events({p2p_transfer, event}, TransferID, Limit, P2PTransferEventID, Filter, Context))
+    end).
 
 session_events_filter({_ID, {ev, _Timestamp, {user_interaction, #{payload := Payload}}}})
     when Payload =/= {status_changed, pending}

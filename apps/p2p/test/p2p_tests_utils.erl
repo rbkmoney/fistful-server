@@ -40,7 +40,6 @@ prepare_standard_environment(_P2PTransferCash, Token, C) ->
             };
             Other -> {create_resource_raw(Other, C), create_resource_raw(Other, C)}
         end,
-    % ct:print(" >>> ~p", [{ResourceSender, ResourceReceiver}]),
     #{
         identity_id => IdentityID,
         sender => ResourceSender,

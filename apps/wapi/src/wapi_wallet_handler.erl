@@ -535,9 +535,6 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters' := Params}, Context, _Op
         {error, {party, _PartyContractError}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such party">>));
-        {error, {cash_flow, _VolumeFinalizeError}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Cash flow term error">>));
         {error, {sender, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"InvalidSenderResource">>));
@@ -561,9 +558,6 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
-        {error, {cash_flow, _VolumeFinalizeError}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Cash flow term error">>));
         {error, {sender, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"InvalidSenderResource">>));

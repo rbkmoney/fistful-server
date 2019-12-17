@@ -81,7 +81,6 @@
 -type create_error() ::
     {identity, notfound} |
     {terms, ff_party:validate_p2p_error()} |
-    {cash_flow, ff_cash_flow:volume_finalize_error()} |
     {resource_owner(), {bin_data, not_found}}.
 
 -type route() :: #{

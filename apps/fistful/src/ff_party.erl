@@ -42,7 +42,8 @@
 -type validate_p2p_error() ::
     currency_validation_error() |
     p2p_forbidden_error() |
-    cash_range_validation_error().
+    cash_range_validation_error() |
+    invalid_p2p_terms_error().
 
 -export_type([id/0]).
 -export_type([revision/0]).

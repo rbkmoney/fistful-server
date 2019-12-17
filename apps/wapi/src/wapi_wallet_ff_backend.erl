@@ -690,7 +690,7 @@ get_p2p_transfer(ID, Context) ->
         to_swag(p2p_transfer, State)
     end).
 
--spec get_p2p_transfer_events({id(), binary()}, ctx()) -> result(map(),
+-spec get_p2p_transfer_events({id(), binary() | undefined}, ctx()) -> result(map(),
     {p2p_transfer, unauthorized} |
     {p2p_transfer, not_found} |
     {token,
@@ -795,8 +795,8 @@ create_p2p_quote_token(Quote, PartyID) ->
         <<"amount">>         => to_swag(withdrawal_body, p2p_quote:amount(Quote)),
         <<"partyRevision">>  => p2p_quote:party_revision(Quote),
         <<"domainRevision">> => p2p_quote:domain_revision(Quote),
-        <<"createdAt">>      => ff_time:to_rfc3339(p2p_quote:created_at(Quote)),
-        <<"expiresOn">>      => ff_time:to_rfc3339(p2p_quote:expires_on(Quote)),
+        <<"createdAt">>      => to_swag(timestamp_ms, p2p_quote:created_at(Quote)),
+        <<"expiresOn">>      => to_swag(timestamp_ms, p2p_quote:expires_on(Quote)),
         <<"partyID">>        => PartyID,
         <<"identityID">>     => p2p_quote:identity_id(Quote),
         <<"sender">>         => to_swag(compact_resource, p2p_quote:sender(Quote)),
@@ -827,24 +827,29 @@ decode_p2p_quote_token(Token) ->
                 sender          => from_swag(compact_resource, maps:get(<<"sender">>, DecodedJson)),
                 receiver        => from_swag(compact_resource, maps:get(<<"receiver">>, DecodedJson))
             },
-            PartyID = maps:get(<<"partyID">>, DecodedJson),
-            {ok, {DecodedToken, PartyID}};
+            {ok, DecodedToken};
         #{<<"version">> := UnsupportedVersion} when is_integer(UnsupportedVersion) ->
             {error, {token, {unsupported_version, UnsupportedVersion}}}
     end.
 
-prepare_p2p_quote_token(undefined, _PartyID) ->
+authorize_p2p_quote_token(Token, IdentityID) ->
+    do(fun() ->
+        case Token of
+            #{identity_id := IdentityID} ->
+                ok;
+            _OtherToken ->
+                {error, {token, {not_verified, owner_mismatch}}}
+        end
+    end).
+
+prepare_p2p_quote_token(undefined, _IdentityID) ->
     {ok, undefined};
-prepare_p2p_quote_token(Token, PartyID) ->
+prepare_p2p_quote_token(Token, IdentityID) ->
     do(fun() ->
         VerifiedToken = unwrap(verify_p2p_quote_token(Token)),
-        {DecodedToken, TokenPartyID} = unwrap(decode_p2p_quote_token(VerifiedToken)),
-        case TokenPartyID of
-            PartyID ->
-                DecodedToken;
-            _OtherPartyID ->
-                {error, {token, wrong_party_id}}
-        end
+        DecodedToken = unwrap(decode_p2p_quote_token(VerifiedToken)),
+        ok = unwrap(authorize_p2p_quote_token(DecodedToken, IdentityID)),
+        DecodedToken
     end).
 
 max_event_id(NewEventID, OldEventID) when is_integer(NewEventID) andalso is_integer(OldEventID) ->
@@ -902,6 +907,7 @@ decode_p2p_transfer_event_continuation_token(CT) ->
     [{id(), ff_machine:timestamped_event(p2p_transfer:event() | p2p_session:event())}].
 mix_events(EventsList) ->
     AppendedEvents = lists:append(EventsList),
+    %% events are sorted by second element in order to be sorted by `machinery:timestamp/0`
     lists:keysort(2, AppendedEvents).
 
 filter_identity_challenge_status(Filter, Status) ->
@@ -937,8 +943,8 @@ transfer_events_filter({_ID, {ev, _Timestamp, {EventType, _}}}) when EventType =
 transfer_events_filter(_) ->
     false.
 
-get_swag_event(Type, ResourceId, EventId, Mapper, Context) ->
-    case get_swag_events(Type, ResourceId, 1, EventId - 1, Mapper, Context) of
+get_swag_event(Type, ResourceId, EventId, Filter, Context) ->
+    case get_swag_events(Type, ResourceId, 1, EventId - 1, Filter, Context) of
         {ok, [Event]}      -> {ok, Event};
         {ok, []}           -> {error, {event, notfound}};
         Error = {error, _} -> Error
@@ -1416,6 +1422,7 @@ from_swag(sender_resource, #{
     BankCard = wapi_utils:base64url_to_map(WapiToken),
     {bank_card, #{
         token          => maps:get(<<"token">>, BankCard),
+        %% TODO do something about `binary_to_existing_atom/1`, so that we don't catch `badarg`
         payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
@@ -1843,6 +1850,8 @@ to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
 to_swag(timestamp, {{Date, Time}, Usec}) ->
     {ok, Timestamp} = rfc3339:format({Date, Time, Usec, undefined}),
     Timestamp;
+to_swag(timestamp_ms, Timestamp) ->
+    ff_time:to_rfc3339(Timestamp);
 to_swag(currency, Currency) ->
     genlib_string:to_upper(genlib:to_binary(Currency));
 to_swag(currency_object, V) ->
@@ -1906,7 +1915,7 @@ to_swag(quote, {#{
 to_swag(p2p_transfer_quote, {Cash, Token, ExpiresOn}) ->
     #{
         <<"customerFee">> => to_swag(withdrawal_body, Cash),
-        <<"expiresOn">>   => ff_time:to_rfc3339(ExpiresOn),
+        <<"expiresOn">>   => to_swag(timestamp_ms, ExpiresOn),
         <<"token">>       => Token
     };
 
@@ -1923,7 +1932,7 @@ to_swag(p2p_transfer, P2PTransferState) ->
     Metadata = maps:get(<<"metadata">>, get_ctx(P2PTransferState), undefined),
     to_swag(map, #{
         <<"id">> => Id,
-        <<"createdAt">> => ff_time:to_rfc3339(CreatedAt),
+        <<"createdAt">> => to_swag(timestamp_ms, CreatedAt),
         <<"body">> => to_swag(withdrawal_body, Cash),
         <<"sender">> => to_swag(sender_resource, Sender),
         <<"receiver">> => to_swag(receiver_resource, Receiver),

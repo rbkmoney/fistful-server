@@ -576,9 +576,9 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {token, {not_verified, invalid_signature}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
-        {error, {token, wrong_party_id}} ->
+        {error, {token, {not_verified, owner_mismatch}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token belongs to other party">>))
+                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>))
     end;
 process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_p2p_transfer(ID, Context) of

@@ -856,11 +856,11 @@ create_p2p_transfer_events_continuation_token(#{
     p2p_transfer_event_id := P2PTransferEventID,
     p2p_session_event_id := P2PSessionEventID
 }) ->
-    DecodedToken = #{
+    DecodedToken = genlib_map:compact(#{
         <<"version">>               => 1,
         <<"p2p_transfer_event_id">> => P2PTransferEventID,
         <<"p2p_session_event_id">>  => P2PSessionEventID
-    },
+    }),
     EncodedToken = jsx:encode(DecodedToken),
     {ok, SignedToken} = wapi_signer:sign(EncodedToken),
     SignedToken.
@@ -889,19 +889,14 @@ decode_p2p_transfer_event_continuation_token(CT) ->
         case jsx:decode(CT, [return_maps]) of
             #{<<"version">> := 1} = DecodedJson ->
                 DecodedToken = #{
-                    p2p_transfer_event_id => maybe_decode_event_id(maps:get(<<"p2p_transfer_event_id">>, DecodedJson)),
-                    p2p_session_event_id => maybe_decode_event_id(maps:get(<<"p2p_session_event_id">>, DecodedJson))
+                    p2p_transfer_event_id => maps:get(<<"p2p_transfer_event_id">>, DecodedJson, undefined),
+                    p2p_session_event_id => maps:get(<<"p2p_session_event_id">>, DecodedJson, undefined)
                 },
                 DecodedToken;
             #{<<"version">> := UnsupportedVersion} when is_integer(UnsupportedVersion) ->
                 {error, {token, {unsupported_version, UnsupportedVersion}}}
         end
     end).
-
-maybe_decode_event_id(<<"undefined">>) ->
-    undefined;
-maybe_decode_event_id(Num) when is_integer(Num) ->
-    Num.
 
 -spec mix_events(list(p2p_transfer_machine:events() | p2p_session_machine:events())) ->
     [{id(), ff_machine:timestamped_event(p2p_transfer:event() | p2p_session:event())}].

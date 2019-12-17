@@ -299,7 +299,7 @@ validate_deposit_creation(Terms, {_Amount, CurrencyID} = _Cash) ->
 validate_p2p(Terms, {_, CurrencyID} = Cash) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
-        valid = unwrap(validate_p2p_terms_is_reduced(WalletTerms)),
+        {ok, valid} = validate_p2p_terms_is_reduced(WalletTerms),
         #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,
         valid = unwrap(validate_p2p_terms_currency(CurrencyID, P2PServiceTerms)),
         valid = unwrap(validate_p2p_cash_limit(Cash, P2PServiceTerms)),
@@ -555,12 +555,16 @@ validate_p2p_terms_is_reduced(Terms) ->
     #domain_P2PServiceTerms{
         currencies = P2PCurrenciesSelector,
         cash_limit = CashLimitSelector,
-        cash_flow = CashFlowSelector
+        cash_flow = CashFlowSelector,
+        fees = FeeSelector,
+        quote_lifetime = LifetimeSelector
     } = P2PServiceTerms,
     do_validate_terms_is_reduced([
         {p2p_currencies, P2PCurrenciesSelector},
         {p2p_cash_limit, CashLimitSelector},
-        {p2p_cash_flow, CashFlowSelector}
+        {p2p_cash_flow, CashFlowSelector},
+        {p2p_fee, FeeSelector},
+        {p2p_quote_lifetime, LifetimeSelector}
     ]).
 
 -spec do_validate_terms_is_reduced([{atom(), Selector :: any()}]) ->

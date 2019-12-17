@@ -493,7 +493,7 @@ prepare_standard_environment(_P2PTransferCash, Token, C) ->
             create_resource_raw(undefined, C),
             create_resource_raw(<<"TEST_NOTFOUND_RECEIVER">>, C)
         };
-        {with_prefix, Prefix} -> 
+        {with_prefix, Prefix} ->
             TokenRandomised = generate_id(),
             TokenWithPrefix = <<Prefix/binary, TokenRandomised/binary>>,
             {

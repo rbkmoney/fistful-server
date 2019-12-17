@@ -915,9 +915,7 @@ maybe_get_session_events(TransferID, Limit, P2PSessionEventID, Context) ->
             undefined ->
                 {[], undefined};
             SessionID ->
-                P2PSessionEvents =
-                    unwrap(get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context)),
-                P2PSessionEvents
+                unwrap(get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter, Context))
         end
        end).
 

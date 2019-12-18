@@ -71,13 +71,10 @@ end_per_testcase(_Name, _C) ->
 -spec get_fee_ok_test(config()) -> test_return().
 get_fee_ok_test(C) ->
     Cash = {22500, <<"RUB">>},
-    CardSender   = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     #{
-        wallet_id := WalletID
-    } = prepare_standard_environment(Cash, C),
-    {ok, Machine} = ff_wallet_machine:get(WalletID),
-    Wallet = ff_wallet_machine:wallet(Machine),
-    Identity = ff_wallet:identity(Wallet),
+        identity_id := Identity,
+        sender := CardSender
+    } = prepare_standard_environment(C),
     Sender = {bank_card, CardSender},
     {ok, {Fee, CashVolume, _}} = p2p_quote:get_quote(Cash, Identity, Sender, Sender),
     ?assertEqual({share, {{65, 10000}, operation_amount, default}}, CashVolume),
@@ -86,14 +83,11 @@ get_fee_ok_test(C) ->
 -spec visa_to_nspkmir_not_allow_test(config()) -> test_return().
 visa_to_nspkmir_not_allow_test(C) ->
     Cash = {22500, <<"RUB">>},
-    CardSender   = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     #{bin := Bin, masked_pan := Pan} = ct_cardstore:bank_card(<<"2204399999000900">>, {12, 2025}, C),
     #{
-        wallet_id := WalletID
-    } = prepare_standard_environment(Cash, C),
-    {ok, Machine} = ff_wallet_machine:get(WalletID),
-    Wallet = ff_wallet_machine:wallet(Machine),
-    Identity = ff_wallet:identity(Wallet),
+        identity_id := Identity,
+        sender := CardSender
+    } = prepare_standard_environment(C),
     Sender = {bank_card, CardSender},
     Receiver = {bank_card, #{
         bin => Bin,
@@ -105,21 +99,14 @@ visa_to_nspkmir_not_allow_test(C) ->
 
 %% Utils
 
-prepare_standard_environment(Cash, C) ->
-    prepare_standard_environment(Cash, undefined, C).
-
-prepare_standard_environment({_Amount, Currency} =Cash, Token, C) ->
+prepare_standard_environment(C) ->
     Party = create_party(C),
     IdentityID = create_person_identity(Party, C),
-    WalletID = create_wallet(IdentityID, <<"My wallet">>, Currency, C),
-    ok = await_wallet_balance({0, Currency}, WalletID),
-    DestinationID = create_destination(IdentityID, Token, C),
-    ok = set_wallet_balance(Cash, WalletID),
+    CardSender = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     #{
         identity_id => IdentityID,
         party_id => Party,
-        wallet_id => WalletID,
-        destination_id => DestinationID
+        sender => CardSender
     }.
 
 create_party(_C) ->
@@ -141,92 +128,3 @@ create_identity(Party, ProviderID, ClassID, _C) ->
         ff_entity_context:new()
     ),
     ID.
-
-create_wallet(IdentityID, Name, Currency, _C) ->
-    ID = genlib:unique(),
-    ok = ff_wallet_machine:create(
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency},
-        ff_entity_context:new()
-    ),
-    ID.
-
-await_wallet_balance({Amount, Currency}, ID) ->
-    Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
-    Balance = ct_helper:await(
-        Balance,
-        fun () -> get_wallet_balance(ID) end,
-        genlib_retry:linear(3, 500)
-    ),
-    ok.
-
-get_wallet_balance(ID) ->
-    {ok, Machine} = ff_wallet_machine:get(ID),
-    get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
-
-get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(
-        Account,
-        ff_clock:latest_clock()
-    ),
-    {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
-
-generate_id() ->
-    ff_id:generate_snowflake_id().
-
-create_destination(IID, <<"USD_CURRENCY">>, C) ->
-    create_destination(IID, <<"USD">>, undefined, C);
-create_destination(IID, Token, C) ->
-    create_destination(IID, <<"RUB">>, Token, C).
-
-create_destination(IID, Currency, Token, C) ->
-    ID = generate_id(),
-    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    NewStoreResource = case Token of
-        undefined ->
-            StoreSource;
-        Token ->
-            StoreSource#{token => Token}
-        end,
-    Resource = {bank_card, NewStoreResource},
-    Params = #{identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
-    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
-    authorized = ct_helper:await(
-        authorized,
-        fun () ->
-            {ok, Machine} = ff_destination:get_machine(ID),
-            ff_destination:status(ff_destination:get(Machine))
-        end
-    ),
-    ID.
-
-set_wallet_balance({Amount, Currency}, ID) ->
-    TransactionID = generate_id(),
-    {ok, Machine} = ff_wallet_machine:get(ID),
-    Account = ff_wallet:account(ff_wallet_machine:wallet(Machine)),
-    AccounterID = ff_account:accounter_account_id(Account),
-    {CurrentAmount, _, Currency} = get_account_balance(Account),
-    {ok, AnotherAccounterID} = create_account(Currency),
-    Postings = [{AnotherAccounterID, AccounterID, {Amount - CurrentAmount, Currency}}],
-    {ok, _} = ff_transaction:prepare(TransactionID, Postings),
-    {ok, _} = ff_transaction:commit(TransactionID, Postings),
-    ok.
-
-create_account(CurrencyCode) ->
-    Description = <<"ff_test">>,
-    case call_accounter('CreateAccount', [construct_account_prototype(CurrencyCode, Description)]) of
-        {ok, Result} ->
-            {ok, Result};
-        {exception, Exception} ->
-            {error, {exception, Exception}}
-    end.
-
-construct_account_prototype(CurrencyCode, Description) ->
-    #accounter_AccountPrototype{
-        currency_sym_code = CurrencyCode,
-        description = Description
-    }.
-
-call_accounter(Function, Args) ->
-    Service = {dmsl_accounter_thrift, 'Accounter'},
-    ff_woody_client:call(accounter, {Service, Function, Args}, woody_context:new()).

@@ -1,6 +1,7 @@
 -module(p2p_transfer_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
+-include_lib("damsel/include/dmsl_p2p_adapter_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
@@ -16,6 +17,12 @@
 -export([end_per_testcase/2]).
 
 %% Tests
+-export([session_user_interaction_ok_test/1]).
+-export([session_callback_ok_test/1]).
+-export([session_create_deadline_fail_test/1]).
+-export([session_create_fail_test/1]).
+
+-export([create_ok_with_inspector_fail_test/1]).
 -export([route_not_found_fail_test/1]).
 -export([create_cashlimit_validation_error_test/1]).
 -export([create_currency_validation_error_test/1]).
@@ -44,6 +51,14 @@
 }).
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
 
+-define(CALLBACK(Tag, Payload), #p2p_adapter_Callback{tag = Tag, payload = Payload}).
+
+-define(PROCESS_CALLBACK_SUCCESS(Payload), {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
+    response = #p2p_adapter_CallbackResponse{
+        payload = Payload
+    }
+}}).
+
 %% API
 
 -spec all() -> [test_case_name() | {group, group_name()}].
@@ -57,6 +72,11 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
+            session_user_interaction_ok_test,
+            session_callback_ok_test,
+            session_create_deadline_fail_test,
+            session_create_fail_test,
+            create_ok_with_inspector_fail_test,
             route_not_found_fail_test,
             create_cashlimit_validation_error_test,
             create_currency_validation_error_test,
@@ -147,6 +167,145 @@ balance_check_ok_test(C) ->
     ?assertEqual(?final_balance(SubagentEndCash), SubagentBalanceOnEnd),
     ?assertEqual(?final_balance(SettlementEndCash), SettlementBalanceOnEnd).
 
+-spec session_user_interaction_ok_test(config()) -> test_return().
+session_user_interaction_ok_test(C) ->
+    Cash = {101, <<"RUB">>},
+    Prefix = <<"token_interaction_">>,
+    #{
+        identity_id := IdentityID,
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = p2p_tests_utils:prepare_standard_environment(Cash, {with_prefix, Prefix}, C),
+    P2PTransferID = generate_id(),
+    ClientInfo = #{
+        ip_address => <<"some ip_address">>,
+        fingerprint => <<"some fingerprint">>
+    },
+    P2PTransferParams = #{
+        id => P2PTransferID,
+        identity_id => IdentityID,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        body => Cash,
+        client_info => ClientInfo,
+        external_id => P2PTransferID
+    },
+    ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
+    ?assertMatch(<<"user_sleep">>, await_p2p_session_adapter_state(P2PTransferID, <<"user_sleep">>)),
+    ?assertEqual(succeeded, await_final_p2p_transfer_status(P2PTransferID)).
+
+-spec session_callback_ok_test(config()) -> test_return().
+session_callback_ok_test(C) ->
+    Cash = {999, <<"RUB">>},
+    Prefix = <<"token_callback_">>,
+    #{
+        identity_id := IdentityID,
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = p2p_tests_utils:prepare_standard_environment(Cash, {with_prefix, Prefix}, C),
+    P2PTransferID = generate_id(),
+    ClientInfo = #{
+        ip_address => <<"some ip_address">>,
+        fingerprint => <<"some fingerprint">>
+    },
+    {raw, #{resource_params := {bank_card, #{token := Token}}}} = ResourceSender,
+    Callback = ?CALLBACK(Token, <<"payload">>),
+    P2PTransferParams = #{
+        id => P2PTransferID,
+        identity_id => IdentityID,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        body => Cash,
+        client_info => ClientInfo,
+        external_id => P2PTransferID
+    },
+    ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
+    ?assertMatch(<<"simple_sleep">>, await_p2p_session_adapter_state(P2PTransferID, <<"simple_sleep">>)),
+    ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"simple_payload">>)}, call_host(Callback)),
+    ?assertEqual(succeeded, await_final_p2p_transfer_status(P2PTransferID)).
+
+-spec session_create_deadline_fail_test(config()) -> test_return().
+session_create_deadline_fail_test(C) ->
+    Cash = {199, <<"RUB">>},
+    #{
+        identity_id := IdentityID,
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
+    P2PTransferID = generate_id(),
+    ClientInfo = #{
+        ip_address => <<"some ip_address">>,
+        fingerprint => <<"some fingerprint">>
+    },
+    P2PTransferParams = #{
+        id => P2PTransferID,
+        identity_id => IdentityID,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        body => Cash,
+        client_info => ClientInfo,
+        external_id => P2PTransferID
+    },
+    Failure = #{
+        code => <<"authorization_failed">>,
+        reason => <<"{deadline_reached,0}">>,
+        sub => #{
+            code => <<"deadline_reached">>
+        }
+    },
+    ok = p2p_transfer_machine:create(P2PTransferParams#{deadline => 0}, ff_entity_context:new()),
+    ?assertEqual({failed, Failure}, await_final_p2p_transfer_status(P2PTransferID)).
+
+-spec session_create_fail_test(config()) -> test_return().
+session_create_fail_test(C) ->
+    Cash = {1001, <<"RUB">>},
+    #{
+        identity_id := IdentityID,
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
+    P2PTransferID = generate_id(),
+    ClientInfo = #{
+        ip_address => <<"some ip_address">>,
+        fingerprint => <<"some fingerprint">>
+    },
+    P2PTransferParams = #{
+        id => P2PTransferID,
+        identity_id => IdentityID,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        body => Cash,
+        client_info => ClientInfo,
+        external_id => P2PTransferID
+    },
+    ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
+    ?assertEqual({failed, #{code => <<"test_failure">>}}, await_final_p2p_transfer_status(P2PTransferID)).
+
+-spec create_ok_with_inspector_fail_test(config()) -> test_return().
+create_ok_with_inspector_fail_test(C) ->
+    Cash = {199, <<"RUB">>},
+    #{
+        identity_id := IdentityID,
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
+    P2PTransferID = generate_id(),
+    ClientInfo = #{
+        ip_address => <<"some ip_address">>,
+        fingerprint => <<"some fingerprint">>
+    },
+    P2PTransferParams = #{
+        id => P2PTransferID,
+        identity_id => IdentityID,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        body => Cash,
+        client_info => ClientInfo,
+        external_id => P2PTransferID
+    },
+    ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
+    ?assertEqual(succeeded, await_final_p2p_transfer_status(P2PTransferID)).
+
 -spec route_not_found_fail_test(config()) -> test_return().
 route_not_found_fail_test(C) ->
     Cash = {100, <<"USD">>},
@@ -223,7 +382,7 @@ create_sender_resource_notfound_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = p2p_tests_utils:prepare_standard_environment(Cash, <<"TEST_NOTFOUND_SENDER">>, C),
+    } = p2p_tests_utils:prepare_standard_environment(Cash, {missing, sender}, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
@@ -243,7 +402,7 @@ create_receiver_resource_notfound_test(C) ->
         identity_id := IdentityID,
         sender := ResourceSender,
         receiver := ResourceReceiver
-    } = p2p_tests_utils:prepare_standard_environment(Cash, <<"TEST_NOTFOUND_RECEIVER">>, C),
+    } = p2p_tests_utils:prepare_standard_environment(Cash, {missing, receiver}, C),
     P2PTransferID = generate_id(),
     P2PTransferParams = #{
         id => P2PTransferID,
@@ -355,3 +514,34 @@ get_account_balance(AccountID, Currency) ->
         ff_clock:latest_clock()
     ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
+
+await_p2p_session_adapter_state(P2PTransferID, State) ->
+    State = ct_helper:await(
+        State,
+        fun () ->
+            {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
+            P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
+            case maps:get(session, P2PTransfer, undefined) of
+                undefined ->
+                    undefined;
+                #{id := SessionID} ->
+                    get_p2p_session_adapter_state(SessionID)
+            end
+        end,
+        genlib_retry:linear(10, 1000)
+    ).
+
+get_p2p_session(SessionID) ->
+    {ok, Machine} = p2p_session_machine:get(SessionID),
+    p2p_session_machine:session(Machine).
+
+get_p2p_session_adapter_state(SessionID) ->
+    Session = get_p2p_session(SessionID),
+    p2p_session:adapter_state(Session).
+
+call_host(Callback) ->
+    Service  = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
+    Function = 'ProcessCallback',
+    Args     = [Callback],
+    Request  = {Service, Function, Args},
+    ff_woody_client:call(ff_p2p_adapter_host, Request).

@@ -32,7 +32,7 @@
 -type handle_callback_result()      :: p2p_adapter:handle_callback_result().
 -type p2p_callback_result()         :: dmsl_p2p_adapter_thrift:'CallbackResult'().
 
--type process_callback_result()     :: p2p_adapter_host:process_callback_result().
+-type process_callback_result()     :: p2p_session_machine:process_callback_result().
 -type p2p_process_callback_result() :: dmsl_p2p_adapter_thrift:'ProcessCallbackResult'().
 
 -type callback()                    :: p2p_adapter:callback().

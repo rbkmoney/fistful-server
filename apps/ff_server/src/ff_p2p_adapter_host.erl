@@ -1,6 +1,6 @@
 %% P2P adapter host
 
--module(p2p_adapter_host).
+-module(ff_p2p_adapter_host).
 -behaviour(ff_woody_wrapper).
 
 -include_lib("damsel/include/dmsl_base_thrift.hrl").
@@ -12,12 +12,7 @@
 
 -export([handle_function/3]).
 
--export_type([process_callback_result/0]).
-
 %% Types
-
--type process_callback_result()     :: {succeeded, p2p_callback:response()}
-                                     | {finished,  p2p_adapter:context()}.
 
 -type p2p_process_callback_result() :: dmsl_p2p_adapter_thrift:'ProcessCallbackResult'().
 
@@ -26,7 +21,7 @@
 -spec handle_function(woody:func(), woody:args(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(p2p_adapter_host, #{}, fun() -> handle_function_(Func, Args, Opts) end).
+    scoper:scope(ff_p2p_adapter_host, #{}, fun() -> handle_function_(Func, Args, Opts) end).
 
 %% Implementation
 

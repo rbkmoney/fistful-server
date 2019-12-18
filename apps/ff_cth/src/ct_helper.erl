@@ -162,6 +162,11 @@ start_app(bender_client = AppName) ->
         {deadline, 60000}
     ]), #{}};
 
+start_app(p2p = AppName) ->
+    {start_app_with(AppName, [
+        {score_id, <<"fraud">>}
+    ]), #{}};
+
 start_app({AppName, AppEnv}) ->
     {start_app_with(AppName, AppEnv), #{}};
 

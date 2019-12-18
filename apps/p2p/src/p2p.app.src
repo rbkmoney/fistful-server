@@ -12,7 +12,8 @@
         machinery,
         machinery_extra,
         damsel,
-        fistful
+        fistful,
+        ff_transfer
     ]},
     {env, []},
     {modules, []},

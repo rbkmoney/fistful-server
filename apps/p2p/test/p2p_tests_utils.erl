@@ -30,14 +30,21 @@ prepare_standard_environment(_P2PTransferCash, Token, C) ->
     IdentityID = create_person_identity(PartyID, C, <<"quote-owner">>),
     {ResourceSender, ResourceReceiver} =
         case Token of
-            <<"TEST_NOTFOUND_SENDER">> = T -> {
-                create_resource_raw(T, C),
+            {missing, sender} -> {
+                create_resource_raw(<<"TEST_NOTFOUND_SENDER">>, C),
                 create_resource_raw(undefined, C)
             };
-            <<"TEST_NOTFOUND_RECEIVER">> = T -> {
+            {missing, receiver} -> {
                 create_resource_raw(undefined, C),
-                create_resource_raw(T, C)
+                create_resource_raw(<<"TEST_NOTFOUND_RECEIVER">>, C)
             };
+            {with_prefix, Prefix} ->
+                TokenRandomised = generate_id(),
+                TokenWithPrefix = <<Prefix/binary, TokenRandomised/binary>>,
+                {
+                    create_resource_raw(TokenWithPrefix, C),
+                    create_resource_raw(TokenWithPrefix, C)
+                };
             Other -> {create_resource_raw(Other, C), create_resource_raw(Other, C)}
         end,
     #{
@@ -69,6 +76,9 @@ create_identity(Party, ProviderID, ClassID, _C) ->
         ff_entity_context:new()
     ),
     ID.
+
+generate_id() ->
+    ff_id:generate_snowflake_id().
 
 create_party(_C) ->
     ID = genlib:bsuuid(),

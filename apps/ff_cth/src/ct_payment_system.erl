@@ -77,7 +77,8 @@ start_processing_apps(Options) ->
             {providers, identity_provider_config(Options)},
             {test, #{p2p_adapter_adr => P2PAdapterAdr}}
         ]},
-        ff_server
+        ff_server,
+        p2p
     ]),
     SuiteSup = ct_sup:start(),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
@@ -317,7 +318,7 @@ identity_provider_config(Options) ->
 
 services(Options) ->
     Default = #{
-        p2p_adapter_host => "http://fistful-server:8022/v1/p2p_adapter_host",
+        ff_p2p_adapter_host => "http://fistful-server:8022/v1/ff_p2p_adapter_host",
         eventsink        => "http://machinegun:8022/v1/event_sink",
         automaton        => "http://machinegun:8022/v1/automaton",
         accounter        => "http://shumway:8022/shumpune",

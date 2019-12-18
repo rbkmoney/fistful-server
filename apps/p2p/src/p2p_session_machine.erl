@@ -35,7 +35,11 @@
 -type unknown_p2p_session_error() ::
     {unknown_p2p_session, ref()}.
 
+-type process_callback_result()     :: {succeeded, p2p_callback:response()}
+                                     | {finished,  p2p_adapter:context()}.
+
 -export_type([process_callback_error/0]).
+-export_type([process_callback_result/0]).
 
 %%
 %% Internal types

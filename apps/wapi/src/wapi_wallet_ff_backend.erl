@@ -660,7 +660,7 @@ quote_p2p_transfer(Params, Context) ->
     {token,
         {unsupported_version, integer() | undefined} |
         {not_verified, invalid_signature} |
-        {not_verified, owner_mismatch}
+        {not_verified, identity_mismatch}
     }
 ).
 create_p2p_transfer(Params, Context) ->
@@ -837,7 +837,7 @@ authorize_p2p_quote_token(Token, IdentityID) ->
         #{identity_id := IdentityID} ->
             ok;
         _OtherToken ->
-            {error, {token, {not_verified, owner_mismatch}}}
+            {error, {token, {not_verified, identity_mismatch}}}
     end.
 
 prepare_p2p_quote_token(undefined, _IdentityID) ->
@@ -905,8 +905,10 @@ decode_p2p_transfer_event_continuation_token(CT) ->
     [{id(), ff_machine:timestamped_event(p2p_transfer:event() | p2p_session:event())}].
 mix_events(EventsList) ->
     AppendedEvents = lists:append(EventsList),
-    %% events are sorted by second element in order to be sorted by `machinery:timestamp/0`
-    lists:keysort(2, AppendedEvents).
+    sort_events_by_timestamp(AppendedEvents).
+
+sort_events_by_timestamp(Events) ->
+    lists:keysort(2, Events).
 
 filter_identity_challenge_status(Filter, Status) ->
     maps:get(<<"status">>, to_swag(challenge_status, Status)) =:= Filter.
@@ -919,15 +921,13 @@ maybe_get_session_events(TransferID, Limit, P2PSessionEventID, Context) ->
             undefined ->
                 {[], undefined};
             SessionID ->
-                unwrap(get_events({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter))
+                unwrap(get_events_unauthorized({p2p_session, event}, SessionID, Limit, P2PSessionEventID, Filter))
         end
     end).
 
 maybe_get_transfer_events(TransferID, Limit, P2PTransferEventID, Context) ->
-    do(fun() ->
-        Filter = fun transfer_events_filter/1,
-        unwrap(get_events_with_check({p2p_transfer, event}, TransferID, Limit, P2PTransferEventID, Filter, Context))
-    end).
+    Filter = fun transfer_events_filter/1,
+    get_events({p2p_transfer, event}, TransferID, Limit, P2PTransferEventID, Filter, Context).
 
 session_events_filter({_ID, {ev, _Timestamp, {user_interaction, #{payload := Payload}}}})
     when Payload =/= {status_changed, pending}
@@ -950,17 +950,17 @@ get_swag_event(Type, ResourceId, EventId, Filter, Context) ->
 
 get_swag_events(Type, ResourceId, Limit, Cursor, Filter, Context) ->
     do(fun() ->
-        {Events, _LastEventID} = unwrap(get_events_with_check(Type, ResourceId, Limit, Cursor, Filter, Context)),
+        {Events, _LastEventID} = unwrap(get_events(Type, ResourceId, Limit, Cursor, Filter, Context)),
         to_swag(
             {list, get_event_type(Type)},
             Events
         )
     end).
 
-get_events(Type, ResourceId, Limit, Cursor, Filter) ->
+get_events_unauthorized(Type, ResourceId, Limit, Cursor, Filter) ->
     do(fun() -> collect_events(get_collector(Type, ResourceId), Filter, Cursor, Limit) end).
 
-get_events_with_check(Type = {Resource, _}, ResourceId, Limit, Cursor, Filter, Context) ->
+get_events(Type = {Resource, _}, ResourceId, Limit, Cursor, Filter, Context) ->
     do(fun() ->
         _ = check_resource(Resource, ResourceId, Context),
         collect_events(get_collector(Type, ResourceId), Filter, Cursor, Limit)

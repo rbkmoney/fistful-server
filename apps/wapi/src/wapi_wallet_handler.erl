@@ -537,10 +537,10 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters' := Params}, Context, _Op
                 wapi_handler_utils:get_error_msg(<<"No such party">>));
         {error, {sender, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"InvalidSenderResource">>));
+                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
         {error, {receiver, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"InvalidReceiverResource">>));
+                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
         {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
@@ -560,10 +560,10 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, {sender, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"InvalidSenderResource">>));
+                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
         {error, {receiver, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"InvalidReceiverResource">>));
+                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
         {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
@@ -573,10 +573,7 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {terms, {terms_violation, p2p_forbidden}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>));
-        {error, {token, {not_verified, invalid_signature}}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
-        {error, {token, {not_verified, owner_mismatch}}} ->
+        {error, {token, {not_verified, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Token can't be verified">>))
     end;

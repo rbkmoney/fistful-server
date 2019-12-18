@@ -667,13 +667,10 @@ create_p2p_transfer(Params, Context) ->
     CreateFun =
         fun(ID, EntityCtx) ->
             do(fun() ->
-                #{
-                    quote_token := QuoteToken,
-                    identity_id := IdentityID
-                } = ParsedParams = from_swag(create_p2p_params, Params),
-                DecodedToken = unwrap(prepare_p2p_quote_token(QuoteToken, IdentityID)),
+                ParsedParams1 = from_swag(create_p2p_params, Params),
+                ParsedParams2 = unwrap(maybe_add_p2p_quote_token(ParsedParams1)),
                 p2p_transfer_machine:create(
-                    genlib_map:compact(ParsedParams#{id => ID, quote => DecodedToken}),
+                    genlib_map:compact(ParsedParams2#{id => ID}),
                     add_meta_to_ctx([], Params, EntityCtx)
                 )
             end)
@@ -840,14 +837,17 @@ authorize_p2p_quote_token(Token, IdentityID) ->
             {error, {token, {not_verified, identity_mismatch}}}
     end.
 
-prepare_p2p_quote_token(undefined, _IdentityID) ->
-    {ok, undefined};
-prepare_p2p_quote_token(Token, IdentityID) ->
+maybe_add_p2p_quote_token(Params) ->
     do(fun() ->
-        VerifiedToken = unwrap(verify_p2p_quote_token(Token)),
-        DecodedToken = unwrap(decode_p2p_quote_token(VerifiedToken)),
-        ok = unwrap(authorize_p2p_quote_token(DecodedToken, IdentityID)),
-        DecodedToken
+        case Params of
+            #{quote_token := undefined} ->
+                Params;
+            #{quote_token := QuoteToken, identity_id := IdentityID} ->
+                VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
+                DecodedToken = unwrap(decode_p2p_quote_token(VerifiedToken)),
+                ok = unwrap(authorize_p2p_quote_token(DecodedToken, IdentityID)),
+                Params#{quote => DecodedToken}
+        end
     end).
 
 max_event_id(NewEventID, OldEventID) when is_integer(NewEventID) andalso is_integer(OldEventID) ->

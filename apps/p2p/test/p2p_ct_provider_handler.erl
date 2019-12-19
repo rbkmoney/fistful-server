@@ -84,7 +84,7 @@ handle_function_('Process', [?ADAPTER_CONTEXT(101, _Token, State)], _Ctx, _Opts)
             )};
         <<"user_sleep">> ->
             {ok, ?ADAPTER_PROCESS_RESULT(
-                ?ADAPTER_SLEEP_INTENT(1, undefined, ?ADAPTER_UI(
+                ?ADAPTER_SLEEP_INTENT(2, undefined, ?ADAPTER_UI(
                     <<"test_user_interaction">>,
                     ?ADAPTER_UI_FINISH
                 )),
@@ -100,7 +100,7 @@ handle_function_('Process', [?ADAPTER_CONTEXT(99, Token, State)], _Ctx, _Opts) -
     case State of
         undefined ->
             {ok, ?ADAPTER_PROCESS_RESULT(
-                ?ADAPTER_SLEEP_INTENT(1, Token, undefined),
+                ?ADAPTER_SLEEP_INTENT(2, Token, undefined),
                 <<"wrong">>
             )};
         <<"wrong">> ->
@@ -113,12 +113,12 @@ handle_function_('Process', [?ADAPTER_CONTEXT(999, Token, State)], _Ctx, _Opts) 
     case State of
         undefined ->
             {ok, ?ADAPTER_PROCESS_RESULT(
-                ?ADAPTER_SLEEP_INTENT(1, Token, undefined),
+                ?ADAPTER_SLEEP_INTENT(2, Token, undefined),
                 <<"simple_sleep">>
             )};
         <<"simple_sleep">> ->
             {ok, ?ADAPTER_PROCESS_RESULT(
-                ?ADAPTER_SLEEP_INTENT(1, undefined, undefined),
+                ?ADAPTER_SLEEP_INTENT(2, undefined, undefined),
                 undefined
             )};
         <<"simple_callback">> ->
@@ -144,7 +144,7 @@ handle_function_('HandleCallback', [?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_
             {ok, #p2p_adapter_CallbackResult{
                 response = #p2p_adapter_CallbackResponse{payload = <<"simple_payload">>},
                 intent = {sleep, #p2p_adapter_SleepIntent{
-                    timer = {timeout, 1}
+                    timer = {timeout, 2}
                 }},
                 next_state = <<"simple_callback">>
             }}

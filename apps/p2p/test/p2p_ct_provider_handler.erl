@@ -76,7 +76,7 @@ handle_function_('Process', [?ADAPTER_CONTEXT(101, _Token, State)], _Ctx, _Opts)
     case State of
         undefined ->
             {ok, ?ADAPTER_PROCESS_RESULT(
-                ?ADAPTER_SLEEP_INTENT(1, undefined, ?ADAPTER_UI(
+                ?ADAPTER_SLEEP_INTENT(2, undefined, ?ADAPTER_UI(
                     <<"test_user_interaction">>,
                     ?ADAPTER_UI_CREATED
                 )),

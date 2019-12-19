@@ -34,7 +34,7 @@ publish_event(#{
         payload       = #p2p_transfer_EventSinkPayload{
             sequence   = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
-            changes    = [marshal(event, Payload)]
+            changes    = [marshal(change, Payload)]
         }
     }.
 

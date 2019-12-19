@@ -27,6 +27,8 @@
 -export([no_pending_p2p_transfer_adjustments_test/1]).
 -export([unknown_p2p_transfer_test/1]).
 
+-export([consume_eventsinks/1]).
+
 %% Internal types
 
 -type config()         :: ct_helper:config().
@@ -41,8 +43,10 @@
 %% API
 
 -spec all() -> [test_case_name() | {group, group_name()}].
-all() ->
-    [{group, default}].
+all() ->[
+    {group, default},
+    {group, eventsink}
+].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
@@ -58,6 +62,9 @@ groups() ->
             no_parallel_adjustments_test,
             no_pending_p2p_transfer_adjustments_test,
             unknown_p2p_transfer_test
+        ]},
+        {eventsink, [], [
+            consume_eventsinks
         ]}
     ].
 
@@ -278,6 +285,13 @@ unknown_p2p_transfer_test(_C) ->
         change => {change_status, pending}
     }),
     ?assertMatch({error, {unknown_p2p_transfer, P2PTransferID}}, Result).
+
+-spec consume_eventsinks(config()) -> test_return().
+consume_eventsinks(_) ->
+    EventSinks = [
+          p2p_transfer_event_sink
+    ],
+    [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
 
 %% Utils
 prepare_standard_environment(P2PTransferCash, C) ->

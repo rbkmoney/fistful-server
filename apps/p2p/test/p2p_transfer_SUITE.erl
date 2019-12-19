@@ -33,6 +33,8 @@
 -export([preserve_revisions_test/1]).
 -export([unknown_test/1]).
 
+-export([consume_eventsinks/1]).
+
 %% Internal types
 
 -type config()         :: ct_helper:config().
@@ -65,7 +67,8 @@
 all() ->
     [
         {group, default},
-        {group, balance}
+        {group, balance},
+        {group, eventsink}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -88,6 +91,9 @@ groups() ->
         ]},
         {balance, [], [
             balance_check_ok_test
+        ]},
+        {eventsink, [], [
+            consume_eventsinks
         ]}
     ].
 
@@ -475,6 +481,13 @@ unknown_test(_C) ->
     P2PTransferID = <<"unknown_p2p_transfer">>,
     Result = p2p_transfer_machine:get(P2PTransferID),
     ?assertMatch({error, {unknown_p2p_transfer, P2PTransferID}}, Result).
+
+-spec consume_eventsinks(config()) -> test_return().
+consume_eventsinks(_) ->
+    EventSinks = [
+          p2p_transfer_event_sink
+    ],
+    [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
 
 %% Utils
 

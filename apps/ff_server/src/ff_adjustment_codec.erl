@@ -11,11 +11,11 @@
 
 %% Some hack
 
--spec record_transfer(prefix(), binary()) ->
-    atom().
+% -spec record_transfer(prefix(), binary()) ->
+%     atom().
 
-record_transfer(#{transfer := Prefix}, Name) ->
-    erlang:binary_to_atom(<<Prefix/binary, "_", Name/binary>>, latin1).
+% record_transfer(#{transfer := Prefix}, Name) ->
+%     erlang:binary_to_atom(<<Prefix/binary, "_", Name/binary>>, latin1).
 
 -spec record_adjustment(prefix(), binary()) ->
     atom().
@@ -38,11 +38,11 @@ marshal(Prefix, {list, T}, V) ->
     [marshal(Prefix, T, E) || E <- V];
 
 marshal(Prefix, change, {created, Adjustment}) ->
-    {created, {record_transfer(Prefix, <<"CreatedChange">>), marshal(Prefix, adjustment, Adjustment)}};
+    {created, {record_adjustment(Prefix, <<"CreatedChange">>), marshal(Prefix, adjustment, Adjustment)}};
 marshal(Prefix, change, {p_transfer, TransferChange}) ->
-    {transfer, {record_transfer(Prefix, <<"TransferChange">>), ff_p_transfer_codec:marshal(event, TransferChange)}};
+    {transfer, {record_adjustment(Prefix, <<"TransferChange">>), ff_p_transfer_codec:marshal(event, TransferChange)}};
 marshal(Prefix, change, {status_changed, Status}) ->
-    {status_changed, {record_transfer(Prefix, <<"StatusChange">>), marshal(Prefix, status, Status)}};
+    {status_changed, {record_adjustment(Prefix, <<"StatusChange">>), marshal(Prefix, status, Status)}};
 
 marshal(Prefix, adjustment, Adjustment = #{
     id := ID,
@@ -77,7 +77,7 @@ marshal(Prefix, changes_plan, ChangesPlan) ->
     {
         record_adjustment(Prefix, <<"ChangesPlan">>),
         maybe_marshal(Prefix, new_cash_flow, NewCashFlow),
-        maybe_marshal(Prefix, target_status, NewStatus)
+        maybe_marshal(Prefix, status_change_plan, NewStatus)
     };
 
 marshal(Prefix, new_cash_flow, #{
@@ -88,6 +88,12 @@ marshal(Prefix, new_cash_flow, #{
         record_adjustment(Prefix, <<"CashFlowChangePlan">>),
         ff_p_transfer_codec:marshal(final_cash_flow, OldCashFlowInverted),
         ff_p_transfer_codec:marshal(final_cash_flow, NewCashFlow)
+    };
+
+marshal(Prefix, status_change_plan, Status) ->
+    {
+        record_adjustment(Prefix, <<"StatusChangePlan">>),
+        maybe_marshal(Prefix, target_status, Status)
     };
 
 marshal(Prefix, target_status, pending) ->
@@ -151,7 +157,7 @@ unmarshal(changes_plan, {
 }) ->
     genlib_map:compact(#{
         new_cash_flow => maybe_unmarshal(new_cash_flow, NewCashFlow),
-        new_status => maybe_unmarshal(target_status, NewStatus)
+        new_status => maybe_unmarshal(status_change_plan, NewStatus)
     });
 
 unmarshal(new_cash_flow, {
@@ -163,6 +169,9 @@ unmarshal(new_cash_flow, {
         old_cash_flow_inverted => ff_p_transfer_codec:unmarshal(final_cash_flow, OldCashFlowInverted),
         new_cash_flow => ff_p_transfer_codec:unmarshal(final_cash_flow, NewCashFlow)
     };
+
+unmarshal(status_change_plan, {_StatusChangePlan, Status}) ->
+    unmarshal(target_status, Status);
 
 unmarshal(target_status, {pending, _Pending}) ->
     pending;

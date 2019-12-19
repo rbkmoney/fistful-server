@@ -87,9 +87,11 @@ marshal(participant, {raw, #{resource_params := Resource} = Raw}) ->
     ContactInfo = maps:get(contact_info, Raw, undefined),
     {resource, #p2p_transfer_RawResource{
         resource = marshal(resource, Resource),
-        contact_info = maybe_marshal(contact_info, ContactInfo)
+        contact_info = marshal(contact_info, ContactInfo)
     }};
 
+marshal(contact_info, undefined) ->
+    #'ContactInfo'{};
 marshal(contact_info, ContactInfo) ->
     PhoneNumber = maps:get(phone_number, ContactInfo, undefined),
     Email = maps:get(email, ContactInfo, undefined),
@@ -121,7 +123,7 @@ marshal(risk_score, fatal) ->
 
 marshal(route, #{provider_id := ProviderID}) ->
     #p2p_transfer_RouteChange{route = #p2p_transfer_Route{
-        provider_id =  marshal(id, ProviderID)
+        provider_id =  marshal(integer, ProviderID)
     }};
 
 marshal(session, {SessionID, started}) ->
@@ -231,7 +233,7 @@ unmarshal(participant, {resource, #p2p_transfer_RawResource{
 }}) ->
     {raw, genlib_map:compact(#{
         resource_params => unmarshal(resource, Resource),
-        contact_info => maybe_unmarshal(contact_info, ContactInfo)
+        contact_info => unmarshal(contact_info, ContactInfo)
     })};
 
 unmarshal(contact_info, #'ContactInfo'{
@@ -260,7 +262,7 @@ unmarshal(risk_score, fatal) ->
     fatal;
 
 unmarshal(route, #p2p_transfer_Route{provider_id = ProviderID}) ->
-    #{provider_id => unmarshal(id, ProviderID)};
+    #{provider_id => unmarshal(integer, ProviderID)};
 
 unmarshal(session, {SessionID, {started, #p2p_transfer_SessionStarted{}}}) ->
     {SessionID, started};
@@ -355,7 +357,7 @@ p2p_transfer_codec_test() ->
         {created, P2PTransfer},
         {resource_got, Resource, Resource},
         {risk_score_changed, low},
-        {route_changed, #{provider_id => genlib:unique()}},
+        {route_changed, #{provider_id => 1}},
         {p_transfer, {created, PTransfer}},
         {session, {genlib:unique(), started}},
         {status_changed, succeeded},

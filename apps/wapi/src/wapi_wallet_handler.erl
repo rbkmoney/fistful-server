@@ -546,7 +546,7 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters' := Params}, Context, _Op
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
         {error, {terms, {terms_violation, {cash_range, {_Cash, _CashRange}}}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Cash number not in range">>));
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
         {error, {terms, {terms_violation, p2p_forbidden}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>))
@@ -569,7 +569,7 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
         {error, {terms, {terms_violation, {cash_range, {_Cash, _CashRange}}}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Cash number not in range">>));
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
         {error, {terms, {terms_violation, p2p_forbidden}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>));

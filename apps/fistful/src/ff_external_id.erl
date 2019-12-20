@@ -40,7 +40,8 @@
     deposit  |
     source |
     destination |
-    identity_challenge.
+    identity_challenge |
+    p2p_transfer.
 
 -type sequence()     :: binary().
 

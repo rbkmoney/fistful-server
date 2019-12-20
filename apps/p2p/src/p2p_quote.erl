@@ -17,6 +17,13 @@
 -type validate_p2p_error()        :: ff_party:validate_p2p_error().
 -type volume_finalize_error()     :: ff_cash_flow:volume_finalize_error().
 
+-type get_quote_error() ::
+    {identity,                      not_found} |
+    {party,                         get_contract_terms_error()} |
+    {cash_flow,                     volume_finalize_error()} |
+    {p2p_transfer:resource_owner(), {bin_data, not_found}} |
+    {terms,                         validate_p2p_error()}.
+
 -type compact_bank_card_resource() :: {bank_card, #{
     token := binary(),
     bin_data_id := ff_bin_data:bin_data_id()
@@ -38,12 +45,23 @@
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
+-export_type([get_quote_error/0]).
 
+%% Accessors
+
+-export([amount/1]).
 -export([created_at/1]).
+-export([expires_on/1]).
 -export([domain_revision/1]).
 -export([party_revision/1]).
+-export([identity_id/1]).
+-export([sender/1]).
+-export([receiver/1]).
 -export([sender_id/1]).
 -export([receiver_id/1]).
+
+%% API
+
 -export([get_quote/4]).
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
@@ -54,9 +72,19 @@
 surplus(#{fees := Fees}) ->
     maps:get(surplus, Fees, undefined).
 
+-spec amount(quote()) ->
+    cash().
+amount(#{amount := Amount}) ->
+    Amount.
+
 -spec created_at(quote()) ->
     ff_time:timestamp_ms().
 created_at(#{created_at := Time}) ->
+    Time.
+
+-spec expires_on(quote()) ->
+    ff_time:timestamp_ms().
+expires_on(#{expires_on := Time}) ->
     Time.
 
 -spec domain_revision(quote()) ->
@@ -68,6 +96,21 @@ domain_revision(#{domain_revision := Revision}) ->
     ff_party:revision().
 party_revision(#{party_revision := Revision}) ->
     Revision.
+
+-spec identity_id(quote()) ->
+    identity_id().
+identity_id(#{identity_id := IdentityID}) ->
+    IdentityID.
+
+-spec sender(quote()) ->
+    compact_resource().
+sender(#{sender := Sender}) ->
+    Sender.
+
+-spec receiver(quote()) ->
+    compact_resource().
+receiver(#{receiver := Receiver}) ->
+    Receiver.
 
 -spec sender_id(quote()) ->
     ff_resource:resource_id().
@@ -91,11 +134,7 @@ compact({bank_card, BankCard}) ->
 
 -spec get_quote(cash(), identity_id(), sender(), receiver()) ->
     {ok, {cash() | undefined, surplus_cash_volume() | undefined, quote()}} |
-    {error, {identity,   not_found}} |
-    {error, {party,      get_contract_terms_error()}} |
-    {error, {cash_flow,  volume_finalize_error()}} |
-    {error, {p2p_transfer:resource_owner(), {bin_data, not_found}}} |
-    {error, {terms, validate_p2p_error()}}.
+    {error, get_quote_error()}.
 get_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
         SenderResource = unwrap(sender, ff_resource:create_resource(Sender)),

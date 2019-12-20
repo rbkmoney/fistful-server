@@ -150,6 +150,8 @@
 -export([sender_resource/1]).
 -export([receiver_resource/1]).
 
+-export([session_id/1]).
+
 %% API
 
 -export([create/1]).

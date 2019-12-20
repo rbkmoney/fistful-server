@@ -58,9 +58,13 @@
 -type st() :: ff_machine:st(session()).
 -type session() :: p2p_session:session().
 -type event() :: p2p_session:event().
+-type event_id() :: integer().
+-type events() :: [{event_id(), ff_machine:timestamped_event(event())}].
 
 -type callback_params() :: p2p_session:p2p_callback_params().
 -type process_callback_response() :: p2p_session:process_callback_response().
+
+-export_type([events/0]).
 
 %% Pipeline
 
@@ -98,14 +102,17 @@ create(ID, TransferParams, Params) ->
     end).
 
 -spec events(id(), machinery:range()) ->
-    {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
-    {error, notfound}.
+    {ok, events()} |
+    {error, unknown_p2p_session_error()}.
 
 events(Ref, Range) ->
-    do(fun () ->
-        #{history := History} = unwrap(machinery:get(?NS, Ref, Range, backend())),
-        [{EventID, TsEv} || {EventID, _, TsEv} <- History]
-    end).
+    case machinery:get(?NS, Ref, Range, backend()) of
+        {ok, #{history := History}} ->
+            Events = [{EventID, TsEv} || {EventID, _, TsEv} <- History],
+            {ok, Events};
+        {error, notfound} ->
+            {error, {unknown_p2p_session, Ref}}
+    end.
 
 -spec process_callback(callback_params()) ->
     {ok, process_callback_response()} |

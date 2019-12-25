@@ -681,7 +681,8 @@ create_quote_token(#{
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"quoteData">>     => QuoteData
     }),
-    {ok, Token} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), unlimited, {PartyID, []}, Data, ?SIGNEE),
+    ACL = uac_acl:new(),
+    {ok, Token} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), unlimited, {PartyID, ACL}, Data, ?SIGNEE),
     Token.
 
 filter_identity_challenge_status(Filter, Status) ->

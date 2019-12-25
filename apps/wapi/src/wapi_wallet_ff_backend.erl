@@ -67,6 +67,7 @@
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 -define(PARAMS_HASH, <<"params_hash">>).
 -define(EXTERNAL_ID, <<"externalID">>).
+-define(SIGNEE, wapi).
 
 -dialyzer([{nowarn_function, [to_swag/2]}]).
 
@@ -624,8 +625,7 @@ encode_webhook_id(WebhookID) ->
     end.
 
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
-    {ok, JSONData} = wapi_signer:verify(QuoteToken),
-    Data = jsx:decode(JSONData, [return_maps]),
+    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
     unwrap(quote_invalid_party,
         valid(
             maps:get(<<"partyID">>, Data),
@@ -681,8 +681,7 @@ create_quote_token(#{
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"quoteData">>     => QuoteData
     }),
-    JSONData = jsx:encode(Data),
-    {ok, Token} = wapi_signer:sign(JSONData),
+    {ok, Token} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), unlimited, {PartyID, []}, Data, ?SIGNEE),
     Token.
 
 filter_identity_challenge_status(Filter, Status) ->

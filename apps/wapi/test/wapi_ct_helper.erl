@@ -95,7 +95,6 @@ start_wapi(Config) ->
         {access_conf, #{
             jwt => #{
                 domain_name => <<"wallet-api">>,
-                % signee => ?SIGNEE,
                 keyset => #{
                     wapi => {pem_file, get_keysource("keys/local/private.pem", Config)}
                 }

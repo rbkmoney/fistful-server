@@ -258,32 +258,32 @@ get_operation_access('GetWalletAccount', _) ->
 get_operation_access('IssueWalletGrant', _) ->
     [{[party], write}];
 get_operation_access('CreateWebhook', _) ->
-    [{[webhooks], write}];
+    [{[party], write}];
 get_operation_access('GetWebhooks', _) ->
-    [{[webhooks], read}];
+    [{[party], read}];
 get_operation_access('GetWebhookByID', _) ->
-    [{[webhooks], read}];
+    [{[party], read}];
 get_operation_access('DeleteWebhookByID', _) ->
-    [{[webhooks], write}];
+    [{[party], write}];
 get_operation_access('CreateQuote', _) ->
     [{[party], write}];
 get_operation_access('ListWithdrawals', _) ->
-    [{[withdrawals], read}];
+    [{[party], read}];
 get_operation_access('CreateWithdrawal', _) ->
-    [{[withdrawals], write}];
+    [{[party], write}];
 get_operation_access('GetWithdrawal', _) ->
-    [{[withdrawals], read}];
+    [{[party], read}];
 get_operation_access('PollWithdrawalEvents', _) ->
-    [{[withdrawals], read}];
+    [{[party], read}];
 get_operation_access('GetWithdrawalEvents', _) ->
-    [{[withdrawals], read}].
+    [{[party], read}].
 
 
 -spec get_access_config() -> map().
 
 get_access_config() ->
     #{
-        domain_name => <<"wallet-api">>,
+        domain_name => <<"common-api">>,
         resource_hierarchy => get_resource_hierarchy()
     }.
 
@@ -295,7 +295,8 @@ get_resource_hierarchy() ->
         party => #{
             wallets           => #{},
             destinations      => #{}
-        },
-        webhooks    => #{},
-        withdrawals => #{}
+        }
+        %% TODO implement this roles
+        % webhooks    => #{},
+        % withdrawals => #{}
     }.

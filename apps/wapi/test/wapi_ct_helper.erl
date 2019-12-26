@@ -94,7 +94,7 @@ start_wapi(Config) ->
         {public_endpoint, <<"localhost:8080">>},
         {access_conf, #{
             jwt => #{
-                domain_name => <<"wallet-api">>,
+                domain_name => <<"common-api">>,
                 keyset => #{
                     wapi => {pem_file, get_keysource("keys/local/private.pem", Config)}
                 }
@@ -126,7 +126,7 @@ issue_token(ACL, LifeTime) ->
 issue_token(PartyID, ACL, LifeTime) ->
     Claims = #{?STRING => ?STRING},
     DomainRoles = #{
-        <<"wallet-api">> => uac_acl:from_list(ACL)
+        <<"common-api">> => uac_acl:from_list(ACL)
     },
     uac_authorizer_jwt:issue(
         wapi_utils:get_unique_id(),

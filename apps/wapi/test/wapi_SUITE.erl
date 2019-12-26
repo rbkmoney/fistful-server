@@ -97,11 +97,7 @@ init_per_group(G, C) ->
     Party = create_party(C),
     BasePermissions = [
         {[party], read},
-        {[party], write},
-        {[withdrawals], read},
-        {[withdrawals], write},
-        {[webhooks], read},
-        {[webhooks], write}
+        {[party], write}
     ],
     {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited),
     Context = get_context("localhost:8080", Token),

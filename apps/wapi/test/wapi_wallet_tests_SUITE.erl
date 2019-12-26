@@ -106,11 +106,7 @@ init_per_group(Group, Config) when Group =:= base ->
     Party = create_party(Config),
     BasePermissions = [
         {[party], read},
-        {[party], write},
-        {[withdrawals], read},
-        {[withdrawals], write},
-        {[webhooks], read},
-        {[webhooks], write}
+        {[party], write}
     ],
     {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited),
     Config1 = [{party, Party} | Config],

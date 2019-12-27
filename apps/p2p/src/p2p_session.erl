@@ -70,11 +70,13 @@
 -type wrapped_user_interaction_event() :: p2p_user_interaction_utils:wrapped_event().
 
 -type transfer_params() :: #{
-    id       := id(),
-    body     := body(),
-    sender   := ff_resource:resource(),
-    receiver := ff_resource:resource(),
-    deadline => deadline()
+    id            := id(),
+    body          := body(),
+    sender        := ff_resource:resource(),
+    receiver      := ff_resource:resource(),
+    deadline      => deadline(),
+    merchant_fees => p2p_fees:t(),
+    provider_fees => p2p_fees:t()
 }.
 
 -type body() :: ff_transaction:body().

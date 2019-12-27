@@ -160,15 +160,19 @@ call(Adapter, Function, Args) ->
 -spec build_operation_info(build_context_params()) ->
     operation_info().
 build_operation_info(Params = #{transfer_params := TransferParams}) ->
-    Body     = build_operation_info_body(Params),
-    Sender   = maps:get(sender, TransferParams),
-    Receiver = maps:get(receiver, TransferParams),
-    Deadline = maps:get(deadline, TransferParams, undefined),
+    Body         = build_operation_info_body(Params),
+    Sender       = maps:get(sender, TransferParams),
+    Receiver     = maps:get(receiver, TransferParams),
+    Deadline     = maps:get(deadline, TransferParams, undefined),
+    MerchantFees = maps:get(merchant_fees, TransferParams, undefined),
+    ProviderFees = maps:get(provider_fees, TransferParams, undefined),
     genlib_map:compact(#{
-        body     => Body,
-        sender   => Sender,
-        receiver => Receiver,
-        deadline => Deadline
+        body          => Body,
+        sender        => Sender,
+        receiver      => Receiver,
+        deadline      => Deadline,
+        merchant_fees => MerchantFees,
+        provider_fees => ProviderFees
     }).
 
 -spec build_operation_info_body(build_context_params()) ->

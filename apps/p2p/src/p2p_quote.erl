@@ -8,7 +8,6 @@
 -type receiver()                  :: ff_resource:resource_params().
 -type cash()                      :: ff_cash:cash().
 -type terms()                     :: ff_party:terms().
--type plan_constant()             :: operation_amount | surplus.
 -type identity()                  :: ff_identity:identity().
 -type identity_id()               :: ff_identity:id().
 -type compact_resource()          :: compact_bank_card_resource().
@@ -29,7 +28,8 @@
     bin_data_id := ff_bin_data:bin_data_id()
 }}.
 
--type fees()        :: #{fees => #{plan_constant() => surplus_cash_volume()}}.
+-type fees() :: ff_cash_flow:fees().
+
 -opaque quote() :: #{
     amount            := cash(),
     party_revision    := ff_party:revision(),
@@ -199,15 +199,13 @@ get_fees_from_terms(Terms) ->
     } = Terms,
     decode_domain_fees(FeeTerm).
 
--spec decode_domain_fees(dmsl_domain_thrift:'Fees'() | undefined) ->
+-spec decode_domain_fees(dmsl_domain_thrift:'FeeSelector'() | undefined) ->
     fees().
 decode_domain_fees(undefined) ->
     #{fees => #{}};
-decode_domain_fees({value, #domain_Fees{fees = Fees}}) ->
-    FeeDecode = maps:map(fun(_Key, Value) ->
-        ff_cash_flow:decode_domain_plan_volume(Value)
-    end, Fees),
-    #{fees => FeeDecode}.
+decode_domain_fees({value, Fees}) ->
+    % must be reduced before
+    ff_fees:from_dmsl(Fees).
 
 
 

@@ -120,8 +120,8 @@ marshal(operation_info, OperationInfo = #{
         sender        = marshal(resource, Sender),
         receiver      = marshal(resource, Receiver),
         deadline      = maybe_marshal(deadline, maps:get(deadline, OperationInfo, undefined)),
-        merchant_fees = maybe_marshal(merchant_fees, maps:get(merchant_fees, OperationInfo, undefined)),
-        provider_fees = maybe_marshal(provider_fees, maps:get(provider_fees, OperationInfo, undefined))
+        merchant_fees = maybe_marshal(p2p_fees, maps:get(merchant_fees, OperationInfo, undefined)),
+        provider_fees = maybe_marshal(p2p_fees, maps:get(provider_fees, OperationInfo, undefined))
     }};
 
 marshal(resource, Resource) ->
@@ -136,7 +136,10 @@ marshal(body, {Amount, Currency}) ->
     };
 
 marshal(deadline, Deadline) ->
-    ff_time:to_rfc3339(Deadline).
+    ff_time:to_rfc3339(Deadline);
+
+marshal(p2p_fees, Fees) ->
+    p2p_fees:to_dmsl(Fees).
 
 maybe_marshal(_T, undefined) ->
     undefined;

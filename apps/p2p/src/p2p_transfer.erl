@@ -688,7 +688,7 @@ process_p_transfer_creation(P2PTransfer) ->
     process_result().
 process_session_creation(P2PTransfer) ->
     ID = construct_session_id(id(P2PTransfer)),
-    {MerchantFees, ProviderFees} = get_fees(P2PTransfer),
+    {ProviderFees, MerchantFees} = get_fees(P2PTransfer),
     TransferParams = genlib_map:compact(#{
         id => id(P2PTransfer),
         body => body(P2PTransfer),

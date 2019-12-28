@@ -25,7 +25,8 @@
     {product, plan_operation()}.
 
 -type plan_constant() ::
-    operation_amount.
+    operation_amount |
+    surplus.
 -type plan_operation() ::
     {min_of, [plan_volume()]} |
     {max_of, [plan_volume()]}.
@@ -77,8 +78,6 @@
     {incomparable, {currency_mismatch, {cash(), cash()}}} |
     {operation_failed, {empty_list, plan_operation()}}.
 
--type fees() :: #{fees => #{plan_constant() => plan_volume()}}.
-
 -export_type([plan_posting/0]).
 -export_type([plan_volume/0]).
 -export_type([plan_constant/0]).
@@ -92,7 +91,6 @@
 -export_type([final_posting/0]).
 -export_type([final_cash_flow/0]).
 -export_type([plan_account/0]).
--export_type([fees/0]).
 
 -export_type([volume_finalize_error/0]).
 %% Pipeline

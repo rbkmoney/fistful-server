@@ -28,8 +28,6 @@
     bin_data_id := ff_bin_data:bin_data_id()
 }}.
 
--type fees() :: ff_cash_flow:fees().
-
 -opaque quote() :: #{
     amount            := cash(),
     party_revision    := ff_party:revision(),
@@ -66,11 +64,6 @@
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
-
--spec surplus(fees()) ->
-    surplus_cash_volume() | undefined.
-surplus(#{fees := Fees}) ->
-    maps:get(surplus, Fees, undefined).
 
 -spec amount(quote()) ->
     cash().
@@ -155,7 +148,7 @@ get_quote(Cash, IdentityID, Sender, Receiver) ->
 
         ExpiresOn = get_expire_time(Terms, CreatedAt),
         Fees = get_fees_from_terms(Terms),
-        SurplusCashVolume = surplus(Fees),
+        SurplusCashVolume = ff_fees:surplus(Fees),
         SurplusCash = unwrap(cash_flow, compute_surplus_volume(SurplusCashVolume, Cash)),
 
         Quote = #{
@@ -188,7 +181,7 @@ get_identity(IdentityID) ->
     end).
 
 -spec get_fees_from_terms(terms()) ->
-    fees().
+    ff_fees:t().
 get_fees_from_terms(Terms) ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
@@ -200,11 +193,10 @@ get_fees_from_terms(Terms) ->
     decode_domain_fees(FeeTerm).
 
 -spec decode_domain_fees(dmsl_domain_thrift:'FeeSelector'() | undefined) ->
-    fees().
+    ff_fees:t().
 decode_domain_fees(undefined) ->
     #{fees => #{}};
-decode_domain_fees({value, Fees}) ->
-    % must be reduced before
+decode_domain_fees({value, Fees}) -> % must be reduced before
     ff_fees:from_dmsl(Fees).
 
 

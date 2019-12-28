@@ -2,9 +2,9 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
+-export([surplus/1]).
 -export([from_dmsl/1]).
 -export([compute/2]).
--export([map/2]).
 
 -export_type([t/0]).
 -export_type([computed/0]).
@@ -14,11 +14,14 @@
 
 -type fees(T) :: #{fees := #{cash_flow_constant() => T}}.
 
--type cash_flow_constant() :: operation_amount | fees.
+-type cash_flow_constant() :: ff_cash_flow:plan_constant().
 -type cash_volume() :: ff_cash_flow:plan_volume().
 -type cash() :: ff_cash:cash().
 
--type map_fun() :: fun((cash_flow_constant(), cash() | cash_volume()) -> any()).
+-spec surplus(t()) ->
+    cash_volume() | undefined.
+surplus(#{fees := Fees}) ->
+    maps:get(surplus, Fees, undefined).
 
 -spec from_dmsl(dmsl_domain_thrift:'Fees'()) ->
     t().
@@ -42,8 +45,3 @@ compute(#{fees := Fees}, Cash) ->
         Fees
     ),
     #{fees => ComputedFees}.
-
--spec map(map_fun(), fees(any())) ->
-    fees(any()).
-map(Fun, #{fees := Fees}) ->
-    #{fees => maps:map(Fun, Fees)}.

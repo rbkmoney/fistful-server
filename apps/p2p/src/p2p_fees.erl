@@ -10,11 +10,11 @@
 
 -spec from_domain_computed(ff_fees:computed()) ->
     t().
-from_domain_computed(DomainFees) ->
-    ff_fees:map(
+from_domain_computed(#{fees := DomainFees}) ->
+    #{fees => maps:map(
         fun(_CashFlowConstant, Cash) ->
-            % FIXME: do we need to add domain_revision to get currency?
+            % FIXME: do we need to use domain_revision to get currency?
             p2p_cash:from_domain(Cash)
         end,
         DomainFees
-    ).
+    )}.

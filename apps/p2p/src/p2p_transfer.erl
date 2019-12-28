@@ -719,11 +719,11 @@ construct_p_transfer_id(ID) ->
     <<"ff/p2p_transfer/", ID/binary>>.
 
 -spec get_fees(p2p_transfer()) ->
-    {fixme, fixme}.
+    {p2p_fees:t() | undefined, p2p_fees:t() | undefined}.
 get_fees(P2PTransfer) ->
     Route = route(P2PTransfer),
     #{provider_id := ProviderID} = Route,
-    {ok, Provider} = ff_p2p_provider:get(ProviderID), % FIXME: do we need take in attention a revision?
+    {ok, Provider} = ff_p2p_provider:get(ProviderID), % FIXME: do we need take in attention a domain revision?
     {ok, Identity} = get_identity(owner(P2PTransfer)),
     PartyVarset = create_varset(Identity, P2PTransfer),
     Body = body(P2PTransfer),
@@ -753,16 +753,20 @@ get_provider_fees(#domain_P2PProvisionTerms{fees = undefined}, _Body, _PartyVars
     undefined;
 get_provider_fees(#domain_P2PProvisionTerms{fees = FeeSelector}, Body, PartyVarset) ->
     {value, ProviderFees} = hg_selector:reduce(FeeSelector, PartyVarset),
-    Fees = ff_fees:from_dmsl(ProviderFees),
-    ComputedFees = ff_fees:compute(Fees, Body),
-    p2p_fees:from_domain_computed(ComputedFees).
+    compute_fees(ProviderFees, Body).
 
-% -spec get_merchant_fees() ->
+-spec get_merchant_fees(dmsl_domain_thrift:'P2PServiceTerms'(), body()) ->
+    p2p_fees:t() | undefined.
 get_merchant_fees(#domain_P2PServiceTerms{fees = undefined}, _Body) ->
     undefined;
 get_merchant_fees(#domain_P2PServiceTerms{fees = {value, MerchantFees}}, Body) ->
-    Fees = ff_fees:from_dmsl(MerchantFees),
-    ComputedFees = ff_fees:compute(Fees, Body),
+    compute_fees(MerchantFees, Body).
+
+-spec compute_fees(dmsl_domain_thrift:'Fees'(), body()) ->
+    p2p_fees:t().
+compute_fees(Fees, Body) ->
+    DecodedFees = ff_fees:from_dmsl(Fees),
+    ComputedFees = ff_fees:compute(DecodedFees, Body),
     p2p_fees:from_domain_computed(ComputedFees).
 
 -spec process_session_poll(p2p_transfer()) ->

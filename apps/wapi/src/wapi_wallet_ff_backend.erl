@@ -348,7 +348,8 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {quote_invalid_wallet, _}     |
     {quote, {invalid_body, _}}    |
     {quote, {invalid_destination, _}} |
-    {terms, {terms_violation, _}}
+    {terms, {terms_violation, _}} |
+    {destination_resource, {bin_data, not_found}}
 ).
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->

@@ -807,27 +807,18 @@ create_entity(Type, Params, CreateFun, Context) ->
     case gen_id(Type, ExternalID, Hash, Context) of
         {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
-            handle_create_entity_result(Result, Type, ExternalID, ID, Context);
+            handle_create_entity_result(Result, Type, ID, Context);
         {error, {external_id_conflict, ID}} ->
             {error, {external_id_conflict, ID, ExternalID}}
     end.
 
-handle_create_entity_result(Result, Type, ExternalID, ID, Context) when
+handle_create_entity_result(Result, Type, ID, Context) when
     Result =:= ok;
     Result =:= {error, exists}
 ->
-    ok = sync_ff_external(Type, ExternalID, ID, Context),
     do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
-handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Context) ->
+handle_create_entity_result({error, E}, _Type, _ID, _Context) ->
     throw(E).
-
-sync_ff_external(_Type, undefined, _BenderID, _Context) ->
-    ok;
-sync_ff_external(Type, ExternalID, BenderID, Context) ->
-    PartyID = wapi_handler_utils:get_owner(Context),
-    FistfulID = ff_external_id:construct_external_id(PartyID, ExternalID),
-    {ok, BenderID} = ff_external_id:bind(Type, FistfulID, BenderID),
-    ok.
 
 with_party(Context, Fun) ->
     try Fun()

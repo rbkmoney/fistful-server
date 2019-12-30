@@ -122,9 +122,8 @@ unmarshal(final_cash_flow_account, CashFlow = #cashflow_FinalCashFlowAccount{
     account_type = _AccountType,
     account      = undefined
 }) ->
-    % TODO: Since we're in a state of migration, we can still only partially decode cash_flow_accounts
-    % After migration the `account` field will become required
-    erlang:error({not_implemented, {unmarshal, final_cash_flow_account}}, [final_cash_flow_account, CashFlow]);
+    % Since a bunch of data was lost we can still only partially decode cash_flow_accounts
+    erlang:error({unrecoverable, final_cash_flow_account}, [final_cash_flow_account, CashFlow]);
 unmarshal(final_cash_flow_account, #cashflow_FinalCashFlowAccount{
     account_type = AccountType,
     account      = Account

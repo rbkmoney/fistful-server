@@ -21,8 +21,8 @@ to_dmsl(#{amount := Amount, currency := Currency}) ->
 
 -spec from_domain(ff_cash:cash()) ->
     t().
-from_domain({Amount, CurrencyID}) ->
-    Currency = ff_pipeline:unwrap(currency, ff_currency:get(CurrencyID)),
+from_domain({Amount, CurrencyID} = Cash) ->
+    Currency = ff_pipeline:unwrap({currency, Cash}, ff_currency:get(CurrencyID)),
     #{
         amount   => Amount,
         currency => Currency

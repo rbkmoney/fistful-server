@@ -40,7 +40,7 @@ compute(#{fees := Fees}, Cash) ->
     Constants = #{operation_amount => Cash},
     ComputedFees = maps:map(
         fun(_CashFlowConstant, CashVolume) ->
-            ff_cash_flow:compute_volume(CashVolume, Constants)
+            ff_pipeline:unwrap(ff_cash_flow:compute_volume(CashVolume, Constants))
         end,
         Fees
     ),

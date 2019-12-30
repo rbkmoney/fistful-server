@@ -32,6 +32,7 @@
 -export([balance_check_ok_test/1]).
 -export([preserve_revisions_test/1]).
 -export([unknown_test/1]).
+-export([fees_passed/1]).
 
 -export([consume_eventsinks/1]).
 
@@ -87,7 +88,8 @@ groups() ->
             create_receiver_resource_notfound_test,
             create_ok_test,
             preserve_revisions_test,
-            unknown_test
+            unknown_test,
+            fees_passed
         ]},
         {balance, [], [
             balance_check_ok_test
@@ -481,6 +483,30 @@ unknown_test(_C) ->
     P2PTransferID = <<"unknown_p2p_transfer">>,
     Result = p2p_transfer_machine:get(P2PTransferID),
     ?assertMatch({error, {unknown_p2p_transfer, P2PTransferID}}, Result).
+
+-spec fees_passed(config()) -> test_return().
+fees_passed(C) ->
+    Cash = {1002, <<"RUB">>}, % see p2p_ct_provider_handler:handle_function_/4
+    #{
+        identity_id := IdentityID,
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
+    P2PTransferID = generate_id(),
+    P2PTransferParams = #{
+        id => P2PTransferID,
+        identity_id => IdentityID,
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        body => Cash
+    },
+    ok = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
+    ?assertEqual(succeeded, await_final_p2p_transfer_status(P2PTransferID)),
+    P2PTransfer = get_p2p_transfer(P2PTransferID),
+    ?assertEqual(IdentityID, p2p_transfer:owner(P2PTransfer)),
+    ?assertEqual(ResourceSender, p2p_transfer:sender(P2PTransfer)),
+    ?assertEqual(ResourceReceiver, p2p_transfer:receiver(P2PTransfer)),
+    ?assertEqual(Cash, p2p_transfer:body(P2PTransfer)).
 
 -spec consume_eventsinks(config()) -> test_return().
 consume_eventsinks(_) ->

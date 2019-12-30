@@ -15,7 +15,7 @@
     dmsl_p2p_adapter_thrift:'Cash'().
 to_dmsl(#{amount := Amount, currency := Currency}) ->
     #p2p_adapter_Cash{
-        amount   = Amount,
+        amount   = ff_dmsl_codec:marshal(amount, Amount),
         currency = ff_dmsl_codec:marshal(currency, Currency)
     }.
 

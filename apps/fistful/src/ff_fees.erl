@@ -34,7 +34,7 @@ from_dmsl(#domain_Fees{fees = Fees}) ->
     ),
     #{fees => DecodedFees}.
 
--spec compute(t(), ff_cash:cash()) ->
+-spec compute(t(), cash()) ->
     computed().
 compute(#{fees := Fees}, Cash) ->
     Constants = #{operation_amount => Cash},

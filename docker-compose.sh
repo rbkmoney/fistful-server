@@ -28,7 +28,7 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:64b6aaa39e4d0abed03d6fb752f3906c076e3f40
+    image: dr2.rbkmoney.com/rbkmoney/wapi:6678487f5d3bc1796a76b23ea5aa51ee2f77a7af
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/var/keys/wapi/private.pem
@@ -82,7 +82,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr2.rbkmoney.com/rbkmoney/dominant:eb749809b862ccee409c27befbd996fa21632dfd
+    image: dr2.rbkmoney.com/rbkmoney/dominant:624d061836e99ccaf609c6233abaaef497b462d4
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -159,6 +159,17 @@ services:
       interval: 5s
       timeout: 1s
       retries: 10
+
+  bender:
+    image: dr2.rbkmoney.com/rbkmoney/bender:2fcb2711d3d0adec0685926dafdab832b7506091
+    command: /opt/bender/bin/bender foreground
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 20
+    depends_on:
+      - machinegun
 
   shumway-db:
     image: dr.rbkmoney.com/rbkmoney/postgres:9.6

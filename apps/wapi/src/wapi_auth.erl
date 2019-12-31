@@ -253,6 +253,8 @@ get_operation_access('CreateWallet', _) ->
     [{[party], write}];
 get_operation_access('GetWallet', _) ->
     [{[party], read}];
+get_operation_access('GetWalletByExternalID', _) ->
+    [{[party], read}];
 get_operation_access('GetWalletAccount', _) ->
     [{[party], read}];
 get_operation_access('IssueWalletGrant', _) ->

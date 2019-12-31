@@ -9,6 +9,7 @@
         public_key,
         genlib,
         woody,
+        bender_client,
         wapi_woody_client,
         erl_health,
         damsel,

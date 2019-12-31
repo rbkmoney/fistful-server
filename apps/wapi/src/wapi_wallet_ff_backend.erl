@@ -25,6 +25,7 @@
 -export([get_identity_challenge_event/2]).
 
 -export([get_wallet/2]).
+-export([get_wallet_by_external_id/2]).
 -export([create_wallet/2]).
 -export([get_wallet_account/2]).
 -export([list_wallets/2]).
@@ -59,6 +60,7 @@
 -type ctx()         :: wapi_handler:context().
 -type params()      :: map().
 -type id()          :: binary() | undefined.
+-type external_id() :: binary().
 -type result()      :: result(map()).
 -type result(T)     :: result(T, notfound).
 -type result(T, E)  :: {ok, T} | {error, E}.
@@ -68,6 +70,7 @@
 -define(PARAMS_HASH, <<"params_hash">>).
 -define(EXTERNAL_ID, <<"externalID">>).
 -define(SIGNEE, wapi).
+-define(BENDER_DOMAIN, <<"wapi">>).
 
 -dialyzer([{nowarn_function, [to_swag/2]}]).
 
@@ -132,7 +135,7 @@ get_identity(IdentityId, Context) ->
     {provider, notfound}       |
     {identity_class, notfound} |
     {email, notfound}          |
-    {conflict, id()}
+    {external_id_conflict, id(), external_id()}
 ).
 create_identity(Params, Context) ->
     CreateIdentity = fun(ID, EntityCtx) ->
@@ -176,13 +179,15 @@ get_identity_challenges(IdentityId, Statuses, Context) ->
     {challenge, conflict}
 ).
 create_identity_challenge(IdentityId, Params, Context) ->
-    ChallengeId = make_id(identity_challenge),
+    Type          = identity_challenge,
+    Hash          = erlang:phash2(Params),
+    {ok, ChallengeID} = gen_id(Type, undefined, Hash, Context),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
         ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
-            maps:merge(#{id => ChallengeId}, from_swag(identity_challenge_params, Params)
+            maps:merge(#{id => ChallengeID}, from_swag(identity_challenge_params, Params)
         ))),
-        unwrap(get_identity_challenge(IdentityId, ChallengeId, Context))
+        unwrap(get_identity_challenge(IdentityId, ChallengeID, Context))
     end).
 
 -spec get_identity_challenge(id(), id(), ctx()) -> result(map(),
@@ -244,10 +249,23 @@ get_identity_challenge_event(#{
 get_wallet(WalletID, Context) ->
     do(fun() -> to_swag(wallet, get_state(wallet, WalletID, Context)) end).
 
+-spec get_wallet_by_external_id(external_id(), ctx()) -> result(map(),
+    {wallet, notfound}     |
+    {wallet, unauthorized}
+).
+get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
+    AuthContext = wapi_handler_utils:get_auth_context(Context),
+    PartyID = get_party_id(AuthContext),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, wallet, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
+        {ok, WalletID, _} -> get_wallet(WalletID, Context);
+        {error, internal_id_not_found} -> {error, {wallet, notfound}}
+    end.
+
 -spec create_wallet(params(), ctx()) -> result(map(),
     invalid                  |
     {identity, unauthorized} |
-    {conflict, id()}         |
+    {external_id_conflict, id(), external_id()} |
     {inaccessible, _}        |
     ff_wallet:create_error()
 ).
@@ -305,7 +323,7 @@ get_destination(DestinationID, Context) ->
     {identity, notfound}        |
     {currency, notfound}        |
     {inaccessible, _}           |
-    {conflict, id()}
+    {external_id_conflict, id(), external_id()}
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
@@ -322,7 +340,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {source, notfound}            |
     {destination, notfound}       |
     {destination, unauthorized}   |
-    {conflict, id()}              |
+    {external_id_conflict, id(), external_id()} |
     {provider, notfound}          |
     {wallet, {inaccessible, _}}   |
     {wallet, {currency, invalid}} |
@@ -771,9 +789,6 @@ add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
 get_ctx(State) ->
     unwrap(ff_entity_context:get(?CTX_NS, ff_machine:ctx(State))).
 
-get_hash(State) ->
-    maps:get(?PARAMS_HASH, get_ctx(State)).
-
 get_resource_owner(State) ->
     maps:get(<<"owner">>, get_ctx(State)).
 
@@ -787,29 +802,32 @@ check_resource_access(true)  -> ok;
 check_resource_access(false) -> {error, unauthorized}.
 
 create_entity(Type, Params, CreateFun, Context) ->
-    ID = make_id(Type, construct_external_id(Params, Context)),
-    Hash = erlang:phash2(Params),
-    case CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))) of
-        ok ->
-            do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
-        {error, exists} ->
-            get_and_compare_hash(Type, ID, Hash, Context);
-        {error, E} ->
-            throw(E)
+    ExternalID = maps:get(<<"externalID">>, Params, undefined),
+    Hash       = erlang:phash2(Params),
+    case gen_id(Type, ExternalID, Hash, Context) of
+        {ok, ID} ->
+            Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
+            handle_create_entity_result(Result, Type, ExternalID, ID, Context);
+        {error, {external_id_conflict, ID}} ->
+            {error, {external_id_conflict, ID, ExternalID}}
     end.
 
-get_and_compare_hash(Type, ID, Hash, Context) ->
-    case do(fun() -> get_state(Type, ID, Context) end) of
-        {ok, State} ->
-            compare_hash(Hash, get_hash(State), {ID, to_swag(Type, State)});
-        Error ->
-            Error
-    end.
+handle_create_entity_result(Result, Type, ExternalID, ID, Context) when
+    Result =:= ok;
+    Result =:= {error, exists}
+->
+    ok = sync_ff_external(Type, ExternalID, ID, Context),
+    do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
+handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Context) ->
+    throw(E).
 
-compare_hash(Hash, Hash, {_, Data}) ->
-    {ok, Data};
-compare_hash(_, _, {ID, _}) ->
-    {error, {conflict, ID}}.
+sync_ff_external(_Type, undefined, _BenderID, _Context) ->
+    ok;
+sync_ff_external(Type, ExternalID, BenderID, Context) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    FistfulID = ff_external_id:construct_external_id(PartyID, ExternalID),
+    {ok, BenderID} = ff_external_id:bind(Type, FistfulID, BenderID),
+    ok.
 
 with_party(Context, Fun) ->
     try Fun()
@@ -852,6 +870,35 @@ get_contract_id_from_identity(IdentityID, Context) ->
     State = get_state(identity, IdentityID, Context),
     ff_identity:contract(ff_machine:model(State)).
 
+%% ID Gen
+
+gen_id(Type, ExternalID, Hash, Context) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
+    gen_id_by_type(Type, IdempotentKey, Hash, Context).
+
+%@TODO: Bring back later
+%gen_id_by_type(withdrawal = Type, IdempotentKey, Hash, Context) ->
+%    gen_snowflake_id(Type, IdempotentKey, Hash, Context);
+gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
+    gen_sequence_id(Type, IdempotentKey, Hash, Context).
+
+%@TODO: Bring back later
+%gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+%    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx).
+
+gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+    BinType = atom_to_binary(Type, utf8),
+    FistfulSequence = get_fistful_sequence_value(Type),
+    Offset = 100000, %% Offset for migration purposes
+    bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx, #{},
+        #{minimum => FistfulSequence + Offset}
+    ).
+
+get_fistful_sequence_value(Type) ->
+    NS = 'ff/sequence',
+    ff_sequence:get(NS, ff_string:join($/, [Type, id]), fistful:backend(NS)).
+
 create_report_request(#{
     party_id     := PartyID,
     contract_id  := ContractID,
@@ -866,14 +913,6 @@ create_report_request(#{
             to_time   = ToTime
         }
     }.
-
-%% ID Gen
-
-make_id(Type) ->
-    make_id(Type, undefined).
-
-make_id(Type, ExternalID) ->
-    unwrap(ff_external_id:check_in(Type, ExternalID)).
 
 create_stat_dsl(withdrawal_stat, Req, Context) ->
     Query = #{
@@ -940,6 +979,9 @@ process_stat_result(StatType, Result) ->
         {exception, #fistfulstat_BadToken{reason = Reason}} ->
             {error, {400, [], bad_request_error(invalidRequest, Reason)}}
     end.
+
+get_party_id({_Id, {PartyID, _}, _}) ->
+    PartyID.
 
 get_time(Key, Req) ->
     case genlib_map:get(Key, Req) of
@@ -1029,15 +1071,6 @@ decode_deposit_stat_status({failed, #fistfulstat_DepositFailed{failure = Failure
             <<"code">> => to_swag(stat_status_failure, Failure)
         }
     }.
-
-construct_external_id(Params, Context) ->
-    case genlib_map:get(?EXTERNAL_ID, Params) of
-        undefined ->
-            undefined;
-        ExternalID ->
-            PartyID = wapi_handler_utils:get_owner(Context),
-            <<PartyID/binary, "/", ExternalID/binary>>
-    end.
 
 %% Marshalling
 

@@ -15,6 +15,7 @@
 
 -export([withdrawal_to_bank_card_test/1]).
 -export([withdrawal_to_crypto_wallet_test/1]).
+-export([withdrawal_to_ripple_wallet_test/1]).
 -export([woody_retry_test/1]).
 -export([quote_encode_decode_test/1]).
 -export([get_quote_test/1]).
@@ -23,6 +24,9 @@
 -export([unknown_withdrawal_test/1]).
 -export([quote_withdrawal_test/1]).
 -export([not_allowed_currency_test/1]).
+-export([get_wallet_by_external_id/1]).
+
+-export([consume_eventsinks/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -40,6 +44,7 @@ all() ->
     , {group, quote}
     , {group, woody}
     , {group, errors}
+    , {group, eventsink}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -49,7 +54,9 @@ groups() ->
         {default, [sequence, {repeat, 2}], [
             withdrawal_to_bank_card_test,
             withdrawal_to_crypto_wallet_test,
-            unknown_withdrawal_test
+            withdrawal_to_ripple_wallet_test,
+            unknown_withdrawal_test,
+            get_wallet_by_external_id
         ]},
         {quote, [], [
             quote_encode_decode_test,
@@ -63,6 +70,9 @@ groups() ->
         ]},
         {errors, [], [
             not_allowed_currency_test
+        ]},
+        {eventsink, [], [
+            consume_eventsinks
         ]}
     ].
 
@@ -74,6 +84,7 @@ init_per_suite(C) ->
         ct_payment_system:setup(#{
             default_termset => get_default_termset(),
             optional_apps => [
+                bender_client,
                 wapi_woody_client,
                 wapi
             ]
@@ -160,7 +171,27 @@ withdrawal_to_crypto_wallet_test(C) ->
     ok            = check_identity(Name, IdentityID, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),
     ok            = check_wallet(WalletID, C),
-    Resource      = make_crypto_wallet_resource(),
+    Resource      = make_crypto_wallet_resource('Ethereum'),
+    DestID        = create_desination(IdentityID, Resource, C),
+    ok            = check_destination(IdentityID, DestID, Resource, C),
+    {ok, _Grants} = issue_destination_grants(DestID, C),
+    % ожидаем выполнения асинхронного вызова выдачи прав на вывод
+    await_destination(DestID),
+
+    WithdrawalID  = create_withdrawal(WalletID, DestID, C),
+    ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
+
+-spec withdrawal_to_ripple_wallet_test(config()) -> test_return().
+
+withdrawal_to_ripple_wallet_test(C) ->
+    Name          = <<"Tyler The Creator">>,
+    Provider      = ?ID_PROVIDER2,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ok            = check_identity(Name, IdentityID, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    ok            = check_wallet(WalletID, C),
+    Resource      = make_crypto_wallet_resource('Ripple'), % tagless to test thrift compat
     DestID        = create_desination(IdentityID, Resource, C),
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
@@ -269,7 +300,7 @@ get_quote_without_destination_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
 
     CashFrom = #{
-        <<"amount">> => 100,
+        <<"amount">> => 123,
         <<"currency">> => <<"RUB">>
     },
 
@@ -383,6 +414,23 @@ woody_retry_test(C) ->
     true = (Time > 3000000) and (Time < 6000000),
     ok = application:set_env(wapi_woody_client, service_urls, Urls).
 
+-spec get_wallet_by_external_id(config()) ->
+    test_return().
+
+get_wallet_by_external_id(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ExternalID    = ?STRING,
+    WalletID      = create_wallet(IdentityID, #{<<"externalID">> => ExternalID}, C),
+    {ok, Wallet} = call_api(
+        fun swag_client_wallet_wallets_api:get_wallet_by_external_id/3,
+        #{qs_val => #{<<"externalID">> => ExternalID}},
+        ct_helper:cfg(context, C)
+    ),
+    WalletID = maps:get(<<"id">>, Wallet).
+
 %%
 
 -spec call_api(function(), map(), wapi_client_lib:context()) ->
@@ -439,16 +487,20 @@ check_identity(Name, IdentityID, Provider, Class, C) ->
     ok.
 
 create_wallet(IdentityID, C) ->
-    {ok, Wallet} = call_api(
-        fun swag_client_wallet_wallets_api:create_wallet/3,
-        #{body => #{
+    create_wallet(IdentityID, #{}, C).
+
+create_wallet(IdentityID, Params, C) ->
+    DefaultParams = #{
             <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
             <<"identity">> => IdentityID,
             <<"currency">> => <<"RUB">>,
             <<"metadata">> => #{
                 ?STRING => ?STRING
-             }
-        }},
+            }
+    },
+    {ok, Wallet} = call_api(
+        fun swag_client_wallet_wallets_api:create_wallet/3,
+        #{body => maps:merge(DefaultParams, Params)},
         ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, Wallet).
@@ -497,13 +549,16 @@ make_bank_card_resource(CardToken) ->
         <<"token">> => CardToken
     }.
 
-make_crypto_wallet_resource() ->
-    #{
+make_crypto_wallet_resource(Currency) ->
+    make_crypto_wallet_resource(Currency, undefined).
+
+make_crypto_wallet_resource(Currency, MaybeTag) ->
+    genlib_map:compact(#{
         <<"type">>     => <<"CryptoWalletDestinationResource">>,
         <<"id">>       => <<"0610899fa9a3a4300e375ce582762273">>,
-        <<"currency">> => <<"Ethereum">>,
-        <<"tag">>      => <<"test_tag">>
-    }.
+        <<"currency">> => genlib:to_binary(Currency),
+        <<"tag">>      => MaybeTag
+    }).
 
 create_desination(IdentityID, Resource, C) ->
     {ok, Dest} = call_api(
@@ -725,3 +780,18 @@ not_allowed_currency_test(C) ->
         }},
         ct_helper:cfg(context, C)
     ).
+
+-spec consume_eventsinks(config()) -> test_return().
+
+consume_eventsinks(_) ->
+    _EventSinks = [
+          deposit_event_sink
+        , source_event_sink
+        , destination_event_sink
+        , identity_event_sink
+        , wallet_event_sink
+        , withdrawal_event_sink
+        , withdrawal_session_event_sink
+    ].
+    % TODO: Uncomment when the adjustment encoder will be made
+    % [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].

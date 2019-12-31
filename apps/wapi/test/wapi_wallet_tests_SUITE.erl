@@ -84,6 +84,7 @@ init_per_suite(Config) ->
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
             optional_apps => [
+                bender_client,
                 wapi_woody_client,
                 wapi
             ]
@@ -108,7 +109,7 @@ init_per_group(Group, Config) when Group =:= base ->
         {[party], read},
         {[party], write}
     ],
-    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited),
+    Token = wapi_ct_helper:issue_token(Party, BasePermissions, {deadline, 10}),
     Config1 = [{party, Party} | Config],
     [{context, wapi_ct_helper:get_context(Token)} | Config1];
 init_per_group(_, Config) ->
@@ -375,5 +376,17 @@ create_identity(C) ->
         <<"class">> => <<"person">>,
         <<"name">> => <<"HAHA NO2">>
     },
-    wapi_wallet_ff_backend:create_identity(Params, wapi_ct_helper:create_auth_ctx(PartyID)).
+    wapi_wallet_ff_backend:create_identity(Params, create_context(PartyID, C)).
 
+create_context(PartyID, C) ->
+    maps:merge(create_auth_ctx(PartyID), create_woody_ctx(C)).
+
+create_woody_ctx(C) ->
+    #{
+        woody_context => ct_helper:get_woody_ctx(C)
+    }.
+
+create_auth_ctx(PartyID) ->
+    #{
+        swagger_context => #{auth_context => {{PartyID, empty}, empty}}
+    }.

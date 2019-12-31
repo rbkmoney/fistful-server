@@ -31,6 +31,8 @@
 
 -import(ct_helper, [cfg/2]).
 
+-define(SIGNEE, wapi).
+
 -spec all() -> [test_case_name() | {group, group_name()}].
 
 all() ->
@@ -93,7 +95,11 @@ init_per_group(G, C) ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
     })),
     Party = create_party(C),
-    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited),
+    BasePermissions = [
+        {[party], read},
+        {[party], write}
+    ],
+    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited),
     Context = get_context("localhost:8080", Token),
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
     [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].
@@ -207,9 +213,7 @@ quote_encode_decode_test(C) ->
             <<"resource_id">> => #{<<"bank_card">> => <<"test">>}
         }
     },
-    JSONData = jsx:encode(Data),
-    {ok, Token} = wapi_signer:sign(JSONData),
-
+    {ok, Token} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), unlimited, {PartyID, []}, Data, ?SIGNEE),
     _WithdrawalID = create_withdrawal(
         WalletID,
         DestID,
@@ -249,11 +253,11 @@ get_quote_test(C) ->
         ct_helper:cfg(context, C)
     ),
     CashFrom = maps:get(<<"cashFrom">>, Quote),
-    {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
+    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(maps:get(<<"quoteToken">>, Quote), #{}),
     #{
         <<"version">>       := 1,
         <<"cashFrom">>     := CashFrom
-    } = jsx:decode(JSONData, [return_maps]).
+    } = Data.
 
 -spec get_quote_without_destination_test(config()) -> test_return().
 
@@ -281,11 +285,11 @@ get_quote_without_destination_test(C) ->
         ct_helper:cfg(context, C)
     ),
     CashFrom = maps:get(<<"cashFrom">>, Quote),
-    {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
+    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(maps:get(<<"quoteToken">>, Quote), #{}),
     #{
         <<"version">>       := 1,
         <<"cashFrom">>     := CashFrom
-    } = jsx:decode(JSONData, [return_maps]).
+    } = Data.
 
 -spec get_quote_without_destination_fail_test(config()) -> test_return().
 

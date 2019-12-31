@@ -57,7 +57,7 @@ marshal(final_cash_flow_account, #{
     #{id := AccountID} = Account,
     #cashflow_FinalCashFlowAccount{
         account_type   = marshal(account_type, AccountType),
-        account_id     = marshal(id, AccountID),
+        account_id     = marshal(id, AccountID), % for compatability, deprecate
         account        = ff_codec:marshal(account, Account)
     };
 
@@ -118,12 +118,6 @@ unmarshal(postings, #cashflow_FinalCashFlowPosting{
         volume      => unmarshal(cash, Cash),
         details     => maybe_unmarshal(string, Details)
     });
-unmarshal(final_cash_flow_account, CashFlow = #cashflow_FinalCashFlowAccount{
-    account_type = _AccountType,
-    account      = undefined
-}) ->
-    % Since a bunch of data was lost we can still only partially decode cash_flow_accounts
-    erlang:error({unrecoverable, final_cash_flow_account}, [final_cash_flow_account, CashFlow]);
 unmarshal(final_cash_flow_account, #cashflow_FinalCashFlowAccount{
     account_type = AccountType,
     account      = Account

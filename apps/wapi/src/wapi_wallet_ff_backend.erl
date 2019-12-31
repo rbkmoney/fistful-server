@@ -625,7 +625,7 @@ encode_webhook_id(WebhookID) ->
     end.
 
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
-    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
+    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{should_authorize_operations => false}),
     unwrap(quote_invalid_party,
         valid(
             maps:get(<<"partyID">>, Data),

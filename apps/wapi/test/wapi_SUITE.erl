@@ -25,6 +25,7 @@
 -export([quote_withdrawal_test/1]).
 -export([not_allowed_currency_test/1]).
 -export([get_wallet_by_external_id/1]).
+-export([check_withdrawal_limit_test/1]).
 
 -export([consume_eventsinks/1]).
 
@@ -69,7 +70,8 @@ groups() ->
             woody_retry_test
         ]},
         {errors, [], [
-            not_allowed_currency_test
+            not_allowed_currency_test,
+            check_withdrawal_limit_test
         ]},
         {eventsink, [], [
             consume_eventsinks
@@ -200,6 +202,39 @@ withdrawal_to_ripple_wallet_test(C) ->
 
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
+
+-spec check_withdrawal_limit_test(config()) -> test_return().
+
+check_withdrawal_limit_test(C) ->
+    Name          = <<"Tony Dacota">>,
+    Provider      = ?ID_PROVIDER,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ok            = check_identity(Name, IdentityID, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    ok            = check_wallet(WalletID, C),
+    CardToken     = store_bank_card(C),
+    {ok, _Card}   = get_bank_card(CardToken, C),
+    Resource      = make_bank_card_resource(CardToken),
+    DestID        = create_desination(IdentityID, Resource, C),
+    ok            = check_destination(IdentityID, DestID, Resource, C),
+    {ok, _Grants} = issue_destination_grants(DestID, C),
+    % ожидаем выполнения асинхронного вызова выдачи прав на вывод
+    await_destination(DestID),
+
+    {error, {422, #{<<"message">> := <<"Invalid cash amount">>}}} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+        #{body => genlib_map:compact(#{
+            <<"wallet">> => WalletID,
+            <<"destination">> => DestID,
+            <<"body">> => #{
+                <<"amount">> => 1000000000,
+                <<"currency">> => <<"RUB">>
+            },
+            <<"quoteToken">> => undefined
+        })},
+        ct_helper:cfg(context, C)
+    ).
 
 -spec unknown_withdrawal_test(config()) -> test_return().
 

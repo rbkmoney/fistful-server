@@ -245,6 +245,17 @@ process_request('GetDestination', #{'destinationID' := DestinationId}, Context, 
         {error, {destination, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {destination, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
+process_request('getDestinationByExternalID', #{'externalID' := ExternalID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_destination_by_external_id(ExternalID, Context) of
+        {ok, Destination} ->
+            wapi_handler_utils:reply_ok(200, Destination);
+        {error, {external_id, {unknown_external_id, ExternalID}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {destination, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {destination, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
 process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) ->
     case wapi_wallet_ff_backend:create_destination(Params, Context) of
         {ok, Destination = #{<<"id">> := DestinationId}} ->
@@ -340,6 +351,17 @@ process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Op
         {ok, Withdrawal} ->
             wapi_handler_utils:reply_ok(200, Withdrawal);
         {error, {withdrawal, {unknown_withdrawal, WithdrawalId}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+process_request('getWithdrawalByExternalID', #{'externalID' := ExternalID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_withdrawal_by_external_id(ExternalID, Context) of
+        {ok, Withdrawal} ->
+            wapi_handler_utils:reply_ok(200, Withdrawal);
+        {error, {external_id, {unknown_external_id, ExternalID}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, {unknown_withdrawal, _WithdrawalId}}} ->
             wapi_handler_utils:reply_ok(404);
         {error, {withdrawal, unauthorized}} ->
             wapi_handler_utils:reply_ok(404)

@@ -326,7 +326,7 @@ p2p_session_codec_test() ->
         id => genlib:unique(),
         status => active,
         transfer_params => TransferParams,
-        provider_id => genlib:unique(),
+        provider_id => 1,
         party_revision => 123,
         domain_revision => 321
     },

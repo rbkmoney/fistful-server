@@ -336,6 +336,14 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {quote, {invalid_body, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Withdrawal body differs from quote`s one">>)
+            );
+        {error, {terms, {terms_violation, {cash_range, _}}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
+        {error, {destination_resource, {bin_data, not_found}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Unknown card issuer">>)
             )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->

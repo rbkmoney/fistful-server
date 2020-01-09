@@ -47,10 +47,12 @@
 }.
 
 -type operation_info()          :: #{
-    body     := cash(),
-    sender   := resource(),
-    receiver := resource(),
-    deadline => deadline()
+    body          := cash(),
+    sender        := resource(),
+    receiver      := resource(),
+    deadline      => deadline(),
+    merchant_fees => fees(),
+    provider_fees => fees()
 }.
 
 -type id()                      :: binary().
@@ -67,6 +69,8 @@
 -type resource()                :: ff_resource:resource().
 
 -type deadline()                :: ff_time:timestamp_ms().
+
+-type fees()                    :: p2p_fees:t().
 
 -type adapter_state()           :: dmsl_p2p_adapter_thrift:'AdapterState'() | undefined.
 -type adapter_opts()            :: ff_adapter:opts().

@@ -9,7 +9,6 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
--export([bender_to_fistful_sync/1]).
 -export([idempotency_identity_ok/1]).
 -export([idempotency_identity_conflict/1]).
 -export([idempotency_wallet_ok/1]).

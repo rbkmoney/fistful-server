@@ -109,7 +109,7 @@ init_per_group(Group, Config) when Group =:= base ->
         {[party], read},
         {[party], write}
     ],
-    Token = wapi_ct_helper:issue_token(Party, BasePermissions, {deadline, 10}),
+    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, {deadline, 10}),
     Config1 = [{party, Party} | Config],
     [{context, wapi_ct_helper:get_context(Token)} | Config1];
 init_per_group(_, Config) ->
@@ -388,5 +388,5 @@ create_woody_ctx(C) ->
 
 create_auth_ctx(PartyID) ->
     #{
-        swagger_context => #{auth_context => {{PartyID, empty}, empty}}
+        swagger_context => #{auth_context => {?STRING, {PartyID, empty}, empty}}
     }.

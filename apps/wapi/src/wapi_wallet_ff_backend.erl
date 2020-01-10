@@ -870,7 +870,7 @@ create_party(Context) ->
     ok.
 
 get_email(AuthContext) ->
-    case wapi_auth:get_claim(<<"email">>, AuthContext, undefined) of
+    case uac_authorizer_jwt:get_claim(<<"email">>, AuthContext, undefined) of
         undefined -> {error, {email, notfound}};
         Email     -> {ok, Email}
     end.

@@ -117,11 +117,11 @@ attach_deadline(Deadline, Context) ->
 
 collect_user_identity(AuthContext, _Opts) ->
     genlib_map:compact(#{
-        id       => wapi_auth:get_subject_id(AuthContext),
+        id       => uac_authorizer_jwt:get_subject_id(AuthContext),
         %% TODO pass realm via Opts
         realm    => genlib_app:env(?APP, realm),
-        email    => wapi_auth:get_claim(<<"email">>, AuthContext, undefined),
-        username => wapi_auth:get_claim(<<"name">> , AuthContext, undefined)
+        email    => uac_authorizer_jwt:get_claim(<<"email">>, AuthContext, undefined),
+        username => uac_authorizer_jwt:get_claim(<<"name">> , AuthContext, undefined)
     }).
 
 -spec create_handler_context(swagger_context(), woody_context:ctx()) ->

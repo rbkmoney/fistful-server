@@ -174,87 +174,87 @@ resolve_token_spec({wallets, WalletId, #{<<"amount">> := Amount, <<"currency">> 
 %%
 
 get_operation_access('GetCurrency', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('ListDeposits', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('ListDestinations', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('CreateDestination', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('GetDestination', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('IssueDestinationGrant', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('DownloadFile', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('ListIdentities', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('CreateIdentity', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('GetIdentity', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('ListIdentityChallenges', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('StartIdentityChallenge', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('GetIdentityChallenge', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('PollIdentityChallengeEvents', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('GetIdentityChallengeEvent', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('CreateReport', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('GetReports', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('GetReport', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('ListProviders', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('GetProvider', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('ListProviderIdentityClasses', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('GetProviderIdentityClass', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('ListProviderIdentityLevels', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('GetProviderIdentityLevel', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('GetResidence', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('ListWallets', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('CreateWallet', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('GetWallet', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('GetWalletByExternalID', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('GetWalletAccount', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('IssueWalletGrant', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('CreateWebhook', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('GetWebhooks', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('GetWebhookByID', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('DeleteWebhookByID', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('CreateQuote', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('ListWithdrawals', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('CreateWithdrawal', _) ->
-    [{[party], write}];
+    [];
 get_operation_access('GetWithdrawal', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('PollWithdrawalEvents', _) ->
-    [{[party], read}];
+    [];
 get_operation_access('GetWithdrawalEvents', _) ->
-    [{[party], read}].
+    [].
 
 
 -spec get_access_config() -> map().

@@ -95,7 +95,6 @@ start_app(wapi = AppName) ->
         {public_endpoint, <<"localhost:8080">>},
         {access_conf, #{
             jwt => #{
-                signee => wapi,
                 keyset => #{
                     wapi     => {pem_file, "/opt/wapi/config/private.pem"}
                 }

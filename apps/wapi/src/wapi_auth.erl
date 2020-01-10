@@ -34,6 +34,7 @@
 -type auth_error()   :: [{resource(), [{auth_method(), atom()}]}].
 
 -define(SIGNEE, wapi).
+-define(DOMAIN, <<"wallet-api">>).
 
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
     ok  | {error, auth_error()}.
@@ -164,13 +165,13 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
     {claims(), uac_authorizer_jwt:domains()}.
 resolve_token_spec({destinations, DestinationId}) ->
     Claims = #{},
-    DomainRoles = #{<<"wallet-api">> => uac_acl:from_list(
+    DomainRoles = #{?DOMAIN => uac_acl:from_list(
         [{[party, {destinations, DestinationId}], write}]
     )},
     {Claims, DomainRoles};
 resolve_token_spec({wallets, WalletId, #{<<"amount">> := Amount, <<"currency">> := Currency}}) ->
     Claims = #{<<"amount">> => Amount, <<"currency">> => Currency},
-    DomainRoles = #{<<"wallet-api">> => uac_acl:from_list(
+    DomainRoles = #{?DOMAIN => uac_acl:from_list(
         [{[party, {wallets, WalletId}], write}]
     )},
     {Claims, DomainRoles}.

@@ -257,7 +257,7 @@ get_wallet(WalletID, Context) ->
 ).
 get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
     AuthContext = wapi_handler_utils:get_auth_context(Context),
-    PartyID = get_party_id(AuthContext),
+    PartyID = uac_authorizer_jwt:get_subject_id(AuthContext),
     IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, wallet, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
         {ok, WalletID, _} -> get_wallet(WalletID, Context);
@@ -996,9 +996,6 @@ process_stat_result(StatType, Result) ->
         {exception, #fistfulstat_BadToken{reason = Reason}} ->
             {error, {400, [], bad_request_error(invalidRequest, Reason)}}
     end.
-
-get_party_id({_Id, {PartyID, _}, _}) ->
-    PartyID.
 
 get_time(Key, Req) ->
     case genlib_map:get(Key, Req) of

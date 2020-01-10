@@ -94,7 +94,6 @@ start_wapi(Config) ->
         {public_endpoint, <<"localhost:8080">>},
         {access_conf, #{
             jwt => #{
-                domain_name => <<"common-api">>,
                 keyset => #{
                     wapi => {pem_file, get_keysource("keys/local/private.pem", Config)}
                 }

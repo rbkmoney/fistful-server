@@ -63,6 +63,10 @@ unmarshal(transfer, #transfer_Transfer{cashflow = Cashflow}) ->
         cashflow => ff_cash_flow_codec:unmarshal(final_cash_flow, Cashflow)
     };
 
+unmarshal(account_type, CashflowAccount) ->
+    % Mapped to thrift type WalletCashFlowAccount as is
+    CashflowAccount;
+
 unmarshal(status, {created, #transfer_Created{}}) ->
     created;
 unmarshal(status, {prepared, #transfer_Prepared{}}) ->

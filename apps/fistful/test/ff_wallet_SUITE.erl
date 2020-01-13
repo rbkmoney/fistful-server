@@ -146,10 +146,12 @@ create_error_terms_not_allowed_currency(C) ->
     IdentityID   = create_identity(Party, C),
     WalletParams = construct_wallet_params(IdentityID, <<"EUR">>),
     CreateResult = ff_wallet_machine:create(ID, WalletParams, ff_entity_context:new()),
-    ExpectedError = {terms, {terms_violation, {not_allowed_currency, {<<"EUR">>, [
-        #domain_CurrencyRef{symbolic_code = <<"RUB">>},
-        #domain_CurrencyRef{symbolic_code = <<"USD">>}
-    ]}}}},
+    ExpectedError = {terms, {terms_violation, {not_allowed_currency, {
+        #domain_CurrencyRef{symbolic_code = <<"EUR">>}, [
+            #domain_CurrencyRef{symbolic_code = <<"RUB">>},
+            #domain_CurrencyRef{symbolic_code = <<"USD">>}
+        ]
+    }}}},
     ?assertMatch({error, ExpectedError}, CreateResult).
 
 %%

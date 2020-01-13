@@ -44,7 +44,9 @@ get_service(identity_management) ->
 get_service(destination_management) ->
     {ff_proto_destination_thrift, 'Management'};
 get_service(withdrawal_management) ->
-    {ff_proto_withdrawal_thrift, 'Management'}.
+    {ff_proto_withdrawal_thrift, 'Management'};
+get_service(deposit_management) ->
+    {ff_proto_deposit_thrift, 'Management'}.
 
 -spec get_service_spec(service_name()) -> service_spec().
 get_service_spec(Name) ->
@@ -80,4 +82,6 @@ get_service_path(identity_management) ->
 get_service_path(destination_management) ->
     "/v1/destination";
 get_service_path(withdrawal_management) ->
-    "/v1/withdrawal".
+    "/v1/withdrawal";
+get_service_path(deposit_management) ->
+    "/v1/deposit".

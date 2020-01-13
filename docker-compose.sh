@@ -149,10 +149,11 @@ services:
       - cds
 
   machinegun:
-    image: dr2.rbkmoney.com/rbkmoney/machinegun:bffbaefa679c823d375cbf2b2434f72d2e3e5242
+    image: dr2.rbkmoney.com/rbkmoney/machinegun:0ce8dd4c1c0728db72b4c6a5d13135d96ea404d1
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml
+      - ./test/machinegun/cookie:/opt/machinegun/etc/cookie
       - ./test/log/machinegun:/var/log/machinegun
     healthcheck:
       test: "curl http://localhost:8022/"

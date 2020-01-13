@@ -1,11 +1,9 @@
 -module(ff_withdrawal_handler_SUITE).
 
--include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
-
 -include_lib("stdlib/include/assert.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -16,12 +14,21 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
--export([create_withdrawal_ok/1]).
--export([create_withdrawal_wallet_currency_fail/1]).
--export([create_withdrawal_cashrange_fail/1]).
--export([create_withdrawal_destination_fail/1]).
--export([create_withdrawal_wallet_fail/1]).
--export([get_events_ok/1]).
+%% Tests
+-export([create_withdrawal_ok_test/1]).
+-export([create_cashlimit_validation_error_test/1]).
+-export([create_inconsistent_currency_validation_error_test/1]).
+-export([create_currency_validation_error_test/1]).
+-export([create_destination_resource_notfound_test/1]).
+-export([create_destination_notfound_test/1]).
+-export([create_wallet_notfound_test/1]).
+-export([unknown_test/1]).
+-export([get_context_test/1]).
+-export([get_events_test/1]).
+-export([create_adjustment_ok_test/1]).
+-export([create_adjustment_unavailable_status_error_test/1]).
+-export([create_adjustment_already_has_status_error_test/1]).
+-export([withdrawal_state_content_test/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -38,12 +45,20 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            create_withdrawal_ok
-            % create_withdrawal_wallet_currency_fail,
-            % create_withdrawal_cashrange_fail,
-            % create_withdrawal_destination_fail,
-            % create_withdrawal_wallet_fail,
-            % get_events_ok
+            create_withdrawal_ok_test,
+            create_cashlimit_validation_error_test,
+            create_currency_validation_error_test,
+            create_inconsistent_currency_validation_error_test,
+            create_destination_resource_notfound_test,
+            create_destination_notfound_test,
+            create_wallet_notfound_test,
+            unknown_test,
+            get_context_test,
+            get_events_test,
+            create_adjustment_ok_test,
+            create_adjustment_unavailable_status_error_test,
+            create_adjustment_already_has_status_error_test,
+            withdrawal_state_content_test
         ]}
     ].
 
@@ -85,322 +100,488 @@ init_per_testcase(Name, C) ->
 end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
+%% Tests
 
--spec create_withdrawal_ok(config()) -> test_return().
--spec create_withdrawal_wallet_currency_fail(config()) -> test_return().
--spec create_withdrawal_cashrange_fail(config()) -> test_return().
--spec create_withdrawal_destination_fail(config()) -> test_return().
--spec create_withdrawal_wallet_fail(config()) -> test_return().
--spec get_events_ok(config()) -> test_return().
-
-create_withdrawal_ok(C) ->
-    ID            = genlib:unique(),
-    ExternalId    = genlib:unique(),
-    WalletID      = create_wallet(<<"RUB">>, 10000),
-    DestinationID = create_destination(C),
-    Body = #'Cash'{
-        amount = 1000,
-        currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
-    },
+-spec create_withdrawal_ok_test(config()) -> test_return().
+create_withdrawal_ok_test(C) ->
+    Cash = make_cash({1000, <<"RUB">>}),
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    ExternalID = generate_id(),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
-        id          = ID,
-        source      = WalletID,
-        destination = DestinationID,
-        body        = Body,
-        external_id = ExternalId,
-        context     = Ctx
+        id = WithdrawalID,
+        wallet_id = WalletID,
+        destination_id = DestinationID,
+        body = Cash,
+        external_id = ExternalID
     },
+    {ok, WithdrawalState} = call_withdrawal('Create', [Params, Ctx]),
 
-    {ok, Withdrawal}  = call_service(withdrawal, 'Create', [Params]),
-    ID            = Withdrawal#wthd_Withdrawal.id,
-    ExternalId    = Withdrawal#wthd_Withdrawal.external_id,
-    WalletID      = Withdrawal#wthd_Withdrawal.source,
-    DestinationID = Withdrawal#wthd_Withdrawal.destination,
-    Ctx           = Withdrawal#wthd_Withdrawal.context,
-    Body          = Withdrawal#wthd_Withdrawal.body,
-
-    {succeeded, _} = ct_helper:await(
-        {succeeded, #wthd_status_Succeeded{}},
-        fun() ->
-            {ok, W} = call_service(withdrawal, 'Get', [ID]),
-            W#wthd_Withdrawal.status
-        end,
-        genlib_retry:linear(30, 1000)
+    Expected = get_withdrawal(WithdrawalID),
+    Withdrawal = WithdrawalState#wthd_WithdrawalState.withdrawal,
+    ?assertEqual(WithdrawalID, Withdrawal#wthd_Withdrawal.id),
+    ?assertEqual(ExternalID, Withdrawal#wthd_Withdrawal.external_id),
+    ?assertEqual(WalletID, Withdrawal#wthd_Withdrawal.wallet_id),
+    ?assertEqual(DestinationID, Withdrawal#wthd_Withdrawal.destination_id),
+    ?assertEqual(Cash, Withdrawal#wthd_Withdrawal.body),
+    ?assertEqual(
+        ff_withdrawal:domain_revision(Expected),
+        Withdrawal#wthd_Withdrawal.domain_revision
     ),
-    ok.
+    ?assertEqual(
+        ff_withdrawal:party_revision(Expected),
+        Withdrawal#wthd_Withdrawal.party_revision
+    ),
+    ?assertEqual(
+        ff_withdrawal:created_at(Expected),
+        ff_codec:unmarshal(timestamp_ms, Withdrawal#wthd_Withdrawal.created_at)
+    ),
 
-create_withdrawal_wallet_currency_fail(C) ->
-    ID            = genlib:unique(),
-    ExternalId    = genlib:unique(),
-    WalletID      = create_wallet(<<"USD">>, 10000),
-    DestinationID = create_destination(C),
-    Body = #'Cash'{
-        amount = 1000,
-        currency = #'CurrencyRef'{ symbolic_code = <<"RUB">> }
-    },
-    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-    Params = #wthd_WithdrawalParams{
-        id          = ID,
-        source      = WalletID,
-        destination = DestinationID,
-        body        = Body,
-        external_id = ExternalId,
-        context     = Ctx
-    },
-
-    {exception, #fistful_WithdrawalCurrencyInvalid{
-        withdrawal_currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>},
-        wallet_currency     = #'CurrencyRef'{ symbolic_code = <<"USD">>}
-    }} = call_service(withdrawal, 'Create', [Params]).
-
-create_withdrawal_cashrange_fail(C) ->
-    ID            = genlib:unique(),
-    ExternalId    = genlib:unique(),
-    WalletID      = create_wallet(<<"RUB">>, 10000),
-    DestinationID = create_destination(C),
-    Body = #'Cash'{
-        amount = -1000,
-        currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
-    },
-    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-    Params = #wthd_WithdrawalParams{
-        id          = ID,
-        source      = WalletID,
-        destination = DestinationID,
-        body        = Body,
-        external_id = ExternalId,
-        context     = Ctx
-    },
-
-    {exception, #fistful_WithdrawalCashAmountInvalid{
-            cash  = Cash,
-            range = CashRange
-        }
-    } = call_service(withdrawal, 'Create', [Params]),
-    ?assertEqual(Body, Cash),
-    ?assertNotEqual(undefined, CashRange).
-
-create_withdrawal_destination_fail(C) ->
-    ID            = genlib:unique(),
-    ExternalId    = genlib:unique(),
-    WalletID      = create_wallet(<<"RUB">>, 10000),
-    _DestinationID = create_destination(C),
-    BadDestID     = genlib:unique(),
-    Body = #'Cash'{
-        amount = -1000,
-        currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
-    },
-    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-    Params = #wthd_WithdrawalParams{
-        id          = ID,
-        source      = WalletID,
-        destination = BadDestID,
-        body        = Body,
-        external_id = ExternalId,
-        context     = Ctx
-    },
-
-    {exception, {fistful_DestinationNotFound}} = call_service(withdrawal, 'Create', [Params]).
-
-create_withdrawal_wallet_fail(C) ->
-    ID            = genlib:unique(),
-    ExternalId    = genlib:unique(),
-    _WalletID      = create_wallet(<<"RUB">>, 10000),
-    DestinationID  = create_destination(C),
-    BadWalletID     = genlib:unique(),
-    Body = #'Cash'{
-        amount = -1000,
-        currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
-    },
-    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-    Params = #wthd_WithdrawalParams{
-        id          = ID,
-        source      = BadWalletID,
-        destination = DestinationID,
-        body        = Body,
-        external_id = ExternalId,
-        context     = Ctx
-    },
-
-    {exception, {fistful_WalletNotFound}} = call_service(withdrawal, 'Create', [Params]).
-
-get_events_ok(C) ->
-    ID            = genlib:unique(),
-    ExternalId    = genlib:unique(),
-    WalletID      = create_wallet(<<"RUB">>, 10000),
-    DestinationID = create_destination(C),
-    Body = #'Cash'{
-        amount = 2000,
-        currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>}
-    },
-    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-    Params = #wthd_WithdrawalParams{
-        id          = ID,
-        source      = WalletID,
-        destination = DestinationID,
-        body        = Body,
-        external_id = ExternalId,
-        context     = Ctx
-    },
-
-    {ok, _W} = call_service(withdrawal, 'Create', [Params]),
-
-    Range = #'EventRange'{
-        limit   = 1000,
-        'after' = undefined
-    },
-    {succeeded, #wthd_status_Succeeded{}} = ct_helper:await(
-        {succeeded, #wthd_status_Succeeded{}},
-        fun () ->
-            {ok, Events} = call_service(withdrawal, 'GetEvents', [ID, Range]),
-            lists:foldl(fun(#wthd_Event{change = {status_changed, Status}}, _AccIn) -> Status;
-                            (_Ev, AccIn) -> AccIn end, undefined, Events)
-        end,
-        genlib_retry:linear(10, 1000)
+    succeeded = await_final_withdrawal_status(WithdrawalID),
+    {ok, FinalWithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
+    ?assertMatch(
+        {succeeded, _},
+        (FinalWithdrawalState#wthd_WithdrawalState.withdrawal)#wthd_Withdrawal.status
     ).
 
-%%-----------
-%%  Internal
-%%-----------
-call_service(withdrawal, Fun, Args) ->
-    Service = {ff_proto_withdrawal_thrift, 'Management'},
+-spec create_cashlimit_validation_error_test(config()) -> test_return().
+create_cashlimit_validation_error_test(C) ->
+    Cash = make_cash({100, <<"RUB">>}),
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    Params = #wthd_WithdrawalParams{
+        id = generate_id(),
+        wallet_id = WalletID,
+        destination_id = DestinationID,
+        body = make_cash({20000000, <<"RUB">>})
+    },
+    Result = call_withdrawal('Create', [Params, #{}]),
+    ExpectedError = #fistful_ForbiddenOperationAmount{
+        amount = make_cash({20000000, <<"RUB">>}),
+        allowed_range = #'CashRange'{
+            lower = {inclusive, make_cash({0, <<"RUB">>})},
+            upper = {exclusive, make_cash({10000001, <<"RUB">>})}
+        }
+    },
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec create_currency_validation_error_test(config()) -> test_return().
+create_currency_validation_error_test(C) ->
+    Cash = make_cash({100, <<"USD">>}),
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    Params = #wthd_WithdrawalParams{
+        id = generate_id(),
+        wallet_id = WalletID,
+        destination_id = DestinationID,
+        body = Cash
+    },
+    Result = call_withdrawal('Create', [Params, #{}]),
+    ExpectedError = #fistful_ForbiddenOperationCurrency{
+        currency = #'CurrencyRef'{symbolic_code = <<"USD">>},
+        allowed_currencies = [
+            #'CurrencyRef'{symbolic_code = <<"RUB">>}
+        ]
+    },
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec create_inconsistent_currency_validation_error_test(config()) -> test_return().
+create_inconsistent_currency_validation_error_test(C) ->
+    Cash = make_cash({100, <<"USD">>}),
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, <<"USD_CURRENCY">>, C),
+    Params = #wthd_WithdrawalParams{
+        id = generate_id(),
+        wallet_id = WalletID,
+        destination_id = DestinationID,
+        body = make_cash({100, <<"RUB">>})
+    },
+    Result = call_withdrawal('Create', [Params, #{}]),
+    ExpectedError = #wthd_InconsistentWithdrawalCurrency{
+        withdrawal_currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
+        destination_currency = #'CurrencyRef'{symbolic_code = <<"USD">>},
+        wallet_currency = #'CurrencyRef'{symbolic_code = <<"USD">>}
+    },
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec create_destination_resource_notfound_test(config()) -> test_return().
+create_destination_resource_notfound_test(C) ->
+    Cash = make_cash({100, <<"RUB">>}),
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, <<"TEST_NOTFOUND">>, C),
+    Params = #wthd_WithdrawalParams{
+        id = generate_id(),
+        wallet_id = WalletID,
+        destination_id = DestinationID,
+        body = Cash
+    },
+    Result = call_withdrawal('Create', [Params, #{}]),
+    ExpectedError = #wthd_NoDestinationResourceInfo{},
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec create_destination_notfound_test(config()) -> test_return().
+create_destination_notfound_test(C) ->
+    Cash = make_cash({100, <<"RUB">>}),
+    #{
+        wallet_id := WalletID
+    } = prepare_standard_environment(Cash, C),
+    Params = #wthd_WithdrawalParams{
+        id = generate_id(),
+        wallet_id = WalletID,
+        destination_id = <<"unknown_destination">>,
+        body = Cash
+    },
+    Result = call_withdrawal('Create', [Params, #{}]),
+    ExpectedError = #fistful_DestinationNotFound{},
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec create_wallet_notfound_test(config()) -> test_return().
+create_wallet_notfound_test(C) ->
+    Cash = make_cash({100, <<"RUB">>}),
+    #{
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    Params = #wthd_WithdrawalParams{
+        id = generate_id(),
+        wallet_id = <<"unknown_wallet">>,
+        destination_id = DestinationID,
+        body = Cash
+    },
+    Result = call_withdrawal('Create', [Params, #{}]),
+    ExpectedError = #fistful_WalletNotFound{},
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec unknown_test(config()) -> test_return().
+unknown_test(_C) ->
+    WithdrawalID = <<"unknown_withdrawal">>,
+    Result = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
+    ExpectedError = #fistful_WithdrawalNotFound{},
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec get_context_test(config()) -> test_return().
+get_context_test(C) ->
+    #{
+        withdrawal_id := WithdrawalID,
+        context := Context
+    } = prepare_standard_environment_with_withdrawal(C),
+    {ok, EncodedContext} = call_withdrawal('GetContext', [WithdrawalID]),
+    ?assertEqual(Context, ff_entity_context_codec:unmarshal(EncodedContext)).
+
+-spec get_events_test(config()) -> test_return().
+get_events_test(C) ->
+    #{
+        withdrawal_id := WithdrawalID
+    } = prepare_standard_environment_with_withdrawal(C),
+    Range = {undefined, undefined},
+    EncodedRange = ff_codec:marshal(event_range, Range),
+    {ok, Events} = call_withdrawal('GetEvents', [WithdrawalID, EncodedRange]),
+    {ok, ExpectedEvents} = ff_withdrawal_machine:events(WithdrawalID, Range),
+    EncodedEvents = lists:map(fun ff_withdrawal_codec:marshal_event/1, ExpectedEvents),
+    ?assertEqual(EncodedEvents, Events).
+
+-spec create_adjustment_ok_test(config()) -> test_return().
+create_adjustment_ok_test(C) ->
+    #{
+        withdrawal_id := WithdrawalID
+    } = prepare_standard_environment_with_withdrawal(C),
+    AdjustmentID = generate_id(),
+    ExternalID = generate_id(),
+    Params = #wthd_adj_AdjustmentParams{
+        id = AdjustmentID,
+        change = {change_status, #wthd_adj_ChangeStatusRequest{
+            new_status = {failed, #wthd_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+        }},
+        external_id = ExternalID
+    },
+    {ok, AdjustmentState} = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
+    ExpectedAdjustment = get_adjustment(WithdrawalID, AdjustmentID),
+
+    Adjustment = AdjustmentState#wthd_adj_AdjustmentState.adjustment,
+    ?assertEqual(AdjustmentID, Adjustment#wthd_adj_Adjustment.id),
+    ?assertEqual(ExternalID, Adjustment#wthd_adj_Adjustment.external_id),
+    ?assertEqual(
+        ff_adjustment:created_at(ExpectedAdjustment),
+        ff_codec:unmarshal(timestamp_ms, Adjustment#wthd_adj_Adjustment.created_at)
+    ),
+    ?assertEqual(
+        ff_adjustment:domain_revision(ExpectedAdjustment),
+        Adjustment#wthd_adj_Adjustment.domain_revision
+    ),
+    ?assertEqual(
+        ff_adjustment:party_revision(ExpectedAdjustment),
+        Adjustment#wthd_adj_Adjustment.party_revision
+    ),
+    ?assertEqual(
+        ff_withdrawal_adjustment_codec:marshal(changes_plan, ff_adjustment:changes_plan(ExpectedAdjustment)),
+        Adjustment#wthd_adj_Adjustment.changes_plan
+    ).
+
+-spec create_adjustment_unavailable_status_error_test(config()) -> test_return().
+create_adjustment_unavailable_status_error_test(C) ->
+    #{
+        withdrawal_id := WithdrawalID
+    } = prepare_standard_environment_with_withdrawal(C),
+    Params = #wthd_adj_AdjustmentParams{
+        id = generate_id(),
+        change = {change_status, #wthd_adj_ChangeStatusRequest{
+            new_status = {pending, #wthd_status_Pending{}}
+        }}
+    },
+    Result = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
+    ExpectedError = #wthd_ForbiddenStatusChange{
+        target_status = {pending, #wthd_status_Pending{}}
+    },
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec create_adjustment_already_has_status_error_test(config()) -> test_return().
+create_adjustment_already_has_status_error_test(C) ->
+    #{
+        withdrawal_id := WithdrawalID
+    } = prepare_standard_environment_with_withdrawal(C),
+    Params = #wthd_adj_AdjustmentParams{
+        id = generate_id(),
+        change = {change_status, #wthd_adj_ChangeStatusRequest{
+            new_status = {succeeded, #wthd_status_Succeeded{}}
+        }}
+    },
+    Result = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
+    ExpectedError = #wthd_AlreadyHasStatus{
+        withdrawal_status = {succeeded, #wthd_status_Succeeded{}}
+    },
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec withdrawal_state_content_test(config()) -> test_return().
+withdrawal_state_content_test(C) ->
+    #{
+        withdrawal_id := WithdrawalID
+    } = prepare_standard_environment_with_withdrawal(C),
+    Params = #wthd_adj_AdjustmentParams{
+        id = generate_id(),
+        change = {change_status, #wthd_adj_ChangeStatusRequest{
+            new_status = {failed, #wthd_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+        }}
+    },
+    {ok, _AdjustmentState} = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
+    {ok, WithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
+    ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.sessions),
+    ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.adjustments),
+    ?assertEqual(
+        {succeeded, #wthd_status_Succeeded{}},
+        (WithdrawalState#wthd_WithdrawalState.withdrawal)#wthd_Withdrawal.status
+    ).
+
+%%  Internals
+
+call_withdrawal(Fun, Args) ->
+    ServiceName = withdrawal_management,
+    Service = ff_services:get_service(ServiceName),
     Request = {Service, Fun, Args},
     Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022/v1/withdrawal">>,
-        event_handler => scoper_woody_event_handler
-    }),
-    ff_woody_client:call(Client, Request);
-call_service(wallet, Fun, Args) ->
-    Service = {ff_proto_wallet_thrift, 'Management'},
-    Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022/v1/wallet">>,
-        event_handler => scoper_woody_event_handler
-    }),
-    ff_woody_client:call(Client, Request);
-call_service(destination, Fun, Args) ->
-    Service = {ff_proto_destination_thrift, 'Management'},
-    Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022/v1/destination">>,
-        event_handler => scoper_woody_event_handler
+        url => "http://localhost:8022" ++ ff_services:get_service_path(ServiceName)
     }),
     ff_woody_client:call(Client, Request).
 
-call_admin(Fun, Args) ->
-    Service = {ff_proto_fistful_admin_thrift, 'FistfulAdmin'},
-    Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022/v1/admin">>,
-        event_handler => scoper_woody_event_handler
-    }),
-    ff_woody_client:call(Client, Request).
+prepare_standard_environment(Body, C) ->
+    prepare_standard_environment(Body, undefined, C).
 
-create_party() ->
+prepare_standard_environment(Body, Token, C) ->
+    #'Cash'{
+        amount = Amount,
+        currency = #'CurrencyRef'{symbolic_code = Currency}
+    } = Body,
+    Party = create_party(C),
+    IdentityID = create_person_identity(Party, C),
+    WalletID = create_wallet(IdentityID, <<"My wallet">>, Currency, C),
+    ok = await_wallet_balance({0, Currency}, WalletID),
+    DestinationID = create_destination(IdentityID, Token, C),
+    ok = set_wallet_balance({Amount, Currency}, WalletID),
+    #{
+        identity_id => IdentityID,
+        party_id => Party,
+        wallet_id => WalletID,
+        destination_id => DestinationID
+    }.
+
+prepare_standard_environment_with_withdrawal(C) ->
+    Cash = make_cash({1000, <<"RUB">>}),
+    Env = prepare_standard_environment_with_withdrawal(Cash, C),
+    Env#{body => Cash}.
+
+prepare_standard_environment_with_withdrawal(Cash, C) ->
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = Env = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    ExternalID = generate_id(),
+    Context = #{<<"NS">> => #{generate_id() => generate_id()}},
+    EncodedContext = ff_entity_context_codec:marshal(Context),
+    Params = #wthd_WithdrawalParams{
+        id = WithdrawalID,
+        wallet_id = WalletID,
+        destination_id = DestinationID,
+        body = Cash,
+        external_id = ExternalID
+    },
+    {ok, _WithdrawalState} = call_withdrawal('Create', [Params, EncodedContext]),
+    succeeded = await_final_withdrawal_status(WithdrawalID),
+    Env#{
+        withdrawal_id => WithdrawalID,
+        external_id => ExternalID,
+        context => Context
+    }.
+
+get_withdrawal(WithdrawalID) ->
+    {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
+    ff_withdrawal_machine:withdrawal(Machine).
+
+get_withdrawal_status(WithdrawalID) ->
+    ff_withdrawal:status(get_withdrawal(WithdrawalID)).
+
+get_adjustment(WithdrawalID, AdjustmentID) ->
+    {ok, Adjustment} = ff_withdrawal:find_adjustment(AdjustmentID, get_withdrawal(WithdrawalID)),
+    Adjustment.
+
+await_final_withdrawal_status(WithdrawalID) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
+            Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
+            case ff_withdrawal:is_finished(Withdrawal) of
+                false ->
+                    {not_finished, Withdrawal};
+                true ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(10, 1000)
+    ),
+    get_withdrawal_status(WithdrawalID).
+
+create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 
-create_identity() ->
-    IdentityID  = genlib:unique(),
-    Party = create_party(),
+create_person_identity(Party, C) ->
+    create_person_identity(Party, C, <<"good-one">>).
+
+create_person_identity(Party, C, ProviderID) ->
+    create_identity(Party, ProviderID, <<"person">>, C).
+
+create_identity(Party, ProviderID, ClassID, _C) ->
+    ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        IdentityID,
-        #{
-            party    => Party,
-            provider => <<"good-one">>,
-            class    => <<"person">>
-        },
+        ID,
+        #{party => Party, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
-    IdentityID.
+    ID.
 
-create_wallet(Currency, Amount) ->
-    IdentityID = create_identity(),
-    WalletID = genlib:unique(), ExternalID = genlib:unique(),
-    Params = #wlt_WalletParams{
-        id = WalletID,
-        name = <<"BigBossWallet">>,
-        external_id = ExternalID,
-        context = ff_entity_context:new(),
-        account_params = #account_AccountParams{
-            identity_id   = IdentityID,
-            symbolic_code = Currency
-        }
-    },
-    {ok, _} = call_service(wallet, 'Create', [Params]),
-    add_money(WalletID, IdentityID, Amount, Currency),
-    WalletID.
-
-create_destination(C) ->
-    #{token := T, payment_system := PS, bin := Bin, masked_pan := Mp} =
-        ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    Resource = {bank_card, #'BankCard'{
-        token = T,
-        payment_system = PS,
-        bin = Bin,
-        masked_pan = Mp
-    }},
-    DstID = genlib:unique(),
-    Params = #dst_DestinationParams{
-        id          = DstID,
-        identity    = create_identity(),
-        name        = <<"BigBossDestination">>,
-        currency    = <<"RUB">>,
-        resource    = Resource,
-        external_id = genlib:unique()
-    },
-    {ok, _} = call_service(destination, 'Create', [Params]),
-    {authorized, #dst_Authorized{}} = ct_helper:await(
-        {authorized, #dst_Authorized{}},
-        fun () ->
-            {ok, Dest} = call_service(destination, 'Get', [DstID]),
-            Dest#dst_Destination.status
-        end,
-        genlib_retry:linear(15, 1000)
+create_wallet(IdentityID, Name, Currency, _C) ->
+    ID = genlib:unique(),
+    ok = ff_wallet_machine:create(
+        ID,
+        #{identity => IdentityID, name => Name, currency => Currency},
+        ff_entity_context:new()
     ),
-    DstID.
+    ID.
 
-add_money(WalletID, IdentityID, Amount, Currency) ->
-    SrcID = genlib:unique(),
-
-    % Create source
-    {ok, _Src1} = call_admin('CreateSource', [#ff_admin_SourceParams{
-        id       = SrcID,
-        name     = <<"HAHA NO">>,
-        identity_id = IdentityID,
-        currency = #'CurrencyRef'{symbolic_code = Currency},
-        resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
-    }]),
-
-    {authorized, #src_Authorized{}} = ct_helper:await(
-        {authorized, #src_Authorized{}},
-        fun () ->
-            {ok, Src} = call_admin('GetSource', [SrcID]),
-            Src#src_Source.status
-        end
-    ),
-
-    % Process deposit
-    {ok, Dep1} = call_admin('CreateDeposit', [#ff_admin_DepositParams{
-        id          = genlib:unique(),
-        source      = SrcID,
-        destination = WalletID,
-        body        = #'Cash'{
-            amount   = Amount,
-            currency = #'CurrencyRef'{symbolic_code = Currency}
-        }
-    }]),
-    DepID = Dep1#deposit_Deposit.id,
-    {pending, _} = Dep1#deposit_Deposit.status,
-    succeeded = ct_helper:await(
-        succeeded,
-        fun () ->
-            {ok, Dep} = call_admin('GetDeposit', [DepID]),
-            {Status, _} = Dep#deposit_Deposit.status,
-            Status
-        end,
-        genlib_retry:linear(15, 1000)
+await_wallet_balance({Amount, Currency}, ID) ->
+    Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
+    Balance = ct_helper:await(
+        Balance,
+        fun () -> get_wallet_balance(ID) end,
+        genlib_retry:linear(3, 500)
     ),
     ok.
+
+get_wallet_balance(ID) ->
+    {ok, Machine} = ff_wallet_machine:get(ID),
+    get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
+
+get_account_balance(Account) ->
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        Account,
+        ff_clock:latest_clock()
+    ),
+    {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
+
+generate_id() ->
+    ff_id:generate_snowflake_id().
+
+create_destination(IID, <<"USD_CURRENCY">>, C) ->
+    create_destination(IID, <<"USD">>, undefined, C);
+create_destination(IID, Token, C) ->
+    create_destination(IID, <<"RUB">>, Token, C).
+
+create_destination(IID, Currency, Token, C) ->
+    ID = generate_id(),
+    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    NewStoreResource = case Token of
+        undefined ->
+            StoreSource;
+        Token ->
+            StoreSource#{token => Token}
+        end,
+    Resource = {bank_card, NewStoreResource},
+    Params = #{identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
+    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, Machine} = ff_destination:get_machine(ID),
+            ff_destination:status(ff_destination:get(Machine))
+        end
+    ),
+    ID.
+
+set_wallet_balance({Amount, Currency}, ID) ->
+    TransactionID = generate_id(),
+    {ok, Machine} = ff_wallet_machine:get(ID),
+    Account = ff_wallet:account(ff_wallet_machine:wallet(Machine)),
+    AccounterID = ff_account:accounter_account_id(Account),
+    {CurrentAmount, _, Currency} = get_account_balance(Account),
+    {ok, AnotherAccounterID} = create_account(Currency),
+    Postings = [{AnotherAccounterID, AccounterID, {Amount - CurrentAmount, Currency}}],
+    {ok, _} = ff_transaction:prepare(TransactionID, Postings),
+    {ok, _} = ff_transaction:commit(TransactionID, Postings),
+    ok.
+
+create_account(CurrencyCode) ->
+    Description = <<"ff_test">>,
+    case call_accounter('CreateAccount', [construct_account_prototype(CurrencyCode, Description)]) of
+        {ok, Result} ->
+            {ok, Result};
+        {exception, Exception} ->
+            {error, {exception, Exception}}
+    end.
+
+construct_account_prototype(CurrencyCode, Description) ->
+    #shumpune_AccountPrototype{
+        currency_sym_code = CurrencyCode,
+        description = Description
+    }.
+
+call_accounter(Function, Args) ->
+    Service = {shumpune_shumpune_thrift, 'Accounter'},
+    ff_woody_client:call(accounter, {Service, Function, Args}, woody_context:new()).
+
+make_cash({Amount, Currency}) ->
+    #'Cash'{
+        amount = Amount,
+        currency = #'CurrencyRef'{symbolic_code = Currency}
+    }.

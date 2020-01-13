@@ -13,11 +13,11 @@
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
-marshal(event, {created, Session}) ->
+marshal(change, {created, Session}) ->
     {created, marshal(session, Session)};
-marshal(event, {next_state, AdapterState}) ->
+marshal(change, {next_state, AdapterState}) ->
     {next_state, marshal(msgpack_value, AdapterState)};
-marshal(event, {finished, SessionResult}) ->
+marshal(change, {finished, SessionResult}) ->
     {finished, marshal(session_result, SessionResult)};
 
 marshal(session, #{
@@ -138,17 +138,17 @@ unmarshal({list, T}, V) ->
 
 unmarshal(repair_scenario, {add_events, #wthd_session_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
-        events => unmarshal({list, event}, Events),
+        events => unmarshal({list, change}, Events),
         actions => maybe_unmarshal(complex_action, Action)
     })};
 unmarshal(repair_scenario, {set_session_result, #wthd_session_SetResultRepair{result = Result}}) ->
     {set_session_result, unmarshal(session_result, Result)};
 
-unmarshal(event, {created, Session}) ->
+unmarshal(change, {created, Session}) ->
     {created, unmarshal(session, Session)};
-unmarshal(event, {next_state, AdapterState}) ->
+unmarshal(change, {next_state, AdapterState}) ->
     {next_state, unmarshal(msgpack_value, AdapterState)};
-unmarshal(event, {finished, SessionResult}) ->
+unmarshal(change, {finished, SessionResult}) ->
     {finished, unmarshal(session_result, SessionResult)};
 
 unmarshal(session, #wthd_session_Session{

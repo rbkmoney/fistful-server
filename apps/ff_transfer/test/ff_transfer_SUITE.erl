@@ -221,7 +221,7 @@ deposit_via_admin_amount_fails(C) ->
         end
     ),
 
-    {exception, {fistful_DepositAmountInvalid}} = call_admin('CreateDeposit', [
+    {exception, #ff_admin_DepositAmountInvalid{}} = call_admin('CreateDeposit', [
         #ff_admin_DepositParams{
             id          = DepID,
             source      = SrcID,
@@ -258,7 +258,7 @@ deposit_via_admin_currency_fails(C) ->
         end
     ),
     BadCurrency = <<"CAT">>,
-    {exception, {fistful_DepositCurrencyInvalid}} = call_admin('CreateDeposit', [#ff_admin_DepositParams{
+    {exception, #ff_admin_DepositCurrencyInvalid{}} = call_admin('CreateDeposit', [#ff_admin_DepositParams{
             id          = DepID,
             source      = SrcID,
             destination = WalID,

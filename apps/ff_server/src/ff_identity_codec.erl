@@ -59,7 +59,7 @@ marshal_identity_event({ID, {ev, Timestamp, Ev}}) ->
     #idnt_IdentityEvent{
         sequence   = marshal(event_id, ID),
         occured_at = marshal(timestamp, Timestamp),
-        change     = marshal(event, Ev)
+        change     = marshal(change, Ev)
     }.
 
 -spec marshal_challenge(ff_identity_challenge:challenge()) -> ff_proto_identity_thrift:'Challenge'().
@@ -140,16 +140,16 @@ unmarshal_identity(#idnt_Identity{
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
-marshal(event, {created, Identity}) ->
+marshal(change, {created, Identity}) ->
     {created, marshal_identity(Identity)};
-marshal(event, {level_changed, LevelID}) ->
+marshal(change, {level_changed, LevelID}) ->
     {level_changed, marshal(id, LevelID)};
-marshal(event, {{challenge, ChallengeID}, ChallengeChange}) ->
+marshal(change, {{challenge, ChallengeID}, ChallengeChange}) ->
     {identity_challenge, marshal(challenge_change, #{
         id => ChallengeID,
         payload => ChallengeChange
     })};
-marshal(event, {effective_challenge_changed, ChallengeID}) ->
+marshal(change, {effective_challenge_changed, ChallengeID}) ->
     {effective_challenge_changed, marshal(id, ChallengeID)};
 
 marshal(challenge_change, #{
@@ -215,17 +215,17 @@ unmarshal({list, T}, V) ->
 
 unmarshal(repair_scenario, {add_events, #idnt_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
-        events => unmarshal({list, event}, Events),
+        events => unmarshal({list, change}, Events),
         actions => maybe_unmarshal(complex_action, Action)
     })};
 
-unmarshal(event, {created, Identity}) ->
+unmarshal(change, {created, Identity}) ->
     {created, unmarshal_identity(Identity)};
-unmarshal(event, {level_changed, LevelID}) ->
+unmarshal(change, {level_changed, LevelID}) ->
     {level_changed, unmarshal(id, LevelID)};
-unmarshal(event, {identity_challenge, #idnt_ChallengeChange{id = ID, payload = Payload}}) ->
+unmarshal(change, {identity_challenge, #idnt_ChallengeChange{id = ID, payload = Payload}}) ->
     {{challenge, unmarshal(id, ID)}, unmarshal(challenge_payload, Payload)};
-unmarshal(event, {effective_challenge_changed, ChallengeID}) ->
+unmarshal(change, {effective_challenge_changed, ChallengeID}) ->
     {effective_challenge_changed, unmarshal(id, ChallengeID)};
 
 unmarshal(challenge_payload, {created, Challenge}) ->

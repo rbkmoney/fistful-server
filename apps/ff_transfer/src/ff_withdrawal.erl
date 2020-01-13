@@ -84,14 +84,22 @@
 
 -type quote() :: ff_adapter_withdrawal:quote(quote_validation_data()).
 
--type gen_args() :: #{
-    id            := id(),
-    body          := body(),
-    params        := params(),
-    transfer_type := withdrawal,
+-type session() :: #{
+    id     := session_id(),
+    result => session_result()
+}.
 
-    status        => status(),
-    external_id   => external_id()
+-type gen_args() :: #{
+    id              := id(),
+    body            := body(),
+    params          := params(),
+    transfer_type   := withdrawal,
+
+    status          => status(),
+    external_id     => external_id(),
+    created_at      => ff_time:timestamp_ms(),
+    party_revision  => party_revision(),
+    domain_revision => domain_revision()
 }.
 
 -type limit_check_details() ::
@@ -140,6 +148,7 @@
 -export_type([prepared_route/0]).
 -export_type([quote/0]).
 -export_type([quote_params/0]).
+-export_type([session/0]).
 -export_type([gen_args/0]).
 -export_type([create_error/0]).
 -export_type([action/0]).
@@ -175,6 +184,8 @@
 -export([start_adjustment/2]).
 -export([find_adjustment/2]).
 -export([adjustments/1]).
+-export([effective_final_cash_flow/1]).
+-export([sessions/1]).
 
 %% Event source
 
@@ -224,11 +235,6 @@
     wallet_id      := wallet_id(),
     destination_id := destination_id(),
     quote          => quote()
-}.
-
--type session() :: #{
-    id     := session_id(),
-    result => session_result()
 }.
 
 -type quote_validation_data() :: #{
@@ -331,7 +337,10 @@ created_at(T) ->
 -spec gen(gen_args()) ->
     withdrawal().
 gen(Args) ->
-    TypeKeys = [id, transfer_type, body, params, status, external_id],
+    TypeKeys = [
+        id, transfer_type, body, params, status, external_id,
+        domain_revision, party_revision, created_at
+    ],
     genlib_map:compact(maps:with(TypeKeys, Args)).
 
 -spec create(params()) ->
@@ -407,6 +416,24 @@ find_adjustment(AdjustmentID, Withdrawal) ->
 -spec adjustments(withdrawal()) -> [adjustment()].
 adjustments(Withdrawal) ->
     ff_adjustment_utils:adjustments(adjustments_index(Withdrawal)).
+
+-spec effective_final_cash_flow(withdrawal()) -> final_cash_flow().
+effective_final_cash_flow(Withdrawal) ->
+    case ff_adjustment_utils:cash_flow(adjustments_index(Withdrawal)) of
+        undefined ->
+            ff_cash_flow:make_empty_final();
+        CashFlow ->
+            CashFlow
+    end.
+
+-spec sessions(withdrawal()) -> [session()].
+sessions(Withdrawal) ->
+    case session(Withdrawal) of
+        undefined ->
+            [];
+        Session ->
+            [Session]
+    end.
 
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(withdrawal()) -> boolean().
@@ -494,15 +521,6 @@ adjustments_index(Withdrawal) ->
 -spec set_adjustments_index(adjustments_index(), withdrawal()) -> withdrawal().
 set_adjustments_index(Adjustments, Withdrawal) ->
     Withdrawal#{adjustments => Adjustments}.
-
--spec effective_final_cash_flow(withdrawal()) -> final_cash_flow().
-effective_final_cash_flow(Withdrawal) ->
-    case ff_adjustment_utils:cash_flow(adjustments_index(Withdrawal)) of
-        undefined ->
-            ff_cash_flow:make_empty_final();
-        CashFlow ->
-            CashFlow
-    end.
 
 -spec operation_timestamp(withdrawal()) -> ff_time:timestamp_ms().
 operation_timestamp(Withdrawal) ->
@@ -1134,17 +1152,16 @@ session_processing_status(Withdrawal) ->
     {error, create_error()}.
 validate_withdrawal_creation(Terms, Body, Wallet, Destination) ->
     do(fun() ->
-        valid = unwrap(terms, validate_withdrawal_creation_terms(Terms, Body, Wallet)),
+        valid = unwrap(terms, validate_withdrawal_creation_terms(Terms, Body)),
         valid = unwrap(validate_withdrawal_currency(Body, Wallet, Destination)),
         valid = unwrap(validate_destination_status(Destination))
     end).
 
--spec validate_withdrawal_creation_terms(terms(), body(), wallet()) ->
+-spec validate_withdrawal_creation_terms(terms(), body()) ->
     {ok, valid} |
     {error, ff_party:validate_withdrawal_creation_error()}.
-validate_withdrawal_creation_terms(Terms, Body, Wallet) ->
-    WalletAccount = ff_wallet:account(Wallet),
-    ff_party:validate_withdrawal_creation(Terms, Body, WalletAccount).
+validate_withdrawal_creation_terms(Terms, Body) ->
+    ff_party:validate_withdrawal_creation(Terms, Body).
 
 -spec validate_withdrawal_currency(body(), wallet(), destination()) ->
     {ok, valid} |
@@ -1325,7 +1342,9 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, Withdrawal) ->
     CurrentCashFlow = effective_final_cash_flow(Withdrawal),
     NewCashFlow = ff_cash_flow:make_empty_final(),
     #{
-        new_status => NewStatus,
+        new_status => #{
+            new_status => NewStatus
+        },
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => NewCashFlow
@@ -1335,7 +1354,9 @@ make_change_status_params({failed, _}, succeeded = NewStatus, Withdrawal) ->
     CurrentCashFlow = effective_final_cash_flow(Withdrawal),
     NewCashFlow = make_final_cash_flow(Withdrawal),
     #{
-        new_status => NewStatus,
+        new_status => #{
+            new_status => NewStatus
+        },
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => NewCashFlow
@@ -1343,7 +1364,9 @@ make_change_status_params({failed, _}, succeeded = NewStatus, Withdrawal) ->
     };
 make_change_status_params({failed, _}, {failed, _} = NewStatus, _Withdrawal) ->
     #{
-        new_status => NewStatus
+        new_status => #{
+            new_status => NewStatus
+        }
     }.
 
 -spec save_adjustable_info(event(), withdrawal()) -> withdrawal().

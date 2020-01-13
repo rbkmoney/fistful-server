@@ -9,11 +9,6 @@
 -export([marshal/2]).
 -export([unmarshal/2]).
 
-%% Data transform
-
--define(to_session_event(SessionID, Payload),
-    {session, #{id => SessionID, payload => Payload}}).
-
 %% API
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
@@ -22,48 +17,17 @@
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
-marshal(event, {created, Transfer}) ->
+marshal(change, {created, Transfer}) ->
     {created, #transfer_CreatedChange{transfer = marshal(transfer, Transfer)}};
-marshal(event, {status_changed, Status}) ->
+marshal(change, {status_changed, Status}) ->
     {status_changed, #transfer_StatusChange{status = marshal(status, Status)}};
-marshal(event, {clock_updated, Clock}) ->
+marshal(change, {clock_updated, Clock}) ->
     {clock_updated, #transfer_ClockChange{clock = marshal(clock, Clock)}};
 
 marshal(transfer, #{final_cash_flow := Cashflow}) ->
     #transfer_Transfer{
-        cashflow = marshal(final_cash_flow, Cashflow)
+        cashflow = ff_cash_flow_codec:marshal(final_cash_flow, Cashflow)
     };
-marshal(final_cash_flow, #{postings := Postings}) ->
-    #cashflow_FinalCashFlow{
-        postings = marshal({list, postings}, Postings)
-    };
-marshal(postings, Posting) ->
-    #{
-        sender := Sender,
-        receiver := Receiver,
-        volume := Cash
-    } = Posting,
-    Details = maps:get(details, Posting, undefined),
-    #cashflow_FinalCashFlowPosting{
-        source      = marshal(final_cash_flow_account, Sender),
-        destination = marshal(final_cash_flow_account, Receiver),
-        volume      = marshal(cash, Cash),
-        details     = marshal(string, Details)
-    };
-marshal(final_cash_flow_account, #{
-    account := Account,
-    type := AccountType
-}) ->
-    #{id := AccountID} = Account,
-    #cashflow_FinalCashFlowAccount{
-        account_type   = marshal(account_type, AccountType),
-        account_id     = marshal(id, AccountID), % for compatability, deprecate
-        account        = ff_codec:marshal(account, Account)
-    };
-
-marshal(account_type, CashflowAccount) ->
-    % Mapped to thrift type WalletCashFlowAccount as is
-    CashflowAccount;
 
 marshal(status, created) ->
     {created, #transfer_Created{}};
@@ -87,44 +51,16 @@ marshal(T, V) ->
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
 
-unmarshal(event, {created, #transfer_CreatedChange{transfer = Transfer}}) ->
+unmarshal(change, {created, #transfer_CreatedChange{transfer = Transfer}}) ->
     {created, unmarshal(transfer, Transfer)};
-unmarshal(event, {status_changed, #transfer_StatusChange{status = Status}}) ->
+unmarshal(change, {status_changed, #transfer_StatusChange{status = Status}}) ->
     {status_changed, unmarshal(status, Status)};
-unmarshal(event, {clock_updated, #transfer_ClockChange{clock = Clock}}) ->
+unmarshal(change, {clock_updated, #transfer_ClockChange{clock = Clock}}) ->
     {clock_updated, unmarshal(clock, Clock)};
 
-unmarshal(transfer, #transfer_Transfer{
-    cashflow = Cashflow
-}) ->
+unmarshal(transfer, #transfer_Transfer{cashflow = Cashflow}) ->
     #{
-        cashflow => unmarshal(final_cash_flow, Cashflow)
-    };
-unmarshal(final_cash_flow, #cashflow_FinalCashFlow{
-    postings = Postings
-}) ->
-    #{
-        postings => unmarshal({list, postings}, Postings)
-    };
-unmarshal(postings, #cashflow_FinalCashFlowPosting{
-    source = Source,
-    destination = Destination,
-    volume = Cash,
-    details = Details
-}) ->
-    genlib_map:compact(#{
-        source      => unmarshal(final_cash_flow_account, Source),
-        destination => unmarshal(final_cash_flow_account, Destination),
-        volume      => unmarshal(cash, Cash),
-        details     => maybe_unmarshal(string, Details)
-    });
-unmarshal(final_cash_flow_account, #cashflow_FinalCashFlowAccount{
-    account_type = AccountType,
-    account      = Account
-}) ->
-    #{
-        account => ff_codec:unmarshal(account, Account),
-        type    => unmarshal(account_type, AccountType)
+        cashflow => ff_cash_flow_codec:unmarshal(final_cash_flow, Cashflow)
     };
 
 unmarshal(account_type, CashflowAccount) ->
@@ -145,10 +81,3 @@ unmarshal(clock, Clock) ->
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
-
-%% Internals
-
-maybe_unmarshal(_Type, undefined) ->
-    undefined;
-maybe_unmarshal(Type, Value) ->
-    unmarshal(Type, Value).

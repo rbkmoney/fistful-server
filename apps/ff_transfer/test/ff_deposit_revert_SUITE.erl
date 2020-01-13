@@ -227,13 +227,13 @@ invalid_revert_amount_test(C) ->
     #{
         deposit_id := DepositID
     } = prepare_standard_environment({100, <<"RUB">>}, C),
-    _ = process_revert(DepositID, #{body   => {0, <<"RUB">>}}),
+    _ = process_revert(DepositID, #{body   => {1, <<"RUB">>}}),
     RevertID = generate_id(),
     Result = ff_deposit_machine:start_revert(DepositID, #{
         id => RevertID,
-        body => {-1, <<"RUB">>}
+        body => {0, <<"RUB">>}
     }),
-    ?assertMatch({error, {invalid_revert_amount, {-1, <<"RUB">>}}}, Result).
+    ?assertMatch({error, {invalid_revert_amount, {0, <<"RUB">>}}}, Result).
 
 -spec inconsistent_revert_currency_test(config()) -> test_return().
 inconsistent_revert_currency_test(C) ->

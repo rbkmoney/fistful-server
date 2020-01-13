@@ -162,7 +162,7 @@ get_withdrawal_events_ok(C) ->
     WdrID   = process_withdrawal(WalID, DestID),
 
     {Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
-    {ok, RawEvents} = ff_withdrawal_machine:events(WdrID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_withdrawal_machine:events(WdrID, {undefined, 1000}),
 
     AlienEvents = lists:filter(fun(Ev) ->
         Ev#wthd_SinkEvent.source =/= WdrID
@@ -231,7 +231,7 @@ get_create_deposit_events_ok(C) ->
     SrcID   = create_source(IID, C),
     DepID   = process_deposit(SrcID, WalID),
 
-    {ok, RawEvents} = ff_deposit_machine:events(DepID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_deposit_machine:events(DepID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 

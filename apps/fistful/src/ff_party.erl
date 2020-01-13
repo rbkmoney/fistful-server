@@ -27,7 +27,7 @@
 
 -type validate_deposit_creation_error() ::
     currency_validation_error() |
-    {bad_deposit_amount, Amount :: integer()}.
+    {bad_deposit_amount, Cash :: cash()}.
 
 -type get_contract_terms_error() ::
     {party_not_found, id()} |
@@ -36,7 +36,6 @@
 
 -type validate_withdrawal_creation_error() ::
     currency_validation_error() |
-    withdrawal_currency_error() |
     cash_range_validation_error().
 
 -export_type([id/0]).
@@ -64,7 +63,7 @@
 -export([get_revision/1]).
 -export([change_contractor_level/3]).
 -export([validate_account_creation/2]).
--export([validate_withdrawal_creation/3]).
+-export([validate_withdrawal_creation/2]).
 -export([validate_deposit_creation/2]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
@@ -86,8 +85,9 @@
 -type bound_type() :: 'exclusive' | 'inclusive'.
 -type cash_range() :: {{bound_type(), cash()}, {bound_type(), cash()}}.
 
--type currency_validation_error() :: {terms_violation, {not_allowed_currency, _Details}}.
--type withdrawal_currency_error() :: {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}.
+-type currency_validation_error() :: {terms_violation, {not_allowed_currency,
+    {currency_ref(), ordsets:ordset(currency_ref())}
+}}.
 -type cash_range_validation_error() :: {terms_violation, {cash_range, {cash(), cash_range()}}}.
 
 -type not_reduced_error() :: {not_reduced, {Name :: atom(), TermsPart :: any()}}.
@@ -249,17 +249,16 @@ validate_account_creation(Terms, CurrencyID) ->
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 
--spec validate_withdrawal_creation(terms(), cash(), ff_account:account()) -> Result when
+-spec validate_withdrawal_creation(terms(), cash()) -> Result when
     Result :: {ok, valid} | {error, Error},
     Error :: validate_withdrawal_creation_error().
 
-validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
+validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
         {ok, valid} = validate_withdrawal_terms_is_reduced(WalletTerms),
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms)),
         #domain_WalletServiceTerms{withdrawals = WithdrawalTerms} = WalletTerms,
-        valid = unwrap(validate_withdrawal_wallet_currency(CurrencyID, Account)),
         valid = unwrap(validate_withdrawal_terms_currency(CurrencyID, WithdrawalTerms)),
         valid = unwrap(validate_withdrawal_cash_limit(Cash, WithdrawalTerms))
     end).
@@ -268,8 +267,8 @@ validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash, Account) ->
     Result :: {ok, valid} | {error, Error},
     Error :: validate_deposit_creation_error().
 
-validate_deposit_creation(_Terms, {Amount, _Currency} = _Cash)
-    when Amount < 1 -> {error, {bad_deposit_amount, Amount}};
+validate_deposit_creation(_Terms, {Amount, _Currency} = Cash) when Amount < 1 ->
+    {error, {bad_deposit_amount, Cash}};
 validate_deposit_creation(Terms, {_Amount, CurrencyID} = _Cash) ->
     do(fun () ->
         #domain_TermSet{wallets = WalletTerms} = Terms,
@@ -551,16 +550,6 @@ validate_wallet_limits_terms_is_reduced(Terms) ->
         {wallet_limit, WalletLimitSelector}
     ]).
 
--spec validate_withdrawal_wallet_currency(currency_id(), ff_account:account()) ->
-    {ok, valid} | {error, withdrawal_currency_error()}.
-validate_withdrawal_wallet_currency(CurrencyID, Account) ->
-    case ff_account:currency(Account) of
-        CurrencyID ->
-            {ok, valid};
-        OtherCurrencyID ->
-            {error, {invalid_withdrawal_currency, CurrencyID, {wallet_currency, OtherCurrencyID}}}
-    end.
-
 -spec validate_withdrawal_terms_currency(currency_id(), withdrawal_terms()) ->
     {ok, valid} | {error, currency_validation_error()}.
 validate_withdrawal_terms_currency(CurrencyID, Terms) ->
@@ -585,7 +574,7 @@ validate_currency(CurrencyID, Currencies) ->
         true ->
             {ok, valid};
         false ->
-            {error, {terms_violation, {not_allowed_currency, {CurrencyID, Currencies}}}}
+            {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
     end.
 
 -spec validate_account_balance(ff_account:account(), domain_cash_range(), clock()) ->

@@ -762,7 +762,7 @@ get_event_type({withdrawal, event})         -> withdrawal_event.
 get_collector({identity, challenge_event}, Id) ->
     fun(C, L) -> unwrap(ff_identity_machine:events(Id, {C, L, forward})) end;
 get_collector({withdrawal, event}, Id) ->
-    fun(C, L) -> unwrap(ff_withdrawal_machine:events(Id, {C, L, forward})) end.
+    fun(C, L) -> unwrap(ff_withdrawal_machine:events(Id, {C, L})) end.
 
 collect_events(Collector, Filter, Cursor, Limit) ->
     collect_events(Collector, Filter, Cursor, Limit, []).

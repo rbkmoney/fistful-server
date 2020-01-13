@@ -723,7 +723,8 @@ construct_p_transfer_id(ID) ->
 get_fees(P2PTransfer) ->
     Route = route(P2PTransfer),
     #{provider_id := ProviderID} = Route,
-    {ok, Provider} = ff_p2p_provider:get(ProviderID), % FIXME: do we need take in attention a domain revision?
+    DomainRevision = domain_revision(P2PTransfer),
+    {ok, Provider} = ff_p2p_provider:get(DomainRevision, ProviderID),
     {ok, Identity} = get_identity(owner(P2PTransfer)),
     PartyVarset = create_varset(Identity, P2PTransfer),
     Body = body(P2PTransfer),

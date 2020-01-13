@@ -38,6 +38,7 @@
 
 -export([ref/1]).
 -export([get/1]).
+-export([get/2]).
 -export([compute_fees/2]).
 -export([validate_terms/2]).
 
@@ -76,8 +77,15 @@ ref(ID) ->
     {error, notfound}.
 
 get(ID) ->
+    get(head, ID).
+
+-spec get(head | ff_domain_config:revision(), id()) ->
+    {ok, p2p_provider()} |
+    {error, notfound}.
+
+get(Revision, ID) ->
     do(fun () ->
-        P2PProvider = unwrap(ff_domain_config:object({p2p_provider, ref(ID)})),
+        P2PProvider = unwrap(ff_domain_config:object(Revision, {p2p_provider, ref(ID)})),
         decode(ID, P2PProvider)
     end).
 

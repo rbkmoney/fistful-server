@@ -90,7 +90,10 @@ end_per_suite(C) ->
 -spec init_per_group(group_name(), config()) ->
     config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = ff_woody_ctx:set(woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)),
+    ok = ff_context:save(ff_context:create(#{
+        party_client => party_client:create_client(),
+        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
+    })),
     Party = create_party(Config),
     Token = issue_token(Party, [{[party], write}], unlimited),
     Config1 = [{party, Party} | Config],
@@ -113,7 +116,7 @@ init_per_testcase(Name, C) ->
 -spec end_per_testcase(test_case_name(), config()) ->
     config().
 end_per_testcase(_Name, C) ->
-    ok = ff_woody_ctx:unset(),
+    ok = ct_helper:unset_context(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 

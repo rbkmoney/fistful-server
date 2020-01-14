@@ -36,6 +36,89 @@ handle_request(OperationID, Req, SwagContext, Opts) ->
 -spec process_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
     request_result().
 
+%% Identities
+process_request('ListIdentities', _Req, _Context, _Opts) ->
+    %% case wapi_wallet_ff_backend:get_identities(maps:with(['provider', 'class', 'level'], Req), Context) of
+    %%     {ok, Identities}  -> wapi_handler_utils:reply_ok(200, Identities);
+    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    %% end;
+    not_implemented();
+process_request('GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
+    case wapi_identity_backend:get_identity(IdentityId, Context) of
+        {ok, Identity}                    -> wapi_handler_utils:reply_ok(200, Identity);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
+    case wapi_identity_backend:create_identity(Params, Context) of
+        {ok, Identity = #{<<"id">> := IdentityId}} ->
+            wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Opts));
+        {error, {provider, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
+        {error, {identity_class, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity class">>));
+        {error, inaccessible} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
+        {error, {conflict, ID}} ->
+            wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
+    end;
+process_request('ListIdentityChallenges', #{'identityID' := Id, 'status' := Status}, Context, _Opts) ->
+    case wapi_identity_backend:get_identity_challenges(Id, Status, Context) of
+        {ok, Challenges}                  -> wapi_handler_utils:reply_ok(200, Challenges);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('StartIdentityChallenge', #{
+    'identityID'        := IdentityId,
+    'IdentityChallenge' := Params
+}, Context, Opts) ->
+    case wapi_identity_backend:create_identity_challenge(IdentityId, Params, Context) of
+        {ok, Challenge = #{<<"id">> := ChallengeId}} ->
+            wapi_handler_utils:reply_ok(202, Challenge, get_location('GetIdentityChallenge', [ChallengeId], Opts));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {challenge, conflict}} ->
+            wapi_handler_utils:reply_ok(409);
+        {error, {challenge, pending}} ->
+            wapi_handler_utils:reply_ok(409);
+        {error, {challenge, {class, notfound}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such challenge type">>));
+        {error, {challenge, {proof, notfound}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Proof not found">>));
+        {error, {challenge, {proof, insufficient}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Insufficient proof">>));
+        {error, {challenge, level}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Illegal identification type for current identity level">>)
+            )
+        %% TODO any other possible errors here?
+    end;
+process_request('GetIdentityChallenge', #{
+    'identityID'  := IdentityId,
+    'challengeID' := ChallengeId
+}, Context, _Opts) ->
+    case wapi_identity_backend:get_identity_challenge(IdentityId, ChallengeId, Context) of
+        {ok, Challenge}                   -> wapi_handler_utils:reply_ok(200, Challenge);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404);
+        {error, {challenge, notfound}}    -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('PollIdentityChallengeEvents', Params, Context, _Opts) ->
+    case wapi_identity_backend:get_identity_challenge_events(Params, Context) of
+        {ok, Events}                      -> wapi_handler_utils:reply_ok(200, Events);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('GetIdentityChallengeEvent', Params, Context, _Opts) ->
+    case wapi_identity_backend:get_identity_challenge_event(Params, Context) of
+        {ok, Event}                       -> wapi_handler_utils:reply_ok(200, Event);
+        {error, {identity, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(404);
+        {error, {event, notfound}}        -> wapi_handler_utils:reply_ok(404)
+    end;
+
 %% Wallets
 
 process_request('GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
@@ -67,3 +150,7 @@ process_request(OperationID, Params, Context, Opts) ->
 get_location(OperationId, Params, Opts) ->
     #{path := PathSpec} = swag_server_wallet_router:get_operation(OperationId),
     wapi_handler_utils:get_location(PathSpec, Params, Opts).
+
+-spec not_implemented() -> no_return().
+not_implemented() ->
+    wapi_handler_utils:throw_not_implemented().

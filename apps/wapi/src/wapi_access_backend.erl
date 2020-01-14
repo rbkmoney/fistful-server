@@ -6,23 +6,23 @@
 -export([check_resource/3]).
 
 -type handler_context() :: wapi_handler:context().
--type entity()          :: ff_proto_wallet_thrift:'Wallet'() |
-                           ff_proto_identity_thrift:'Identity'().
+-type data() ::
+    ff_proto_identity_thrift:'Identity'() |
+    ff_proto_wallet_thrift:'Wallet'().
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 
 %% Pipeline
--import(ff_pipeline, [unwrap/2]).
 
--spec check_resource(atom(), binary() | entity(), handler_context()) ->
-    ok | no_return().
+-spec check_resource(atom(), binary() | data(), handler_context()) ->
+    ok | {error, unauthorized}.
 
 check_resource(Resource, ID, Context) when is_binary(ID)->
     Owner = get_context(Resource, ID, Context),
-    unwrap(Resource, check_resource_access(is_resource_owner(Owner, Context)));
+    check_resource_access(is_resource_owner(Owner, Context));
 check_resource(Resource, Data, Context)->
     Owner = get_context(Resource, Data),
-    unwrap(Resource, check_resource_access(is_resource_owner(Owner, Context))).
+    check_resource_access(is_resource_owner(Owner, Context)).
 
 %%
 %% Internal

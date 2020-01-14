@@ -33,8 +33,6 @@ authorize_api_key(OperationID, ApiKey, Opts) ->
 handle_request(OperationID, Req, SwagContext, Opts) ->
     wapi_handler:handle_request(wallet, OperationID, Req, SwagContext, Opts).
 
-
-%% Providers
 -spec process_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
     request_result().
 
@@ -61,7 +59,6 @@ process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
         {error, {conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
     end;
-
 process_request(OperationID, Params, Context, Opts) ->
     wapi_wallet_handler:process_request(OperationID, Params, Context, Opts).
 

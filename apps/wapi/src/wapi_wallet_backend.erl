@@ -10,7 +10,6 @@
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
 %% Pipeline
--import(ff_pipeline, [do/1]).
 
 -spec create(req_data(), handler_context()) ->
     {ok, response_data()} | {error, WalletError}
@@ -22,25 +21,30 @@
         {conflict, binary()}.
 
 create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
-    do(fun() ->
-        WalletParams = marshal(wallet_params, compose_wallet_params(ParamsIn, WoodyContext)),
-        ok = wapi_access_backend:check_resource(identity, IdentityID, WoodyContext),
-        Request = {fistful_wallet, 'Create', [WalletParams]},
-        case service_call(Request, WoodyContext) of
-            {ok, Wallet} ->
-                unmarshal(wallet, Wallet);
-            {exception, #fistful_CurrencyNotFound{}} ->
-                throw({currency, notfound});
-            {exception, #fistful_PartyInaccessible{}} ->
-                throw(inaccessible);
-            {exception, #fistful_IDExists{}} ->
-                WalletID = get_id(WalletParams),
-                {_, Hash} = wapi_backend_utils:create_params_hash(ParamsIn),
-                get_and_compare_hash(WalletID, Hash, WoodyContext);
-            {exception, Details} ->
-                throw(Details)
-        end
-    end).
+    case wapi_access_backend:check_resource(identity, IdentityID, WoodyContext) of
+        ok ->
+            create_(ParamsIn, WoodyContext);
+        {error, unauthorized} ->
+            {error, {identity, unauthorized}}
+    end.
+
+create_(ParamsIn, WoodyContext) ->
+    WalletParams = marshal(wallet_params, compose_wallet_params(ParamsIn, WoodyContext)),
+    Request = {fistful_wallet, 'Create', [WalletParams]},
+    case service_call(Request, WoodyContext) of
+        {ok, Wallet} ->
+            {ok, unmarshal(wallet, Wallet)};
+        {exception, #fistful_CurrencyNotFound{}} ->
+            {error, {currency, notfound}};
+        {exception, #fistful_PartyInaccessible{}} ->
+            {error, inaccessible};
+        {exception, #fistful_IDExists{}} ->
+            WalletID = get_id(WalletParams),
+            {_, Hash} = wapi_backend_utils:create_params_hash(ParamsIn),
+            get_and_compare_hash(WalletID, Hash, WoodyContext);
+        {exception, Details} ->
+            {error, Details}
+    end.
 
 -spec get(binary(), handler_context()) ->
     {ok, response_data()} |
@@ -49,15 +53,17 @@ create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
 
 get(WalletID, WoodyContext) ->
     Request = {fistful_wallet, 'Get', [WalletID]},
-    do(fun() ->
-        case service_call(Request, WoodyContext) of
-            {ok, WalletThrift} ->
-                ok = wapi_access_backend:check_resource(wallet, WalletThrift, WoodyContext),
-                unmarshal(wallet, WalletThrift);
-            {exception, #fistful_WalletNotFound{}} ->
-                throw({wallet, notfound})
-        end
-    end).
+    case service_call(Request, WoodyContext) of
+        {ok, WalletThrift} ->
+            case wapi_access_backend:check_resource(wallet, WalletThrift, WoodyContext) of
+                ok ->
+                    {ok, unmarshal(wallet, WalletThrift)};
+                {error, unauthorized} ->
+                    {error, {wallet, unauthorized}}
+            end;
+        {exception, #fistful_WalletNotFound{}} ->
+            {error, {wallet, notfound}}
+    end.
 
 %%
 %% Internal
@@ -68,19 +74,17 @@ get_and_compare_hash(WalletID, Hash, WoodyContext) ->
     {ok, Wallet} = service_call(Request, WoodyContext),
     case wapi_backend_utils:compare_hash(Hash, get_hash(Wallet)) of
         ok ->
-            unmarshal(wallet, Wallet);
+            {ok, unmarshal(wallet, Wallet)};
         {error, conflict_hash} ->
-            throw({error, {conflict, WalletID}})
+            {error, {conflict, WalletID}}
     end.
 
 service_call(Params, Ctx) ->
     wapi_handler_utils:service_call(Params, Ctx).
 
 compose_wallet_params(ParamsIn, WoodyContext) ->
-    ExternalID = maps:get(<<"externalID">>, ParamsIn, undefined),
-    Hash       = erlang:phash2(ParamsIn),
     Context    = create_context(ParamsIn, WoodyContext),
-    {ok, ID}   = gen_id(Type, ExternalID, Hash, Context),
+    ID         = create_id(ParamsIn, WoodyContext),
     genlib_map:compact(ParamsIn#{
         <<"id">>      => ID,
         <<"context">> => Context

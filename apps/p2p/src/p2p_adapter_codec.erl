@@ -67,6 +67,9 @@
 
 -type deadline()                    :: p2p_adapter:deadline().
 
+-type fees()                        :: p2p_adapter:fees().
+-type p2p_fees()                    :: dmsl_p2p_adapter_thrift:'Fees'().
+
 %% API
 
 -spec marshal(process_callback_result, process_callback_result()) -> p2p_process_callback_result();
@@ -76,8 +79,9 @@
              (session,                 adapter_state())           -> p2p_session();
              (operation_info,          operation_info())          -> p2p_operation_info();
              (resource,                resource())                -> disposable_resource();
-             (body,                    cash())                    -> p2p_cash();
-             (deadline,                deadline())                -> binary().
+             (cash,                    cash())                    -> p2p_cash();
+             (deadline,                deadline())                -> binary();
+             (p2p_fees,                fees())                    -> p2p_fees().
 marshal(process_callback_result, {succeeded, Response}) ->
     {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
         response = marshal(callback_response, Response)
@@ -116,7 +120,7 @@ marshal(operation_info, OperationInfo = #{
         receiver := Receiver
 }) ->
     {process, #p2p_adapter_ProcessOperationInfo{
-        body          = marshal(body,     Cash),
+        body          = marshal(cash,     Cash),
         sender        = marshal(resource, Sender),
         receiver      = marshal(resource, Receiver),
         deadline      = maybe_marshal(deadline, maps:get(deadline, OperationInfo, undefined)),
@@ -129,7 +133,7 @@ marshal(resource, Resource) ->
         payment_tool = ff_dmsl_codec:marshal(resource, Resource)
     }};
 
-marshal(body, {Amount, Currency}) ->
+marshal(cash, {Amount, Currency}) ->
     #p2p_adapter_Cash{
         amount   = Amount,
         currency = ff_dmsl_codec:marshal(currency, Currency)
@@ -138,8 +142,15 @@ marshal(body, {Amount, Currency}) ->
 marshal(deadline, Deadline) ->
     ff_time:to_rfc3339(Deadline);
 
-marshal(p2p_fees, Fees) ->
-    p2p_fees:marshal(Fees).
+marshal(p2p_fees, #{fees := Fees}) ->
+    #p2p_adapter_Fees{
+        fees = maps:map(
+            fun(_CashFlowConstant, Cash) ->
+                marshal(cash, Cash)
+            end,
+            Fees
+        )
+    }.
 
 maybe_marshal(_T, undefined) ->
     undefined;
@@ -156,7 +167,7 @@ maybe_marshal(T, V) ->
                (context,                  p2p_context())                 -> context();
                (session,                  p2p_session())                 -> adapter_state();
                (operation_info,           p2p_operation_info())          -> operation_info();
-               (body,                     p2p_cash())                    -> cash();
+               (cash,                     p2p_cash())                    -> cash();
                (deadline,                 binary())                      -> deadline().
 unmarshal(process_result, #p2p_adapter_ProcessResult{
     intent     = Intent,
@@ -238,13 +249,13 @@ unmarshal(operation_info, {process, #p2p_adapter_ProcessOperationInfo{
     deadline = Deadline
 }}) ->
     genlib_map:compact(#{
-        body     => unmarshal(body,     Body),
+        body     => unmarshal(cash, Body),
         sender   => ff_dmsl_codec:unmarshal(resource, Sender),
         receiver => ff_dmsl_codec:unmarshal(resource, Receiver),
         deadline => maybe_unmarshal(deadline, Deadline)
     });
 
-unmarshal(body, #p2p_adapter_Cash{amount = Amount, currency = Currency}) ->
+unmarshal(cash, #p2p_adapter_Cash{amount = Amount, currency = Currency}) ->
     {Amount, ff_dmsl_codec:unmarshal(currency, Currency)};
 
 unmarshal(deadline, Deadline) ->

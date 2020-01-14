@@ -75,8 +75,8 @@
     sender        := ff_resource:resource(),
     receiver      := ff_resource:resource(),
     deadline      => deadline(),
-    merchant_fees => p2p_fees:t(),
-    provider_fees => p2p_fees:t()
+    merchant_fees => ff_fees:final(),
+    provider_fees => ff_fees:final()
 }.
 
 -type body() :: ff_transaction:body().

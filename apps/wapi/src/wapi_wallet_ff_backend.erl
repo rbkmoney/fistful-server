@@ -1,8 +1,9 @@
 -module(wapi_wallet_ff_backend).
 
--include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
 
@@ -36,6 +37,7 @@
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
 -export([list_withdrawals/2]).
+-export([create_quote/2]).
 
 -export([get_residence/2]).
 -export([get_currency/2]).
@@ -47,11 +49,17 @@
 
 -export([list_deposits/2]).
 
+-export([create_webhook/2]).
+-export([get_webhooks/2]).
+-export([get_webhook/3]).
+-export([delete_webhook/3]).
+
 %% Types
 
 -type ctx()         :: wapi_handler:context().
 -type params()      :: map().
 -type id()          :: binary() | undefined.
+-type external_id() :: binary().
 -type result()      :: result(map()).
 -type result(T)     :: result(T, notfound).
 -type result(T, E)  :: {ok, T} | {error, E}.
@@ -60,6 +68,9 @@
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 -define(PARAMS_HASH, <<"params_hash">>).
 -define(EXTERNAL_ID, <<"externalID">>).
+-define(BENDER_DOMAIN, <<"wapi">>).
+
+-dialyzer([{nowarn_function, [to_swag/2]}]).
 
 %% API
 
@@ -122,7 +133,7 @@ get_identity(IdentityId, Context) ->
     {provider, notfound}       |
     {identity_class, notfound} |
     {email, notfound}          |
-    {conflict, id()}
+    {external_id_conflict, id(), external_id()}
 ).
 create_identity(Params, Context) ->
     CreateIdentity = fun(ID, EntityCtx) ->
@@ -166,13 +177,15 @@ get_identity_challenges(IdentityId, Statuses, Context) ->
     {challenge, conflict}
 ).
 create_identity_challenge(IdentityId, Params, Context) ->
-    ChallengeId = make_id(identity_challenge),
+    Type          = identity_challenge,
+    Hash          = erlang:phash2(Params),
+    {ok, ChallengeID} = gen_id(Type, undefined, Hash, Context),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
         ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
-            maps:merge(#{id => ChallengeId}, from_swag(identity_challenge_params, Params)
+            maps:merge(#{id => ChallengeID}, from_swag(identity_challenge_params, Params)
         ))),
-        unwrap(get_identity_challenge(IdentityId, ChallengeId, Context))
+        unwrap(get_identity_challenge(IdentityId, ChallengeID, Context))
     end).
 
 -spec get_identity_challenge(id(), id(), ctx()) -> result(map(),
@@ -231,16 +244,15 @@ get_identity_challenge_event(#{
     {wallet, notfound}     |
     {wallet, unauthorized}
 ).
-get_wallet(WalletId, Context) ->
-    do(fun() -> to_swag(wallet, get_state(wallet, WalletId, Context)) end).
+get_wallet(WalletID, Context) ->
+    do(fun() -> to_swag(wallet, get_state(wallet, WalletID, Context)) end).
 
 -spec create_wallet(params(), ctx()) -> result(map(),
     invalid                  |
     {identity, unauthorized} |
-    {identity, notfound}     |
-    {currency, notfound}     |
-    {conflict, id()}         |
-    {inaccessible, _}
+    {external_id_conflict, id(), external_id()} |
+    {inaccessible, _}        |
+    ff_wallet:create_error()
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
@@ -257,11 +269,12 @@ create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     {wallet, notfound}     |
     {wallet, unauthorized}
 ).
-get_wallet_account(WalletId, Context) ->
+get_wallet_account(WalletID, Context) ->
     do(fun () ->
-        Account = ff_wallet:account(ff_wallet_machine:wallet(get_state(wallet, WalletId, Context))),
+        Account = ff_wallet:account(ff_wallet_machine:wallet(get_state(wallet, WalletID, Context))),
         {Amounts, Currency} = unwrap(ff_transaction:balance(
-            ff_account:accounter_account_id(Account)
+            Account,
+            ff_clock:latest_clock()
         )),
         to_swag(wallet_account, {ff_indef:current(Amounts), ff_indef:expmin(Amounts), Currency})
     end).
@@ -286,8 +299,8 @@ get_destinations(_Params, _Context) ->
     {destination, notfound}     |
     {destination, unauthorized}
 ).
-get_destination(DestinationId, Context) ->
-    do(fun() -> to_swag(destination, get_state(destination, DestinationId, Context)) end).
+get_destination(DestinationID, Context) ->
+    do(fun() -> to_swag(destination, get_state(destination, DestinationID, Context)) end).
 
 -spec create_destination(params(), ctx()) -> result(map(),
     invalid                     |
@@ -295,7 +308,7 @@ get_destination(DestinationId, Context) ->
     {identity, notfound}        |
     {currency, notfound}        |
     {inaccessible, _}           |
-    {conflict, id()}
+    {external_id_conflict, id(), external_id()}
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
@@ -312,17 +325,22 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {source, notfound}            |
     {destination, notfound}       |
     {destination, unauthorized}   |
-    {conflict, id()}              |
+    {external_id_conflict, id(), external_id()} |
     {provider, notfound}          |
     {wallet, {inaccessible, _}}   |
     {wallet, {currency, invalid}} |
-    {wallet, {provider, invalid}}
+    {wallet, {provider, invalid}} |
+    {quote_invalid_party, _}      |
+    {quote_invalid_wallet, _}     |
+    {quote, {invalid_body, _}}    |
+    {quote, {invalid_destination, _}}
 ).
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
-        ff_withdrawal:create(
-            ID,
-            from_swag(withdrawal_params, Params),
+        Quote = unwrap(maybe_check_quote_token(Params, Context)),
+        WithdrawalParams = from_swag(withdrawal_params, Params),
+        ff_withdrawal_machine:create(
+            genlib_map:compact(WithdrawalParams#{id => ID, quote => Quote}),
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
@@ -330,14 +348,14 @@ create_withdrawal(Params, Context) ->
 
 -spec get_withdrawal(id(), ctx()) -> result(map(),
     {withdrawal, unauthorized} |
-    {withdrawal, notfound}
+    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}}
 ).
 get_withdrawal(WithdrawalId, Context) ->
     do(fun() -> to_swag(withdrawal, get_state(withdrawal, WithdrawalId, Context)) end).
 
 -spec get_withdrawal_events(params(), ctx()) -> result([map()],
     {withdrawal, unauthorized} |
-    {withdrawal, notfound}
+    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}}
 ).
 get_withdrawal_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, Context) ->
     Cursor = genlib_map:get('eventCursor', Params),
@@ -351,7 +369,7 @@ get_withdrawal_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limi
 
 -spec get_withdrawal_event(id(), integer(), ctx()) -> result(map(),
     {withdrawal, unauthorized} |
-    {withdrawal, notfound}     |
+    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}} |
     {event, notfound}
 ).
 get_withdrawal_event(WithdrawalId, EventId, Context) ->
@@ -372,6 +390,25 @@ list_withdrawals(Params, Context) ->
     Req = create_stat_request(Dsl, ContinuationToken),
     Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', [Req]}, Context),
     process_stat_result(StatType, Result).
+
+-spec create_quote(params(), ctx()) -> result(map(),
+    {destination, notfound}       |
+    {destination, unauthorized}   |
+    {route, _Reason}              |
+    {wallet, notfound}
+).
+create_quote(#{'WithdrawalQuoteParams' := Params}, Context) ->
+    do(fun () ->
+        CreateQuoteParams = from_swag(create_quote_params, Params),
+        Quote = unwrap(ff_withdrawal:get_quote(CreateQuoteParams)),
+        Token = create_quote_token(
+            Quote,
+            maps:get(<<"walletID">>, Params),
+            maps:get(<<"destinationID">>, Params, undefined),
+            wapi_handler_utils:get_owner(Context)
+        ),
+        to_swag(quote, {Quote, Token})
+    end).
 
 %% Residences
 
@@ -496,7 +533,161 @@ list_deposits(Params, Context) ->
     Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', [Req]}, Context),
     process_stat_result(StatType, Result).
 
+%% Webhooks
+
+-spec create_webhook(params(), ctx()) -> result(map(),
+    {identity, notfound} |
+    {identity, unauthorized} |
+    {wallet, notfound} |
+    {wallet, unauthorized}
+).
+create_webhook(Params, Context) ->
+    do(fun () ->
+        NewParams = #{
+            identity_id := IdentityID,
+            scope := EventFilter,
+            url := URL
+        } = from_swag(webhook_params, maps:get('Webhook', Params)),
+        WalletID = maps:get(wallet_id, NewParams, undefined),
+        case WalletID /= undefined of
+            true ->
+                _ = check_resource(wallet, WalletID, Context);
+            false ->
+                ok
+        end,
+        _ = check_resource(identity, IdentityID, Context),
+        WebhookParams = #webhooker_WebhookParams{
+            identity_id = IdentityID,
+            wallet_id = WalletID,
+            event_filter = EventFilter,
+            url = URL
+        },
+        Call = {webhook_manager, 'Create', [WebhookParams]},
+        {ok, NewWebhook} = wapi_handler_utils:service_call(Call, Context),
+        to_swag(webhook, NewWebhook)
+    end).
+
+-spec get_webhooks(id(), ctx()) -> result(list(map()),
+    {identity, notfound} |
+    {identity, unauthorized}
+).
+get_webhooks(IdentityID, Context) ->
+    do(fun () ->
+        _ = check_resource(identity, IdentityID, Context),
+        Call = {webhook_manager, 'GetList', [IdentityID]},
+        {ok, Webhooks} = wapi_handler_utils:service_call(Call, Context),
+        to_swag({list, webhook}, Webhooks)
+    end).
+
+-spec get_webhook(id(), id(), ctx()) -> result(map(),
+    notfound |
+    {identity, notfound} |
+    {identity, unauthorized}
+).
+get_webhook(WebhookID, IdentityID, Context) ->
+    do(fun () ->
+        EncodedID = encode_webhook_id(WebhookID),
+        _ = check_resource(identity, IdentityID, Context),
+        Call = {webhook_manager, 'Get', [EncodedID]},
+        case wapi_handler_utils:service_call(Call, Context) of
+            {ok, Webhook} ->
+                to_swag(webhook, Webhook);
+            {exception, #webhooker_WebhookNotFound{}} ->
+                throw(notfound)
+        end
+    end).
+
+-spec delete_webhook(id(), id(), ctx()) ->
+    ok |
+    {error,
+        notfound |
+        {identity, notfound} |
+        {identity, unauthorized}
+    }.
+delete_webhook(WebhookID, IdentityID, Context) ->
+    do(fun () ->
+        EncodedID = encode_webhook_id(WebhookID),
+        _ = check_resource(identity, IdentityID, Context),
+        Call = {webhook_manager, 'Delete', [EncodedID]},
+        case wapi_handler_utils:service_call(Call, Context) of
+            {ok, _} ->
+                ok;
+            {exception, #webhooker_WebhookNotFound{}} ->
+                throw(notfound)
+        end
+    end).
+
 %% Internal functions
+
+encode_webhook_id(WebhookID) ->
+    try
+        binary_to_integer(WebhookID)
+    catch
+        error:badarg ->
+            throw(notfound)
+    end.
+
+maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
+    {ok, JSONData} = wapi_signer:verify(QuoteToken),
+    Data = jsx:decode(JSONData, [return_maps]),
+    unwrap(quote_invalid_party,
+        valid(
+            maps:get(<<"partyID">>, Data),
+            wapi_handler_utils:get_owner(Context)
+    )),
+    unwrap(quote_invalid_wallet,
+        valid(
+            maps:get(<<"walletID">>, Data),
+            maps:get(<<"wallet">>, Params)
+    )),
+    check_quote_destination(
+        maps:get(<<"destinationID">>, Data, undefined),
+        maps:get(<<"destination">>, Params)
+    ),
+    check_quote_body(maps:get(<<"cashFrom">>, Data), maps:get(<<"body">>, Params)),
+    {ok, #{
+        cash_from   => from_swag(withdrawal_body, maps:get(<<"cashFrom">>, Data)),
+        cash_to     => from_swag(withdrawal_body, maps:get(<<"cashTo">>, Data)),
+        created_at  => maps:get(<<"createdAt">>, Data),
+        expires_on  => maps:get(<<"expiresOn">>, Data),
+        quote_data  => maps:get(<<"quoteData">>, Data)
+    }};
+maybe_check_quote_token(_Params, _Context) ->
+    {ok, undefined}.
+
+check_quote_body(CashFrom, CashFrom) ->
+    ok;
+check_quote_body(_, CashFrom) ->
+    throw({quote, {invalid_body, CashFrom}}).
+
+check_quote_destination(undefined, _DestinationID) ->
+    ok;
+check_quote_destination(DestinationID, DestinationID) ->
+    ok;
+check_quote_destination(_, DestinationID) ->
+    throw({quote, {invalid_destination, DestinationID}}).
+
+create_quote_token(#{
+    cash_from   := CashFrom,
+    cash_to     := CashTo,
+    created_at  := CreatedAt,
+    expires_on  := ExpiresOn,
+    quote_data  := QuoteData
+}, WalletID, DestinationID, PartyID) ->
+    Data = genlib_map:compact(#{
+        <<"version">>       => 1,
+        <<"walletID">>      => WalletID,
+        <<"destinationID">> => DestinationID,
+        <<"partyID">>       => PartyID,
+        <<"cashFrom">>      => to_swag(withdrawal_body, CashFrom),
+        <<"cashTo">>        => to_swag(withdrawal_body, CashTo),
+        <<"createdAt">>     => to_swag(timestamp, CreatedAt),
+        <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
+        <<"quoteData">>     => QuoteData
+    }),
+    JSONData = jsx:encode(Data),
+    {ok, Token} = wapi_signer:sign(JSONData),
+    Token.
 
 filter_identity_challenge_status(Filter, Status) ->
     maps:get(<<"status">>, to_swag(challenge_status, Status)) =:= Filter.
@@ -523,7 +714,7 @@ get_event_type({withdrawal, event})         -> withdrawal_event.
 get_collector({identity, challenge_event}, Id) ->
     fun(C, L) -> unwrap(ff_identity_machine:events(Id, {C, L, forward})) end;
 get_collector({withdrawal, event}, Id) ->
-    fun(C, L) -> unwrap(ff_withdrawal:events(Id, {C, L, forward})) end.
+    fun(C, L) -> unwrap(ff_withdrawal_machine:events(Id, {C, L, forward})) end.
 
 collect_events(Collector, Filter, Cursor, Limit) ->
     collect_events(Collector, Filter, Cursor, Limit, []).
@@ -563,7 +754,7 @@ get_state(Resource, Id, Context) ->
 do_get_state(identity,    Id) -> ff_identity_machine:get(Id);
 do_get_state(wallet,      Id) -> ff_wallet_machine:get(Id);
 do_get_state(destination, Id) -> ff_destination:get_machine(Id);
-do_get_state(withdrawal,  Id) -> ff_withdrawal:get_machine(Id).
+do_get_state(withdrawal,  Id) -> ff_withdrawal_machine:get(Id).
 
 check_resource(Resource, Id, Context) ->
     _ = get_state(Resource, Id, Context),
@@ -582,7 +773,7 @@ add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
     Context#{?CTX_NS => Ctx#{Key => Value}}.
 
 get_ctx(State) ->
-    unwrap(ff_ctx:get(?CTX_NS, ff_machine:ctx(State))).
+    unwrap(ff_entity_context:get(?CTX_NS, ff_machine:ctx(State))).
 
 get_hash(State) ->
     maps:get(?PARAMS_HASH, get_ctx(State)).
@@ -600,29 +791,44 @@ check_resource_access(true)  -> ok;
 check_resource_access(false) -> {error, unauthorized}.
 
 create_entity(Type, Params, CreateFun, Context) ->
-    ID = make_id(Type, construct_external_id(Params, Context)),
-    Hash = erlang:phash2(Params),
-    case CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))) of
-        ok ->
-            do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
-        {error, exists} ->
-            get_and_compare_hash(Type, ID, Hash, Context);
-        {error, E} ->
-            throw(E)
-    end.
+    ExternalID = maps:get(<<"externalID">>, Params, undefined),
+    Hash       = erlang:phash2(Params),
+    {ok, ID}   = gen_id(Type, ExternalID, Hash, Context),
+    Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
+    handle_create_entity_result(Result, Type, ExternalID, ID, Hash, Context).
 
-get_and_compare_hash(Type, ID, Hash, Context) ->
-    case do(fun() -> get_state(Type, ID, Context) end) of
-        {ok, State} ->
-            compare_hash(Hash, get_hash(State), {ID, to_swag(Type, State)});
+handle_create_entity_result(ok, Type, ExternalID, ID, Hash, Context) ->
+    ok = sync_bender(Type, ExternalID, ID, Hash, Context),
+    do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
+handle_create_entity_result({error, exists}, Type, ExternalID, ID, Hash, Context) ->
+    get_and_compare_hash(Type, ExternalID, ID, Hash, Context);
+handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Hash, _Context) ->
+    throw(E).
+
+sync_bender(_Type, undefined, _FistfulID, _Hash, _Ctx) ->
+    ok;
+sync_bender(Type, ExternalID, FistfulID, Hash, Context = #{woody_context := WoodyCtx}) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
+    case bender_client:gen_by_constant(IdempotentKey, FistfulID, Hash, WoodyCtx) of
+        {ok, FistfulID} ->
+            ok;
         Error ->
             Error
     end.
 
-compare_hash(Hash, Hash, {_, Data}) ->
+get_and_compare_hash(Type, ExternalID, ID, Hash, Context) ->
+    case do(fun() -> get_state(Type, ID, Context) end) of
+        {ok, State} ->
+            compare_hash(Hash, get_hash(State), {ID, ExternalID, to_swag(Type, State)});
+        Error ->
+            Error
+    end.
+
+compare_hash(Hash, Hash, {_, _, Data}) ->
     {ok, Data};
-compare_hash(_, _, {ID, _}) ->
-    {error, {conflict, ID}}.
+compare_hash(_, _, {ID, ExternalID, _}) ->
+    {error, {external_id_conflict, ID, ExternalID}}.
 
 with_party(Context, Fun) ->
     try Fun()
@@ -658,9 +864,29 @@ unwrap(Res) ->
 unwrap(Tag, Res) ->
     ff_pipeline:unwrap(Tag, Res).
 
+valid(Val1, Val2) ->
+    ff_pipeline:valid(Val1, Val2).
+
 get_contract_id_from_identity(IdentityID, Context) ->
     State = get_state(identity, IdentityID, Context),
     ff_identity:contract(ff_machine:model(State)).
+
+%% ID Gen
+
+gen_id(Type, ExternalID, Hash, Context) ->
+    gen_id_by_sequence(Type, ExternalID, Hash, Context).
+
+gen_id_by_sequence(Type, ExternalID, _Hash, Context) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    gen_ff_sequence(Type, PartyID, ExternalID).
+
+construct_external_id(_PartyID, undefined) ->
+    undefined;
+construct_external_id(PartyID, ExternalID) ->
+    <<PartyID/binary, "/", ExternalID/binary>>.
+
+gen_ff_sequence(Type, PartyID, ExternalID) ->
+    ff_external_id:check_in(Type, construct_external_id(PartyID, ExternalID)).
 
 create_report_request(#{
     party_id     := PartyID,
@@ -676,14 +902,6 @@ create_report_request(#{
             to_time   = ToTime
         }
     }.
-
-%% ID Gen
-
-make_id(Type) ->
-    make_id(Type, undefined).
-
-make_id(Type, ExternalID) ->
-    unwrap(ff_external_id:check_in(Type, ExternalID)).
 
 create_stat_dsl(withdrawal_stat, Req, Context) ->
     Query = #{
@@ -840,15 +1058,6 @@ decode_deposit_stat_status({failed, #fistfulstat_DepositFailed{failure = Failure
         }
     }.
 
-construct_external_id(Params, Context) ->
-    case genlib_map:get(?EXTERNAL_ID, Params) of
-        undefined ->
-            undefined;
-        ExternalID ->
-            PartyID = wapi_handler_utils:get_owner(Context),
-            <<PartyID/binary, "/", ExternalID/binary>>
-    end.
-
 %% Marshalling
 
 add_external_id(Params, #{?EXTERNAL_ID := Tag}) ->
@@ -866,6 +1075,14 @@ add_external_id(Params, _) ->
 -spec from_swag(_Type, swag_term()) ->
     _Term.
 
+from_swag(create_quote_params, Params) ->
+    genlib_map:compact(add_external_id(#{
+        wallet_id       => maps:get(<<"walletID">>, Params),
+        currency_from   => from_swag(currency, maps:get(<<"currencyFrom">>, Params)),
+        currency_to     => from_swag(currency, maps:get(<<"currencyTo">>, Params)),
+        body            => from_swag(withdrawal_body, maps:get(<<"cash">>, Params)),
+        destination_id  => maps:get(<<"destinationID">>, Params, undefined)
+    }, Params));
 from_swag(identity_params, Params) ->
     add_external_id(#{
         provider => maps:get(<<"provider">>, Params),
@@ -918,15 +1135,17 @@ from_swag(destination_resource, #{
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }};
-from_swag(destination_resource, #{
+from_swag(destination_resource, Resource = #{
     <<"type">>     := <<"CryptoWalletDestinationResource">>,
     <<"id">>       := CryptoWalletID,
     <<"currency">> := CryptoWalletCurrency
 }) ->
-    {crypto_wallet, #{
+    Tag = maps:get(<<"tag">>, Resource, undefined),
+    {crypto_wallet, genlib_map:compact(#{
         id       => CryptoWalletID,
-        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency)
-    }};
+        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
+        tag      => Tag
+    })};
 
 from_swag(crypto_wallet_currency, <<"Bitcoin">>)     -> bitcoin;
 from_swag(crypto_wallet_currency, <<"Litecoin">>)    -> litecoin;
@@ -956,9 +1175,58 @@ from_swag(residence, V) ->
             %  - Essentially this is incorrect, we should reply with 400 instead
             undefined
     end;
+from_swag(webhook_params, #{
+    <<"identityID">> := IdentityID,
+    <<"scope">> := Scope,
+    <<"url">> := URL
+}) ->
+    maps:merge(
+        #{
+            identity_id => IdentityID,
+            url => URL
+        },
+        from_swag(webhook_scope, Scope)
+    );
+from_swag(webhook_scope, Topic = #{
+    <<"topic">> := <<"WithdrawalsTopic">>,
+    <<"eventTypes">> := EventList
+}) ->
+    WalletID = maps:get(<<"walletID">>, Topic, undefined),
+    Scope = #webhooker_EventFilter{
+        types = from_swag({set, webhook_withdrawal_event_types}, EventList)
+    },
+    genlib_map:compact(#{
+        scope => Scope,
+        wallet_id => WalletID
+    });
+from_swag(webhook_scope, #{
+    <<"topic">> := <<"DestinationsTopic">>,
+    <<"eventTypes">> := EventList
+}) ->
+    Scope = #webhooker_EventFilter{
+        types = from_swag({set, webhook_destination_event_types}, EventList)
+    },
+    #{
+        scope => Scope
+    };
+from_swag(webhook_withdrawal_event_types, <<"WithdrawalStarted">>) ->
+    {withdrawal, {started, #webhooker_WithdrawalStarted{}}};
+from_swag(webhook_withdrawal_event_types, <<"WithdrawalSucceeded">>) ->
+    {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}};
+from_swag(webhook_withdrawal_event_types, <<"WithdrawalFailed">>) ->
+    {withdrawal, {failed, #webhooker_WithdrawalFailed{}}};
+
+from_swag(webhook_destination_event_types, <<"DestinationCreated">>) ->
+    {destination, {created, #webhooker_DestinationCreated{}}};
+from_swag(webhook_destination_event_types, <<"DestinationUnauthorized">>) ->
+    {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}};
+from_swag(webhook_destination_event_types, <<"DestinationAuthorized">>) ->
+    {destination, {authorized, #webhooker_DestinationAuthorized{}}};
 
 from_swag({list, Type}, List) ->
-    lists:map(fun(V) -> from_swag(Type, V) end, List).
+    lists:map(fun(V) -> from_swag(Type, V) end, List);
+from_swag({set, Type}, List) ->
+    ordsets:from_list(from_swag({list, Type}, List)).
 
 -spec to_swag(_Type, _Value) ->
     swag_term() | undefined.
@@ -1110,7 +1378,8 @@ to_swag(destination_resource, {crypto_wallet, CryptoWallet}) ->
     to_swag(map, #{
         <<"type">>     => <<"CryptoWalletDestinationResource">>,
         <<"id">>       => maps:get(id, CryptoWallet),
-        <<"currency">> => to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet))
+        <<"currency">> => to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet)),
+        <<"tag">>      => maps:get(tag, CryptoWallet, undefined)
     });
 
 to_swag(pan_last_digits, MaskedPan) ->
@@ -1124,7 +1393,7 @@ to_swag(crypto_wallet_currency, ethereum)     -> <<"Ethereum">>;
 to_swag(crypto_wallet_currency, zcash)        -> <<"Zcash">>;
 
 to_swag(withdrawal, State) ->
-    Withdrawal = ff_withdrawal:get(State),
+    Withdrawal = ff_withdrawal_machine:withdrawal(State),
     WapiCtx = get_ctx(State),
     to_swag(map, maps:merge(
         #{
@@ -1219,8 +1488,88 @@ to_swag(report_files, {files, Files}) ->
 to_swag(report_file, File) ->
     #{<<"id">> => File};
 
+to_swag(quote, {#{
+    cash_from   := CashFrom,
+    cash_to     := CashTo,
+    created_at  := CreatedAt,
+    expires_on  := ExpiresOn
+}, Token}) ->
+    #{
+        <<"cashFrom">>      => to_swag(withdrawal_body, CashFrom),
+        <<"cashTo">>        => to_swag(withdrawal_body, CashTo),
+        <<"createdAt">>     => to_swag(timestamp, CreatedAt),
+        <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
+        <<"quoteToken">>    => Token
+    };
+
+to_swag(webhook, #webhooker_Webhook{
+    id = ID,
+    identity_id = IdentityID,
+    wallet_id = WalletID,
+    event_filter = EventFilter,
+    url = URL,
+    pub_key = PubKey,
+    enabled = Enabled
+}) ->
+    to_swag(map, #{
+        <<"id">> => integer_to_binary(ID),
+        <<"identityID">> => IdentityID,
+        <<"walletID">> => WalletID,
+        <<"active">> => to_swag(boolean, Enabled),
+        <<"scope">> => to_swag(webhook_scope, EventFilter),
+        <<"url">> => URL,
+        <<"publicKey">> => PubKey
+    });
+
+to_swag(webhook_scope, #webhooker_EventFilter{types = EventTypes}) ->
+    List = to_swag({set, webhook_event_types}, EventTypes),
+    lists:foldl(fun({Topic, Type}, Acc) ->
+        case maps:get(<<"topic">>, Acc, undefined) of
+            undefined ->
+                Acc#{
+                    <<"topic">> => to_swag(webhook_topic, Topic),
+                    <<"eventTypes">> => [Type]
+                };
+            _ ->
+                #{<<"eventTypes">> := Types} = Acc,
+                Acc#{
+                    <<"eventTypes">> := [Type | Types]
+                }
+        end
+    end, #{}, List);
+
+to_swag(webhook_event_types, {withdrawal, EventType}) ->
+    {withdrawal, to_swag(webhook_withdrawal_event_types, EventType)};
+to_swag(webhook_event_types, {destination, EventType}) ->
+    {destination, to_swag(webhook_destination_event_types, EventType)};
+
+to_swag(webhook_topic, withdrawal) ->
+    <<"WithdrawalsTopic">>;
+to_swag(webhook_topic, destination) ->
+    <<"DestinationsTopic">>;
+
+to_swag(webhook_withdrawal_event_types, {started, _}) ->
+    <<"WithdrawalStarted">>;
+to_swag(webhook_withdrawal_event_types, {succeeded, _}) ->
+    <<"WithdrawalSucceeded">>;
+to_swag(webhook_withdrawal_event_types, {failed, _}) ->
+    <<"WithdrawalFailed">>;
+
+to_swag(webhook_destination_event_types, {created, _}) ->
+    <<"DestinationCreated">>;
+to_swag(webhook_destination_event_types, {unauthorized, _}) ->
+    <<"DestinationUnauthorized">>;
+to_swag(webhook_destination_event_types, {authorized, _}) ->
+    <<"DestinationAuthorized">>;
+
+to_swag(boolean, true) ->
+    true;
+to_swag(boolean, false) ->
+    false;
 to_swag({list, Type}, List) ->
     lists:map(fun(V) -> to_swag(Type, V) end, List);
+to_swag({set, Type}, Set) ->
+    to_swag({list, Type}, ordsets:to_list(Set));
 to_swag(map, Map) ->
     genlib_map:compact(Map);
 to_swag(_, V) ->

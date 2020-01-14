@@ -1,10 +1,13 @@
 -module(ff_cash_flow).
 
--include_lib("dmsl/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 
+-export([make_empty_final/0]).
 -export([gather_used_accounts/1]).
 -export([finalize/3]).
 -export([add_fee/2]).
+-export([combine/2]).
+-export([inverse/1]).
 -export([decode_domain_postings/1]).
 
 %% Domain types
@@ -79,6 +82,7 @@
 -export_type([constant_mapping/0]).
 -export_type([final_posting/0]).
 -export_type([final_cash_flow/0]).
+-export_type([plan_account/0]).
 
 %% Pipeline
 
@@ -100,6 +104,11 @@
     {operation_failed, {empty_list, plan_operation()}}.
 
 %% API
+
+-spec make_empty_final() -> final_cash_flow().
+make_empty_final() ->
+    #{postings => []}.
+
 -spec gather_used_accounts(final_cash_flow()) -> [account()].
 gather_used_accounts(#{postings := Postings}) ->
     lists:usort(lists:flatten([
@@ -118,6 +127,15 @@ finalize(Plan, Accounts, Constants) ->
     {ok, cash_flow_plan()}.
 add_fee(#{postings := PlanPostings} = Plan, #{postings := FeePostings}) ->
     {ok, Plan#{postings => PlanPostings ++ FeePostings}}.
+
+-spec combine(final_cash_flow(), final_cash_flow()) ->
+    {ok, final_cash_flow()}.
+combine(#{postings := Postings1} = Flow, #{postings := Postings2}) ->
+    {ok, Flow#{postings => Postings1 ++ Postings2}}.
+
+-spec inverse(final_cash_flow()) -> final_cash_flow().
+inverse(#{postings := Postings} = Flow) ->
+    Flow#{postings := lists:map(fun inverse_posting/1, Postings)}.
 
 %% Domain cash flow unmarshalling
 
@@ -151,7 +169,7 @@ decode_domain_plan_account({_AccountNS, _AccountType} = Account) ->
 -spec decode_domain_plan_volume(dmsl_domain_thrift:'CashVolume'()) ->
     ff_cash_flow:plan_volume().
 decode_domain_plan_volume({fixed, #domain_CashVolumeFixed{cash = Cash}}) ->
-    {fixed, ff_cash:decode(Cash)};
+    {fixed, ff_dmsl_codec:unmarshal(cash, Cash)};
 decode_domain_plan_volume({share, Share}) ->
     #domain_CashVolumeShare{
         parts = Parts,
@@ -175,6 +193,18 @@ decode_rational(#'Rational'{p = P, q = Q}) ->
     genlib_rational:new(P, Q).
 
 %% Internals
+
+%% Inversing
+
+-spec inverse_posting
+    (plan_posting()) -> plan_posting();
+    (final_posting()) -> final_posting().
+inverse_posting(Posting) ->
+    #{
+        sender := Sender,
+        receiver := Receiver
+    } = Posting,
+    Posting#{sender := Receiver, receiver := Sender}.
 
 %% Finalizing
 

@@ -22,7 +22,7 @@ marshal_wallet(Wallet) ->
         external_id = marshal(id,       ff_wallet:external_id(Wallet))
     }.
 
--spec unmarshal_wallet_params(ff_proto_identity_thrift:'WalletParams'()) ->
+-spec unmarshal_wallet_params(ff_proto_wallet_thrift:'WalletParams'()) ->
     ff_wallet_machine:params().
 
 unmarshal_wallet_params(#wlt_WalletParams{

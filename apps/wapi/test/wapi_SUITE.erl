@@ -1,6 +1,8 @@
 -module(wapi_SUITE).
 
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("wapi_wallet_dummy_data.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -11,20 +13,31 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
--export([withdrawal_to_bank_card/1]).
--export([withdrawal_to_crypto_wallet/1]).
+-export([withdrawal_to_bank_card_test/1]).
+-export([withdrawal_to_crypto_wallet_test/1]).
 -export([woody_retry_test/1]).
+-export([quote_encode_decode_test/1]).
+-export([get_quote_test/1]).
+-export([get_quote_without_destination_test/1]).
+-export([get_quote_without_destination_fail_test/1]).
+-export([unknown_withdrawal_test/1]).
+-export([quote_withdrawal_test/1]).
+-export([not_allowed_currency_test/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
 -type group_name()     :: ct_helper:group_name().
 -type test_return()    :: _ | no_return().
 
+-import(ct_helper, [cfg/2]).
+
 -spec all() -> [test_case_name() | {group, group_name()}].
 
 all() ->
     [ {group, default}
+    , {group, quote}
     , {group, woody}
+    , {group, errors}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -32,11 +45,22 @@ all() ->
 groups() ->
     [
         {default, [sequence, {repeat, 2}], [
-            withdrawal_to_bank_card,
-            withdrawal_to_crypto_wallet
+            withdrawal_to_bank_card_test,
+            withdrawal_to_crypto_wallet_test,
+            unknown_withdrawal_test
+        ]},
+        {quote, [], [
+            quote_encode_decode_test,
+            get_quote_test,
+            get_quote_without_destination_test,
+            get_quote_without_destination_fail_test,
+            quote_withdrawal_test
         ]},
         {woody, [], [
             woody_retry_test
+        ]},
+        {errors, [], [
+            not_allowed_currency_test
         ]}
     ].
 
@@ -48,8 +72,9 @@ init_per_suite(C) ->
         ct_payment_system:setup(#{
             default_termset => get_default_termset(),
             optional_apps => [
-                wapi,
-                wapi_woody_client
+                bender_client,
+                wapi_woody_client,
+                wapi
             ]
         })
     ], C).
@@ -64,7 +89,10 @@ end_per_suite(C) ->
 -spec init_per_group(group_name(), config()) -> config().
 
 init_per_group(G, C) ->
-    ok = ff_woody_ctx:set(woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)),
+    ok = ff_context:save(ff_context:create(#{
+        party_client => party_client:create_client(),
+        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
+    })),
     Party = create_party(C),
     Token = issue_token(Party, [{[party], write}], unlimited),
     Context = get_context("localhost:8080", Token),
@@ -81,24 +109,23 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 -define(ID_PROVIDER, <<"good-one">>).
 -define(ID_PROVIDER2, <<"good-two">>).
 -define(ID_CLASS, <<"person">>).
--define(STRING, <<"TEST">>).
 
 -spec woody_retry_test(config()) -> test_return().
 
--spec withdrawal_to_bank_card(config()) -> test_return().
+-spec withdrawal_to_bank_card_test(config()) -> test_return().
 
-withdrawal_to_bank_card(C) ->
+withdrawal_to_bank_card_test(C) ->
     Name          = <<"Keyn Fawkes">>,
     Provider      = ?ID_PROVIDER,
     Class         = ?ID_CLASS,
@@ -113,13 +140,14 @@ withdrawal_to_bank_card(C) ->
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    timer:sleep(1000),
+    await_destination(DestID),
+
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
--spec withdrawal_to_crypto_wallet(config()) -> test_return().
+-spec withdrawal_to_crypto_wallet_test(config()) -> test_return().
 
-withdrawal_to_crypto_wallet(C) ->
+withdrawal_to_crypto_wallet_test(C) ->
     Name          = <<"Tyler Durden">>,
     Provider      = ?ID_PROVIDER2,
     Class         = ?ID_CLASS,
@@ -132,9 +160,198 @@ withdrawal_to_crypto_wallet(C) ->
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    timer:sleep(1000),
+    await_destination(DestID),
+
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
+
+-spec unknown_withdrawal_test(config()) -> test_return().
+
+unknown_withdrawal_test(C) ->
+    ?assertEqual({error, {404, #{}}}, get_withdrawal(<<"unexist withdrawal">>, C)).
+
+-spec quote_encode_decode_test(config()) -> test_return().
+
+quote_encode_decode_test(C) ->
+    PartyID       = cfg(party, C),
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    CardToken     = store_bank_card(C),
+    Resource      = make_bank_card_resource(CardToken),
+    DestID        = create_desination(IdentityID, Resource, C),
+    % ожидаем авторизации назначения вывода
+    await_destination(DestID),
+
+
+    Data = #{
+        <<"version">>       => 1,
+        <<"walletID">>      => WalletID,
+        <<"destinationID">> => DestID,
+        <<"partyID">>       => PartyID,
+        <<"cashFrom">>      => #{
+            <<"amount">>   => 100,
+            <<"currency">> => <<"RUB">>
+        },
+        <<"cashTo">>        => #{
+            <<"amount">>   => 100,
+            <<"currency">> => <<"USD">>
+        },
+        <<"createdAt">>     => ?TIMESTAMP,
+        <<"expiresOn">>     => ?TIMESTAMP,
+        <<"quoteData">>     => #{
+            <<"version">> => ?INTEGER,
+            <<"quote_data">> => #{<<"test">> => <<"test">>},
+            <<"provider_id">> => ?INTEGER,
+            <<"resource_id">> => #{<<"bank_card">> => <<"test">>}
+        }
+    },
+    JSONData = jsx:encode(Data),
+    {ok, Token} = wapi_signer:sign(JSONData),
+
+    _WithdrawalID = create_withdrawal(
+        WalletID,
+        DestID,
+        C,
+        Token
+    ).
+
+-spec get_quote_test(config()) -> test_return().
+
+get_quote_test(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    CardToken     = store_bank_card(C),
+    Resource      = make_bank_card_resource(CardToken),
+    DestID        = create_desination(IdentityID, Resource, C),
+    % ожидаем авторизации назначения вывода
+    await_destination(DestID),
+
+    CashFrom = #{
+        <<"amount">> => 100,
+        <<"currency">> => <<"RUB">>
+    },
+
+    {ok, Quote} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => #{
+                <<"walletID">> => WalletID,
+                <<"destinationID">> => DestID,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => CashFrom
+        }},
+        ct_helper:cfg(context, C)
+    ),
+    CashFrom = maps:get(<<"cashFrom">>, Quote),
+    {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
+    #{
+        <<"version">>       := 1,
+        <<"cashFrom">>     := CashFrom
+    } = jsx:decode(JSONData, [return_maps]).
+
+-spec get_quote_without_destination_test(config()) -> test_return().
+
+get_quote_without_destination_test(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+
+    CashFrom = #{
+        <<"amount">> => 100,
+        <<"currency">> => <<"RUB">>
+    },
+
+    {ok, Quote} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => #{
+                <<"walletID">> => WalletID,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => CashFrom
+        }},
+        ct_helper:cfg(context, C)
+    ),
+    CashFrom = maps:get(<<"cashFrom">>, Quote),
+    {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
+    #{
+        <<"version">>       := 1,
+        <<"cashFrom">>     := CashFrom
+    } = jsx:decode(JSONData, [return_maps]).
+
+-spec get_quote_without_destination_fail_test(config()) -> test_return().
+
+get_quote_without_destination_fail_test(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = ?ID_PROVIDER,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+
+    CashFrom = #{
+        <<"amount">> => 100,
+        <<"currency">> => <<"RUB">>
+    },
+
+    {error, {422, #{<<"message">> := <<"Provider not found">>}}} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => #{
+                <<"walletID">> => WalletID,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => CashFrom
+        }},
+        ct_helper:cfg(context, C)
+    ).
+
+-spec quote_withdrawal_test(config()) -> test_return().
+
+quote_withdrawal_test(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = <<"quote-owner">>,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    CardToken     = store_bank_card(C),
+    Resource      = make_bank_card_resource(CardToken),
+    DestID        = create_desination(IdentityID, Resource, C),
+    % ожидаем авторизации назначения вывода
+    await_destination(DestID),
+
+    CashFrom = #{
+        <<"amount">> => 100,
+        <<"currency">> => <<"RUB">>
+    },
+
+    {ok, Quote} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => #{
+                <<"walletID">> => WalletID,
+                <<"destinationID">> => DestID,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => CashFrom
+        }},
+        ct_helper:cfg(context, C)
+    ),
+    WithdrawalID = create_withdrawal(
+        WalletID,
+        DestID,
+        C,
+        maps:get(<<"quoteToken">>, Quote)
+    ),
+    ok = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
 woody_retry_test(C) ->
     Urls = application:get_env(wapi_woody_client, service_urls, #{}),
@@ -291,7 +508,8 @@ make_crypto_wallet_resource() ->
     #{
         <<"type">>     => <<"CryptoWalletDestinationResource">>,
         <<"id">>       => <<"0610899fa9a3a4300e375ce582762273">>,
-        <<"currency">> => <<"Ethereum">>
+        <<"currency">> => <<"Ethereum">>,
+        <<"tag">>      => <<"test_tag">>
     }.
 
 create_desination(IdentityID, Resource, C) ->
@@ -330,6 +548,15 @@ check_destination(IdentityID, DestID, Resource0, C) ->
     } = D1#{<<"resource">> => maps:with(ResourceFields, Res)},
     ok.
 
+await_destination(DestID) ->
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
+        end
+    ).
+
 convert_token(#{<<"token">> := Base64} = Resource) ->
     BankCard = wapi_utils:base64url_to_map(Base64),
     Resource#{<<"token">> => maps:get(<<"token">>, BankCard)};
@@ -358,48 +585,82 @@ issue_destination_grants(DestID, C) ->
     ).
 
 create_withdrawal(WalletID, DestID, C) ->
+    create_withdrawal(WalletID, DestID, C, undefined).
+
+create_withdrawal(WalletID, DestID, C, QuoteToken) ->
     {ok, Withdrawal} = call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
-        #{body => #{
+        #{body => genlib_map:compact(#{
             <<"wallet">> => WalletID,
             <<"destination">> => DestID,
             <<"body">> => #{
                 <<"amount">> => 100,
                 <<"currency">> => <<"RUB">>
-            }
-        }},
+            },
+            <<"quoteToken">> => QuoteToken
+        })},
         ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, Withdrawal).
+
+% TODO: Use this function variant after fistful-magista protocol update
+% check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
+%     ct_helper:await(
+%         ok,
+%         fun () ->
+%             R = call_api(fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
+%                          #{qs_val => #{
+%                              <<"withdrawalID">> => WithdrawalID,
+%                              <<"limit">> => 100
+%                             }},
+%                          ct_helper:cfg(context, C)),
+%             case R of
+%                 {ok, #{<<"result">> := []}} ->
+%                     R;
+%                 {ok, Withdrawal} ->
+%                     #{<<"result">> := [
+%                         #{<<"wallet">> := WalletID,
+%                           <<"destination">> := DestID,
+%                           <<"body">> := #{
+%                               <<"amount">> := 100,
+%                               <<"currency">> := <<"RUB">>
+%                           }
+%                     }]} = Withdrawal,
+%                     ok;
+%                 _ ->
+%                     R
+%             end
+%         end,
+%         {linear, 20, 1000}
+%     ).
 
 check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
     ct_helper:await(
         ok,
         fun () ->
-            R = call_api(fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
-                         #{qs_val => #{
-                             <<"withdrawalID">> => WithdrawalID,
-                             <<"limit">> => 100
-                            }},
-                         ct_helper:cfg(context, C)),
-            case R of
-                {ok, #{<<"result">> := []}} ->
-                    R;
+            case get_withdrawal(WithdrawalID, C) of
                 {ok, Withdrawal} ->
-                    #{<<"result">> := [
-                        #{<<"wallet">> := WalletID,
-                          <<"destination">> := DestID,
-                          <<"body">> := #{
-                              <<"amount">> := 100,
-                              <<"currency">> := <<"RUB">>
-                          }
-                    }]} = Withdrawal,
+                    #{
+                        <<"wallet">> := WalletID,
+                        <<"destination">> := DestID,
+                        <<"body">> := #{
+                            <<"amount">> := 100,
+                            <<"currency">> := <<"RUB">>
+                        }
+                    } = Withdrawal,
                     ok;
-                _ ->
-                    R
+                Other ->
+                    Other
             end
         end,
         {linear, 20, 1000}
+    ).
+
+get_withdrawal(WithdrawalID, C) ->
+    call_api(
+        fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
+        #{binding => #{<<"withdrawalID">> => WithdrawalID}},
+        ct_helper:cfg(context, C)
     ).
 
 %%
@@ -450,3 +711,24 @@ get_default_termset() ->
             }
         }
     }.
+
+-spec not_allowed_currency_test(config()) -> test_return().
+
+not_allowed_currency_test(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = ?ID_PROVIDER,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ok            = check_identity(Name, IdentityID, Provider, Class, C),
+    {error, {422, #{<<"message">> := <<"Currency not allowed">>}}} = call_api(
+        fun swag_client_wallet_wallets_api:create_wallet/3,
+        #{body => #{
+            <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
+            <<"identity">> => IdentityID,
+            <<"currency">> => <<"USD">>,
+            <<"metadata">> => #{
+                ?STRING => ?STRING
+            }
+        }},
+        ct_helper:cfg(context, C)
+    ).

@@ -88,13 +88,13 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 %%
 
@@ -103,7 +103,7 @@ end_per_testcase(_Name, _C) ->
 get_identity_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
-    Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
+    Service = identity_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -114,7 +114,7 @@ get_identity_events_ok(C) ->
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ICID = genlib:unique(),
     D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
@@ -148,7 +148,7 @@ get_create_wallet_events_ok(C) ->
     Party = create_party(C),
     IdentityID = create_identity(Party, C),
 
-    Service = {{ff_proto_wallet_thrift, 'EventSink'}, <<"/v1/eventsink/wallet">>},
+    Service = wallet_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -159,7 +159,7 @@ get_create_wallet_events_ok(C) ->
             name     => <<"EVENTS TEST">>,
             currency => <<"RUB">>
         },
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
@@ -170,7 +170,7 @@ get_create_wallet_events_ok(C) ->
 -spec get_withdrawal_events_ok(config()) -> test_return().
 
 get_withdrawal_events_ok(C) ->
-    Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
+    Service = withdrawal_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
     Party   = create_party(C),
@@ -183,7 +183,7 @@ get_withdrawal_events_ok(C) ->
 
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
-    {ok, RawEvents} = ff_withdrawal:events(WdrID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_withdrawal_machine:events(WdrID, {undefined, 1000, forward}),
 
     AlienEvents = lists:filter(fun(Ev) ->
         Ev#wthd_SinkEvent.source =/= WdrID
@@ -195,10 +195,7 @@ get_withdrawal_events_ok(C) ->
 -spec get_withdrawal_session_events_ok(config()) -> test_return().
 
 get_withdrawal_session_events_ok(C) ->
-    Service = {
-        {ff_proto_withdrawal_session_thrift, 'EventSink'},
-        <<"/v1/eventsink/withdrawal/session">>
-    },
+    Service = withdrawal_session_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -222,7 +219,7 @@ get_withdrawal_session_events_ok(C) ->
 -spec get_create_destination_events_ok(config()) -> test_return().
 
 get_create_destination_events_ok(C) ->
-    Service = {{ff_proto_destination_thrift, 'EventSink'}, <<"/v1/eventsink/destination">>},
+    Service = destination_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -239,7 +236,7 @@ get_create_destination_events_ok(C) ->
 -spec get_create_source_events_ok(config()) -> test_return().
 
 get_create_source_events_ok(C) ->
-    Service = {{ff_proto_source_thrift, 'EventSink'}, <<"/v1/eventsink/source">>},
+    Service = source_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -256,7 +253,7 @@ get_create_source_events_ok(C) ->
 -spec get_create_deposit_events_ok(config()) -> test_return().
 
 get_create_deposit_events_ok(C) ->
-    Service = {{ff_proto_deposit_thrift, 'EventSink'}, <<"/v1/eventsink/deposit">>},
+    Service = deposit_event_sink,
     LastEvent = unwrap_last_sinkevent_id(
         call_eventsink_handler('GetLastEventID', Service, [])),
 
@@ -266,7 +263,7 @@ get_create_deposit_events_ok(C) ->
     SrcID   = create_source(IID, C),
     DepID   = process_deposit(SrcID, WalID),
 
-    {ok, RawEvents} = ff_deposit:events(DepID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_deposit_machine:events(DepID, {undefined, 1000, forward}),
     {ok, Events} = call_eventsink_handler('GetEvents',
         Service, [#'evsink_EventRange'{'after' = LastEvent, limit = 1000}]),
     MaxID = get_max_sinkevent_id(Events),
@@ -276,16 +273,14 @@ get_create_deposit_events_ok(C) ->
 
 get_shifted_create_identity_events_ok(C) ->
     #{suite_sup := SuiteSup} = ct_helper:cfg(payment_system, C),
-    Service = {{ff_proto_identity_thrift, 'EventSink'}, <<"/v1/eventsink/identity">>},
+    Service = identity_event_sink,
     StartEventNum = 3,
-    IdentityRoute = create_sink_route({<<"/v1/eventsink/identity">>,
-        {{ff_proto_identity_thrift, 'EventSink'}, {ff_eventsink_handler,
-        #{
-            ns          => <<"ff/identity">>,
-            publisher   => ff_identity_eventsink_publisher,
-            start_event => StartEventNum,
-            schema      => machinery_mg_schema_generic
-        }}}}),
+    IdentityRoute = create_sink_route(Service, {ff_eventsink_handler, #{
+        ns          => <<"ff/identity">>,
+        publisher   => ff_identity_eventsink_publisher,
+        start_event => StartEventNum,
+        schema      => machinery_mg_schema_generic
+    }}),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
         #{
@@ -317,7 +312,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -326,7 +321,7 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ok = ff_wallet_machine:create(
         ID,
         #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -336,7 +331,7 @@ create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
         Type,
         ID,
         #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_ctx:new(),
+        ff_entity_context:new(),
         C
     ),
     ID.
@@ -363,19 +358,11 @@ create_source(IID, C) ->
 
 process_deposit(SrcID, WalID) ->
     DepID = generate_id(),
-    ok = ff_deposit:create(
-        DepID,
-        #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
-        ff_ctx:new()
+    ok = ff_deposit_machine:create(
+        #{id => DepID, source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
+        ff_entity_context:new()
     ),
-    succeeded = ct_helper:await(
-        succeeded,
-        fun () ->
-            {ok, DepM} = ff_deposit:get_machine(DepID),
-            ff_deposit:status(ff_deposit:get(DepM))
-        end,
-        genlib_retry:linear(15, 1000)
-    ),
+    succeeded = await_final_deposit_status(DepID),
     DepID.
 
 create_destination(IID, C) ->
@@ -392,23 +379,16 @@ create_destination(IID, C) ->
 
 process_withdrawal(WalID, DestID) ->
     WdrID = generate_id(),
-    ok = ff_withdrawal:create(
-        WdrID,
-        #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
-        ff_ctx:new()
+
+    ok = ff_withdrawal_machine:create(
+        #{id => WdrID, wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
+        ff_entity_context:new()
     ),
-    succeeded = ct_helper:await(
-        succeeded,
-        fun () ->
-            {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
-            ff_withdrawal:status(ff_withdrawal:get(WdrM))
-        end,
-        genlib_retry:linear(15, 1000)
-    ),
+    succeeded = await_final_withdrawal_status(WdrID),
     true = ct_helper:await(
         true,
         fun () ->
-            Service = {{ff_proto_withdrawal_thrift, 'EventSink'}, <<"/v1/eventsink/withdrawal">>},
+            Service = withdrawal_event_sink,
             {ok, Events} = call_eventsink_handler('GetEvents',
                 Service, [#'evsink_EventRange'{'after' = 0, limit = 1000}]),
             search_event_commited(Events, WdrID)
@@ -417,6 +397,53 @@ process_withdrawal(WalID, DestID) ->
     ),
     WdrID.
 
+get_deposit(DepositID) ->
+    {ok, Machine} = ff_deposit_machine:get(DepositID),
+    ff_deposit_machine:deposit(Machine).
+
+get_deposit_status(DepositID) ->
+    ff_deposit:status(get_deposit(DepositID)).
+
+await_final_deposit_status(DepositID) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            {ok, Machine} = ff_deposit_machine:get(DepositID),
+            Deposit = ff_deposit_machine:deposit(Machine),
+            case ff_deposit:is_finished(Deposit) of
+                false ->
+                    {not_finished, Deposit};
+                true ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(90, 1000)
+    ),
+    get_deposit_status(DepositID).
+
+get_withdrawal(WithdrawalID) ->
+    {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
+    ff_withdrawal_machine:withdrawal(Machine).
+
+get_withdrawal_status(WithdrawalID) ->
+    ff_withdrawal:status(get_withdrawal(WithdrawalID)).
+
+await_final_withdrawal_status(WithdrawalID) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
+            Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
+            case ff_withdrawal:is_finished(Withdrawal) of
+                false ->
+                    {not_finished, Withdrawal};
+                true ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(90, 1000)
+    ),
+    get_withdrawal_status(WithdrawalID).
 
 -spec get_max_sinkevent_id(list(evsink_event())) -> evsink_id().
 
@@ -438,17 +465,19 @@ unwrap_last_sinkevent_id({ok, EventID}) ->
 unwrap_last_sinkevent_id({exception, #'evsink_NoLastEvent'{}}) ->
     0.
 
--spec call_eventsink_handler(atom(), tuple(), list()) ->
+-spec call_eventsink_handler(atom(), ff_services:service_name(), list()) ->
     {ok, woody:result()} |
     {exception, woody_error:business_error()}.
 
-call_eventsink_handler(Function, Service, Args) ->
-    call_handler(Function, Service, Args, <<"8022">>).
+call_eventsink_handler(Function, ServiceName, Args) ->
+    call_handler(Function, ServiceName, Args, <<"8022">>).
 
-call_route_handler(Function, Service, Args) ->
-    call_handler(Function, Service, Args, <<"8040">>).
+call_route_handler(Function, ServiceName, Args) ->
+    call_handler(Function, ServiceName, Args, <<"8040">>).
 
-call_handler(Function, {Service, Path}, Args, Port) ->
+call_handler(Function, ServiceName, Args, Port) ->
+    Service = ff_services:get_service(ServiceName),
+    Path = erlang:list_to_binary(ff_services:get_service_path(ServiceName)),
     Request = {Service, Function, Args},
     Client  = ff_woody_client:new(#{
         url           => <<"http://localhost:", Port/binary, Path/binary>>,
@@ -456,14 +485,21 @@ call_handler(Function, {Service, Path}, Args, Port) ->
     }),
     ff_woody_client:call(Client, Request).
 
-create_sink_route({Path, {Module, {Handler, Cfg}}}) ->
+create_sink_route(ServiceName, {Handler, Cfg}) ->
+    Service = ff_services:get_service(ServiceName),
+    Path = ff_services:get_service_path(ServiceName),
     NewCfg = Cfg#{
         client => #{
             event_handler => scoper_woody_event_handler,
             url => "http://machinegun:8022/v1/event_sink"
         }},
+    PartyClient = party_client:create_client(),
+    WrapperOptions = #{
+        handler => {Handler, NewCfg},
+        party_client => PartyClient
+    },
     woody_server_thrift_http_handler:get_routes(genlib_map:compact(#{
-        handlers => [{Path, {Module, {Handler, NewCfg}}}],
+        handlers => [{Path, {Service, {ff_woody_wrapper, WrapperOptions}}}],
         event_handler => scoper_woody_event_handler
     })).
 
@@ -478,11 +514,17 @@ search_event_commited(Events, WdrID) ->
     TransferCommited = lists:filter(fun(Ev) ->
         Payload = Ev#wthd_SinkEvent.payload,
         Changes = Payload#wthd_EventSinkPayload.changes,
-        Res = lists:filter(fun is_commited_ev/1, Changes),
-        length(Res) =/= 0
+        lists:any(fun is_commited_ev/1, Changes)
     end, ClearEv),
 
     length(TransferCommited) =/= 0.
 
-is_commited_ev({transfer, {status_changed, {committed, #wthd_TransferCommitted{}}}}) -> true;
-is_commited_ev(_Other) -> false.
+is_commited_ev({transfer, #wthd_TransferChange{payload = TransferEvent}}) ->
+    case TransferEvent of
+        {status_changed, #transfer_StatusChange{status = {committed, #transfer_Committed{}}}} ->
+            true;
+        _Other ->
+            false
+    end;
+is_commited_ev(_Other) ->
+    false.

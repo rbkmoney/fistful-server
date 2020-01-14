@@ -1,8 +1,8 @@
 -module(ff_transfer_SUITE).
 
--include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 
 -export([all/0]).
@@ -20,6 +20,7 @@
 -export([deposit_via_admin_amount_fails/1]).
 -export([deposit_via_admin_currency_fails/1]).
 -export([deposit_withdrawal_ok/1]).
+-export([deposit_quote_withdrawal_ok/1]).
 -export([deposit_withdrawal_to_crypto_wallet/1]).
 
 -type config()         :: ct_helper:config().
@@ -43,6 +44,7 @@ groups() ->
             deposit_via_admin_amount_fails,
             deposit_via_admin_currency_fails,
             deposit_withdrawal_ok,
+            deposit_quote_withdrawal_ok,
             deposit_withdrawal_to_crypto_wallet
         ]}
     ].
@@ -77,13 +79,13 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 %%
 
@@ -94,10 +96,11 @@ end_per_testcase(_Name, _C) ->
 -spec deposit_via_admin_currency_fails(config()) -> test_return().
 -spec deposit_withdrawal_ok(config()) -> test_return().
 -spec deposit_withdrawal_to_crypto_wallet(config()) -> test_return().
+-spec deposit_quote_withdrawal_ok(config()) -> test_return().
 
 get_missing_fails(_C) ->
     ID = genlib:unique(),
-    {error, notfound} = ff_withdrawal:get_machine(ID).
+    {error, {unknown_withdrawal, ID}} = ff_withdrawal_machine:get(ID).
 
 deposit_via_admin_ok(C) ->
     Party = create_party(C),
@@ -107,24 +110,25 @@ deposit_via_admin_ok(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', [#fistful_SourceParams{
+    {ok, Src1} = call_admin('CreateSource', [#ff_admin_SourceParams{
         id       = SrcID,
         name     = <<"HAHA NO">>,
         identity_id = IID,
         currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
-        resource = #fistful_SourceResource{details = <<"Infinite source of cash">>}
+        resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
     }]),
-    SrcID = Src1#fistful_Source.id,
-    authorized = ct_helper:await(
-        authorized,
+
+    SrcID = Src1#src_Source.id,
+    {authorized, #src_Authorized{}} = ct_helper:await(
+        {authorized, #src_Authorized{}},
         fun () ->
             {ok, Src} = call_admin('GetSource', [SrcID]),
-            Src#fistful_Source.status
+            Src#src_Source.status
         end
     ),
 
     % Process deposit
-    {ok, Dep1} = call_admin('CreateDeposit', [#fistful_DepositParams{
+    {ok, Dep1} = call_admin('CreateDeposit', [#ff_admin_DepositParams{
         id          = DepID,
         source      = SrcID,
         destination = WalID,
@@ -133,13 +137,13 @@ deposit_via_admin_ok(C) ->
             currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
         }
     }]),
-    DepID = Dep1#fistful_Deposit.id,
-    {pending, _} = Dep1#fistful_Deposit.status,
+    DepID = Dep1#deposit_Deposit.id,
+    {pending, _} = Dep1#deposit_Deposit.status,
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
             {ok, Dep} = call_admin('GetDeposit', [DepID]),
-            {Status, _} = Dep#fistful_Deposit.status,
+            {Status, _} = Dep#deposit_Deposit.status,
             Status
         end,
         genlib_retry:linear(15, 1000)
@@ -154,24 +158,25 @@ deposit_via_admin_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', [#fistful_SourceParams{
+    {ok, Src1} = call_admin('CreateSource', [#ff_admin_SourceParams{
         id          = SrcID,
         name        = <<"HAHA NO">>,
         identity_id = IID,
         currency    = #'CurrencyRef'{symbolic_code = <<"RUB">>},
-        resource    = #fistful_SourceResource{details = <<"Infinite source of cash">>}
+        resource    = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
     }]),
-    SrcID = Src1#fistful_Source.id,
-    authorized = ct_helper:await(
-        authorized,
+
+    SrcID = Src1#src_Source.id,
+    {authorized, #src_Authorized{}} = ct_helper:await(
+        {authorized, #src_Authorized{}},
         fun () ->
             {ok, Src} = call_admin('GetSource', [SrcID]),
-            Src#fistful_Source.status
+            Src#src_Source.status
         end
     ),
 
     {ok, Dep1} = call_admin('CreateDeposit', [
-        #fistful_DepositParams{
+        #ff_admin_DepositParams{
             id          = DepID,
             source      = SrcID,
             destination = WalID,
@@ -182,13 +187,13 @@ deposit_via_admin_fails(C) ->
         }
     ]),
 
-    DepID = Dep1#fistful_Deposit.id,
-    {pending, _} = Dep1#fistful_Deposit.status,
+    DepID = Dep1#deposit_Deposit.id,
+    {pending, _} = Dep1#deposit_Deposit.status,
     failed = ct_helper:await(
         failed,
         fun () ->
             {ok, Dep} = call_admin('GetDeposit', [DepID]),
-            {Status, _} = Dep#fistful_Deposit.status,
+            {Status, _} = Dep#deposit_Deposit.status,
             Status
         end,
         genlib_retry:linear(15, 1000)
@@ -203,23 +208,25 @@ deposit_via_admin_amount_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, _Src1} = call_admin('CreateSource', [#fistful_SourceParams{
+
+    {ok, _Src1} = call_admin('CreateSource', [#ff_admin_SourceParams{
         id          = SrcID,
         name        = <<"HAHA NO">>,
         identity_id = IID,
         currency    = #'CurrencyRef'{symbolic_code = <<"RUB">>},
-        resource    = #fistful_SourceResource{details = <<"Infinite source of cash">>}
+        resource    = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
     }]),
-    authorized = ct_helper:await(
-        authorized,
+
+    {authorized, #src_Authorized{}} = ct_helper:await(
+        {authorized, #src_Authorized{}},
         fun () ->
             {ok, Src} = call_admin('GetSource', [SrcID]),
-            Src#fistful_Source.status
+            Src#src_Source.status
         end
     ),
 
     {exception, {fistful_DepositAmountInvalid}} = call_admin('CreateDeposit', [
-        #fistful_DepositParams{
+        #ff_admin_DepositParams{
             id          = DepID,
             source      = SrcID,
             destination = WalID,
@@ -239,23 +246,24 @@ deposit_via_admin_currency_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', [#fistful_SourceParams{
+    {ok, Src1} = call_admin('CreateSource', [#ff_admin_SourceParams{
         id          = SrcID,
         name        = <<"HAHA NO">>,
         identity_id = IID,
         currency    = #'CurrencyRef'{symbolic_code = <<"RUB">>},
-        resource    = #fistful_SourceResource{details = <<"Infinite source of cash">>}
+        resource    = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
     }]),
-    SrcID = Src1#fistful_Source.id,
-    authorized = ct_helper:await(
-        authorized,
+
+    SrcID = Src1#src_Source.id,
+    {authorized, #src_Authorized{}} = ct_helper:await(
+        {authorized, #src_Authorized{}},
         fun () ->
             {ok, Src} = call_admin('GetSource', [SrcID]),
-            Src#fistful_Source.status
+            Src#src_Source.status
         end
     ),
     BadCurrency = <<"CAT">>,
-    {exception, {fistful_DepositCurrencyInvalid}} = call_admin('CreateDeposit', [#fistful_DepositParams{
+    {exception, {fistful_DepositCurrencyInvalid}} = call_admin('CreateDeposit', [#ff_admin_DepositParams{
             id          = DepID,
             source      = SrcID,
             destination = WalID,
@@ -300,20 +308,58 @@ deposit_withdrawal_to_crypto_wallet(C) ->
     Events    = get_withdrawal_events(WdrID),
     [<<"2">>] = route_changes(Events).
 
+deposit_quote_withdrawal_ok(C) ->
+    Party  = create_party(C),
+    IID = create_person_identity(Party, C, <<"quote-owner">>),
+    ICID = genlib:unique(),
+    WalID = create_wallet(IID, <<"HAHA NO">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, <<"RUB">>}, WalID),
+
+    SrcID = create_source(IID, C),
+
+    process_deposit(SrcID, WalID),
+
+    DestID = create_destination(IID, C),
+
+    pass_identification(ICID, IID, C),
+
+    WdrID = process_withdrawal(WalID, DestID, #{
+        wallet_id => WalID,
+        destination_id => DestID,
+        body => {4240, <<"RUB">>},
+        quote => #{
+            cash_from   => {4240, <<"RUB">>},
+            cash_to     => {2120, <<"USD">>},
+            created_at  => <<"2016-03-22T06:12:27Z">>,
+            expires_on  => <<"2016-03-22T06:12:27Z">>,
+            quote_data  => #{
+                <<"version">> => 1,
+                <<"quote_data">> => #{<<"test">> => <<"test">>},
+                <<"provider_id">> => 3
+            }
+        }
+    }),
+
+    Events    = get_withdrawal_events(WdrID),
+    [<<"3">>] = route_changes(Events).
+
 create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
 
 create_person_identity(Party, C) ->
-    create_identity(Party, <<"good-one">>, <<"person">>, C).
+    create_person_identity(Party, C, <<"good-one">>).
+
+create_person_identity(Party, C, ProviderID) ->
+    create_identity(Party, ProviderID, <<"person">>, C).
 
 create_identity(Party, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -322,7 +368,7 @@ create_wallet(IdentityID, Name, Currency, _C) ->
     ok = ff_wallet_machine:create(
         ID,
         #{identity => IdentityID, name => Name, currency => Currency},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.
 
@@ -353,7 +399,10 @@ get_destination_balance(ID) ->
     get_account_balance(ff_destination:account(ff_destination:get(Machine))).
 
 get_account_balance(Account) ->
-    {ok, {Amounts, Currency}} = ff_transaction:balance(ff_account:accounter_account_id(Account)),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(
+        Account,
+        ff_clock:latest_clock()
+    ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
 create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
@@ -362,7 +411,7 @@ create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
         Type,
         ID,
         #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_ctx:new(),
+        ff_entity_context:new(),
         C
     ),
     ID.
@@ -376,7 +425,7 @@ generate_id() ->
     genlib:to_binary(genlib_time:ticks()).
 
 call_admin(Fun, Args) ->
-    Service = {ff_proto_fistful_thrift, 'FistfulAdmin'},
+    Service = {ff_proto_fistful_admin_thrift, 'FistfulAdmin'},
     Request = {Service, Fun, Args},
     Client  = ff_woody_client:new(#{
         url           => <<"http://localhost:8022/v1/admin">>,
@@ -399,16 +448,15 @@ create_source(IID, C) ->
 
 process_deposit(SrcID, WalID) ->
     DepID = generate_id(),
-    ok = ff_deposit:create(
-        DepID,
-        #{source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
-        ff_ctx:new()
+    ok = ff_deposit_machine:create(
+        #{id => DepID, source_id => SrcID, wallet_id => WalID, body => {10000, <<"RUB">>}},
+        ff_entity_context:new()
     ),
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
-            {ok, DepM} = ff_deposit:get_machine(DepID),
-            ff_deposit:status(ff_deposit:get(DepM))
+            {ok, DepM} = ff_deposit_machine:get(DepID),
+            ff_deposit:status(ff_deposit_machine:deposit(DepM))
         end,
         genlib_retry:linear(15, 1000)
     ),
@@ -461,17 +509,18 @@ pass_identification(ICID, IID, C) ->
     ).
 
 process_withdrawal(WalID, DestID) ->
+    process_withdrawal(WalID, DestID, #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}}).
+process_withdrawal(WalID, DestID, Params) ->
     WdrID = generate_id(),
-    ok = ff_withdrawal:create(
-        WdrID,
-        #{wallet_id => WalID, destination_id => DestID, body => {4240, <<"RUB">>}},
-        ff_ctx:new()
+    ok = ff_withdrawal_machine:create(
+        Params#{id => WdrID},
+        ff_entity_context:new()
     ),
     succeeded = ct_helper:await(
         succeeded,
         fun () ->
-            {ok, WdrM} = ff_withdrawal:get_machine(WdrID),
-            ff_withdrawal:status(ff_withdrawal:get(WdrM))
+            {ok, WdrM} = ff_withdrawal_machine:get(WdrID),
+            ff_withdrawal:status(ff_withdrawal_machine:withdrawal(WdrM))
         end,
         genlib_retry:linear(15, 1000)
     ),
@@ -498,4 +547,13 @@ call(Function, {Service, Path}, Args, Port) ->
     ff_woody_client:call(Client, Request).
 
 route_changes(Events) ->
-    [ProviderID || #wthd_Event{change = {route, #wthd_RouteChange{id = ProviderID}}} <- Events].
+    lists:filtermap(
+        fun
+            (#wthd_Event{change = {route, RouteChange}}) ->
+                #wthd_RouteChange{route = #wthd_Route{provider_id = ProviderID}} = RouteChange,
+                {true, ProviderID};
+            (_Other) ->
+                false
+        end,
+        Events
+    ).

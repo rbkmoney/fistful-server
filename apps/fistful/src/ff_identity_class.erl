@@ -8,39 +8,31 @@
 
 -type id() :: binary().
 
--type class() :: #{
-    id                    := id(),
-    name                  := binary(),
-    contract_template_ref := contract_template_ref(),
-    initial_level         := level(),
-    levels                := #{level_id() => level()},
-    challenge_classes     := #{challenge_class_id() => challenge_class()}
-}.
-
--type contract_template_ref() ::
-    dmsl_domain_thrift:'ContractTemplateRef'().
-
 %%
 
--type level_id() :: binary().
+-type challenge_class_id() :: binary().
+-type challenge_class()  :: ff_identity_challenge:challenge_class().
+-type contractor_level() ::
+    dmsl_domain_thrift:'ContractorIdentificationLevel'().
+
 -type level() :: #{
     id               := level_id(),
     name             := binary(),
     contractor_level := contractor_level()
 }.
 
--type contractor_level() ::
-    dmsl_domain_thrift:'ContractorIdentificationLevel'().
+-type contract_template_ref() ::
+    dmsl_domain_thrift:'ContractTemplateRef'().
 
-%%
+-type level_id()        :: binary().
 
--type challenge_class_id() :: binary().
-
--type challenge_class() :: #{
-    id           := challenge_class_id(),
-    name         := binary(),
-    base_level   := level(),
-    target_level := level()
+-type class() :: #{
+    id                    := id(),
+    name                  := binary(),
+    contract_template_ref := contract_template_ref(),
+    initial_level         := level_id(),
+    levels                := #{level_id() => level()},
+    challenge_classes     := #{challenge_class_id() => challenge_class()}
 }.
 
 -export([id/1]).
@@ -58,11 +50,10 @@
 -export([challenge_class_name/1]).
 
 -export_type([id/0]).
--export_type([class/0]).
+-export_type([challenge_class_id/0]).
 -export_type([level_id/0]).
 -export_type([level/0]).
--export_type([challenge_class_id/0]).
--export_type([challenge_class/0]).
+-export_type([class/0]).
 
 %% Class
 

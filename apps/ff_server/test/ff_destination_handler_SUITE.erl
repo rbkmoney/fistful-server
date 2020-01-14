@@ -64,13 +64,13 @@ end_per_group(_, _) ->
 
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ff_woody_ctx:set(ct_helper:get_woody_ctx(C1)),
+    ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
 end_per_testcase(_Name, _C) ->
-    ok = ff_woody_ctx:unset().
+    ok = ct_helper:unset_context().
 
 -spec create_bank_card_destination_ok(config()) -> test_return().
 
@@ -85,7 +85,8 @@ create_bank_card_destination_ok(C) ->
 create_crypto_wallet_destination_ok(C) ->
     Resource = {crypto_wallet, #'CryptoWallet'{
         id = <<"f195298af836f41d072cb390ee62bee8">>,
-        currency = bitcoin_cash
+        currency = bitcoin_cash,
+        data = {bitcoin_cash, #'CryptoDataBitcoinCash'{}}
     }},
     create_destination_ok(Resource, C).
 
@@ -100,7 +101,7 @@ create_destination_ok(Resource, C) ->
     ID = genlib:unique(),
     ExternalId = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
-    Ctx = ff_context:wrap(#{<<"NS">> => #{}}),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #dst_DestinationParams{
         id          = ID,
         identity    = IdentityID,
@@ -156,6 +157,6 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ok = ff_identity_machine:create(
         ID,
         #{party => Party, provider => ProviderID, class => ClassID},
-        ff_ctx:new()
+        ff_entity_context:new()
     ),
     ID.

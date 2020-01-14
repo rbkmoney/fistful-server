@@ -8,13 +8,13 @@
 
 -module(ff_source).
 
--type ctx()      :: ff_ctx:ctx().
+-type ctx()      :: ff_entity_context:context().
 -type id()       :: ff_instrument:id().
 -type name()     :: ff_instrument:name().
 -type account()  :: ff_account:account().
 -type identity() :: ff_identity:id().
 -type currency() :: ff_currency:id().
--type status()   :: ff_identity:status().
+-type status()   :: ff_instrument:status().
 -type resource() :: #{
     type    := internal,
     details => binary()
@@ -60,7 +60,7 @@
 -spec identity(source()) -> identity().
 -spec currency(source()) -> currency().
 -spec resource(source()) -> resource().
--spec status(source())   -> status().
+-spec status(source())   -> status() | undefined.
 
 id(Source)       -> ff_instrument:id(Source).
 name(Source)     -> ff_instrument:name(Source).

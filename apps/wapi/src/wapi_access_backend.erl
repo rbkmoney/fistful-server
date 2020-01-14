@@ -39,11 +39,11 @@ get_context(Resource = wallet, WalletID, WoodyCtx) ->
 
 get_context(identity, Identity) ->
     #idnt_Identity{context = Ctx} = Identity,
-    Context = ff_context:unwrap(Ctx),
+    Context = ff_codec:unmarshal(context, Ctx),
     wapi_backend_utils:get_from_ctx(<<"owner">>, Context);
 get_context(wallet, Wallet) ->
     #wlt_Wallet{context = Ctx} = Wallet,
-    Context = ff_context:unwrap(Ctx),
+    Context = ff_codec:unmarshal(context, Ctx),
     wapi_backend_utils:get_from_ctx(<<"owner">>, Context).
 
 is_resource_owner(Owner, HandlerCtx) ->

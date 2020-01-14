@@ -20,7 +20,7 @@
 
 -type id()        :: machinery:id().
 -type identity()  :: ff_identity:identity().
--type ctx()       :: ff_ctx:ctx().
+-type ctx()       :: ff_entity_context:context().
 
 -type st() :: ff_machine:st(identity()).
 
@@ -32,6 +32,8 @@
     {challenge, ff_identity:start_challenge_error()}.
 
 -export_type([id/0]).
+-export_type([challenge_params/0]).
+-export_type([params/0]).
 
 -export([create/3]).
 -export([get/1]).

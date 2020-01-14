@@ -11,11 +11,19 @@
 
 -type id()        :: machinery:id().
 -type wallet()    :: ff_wallet:wallet().
--type ctx()       :: ff_ctx:ctx().
+-type ctx()       :: ff_entity_context:context().
 
 -type st()        :: ff_machine:st(wallet()).
 
+-type params()  :: #{
+    identity    := ff_identity_machine:id(),
+    name        := binary(),
+    currency    := ff_currency:id(),
+    external_id => id()
+}.
+
 -export_type([id/0]).
+-export_type([params/0]).
 
 -export([create/3]).
 -export([get/1]).
@@ -55,19 +63,8 @@ ctx(St) ->
 
 %%
 
--type params()  :: #{
-    identity    := ff_identity_machine:id(),
-    name        := binary(),
-    currency    := ff_currency:id(),
-    external_id => id()
-}.
-
 -spec create(id(), params(), ctx()) ->
-    ok |
-    {error,
-        ff_wallet:create_error() |
-        exists
-    }.
+    ok | {error, exists | ff_wallet:create_error() }.
 
 create(ID, Params = #{identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
     do(fun () ->

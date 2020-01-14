@@ -25,7 +25,7 @@
 %%
 
 -include_lib("ff_cth/include/ct_domain.hrl").
--include_lib("dmsl/include/dmsl_accounter_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 -define(dtp(Type), dmsl_domain_thrift:Type()).
 
@@ -75,6 +75,16 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
 -spec currency(?dtp('CurrencyRef')) ->
     object().
 
+currency(?cur(<<"EUR">> = SymCode) = Ref) ->
+    {currency, #domain_CurrencyObject{
+        ref = Ref,
+        data = #domain_Currency{
+            name          = <<"Europe"/utf8>>,
+            numeric_code  = 978,
+            symbolic_code = SymCode,
+            exponent      = 2
+        }
+    }};
 currency(?cur(<<"RUB">> = SymCode) = Ref) ->
     {currency, #domain_CurrencyObject{
         ref = Ref,
@@ -276,17 +286,17 @@ globals(EASRef, PIRefs) ->
     }}.
 
 -spec account(binary(), ct_helper:config()) ->
-    dmsl_accounter_thrift:'AccountID'().
+    shumpune_shumpune_thrift:'AccountID'().
 
 account(SymCode, C) ->
     Client = ff_woody_client:new(maps:get('accounter', ct_helper:cfg(services, C))),
     WoodyCtx = ct_helper:get_woody_ctx(C),
-    Prototype = #accounter_AccountPrototype{
+    Prototype = #shumpune_AccountPrototype{
         currency_sym_code = SymCode,
         description       = <<>>,
         creation_time     = timestamp()
     },
-    Request = {{dmsl_accounter_thrift, 'Accounter'}, 'CreateAccount', [Prototype]},
+    Request = {{shumpune_shumpune_thrift, 'Accounter'}, 'CreateAccount', [Prototype]},
     case woody_client:call(Request, Client, WoodyCtx) of
         {ok, ID} ->
             ID

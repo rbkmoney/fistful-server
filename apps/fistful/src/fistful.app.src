@@ -9,19 +9,23 @@
         stdlib,
         genlib,
         ff_core,
+        snowflake,
         machinery,
         machinery_extra,
+        woody,
         woody_user_identity,
         uuid,
-        dmsl,
+        damsel,
         dmt_client,
-        id_proto
+        shumpune_proto,
+        party_client,
+        id_proto,
+        binbase_proto
     ]},
     {env, []},
-    {modules, []},
     {maintainers, [
         "Andrey Mayorov <a.mayorov@rbkmoney.com>"
     ]},
-    {licenses, []},
+    {licenses, ["Apache 2.0"]},
     {links, ["https://github.com/rbkmoney/fistful-server"]}
 ]}.

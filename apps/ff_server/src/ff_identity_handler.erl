@@ -1,26 +1,21 @@
 -module(ff_identity_handler).
--behaviour(woody_server_thrift_handler).
+-behaviour(ff_woody_wrapper).
 
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 
-%% woody_server_thrift_handler callbacks
--export([handle_function/4]).
+%% ff_woody_wrapper callbacks
+-export([handle_function/3]).
 
 %%
-%% woody_server_thrift_handler callbacks
+%% ff_woody_wrapper callbacks
 %%
--spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
+-spec handle_function(woody:func(), woody:args(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function(Func, Args, Context, Opts) ->
+handle_function(Func, Args, Opts) ->
     [IdentityID| _ ] = Args,
-    scoper:scope(identity, #{function => Func, identity_id => IdentityID},
+    scoper:scope(identity, #{identity_id => IdentityID},
         fun() ->
-            ok = ff_woody_ctx:set(Context),
-            try
-                handle_function_(Func, Args, Context, Opts)
-            after
-                ff_woody_ctx:unset()
-            end
+            handle_function_(Func, Args, Opts)
         end
     ).
 
@@ -28,12 +23,12 @@ handle_function(Func, Args, Context, Opts) ->
 %% Internals
 %%
 
-handle_function_('Create', [IdentityID, IdentityParams], WoodyCtx, Opts) ->
+handle_function_('Create', [IdentityID, IdentityParams], Opts) ->
     Params  = ff_identity_codec:unmarshal_identity_params(IdentityParams),
     Context = ff_identity_codec:unmarshal(ctx, IdentityParams#idnt_IdentityParams.context),
     case ff_identity_machine:create(IdentityID, Params, Context) of
         ok ->
-            handle_function_('Get', [IdentityID], WoodyCtx, Opts);
+            handle_function_('Get', [IdentityID], Opts);
         {error, {provider, notfound}} ->
             woody_error:raise(business, #fistful_ProviderNotFound{});
         {error, {identity_class, notfound}} ->
@@ -46,7 +41,7 @@ handle_function_('Create', [IdentityID, IdentityParams], WoodyCtx, Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Get', [ID], _Context, _Opts) ->
+handle_function_('Get', [ID], _Opts) ->
     case ff_identity_machine:get(ID) of
         {ok, Machine} ->
             Identity = ff_identity:set_blocked(ff_identity_machine:identity(Machine)),
@@ -56,7 +51,7 @@ handle_function_('Get', [ID], _Context, _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;
-handle_function_('StartChallenge', [IdentityID, Params], _WoodyCtx, _Opts) ->
+handle_function_('StartChallenge', [IdentityID, Params], _Opts) ->
     %% Не используем ExternalID тк идемпотентность реал-на через challengeID
     ChallengeParams = ff_identity_codec:unmarshal_challenge_params(Params),
     case ff_identity_machine:start_challenge(IdentityID, ChallengeParams) of
@@ -83,7 +78,7 @@ handle_function_('StartChallenge', [IdentityID, Params], _WoodyCtx, _Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('GetChallenges', [ID], _WoodCtx, _Opts) ->
+handle_function_('GetChallenges', [ID], _Opts) ->
     case ff_identity_machine:get(ID) of
         {ok, Machine} ->
             Identity = ff_identity_machine:identity(Machine),
@@ -92,8 +87,9 @@ handle_function_('GetChallenges', [ID], _WoodCtx, _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;
-handle_function_('GetEvents', [IdentityID, RangeParams], _Context, _Opts) ->
-    Range = ff_identity_codec:unmarshal(ev_range, RangeParams),
+
+handle_function_('GetEvents', [IdentityID, RangeParams], _Opts) ->
+    Range = ff_identity_codec:unmarshal(range, RangeParams),
     case ff_identity_machine:events(IdentityID, Range) of
         {ok, EventList} ->
             Events = [ff_identity_codec:marshal_identity_event(Event) || Event <- EventList],

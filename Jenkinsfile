@@ -38,7 +38,7 @@ build('fistful-server', 'docker-host', finalHook) {
       }
 
       runStage('dialyze') {
-        withWsCache("_build/default/rebar3_19.3_plt") {
+        withWsCache("_build/default/rebar3_21.3.8.7_plt") {
           sh 'make wc_dialyze'
         }
       }

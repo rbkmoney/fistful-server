@@ -16,8 +16,8 @@ marshal(event, {created, Source}) ->
     {created, marshal(source, Source)};
 marshal(event, {account, AccountChange}) ->
     {account, marshal(account_change, AccountChange)};
-marshal(event, {status_changed, StatusChange}) ->
-    {status, marshal(status_change, StatusChange)};
+marshal(event, {status_changed, Status}) ->
+    {status, #src_StatusChange{status = marshal(status, Status)}};
 
 marshal(source, Params = #{
     name := Name,
@@ -25,6 +25,8 @@ marshal(source, Params = #{
 }) ->
     ExternalID = maps:get(external_id, Params, undefined),
     #src_Source{
+        id = marshal(id, ff_source:id(Params)),
+        status = maybe_marshal(status, ff_source:status(Params)),
         name = marshal(string, Name),
         resource = marshal(resource, Resource),
         external_id = marshal(id, ExternalID)
@@ -37,10 +39,10 @@ marshal(internal, Internal) ->
         details = marshal(string, Details)
     };
 
-marshal(status_change, unauthorized) ->
-    {changed, {unauthorized, #src_Unauthorized{}}};
-marshal(status_change, authorized) ->
-    {changed, {authorized, #src_Authorized{}}};
+marshal(status, unauthorized) ->
+    {unauthorized, #src_Unauthorized{}};
+marshal(status, authorized) ->
+    {authorized, #src_Authorized{}};
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -62,8 +64,8 @@ unmarshal(event, {created, Source}) ->
     {created, unmarshal(source, Source)};
 unmarshal(event, {account, AccountChange}) ->
     {account, unmarshal(account_change, AccountChange)};
-unmarshal(event, {status, StatusChange}) ->
-    {status_changed, unmarshal(status_change, StatusChange)};
+unmarshal(event, {status, #src_StatusChange{status = Status}}) ->
+    {status_changed, unmarshal(status, Status)};
 
 unmarshal(source, #src_Source{
     name = Name,
@@ -77,13 +79,14 @@ unmarshal(source, #src_Source{
     });
 unmarshal(resource, {internal, #src_Internal{details = Details}}) ->
     genlib_map:compact(#{
-        type => unmarshal(string, Details)
+        type => internal,
+        details => unmarshal(string, Details)
     });
 
-unmarshal(status_change, {unauthorized, #src_Unauthorized{}}) ->
-    {changed, unauthorized};
-unmarshal(status_change, {authorized, #src_Authorized{}}) ->
-    {changed, authorized};
+unmarshal(status, {unauthorized, #src_Unauthorized{}}) ->
+    unauthorized;
+unmarshal(status, {authorized, #src_Authorized{}}) ->
+    authorized;
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
@@ -94,3 +97,8 @@ maybe_unmarshal(_Type, undefined) ->
     undefined;
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).

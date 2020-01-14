@@ -18,7 +18,7 @@
 -type operation_id()    :: swag_server_wallet:operation_id().
 -type api_key()         :: swag_server_wallet:api_key().
 -type request_context() :: swag_server_wallet:request_context().
--type handler_opts()    :: swag_server_wallet:handler_opts().
+-type handler_opts()    :: swag_server_wallet:handler_opts(_).
 
 %% API
 
@@ -150,11 +150,7 @@ process_request('GetIdentityChallengeEvent', Params, Context, _Opts) ->
     end;
 
 %% Wallets
-process_request('ListWallets', Params, Context, _Opts) ->
-    case wapi_wallet_ff_backend:list_wallets(Params, Context) of
-        {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
-        {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
-    end;
+
 process_request('GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
     case wapi_wallet_backend:get(WalletId, Context) of
         {ok, Wallet}                    -> wapi_handler_utils:reply_ok(200, Wallet);
@@ -402,41 +398,12 @@ process_request('DownloadFile', #{fileID := FileId}, Context, _Opts) ->
 %% Deposits
 process_request('ListDeposits', Params, Context, _Opts) ->
     case wapi_wallet_ff_backend:list_deposits(Params, Context) of
-        {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
-        {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
-    end.
+
+process_request(OperationID, Params, Context, Opts) ->
+    wapi_wallet_handler:process_request(OperationID, Params, Context, Opts).
 
 %% Internal functions
 
 get_location(OperationId, Params, Opts) ->
     #{path := PathSpec} = swag_server_wallet_router:get_operation(OperationId),
     wapi_handler_utils:get_location(PathSpec, Params, Opts).
-
--spec not_implemented() -> no_return().
-not_implemented() ->
-    wapi_handler_utils:throw_not_implemented().
-
-issue_grant_token(TokenSpec, Expiration, Context) ->
-    case get_expiration_deadline(Expiration) of
-        {ok, Deadline} ->
-            {ok, wapi_auth:issue_access_token(wapi_handler_utils:get_owner(Context), TokenSpec, {deadline, Deadline})};
-        Error = {error, _} ->
-            Error
-    end.
-
-get_expiration_deadline(Expiration) ->
-    {DateTime, MilliSec} = woody_deadline:from_binary(wapi_utils:to_universal_time(Expiration)),
-    Deadline = genlib_time:daytime_to_unixtime(DateTime) + MilliSec div 1000,
-    case genlib_time:unow() - Deadline < 0 of
-        true ->
-            {ok, Deadline};
-        false ->
-            {error, expired}
-    end.
-
--define(DEFAULT_URL_LIFETIME, 60). % seconds
-
-get_default_url_lifetime() ->
-    Now      = erlang:system_time(second),
-    Lifetime = application:get_env(wapi, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
-    wapi_utils:unwrap(rfc3339:format(Now + Lifetime, second)).

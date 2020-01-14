@@ -10,6 +10,8 @@
 -export([reply_error/2]).
 -export([reply_error/3]).
 
+-export([logic_error/2]).
+
 -export([service_call/2]).
 
 -export([throw_not_implemented/0]).
@@ -25,6 +27,9 @@
 -type handler_opts()    :: wapi_handler:opts().
 
 -type error_message() :: binary() | io_lib:chars().
+
+-type error_type() :: external_id_conflict.
+-type error_params() :: {ID :: binary(), ExternalID :: binary()}.
 
 -type status_code()   :: wapi_handler:status_code().
 -type headers()       :: wapi_handler:headers().
@@ -52,33 +57,43 @@ get_auth_context(#{swagger_context := #{auth_context := AuthContext}}) ->
 get_error_msg(Message) ->
     #{<<"message">> => genlib:to_binary(Message)}.
 
+-spec logic_error(error_type(), error_params()) ->
+    {error, {status_code(), #{}, response_data()}}.
+logic_error(external_id_conflict, {ID, ExternalID}) ->
+    Data = #{
+        <<"externalID">> => ExternalID,
+        <<"id">> => ID,
+        <<"message">> => <<"This 'externalID' has been used by another request">>
+    },
+    reply_error(409, Data).
+
 -spec reply_ok(status_code()) ->
-    {ok, {status_code(), [], undefined}}.
+    {ok, {status_code(), #{}, undefined}}.
 reply_ok(Code) ->
     reply_ok(Code, undefined).
 
 -spec reply_ok(status_code(), response_data()) ->
-    {ok, {status_code(), [], response_data()}}.
+    {ok, {status_code(), #{}, response_data()}}.
 reply_ok(Code, Data) ->
-    reply_ok(Code, Data, []).
+    reply_ok(Code, Data, #{}).
 
 -spec reply_ok(status_code(), response_data(), headers()) ->
-    {ok, {status_code(), [], response_data()}}.
+    {ok, {status_code(), #{}, response_data()}}.
 reply_ok(Code, Data, Headers) ->
     reply(ok, Code, Data, Headers).
 
 -spec reply_error(status_code()) ->
-    {error, {status_code(), [], undefined}}.
+    {error, {status_code(), #{}, undefined}}.
 reply_error(Code) ->
     reply_error(Code, undefined).
 
 -spec reply_error(status_code(), response_data()) ->
-    {error, {status_code(), [], response_data()}}.
+    {error, {status_code(), #{}, response_data()}}.
 reply_error(Code, Data) ->
-    reply_error(Code, Data, []).
+    reply_error(Code, Data, #{}).
 
 -spec reply_error(status_code(), response_data(), headers()) ->
-    {error, {status_code(), [], response_data()}}.
+    {error, {status_code(), #{}, response_data()}}.
 reply_error(Code, Data, Headers) ->
     reply(error, Code, Data, Headers).
 
@@ -90,12 +105,12 @@ reply(Status, Code, Data, Headers) ->
 throw_not_implemented() ->
     wapi_handler:throw_result(reply_error(501)).
 
--spec get_location(cowboy_router:route_match(), [binary()], handler_opts()) ->
+-spec get_location(wapi_utils:route_match(), [binary()], handler_opts()) ->
     headers().
 get_location(PathSpec, Params, _Opts) ->
     %% TODO pass base URL via Opts
     BaseUrl = genlib_app:env(?APP, public_endpoint),
-    [{<<"Location">>, wapi_utils:get_url(BaseUrl, PathSpec, Params)}].
+    #{<<"Location">> => wapi_utils:get_url(BaseUrl, PathSpec, Params)}.
 
 -spec service_call(
     {

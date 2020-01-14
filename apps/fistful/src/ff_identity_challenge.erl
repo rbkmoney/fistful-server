@@ -17,7 +17,7 @@
 -type timestamp() :: machinery:timestamp().
 -type provider()     :: ff_provider:id().
 -type identity_class() :: ff_identity_class:id().
--type challenge_class() :: ff_identity_class:challenge_class_id().
+-type challenge_class_id() :: ff_identity_class:challenge_class_id().
 -type master_id() :: id(binary()).
 -type claim_id()  :: id(binary()).
 
@@ -26,11 +26,20 @@
     claimant        := claimant(),
     provider        := provider(),
     identity_class  := identity_class(),
-    challenge_class := challenge_class(),
+    challenge_class := challenge_class_id(),
     proofs          := [proof()],
     master_id       := master_id(),
     claim_id        := claim_id(),
-    status          => status()
+    status          := status()
+}.
+
+-type level_id() :: ff_identity_class:level_id().
+
+-type challenge_class() :: #{
+    id           := challenge_class_id(),
+    name         := binary(),
+    base_level   := level_id(),
+    target_level := level_id()
 }.
 
 -type proof() ::
@@ -73,6 +82,11 @@
 -export_type([challenge/0]).
 -export_type([event/0]).
 -export_type([create_error/0]).
+-export_type([proof/0]).
+-export_type([id/1]).
+-export_type([status/0]).
+-export_type([challenge_class/0]).
+-export_type([level_id/0]).
 
 -export([id/1]).
 -export([claimant/1]).
@@ -113,7 +127,7 @@ claimant(#{claimant := V}) ->
     V.
 
 -spec class(challenge()) ->
-    challenge_class().
+    challenge_class_id().
 
 class(#{challenge_class := V}) ->
     V.
@@ -150,7 +164,7 @@ claim_id(#{claim_id := V}) ->
 
 %%
 
--spec create(id(_), claimant(), provider(), identity_class(), challenge_class(), [proof()]) ->
+-spec create(id(_), claimant(), provider(), identity_class(), challenge_class_id(), [proof()]) ->
     {ok, [event()]} |
     {error, create_error()}.
 

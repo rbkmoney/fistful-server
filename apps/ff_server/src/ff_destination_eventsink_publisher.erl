@@ -7,7 +7,7 @@
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
 -type event() :: ff_eventsink_publisher:event(ff_destination:event()).
--type sinkevent() :: ff_eventsink_publisher:sinkevent(ff_proto_destinaion_thrift:'SinkEvent'()).
+-type sinkevent() :: ff_eventsink_publisher:sinkevent(ff_proto_destination_thrift:'SinkEvent'()).
 
 -spec publish_events(list(event())) ->
     list(sinkevent()).

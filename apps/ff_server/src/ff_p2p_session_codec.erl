@@ -42,7 +42,7 @@ marshal(session, #{
         id = marshal(id, ID),
         status = marshal(status, Status),
         p2p_transfer = marshal(p2p_transfer, TransferParams),
-        provider = marshal(id, ProviderID),
+        provider = marshal(integer, ProviderID),
         party_revision = marshal(integer, PartyRevision),
         domain_revision = marshal(integer, DomainRevision)
     };
@@ -83,7 +83,7 @@ marshal(callback_change, #{tag := Tag, payload := Payload}) ->
 
 marshal(callback_event, {created, Callback}) ->
     {created, #p2p_session_CallbackCreatedChange{callback = marshal(callback, Callback)}};
-marshal(callback_event, {succeeded, Response}) ->
+marshal(callback_event, {finished, #{payload := Response}}) ->
     {finished, #p2p_session_CallbackResultChange{payload = Response}};
 marshal(callback_event, {status_changed, Status}) ->
     {status_changed, #p2p_session_CallbackStatusChange{status = marshal(callback_status, Status)}};
@@ -183,7 +183,7 @@ unmarshal(session, #p2p_session_Session{
         id => unmarshal(id, ID),
         status => unmarshal(status, Status),
         transfer_params => unmarshal(p2p_transfer, P2PTransfer),
-        provider_id => unmarshal(id, ProviderID),
+        provider_id => unmarshal(integer, ProviderID),
         party_revision => unmarshal(integer, PartyRevision),
         domain_revision => unmarshal(integer, DomainRevision)
     };
@@ -219,7 +219,7 @@ unmarshal(deadline, Deadline) ->
 unmarshal(callback_event, {created, #p2p_session_CallbackCreatedChange{callback = Callback}}) ->
     {created, unmarshal(callback, Callback)};
 unmarshal(callback_event, {finished, #p2p_session_CallbackResultChange{payload = Response}}) ->
-    {succeeded, Response};
+    {finished, #{payload => Response}};
 unmarshal(callback_event, {status_changed, #p2p_session_CallbackStatusChange{status = Status}}) ->
     {status_changed, unmarshal(callback_status, Status)};
 
@@ -326,7 +326,7 @@ p2p_session_codec_test() ->
         id => genlib:unique(),
         status => active,
         transfer_params => TransferParams,
-        provider_id => genlib:unique(),
+        provider_id => 1,
         party_revision => 123,
         domain_revision => 321
     },

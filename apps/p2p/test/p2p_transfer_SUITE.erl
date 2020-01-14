@@ -511,7 +511,8 @@ fees_passed(C) ->
 -spec consume_eventsinks(config()) -> test_return().
 consume_eventsinks(_) ->
     EventSinks = [
-          p2p_transfer_event_sink
+          p2p_transfer_event_sink,
+          p2p_session_event_sink
     ],
     [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
 

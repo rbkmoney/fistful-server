@@ -98,7 +98,9 @@ init([]) ->
         {withdrawal_management, ff_withdrawal_handler},
         {withdrawal_session_repairer, ff_withdrawal_session_repair},
         {withdrawal_repairer, ff_withdrawal_repair},
-        {deposit_repairer, ff_deposit_repair}
+        {deposit_repairer, ff_deposit_repair},
+        {p2p_transfer_repairer, ff_p2p_transfer_repair},
+        {p2p_session_repairer, ff_p2p_session_repair}
     ] ++ get_eventsink_handlers(),
     WoodyHandlers = [get_handler(Service, Handler, WrapperOpts) || {Service, Handler} <- Services],
 
@@ -173,7 +175,8 @@ get_eventsink_handlers() ->
         {wallet, wallet_event_sink, ff_wallet_eventsink_publisher},
         {withdrawal, withdrawal_event_sink, ff_withdrawal_eventsink_publisher},
         {withdrawal_session, withdrawal_session_event_sink, ff_withdrawal_session_eventsink_publisher},
-        {p2p_transfer, p2p_transfer_event_sink, ff_p2p_transfer_eventsink_publisher}
+        {p2p_transfer, p2p_transfer_event_sink, ff_p2p_transfer_eventsink_publisher},
+        {p2p_session, p2p_session_event_sink, ff_p2p_session_eventsink_publisher}
     ],
     [get_eventsink_handler(Name, Service, Publisher, Cfg) || {Name, Service, Publisher} <- Publishers].
 

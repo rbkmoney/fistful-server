@@ -8,6 +8,7 @@
 
 %% API
 
+-type ref() :: machinery:ref().
 -type id() :: machinery:id().
 -type event() :: p2p_transfer:event().
 -type event_id() :: integer().
@@ -47,6 +48,7 @@
 -export([events/2]).
 
 -export([start_adjustment/2]).
+-export([repair/2]).
 
 %% Accessors
 
@@ -118,6 +120,11 @@ events(ID, Range) ->
 
 start_adjustment(P2PTransferID, Params) ->
     call(P2PTransferID, {start_adjustment, Params}).
+
+-spec repair(ref(), ff_repair:scenario()) ->
+    ok | {error, notfound | working}.
+repair(Ref, Scenario) ->
+    machinery:repair(?NS, Ref, Scenario, backend()).
 
 %% Accessors
 

@@ -48,7 +48,13 @@ get_service(destination_management) ->
 get_service(withdrawal_management) ->
     {ff_proto_withdrawal_thrift, 'Management'};
 get_service(p2p_transfer_event_sink) ->
-    {ff_proto_p2p_transfer_thrift, 'EventSink'}.
+    {ff_proto_p2p_transfer_thrift, 'EventSink'};
+get_service(p2p_session_event_sink) ->
+    {ff_proto_p2p_session_thrift, 'EventSink'};
+get_service(p2p_transfer_repairer) ->
+    {ff_proto_p2p_transfer_thrift, 'Repairer'};
+get_service(p2p_session_repairer) ->
+    {ff_proto_p2p_session_thrift, 'Repairer'}.
 
 -spec get_service_spec(service_name()) -> service_spec().
 get_service_spec(Name) ->
@@ -88,4 +94,10 @@ get_service_path(destination_management) ->
 get_service_path(withdrawal_management) ->
     "/v1/withdrawal";
 get_service_path(p2p_transfer_event_sink) ->
-    "/v1/eventsink/p2p_transfer".
+    "/v1/eventsink/p2p_transfer";
+get_service_path(p2p_session_event_sink) ->
+    "/v1/eventsink/p2p_transfer/session";
+get_service_path(p2p_transfer_repairer) ->
+    "/v1/repair/p2p_transfer";
+get_service_path(p2p_session_repairer) ->
+    "/v1/repair/p2p_transfer/session".

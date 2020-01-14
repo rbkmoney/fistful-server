@@ -181,7 +181,7 @@ get_identity(IdentityID) ->
     end).
 
 -spec get_fees_from_terms(terms()) ->
-    ff_fees:t().
+    ff_fees:plan().
 get_fees_from_terms(Terms) ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
@@ -193,7 +193,7 @@ get_fees_from_terms(Terms) ->
     decode_domain_fees(FeeTerm).
 
 -spec decode_domain_fees(dmsl_domain_thrift:'FeeSelector'() | undefined) ->
-    ff_fees:t().
+    ff_fees:plan().
 decode_domain_fees(undefined) ->
     #{fees => #{}};
 decode_domain_fees({value, Fees}) -> % must be reduced before

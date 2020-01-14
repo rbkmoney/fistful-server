@@ -18,8 +18,8 @@
 -type cash_volume() :: ff_cash_flow:plan_volume().
 -type cash() :: ff_cash:cash().
 
--spec surplus(plan()) -> cash_volume() | undefined;
-             (final()) -> cash() | undefined.
+-spec surplus(plan()) ->
+    cash_volume() | undefined.
 surplus(#{fees := Fees}) ->
     maps:get(surplus, Fees, undefined).
 

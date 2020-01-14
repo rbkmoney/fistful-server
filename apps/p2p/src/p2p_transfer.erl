@@ -766,9 +766,9 @@ get_merchant_fees(#domain_P2PServiceTerms{fees = {value, MerchantFees}}, Body) -
 -spec compute_fees(dmsl_domain_thrift:'Fees'(), body()) ->
     p2p_fees:t().
 compute_fees(Fees, Body) ->
-    DecodedFees = ff_fees:from_dmsl(Fees),
+    DecodedFees = ff_fees:unmarshal(Fees),
     ComputedFees = ff_fees:compute(DecodedFees, Body),
-    p2p_fees:from_domain_computed(ComputedFees).
+    p2p_fees:from_ff_fees_final(ComputedFees).
 
 -spec process_session_poll(p2p_transfer()) ->
     process_result().

@@ -2,8 +2,8 @@
 
 -include_lib("damsel/include/dmsl_p2p_adapter_thrift.hrl").
 
--export([to_dmsl/1]).
--export([from_domain/1]).
+-export([marshal/1]).
+-export([from_ff_cash/1]).
 
 -export_type([t/0]).
 -type t() :: #{
@@ -11,17 +11,17 @@
     currency := ff_currency:currency()
 }.
 
--spec to_dmsl(t()) ->
+-spec marshal(t()) ->
     dmsl_p2p_adapter_thrift:'Cash'().
-to_dmsl(#{amount := Amount, currency := Currency}) ->
+marshal(#{amount := Amount, currency := Currency}) ->
     #p2p_adapter_Cash{
         amount   = ff_dmsl_codec:marshal(amount, Amount),
         currency = ff_dmsl_codec:marshal(currency, Currency)
     }.
 
--spec from_domain(ff_cash:cash()) ->
+-spec from_ff_cash(ff_cash:cash()) ->
     t().
-from_domain({Amount, CurrencyID} = Cash) ->
+from_ff_cash({Amount, CurrencyID} = Cash) ->
     Currency = ff_pipeline:unwrap({currency, Cash}, ff_currency:get(CurrencyID)),
     #{
         amount   => Amount,

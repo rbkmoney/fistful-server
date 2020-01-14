@@ -3,14 +3,14 @@
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([surplus/1]).
--export([from_dmsl/1]).
+-export([unmarshal/1]).
 -export([compute/2]).
 
--export_type([t/0]).
--export_type([computed/0]).
+-export_type([plan/0]).
+-export_type([final/0]).
 
--type t() :: fees(cash_volume()).
--type computed() :: fees(cash()).
+-type plan() :: fees(cash_volume()).
+-type final() :: fees(cash()).
 
 -type fees(T) :: #{fees := #{cash_flow_constant() => T}}.
 
@@ -18,14 +18,14 @@
 -type cash_volume() :: ff_cash_flow:plan_volume().
 -type cash() :: ff_cash:cash().
 
--spec surplus(t()) ->
-    cash_volume() | undefined.
+-spec surplus(plan()) -> cash_volume() | undefined;
+             (final()) -> cash() | undefined.
 surplus(#{fees := Fees}) ->
     maps:get(surplus, Fees, undefined).
 
--spec from_dmsl(dmsl_domain_thrift:'Fees'()) ->
-    t().
-from_dmsl(#domain_Fees{fees = Fees}) ->
+-spec unmarshal(dmsl_domain_thrift:'Fees'()) ->
+    plan().
+unmarshal(#domain_Fees{fees = Fees}) ->
     DecodedFees = maps:map(
         fun(_Key, Value) ->
             ff_cash_flow:decode_domain_plan_volume(Value)
@@ -34,8 +34,8 @@ from_dmsl(#domain_Fees{fees = Fees}) ->
     ),
     #{fees => DecodedFees}.
 
--spec compute(t(), cash()) ->
-    computed().
+-spec compute(plan(), cash()) ->
+    final().
 compute(#{fees := Fees}, Cash) ->
     Constants = #{operation_amount => Cash},
     ComputedFees = maps:map(

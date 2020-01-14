@@ -139,7 +139,7 @@ marshal(deadline, Deadline) ->
     ff_time:to_rfc3339(Deadline);
 
 marshal(p2p_fees, Fees) ->
-    p2p_fees:to_dmsl(Fees).
+    p2p_fees:marshal(Fees).
 
 maybe_marshal(_T, undefined) ->
     undefined;

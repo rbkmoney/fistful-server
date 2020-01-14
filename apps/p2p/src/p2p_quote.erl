@@ -197,9 +197,7 @@ get_fees_from_terms(Terms) ->
 decode_domain_fees(undefined) ->
     #{fees => #{}};
 decode_domain_fees({value, Fees}) -> % must be reduced before
-    ff_fees:from_dmsl(Fees).
-
-
+    ff_fees:unmarshal(Fees).
 
 -spec get_expire_time(terms(), ff_time:timestamp_ms()) ->
     ff_time:timestamp_ms().

@@ -1,7 +1,6 @@
 -module(p2p_ct_provider_handler).
 -behaviour(woody_server_thrift_handler).
 
--include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_p2p_adapter_thrift.hrl").
 -include_lib("damsel/include/dmsl_user_interaction_thrift.hrl").
 

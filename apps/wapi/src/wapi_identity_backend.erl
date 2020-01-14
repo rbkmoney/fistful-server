@@ -355,7 +355,7 @@ marshal(event_range, {Cursor, Limit}) ->
     };
 
 marshal(context, Ctx) ->
-    ff_context:wrap(Ctx);
+    ff_codec:marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).

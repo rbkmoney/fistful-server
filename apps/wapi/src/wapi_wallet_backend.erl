@@ -83,10 +83,8 @@ service_call(Params, Ctx) ->
     wapi_handler_utils:service_call(Params, Ctx).
 
 compose_wallet_params(ParamsIn, WoodyContext) ->
-    ExternalID = maps:get(<<"externalID">>, ParamsIn, undefined),
-    Hash       = erlang:phash2(ParamsIn),
     Context    = create_context(ParamsIn, WoodyContext),
-    {ok, ID}   = gen_id(Type, ExternalID, Hash, Context),
+    ID         = create_id(ParamsIn, WoodyContext),
     genlib_map:compact(ParamsIn#{
         <<"id">>      => ID,
         <<"context">> => Context

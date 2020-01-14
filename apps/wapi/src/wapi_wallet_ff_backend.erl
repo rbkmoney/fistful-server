@@ -25,15 +25,18 @@
 -export([get_identity_challenge_event/2]).
 
 -export([get_wallet/2]).
+-export([get_wallet_by_external_id/2]).
 -export([create_wallet/2]).
 -export([get_wallet_account/2]).
 -export([list_wallets/2]).
 
 -export([get_destinations/2]).
 -export([get_destination/2]).
+-export([get_destination_by_external_id/2]).
 -export([create_destination/2]).
 -export([create_withdrawal/2]).
 -export([get_withdrawal/2]).
+-export([get_withdrawal_by_external_id/2]).
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
 -export([list_withdrawals/2]).
@@ -247,6 +250,19 @@ get_identity_challenge_event(#{
 get_wallet(WalletID, Context) ->
     do(fun() -> to_swag(wallet, get_state(wallet, WalletID, Context)) end).
 
+-spec get_wallet_by_external_id(external_id(), ctx()) -> result(map(),
+    {wallet, notfound}     |
+    {wallet, unauthorized}
+).
+get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
+    AuthContext = wapi_handler_utils:get_auth_context(Context),
+    PartyID = get_party_id(AuthContext),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, wallet, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
+        {ok, WalletID, _} -> get_wallet(WalletID, Context);
+        {error, internal_id_not_found} -> {error, {wallet, notfound}}
+    end.
+
 -spec create_wallet(params(), ctx()) -> result(map(),
     invalid                  |
     {identity, unauthorized} |
@@ -302,6 +318,21 @@ get_destinations(_Params, _Context) ->
 get_destination(DestinationID, Context) ->
     do(fun() -> to_swag(destination, get_state(destination, DestinationID, Context)) end).
 
+-spec get_destination_by_external_id(id(), ctx()) -> result(map(),
+    {destination, unauthorized} |
+    {destination, notfound}     |
+    {external_id, {unknown_external_id, id()}}
+).
+get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, destination, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
+        {ok, DestinationID, _CtxData} ->
+            get_destination(DestinationID, Context);
+        {error, internal_id_not_found} ->
+            {error, {external_id, {unknown_external_id, ExternalID}}}
+    end.
+
 -spec create_destination(params(), ctx()) -> result(map(),
     invalid                     |
     {identity, unauthorized}    |
@@ -333,7 +364,9 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {quote_invalid_party, _}      |
     {quote_invalid_wallet, _}     |
     {quote, {invalid_body, _}}    |
-    {quote, {invalid_destination, _}}
+    {quote, {invalid_destination, _}} |
+    {terms, {terms_violation, _}} |
+    {destination_resource, {bin_data, not_found}}
 ).
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
@@ -352,6 +385,21 @@ create_withdrawal(Params, Context) ->
 ).
 get_withdrawal(WithdrawalId, Context) ->
     do(fun() -> to_swag(withdrawal, get_state(withdrawal, WithdrawalId, Context)) end).
+
+-spec get_withdrawal_by_external_id(id(), ctx()) -> result(map(),
+    {withdrawal, unauthorized} |
+    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}} |
+    {external_id, {unknown_external_id, id()}}
+).
+get_withdrawal_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, withdrawal, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
+        {ok, WithdrawalId, _CtxData} ->
+            get_withdrawal(WithdrawalId, Context);
+        {error, internal_id_not_found} ->
+            {error, {external_id, {unknown_external_id, ExternalID}}}
+    end.
 
 -spec get_withdrawal_events(params(), ctx()) -> result([map()],
     {withdrawal, unauthorized} |
@@ -775,9 +823,6 @@ add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
 get_ctx(State) ->
     unwrap(ff_entity_context:get(?CTX_NS, ff_machine:ctx(State))).
 
-get_hash(State) ->
-    maps:get(?PARAMS_HASH, get_ctx(State)).
-
 get_resource_owner(State) ->
     maps:get(<<"owner">>, get_ctx(State)).
 
@@ -793,42 +838,21 @@ check_resource_access(false) -> {error, unauthorized}.
 create_entity(Type, Params, CreateFun, Context) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     Hash       = erlang:phash2(Params),
-    {ok, ID}   = gen_id(Type, ExternalID, Hash, Context),
-    Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
-    handle_create_entity_result(Result, Type, ExternalID, ID, Hash, Context).
+    case gen_id(Type, ExternalID, Hash, Context) of
+        {ok, ID} ->
+            Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
+            handle_create_entity_result(Result, Type, ID, Context);
+        {error, {external_id_conflict, ID}} ->
+            {error, {external_id_conflict, ID, ExternalID}}
+    end.
 
-handle_create_entity_result(ok, Type, ExternalID, ID, Hash, Context) ->
-    ok = sync_bender(Type, ExternalID, ID, Hash, Context),
+handle_create_entity_result(Result, Type, ID, Context) when
+    Result =:= ok;
+    Result =:= {error, exists}
+->
     do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
-handle_create_entity_result({error, exists}, Type, ExternalID, ID, Hash, Context) ->
-    get_and_compare_hash(Type, ExternalID, ID, Hash, Context);
-handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Hash, _Context) ->
+handle_create_entity_result({error, E}, _Type, _ID, _Context) ->
     throw(E).
-
-sync_bender(_Type, undefined, _FistfulID, _Hash, _Ctx) ->
-    ok;
-sync_bender(Type, ExternalID, FistfulID, Hash, Context = #{woody_context := WoodyCtx}) ->
-    PartyID = wapi_handler_utils:get_owner(Context),
-    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
-    case bender_client:gen_by_constant(IdempotentKey, FistfulID, Hash, WoodyCtx) of
-        {ok, FistfulID} ->
-            ok;
-        Error ->
-            Error
-    end.
-
-get_and_compare_hash(Type, ExternalID, ID, Hash, Context) ->
-    case do(fun() -> get_state(Type, ID, Context) end) of
-        {ok, State} ->
-            compare_hash(Hash, get_hash(State), {ID, ExternalID, to_swag(Type, State)});
-        Error ->
-            Error
-    end.
-
-compare_hash(Hash, Hash, {_, _, Data}) ->
-    {ok, Data};
-compare_hash(_, _, {ID, ExternalID, _}) ->
-    {error, {external_id_conflict, ID, ExternalID}}.
 
 with_party(Context, Fun) ->
     try Fun()
@@ -874,19 +898,23 @@ get_contract_id_from_identity(IdentityID, Context) ->
 %% ID Gen
 
 gen_id(Type, ExternalID, Hash, Context) ->
-    gen_id_by_sequence(Type, ExternalID, Hash, Context).
-
-gen_id_by_sequence(Type, ExternalID, _Hash, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),
-    gen_ff_sequence(Type, PartyID, ExternalID).
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
+    gen_id_by_type(Type, IdempotentKey, Hash, Context).
 
-construct_external_id(_PartyID, undefined) ->
-    undefined;
-construct_external_id(PartyID, ExternalID) ->
-    <<PartyID/binary, "/", ExternalID/binary>>.
+%@TODO: Bring back later
+%gen_id_by_type(withdrawal = Type, IdempotentKey, Hash, Context) ->
+%    gen_snowflake_id(Type, IdempotentKey, Hash, Context);
+gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
+    gen_sequence_id(Type, IdempotentKey, Hash, Context).
 
-gen_ff_sequence(Type, PartyID, ExternalID) ->
-    ff_external_id:check_in(Type, construct_external_id(PartyID, ExternalID)).
+%@TODO: Bring back later
+%gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+%    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx).
+
+gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+    BinType = atom_to_binary(Type, utf8),
+    bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
 
 create_report_request(#{
     party_id     := PartyID,
@@ -968,6 +996,10 @@ process_stat_result(StatType, Result) ->
         {exception, #fistfulstat_BadToken{reason = Reason}} ->
             {error, {400, [], bad_request_error(invalidRequest, Reason)}}
     end.
+
+get_party_id(AuthContext) ->
+    {{PartyID, _}, _} = AuthContext,
+    PartyID.
 
 get_time(Key, Req) ->
     case genlib_map:get(Key, Req) of

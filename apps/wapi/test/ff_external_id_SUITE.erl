@@ -17,7 +17,6 @@
 -export([idempotency_destination_conflict/1]).
 -export([idempotency_withdrawal_ok/1]).
 -export([idempotency_withdrawal_conflict/1]).
--export([fistful_to_bender_sync/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -35,8 +34,7 @@ all() ->
         idempotency_destination_ok,
         idempotency_destination_conflict,
         idempotency_withdrawal_ok,
-        idempotency_withdrawal_conflict,
-        fistful_to_bender_sync
+        idempotency_withdrawal_conflict
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -170,6 +168,7 @@ idempotency_destination_ok(C) ->
         ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     Party = create_party(C),
     ExternalID = genlib:unique(),
+    Context = create_context(Party, C),
     {ok, #{<<"id">> := IdentityID}} = create_identity(Party, C),
     Params = #{
         <<"identity">>  => IdentityID,
@@ -184,9 +183,11 @@ idempotency_destination_ok(C) ->
         <<"externalID">> => ExternalID
     },
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_destination(Params, create_context(Party, C)),
+        wapi_wallet_ff_backend:create_destination(Params, Context),
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_destination(Params, create_context(Party, C)).
+        wapi_wallet_ff_backend:create_destination(Params, Context),
+    {ok, #{<<"id">> := ID}} =
+        wapi_wallet_ff_backend:get_destination_by_external_id(ExternalID, Context).
 
 -spec idempotency_destination_conflict(config()) ->
     test_return().
@@ -224,7 +225,7 @@ idempotency_withdrawal_ok(C) ->
     {ok, #{<<"id">> := IdentityID}} = create_identity(Party, C),
     {ok, #{<<"id">> := WalletID}}   = create_wallet(IdentityID, Party, C),
     {ok, #{<<"id">> := DestID}}     = create_destination(IdentityID, Party, C),
-
+    Context = create_context(Party, C),
     wait_for_destination_authorized(DestID),
 
     Params = #{
@@ -237,9 +238,11 @@ idempotency_withdrawal_ok(C) ->
         <<"externalID">> => ExternalID
     },
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_withdrawal(Params, create_context(Party, C)),
+        wapi_wallet_ff_backend:create_withdrawal(Params, Context),
     {ok, #{<<"id">> := ID}} =
-        wapi_wallet_ff_backend:create_withdrawal(Params, create_context(Party, C)).
+        wapi_wallet_ff_backend:create_withdrawal(Params, Context),
+    {ok, #{<<"id">> := ID}} =
+        wapi_wallet_ff_backend:get_withdrawal_by_external_id(ExternalID, Context).
 
 -spec idempotency_withdrawal_conflict(config()) ->
     test_return().
@@ -268,27 +271,7 @@ idempotency_withdrawal_conflict(C) ->
     {error, {external_id_conflict, ID, ExternalID}} =
         wapi_wallet_ff_backend:create_withdrawal(NewParams, create_context(Party, C)).
 
--spec fistful_to_bender_sync(config()) ->
-    test_return().
-
-fistful_to_bender_sync(C) ->
-    ExternalID = genlib:unique(),
-    Params0 = #{
-        <<"provider">> => <<"good-one">>,
-        <<"class">> => <<"person">>,
-        <<"name">> => <<"someone">>,
-        <<"externalID">> => ExternalID
-    },
-    Party = create_party(C),
-    Ctx = create_context(Party, C),
-    {ok, #{<<"id">> := ID}} = wapi_wallet_ff_backend:create_identity(Params0, Ctx),
-    {ok, ID, _Ctx} = get_bender_id(identity, ExternalID, Party, C).
-
 %%
-
-get_bender_id(Type, ExternalID, PartyID, C) ->
-    IdempotentKey = bender_client:get_idempotent_key(<<"wapi">>, Type, PartyID, ExternalID),
-    bender_client:get_internal_id(IdempotentKey, ct_helper:get_woody_ctx(C)).
 
 wait_for_destination_authorized(DestID) ->
     authorized = ct_helper:await(

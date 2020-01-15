@@ -163,11 +163,18 @@ get_revision(ID) ->
 
 create_contract(ID, Prototype) ->
     do(fun () ->
-        ContractID = generate_contract_id(),
-        Changeset  = construct_contract_changeset(ContractID, Prototype),
-        Claim      = unwrap(do_create_claim(ID, Changeset)),
-        accepted   = do_accept_claim(ID, Claim),
-        ContractID
+        ContractID = generate_contract_id(), % no errors
+        Changeset  = construct_contract_changeset(ContractID, Prototype), % no errors
+        Claim      = unwrap(do_create_claim(ID, Changeset)), % possible errors
+        try
+            accepted = do_accept_claim(ID, Claim), % possible errors
+            ContractID
+        catch
+            error:Reason ->
+                logger:info("Claim acceptance failed with reason ~p", [Reason]),
+                _ = do_deny_claim(ID, Claim, <<>>),
+                error(Reason)
+        end
     end).
 
 %%
@@ -363,6 +370,19 @@ do_accept_claim(ID, Claim) ->
     Revision = Claim#payproc_Claim.revision,
     {Client, Context} = get_party_client(),
     case party_client_thrift:accept_claim(ID, ClaimID, Revision, Client, Context) of
+        ok ->
+            accepted;
+        {error, #payproc_InvalidClaimStatus{status = {accepted, _}}} ->
+            accepted;
+        {error, Unexpected} ->
+            error(Unexpected)
+    end.
+
+do_deny_claim(ID, Claim, Reason) ->
+    ClaimID  = Claim#payproc_Claim.id,
+    Revision = Claim#payproc_Claim.revision,
+    {Client, Context} = get_party_client(),
+    case party_client_thrift:deny_claim(ID, ClaimID, Revision, Reason, Client, Context) of
         ok ->
             accepted;
         {error, #payproc_InvalidClaimStatus{status = {accepted, _}}} ->

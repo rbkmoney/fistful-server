@@ -93,7 +93,8 @@ compose_wallet_params(ParamsIn, WoodyContext) ->
 create_id(ParamsIn, WoodyContext) ->
     wapi_backend_utils:make_id(
         wallet,
-        wapi_backend_utils:construct_external_id(ParamsIn, WoodyContext)
+        ParamsIn,
+        WoodyContext
     ).
 
 create_context(ParamsIn, WoodyContext) ->

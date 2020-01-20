@@ -74,6 +74,7 @@ init_per_suite(Config) ->
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
             optional_apps => [
+                bender_client,
                 wapi_woody_client,
                 wapi
             ]

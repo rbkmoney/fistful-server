@@ -48,7 +48,7 @@ get_identity(IdentityID, WoodyContext) ->
     _Unexpected
 ).
 create_identity(Params, WoodyContext) ->
-    ID = create_id(Params, WoodyContext),
+    ID = create_id(identity, Params, WoodyContext),
     IdentityParams = marshal(identity_params, {
         Params,
         wapi_handler_utils:get_owner(WoodyContext),
@@ -89,7 +89,7 @@ get_identities(_Params, _Context) ->
     {challenge, conflict}
 ).
 create_identity_challenge(IdentityID, Params, WoodyContext) ->
-    ChallengeID = wapi_backend_utils:make_id(identity_challenge),
+    ChallengeID = create_id(identity_challenge, Params, WoodyContext),
     case wapi_access_backend:check_resource(identity, IdentityID, WoodyContext) of
         ok ->
             ChallengeParams = marshal(challenge_params, {ChallengeID, Params}),
@@ -294,10 +294,11 @@ get_and_compare_hash(ID, Hash, WoodyContext) ->
 get_hash(#idnt_Identity{context = Ctx}) ->
     wapi_backend_utils:get_hash(unmarshal(context, Ctx)).
 
-create_id(ParamsIn, WoodyContext) ->
+create_id(Type, ParamsIn, WoodyContext) ->
     wapi_backend_utils:make_id(
-        identity,
-        wapi_backend_utils:construct_external_id(ParamsIn, WoodyContext)
+        Type,
+        ParamsIn,
+        WoodyContext
     ).
 
 create_context(ParamsIn, WoodyContext) ->

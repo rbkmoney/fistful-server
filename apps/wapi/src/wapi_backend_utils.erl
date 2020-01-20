@@ -1,16 +1,17 @@
 -module(wapi_backend_utils).
 
 -define(EXTERNAL_ID, <<"externalID">>).
--define(CTX_NS,      <<"com.rbkmoney.wapi">>).
+-define(CTX_NS, <<"com.rbkmoney.wapi">>).
 -define(PARAMS_HASH, <<"params_hash">>).
+-define(BENDER_DOMAIN, <<"wapi">>).
 
 %% Context
--type md()      :: ff_entity_context:md().
+-type md() :: ff_entity_context:md().
 -type context() :: ff_entity_context:context().
--type params()  :: map().
+-type params() :: map().
+-type handler_context() :: wapi_handler:context().
 
--export([make_id/1, make_id/2]).
--export([construct_external_id/2]).
+-export([make_id/3]).
 -export([make_ctx/0]).
 -export([add_to_ctx/3]).
 -export([get_from_ctx/2]).
@@ -24,29 +25,31 @@
 
 -import(ff_pipeline, [unwrap/1]).
 
--spec make_id(atom()) ->
+-spec make_id(atom(), params(), handler_context()) ->
     binary().
 
-make_id(Type) ->
-    make_id(Type, undefined).
+make_id(Type, Params, Context) ->
+    ExternalID = maps:get(?EXTERNAL_ID, Params, undefined),
+    Hash       = erlang:phash2(Params),
+    unwrap(gen_id(Type, ExternalID, Hash, Context)).
 
--spec make_id(atom(), binary() | undefined) ->
-    binary().
+gen_id(Type, ExternalID, Hash, Context) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
+    gen_id_by_type(Type, IdempotentKey, Hash, Context).
 
-make_id(Type, ExternalID) ->
-    unwrap(ff_external_id:check_in(Type, ExternalID)).
+%@TODO: Bring back later
+%gen_id_by_type(withdrawal = Type, IdempotentKey, Hash, Context) ->
+%    gen_snowflake_id(Type, IdempotentKey, Hash, Context);
+gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
+    gen_sequence_id(Type, IdempotentKey, Hash, Context).
 
--spec construct_external_id(params(), wapi_handler:context()) ->
-    binary() | undefined.
-
-construct_external_id(Params, Context) ->
-    case genlib_map:get(?EXTERNAL_ID, Params) of
-        undefined ->
-            undefined;
-        ExternalID ->
-            PartyID = wapi_handler_utils:get_owner(Context),
-            <<PartyID/binary, "/", ExternalID/binary>>
-    end.
+%@TODO: Bring back later
+%gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+%    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx).
+gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
+    BinType = atom_to_binary(Type, utf8),
+    bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
 
 -spec make_ctx() ->
     context().

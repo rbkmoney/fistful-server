@@ -586,7 +586,7 @@ create_desination(IdentityID, Resource, C) ->
 check_destination(IdentityID, DestID, Resource0, C) ->
     {ok, Dest} = get_destination(DestID, C),
     ResourceFields = [<<"type">>, <<"id">>, <<"currency">>],
-    Resource = convert_token(maps:with(ResourceFields, Resource0)),
+    Resource = maps:with(ResourceFields, Resource0),
     #{<<"resource">> := Res} = D1 = maps:with([<<"name">>,
                                                <<"identity">>,
                                                <<"currency">>,
@@ -611,12 +611,6 @@ await_destination(DestID) ->
             ff_destination:status(ff_destination:get(DestM))
         end
     ).
-
-% convert_token(#{<<"token">> := EncryptedToken} = Resource) ->
-%     % BankCard = wapi_utils:base64url_to_map(Base64),
-%     Resource#{<<"token">> => maps:get(<<"token">>, BankCard)};
-convert_token(Resource) ->
-    Resource.
 
 get_destination(DestID, C) ->
     call_api(

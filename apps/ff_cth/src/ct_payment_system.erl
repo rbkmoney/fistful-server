@@ -16,8 +16,7 @@
     quote_payment_inst_identity_id => id(),
     provider_identity_id => id(),
     quote_provider_identity_id => id(),
-    optional_apps => list(),
-    lechiffre => tuple()
+    optional_apps => list()
 }.
 -opaque system() :: #{
     started_apps := [atom()],

@@ -327,9 +327,11 @@ get_destination(DestinationID, Context) ->
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
+        DestinationParams = from_swag(destination_params, Params),
+        Resource = construct_resource(maps:get(resource, DestinationParams)),
         ff_destination:create(
             ID,
-            from_swag(destination_params, Params),
+            DestinationParams#{resource => Resource},
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
@@ -632,6 +634,24 @@ delete_webhook(WebhookID, IdentityID, Context) ->
     end).
 
 %% Internal functions
+
+construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
+when Type =:= <<"BankCardDestinationResource">> ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        unrecognized ->
+            from_swag(destination_resource, Resource);
+        {ok, BankCard} ->
+            {bank_card, #{
+                token          => BankCard#'BankCard'.token,
+                bin            => BankCard#'BankCard'.bin,
+                masked_pan     => BankCard#'BankCard'.masked_pan
+            }};
+        {error, {decryption_failed, _} = Error} ->
+            logger:warning("Resource token decryption failed ~p", [Error]),
+            erlang:error(badarg)
+    end;
+construct_resource(Resource) ->
+    from_swag(destination_resource, Resource).
 
 encode_webhook_id(WebhookID) ->
     try
@@ -1120,8 +1140,9 @@ from_swag(destination_params, Params) ->
         identity => maps:get(<<"identity">>, Params),
         currency => maps:get(<<"currency">>, Params),
         name     => maps:get(<<"name">>    , Params),
-        resource => from_swag(destination_resource, maps:get(<<"resource">>, Params))
+        resource => maps:get(<<"resource">>, Params)
     }, Params);
+%% TODO delete this code, after add encrypted token
 from_swag(destination_resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
     <<"token">> := WapiToken
@@ -1367,8 +1388,7 @@ to_swag(destination_status, unauthorized) ->
 to_swag(destination_resource, {bank_card, BankCard}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardDestinationResource">>,
-        <<"token">>         => maps:get(token, BankCard),
-        <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
+        <<"token">>         => wapi_utils:map_to_base64url(#{token => maps:get(token, BankCard)}),
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });

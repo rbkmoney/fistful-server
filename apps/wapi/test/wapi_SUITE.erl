@@ -76,8 +76,8 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 
-init_per_suite(C) ->
-     ct_helper:makeup_cfg([
+init_per_suite(Config) ->
+    ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
             default_termset => get_default_termset(),
@@ -87,7 +87,7 @@ init_per_suite(C) ->
                 wapi
             ]
         })
-    ], C).
+    ], Config).
 
 -spec end_per_suite(config()) -> _.
 
@@ -105,7 +105,7 @@ init_per_group(G, C) ->
     })),
     Party = create_party(C),
     % Token = issue_token(Party, [{[party], write}], unlimited),
-    Token = issue_token(Party, [{[party], write}], {deadline, 10}),
+    Token = issue_token(Party, [{[party], write}, {[party], read}], {deadline, 10}),
     Context = get_context("localhost:8080", Token),
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
     [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].
@@ -585,7 +585,7 @@ create_desination(IdentityID, Resource, C) ->
 
 check_destination(IdentityID, DestID, Resource0, C) ->
     {ok, Dest} = get_destination(DestID, C),
-    ResourceFields = [<<"type">>, <<"token">>, <<"id">>, <<"currency">>],
+    ResourceFields = [<<"type">>, <<"id">>, <<"currency">>],
     Resource = convert_token(maps:with(ResourceFields, Resource0)),
     #{<<"resource">> := Res} = D1 = maps:with([<<"name">>,
                                                <<"identity">>,
@@ -612,9 +612,9 @@ await_destination(DestID) ->
         end
     ).
 
-convert_token(#{<<"token">> := Base64} = Resource) ->
-    BankCard = wapi_utils:base64url_to_map(Base64),
-    Resource#{<<"token">> => maps:get(<<"token">>, BankCard)};
+% convert_token(#{<<"token">> := EncryptedToken} = Resource) ->
+%     % BankCard = wapi_utils:base64url_to_map(Base64),
+%     Resource#{<<"token">> => maps:get(<<"token">>, BankCard)};
 convert_token(Resource) ->
     Resource.
 

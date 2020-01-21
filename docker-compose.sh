@@ -8,6 +8,10 @@ services:
     volumes:
       - .:$PWD
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/config/private.pem
+      - ./apps/wapi/var/keys/wapi/jwk.json:/opt/wapi/config/jwk.json
+      - ./apps/wapi/var/keys/wapi/password.secret:/opt/wapi/config/password.secret
+      - ./apps/wapi/var/keys/wapi/enc.1.priv.json:/opt/wapi/config/enc.1.priv.json
+      - ./apps/wapi/var/keys/wapi/sig.1.priv.json:/opt/wapi/config/sig.1.priv.json
       - $HOME/.cache:/home/$UNAME/.cache
     working_dir: $PWD
     command: /sbin/init
@@ -28,10 +32,14 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:6678487f5d3bc1796a76b23ea5aa51ee2f77a7af
+    image: dr2.rbkmoney.com/rbkmoney/wapi:eecf359f219875a88fc92e52b16286a46dd19105
     command: /opt/wapi/bin/wapi foreground
     volumes:
+      - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/var/keys/wapi/private.pem
+      - ./apps/wapi/var/keys/wapi/jwk.json:/opt/wapi/var/keys/wapi/jwk.json
+      - ./apps/wapi/var/keys/wapi/password.secret:/opt/wapi/var/keys/wapi/password.secret
+      - ./test/log/wapi:/var/log/wapi
     depends_on:
       cds:
         condition: service_healthy
@@ -131,16 +139,35 @@ services:
       retries: 10
 
   cds:
-    image: dr2.rbkmoney.com/rbkmoney/cds:f7ad5a34a2f6d0780f44821290ba7c52d349f3f7
+    image: dr2.rbkmoney.com/rbkmoney/cds:8db72805e7e4478494e0cc9b6ff5c39317d58687
     command: /opt/cds/bin/cds foreground
     volumes:
       - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config
       - ./test/log/cds:/var/log/cds
+      - ./test/cds/ca.crt:/var/lib/cds/ca.crt:ro
+      - ./test/cds/client.pem:/var/lib/cds/client.pem
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s
       timeout: 1s
       retries: 10
+    depends_on:
+      kds:
+        condition: service_healthy
+
+  kds:
+    image: dr2.rbkmoney.com/rbkmoney/kds:bbbf99db9636f9554f8bf092b268a2e479481943
+    command: /opt/kds/bin/kds foreground
+    volumes:
+      - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro
+      - ./test/kds/ca.crt:/var/lib/kds/ca.crt:ro
+      - ./test/kds/server.pem:/var/lib/kds/server.pem:ro
+      - ./test/log/kds:/var/log/kds
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 20
 
   holmes:
     image: dr2.rbkmoney.com/rbkmoney/holmes:7a430d6ec97518a0ffe6e6c24ce267390de18b40

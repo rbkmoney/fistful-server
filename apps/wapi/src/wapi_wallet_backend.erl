@@ -21,7 +21,7 @@
         {conflict, binary()}.
 
 create(ParamsIn = #{<<"identity">> := IdentityID}, WoodyContext) ->
-    case wapi_access_backend:check_resource(identity, IdentityID, WoodyContext) of
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
         ok ->
             create_(ParamsIn, WoodyContext);
         {error, unauthorized} ->

@@ -4,7 +4,9 @@
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
 -export([check_resource/3]).
+-export([check_resource_by_id/3]).
 
+-type id() :: binary().
 -type handler_context() :: wapi_handler:context().
 -type data() ::
     ff_proto_identity_thrift:'Identity'() |
@@ -14,25 +16,29 @@
 
 %% Pipeline
 
--spec check_resource(atom(), binary() | data(), handler_context()) ->
+-spec check_resource(atom(), data(), handler_context()) ->
     ok | {error, unauthorized}.
 
-check_resource(Resource, ID, Context) when is_binary(ID)->
-    Owner = get_context(Resource, ID, Context),
-    check_resource_access(is_resource_owner(Owner, Context));
-check_resource(Resource, Data, Context)->
+check_resource(Resource, Data, Context) ->
     Owner = get_context(Resource, Data),
+    check_resource_access(is_resource_owner(Owner, Context)).
+
+-spec check_resource_by_id(atom(), id(), handler_context()) ->
+    ok | {error, unauthorized}.
+
+check_resource_by_id(Resource, ID, Context) ->
+    Owner = get_context_by_id(Resource, ID, Context),
     check_resource_access(is_resource_owner(Owner, Context)).
 
 %%
 %% Internal
 %%
 
-get_context(Resource = identity, IdentityID, WoodyCtx) ->
+get_context_by_id(Resource = identity, IdentityID, WoodyCtx) ->
     Request = {fistful_identity, 'Get', [IdentityID]},
     {ok, Identity} = wapi_handler_utils:service_call(Request, WoodyCtx),
     get_context(Resource, Identity);
-get_context(Resource = wallet, WalletID, WoodyCtx) ->
+get_context_by_id(Resource = wallet, WalletID, WoodyCtx) ->
     Request = {fistful_wallet, 'Get', [WalletID]},
     {ok, Wallet} = wapi_handler_utils:service_call(Request, WoodyCtx),
     get_context(Resource, Wallet).

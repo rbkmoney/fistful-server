@@ -90,7 +90,7 @@ get_identities(_Params, _Context) ->
 ).
 create_identity_challenge(IdentityID, Params, WoodyContext) ->
     ChallengeID = create_id(identity_challenge, Params, WoodyContext),
-    case wapi_access_backend:check_resource(identity, IdentityID, WoodyContext) of
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
         ok ->
             ChallengeParams = marshal(challenge_params, {ChallengeID, Params}),
             Request = {fistful_identity, 'StartChallenge', [IdentityID, ChallengeParams]},
@@ -124,7 +124,7 @@ create_identity_challenge(IdentityID, Params, WoodyContext) ->
     {challenge, notfound}
 ).
 get_identity_challenge(IdentityID, ChallengeID, WoodyContext) ->
-    case wapi_access_backend:check_resource(identity, IdentityID, WoodyContext) of
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
         ok ->
             Request = {fistful_identity, 'GetChallenges', [IdentityID]},
             case service_call(Request, WoodyContext) of
@@ -145,7 +145,7 @@ get_identity_challenge(IdentityID, ChallengeID, WoodyContext) ->
     {challenge, notfound}
 ).
 get_identity_challenges(IdentityID, Status, WoodyContext) ->
-    case wapi_access_backend:check_resource(identity, IdentityID, WoodyContext) of
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
         ok ->
             Request = {fistful_identity, 'GetChallenges', [IdentityID]},
             case service_call(Request, WoodyContext) of
@@ -170,7 +170,7 @@ get_identity_challenge_events(Params = #{
     'challengeID' := ChallengeID,
     'limit'  := Limit
 }, WoodyContext) ->
-    case wapi_access_backend:check_resource(identity, IdentityID, WoodyContext) of
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
         ok ->
             Cursor = maps:get('eventCursor', Params, undefined),
             EventRange = marshal(event_range, {Cursor, Limit}),
@@ -196,7 +196,7 @@ get_identity_challenge_events(Params = #{
 get_identity_challenge_event(Params = #{
     'identityID'  := IdentityID
 }, WoodyContext) ->
-    case wapi_access_backend:check_resource(identity, IdentityID, WoodyContext) of
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
         ok ->
             get_identity_challenge_event_(Params, WoodyContext);
         {error, unauthorized} ->

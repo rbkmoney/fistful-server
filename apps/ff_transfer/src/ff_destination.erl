@@ -74,6 +74,7 @@
 -export_type([resource_full_id/0]).
 -export_type([event/0]).
 -export_type([params/0]).
+-export_type([exp_date/0]).
 
 %% Accessors
 

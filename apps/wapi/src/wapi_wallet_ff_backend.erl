@@ -2,6 +2,7 @@
 
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
@@ -641,10 +642,16 @@ when Type =:= <<"BankCardDestinationResource">> ->
         unrecognized ->
             from_swag(destination_resource, Resource);
         {ok, BankCard} ->
+            #'BankCardExpDate'{
+                month = Month,
+                year = Year
+            } = BankCard#'BankCard'.exp_date,
             {bank_card, #{
                 token          => BankCard#'BankCard'.token,
                 bin            => BankCard#'BankCard'.bin,
-                masked_pan     => BankCard#'BankCard'.masked_pan
+                masked_pan     => BankCard#'BankCard'.masked_pan,
+                cardholder_name => BankCard#'BankCard'.cardholder_name,
+                exp_date        => {Month, Year}
             }};
         {error, {decryption_failed, _} = Error} ->
             logger:warning("Resource token decryption failed ~p", [Error]),

@@ -5,7 +5,6 @@
 -include_lib("jose/include/jose_jws.hrl").
 
 -define(THRESHOLD, 1).
--define(read_file(Filename), file:read_file(Filename)).
 
 -export([init/1]).
 
@@ -21,8 +20,8 @@ init(Config) ->
     case get_state(Config) of
         not_initialized ->
             [EncryptedMasterKeyShare] = start_init(?THRESHOLD, Config),
-            {ok, EncPrivateKey} = ?read_file("/opt/wapi/config/enc.1.priv.json"),
-            {ok, SigPrivateKey} = ?read_file("/opt/wapi/config/sig.1.priv.json"),
+            {ok, EncPrivateKey} = file:read_file("/opt/wapi/config/enc.1.priv.json"),
+            {ok, SigPrivateKey} = file:read_file("/opt/wapi/config/sig.1.priv.json"),
             #{
                 id := ID,
                 encrypted_share := EncryptedShare
@@ -79,8 +78,8 @@ call(Fun, Args, C) ->
     WoodyCtx = ct_helper:get_woody_ctx(C),
     Request = {{cds_proto_keyring_thrift, 'KeyringManagement'}, Fun, Args},
     case woody_client:call(Request, Client, WoodyCtx) of
-        {ok, ID} ->
-            ID
+        {ok, Result} ->
+            Result
     end.
 
 %% DECODE

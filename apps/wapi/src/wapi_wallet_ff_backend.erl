@@ -688,8 +688,8 @@ when Type =:= <<"BankCardDestinationResource">> ->
                 exp_date        => {Month, Year}
             }};
         {error, {decryption_failed, _} = Error} ->
-            logger:warning("Resource token decryption failed ~p", [Error]),
-            erlang:error(badarg)
+            logger:warning("Resource token decryption failed: ~p", [Error]),
+            erlang:error(Error)
     end;
 construct_resource(Resource) ->
     from_swag(destination_resource, Resource).
@@ -1429,7 +1429,7 @@ to_swag(destination_status, unauthorized) ->
 to_swag(destination_resource, {bank_card, BankCard}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardDestinationResource">>,
-        <<"token">>         => wapi_utils:map_to_base64url(#{token => maps:get(token, BankCard)}),
+        <<"token">>         => maps:get(token, BankCard),
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });

@@ -62,6 +62,7 @@ do_setup(Options0, C0) ->
     ok = ct_helper:set_context(C1),
     ok = setup_dominant(Options, C1),
     ok = ct_keyring:init(C1),
+    %% TODO rewrite timer , check keyring status from cds health checker
     ok = timer:sleep(5000),
     ok = configure_processing_apps(Options),
     ok = ct_helper:unset_context(),

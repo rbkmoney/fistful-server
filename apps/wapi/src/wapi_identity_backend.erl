@@ -1,6 +1,5 @@
 -module(wapi_identity_backend).
 
-% -type req_data()        :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
 -type response_data()   :: wapi_handler:response_data().
 -type params()          :: map().
@@ -26,11 +25,11 @@
     {error, {identity, notfound}}     |
     {error, {identity, unauthorized}} .
 
-get_identity(IdentityID, WoodyContext) ->
+get_identity(IdentityID, HandlerContext) ->
     Request = {fistful_identity, 'Get', [IdentityID]},
-    case service_call(Request, WoodyContext) of
+    case service_call(Request, HandlerContext) of
         {ok, IdentityThrift} ->
-            case wapi_access_backend:check_resource(identity, IdentityThrift, WoodyContext) of
+            case wapi_access_backend:check_resource(identity, IdentityThrift, HandlerContext) of
                 ok ->
                     {ok, unmarshal(identity, IdentityThrift)};
                 {error, unauthorized} ->
@@ -43,22 +42,27 @@ get_identity(IdentityID, WoodyContext) ->
 -spec create_identity(params(), handler_context()) -> result(map(),
     {provider, notfound}       |
     {identity_class, notfound} |
-    {conflict, id()}           |
+    {external_id_conflict, id()}           |
     inaccessible               |
     _Unexpected
 ).
-create_identity(Params, WoodyContext) ->
-    ID = create_id(identity, Params, WoodyContext),
+create_identity(Params, HandlerContext) ->
+    case create_id(identity, Params, HandlerContext) of
+        {ok, ID} ->
+            create_identity(ID, Params, HandlerContext);
+        {error, {external_id_conflict, _}} = Error ->
+            Error
+    end.
+
+create_identity(ID, Params, HandlerContext) ->
     IdentityParams = marshal(identity_params, {
         Params,
-        wapi_handler_utils:get_owner(WoodyContext),
-        create_context(Params, WoodyContext)
+        wapi_handler_utils:get_owner(HandlerContext),
+        create_context(Params, HandlerContext)
     }),
     Request = {fistful_identity, 'Create', [ID, IdentityParams]},
 
-    %% FIXME we can`t get #'payproc_PartyNotFound' here, so we can`t create party if need it
-
-    case service_call(Request, WoodyContext) of
+    case service_call(Request, HandlerContext) of
         {ok, Identity} ->
             {ok, unmarshal(identity, Identity)};
         {exception, #fistful_ProviderNotFound{}} ->
@@ -68,8 +72,7 @@ create_identity(Params, WoodyContext) ->
         {exception, #fistful_PartyInaccessible{}} ->
             {error, inaccessible};
         {exception, #fistful_IDExists{}} ->
-            {_, Hash} = wapi_backend_utils:create_params_hash(Params),
-            get_and_compare_hash(ID, Hash, WoodyContext);
+            get_identity(ID, HandlerContext);
         {exception, Details} ->
             {error, Details}
     end.
@@ -86,17 +89,25 @@ get_identities(_Params, _Context) ->
     {challenge, {proof, notfound}}     |
     {challenge, {proof, insufficient}} |
     {challenge, level}                 |
-    {challenge, conflict}
+    {challenge, conflict}              |
+    {external_id_conflict, id()}
 ).
-create_identity_challenge(IdentityID, Params, WoodyContext) ->
-    ChallengeID = create_id(identity_challenge, Params, WoodyContext),
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
+create_identity_challenge(IdentityID, Params, HandlerContext) ->
+    case create_id(identity_challenge, Params, HandlerContext) of
+        {ok, ID} ->
+            create_identity_challenge(ID, IdentityID, Params, HandlerContext);
+        {error, {external_id_conflict, _}} = Error ->
+            Error
+    end.
+
+create_identity_challenge(ChallengeID, IdentityID, Params, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             ChallengeParams = marshal(challenge_params, {ChallengeID, Params}),
             Request = {fistful_identity, 'StartChallenge', [IdentityID, ChallengeParams]},
-            case service_call(Request, WoodyContext) of
+            case service_call(Request, HandlerContext) of
                 {ok, Challenge} ->
-                    {ok, unmarshal(challenge, {Challenge, WoodyContext})};
+                    {ok, unmarshal(challenge, {Challenge, HandlerContext})};
                 {exception, #fistful_IdentityNotFound{}} ->
                     {error, {identity, notfound}};
                 {exception, #fistful_ChallengePending{}} ->
@@ -123,13 +134,13 @@ create_identity_challenge(IdentityID, Params, WoodyContext) ->
     {identity, unauthorized} |
     {challenge, notfound}
 ).
-get_identity_challenge(IdentityID, ChallengeID, WoodyContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
+get_identity_challenge(IdentityID, ChallengeID, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             Request = {fistful_identity, 'GetChallenges', [IdentityID]},
-            case service_call(Request, WoodyContext) of
+            case service_call(Request, HandlerContext) of
                 {ok, Challenges} ->
-                    get_challenge_by_id(ChallengeID, Challenges, WoodyContext);
+                    get_challenge_by_id(ChallengeID, Challenges, HandlerContext);
                 {exception, #fistful_IdentityNotFound{}} ->
                     {error, {identity, notfound}};
                 {exception, Details} ->
@@ -144,13 +155,13 @@ get_identity_challenge(IdentityID, ChallengeID, WoodyContext) ->
     {identity, unauthorized} |
     {challenge, notfound}
 ).
-get_identity_challenges(IdentityID, Status, WoodyContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
+get_identity_challenges(IdentityID, Status, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             Request = {fistful_identity, 'GetChallenges', [IdentityID]},
-            case service_call(Request, WoodyContext) of
+            case service_call(Request, HandlerContext) of
                 {ok, Challenges} ->
-                    Filtered = filter_challenges_by_status(Status, Challenges, WoodyContext, []),
+                    Filtered = filter_challenges_by_status(Status, Challenges, HandlerContext, []),
                     {ok, unmarshal({list, challenge}, Filtered)};
                 {exception, #fistful_IdentityNotFound{}} ->
                     {error, {identity, notfound}};
@@ -169,13 +180,13 @@ get_identity_challenge_events(Params = #{
     'identityID'  := IdentityID,
     'challengeID' := ChallengeID,
     'limit'  := Limit
-}, WoodyContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
+}, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             Cursor = maps:get('eventCursor', Params, undefined),
             EventRange = marshal(event_range, {Cursor, Limit}),
             Request = {fistful_identity, 'GetEvents', [IdentityID, EventRange]},
-            case service_call(Request, WoodyContext) of
+            case service_call(Request, HandlerContext) of
                 {ok, Events} ->
                     Filtered = filter_events_by_challenge_id(ChallengeID, Events, []),
                     {ok, unmarshal({list, identity_challenge_event}, Filtered)};
@@ -195,10 +206,10 @@ get_identity_challenge_events(Params = #{
 ).
 get_identity_challenge_event(Params = #{
     'identityID'  := IdentityID
-}, WoodyContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, WoodyContext) of
+}, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            get_identity_challenge_event_(Params, WoodyContext);
+            get_identity_challenge_event_(Params, HandlerContext);
         {error, unauthorized} ->
             {error, {identity, unauthorized}}
     end.
@@ -207,10 +218,10 @@ get_identity_challenge_event_(#{
     'identityID'  := IdentityID,
     'challengeID' := ChallengeID,
     'eventID'     := EventId
-}, WoodyContext) ->
+}, HandlerContext) ->
     EventRange = marshal(event_range, {EventId - 1, 1}),
     Request = {fistful_identity, 'GetEvents', [IdentityID, EventRange]},
-    case service_call(Request, WoodyContext) of
+    case service_call(Request, HandlerContext) of
         {ok, []} ->
             {error, {event, notfound}};
         {ok, Events} ->
@@ -252,67 +263,50 @@ filter_events_by_challenge_id(ID, [_H | Rest], Acc) ->
 
 get_challenge_by_id(_ID, [], _) ->
     {error, {challenge, notfound}};
-get_challenge_by_id(ID, [Challenge = #idnt_Challenge{id = ID} | _Rest], WoodyContext) ->
-    {ok, unmarshal(challenge, {Challenge, WoodyContext})};
-get_challenge_by_id(ID, [_Challenge | Rest], WoodyContext) ->
-    get_challenge_by_id(ID, Rest, WoodyContext).
+get_challenge_by_id(ID, [Challenge = #idnt_Challenge{id = ID} | _Rest], HandlerContext) ->
+    {ok, unmarshal(challenge, {Challenge, HandlerContext})};
+get_challenge_by_id(ID, [_Challenge | Rest], HandlerContext) ->
+    get_challenge_by_id(ID, Rest, HandlerContext).
 
-filter_challenges_by_status(undefined, Challenges, WoodyContext, _) ->
-    [{Challenge, WoodyContext} || Challenge <- Challenges];
+filter_challenges_by_status(undefined, Challenges, HandlerContext, _) ->
+    [{Challenge, HandlerContext} || Challenge <- Challenges];
 filter_challenges_by_status(_Status, [], _, Result) ->
     Result;
 filter_challenges_by_status(
     FilteringStatus,
     [Challenge = #idnt_Challenge{status = Status} | Rest],
-    WoodyContext,
+    HandlerContext,
     Acc
 ) ->
     ChallengeStatus = maps:get(<<"status">>, unmarshal(challenge_status, Status), undefined),
     case ChallengeStatus =:= FilteringStatus of
         false ->
-            filter_challenges_by_status(FilteringStatus, Rest, WoodyContext, Acc);
+            filter_challenges_by_status(FilteringStatus, Rest, HandlerContext, Acc);
         true ->
-            filter_challenges_by_status(FilteringStatus, Rest, WoodyContext, [{Challenge, WoodyContext} | Acc])
+            filter_challenges_by_status(FilteringStatus, Rest, HandlerContext, [{Challenge, HandlerContext} | Acc])
     end.
 
-enrich_proofs(Proofs, WoodyContext) ->
-    [enrich_proof(unmarshal(proof, P), WoodyContext) || P <- Proofs].
+enrich_proofs(Proofs, HandlerContext) ->
+    [enrich_proof(unmarshal(proof, P), HandlerContext) || P <- Proofs].
 
-enrich_proof(#{<<"token">> := Token}, WoodyContext) ->
-    wapi_privdoc_backend:get_proof(Token, WoodyContext).
+enrich_proof(#{<<"token">> := Token}, HandlerContext) ->
+    wapi_privdoc_backend:get_proof(Token, HandlerContext).
 
-get_and_compare_hash(ID, Hash, WoodyContext) ->
-    Request = {fistful_identity, 'Get', [ID]},
-    {ok, Identity} = service_call(Request, WoodyContext),
-    case wapi_backend_utils:compare_hash(Hash, get_hash(Identity)) of
-        ok ->
-            {ok, unmarshal(identity, Identity)};
-        {error, conflict_hash} ->
-            {error, {conflict, ID}}
-    end.
-
-get_hash(#idnt_Identity{context = Ctx}) ->
-    wapi_backend_utils:get_hash(unmarshal(context, Ctx)).
-
-create_id(Type, ParamsIn, WoodyContext) ->
-    wapi_backend_utils:make_id(
+create_id(Type, Params, HandlerContext) ->
+    wapi_backend_utils:gen_id(
         Type,
-        ParamsIn,
-        WoodyContext
+        Params,
+        HandlerContext
     ).
 
-create_context(ParamsIn, WoodyContext) ->
-    Hash = wapi_backend_utils:create_params_hash(ParamsIn),
-    List = [
-        {<<"name">>, maps:get(<<"name">>, ParamsIn, undefined)},
-        {<<"owner">>, wapi_handler_utils:get_owner(WoodyContext)},
-        {<<"metadata">>, maps:get(<<"metadata">>, ParamsIn, undefined)},
-        Hash
-    ],
-    wapi_backend_utils:extend_ctx_from_list(List, wapi_backend_utils:make_ctx()).
+create_context(Params, HandlerContext) ->
+    KV = {<<"name">>, maps:get(<<"name">>, Params, undefined)},
+    wapi_backend_utils:add_to_ctx(KV, wapi_backend_utils:make_ctx(Params, HandlerContext)).
 
 service_call(Params, Ctx) ->
     wapi_handler_utils:service_call(Params, Ctx).
+
+%% Marshaling
 
 marshal({list, Type}, List) ->
     lists:map(fun(V) -> marshal(Type, V) end, List);
@@ -361,6 +355,11 @@ marshal(context, Ctx) ->
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
+maybe_marshal(_, undefined) ->
+    undefined;
+maybe_marshal(T, V) ->
+    marshal(T, V).
+
 %%
 
 unmarshal({list, Type}, List) ->
@@ -396,11 +395,11 @@ unmarshal(challenge, {#idnt_Challenge{
     cls         = Class,
     proofs      = Proofs,
     status      = Status
-}, WoodyContext}) ->
+}, HandlerContext}) ->
     genlib_map:compact(maps:merge(#{
         <<"id">>    => unmarshal(id, ID),
         <<"type">>  => unmarshal(id, Class),
-        <<"proofs">>  => enrich_proofs(Proofs, WoodyContext)
+        <<"proofs">>  => enrich_proofs(Proofs, HandlerContext)
     }, unmarshal(challenge_status, Status)));
 
 unmarshal(challenge_status, {pending, #idnt_ChallengePending{}}) ->
@@ -465,8 +464,3 @@ maybe_unmarshal(_, undefined) ->
     undefined;
 maybe_unmarshal(T, V) ->
     unmarshal(T, V).
-
-maybe_marshal(_, undefined) ->
-    undefined;
-maybe_marshal(T, V) ->
-    marshal(T, V).

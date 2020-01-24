@@ -104,7 +104,6 @@ create_withdrawal_ok(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
-        id          = ID,
         source      = WalletID,
         destination = DestinationID,
         body        = Body,
@@ -112,7 +111,7 @@ create_withdrawal_ok(C) ->
         context     = Ctx
     },
 
-    {ok, Withdrawal}  = call_service(withdrawal, 'Create', [Params]),
+    {ok, Withdrawal}  = call_service(withdrawal, 'Create', [ID, Params]),
     ID            = Withdrawal#wthd_Withdrawal.id,
     ExternalId    = Withdrawal#wthd_Withdrawal.external_id,
     WalletID      = Withdrawal#wthd_Withdrawal.source,
@@ -141,7 +140,6 @@ create_withdrawal_wallet_currency_fail(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
-        id          = ID,
         source      = WalletID,
         destination = DestinationID,
         body        = Body,
@@ -152,7 +150,7 @@ create_withdrawal_wallet_currency_fail(C) ->
     {exception, #fistful_WithdrawalCurrencyInvalid{
         withdrawal_currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>},
         wallet_currency     = #'CurrencyRef'{ symbolic_code = <<"USD">>}
-    }} = call_service(withdrawal, 'Create', [Params]).
+    }} = call_service(withdrawal, 'Create', [ID, Params]).
 
 create_withdrawal_cashrange_fail(C) ->
     ID            = genlib:unique(),
@@ -165,7 +163,6 @@ create_withdrawal_cashrange_fail(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
-        id          = ID,
         source      = WalletID,
         destination = DestinationID,
         body        = Body,
@@ -177,7 +174,7 @@ create_withdrawal_cashrange_fail(C) ->
             cash  = Cash,
             range = CashRange
         }
-    } = call_service(withdrawal, 'Create', [Params]),
+    } = call_service(withdrawal, 'Create', [ID, Params]),
     ?assertEqual(Body, Cash),
     ?assertNotEqual(undefined, CashRange).
 
@@ -193,7 +190,6 @@ create_withdrawal_destination_fail(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
-        id          = ID,
         source      = WalletID,
         destination = BadDestID,
         body        = Body,
@@ -201,7 +197,7 @@ create_withdrawal_destination_fail(C) ->
         context     = Ctx
     },
 
-    {exception, {fistful_DestinationNotFound}} = call_service(withdrawal, 'Create', [Params]).
+    {exception, {fistful_DestinationNotFound}} = call_service(withdrawal, 'Create', [ID, Params]).
 
 create_withdrawal_wallet_fail(C) ->
     ID            = genlib:unique(),
@@ -215,7 +211,6 @@ create_withdrawal_wallet_fail(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
-        id          = ID,
         source      = BadWalletID,
         destination = DestinationID,
         body        = Body,
@@ -223,7 +218,7 @@ create_withdrawal_wallet_fail(C) ->
         context     = Ctx
     },
 
-    {exception, {fistful_WalletNotFound}} = call_service(withdrawal, 'Create', [Params]).
+    {exception, {fistful_WalletNotFound}} = call_service(withdrawal, 'Create', [ID, Params]).
 
 get_events_ok(C) ->
     ID            = genlib:unique(),
@@ -236,7 +231,6 @@ get_events_ok(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
-        id          = ID,
         source      = WalletID,
         destination = DestinationID,
         body        = Body,
@@ -244,7 +238,7 @@ get_events_ok(C) ->
         context     = Ctx
     },
 
-    {ok, _W} = call_service(withdrawal, 'Create', [Params]),
+    {ok, _W} = call_service(withdrawal, 'Create', [ID, Params]),
 
     Range = #'EventRange'{
         limit   = 1000,
@@ -320,7 +314,6 @@ create_wallet(Currency, Amount) ->
     IdentityID = create_identity(),
     WalletID = genlib:unique(), ExternalID = genlib:unique(),
     Params = #wlt_WalletParams{
-        id = WalletID,
         name = <<"BigBossWallet">>,
         external_id = ExternalID,
         context = ff_entity_context:new(),
@@ -329,7 +322,7 @@ create_wallet(Currency, Amount) ->
             symbolic_code = Currency
         }
     },
-    {ok, _} = call_service(wallet, 'Create', [Params]),
+    {ok, _} = call_service(wallet, 'Create', [WalletID, Params]),
     add_money(WalletID, IdentityID, Amount, Currency),
     WalletID.
 
@@ -344,14 +337,13 @@ create_destination(C) ->
     }},
     DstID = genlib:unique(),
     Params = #dst_DestinationParams{
-        id          = DstID,
         identity    = create_identity(),
         name        = <<"BigBossDestination">>,
         currency    = <<"RUB">>,
         resource    = Resource,
         external_id = genlib:unique()
     },
-    {ok, _} = call_service(destination, 'Create', [Params]),
+    {ok, _} = call_service(destination, 'Create', [DstID, Params]),
     {authorized, #dst_Authorized{}} = ct_helper:await(
         {authorized, #dst_Authorized{}},
         fun () ->

@@ -37,12 +37,6 @@ handle_request(OperationID, Req, SwagContext, Opts) ->
     request_result().
 
 %% Identities
-process_request('ListIdentities', _Req, _Context, _Opts) ->
-    %% case wapi_wallet_ff_backend:get_identities(maps:with(['provider', 'class', 'level'], Req), Context) of
-    %%     {ok, Identities}  -> wapi_handler_utils:reply_ok(200, Identities);
-    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
-    %% end;
-    not_implemented();
 process_request('GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
     case wapi_identity_backend:get_identity(IdentityId, Context) of
         {ok, Identity}                    -> wapi_handler_utils:reply_ok(200, Identity);
@@ -59,7 +53,7 @@ process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity class">>));
         {error, inaccessible} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
-        {error, {conflict, ID}} ->
+        {error, {external_id_conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
     end;
 process_request('ListIdentityChallenges', #{'identityID' := Id, 'status' := Status}, Context, _Opts) ->
@@ -81,6 +75,8 @@ process_request('StartIdentityChallenge', #{
             wapi_handler_utils:reply_ok(404);
         {error, {challenge, conflict}} ->
             wapi_handler_utils:reply_ok(409);
+        {error, {external_id_conflict, ID}} ->
+            wapi_handler_utils:reply_ok(409, #{<<"id">> => ID});
         {error, {challenge, pending}} ->
             wapi_handler_utils:reply_ok(409);
         {error, {challenge, {class, notfound}}} ->
@@ -139,7 +135,7 @@ process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
         {error, inaccessible} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
-        {error, {conflict, ID}} ->
+        {error, {external_id_conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
     end;
 process_request(OperationID, Params, Context, Opts) ->
@@ -150,7 +146,3 @@ process_request(OperationID, Params, Context, Opts) ->
 get_location(OperationId, Params, Opts) ->
     #{path := PathSpec} = swag_server_wallet_router:get_operation(OperationId),
     wapi_handler_utils:get_location(PathSpec, Params, Opts).
-
--spec not_implemented() -> no_return().
-not_implemented() ->
-    wapi_handler_utils:throw_not_implemented().

@@ -304,12 +304,6 @@ unmarshal(sub_failure, Failure) ->
 
 unmarshal(context, V) -> ff_entity_context_codec:unmarshal(V);
 
-unmarshal(ev_range, #'EventRange'{
-    'after' = Cursor,
-    limit   = Limit
-}) ->
-    {Cursor, Limit, forward};
-
 unmarshal(range, #evsink_EventRange{
     'after' = Cursor,
     limit   = Limit

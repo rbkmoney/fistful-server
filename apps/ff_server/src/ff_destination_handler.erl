@@ -21,8 +21,7 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [Params], Opts) ->
-    ID = Params#dst_DestinationParams.id,
+handle_function_('Create', [ID, Params], Opts) ->
     Ctx = Params#dst_DestinationParams.context,
     case ff_destination:create(ID,
         ff_destination_codec:unmarshal_destination_params(Params),

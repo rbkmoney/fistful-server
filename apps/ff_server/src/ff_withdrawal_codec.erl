@@ -19,12 +19,11 @@
 %% Data transform
 
 -spec unmarshal_withdrawal_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
-    ff_withdrawal:params().
+    ff_withdrawal_handler:params().
 
 unmarshal_withdrawal_params(Params) ->
     Body = Params#wthd_WithdrawalParams.body,
     #{
-        id             => Params#wthd_WithdrawalParams.id,
         wallet_id      => Params#wthd_WithdrawalParams.source,
         destination_id => Params#wthd_WithdrawalParams.destination,
         body           => ff_codec:unmarshal(cash, Body),

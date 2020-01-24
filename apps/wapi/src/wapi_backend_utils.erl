@@ -8,30 +8,31 @@
 %% Context
 -type md() :: ff_entity_context:md().
 -type context() :: ff_entity_context:context().
--type params() :: map().
 -type handler_context() :: wapi_handler:context().
+-type id() :: binary().
+-type hash() :: integer().
+-type params() :: map().
+-type gen_type() :: identity | identity_challenge | wallet.
 
--export([make_id/3]).
--export([make_ctx/0]).
+-export([gen_id/3]).
+-export([gen_id/4]).
+-export([make_ctx/2]).
+-export([add_to_ctx/2]).
 -export([add_to_ctx/3]).
 -export([get_from_ctx/2]).
--export([extend_ctx_from_map/3]).
--export([extend_ctx_from_list/2]).
--export([create_params_hash/1]).
--export([get_hash/1]).
--export([compare_hash/2]).
 
 %% Pipeline
 
--import(ff_pipeline, [unwrap/1]).
+-spec gen_id(gen_type(), params(), handler_context()) ->
+    {ok, id()} | {error, {external_id_conflict, id()}}.
 
--spec make_id(atom(), params(), handler_context()) ->
-    binary().
-
-make_id(Type, Params, Context) ->
+gen_id(Type, Params, Context) ->
     ExternalID = maps:get(?EXTERNAL_ID, Params, undefined),
-    Hash       = erlang:phash2(Params),
-    unwrap(gen_id(Type, ExternalID, Hash, Context)).
+    Hash = create_params_hash(Params),
+    gen_id(Type, ExternalID, Hash, Context).
+
+-spec gen_id(gen_type(), id() | undefined, hash(), handler_context()) ->
+    {ok, id()} | {error, {external_id_conflict, id()}}.
 
 gen_id(Type, ExternalID, Hash, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),
@@ -51,11 +52,29 @@ gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
     bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
 
--spec make_ctx() ->
+-spec make_ctx(params(), handler_context()) ->
     context().
 
-make_ctx() ->
-    #{?CTX_NS => #{}}.
+make_ctx(Params, Context) ->
+    #{?CTX_NS => genlib_map:compact(#{
+        <<"owner">> => wapi_handler_utils:get_owner(Context),
+        <<"metadata">> => maps:get(<<"metadata">>, Params, undefined),
+        ?PARAMS_HASH => create_params_hash(Params)
+    })}.
+
+-spec add_to_ctx({md(), md() | undefined} | list() | map(), context()) ->
+    context().
+
+add_to_ctx({Key, Value}, Context) ->
+    add_to_ctx(Key, Value, Context);
+add_to_ctx(Map, Context = #{?CTX_NS := Ctx}) when is_map(Map) ->
+    Context#{?CTX_NS => maps:merge(Ctx, Map)};
+add_to_ctx(KVList, Context) when is_list(KVList) ->
+    lists:foldl(
+        fun({K, V}, Ctx) -> add_to_ctx(K, V, Ctx) end,
+        Context,
+        KVList
+    ).
 
 -spec add_to_ctx(md(), md() | undefined, context()) ->
     context().
@@ -65,25 +84,6 @@ add_to_ctx(_Key, undefined, Context) ->
 add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
     Context#{?CTX_NS => Ctx#{Key => Value}}.
 
--spec extend_ctx_from_map(list(), map(), context()) ->
-    context().
-
-extend_ctx_from_map(WapiKeys, Params, Context = #{?CTX_NS := Ctx}) ->
-    Context#{?CTX_NS => maps:merge(
-        Ctx,
-        maps:with(WapiKeys, Params)
-    )}.
-
--spec extend_ctx_from_list([{md(), md()}], context()) ->
-    context().
-
-extend_ctx_from_list(KVList, Context) ->
-    lists:foldl(
-        fun({K, V}, Ctx) -> add_to_ctx(K, V, Ctx) end,
-        Context,
-        KVList
-    ).
-
 -spec get_from_ctx(md(), context()) ->
     md().
 
@@ -91,23 +91,7 @@ get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
     maps:get(Key, Ctx, undefined).
 
 -spec create_params_hash(term()) ->
-    {binary(), integer()}.
-
-create_params_hash(Value) ->
-    {?PARAMS_HASH, erlang:phash2(Value)}.
-
--spec get_hash(context()) ->
     integer().
 
-get_hash(Context) ->
-    #{?CTX_NS := #{?PARAMS_HASH := Value}} = Context,
-    Value.
-
--spec compare_hash(integer(), integer()) ->
-    ok |
-    {error, conflict_hash}.
-
-compare_hash(Hash, Hash) ->
-    ok;
-compare_hash(_, _) ->
-    {error, conflict_hash}.
+create_params_hash(Value) ->
+    erlang:phash2(Value).

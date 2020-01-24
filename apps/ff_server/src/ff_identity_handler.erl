@@ -35,7 +35,6 @@ handle_function_('Create', [IdentityID, IdentityParams], Opts) ->
             woody_error:raise(business, #fistful_IdentityClassNotFound{});
         {error, {inaccessible, _}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
-        %% TODO add this ex to proto
         {error, exists} ->
             woody_error:raise(business, #fistful_IDExists{});
         {error, Error} ->

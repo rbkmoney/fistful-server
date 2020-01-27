@@ -1169,22 +1169,27 @@ from_swag(destination_resource, #{
     }};
 from_swag(destination_resource, Resource = #{
     <<"type">>     := <<"CryptoWalletDestinationResource">>,
-    <<"id">>       := CryptoWalletID,
-    <<"currency">> := CryptoWalletCurrency
+    <<"id">>       := CryptoWalletID
 }) ->
-    Tag = maps:get(<<"tag">>, Resource, undefined),
     {crypto_wallet, genlib_map:compact(#{
         id       => CryptoWalletID,
-        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
-        tag      => Tag
+        currency => from_swag(crypto_wallet_currency, Resource)
     })};
 
-from_swag(crypto_wallet_currency, <<"Bitcoin">>)     -> bitcoin;
-from_swag(crypto_wallet_currency, <<"Litecoin">>)    -> litecoin;
-from_swag(crypto_wallet_currency, <<"BitcoinCash">>) -> bitcoin_cash;
-from_swag(crypto_wallet_currency, <<"Ripple">>)      -> ripple;
-from_swag(crypto_wallet_currency, <<"Ethereum">>)    -> ethereum;
-from_swag(crypto_wallet_currency, <<"Zcash">>)       -> zcash;
+from_swag(crypto_wallet_currency, #{"currency" := Currency} = Resource) ->
+    {
+        from_swag(crypto_wallet_currency_name, Currency),
+        genlib_map:compact(#{
+            tag => maps:get(<<"tag">>, Resource, undefined)
+        })
+    };
+
+from_swag(crypto_wallet_currency_name, <<"Bitcoin">>)     -> bitcoin;
+from_swag(crypto_wallet_currency_name, <<"Litecoin">>)    -> litecoin;
+from_swag(crypto_wallet_currency_name, <<"BitcoinCash">>) -> bitcoin_cash;
+from_swag(crypto_wallet_currency_name, <<"Ethereum">>)    -> ethereum;
+from_swag(crypto_wallet_currency_name, <<"Zcash">>)       -> zcash;
+from_swag(crypto_wallet_currency_name, <<"Ripple">>)      -> ripple;
 
 from_swag(withdrawal_params, Params) ->
     add_external_id(#{
@@ -1407,22 +1412,21 @@ to_swag(destination_resource, {bank_card, BankCard}) ->
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
 to_swag(destination_resource, {crypto_wallet, CryptoWallet}) ->
-    to_swag(map, #{
+    to_swag(map, maps:merge(#{
         <<"type">>     => <<"CryptoWalletDestinationResource">>,
-        <<"id">>       => maps:get(id, CryptoWallet),
-        <<"currency">> => to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet)),
-        <<"tag">>      => maps:get(tag, CryptoWallet, undefined)
-    });
+        <<"id">>       => maps:get(id, CryptoWallet)
+    }, to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet))));
 
 to_swag(pan_last_digits, MaskedPan) ->
     wapi_utils:get_last_pan_digits(MaskedPan);
 
-to_swag(crypto_wallet_currency, bitcoin)      -> <<"Bitcoin">>;
-to_swag(crypto_wallet_currency, litecoin)     -> <<"Litecoin">>;
-to_swag(crypto_wallet_currency, bitcoin_cash) -> <<"BitcoinCash">>;
-to_swag(crypto_wallet_currency, ripple)       -> <<"Ripple">>;
-to_swag(crypto_wallet_currency, ethereum)     -> <<"Ethereum">>;
-to_swag(crypto_wallet_currency, zcash)        -> <<"Zcash">>;
+to_swag(crypto_wallet_currency, {bitcoin, #{}})          -> #{<<"currency">> => <<"Bitcoin">>};
+to_swag(crypto_wallet_currency, {litecoin, #{}})         -> #{<<"currency">> => <<"Litecoin">>};
+to_swag(crypto_wallet_currency, {bitcoin_cash, #{}})     -> #{<<"currency">> => <<"BitcoinCash">>};
+to_swag(crypto_wallet_currency, {ethereum, #{}})         -> #{<<"currency">> => <<"Ethereum">>};
+to_swag(crypto_wallet_currency, {zcash, #{}})            -> #{<<"currency">> => <<"Zcash">>};
+to_swag(crypto_wallet_currency, {ripple, #{tag := Tag}}) -> #{<<"currency">> => <<"Ripple">>, <<"tag">> => Tag};
+to_swag(crypto_wallet_currency, {ripple, #{}})           -> #{<<"currency">> => <<"Ripple">>};
 
 to_swag(withdrawal, State) ->
     Withdrawal = ff_withdrawal_machine:withdrawal(State),

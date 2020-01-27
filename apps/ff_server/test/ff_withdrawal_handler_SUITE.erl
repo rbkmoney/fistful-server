@@ -104,6 +104,7 @@ create_withdrawal_ok(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
+        id          = ID,
         source      = WalletID,
         destination = DestinationID,
         body        = Body,
@@ -111,7 +112,7 @@ create_withdrawal_ok(C) ->
         context     = Ctx
     },
 
-    {ok, Withdrawal}  = call_service(withdrawal, 'Create', [ID, Params]),
+    {ok, Withdrawal}  = call_service(withdrawal, 'Create', [Params]),
     ID            = Withdrawal#wthd_Withdrawal.id,
     ExternalId    = Withdrawal#wthd_Withdrawal.external_id,
     WalletID      = Withdrawal#wthd_Withdrawal.source,

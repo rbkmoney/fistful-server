@@ -7,15 +7,6 @@
 %% ff_woody_wrapper callbacks
 -export([handle_function/3]).
 
--type params() :: #{
-    wallet_id            := ff_wallet_machine:id(),
-    destination_id       := ff_destination:id(),
-    body                 := ff_transaction:body(),
-    external_id          => ff_withdrawal:id()
-}.
-
--export_type([params/0]).
-
 %%
 %% ff_woody_wrapper callbacks
 %%
@@ -31,11 +22,11 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [ID, ParamsIn], Opts) ->
+handle_function_('Create', [ParamsIn], Opts) ->
     Ctx = ParamsIn#wthd_WithdrawalParams.context,
-    Params = ff_withdrawal_codec:unmarshal_withdrawal_params(ParamsIn),
+    #{id := ID} = Params = ff_withdrawal_codec:unmarshal_withdrawal_params(ParamsIn),
     case ff_withdrawal_machine:create(
-        Params#{id => ID},
+        Params,
         ff_withdrawal_codec:unmarshal(ctx, Ctx)
     ) of
         ok ->

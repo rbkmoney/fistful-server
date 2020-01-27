@@ -54,7 +54,7 @@
   0},
  {<<"fistful_proto">>,
   {git,"git@github.com:rbkmoney/fistful-proto.git",
-       {ref,"76655c6fe36d27ec8fd96fee4cdcc9aa0b8738b2"}},
+       {ref,"c2113c853ed71a34bb6468b9a6cf9b468967af84"}},
   0},
  {<<"fistful_reporter_proto">>,
   {git,"git@github.com:rbkmoney/fistful-reporter-proto.git",

@@ -25,7 +25,8 @@
     {product, plan_operation()}.
 
 -type plan_constant() ::
-    operation_amount.
+    operation_amount |
+    surplus.
 -type plan_operation() ::
     {min_of, [plan_volume()]} |
     {max_of, [plan_volume()]}.

@@ -132,6 +132,23 @@ handle_function_('Process', [?ADAPTER_CONTEXT(1001)], _Ctx, _Opts) ->
         ?ADAPTER_FINISH_INTENT({failure, #domain_Failure{code = <<"test_failure">>}}),
         undefined
     )};
+handle_function_('Process', [?ADAPTER_CONTEXT(1002 = Amount) = Context], _Ctx, _Opts) ->
+    #p2p_adapter_Context{
+        operation = {process, #p2p_adapter_ProcessOperationInfo{
+            merchant_fees = MerchantFees,
+            provider_fees = ProviderFees
+        }}
+    } = Context,
+    #p2p_adapter_Fees{
+        fees = #{surplus := #p2p_adapter_Cash{amount = 50}} % see ct_payment_system:default_termset/1
+    } = MerchantFees,
+    #p2p_adapter_Fees{
+        fees = #{surplus := #p2p_adapter_Cash{amount = Amount}} % see ct_domain:p2p_provider/4
+    } = ProviderFees,
+    {ok, ?ADAPTER_PROCESS_RESULT(
+        ?ADAPTER_FINISH_INTENT({success, #p2p_adapter_Success{}}),
+       undefined
+    )};
 handle_function_('Process', [_Context], _Ctx, _Opts) ->
     {ok, ?ADAPTER_PROCESS_RESULT(
         ?ADAPTER_FINISH_INTENT({success, #p2p_adapter_Success{}}),

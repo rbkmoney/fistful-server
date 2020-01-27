@@ -26,6 +26,7 @@
 -export_type([cash/0]).
 -export_type([currency/0]).
 -export_type([deadline/0]).
+-export_type([fees/0]).
 
 -export_type([process_result/0]).
 -export_type([handle_callback_result/0]).
@@ -47,10 +48,12 @@
 }.
 
 -type operation_info()          :: #{
-    body     := cash(),
-    sender   := resource(),
-    receiver := resource(),
-    deadline => deadline()
+    body          := cash(),
+    sender        := resource(),
+    receiver      := resource(),
+    deadline      => deadline(),
+    merchant_fees => fees(),
+    provider_fees => fees()
 }.
 
 -type id()                      :: binary().
@@ -67,6 +70,9 @@
 -type resource()                :: ff_resource:resource().
 
 -type deadline()                :: ff_time:timestamp_ms().
+
+-type fees()                    :: #{fees := #{cash_flow_constant() => cash()}}.
+-type cash_flow_constant()      :: ff_cash_flow:plan_constant().
 
 -type adapter_state()           :: dmsl_p2p_adapter_thrift:'AdapterState'() | undefined.
 -type adapter_opts()            :: ff_adapter:opts().
@@ -159,23 +165,44 @@ call(Adapter, Function, Args) ->
 
 -spec build_operation_info(build_context_params()) ->
     operation_info().
-build_operation_info(Params = #{transfer_params := TransferParams}) ->
-    Body     = build_operation_info_body(Params),
-    Sender   = maps:get(sender, TransferParams),
-    Receiver = maps:get(receiver, TransferParams),
-    Deadline = maps:get(deadline, TransferParams, undefined),
+build_operation_info(Params = #{transfer_params := TransferParams, domain_revision := DomainRevision}) ->
+    Body         = build_operation_info_body(Params),
+    Sender       = maps:get(sender, TransferParams),
+    Receiver     = maps:get(receiver, TransferParams),
+    Deadline     = maps:get(deadline, TransferParams, undefined),
+    MerchantFees = maps:get(merchant_fees, TransferParams, undefined),
+    ProviderFees = maps:get(provider_fees, TransferParams, undefined),
     genlib_map:compact(#{
-        body     => Body,
-        sender   => Sender,
-        receiver => Receiver,
-        deadline => Deadline
+        body          => Body,
+        sender        => Sender,
+        receiver      => Receiver,
+        deadline      => Deadline,
+        merchant_fees => convert_fees(MerchantFees, DomainRevision),
+        provider_fees => convert_fees(ProviderFees, DomainRevision)
     }).
 
 -spec build_operation_info_body(build_context_params()) ->
     cash().
 build_operation_info_body(#{transfer_params := TransferParams, domain_revision := DomainRevision}) ->
-    {Amount, CurrencyID} = maps:get(body, TransferParams),
-    {ok, Currency}       = ff_currency:get(CurrencyID, DomainRevision),
+    Cash = maps:get(body, TransferParams),
+    convert_cash(Cash, DomainRevision).
+
+-spec convert_fees(ff_fees:final() | undefined, ff_domain_config:revision()) ->
+    fees() | undefined.
+convert_fees(undefined, _DomainRevision) ->
+    undefined;
+convert_fees(#{fees := DomainFees}, DomainRevision) ->
+    #{fees => maps:map(
+        fun(_CashFlowConstant, Cash) ->
+            convert_cash(Cash, DomainRevision)
+        end,
+        DomainFees
+    )}.
+
+-spec convert_cash(ff_cash:cash(), ff_domain_config:revision()) ->
+    cash().
+convert_cash({Amount, CurrencyID}, DomainRevision) ->
+    {ok, Currency} = ff_currency:get(CurrencyID, DomainRevision),
     {Amount, #{
         name      => maps:get(name, Currency),
         symcode   => maps:get(symcode, Currency),

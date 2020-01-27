@@ -8,7 +8,6 @@
 -type receiver()                  :: ff_resource:resource_params().
 -type cash()                      :: ff_cash:cash().
 -type terms()                     :: ff_party:terms().
--type plan_constant()             :: operation_amount | surplus.
 -type identity()                  :: ff_identity:identity().
 -type identity_id()               :: ff_identity:id().
 -type compact_resource()          :: compact_bank_card_resource().
@@ -29,7 +28,6 @@
     bin_data_id := ff_bin_data:bin_data_id()
 }}.
 
--type fees()        :: #{fees => #{plan_constant() => surplus_cash_volume()}}.
 -opaque quote() :: #{
     amount            := cash(),
     party_revision    := ff_party:revision(),
@@ -66,11 +64,6 @@
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
-
--spec surplus(fees()) ->
-    surplus_cash_volume() | undefined.
-surplus(#{fees := Fees}) ->
-    maps:get(surplus, Fees, undefined).
 
 -spec amount(quote()) ->
     cash().
@@ -155,7 +148,7 @@ get_quote(Cash, IdentityID, Sender, Receiver) ->
 
         ExpiresOn = get_expire_time(Terms, CreatedAt),
         Fees = get_fees_from_terms(Terms),
-        SurplusCashVolume = surplus(Fees),
+        SurplusCashVolume = ff_fees:surplus(Fees),
         SurplusCash = unwrap(cash_flow, compute_surplus_volume(SurplusCashVolume, Cash)),
 
         Quote = #{
@@ -188,7 +181,7 @@ get_identity(IdentityID) ->
     end).
 
 -spec get_fees_from_terms(terms()) ->
-    fees().
+    ff_fees:plan().
 get_fees_from_terms(Terms) ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
@@ -199,17 +192,12 @@ get_fees_from_terms(Terms) ->
     } = Terms,
     decode_domain_fees(FeeTerm).
 
--spec decode_domain_fees(dmsl_domain_thrift:'Fees'() | undefined) ->
-    fees().
+-spec decode_domain_fees(dmsl_domain_thrift:'FeeSelector'() | undefined) ->
+    ff_fees:plan().
 decode_domain_fees(undefined) ->
     #{fees => #{}};
-decode_domain_fees({value, #domain_Fees{fees = Fees}}) ->
-    FeeDecode = maps:map(fun(_Key, Value) ->
-        ff_cash_flow:decode_domain_plan_volume(Value)
-    end, Fees),
-    #{fees => FeeDecode}.
-
-
+decode_domain_fees({value, Fees}) -> % must be reduced before
+    ff_fees:unmarshal(Fees).
 
 -spec get_expire_time(terms(), ff_time:timestamp_ms()) ->
     ff_time:timestamp_ms().

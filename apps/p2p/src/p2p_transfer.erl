@@ -688,12 +688,15 @@ process_p_transfer_creation(P2PTransfer) ->
     process_result().
 process_session_creation(P2PTransfer) ->
     ID = construct_session_id(id(P2PTransfer)),
+    {ProviderFees, MerchantFees} = get_fees(P2PTransfer),
     TransferParams = genlib_map:compact(#{
         id => id(P2PTransfer),
         body => body(P2PTransfer),
         sender => sender_resource(P2PTransfer),
         receiver => receiver_resource(P2PTransfer),
-        deadline => deadline(P2PTransfer)
+        deadline => deadline(P2PTransfer),
+        merchant_fees => MerchantFees,
+        provider_fees => ProviderFees
     }),
     #{provider_id := ProviderID} = route(P2PTransfer),
     Params = #{
@@ -714,6 +717,57 @@ construct_session_id(ID) ->
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->
     <<"ff/p2p_transfer/", ID/binary>>.
+
+-spec get_fees(p2p_transfer()) ->
+    {ff_fees:final() | undefined, ff_fees:final() | undefined}.
+get_fees(P2PTransfer) ->
+    Route = route(P2PTransfer),
+    #{provider_id := ProviderID} = Route,
+    DomainRevision = domain_revision(P2PTransfer),
+    {ok, Provider} = ff_p2p_provider:get(DomainRevision, ProviderID),
+    {ok, Identity} = get_identity(owner(P2PTransfer)),
+    PartyVarset = create_varset(Identity, P2PTransfer),
+    Body = body(P2PTransfer),
+
+    #{p2p_terms := P2PProviderTerms} = Provider,
+    ProviderFees = get_provider_fees(P2PProviderTerms, Body, PartyVarset),
+
+    PartyID = ff_identity:party(Identity),
+    ContractID = ff_identity:contract(Identity),
+    Timestamp = operation_timestamp(P2PTransfer),
+    PartyRevision = party_revision(P2PTransfer),
+    DomainRevision = domain_revision(P2PTransfer),
+    {ok, Terms} = ff_party:get_contract_terms(
+        PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
+    ),
+    #domain_TermSet{
+        wallets = #domain_WalletServiceTerms{
+            p2p = P2PMerchantTerms
+        }
+    } = Terms,
+    MerchantFees = get_merchant_fees(P2PMerchantTerms, Body),
+    {ProviderFees, MerchantFees}.
+
+-spec get_provider_fees(dmsl_domain_thrift:'P2PProvisionTerms'(), body(), p2p_party:varset()) ->
+    ff_fees:final() | undefined.
+get_provider_fees(#domain_P2PProvisionTerms{fees = undefined}, _Body, _PartyVarset) ->
+    undefined;
+get_provider_fees(#domain_P2PProvisionTerms{fees = FeeSelector}, Body, PartyVarset) ->
+    {value, ProviderFees} = hg_selector:reduce(FeeSelector, PartyVarset),
+    compute_fees(ProviderFees, Body).
+
+-spec get_merchant_fees(dmsl_domain_thrift:'P2PServiceTerms'(), body()) ->
+    ff_fees:final() | undefined.
+get_merchant_fees(#domain_P2PServiceTerms{fees = undefined}, _Body) ->
+    undefined;
+get_merchant_fees(#domain_P2PServiceTerms{fees = {value, MerchantFees}}, Body) ->
+    compute_fees(MerchantFees, Body).
+
+-spec compute_fees(dmsl_domain_thrift:'Fees'(), body()) ->
+    ff_fees:final().
+compute_fees(Fees, Body) ->
+    DecodedFees = ff_fees:unmarshal(Fees),
+    ff_fees:compute(DecodedFees, Body).
 
 -spec process_session_poll(p2p_transfer()) ->
     process_result().

@@ -46,11 +46,18 @@
     masked_pan     => binary()
 }.
 
+% -type resource_crypto_wallet() :: #{
+%     id       := binary(),
+%     currency := atom(),
+%     tag      => binary()
+% }.
+
 -type resource_crypto_wallet() :: #{
     id       := binary(),
-    currency := atom(),
-    tag      => binary()
+    currency := resource_crypto_currency()
 }.
+
+-type resource_crypto_currency() :: {atom(), #{tag => binary()}}.
 
 -type destination() :: ff_instrument:instrument(resource()).
 -type params()      :: ff_instrument_machine:params(resource()).

@@ -9,7 +9,6 @@ services:
       - .:$PWD
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/config/private.pem
       - ./apps/wapi/var/keys/wapi/jwk.json:/opt/wapi/config/jwk.json
-      - ./apps/wapi/var/keys/wapi/password.secret:/opt/wapi/config/password.secret
       - ./apps/wapi/var/keys/wapi/enc.1.priv.json:/opt/wapi/config/enc.1.priv.json
       - ./apps/wapi/var/keys/wapi/sig.1.priv.json:/opt/wapi/config/sig.1.priv.json
       - $HOME/.cache:/home/$UNAME/.cache
@@ -32,7 +31,7 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:eecf359f219875a88fc92e52b16286a46dd19105
+    image: dr2.rbkmoney.com/rbkmoney/wapi:d6b8a91d07cf45b7c14a3a7825656cf01e8a93de
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config
@@ -139,7 +138,7 @@ services:
       retries: 10
 
   cds:
-    image: dr2.rbkmoney.com/rbkmoney/cds:8db72805e7e4478494e0cc9b6ff5c39317d58687
+    image: dr2.rbkmoney.com/rbkmoney/cds:7aeee60277aab0e6ebb6e6b1334752d3091082f4
     command: /opt/cds/bin/cds foreground
     volumes:
       - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config

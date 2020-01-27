@@ -40,23 +40,22 @@
 
 all() ->
     [ {group, default}
-    % , {group, quote}
-    % , {group, woody}
-    % , {group, errors}
-    % , {group, eventsink}
+    , {group, quote}
+    , {group, woody}
+    , {group, errors}
+    , {group, eventsink}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 
 groups() ->
     [
-        % {default, [sequence, {repeat, 2}], [
-        {default, [], [
-            withdrawal_to_bank_card_test
-            % withdrawal_to_crypto_wallet_test,
-            % withdrawal_to_ripple_wallet_test,
-            % unknown_withdrawal_test,
-            % get_wallet_by_external_id
+        {default, [sequence, {repeat, 2}], [
+            withdrawal_to_bank_card_test,
+            withdrawal_to_crypto_wallet_test,
+            withdrawal_to_ripple_wallet_test,
+            unknown_withdrawal_test,
+            get_wallet_by_external_id
         ]},
         {quote, [], [
             quote_encode_decode_test,
@@ -107,7 +106,6 @@ init_per_group(G, C) ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
     })),
     Party = create_party(C),
-    % Token = issue_token(Party, [{[party], write}], unlimited),
     Token = issue_token(Party, [{[party], write}, {[party], read}], {deadline, 10}),
     Context = get_context("localhost:8080", Token),
     ContextPcidss = get_context("wapi-pcidss:8080", Token),

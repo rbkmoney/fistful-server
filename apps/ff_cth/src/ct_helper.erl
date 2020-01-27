@@ -104,9 +104,9 @@ start_app(wapi = AppName) ->
             }
         }},
         {lechiffre_opts,  #{
-            encryption_key_path => {"/opt/wapi/config/jwk.json", "/opt/wapi/config/password.secret"},
+            encryption_key_path => "/opt/wapi/config/jwk.json",
             decryption_key_paths => [
-                {"/opt/wapi/config/jwk.json", "/opt/wapi/config/password.secret"}
+                "/opt/wapi/config/jwk.json"
             ]
         }}
     ]), #{}};

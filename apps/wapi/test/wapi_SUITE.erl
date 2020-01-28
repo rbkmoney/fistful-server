@@ -16,6 +16,7 @@
 -export([withdrawal_to_bank_card_test/1]).
 -export([withdrawal_to_crypto_wallet_test/1]).
 -export([withdrawal_to_ripple_wallet_test/1]).
+-export([withdrawal_to_ripple_wallet_with_tag_test/1]).
 -export([woody_retry_test/1]).
 -export([quote_encode_decode_test/1]).
 -export([get_quote_test/1]).
@@ -54,6 +55,7 @@ groups() ->
             withdrawal_to_bank_card_test,
             withdrawal_to_crypto_wallet_test,
             withdrawal_to_ripple_wallet_test,
+            withdrawal_to_ripple_wallet_with_tag_test,
             unknown_withdrawal_test,
             get_wallet_by_external_id
         ]},

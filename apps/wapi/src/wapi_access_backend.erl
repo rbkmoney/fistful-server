@@ -7,6 +7,7 @@
 -export([check_resource_by_id/3]).
 
 -type id() :: binary().
+-type resource_type() :: identity | wallet.
 -type handler_context() :: wapi_handler:context().
 -type data() ::
     ff_proto_identity_thrift:'Identity'() |
@@ -16,14 +17,14 @@
 
 %% Pipeline
 
--spec check_resource(atom(), data(), handler_context()) ->
+-spec check_resource(resource_type(), data(), handler_context()) ->
     ok | {error, unauthorized}.
 
 check_resource(Resource, Data, Context) ->
     Owner = get_context(Resource, Data),
     check_resource_access(is_resource_owner(Owner, Context)).
 
--spec check_resource_by_id(atom(), id(), handler_context()) ->
+-spec check_resource_by_id(resource_type(), id(), handler_context()) ->
     ok | {error, unauthorized}.
 
 check_resource_by_id(Resource, ID, Context) ->

@@ -55,7 +55,7 @@ create(WalletID, Params, HandlerContext) ->
             {error, Details}
     end.
 
--spec get(binary(), handler_context()) ->
+-spec get(id(), handler_context()) ->
     {ok, response_data()} |
     {error, {wallet, notfound}} |
     {error, {wallet, unauthorized}}.

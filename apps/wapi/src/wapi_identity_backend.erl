@@ -1,10 +1,11 @@
 -module(wapi_identity_backend).
 
 -type handler_context() :: wapi_handler:context().
--type response_data()   :: wapi_handler:response_data().
--type params()          :: map().
--type id()              :: binary().
--type result(T, E)      :: {ok, T} | {error, E}.
+-type response_data() :: wapi_handler:response_data().
+-type params() :: map().
+-type id() :: binary().
+-type status() :: binary().
+-type result(T, E) :: {ok, T} | {error, E}.
 
 -export([create_identity/2]).
 -export([get_identity/2]).
@@ -20,7 +21,7 @@
 
 %% Pipeline
 
--spec get_identity(binary(), handler_context()) ->
+-spec get_identity(id(), handler_context()) ->
     {ok, response_data()}             |
     {error, {identity, notfound}}     |
     {error, {identity, unauthorized}} .
@@ -150,7 +151,7 @@ get_identity_challenge(IdentityID, ChallengeID, HandlerContext) ->
             {error, {identity, unauthorized}}
     end.
 
--spec get_identity_challenges(id(), binary(), handler_context()) -> result(map(),
+-spec get_identity_challenges(id(), status(), handler_context()) -> result(map(),
     {identity, notfound}     |
     {identity, unauthorized} |
     {challenge, notfound}

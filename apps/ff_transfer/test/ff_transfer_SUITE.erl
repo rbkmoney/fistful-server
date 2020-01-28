@@ -472,7 +472,7 @@ create_destination(IID, C) ->
 create_crypto_destination(IID, C) ->
     Resource = {crypto_wallet, #{
         id => <<"a30e277c07400c9940628828949efd48">>,
-        currency => litecoin
+        currency => {litecoin, #{}}
     }},
     DestID = create_instrument(destination, IID, <<"CryptoDestination">>, <<"RUB">>, Resource, C),
     authorized = ct_helper:await(

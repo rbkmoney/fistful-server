@@ -2,6 +2,7 @@
 
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
@@ -32,9 +33,11 @@
 
 -export([get_destinations/2]).
 -export([get_destination/2]).
+-export([get_destination_by_external_id/2]).
 -export([create_destination/2]).
 -export([create_withdrawal/2]).
 -export([get_withdrawal/2]).
+-export([get_withdrawal_by_external_id/2]).
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
 -export([list_withdrawals/2]).
@@ -322,6 +325,21 @@ get_destinations(_Params, _Context) ->
 get_destination(DestinationID, Context) ->
     do(fun() -> to_swag(destination, get_state(destination, DestinationID, Context)) end).
 
+-spec get_destination_by_external_id(id(), ctx()) -> result(map(),
+    {destination, unauthorized} |
+    {destination, notfound}     |
+    {external_id, {unknown_external_id, id()}}
+).
+get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, destination, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
+        {ok, DestinationID, _CtxData} ->
+            get_destination(DestinationID, Context);
+        {error, internal_id_not_found} ->
+            {error, {external_id, {unknown_external_id, ExternalID}}}
+    end.
+
 -spec create_destination(params(), ctx()) -> result(map(),
     invalid                     |
     {identity, unauthorized}    |
@@ -333,9 +351,11 @@ get_destination(DestinationID, Context) ->
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
+        DestinationParams = from_swag(destination_params, Params),
+        Resource = construct_resource(maps:get(resource, DestinationParams)),
         ff_destination:create(
             ID,
-            from_swag(destination_params, Params),
+            DestinationParams#{resource => Resource},
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
@@ -353,7 +373,9 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {quote_invalid_party, _}      |
     {quote_invalid_wallet, _}     |
     {quote, {invalid_body, _}}    |
-    {quote, {invalid_destination, _}}
+    {quote, {invalid_destination, _}} |
+    {terms, {terms_violation, _}} |
+    {destination_resource, {bin_data, not_found}}
 ).
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
@@ -372,6 +394,21 @@ create_withdrawal(Params, Context) ->
 ).
 get_withdrawal(WithdrawalId, Context) ->
     do(fun() -> to_swag(withdrawal, get_state(withdrawal, WithdrawalId, Context)) end).
+
+-spec get_withdrawal_by_external_id(id(), ctx()) -> result(map(),
+    {withdrawal, unauthorized} |
+    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}} |
+    {external_id, {unknown_external_id, id()}}
+).
+get_withdrawal_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, withdrawal, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
+        {ok, WithdrawalId, _CtxData} ->
+            get_withdrawal(WithdrawalId, Context);
+        {error, internal_id_not_found} ->
+            {error, {external_id, {unknown_external_id, ExternalID}}}
+    end.
 
 -spec get_withdrawal_events(params(), ctx()) -> result([map()],
     {withdrawal, unauthorized} |
@@ -715,6 +752,30 @@ get_p2p_transfer_events({ID, CT}, Context) ->
 
 %% Internal functions
 
+construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
+when Type =:= <<"BankCardDestinationResource">> ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        unrecognized ->
+            from_swag(destination_resource, Resource);
+        {ok, BankCard} ->
+            #'BankCardExpDate'{
+                month = Month,
+                year = Year
+            } = BankCard#'BankCard'.exp_date,
+            {bank_card, #{
+                token          => BankCard#'BankCard'.token,
+                bin            => BankCard#'BankCard'.bin,
+                masked_pan     => BankCard#'BankCard'.masked_pan,
+                cardholder_name => BankCard#'BankCard'.cardholder_name,
+                exp_date        => {Month, Year}
+            }};
+        {error, {decryption_failed, _} = Error} ->
+            logger:warning("Resource token decryption failed: ~p", [Error]),
+            erlang:error(Error)
+    end;
+construct_resource(Resource) ->
+    from_swag(destination_resource, Resource).
+
 encode_webhook_id(WebhookID) ->
     try
         binary_to_integer(WebhookID)
@@ -1055,27 +1116,18 @@ create_entity(Type, Params, CreateFun, Context) ->
     case gen_id(Type, ExternalID, Hash, Context) of
         {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
-            handle_create_entity_result(Result, Type, ExternalID, ID, Context);
+            handle_create_entity_result(Result, Type, ID, Context);
         {error, {external_id_conflict, ID}} ->
             {error, {external_id_conflict, ID, ExternalID}}
     end.
 
-handle_create_entity_result(Result, Type, ExternalID, ID, Context) when
+handle_create_entity_result(Result, Type, ID, Context) when
     Result =:= ok;
     Result =:= {error, exists}
 ->
-    ok = sync_ff_external(Type, ExternalID, ID, Context),
     do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
-handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Context) ->
+handle_create_entity_result({error, E}, _Type, _ID, _Context) ->
     throw(E).
-
-sync_ff_external(_Type, undefined, _BenderID, _Context) ->
-    ok;
-sync_ff_external(Type, ExternalID, BenderID, Context) ->
-    PartyID = wapi_handler_utils:get_owner(Context),
-    FistfulID = ff_external_id:construct_external_id(PartyID, ExternalID),
-    {ok, BenderID} = ff_external_id:bind(Type, FistfulID, BenderID),
-    ok.
 
 with_party(Context, Fun) ->
     try Fun()
@@ -1377,8 +1429,9 @@ from_swag(destination_params, Params) ->
         identity => maps:get(<<"identity">>, Params),
         currency => maps:get(<<"currency">>, Params),
         name     => maps:get(<<"name">>    , Params),
-        resource => from_swag(destination_resource, maps:get(<<"resource">>, Params))
+        resource => maps:get(<<"resource">>, Params)
     }, Params);
+%% TODO delete this code, after add encrypted token
 from_swag(destination_resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
     <<"token">> := WapiToken
@@ -1746,7 +1799,6 @@ to_swag(destination_resource, {bank_card, BankCard}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardDestinationResource">>,
         <<"token">>         => maps:get(token, BankCard),
-        <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });

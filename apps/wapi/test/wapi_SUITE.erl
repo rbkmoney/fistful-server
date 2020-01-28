@@ -25,6 +25,7 @@
 -export([quote_withdrawal_test/1]).
 -export([not_allowed_currency_test/1]).
 -export([get_wallet_by_external_id/1]).
+-export([check_withdrawal_limit_test/1]).
 
 -export([consume_eventsinks/1]).
 
@@ -67,7 +68,8 @@ groups() ->
             woody_retry_test
         ]},
         {errors, [], [
-            not_allowed_currency_test
+            not_allowed_currency_test,
+            check_withdrawal_limit_test
         ]},
         {eventsink, [], [
             consume_eventsinks
@@ -76,8 +78,8 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 
-init_per_suite(C) ->
-     ct_helper:makeup_cfg([
+init_per_suite(Config) ->
+    ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
             default_termset => get_default_termset(),
@@ -87,7 +89,7 @@ init_per_suite(C) ->
                 wapi
             ]
         })
-    ], C).
+    ], Config).
 
 -spec end_per_suite(config()) -> _.
 
@@ -104,8 +106,7 @@ init_per_group(G, C) ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
     })),
     Party = create_party(C),
-    % Token = issue_token(Party, [{[party], write}], unlimited),
-    Token = issue_token(Party, [{[party], write}], {deadline, 10}),
+    Token = issue_token(Party, [{[party], write}, {[party], read}], {deadline, 10}),
     Context = get_context("localhost:8080", Token),
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
     [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].
@@ -195,6 +196,39 @@ withdrawal_to_ripple_wallet_test(C) ->
 
     WithdrawalID  = create_withdrawal(WalletID, DestID, C),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
+
+-spec check_withdrawal_limit_test(config()) -> test_return().
+
+check_withdrawal_limit_test(C) ->
+    Name          = <<"Tony Dacota">>,
+    Provider      = ?ID_PROVIDER,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ok            = check_identity(Name, IdentityID, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    ok            = check_wallet(WalletID, C),
+    CardToken     = store_bank_card(C),
+    {ok, _Card}   = get_bank_card(CardToken, C),
+    Resource      = make_bank_card_resource(CardToken),
+    DestID        = create_desination(IdentityID, Resource, C),
+    ok            = check_destination(IdentityID, DestID, Resource, C),
+    {ok, _Grants} = issue_destination_grants(DestID, C),
+    % ожидаем выполнения асинхронного вызова выдачи прав на вывод
+    await_destination(DestID),
+
+    {error, {422, #{<<"message">> := <<"Invalid cash amount">>}}} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+        #{body => genlib_map:compact(#{
+            <<"wallet">> => WalletID,
+            <<"destination">> => DestID,
+            <<"body">> => #{
+                <<"amount">> => 1000000000,
+                <<"currency">> => <<"RUB">>
+            },
+            <<"quoteToken">> => undefined
+        })},
+        ct_helper:cfg(context, C)
+    ).
 
 -spec unknown_withdrawal_test(config()) -> test_return().
 
@@ -585,8 +619,8 @@ create_desination(IdentityID, Resource, C) ->
 
 check_destination(IdentityID, DestID, Resource0, C) ->
     {ok, Dest} = get_destination(DestID, C),
-    ResourceFields = [<<"type">>, <<"token">>, <<"id">>, <<"currency">>],
-    Resource = convert_token(maps:with(ResourceFields, Resource0)),
+    ResourceFields = [<<"type">>, <<"id">>, <<"currency">>],
+    Resource = maps:with(ResourceFields, Resource0),
     #{<<"resource">> := Res} = D1 = maps:with([<<"name">>,
                                                <<"identity">>,
                                                <<"currency">>,
@@ -611,12 +645,6 @@ await_destination(DestID) ->
             ff_destination:status(ff_destination:get(DestM))
         end
     ).
-
-convert_token(#{<<"token">> := Base64} = Resource) ->
-    BankCard = wapi_utils:base64url_to_map(Base64),
-    Resource#{<<"token">> => maps:get(<<"token">>, BankCard)};
-convert_token(Resource) ->
-    Resource.
 
 get_destination(DestID, C) ->
     call_api(

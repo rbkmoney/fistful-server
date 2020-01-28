@@ -75,17 +75,15 @@ init([]) ->
     % TODO
     %  - Make it palatable
     {Backends, Handlers} = lists:unzip([
-        contruct_backend_childspec('ff/external_id'             , ff_external_id               , PartyClient),
-        contruct_backend_childspec('ff/sequence'                , ff_sequence                  , PartyClient),
-        contruct_backend_childspec('ff/identity'                , ff_identity_machine          , PartyClient),
-        contruct_backend_childspec('ff/wallet_v2'               , ff_wallet_machine            , PartyClient),
-        contruct_backend_childspec('ff/source_v1'               , ff_instrument_machine        , PartyClient),
-        contruct_backend_childspec('ff/destination_v2'          , ff_instrument_machine        , PartyClient),
-        contruct_backend_childspec('ff/deposit_v1'              , ff_deposit_machine           , PartyClient),
-        contruct_backend_childspec('ff/withdrawal_v2'           , ff_withdrawal_machine        , PartyClient),
-        contruct_backend_childspec('ff/withdrawal/session_v2'   , ff_withdrawal_session_machine, PartyClient),
-        contruct_backend_childspec('ff/p2p_transfer_v1'         , p2p_transfer_machine         , PartyClient),
-        contruct_backend_childspec('ff/p2p_transfer/session_v1' , p2p_session_machine          , PartyClient)
+        contruct_backend_childspec('ff/identity'              , ff_identity_machine          , PartyClient),
+        contruct_backend_childspec('ff/wallet_v2'             , ff_wallet_machine            , PartyClient),
+        contruct_backend_childspec('ff/source_v1'             , ff_instrument_machine        , PartyClient),
+        contruct_backend_childspec('ff/destination_v2'        , ff_instrument_machine        , PartyClient),
+        contruct_backend_childspec('ff/deposit_v1'            , ff_deposit_machine           , PartyClient),
+        contruct_backend_childspec('ff/withdrawal_v2'         , ff_withdrawal_machine        , PartyClient),
+        contruct_backend_childspec('ff/withdrawal/session_v2' , ff_withdrawal_session_machine, PartyClient)б
+        contruct_backend_childspec('ff/p2p_transfer_v1'         , p2p_transfer_machine       , PartyClient),
+        contruct_backend_childspec('ff/p2p_transfer/session_v1' , p2p_session_machine        , PartyClient)
     ]),
     ok = application:set_env(fistful, backends, maps:from_list(Backends)),
 

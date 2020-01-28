@@ -210,7 +210,7 @@ withdrawal_to_ripple_wallet_with_tag_test(C) ->
     ok            = check_identity(Name, IdentityID, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),
     ok            = check_wallet(WalletID, C),
-    Resource      = make_crypto_wallet_resource('Ripple', <<"191191191">>)g
+    Resource      = make_crypto_wallet_resource('Ripple', <<"191191191">>),
     DestID        = create_destination(IdentityID, Resource, C),
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),

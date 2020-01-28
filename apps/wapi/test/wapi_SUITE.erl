@@ -149,7 +149,7 @@ withdrawal_to_bank_card_test(C) ->
     CardToken     = store_bank_card(C),
     {ok, _Card}   = get_bank_card(CardToken, C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C),
+    DestID        = create_destination(IdentityID, Resource, C),
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
@@ -169,7 +169,7 @@ withdrawal_to_crypto_wallet_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     ok            = check_wallet(WalletID, C),
     Resource      = make_crypto_wallet_resource('Ethereum'),
-    DestID        = create_desination(IdentityID, Resource, C),
+    DestID        = create_destination(IdentityID, Resource, C),
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
@@ -189,7 +189,27 @@ withdrawal_to_ripple_wallet_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     ok            = check_wallet(WalletID, C),
     Resource      = make_crypto_wallet_resource('Ripple'), % tagless to test thrift compat
-    DestID        = create_desination(IdentityID, Resource, C),
+    DestID        = create_destination(IdentityID, Resource, C),
+    ok            = check_destination(IdentityID, DestID, Resource, C),
+    {ok, _Grants} = issue_destination_grants(DestID, C),
+    % ожидаем выполнения асинхронного вызова выдачи прав на вывод
+    await_destination(DestID),
+
+    WithdrawalID  = create_withdrawal(WalletID, DestID, C),
+    ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
+
+-spec withdrawal_to_ripple_wallet_with_tag_test(config()) -> test_return().
+
+withdrawal_to_ripple_wallet_with_tag_test(C) ->
+    Name          = <<"Tyler The Creator">>,
+    Provider      = ?ID_PROVIDER2,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ok            = check_identity(Name, IdentityID, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    ok            = check_wallet(WalletID, C),
+    Resource      = make_crypto_wallet_resource('Ripple', <<"191191191">>)g
+    DestID        = create_destination(IdentityID, Resource, C),
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
@@ -211,7 +231,7 @@ check_withdrawal_limit_test(C) ->
     CardToken     = store_bank_card(C),
     {ok, _Card}   = get_bank_card(CardToken, C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C),
+    DestID        = create_destination(IdentityID, Resource, C),
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
@@ -247,7 +267,7 @@ quote_encode_decode_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     CardToken     = store_bank_card(C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C),
+    DestID        = create_destination(IdentityID, Resource, C),
     % ожидаем авторизации назначения вывода
     await_destination(DestID),
 
@@ -294,7 +314,7 @@ get_quote_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     CardToken     = store_bank_card(C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C),
+    DestID        = create_destination(IdentityID, Resource, C),
     % ожидаем авторизации назначения вывода
     await_destination(DestID),
 
@@ -390,7 +410,7 @@ quote_withdrawal_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     CardToken     = store_bank_card(C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C),
+    DestID        = create_destination(IdentityID, Resource, C),
     % ожидаем авторизации назначения вывода
     await_destination(DestID),
 
@@ -602,7 +622,7 @@ make_crypto_wallet_resource(Currency, MaybeTag) ->
         <<"tag">>      => MaybeTag
     }).
 
-create_desination(IdentityID, Resource, C) ->
+create_destination(IdentityID, Resource, C) ->
     {ok, Dest} = call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{body => #{

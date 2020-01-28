@@ -46,12 +46,6 @@
     masked_pan     => binary()
 }.
 
-% -type resource_crypto_wallet() :: #{
-%     id       := binary(),
-%     currency := atom(),
-%     tag      => binary()
-% }.
-
 -type resource_crypto_wallet() :: #{
     id       := binary(),
     currency := resource_crypto_currency()

@@ -334,14 +334,20 @@ marshal(challenge_params, {ID, #{
         proofs = marshal({list, proof}, Proofs)
     };
 
-marshal(proof, Params = #{
-    <<"token">>     := Token
-}) ->
-    Type = maps:get(<<"type">>, Params, undefined),
-    #idnt_ChallengeProof{
-        type = maybe_marshal(string, Type),
-        token = marshal(string, Token)
-    };
+marshal(proof, #{<<"token">> := WapiToken}) ->
+    try
+        #{<<"type">> := Type, <<"token">> := Token} = wapi_utils:base64url_to_map(WapiToken),
+        #idnt_ChallengeProof{
+            type = marshal(proof_type, Type),
+            token = marshal(string, Token)
+        }
+    catch
+        error:badarg ->
+            wapi_handler:throw_result(wapi_handler_utils:reply_error(
+                422,
+                wapi_handler_utils:get_error_msg(io_lib:format("Invalid proof token: ~p", [WapiToken]))
+            ))
+    end;
 
 marshal(event_range, {Cursor, Limit}) ->
     #'EventRange'{
@@ -352,13 +358,18 @@ marshal(event_range, {Cursor, Limit}) ->
 marshal(context, Ctx) ->
     ff_codec:marshal(context, Ctx);
 
+marshal(proof_type, <<"RUSDomesticPassport">>) ->
+    rus_domestic_passport;
+marshal(proof_type, <<"RUSRetireeInsuranceCertificate">>) ->
+    rus_retiree_insurance_cert;
+
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-maybe_marshal(_, undefined) ->
-    undefined;
-maybe_marshal(T, V) ->
-    marshal(T, V).
+% maybe_marshal(_, undefined) ->
+%     undefined;
+% maybe_marshal(T, V) ->
+%     marshal(T, V).
 
 %%
 

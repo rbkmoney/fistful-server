@@ -183,10 +183,19 @@ create_identity_challenge(C) ->
                 <<"identityID">> => ?STRING
             },
             body => #{
-                <<"type">> => ?STRING,
+                <<"type">> => <<"sword-initiation">>,
                 <<"proofs">> => [
                     #{
-                        <<"token">> => ?STRING
+                        <<"token">> => wapi_utils:map_to_base64url(#{
+                            <<"type">> => <<"RUSRetireeInsuranceCertificate">>,
+                            <<"token">> => ?STRING
+                        })
+                    },
+                    #{
+                        <<"token">> => wapi_utils:map_to_base64url(#{
+                            <<"type">> => <<"RUSDomesticPassport">>,
+                            <<"token">> => ?STRING
+                        })
                     }
                 ]
             }

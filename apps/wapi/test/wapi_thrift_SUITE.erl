@@ -14,11 +14,13 @@
 -export([end_per_testcase/2]).
 
 -export([wallet_check_test/1]).
+-export([identity_check_test/1]).
+-export([identity_challenge_check_test/1]).
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 % -import(ct_helper, [cfg/2]).
 
@@ -34,6 +36,8 @@ all() ->
 groups() ->
     [
         {default, [sequence], [
+            identity_check_test,
+            identity_challenge_check_test,
             wallet_check_test
         ]}
     ].
@@ -96,27 +100,52 @@ end_per_testcase(_Name, _C) ->
 -define(ID_PROVIDER2, <<"good-two">>).
 -define(ID_CLASS, <<"person">>).
 
+-spec identity_check_test(config()) -> test_return().
+
+identity_check_test(C) ->
+    Name = <<"Keyn Fawkes">>,
+    Provider = ?ID_PROVIDER,
+    Class = ?ID_CLASS,
+    IdentityID1 = create_identity(Name, Provider, Class, C),
+    ok = check_identity(Name, IdentityID1, Provider, Class, C),
+    ok = application:set_env(wapi, transport, thrift),
+    IdentityID2 = create_identity(Name, Provider, Class, C),
+    ok = check_identity(Name, IdentityID2, Provider, Class, C),
+    Keys = maps:keys(get_identity(IdentityID1, C)),
+    Keys = maps:keys(get_identity(IdentityID2, C)).
+
+-spec identity_challenge_check_test(config()) -> test_return().
+
+identity_challenge_check_test(C) ->
+    Name = <<"Keyn Fawkes">>,
+    Provider = ?ID_PROVIDER,
+    Class = ?ID_CLASS,
+    IdentityID1 = create_identity(Name, Provider, Class, C),
+    ok = check_identity(Name, IdentityID1, Provider, Class, C),
+    IdentityChallengeID1 = create_identity_challenge(IdentityID1, C),
+    ok = application:set_env(wapi, transport, thrift),
+    IdentityID2 = create_identity(Name, Provider, Class, C),
+    ok = check_identity(Name, IdentityID2, Provider, Class, C),
+    IdentityChallengeID2 = create_identity_challenge(IdentityID2, C),
+    Keys = maps:keys(get_identity_challenge(IdentityID1, IdentityChallengeID1, C)),
+    Keys = maps:keys(get_identity_challenge(IdentityID2, IdentityChallengeID2, C)).
+
 -spec wallet_check_test(config()) -> test_return().
 
 wallet_check_test(C) ->
-    Name          = <<"Keyn Fawkes">>,
-    Provider      = ?ID_PROVIDER,
-    Class         = ?ID_CLASS,
-    IdentityID1   = create_identity(Name, Provider, Class, C),
-    ok            = check_identity(Name, IdentityID1, Provider, Class, C),
-    WalletID1     = create_wallet(IdentityID1, C),
-    ok            = check_wallet(WalletID1, C),
-    ok            = application:set_env(wapi, transport, thrift),
-    IdentityID2   = create_identity(Name, Provider, Class, C),
-    ok            = check_identity(Name, IdentityID2, Provider, Class, C),
-    WalletID2     = create_wallet(IdentityID2, C),
-    ok            = check_wallet(WalletID2, C),
-    IdentityKeys1 = maps:keys(get_identity(IdentityID1, C)),
-    IdentityKeys2 = maps:keys(get_identity(IdentityID2, C)),
-    IdentityKeys1 = IdentityKeys2,
-    WalletKeys1   = maps:keys(get_wallet(WalletID1, C)),
-    WalletKeys2   = maps:keys(get_wallet(WalletID2, C)),
-    WalletKeys1   = WalletKeys2.
+    Name = <<"Keyn Fawkes">>,
+    Provider = ?ID_PROVIDER,
+    Class = ?ID_CLASS,
+    IdentityID1 = create_identity(Name, Provider, Class, C),
+    WalletID1 = create_wallet(IdentityID1, C),
+    ok = check_wallet(WalletID1, C),
+    ok = application:set_env(wapi, transport, thrift),
+    IdentityID2 = create_identity(Name, Provider, Class, C),
+    WalletID2 = create_wallet(IdentityID2, C),
+    ok = check_wallet(WalletID2, C),
+    Keys = maps:keys(get_wallet(WalletID1, C)),
+    Keys = maps:keys(get_wallet(WalletID2, C)),
+    Keys = Keys.
 
 %%
 
@@ -181,6 +210,45 @@ get_identity(IdentityID, C) ->
         ct_helper:cfg(context, C)
     ),
     Identity.
+
+create_identity_challenge(IdentityID, C) ->
+    {_Cert, CertToken} = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
+    {_Passport, PassportToken} = ct_identdocstore:rus_domestic_passport(C),
+    {ok, IdentityChallenge} = call_api(
+        fun swag_client_wallet_identities_api:start_identity_challenge/3,
+        #{
+            binding => #{
+                <<"identityID">> => IdentityID
+            },
+            body => #{
+                <<"type">> => <<"sword-initiation">>,
+                <<"proofs">> => [
+                    #{
+                        <<"token">> => wapi_utils:map_to_base64url(#{
+                            <<"type">> => <<"RUSRetireeInsuranceCertificate">>,
+                            <<"token">> => CertToken
+                        })
+                    },
+                    #{
+                        <<"token">> => wapi_utils:map_to_base64url(#{
+                            <<"type">> => <<"RUSDomesticPassport">>,
+                            <<"token">> => PassportToken
+                        })
+                    }
+                ]
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    maps:get(<<"id">>, IdentityChallenge).
+
+get_identity_challenge(IdentityID, ChallengeID, C) ->
+    {ok, IdentityChallenge} = call_api(
+        fun swag_client_wallet_identities_api:get_identity_challenge/3,
+        #{binding => #{<<"identityID">> => IdentityID, <<"challengeID">> => ChallengeID}},
+        ct_helper:cfg(context, C)
+    ),
+    IdentityChallenge.
 
 create_wallet(IdentityID, C) ->
     create_wallet(IdentityID, #{}, C).

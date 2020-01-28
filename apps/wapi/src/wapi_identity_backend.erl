@@ -367,11 +367,6 @@ marshal(proof_type, <<"RUSRetireeInsuranceCertificate">>) ->
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-% maybe_marshal(_, undefined) ->
-%     undefined;
-% maybe_marshal(T, V) ->
-%     marshal(T, V).
-
 %%
 
 unmarshal({list, Type}, List) ->

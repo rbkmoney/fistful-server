@@ -1176,7 +1176,7 @@ from_swag(destination_resource, Resource = #{
         currency => from_swag(crypto_wallet_currency, Resource)
     })};
 
-from_swag(crypto_wallet_currency, #{"currency" := Currency} = Resource) ->
+from_swag(crypto_wallet_currency, #{<<"currency">> := Currency} = Resource) ->
     {
         from_swag(crypto_wallet_currency_name, Currency),
         genlib_map:compact(#{

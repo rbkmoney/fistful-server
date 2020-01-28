@@ -232,8 +232,8 @@ encode_resource(
     }};
 encode_resource(
     {crypto_wallet, #{
-        id       := CryptoWalletID,
-        currency := {Currency, Data}
+        id   := CryptoWalletID,
+        data := #{currency := Currency} = Data
     }}
 ) ->
     {crypto_wallet, #domain_CryptoWallet{

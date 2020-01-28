@@ -1172,17 +1172,15 @@ from_swag(destination_resource, Resource = #{
     <<"id">>       := CryptoWalletID
 }) ->
     {crypto_wallet, genlib_map:compact(#{
-        id       => CryptoWalletID,
-        currency => from_swag(crypto_wallet_currency, Resource)
+        id   => CryptoWalletID,
+        data => from_swag(crypto_wallet_currency, Resource)
     })};
 
 from_swag(crypto_wallet_currency, #{<<"currency">> := Currency} = Resource) ->
-    {
-        from_swag(crypto_wallet_currency_name, Currency),
-        genlib_map:compact(#{
-            tag => maps:get(<<"tag">>, Resource, undefined)
-        })
-    };
+    genlib_map:compact(#{
+        currency => from_swag(crypto_wallet_currency_name, Currency),
+        tag => maps:get(<<"tag">>, Resource, undefined)
+    });
 
 from_swag(crypto_wallet_currency_name, <<"Bitcoin">>)     -> bitcoin;
 from_swag(crypto_wallet_currency_name, <<"Litecoin">>)    -> litecoin;
@@ -1415,18 +1413,18 @@ to_swag(destination_resource, {crypto_wallet, CryptoWallet}) ->
     to_swag(map, maps:merge(#{
         <<"type">>     => <<"CryptoWalletDestinationResource">>,
         <<"id">>       => maps:get(id, CryptoWallet)
-    }, to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet))));
+    }, to_swag(crypto_wallet_currency, maps:get(data, CryptoWallet))));
 
 to_swag(pan_last_digits, MaskedPan) ->
     wapi_utils:get_last_pan_digits(MaskedPan);
 
-to_swag(crypto_wallet_currency, {bitcoin, #{}})          -> #{<<"currency">> => <<"Bitcoin">>};
-to_swag(crypto_wallet_currency, {litecoin, #{}})         -> #{<<"currency">> => <<"Litecoin">>};
-to_swag(crypto_wallet_currency, {bitcoin_cash, #{}})     -> #{<<"currency">> => <<"BitcoinCash">>};
-to_swag(crypto_wallet_currency, {ethereum, #{}})         -> #{<<"currency">> => <<"Ethereum">>};
-to_swag(crypto_wallet_currency, {zcash, #{}})            -> #{<<"currency">> => <<"Zcash">>};
-to_swag(crypto_wallet_currency, {ripple, #{tag := Tag}}) -> #{<<"currency">> => <<"Ripple">>, <<"tag">> => Tag};
-to_swag(crypto_wallet_currency, {ripple, #{}})           -> #{<<"currency">> => <<"Ripple">>};
+to_swag(crypto_wallet_currency, #{currency := bitcoin})               -> #{<<"currency">> => <<"Bitcoin">>};
+to_swag(crypto_wallet_currency, #{currency := litecoin})              -> #{<<"currency">> => <<"Litecoin">>};
+to_swag(crypto_wallet_currency, #{currency := bitcoin_cash})          -> #{<<"currency">> => <<"BitcoinCash">>};
+to_swag(crypto_wallet_currency, #{currency := ethereum})              -> #{<<"currency">> => <<"Ethereum">>};
+to_swag(crypto_wallet_currency, #{currency := zcash})                 -> #{<<"currency">> => <<"Zcash">>};
+to_swag(crypto_wallet_currency, #{currency := ripple, #{tag := Tag}}) -> #{<<"currency">> => <<"Ripple">>, <<"tag">> => Tag};
+to_swag(crypto_wallet_currency, #{currency := ripple})                -> #{<<"currency">> => <<"Ripple">>};
 
 to_swag(withdrawal, State) ->
     Withdrawal = ff_withdrawal_machine:withdrawal(State),

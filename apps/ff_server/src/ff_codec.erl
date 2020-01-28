@@ -91,30 +91,30 @@ marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
         issuer_country = IsoCountryCode,
         card_type = CardType
     }};
-marshal(resource, {crypto_wallet, #{id := ID, currency := Currency}}) ->
+marshal(resource, {crypto_wallet, #{id := ID, data := Currency}}) ->
     {crypto_wallet, #'CryptoWallet'{
         id       = marshal(string, ID),
         currency = marshal(crypto_currency, Currency),
         data     = marshal(crypto_data, Currency)
     }};
 
-marshal(crypto_currency, {Currency, _}) ->
+marshal(crypto_currency, #{currency := Currency}) ->
     Currency;
 
-marshal(crypto_data, {bitcoin, #{}}) ->
-    {bitcoin, #'CryptoDataBitcoin'{}};
-marshal(crypto_data, {litecoin, #{}}) ->
-    {litecoin, #'CryptoDataLitecoin'{}};
-marshal(crypto_data, {bitcoin_cash, #{}}) ->
-    {bitcoin_cash, #'CryptoDataBitcoinCash'{}};
-marshal(crypto_data, {ethereum, #{}}) ->
-    {ethereum, #'CryptoDataEthereum'{}};
-marshal(crypto_data, {zcash, #{}}) ->
-    {zcash, #'CryptoDataZcash'{}};
-marshal(crypto_data, {ripple, Data}) ->
+marshal(crypto_data, #{currency := ripple} = Data) ->
     {ripple, #'CryptoDataRipple'{
         tag = maybe_marshal(string, maps:get(tag, Data, undefined))
     }};
+marshal(crypto_data, #{currency := bitcoin}) ->
+    {bitcoin, #'CryptoDataBitcoin'{}};
+marshal(crypto_data, #{currency := bitcoin_cash}) ->
+    {litecoin, #'CryptoDataLitecoin'{}};
+marshal(crypto_data, #{currency := litecoin}) ->
+    {bitcoin_cash, #'CryptoDataBitcoinCash'{}};
+marshal(crypto_data, #{currency := ethereum}) ->
+    {ethereum, #'CryptoDataEthereum'{}};
+marshal(crypto_data, #{currency := zcash}) ->
+    {zcash, #'CryptoDataZcash'{}};
 
 marshal(cash, {Amount, CurrencyRef}) ->
     #'Cash'{
@@ -248,10 +248,13 @@ unmarshal(crypto_wallet, #'CryptoWallet'{
     currency = CryptoWalletCurrency,
     data = Data
 }) ->
-    genlib_map:compact(#{
-        id => unmarshal(string, CryptoWalletID),
-        currency => {CryptoWalletCurrency, unmarshal(crypto_data, Data)}
-    });
+    #{
+        id   => unmarshal(string, CryptoWalletID),
+        data => maps:merge(
+            #{currency => CryptoWalletCurrency},
+            unmarshal(crypto_data, Data)
+        )
+    };
 
 unmarshal(crypto_data, {ripple, #'CryptoDataRipple'{tag = Tag}}) ->
     genlib_map:compact(#{

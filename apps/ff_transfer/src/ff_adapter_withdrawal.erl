@@ -233,12 +233,13 @@ encode_resource(
 encode_resource(
     {crypto_wallet, #{
         id       := CryptoWalletID,
-        currency := CryptoWalletCurrency
+        currency := {Currency, Data}
     }}
 ) ->
     {crypto_wallet, #domain_CryptoWallet{
         id              = CryptoWalletID,
-        crypto_currency = CryptoWalletCurrency
+        crypto_currency = Currency,
+        destination_tag = maps:get(tag, Data, undefined)
     }}.
 
 -spec encode_identity

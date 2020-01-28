@@ -51,7 +51,7 @@
     data := crypto_data()
 }.
 
--type crypto_data() :: #{currency := atom(), tag => binary()}.
+-type crypto_data() :: #{currency := crypto_currency(), tag => binary()}.
 
 -type crypto_currency() :: bitcoin
                          | bitcoin_cash

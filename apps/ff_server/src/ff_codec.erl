@@ -108,9 +108,9 @@ marshal(crypto_data, #{currency := ripple} = Data) ->
 marshal(crypto_data, #{currency := bitcoin}) ->
     {bitcoin, #'CryptoDataBitcoin'{}};
 marshal(crypto_data, #{currency := bitcoin_cash}) ->
-    {litecoin, #'CryptoDataLitecoin'{}};
-marshal(crypto_data, #{currency := litecoin}) ->
     {bitcoin_cash, #'CryptoDataBitcoinCash'{}};
+marshal(crypto_data, #{currency := litecoin}) ->
+    {litecoin, #'CryptoDataLitecoin'{}};
 marshal(crypto_data, #{currency := ethereum}) ->
     {ethereum, #'CryptoDataEthereum'{}};
 marshal(crypto_data, #{currency := zcash}) ->

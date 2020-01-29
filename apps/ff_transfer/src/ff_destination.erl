@@ -37,14 +37,20 @@
     bank_name           => binary(),
     iso_country_code    => atom(),
     card_type           => charge_card | credit | debit | credit_or_debit,
-    bin_data_id         := ff_bin_data:bin_data_id()
+    bin_data_id         := ff_bin_data:bin_data_id(),
+    cardholder_name     => binary(),
+    exp_date            => exp_date()
 }.
 
 -type resource_bank_card() :: #{
     token          := binary(),
     bin            => binary(),
-    masked_pan     => binary()
+    masked_pan     => binary(),
+    cardholder_name => binary(),
+    exp_date       => exp_date()
 }.
+
+-type exp_date() :: {integer(), integer()}.
 
 -type resource_crypto_wallet() :: #{
     id       := binary(),
@@ -76,6 +82,7 @@
 -export_type([resource_full_id/0]).
 -export_type([event/0]).
 -export_type([params/0]).
+-export_type([exp_date/0]).
 
 %% Accessors
 

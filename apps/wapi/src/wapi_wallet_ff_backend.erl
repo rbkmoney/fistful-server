@@ -686,6 +686,8 @@ quote_p2p_transfer(Params, Context) ->
             body := Body
         } = from_swag(quote_p2p_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
+        _SenderResource = construct_resource(Sender),
+        _ReceiverResource = construct_resource(Receiver),
         {SurplusCash, _SurplusCashVolume, Quote} = unwrap(p2p_quote:get_quote(Body, IdentityID, Sender, Receiver)),
         Token = create_p2p_quote_token(Quote, PartyID),
         ExpiresOn = p2p_quote:expires_on(Quote),
@@ -752,11 +754,8 @@ get_p2p_transfer_events({ID, CT}, Context) ->
 
 %% Internal functions
 
-construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
-when Type =:= <<"BankCardDestinationResource">> ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            from_swag(destination_resource, Resource);
+handle_result_decryption(Result) ->
+    case Result of
         {ok, BankCard} ->
             #'BankCardExpDate'{
                 month = Month,
@@ -769,12 +768,54 @@ when Type =:= <<"BankCardDestinationResource">> ->
                 cardholder_name => BankCard#'BankCard'.cardholder_name,
                 exp_date        => {Month, Year}
             }};
+        unrecognized ->
+            unrecognized;
+        {error, {decryption_failed, _}} = Error ->
+            Error
+    end.
+
+construct_resource(#{<<"type">> := Type, <<"token">> := Token}) ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        {ok, BankCard} ->
+            {ok, encode_bank_card(BankCard)};
+        unrecognized ->
+            logger:warning("~p token unrecognized", [Type]),
+            erlang:error(token_unrecognized);
         {error, {decryption_failed, _} = Error} ->
-            logger:warning("Resource token decryption failed: ~p", [Error]),
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            erlang:error(Error)
+    end;
+construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
+when Type =:= <<"BankCardDestinationResource">> ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        unrecognized ->
+            from_swag(destination_resource, Resource);
+        {ok, BankCard} ->
+            {ok, encode_bank_card(BankCard)};
+        {error, {decryption_failed, _} = Error} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
             erlang:error(Error)
     end;
 construct_resource(Resource) ->
     from_swag(destination_resource, Resource).
+
+encode_bank_card(BankCard) ->
+    {bank_card, genlib_map:compact(#{
+        token           => BankCard#'BankCard'.token,
+        bin             => BankCard#'BankCard'.bin,
+        masked_pan      => BankCard#'BankCard'.masked_pan,
+        cardholder_name => BankCard#'BankCard'.cardholder_name,
+        exp_date        => encode_exp_date(BankCard#'BankCard'.exp_date)
+    })}.
+
+encode_exp_date(undefined) ->
+    undefined;
+encode_exp_date(ExpDate) ->
+    #'BankCardExpDate'{
+        month = Month,
+        year  = Year
+    } = ExpDate,
+    {Month, Year}.
 
 encode_webhook_id(WebhookID) ->
     try
@@ -1456,34 +1497,35 @@ from_swag(destination_resource, Resource = #{
     })};
 from_swag(quote_p2p_params, Params) ->
     add_external_id(#{
-        sender      => from_swag(sender_resource, maps:get(<<"sender">>, Params)),
-        receiver    => from_swag(receiver_resource, maps:get(<<"receiver">>, Params)),
+        sender      => maps:get(<<"sender">>, Params),
+        receiver    => maps:get(<<"receiver">>, Params),
         identity_id => maps:get(<<"identityID">>, Params),
         body        => from_swag(withdrawal_body, maps:get(<<"body">>, Params))
     }, Params);
-from_swag(sender_resource, #{
-    <<"type">> := <<"BankCardSenderResource">>,
-    <<"token">> := WapiToken
-}) ->
-    BankCard = wapi_utils:base64url_to_map(WapiToken),
-    {bank_card, #{
-        token          => maps:get(<<"token">>, BankCard),
-        %% TODO do something about `binary_to_existing_atom/1`, so that we don't catch `badarg`
-        payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
-        bin            => maps:get(<<"bin">>, BankCard),
-        masked_pan     => maps:get(<<"lastDigits">>, BankCard)
-    }};
-from_swag(receiver_resource, #{
-    <<"type">> := <<"BankCardReceiverResource">>,
-    <<"token">> := WapiToken
-}) ->
-    BankCard = wapi_utils:base64url_to_map(WapiToken),
-    {bank_card, #{
-        token          => maps:get(<<"token">>, BankCard),
-        payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
-        bin            => maps:get(<<"bin">>, BankCard),
-        masked_pan     => maps:get(<<"lastDigits">>, BankCard)
-    }};
+% TODO delete
+% from_swag(sender_resource, #{
+%     <<"type">> := <<"BankCardSenderResource">>,
+%     <<"token">> := WapiToken
+% }) ->
+%     BankCard = wapi_utils:base64url_to_map(WapiToken),
+%     {bank_card, #{
+%         token          => maps:get(<<"token">>, BankCard),
+%         %% TODO do something about `binary_to_existing_atom/1`, so that we don't catch `badarg`
+%         payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
+%         bin            => maps:get(<<"bin">>, BankCard),
+%         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
+%     }};
+% from_swag(receiver_resource, #{
+%     <<"type">> := <<"BankCardReceiverResource">>,
+%     <<"token">> := WapiToken
+% }) ->
+%     BankCard = wapi_utils:base64url_to_map(WapiToken),
+%     {bank_card, #{
+%         token          => maps:get(<<"token">>, BankCard),
+%         payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
+%         bin            => maps:get(<<"bin">>, BankCard),
+%         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
+%     }};
 from_swag(compact_resource, #{
     <<"type">> := <<"bank_card">>,
     <<"token">> := Token,

@@ -254,8 +254,12 @@ get_events_ok(C) ->
         {succeeded, #wthd_status_Succeeded{}},
         fun () ->
             {ok, Events} = call_service(withdrawal, 'GetEvents', [ID, Range]),
-            lists:foldl(fun(#wthd_Event{change = {status_changed, #wthd_StatusChange{status = Status}}}, _AccIn) -> Status;
-                            (_Ev, AccIn) -> AccIn end, undefined, Events)
+            lists:foldl(
+                fun(#wthd_Event{change = {status_changed, #wthd_StatusChange{status = Status}}}, _AccIn) -> Status;
+                (_Ev, AccIn) -> AccIn end,
+                undefined,
+                Events
+            )
         end,
         genlib_retry:linear(30, 1000)
     ),

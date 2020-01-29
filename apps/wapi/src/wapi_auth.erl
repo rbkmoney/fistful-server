@@ -29,7 +29,10 @@
 -type auth_error()   :: [{resource(), [{auth_method(), atom()}]}].
 
 -define(SIGNEE, wapi).
--define(DOMAIN, <<"wallet-api">>).
+% common-api is a legacy domain that we support until we can properly issue and handle tokens
+% with domain-specific roles. Actual domain here should be smth like wallet-api
+% -define(DOMAIN, <<"wallet-api">>
+-define(DOMAIN, <<"common-api">>).
 
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
     ok  | {error, auth_error()}.
@@ -261,20 +264,20 @@ get_operation_access('GetWithdrawalEvents', _) ->
 
 get_access_config() ->
     #{
-        domain_name => <<"common-api">>,
+        domain_name => ?DOMAIN,
         resource_hierarchy => get_resource_hierarchy()
     }.
 
 -spec get_resource_hierarchy() -> #{atom() => map()}.
 
 %% TODO put some sense in here
+% This resource hierarchy refers to wallet api actaully
 get_resource_hierarchy() ->
     #{
         party => #{
             wallets           => #{},
             destinations      => #{}
-        }
-        %% TODO implement this roles
-        % webhooks    => #{},
-        % withdrawals => #{}
+        },
+        webhooks    => #{},
+        withdrawals => #{}
     }.

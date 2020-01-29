@@ -641,7 +641,7 @@ create_crypto_destination(IID, _C) ->
     ID = generate_id(),
     Resource = {crypto_wallet, #{
         id => <<"a30e277c07400c9940628828949efd48">>,
-        data => #{currency => litecoin}
+        currency => {litecoin, #{}}
     }},
     Params = #{identity => IID, name => <<"CryptoDestination">>, currency => <<"RUB">>, resource => Resource},
     ok = ff_destination:create(ID, Params, ff_entity_context:new()),

@@ -201,8 +201,10 @@ maybe_migrate(Event) ->
     Event.
 
 migrate_resource({crypto_wallet, #{id := ID, currency := ripple, tag := Tag}}) ->
-    {crypto_wallet, #{id => ID, data => #{currency => ripple, tag => Tag}}};
+    {crypto_wallet, #{id => ID, currency => {ripple, #{tag => Tag}}}};
+migrate_resource({crypto_wallet, #{id := ID, currency := ripple}}) ->
+    {crypto_wallet, #{id => ID, currency => {ripple, #{}}}};
 migrate_resource({crypto_wallet, #{id := ID, currency := Currency}}) ->
-    {crypto_wallet, #{id => ID, data => #{currency => Currency}}};
+    {crypto_wallet, #{id => ID, currency => {Currency, #{}}}};
 migrate_resource(Resource) ->
     Resource.

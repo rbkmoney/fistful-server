@@ -976,7 +976,7 @@ construct_payment_tool({bank_card, ResourceBankCard}) ->
         bank_name       = maps:get(bank_name, ResourceBankCard, undefined)
     }};
 
-construct_payment_tool({crypto_wallet, #{data := #{currency := Currency}}}) ->
+construct_payment_tool({crypto_wallet, #{currency := {Currency, _}}}) ->
    {crypto_currency, Currency}.
 
 %% Quote helpers

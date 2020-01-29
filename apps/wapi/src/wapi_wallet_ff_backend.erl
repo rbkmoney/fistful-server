@@ -769,19 +769,19 @@ collect_events(Collector, Filter, Cursor, Limit) ->
 
 collect_events(Collector, Filter, Cursor, Limit, Acc) when Limit =:= undefined ->
     case Collector(Cursor, Limit) of
-        Events1 when length(Events1) > 0 ->
-            {_, Events2} = filter_events(Filter, Events1),
-            Acc ++ Events2;
         [] ->
-            Acc
+            Acc;
+        Events1 ->
+            {_, Events2} = filter_events(Filter, Events1),
+            Acc ++ Events2
     end;
 collect_events(Collector, Filter, Cursor, Limit, Acc) ->
     case Collector(Cursor, Limit) of
-        Events1 when length(Events1) > 0 ->
-            {CursorNext, Events2} = filter_events(Filter, Events1),
-            collect_events(Collector, Filter, CursorNext, Limit - length(Events2), Acc ++ Events2);
         [] ->
-            Acc
+            Acc;
+        Events1 ->
+            {CursorNext, Events2} = filter_events(Filter, Events1),
+            collect_events(Collector, Filter, CursorNext, Limit - length(Events2), Acc ++ Events2)
     end.
 
 filter_events(Filter, Events) ->
@@ -1176,13 +1176,12 @@ from_swag(destination_resource, Resource = #{
         currency => from_swag(crypto_wallet_currency, Resource)
     })};
 
-from_swag(crypto_wallet_currency, #{<<"currency">> := Currency} = Resource) ->
-    {
-        from_swag(crypto_wallet_currency_name, Currency),
-        genlib_map:compact(#{
-            tag => maps:get(<<"tag">>, Resource, undefined)
-        })
-    };
+from_swag(crypto_wallet_currency, #{<<"currency">> := <<"Ripple">>} = Resource) ->
+    Currency = from_swag(crypto_wallet_currency_name, <<"Ripple">>),
+    Data = genlib_map:compact(#{tag => maps:get(<<"tag">>, Resource, undefined)}),
+    {Currency, Data};
+from_swag(crypto_wallet_currency, #{<<"currency">> := Currency}) ->
+    {from_swag(crypto_wallet_currency_name, Currency), #{}};
 
 from_swag(crypto_wallet_currency_name, <<"Bitcoin">>)     -> bitcoin;
 from_swag(crypto_wallet_currency_name, <<"Litecoin">>)    -> litecoin;

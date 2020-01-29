@@ -186,7 +186,7 @@ withdrawal_to_crypto_wallet_test(C) ->
     ok            = check_identity(Name, IdentityID, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),
     ok            = check_wallet(WalletID, C),
-    Resreource      = make_crypto_wallet_resource('Ethereum'),
+    Resource      = make_crypto_wallet_resource('Ethereum'),
     {ok, Dest}    = create_destination(IdentityID, Resource, C),
     DestID        = destination_id(Dest),
     ok            = check_destination(IdentityID, DestID, Resource, C),

@@ -347,7 +347,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
         DestinationParams = from_swag(destination_params, Params),
-        Resource = construct_resource(maps:get(resource, DestinationParams)),
+        Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
         ff_destination:create(
             ID,
             DestinationParams#{resource => Resource},
@@ -675,33 +675,35 @@ construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
 when Type =:= <<"BankCardDestinationResource">> ->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         unrecognized ->
-            from_swag(destination_resource, Resource);
+            {ok, from_swag(destination_resource, Resource)};
         {ok, BankCard} ->
             #'BankCardExpDate'{
                 month = Month,
                 year = Year
             } = BankCard#'BankCard'.exp_date,
-            {bank_card, #{
+            {ok, {bank_card, #{
                 token           => BankCard#'BankCard'.token,
                 bin             => BankCard#'BankCard'.bin,
                 masked_pan      => BankCard#'BankCard'.masked_pan,
                 cardholder_name => BankCard#'BankCard'.cardholder_name,
                 exp_date        => {Month, Year}
-            }};
+            }}};
         {error, {decryption_failed, _} = Error} ->
             logger:warning("Resource token decryption failed: ~p", [Error]),
             {error, invalid_resource_token}
     end;
 construct_resource(#{<<"type">> := Type} = Resource)
 when Type =:= <<"CryptoWalletDestinationResource">> ->
-    #{<<"id">>     := CryptoWalletID,
-    <<"currency">> := CryptoWalletCurrency} = Resource,
+    #{
+        <<"id">>       := CryptoWalletID,
+        <<"currency">> := CryptoWalletCurrency
+    } = Resource,
     Tag = maps:get(<<"tag">>, Resource, undefined),
-    {crypto_wallet, genlib_map:compact(#{
+    {ok, {crypto_wallet, genlib_map:compact(#{
         id       => CryptoWalletID,
         currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
         tag      => Tag
-    })}.
+    })}}.
 
 encode_webhook_id(WebhookID) ->
     try
@@ -1204,17 +1206,6 @@ from_swag(destination_resource, #{
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }};
-% from_swag(destination_resource, Resource = #{
-%     <<"type">>     := <<"CryptoWalletDestinationResource">>,
-%     <<"id">>       := CryptoWalletID,
-%     <<"currency">> := CryptoWalletCurrency
-% }) ->
-%     Tag = maps:get(<<"tag">>, Resource, undefined),
-%     {crypto_wallet, genlib_map:compact(#{
-%         id       => CryptoWalletID,
-%         currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
-%         tag      => Tag
-%     })};
 
 from_swag(crypto_wallet_currency, <<"Bitcoin">>)     -> bitcoin;
 from_swag(crypto_wallet_currency, <<"Litecoin">>)    -> litecoin;

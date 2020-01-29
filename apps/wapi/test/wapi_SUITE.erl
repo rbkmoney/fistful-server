@@ -41,24 +41,23 @@
 
 all() ->
     [ {group, default}
-    % , {group, quote}
-    % , {group, woody}
-    % , {group, errors}
-    % , {group, eventsink}
+    , {group, quote}
+    , {group, woody}
+    , {group, errors}
+    , {group, eventsink}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 
 groups() ->
     [
-        % {default, [sequence, {repeat, 2}], [
-        {default, [], [
-            create_destination_failed_test
-            % withdrawal_to_bank_card_test,
-            % withdrawal_to_crypto_wallet_test,
-            % withdrawal_to_ripple_wallet_test,
-            % unknown_withdrawal_test,
-            % get_wallet_by_external_id
+        {default, [sequence, {repeat, 2}], [
+            create_destination_failed_test,
+            withdrawal_to_bank_card_test,
+            withdrawal_to_crypto_wallet_test,
+            withdrawal_to_ripple_wallet_test,
+            unknown_withdrawal_test,
+            get_wallet_by_external_id
         ]},
         {quote, [], [
             quote_encode_decode_test,
@@ -149,9 +148,8 @@ create_destination_failed_test(C) ->
         <<"type">>  => <<"BankCardDestinationResource">>,
         <<"token">> => <<"v1.megatoken">>
     },
-    Result        = create_desination(IdentityID, Resource, C),
-    ct:print("Result: ~p", [Result]),
-    ok.
+    {error, {400, #{<<"errorType">> := <<"InvalidResourceToken">>}}}
+        = create_destination(IdentityID, Resource, C).
 
 -spec withdrawal_to_bank_card_test(config()) -> test_return().
 
@@ -166,7 +164,8 @@ withdrawal_to_bank_card_test(C) ->
     CardToken     = store_bank_card(C),
     {ok, _Card}   = get_bank_card(CardToken, C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C),
+    {ok, Dest}    = create_destination(IdentityID, Resource, C),
+    DestID        = destination_id(Dest),
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
@@ -186,7 +185,8 @@ withdrawal_to_crypto_wallet_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     ok            = check_wallet(WalletID, C),
     Resource      = make_crypto_wallet_resource('Ethereum'),
-    DestID        = create_desination(IdentityID, Resource, C),
+    {ok, Dest}    = create_destination(IdentityID, Resource, C),
+    DestID        = destination_id(Dest),
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
@@ -206,7 +206,8 @@ withdrawal_to_ripple_wallet_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     ok            = check_wallet(WalletID, C),
     Resource      = make_crypto_wallet_resource('Ripple'), % tagless to test thrift compat
-    DestID        = create_desination(IdentityID, Resource, C),
+    {ok, Dest}    = create_destination(IdentityID, Resource, C),
+    DestID        = destination_id(Dest),
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
@@ -228,7 +229,8 @@ check_withdrawal_limit_test(C) ->
     CardToken     = store_bank_card(C),
     {ok, _Card}   = get_bank_card(CardToken, C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C),
+    {ok, Dest}    = create_destination(IdentityID, Resource, C),
+    DestID        = destination_id(Dest),
     ok            = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
@@ -264,7 +266,8 @@ quote_encode_decode_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     CardToken     = store_bank_card(C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C),
+    {ok, Dest}    = create_destination(IdentityID, Resource, C),
+    DestID        = destination_id(Dest),
     % ожидаем авторизации назначения вывода
     await_destination(DestID),
 
@@ -311,7 +314,8 @@ get_quote_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     CardToken     = store_bank_card(C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C),
+    {ok, Dest}    = create_destination(IdentityID, Resource, C),
+    DestID        = destination_id(Dest),
     % ожидаем авторизации назначения вывода
     await_destination(DestID),
 
@@ -407,7 +411,8 @@ quote_withdrawal_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     CardToken     = store_bank_card(C),
     Resource      = make_bank_card_resource(CardToken),
-    DestID        = create_desination(IdentityID, Resource, C),
+    {ok, Dest}    = create_destination(IdentityID, Resource, C),
+    DestID        = destination_id(Dest),
     % ожидаем авторизации назначения вывода
     await_destination(DestID),
 
@@ -619,8 +624,11 @@ make_crypto_wallet_resource(Currency, MaybeTag) ->
         <<"tag">>      => MaybeTag
     }).
 
-create_desination(IdentityID, Resource, C) ->
-    {ok, Dest} = call_api(
+destination_id(Dest) ->
+    maps:get(<<"id">>, Dest).
+
+create_destination(IdentityID, Resource, C) ->
+    call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{body => #{
             <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
@@ -632,8 +640,7 @@ create_desination(IdentityID, Resource, C) ->
              }
         }},
         ct_helper:cfg(context, C)
-    ),
-    maps:get(<<"id">>, Dest).
+    ).
 
 check_destination(IdentityID, DestID, Resource0, C) ->
     {ok, Dest} = get_destination(DestID, C),

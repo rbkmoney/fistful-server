@@ -13,6 +13,7 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
+-export([create_destination_failed_test/1]).
 -export([withdrawal_to_bank_card_test/1]).
 -export([withdrawal_to_crypto_wallet_test/1]).
 -export([withdrawal_to_ripple_wallet_test/1]).
@@ -40,22 +41,24 @@
 
 all() ->
     [ {group, default}
-    , {group, quote}
-    , {group, woody}
-    , {group, errors}
-    , {group, eventsink}
+    % , {group, quote}
+    % , {group, woody}
+    % , {group, errors}
+    % , {group, eventsink}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 
 groups() ->
     [
-        {default, [sequence, {repeat, 2}], [
-            withdrawal_to_bank_card_test,
-            withdrawal_to_crypto_wallet_test,
-            withdrawal_to_ripple_wallet_test,
-            unknown_withdrawal_test,
-            get_wallet_by_external_id
+        % {default, [sequence, {repeat, 2}], [
+        {default, [], [
+            create_destination_failed_test
+            % withdrawal_to_bank_card_test,
+            % withdrawal_to_crypto_wallet_test,
+            % withdrawal_to_ripple_wallet_test,
+            % unknown_withdrawal_test,
+            % get_wallet_by_external_id
         ]},
         {quote, [], [
             quote_encode_decode_test,
@@ -134,6 +137,21 @@ end_per_testcase(_Name, _C) ->
 -define(ID_CLASS, <<"person">>).
 
 -spec woody_retry_test(config()) -> test_return().
+
+-spec create_destination_failed_test(config()) -> test_return().
+
+create_destination_failed_test(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = ?ID_PROVIDER,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    Resource      = #{
+        <<"type">>  => <<"BankCardDestinationResource">>,
+        <<"token">> => <<"v1.megatoken">>
+    },
+    Result        = create_desination(IdentityID, Resource, C),
+    ct:print("Result: ~p", [Result]),
+    ok.
 
 -spec withdrawal_to_bank_card_test(config()) -> test_return().
 

@@ -38,12 +38,12 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            create_withdrawal_ok
-            % create_withdrawal_wallet_currency_fail,
-            % create_withdrawal_cashrange_fail,
-            % create_withdrawal_destination_fail,
-            % create_withdrawal_wallet_fail,
-            % get_events_ok
+            create_withdrawal_ok,
+            create_withdrawal_wallet_currency_fail,
+            create_withdrawal_cashrange_fail,
+            create_withdrawal_destination_fail,
+            create_withdrawal_wallet_fail,
+            get_events_ok
         ]}
     ].
 
@@ -141,6 +141,7 @@ create_withdrawal_wallet_currency_fail(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
+        id          = ID,
         source      = WalletID,
         destination = DestinationID,
         body        = Body,
@@ -151,7 +152,7 @@ create_withdrawal_wallet_currency_fail(C) ->
     {exception, #fistful_WithdrawalCurrencyInvalid{
         withdrawal_currency = #'CurrencyRef'{ symbolic_code = <<"RUB">>},
         wallet_currency     = #'CurrencyRef'{ symbolic_code = <<"USD">>}
-    }} = call_service(withdrawal, 'Create', [ID, Params]).
+    }} = call_service(withdrawal, 'Create', [Params]).
 
 create_withdrawal_cashrange_fail(C) ->
     ID            = genlib:unique(),
@@ -164,6 +165,7 @@ create_withdrawal_cashrange_fail(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
+        id          = ID,
         source      = WalletID,
         destination = DestinationID,
         body        = Body,
@@ -175,7 +177,7 @@ create_withdrawal_cashrange_fail(C) ->
             cash  = Cash,
             range = CashRange
         }
-    } = call_service(withdrawal, 'Create', [ID, Params]),
+    } = call_service(withdrawal, 'Create', [Params]),
     ?assertEqual(Body, Cash),
     ?assertNotEqual(undefined, CashRange).
 
@@ -191,6 +193,7 @@ create_withdrawal_destination_fail(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
+        id          = ID,
         source      = WalletID,
         destination = BadDestID,
         body        = Body,
@@ -198,7 +201,7 @@ create_withdrawal_destination_fail(C) ->
         context     = Ctx
     },
 
-    {exception, {fistful_DestinationNotFound}} = call_service(withdrawal, 'Create', [ID, Params]).
+    {exception, {fistful_DestinationNotFound}} = call_service(withdrawal, 'Create', [Params]).
 
 create_withdrawal_wallet_fail(C) ->
     ID            = genlib:unique(),
@@ -212,6 +215,7 @@ create_withdrawal_wallet_fail(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
+        id          = ID,
         source      = BadWalletID,
         destination = DestinationID,
         body        = Body,
@@ -219,7 +223,7 @@ create_withdrawal_wallet_fail(C) ->
         context     = Ctx
     },
 
-    {exception, {fistful_WalletNotFound}} = call_service(withdrawal, 'Create', [ID, Params]).
+    {exception, {fistful_WalletNotFound}} = call_service(withdrawal, 'Create', [Params]).
 
 get_events_ok(C) ->
     ID            = genlib:unique(),
@@ -232,6 +236,7 @@ get_events_ok(C) ->
     },
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #wthd_WithdrawalParams{
+        id          = ID,
         source      = WalletID,
         destination = DestinationID,
         body        = Body,
@@ -239,7 +244,7 @@ get_events_ok(C) ->
         context     = Ctx
     },
 
-    {ok, _W} = call_service(withdrawal, 'Create', [ID, Params]),
+    {ok, _W} = call_service(withdrawal, 'Create', [Params]),
 
     Range = #'EventRange'{
         limit   = 1000,
@@ -249,11 +254,12 @@ get_events_ok(C) ->
         {succeeded, #wthd_status_Succeeded{}},
         fun () ->
             {ok, Events} = call_service(withdrawal, 'GetEvents', [ID, Range]),
-            lists:foldl(fun(#wthd_Event{change = {status_changed, Status}}, _AccIn) -> Status;
+            lists:foldl(fun(#wthd_Event{change = {status_changed, #wthd_StatusChange{status = Status}}}, _AccIn) -> Status;
                             (_Ev, AccIn) -> AccIn end, undefined, Events)
         end,
-        genlib_retry:linear(10, 1000)
-    ).
+        genlib_retry:linear(30, 1000)
+    ),
+    ok.
 
 %%-----------
 %%  Internal

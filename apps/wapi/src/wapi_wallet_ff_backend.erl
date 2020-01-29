@@ -692,17 +692,11 @@ when Type =:= <<"BankCardDestinationResource">> ->
             logger:warning("Resource token decryption failed: ~p", [Error]),
             {error, invalid_resource_token}
     end;
-construct_resource(#{<<"type">> := Type} = Resource)
+construct_resource(#{<<"type">> := Type, <<"id">> := CryptoWalletID} = Resource)
 when Type =:= <<"CryptoWalletDestinationResource">> ->
-    #{
-        <<"id">>       := CryptoWalletID,
-        <<"currency">> := CryptoWalletCurrency
-    } = Resource,
-    Tag = maps:get(<<"tag">>, Resource, undefined),
     {ok, {crypto_wallet, genlib_map:compact(#{
         id       => CryptoWalletID,
-        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
-        tag      => Tag
+        currency => from_swag(crypto_wallet_currency, Resource)
     })}}.
 
 encode_webhook_id(WebhookID) ->

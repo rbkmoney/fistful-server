@@ -48,10 +48,17 @@
 
 -type resource_crypto_wallet() :: #{
     id       := binary(),
-    currency := resource_crypto_currency()
+    currency := crypto_currency()
 }.
 
--type resource_crypto_currency() :: {atom(), #{tag => binary()}}.
+-type crypto_currency()
+    :: {bitcoin,      #{}}
+     | {bitcoin_cash, #{}}
+     | {litecoin,     #{}}
+     | {ethereum,     #{}}
+     | {zcash,        #{}}
+     | {ripple,       #{tag => binary()}}
+     .
 
 -type destination() :: ff_instrument:instrument(resource()).
 -type params()      :: ff_instrument_machine:params(resource()).

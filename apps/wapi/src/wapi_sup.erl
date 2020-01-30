@@ -22,6 +22,8 @@ start_link() ->
 -spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 
 init([]) ->
+    LechiffreOpts = genlib_app:env(wapi, lechiffre_opts),
+    LechiffreSpec = lechiffre:child_spec(lechiffre, LechiffreOpts),
     {LogicHandlers, LogicHandlerSpecs} = get_logic_handler_info(),
     HealthCheck = enable_health_logging(genlib_app:env(wapi, health_check, #{})),
     HealthRoutes = [{'_', [erl_health_handle:get_route(HealthCheck)]}],
@@ -30,6 +32,7 @@ init([]) ->
     ok = uac:configure(UacConf),
     {ok, {
         {one_for_all, 0, 1},
+            [LechiffreSpec] ++
             LogicHandlerSpecs ++ [SwaggerSpec]
     }}.
 

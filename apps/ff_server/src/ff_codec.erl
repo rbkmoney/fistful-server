@@ -114,11 +114,7 @@ marshal(crypto_data, #{
     currency := ripple
 } = Data) ->
     {ripple, #'CryptoDataRipple'{
-        % TODO
-        % Undefined `tag` is allowed in swagger schema but disallowed in
-        % thrift schema. This is our coping mechanism: treat undefined tags
-        % as empty tags.
-        tag = marshal(string, maps:get(tag, Data, <<>>))
+        tag = maybe_marshal(string, maps:get(tag, Data, undefined))
     }};
 marshal(crypto_data, #{
     currency := ethereum
@@ -268,14 +264,7 @@ unmarshal(crypto_wallet, #'CryptoWallet'{
     });
 
 unmarshal(crypto_data, {ripple, #'CryptoDataRipple'{tag = Tag}}) ->
-    case Tag of
-        % TODO
-        % Undefined `tag` is allowed in swagger schema but disallowed in
-        % thrift schema. This is our coping mechanism: treat undefined tags
-        % as empty tags.
-        <<>> -> undefined;
-        _    -> unmarshal(string, Tag)
-    end;
+    maybe_unmarshal(string, Tag);
 unmarshal(crypto_data, _) ->
     undefined;
 

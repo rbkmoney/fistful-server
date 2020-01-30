@@ -271,7 +271,13 @@ process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) 
         {error, {external_id_conflict, ID, ExternalID}} ->
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, invalid} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>))
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>));
+        {error, invalid_resource_token} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => <<"BankCardDestinationResource">>,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
     end;
 process_request('IssueDestinationGrant', #{
     'destinationID'           := DestinationId,

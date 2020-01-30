@@ -60,7 +60,7 @@ start_app(woody = AppName) ->
 start_app(wapi_woody_client = AppName) ->
     start_app(AppName, [
         {service_urls, #{
-            cds_storage         => "http://cds:8022/v1/storage",
+            cds_storage         => "http://cds:8022/v2/storage",
             identdoc_storage    => "http://cds:8022/v1/identity_document_storage",
             fistful_stat        => "http://fistful-magista:8022/stat"
         }},

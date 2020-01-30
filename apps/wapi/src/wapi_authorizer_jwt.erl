@@ -365,7 +365,7 @@ check_presence(C, undefined) ->
 encode_roles(Roles) ->
     #{
         <<"resource_access">> => #{
-            <<"wallet-api">> => #{
+            <<"common-api">> => #{
                 <<"roles">> => Roles
             }
         }

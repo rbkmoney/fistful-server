@@ -2,6 +2,7 @@
 
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
@@ -335,6 +336,7 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
 
 -spec create_destination(params(), ctx()) -> result(map(),
     invalid                     |
+    invalid_resource_token      |
     {identity, unauthorized}    |
     {identity, notfound}        |
     {currency, notfound}        |
@@ -344,9 +346,11 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
+        DestinationParams = from_swag(destination_params, Params),
+        Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
         ff_destination:create(
             ID,
-            from_swag(destination_params, Params),
+            DestinationParams#{resource => Resource},
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
@@ -666,6 +670,40 @@ delete_webhook(WebhookID, IdentityID, Context) ->
     end).
 
 %% Internal functions
+
+construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
+when Type =:= <<"BankCardDestinationResource">> ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        unrecognized ->
+            {ok, from_swag(destination_resource, Resource)};
+        {ok, BankCard} ->
+            #'BankCardExpDate'{
+                month = Month,
+                year = Year
+            } = BankCard#'BankCard'.exp_date,
+            {ok, {bank_card, #{
+                token           => BankCard#'BankCard'.token,
+                bin             => BankCard#'BankCard'.bin,
+                masked_pan      => BankCard#'BankCard'.masked_pan,
+                cardholder_name => BankCard#'BankCard'.cardholder_name,
+                exp_date        => {Month, Year}
+            }}};
+        {error, {decryption_failed, _} = Error} ->
+            logger:warning("Resource token decryption failed: ~p", [Error]),
+            {error, invalid_resource_token}
+    end;
+construct_resource(#{<<"type">> := Type} = Resource)
+when Type =:= <<"CryptoWalletDestinationResource">> ->
+    #{
+        <<"id">>       := CryptoWalletID,
+        <<"currency">> := CryptoWalletCurrency
+    } = Resource,
+    Tag = maps:get(<<"tag">>, Resource, undefined),
+    {ok, {crypto_wallet, genlib_map:compact(#{
+        id       => CryptoWalletID,
+        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
+        tag      => Tag
+    })}}.
 
 encode_webhook_id(WebhookID) ->
     try
@@ -1154,8 +1192,9 @@ from_swag(destination_params, Params) ->
         identity => maps:get(<<"identity">>, Params),
         currency => maps:get(<<"currency">>, Params),
         name     => maps:get(<<"name">>    , Params),
-        resource => from_swag(destination_resource, maps:get(<<"resource">>, Params))
+        resource => maps:get(<<"resource">>, Params)
     }, Params);
+%% TODO delete this code, after add encrypted token
 from_swag(destination_resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
     <<"token">> := WapiToken
@@ -1167,17 +1206,6 @@ from_swag(destination_resource, #{
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }};
-from_swag(destination_resource, Resource = #{
-    <<"type">>     := <<"CryptoWalletDestinationResource">>,
-    <<"id">>       := CryptoWalletID,
-    <<"currency">> := CryptoWalletCurrency
-}) ->
-    Tag = maps:get(<<"tag">>, Resource, undefined),
-    {crypto_wallet, genlib_map:compact(#{
-        id       => CryptoWalletID,
-        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
-        tag      => Tag
-    })};
 
 from_swag(crypto_wallet_currency, <<"Bitcoin">>)     -> bitcoin;
 from_swag(crypto_wallet_currency, <<"Litecoin">>)    -> litecoin;
@@ -1402,7 +1430,6 @@ to_swag(destination_resource, {bank_card, BankCard}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardDestinationResource">>,
         <<"token">>         => maps:get(token, BankCard),
-        <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });

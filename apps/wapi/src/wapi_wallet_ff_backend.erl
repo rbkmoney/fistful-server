@@ -690,7 +690,8 @@ quote_p2p_transfer(Params, Context) ->
         PartyID = wapi_handler_utils:get_owner(Context),
         SenderResource = unwrap(construct_resource(Sender)),
         ReceiverResource = unwrap(construct_resource(Receiver)),
-        {SurplusCash, _SurplusCashVolume, Quote} = unwrap(p2p_quote:get_quote(Body, IdentityID, SenderResource, ReceiverResource)),
+        {SurplusCash, _SurplusCashVolume, Quote}
+            = unwrap(p2p_quote:get_quote(Body, IdentityID, SenderResource, ReceiverResource)),
         Token = create_p2p_quote_token(Quote, PartyID),
         ExpiresOn = p2p_quote:expires_on(Quote),
         to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn})

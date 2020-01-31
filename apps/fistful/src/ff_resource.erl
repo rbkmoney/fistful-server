@@ -10,14 +10,20 @@
     bank_name => bank_name(),
     iso_country_code => iso_country_code(),
     card_type => card_type(),
+    cardholder_name => binary(),
+    exp_date => exp_date(),
     bin_data_id => bin_data_id()
 }.
 
 -type bank_card_params() :: #{
     token := binary(),
     bin => binary(),
-    masked_pan => binary()
+    masked_pan => binary(),
+    cardholder_name => binary(),
+    exp_date => exp_date()
 }.
+
+-type exp_date() :: {binary(), binary()}.
 
 -type crypto_wallet_params() :: #{
     id := binary(),

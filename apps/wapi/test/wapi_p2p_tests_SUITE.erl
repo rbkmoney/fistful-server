@@ -19,6 +19,7 @@
 -export([
     quote_p2p_transfer_ok_test/1,
     create_p2p_transfer_ok_test/1,
+    create_p2p_transfer_fail_test/1,
     create_p2p_transfer_with_token_ok_test/1,
     get_p2p_transfer_ok_test/1,
     get_p2p_transfer_not_found_test/1,
@@ -55,6 +56,7 @@ groups() ->
         {p2p, [parallel], [
             quote_p2p_transfer_ok_test,
             create_p2p_transfer_ok_test,
+            create_p2p_transfer_fail_test,
             create_p2p_transfer_with_token_ok_test,
             get_p2p_transfer_ok_test,
             get_p2p_transfer_not_found_test,
@@ -94,9 +96,10 @@ init_per_group(Group, Config) when Group =:= p2p ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
     Party = create_party(Config),
-    Token = issue_token(Party, [{[party], write}], unlimited),
+    Token = issue_token(Party, [{[party], write}, {[party], read}], unlimited),
     Config1 = [{party, Party} | Config],
-    [{context, wapi_ct_helper:get_context(Token)} | Config1];
+    ContextPcidss = get_context("wapi-pcidss:8080", Token),
+    [{context, wapi_ct_helper:get_context(Token)}, {context_pcidss, ContextPcidss} | Config1];
 init_per_group(_, Config) ->
     Config.
 
@@ -119,13 +122,16 @@ end_per_testcase(_Name, C) ->
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
+get_context(Endpoint, Token) ->
+    wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).
+
 %%% Tests
 
 -spec quote_p2p_transfer_ok_test(config()) ->
     _.
 quote_p2p_transfer_ok_test(C) ->
-    SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
-    ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     #{
         identity_id := IdentityID
     } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
@@ -154,8 +160,8 @@ quote_p2p_transfer_ok_test(C) ->
 -spec create_p2p_transfer_ok_test(config()) ->
     _.
 create_p2p_transfer_ok_test(C) ->
-    SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
-    ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     #{
         identity_id := IdentityID
     } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
@@ -181,11 +187,41 @@ create_p2p_transfer_ok_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
+-spec create_p2p_transfer_fail_test(config()) ->
+    _.
+create_p2p_transfer_fail_test(C) ->
+    SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken   = <<"v1.kek_token">>,
+    #{
+        identity_id := IdentityID
+    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    {error, {400, #{<<"name">> := <<"BankCardReceiverResource">>}}} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResource">>,
+                    <<"token">> => SenderToken
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
 -spec create_p2p_transfer_with_token_ok_test(config()) ->
     _.
 create_p2p_transfer_with_token_ok_test(C) ->
-    SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
-    ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>),
     #{
         identity_id := IdentityID
     } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
@@ -236,8 +272,8 @@ create_p2p_transfer_with_token_ok_test(C) ->
 -spec get_p2p_transfer_ok_test(config()) ->
     _.
 get_p2p_transfer_ok_test(C) ->
-    SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
-    ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)),
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     #{
         identity_id := IdentityID
     } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
@@ -288,9 +324,8 @@ get_p2p_transfer_not_found_test(C) ->
 -spec get_p2p_transfer_events_ok_test(config()) ->
     _.
 get_p2p_transfer_events_ok_test(C) ->
-    Token = create_token_with_prefix(<<"token_interaction_">>),
-    SenderToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C), Token),
-    ReceiverToken = create_bank_card_token(ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C), Token),
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     #{
         identity_id := IdentityID
     } = p2p_tests_utils:prepare_standard_environment({101, ?RUB}, C),
@@ -348,24 +383,20 @@ issue_token(PartyID, ACL, LifeTime) ->
     {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
     Token.
 
-create_token_with_prefix(TokenPrefix) ->
-    TokenRandomised = generate_id(),
-    <<TokenPrefix/binary, TokenRandomised/binary>>.
-
-create_bank_card_token(BankCard) ->
-    Token = maps:get(token, BankCard),
-    create_bank_card_token(BankCard, Token).
-
-create_bank_card_token(BankCard, Token) ->
-    wapi_utils:map_to_base64url(genlib_map:compact(#{
-        <<"token">>         => Token,
-        <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
-        <<"bin">>           => genlib_map:get(bin, BankCard),
-        <<"lastDigits">>    => genlib_map:get(masked_pan, BankCard)
-    })).
-
-generate_id() ->
-    ff_id:generate_snowflake_id().
+store_bank_card(C, Pan) ->
+    store_bank_card(C, Pan, undefined, undefined).
+store_bank_card(C, Pan, ExpDate, CardHolder) ->
+    {ok, Res} = call_api(
+        fun swag_client_payres_payment_resources_api:store_bank_card/3,
+        #{body => genlib_map:compact(#{
+            <<"type">>       => <<"BankCard">>,
+            <<"cardNumber">> => Pan,
+            <<"expDate">>    => ExpDate,
+            <<"cardHolder">> => CardHolder
+        })},
+        ct_helper:cfg(context_pcidss, C)
+    ),
+    maps:get(<<"token">>, Res).
 
 await_user_interaction_created_events(TransferID, C) ->
     finished = ct_helper:await(

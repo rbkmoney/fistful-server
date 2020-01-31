@@ -271,7 +271,13 @@ process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) 
         {error, {external_id_conflict, ID, ExternalID}} ->
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, invalid} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>))
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>));
+        {error, {invalid_resource_token, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
     end;
 process_request('IssueDestinationGrant', #{
     'destinationID'           := DestinationId,
@@ -579,7 +585,13 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters' := Params}, Context, _Op
                 wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
         {error, {terms, {terms_violation, p2p_forbidden}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>))
+                wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>));
+        {error, {invalid_resource_token, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
     end;
 process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_p2p_transfer(Params, Context) of
@@ -605,7 +617,13 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
                 wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>));
         {error, {token, {not_verified, _}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>))
+                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
+        {error, {invalid_resource_token, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
     end;
 process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_p2p_transfer(ID, Context) of

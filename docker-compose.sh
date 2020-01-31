@@ -31,13 +31,12 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:d6b8a91d07cf45b7c14a3a7825656cf01e8a93de
+    image: dr2.rbkmoney.com/rbkmoney/wapi:bea0678f8889b0c9960a195b953e71dd0d5abf68
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/var/keys/wapi/private.pem
       - ./apps/wapi/var/keys/wapi/jwk.json:/opt/wapi/var/keys/wapi/jwk.json
-      - ./apps/wapi/var/keys/wapi/password.secret:/opt/wapi/var/keys/wapi/password.secret
       - ./test/log/wapi:/var/log/wapi
     depends_on:
       cds:

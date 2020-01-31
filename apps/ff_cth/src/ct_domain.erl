@@ -16,6 +16,7 @@
 -export([proxy/4]).
 -export([system_account_set/4]).
 -export([external_account_set/4]).
+-export([get_default_termset/0]).
 -export([term_set_hierarchy/1]).
 -export([term_set_hierarchy/2]).
 -export([term_set_hierarchy/3]).
@@ -33,6 +34,54 @@
 
 -type object() ::
     dmsl_domain_thrift:'DomainObject'().
+
+-spec get_default_termset() ->
+    term().
+
+get_default_termset() ->
+    #domain_TermSet{
+        wallets = #domain_WalletServiceTerms{
+            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+            wallet_limit = {decisions, [
+                #domain_CashLimitDecision{
+                    if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                    then_ = {value, ?cashrng(
+                        {inclusive, ?cash(-10000000, <<"RUB">>)},
+                        {exclusive, ?cash( 10000001, <<"RUB">>)}
+                    )}
+                }
+            ]},
+            withdrawals = #domain_WithdrawalServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10000000, <<"RUB">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
+                    }
+                ]}
+            }
+        }
+    }.
 
 -spec p2p_provider(?dtp('P2PProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
     object().

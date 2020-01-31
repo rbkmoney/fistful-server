@@ -164,8 +164,9 @@ idempotency_wallet_conflict(C) ->
     test_return().
 
 idempotency_destination_ok(C) ->
-    BankCard = #{payment_system := PS, masked_pan := MP} =
+    BankCard = #{masked_pan := MP} =
         ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    PS = <<"visa">>,
     Party = create_party(C),
     ExternalID = genlib:unique(),
     Context = create_context(Party, C),
@@ -193,8 +194,9 @@ idempotency_destination_ok(C) ->
     test_return().
 
 idempotency_destination_conflict(C) ->
-    BankCard = #{payment_system := PS, masked_pan := MP} =
+    BankCard = #{masked_pan := MP} =
         ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    PS = <<"visa">>,
     Party = create_party(C),
     ExternalID = genlib:unique(),
     {ok, #{<<"id">> := IdentityID}} = create_identity(Party, C),
@@ -283,8 +285,9 @@ wait_for_destination_authorized(DestID) ->
     ).
 
 create_destination(IdentityID, Party, C) ->
-    BankCard = #{payment_system := PS, masked_pan := MP} =
+    BankCard = #{masked_pan := MP} =
         ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    PaymentSystem = <<"visa">>,
     Params = #{
         <<"identity">>  => IdentityID,
         <<"currency">>  => <<"RUB">>,
@@ -292,8 +295,9 @@ create_destination(IdentityID, Party, C) ->
         <<"resource">>  => #{
             <<"type">>  => <<"BankCardDestinationResource">>,
             <<"token">> => wapi_utils:map_to_base64url(BankCard#{
-                paymentSystem   => PS,
-                lastDigits      => MP})
+                lastDigits      => MP,
+                paymentSystem   => PaymentSystem
+            })
         }
     },
     wapi_wallet_ff_backend:create_destination(Params, create_context(Party, C)).

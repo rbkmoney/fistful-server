@@ -619,7 +619,12 @@ create_wapi_context(Context) ->
     % So far we want to give every token full set of permissions
     % This is a temporary solution
     % @TODO remove when we issue new tokens
-    {ID, {Party, _ACL}, Claims} = Context,
-    Hierarchy = wapi_auth:get_resource_hierarchy(),
-    NewACL = uac_acl:from_list(hierarchy_to_roles(Hierarchy)),
+    {ID, {Party, ACL}, Claims} = Context,
+    NewACL = try_create_new_acl(ACL),
     {ID, {Party, NewACL}, Claims}.
+
+try_create_new_acl(undefined) ->
+    undefined;
+try_create_new_acl(_) ->
+    Hierarchy = wapi_auth:get_resource_hierarchy(),
+    uac_acl:from_list(hierarchy_to_roles(Hierarchy)).

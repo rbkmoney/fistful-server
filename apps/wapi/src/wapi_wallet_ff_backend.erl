@@ -342,7 +342,7 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
 
 -spec create_destination(params(), ctx()) -> result(map(),
     invalid                     |
-    invalid_resource_token      |
+    {invalid_resource_token, _} |
     {identity, unauthorized}    |
     {identity, notfound}        |
     {currency, notfound}        |
@@ -676,7 +676,7 @@ delete_webhook(WebhookID, IdentityID, Context) ->
     end).
 
 -spec quote_p2p_transfer(params(), ctx()) -> result(map(),
-    {error, {invalid_resource_token, _}} |
+    {invalid_resource_token, _} |
     p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer(Params, Context) ->
@@ -699,6 +699,7 @@ quote_p2p_transfer(Params, Context) ->
 
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     p2p_transfer:create_error() |
+    {invalid_resource_token, _} |
     {token,
         {unsupported_version, integer() | undefined} |
         {not_verified, invalid_signature} |

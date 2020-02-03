@@ -38,12 +38,12 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            create_withdrawal_ok
-            % create_withdrawal_wallet_currency_fail,
-            % create_withdrawal_cashrange_fail,
-            % create_withdrawal_destination_fail,
-            % create_withdrawal_wallet_fail,
-            % get_events_ok
+            create_withdrawal_ok,
+            create_withdrawal_wallet_currency_fail,
+            create_withdrawal_cashrange_fail,
+            create_withdrawal_destination_fail,
+            create_withdrawal_wallet_fail,
+            get_events_ok
         ]}
     ].
 
@@ -254,11 +254,16 @@ get_events_ok(C) ->
         {succeeded, #wthd_status_Succeeded{}},
         fun () ->
             {ok, Events} = call_service(withdrawal, 'GetEvents', [ID, Range]),
-            lists:foldl(fun(#wthd_Event{change = {status_changed, Status}}, _AccIn) -> Status;
-                            (_Ev, AccIn) -> AccIn end, undefined, Events)
+            lists:foldl(
+                fun(#wthd_Event{change = {status_changed, #wthd_StatusChange{status = Status}}}, _AccIn) -> Status;
+                (_Ev, AccIn) -> AccIn end,
+                undefined,
+                Events
+            )
         end,
-        genlib_retry:linear(10, 1000)
-    ).
+        genlib_retry:linear(30, 1000)
+    ),
+    ok.
 
 %%-----------
 %%  Internal
@@ -320,7 +325,6 @@ create_wallet(Currency, Amount) ->
     IdentityID = create_identity(),
     WalletID = genlib:unique(), ExternalID = genlib:unique(),
     Params = #wlt_WalletParams{
-        id = WalletID,
         name = <<"BigBossWallet">>,
         external_id = ExternalID,
         context = ff_entity_context:new(),
@@ -329,7 +333,7 @@ create_wallet(Currency, Amount) ->
             symbolic_code = Currency
         }
     },
-    {ok, _} = call_service(wallet, 'Create', [Params]),
+    {ok, _} = call_service(wallet, 'Create', [WalletID, Params]),
     add_money(WalletID, IdentityID, Amount, Currency),
     WalletID.
 
@@ -344,14 +348,13 @@ create_destination(C) ->
     }},
     DstID = genlib:unique(),
     Params = #dst_DestinationParams{
-        id          = DstID,
         identity    = create_identity(),
         name        = <<"BigBossDestination">>,
         currency    = <<"RUB">>,
         resource    = Resource,
         external_id = genlib:unique()
     },
-    {ok, _} = call_service(destination, 'Create', [Params]),
+    {ok, _} = call_service(destination, 'Create', [DstID, Params]),
     {authorized, #dst_Authorized{}} = ct_helper:await(
         {authorized, #dst_Authorized{}},
         fun () ->

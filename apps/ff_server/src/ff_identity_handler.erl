@@ -35,6 +35,8 @@ handle_function_('Create', [IdentityID, IdentityParams], Opts) ->
             woody_error:raise(business, #fistful_IdentityClassNotFound{});
         {error, {inaccessible, _}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
+        {error, exists} ->
+            woody_error:raise(business, #fistful_IDExists{});
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
@@ -84,6 +86,7 @@ handle_function_('GetChallenges', [ID], _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;
+
 handle_function_('GetEvents', [IdentityID, RangeParams], _Opts) ->
     Range = ff_identity_codec:unmarshal(range, RangeParams),
     case ff_identity_machine:events(IdentityID, Range) of

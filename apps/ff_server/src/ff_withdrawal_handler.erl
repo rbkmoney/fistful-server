@@ -22,11 +22,11 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [Params], Opts) ->
-    ID = Params#wthd_WithdrawalParams.id,
-    Ctx = Params#wthd_WithdrawalParams.context,
+handle_function_('Create', [ParamsIn], Opts) ->
+    Ctx = ParamsIn#wthd_WithdrawalParams.context,
+    #{id := ID} = Params = ff_withdrawal_codec:unmarshal_withdrawal_params(ParamsIn),
     case ff_withdrawal_machine:create(
-        ff_withdrawal_codec:unmarshal_withdrawal_params(Params),
+        Params,
         ff_withdrawal_codec:unmarshal(ctx, Ctx)
     ) of
         ok ->

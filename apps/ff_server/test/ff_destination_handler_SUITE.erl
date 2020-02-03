@@ -115,7 +115,6 @@ create_destination_ok(Resource, C) ->
     IdentityID = create_person_identity(Party, C),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #dst_DestinationParams{
-        id          = ID,
         identity    = IdentityID,
         name        = DstName,
         currency    = Currency,
@@ -123,7 +122,7 @@ create_destination_ok(Resource, C) ->
         external_id = ExternalId,
         context     = Ctx
     },
-    {ok, Dst}  = call_service('Create', [Params]),
+    {ok, Dst}  = call_service('Create', [ID, Params]),
     DstName     = Dst#dst_Destination.name,
     ID          = Dst#dst_Destination.id,
     Resource    = Dst#dst_Destination.resource,

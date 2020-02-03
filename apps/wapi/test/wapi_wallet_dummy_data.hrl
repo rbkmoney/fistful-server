@@ -10,6 +10,13 @@
 -define(TIMESTAMP, <<"2016-03-22T06:12:27Z">>).
 -define(MD5, <<"033BD94B1168D7E4F0D644C3C95E35BF">>).
 -define(SHA256, <<"94EE059335E587E501CC4BF90613E0814F00A7B08BC7C648FD865A2AF6A22CC2">>).
+-define(DEFAULT_CONTEXT(PartyID), #{
+    <<"com.rbkmoney.wapi">> => {obj, #{
+        {str, <<"owner">>} => {str, PartyID},
+        {str, <<"name">>} => {str, ?STRING},
+        {str, <<"metadata">>} => {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}
+    }}
+}).
 
 -define(CASH, #'Cash'{
     amount = ?INTEGER,
@@ -29,12 +36,64 @@
     accounter_account_id = ?INTEGER
 }).
 
--define(WALLET_STATE, #wlt_WalletState{
-    id = ?STRING,
-    name = ?STRING,
-    blocking = ?BLOCKING,
-    account = ?ACCOUNT
+-define(WALLET(PartyID), #wlt_Wallet{
+    id          = ?STRING,
+    name        = ?STRING,
+    blocking    = ?BLOCKING,
+    account     = ?ACCOUNT,
+    external_id = ?STRING,
+    created_at  = ?TIMESTAMP,
+    context     = ?DEFAULT_CONTEXT(PartyID)
 }).
+
+-define(IDENTITY(PartyID), #idnt_Identity{
+    id          = ?STRING,
+    party       = ?STRING,
+    provider    = ?STRING,
+    cls         = ?STRING,
+    context     = ?DEFAULT_CONTEXT(PartyID)
+}).
+
+-define(IDENTITY_CHALLENGE(Status), #idnt_Challenge{
+    cls         = ?STRING,
+    proofs      = [
+        #idnt_ChallengeProof{
+            type = rus_domestic_passport,
+            token = ?STRING
+        }
+    ],
+    id          = ?STRING,
+    status      = Status
+}).
+
+-define(IDENTITY_CHALLENGE_STATUS_COMPLETED, {completed, #idnt_ChallengeCompleted{
+    resolution = approved,
+    valid_until = ?TIMESTAMP
+}}).
+
+-define(IDENTITY_CHALLENGE_EVENT(Change), #idnt_IdentityEvent{
+    change = Change,
+    occured_at = ?TIMESTAMP,
+    sequence = ?INTEGER
+}).
+
+-define(CHALLENGE_STATUS_CHANGE, {identity_challenge, #idnt_ChallengeChange{
+    id = ?STRING,
+    payload = {status_changed, ?IDENTITY_CHALLENGE_STATUS_COMPLETED}
+}}).
+
+-define(IDENT_DOC, {russian_domestic_passport, #'identdocstore_RussianDomesticPassport'{
+    issuer = ?STRING,
+    issuer_code = ?STRING,
+    issued_at = ?TIMESTAMP,
+    birth_date = ?TIMESTAMP,
+    birth_place = ?STRING,
+    series = ?STRING,
+    number = ?STRING,
+    first_name = ?STRING,
+    family_name = ?STRING,
+    patronymic = ?STRING
+}}).
 
 -define(REPORT_ID, ?INTEGER).
 

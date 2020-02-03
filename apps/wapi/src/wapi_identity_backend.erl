@@ -419,7 +419,7 @@ unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
 }}) ->
     #{
         <<"status">>  => <<"Completed">>,
-        <<"validUntil">> => unmarshal(string, Time)
+        <<"validUntil">> => maybe_unmarshal(string, Time)
     };
 unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
     resolution = denied

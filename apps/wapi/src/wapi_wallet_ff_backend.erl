@@ -672,7 +672,7 @@ delete_webhook(WebhookID, IdentityID, Context) ->
 %% Internal functions
 
 construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
-when Type =:= <<"BankCardDestinationResource">> ->
+    when Type =:= <<"BankCardDestinationResource">> ->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         unrecognized ->
             {ok, from_swag(destination_resource, Resource)};
@@ -693,7 +693,7 @@ when Type =:= <<"BankCardDestinationResource">> ->
             {error, invalid_resource_token}
     end;
 construct_resource(#{<<"type">> := Type} = Resource)
-when Type =:= <<"CryptoWalletDestinationResource">> ->
+    when Type =:= <<"CryptoWalletDestinationResource">> ->
     #{
         <<"id">>       := CryptoWalletID,
         <<"currency">> := CryptoWalletCurrency

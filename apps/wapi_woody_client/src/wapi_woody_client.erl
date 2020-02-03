@@ -86,6 +86,8 @@ get_service_modname(fistful_identity) ->
     {ff_proto_identity_thrift, 'Management'};
 get_service_modname(fistful_wallet) ->
     {ff_proto_wallet_thrift, 'Management'};
+get_service_modname(fistful_destination) ->
+    {ff_proto_destination_thrift, 'Management'};
 get_service_modname(webhook_manager) ->
     {ff_proto_webhooker_thrift, 'WebhookManager'}.
 

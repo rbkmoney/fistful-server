@@ -1,5 +1,7 @@
 -module(ct_helper).
 
+-include_lib("common_test/include/ct.hrl").
+
 -export([cfg/2]).
 
 -export([start_apps/1]).
@@ -110,6 +112,12 @@ start_app(wapi = AppName) ->
                     wapi     => {pem_file, "/opt/wapi/config/private.pem"}
                 }
             }
+        }},
+        {lechiffre_opts,  #{
+            encryption_key_path => "/opt/wapi/config/jwk.json",
+            decryption_key_paths => [
+                "/opt/wapi/config/jwk.json"
+            ]
         }}
     ]), #{}};
 

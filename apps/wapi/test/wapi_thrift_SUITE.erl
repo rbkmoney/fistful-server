@@ -89,6 +89,7 @@ end_per_group(_, _) ->
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
+    ok = application:set_env(wapi, transport, not_thrift),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
@@ -108,11 +109,11 @@ identity_check_test(C) ->
     Class = ?ID_CLASS,
     IdentityID1 = create_identity(Name, Provider, Class, C),
     ok = check_identity(Name, IdentityID1, Provider, Class, C),
+    Keys = maps:keys(get_identity(IdentityID1, C)),
     ok = application:set_env(wapi, transport, thrift),
     IdentityID2 = create_identity(Name, Provider, Class, C),
     ok = check_identity(Name, IdentityID2, Provider, Class, C),
-    Keys = maps:keys(get_identity(IdentityID1, C)),
-    Keys = maps:keys(get_identity(IdentityID2, C)).
+    ?assertEqual(Keys, maps:keys(get_identity(IdentityID2, C))).
 
 -spec identity_challenge_check_test(config()) -> test_return().
 
@@ -123,12 +124,12 @@ identity_challenge_check_test(C) ->
     IdentityID1 = create_identity(Name, Provider, Class, C),
     ok = check_identity(Name, IdentityID1, Provider, Class, C),
     IdentityChallengeID1 = create_identity_challenge(IdentityID1, C),
+    Keys = maps:keys(get_identity_challenge(IdentityID1, IdentityChallengeID1, C)),
     ok = application:set_env(wapi, transport, thrift),
     IdentityID2 = create_identity(Name, Provider, Class, C),
     ok = check_identity(Name, IdentityID2, Provider, Class, C),
     IdentityChallengeID2 = create_identity_challenge(IdentityID2, C),
-    Keys = maps:keys(get_identity_challenge(IdentityID1, IdentityChallengeID1, C)),
-    Keys = maps:keys(get_identity_challenge(IdentityID2, IdentityChallengeID2, C)).
+    ?assertEqual(Keys, maps:keys(get_identity_challenge(IdentityID2, IdentityChallengeID2, C))).
 
 -spec wallet_check_test(config()) -> test_return().
 
@@ -139,13 +140,12 @@ wallet_check_test(C) ->
     IdentityID1 = create_identity(Name, Provider, Class, C),
     WalletID1 = create_wallet(IdentityID1, C),
     ok = check_wallet(WalletID1, C),
+    Keys = maps:keys(get_wallet(WalletID1, C)),
     ok = application:set_env(wapi, transport, thrift),
     IdentityID2 = create_identity(Name, Provider, Class, C),
     WalletID2 = create_wallet(IdentityID2, C),
     ok = check_wallet(WalletID2, C),
-    Keys = maps:keys(get_wallet(WalletID1, C)),
-    Keys = maps:keys(get_wallet(WalletID2, C)),
-    Keys = Keys.
+    ?assertEqual(Keys, maps:keys(get_wallet(WalletID2, C))).
 
 %%
 

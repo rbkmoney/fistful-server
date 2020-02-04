@@ -17,7 +17,7 @@
 marshal_wallet(Wallet) ->
     #wlt_Wallet{
         name        = marshal(string,   ff_wallet:name(Wallet)),
-        blocking    = marshal(blocking, ff_wallet:blocking(Wallet)),
+        blocking    = marshal(blocked,  ff_wallet:blocking(Wallet)),
         account     = marshal(account,  ff_wallet:account(Wallet)),
         external_id = marshal(id,       ff_wallet:external_id(Wallet))
     }.
@@ -45,11 +45,6 @@ marshal(event, {created, Wallet}) ->
     {created, marshal_wallet(Wallet)};
 marshal(event, {account, AccountChange}) ->
     {account, marshal(account_change, AccountChange)};
-
-marshal(blocking, blocked) ->
-    blocked;
-marshal(blocking, unblocked) ->
-    unblocked;
 
 marshal(ctx, Ctx) ->
     marshal(context, Ctx);

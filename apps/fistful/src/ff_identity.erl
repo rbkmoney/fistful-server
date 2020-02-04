@@ -24,7 +24,7 @@
 -type challenge_class() :: ff_identity_challenge:challenge_class().
 -type challenge_class_id() :: ff_identity_class:challenge_class_id().
 -type challenge_id()    :: id().
--type blocked()         :: boolean().
+-type blocked()         :: unblocked | blocked.
 -type level()           :: ff_identity_class:level().
 -type level_id()        :: ff_identity_class:level_id().
 
@@ -166,7 +166,12 @@ is_accessible(Identity) ->
 -spec set_blocked(identity()) -> identity().
 
 set_blocked(Identity) ->
-    Blocked = {ok, accessible} =/= is_accessible(Identity),
+    Blocked =  case {ok, accessible} =/= is_accessible(Identity) of
+        true ->
+            unblocked;
+        false ->
+            blocked
+    end,
     maps:put(blocked, Blocked, Identity).
 
 

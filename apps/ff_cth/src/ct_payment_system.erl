@@ -330,7 +330,6 @@ services(Options) ->
         partymgmt        => "http://hellgate:8022/v1/processing/partymgmt",
         identification   => "http://identification:8022/v1/identification",
         binbase          => "http://localhost:8222/binbase"
-
     },
     maps:get(services, Options, Default).
 

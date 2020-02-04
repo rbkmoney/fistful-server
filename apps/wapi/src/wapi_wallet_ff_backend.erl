@@ -772,7 +772,7 @@ when Type =:= <<"BankCardDestinationResource">> ->
         {ok, BankCard} ->
             {ok, encode_bank_card(BankCard)};
         {error, {decryption_failed, _} = Error} ->
-            logger:warning("Resource token decryption failed: ~p", [Error]),
+            logger:warning("~s token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
     end;
 construct_resource(#{<<"type">> := Type, <<"token">> := Token})
@@ -782,10 +782,10 @@ orelse Type =:= <<"BankCardReceiverResource">> ->
         {ok, BankCard} ->
             {ok, encode_bank_card(BankCard)};
         unrecognized ->
-            logger:warning("~p token unrecognized", [Type]),
+            logger:warning("~s token unrecognized", [Type]),
             {error, {invalid_resource_token, Type}};
         {error, {decryption_failed, _} = Error} ->
-            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            logger:warning("~s token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
     end;
 construct_resource(#{<<"type">> := Type} = Resource)

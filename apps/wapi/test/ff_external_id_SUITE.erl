@@ -226,7 +226,7 @@ idempotency_withdrawal_ok(C) ->
     ExternalID = genlib:unique(),
     {ok, #{<<"id">> := IdentityID}} = create_identity(Party, C),
     {ok, #{<<"id">> := WalletID}}   = create_wallet(IdentityID, Party, C),
-    {ok, #{<<"id">> := DestID}}     = create_destination(IdentityID, Party, C),
+    {ok, #{<<"id">> := DestID}}     = create_destination_legacy(IdentityID, Party, C),
     Context = create_context(Party, C),
     wait_for_destination_authorized(DestID),
 
@@ -254,7 +254,7 @@ idempotency_withdrawal_conflict(C) ->
     ExternalID = genlib:unique(),
     {ok, #{<<"id">> := IdentityID}} = create_identity(Party, C),
     {ok, #{<<"id">> := WalletID}}   = create_wallet(IdentityID, Party, C),
-    {ok, #{<<"id">> := DestID}}     = create_destination(IdentityID, Party, C),
+    {ok, #{<<"id">> := DestID}}     = create_destination_legacy(IdentityID, Party, C),
 
     wait_for_destination_authorized(DestID),
 
@@ -284,7 +284,7 @@ wait_for_destination_authorized(DestID) ->
         end
     ).
 
-create_destination(IdentityID, Party, C) ->
+create_destination_legacy(IdentityID, Party, C) ->
     BankCard = #{masked_pan := MP} =
         ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     PaymentSystem = <<"visa">>,

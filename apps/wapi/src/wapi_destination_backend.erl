@@ -214,10 +214,10 @@ unmarshal(destination, #dst_Destination{
         <<"id">> => unmarshal(id, DestinationID),
         <<"name">> => unmarshal(string, Name),
         <<"status">> => unmarshal(status, Status),
-        <<"isBlocked">> => unmarshal(blocked, Blocked),
+        <<"isBlocked">> => maybe_unmarshal(blocked, Blocked),
         <<"identity">> => Identity,
         <<"currency">> => Currency,
-        <<"created_at">> => CreatedAt,
+        <<"createdAt">> => CreatedAt,
         <<"resource">> => unmarshal(resource, Resource),
         <<"externalID">> => maybe_unmarshal(id, ExternalID),
         <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, UnmarshaledContext)

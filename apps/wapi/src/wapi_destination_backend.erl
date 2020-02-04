@@ -120,7 +120,6 @@ construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
                 bin => BankCard#'BankCard'.bin,
                 masked_pan => BankCard#'BankCard'.masked_pan,
                 cardholder_name => BankCard#'BankCard'.cardholder_name,
-                % TODO Add exp date to proto?
                 exp_date => {Month, Year}
             }},
             {ok, ff_codec:marshal(resource, CostructedResource)};
@@ -202,30 +201,37 @@ unmarshal(destination, #dst_Destination{
     external_id = ExternalID,
     created_at = CreatedAt,
     resource = Resource,
+    status = Status,
+    blocked = Blocked,
     context = Context
 }) ->
     #{
         identity := Identity,
         currency := Currency
     } = unmarshal(account, Account),
-    Context = unmarshal(context, Context),
+    UnmarshaledContext = unmarshal(context, Context),
     genlib_map:compact(#{
         <<"id">> => unmarshal(id, DestinationID),
         <<"name">> => unmarshal(string, Name),
-        % TODO Add block field to proto?
-        % <<"isBlocked">> => unmarshal(blocked, Blocking),
+        <<"status">> => unmarshal(status, Status),
+        <<"isBlocked">> => unmarshal(blocked, Blocked),
         <<"identity">> => Identity,
         <<"currency">> => Currency,
         <<"created_at">> => CreatedAt,
         <<"resource">> => unmarshal(resource, Resource),
         <<"externalID">> => maybe_unmarshal(id, ExternalID),
-        <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
+        <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, UnmarshaledContext)
     });
 
-% unmarshal(blocked, unblocked) ->
-%     false;
-% unmarshal(blocked, blocked) ->
-%     true;
+unmarshal(blocked, unblocked) ->
+    false;
+unmarshal(blocked, blocked) ->
+    true;
+
+unmarshal(status, {authorized, #dst_Authorized{}}) ->
+    <<"Authorized">>;
+unmarshal(status, {unauthorized, #dst_Unauthorized{}}) ->
+    <<"Unauthorized">>;
 
 unmarshal(resource, {bank_card, #'BankCard'{
     token = Token,

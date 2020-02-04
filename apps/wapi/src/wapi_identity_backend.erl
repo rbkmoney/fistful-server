@@ -380,14 +380,14 @@ unmarshal(identity, #idnt_Identity{
     level       = Level,
     effective_challenge = EffectiveChallenge,
     external_id = ExternalID,
+    created_at  = CreatedAt,
     context     = Ctx
 }) ->
     Context = unmarshal(context, Ctx),
     genlib_map:compact(#{
         <<"id">>                    => unmarshal(id, IdentityID),
         <<"name">>                  => wapi_backend_utils:get_from_ctx(<<"name">>, Context),
-        %% TODO add createdAt to proto struct
-        % <<"createdAt">>           => unmarshal(timestamp, CreatedAt),
+        <<"createdAt">>             => unmarshal(timestamp, CreatedAt),
         <<"isBlocked">>             => maybe_unmarshal(blocked, Blocked),
         <<"class">>                 => unmarshal(string, Class),
         <<"provider">>              => unmarshal(id, Provider),

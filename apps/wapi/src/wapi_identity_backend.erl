@@ -387,7 +387,7 @@ unmarshal(identity, #idnt_Identity{
     genlib_map:compact(#{
         <<"id">>                    => unmarshal(id, IdentityID),
         <<"name">>                  => wapi_backend_utils:get_from_ctx(<<"name">>, Context),
-        <<"createdAt">>             => unmarshal(timestamp, CreatedAt),
+        <<"createdAt">>             => maybe_unmarshal(string, CreatedAt),
         <<"isBlocked">>             => maybe_unmarshal(blocked, Blocked),
         <<"class">>                 => unmarshal(string, Class),
         <<"provider">>              => unmarshal(id, Provider),
@@ -459,9 +459,9 @@ unmarshal(identity_challenge_event_change, {status_changed, S}) ->
         unmarshal(challenge_status, S)
     );
 
-unmarshal(blocked, false) ->
+unmarshal(blocked, unblocked) ->
     false;
-unmarshal(blocked, true) ->
+unmarshal(blocked, blocked) ->
     true;
 
 unmarshal(T, V) ->

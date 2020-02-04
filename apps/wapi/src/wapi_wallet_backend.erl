@@ -129,7 +129,7 @@ unmarshal(wallet, #wlt_Wallet{
         <<"isBlocked">> => unmarshal(blocked, Blocking),
         <<"identity">> => Identity,
         <<"currency">> => Currency,
-        <<"created_at">> => CreatedAt,
+        <<"createdAt">> => CreatedAt,
         <<"externalID">> => maybe_unmarshal(id, ExternalID),
         <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
     });

@@ -305,7 +305,7 @@ maybe_unmarshal(Type, Value) ->
 
 -spec identity_test() -> _.
 identity_test() ->
-    Blocked    = true,
+    Blocked    = blocked,
     IdentityIn = #{
         id          => genlib:unique(),
         party       => genlib:unique(),

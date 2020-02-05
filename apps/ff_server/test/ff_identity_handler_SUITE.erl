@@ -87,7 +87,7 @@ create_identity_ok(_C) ->
     IID = Identity_#idnt_Identity.id,
     PartyID = Identity_#idnt_Identity.party,
     ClassID = Identity_#idnt_Identity.cls,
-    blocked = Identity_#idnt_Identity.blocked,
+    blocked = Identity_#idnt_Identity.blocking,
     Ctx = ff_entity_context_codec:unmarshal(Identity_#idnt_Identity.context),
     ok.
 

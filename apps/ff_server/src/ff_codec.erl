@@ -57,8 +57,10 @@ marshal(id, V) ->
 marshal(event_id, V) ->
     marshal(integer, V);
 
-marshal(blocked, V) ->
-    marshal(bool, V);
+marshal(blocked, blocked) ->
+    blocked;
+marshal(blocked, unblocked) ->
+    unblocked;
 
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
@@ -180,6 +182,11 @@ unmarshal(id, V) ->
     unmarshal(string, V);
 unmarshal(event_id, V) ->
     unmarshal(integer, V);
+
+unmarshal(blocked, blocked) ->
+    blocked;
+unmarshal(blocked, unblocked) ->
+    unblocked;
 
 unmarshal(complex_action, #ff_repairer_ComplexAction{
     timer = TimerAction,

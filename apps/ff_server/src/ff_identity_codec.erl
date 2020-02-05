@@ -107,7 +107,7 @@ marshal_identity(Identity) ->
         cls      = marshal(id, ff_identity:class(Identity)),
         contract = maybe_marshal(id, ff_identity:contract(Identity)),
         level    = maybe_marshal(id, ff_identity:level(Identity)),
-        blocking = maybe_marshal(bool, ff_identity:blocked(Identity)),
+        blocked  = maybe_marshal(blocked, ff_identity:blocked(Identity)),
         external_id = maybe_marshal(id, ff_identity:external_id(Identity)),
         effective_challenge = EffectiveChallengeID
     }.
@@ -132,7 +132,7 @@ unmarshal_identity(#idnt_Identity{
         class       => unmarshal(id,      ClassID),
         contract    => unmarshal(id,      ContractID),
         level       => maybe_unmarshal(id,   LevelID),
-        blocked     => maybe_unmarshal(bool, Blocking),
+        blocked     => maybe_unmarshal(blocked, Blocked),
         external_id => maybe_unmarshal(id,   ExternalID),
         effective   => maybe_unmarshal(id,   EffectiveChallengeID)
     }).

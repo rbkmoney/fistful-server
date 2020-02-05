@@ -19,7 +19,7 @@
 -export_type([events/1]).
 -export_type([params/1]).
 
--export([create/4]).
+-export([create/3]).
 -export([get/2]).
 -export([events/3]).
 
@@ -43,6 +43,7 @@
 %%
 
 -type params(T) :: #{
+    id          := id(),
     identity    := ff_identity:id(),
     name        := binary(),
     currency    := ff_currency:id(),
@@ -50,14 +51,20 @@
     external_id => id()
 }.
 
--spec create(ns(), id(), params(_), ctx()) ->
+-spec create(ns(), params(_), ctx()) ->
     ok |
     {error,
         _InstrumentCreateError |
         exists
     }.
 
-create(NS, ID, Params = #{identity := IdentityID, name := Name, currency := CurrencyID, resource := Resource}, Ctx) ->
+create(NS, Params = #{
+    id := ID,
+    identity := IdentityID,
+    name := Name,
+    currency := CurrencyID,
+    resource := Resource
+}, Ctx) ->
     do(fun () ->
         Events = unwrap(ff_instrument:create(
             ID,

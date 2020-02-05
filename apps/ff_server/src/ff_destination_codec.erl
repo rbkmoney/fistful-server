@@ -19,6 +19,7 @@
 
 unmarshal_destination_params(Params) ->
     genlib_map:compact(#{
+        id          => unmarshal(id,       Params#dst_DestinationParams.id),
         identity    => unmarshal(id,       Params#dst_DestinationParams.identity),
         name        => unmarshal(string,   Params#dst_DestinationParams.name),
         currency    => unmarshal(string,   Params#dst_DestinationParams.currency),

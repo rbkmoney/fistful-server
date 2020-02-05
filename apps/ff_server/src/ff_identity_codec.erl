@@ -24,12 +24,14 @@
     ff_identity_machine:params().
 
 unmarshal_identity_params(#idnt_IdentityParams{
+    id          = ID,
     party       = PartyID,
     provider    = ProviderID,
     cls         = ClassID,
     external_id = ExternalID
 }) ->
     genlib_map:compact(#{
+        id          => unmarshal(id, ID),
         party       => unmarshal(id, PartyID),
         provider    => unmarshal(id, ProviderID),
         class       => unmarshal(id, ClassID),
@@ -105,7 +107,7 @@ marshal_identity(Identity) ->
         cls      = marshal(id, ff_identity:class(Identity)),
         contract = maybe_marshal(id, ff_identity:contract(Identity)),
         level    = maybe_marshal(id, ff_identity:level(Identity)),
-        blocked  = maybe_marshal(bool, ff_identity:blocked(Identity)),
+        blocking = maybe_marshal(bool, ff_identity:blocked(Identity)),
         external_id = maybe_marshal(id, ff_identity:external_id(Identity)),
         effective_challenge = EffectiveChallengeID
     }.
@@ -119,7 +121,7 @@ unmarshal_identity(#idnt_Identity{
     cls         = ClassID,
     contract    = ContractID,
     level       = LevelID,
-    blocked     = Blocked,
+    blocking    = Blocking,
     external_id = ExternalID,
     effective_challenge = EffectiveChallengeID
 }) ->
@@ -130,7 +132,7 @@ unmarshal_identity(#idnt_Identity{
         class       => unmarshal(id,      ClassID),
         contract    => unmarshal(id,      ContractID),
         level       => maybe_unmarshal(id,   LevelID),
-        blocked     => maybe_unmarshal(bool, Blocked),
+        blocked     => maybe_unmarshal(bool, Blocking),
         external_id => maybe_unmarshal(id,   ExternalID),
         effective   => maybe_unmarshal(id,   EffectiveChallengeID)
     }).

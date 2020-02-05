@@ -140,10 +140,10 @@ get_identity(IdentityId, Context) ->
     {external_id_conflict, id(), external_id()}
 ).
 create_identity(Params, Context) ->
+    IdentityParams = from_swag(identity_params, Params),
     CreateIdentity = fun(ID, EntityCtx) ->
         ff_identity_machine:create(
-            ID,
-            maps:merge(from_swag(identity_params, Params), #{party => wapi_handler_utils:get_owner(Context)}),
+            maps:merge(IdentityParams#{id => ID}, #{party => wapi_handler_utils:get_owner(Context)}),
             add_meta_to_ctx([<<"name">>], Params, EntityCtx)
         )
     end,
@@ -272,11 +272,11 @@ get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context
     ff_wallet:create_error()
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
+    WalletParams = from_swag(wallet_params, Params),
     CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
         ff_wallet_machine:create(
-            ID,
-            from_swag(wallet_params, Params),
+            WalletParams#{id => ID},
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
@@ -349,8 +349,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
         DestinationParams = from_swag(destination_params, Params),
         Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
         ff_destination:create(
-            ID,
-            DestinationParams#{resource => Resource},
+            DestinationParams#{id => ID, resource => Resource},
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,

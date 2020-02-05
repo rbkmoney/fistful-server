@@ -12,7 +12,7 @@
 -type id() :: binary().
 -type hash() :: integer().
 -type params() :: map().
--type gen_type() :: identity | identity_challenge | wallet | destination.
+-type gen_type() :: identity | identity_challenge | wallet | destination | withdrawal.
 
 -export([get_idempotent_key/3]).
 -export([gen_id/3]).
@@ -24,7 +24,7 @@
 
 %% Pipeline
 
--spec get_idempotent_key(gen_type(), id(), id()) ->
+-spec get_idempotent_key(gen_type(), id(), id() | undefined) ->
     binary().
 
 get_idempotent_key(Type, PartyID, ExternalID) ->

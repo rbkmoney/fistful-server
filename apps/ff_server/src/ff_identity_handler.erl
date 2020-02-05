@@ -41,7 +41,7 @@ handle_function_('Create', [IdentityParams], Opts) ->
 handle_function_('Get', [ID], _Opts) ->
     case ff_identity_machine:get(ID) of
         {ok, Machine} ->
-            Identity = ff_identity:set_blocked(ff_identity_machine:identity(Machine)),
+            Identity = ff_identity:set_blocking(ff_identity_machine:identity(Machine)),
             Ctx      = ff_identity_codec:marshal(ctx, ff_identity_machine:ctx(Machine)),
             CreatedAt = ff_machine:created(Machine),
             Response = ff_identity_codec:marshal_identity(Identity),

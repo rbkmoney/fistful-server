@@ -57,9 +57,9 @@ marshal(id, V) ->
 marshal(event_id, V) ->
     marshal(integer, V);
 
-marshal(blocked, blocked) ->
+marshal(blocking, blocked) ->
     blocked;
-marshal(blocked, unblocked) ->
+marshal(blocking, unblocked) ->
     unblocked;
 
 marshal(account_change, {created, Account}) ->
@@ -183,9 +183,9 @@ unmarshal(id, V) ->
 unmarshal(event_id, V) ->
     unmarshal(integer, V);
 
-unmarshal(blocked, blocked) ->
+unmarshal(blocking, blocked) ->
     blocked;
-unmarshal(blocked, unblocked) ->
+unmarshal(blocking, unblocked) ->
     unblocked;
 
 unmarshal(complex_action, #ff_repairer_ComplexAction{

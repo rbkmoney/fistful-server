@@ -374,7 +374,7 @@ unmarshal({list, Type}, List) ->
 
 unmarshal(identity, #idnt_Identity{
     id          = IdentityID,
-    blocked     = Blocked,
+    blocking    = Blocking,
     cls         = Class,
     provider    = Provider,
     level       = Level,
@@ -388,7 +388,7 @@ unmarshal(identity, #idnt_Identity{
         <<"id">>                    => unmarshal(id, IdentityID),
         <<"name">>                  => wapi_backend_utils:get_from_ctx(<<"name">>, Context),
         <<"createdAt">>             => maybe_unmarshal(string, CreatedAt),
-        <<"isBlocked">>             => maybe_unmarshal(blocked, Blocked),
+        <<"isBlocked">>             => maybe_unmarshal(blocking, Blocking),
         <<"class">>                 => unmarshal(string, Class),
         <<"provider">>              => unmarshal(id, Provider),
         <<"level">>                 => maybe_unmarshal(id, Level),
@@ -459,9 +459,9 @@ unmarshal(identity_challenge_event_change, {status_changed, S}) ->
         unmarshal(challenge_status, S)
     );
 
-unmarshal(blocked, unblocked) ->
+unmarshal(blocking, unblocked) ->
     false;
-unmarshal(blocked, blocked) ->
+unmarshal(blocking, blocked) ->
     true;
 
 unmarshal(T, V) ->

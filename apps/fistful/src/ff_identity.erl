@@ -24,7 +24,7 @@
 -type challenge_class() :: ff_identity_challenge:challenge_class().
 -type challenge_class_id() :: ff_identity_class:challenge_class_id().
 -type challenge_id()    :: id().
--type blocked()         :: unblocked | blocked.
+-type blocking()        :: unblocked | blocked.
 -type level()           :: ff_identity_class:level().
 -type level_id()        :: ff_identity_class:level_id().
 
@@ -38,7 +38,7 @@
     challenges   => #{challenge_id() => challenge()},
     effective    => challenge_id(),
     external_id  => id(),
-    blocked      => blocked()
+    blocking     => blocking()
 }.
 
 -type challenge() ::
@@ -81,10 +81,10 @@
 -export([challenge/2]).
 -export([effective_challenge/1]).
 -export([external_id/1]).
--export([blocked/1]).
+-export([blocking/1]).
 
 -export([is_accessible/1]).
--export([set_blocked/1]).
+-export([set_blocking/1]).
 
 -export([create/5]).
 
@@ -109,7 +109,7 @@
     party_id().
 -spec contract(identity()) ->
     contract_id().
--spec blocked(identity()) ->
+-spec blocking(identity()) ->
     boolean() | undefined.
 -spec level(identity()) ->
     level_id() | undefined.
@@ -137,8 +137,8 @@ party(#{party := V}) ->
 contract(#{contract := V}) ->
     V.
 
-blocked(Identity) ->
-    maps:get(blocked, Identity, undefined).
+blocking(Identity) ->
+    maps:get(blocking, Identity, undefined).
 
 level(Identity) ->
     maps:get(level, Identity, undefined).
@@ -163,17 +163,16 @@ is_accessible(Identity) ->
     ff_party:is_accessible(party(Identity)).
 
 
--spec set_blocked(identity()) -> identity().
+-spec set_blocking(identity()) -> identity().
 
-set_blocked(Identity) ->
-    Blocked =  case {ok, accessible} =/= is_accessible(Identity) of
+set_blocking(Identity) ->
+    Blocking =  case {ok, accessible} =/= is_accessible(Identity) of
         true ->
             unblocked;
         false ->
             blocked
     end,
-    maps:put(blocked, Blocked, Identity).
-
+    maps:put(blocking, Blocking, Identity).
 
 %% Constructor
 

@@ -623,6 +623,10 @@ create_wapi_context(Context) ->
     NewACL = try_create_new_acl(ACL),
     {ID, {Party, NewACL}, Claims}.
 
+% Suppress this warning since the following code is temporary solution
+% and we REALLY WANT to introspect opaque type
+-dialyzer([{nowarn_function, [try_create_new_acl/1]}, no_opaque]).
+
 try_create_new_acl(undefined) ->
     undefined;
 try_create_new_acl(_) ->

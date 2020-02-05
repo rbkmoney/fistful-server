@@ -106,7 +106,7 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
 %%
 
 construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
-    when Type =:= <<"BankCardDestinationResource">> ->
+when Type =:= <<"BankCardDestinationResource">> ->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         unrecognized ->
             {ok, marshal(resource, Resource)};
@@ -128,7 +128,7 @@ construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
             {error, invalid_resource_token}
     end;
 construct_resource(#{<<"type">> := Type} = Resource)
-    when Type =:= <<"CryptoWalletDestinationResource">> ->
+when Type =:= <<"CryptoWalletDestinationResource">> ->
     #{
         <<"id">> := CryptoWalletID,
         <<"currency">> := CryptoCurrency
@@ -202,7 +202,7 @@ unmarshal(destination, #dst_Destination{
     created_at = CreatedAt,
     resource = Resource,
     status = Status,
-    blocked = Blocked,
+    blocking = Blocking,
     context = Context
 }) ->
     #{
@@ -214,7 +214,7 @@ unmarshal(destination, #dst_Destination{
         <<"id">> => unmarshal(id, DestinationID),
         <<"name">> => unmarshal(string, Name),
         <<"status">> => unmarshal(status, Status),
-        <<"isBlocked">> => maybe_unmarshal(blocked, Blocked),
+        <<"isBlocked">> => maybe_unmarshal(blocking, Blocking),
         <<"identity">> => Identity,
         <<"currency">> => Currency,
         <<"createdAt">> => CreatedAt,
@@ -223,9 +223,9 @@ unmarshal(destination, #dst_Destination{
         <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, UnmarshaledContext)
     });
 
-unmarshal(blocked, unblocked) ->
+unmarshal(blocking, unblocked) ->
     false;
-unmarshal(blocked, blocked) ->
+unmarshal(blocking, blocked) ->
     true;
 
 unmarshal(status, {authorized, #dst_Authorized{}}) ->

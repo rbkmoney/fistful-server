@@ -81,17 +81,11 @@ start_app(dmt_client = AppName) ->
     {start_app_with(AppName, [
         {cache_update_interval, 500}, % milliseconds
         {max_cache_size, #{
-            elements => 20,
+            elements => 1,
             memory => 52428800 % 50Mb
         }},
         {woody_event_handlers, [
-            {scoper_woody_event_handler, #{
-                event_handler_opts => #{
-                    formatter_opts => #{
-                        max_length => 1000
-                    }
-                }
-            }}
+            {scoper_woody_event_handler, #{}}
         ]},
         {service_urls, #{
             'Repository'       => <<"http://dominant:8022/v1/domain/repository">>,

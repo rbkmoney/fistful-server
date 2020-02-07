@@ -325,7 +325,7 @@ services(Options) ->
         automaton        => "http://machinegun:8022/v1/automaton",
         accounter        => "http://shumway:8022/shumpune",
         kds              => "http://kds:8022/v2/keyring",
-        cds              => "http://cds:8022/v1/storage",
+        cds              => "http://cds:8022/v2/storage",
         identdocstore    => "http://cds:8022/v1/identity_document_storage",
         partymgmt        => "http://hellgate:8022/v1/processing/partymgmt",
         identification   => "http://identification:8022/v1/identification",

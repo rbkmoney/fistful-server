@@ -108,6 +108,7 @@ marshal_identity(Identity) ->
         contract = maybe_marshal(id, ff_identity:contract(Identity)),
         level    = maybe_marshal(id, ff_identity:level(Identity)),
         blocking = maybe_marshal(blocking, ff_identity:blocking(Identity)),
+        created_at = maybe_marshal(created_at, ff_identity:created_at(Identity)),
         external_id = maybe_marshal(id, ff_identity:external_id(Identity)),
         effective_challenge = EffectiveChallengeID
     }.
@@ -204,6 +205,9 @@ marshal(resolution, denied) ->
 
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
+
+marshal(created, TimeMS) ->
+    marshal(string, ff_time:to_rfc3339(TimeMS));
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).

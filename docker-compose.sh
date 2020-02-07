@@ -31,13 +31,12 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:d6b8a91d07cf45b7c14a3a7825656cf01e8a93de
+    image: dr2.rbkmoney.com/rbkmoney/wapi:a1bf7d5f2f7e536d3ce4c2d8e5f84e5f94621d76
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/var/keys/wapi/private.pem
       - ./apps/wapi/var/keys/wapi/jwk.json:/opt/wapi/var/keys/wapi/jwk.json
-      - ./apps/wapi/var/keys/wapi/password.secret:/opt/wapi/var/keys/wapi/password.secret
       - ./test/log/wapi:/var/log/wapi
     depends_on:
       cds:
@@ -49,7 +48,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:06aafab126c403eef3800625c19ae6eace1f5124
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:4fa2f207bd8d5a3351e5b6c2ca607e21a160a812
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -175,11 +174,12 @@ services:
       - cds
 
   machinegun:
-    image: dr2.rbkmoney.com/rbkmoney/machinegun:bffbaefa679c823d375cbf2b2434f72d2e3e5242
+    image: dr2.rbkmoney.com/rbkmoney/machinegun:4986e50e2abcedbf589aaf8cce89c2b420589f04
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml
       - ./test/log/machinegun:/var/log/machinegun
+      - ./test/machinegun/cookie:/opt/machinegun/etc/cookie
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s
@@ -204,6 +204,17 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - SERVICE_NAME=shumway-db
+
+  binbase:
+    image: dr2.rbkmoney.com/rbkmoney/binbase:cb174f9ef488ba9015054377fe06495f999b191d
+    restart: always
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 10
+    ports:
+      - 8099:8022
 
   fistful-magista:
     image: dr.rbkmoney.com/rbkmoney/fistful-magista:fed290bccd48627822fda47f9dc2fe0cd1d3a5ad

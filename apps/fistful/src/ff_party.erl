@@ -39,6 +39,12 @@
     withdrawal_currency_error() |
     cash_range_validation_error().
 
+-type validate_p2p_error() ::
+    currency_validation_error() |
+    p2p_forbidden_error() |
+    cash_range_validation_error() |
+    invalid_p2p_terms_error().
+
 -export_type([id/0]).
 -export_type([revision/0]).
 -export_type([terms/0]).
@@ -47,6 +53,7 @@
 -export_type([party_params/0]).
 -export_type([validate_deposit_creation_error/0]).
 -export_type([validate_account_creation_error/0]).
+-export_type([validate_p2p_error/0]).
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_withdrawal_creation_error/0]).
 -export_type([cash/0]).
@@ -69,12 +76,15 @@
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
+-export([get_p2p_cash_flow_plan/1]).
+-export([validate_p2p/2]).
 -export([get_identity_payment_institution_id/1]).
 
 %% Internal types
 -type cash() :: ff_cash:cash().
 -type wallet_terms() :: dmsl_domain_thrift:'WalletServiceTerms'().
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
+-type p2p_terms() :: dmsl_domain_thrift:'P2PServiceTerms'().
 -type currency_id() :: ff_currency:id().
 -type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
 -type domain_cash() :: dmsl_domain_thrift:'Cash'().
@@ -89,6 +99,7 @@
 -type currency_validation_error() :: {terms_violation, {not_allowed_currency, _Details}}.
 -type withdrawal_currency_error() :: {invalid_withdrawal_currency, currency_id(), {wallet_currency, currency_id()}}.
 -type cash_range_validation_error() :: {terms_violation, {cash_range, {cash(), cash_range()}}}.
+-type p2p_forbidden_error() :: {terms_violation, p2p_forbidden}.
 
 -type not_reduced_error() :: {not_reduced, {Name :: atom(), TermsPart :: any()}}.
 
@@ -100,6 +111,11 @@
 -type invalid_wallet_terms_error() ::
     {invalid_terms, not_reduced_error()} |
     {invalid_terms, undefined_wallet_terms}.
+
+-type invalid_p2p_terms_error() ::
+    {invalid_terms, not_reduced_error()} |
+    {invalid_terms, undefined_wallet_terms} |
+    {invalid_terms, {undefined_p2p_terms, wallet_terms()}}.
 
 %% Pipeline
 
@@ -277,12 +293,40 @@ validate_deposit_creation(Terms, {_Amount, CurrencyID} = _Cash) ->
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms))
     end).
 
+-spec validate_p2p(terms(), cash()) -> Result when
+    Result :: {ok, valid} | {error, Error},
+    Error :: validate_p2p_error().
+
+validate_p2p(Terms, {_, CurrencyID} = Cash) ->
+    #domain_TermSet{wallets = WalletTerms} = Terms,
+    do(fun () ->
+        {ok, valid} = validate_p2p_terms_is_reduced(WalletTerms),
+        #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,
+        valid = unwrap(validate_p2p_terms_currency(CurrencyID, P2PServiceTerms)),
+        valid = unwrap(validate_p2p_cash_limit(Cash, P2PServiceTerms)),
+        valid = unwrap(validate_p2p_allow(P2PServiceTerms))
+    end).
+
 -spec get_withdrawal_cash_flow_plan(terms()) ->
     {ok, ff_cash_flow:cash_flow_plan()} | {error, _Error}.
 get_withdrawal_cash_flow_plan(Terms) ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
             withdrawals = #domain_WithdrawalServiceTerms{
+                cash_flow = CashFlow
+            }
+        }
+    } = Terms,
+    {value, DomainPostings} = CashFlow,
+    Postings = ff_cash_flow:decode_domain_postings(DomainPostings),
+    {ok, #{postings => Postings}}.
+
+-spec get_p2p_cash_flow_plan(terms()) ->
+    {ok, ff_cash_flow:cash_flow_plan()} | {error, _Error}.
+get_p2p_cash_flow_plan(Terms) ->
+    #domain_TermSet{
+        wallets = #domain_WalletServiceTerms{
+            p2p = #domain_P2PServiceTerms{
                 cash_flow = CashFlow
             }
         }
@@ -499,8 +543,33 @@ validate_withdrawal_terms_is_reduced(Terms) ->
         {withdrawal_cash_flow, CashFlowSelector}
     ]).
 
+-spec validate_p2p_terms_is_reduced(wallet_terms() | undefined) ->
+    {ok, valid} | {error, invalid_p2p_terms_error()}.
+validate_p2p_terms_is_reduced(undefined) ->
+    {error, {invalid_terms, undefined_wallet_terms}};
+validate_p2p_terms_is_reduced(#domain_WalletServiceTerms{p2p = undefined} = WalletTerms) ->
+    {error, {invalid_terms, {undefined_p2p_terms, WalletTerms}}};
+validate_p2p_terms_is_reduced(Terms) ->
+    #domain_WalletServiceTerms{
+        p2p = P2PServiceTerms
+    } = Terms,
+    #domain_P2PServiceTerms{
+        currencies = P2PCurrenciesSelector,
+        cash_limit = CashLimitSelector,
+        cash_flow = CashFlowSelector,
+        fees = FeeSelector,
+        quote_lifetime = LifetimeSelector
+    } = P2PServiceTerms,
+    do_validate_terms_is_reduced([
+        {p2p_currencies, P2PCurrenciesSelector},
+        {p2p_cash_limit, CashLimitSelector},
+        {p2p_cash_flow, CashFlowSelector},
+        {p2p_fee, FeeSelector},
+        {p2p_quote_lifetime, LifetimeSelector}
+    ]).
+
 -spec do_validate_terms_is_reduced([{atom(), Selector :: any()}]) ->
-    {ok, valid} | {error, not_reduced_error()}.
+    {ok, valid} | {error, {invalid_terms, not_reduced_error()}}.
 do_validate_terms_is_reduced([]) ->
     {ok, valid};
 do_validate_terms_is_reduced([{Name, Terms} | TermsTail]) ->
@@ -577,6 +646,33 @@ validate_withdrawal_cash_limit(Cash, Terms) ->
     } = Terms,
     validate_cash_range(ff_dmsl_codec:marshal(cash, Cash), CashRange).
 
+-spec validate_p2p_terms_currency(currency_id(), p2p_terms()) ->
+    {ok, valid} | {error, currency_validation_error()}.
+validate_p2p_terms_currency(CurrencyID, Terms) ->
+    #domain_P2PServiceTerms{
+        currencies = {value, Currencies}
+    } = Terms,
+    validate_currency(CurrencyID, Currencies).
+
+-spec validate_p2p_cash_limit(cash(), p2p_terms()) ->
+    {ok, valid} | {error, cash_range_validation_error()}.
+validate_p2p_cash_limit(Cash, Terms) ->
+    #domain_P2PServiceTerms{
+        cash_limit = {value, CashRange}
+    } = Terms,
+    validate_cash_range(ff_dmsl_codec:marshal(cash, Cash), CashRange).
+
+-spec validate_p2p_allow(p2p_terms()) ->
+    {ok, valid} | {error, p2p_forbidden_error()}.
+validate_p2p_allow(P2PServiceTerms) ->
+    #domain_P2PServiceTerms{allow = Constant} = P2PServiceTerms,
+    case Constant of
+        {constant, true} ->
+            {ok, valid};
+        {constant, false} ->
+            {error, {terms_violation, p2p_forbidden}}
+    end.
+
 -spec validate_currency(currency_id(), ordsets:ordset(currency_ref())) ->
     {ok, valid} | {error, currency_validation_error()}.
 validate_currency(CurrencyID, Currencies) ->
@@ -638,7 +734,8 @@ encode_varset(Varset) ->
         currency = genlib_map:get(currency, Varset),
         amount = genlib_map:get(cost, Varset),
         wallet_id = genlib_map:get(wallet_id, Varset),
-        payment_method = encode_payment_method(genlib_map:get(payment_tool, Varset))
+        payment_method = encode_payment_method(genlib_map:get(payment_tool, Varset)),
+        p2p_tool = genlib_map:get(p2p_tool, Varset)
     }.
 
 -spec encode_payment_method(ff_destination:resource() | undefined) ->

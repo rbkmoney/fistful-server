@@ -98,7 +98,7 @@ unmarshal(transfer, #transfer_Transfer{
     cashflow = Cashflow
 }) ->
     #{
-        cashflow => unmarshal(final_cash_flow, Cashflow)
+        final_cash_flow => unmarshal(final_cash_flow, Cashflow)
     };
 unmarshal(final_cash_flow, #cashflow_FinalCashFlow{
     postings = Postings

@@ -306,8 +306,8 @@ create_identity() ->
     IdentityID  = genlib:unique(),
     Party = create_party(),
     ok = ff_identity_machine:create(
-        IdentityID,
         #{
+            id       => IdentityID,
             party    => Party,
             provider => <<"good-one">>,
             class    => <<"person">>

@@ -390,8 +390,7 @@ create_person_identity(Party, C, ProviderID) ->
 create_identity(Party, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
     ID.
@@ -399,8 +398,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
 create_wallet(IdentityID, Name, Currency, _C) ->
     ID = genlib:unique(),
     ok = ff_wallet_machine:create(
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency},
+        #{id => ID, identity => IdentityID, name => Name, currency => Currency},
         ff_entity_context:new()
     ),
     ID.
@@ -443,8 +441,8 @@ generate_id() ->
 create_destination(IID, C) ->
     ID = generate_id(),
     Resource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
-    Params = #{identity => IID, name => <<"XDesination">>, currency => <<"RUB">>, resource => Resource},
-    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
+    Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => <<"RUB">>, resource => Resource},
+    ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->

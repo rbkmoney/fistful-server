@@ -205,6 +205,17 @@ services:
       - POSTGRES_PASSWORD=postgres
       - SERVICE_NAME=shumway-db
 
+  binbase:
+    image: dr2.rbkmoney.com/rbkmoney/binbase:cb174f9ef488ba9015054377fe06495f999b191d
+    restart: always
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 10
+    ports:
+      - 8099:8022
+
   fistful-magista:
     image: dr.rbkmoney.com/rbkmoney/fistful-magista:fed290bccd48627822fda47f9dc2fe0cd1d3a5ad
     restart: always

@@ -1080,18 +1080,21 @@ collect_events(Collector, Filter, Cursor, Limit) ->
 collect_events(Collector, Filter, Cursor, Limit, {AccEvents, LastEventID}) when Limit =:= undefined ->
     case Collector(Cursor, Limit) of
         [] ->
-            Acc;
+            {AccEvents, LastEventID};
         Events1 ->
             {_, Events2} = filter_events(Filter, Events1),
-            Acc ++ Events2
+            {NewLastEventID, _} = lists:last(Events1),
+            {AccEvents ++ Events2, NewLastEventID}
     end;
 collect_events(Collector, Filter, Cursor, Limit, {AccEvents, LastEventID}) ->
     case Collector(Cursor, Limit) of
         [] ->
-            Acc;
+            {AccEvents, LastEventID};
         Events1 ->
             {CursorNext, Events2} = filter_events(Filter, Events1),
-            collect_events(Collector, Filter, CursorNext, Limit - length(Events2), Acc ++ Events2)
+            {NewLastEventID, _} = lists:last(Events1),
+            NewAcc = {AccEvents ++ Events2, NewLastEventID},
+            collect_events(Collector, Filter, CursorNext, Limit - length(Events2), NewAcc)
     end.
 
 filter_events(Filter, Events) ->

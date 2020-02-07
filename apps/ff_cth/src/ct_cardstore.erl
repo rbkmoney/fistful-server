@@ -4,37 +4,34 @@
 
 %%
 
--include_lib("damsel/include/dmsl_cds_thrift.hrl").
+-include_lib("cds_proto/include/cds_proto_storage_thrift.hrl").
 
 -spec bank_card(binary(), {1..12, 2000..9999}, ct_helper:config()) ->
     #{
         token          := binary(),
-        payment_system => atom(),
         bin            => binary(),
         masked_pan     => binary()
     }.
 
 bank_card(PAN, {MM, YYYY}, C) ->
-    CardData = #'CardData'{
+    CardData = #cds_PutCardData{
         pan      = PAN,
-        exp_date = #'ExpDate'{month = MM, year = YYYY}
+        exp_date = #cds_ExpDate{month = MM, year = YYYY}
     },
-    SessionData = #'SessionData'{
-        auth_data = {card_security_code, #'CardSecurityCode'{value = <<>>}}
+    SessionData = #cds_SessionData{
+        auth_data = {card_security_code, #cds_CardSecurityCode{value = <<>>}}
     },
     Client = ff_woody_client:new(maps:get('cds', ct_helper:cfg(services, C))),
     WoodyCtx = ct_helper:get_woody_ctx(C),
-    Request = {{dmsl_cds_thrift, 'Storage'}, 'PutCardData', [CardData, SessionData]},
+    Request = {{cds_proto_storage_thrift, 'Storage'}, 'PutCardData', [CardData, SessionData]},
     case woody_client:call(Request, Client, WoodyCtx) of
-        {ok, #'PutCardDataResult'{bank_card = #domain_BankCard{
+        {ok, #cds_PutCardDataResult{bank_card = #cds_BankCard{
             token          = Token,
-            payment_system = PaymentSystem,
             bin            = BIN,
-            masked_pan     = Masked
+            last_digits    = Masked
         }}} ->
             #{
                 token          => Token,
-                payment_system => PaymentSystem,
                 bin            => BIN,
                 masked_pan     => Masked
             }

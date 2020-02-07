@@ -775,6 +775,9 @@ get_withdrawal(WithdrawalID, C) ->
 
 -include_lib("ff_cth/include/ct_domain.hrl").
 
+-spec get_default_termset() ->
+    dmsl_domain_thrift:'TermSet'().
+
 get_default_termset() ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{

@@ -2,6 +2,7 @@
 
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
@@ -32,9 +33,11 @@
 
 -export([get_destinations/2]).
 -export([get_destination/2]).
+-export([get_destination_by_external_id/2]).
 -export([create_destination/2]).
 -export([create_withdrawal/2]).
 -export([get_withdrawal/2]).
+-export([get_withdrawal_by_external_id/2]).
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
 -export([list_withdrawals/2]).
@@ -322,8 +325,24 @@ get_destinations(_Params, _Context) ->
 get_destination(DestinationID, Context) ->
     do(fun() -> to_swag(destination, get_state(destination, DestinationID, Context)) end).
 
+-spec get_destination_by_external_id(id(), ctx()) -> result(map(),
+    {destination, unauthorized} |
+    {destination, notfound}     |
+    {external_id, {unknown_external_id, id()}}
+).
+get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, destination, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
+        {ok, DestinationID, _CtxData} ->
+            get_destination(DestinationID, Context);
+        {error, internal_id_not_found} ->
+            {error, {external_id, {unknown_external_id, ExternalID}}}
+    end.
+
 -spec create_destination(params(), ctx()) -> result(map(),
     invalid                     |
+    {invalid_resource_token, _} |
     {identity, unauthorized}    |
     {identity, notfound}        |
     {currency, notfound}        |
@@ -333,9 +352,11 @@ get_destination(DestinationID, Context) ->
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
+        DestinationParams = from_swag(destination_params, Params),
+        Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
         ff_destination:create(
             ID,
-            from_swag(destination_params, Params),
+            DestinationParams#{resource => Resource},
             add_meta_to_ctx([], Params, EntityCtx)
         )
     end,
@@ -353,7 +374,9 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {quote_invalid_party, _}      |
     {quote_invalid_wallet, _}     |
     {quote, {invalid_body, _}}    |
-    {quote, {invalid_destination, _}}
+    {quote, {invalid_destination, _}} |
+    {terms, {terms_violation, _}} |
+    {destination_resource, {bin_data, not_found}}
 ).
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
@@ -372,6 +395,21 @@ create_withdrawal(Params, Context) ->
 ).
 get_withdrawal(WithdrawalId, Context) ->
     do(fun() -> to_swag(withdrawal, get_state(withdrawal, WithdrawalId, Context)) end).
+
+-spec get_withdrawal_by_external_id(id(), ctx()) -> result(map(),
+    {withdrawal, unauthorized} |
+    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}} |
+    {external_id, {unknown_external_id, id()}}
+).
+get_withdrawal_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
+    PartyID = wapi_handler_utils:get_owner(Context),
+    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, withdrawal, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
+        {ok, WithdrawalId, _CtxData} ->
+            get_withdrawal(WithdrawalId, Context);
+        {error, internal_id_not_found} ->
+            {error, {external_id, {unknown_external_id, ExternalID}}}
+    end.
 
 -spec get_withdrawal_events(params(), ctx()) -> result([map()],
     {withdrawal, unauthorized} |
@@ -638,6 +676,7 @@ delete_webhook(WebhookID, IdentityID, Context) ->
     end).
 
 -spec quote_p2p_transfer(params(), ctx()) -> result(map(),
+    {invalid_resource_token, _} |
     p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer(Params, Context) ->
@@ -649,7 +688,10 @@ quote_p2p_transfer(Params, Context) ->
             body := Body
         } = from_swag(quote_p2p_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
-        {SurplusCash, _SurplusCashVolume, Quote} = unwrap(p2p_quote:get_quote(Body, IdentityID, Sender, Receiver)),
+        SenderResource = unwrap(construct_resource(Sender)),
+        ReceiverResource = unwrap(construct_resource(Receiver)),
+        {SurplusCash, _SurplusCashVolume, Quote}
+            = unwrap(p2p_quote:get_quote(Body, IdentityID, SenderResource, ReceiverResource)),
         Token = create_p2p_quote_token(Quote, PartyID),
         ExpiresOn = p2p_quote:expires_on(Quote),
         to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn})
@@ -657,6 +699,7 @@ quote_p2p_transfer(Params, Context) ->
 
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     p2p_transfer:create_error() |
+    {invalid_resource_token, _} |
     {token,
         {unsupported_version, integer() | undefined} |
         {not_verified, invalid_signature} |
@@ -668,8 +711,14 @@ create_p2p_transfer(Params, Context) ->
         fun(ID, EntityCtx) ->
             do(fun() ->
                 ParsedParams = unwrap(maybe_add_p2p_quote_token(from_swag(create_p2p_params, Params))),
+                SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
+                ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
                 p2p_transfer_machine:create(
-                    genlib_map:compact(ParsedParams#{id => ID}),
+                    genlib_map:compact(ParsedParams#{
+                        id => ID,
+                        sender => {raw, #{resource_params => SenderResource}},
+                        receiver => {raw, #{resource_params => ReceiverResource}}
+                    }),
                     add_meta_to_ctx([], Params, EntityCtx)
                 )
             end)
@@ -714,6 +763,63 @@ get_p2p_transfer_events({ID, CT}, Context) ->
     end).
 
 %% Internal functions
+
+construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
+when Type =:= <<"BankCardDestinationResource">> ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        unrecognized ->
+            {ok, from_swag(destination_resource, Resource)};
+        {ok, BankCard} ->
+            {ok, encode_bank_card(BankCard)};
+        {error, {decryption_failed, _} = Error} ->
+            logger:warning("~s token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end;
+construct_resource(#{<<"type">> := Type, <<"token">> := Token})
+when   Type =:= <<"BankCardSenderResource">>
+orelse Type =:= <<"BankCardReceiverResource">> ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        {ok, BankCard} ->
+            {ok, encode_bank_card(BankCard)};
+        unrecognized ->
+            logger:warning("~s token unrecognized", [Type]),
+            {error, {invalid_resource_token, Type}};
+        {error, {decryption_failed, _} = Error} ->
+            logger:warning("~s token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end;
+construct_resource(#{<<"type">> := Type} = Resource)
+when Type =:= <<"CryptoWalletDestinationResource">> ->
+    #{
+        <<"id">>       := CryptoWalletID,
+        <<"currency">> := CryptoWalletCurrency
+    } = Resource,
+    Tag = maps:get(<<"tag">>, Resource, undefined),
+    {ok, {crypto_wallet, genlib_map:compact(#{
+        id       => CryptoWalletID,
+        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
+        tag      => Tag
+    })}}.
+
+encode_bank_card(BankCard) ->
+    {bank_card, genlib_map:compact(#{
+        token           => BankCard#'BankCard'.token,
+        bin             => BankCard#'BankCard'.bin,
+        masked_pan      => BankCard#'BankCard'.masked_pan,
+        cardholder_name => BankCard#'BankCard'.cardholder_name,
+        %% ExpDate is optional in swag_wallets 'StoreBankCard'. But some adapters waiting exp_date.
+        %% Add error, somethink like BankCardReject.exp_date_required
+        exp_date        => encode_exp_date(BankCard#'BankCard'.exp_date)
+    })}.
+
+encode_exp_date(undefined) ->
+    undefined;
+encode_exp_date(ExpDate) ->
+    #'BankCardExpDate'{
+        month = Month,
+        year = Year
+    } = ExpDate,
+    {Month, Year}.
 
 encode_webhook_id(WebhookID) ->
     try
@@ -1055,27 +1161,19 @@ create_entity(Type, Params, CreateFun, Context) ->
     case gen_id(Type, ExternalID, Hash, Context) of
         {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
-            handle_create_entity_result(Result, Type, ExternalID, ID, Context);
+            handle_create_entity_result(Result, Type, ID, Context);
         {error, {external_id_conflict, ID}} ->
             {error, {external_id_conflict, ID, ExternalID}}
     end.
 
-handle_create_entity_result(Result, Type, ExternalID, ID, Context) when
+handle_create_entity_result(Result, Type, ID, Context) when
     Result =:= ok;
     Result =:= {error, exists}
 ->
-    ok = sync_ff_external(Type, ExternalID, ID, Context),
-    do(fun() -> to_swag(Type, get_state(Type, ID, Context)) end);
-handle_create_entity_result({error, E}, _Type, _ExternalID, _ID, _Context) ->
+    St = get_state(Type, ID, Context),
+    do(fun() -> to_swag(Type, St) end);
+handle_create_entity_result({error, E}, _Type, _ID, _Context) ->
     throw(E).
-
-sync_ff_external(_Type, undefined, _BenderID, _Context) ->
-    ok;
-sync_ff_external(Type, ExternalID, BenderID, Context) ->
-    PartyID = wapi_handler_utils:get_owner(Context),
-    FistfulID = ff_external_id:construct_external_id(PartyID, ExternalID),
-    {ok, BenderID} = ff_external_id:bind(Type, FistfulID, BenderID),
-    ok.
 
 with_party(Context, Fun) ->
     try Fun()
@@ -1377,8 +1475,9 @@ from_swag(destination_params, Params) ->
         identity => maps:get(<<"identity">>, Params),
         currency => maps:get(<<"currency">>, Params),
         name     => maps:get(<<"name">>    , Params),
-        resource => from_swag(destination_resource, maps:get(<<"resource">>, Params))
+        resource => maps:get(<<"resource">>, Params)
     }, Params);
+%% TODO delete this code, after add encrypted token
 from_swag(destination_resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
     <<"token">> := WapiToken
@@ -1403,34 +1502,12 @@ from_swag(destination_resource, Resource = #{
     })};
 from_swag(quote_p2p_params, Params) ->
     add_external_id(#{
-        sender      => from_swag(sender_resource, maps:get(<<"sender">>, Params)),
-        receiver    => from_swag(receiver_resource, maps:get(<<"receiver">>, Params)),
+        sender      => maps:get(<<"sender">>, Params),
+        receiver    => maps:get(<<"receiver">>, Params),
         identity_id => maps:get(<<"identityID">>, Params),
         body        => from_swag(withdrawal_body, maps:get(<<"body">>, Params))
     }, Params);
-from_swag(sender_resource, #{
-    <<"type">> := <<"BankCardSenderResource">>,
-    <<"token">> := WapiToken
-}) ->
-    BankCard = wapi_utils:base64url_to_map(WapiToken),
-    {bank_card, #{
-        token          => maps:get(<<"token">>, BankCard),
-        %% TODO do something about `binary_to_existing_atom/1`, so that we don't catch `badarg`
-        payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
-        bin            => maps:get(<<"bin">>, BankCard),
-        masked_pan     => maps:get(<<"lastDigits">>, BankCard)
-    }};
-from_swag(receiver_resource, #{
-    <<"type">> := <<"BankCardReceiverResource">>,
-    <<"token">> := WapiToken
-}) ->
-    BankCard = wapi_utils:base64url_to_map(WapiToken),
-    {bank_card, #{
-        token          => maps:get(<<"token">>, BankCard),
-        payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
-        bin            => maps:get(<<"bin">>, BankCard),
-        masked_pan     => maps:get(<<"lastDigits">>, BankCard)
-    }};
+
 from_swag(compact_resource, #{
     <<"type">> := <<"bank_card">>,
     <<"token">> := Token,
@@ -1442,8 +1519,8 @@ from_swag(compact_resource, #{
     }};
 from_swag(create_p2p_params, Params) ->
     add_external_id(#{
-        sender      => {raw, #{resource_params => from_swag(sender_resource, maps:get(<<"sender">>, Params))}},
-        receiver    => {raw, #{resource_params => from_swag(receiver_resource, maps:get(<<"receiver">>, Params))}},
+        sender      => maps:get(<<"sender">>, Params),
+        receiver    => maps:get(<<"receiver">>, Params),
         identity_id => maps:get(<<"identityID">>, Params),
         body        => from_swag(withdrawal_body, maps:get(<<"body">>, Params)),
         quote_token => maps:get(<<"quoteToken">>, Params, undefined),
@@ -1746,7 +1823,6 @@ to_swag(destination_resource, {bank_card, BankCard}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardDestinationResource">>,
         <<"token">>         => maps:get(token, BankCard),
-        <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
@@ -1757,7 +1833,7 @@ to_swag(destination_resource, {crypto_wallet, CryptoWallet}) ->
         <<"currency">> => to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet)),
         <<"tag">>      => maps:get(tag, CryptoWallet, undefined)
     });
-to_swag(sender_resource, {raw, #{resource_params := {bank_card, BankCard}}}) ->
+to_swag(sender_resource, {bank_card, BankCard}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardSenderResource">>,
         <<"token">>         => maps:get(token, BankCard),
@@ -1765,7 +1841,7 @@ to_swag(sender_resource, {raw, #{resource_params := {bank_card, BankCard}}}) ->
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
-to_swag(receiver_resource, {raw, #{resource_params := {bank_card, BankCard}}}) ->
+to_swag(receiver_resource, {bank_card, BankCard}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardReceiverResource">>,
         <<"token">>         => maps:get(token, BankCard),
@@ -1918,8 +1994,8 @@ to_swag(p2p_transfer, P2PTransferState) ->
         id := Id,
         body := Cash,
         created_at := CreatedAt,
-        sender := Sender,
-        receiver := Receiver,
+        sender_resource := Sender,
+        receiver_resource := Receiver,
         status := Status
     } = P2PTransfer = p2p_transfer_machine:p2p_transfer(P2PTransferState),
     Metadata = maps:get(<<"metadata">>, get_ctx(P2PTransferState), undefined),

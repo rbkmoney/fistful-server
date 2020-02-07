@@ -77,10 +77,14 @@ start_app(woody = AppName) ->
 
 start_app(dmt_client = AppName) ->
     {start_app_with(AppName, [
-        {cache_update_interval, 500},
+        {cache_update_interval, 500}, % milliseconds
         {max_cache_size, #{
-            elements => 1
+            elements => 1,
+            memory => 52428800 % 50Mb
         }},
+        {woody_event_handlers, [
+            {scoper_woody_event_handler, #{}}
+        ]},
         {service_urls, #{
             'Repository'       => <<"http://dominant:8022/v1/domain/repository">>,
             'RepositoryClient' => <<"http://dominant:8022/v1/domain/repository_client">>
@@ -100,6 +104,12 @@ start_app(wapi = AppName) ->
                     wapi     => {pem_file, "/opt/wapi/config/private.pem"}
                 }
             }
+        }},
+        {lechiffre_opts,  #{
+            encryption_key_path => "/opt/wapi/config/jwk.json",
+            decryption_key_paths => [
+                "/opt/wapi/config/jwk.json"
+            ]
         }}
     ]), #{}};
 

@@ -245,6 +245,17 @@ process_request('GetDestination', #{'destinationID' := DestinationId}, Context, 
         {error, {destination, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {destination, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
+process_request('GetDestinationByExternalID', #{'externalID' := ExternalID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_destination_by_external_id(ExternalID, Context) of
+        {ok, Destination} ->
+            wapi_handler_utils:reply_ok(200, Destination);
+        {error, {external_id, {unknown_external_id, ExternalID}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {destination, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {destination, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
 process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) ->
     case wapi_wallet_ff_backend:create_destination(Params, Context) of
         {ok, Destination = #{<<"id">> := DestinationId}} ->
@@ -260,7 +271,13 @@ process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) 
         {error, {external_id_conflict, ID, ExternalID}} ->
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, invalid} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>))
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>));
+        {error, {invalid_resource_token, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
     end;
 process_request('IssueDestinationGrant', #{
     'destinationID'           := DestinationId,
@@ -325,6 +342,14 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {quote, {invalid_body, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Withdrawal body differs from quote`s one">>)
+            );
+        {error, {terms, {terms_violation, {cash_range, _}}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
+        {error, {destination_resource, {bin_data, not_found}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Unknown card issuer">>)
             )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
@@ -332,6 +357,17 @@ process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Op
         {ok, Withdrawal} ->
             wapi_handler_utils:reply_ok(200, Withdrawal);
         {error, {withdrawal, {unknown_withdrawal, WithdrawalId}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+process_request('GetWithdrawalByExternalID', #{'externalID' := ExternalID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_withdrawal_by_external_id(ExternalID, Context) of
+        {ok, Withdrawal} ->
+            wapi_handler_utils:reply_ok(200, Withdrawal);
+        {error, {external_id, {unknown_external_id, ExternalID}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, {unknown_withdrawal, _WithdrawalId}}} ->
             wapi_handler_utils:reply_ok(404);
         {error, {withdrawal, unauthorized}} ->
             wapi_handler_utils:reply_ok(404)
@@ -549,7 +585,13 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters' := Params}, Context, _Op
                 wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
         {error, {terms, {terms_violation, p2p_forbidden}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>))
+                wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>));
+        {error, {invalid_resource_token, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
     end;
 process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_p2p_transfer(Params, Context) of
@@ -575,7 +617,13 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
                 wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>));
         {error, {token, {not_verified, _}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>))
+                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
+        {error, {invalid_resource_token, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
     end;
 process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_p2p_transfer(ID, Context) of

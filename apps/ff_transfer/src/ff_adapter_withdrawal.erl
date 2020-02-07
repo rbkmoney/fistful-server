@@ -16,9 +16,10 @@
 -type id()          :: machinery:id().
 -type identity_id() :: id().
 
--type resource() :: ff_destination:resource_full().
+-type resource()    :: ff_destination:resource_full().
 -type identity()    :: ff_identity:identity().
 -type cash()        :: ff_transaction:body().
+-type exp_date()    :: ff_destination:exp_date().
 
 -type withdrawal() :: #{
     id          => binary(),
@@ -74,6 +75,7 @@
 -type domain_destination()    :: dmsl_withdrawals_provider_adapter_thrift:'Destination'().
 -type domain_identity()       :: dmsl_withdrawals_provider_adapter_thrift:'Identity'().
 -type domain_internal_state() :: dmsl_withdrawals_provider_adapter_thrift:'InternalState'().
+-type domain_exp_date()       :: dmsl_domain_thrift:'BankCardExpDate'().
 
 -type domain_quote_params()  :: dmsl_withdrawals_provider_adapter_thrift:'GetQuoteParams'().
 
@@ -202,13 +204,17 @@ encode_resource(
         payment_system := PaymentSystem,
         bin            := BIN,
         masked_pan     := MaskedPan
-    }}
+    } = BankCard}
 ) ->
+    CardHolderName = genlib_map:get(cardholder_name, BankCard),
+    ExpDate = genlib_map:get(exp_date, BankCard),
     {bank_card, #domain_BankCard{
         token           = Token,
         payment_system  = PaymentSystem,
         bin             = BIN,
-        masked_pan      = MaskedPan
+        masked_pan      = MaskedPan,
+        cardholder_name = CardHolderName,
+        exp_date        = encode_exp_date(ExpDate)
     }};
 encode_resource(
     {crypto_wallet, #{
@@ -220,6 +226,17 @@ encode_resource(
         id              = CryptoWalletID,
         crypto_currency = CryptoWalletCurrency
     }}.
+
+-spec encode_exp_date
+    (exp_date()) -> domain_exp_date();
+    (undefined) -> undefined.
+encode_exp_date(undefined) ->
+    undefined;
+encode_exp_date({Month, Year}) ->
+    #domain_BankCardExpDate{
+        month = Month,
+        year = Year
+    }.
 
 -spec encode_identity
     (identity_id()) -> domain_identity();

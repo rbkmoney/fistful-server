@@ -68,15 +68,14 @@ init([]) ->
         default_handling_timeout => DefaultTimeout
     },
 
-    {ok, Ip}       = inet:parse_address(IpEnv),
-    WoodyOpts      = maps:with([net_opts, handler_limits], WoodyOptsEnv),
-    RouteOpts      = RouteOptsEnv#{event_handler => scoper_woody_event_handler},
+    {ok, Ip}         = inet:parse_address(IpEnv),
+    WoodyOpts        = maps:with([net_opts, handler_limits], WoodyOptsEnv),
+    EventHandlerOpts = genlib_app:env(?MODULE, scoper_event_handler_options, #{}),
+    RouteOpts        = RouteOptsEnv#{event_handler => {scoper_woody_event_handler, EventHandlerOpts}},
 
     % TODO
     %  - Make it palatable
     {Backends, Handlers} = lists:unzip([
-        contruct_backend_childspec('ff/external_id'             , ff_external_id               , PartyClient),
-        contruct_backend_childspec('ff/sequence'                , ff_sequence                  , PartyClient),
         contruct_backend_childspec('ff/identity'                , ff_identity_machine          , PartyClient),
         contruct_backend_childspec('ff/wallet_v2'               , ff_wallet_machine            , PartyClient),
         contruct_backend_childspec('ff/source_v1'               , ff_instrument_machine        , PartyClient),

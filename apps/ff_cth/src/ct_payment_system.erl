@@ -61,7 +61,9 @@ do_setup(Options0, C0) ->
     C1 = ct_helper:makeup_cfg([ct_helper:woody_ctx()], [{services, services(Options)} | C0]),
     ok = ct_helper:set_context(C1),
     ok = setup_dominant(Options, C1),
-    ok = timer:sleep(3000),
+    ok = ct_keyring:init(C1),
+    %% TODO rewrite timer , check keyring status from cds health checker
+    ok = timer:sleep(5000),
     ok = configure_processing_apps(Options),
     ok = ct_helper:unset_context(),
     [{payment_system, Processing0} | C1].
@@ -322,6 +324,7 @@ services(Options) ->
         eventsink        => "http://machinegun:8022/v1/event_sink",
         automaton        => "http://machinegun:8022/v1/automaton",
         accounter        => "http://shumway:8022/shumpune",
+        kds              => "http://kds:8022/v2/keyring",
         cds              => "http://cds:8022/v1/storage",
         identdocstore    => "http://cds:8022/v1/identity_document_storage",
         partymgmt        => "http://hellgate:8022/v1/processing/partymgmt",

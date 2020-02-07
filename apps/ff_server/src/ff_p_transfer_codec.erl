@@ -11,12 +11,6 @@
 
 %% Data transform
 
-final_account_to_final_cash_flow_account(#{
-    account := #{id := AccountID},
-    type := AccountType}
-) ->
-    #{account_type => AccountType, account_id => AccountID}.
-
 -define(to_session_event(SessionID, Payload),
     {session, #{id => SessionID, payload => Payload}}).
 
@@ -50,21 +44,21 @@ marshal(postings, Posting) ->
         volume := Cash
     } = Posting,
     Details = maps:get(details, Posting, undefined),
-    SenderAccount = final_account_to_final_cash_flow_account(Sender),
-    ReceiverAccount = final_account_to_final_cash_flow_account(Receiver),
     #cashflow_FinalCashFlowPosting{
-        source      = marshal(final_cash_flow_account, SenderAccount),
-        destination = marshal(final_cash_flow_account, ReceiverAccount),
+        source      = marshal(final_cash_flow_account, Sender),
+        destination = marshal(final_cash_flow_account, Receiver),
         volume      = marshal(cash, Cash),
         details     = marshal(string, Details)
     };
 marshal(final_cash_flow_account, #{
-        account_type   := AccountType,
-        account_id     := AccountID
+    account := Account,
+    type := AccountType
 }) ->
+    #{id := AccountID} = Account,
     #cashflow_FinalCashFlowAccount{
         account_type   = marshal(account_type, AccountType),
-        account_id     = marshal(id, AccountID)
+        account_id     = marshal(id, AccountID), % for compatability, deprecate
+        account        = ff_codec:marshal(account, Account)
     };
 
 marshal(account_type, CashflowAccount) ->
@@ -124,12 +118,14 @@ unmarshal(postings, #cashflow_FinalCashFlowPosting{
         volume      => unmarshal(cash, Cash),
         details     => maybe_unmarshal(string, Details)
     });
-unmarshal(final_cash_flow_account, CashFlow = #cashflow_FinalCashFlowAccount{
-    account_type = _AccountType,
-    account_id   = _AccountID
+unmarshal(final_cash_flow_account, #cashflow_FinalCashFlowAccount{
+    account_type = AccountType,
+    account      = Account
 }) ->
-    % FIXME: Make protocol symmetric. final_cash_flow_account is unrecoverable from thrift now
-    erlang:error({not_implemented, {unmarshal, final_cash_flow_account}}, [final_cash_flow_account, CashFlow]);
+    #{
+        account => ff_codec:unmarshal(account, Account),
+        type    => unmarshal(account_type, AccountType)
+    };
 
 unmarshal(account_type, CashflowAccount) ->
     % Mapped to thrift type WalletCashFlowAccount as is

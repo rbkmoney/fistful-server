@@ -96,8 +96,8 @@ get_identity_events_ok(C) ->
     LastEvent = ct_eventsink:last_id(Sink),
 
     ok = ff_identity_machine:create(
-        ID,
         #{
+            id       => ID,
             party    => Party,
             provider => <<"good-one">>,
             class    => <<"person">>
@@ -138,8 +138,8 @@ get_create_wallet_events_ok(C) ->
     LastEvent = ct_eventsink:last_id(Sink),
 
     ok = ff_wallet_machine:create(
-        ID,
         #{
+            id       => ID,
             identity => IdentityID,
             name     => <<"EVENTS TEST">>,
             currency => <<"RUB">>
@@ -337,8 +337,7 @@ create_person_identity(Party, C) ->
 create_identity(Party, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
     ID.
@@ -346,8 +345,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
 create_wallet(IdentityID, Name, Currency, _C) ->
     ID = genlib:unique(),
     ok = ff_wallet_machine:create(
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency},
+        #{id => ID, identity => IdentityID, name => Name, currency => Currency},
         ff_entity_context:new()
     ),
     ID.
@@ -356,17 +354,16 @@ create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
     ID = genlib:unique(),
     ok = create_instrument(
         Type,
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
+        #{id => ID, identity => IdentityID, name => Name, currency => Currency, resource => Resource},
         ff_entity_context:new(),
         C
     ),
     ID.
 
-create_instrument(destination, ID, Params, Ctx, _C) ->
-    ff_destination:create(ID, Params, Ctx);
-create_instrument(source, ID, Params, Ctx, _C) ->
-    ff_source:create(ID, Params, Ctx).
+create_instrument(destination, Params, Ctx, _C) ->
+    ff_destination:create(Params, Ctx);
+create_instrument(source, Params, Ctx, _C) ->
+    ff_source:create(Params, Ctx).
 
 generate_id() ->
     genlib:to_binary(genlib_time:ticks()).

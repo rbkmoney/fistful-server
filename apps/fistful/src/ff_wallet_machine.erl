@@ -17,7 +17,7 @@
 
 -export_type([id/0]).
 
--export([create/3]).
+-export([create/2]).
 -export([get/1]).
 -export([events/2]).
 
@@ -56,16 +56,17 @@ ctx(St) ->
 %%
 
 -type params()  :: #{
+    id          := id(),
     identity    := ff_identity_machine:id(),
     name        := binary(),
     currency    := ff_currency:id(),
     external_id => id()
 }.
 
--spec create(id(), params(), ctx()) ->
+-spec create(params(), ctx()) ->
     ok | {error, exists | ff_wallet:create_error() }.
 
-create(ID, Params = #{identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
+create(Params = #{id := ID, identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
     do(fun () ->
         Events = unwrap(ff_wallet:create(
             ID,

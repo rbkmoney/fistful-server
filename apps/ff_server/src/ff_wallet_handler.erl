@@ -23,7 +23,7 @@ handle_function(Func, Args, Opts) ->
 %%
 handle_function_('Create', [Params], Opts) ->
     WalletID = Params#wlt_WalletParams.id,
-    case ff_wallet_machine:create(WalletID,
+    case ff_wallet_machine:create(
         decode(wallet_params, Params),
         decode(context, Params#wlt_WalletParams.context))
     of
@@ -73,6 +73,7 @@ encode(currency, CurrencyId) ->
 decode(wallet_params, Params) ->
     AccountParams = Params#wlt_WalletParams.account_params,
     #{
+        id          => Params#wlt_WalletParams.id,
         name        => Params#wlt_WalletParams.name,
         identity    => AccountParams#account_AccountParams.identity_id,
         currency    => AccountParams#account_AccountParams.symbolic_code,

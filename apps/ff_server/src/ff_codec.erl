@@ -57,8 +57,10 @@ marshal(id, V) ->
 marshal(event_id, V) ->
     marshal(integer, V);
 
-marshal(blocked, V) ->
-    marshal(bool, V);
+marshal(blocking, blocked) ->
+    blocked;
+marshal(blocking, unblocked) ->
+    unblocked;
 
 marshal(transaction_info, TransactionInfo = #{
     id := TransactionID,
@@ -213,6 +215,11 @@ unmarshal(id, V) ->
     unmarshal(string, V);
 unmarshal(event_id, V) ->
     unmarshal(integer, V);
+
+unmarshal(blocking, blocked) ->
+    blocked;
+unmarshal(blocking, unblocked) ->
+    unblocked;
 
 unmarshal(transaction_info, #'TransactionInfo'{
     id = TransactionID,

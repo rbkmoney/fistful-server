@@ -124,18 +124,20 @@ unmarshal_identity(#idnt_Identity{
     level       = LevelID,
     blocking    = Blocking,
     external_id = ExternalID,
+    created_at  = CreatedAt,
     effective_challenge = EffectiveChallengeID
 }) ->
     genlib_map:compact(#{
-        id          => unmarshal(id,      ID),
-        party       => unmarshal(id,      PartyID),
-        provider    => unmarshal(id,      ProviderID),
-        class       => unmarshal(id,      ClassID),
-        contract    => unmarshal(id,      ContractID),
-        level       => maybe_unmarshal(id,   LevelID),
+        id          => unmarshal(id, ID),
+        party       => unmarshal(id, PartyID),
+        provider    => unmarshal(id, ProviderID),
+        class       => unmarshal(id, ClassID),
+        contract    => unmarshal(id, ContractID),
+        level       => maybe_unmarshal(id, LevelID),
         blocking    => maybe_unmarshal(blocking, Blocking),
-        external_id => maybe_unmarshal(id,   ExternalID),
-        effective   => maybe_unmarshal(id,   EffectiveChallengeID)
+        external_id => maybe_unmarshal(id, ExternalID),
+        created_at  => maybe_unmarshal(created_at, CreatedAt),
+        effective   => maybe_unmarshal(id, EffectiveChallengeID)
     }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
@@ -206,7 +208,7 @@ marshal(resolution, denied) ->
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
 
-marshal(created, TimeMS) ->
+marshal(created_at, TimeMS) ->
     marshal(string, ff_time:to_rfc3339(TimeMS));
 
 marshal(T, V) ->
@@ -281,6 +283,9 @@ unmarshal(effective_challenge, undefined) ->
     {error, notfound};
 unmarshal(effective_challenge, EffectiveChallengeID) ->
     {ok, unmarshal(id, EffectiveChallengeID)};
+
+unmarshal(created_at, Timestamp) ->
+    unmarshal(integer, ff_time:from_rfc3339(Timestamp));
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);

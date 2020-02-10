@@ -204,7 +204,9 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
                 party    => Party,
                 provider => ProviderID,
                 class    => ClassID,
-                contract => Contract
+                contract => Contract,
+                %% TODO need migration for events
+                created_at => ff_time:now()
             })},
             {level_changed,
                 LevelID

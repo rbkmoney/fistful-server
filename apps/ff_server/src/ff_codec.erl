@@ -62,6 +62,46 @@ marshal(blocking, blocked) ->
 marshal(blocking, unblocked) ->
     unblocked;
 
+marshal(transaction_info, TransactionInfo = #{
+    id := TransactionID,
+    extra := Extra
+}) ->
+    Timestamp = maps:get(timestamp, TransactionInfo, undefined),
+    AddInfo = maps:get(additional_info, TransactionInfo, undefined),
+    #'TransactionInfo'{
+        id = marshal(id, TransactionID),
+        timestamp = marshal(timestamp, Timestamp),
+        extra = Extra,
+        additional_info = marshal(additional_transaction_info, AddInfo)
+    };
+
+marshal(additional_transaction_info, AddInfo = #{}) ->
+    #'AdditionalTransactionInfo'{
+        rrn = marshal(string, maps:get(rrn, AddInfo, undefined)),
+        approval_code = marshal(string, maps:get(approval_code, AddInfo, undefined)),
+        acs_url = marshal(string, maps:get(acs_url, AddInfo, undefined)),
+        pareq = marshal(string, maps:get(pareq, AddInfo, undefined)),
+        md = marshal(string, maps:get(md, AddInfo, undefined)),
+        term_url = marshal(string, maps:get(term_url, AddInfo, undefined)),
+        pares = marshal(string, maps:get(pares, AddInfo, undefined)),
+        eci = marshal(string, maps:get(eci, AddInfo, undefined)),
+        cavv = marshal(string, maps:get(cavv, AddInfo, undefined)),
+        xid = marshal(string, maps:get(xid, AddInfo, undefined)),
+        cavv_algorithm = marshal(string, maps:get(cavv_algorithm, AddInfo, undefined)),
+        three_ds_verification = marshal(
+            three_ds_verification,
+            maps:get(three_ds_verification, AddInfo, undefined)
+        )
+    };
+
+marshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
+
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
 marshal(account, #{
@@ -84,6 +124,7 @@ marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
     BankName = maps:get(bank_name, BankCard, undefined),
     IsoCountryCode = maps:get(iso_country_code, BankCard, undefined),
     CardType = maps:get(card_type, BankCard, undefined),
+    BinDataID = maps:get(bin_data_id, BankCard, undefined),
     {bank_card, #'BankCard'{
         token = marshal(string, Token),
         bin = marshal(string, Bin),
@@ -91,41 +132,33 @@ marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
         bank_name = marshal(string, BankName),
         payment_system = PaymentSystem,
         issuer_country = IsoCountryCode,
-        card_type = CardType
+        card_type = CardType,
+        bin_data_id = marshal_msgpack(BinDataID)
     }};
-marshal(resource, {crypto_wallet, CryptoWallet = #{id := ID, currency := Currency}}) ->
+marshal(resource, {crypto_wallet, #{id := ID, currency := Currency}}) ->
     {crypto_wallet, #'CryptoWallet'{
         id       = marshal(string, ID),
-        currency = Currency,
-        data = marshal(crypto_data, CryptoWallet)
+        currency = marshal(crypto_currency, Currency),
+        data     = marshal(crypto_data, Currency)
     }};
 
-marshal(crypto_data, #{
-    currency := bitcoin
-}) ->
+marshal(crypto_currency, {Currency, _}) ->
+    Currency;
+
+marshal(crypto_data, {bitcoin, #{}}) ->
     {bitcoin, #'CryptoDataBitcoin'{}};
-marshal(crypto_data, #{
-    currency := litecoin
-}) ->
+marshal(crypto_data, {litecoin, #{}}) ->
     {litecoin, #'CryptoDataLitecoin'{}};
-marshal(crypto_data, #{
-    currency := bitcoin_cash
-}) ->
+marshal(crypto_data, {bitcoin_cash, #{}}) ->
     {bitcoin_cash, #'CryptoDataBitcoinCash'{}};
-marshal(crypto_data, #{
-    currency := ripple
-} = Data) ->
+marshal(crypto_data, {ethereum, #{}}) ->
+    {ethereum, #'CryptoDataEthereum'{}};
+marshal(crypto_data, {zcash, #{}}) ->
+    {zcash, #'CryptoDataZcash'{}};
+marshal(crypto_data, {ripple, Data}) ->
     {ripple, #'CryptoDataRipple'{
         tag = maybe_marshal(string, maps:get(tag, Data, undefined))
     }};
-marshal(crypto_data, #{
-    currency := ethereum
-}) ->
-    {ethereum, #'CryptoDataEthereum'{}};
-marshal(crypto_data, #{
-    currency := zcash
-}) ->
-    {zcash, #'CryptoDataZcash'{}};
 
 marshal(cash, {Amount, CurrencyRef}) ->
     #'Cash'{
@@ -188,6 +221,56 @@ unmarshal(blocking, blocked) ->
 unmarshal(blocking, unblocked) ->
     unblocked;
 
+unmarshal(transaction_info, #'TransactionInfo'{
+    id = TransactionID,
+    timestamp = Timestamp,
+    extra = Extra,
+    additional_info = AddInfo
+}) ->
+    genlib_map:compact(#{
+        id => unmarshal(string, TransactionID),
+        timestamp => maybe_unmarshal(string, Timestamp),
+        extra => Extra,
+        additional_info => maybe_unmarshal(additional_transaction_info, AddInfo)
+    });
+
+unmarshal(additional_transaction_info, #'AdditionalTransactionInfo'{
+    rrn = RRN,
+    approval_code = ApprovalCode,
+    acs_url = AcsURL,
+    pareq = Pareq,
+    md = MD,
+    term_url = TermURL,
+    pares = Pares,
+    eci = ECI,
+    cavv = CAVV,
+    xid = XID,
+    cavv_algorithm = CAVVAlgorithm,
+    three_ds_verification = ThreeDSVerification
+}) ->
+    genlib_map:compact(#{
+        rrn => maybe_unmarshal(string, RRN),
+        approval_code => maybe_unmarshal(string, ApprovalCode),
+        acs_url => maybe_unmarshal(string, AcsURL),
+        pareq => maybe_unmarshal(string, Pareq),
+        md => maybe_unmarshal(string, MD),
+        term_url => maybe_unmarshal(string, TermURL),
+        pares => maybe_unmarshal(string, Pares),
+        eci => maybe_unmarshal(string, ECI),
+        cavv => maybe_unmarshal(string, CAVV),
+        xid => maybe_unmarshal(string, XID),
+        cavv_algorithm => maybe_unmarshal(string, CAVVAlgorithm),
+        three_ds_verification => maybe_unmarshal(three_ds_verification, ThreeDSVerification)
+    });
+
+unmarshal(three_ds_verification, Value) when
+    Value =:= authentication_successful orelse
+    Value =:= attempts_processing_performed orelse
+    Value =:= authentication_failed orelse
+    Value =:= authentication_could_not_be_performed
+->
+    Value;
+
 unmarshal(complex_action, #ff_repairer_ComplexAction{
     timer = TimerAction,
     remove = RemoveAction
@@ -238,7 +321,8 @@ unmarshal(bank_card, #'BankCard'{
     bank_name = BankName,
     payment_system = PaymentSystem,
     issuer_country = IsoCountryCode,
-    card_type = CardType
+    card_type = CardType,
+    bin_data_id = BinDataID
 }) ->
     genlib_map:compact(#{
         token => unmarshal(string, Token),
@@ -247,7 +331,8 @@ unmarshal(bank_card, #'BankCard'{
         masked_pan => maybe_unmarshal(string, MaskedPan),
         bank_name => maybe_unmarshal(string, BankName),
         issuer_country => maybe_unmarshal(iso_country_code, IsoCountryCode),
-        card_type => maybe_unmarshal(card_type, CardType)
+        card_type => maybe_unmarshal(card_type, CardType),
+        bin_data_id => unmarshal_msgpack(BinDataID)
     });
 
 unmarshal(payment_system, V) when is_atom(V) ->
@@ -266,14 +351,15 @@ unmarshal(crypto_wallet, #'CryptoWallet'{
 }) ->
     genlib_map:compact(#{
         id => unmarshal(string, CryptoWalletID),
-        currency => CryptoWalletCurrency,
-        tag => maybe_unmarshal(crypto_data, Data)
+        currency => {CryptoWalletCurrency, unmarshal(crypto_data, Data)}
     });
 
 unmarshal(crypto_data, {ripple, #'CryptoDataRipple'{tag = Tag}}) ->
-    maybe_unmarshal(string, Tag);
+    genlib_map:compact(#{
+        tag => maybe_unmarshal(string, Tag)
+    });
 unmarshal(crypto_data, _) ->
-    undefined;
+    #{};
 
 unmarshal(cash, #'Cash'{
     amount   = Amount,
@@ -367,3 +453,29 @@ to_calendar_datetime(Date, Time = {H, _, S}) when H =:= 24 orelse S =:= 60 ->
     calendar:gregorian_seconds_to_datetime(Sec);
 to_calendar_datetime(Date, Time) ->
     {Date, Time}.
+
+marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};
+marshal_msgpack(V) when is_boolean(V) -> {b, V};
+marshal_msgpack(V) when is_integer(V) -> {i, V};
+marshal_msgpack(V) when is_float(V)   -> V;
+marshal_msgpack(V) when is_binary(V)  -> {str, V}; % Assuming well-formed UTF-8 bytestring.
+marshal_msgpack({binary, V}) when is_binary(V) ->
+    {bin, V};
+marshal_msgpack(V) when is_list(V) ->
+    {arr, [marshal_msgpack(ListItem) || ListItem <- V]};
+marshal_msgpack(V) when is_map(V) ->
+    {obj, maps:fold(fun(Key, Value, Map) -> Map#{marshal_msgpack(Key) => marshal_msgpack(Value)} end, #{}, V)};
+marshal_msgpack(undefined) ->
+    undefined.
+
+unmarshal_msgpack({nl,  #msgp_Nil{}})        -> nil;
+unmarshal_msgpack({b,   V}) when is_boolean(V) -> V;
+unmarshal_msgpack({i,   V}) when is_integer(V) -> V;
+unmarshal_msgpack({flt, V}) when is_float(V)   -> V;
+unmarshal_msgpack({str, V}) when is_binary(V)  -> V; % Assuming well-formed UTF-8 bytestring.
+unmarshal_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
+unmarshal_msgpack({arr, V}) when is_list(V)    -> [unmarshal_msgpack(ListItem) || ListItem <- V];
+unmarshal_msgpack({obj, V}) when is_map(V)     ->
+    maps:fold(fun(Key, Value, Map) -> Map#{unmarshal_msgpack(Key) => unmarshal_msgpack(Value)} end, #{}, V);
+unmarshal_msgpack(undefined) ->
+    undefined.

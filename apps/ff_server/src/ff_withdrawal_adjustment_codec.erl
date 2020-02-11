@@ -27,6 +27,7 @@ marshal(adjustment, Adjustment) ->
         created_at = marshal(timestamp_ms, ff_adjustment:created_at(Adjustment)),
         domain_revision = marshal(domain_revision, ff_adjustment:domain_revision(Adjustment)),
         party_revision = marshal(domain_revision, ff_adjustment:party_revision(Adjustment)),
+        operation_timestamp = marshal(timestamp_ms, ff_adjustment:operation_timestamp(Adjustment)),
         external_id = maybe_marshal(id, ff_adjustment:external_id(Adjustment))
     };
 marshal(adjustment_params, Params) ->
@@ -89,6 +90,7 @@ unmarshal(adjustment, Adjustment) ->
         created_at => unmarshal(timestamp_ms, Adjustment#wthd_adj_Adjustment.created_at),
         domain_revision => unmarshal(domain_revision, Adjustment#wthd_adj_Adjustment.domain_revision),
         party_revision => unmarshal(domain_revision, Adjustment#wthd_adj_Adjustment.party_revision),
+        operation_timestamp => unmarshal(timestamp_ms, Adjustment#wthd_adj_Adjustment.operation_timestamp),
         external_id => maybe_unmarshal(id, Adjustment#wthd_adj_Adjustment.external_id)
     };
 

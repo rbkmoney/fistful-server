@@ -60,7 +60,7 @@ unmarshal(change, {clock_updated, #transfer_ClockChange{clock = Clock}}) ->
 
 unmarshal(transfer, #transfer_Transfer{cashflow = Cashflow}) ->
     #{
-        cashflow => ff_cash_flow_codec:unmarshal(final_cash_flow, Cashflow)
+        final_cash_flow => ff_cash_flow_codec:unmarshal(final_cash_flow, Cashflow)
     };
 
 unmarshal(account_type, CashflowAccount) ->

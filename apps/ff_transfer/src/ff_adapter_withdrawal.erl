@@ -16,9 +16,10 @@
 -type id()          :: machinery:id().
 -type identity_id() :: id().
 
--type resource() :: ff_destination:resource_full().
+-type resource()    :: ff_destination:resource_full().
 -type identity()    :: ff_identity:identity().
 -type cash()        :: ff_transaction:body().
+-type exp_date()    :: ff_destination:exp_date().
 
 -type withdrawal() :: #{
     id          => binary(),
@@ -58,30 +59,10 @@
 
 -type adapter()               :: ff_adapter:adapter().
 -type intent()                :: {finish, status()} | {sleep, timer()}.
--type status()                :: {success, trx_info()} | {failure, failure()}.
+-type status()                :: {success, transaction_info()} | {failure, failure()}.
 -type timer()                 :: dmsl_base_thrift:'Timer'().
--type trx_info()              :: #{
-    id := binary(),
-    timestamp => binary(),
-    extra := #{binary() => binary()},
-    additional_info => additional_trx_info()
-}.
--type additional_trx_info()   :: #{
-    rrn => binary(),
-    approval_code => binary(),
-    acs_url => binary(),
-    pareq => binary(),
-    md => binary(),
-    term_url => binary(),
-    pares => binary(),
-    eci => binary(),
-    cavv => binary(),
-    xid => binary(),
-    cavv_algorithm => binary(),
-    three_ds_verification => binary()
-}.
-
--type failure()               :: ff_failure:failure().
+-type transaction_info()      :: ff_adapter:transaction_info().
+-type failure()               :: ff_adapter:failure().
 
 -type adapter_state()         :: ff_adapter:state().
 -type process_result()        ::
@@ -94,12 +75,13 @@
 -type domain_destination()    :: dmsl_withdrawals_provider_adapter_thrift:'Destination'().
 -type domain_identity()       :: dmsl_withdrawals_provider_adapter_thrift:'Identity'().
 -type domain_internal_state() :: dmsl_withdrawals_provider_adapter_thrift:'InternalState'().
+-type domain_exp_date()       :: dmsl_domain_thrift:'BankCardExpDate'().
 
 -type domain_quote_params()  :: dmsl_withdrawals_provider_adapter_thrift:'GetQuoteParams'().
 
 -export_type([withdrawal/0]).
 -export_type([failure/0]).
--export_type([trx_info/0]).
+-export_type([transaction_info/0]).
 -export_type([quote/0]).
 -export_type([quote/1]).
 -export_type([quote_params/0]).
@@ -222,24 +204,40 @@ encode_resource(
         payment_system := PaymentSystem,
         bin            := BIN,
         masked_pan     := MaskedPan
-    }}
+    } = BankCard}
 ) ->
+    CardHolderName = genlib_map:get(cardholder_name, BankCard),
+    ExpDate = genlib_map:get(exp_date, BankCard),
     {bank_card, #domain_BankCard{
         token           = Token,
         payment_system  = PaymentSystem,
         bin             = BIN,
-        masked_pan      = MaskedPan
+        masked_pan      = MaskedPan,
+        cardholder_name = CardHolderName,
+        exp_date        = encode_exp_date(ExpDate)
     }};
 encode_resource(
     {crypto_wallet, #{
         id       := CryptoWalletID,
-        currency := CryptoWalletCurrency
+        currency := {Currency, Data}
     }}
 ) ->
     {crypto_wallet, #domain_CryptoWallet{
         id              = CryptoWalletID,
-        crypto_currency = CryptoWalletCurrency
+        crypto_currency = Currency,
+        destination_tag = maps:get(tag, Data, undefined)
     }}.
+
+-spec encode_exp_date
+    (exp_date()) -> domain_exp_date();
+    (undefined) -> undefined.
+encode_exp_date(undefined) ->
+    undefined;
+encode_exp_date({Month, Year}) ->
+    #domain_BankCardExpDate{
+        month = Month,
+        year = Year
+    }.
 
 -spec encode_identity
     (identity_id()) -> domain_identity();

@@ -98,7 +98,7 @@ create_ripple_wallet_destination_ok(C) ->
     Resource = {crypto_wallet, #'CryptoWallet'{
         id = <<"ab843336bf7738dc697522fbb90508de">>,
         currency = ripple,
-        data = {ripple, #'CryptoDataRipple'{tag = <<>>}}
+        data = {ripple, #'CryptoDataRipple'{tag = undefined}}
     }},
     create_destination_ok(Resource, C).
 
@@ -169,8 +169,7 @@ create_person_identity(Party, C) ->
 create_identity(Party, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
     ID.

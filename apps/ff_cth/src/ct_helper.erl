@@ -1,5 +1,7 @@
 -module(ct_helper).
 
+-include_lib("common_test/include/ct.hrl").
+
 -export([cfg/2]).
 
 -export([start_apps/1]).
@@ -77,10 +79,14 @@ start_app(woody = AppName) ->
 
 start_app(dmt_client = AppName) ->
     {start_app_with(AppName, [
-        {cache_update_interval, 500},
+        {cache_update_interval, 500}, % milliseconds
         {max_cache_size, #{
-            elements => 1
+            elements => 1,
+            memory => 52428800 % 50Mb
         }},
+        {woody_event_handlers, [
+            {scoper_woody_event_handler, #{}}
+        ]},
         {service_urls, #{
             'Repository'       => <<"http://dominant:8022/v1/domain/repository">>,
             'RepositoryClient' => <<"http://dominant:8022/v1/domain/repository_client">>
@@ -100,6 +106,12 @@ start_app(wapi = AppName) ->
                     wapi     => {pem_file, "/opt/wapi/config/private.pem"}
                 }
             }
+        }},
+        {lechiffre_opts,  #{
+            encryption_key_path => "/opt/wapi/config/jwk.json",
+            decryption_key_paths => [
+                "/opt/wapi/config/jwk.json"
+            ]
         }}
     ]), #{}};
 
@@ -149,6 +161,12 @@ start_app(ff_server = AppName) ->
             },
             withdrawal_session => #{
                 namespace => <<"ff/withdrawal/session_v2">>
+            },
+            p2p_transfer => #{
+                namespace => <<"ff/p2p_transfer_v1">>
+            },
+            p2p_session => #{
+                namespace => <<"ff/p2p_transfer/session_v1">>
             }
         }}
     ]), #{}};
@@ -157,6 +175,11 @@ start_app(bender_client = AppName) ->
     {start_app_with(AppName, [
         {service_url, <<"http://bender:8022/v1/bender">>},
         {deadline, 60000}
+    ]), #{}};
+
+start_app(p2p = AppName) ->
+    {start_app_with(AppName, [
+        {score_id, <<"fraud">>}
     ]), #{}};
 
 start_app({AppName, AppEnv}) ->

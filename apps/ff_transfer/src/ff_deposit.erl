@@ -498,7 +498,7 @@ do_deduce_activity(#{status := pending, p_transfer := prepared, limit_check := {
     p_transfer_cancel;
 do_deduce_activity(#{status := pending, p_transfer := cancelled, limit_check := {failed, _}}) ->
     {fail, limit_check};
-do_deduce_activity(#{status := succeeded, p_transfer := committed, active_revert := true}) ->
+do_deduce_activity(#{p_transfer := committed, active_revert := true}) ->
     revert;
 do_deduce_activity(#{active_adjustment := true}) ->
     adjustment;

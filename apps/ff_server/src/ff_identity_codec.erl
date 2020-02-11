@@ -24,12 +24,14 @@
     ff_identity_machine:params().
 
 unmarshal_identity_params(#idnt_IdentityParams{
+    id          = ID,
     party       = PartyID,
     provider    = ProviderID,
     cls         = ClassID,
     external_id = ExternalID
 }) ->
     genlib_map:compact(#{
+        id          => unmarshal(id, ID),
         party       => unmarshal(id, PartyID),
         provider    => unmarshal(id, ProviderID),
         class       => unmarshal(id, ClassID),
@@ -105,7 +107,8 @@ marshal_identity(Identity) ->
         cls      = marshal(id, ff_identity:class(Identity)),
         contract = maybe_marshal(id, ff_identity:contract(Identity)),
         level    = maybe_marshal(id, ff_identity:level(Identity)),
-        blocked  = maybe_marshal(bool, ff_identity:blocked(Identity)),
+        blocking = maybe_marshal(blocking, ff_identity:blocking(Identity)),
+        created_at = maybe_marshal(created_at, ff_identity:created_at(Identity)),
         external_id = maybe_marshal(id, ff_identity:external_id(Identity)),
         effective_challenge = EffectiveChallengeID
     }.
@@ -119,20 +122,22 @@ unmarshal_identity(#idnt_Identity{
     cls         = ClassID,
     contract    = ContractID,
     level       = LevelID,
-    blocked     = Blocked,
+    blocking    = Blocking,
     external_id = ExternalID,
+    created_at  = CreatedAt,
     effective_challenge = EffectiveChallengeID
 }) ->
     genlib_map:compact(#{
-        id          => unmarshal(id,      ID),
-        party       => unmarshal(id,      PartyID),
-        provider    => unmarshal(id,      ProviderID),
-        class       => unmarshal(id,      ClassID),
-        contract    => unmarshal(id,      ContractID),
-        level       => maybe_unmarshal(id,   LevelID),
-        blocked     => maybe_unmarshal(bool, Blocked),
-        external_id => maybe_unmarshal(id,   ExternalID),
-        effective   => maybe_unmarshal(id,   EffectiveChallengeID)
+        id          => unmarshal(id, ID),
+        party       => unmarshal(id, PartyID),
+        provider    => unmarshal(id, ProviderID),
+        class       => unmarshal(id, ClassID),
+        contract    => unmarshal(id, ContractID),
+        level       => maybe_unmarshal(id, LevelID),
+        blocking    => maybe_unmarshal(blocking, Blocking),
+        external_id => maybe_unmarshal(id, ExternalID),
+        created_at  => maybe_unmarshal(created_at, CreatedAt),
+        effective   => maybe_unmarshal(id, EffectiveChallengeID)
     }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
@@ -202,6 +207,9 @@ marshal(resolution, denied) ->
 
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
+
+marshal(created_at, TimeMS) ->
+    marshal(string, ff_time:to_rfc3339(TimeMS));
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -276,6 +284,9 @@ unmarshal(effective_challenge, undefined) ->
 unmarshal(effective_challenge, EffectiveChallengeID) ->
     {ok, unmarshal(id, EffectiveChallengeID)};
 
+unmarshal(created_at, Timestamp) ->
+    unmarshal(integer, ff_time:from_rfc3339(Timestamp));
+
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);
 
@@ -303,7 +314,7 @@ maybe_unmarshal(Type, Value) ->
 
 -spec identity_test() -> _.
 identity_test() ->
-    Blocked    = true,
+    Blocking   = blocked,
     IdentityIn = #{
         id          => genlib:unique(),
         party       => genlib:unique(),
@@ -311,7 +322,7 @@ identity_test() ->
         class       => genlib:unique(),
         contract    => genlib:unique(),
         level       => genlib:unique(),
-        blocked     => Blocked,
+        blocking    => Blocking,
         external_id => genlib:unique(),
         effective   => genlib:unique()
     },

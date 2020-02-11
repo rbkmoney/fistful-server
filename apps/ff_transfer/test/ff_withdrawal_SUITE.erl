@@ -549,8 +549,7 @@ create_person_identity(Party, C, ProviderID) ->
 create_identity(Party, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
     ID.
@@ -558,8 +557,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
 create_wallet(IdentityID, Name, Currency, _C) ->
     ID = genlib:unique(),
     ok = ff_wallet_machine:create(
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency},
+        #{id => ID, identity => IdentityID, name => Name, currency => Currency},
         ff_entity_context:new()
     ),
     ID.
@@ -602,8 +600,8 @@ create_destination(IID, Currency, Token, C) ->
             StoreSource#{token => Token}
         end,
     Resource = {bank_card, NewStoreResource},
-    Params = #{identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
-    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
+    Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
+    ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -617,10 +615,10 @@ create_crypto_destination(IID, _C) ->
     ID = generate_id(),
     Resource = {crypto_wallet, #{
         id => <<"a30e277c07400c9940628828949efd48">>,
-        currency => litecoin
+        currency => {litecoin, #{}}
     }},
-    Params = #{identity => IID, name => <<"CryptoDestination">>, currency => <<"RUB">>, resource => Resource},
-    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
+    Params = #{id => ID, identity => IID, name => <<"CryptoDestination">>, currency => <<"RUB">>, resource => Resource},
+    ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->

@@ -8,6 +8,9 @@ services:
     volumes:
       - .:$PWD
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/config/private.pem
+      - ./apps/wapi/var/keys/wapi/jwk.json:/opt/wapi/config/jwk.json
+      - ./apps/wapi/var/keys/wapi/enc.1.priv.json:/opt/wapi/config/enc.1.priv.json
+      - ./apps/wapi/var/keys/wapi/sig.1.priv.json:/opt/wapi/config/sig.1.priv.json
       - $HOME/.cache:/home/$UNAME/.cache
     working_dir: $PWD
     command: /sbin/init
@@ -28,10 +31,13 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:6678487f5d3bc1796a76b23ea5aa51ee2f77a7af
+    image: dr2.rbkmoney.com/rbkmoney/wapi:a1bf7d5f2f7e536d3ce4c2d8e5f84e5f94621d76
     command: /opt/wapi/bin/wapi foreground
     volumes:
+      - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/var/keys/wapi/private.pem
+      - ./apps/wapi/var/keys/wapi/jwk.json:/opt/wapi/var/keys/wapi/jwk.json
+      - ./test/log/wapi:/var/log/wapi
     depends_on:
       cds:
         condition: service_healthy
@@ -42,7 +48,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:06aafab126c403eef3800625c19ae6eace1f5124
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:4fa2f207bd8d5a3351e5b6c2ca607e21a160a812
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -63,7 +69,7 @@ services:
   adapter-mocketbank:
     depends_on:
       - cds
-    image: dr.rbkmoney.com/rbkmoney/proxy-mocketbank:fe9b71f013e371e64844078d35179944e82ec1ed
+    image: dr2.rbkmoney.com/rbkmoney/proxy-mocketbank:e4a10c63a25e12cbc149f48a555eabe1cb60fae1
     command: |
       java
       -Xms64m -Xmx256m
@@ -117,7 +123,7 @@ services:
       retries: 30
 
   identification:
-    image: dr.rbkmoney.com/rbkmoney/identification:ff4ef447327d81882c0ee618b622e5e04e771881
+    image: dr2.rbkmoney.com/rbkmoney/identification:f83f6e1952fe77b9adc7b69c511d7e8ed1ae1f83
     command: /opt/identification/bin/identification foreground
     volumes:
       - ./test/identification/sys.config:/opt/identification/releases/0.1/sys.config
@@ -131,16 +137,35 @@ services:
       retries: 10
 
   cds:
-    image: dr2.rbkmoney.com/rbkmoney/cds:f7ad5a34a2f6d0780f44821290ba7c52d349f3f7
+    image: dr2.rbkmoney.com/rbkmoney/cds:7aeee60277aab0e6ebb6e6b1334752d3091082f4
     command: /opt/cds/bin/cds foreground
     volumes:
       - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config
       - ./test/log/cds:/var/log/cds
+      - ./test/cds/ca.crt:/var/lib/cds/ca.crt:ro
+      - ./test/cds/client.pem:/var/lib/cds/client.pem
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s
       timeout: 1s
       retries: 10
+    depends_on:
+      kds:
+        condition: service_healthy
+
+  kds:
+    image: dr2.rbkmoney.com/rbkmoney/kds:bbbf99db9636f9554f8bf092b268a2e479481943
+    command: /opt/kds/bin/kds foreground
+    volumes:
+      - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro
+      - ./test/kds/ca.crt:/var/lib/kds/ca.crt:ro
+      - ./test/kds/server.pem:/var/lib/kds/server.pem:ro
+      - ./test/log/kds:/var/log/kds
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 20
 
   holmes:
     image: dr2.rbkmoney.com/rbkmoney/holmes:7a430d6ec97518a0ffe6e6c24ce267390de18b40
@@ -149,12 +174,12 @@ services:
       - cds
 
   machinegun:
-    image: dr2.rbkmoney.com/rbkmoney/machinegun:0ce8dd4c1c0728db72b4c6a5d13135d96ea404d1
+    image: dr2.rbkmoney.com/rbkmoney/machinegun:4986e50e2abcedbf589aaf8cce89c2b420589f04
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml
-      - ./test/machinegun/cookie:/opt/machinegun/etc/cookie
       - ./test/log/machinegun:/var/log/machinegun
+      - ./test/machinegun/cookie:/opt/machinegun/etc/cookie
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s
@@ -173,15 +198,26 @@ services:
       - machinegun
 
   shumway-db:
-    image: dr.rbkmoney.com/rbkmoney/postgres:9.6
+    image: dr2.rbkmoney.com/rbkmoney/postgres:9.6
     environment:
       - POSTGRES_DB=shumway
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - SERVICE_NAME=shumway-db
 
+  binbase:
+    image: dr2.rbkmoney.com/rbkmoney/binbase:cb174f9ef488ba9015054377fe06495f999b191d
+    restart: always
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 10
+    ports:
+      - 8099:8022
+
   fistful-magista:
-    image: dr.rbkmoney.com/rbkmoney/fistful-magista:fed290bccd48627822fda47f9dc2fe0cd1d3a5ad
+    image: dr2.rbkmoney.com/rbkmoney/fistful-magista:1b87307648dc94ad956f7c803546a68f87c0c016
     restart: always
     entrypoint:
       - java
@@ -205,7 +241,7 @@ services:
       - SERVICE_NAME=ffmagista
 
   ffmagista-db:
-    image: dr.rbkmoney.com/rbkmoney/postgres:9.6
+    image: dr2.rbkmoney.com/rbkmoney/postgres:9.6
     environment:
       - POSTGRES_DB=ffmagista
       - POSTGRES_USER=postgres

@@ -37,20 +37,34 @@
     bank_name           => binary(),
     iso_country_code    => atom(),
     card_type           => charge_card | credit | debit | credit_or_debit,
-    bin_data_id         := ff_bin_data:bin_data_id()
+    bin_data_id         := ff_bin_data:bin_data_id(),
+    cardholder_name     => binary(),
+    exp_date            => exp_date()
 }.
 
 -type resource_bank_card() :: #{
     token          := binary(),
     bin            => binary(),
-    masked_pan     => binary()
+    masked_pan     => binary(),
+    cardholder_name => binary(),
+    exp_date       => exp_date()
 }.
+
+-type exp_date() :: {integer(), integer()}.
 
 -type resource_crypto_wallet() :: #{
     id       := binary(),
-    currency := atom(),
-    tag      => binary()
+    currency := crypto_currency()
 }.
+
+-type crypto_currency()
+    :: {bitcoin,      #{}}
+     | {bitcoin_cash, #{}}
+     | {litecoin,     #{}}
+     | {ethereum,     #{}}
+     | {zcash,        #{}}
+     | {ripple,       #{tag => binary()}}
+     .
 
 -type destination() :: ff_instrument:instrument(resource()).
 -type params()      :: ff_instrument_machine:params(resource()).
@@ -68,6 +82,7 @@
 -export_type([resource_full_id/0]).
 -export_type([event/0]).
 -export_type([params/0]).
+-export_type([exp_date/0]).
 
 %% Accessors
 
@@ -85,7 +100,7 @@
 
 %% API
 
--export([create/3]).
+-export([create/2]).
 -export([get_machine/1]).
 -export([get/1]).
 -export([ctx/1]).
@@ -166,15 +181,15 @@ unwrap_resource_id(#{<<"bank_card">> := ID}) ->
 
 -define(NS, 'ff/destination_v2').
 
--spec create(id(), params(), ctx()) ->
+-spec create(params(), ctx()) ->
     ok |
     {error,
         _InstrumentCreateError |
         exists
     }.
 
-create(ID, Params, Ctx) ->
-    ff_instrument_machine:create(?NS, ID, Params, Ctx).
+create(Params, Ctx) ->
+    ff_instrument_machine:create(?NS, Params, Ctx).
 
 -spec get_machine(id()) ->
     {ok, machine()}       |

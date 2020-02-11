@@ -22,6 +22,8 @@ start_link() ->
 -spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 
 init([]) ->
+    LechiffreOpts = genlib_app:env(wapi, lechiffre_opts),
+    LechiffreSpec = lechiffre:child_spec(lechiffre, LechiffreOpts),
     AuthorizerSpecs = get_authorizer_child_specs(),
     {LogicHandlers, LogicHandlerSpecs} = get_logic_handler_info(),
     HealthCheck = enable_health_logging(genlib_app:env(wapi, health_check, #{})),
@@ -29,6 +31,7 @@ init([]) ->
     SwaggerSpec = wapi_swagger_server:child_spec(HealthRoutes, LogicHandlers),
     {ok, {
         {one_for_all, 0, 1},
+            [LechiffreSpec] ++
             AuthorizerSpecs ++ LogicHandlerSpecs ++ [SwaggerSpec]
     }}.
 

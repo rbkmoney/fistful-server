@@ -24,7 +24,7 @@ handle_function(Func, Args, Opts) ->
 handle_function_('Create', [Params], Opts) ->
     ID = Params#dst_DestinationParams.id,
     Ctx = Params#dst_DestinationParams.context,
-    case ff_destination:create(ID,
+    case ff_destination:create(
         ff_destination_codec:unmarshal_destination_params(Params),
         ff_destination_codec:unmarshal(ctx, Ctx))
     of

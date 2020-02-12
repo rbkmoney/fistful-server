@@ -83,12 +83,12 @@ create_identity_ok(_C) ->
     IID = Identity#idnt_Identity.id,
     {ok, Identity_} = call_api('Get', [IID]),
 
-    ProvID  = Identity_#idnt_Identity.provider,
-    IID     = Identity_#idnt_Identity.id,
+    ProvID = Identity_#idnt_Identity.provider,
+    IID = Identity_#idnt_Identity.id,
     PartyID = Identity_#idnt_Identity.party,
     ClassID = Identity_#idnt_Identity.cls,
-    false   = Identity_#idnt_Identity.blocked,
-    Ctx     = ff_entity_context_codec:unmarshal(Identity_#idnt_Identity.context),
+    blocked = Identity_#idnt_Identity.blocking,
+    Ctx = ff_entity_context_codec:unmarshal(Identity_#idnt_Identity.context),
     ok.
 
 run_challenge_ok(C) ->
@@ -212,15 +212,15 @@ get_challenges_ok(C) ->
 %% INTERNAL
 %%----------
 create_identity(EID, PartyID, ProvID, ClassID, Ctx) ->
-    IID = genlib:unique(),
     Params = #idnt_IdentityParams{
+        id          = genlib:unique(),
         party       = PartyID,
         provider    = ProvID,
         cls         = ClassID,
         external_id = EID,
         context     = Ctx
     },
-    {ok, IdentityState} = call_api('Create', [IID, Params]),
+    {ok, IdentityState} = call_api('Create', [Params]),
     IdentityState.
 
 gen_challenge_param(ClgClassID, ChallengeID, C) ->

@@ -37,9 +37,9 @@ all() ->
 
 groups() ->
     [
-        {default, [parallel], [
+        {default, [], [
             create_withdrawal_ok
-            % create_withdrawal_wallet_currency_fail,
+            % create_withdrawal_wallet_currency_fail
             % create_withdrawal_cashrange_fail,
             % create_withdrawal_destination_fail,
             % create_withdrawal_wallet_fail,
@@ -306,8 +306,8 @@ create_identity() ->
     IdentityID  = genlib:unique(),
     Party = create_party(),
     ok = ff_identity_machine:create(
-        IdentityID,
         #{
+            id       => IdentityID,
             party    => Party,
             provider => <<"good-one">>,
             class    => <<"person">>
@@ -334,11 +334,10 @@ create_wallet(Currency, Amount) ->
     WalletID.
 
 create_destination(C) ->
-    #{token := T, payment_system := PS, bin := Bin, masked_pan := Mp} =
+    #{token := T, bin := Bin, masked_pan := Mp} =
         ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     Resource = {bank_card, #'BankCard'{
         token = T,
-        payment_system = PS,
         bin = Bin,
         masked_pan = Mp
     }},

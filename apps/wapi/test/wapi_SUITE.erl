@@ -17,6 +17,7 @@
 -export([withdrawal_to_bank_card_test/1]).
 -export([withdrawal_to_crypto_wallet_test/1]).
 -export([withdrawal_to_ripple_wallet_test/1]).
+-export([withdrawal_to_ripple_wallet_with_tag_test/1]).
 -export([woody_retry_test/1]).
 -export([quote_encode_decode_test/1]).
 -export([get_quote_test/1]).
@@ -58,6 +59,7 @@ groups() ->
             withdrawal_to_bank_card_test,
             withdrawal_to_crypto_wallet_test,
             withdrawal_to_ripple_wallet_test,
+            withdrawal_to_ripple_wallet_with_tag_test,
             unknown_withdrawal_test,
             get_wallet_by_external_id
         ]},
@@ -212,6 +214,27 @@ withdrawal_to_ripple_wallet_test(C) ->
     WalletID      = create_wallet(IdentityID, C),
     ok            = check_wallet(WalletID, C),
     Resource      = make_crypto_wallet_resource('Ripple'), % tagless to test thrift compat
+    {ok, Dest}    = create_destination(IdentityID, Resource, C),
+    DestID        = destination_id(Dest),
+    ok            = check_destination(IdentityID, DestID, Resource, C),
+    {ok, _Grants} = issue_destination_grants(DestID, C),
+    % ожидаем выполнения асинхронного вызова выдачи прав на вывод
+    await_destination(DestID),
+
+    WithdrawalID  = create_withdrawal(WalletID, DestID, C),
+    ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
+
+-spec withdrawal_to_ripple_wallet_with_tag_test(config()) -> test_return().
+
+withdrawal_to_ripple_wallet_with_tag_test(C) ->
+    Name          = <<"Tyler The Creator">>,
+    Provider      = ?ID_PROVIDER2,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ok            = check_identity(Name, IdentityID, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    ok            = check_wallet(WalletID, C),
+    Resource      = make_crypto_wallet_resource('Ripple', <<"191191191">>),
     {ok, Dest}    = create_destination(IdentityID, Resource, C),
     DestID        = destination_id(Dest),
     ok            = check_destination(IdentityID, DestID, Resource, C),
@@ -768,6 +791,9 @@ get_withdrawal(WithdrawalID, C) ->
 %%
 
 -include_lib("ff_cth/include/ct_domain.hrl").
+
+-spec get_default_termset() ->
+    dmsl_domain_thrift:'TermSet'().
 
 get_default_termset() ->
     #domain_TermSet{

@@ -20,7 +20,9 @@
     unauthorized |
     authorized.
 
+-define(ACTUAL_FORMAT_VERSION, 1).
 -type instrument(T) :: #{
+    version     := ?ACTUAL_FORMAT_VERSION,
     account     := account() | undefined,
     resource    := resource(T),
     name        := name(),
@@ -56,6 +58,7 @@
 -export([is_accessible/1]).
 
 -export([apply_event/2]).
+-export([maybe_migrate/1]).
 
 %% Pipeline
 
@@ -156,11 +159,52 @@ add_external_id(ExternalID, Event) ->
 -spec apply_event(event(T), ff_maybe:maybe(instrument(T))) ->
     instrument(T).
 
-apply_event({created, Instrument}, undefined) ->
+apply_event(Event, T) ->
+    Migrated = maybe_migrate(Event),
+    apply_event_(Migrated, T).
+
+-spec apply_event_(event(T), ff_maybe:maybe(instrument(T))) ->
+    instrument(T).
+
+apply_event_({created, Instrument}, undefined) ->
     Instrument;
-apply_event({status_changed, S}, Instrument) ->
+apply_event_({status_changed, S}, Instrument) ->
     Instrument#{status => S};
-apply_event({account, Ev}, Instrument = #{account := Account}) ->
+apply_event_({account, Ev}, Instrument = #{account := Account}) ->
     Instrument#{account => ff_account:apply_event(Ev, Account)};
-apply_event({account, Ev}, Instrument) ->
+apply_event_({account, Ev}, Instrument) ->
     apply_event({account, Ev}, Instrument#{account => undefined}).
+
+-spec maybe_migrate(event(T)) ->
+    event(T).
+
+maybe_migrate(Event = {created, #{
+    version := 1
+}}) ->
+    Event;
+maybe_migrate({created, Instrument = #{
+        account     := Account,
+        resource    := Resource,
+        name        := Name,
+        status      := Status
+}}) ->
+    NewInstrument = genlib_map:compact(#{
+        version     => 1,
+        account     => Account,
+        resource    => migrate_resource(Resource),
+        name        => Name,
+        status      => Status,
+        external_id => maps:get(external_id, Instrument, undefined)
+    }),
+    {created, NewInstrument};
+maybe_migrate(Event) ->
+    Event.
+
+migrate_resource({crypto_wallet, #{id := ID, currency := ripple, tag := Tag}}) ->
+    {crypto_wallet, #{id => ID, currency => {ripple, #{tag => Tag}}}};
+migrate_resource({crypto_wallet, #{id := ID, currency := ripple}}) ->
+    {crypto_wallet, #{id => ID, currency => {ripple, #{}}}};
+migrate_resource({crypto_wallet, #{id := ID, currency := Currency}}) ->
+    {crypto_wallet, #{id => ID, currency => {Currency, #{}}}};
+migrate_resource(Resource) ->
+    Resource.

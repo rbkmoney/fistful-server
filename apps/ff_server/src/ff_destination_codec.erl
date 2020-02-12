@@ -19,6 +19,7 @@
 
 unmarshal_destination_params(Params) ->
     genlib_map:compact(#{
+        id          => unmarshal(id,       Params#dst_DestinationParams.id),
         identity    => unmarshal(id,       Params#dst_DestinationParams.identity),
         name        => unmarshal(string,   Params#dst_DestinationParams.name),
         currency    => unmarshal(string,   Params#dst_DestinationParams.currency),
@@ -153,7 +154,7 @@ destination_test() ->
 crypto_wallet_resource_test() ->
     Resource = {crypto_wallet, #{
         id => <<"9e6245a7a6e15f75769a4d87183b090a">>,
-        currency => bitcoin
+        currency => {bitcoin, #{}}
     }},
     ?assertEqual(Resource, unmarshal(resource, marshal(resource, Resource))).
 

@@ -35,7 +35,7 @@
 -export_type([challenge_params/0]).
 -export_type([params/0]).
 
--export([create/3]).
+-export([create/2]).
 -export([get/1]).
 -export([events/2]).
 
@@ -61,20 +61,21 @@
 -define(NS, 'ff/identity').
 
 -type params() :: #{
+    id          := id(),
     party       := ff_party:id(),
     provider    := ff_provider:id(),
     class       := ff_identity:class_id(),
     external_id => id()
 }.
 
--spec create(id(), params(), ctx()) ->
+-spec create(params(), ctx()) ->
     ok |
     {error,
         ff_identity:create_error() |
         exists
     }.
 
-create(ID, Params = #{party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
+create(Params = #{id := ID, party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
     do(fun () ->
         Events = unwrap(ff_identity:create(
             ID,

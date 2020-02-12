@@ -54,9 +54,17 @@
 
 -type resource_crypto_wallet() :: #{
     id       := binary(),
-    currency := atom(),
-    tag      => binary()
+    currency := crypto_currency()
 }.
+
+-type crypto_currency()
+    :: {bitcoin,      #{}}
+     | {bitcoin_cash, #{}}
+     | {litecoin,     #{}}
+     | {ethereum,     #{}}
+     | {zcash,        #{}}
+     | {ripple,       #{tag => binary()}}
+     .
 
 -type destination() :: ff_instrument:instrument(resource()).
 -type params()      :: ff_instrument_machine:params(resource()).
@@ -92,7 +100,7 @@
 
 %% API
 
--export([create/3]).
+-export([create/2]).
 -export([get_machine/1]).
 -export([get/1]).
 -export([ctx/1]).
@@ -173,15 +181,15 @@ unwrap_resource_id(#{<<"bank_card">> := ID}) ->
 
 -define(NS, 'ff/destination_v2').
 
--spec create(id(), params(), ctx()) ->
+-spec create(params(), ctx()) ->
     ok |
     {error,
         _InstrumentCreateError |
         exists
     }.
 
-create(ID, Params, Ctx) ->
-    ff_instrument_machine:create(?NS, ID, Params, Ctx).
+create(Params, Ctx) ->
+    ff_instrument_machine:create(?NS, Params, Ctx).
 
 -spec get_machine(id()) ->
     {ok, machine()}       |

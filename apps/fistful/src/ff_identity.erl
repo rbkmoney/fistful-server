@@ -24,7 +24,7 @@
 -type challenge_class() :: ff_identity_challenge:challenge_class().
 -type challenge_class_id() :: ff_identity_class:challenge_class_id().
 -type challenge_id()    :: id().
--type blocked()         :: boolean().
+-type blocking()        :: unblocked | blocked.
 -type level()           :: ff_identity_class:level().
 -type level_id()        :: ff_identity_class:level_id().
 
@@ -38,7 +38,8 @@
     challenges   => #{challenge_id() => challenge()},
     effective    => challenge_id(),
     external_id  => id(),
-    blocked      => blocked()
+    blocking     => blocking(),
+    created_at   => ff_time:timestamp_ms()
 }.
 
 -type challenge() ::
@@ -81,10 +82,11 @@
 -export([challenge/2]).
 -export([effective_challenge/1]).
 -export([external_id/1]).
--export([blocked/1]).
+-export([blocking/1]).
+-export([created_at/1]).
 
 -export([is_accessible/1]).
--export([set_blocked/1]).
+-export([set_blocking/1]).
 
 -export([create/5]).
 
@@ -109,7 +111,7 @@
     party_id().
 -spec contract(identity()) ->
     contract_id().
--spec blocked(identity()) ->
+-spec blocking(identity()) ->
     boolean() | undefined.
 -spec level(identity()) ->
     level_id() | undefined.
@@ -121,6 +123,8 @@
     ff_map:result(challenge()).
 -spec external_id(identity()) ->
     external_id().
+-spec created_at(identity()) ->
+    ff_time:timestamp_ms() | undefined.
 
 id(#{id := V}) ->
     V.
@@ -137,8 +141,8 @@ party(#{party := V}) ->
 contract(#{contract := V}) ->
     V.
 
-blocked(Identity) ->
-    maps:get(blocked, Identity, undefined).
+blocking(Identity) ->
+    maps:get(blocking, Identity, undefined).
 
 level(Identity) ->
     maps:get(level, Identity, undefined).
@@ -155,6 +159,9 @@ challenge(ChallengeID, Identity) ->
 external_id(Identity) ->
     maps:get(external_id, Identity, undefined).
 
+created_at(Identity) ->
+    maps:get(created_at, Identity, undefined).
+
 -spec is_accessible(identity()) ->
     {ok, accessible} |
     {error, ff_party:inaccessibility()}.
@@ -163,12 +170,16 @@ is_accessible(Identity) ->
     ff_party:is_accessible(party(Identity)).
 
 
--spec set_blocked(identity()) -> identity().
+-spec set_blocking(identity()) -> identity().
 
-set_blocked(Identity) ->
-    Blocked = {ok, accessible} =/= is_accessible(Identity),
-    maps:put(blocked, Blocked, Identity).
-
+set_blocking(Identity) ->
+    Blocking =  case {ok, accessible} =/= is_accessible(Identity) of
+        true ->
+            unblocked;
+        false ->
+            blocked
+    end,
+    maps:put(blocking, Blocking, Identity).
 
 %% Constructor
 
@@ -193,7 +204,9 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
                 party    => Party,
                 provider => ProviderID,
                 class    => ClassID,
-                contract => Contract
+                contract => Contract,
+                %% TODO need migration for events
+                created_at => ff_time:now()
             })},
             {level_changed,
                 LevelID

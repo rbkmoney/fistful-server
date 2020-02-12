@@ -323,7 +323,7 @@ quote_encode_decode_test(C) ->
             <<"resource_id">> => #{<<"bank_card">> => <<"test">>}
         }
     },
-    {ok, Token} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), unlimited, {PartyID, []}, Data, ?SIGNEE),
+    {ok, Token} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), unlimited, {PartyID, undefined}, Data, ?SIGNEE),
     _WithdrawalID = create_withdrawal(
         WalletID,
         DestID,

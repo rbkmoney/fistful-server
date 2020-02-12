@@ -183,28 +183,24 @@ maybe_migrate(Event = {created, #{
 }}) ->
     Event;
 maybe_migrate({created, Instrument = #{
-        account     := Account,
         resource    := Resource,
-        name        := Name,
-        status      := Status
+        name        := Name
 }}) ->
     NewInstrument = genlib_map:compact(#{
         version     => 1,
-        account     => Account,
-        resource    => migrate_resource(Resource),
+        resource    => maybe_migrate_resource(Resource),
         name        => Name,
-        status      => Status,
         external_id => maps:get(external_id, Instrument, undefined)
     }),
     {created, NewInstrument};
+
+%% Other events
 maybe_migrate(Event) ->
     Event.
 
-migrate_resource({crypto_wallet, #{id := ID, currency := ripple, tag := Tag}}) ->
+maybe_migrate_resource({crypto_wallet, #{id := ID, currency := ripple, tag := Tag}}) ->
     {crypto_wallet, #{id => ID, currency => {ripple, #{tag => Tag}}}};
-migrate_resource({crypto_wallet, #{id := ID, currency := ripple}}) ->
-    {crypto_wallet, #{id => ID, currency => {ripple, #{}}}};
-migrate_resource({crypto_wallet, #{id := ID, currency := Currency}}) ->
+maybe_migrate_resource({crypto_wallet, #{id := ID, currency := Currency}}) ->
     {crypto_wallet, #{id => ID, currency => {Currency, #{}}}};
-migrate_resource(Resource) ->
+maybe_migrate_resource(Resource) ->
     Resource.

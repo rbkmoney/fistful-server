@@ -998,7 +998,9 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, P2PTransfer) ->
     CurrentCashFlow = effective_final_cash_flow(P2PTransfer),
     NewCashFlow = ff_cash_flow:make_empty_final(),
     #{
-        new_status => NewStatus,
+        new_status => #{
+            new_status => NewStatus
+        },
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => NewCashFlow
@@ -1008,7 +1010,9 @@ make_change_status_params({failed, _}, succeeded = NewStatus, P2PTransfer) ->
     CurrentCashFlow = effective_final_cash_flow(P2PTransfer),
     NewCashFlow = make_final_cash_flow(P2PTransfer),
     #{
-        new_status => NewStatus,
+        new_status => #{
+            new_status => NewStatus
+        },
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => NewCashFlow
@@ -1016,7 +1020,9 @@ make_change_status_params({failed, _}, succeeded = NewStatus, P2PTransfer) ->
     };
 make_change_status_params({failed, _}, {failed, _} = NewStatus, _P2PTransfer) ->
     #{
-        new_status => NewStatus
+        new_status => #{
+            new_status => NewStatus
+        }
     }.
 
 -spec save_adjustable_info(event(), p2p_transfer()) -> p2p_transfer().

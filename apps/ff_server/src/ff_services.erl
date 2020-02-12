@@ -47,6 +47,8 @@ get_service(destination_management) ->
     {ff_proto_destination_thrift, 'Management'};
 get_service(withdrawal_management) ->
     {ff_proto_withdrawal_thrift, 'Management'};
+get_service(deposit_management) ->
+    {ff_proto_deposit_thrift, 'Management'};
 get_service(p2p_transfer_event_sink) ->
     {ff_proto_p2p_transfer_thrift, 'EventSink'};
 get_service(p2p_session_event_sink) ->
@@ -93,6 +95,8 @@ get_service_path(destination_management) ->
     "/v1/destination";
 get_service_path(withdrawal_management) ->
     "/v1/withdrawal";
+get_service_path(deposit_management) ->
+    "/v1/deposit";
 get_service_path(p2p_transfer_event_sink) ->
     "/v1/eventsink/p2p_transfer";
 get_service_path(p2p_session_event_sink) ->

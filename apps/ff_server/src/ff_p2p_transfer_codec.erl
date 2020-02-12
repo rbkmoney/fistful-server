@@ -7,12 +7,6 @@
 -export([marshal/2]).
 -export([unmarshal/2]).
 
--define(PREFIX, #{
-    transfer => <<"p2p_transfer">>,
-    adjustment => <<"p2p_adj">>,
-    status => <<"p2p_status">>
-}).
-
 %% API
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
@@ -32,13 +26,13 @@ marshal(change, {risk_score_changed, RiskScore}) ->
 marshal(change, {route_changed, Route}) ->
     {route, marshal(route, Route)};
 marshal(change, {p_transfer, TransferChange}) ->
-    {transfer, #p2p_transfer_TransferChange{payload = ff_p_transfer_codec:marshal(event, TransferChange)}};
+    {transfer, #p2p_transfer_TransferChange{payload = ff_p_transfer_codec:marshal(change, TransferChange)}};
 marshal(change, {session, Session}) ->
     {session, marshal(session, Session)};
 marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
     {adjustment, #p2p_transfer_AdjustmentChange{
-        id = ff_adjustment_codec:marshal(?PREFIX, id, ID),
-        payload = ff_adjustment_codec:marshal(?PREFIX, change, Payload)
+        id = marshal(id, ID),
+        payload = ff_p2p_transfer_adjustment_codec:marshal(change, Payload)
     }};
 
 marshal(transfer, Transfer = #{
@@ -76,12 +70,8 @@ marshal(transfer, Transfer = #{
 marshal(quote, #{}) ->
     #p2p_transfer_P2PQuote{};
 
-marshal(status, pending) ->
-    {pending, #p2p_status_Pending{}};
-marshal(status, succeeded) ->
-    {succeeded, #p2p_status_Succeeded{}};
-marshal(status, {failed, Failure}) ->
-    {failed, #p2p_status_Failed{failure = marshal(failure, Failure)}};
+marshal(status, Status) ->
+    ff_p2p_transfer_status_codec:marshal(status, Status);
 
 marshal(participant, {raw, #{resource_params := Resource} = Raw}) ->
     ContactInfo = maps:get(contact_info, Raw, undefined),
@@ -176,13 +166,14 @@ unmarshal(change, {risk_score, #p2p_transfer_RiskScoreChange{score = RiskScore}}
 unmarshal(change, {route, #p2p_transfer_RouteChange{route = Route}}) ->
     {route_changed, unmarshal(route, Route)};
 unmarshal(change, {transfer, #p2p_transfer_TransferChange{payload = TransferChange}}) ->
-    {p_transfer, ff_p_transfer_codec:unmarshal(event, TransferChange)};
+    {p_transfer, ff_p_transfer_codec:unmarshal(change, TransferChange)};
 unmarshal(change, {session, #p2p_transfer_SessionChange{id = ID, payload = Payload}}) ->
     {session, unmarshal(session, {ID, Payload})};
-unmarshal(change, {adjustment, #p2p_transfer_AdjustmentChange{id = ID, payload = Payload}}) ->
+unmarshal(change, {adjustment, Change}) ->
+    Payload = ff_p2p_transfer_adjustment_codec:unmarshal(change, Change#p2p_transfer_AdjustmentChange.payload),
     {adjustment, #{
-        id => ff_adjustment_codec:unmarshal(id, ID),
-        payload => ff_adjustment_codec:unmarshal(change, Payload)
+        id => unmarshal(id, Change#p2p_transfer_AdjustmentChange.id),
+        payload => Payload
     }};
 
 unmarshal(transfer, #p2p_transfer_P2PTransfer{
@@ -217,12 +208,8 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
 unmarshal(quote, #p2p_transfer_P2PQuote{}) ->
     #{};
 
-unmarshal(status, {pending, #p2p_status_Pending{}}) ->
-    pending;
-unmarshal(status, {succeeded, #p2p_status_Succeeded{}}) ->
-    succeeded;
-unmarshal(status, {failed, #p2p_status_Failed{failure = Failure}}) ->
-    {failed, unmarshal(failure, Failure)};
+unmarshal(status, Status) ->
+    ff_p2p_transfer_status_codec:unmarshal(status, Status);
 
 unmarshal(resource_got, {Sender, Receiver}) ->
     {resource_got, unmarshal(resource, Sender), unmarshal(resource, Receiver)};
@@ -311,7 +298,9 @@ p2p_transfer_codec_test() ->
 
     Plan = #{
         new_cash_flow => CashFlowChange,
-        new_status => succeeded
+        new_status => #{
+            new_status => succeeded
+        }
     },
 
     Adjustment = #{

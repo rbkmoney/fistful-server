@@ -54,6 +54,11 @@ add_interval(Timestamp, {Date, Time}) ->
 -include_lib("eunit/include/eunit.hrl").
 -spec test() -> _.
 
+-spec rfc3339_symmetry_test() -> _.
+rfc3339_symmetry_test() ->
+    TimestampStr = <<"2000-01-01T00:00:00Z">>,
+    ?assertEqual(TimestampStr, to_rfc3339(from_rfc3339(TimestampStr))).
+
 -spec add_second_interval_test() -> _.
 add_second_interval_test() ->
     Timestamp = ff_time:now(),

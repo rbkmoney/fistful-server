@@ -375,7 +375,7 @@ create_currency_validation_error_test(C) ->
     },
     Result = p2p_transfer_machine:create(P2PTransferParams, ff_entity_context:new()),
     Details = {
-        <<"EUR">>,
+        #domain_CurrencyRef{symbolic_code = <<"EUR">>},
         [
             #domain_CurrencyRef{symbolic_code = <<"RUB">>},
             #domain_CurrencyRef{symbolic_code = <<"USD">>}

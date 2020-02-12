@@ -69,7 +69,7 @@ services:
   adapter-mocketbank:
     depends_on:
       - cds
-    image: dr.rbkmoney.com/rbkmoney/proxy-mocketbank:fe9b71f013e371e64844078d35179944e82ec1ed
+    image: dr2.rbkmoney.com/rbkmoney/proxy-mocketbank:e4a10c63a25e12cbc149f48a555eabe1cb60fae1
     command: |
       java
       -Xms64m -Xmx256m
@@ -123,7 +123,7 @@ services:
       retries: 30
 
   identification:
-    image: dr.rbkmoney.com/rbkmoney/identification:ff4ef447327d81882c0ee618b622e5e04e771881
+    image: dr2.rbkmoney.com/rbkmoney/identification:f83f6e1952fe77b9adc7b69c511d7e8ed1ae1f83
     command: /opt/identification/bin/identification foreground
     volumes:
       - ./test/identification/sys.config:/opt/identification/releases/0.1/sys.config
@@ -198,7 +198,7 @@ services:
       - machinegun
 
   shumway-db:
-    image: dr.rbkmoney.com/rbkmoney/postgres:9.6
+    image: dr2.rbkmoney.com/rbkmoney/postgres:9.6
     environment:
       - POSTGRES_DB=shumway
       - POSTGRES_USER=postgres
@@ -217,7 +217,7 @@ services:
       - 8099:8022
 
   fistful-magista:
-    image: dr.rbkmoney.com/rbkmoney/fistful-magista:fed290bccd48627822fda47f9dc2fe0cd1d3a5ad
+    image: dr2.rbkmoney.com/rbkmoney/fistful-magista:1b87307648dc94ad956f7c803546a68f87c0c016
     restart: always
     entrypoint:
       - java
@@ -241,7 +241,7 @@ services:
       - SERVICE_NAME=ffmagista
 
   ffmagista-db:
-    image: dr.rbkmoney.com/rbkmoney/postgres:9.6
+    image: dr2.rbkmoney.com/rbkmoney/postgres:9.6
     environment:
       - POSTGRES_DB=ffmagista
       - POSTGRES_USER=postgres

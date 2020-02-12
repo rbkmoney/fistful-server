@@ -9,12 +9,13 @@
 %% API
 
 -type id() :: machinery:id().
--type event() :: ff_withdrawal:event().
--type events() :: [{integer(), ff_machine:timestamped_event(event())}].
+-type change() :: ff_withdrawal:event().
+-type event() :: {integer(), ff_machine:timestamped_event(change())}.
 -type st() :: ff_machine:st(withdrawal()).
 -type withdrawal() :: ff_withdrawal:withdrawal().
 -type external_id() :: id().
 -type action() :: ff_withdrawal:action().
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type params() :: ff_withdrawal:params().
 -type create_error() ::
@@ -31,10 +32,11 @@
 -export_type([id/0]).
 -export_type([st/0]).
 -export_type([action/0]).
+-export_type([change/0]).
 -export_type([event/0]).
--export_type([events/0]).
 -export_type([params/0]).
 -export_type([withdrawal/0]).
+-export_type([event_range/0]).
 -export_type([external_id/0]).
 -export_type([create_error/0]).
 -export_type([start_adjustment_error/0]).
@@ -43,6 +45,7 @@
 
 -export([create/2]).
 -export([get/1]).
+-export([get/2]).
 -export([events/2]).
 -export([repair/2]).
 
@@ -93,19 +96,26 @@ create(Params, Ctx) ->
     {error, unknown_withdrawal_error()}.
 
 get(ID) ->
-    case ff_machine:get(ff_withdrawal, ?NS, ID) of
+    get(ID, {undefined, undefined}).
+
+-spec get(id(), event_range()) ->
+    {ok, st()} |
+    {error, unknown_withdrawal_error()}.
+
+get(ID, {After, Limit}) ->
+    case ff_machine:get(ff_withdrawal, ?NS, ID, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
             Result;
         {error, notfound} ->
             {error, {unknown_withdrawal, ID}}
     end.
 
--spec events(id(), machinery:range()) ->
-    {ok, events()} |
+-spec events(id(), event_range()) ->
+    {ok, [event()]} |
     {error, unknown_withdrawal_error()}.
 
-events(ID, Range) ->
-    case machinery:get(?NS, ID, Range, backend()) of
+events(ID, {After, Limit}) ->
+    case machinery:get(?NS, ID, {After, Limit, forward}, backend()) of
         {ok, #{history := History}} ->
             {ok, [{EventID, TsEv} || {EventID, _, TsEv} <- History]};
         {error, notfound} ->

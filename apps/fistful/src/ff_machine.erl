@@ -8,10 +8,11 @@
 
 -module(ff_machine).
 
+-type ctx() :: ff_entity_context:context().
+-type range() :: machinery:range().
 -type ref()       :: machinery:ref().
 -type namespace() :: machinery:namespace().
 -type timestamp() :: machinery:timestamp().
--type ctx()       :: ff_entity_context:context().
 
 -type st(Model) :: #{
     model         := Model,
@@ -46,6 +47,7 @@
 %% API
 
 -export([get/3]).
+-export([get/4]).
 
 -export([collapse/2]).
 
@@ -113,8 +115,15 @@ times(St) ->
     {error, notfound}.
 
 get(Mod, NS, Ref) ->
+    get(Mod, NS, Ref, {undefined, undefined, forward}).
+
+-spec get(module(), namespace(), ref(), range()) ->
+    {ok, st()} |
+    {error, notfound}.
+
+get(Mod, NS, Ref, Range) ->
     do(fun () ->
-        collapse(Mod, unwrap(machinery:get(NS, Ref, fistful:backend(NS))))
+        collapse(Mod, unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))))
     end).
 
 -spec collapse(module(), machine()) ->

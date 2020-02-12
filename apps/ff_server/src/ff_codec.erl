@@ -13,7 +13,7 @@
 
 %% Types
 
--type type_name() :: atom() | {list, atom()}.
+-type type_name() :: atom() | {list, atom()} | {set, atom()}.
 -type codec() :: module().
 
 -type encoded_value() :: encoded_value(any()).
@@ -52,6 +52,12 @@ marshal(Codec, Type, Value) ->
 
 -spec marshal(type_name(), decoded_value()) ->
     encoded_value().
+
+marshal({list, T}, V) ->
+    [marshal(T, E) || E <- V];
+marshal({set, T}, V) ->
+    ordsets:from_list([marshal(T, E) || E <- ordsets:to_list(V)]);
+
 marshal(id, V) ->
     marshal(string, V);
 marshal(event_id, V) ->
@@ -177,6 +183,12 @@ marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
 marshal(amount, V) ->
     marshal(integer, V);
 
+marshal(event_range, {After, Limit}) ->
+    #'EventRange'{
+        'after' = maybe_marshal(integer, After),
+        limit   = maybe_marshal(integer, Limit)
+    };
+
 marshal(failure, Failure) ->
     #'Failure'{
         code = marshal(string, ff_failure:code(Failure)),
@@ -196,6 +208,12 @@ marshal(timestamp, {{Date, Time}, USec} = V) ->
         Error ->
             error({bad_timestamp, Error}, [timestamp, V])
     end;
+marshal(timestamp_ms, V) ->
+    ff_time:to_rfc3339(V);
+marshal(domain_revision, V) when is_integer(V) ->
+    V;
+marshal(party_revision, V) when is_integer(V) ->
+    V;
 marshal(string, V) when is_binary(V) ->
     V;
 marshal(integer, V) when is_integer(V) ->
@@ -211,6 +229,12 @@ marshal(_, Other) ->
 
 -spec unmarshal(type_name(), encoded_value()) ->
     decoded_value().
+
+unmarshal({list, T}, V) ->
+    [marshal(T, E) || E <- V];
+unmarshal({set, T}, V) ->
+    ordsets:from_list([unmarshal(T, E) || E <- ordsets:to_list(V)]);
+
 unmarshal(id, V) ->
     unmarshal(string, V);
 unmarshal(event_id, V) ->
@@ -383,6 +407,9 @@ unmarshal(currency_ref, #'CurrencyRef'{
 unmarshal(amount, V) ->
     unmarshal(integer, V);
 
+unmarshal(event_range, #'EventRange'{'after' = After, limit = Limit}) ->
+    {maybe_unmarshal(integer, After), maybe_unmarshal(integer, Limit)};
+
 unmarshal(failure, Failure) ->
     genlib_map:compact(#{
         code => unmarshal(string, Failure#'Failure'.code),
@@ -405,6 +432,12 @@ unmarshal(range, #evsink_EventRange{
 
 unmarshal(timestamp, Timestamp) when is_binary(Timestamp) ->
     parse_timestamp(Timestamp);
+unmarshal(timestamp_ms, V) ->
+    ff_time:from_rfc3339(V);
+unmarshal(domain_revision, V) when is_integer(V) ->
+    V;
+unmarshal(party_revision, V) when is_integer(V) ->
+    V;
 unmarshal(string, V) when is_binary(V) ->
     V;
 unmarshal(integer, V) when is_integer(V) ->

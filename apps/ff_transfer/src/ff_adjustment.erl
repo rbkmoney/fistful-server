@@ -28,12 +28,16 @@
 
 -type changes() :: #{
     new_cash_flow => cash_flow_change(),
-    new_status    => target_status()
+    new_status    => status_change()
 }.
 
 -type cash_flow_change() :: #{
     old_cash_flow_inverted := final_cash_flow(),
     new_cash_flow := final_cash_flow()
+}.
+
+-type status_change() :: #{
+    new_status := target_status()
 }.
 
 -type status() ::

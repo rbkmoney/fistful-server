@@ -200,7 +200,7 @@ maybe_migrate(Event) ->
 
 maybe_migrate_resource({crypto_wallet, #{id := ID, currency := ripple, tag := Tag}}) ->
     {crypto_wallet, #{id => ID, currency => {ripple, #{tag => Tag}}}};
-maybe_migrate_resource({crypto_wallet, #{id := ID, currency := Currency}}) ->
+maybe_migrate_resource({crypto_wallet, #{id := ID, currency := Currency}}) when is_atom(Currency) ->
     {crypto_wallet, #{id => ID, currency => {Currency, #{}}}};
 maybe_migrate_resource(Resource) ->
     Resource.

@@ -142,3 +142,73 @@ maybe_marshal(_Type, undefined) ->
     undefined;
 maybe_marshal(Type, Value) ->
     marshal(Type, Value).
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec adjustment_codec_test() -> _.
+adjustment_codec_test() ->
+    FinalCashFlow = #{
+        postings => [
+            #{
+                sender => #{
+                    account => #{
+                        id => genlib:unique(),
+                        identity => genlib:unique(),
+                        currency => <<"RUB">>,
+                        accounter_account_id => 123
+                    },
+                    type => sender_source
+                },
+                receiver => #{
+                    account => #{
+                        id => genlib:unique(),
+                        identity => genlib:unique(),
+                        currency => <<"USD">>,
+                        accounter_account_id => 321
+                    },
+                    type => receiver_settlement
+                },
+                volume => {100, <<"RUB">>}
+            }
+        ]
+    },
+
+    CashFlowChange = #{
+        old_cash_flow_inverted => FinalCashFlow,
+        new_cash_flow => FinalCashFlow
+    },
+
+    Plan = #{
+        new_cash_flow => CashFlowChange,
+        new_status => #{
+            new_status => succeeded
+        }
+    },
+
+    Adjustment = #{
+        id => genlib:unique(),
+        status => pending,
+        changes_plan => Plan,
+        created_at => ff_time:now(),
+        domain_revision => 123,
+        party_revision => 321,
+        operation_timestamp => ff_time:now(),
+        external_id => genlib:unique()
+    },
+
+    Transfer = #{
+        final_cash_flow => FinalCashFlow
+    },
+
+    Changes = [
+        {created, Adjustment},
+        {p_transfer, {created, Transfer}},
+        {status_changed, pending}
+    ],
+    ?assertEqual(Changes, [unmarshal(change, marshal(change, C)) || C <- Changes]).
+
+-endif.

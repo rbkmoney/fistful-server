@@ -70,8 +70,8 @@ unmarshal(postings, #cashflow_FinalCashFlowPosting{
     details = Details
 }) ->
     genlib_map:compact(#{
-        source      => unmarshal(final_cash_flow_account, Source),
-        destination => unmarshal(final_cash_flow_account, Destination),
+        sender      => unmarshal(final_cash_flow_account, Source),
+        receiver    => unmarshal(final_cash_flow_account, Destination),
         volume      => unmarshal(cash, Cash),
         details     => maybe_unmarshal(string, Details)
     });
@@ -97,3 +97,44 @@ maybe_unmarshal(_Type, undefined) ->
     undefined;
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec final_cash_flow_symmetry_test() -> _.
+final_cash_flow_symmetry_test() ->
+    PostingFn = fun() ->
+        #{
+            sender => #{
+                account => #{
+                    id => genlib:unique(),
+                    identity => genlib:unique(),
+                    currency => <<"RUB">>,
+                    accounter_account_id => 123
+                },
+                type => sender_source
+            },
+            receiver => #{
+                account => #{
+                    id => genlib:unique(),
+                    identity => genlib:unique(),
+                    currency => <<"USD">>,
+                    accounter_account_id => 321
+                },
+                type => receiver_settlement
+            },
+            volume => {100, <<"EUR">>}
+        }
+    end,
+    CashFlow = #{
+        postings => [
+            PostingFn(),
+            PostingFn()
+        ]
+    },
+    ?assertEqual(CashFlow, unmarshal(final_cash_flow, marshal(final_cash_flow, CashFlow))).
+
+-endif.

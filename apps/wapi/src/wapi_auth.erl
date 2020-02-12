@@ -181,9 +181,9 @@ get_operation_access('GetCurrency', _) ->
 get_operation_access('ListDeposits', _) ->
     [{[party], read}];
 get_operation_access('ListDestinations', _) ->
-    [{[party, {destinations}], read}];
+    [{[party, destinations], read}];
 get_operation_access('CreateDestination', _) ->
-    [{[party, {destinations}], write}];
+    [{[party, destinations], write}];
 get_operation_access('GetDestination', #{destinationID := ID}) ->
     [{[party, {destinations, ID}], read}];
 get_operation_access('IssueDestinationGrant', #{destinationID := ID}) ->
@@ -227,9 +227,9 @@ get_operation_access('GetProviderIdentityLevel', _) ->
 get_operation_access('GetResidence', _) ->
     [{[party], read}];
 get_operation_access('ListWallets', _) ->
-    [{[party, {wallets}], read}];
+    [{[party, wallets], read}];
 get_operation_access('CreateWallet', _) ->
-    [{[party, {wallets}], write}];
+    [{[party, wallets], write}];
 get_operation_access('GetWallet', #{walletID := ID}) ->
     [{[party, {wallets, ID}], read}];
 get_operation_access('GetWalletByExternalID', _) ->

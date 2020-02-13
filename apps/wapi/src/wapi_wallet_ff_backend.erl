@@ -754,11 +754,10 @@ get_p2p_transfer_events({ID, CT}, Context) ->
         {P2PTransferEvents, P2PTransferEventsLastID} =
             unwrap(maybe_get_transfer_events(ID, Limit, P2PTransferEventID, Context)),
         MixedEvents = mix_events([P2PTransferEvents, P2PSessionEvents]),
-
         ContinuationToken = create_p2p_transfer_events_continuation_token(#{
             p2p_transfer_event_id => max_event_id(P2PTransferEventsLastID, P2PTransferEventID),
             p2p_session_event_id => max_event_id(P2PSessionEventsLastID, P2PSessionEventID)
-        }),
+        }, Context),
         to_swag(p2p_transfer_events, {MixedEvents, ContinuationToken})
     end).
 
@@ -880,8 +879,7 @@ create_quote_token(#{
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"quoteData">>     => QuoteData
     }),
-    ACL = uac_acl:new(),
-    {ok, Token} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), unlimited, {PartyID, ACL}, Data, ?SIGNEE),
+    {ok, Token} = issue_quote_token(PartyID, Data),
     Token.
 
 create_p2p_quote_token(Quote, PartyID) ->
@@ -897,35 +895,31 @@ create_p2p_quote_token(Quote, PartyID) ->
         <<"sender">>         => to_swag(compact_resource, p2p_quote:sender(Quote)),
         <<"receiver">>       => to_swag(compact_resource, p2p_quote:receiver(Quote))
     },
-    JSONData = jsx:encode(Data),
-    {ok, Token} = wapi_signer:sign(JSONData),
+    {ok, Token} = issue_quote_token(PartyID, Data),
     Token.
 
 verify_p2p_quote_token(Token) ->
-    case wapi_signer:verify(Token) of
-        {ok, VerifiedToken} ->
+    case uac_authorizer_jwt:verify(Token, #{}) of
+        {ok, {_, _, VerifiedToken}} ->
             {ok, VerifiedToken};
         {error, Error} ->
             {error, {token, {not_verified, Error}}}
     end.
 
-decode_p2p_quote_token(Token) ->
-    case jsx:decode(Token, [return_maps]) of
-        #{<<"version">> := 1} = DecodedJson ->
+decode_p2p_quote_token(#{<<"version">> := 1} = Token) ->
             DecodedToken = #{
-                amount          => from_swag(withdrawal_body, maps:get(<<"amount">>, DecodedJson)),
-                party_revision  => maps:get(<<"partyRevision">>, DecodedJson),
-                domain_revision => maps:get(<<"domainRevision">>, DecodedJson),
-                created_at      => ff_time:from_rfc3339(maps:get(<<"createdAt">>, DecodedJson)),
-                expires_on      => ff_time:from_rfc3339(maps:get(<<"expiresOn">>, DecodedJson)),
-                identity_id     => maps:get(<<"identityID">>, DecodedJson),
-                sender          => from_swag(compact_resource, maps:get(<<"sender">>, DecodedJson)),
-                receiver        => from_swag(compact_resource, maps:get(<<"receiver">>, DecodedJson))
+                amount          => from_swag(withdrawal_body, maps:get(<<"amount">>, Token)),
+                party_revision  => maps:get(<<"partyRevision">>, Token),
+                domain_revision => maps:get(<<"domainRevision">>, Token),
+                created_at      => ff_time:from_rfc3339(maps:get(<<"createdAt">>, Token)),
+                expires_on      => ff_time:from_rfc3339(maps:get(<<"expiresOn">>, Token)),
+                identity_id     => maps:get(<<"identityID">>, Token),
+                sender          => from_swag(compact_resource, maps:get(<<"sender">>, Token)),
+                receiver        => from_swag(compact_resource, maps:get(<<"receiver">>, Token))
             },
             {ok, DecodedToken};
-        #{<<"version">> := UnsupportedVersion} when is_integer(UnsupportedVersion) ->
-            {error, {token, {unsupported_version, UnsupportedVersion}}}
-    end.
+decode_p2p_quote_token(#{<<"version">> := UnsupportedVersion}) when is_integer(UnsupportedVersion) ->
+    {error, {token, {unsupported_version, UnsupportedVersion}}}.
 
 authorize_p2p_quote_token(Token, IdentityID) ->
     case Token of
@@ -953,14 +947,14 @@ max_event_id(NewEventID, OldEventID) ->
 create_p2p_transfer_events_continuation_token(#{
     p2p_transfer_event_id := P2PTransferEventID,
     p2p_session_event_id := P2PSessionEventID
-}) ->
+}, Context) ->
     DecodedToken = genlib_map:compact(#{
         <<"version">>               => 1,
         <<"p2p_transfer_event_id">> => P2PTransferEventID,
         <<"p2p_session_event_id">>  => P2PSessionEventID
     }),
-    EncodedToken = jsx:encode(DecodedToken),
-    {ok, SignedToken} = wapi_signer:sign(EncodedToken),
+    PartyID = wapi_handler_utils:get_owner(Context),
+    {ok, SignedToken} = issue_quote_token(PartyID, DecodedToken),
     SignedToken.
 
 prepare_p2p_transfer_event_continuation_token(undefined) ->
@@ -974,8 +968,8 @@ prepare_p2p_transfer_event_continuation_token(CT) ->
 
 verify_p2p_transfer_event_continuation_token(CT) ->
     do(fun() ->
-        case wapi_signer:verify(CT) of
-            {ok, VerifiedToken} ->
+        case uac_authorizer_jwt:verify(CT, #{}) of
+            {ok, {_, _, VerifiedToken}} ->
                 VerifiedToken;
             {error, Error} ->
                 {error, {token, {not_verified, Error}}}
@@ -984,11 +978,11 @@ verify_p2p_transfer_event_continuation_token(CT) ->
 
 decode_p2p_transfer_event_continuation_token(CT) ->
     do(fun() ->
-        case jsx:decode(CT, [return_maps]) of
-            #{<<"version">> := 1} = DecodedJson ->
+        case CT of
+            #{<<"version">> := 1} ->
                 DecodedToken = #{
-                    p2p_transfer_event_id => maps:get(<<"p2p_transfer_event_id">>, DecodedJson, undefined),
-                    p2p_session_event_id => maps:get(<<"p2p_session_event_id">>, DecodedJson, undefined)
+                    p2p_transfer_event_id => maps:get(<<"p2p_transfer_event_id">>, CT, undefined),
+                    p2p_session_event_id => maps:get(<<"p2p_session_event_id">>, CT, undefined)
                 },
                 DecodedToken;
             #{<<"version">> := UnsupportedVersion} when is_integer(UnsupportedVersion) ->
@@ -2126,3 +2120,6 @@ map_fistful_stat_error(_Reason) ->
     #domain_Failure{
         code = <<"failed">>
     }.
+
+issue_quote_token(PartyID, Data) ->
+    uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), unlimited, {PartyID, undefined}, Data, ?SIGNEE).

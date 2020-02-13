@@ -257,7 +257,15 @@ get_operation_access('GetWithdrawal', _) ->
 get_operation_access('PollWithdrawalEvents', _) ->
     [{[withdrawals], read}];
 get_operation_access('GetWithdrawalEvents', _) ->
-    [{[withdrawals], read}].
+    [{[withdrawals], read}];
+get_operation_access('CreateP2PTransfer', _) ->
+    [];
+get_operation_access('QuoteP2PTransfer', _) ->
+    [];
+get_operation_access('GetP2PTransfer', _) ->
+    [];
+get_operation_access('GetP2PTransferEvents', _) ->
+    [].
 
 -spec get_access_config() -> map().
 

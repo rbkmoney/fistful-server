@@ -96,7 +96,11 @@ init_per_group(Group, Config) when Group =:= p2p ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
     Party = create_party(Config),
-    Token = issue_token(Party, [{[party], write}, {[party], read}], unlimited),
+    BasePermissions = [
+        {[party], write},
+        {[party], read}
+    ],
+    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited),
     Config1 = [{party, Party} | Config],
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
     [{context, wapi_ct_helper:get_context(Token)}, {context_pcidss, ContextPcidss} | Config1];
@@ -377,11 +381,6 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
-
-issue_token(PartyID, ACL, LifeTime) ->
-    Claims = #{?STRING => ?STRING},
-    {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
-    Token.
 
 store_bank_card(C, Pan) ->
     store_bank_card(C, Pan, undefined, undefined).

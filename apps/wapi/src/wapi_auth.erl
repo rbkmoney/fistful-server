@@ -33,8 +33,8 @@
 -define(SIGNEE, wapi).
 % common-api is a legacy domain that we support until we can properly issue and handle tokens
 % with domain-specific roles. Actual domain here should be smth like wallet-api
-% -define(DOMAIN, <<"wallet-api">>
--define(DOMAIN, <<"common-api">>).
+-define(DOMAIN, <<"wallet-api">>).
+% -define(DOMAIN, <<"common-api">>).
 
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
     ok  | {error, auth_error()}.
@@ -118,14 +118,16 @@ get_resource_accesses(destination, ID) ->
 get_resource_accesses(wallet, ID) ->
     [party, {wallets, ID}].
 
-verify_access(Access, ACL, Claims) ->
+verify_access(Access, #{?DOMAIN := ACL}, Claims) ->
     case lists:all(
         fun ({Scope, Permission}) -> lists:member(Permission, uac_acl:match(Scope, ACL)) end,
         Access
     ) of
         true  -> {ok, Claims};
         false -> {error, insufficient_access}
-    end.
+    end;
+verify_access(_, _, _) ->
+    {error, insufficient_access}.
 
 verify_claims(_, Error = {error, _}, _) ->
     Error;
@@ -308,18 +310,25 @@ hierarchy_to_acl(Hierarchy) ->
         Scopes
     ).
 
--spec create_wapi_context(any()) -> any().
+-spec create_wapi_context(uac_authorizer_jwt:t()) -> uac_authorizer_jwt:t().
 create_wapi_context(Context) ->
     % Create new acl
     % So far we want to give every token full set of permissions
     % This is a temporary solution
     % @TODO remove when we issue new tokens
-    {ID, {Party, ACL}, Claims} = Context,
-    NewACL = try_create_new_acl(ACL),
-    {ID, {Party, NewACL}, Claims}.
+    {ID, {Party, DomainRoles}, Claims} = Context,
+    NewDomainRoles = maybe_grant_wapi_roles(DomainRoles),
+    {ID, {Party, NewDomainRoles}, Claims}.
 
-try_create_new_acl(undefined) ->
+maybe_grant_wapi_roles(undefined) ->
     undefined;
-try_create_new_acl(_) ->
-    Hierarchy = wapi_auth:get_resource_hierarchy(),
-    hierarchy_to_acl(Hierarchy).
+maybe_grant_wapi_roles(DomainRoles) ->
+    case DomainRoles of
+        #{?DOMAIN := _} ->
+            DomainRoles;
+        #{<<"common-api">> := _} ->
+            Hierarchy = wapi_auth:get_resource_hierarchy(),
+            DomainRoles#{?DOMAIN => hierarchy_to_acl(Hierarchy)};
+        _ ->
+            undefined
+    end.

@@ -78,7 +78,7 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
                 Handler:process_request(OperationID, Req, Context, Opts);
             {error, Error} ->
                 ok = logger:info("Operation ~p authorization failed due to ~p", [OperationID, Error]),
-                wapi_handler_utils:reply_ok(401, wapi_handler_utils:get_error_msg(<<"Unauthorized operation">>))
+                wapi_handler_utils:reply_ok(401)
         end
     catch
         throw:{?request_result, Result} ->

@@ -28,7 +28,7 @@ authorize_api_key(OperationID, ApiKey, _Opts) ->
     ok = scoper:add_scope('swag.server', #{api => wallet, operation_id => OperationID}),
     case uac:authorize_api_key(ApiKey, #{}) of
         {ok, Context0} ->
-            Context = create_wapi_context(Context0),
+            Context = wapi_auth:create_wapi_context(Context0),
             {true, Context};
         {error, Error} ->
             _ = logger:info("API Key authorization failed for ~p due to ~p", [OperationID, Error]),
@@ -688,34 +688,3 @@ get_default_url_lifetime() ->
     Now      = erlang:system_time(second),
     Lifetime = application:get_env(wapi, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
     wapi_utils:unwrap(rfc3339:format(Now + Lifetime, second)).
-
-% hierarchy to scope
-h2s(Key, Value, AccIn) when map_size(Value) > 0 ->
-    Scopes0 = maps:fold(fun h2s/3, [], Value),
-    Scopes1 = lists:map(fun(Scope) -> [Key | Scope] end, Scopes0),
-    Scopes1 ++ [[Key] | AccIn];
-h2s(Key, _Value, AccIn) ->
-    [[Key] | AccIn].
-
-hierarchy_to_roles(Hierarchy) ->
-    Scopes = maps:fold(fun h2s/3, [], Hierarchy),
-    lists:foldl(fun(Scope, AccIn) -> [{Scope, read}, {Scope, write} | AccIn] end, [], Scopes).
-
-create_wapi_context(Context) ->
-    % Create new acl
-    % So far we want to give every token full set of permissions
-    % This is a temporary solution
-    % @TODO remove when we issue new tokens
-    {ID, {Party, ACL}, Claims} = Context,
-    NewACL = try_create_new_acl(ACL),
-    {ID, {Party, NewACL}, Claims}.
-
-% Suppress this warning since the following code is temporary solution
-% and we REALLY WANT to introspect opaque type
--dialyzer([{nowarn_function, [try_create_new_acl/1]}, no_opaque]).
-
-try_create_new_acl(undefined) ->
-    undefined;
-try_create_new_acl(_) ->
-    Hierarchy = wapi_auth:get_resource_hierarchy(),
-    uac_acl:from_list(hierarchy_to_roles(Hierarchy)).

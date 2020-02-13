@@ -8,6 +8,8 @@
 
 -export([get_access_config/0]).
 
+-export([create_wapi_context/1]).
+
 -type context () :: uac_authorizer_jwt:t().
 -type claims  () :: uac_authorizer_jwt:claims().
 -type consumer() :: client | merchant | provider.
@@ -288,3 +290,36 @@ get_resource_hierarchy() ->
         webhooks    => #{},
         withdrawals => #{}
     }.
+
+all_scopes(Key, Value, AccIn) when map_size(Value) > 0 ->
+    Scopes0 = maps:fold(fun all_scopes/3, [], Value),
+    Scopes1 = lists:map(fun(Scope) -> [Key | Scope] end, Scopes0),
+    Scopes1 ++ [[Key] | AccIn];
+all_scopes(Key, _Value, AccIn) ->
+    [[Key] | AccIn].
+
+hierarchy_to_acl(Hierarchy) ->
+    Scopes = maps:fold(fun all_scopes/3, [], Hierarchy),
+    lists:foldl(
+        fun(Scope, ACL0) ->
+            uac_acl:insert_scope(Scope, write, uac_acl:insert_scope(Scope, read, ACL0))
+        end,
+        uac_acl:new(),
+        Scopes
+    ).
+
+-spec create_wapi_context(any()) -> any().
+create_wapi_context(Context) ->
+    % Create new acl
+    % So far we want to give every token full set of permissions
+    % This is a temporary solution
+    % @TODO remove when we issue new tokens
+    {ID, {Party, ACL}, Claims} = Context,
+    NewACL = try_create_new_acl(ACL),
+    {ID, {Party, NewACL}, Claims}.
+
+try_create_new_acl(undefined) ->
+    undefined;
+try_create_new_acl(_) ->
+    Hierarchy = wapi_auth:get_resource_hierarchy(),
+    hierarchy_to_acl(Hierarchy).

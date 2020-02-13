@@ -19,7 +19,7 @@
 init(Config) ->
     case get_state(Config) of
         not_initialized ->
-            [EncryptedMasterKeyShare] = start_init(?THRESHOLD, Config),
+            {ok, [EncryptedMasterKeyShare]} = start_init(?THRESHOLD, Config),
             {ok, EncPrivateKey} = file:read_file("/opt/wapi/config/enc.1.priv.json"),
             {ok, SigPrivateKey} = file:read_file("/opt/wapi/config/sig.1.priv.json"),
             #{
@@ -34,21 +34,18 @@ init(Config) ->
     end.
 
 get_state(Config) ->
-    #cds_KeyringState{
-        status = Status
-    } = call('GetState', [], Config),
+    {ok, #cds_KeyringState{status = Status}} = call('GetState', [], Config),
     Status.
 
 start_init(Threshold, Config) ->
-    try call('StartInit', [Threshold], Config) of
-        EncryptedShares ->
-            decode_encrypted_shares(EncryptedShares)
-    catch
-        #cds_InvalidStatus{status = Status} ->
+    case call('StartInit', [Threshold], Config) of
+        {ok, EncryptedShares} ->
+            {ok, decode_encrypted_shares(EncryptedShares)};
+        {exception, #cds_InvalidStatus{status = Status}} ->
             {error, {invalid_status, Status}};
-        #cds_InvalidActivity{activity = Activity} ->
+        {exception, #cds_InvalidActivity{activity = Activity}} ->
             {error, {invalid_activity, Activity}};
-        #cds_InvalidArguments{reason = Reason} ->
+        {exception, #cds_InvalidArguments{reason = Reason}} ->
             {error, {invalid_arguments, Reason}}
     end.
 
@@ -57,19 +54,18 @@ validate_init(ID, DecryptedMasterKeyShare, Config) ->
         id = ID,
         signed_share = DecryptedMasterKeyShare
     },
-    try call('ValidateInit', [SignedShareKey], Config) of
-        {success, #cds_Success{}} ->
+    case call('ValidateInit', [SignedShareKey], Config) of
+        {ok, {success, #cds_Success{}}} ->
             ok;
-        {more_keys_needed, More} ->
-            {more_keys_needed, More}
-    catch
-        #cds_InvalidStatus{status = Status} ->
+        {ok, {more_keys_needed, More}} ->
+            {more_keys_needed, More};
+        {exception, #cds_InvalidStatus{status = Status}} ->
             {error, {invalid_status, Status}};
-        #cds_InvalidActivity{activity = Activity} ->
+        {exception, #cds_InvalidActivity{activity = Activity}} ->
             {error, {invalid_activity, Activity}};
-        #cds_VerificationFailed{} ->
+        {exception, #cds_VerificationFailed{}} ->
             {error, verification_failed};
-        #cds_OperationAborted{reason = Reason} ->
+        {exception, #cds_OperationAborted{reason = Reason}} ->
             {error, {operation_aborted, Reason}}
     end.
 
@@ -77,10 +73,7 @@ call(Fun, Args, C) ->
     Client = ff_woody_client:new(maps:get(kds, ct_helper:cfg(services, C))),
     WoodyCtx = ct_helper:get_woody_ctx(C),
     Request = {{cds_proto_keyring_thrift, 'KeyringManagement'}, Fun, Args},
-    case woody_client:call(Request, Client, WoodyCtx) of
-        {ok, Result} ->
-            Result
-    end.
+    woody_client:call(Request, Client, WoodyCtx).
 
 %% DECODE
 

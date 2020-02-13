@@ -1061,7 +1061,7 @@ get_event_type({withdrawal, event})         -> withdrawal_event.
 get_collector({identity, challenge_event}, Id) ->
     fun(C, L) -> unwrap(ff_identity_machine:events(Id, {C, L, forward})) end;
 get_collector({withdrawal, event}, Id) ->
-    fun(C, L) -> unwrap(ff_withdrawal_machine:events(Id, {C, L, forward})) end;
+    fun(C, L) -> unwrap(ff_withdrawal_machine:events(Id, {C, L})) end;
 get_collector({p2p_transfer, event}, Id) ->
     fun(C, L) -> unwrap(p2p_transfer_machine:events(Id, {C, L, forward})) end;
 get_collector({p2p_session, event}, Id) ->

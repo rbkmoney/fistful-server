@@ -117,6 +117,7 @@
 -export([start_adjustment/2]).
 -export([find_adjustment/2]).
 -export([adjustments/1]).
+-export([effective_final_cash_flow/1]).
 
 %% Transfer logic callbacks
 
@@ -245,7 +246,7 @@ create(Params) ->
         status          => pending,
         party_revision  => PartyRevision,
         domain_revision => DomainRevision,
-        created_at       => CreatedAt,
+        created_at      => CreatedAt,
         reason          => maps:get(reason, Params, undefined),
         external_id     => maps:get(external_id, Params, undefined)
     }),
@@ -271,6 +272,15 @@ find_adjustment(AdjustmentID, Revert) ->
 -spec adjustments(revert()) -> [adjustment()].
 adjustments(Revert) ->
     ff_adjustment_utils:adjustments(adjustments_index(Revert)).
+
+-spec effective_final_cash_flow(revert()) -> final_cash_flow().
+effective_final_cash_flow(Revert) ->
+    case ff_adjustment_utils:cash_flow(adjustments_index(Revert)) of
+        undefined ->
+            ff_cash_flow:make_empty_final();
+        CashFlow ->
+            CashFlow
+    end.
 
 %% Transfer logic callbacks
 
@@ -499,15 +509,6 @@ p_transfer(T) ->
 set_adjustments_index(Adjustments, Revert) ->
     Revert#{adjustments => Adjustments}.
 
--spec effective_final_cash_flow(revert()) -> final_cash_flow().
-effective_final_cash_flow(Revert) ->
-    case ff_adjustment_utils:cash_flow(adjustments_index(Revert)) of
-        undefined ->
-            ff_cash_flow:make_empty_final();
-        CashFlow ->
-            CashFlow
-    end.
-
 -spec is_childs_active(revert()) -> boolean().
 is_childs_active(Revert) ->
     ff_adjustment_utils:is_active(adjustments_index(Revert)).
@@ -608,7 +609,9 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, Revert) ->
     CurrentCashFlow = effective_final_cash_flow(Revert),
     NewCashFlow = ff_cash_flow:make_empty_final(),
     #{
-        new_status => NewStatus,
+        new_status => #{
+            new_status => NewStatus
+        },
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => NewCashFlow
@@ -618,7 +621,9 @@ make_change_status_params({failed, _}, succeeded = NewStatus, Revert) ->
     CurrentCashFlow = effective_final_cash_flow(Revert),
     NewCashFlow = make_final_cash_flow(wallet_id(Revert), source_id(Revert), body(Revert)),
     #{
-        new_status => NewStatus,
+        new_status => #{
+            new_status => NewStatus
+        },
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => NewCashFlow
@@ -626,7 +631,9 @@ make_change_status_params({failed, _}, succeeded = NewStatus, Revert) ->
     };
 make_change_status_params({failed, _}, {failed, _} = NewStatus, _Revert) ->
     #{
-        new_status => NewStatus
+        new_status => #{
+            new_status => NewStatus
+        }
     }.
 
 -spec save_adjustable_info(event(), revert()) -> revert().

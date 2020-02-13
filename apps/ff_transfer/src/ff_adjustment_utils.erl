@@ -183,7 +183,7 @@ update_target_data(_OtherEvent, _Adjustment, Index) ->
     Index.
 
 -spec update_target_status(changes(), index()) -> index().
-update_target_status(#{new_status := Status}, Index) ->
+update_target_status(#{new_status := #{new_status := Status}}, Index) ->
     set_status(Status, Index);
 update_target_status(_OtherChange, Index) ->
     Index.

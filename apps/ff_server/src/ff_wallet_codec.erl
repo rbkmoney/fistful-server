@@ -18,7 +18,7 @@
 marshal_wallet(Wallet) ->
     #wlt_Wallet{
         name        = marshal(string,   ff_wallet:name(Wallet)),
-        blocking    = marshal(blocking,  ff_wallet:blocking(Wallet)),
+        blocking    = marshal(blocking, ff_wallet:blocking(Wallet)),
         account     = marshal(account,  ff_wallet:account(Wallet)),
         external_id = marshal(id,       ff_wallet:external_id(Wallet))
     }.

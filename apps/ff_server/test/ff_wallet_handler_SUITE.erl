@@ -93,8 +93,8 @@ create_ok(C) ->
     ExternalID   = genlib:unique(),
     IdentityID   = create_person_identity(Party, C),
     Ctx          = #{<<"TEST_NS">> => {obj, #{ {str, <<"KEY">>} => {b, true}}}},
-    Params       = construct_wallet_params(IdentityID, Currency, ExternalID, Ctx),
-    CreateResult = call_service('Create', [ID, Params]),
+    Params       = construct_wallet_params(ID, IdentityID, Currency, ExternalID, Ctx),
+    CreateResult = call_service('Create', [Params]),
     GetResult    = call_service('Get', [ID]),
     {ok, Wallet} = GetResult,
     Account      = Wallet#wlt_Wallet.account,
@@ -112,8 +112,8 @@ create_error_identity_not_found(_C) ->
     ID         = genlib:unique(),
     ExternalID = genlib:unique(),
     IdentityID = genlib:unique(),
-    Params     = construct_wallet_params(IdentityID, Currency, ExternalID),
-    Result     = call_service('Create', [ID, Params]),
+    Params     = construct_wallet_params(ID, IdentityID, Currency, ExternalID),
+    Result     = call_service('Create', [Params]),
     ?assertMatch({exception, #fistful_IdentityNotFound{}}, Result).
 
 create_error_currency_not_found(C) ->
@@ -121,8 +121,8 @@ create_error_currency_not_found(C) ->
     Currency   = <<"RBK.MONEY">>,
     ID         = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
-    Params     = construct_wallet_params(IdentityID, Currency),
-    Result     = call_service('Create', [ID, Params]),
+    Params     = construct_wallet_params(ID, IdentityID, Currency),
+    Result     = call_service('Create', [Params]),
     ?assertMatch({exception, #fistful_CurrencyNotFound{}}, Result).
 
 create_error_party_blocked(C) ->
@@ -131,8 +131,8 @@ create_error_party_blocked(C) ->
     ID         = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
     ok         = block_party(Party, C),
-    Params     = construct_wallet_params(IdentityID, Currency),
-    Result     = call_service('Create', [ID, Params]),
+    Params     = construct_wallet_params(ID, IdentityID, Currency),
+    Result     = call_service('Create', [Params]),
     ?assertMatch({exception, #fistful_PartyInaccessible{}}, Result).
 
 create_error_party_suspended(C) ->
@@ -141,8 +141,8 @@ create_error_party_suspended(C) ->
     ID         = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
     ok         = suspend_party(Party, C),
-    Params     = construct_wallet_params(IdentityID, Currency),
-    Result     = call_service('Create', [ID, Params]),
+    Params     = construct_wallet_params(ID, IdentityID, Currency),
+    Result     = call_service('Create', [Params]),
     ?assertMatch({exception, #fistful_PartyInaccessible{}}, Result).
 
 %%-----------
@@ -194,16 +194,18 @@ block_party(Party, C) ->
     _          = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
     ok.
 
-construct_wallet_params(IdentityID, Currency) ->
+construct_wallet_params(ID, IdentityID, Currency) ->
     #wlt_WalletParams{
+        id = ID,
         name = <<"Valet">>,
         account_params = #account_AccountParams{
             identity_id   = IdentityID,
             symbolic_code = Currency
         }
     }.
-construct_wallet_params(IdentityID, Currency, ExternalID) ->
+construct_wallet_params(ID, IdentityID, Currency, ExternalID) ->
     #wlt_WalletParams{
+        id = ID,
         name = <<"Valet">>,
         external_id = ExternalID,
         account_params = #account_AccountParams{
@@ -211,8 +213,9 @@ construct_wallet_params(IdentityID, Currency, ExternalID) ->
             symbolic_code = Currency
         }
     }.
-construct_wallet_params(IdentityID, Currency, ExternalID, Ctx) ->
+construct_wallet_params(ID, IdentityID, Currency, ExternalID, Ctx) ->
     #wlt_WalletParams{
+        id = ID,
         name = <<"Valet">>,
         external_id = ExternalID,
         context = Ctx,

@@ -33,18 +33,20 @@ unmarshal_wallet(#wlt_Wallet{
     genlib_map:compact(#{
         name => unmarshal(string, Name),
         external_id => unmarshal(id, ExternalID)
-    });
+    }).
 
 -spec unmarshal_wallet_params(ff_proto_wallet_thrift:'WalletParams'()) ->
     ff_wallet_machine:params().
 
 unmarshal_wallet_params(#wlt_WalletParams{
+    id = ID,
     account_params = AccountParams,
     name = Name,
     external_id = ExternalID
 }) ->
     {IdentityID, Currency} = unmarshal(account_params, AccountParams),
     genlib_map:compact(#{
+        id          => unmarshal(id, ID),
         name        => unmarshal(string, Name),
         identity    => IdentityID,
         currency    => Currency,

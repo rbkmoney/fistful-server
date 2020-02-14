@@ -1,0 +1,24 @@
+{application, w2w, [
+    {description,
+        "Wallet-to-wallet transfer processing"
+    },
+    {vsn, "1"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        genlib,
+        ff_core,
+        machinery,
+        machinery_extra,
+        damsel,
+        fistful,
+        ff_transfer
+    ]},
+    {env, []},
+    {modules, []},
+    {maintainers, [
+    ]},
+    {licenses, []},
+    {links, ["https://github.com/rbkmoney/fistful-server"]}
+]}.

@@ -44,6 +44,10 @@
     cash_range_validation_error() |
     invalid_p2p_terms_error().
 
+-type validate_w2w_transfer_creation_error() ::
+    currency_validation_error() |
+    {bad_w2w_transfer_amount, Cash :: cash()}.
+
 -export_type([id/0]).
 -export_type([revision/0]).
 -export_type([terms/0]).
@@ -55,6 +59,7 @@
 -export_type([validate_p2p_error/0]).
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_withdrawal_creation_error/0]).
+-export_type([validate_w2w_transfer_creation_error/0]).
 -export_type([cash/0]).
 -export_type([cash_range/0]).
 
@@ -72,6 +77,7 @@
 -export([validate_account_creation/2]).
 -export([validate_withdrawal_creation/2]).
 -export([validate_deposit_creation/2]).
+-export([validate_w2w_transfer_creation/2]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
@@ -304,6 +310,22 @@ validate_p2p(Terms, {_, CurrencyID} = Cash) ->
         valid = unwrap(validate_p2p_terms_currency(CurrencyID, P2PServiceTerms)),
         valid = unwrap(validate_p2p_cash_limit(Cash, P2PServiceTerms)),
         valid = unwrap(validate_p2p_allow(P2PServiceTerms))
+    end).
+
+-spec validate_w2w_transfer_creation(terms(), cash()) -> Result when
+    Result :: {ok, valid} | {error, Error},
+    Error :: validate_w2w_transfer_creation_error().
+
+validate_w2w_transfer_creation(_Terms, {Amount, _Currency} = Cash) when Amount < 1 ->
+    {error, {bad_w2w_transfer_amount, Cash}};
+validate_w2w_transfer_creation(Terms, {_Amount, _CurrencyID} = _Cash) ->
+    #domain_TermSet{wallets = WalletTerms} = Terms,
+    do(fun () ->
+        {ok, valid} = validate_p2p_terms_is_reduced(WalletTerms)%,
+        % #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,
+        % valid = unwrap(validate_p2p_terms_currency(CurrencyID, P2PServiceTerms)),
+        % valid = unwrap(validate_p2p_cash_limit(Cash, P2PServiceTerms)),
+        % valid = unwrap(validate_p2p_allow(P2PServiceTerms))
     end).
 
 -spec get_withdrawal_cash_flow_plan(terms()) ->

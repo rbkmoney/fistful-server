@@ -128,7 +128,7 @@ unmarshal(wallet, #wlt_Wallet{
     genlib_map:compact(#{
         <<"id">> => unmarshal(id, WalletID),
         <<"name">> => unmarshal(string, Name),
-        <<"isBlocked">> => unmarshal(blocked, Blocking),
+        <<"isBlocked">> => unmarshal(blocking, Blocking),
         <<"identity">> => Identity,
         <<"currency">> => Currency,
         <<"createdAt">> => CreatedAt,
@@ -136,9 +136,9 @@ unmarshal(wallet, #wlt_Wallet{
         <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
     });
 
-unmarshal(blocked, unblocked) ->
+unmarshal(blocking, unblocked) ->
     false;
-unmarshal(blocked, blocked) ->
+unmarshal(blocking, blocked) ->
     true;
 
 unmarshal(context, Ctx) ->

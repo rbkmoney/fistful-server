@@ -196,7 +196,7 @@ block_party(Party, C) ->
 
 construct_wallet_params(ID, IdentityID, Currency) ->
     #wlt_WalletParams{
-        id   = ID,
+        id = ID,
         name = <<"Valet">>,
         account_params = #account_AccountParams{
             identity_id   = IdentityID,
@@ -205,7 +205,7 @@ construct_wallet_params(ID, IdentityID, Currency) ->
     }.
 construct_wallet_params(ID, IdentityID, Currency, ExternalID) ->
     #wlt_WalletParams{
-        id   = ID,
+        id = ID,
         name = <<"Valet">>,
         external_id = ExternalID,
         account_params = #account_AccountParams{
@@ -215,7 +215,7 @@ construct_wallet_params(ID, IdentityID, Currency, ExternalID) ->
     }.
 construct_wallet_params(ID, IdentityID, Currency, ExternalID, Ctx) ->
     #wlt_WalletParams{
-        id   = ID,
+        id = ID,
         name = <<"Valet">>,
         external_id = ExternalID,
         context = Ctx,

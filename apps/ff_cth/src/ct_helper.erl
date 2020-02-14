@@ -81,17 +81,11 @@ start_app(dmt_client = AppName) ->
     {start_app_with(AppName, [
         {cache_update_interval, 500}, % milliseconds
         {max_cache_size, #{
-            elements => 20,
+            elements => 1,
             memory => 52428800 % 50Mb
         }},
         {woody_event_handlers, [
-            {scoper_woody_event_handler, #{
-                event_handler_opts => #{
-                    formatter_opts => #{
-                        max_length => 1000
-                    }
-                }
-            }}
+            {scoper_woody_event_handler, #{}}
         ]},
         {service_urls, #{
             'Repository'       => <<"http://dominant:8022/v1/domain/repository">>,
@@ -169,6 +163,12 @@ start_app(ff_server = AppName) ->
             },
             withdrawal_session => #{
                 namespace => <<"ff/withdrawal/session_v2">>
+            },
+            p2p_transfer => #{
+                namespace => <<"ff/p2p_transfer_v1">>
+            },
+            p2p_session => #{
+                namespace => <<"ff/p2p_transfer/session_v1">>
             }
         }}
     ]), #{}};
@@ -177,6 +177,11 @@ start_app(bender_client = AppName) ->
     {start_app_with(AppName, [
         {service_url, <<"http://bender:8022/v1/bender">>},
         {deadline, 60000}
+    ]), #{}};
+
+start_app(p2p = AppName) ->
+    {start_app_with(AppName, [
+        {score_id, <<"fraud">>}
     ]), #{}};
 
 start_app({AppName, AppEnv}) ->

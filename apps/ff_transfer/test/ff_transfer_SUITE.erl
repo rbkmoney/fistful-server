@@ -225,7 +225,7 @@ deposit_via_admin_amount_fails(C) ->
         end
     ),
 
-    {exception, {fistful_DepositAmountInvalid}} = call_admin('CreateDeposit', [
+    {exception, #ff_admin_DepositAmountInvalid{}} = call_admin('CreateDeposit', [
         #ff_admin_DepositParams{
             id          = DepID,
             source      = SrcID,
@@ -263,7 +263,7 @@ deposit_via_admin_currency_fails(C) ->
         end
     ),
     BadCurrency = <<"CAT">>,
-    {exception, {fistful_DepositCurrencyInvalid}} = call_admin('CreateDeposit', [#ff_admin_DepositParams{
+    {exception, #ff_admin_DepositCurrencyInvalid{}} = call_admin('CreateDeposit', [#ff_admin_DepositParams{
             id          = DepID,
             source      = SrcID,
             destination = WalID,
@@ -357,8 +357,7 @@ create_person_identity(Party, C, ProviderID) ->
 create_identity(Party, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
     ID.
@@ -366,8 +365,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
 create_wallet(IdentityID, Name, Currency, _C) ->
     ID = genlib:unique(),
     ok = ff_wallet_machine:create(
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency},
+        #{id => ID, identity => IdentityID, name => Name, currency => Currency},
         ff_entity_context:new()
     ),
     ID.
@@ -409,17 +407,16 @@ create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
     ID = genlib:unique(),
     ok = create_instrument(
         Type,
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
+        #{id => ID, identity => IdentityID, name => Name, currency => Currency, resource => Resource},
         ff_entity_context:new(),
         C
     ),
     ID.
 
-create_instrument(destination, ID, Params, Ctx, _C) ->
-    ff_destination:create(ID, Params, Ctx);
-create_instrument(source, ID, Params, Ctx, _C) ->
-    ff_source:create(ID, Params, Ctx).
+create_instrument(destination, Params, Ctx, _C) ->
+    ff_destination:create(Params, Ctx);
+create_instrument(source, Params, Ctx, _C) ->
+    ff_source:create(Params, Ctx).
 
 generate_id() ->
     genlib:to_binary(genlib_time:ticks()).
@@ -477,7 +474,7 @@ create_destination(IID, C) ->
 create_crypto_destination(IID, C) ->
     Resource = {crypto_wallet, #{
         id => <<"a30e277c07400c9940628828949efd48">>,
-        currency => litecoin
+        currency => {litecoin, #{}}
     }},
     DestID = create_instrument(destination, IID, <<"CryptoDestination">>, <<"RUB">>, Resource, C),
     authorized = ct_helper:await(

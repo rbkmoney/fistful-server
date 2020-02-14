@@ -176,4 +176,3 @@ issue_token(PartyID, ACL, LifeTime) ->
     Claims = #{?STRING => ?STRING},
     {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
     Token.
-

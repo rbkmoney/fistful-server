@@ -76,25 +76,31 @@ init([]) ->
     % TODO
     %  - Make it palatable
     {Backends, Handlers} = lists:unzip([
-        contruct_backend_childspec('ff/identity'              , ff_identity_machine          , PartyClient),
-        contruct_backend_childspec('ff/wallet_v2'             , ff_wallet_machine            , PartyClient),
-        contruct_backend_childspec('ff/source_v1'             , ff_instrument_machine        , PartyClient),
-        contruct_backend_childspec('ff/destination_v2'        , ff_instrument_machine        , PartyClient),
-        contruct_backend_childspec('ff/deposit_v1'            , ff_deposit_machine           , PartyClient),
-        contruct_backend_childspec('ff/withdrawal_v2'         , ff_withdrawal_machine        , PartyClient),
-        contruct_backend_childspec('ff/withdrawal/session_v2' , ff_withdrawal_session_machine, PartyClient)
+        contruct_backend_childspec('ff/identity'                , ff_identity_machine           , PartyClient),
+        contruct_backend_childspec('ff/wallet_v2'               , ff_wallet_machine             , PartyClient),
+        contruct_backend_childspec('ff/source_v1'               , ff_instrument_machine         , PartyClient),
+        contruct_backend_childspec('ff/destination_v2'          , ff_instrument_machine         , PartyClient),
+        contruct_backend_childspec('ff/deposit_v1'              , ff_deposit_machine            , PartyClient),
+        contruct_backend_childspec('ff/withdrawal_v2'           , ff_withdrawal_machine         , PartyClient),
+        contruct_backend_childspec('ff/withdrawal/session_v2'   , ff_withdrawal_session_machine , PartyClient),
+        contruct_backend_childspec('ff/p2p_transfer_v1'         , p2p_transfer_machine          , PartyClient),
+        contruct_backend_childspec('ff/p2p_transfer/session_v1' , p2p_session_machine           , PartyClient)
     ]),
     ok = application:set_env(fistful, backends, maps:from_list(Backends)),
 
     Services = [
         {fistful_admin, ff_server_admin_handler},
+        {ff_p2p_adapter_host, ff_p2p_adapter_host},
         {wallet_management, ff_wallet_handler},
         {identity_management, ff_identity_handler},
         {destination_management, ff_destination_handler},
         {withdrawal_management, ff_withdrawal_handler},
+        {deposit_management, ff_deposit_handler},
         {withdrawal_session_repairer, ff_withdrawal_session_repair},
         {withdrawal_repairer, ff_withdrawal_repair},
-        {deposit_repairer, ff_deposit_repair}
+        {deposit_repairer, ff_deposit_repair},
+        {p2p_transfer_repairer, ff_p2p_transfer_repair},
+        {p2p_session_repairer, ff_p2p_session_repair}
     ] ++ get_eventsink_handlers(),
     WoodyHandlers = [get_handler(Service, Handler, WrapperOpts) || {Service, Handler} <- Services],
 
@@ -168,7 +174,9 @@ get_eventsink_handlers() ->
         {identity, identity_event_sink, ff_identity_eventsink_publisher},
         {wallet, wallet_event_sink, ff_wallet_eventsink_publisher},
         {withdrawal, withdrawal_event_sink, ff_withdrawal_eventsink_publisher},
-        {withdrawal_session, withdrawal_session_event_sink, ff_withdrawal_session_eventsink_publisher}
+        {withdrawal_session, withdrawal_session_event_sink, ff_withdrawal_session_eventsink_publisher},
+        {p2p_transfer, p2p_transfer_event_sink, ff_p2p_transfer_eventsink_publisher},
+        {p2p_session, p2p_session_event_sink, ff_p2p_session_eventsink_publisher}
     ],
     [get_eventsink_handler(Name, Service, Publisher, Cfg) || {Name, Service, Publisher} <- Publishers].
 

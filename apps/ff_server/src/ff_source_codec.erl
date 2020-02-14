@@ -12,11 +12,11 @@
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
-marshal(event, {created, Source}) ->
+marshal(change, {created, Source}) ->
     {created, marshal(source, Source)};
-marshal(event, {account, AccountChange}) ->
+marshal(change, {account, AccountChange}) ->
     {account, marshal(account_change, AccountChange)};
-marshal(event, {status_changed, Status}) ->
+marshal(change, {status_changed, Status}) ->
     {status, #src_StatusChange{status = marshal(status, Status)}};
 
 marshal(source, Params = #{
@@ -56,15 +56,15 @@ unmarshal({list, T}, V) ->
 
 unmarshal(repair_scenario, {add_events, #src_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
-        events => unmarshal({list, event}, Events),
+        events => unmarshal({list, change}, Events),
         actions => maybe_unmarshal(complex_action, Action)
     })};
 
-unmarshal(event, {created, Source}) ->
+unmarshal(change, {created, Source}) ->
     {created, unmarshal(source, Source)};
-unmarshal(event, {account, AccountChange}) ->
+unmarshal(change, {account, AccountChange}) ->
     {account, unmarshal(account_change, AccountChange)};
-unmarshal(event, {status, #src_StatusChange{status = Status}}) ->
+unmarshal(change, {status, #src_StatusChange{status = Status}}) ->
     {status_changed, unmarshal(status, Status)};
 
 unmarshal(source, #src_Source{

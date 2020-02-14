@@ -25,7 +25,8 @@ handle_function(Func, Args, Opts) ->
 
 handle_function_('CreateSource', [Params], Opts) ->
     SourceID = Params#ff_admin_SourceParams.id,
-    case ff_source:create(SourceID, #{
+    case ff_source:create(#{
+            id       => SourceID,
             identity => Params#ff_admin_SourceParams.identity_id,
             name     => Params#ff_admin_SourceParams.name,
             currency => ff_codec:unmarshal(currency_ref, Params#ff_admin_SourceParams.currency),
@@ -67,11 +68,11 @@ handle_function_('CreateDeposit', [Params], Opts) ->
         {error, {wallet, notfound}} ->
             woody_error:raise(business, #fistful_DestinationNotFound{});
         {error, {terms_violation, {not_allowed_currency, _More}}} ->
-            woody_error:raise(business, #fistful_DepositCurrencyInvalid{});
+            woody_error:raise(business, #ff_admin_DepositCurrencyInvalid{});
         {error, {inconsistent_currency, _Details}} ->
-            woody_error:raise(business, #fistful_DepositCurrencyInvalid{});
+            woody_error:raise(business, #ff_admin_DepositCurrencyInvalid{});
         {error, {bad_deposit_amount, _Amount}} ->
-            woody_error:raise(business, #fistful_DepositAmountInvalid{});
+            woody_error:raise(business, #ff_admin_DepositAmountInvalid{});
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;

@@ -19,6 +19,7 @@
 -export([get_create_source_events_ok/1]).
 -export([get_create_deposit_events_ok/1]).
 -export([get_shifted_create_identity_events_ok/1]).
+-export([get_create_p2p_transfer_events_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -36,7 +37,8 @@ all() ->
         get_create_source_events_ok,
         get_create_deposit_events_ok,
         get_withdrawal_session_events_ok,
-        get_shifted_create_identity_events_ok
+        get_shifted_create_identity_events_ok,
+        get_create_p2p_transfer_events_ok
     ].
 
 
@@ -94,8 +96,8 @@ get_identity_events_ok(C) ->
     LastEvent = ct_eventsink:last_id(Sink),
 
     ok = ff_identity_machine:create(
-        ID,
         #{
+            id       => ID,
             party    => Party,
             provider => <<"good-one">>,
             class    => <<"person">>
@@ -136,8 +138,8 @@ get_create_wallet_events_ok(C) ->
     LastEvent = ct_eventsink:last_id(Sink),
 
     ok = ff_wallet_machine:create(
-        ID,
         #{
+            id       => ID,
             identity => IdentityID,
             name     => <<"EVENTS TEST">>,
             currency => <<"RUB">>
@@ -162,7 +164,7 @@ get_withdrawal_events_ok(C) ->
     WdrID   = process_withdrawal(WalID, DestID),
 
     {Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
-    {ok, RawEvents} = ff_withdrawal_machine:events(WdrID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_withdrawal_machine:events(WdrID, {undefined, 1000}),
 
     AlienEvents = lists:filter(fun(Ev) ->
         Ev#wthd_SinkEvent.source =/= WdrID
@@ -231,7 +233,7 @@ get_create_deposit_events_ok(C) ->
     SrcID   = create_source(IID, C),
     DepID   = process_deposit(SrcID, WalID),
 
-    {ok, RawEvents} = ff_deposit_machine:events(DepID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_deposit_machine:events(DepID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
@@ -262,6 +264,65 @@ get_shifted_create_identity_events_ok(C) ->
     MaxID = ct_eventsink:get_max_event_id(Events),
     MaxID = StartEventNum + 1.
 
+-spec get_create_p2p_transfer_events_ok(config()) -> test_return().
+
+get_create_p2p_transfer_events_ok(C) ->
+    ID = genlib:unique(),
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    Sink = p2p_transfer_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
+
+    Resource = {bank_card, #{
+        token => genlib:unique(),
+        bin => <<"some bin">>,
+        masked_pan => <<"some masked_pan">>
+    }},
+
+    Participant = {raw, #{
+        resource_params => Resource,
+        contact_info => #{}
+    }},
+
+    Cash = {123, <<"RUB">>},
+
+    CompactResource = {bank_card, #{
+        token => genlib:unique(),
+        bin_data_id => {binary, genlib:unique()}
+    }},
+
+    Quote = #{
+        amount            => Cash,
+        party_revision    => 1,
+        domain_revision   => 1,
+        created_at        => ff_time:now(),
+        expires_on        => ff_time:now(),
+        identity_id       => ID,
+        sender            => CompactResource,
+        receiver          => CompactResource
+    },
+
+    ok = p2p_transfer_machine:create(
+        #{
+            id => ID,
+            identity_id => IID,
+            body => Cash,
+            sender => Participant,
+            receiver => Participant,
+            quote => Quote,
+            client_info => #{
+                ip_address => <<"some ip_address">>,
+                fingerprint => <<"some fingerprint">>
+            },
+            external_id => ID
+        },
+        ff_entity_context:new()
+    ),
+
+    {ok, RawEvents} = p2p_transfer_machine:events(ID, {undefined, 1000, forward}),
+    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
+    MaxID = LastEvent + length(RawEvents).
+
 create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
@@ -276,8 +337,7 @@ create_person_identity(Party, C) ->
 create_identity(Party, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
     ID.
@@ -285,8 +345,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
 create_wallet(IdentityID, Name, Currency, _C) ->
     ID = genlib:unique(),
     ok = ff_wallet_machine:create(
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency},
+        #{id => ID, identity => IdentityID, name => Name, currency => Currency},
         ff_entity_context:new()
     ),
     ID.
@@ -295,17 +354,16 @@ create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
     ID = genlib:unique(),
     ok = create_instrument(
         Type,
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
+        #{id => ID, identity => IdentityID, name => Name, currency => Currency, resource => Resource},
         ff_entity_context:new(),
         C
     ),
     ID.
 
-create_instrument(destination, ID, Params, Ctx, _C) ->
-    ff_destination:create(ID, Params, Ctx);
-create_instrument(source, ID, Params, Ctx, _C) ->
-    ff_source:create(ID, Params, Ctx).
+create_instrument(destination, Params, Ctx, _C) ->
+    ff_destination:create(Params, Ctx);
+create_instrument(source, Params, Ctx, _C) ->
+    ff_source:create(Params, Ctx).
 
 generate_id() ->
     genlib:to_binary(genlib_time:ticks()).

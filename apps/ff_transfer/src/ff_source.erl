@@ -46,7 +46,7 @@
 
 %% API
 
--export([create/3]).
+-export([create/2]).
 -export([get_machine/1]).
 -export([get/1]).
 -export([is_accessible/1]).
@@ -78,15 +78,15 @@ external_id(T)   -> ff_instrument:external_id(T).
 
 -define(NS, 'ff/source_v1').
 
--spec create(id(), params(), ctx()) ->
+-spec create(params(), ctx()) ->
     ok |
     {error,
         _InstrumentCreateError |
         exists
     }.
 
-create(ID, Params, Ctx) ->
-    ff_instrument_machine:create(?NS, ID, Params, Ctx).
+create(Params, Ctx) ->
+    ff_instrument_machine:create(?NS, Params, Ctx).
 
 -spec get_machine(id()) ->
     {ok, machine()}       |

@@ -22,12 +22,11 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [WalletID, Params], Opts) ->
-    Ctx      = Params#wlt_WalletParams.context,
+handle_function_('Create', [Params], Opts) ->
+    WalletID = Params#wlt_WalletParams.id,
     case ff_wallet_machine:create(
-        WalletID,
         ff_wallet_codec:unmarshal_wallet_params(Params),
-        ff_wallet_codec:unmarshal(ctx, Ctx))
+        ff_wallet_codec:unmarshal(ctx, Params#wlt_WalletParams.context))
     of
         ok ->
             handle_function_('Get', [WalletID], Opts);

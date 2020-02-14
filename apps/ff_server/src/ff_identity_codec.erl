@@ -24,12 +24,14 @@
     ff_identity_machine:params().
 
 unmarshal_identity_params(#idnt_IdentityParams{
+    id          = ID,
     party       = PartyID,
     provider    = ProviderID,
     cls         = ClassID,
     external_id = ExternalID
 }) ->
     genlib_map:compact(#{
+        id          => unmarshal(id, ID),
         party       => unmarshal(id, PartyID),
         provider    => unmarshal(id, ProviderID),
         class       => unmarshal(id, ClassID),
@@ -59,7 +61,7 @@ marshal_identity_event({ID, {ev, Timestamp, Ev}}) ->
     #idnt_IdentityEvent{
         sequence   = marshal(event_id, ID),
         occured_at = marshal(timestamp, Timestamp),
-        change     = marshal(event, Ev)
+        change     = marshal(change, Ev)
     }.
 
 -spec marshal_challenge(ff_identity_challenge:challenge()) -> ff_proto_identity_thrift:'Challenge'().
@@ -106,6 +108,7 @@ marshal_identity(Identity) ->
         contract = maybe_marshal(id, ff_identity:contract(Identity)),
         level    = maybe_marshal(id, ff_identity:level(Identity)),
         blocking = maybe_marshal(blocking, ff_identity:blocking(Identity)),
+        created_at = maybe_marshal(created_at, ff_identity:created_at(Identity)),
         external_id = maybe_marshal(id, ff_identity:external_id(Identity)),
         effective_challenge = EffectiveChallengeID
     }.
@@ -121,18 +124,20 @@ unmarshal_identity(#idnt_Identity{
     level       = LevelID,
     blocking    = Blocking,
     external_id = ExternalID,
+    created_at  = CreatedAt,
     effective_challenge = EffectiveChallengeID
 }) ->
     genlib_map:compact(#{
-        id          => unmarshal(id,      ID),
-        party       => unmarshal(id,      PartyID),
-        provider    => unmarshal(id,      ProviderID),
-        class       => unmarshal(id,      ClassID),
-        contract    => unmarshal(id,      ContractID),
-        level       => maybe_unmarshal(id,   LevelID),
+        id          => unmarshal(id, ID),
+        party       => unmarshal(id, PartyID),
+        provider    => unmarshal(id, ProviderID),
+        class       => unmarshal(id, ClassID),
+        contract    => unmarshal(id, ContractID),
+        level       => maybe_unmarshal(id, LevelID),
         blocking    => maybe_unmarshal(blocking, Blocking),
-        external_id => maybe_unmarshal(id,   ExternalID),
-        effective   => maybe_unmarshal(id,   EffectiveChallengeID)
+        external_id => maybe_unmarshal(id, ExternalID),
+        created_at  => maybe_unmarshal(created_at, CreatedAt),
+        effective   => maybe_unmarshal(id, EffectiveChallengeID)
     }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
@@ -140,16 +145,16 @@ unmarshal_identity(#idnt_Identity{
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
-marshal(event, {created, Identity}) ->
+marshal(change, {created, Identity}) ->
     {created, marshal_identity(Identity)};
-marshal(event, {level_changed, LevelID}) ->
+marshal(change, {level_changed, LevelID}) ->
     {level_changed, marshal(id, LevelID)};
-marshal(event, {{challenge, ChallengeID}, ChallengeChange}) ->
+marshal(change, {{challenge, ChallengeID}, ChallengeChange}) ->
     {identity_challenge, marshal(challenge_change, #{
         id => ChallengeID,
         payload => ChallengeChange
     })};
-marshal(event, {effective_challenge_changed, ChallengeID}) ->
+marshal(change, {effective_challenge_changed, ChallengeID}) ->
     {effective_challenge_changed, marshal(id, ChallengeID)};
 
 marshal(challenge_change, #{
@@ -203,6 +208,9 @@ marshal(resolution, denied) ->
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
 
+marshal(created_at, TimeMS) ->
+    marshal(string, ff_time:to_rfc3339(TimeMS));
+
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -215,17 +223,17 @@ unmarshal({list, T}, V) ->
 
 unmarshal(repair_scenario, {add_events, #idnt_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
-        events => unmarshal({list, event}, Events),
+        events => unmarshal({list, change}, Events),
         actions => maybe_unmarshal(complex_action, Action)
     })};
 
-unmarshal(event, {created, Identity}) ->
+unmarshal(change, {created, Identity}) ->
     {created, unmarshal_identity(Identity)};
-unmarshal(event, {level_changed, LevelID}) ->
+unmarshal(change, {level_changed, LevelID}) ->
     {level_changed, unmarshal(id, LevelID)};
-unmarshal(event, {identity_challenge, #idnt_ChallengeChange{id = ID, payload = Payload}}) ->
+unmarshal(change, {identity_challenge, #idnt_ChallengeChange{id = ID, payload = Payload}}) ->
     {{challenge, unmarshal(id, ID)}, unmarshal(challenge_payload, Payload)};
-unmarshal(event, {effective_challenge_changed, ChallengeID}) ->
+unmarshal(change, {effective_challenge_changed, ChallengeID}) ->
     {effective_challenge_changed, unmarshal(id, ChallengeID)};
 
 unmarshal(challenge_payload, {created, Challenge}) ->
@@ -275,6 +283,9 @@ unmarshal(effective_challenge, undefined) ->
     {error, notfound};
 unmarshal(effective_challenge, EffectiveChallengeID) ->
     {ok, unmarshal(id, EffectiveChallengeID)};
+
+unmarshal(created_at, Timestamp) ->
+    unmarshal(integer, ff_time:from_rfc3339(Timestamp));
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);

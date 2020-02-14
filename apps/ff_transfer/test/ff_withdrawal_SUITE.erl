@@ -21,7 +21,6 @@
 -export([route_not_found_fail_test/1]).
 -export([limit_check_fail_test/1]).
 -export([create_cashlimit_validation_error_test/1]).
--export([create_withdrawal_currency_validation_error_test/1]).
 -export([create_wallet_currency_validation_error_test/1]).
 -export([create_destination_currency_validation_error_test/1]).
 -export([create_currency_validation_error_test/1]).
@@ -71,7 +70,6 @@ groups() ->
             route_not_found_fail_test,
             limit_check_fail_test,
             create_cashlimit_validation_error_test,
-            create_withdrawal_currency_validation_error_test,
             create_wallet_currency_validation_error_test,
             create_destination_currency_validation_error_test,
             create_currency_validation_error_test,
@@ -247,45 +245,23 @@ create_cashlimit_validation_error_test(C) ->
     Details = {terms_violation, {cash_range, {{20000000, <<"RUB">>}, CashRange}}},
     ?assertMatch({error, {terms, Details}}, Result).
 
--spec create_withdrawal_currency_validation_error_test(config()) -> test_return().
-create_withdrawal_currency_validation_error_test(C) ->
-    Cash = {100, <<"USD">>},
-    #{
-        wallet_id := WalletID,
-        destination_id := DestinationID
-    } = prepare_standard_environment(Cash, C),
-    WithdrawalID = generate_id(),
-    WithdrawalParams = #{
-        id => WithdrawalID,
-        destination_id => DestinationID,
-        wallet_id => WalletID,
-        body => Cash
-    },
-    Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-    Details = {
-        <<"USD">>,
-        [
-            #domain_CurrencyRef{symbolic_code = <<"RUB">>}
-        ]
-    },
-    ?assertMatch({error, {terms, {terms_violation, {not_allowed_currency, Details}}}}, Result).
-
 -spec create_wallet_currency_validation_error_test(config()) -> test_return().
 create_wallet_currency_validation_error_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
-        wallet_id := WalletID,
-        destination_id := DestinationID
+        destination_id := DestinationID,
+        identity_id := IdentityID
     } = prepare_standard_environment(Cash, C),
+    WalletID = create_wallet(IdentityID, <<"USD wallet">>, <<"USD">>, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
         destination_id => DestinationID,
         wallet_id => WalletID,
-        body => {100, <<"USD">>}
+        body => {100, <<"RUB">>}
     },
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-    ?assertMatch({error, {terms, {invalid_withdrawal_currency, <<"USD">>, {wallet_currency, <<"RUB">>}}}}, Result).
+    ?assertMatch({error, {inconsistent_currency, {<<"RUB">>, <<"USD">>, <<"RUB">>}}}, Result).
 
 -spec create_destination_currency_validation_error_test(config()) -> test_return().
 create_destination_currency_validation_error_test(C) ->
@@ -320,7 +296,7 @@ create_currency_validation_error_test(C) ->
     },
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Details = {
-        <<"EUR">>,
+        #domain_CurrencyRef{symbolic_code = <<"EUR">>},
         [
             #domain_CurrencyRef{symbolic_code = <<"RUB">>},
             #domain_CurrencyRef{symbolic_code = <<"USD">>}
@@ -573,8 +549,7 @@ create_person_identity(Party, C, ProviderID) ->
 create_identity(Party, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
     ID.
@@ -582,8 +557,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
 create_wallet(IdentityID, Name, Currency, _C) ->
     ID = genlib:unique(),
     ok = ff_wallet_machine:create(
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency},
+        #{id => ID, identity => IdentityID, name => Name, currency => Currency},
         ff_entity_context:new()
     ),
     ID.
@@ -626,8 +600,8 @@ create_destination(IID, Currency, Token, C) ->
             StoreSource#{token => Token}
         end,
     Resource = {bank_card, NewStoreResource},
-    Params = #{identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
-    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
+    Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
+    ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->
@@ -641,10 +615,10 @@ create_crypto_destination(IID, _C) ->
     ID = generate_id(),
     Resource = {crypto_wallet, #{
         id => <<"a30e277c07400c9940628828949efd48">>,
-        currency => litecoin
+        currency => {litecoin, #{}}
     }},
-    Params = #{identity => IID, name => <<"CryptoDestination">>, currency => <<"RUB">>, resource => Resource},
-    ok = ff_destination:create(ID, Params, ff_entity_context:new()),
+    Params = #{id => ID, identity => IID, name => <<"CryptoDestination">>, currency => <<"RUB">>, resource => Resource},
+    ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->

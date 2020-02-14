@@ -152,6 +152,7 @@
 -export([start_adjustment/2]).
 -export([find_adjustment/2]).
 -export([adjustments/1]).
+-export([effective_final_cash_flow/1]).
 
 %% Transfer logic callbacks
 -export([process_transfer/1]).
@@ -374,6 +375,15 @@ find_adjustment(AdjustmentID, Deposit) ->
 adjustments(Deposit) ->
     ff_adjustment_utils:adjustments(adjustments_index(Deposit)).
 
+-spec effective_final_cash_flow(deposit()) -> final_cash_flow().
+effective_final_cash_flow(Deposit) ->
+    case ff_adjustment_utils:cash_flow(adjustments_index(Deposit)) of
+        undefined ->
+            ff_cash_flow:make_empty_final();
+        CashFlow ->
+            CashFlow
+    end.
+
 -spec process_transfer(deposit()) ->
     process_result().
 process_transfer(Deposit) ->
@@ -488,7 +498,7 @@ do_deduce_activity(#{status := pending, p_transfer := prepared, limit_check := {
     p_transfer_cancel;
 do_deduce_activity(#{status := pending, p_transfer := cancelled, limit_check := {failed, _}}) ->
     {fail, limit_check};
-do_deduce_activity(#{status := succeeded, p_transfer := committed, active_revert := true}) ->
+do_deduce_activity(#{p_transfer := committed, active_revert := true}) ->
     revert;
 do_deduce_activity(#{active_adjustment := true}) ->
     adjustment;
@@ -645,15 +655,6 @@ adjustments_index(Deposit) ->
 -spec set_adjustments_index(adjustments_index(), deposit()) -> deposit().
 set_adjustments_index(Adjustments, Deposit) ->
     Deposit#{adjustments => Adjustments}.
-
--spec effective_final_cash_flow(deposit()) -> final_cash_flow().
-effective_final_cash_flow(Deposit) ->
-    case ff_adjustment_utils:cash_flow(adjustments_index(Deposit)) of
-        undefined ->
-            ff_cash_flow:make_empty_final();
-        CashFlow ->
-            CashFlow
-    end.
 
 -spec is_childs_active(deposit()) -> boolean().
 is_childs_active(Deposit) ->
@@ -838,7 +839,7 @@ validate_unreverted_amount(Params, Deposit) ->
 validate_revert_amount(Params) ->
     #{body := {RevertAmount, _Currency} = RevertBody} = Params,
     case RevertAmount of
-        Good when Good >= 0 ->
+        Good when Good > 0 ->
             {ok, valid};
         _Other ->
             {error, {invalid_revert_amount, RevertBody}}
@@ -981,7 +982,9 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, Deposit) ->
     CurrentCashFlow = effective_final_cash_flow(Deposit),
     NewCashFlow = ff_cash_flow:make_empty_final(),
     #{
-        new_status => NewStatus,
+        new_status => #{
+            new_status => NewStatus
+        },
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => NewCashFlow
@@ -991,7 +994,9 @@ make_change_status_params({failed, _}, succeeded = NewStatus, Deposit) ->
     CurrentCashFlow = effective_final_cash_flow(Deposit),
     NewCashFlow = make_final_cash_flow(wallet_id(Deposit), source_id(Deposit), body(Deposit)),
     #{
-        new_status => NewStatus,
+        new_status => #{
+            new_status => NewStatus
+        },
         new_cash_flow => #{
             old_cash_flow_inverted => ff_cash_flow:inverse(CurrentCashFlow),
             new_cash_flow => NewCashFlow
@@ -999,7 +1004,9 @@ make_change_status_params({failed, _}, succeeded = NewStatus, Deposit) ->
     };
 make_change_status_params({failed, _}, {failed, _} = NewStatus, _Deposit) ->
     #{
-        new_status => NewStatus
+        new_status => #{
+            new_status => NewStatus
+        }
     }.
 
 -spec save_adjustable_info(event(), deposit()) -> deposit().

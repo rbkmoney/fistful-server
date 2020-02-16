@@ -38,7 +38,8 @@
     challenges   => #{challenge_id() => challenge()},
     effective    => challenge_id(),
     external_id  => id(),
-    blocking     => blocking()
+    blocking     => blocking(),
+    created_at   => ff_time:timestamp_ms()
 }.
 
 -type challenge() ::
@@ -82,6 +83,7 @@
 -export([effective_challenge/1]).
 -export([external_id/1]).
 -export([blocking/1]).
+-export([created_at/1]).
 
 -export([is_accessible/1]).
 -export([set_blocking/1]).
@@ -121,6 +123,8 @@
     ff_map:result(challenge()).
 -spec external_id(identity()) ->
     external_id().
+-spec created_at(identity()) ->
+    ff_time:timestamp_ms() | undefined.
 
 id(#{id := V}) ->
     V.
@@ -154,6 +158,9 @@ challenge(ChallengeID, Identity) ->
 
 external_id(Identity) ->
     maps:get(external_id, Identity, undefined).
+
+created_at(Identity) ->
+    maps:get(created_at, Identity, undefined).
 
 -spec is_accessible(identity()) ->
     {ok, accessible} |
@@ -197,7 +204,9 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
                 party    => Party,
                 provider => ProviderID,
                 class    => ClassID,
-                contract => Contract
+                contract => Contract,
+                %% TODO need migration for events
+                created_at => ff_time:now()
             })},
             {level_changed,
                 LevelID

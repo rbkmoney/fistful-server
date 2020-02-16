@@ -12,9 +12,8 @@
 -type id() :: binary().
 -type hash() :: integer().
 -type params() :: map().
--type gen_type() :: identity | identity_challenge | wallet | destination | withdrawal.
+-type gen_type() :: identity | identity_challenge | wallet.
 
--export([get_idempotent_key/3]).
 -export([gen_id/3]).
 -export([gen_id/4]).
 -export([make_ctx/2]).

@@ -40,8 +40,8 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     end.
 
 create(WalletID, Params, HandlerContext) ->
-    WalletParams = marshal(wallet_params, Params),
-    Request = {fistful_wallet, 'Create', [WalletID, WalletParams]},
+    WalletParams = marshal(wallet_params, Params#{<<"id">> => WalletID}),
+    Request = {fistful_wallet, 'Create', [WalletParams]},
     case service_call(Request, HandlerContext) of
         {ok, Wallet} ->
             {ok, unmarshal(wallet, Wallet)};
@@ -84,6 +84,7 @@ service_call(Params, Ctx) ->
 %% Marshaling
 
 marshal(wallet_params, Params = #{
+    <<"id">> := ID,
     <<"name">> := Name,
     <<"identity">> := IdentityID,
     <<"currency">> := CurrencyID,
@@ -91,6 +92,7 @@ marshal(wallet_params, Params = #{
 }) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #wlt_WalletParams{
+        id = marshal(id, ID),
         name = marshal(string, Name),
         account_params = marshal(account_params, {IdentityID, CurrencyID}),
         external_id = marshal(id, ExternalID),
@@ -126,7 +128,7 @@ unmarshal(wallet, #wlt_Wallet{
     genlib_map:compact(#{
         <<"id">> => unmarshal(id, WalletID),
         <<"name">> => unmarshal(string, Name),
-        <<"isBlocked">> => unmarshal(blocked, Blocking),
+        <<"isBlocked">> => unmarshal(blocking, Blocking),
         <<"identity">> => Identity,
         <<"currency">> => Currency,
         <<"createdAt">> => CreatedAt,
@@ -134,9 +136,9 @@ unmarshal(wallet, #wlt_Wallet{
         <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
     });
 
-unmarshal(blocked, unblocked) ->
+unmarshal(blocking, unblocked) ->
     false;
-unmarshal(blocked, blocked) ->
+unmarshal(blocking, blocked) ->
     true;
 
 unmarshal(context, Ctx) ->

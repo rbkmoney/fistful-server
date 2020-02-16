@@ -133,8 +133,7 @@ create_identity(Party, C) ->
 create_identity(Party, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        ID,
-        #{party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
     ID.
@@ -155,29 +154,29 @@ create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
     ID = genlib:unique(),
     ok = create_instrument(
         Type,
-        ID,
-        #{identity => IdentityID, name => Name, currency => Currency, resource => Resource},
+        #{id => ID, identity => IdentityID, name => Name, currency => Currency, resource => Resource},
         ff_entity_context:new(),
         C
     ),
     ID.
 
-create_instrument(destination, ID, Params, Ctx, _C) ->
-    ff_destination:create(ID, Params, Ctx);
-create_instrument(source, ID, Params, Ctx, _C) ->
-    ff_source:create(ID, Params, Ctx).
+create_instrument(destination, Params, Ctx, _C) ->
+    ff_destination:create(Params, Ctx);
+create_instrument(source, Params, Ctx, _C) ->
+    ff_source:create(Params, Ctx).
 
 create_failed_session(IdentityID, DestinationID, _C) ->
     ID = genlib:unique(),
+    {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     TransferData = #{
         id          => ID,
-        cash        => invalid_cash,  % invalid cash
-        sender      => IdentityID,
-        receiver    => IdentityID
+        cash        => {1000, <<"unknown_currency">>},  % invalid currency
+        sender      => ff_identity_machine:identity(IdentityMachine),
+        receiver    => ff_identity_machine:identity(IdentityMachine)
     },
     {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
     Destination = ff_destination:get(DestinationMachine),
-    DestinationResource = ff_destination:resource_full(Destination),
+    {ok, DestinationResource} = ff_destination:resource_full(Destination),
     SessionParams = #{
         resource => DestinationResource,
         provider_id => 1

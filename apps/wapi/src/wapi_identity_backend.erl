@@ -57,11 +57,11 @@ create_identity(Params, HandlerContext) ->
 
 create_identity(ID, Params, HandlerContext) ->
     IdentityParams = marshal(identity_params, {
-        Params,
+        Params#{<<"id">> => ID},
         wapi_handler_utils:get_owner(HandlerContext),
         create_context(Params, HandlerContext)
     }),
-    Request = {fistful_identity, 'Create', [ID, IdentityParams]},
+    Request = {fistful_identity, 'Create', [IdentityParams]},
 
     case service_call(Request, HandlerContext) of
         {ok, Identity} ->
@@ -313,11 +313,13 @@ marshal({list, Type}, List) ->
     lists:map(fun(V) -> marshal(Type, V) end, List);
 
 marshal(identity_params, {Params = #{
+    <<"id">>        := ID,
     <<"provider">>  := Provider,
     <<"class">>     := Class
 }, Owner, Context}) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #idnt_IdentityParams{
+        id = marshal(id, ID),
         party = marshal(id, Owner),
         provider = marshal(string, Provider),
         cls = marshal(string, Class),
@@ -419,7 +421,7 @@ unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
 }}) ->
     #{
         <<"status">>  => <<"Completed">>,
-        <<"validUntil">> => maybe_unmarshal(string, Time)
+        <<"validUntil">> => unmarshal(string, Time)
     };
 unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
     resolution = denied

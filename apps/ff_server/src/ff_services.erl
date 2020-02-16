@@ -17,6 +17,8 @@
 -spec get_service(service_name()) -> service().
 get_service(fistful_admin) ->
     {ff_proto_fistful_admin_thrift, 'FistfulAdmin'};
+get_service(ff_p2p_adapter_host) ->
+    {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'};
 get_service(deposit_event_sink) ->
     {ff_proto_deposit_thrift, 'EventSink'};
 get_service(source_event_sink) ->
@@ -44,7 +46,17 @@ get_service(identity_management) ->
 get_service(destination_management) ->
     {ff_proto_destination_thrift, 'Management'};
 get_service(withdrawal_management) ->
-    {ff_proto_withdrawal_thrift, 'Management'}.
+    {ff_proto_withdrawal_thrift, 'Management'};
+get_service(deposit_management) ->
+    {ff_proto_deposit_thrift, 'Management'};
+get_service(p2p_transfer_event_sink) ->
+    {ff_proto_p2p_transfer_thrift, 'EventSink'};
+get_service(p2p_session_event_sink) ->
+    {ff_proto_p2p_session_thrift, 'EventSink'};
+get_service(p2p_transfer_repairer) ->
+    {ff_proto_p2p_transfer_thrift, 'Repairer'};
+get_service(p2p_session_repairer) ->
+    {ff_proto_p2p_session_thrift, 'Repairer'}.
 
 -spec get_service_spec(service_name()) -> service_spec().
 get_service_spec(Name) ->
@@ -53,6 +65,8 @@ get_service_spec(Name) ->
 -spec get_service_path(service_name()) -> string().
 get_service_path(fistful_admin) ->
     "/v1/admin";
+get_service_path(ff_p2p_adapter_host) ->
+    "/v1/ff_p2p_adapter_host";
 get_service_path(deposit_event_sink) ->
     "/v1/eventsink/deposit";
 get_service_path(source_event_sink) ->
@@ -80,4 +94,14 @@ get_service_path(identity_management) ->
 get_service_path(destination_management) ->
     "/v1/destination";
 get_service_path(withdrawal_management) ->
-    "/v1/withdrawal".
+    "/v1/withdrawal";
+get_service_path(deposit_management) ->
+    "/v1/deposit";
+get_service_path(p2p_transfer_event_sink) ->
+    "/v1/eventsink/p2p_transfer";
+get_service_path(p2p_session_event_sink) ->
+    "/v1/eventsink/p2p_transfer/session";
+get_service_path(p2p_transfer_repairer) ->
+    "/v1/repair/p2p_transfer";
+get_service_path(p2p_session_repairer) ->
+    "/v1/repair/p2p_transfer/session".

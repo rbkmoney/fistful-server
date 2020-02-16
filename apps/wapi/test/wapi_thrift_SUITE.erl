@@ -271,12 +271,12 @@ create_wallet(IdentityID, C) ->
 
 create_wallet(IdentityID, Params, C) ->
     DefaultParams = #{
-        <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
-        <<"identity">> => IdentityID,
-        <<"currency">> => <<"RUB">>,
-        <<"metadata">> => #{
-            ?STRING => ?STRING
-        }
+            <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
+            <<"identity">> => IdentityID,
+            <<"currency">> => <<"RUB">>,
+            <<"metadata">> => #{
+                ?STRING => ?STRING
+            }
     },
     {ok, Wallet} = call_api(
         fun swag_client_wallet_wallets_api:create_wallet/3,

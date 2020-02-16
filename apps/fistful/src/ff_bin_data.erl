@@ -4,12 +4,14 @@
 -include_lib("binbase_proto/include/binbase_msgpack_thrift.hrl").
 
 -type token() :: binary().
+-type iso_country_code() :: atom().
+-type payment_system() :: atom().
 -type bin_data() :: #{
     token               := token(),
     id                  := bin_data_id(),
-    payment_system      := atom(),
+    payment_system      := payment_system(),
     bank_name           => binary(),
-    iso_country_code    => atom(),
+    iso_country_code    => iso_country_code(),
     card_type           => charge_card | credit | debit | credit_or_debit,
     version             := integer()
 }.
@@ -26,12 +28,14 @@
 
 -export_type([bin_data/0]).
 -export_type([bin_data_id/0]).
+-export_type([iso_country_code/0]).
+-export_type([payment_system/0]).
 
 -export([get/2]).
 -export([id/1]).
 
 -spec get(token(), bin_data_id() | undefined) ->
-    {ok, bin_data() | undefined} | {error, not_found}.
+    {ok, bin_data()} | {error, not_found}.
 
 get(Token, undefined) ->
     case call_binbase('GetByCardToken', [Token]) of

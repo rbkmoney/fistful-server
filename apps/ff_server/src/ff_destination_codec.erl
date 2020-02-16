@@ -19,6 +19,7 @@
 
 unmarshal_destination_params(Params) ->
     genlib_map:compact(#{
+        id          => unmarshal(id,       Params#dst_DestinationParams.id),
         identity    => unmarshal(id,       Params#dst_DestinationParams.identity),
         name        => unmarshal(string,   Params#dst_DestinationParams.name),
         currency    => unmarshal(string,   Params#dst_DestinationParams.currency),
@@ -55,11 +56,11 @@ unmarshal_destination(Dest) ->
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
-marshal(event, {created, Destination}) ->
+marshal(change, {created, Destination}) ->
     {created, marshal_destination(Destination)};
-marshal(event, {account, AccountChange}) ->
+marshal(change, {account, AccountChange}) ->
     {account, marshal(account_change, AccountChange)};
-marshal(event, {status_changed, StatusChange}) ->
+marshal(change, {status_changed, StatusChange}) ->
     {status, marshal(status_change, StatusChange)};
 
 marshal(status, authorized) ->
@@ -86,15 +87,15 @@ unmarshal({list, T}, V) ->
 
 unmarshal(repair_scenario, {add_events, #dst_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
-        events => unmarshal({list, event}, Events),
+        events => unmarshal({list, change}, Events),
         actions => maybe_unmarshal(complex_action, Action)
     })};
 
-unmarshal(event, {created, Destination}) ->
+unmarshal(change, {created, Destination}) ->
     {created, unmarshal(destination, Destination)};
-unmarshal(event, {account, AccountChange}) ->
+unmarshal(change, {account, AccountChange}) ->
     {account, unmarshal(account_change, AccountChange)};
-unmarshal(event, {status, StatusChange}) ->
+unmarshal(change, {status, StatusChange}) ->
     {status_changed, unmarshal(status_change, StatusChange)};
 
 unmarshal(status, {authorized, #dst_Authorized{}}) ->
@@ -153,7 +154,7 @@ destination_test() ->
 crypto_wallet_resource_test() ->
     Resource = {crypto_wallet, #{
         id => <<"9e6245a7a6e15f75769a4d87183b090a">>,
-        currency => bitcoin
+        currency => {bitcoin, #{}}
     }},
     ?assertEqual(Resource, unmarshal(resource, marshal(resource, Resource))).
 

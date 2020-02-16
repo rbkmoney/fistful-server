@@ -212,15 +212,15 @@ get_challenges_ok(C) ->
 %% INTERNAL
 %%----------
 create_identity(EID, PartyID, ProvID, ClassID, Ctx) ->
-    IID = genlib:unique(),
     Params = #idnt_IdentityParams{
+        id          = genlib:unique(),
         party       = PartyID,
         provider    = ProvID,
         cls         = ClassID,
         external_id = EID,
         context     = Ctx
     },
-    {ok, IdentityState} = call_api('Create', [IID, Params]),
+    {ok, IdentityState} = call_api('Create', [Params]),
     IdentityState.
 
 gen_challenge_param(ClgClassID, ChallengeID, C) ->

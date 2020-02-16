@@ -24,7 +24,10 @@
     dmsl_domain_thrift:'CashValueSelector'() |
     dmsl_domain_thrift:'CumulativeLimitSelector'() |
     dmsl_domain_thrift:'WithdrawalProviderSelector'() |
-    dmsl_domain_thrift:'TimeSpanSelector'().
+    dmsl_domain_thrift:'P2PProviderSelector'() |
+    dmsl_domain_thrift:'P2PInspectorSelector'() |
+    dmsl_domain_thrift:'TimeSpanSelector'() |
+    dmsl_domain_thrift:'FeeSelector'().
 
 -type value() ::
     _. %% FIXME
@@ -40,7 +43,8 @@
     flow            => instant | {hold, dmsl_domain_thrift:'HoldLifetime'()},
     payout_method   => dmsl_domain_thrift:'PayoutMethodRef'(),
     wallet_id       => dmsl_domain_thrift:'WalletID'(),
-    identification_level => dmsl_domain_thrift:'ContractorIdentificationLevel'()
+    identification_level => dmsl_domain_thrift:'ContractorIdentificationLevel'(),
+    p2p_tool        => dmsl_domain_thrift:'P2PTool'()
 }.
 
 -export_type([varset/0]).

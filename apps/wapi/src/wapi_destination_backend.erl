@@ -46,8 +46,11 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
 create(DestinationID, Params = #{<<"resource">> := Resource}, HandlerContext) ->
     case construct_resource(Resource) of
         {ok, ConstructedResource} ->
-            DestinationParams = marshal(destination_params, Params#{<<"resource">> => ConstructedResource}),
-            Request = {fistful_destination, 'Create', [DestinationID, DestinationParams]},
+            DestinationParams = marshal(destination_params, Params#{
+                <<"id">> => DestinationID,
+                <<"resource">> => ConstructedResource
+            }),
+            Request = {fistful_destination, 'Create', [DestinationParams]},
             case service_call(Request, HandlerContext) of
                 {ok, Destination} ->
                     {ok, unmarshal(destination, Destination)};
@@ -147,6 +150,7 @@ service_call(Params, Context) ->
 %% Marshaling
 
 marshal(destination_params, Params = #{
+    <<"id">> := ID,
     <<"identity">> := IdentityID,
     <<"currency">> := CurrencyID,
     <<"name">> := Name,
@@ -155,6 +159,7 @@ marshal(destination_params, Params = #{
 }) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #dst_DestinationParams{
+        id = marshal(id, ID),
         identity = marshal(id, IdentityID),
         name = marshal(string, Name),
         currency = marshal(string, CurrencyID),

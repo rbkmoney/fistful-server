@@ -12,7 +12,7 @@
 -type id() :: binary().
 -type hash() :: integer().
 -type params() :: map().
--type gen_type() :: identity | identity_challenge | wallet | destination.
+-type gen_type() :: identity | identity_challenge | wallet | destination | withdrawal | p2p_transfer.
 
 -export([gen_id/3]).
 -export([gen_id/4]).
@@ -20,6 +20,7 @@
 -export([add_to_ctx/2]).
 -export([add_to_ctx/3]).
 -export([get_from_ctx/2]).
+-export([get_idempotent_key/3]).
 
 %% Pipeline
 

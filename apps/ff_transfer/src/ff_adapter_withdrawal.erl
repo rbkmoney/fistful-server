@@ -202,8 +202,8 @@ encode_resource(
     {bank_card, #{
         token          := Token,
         payment_system := PaymentSystem,
-        bin            := BIN,
-        masked_pan     := MaskedPan
+        bin            := BIN
+        % masked_pan     := MaskedPan
     } = BankCard}
 ) ->
     CardHolderName = genlib_map:get(cardholder_name, BankCard),
@@ -212,7 +212,7 @@ encode_resource(
         token           = Token,
         payment_system  = PaymentSystem,
         bin             = BIN,
-        masked_pan      = MaskedPan,
+        % masked_pan      = MaskedPan,
         cardholder_name = CardHolderName,
         exp_date        = encode_exp_date(ExpDate)
     }};

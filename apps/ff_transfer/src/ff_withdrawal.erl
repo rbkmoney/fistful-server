@@ -988,7 +988,7 @@ construct_payment_tool({bank_card, ResourceBankCard}) ->
     {bank_card, #domain_BankCard{
         token           = maps:get(token, ResourceBankCard),
         bin             = maps:get(bin, ResourceBankCard),
-        masked_pan      = maps:get(masked_pan, ResourceBankCard),
+        % masked_pan      = maps:get(masked_pan, ResourceBankCard),
         payment_system  = maps:get(payment_system, ResourceBankCard),
         issuer_country  = maps:get(iso_country_code, ResourceBankCard, undefined),
         bank_name       = maps:get(bank_name, ResourceBankCard, undefined)

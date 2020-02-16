@@ -4,37 +4,37 @@
 
 -module(w2w_transfer).
 
--type id()    :: binary().
+-type id() :: binary().
 
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 1).
 -opaque w2w_transfer() :: #{
-    version         := ?ACTUAL_FORMAT_VERSION,
-    id              := id(),
-    transfer_type   := w2w_transfer,
-    body            := body(),
-    params          := transfer_params(),
-    party_revision  => party_revision(),
-    domain_revision => domain_revision(),
-    created_at      => ff_time:timestamp_ms(),
-    p_transfer      => p_transfer(),
-    status          => status(),
-    external_id     => id(),
-    limit_checks    => [limit_check_details()],
-    reverts         => reverts_index(),
-    adjustments     => adjustments_index()
+    version := ?ACTUAL_FORMAT_VERSION,
+    id := id(),
+    body := body(),
+    wallet_from_id := wallet_id(),
+    wallet_to_id := wallet_id(),
+    party_revision := party_revision(),
+    domain_revision := domain_revision(),
+    created_at := ff_time:timestamp_ms(),
+    p_transfer => p_transfer(),
+    status => status(),
+    external_id => id(),
+    limit_checks => [limit_check_details()],
+    reverts => reverts_index(),
+    adjustments => adjustments_index()
 }.
 -type params() :: #{
-    id            := id(),
-    body          := ff_transaction:body(),
-    source_id     := ff_source:id(),
-    wallet_id     := ff_wallet:id(),
-    external_id   => external_id()
+    id := id(),
+    body := ff_transaction:body(),
+    wallet_from_id := wallet_id(),
+    wallet_to_id := wallet_id(),
+    external_id => external_id()
 }.
 
 -type status() ::
     pending |
     succeeded |
-    {failed, failure()} .
+    {failed, failure()}.
 
 -type event() ::
     {created, w2w_transfer()} |
@@ -44,8 +44,10 @@
     wrapped_adjustment_event() |
     {status_changed, status()}.
 
--type limit_check_details() ::
-    {wallet, wallet_limit_check_details()}.
+-type limit_check_details() :: #{
+    wallet_from := wallet_limit_check_details(),
+    wallet_to := wallet_limit_check_details()
+}.
 
 -type wallet_limit_check_details() ::
     ok |
@@ -57,16 +59,16 @@
 }.
 
 -type create_error() ::
-    {source, notfound | unauthorized} |
-    {wallet, notfound} |
+    {wallet_from, notfound} |
+    {wallet_to, notfound} |
     ff_party:validate_w2w_transfer_creation_error() |
-    {inconsistent_currency, {W2WTransfer :: currency_id(), Source :: currency_id(), Wallet :: currency_id()}}.
+    {inconsistent_currency, {W2WTransfer :: currency_id(), WalletFrom :: currency_id(), WalletTo :: currency_id()}}.
 
 -type revert_params() :: #{
-    id            := id(),
-    body          := body(),
-    reason        => binary(),
-    external_id   => id()
+    id := id(),
+    body := body(),
+    reason => binary(),
+    external_id => id()
 }.
 
 -type start_revert_error() ::
@@ -91,8 +93,8 @@
 -type unknown_revert_error() :: w2w_transfer_revert_utils:unknown_revert_error().
 
 -type adjustment_params() :: #{
-    id          := adjustment_id(),
-    change      := adjustment_change(),
+    id := adjustment_id(),
+    change := adjustment_change(),
     external_id => id()
 }.
 
@@ -128,8 +130,8 @@
 
 %% Accessors
 
--export([wallet_id/1]).
--export([source_id/1]).
+-export([wallet_from_id/1]).
+-export([wallet_to_id/1]).
 -export([id/1]).
 -export([body/1]).
 -export([status/1]).
@@ -167,11 +169,9 @@
 
 %% Internal types
 
--type account()               :: ff_account:account().
+% -type account()               :: ff_account:account().
 -type process_result()        :: {action(), [event()]}.
--type cash_flow_plan()        :: ff_cash_flow:cash_flow_plan().
--type source_id()             :: ff_source:id().
--type source()                :: ff_source:source().
+% -type cash_flow_plan()        :: ff_cash_flow:cash_flow_plan().
 -type wallet_id()             :: ff_wallet:id().
 -type wallet()                :: ff_wallet:wallet().
 -type revert()                :: w2w_transfer_revert:revert().
@@ -183,7 +183,6 @@
 -type p_transfer()            :: ff_postings_transfer:transfer().
 -type currency_id()           :: ff_currency:id().
 -type external_id()           :: id().
--type legacy_event()          :: any().
 -type reverts_index()         :: w2w_transfer_revert_utils:index().
 -type failure()               :: ff_failure:failure().
 -type adjustment()            :: ff_adjustment:adjustment().
@@ -196,14 +195,6 @@
 -type terms()                 :: ff_party:terms().
 -type clock()                 :: ff_transaction:clock().
 
--type transfer_params() :: #{
-    source_id             := source_id(),
-    wallet_id             := wallet_id(),
-    wallet_account        := account(),
-    source_account        := account(),
-    wallet_cash_flow_plan := cash_flow_plan()
-}.
-
 -type activity() ::
     p_transfer_start |
     p_transfer_prepare |
@@ -213,7 +204,6 @@
     revert |
     adjustment |
     {fail, fail_type()} |
-    stop |  % Legacy activity.
     finish.
 
 -type fail_type() ::
@@ -225,13 +215,13 @@
 id(#{id := V}) ->
     V.
 
--spec wallet_id(w2w_transfer()) -> wallet_id().
-wallet_id(T) ->
-    maps:get(wallet_id, params(T)).
+-spec wallet_from_id(w2w_transfer()) -> wallet_id().
+wallet_from_id(T) ->
+    maps:get(wallet_from_id, T).
 
--spec source_id(w2w_transfer()) -> source_id().
-source_id(T) ->
-    maps:get(source_id, params(T)).
+-spec wallet_to_id(w2w_transfer()) -> wallet_id().
+wallet_to_id(T) ->
+    maps:get(wallet_to_id, T).
 
 -spec body(w2w_transfer()) -> body().
 body(#{body := V}) ->
@@ -272,12 +262,12 @@ created_at(T) ->
     {error, create_error()}.
 create(Params) ->
     do(fun() ->
-        #{id := ID, source_id := SourceID, wallet_id := WalletID, body := Body} = Params,
-        Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
+        #{id := ID, wallet_from_id := WalletFromID, wallet_to_id := WalletToID, body := Body} = Params,
         CreatedAt = ff_time:now(),
         DomainRevision = ff_domain_config:head(),
-        Wallet = unwrap(wallet, get_wallet(WalletID)),
-        Identity = get_wallet_identity(Wallet),
+        WalletFrom = unwrap(wallet_from, get_wallet(WalletFromID)),
+        WalletTo = unwrap(wallet_to, get_wallet(WalletToID)),
+        Identity = get_wallet_identity(WalletFrom),
         PartyID = ff_identity:party(Identity),
         {ok, PartyRevision} = ff_party:get_revision(PartyID),
         ContractID = ff_identity:contract(Identity),
@@ -285,38 +275,23 @@ create(Params) ->
         Varset = genlib_map:compact(#{
             currency => ff_dmsl_codec:marshal(currency_ref, Currency),
             cost => ff_dmsl_codec:marshal(cash, Body),
-            wallet_id => WalletID
+            wallet_id => WalletFromID
         }),
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
         ),
-        valid =  unwrap(validate_w2w_transfer_creation(Terms, Params, Source, Wallet)),
+        valid =  unwrap(validate_w2w_transfer_creation(Terms, Params, WalletFrom, WalletTo)),
         ExternalID = maps:get(external_id, Params, undefined),
-        TransferParams = #{
-            wallet_id             => WalletID,
-            source_id             => SourceID,
-            wallet_account        => ff_wallet:account(Wallet),
-            source_account        => ff_source:account(Source),
-            wallet_cash_flow_plan => #{
-                postings => [
-                    #{
-                        sender   => {wallet, sender_source},
-                        receiver => {wallet, receiver_settlement},
-                        volume   => {share, {{1, 1}, operation_amount, default}}
-                    }
-                ]
-            }
-        },
         [
             {created, add_external_id(ExternalID, #{
-                version         => ?ACTUAL_FORMAT_VERSION,
-                id              => ID,
-                transfer_type   => w2w_transfer,
-                body            => Body,
-                params          => TransferParams,
-                party_revision  => PartyRevision,
+                version => ?ACTUAL_FORMAT_VERSION,
+                id => ID,
+                body => Body,
+                wallet_from_id => WalletFromID,
+                wallet_to_id => WalletToID,
+                party_revision => PartyRevision,
                 domain_revision => DomainRevision,
-                created_at      => CreatedAt
+                created_at => CreatedAt
             })},
             {status_changed, pending}
         ]
@@ -410,7 +385,7 @@ is_finished(#{status := pending}) ->
 
 %% Events utils
 
--spec apply_event(event() | legacy_event(), w2w_transfer() | undefined) ->
+-spec apply_event(event(), w2w_transfer() | undefined) ->
     w2w_transfer().
 apply_event(Ev, T0) ->
     T1 = apply_event_(Ev, T0),
@@ -437,14 +412,13 @@ apply_event_({adjustment, _Ev} = Event, T) ->
 -spec do_start_revert(revert_params(), w2w_transfer()) ->
     {ok, process_result()} |
     {error, start_revert_error()}.
-do_start_revert(Params, W2WTransfer) ->
+do_start_revert(Params = #{id := RevertID}, W2WTransfer) ->
     do(fun() ->
         valid = unwrap(validate_revert_start(Params, W2WTransfer)),
         RevertParams = Params#{
-            wallet_id => wallet_id(W2WTransfer),
-            source_id => source_id(W2WTransfer)
+            wallet_from_id => wallet_from_id(W2WTransfer),
+            wallet_to_id => wallet_to_id(W2WTransfer)
         },
-        #{id := RevertID} = Params,
         {Action, Events} = unwrap(w2w_transfer_revert:create(RevertParams)),
         {Action, w2w_transfer_revert_utils:wrap_events(RevertID, Events)}
     end).
@@ -460,10 +434,6 @@ do_start_adjustment(Params, W2WTransfer) ->
         {Action, Events} = unwrap(ff_adjustment:create(AdjustmentParams)),
         {Action, ff_adjustment_utils:wrap_events(AdjustmentID, Events)}
     end).
-
--spec params(w2w_transfer()) -> transfer_params().
-params(#{params := V}) ->
-    V.
 
 add_external_id(undefined, Event) ->
     Event;
@@ -499,17 +469,7 @@ do_deduce_activity(#{status := pending, p_transfer := cancelled, limit_check := 
 do_deduce_activity(#{p_transfer := committed, active_revert := true}) ->
     revert;
 do_deduce_activity(#{active_adjustment := true}) ->
-    adjustment;
-
-%% Legacy activity. Remove after first deployment
-do_deduce_activity(#{status := {failed, _}, p_transfer := prepared}) ->
-    p_transfer_cancel;
-do_deduce_activity(#{status := succeeded, p_transfer := prepared}) ->
-    p_transfer_commit;
-do_deduce_activity(#{status := succeeded, p_transfer := committed, active_revert := false}) ->
-    stop;
-do_deduce_activity(#{status := {failed, _}, p_transfer := cancelled, active_revert := false}) ->
-    stop.
+    adjustment.
 
 -spec do_process_transfer(activity(), w2w_transfer()) ->
     process_result().
@@ -535,14 +495,12 @@ do_process_transfer(revert, W2WTransfer) ->
     handle_child_result(Result, W2WTransfer);
 do_process_transfer(adjustment, W2WTransfer) ->
     Result = ff_adjustment_utils:process_adjustments(adjustments_index(W2WTransfer)),
-    handle_child_result(Result, W2WTransfer);
-do_process_transfer(stop, _W2WTransfer) ->
-    {undefined, []}.
+    handle_child_result(Result, W2WTransfer).
 
 -spec create_p_transfer(w2w_transfer()) ->
     process_result().
 create_p_transfer(W2WTransfer) ->
-    FinalCashFlow = make_final_cash_flow(wallet_id(W2WTransfer), source_id(W2WTransfer), body(W2WTransfer)),
+    FinalCashFlow = make_final_cash_flow(wallet_from_id(W2WTransfer), wallet_to_id(W2WTransfer), body(W2WTransfer)),
     PTransferID = construct_p_transfer_id(id(W2WTransfer)),
     {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
     {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
@@ -550,36 +508,14 @@ create_p_transfer(W2WTransfer) ->
 -spec process_limit_check(w2w_transfer()) ->
     process_result().
 process_limit_check(W2WTransfer) ->
-    Body = body(W2WTransfer),
-    WalletID = wallet_id(W2WTransfer),
-    DomainRevision = operation_domain_revision(W2WTransfer),
-    {ok, Wallet} = get_wallet(WalletID),
-    Identity = get_wallet_identity(Wallet),
-    PartyID = ff_identity:party(Identity),
-    PartyRevision = operation_party_revision(W2WTransfer),
-    ContractID = ff_identity:contract(Identity),
-    {_Amount, Currency} = Body,
-    Timestamp = operation_timestamp(W2WTransfer),
-    Varset = genlib_map:compact(#{
-        currency => ff_dmsl_codec:marshal(currency_ref, Currency),
-        cost => ff_dmsl_codec:marshal(cash, Body),
-        wallet_id => WalletID
-    }),
-    {ok, Terms} = ff_party:get_contract_terms(
-        PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision
-    ),
-    Clock = ff_postings_transfer:clock(p_transfer(W2WTransfer)),
-    Events = case validate_wallet_limits(Terms, Wallet, Clock) of
-        {ok, valid} ->
-            [{limit_check, {wallet, ok}}];
-        {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
-            Details = #{
-                expected_range => Range,
-                balance => Cash
-            },
-            [{limit_check, {wallet, {failed, Details}}}]
-    end,
-    {continue, Events}.
+    WalletFromID = wallet_from_id(W2WTransfer),
+    WalletToID = wallet_to_id(W2WTransfer),
+
+    LimitCheck = #{
+        wallet_from => process_wallet_limit_check(WalletFromID, W2WTransfer),
+        wallet_to => process_wallet_limit_check(WalletToID, W2WTransfer)
+    },
+    {continue, [{limit_check, LimitCheck}]}.
 
 -spec process_transfer_finish(w2w_transfer()) ->
     process_result().
@@ -592,26 +528,26 @@ process_transfer_fail(limit_check, W2WTransfer) ->
     Failure = build_failure(limit_check, W2WTransfer),
     {undefined, [{status_changed, {failed, Failure}}]}.
 
--spec make_final_cash_flow(wallet_id(), source_id(), body()) ->
+-spec make_final_cash_flow(wallet_id(), wallet_id(), body()) ->
     final_cash_flow().
-make_final_cash_flow(WalletID, SourceID, Body) ->
-    {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
-    WalletAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletMachine)),
-    {ok, SourceMachine} = ff_source:get_machine(SourceID),
-    SourceAccount = ff_source:account(ff_source:get(SourceMachine)),
+make_final_cash_flow(WalletFromID, WalletToID, Body) ->
+    {ok, WalletFromMachine} = ff_wallet_machine:get(WalletFromID),
+    WalletFromAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletFromMachine)),
+    {ok, WalletToMachine} = ff_wallet_machine:get(WalletToID),
+    WalletToAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletToMachine)),
     Constants = #{
         operation_amount => Body
     },
     Accounts = #{
-        {wallet, sender_source} => SourceAccount,
-        {wallet, receiver_settlement} => WalletAccount
+        {wallet, sender_source} => WalletFromAccount,
+        {wallet, receiver_settlement} => WalletToAccount
     },
     CashFlowPlan = #{
         postings => [
             #{
-                sender   => {wallet, sender_source},
+                sender => {wallet, sender_source},
                 receiver => {wallet, receiver_settlement},
-                volume   => {share, {{1, 1}, operation_amount, default}}
+                volume => {share, {{1, 1}, operation_amount, default}}
             }
         ]
     },
@@ -668,7 +604,7 @@ operation_timestamp(W2WTransfer) ->
 operation_party_revision(W2WTransfer) ->
     case party_revision(W2WTransfer) of
         undefined ->
-            {ok, Wallet} = get_wallet(wallet_id(W2WTransfer)),
+            {ok, Wallet} = get_wallet(wallet_from_id(W2WTransfer)),
             PartyID = ff_identity:party(get_wallet_identity(Wallet)),
             {ok, Revision} = ff_party:get_revision(PartyID),
             Revision;
@@ -688,45 +624,65 @@ operation_domain_revision(W2WTransfer) ->
 
 %% W2WTransfer validators
 
--spec validate_w2w_transfer_creation(terms(), params(), source(), wallet()) ->
+-spec validate_w2w_transfer_creation(terms(), params(), wallet(), wallet()) ->
     {ok, valid} |
     {error, create_error()}.
-validate_w2w_transfer_creation(Terms, Params, Source, Wallet) ->
+validate_w2w_transfer_creation(Terms, Params, WalletFrom, WalletTo) ->
     #{body := Body} = Params,
     do(fun() ->
         valid = unwrap(ff_party:validate_w2w_transfer_creation(Terms, Body)),
-        valid = unwrap(validate_w2w_transfer_currency(Body, Source, Wallet)),
-        valid = unwrap(validate_source_status(Source))
+        valid = unwrap(validate_w2w_transfer_currency(Body, WalletFrom, WalletTo))
     end).
 
--spec validate_w2w_transfer_currency(body(), source(), wallet()) ->
+-spec validate_w2w_transfer_currency(body(), wallet(), wallet()) ->
     {ok, valid} |
     {error, {inconsistent_currency, {currency_id(), currency_id(), currency_id()}}}.
-validate_w2w_transfer_currency(Body, Source, Wallet) ->
-    SourceCurrencyID = ff_account:currency(ff_source:account(Source)),
-    WalletCurrencyID = ff_account:currency(ff_wallet:account(Wallet)),
+validate_w2w_transfer_currency(Body, WalletFrom, WalletTo) ->
+    WalletFromCurrencyID = ff_account:currency(ff_wallet:account(WalletFrom)),
+    WalletToCurrencyID = ff_account:currency(ff_wallet:account(WalletTo)),
     case Body of
         {_Amount, W2WTransferCurencyID} when
-            W2WTransferCurencyID =:= SourceCurrencyID andalso
-            W2WTransferCurencyID =:= WalletCurrencyID
+            W2WTransferCurencyID =:= WalletFromCurrencyID andalso
+            W2WTransferCurencyID =:= WalletToCurrencyID
         ->
             {ok, valid};
         {_Amount, W2WTransferCurencyID} ->
-            {error, {inconsistent_currency, {W2WTransferCurencyID, SourceCurrencyID, WalletCurrencyID}}}
-    end.
-
--spec validate_source_status(source()) ->
-    {ok, valid} |
-    {error, {source, ff_source:status()}}.
-validate_source_status(Source) ->
-    case ff_source:status(Source) of
-        authorized ->
-            {ok, valid};
-        unauthorized ->
-            {error, {source, unauthorized}}
+            {error, {inconsistent_currency, {W2WTransferCurencyID, WalletFromCurrencyID, WalletToCurrencyID}}}
     end.
 
 %% Limit helpers
+-spec process_wallet_limit_check(wallet_id(), w2w_transfer()) ->
+    wallet_limit_check_details().
+
+process_wallet_limit_check(WalletID, W2WTransfer) ->
+    Body = body(W2WTransfer),
+    {ok, Wallet} = get_wallet(WalletID),
+    DomainRevision = operation_domain_revision(W2WTransfer),
+    Identity = get_wallet_identity(Wallet),
+    PartyID = ff_identity:party(Identity),
+    PartyRevision = operation_party_revision(W2WTransfer),
+    ContractID = ff_identity:contract(Identity),
+    {_Amount, Currency} = Body,
+    Timestamp = operation_timestamp(W2WTransfer),
+    Varset = genlib_map:compact(#{
+        currency => ff_dmsl_codec:marshal(currency_ref, Currency),
+        cost => ff_dmsl_codec:marshal(cash, Body),
+        wallet_id => WalletID
+    }),
+    {ok, Terms} = ff_party:get_contract_terms(
+        PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision
+    ),
+    Clock = ff_postings_transfer:clock(p_transfer(W2WTransfer)),
+    case validate_wallet_limits(Terms, Wallet, Clock) of
+        {ok, valid} ->
+            ok;
+        {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
+            Details = #{
+                expected_range => Range,
+                balance => Cash
+            },
+            {failed, Details}
+    end.
 
 -spec limit_checks(w2w_transfer()) ->
     [limit_check_details()].
@@ -990,7 +946,7 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, W2WTransfer) ->
     };
 make_change_status_params({failed, _}, succeeded = NewStatus, W2WTransfer) ->
     CurrentCashFlow = effective_final_cash_flow(W2WTransfer),
-    NewCashFlow = make_final_cash_flow(wallet_id(W2WTransfer), source_id(W2WTransfer), body(W2WTransfer)),
+    NewCashFlow = make_final_cash_flow(wallet_from_id(W2WTransfer), wallet_to_id(W2WTransfer), body(W2WTransfer)),
     #{
         new_status => #{
             new_status => NewStatus

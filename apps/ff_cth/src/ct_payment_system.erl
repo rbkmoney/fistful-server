@@ -812,6 +812,85 @@ default_termset(Options) ->
                 quote_lifetime = {value, {interval, #domain_LifetimeInterval{
                     days = 1, minutes = 1, seconds = 1
                 }}}
+            },
+            w2w = #domain_W2WServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
+                allow = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10000001, <<"RUB">>)}
+                        )}
+                    },
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"EUR">>)},
+                            {exclusive, ?cash(10000001, <<"EUR">>)}
+                        )}
+                    },
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"USD">>)},
+                            {exclusive, ?cash(10000001, <<"USD">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {system, settlement},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {system, settlement},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {system, settlement},
+                                {system, subagent},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
+                    }
+                ]},
+                fees = {decisions, [
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
+                    },
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
+                    },
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
+                    }
+                ]}
             }
         }
     },

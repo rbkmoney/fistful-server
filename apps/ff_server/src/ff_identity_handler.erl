@@ -45,12 +45,8 @@ handle_function_('Get', [ID], _Opts) ->
         {ok, Machine} ->
             Identity = ff_identity:set_blocking(ff_identity_machine:identity(Machine)),
             Ctx      = ff_identity_codec:marshal(ctx, ff_identity_machine:ctx(Machine)),
-            CreatedAt = ff_machine:created(Machine),
             Response = ff_identity_codec:marshal_identity(Identity),
-            {ok, Response#idnt_Identity{
-                context = Ctx,
-                created_at = ff_identity_codec:marshal(timestamp, CreatedAt)
-            }};
+            {ok, Response#idnt_Identity{context = Ctx}};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;

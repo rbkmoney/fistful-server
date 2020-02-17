@@ -815,7 +815,7 @@ default_termset(Options) ->
             },
             w2w = #domain_W2WServiceTerms{
                 currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
-                allow = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                allow = {constant, true},
                 cash_limit = {decisions, [
                     #domain_CashLimitDecision{
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},

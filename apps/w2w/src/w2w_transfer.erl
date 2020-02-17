@@ -500,7 +500,7 @@ do_process_transfer(adjustment, W2WTransfer) ->
 -spec create_p_transfer(w2w_transfer()) ->
     process_result().
 create_p_transfer(W2WTransfer) ->
-    FinalCashFlow = make_final_cash_flow(wallet_from_id(W2WTransfer), wallet_to_id(W2WTransfer), body(W2WTransfer)),
+    FinalCashFlow = make_final_cash_flow(W2WTransfer),
     PTransferID = construct_p_transfer_id(id(W2WTransfer)),
     {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
     {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
@@ -528,29 +528,52 @@ process_transfer_fail(limit_check, W2WTransfer) ->
     Failure = build_failure(limit_check, W2WTransfer),
     {undefined, [{status_changed, {failed, Failure}}]}.
 
--spec make_final_cash_flow(wallet_id(), wallet_id(), body()) ->
+-spec make_final_cash_flow(w2w_transfer()) ->
     final_cash_flow().
-make_final_cash_flow(WalletFromID, WalletToID, Body) ->
+make_final_cash_flow(W2WTransfer) ->
+    WalletFromID = wallet_from_id(W2WTransfer),
     {ok, WalletFromMachine} = ff_wallet_machine:get(WalletFromID),
-    WalletFromAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletFromMachine)),
+    WalletFrom = ff_wallet_machine:wallet(WalletFromMachine),
+    WalletFromAccount = ff_wallet:account(WalletFrom),
+    WalletToID = wallet_to_id(W2WTransfer),
     {ok, WalletToMachine} = ff_wallet_machine:get(WalletToID),
     WalletToAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletToMachine)),
+
+    Body = body(W2WTransfer),
+    {_Amount, CurrencyID} = Body,
+    DomainRevision = domain_revision(W2WTransfer),
+    Identity = get_wallet_identity(WalletFrom),
+    Varset = genlib_map:compact(#{
+        currency => ff_dmsl_codec:marshal(currency_ref, CurrencyID),
+        cost => ff_dmsl_codec:marshal(cash, Body),
+        wallet_id => WalletFromID
+    }),
+    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
+    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(PaymentInstitution, Varset),
+    SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
+    SettlementAccount = maps:get(settlement, SystemAccount, undefined),
+    SubagentAccount = maps:get(subagent, SystemAccount, undefined),
+
     Constants = #{
         operation_amount => Body
     },
     Accounts = #{
+        {system, settlement} => SettlementAccount,
+        {system, subagent} => SubagentAccount,
         {wallet, sender_source} => WalletFromAccount,
         {wallet, receiver_settlement} => WalletToAccount
     },
-    CashFlowPlan = #{
-        postings => [
-            #{
-                sender => {wallet, sender_source},
-                receiver => {wallet, receiver_settlement},
-                volume => {share, {{1, 1}, operation_amount, default}}
-            }
-        ]
-    },
+
+    PartyID = ff_identity:party(Identity),
+    PartyRevision = party_revision(W2WTransfer),
+    ContractID = ff_identity:contract(Identity),
+    Timestamp = operation_timestamp(W2WTransfer),
+    {ok, Terms} = ff_party:get_contract_terms(
+        PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision
+    ),
+    {ok, CashFlowPlan} = ff_party:get_w2w_cash_flow_plan(Terms),
+
     {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
     FinalCashFlow.
 
@@ -708,9 +731,9 @@ limit_check_status(W2WTransfer) when not is_map_key(limit_checks, W2WTransfer) -
     unknown.
 
 -spec is_limit_check_ok(limit_check_details()) -> boolean().
-is_limit_check_ok({wallet, ok}) ->
+is_limit_check_ok(#{wallet_from := ok, wallet_to := ok}) ->
     true;
-is_limit_check_ok({wallet, {failed, _Details}}) ->
+is_limit_check_ok(_) ->
     false.
 
 -spec validate_wallet_limits(terms(), wallet(), clock()) ->
@@ -946,7 +969,7 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, W2WTransfer) ->
     };
 make_change_status_params({failed, _}, succeeded = NewStatus, W2WTransfer) ->
     CurrentCashFlow = effective_final_cash_flow(W2WTransfer),
-    NewCashFlow = make_final_cash_flow(wallet_from_id(W2WTransfer), wallet_to_id(W2WTransfer), body(W2WTransfer)),
+    NewCashFlow = make_final_cash_flow(W2WTransfer),
     #{
         new_status => #{
             new_status => NewStatus

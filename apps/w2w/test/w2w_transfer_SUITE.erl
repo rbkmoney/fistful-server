@@ -46,13 +46,13 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            % limit_check_fail_test,
-            % create_bad_amount_test,
-            % create_currency_validation_error_test,
-            % create_wallet_from_notfound_test,
-            % create_wallet_to_notfound_test,
-            % preserve_revisions_test,
-            % create_ok_test,
+            limit_check_fail_test,
+            create_bad_amount_test,
+            create_currency_validation_error_test,
+            create_wallet_from_notfound_test,
+            create_wallet_to_notfound_test,
+            preserve_revisions_test,
+            create_ok_test,
             unknown_test
         ]}
     ].
@@ -94,16 +94,17 @@ end_per_testcase(_Name, _C) ->
 -spec limit_check_fail_test(config()) -> test_return().
 limit_check_fail_test(C) ->
     #{
-        wallet_id := WalletID,
-        source_id := SourceID
+        wallet_from_id := WalletFromID,
+        wallet_to_id := WalletToID
     } = prepare_standard_environment(<<"RUB">>, C),
     W2WTransferID = generate_id(),
+    W2WTransferCash = {20000000, <<"RUB">>},
     W2WTransferParams = #{
-        id            => W2WTransferID,
-        body          => {20000000, <<"RUB">>},
-        source_id     => SourceID,
-        wallet_id     => WalletID,
-        external_id   => generate_id()
+        id => W2WTransferID,
+        body => W2WTransferCash,
+        wallet_from_id => WalletFromID,
+        wallet_to_id => WalletToID,
+        external_id => W2WTransferID
     },
     ok = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     Result = await_final_w2w_transfer_status(W2WTransferID),
@@ -113,21 +114,22 @@ limit_check_fail_test(C) ->
             code := <<"amount">>
         }
     }}, Result),
-    ok = await_wallet_balance({0, <<"RUB">>}, WalletID).
+    ok = await_wallet_balance({0, <<"RUB">>}, WalletToID).
 
 -spec create_bad_amount_test(config()) -> test_return().
 create_bad_amount_test(C) ->
     #{
-        wallet_id := WalletID,
-        source_id := SourceID
+        wallet_from_id := WalletFromID,
+        wallet_to_id := WalletToID
     } = prepare_standard_environment(<<"RUB">>, C),
     W2WTransferID = generate_id(),
+    W2WTransferCash = {0, <<"RUB">>},
     W2WTransferParams = #{
-        id            => W2WTransferID,
-        body          => {0, <<"RUB">>},
-        source_id     => SourceID,
-        wallet_id     => WalletID,
-        external_id   => generate_id()
+        id => W2WTransferID,
+        body => W2WTransferCash,
+        wallet_from_id => WalletFromID,
+        wallet_to_id => WalletToID,
+        external_id => W2WTransferID
     },
     Result = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     ?assertMatch({error, {bad_w2w_transfer_amount, {0, <<"RUB">>}}}, Result).
@@ -135,16 +137,17 @@ create_bad_amount_test(C) ->
 -spec create_currency_validation_error_test(config()) -> test_return().
 create_currency_validation_error_test(C) ->
     #{
-        wallet_id := WalletID,
-        source_id := SourceID
+        wallet_from_id := WalletFromID,
+        wallet_to_id := WalletToID
     } = prepare_standard_environment(<<"RUB">>, C),
     W2WTransferID = generate_id(),
+    W2WTransferCash = {5000, <<"EUR">>},
     W2WTransferParams = #{
-        id            => W2WTransferID,
-        body          => {5000, <<"EUR">>},
-        source_id     => SourceID,
-        wallet_id     => WalletID,
-        external_id   => generate_id()
+        id => W2WTransferID,
+        body => W2WTransferCash,
+        wallet_from_id => WalletFromID,
+        wallet_to_id => WalletToID,
+        external_id => W2WTransferID
     },
     Result = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     Details = {
@@ -159,15 +162,16 @@ create_currency_validation_error_test(C) ->
 -spec create_wallet_from_notfound_test(config()) -> test_return().
 create_wallet_from_notfound_test(C) ->
     #{
-        wallet_id := WalletID
+        wallet_to_id := WalletToID
     } = prepare_standard_environment(<<"RUB">>, C),
     W2WTransferID = generate_id(),
+    W2WTransferCash = {5000, <<"RUB">>},
     W2WTransferParams = #{
-        id            => W2WTransferID,
-        body          => {5000, <<"RUB">>},
-        source_id     => <<"unknown_source">>,
-        wallet_id     => WalletID,
-        external_id   => generate_id()
+        id => W2WTransferID,
+        body => W2WTransferCash,
+        wallet_from_id => <<"unknown_wallet_from">>,
+        wallet_to_id => WalletToID,
+        external_id => W2WTransferID
     },
     Result = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     ?assertMatch({error, {source, notfound}}, Result).
@@ -175,15 +179,16 @@ create_wallet_from_notfound_test(C) ->
 -spec create_wallet_to_notfound_test(config()) -> test_return().
 create_wallet_to_notfound_test(C) ->
     #{
-        source_id := SourceID
+        wallet_from_id := WalletFromID
     } = prepare_standard_environment(<<"RUB">>, C),
     W2WTransferID = generate_id(),
+    W2WTransferCash = {5000, <<"RUB">>},
     W2WTransferParams = #{
-        id            => W2WTransferID,
-        body          => {5000, <<"RUB">>},
-        source_id     => SourceID,
-        wallet_id     => <<"unknown_wallet">>,
-        external_id   => generate_id()
+        id => W2WTransferID,
+        body => W2WTransferCash,
+        wallet_from_id => WalletFromID,
+        wallet_to_id => <<"unknown_wallet_to">>,
+        external_id => W2WTransferID
     },
     Result = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     ?assertMatch({error, {wallet, notfound}}, Result).
@@ -191,17 +196,17 @@ create_wallet_to_notfound_test(C) ->
 -spec preserve_revisions_test(config()) -> test_return().
 preserve_revisions_test(C) ->
     #{
-        wallet_id := WalletID,
-        source_id := SourceID
+        wallet_from_id := WalletFromID,
+        wallet_to_id := WalletToID
     } = prepare_standard_environment(<<"RUB">>, C),
     W2WTransferID = generate_id(),
     W2WTransferCash = {5000, <<"RUB">>},
     W2WTransferParams = #{
-        id            => W2WTransferID,
-        body          => W2WTransferCash,
-        source_id     => SourceID,
-        wallet_id     => WalletID,
-        external_id   => W2WTransferID
+        id => W2WTransferID,
+        body => W2WTransferCash,
+        wallet_from_id => WalletFromID,
+        wallet_to_id => WalletToID,
+        external_id => W2WTransferID
     },
     ok = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     W2WTransfer = get_w2w_transfer(W2WTransferID),
@@ -212,25 +217,26 @@ preserve_revisions_test(C) ->
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->
     #{
-        wallet_id := WalletID,
-        source_id := SourceID
+        wallet_from_id := WalletFromID,
+        wallet_to_id := WalletToID
     } = prepare_standard_environment(<<"RUB">>, C),
     W2WTransferID = generate_id(),
     W2WTransferCash = {5000, <<"RUB">>},
     W2WTransferParams = #{
-        id            => W2WTransferID,
-        body          => W2WTransferCash,
-        source_id     => SourceID,
-        wallet_id     => WalletID,
-        external_id   => W2WTransferID
+        id => W2WTransferID,
+        body => W2WTransferCash,
+        wallet_from_id => WalletFromID,
+        wallet_to_id => WalletToID,
+        external_id => W2WTransferID
     },
     ok = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     succeeded = await_final_w2w_transfer_status(W2WTransferID),
-    ok = await_wallet_balance(W2WTransferCash, WalletID),
+    % ok = await_wallet_balance(W2WTransferCash, WalletFromID),
+    ok = await_wallet_balance(W2WTransferCash, WalletToID),
     W2WTransfer = get_w2w_transfer(W2WTransferID),
     W2WTransferCash = w2w_transfer:body(W2WTransfer),
-    WalletID = w2w_transfer:wallet_id(W2WTransfer),
-    SourceID = w2w_transfer:source_id(W2WTransfer),
+    WalletFromID = w2w_transfer:wallet_from_id(W2WTransfer),
+    WalletToID = w2w_transfer:wallet_to_id(W2WTransfer),
     W2WTransferID = w2w_transfer:external_id(W2WTransfer).
 
 -spec unknown_test(config()) -> test_return().
@@ -242,16 +248,17 @@ unknown_test(_C) ->
 %% Utils
 
 prepare_standard_environment(Currency, C) ->
-    Party = create_party(C),
-    IdentityID = create_person_identity(Party, C),
-    WalletID = create_wallet(IdentityID, <<"My wallet">>, <<"RUB">>, C),
-    ok = await_wallet_balance({0, Currency}, WalletID),
-    SourceID = create_source(IdentityID, C),
+    PartyID = create_party(C),
+    IdentityID = create_person_identity(PartyID, C),
+    WalletFromID = create_wallet(IdentityID, <<"My wallet from">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, Currency}, WalletFromID),
+    WalletToID = create_wallet(IdentityID, <<"My wallet to">>, <<"RUB">>, C),
+    ok = await_wallet_balance({0, Currency}, WalletToID),
     #{
         identity_id => IdentityID,
-        party_id => Party,
-        wallet_id => WalletID,
-        source_id => SourceID
+        party_id => PartyID,
+        wallet_from_id => WalletFromID,
+        wallet_to_id => WalletToID
     }.
 
 get_w2w_transfer(W2WTransferID) ->
@@ -333,17 +340,3 @@ get_account_balance(Account) ->
 
 generate_id() ->
     ff_id:generate_snowflake_id().
-
-create_source(IID, _C) ->
-    ID = generate_id(),
-    SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
-    Params = #{id => ID, identity => IID, name => <<"XSource">>, currency => <<"RUB">>, resource => SrcResource},
-    ok = ff_source:create(Params, ff_entity_context:new()),
-    authorized = ct_helper:await(
-        authorized,
-        fun () ->
-            {ok, SrcM} = ff_source:get_machine(ID),
-            ff_source:status(ff_source:get(SrcM))
-        end
-    ),
-    ID.

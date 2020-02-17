@@ -6,33 +6,33 @@
 
 -define(ACTUAL_FORMAT_VERSION, 1).
 
--type id()       :: binary().
--type reason()   :: binary().
+-type id() :: binary().
+-type reason() :: binary().
 
 -opaque revert() :: #{
-    version         := ?ACTUAL_FORMAT_VERSION,
-    id              := id(),
-    body            := body(),
-    wallet_id       := wallet_id(),
-    source_id       := source_id(),
-    status          := status(),
-    party_revision  := party_revision(),
+    version := ?ACTUAL_FORMAT_VERSION,
+    id := id(),
+    body := body(),
+    wallet_from_id := wallet_id(),
+    wallet_to_id := wallet_id(),
+    status := status(),
+    party_revision := party_revision(),
     domain_revision := domain_revision(),
-    created_at      := ff_time:timestamp_ms(),
-    p_transfer      => p_transfer(),
-    reason          => reason(),
-    external_id     => id(),
-    limit_checks    => [limit_check_details()],
-    adjustments     => adjustments_index()
+    created_at := ff_time:timestamp_ms(),
+    p_transfer => p_transfer(),
+    reason => reason(),
+    external_id => id(),
+    limit_checks => [limit_check_details()],
+    adjustments => adjustments_index()
 }.
 
 -type params() :: #{
-    id            := id(),
-    wallet_id     := wallet_id(),
-    source_id     := source_id(),
-    body          := body(),
-    reason        => binary(),
-    external_id   => id()
+    id := id(),
+    wallet_from_id := wallet_id(),
+    wallet_to_id := wallet_id(),
+    body := body(),
+    reason => binary(),
+    external_id => id()
 }.
 
 -type status() ::
@@ -47,8 +47,10 @@
     {status_changed, status()} |
     ff_adjustment_utils:wrapped_event().
 
--type limit_check_details() ::
-    {wallet, wallet_limit_check_details()}.
+-type limit_check_details() :: #{
+    wallet_from := wallet_limit_check_details(),
+    wallet_to := wallet_limit_check_details()
+}.
 
 -type wallet_limit_check_details() ::
     ok |
@@ -62,8 +64,8 @@
 -type create_error() :: none().
 
 -type adjustment_params() :: #{
-    id          := adjustment_id(),
-    change      := adjustment_change(),
+    id := adjustment_id(),
+    change := adjustment_change(),
     external_id => id()
 }.
 
@@ -99,8 +101,8 @@
 %% Accessors
 
 -export([id/1]).
--export([wallet_id/1]).
--export([source_id/1]).
+-export([wallet_from_id/1]).
+-export([wallet_to_id/1]).
 -export([body/1]).
 -export([status/1]).
 -export([reason/1]).
@@ -126,31 +128,28 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/1]).
 
 %% Internal types
 
--type wallet_id()         :: ff_wallet:id().
--type wallet()            :: ff_wallet:wallet().
--type source_id()         :: ff_source:id().
--type p_transfer()        :: ff_postings_transfer:transfer().
--type body()              :: ff_transaction:body().
--type action()            :: machinery:action() | undefined.
--type process_result()    :: {action(), [event()]}.
--type legacy_event()      :: any().
--type external_id()       :: id().
--type failure()           :: ff_failure:failure().
--type cash()              :: ff_cash:cash().
--type cash_range()        :: ff_range:range(cash()).
--type adjustment()        :: ff_adjustment:adjustment().
--type adjustment_id()     :: ff_adjustment:id().
+-type wallet_id() :: ff_wallet:id().
+-type wallet() :: ff_wallet:wallet().
+-type p_transfer() :: ff_postings_transfer:transfer().
+-type body() :: ff_transaction:body().
+-type action() :: machinery:action() | undefined.
+-type process_result() :: {action(), [event()]}.
+-type external_id() :: id().
+-type failure() :: ff_failure:failure().
+-type cash() :: ff_cash:cash().
+-type cash_range() :: ff_range:range(cash()).
+-type adjustment() :: ff_adjustment:adjustment().
+-type adjustment_id() :: ff_adjustment:id().
 -type adjustments_index() :: ff_adjustment_utils:index().
--type final_cash_flow()   :: ff_cash_flow:final_cash_flow().
--type party_revision()    :: ff_party:revision().
--type domain_revision()   :: ff_domain_config:revision().
--type identity()          :: ff_identity:identity().
--type terms()             :: ff_party:terms().
--type clock()             :: ff_transaction:clock().
+-type final_cash_flow() :: ff_cash_flow:final_cash_flow().
+-type party_revision() :: ff_party:revision().
+-type domain_revision() :: ff_domain_config:revision().
+-type identity() :: ff_identity:identity().
+-type terms() :: ff_party:terms().
+-type clock() :: ff_transaction:clock().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -180,12 +179,12 @@
 id(#{id := V}) ->
     V.
 
--spec wallet_id(revert()) -> wallet_id().
-wallet_id(#{wallet_id := V}) ->
+-spec wallet_from_id(revert()) -> wallet_id().
+wallet_from_id(#{wallet_from_id := V}) ->
     V.
 
--spec source_id(revert()) -> source_id().
-source_id(#{source_id := V}) ->
+-spec wallet_to_id(revert()) -> wallet_id().
+wallet_to_id(#{wallet_to_id := V}) ->
     V.
 
 -spec body(revert()) -> body().
@@ -227,28 +226,28 @@ created_at(#{created_at := V}) ->
 
 create(Params) ->
     #{
-        id            := ID,
-        wallet_id     := WalletID,
-        source_id     := SourceID,
-        body          := Body
+        id := ID,
+        wallet_from_id := WalletFromID,
+        wallet_to_id := WalletToID,
+        body := Body
     } = Params,
-    {ok, Wallet} = get_wallet(WalletID),
-    PartyID = ff_identity:party(get_wallet_identity(Wallet)),
+    {ok, WalletFrom} = get_wallet(WalletFromID),
+    PartyID = ff_identity:party(get_wallet_identity(WalletFrom)),
     {ok, PartyRevision} = ff_party:get_revision(PartyID),
     CreatedAt = ff_time:now(),
     DomainRevision = ff_domain_config:head(),
     Revert = genlib_map:compact(#{
-        version         => ?ACTUAL_FORMAT_VERSION,
-        id              => ID,
-        body            => Body,
-        wallet_id       => WalletID,
-        source_id       => SourceID,
-        status          => pending,
-        party_revision  => PartyRevision,
+        version => ?ACTUAL_FORMAT_VERSION,
+        id => ID,
+        body => Body,
+        wallet_from_id => WalletFromID,
+        wallet_to_id => WalletToID,
+        status => pending,
+        party_revision => PartyRevision,
         domain_revision => DomainRevision,
-        created_at      => CreatedAt,
-        reason          => maps:get(reason, Params, undefined),
-        external_id     => maps:get(external_id, Params, undefined)
+        created_at => CreatedAt,
+        reason => maps:get(reason, Params, undefined),
+        external_id => maps:get(external_id, Params, undefined)
     }),
     {ok, {continue, [{created, Revert}]}}.
 
@@ -311,12 +310,11 @@ is_finished(#{status := pending}) ->
 
 %% Events utils
 
--spec apply_event(event() | legacy_event(), revert() | undefined) ->
+-spec apply_event(event(), revert() | undefined) ->
     revert().
 apply_event(Ev, T0) ->
-    Migrated = maybe_migrate(Ev),
-    T1 = apply_event_(Migrated, T0),
-    T2 = save_adjustable_info(Migrated, T1),
+    T1 = apply_event_(Ev, T0),
+    T2 = save_adjustable_info(Ev, T1),
     T2.
 
 -spec apply_event_(event(), revert() | undefined) ->
@@ -331,13 +329,6 @@ apply_event_({p_transfer, Ev}, T) ->
     T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))};
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
-
--spec maybe_migrate(event() | legacy_event()) ->
-    event().
-maybe_migrate({adjustment, _Payload} = Event) ->
-    ff_adjustment_utils:maybe_migrate(Event);
-maybe_migrate(Ev) ->
-    Ev.
 
 %% Internals
 
@@ -404,44 +395,22 @@ do_process_transfer(adjustment, Revert) ->
 -spec create_p_transfer(revert()) ->
     process_result().
 create_p_transfer(Revert) ->
-    FinalCashFlow = make_final_cash_flow(wallet_id(Revert), source_id(Revert), body(Revert)),
+    FinalCashFlow = make_final_cash_flow(Revert),
     PTransferID = construct_p_transfer_id(id(Revert)),
     {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
     {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
 
 -spec process_limit_check(revert()) ->
     process_result().
-process_limit_check(Revert) ->
-    Body = body(Revert),
-    WalletID = wallet_id(Revert),
-    CreatedAt = created_at(Revert),
-    DomainRevision = domain_revision(Revert),
-    {ok, Wallet} = get_wallet(WalletID),
-    Identity = get_wallet_identity(Wallet),
-    PartyID = ff_identity:party(Identity),
-    PartyRevision = party_revision(Revert),
-    ContractID = ff_identity:contract(Identity),
-    {_Amount, Currency} = Body,
-    Varset = genlib_map:compact(#{
-        currency => ff_dmsl_codec:marshal(currency_ref, Currency),
-        cost => ff_dmsl_codec:marshal(cash, Body),
-        wallet_id => WalletID
-    }),
-    {ok, Terms} = ff_party:get_contract_terms(
-        PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
-    ),
-    Clock = ff_postings_transfer:clock(p_transfer(Revert)),
-    Events = case validate_wallet_limits(Terms, Wallet, Clock) of
-        {ok, valid} ->
-            [{limit_check, {wallet, ok}}];
-        {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
-            Details = #{
-                expected_range => Range,
-                balance => Cash
-            },
-            [{limit_check, {wallet, {failed, Details}}}]
-    end,
-    {continue, Events}.
+process_limit_check(W2WTransfer) ->
+    WalletFromID = wallet_from_id(W2WTransfer),
+    WalletToID = wallet_to_id(W2WTransfer),
+
+    LimitCheck = #{
+        wallet_from => process_wallet_limit_check(WalletFromID, W2WTransfer),
+        wallet_to => process_wallet_limit_check(WalletToID, W2WTransfer)
+    },
+    {continue, [{limit_check, LimitCheck}]}.
 
 -spec process_transfer_finish(revert()) ->
     process_result().
@@ -454,30 +423,53 @@ process_transfer_fail(limit_check, Revert) ->
     Failure = build_failure(limit_check, Revert),
     {undefined, [{status_changed, {failed, Failure}}]}.
 
--spec make_final_cash_flow(wallet_id(), source_id(), body()) ->
+-spec make_final_cash_flow(revert()) ->
     final_cash_flow().
-make_final_cash_flow(WalletID, SourceID, Body) ->
-    {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
-    WalletAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletMachine)),
-    {ok, SourceMachine} = ff_source:get_machine(SourceID),
-    SourceAccount = ff_source:account(ff_source:get(SourceMachine)),
+make_final_cash_flow(Revert) ->
+    WalletFromID = wallet_from_id(Revert),
+    {ok, WalletFromMachine} = ff_wallet_machine:get(WalletFromID),
+    WalletFrom = ff_wallet_machine:wallet(WalletFromMachine),
+    WalletFromAccount = ff_wallet:account(WalletFrom),
+    WalletToID = wallet_to_id(Revert),
+    {ok, WalletToMachine} = ff_wallet_machine:get(WalletToID),
+    WalletToAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletToMachine)),
+
+    Body = body(Revert),
+    {_Amount, CurrencyID} = Body,
+    DomainRevision = domain_revision(Revert),
+    Identity = get_wallet_identity(WalletFrom),
+    Varset = genlib_map:compact(#{
+        currency => ff_dmsl_codec:marshal(currency_ref, CurrencyID),
+        cost => ff_dmsl_codec:marshal(cash, Body),
+        wallet_id => WalletFromID
+    }),
+    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
+    {ok, SystemAccounts} = ff_payment_institution:compute_system_accounts(PaymentInstitution, Varset),
+    SystemAccount = maps:get(CurrencyID, SystemAccounts, #{}),
+    SettlementAccount = maps:get(settlement, SystemAccount, undefined),
+    SubagentAccount = maps:get(subagent, SystemAccount, undefined),
+
     Constants = #{
         operation_amount => Body
     },
     Accounts = #{
-        {wallet, sender_source} => SourceAccount,
-        {wallet, receiver_settlement} => WalletAccount
+        {system, settlement} => SettlementAccount,
+        {system, subagent} => SubagentAccount,
+        {wallet, sender_source} => WalletFromAccount,
+        {wallet, receiver_settlement} => WalletToAccount
     },
-    CashFlowPlan = #{
-        postings => [
-            #{
-                sender   => {wallet, receiver_settlement},
-                receiver => {wallet, sender_source},
-                volume   => {share, {{1, 1}, operation_amount, default}}
-            }
-        ]
-    },
-    {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
+
+    PartyID = ff_identity:party(Identity),
+    PartyRevision = party_revision(Revert),
+    ContractID = ff_identity:contract(Identity),
+    Timestamp = created_at(Revert),
+    {ok, Terms} = ff_party:get_contract_terms(
+        PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision
+    ),
+    {ok, CashFlowPlan} = ff_party:get_w2w_cash_flow_plan(Terms),
+
+    {ok, FinalCashFlow} = ff_cash_flow:finalize(ff_cash_flow:inverse(CashFlowPlan), Accounts, Constants),
     FinalCashFlow.
 
 %% Internal getters and setters
@@ -619,7 +611,7 @@ make_change_status_params(succeeded, {failed, _} = NewStatus, Revert) ->
     };
 make_change_status_params({failed, _}, succeeded = NewStatus, Revert) ->
     CurrentCashFlow = effective_final_cash_flow(Revert),
-    NewCashFlow = make_final_cash_flow(wallet_id(Revert), source_id(Revert), body(Revert)),
+    NewCashFlow = make_final_cash_flow(Revert),
     #{
         new_status => #{
             new_status => NewStatus
@@ -657,6 +649,39 @@ update_adjusment_index(Updater, Value, Revert) ->
 
 %% Limit helpers
 
+-spec process_wallet_limit_check(wallet_id(), revert()) ->
+    wallet_limit_check_details().
+
+process_wallet_limit_check(WalletID, Revert) ->
+    Body = body(Revert),
+    {ok, Wallet} = get_wallet(WalletID),
+    DomainRevision = domain_revision(Revert),
+    Identity = get_wallet_identity(Wallet),
+    PartyID = ff_identity:party(Identity),
+    PartyRevision = party_revision(Revert),
+    ContractID = ff_identity:contract(Identity),
+    {_Amount, Currency} = Body,
+    Timestamp = created_at(Revert),
+    Varset = genlib_map:compact(#{
+        currency => ff_dmsl_codec:marshal(currency_ref, Currency),
+        cost => ff_dmsl_codec:marshal(cash, Body),
+        wallet_id => WalletID
+    }),
+    {ok, Terms} = ff_party:get_contract_terms(
+        PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision
+    ),
+    Clock = ff_postings_transfer:clock(p_transfer(Revert)),
+    case validate_wallet_limits(Terms, Wallet, Clock) of
+        {ok, valid} ->
+            ok;
+        {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
+            Details = #{
+                expected_range => Range,
+                balance => Cash
+            },
+            {failed, Details}
+    end.
+
 -spec limit_checks(revert()) ->
     [limit_check_details()].
 limit_checks(Revert) ->
@@ -681,9 +706,9 @@ limit_check_status(Revert) when not is_map_key(limit_checks, Revert) ->
     unknown.
 
 -spec is_limit_check_ok(limit_check_details()) -> boolean().
-is_limit_check_ok({wallet, ok}) ->
+is_limit_check_ok(#{wallet_from := ok, wallet_to := ok}) ->
     true;
-is_limit_check_ok({wallet, {failed, _Details}}) ->
+is_limit_check_ok(_) ->
     false.
 
 -spec validate_wallet_limits(terms(), wallet(), clock()) ->

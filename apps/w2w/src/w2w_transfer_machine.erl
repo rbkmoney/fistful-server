@@ -171,7 +171,7 @@ process_timeout(Machine, _, _Opts) ->
     process_result(w2w_transfer:process_transfer(W2WTransfer)).
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) -> {Response, result()} when
-    Response :: ok | {error, w2w_transfer:start_revert_error()}.
+    Response :: ok | {error, w2w_transfer:start_adjustment_error()}.
 
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
     do_start_adjustment(Params, Machine);

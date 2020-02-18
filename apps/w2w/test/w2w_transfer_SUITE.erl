@@ -98,7 +98,7 @@ limit_check_fail_test(C) ->
         wallet_to_id := WalletToID
     } = prepare_standard_environment(<<"RUB">>, C),
     W2WTransferID = generate_id(),
-    W2WTransferCash = {20000000, <<"RUB">>},
+    W2WTransferCash = {6000000, <<"RUB">>},
     W2WTransferParams = #{
         id => W2WTransferID,
         body => W2WTransferCash,
@@ -174,7 +174,7 @@ create_wallet_from_notfound_test(C) ->
         external_id => W2WTransferID
     },
     Result = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
-    ?assertMatch({error, {source, notfound}}, Result).
+    ?assertMatch({error, {wallet_from, notfound}}, Result).
 
 -spec create_wallet_to_notfound_test(config()) -> test_return().
 create_wallet_to_notfound_test(C) ->
@@ -191,7 +191,7 @@ create_wallet_to_notfound_test(C) ->
         external_id => W2WTransferID
     },
     Result = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
-    ?assertMatch({error, {wallet, notfound}}, Result).
+    ?assertMatch({error, {wallet_to, notfound}}, Result).
 
 -spec preserve_revisions_test(config()) -> test_return().
 preserve_revisions_test(C) ->
@@ -231,8 +231,8 @@ create_ok_test(C) ->
     },
     ok = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     succeeded = await_final_w2w_transfer_status(W2WTransferID),
-    % ok = await_wallet_balance(W2WTransferCash, WalletFromID),
-    ok = await_wallet_balance(W2WTransferCash, WalletToID),
+    ok = await_wallet_balance({-5000, <<"RUB">>}, WalletFromID),
+    ok = await_wallet_balance({5000, <<"RUB">>}, WalletToID),
     W2WTransfer = get_w2w_transfer(W2WTransferID),
     W2WTransferCash = w2w_transfer:body(W2WTransfer),
     WalletFromID = w2w_transfer:wallet_from_id(W2WTransfer),

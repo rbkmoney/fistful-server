@@ -20,7 +20,6 @@
     status => status(),
     external_id => id(),
     limit_checks => [limit_check_details()],
-    reverts => reverts_index(),
     adjustments => adjustments_index()
 }.
 -type params() :: #{
@@ -40,7 +39,6 @@
     {created, w2w_transfer()} |
     {limit_check, limit_check_details()} |
     {p_transfer, ff_postings_transfer:event()} |
-    wrapped_revert_event() |
     wrapped_adjustment_event() |
     {status_changed, status()}.
 
@@ -64,33 +62,10 @@
     ff_party:validate_w2w_transfer_creation_error() |
     {inconsistent_currency, {W2WTransfer :: currency_id(), WalletFrom :: currency_id(), WalletTo :: currency_id()}}.
 
--type revert_params() :: #{
-    id := id(),
-    body := body(),
-    reason => binary(),
-    external_id => id()
-}.
-
--type start_revert_error() ::
-    invalid_w2w_transfer_status_error() |
-    {inconsistent_revert_currency, {Revert :: currency_id(), W2WTransfer :: currency_id()}} |
-    {insufficient_w2w_transfer_amount, {Revert :: body(), W2WTransfer :: body()}} |
-    {invalid_revert_amount, Revert :: body()} |
-    w2w_transfer_revert:create_error().
-
 -type invalid_w2w_transfer_status_error() ::
     {invalid_w2w_transfer_status, status()}.
 
--type wrapped_revert_event()  :: w2w_transfer_revert_utils:wrapped_event().
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
-
--type revert_adjustment_params() :: w2w_transfer_revert:adjustment_params().
-
--type start_revert_adjustment_error() ::
-    w2w_transfer_revert:start_adjustment_error() |
-    unknown_revert_error().
-
--type unknown_revert_error() :: w2w_transfer_revert_utils:unknown_revert_error().
 
 -type adjustment_params() :: #{
     id := adjustment_id(),
@@ -116,14 +91,9 @@
 -export_type([w2w_transfer/0]).
 -export_type([id/0]).
 -export_type([params/0]).
--export_type([revert_params/0]).
 -export_type([event/0]).
--export_type([wrapped_revert_event/0]).
 -export_type([wrapped_adjustment_event/0]).
 -export_type([create_error/0]).
--export_type([start_revert_error/0]).
--export_type([revert_adjustment_params/0]).
--export_type([start_revert_adjustment_error/0]).
 -export_type([adjustment_params/0]).
 -export_type([start_adjustment_error/0]).
 -export_type([limit_check_details/0]).
@@ -145,11 +115,6 @@
 
 -export([is_active/1]).
 -export([is_finished/1]).
-
--export([start_revert/2]).
--export([start_revert_adjustment/3]).
--export([find_revert/2]).
--export([reverts/1]).
 
 -export([start_adjustment/2]).
 -export([find_adjustment/2]).
@@ -174,8 +139,6 @@
 % -type cash_flow_plan()        :: ff_cash_flow:cash_flow_plan().
 -type wallet_id()             :: ff_wallet:id().
 -type wallet()                :: ff_wallet:wallet().
--type revert()                :: w2w_transfer_revert:revert().
--type revert_id()             :: w2w_transfer_revert:id().
 -type body()                  :: ff_transaction:body().
 -type cash()                  :: ff_cash:cash().
 -type cash_range()            :: ff_range:range(cash()).
@@ -183,7 +146,6 @@
 -type p_transfer()            :: ff_postings_transfer:transfer().
 -type currency_id()           :: ff_currency:id().
 -type external_id()           :: id().
--type reverts_index()         :: w2w_transfer_revert_utils:index().
 -type failure()               :: ff_failure:failure().
 -type adjustment()            :: ff_adjustment:adjustment().
 -type adjustment_id()         :: ff_adjustment:id().
@@ -201,7 +163,6 @@
     p_transfer_commit |
     p_transfer_cancel |
     limit_check |
-    revert |
     adjustment |
     {fail, fail_type()} |
     finish.
@@ -297,37 +258,6 @@ create(Params) ->
         ]
     end).
 
--spec start_revert(revert_params(), w2w_transfer()) ->
-    {ok, process_result()} |
-    {error, start_revert_error()}.
-start_revert(Params, W2WTransfer) ->
-    #{id := RevertID} = Params,
-    case find_revert(RevertID, W2WTransfer) of
-        {error, {unknown_revert, _}} ->
-            do_start_revert(Params, W2WTransfer);
-        {ok, _Revert} ->
-            {ok, {undefined, []}}
-    end.
-
--spec start_revert_adjustment(revert_id(), revert_adjustment_params(), w2w_transfer()) ->
-    {ok, process_result()} |
-    {error, start_revert_adjustment_error()}.
-start_revert_adjustment(RevertID, Params, W2WTransfer) ->
-    do(fun() ->
-        Revert = unwrap(find_revert(RevertID, W2WTransfer)),
-        {Action, Events} = unwrap(w2w_transfer_revert:start_adjustment(Params, Revert)),
-        {Action, w2w_transfer_revert_utils:wrap_events(RevertID, Events)}
-    end).
-
--spec find_revert(revert_id(), w2w_transfer()) ->
-    {ok, revert()} | {error, unknown_revert_error()}.
-find_revert(RevertID, W2WTransfer) ->
-    w2w_transfer_revert_utils:get_by_id(RevertID, reverts_index(W2WTransfer)).
-
--spec reverts(w2w_transfer()) -> [revert()].
-reverts(W2WTransfer) ->
-    w2w_transfer_revert_utils:reverts(reverts_index(W2WTransfer)).
-
 -spec start_adjustment(adjustment_params(), w2w_transfer()) ->
     {ok, process_result()} |
     {error, start_adjustment_error()}.
@@ -388,6 +318,7 @@ is_finished(#{status := pending}) ->
 -spec apply_event(event(), w2w_transfer() | undefined) ->
     w2w_transfer().
 apply_event(Ev, T0) ->
+    % io:format("apply_event ~n Ev --- ~p~n W2W --- ~p", [Ev, T0]),
     T1 = apply_event_(Ev, T0),
     T2 = save_adjustable_info(Ev, T1),
     T2.
@@ -402,26 +333,10 @@ apply_event_({limit_check, Details}, T) ->
     add_limit_check(Details, T);
 apply_event_({p_transfer, Ev}, T) ->
     T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))};
-apply_event_({revert, _Ev} = Event, T) ->
-    apply_revert_event(Event, T);
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
 
 %% Internals
-
--spec do_start_revert(revert_params(), w2w_transfer()) ->
-    {ok, process_result()} |
-    {error, start_revert_error()}.
-do_start_revert(Params = #{id := RevertID}, W2WTransfer) ->
-    do(fun() ->
-        valid = unwrap(validate_revert_start(Params, W2WTransfer)),
-        RevertParams = Params#{
-            wallet_from_id => wallet_from_id(W2WTransfer),
-            wallet_to_id => wallet_to_id(W2WTransfer)
-        },
-        {Action, Events} = unwrap(w2w_transfer_revert:create(RevertParams)),
-        {Action, w2w_transfer_revert_utils:wrap_events(RevertID, Events)}
-    end).
 
 -spec do_start_adjustment(adjustment_params(), w2w_transfer()) ->
     {ok, process_result()} |
@@ -447,7 +362,6 @@ deduce_activity(W2WTransfer) ->
         p_transfer => p_transfer_status(W2WTransfer),
         status => status(W2WTransfer),
         limit_check => limit_check_status(W2WTransfer),
-        active_revert => w2w_transfer_revert_utils:is_active(reverts_index(W2WTransfer)),
         active_adjustment => ff_adjustment_utils:is_active(adjustments_index(W2WTransfer))
     },
     do_deduce_activity(Params).
@@ -466,8 +380,6 @@ do_deduce_activity(#{status := pending, p_transfer := prepared, limit_check := {
     p_transfer_cancel;
 do_deduce_activity(#{status := pending, p_transfer := cancelled, limit_check := {failed, _}}) ->
     {fail, limit_check};
-do_deduce_activity(#{p_transfer := committed, active_revert := true}) ->
-    revert;
 do_deduce_activity(#{active_adjustment := true}) ->
     adjustment.
 
@@ -490,9 +402,6 @@ do_process_transfer({fail, Reason}, W2WTransfer) ->
     process_transfer_fail(Reason, W2WTransfer);
 do_process_transfer(finish, W2WTransfer) ->
     process_transfer_finish(W2WTransfer);
-do_process_transfer(revert, W2WTransfer) ->
-    Result = w2w_transfer_revert_utils:process_reverts(reverts_index(W2WTransfer)),
-    handle_child_result(Result, W2WTransfer);
 do_process_transfer(adjustment, W2WTransfer) ->
     Result = ff_adjustment_utils:process_adjustments(adjustments_index(W2WTransfer)),
     handle_child_result(Result, W2WTransfer).
@@ -561,7 +470,7 @@ make_final_cash_flow(W2WTransfer) ->
     Accounts = #{
         {system, settlement} => SettlementAccount,
         {system, subagent} => SubagentAccount,
-        {wallet, sender_source} => WalletFromAccount,
+        {wallet, sender_settlement} => WalletFromAccount,
         {wallet, receiver_settlement} => WalletToAccount
     },
 
@@ -615,8 +524,7 @@ set_adjustments_index(Adjustments, W2WTransfer) ->
 
 -spec is_childs_active(w2w_transfer()) -> boolean().
 is_childs_active(W2WTransfer) ->
-    ff_adjustment_utils:is_active(adjustments_index(W2WTransfer)) orelse
-        w2w_transfer_revert_utils:is_active(reverts_index(W2WTransfer)).
+    ff_adjustment_utils:is_active(adjustments_index(W2WTransfer)).
 
 -spec operation_timestamp(w2w_transfer()) -> ff_time:timestamp_ms().
 operation_timestamp(W2WTransfer) ->
@@ -748,120 +656,6 @@ validate_wallet_limits(Terms, Wallet, Clock) ->
         {error, {invalid_terms, _Details} = Reason} ->
             erlang:error(Reason)
     end.
-
-%% Revert validators
-
--spec validate_revert_start(revert_params(), w2w_transfer()) ->
-    {ok, valid} |
-    {error, start_revert_error()}.
-validate_revert_start(Params, W2WTransfer) ->
-    do(fun() ->
-        valid = unwrap(validate_w2w_transfer_success(W2WTransfer)),
-        valid = unwrap(validate_revert_body(Params, W2WTransfer))
-    end).
-
--spec validate_revert_body(revert_params(), w2w_transfer()) -> {ok, valid} | {error, Error} when
-    Error :: CurrencyError | AmountError,
-    CurrencyError :: {inconsistent_revert_currency, {Revert :: currency_id(), W2WTransfer :: currency_id()}},
-    AmountError :: {insufficient_w2w_transfer_amount, {Revert :: body(), W2WTransfer :: body()}}.
-validate_revert_body(Params, W2WTransfer) ->
-    do(fun() ->
-        valid = unwrap(validate_revert_currency(Params, W2WTransfer)),
-        valid = unwrap(validate_revert_amount(Params)),
-        valid = unwrap(validate_unreverted_amount(Params, W2WTransfer))
-    end).
-
--spec validate_w2w_transfer_success(w2w_transfer()) ->
-    {ok, valid} |
-    {error, invalid_w2w_transfer_status_error()}.
-validate_w2w_transfer_success(W2WTransfer) ->
-    case status(W2WTransfer) of
-        succeeded ->
-            {ok, valid};
-        Other ->
-            {error, {invalid_w2w_transfer_status, Other}}
-    end.
-
--spec validate_revert_currency(revert_params(), w2w_transfer()) ->
-    {ok, valid} |
-    {error, {inconsistent_revert_currency, {Revert :: currency_id(), W2WTransfer :: currency_id()}}}.
-validate_revert_currency(Params, W2WTransfer) ->
-    {_InitialAmount, W2WTransferCurrency} = body(W2WTransfer),
-    #{body := {_Amount, RevertCurrency}} = Params,
-    case {RevertCurrency, W2WTransferCurrency} of
-        {SameCurrency, SameCurrency} ->
-            {ok, valid};
-        _Other ->
-            {error, {inconsistent_revert_currency, {RevertCurrency, W2WTransferCurrency}}}
-    end.
-
--spec validate_unreverted_amount(revert_params(), w2w_transfer()) ->
-    {ok, valid} |
-    {error, {insufficient_w2w_transfer_amount, {Revert :: body(), W2WTransfer :: body()}}}.
-validate_unreverted_amount(Params, W2WTransfer) ->
-    {InitialAmount, Currency} = body(W2WTransfer),
-    #{body := {RevertAmount, Currency} = RevertBody} = Params,
-    {TotalReverted, Currency} = max_reverted_body_total(W2WTransfer),
-    case InitialAmount - TotalReverted - RevertAmount of
-        UnrevertedAmount when UnrevertedAmount >= 0 ->
-            {ok, valid};
-        _Other ->
-            Unreverted = {InitialAmount - TotalReverted, Currency},
-            {error, {insufficient_w2w_transfer_amount, {RevertBody, Unreverted}}}
-    end.
-
--spec validate_revert_amount(revert_params()) ->
-    {ok, valid} |
-    {error, {invalid_revert_amount, Revert :: body()}}.
-validate_revert_amount(Params) ->
-    #{body := {RevertAmount, _Currency} = RevertBody} = Params,
-    case RevertAmount of
-        Good when Good > 0 ->
-            {ok, valid};
-        _Other ->
-            {error, {invalid_revert_amount, RevertBody}}
-    end.
-
-%% Revert helpers
-
--spec reverts_index(w2w_transfer()) -> reverts_index().
-reverts_index(W2WTransfer) ->
-    case maps:find(reverts, W2WTransfer) of
-        {ok, Reverts} ->
-            Reverts;
-        error ->
-            w2w_transfer_revert_utils:new_index()
-    end.
-
--spec set_reverts_index(reverts_index(), w2w_transfer()) -> w2w_transfer().
-set_reverts_index(Reverts, W2WTransfer) ->
-    W2WTransfer#{reverts => Reverts}.
-
--spec apply_revert_event(wrapped_revert_event(), w2w_transfer()) -> w2w_transfer().
-apply_revert_event(WrappedEvent, W2WTransfer) ->
-    Reverts0 = reverts_index(W2WTransfer),
-    Reverts1 = w2w_transfer_revert_utils:apply_event(WrappedEvent, Reverts0),
-    set_reverts_index(Reverts1, W2WTransfer).
-
--spec max_reverted_body_total(w2w_transfer()) -> body().
-max_reverted_body_total(W2WTransfer) ->
-    Reverts = w2w_transfer_revert_utils:reverts(reverts_index(W2WTransfer)),
-    {_InitialAmount, Currency} = body(W2WTransfer),
-    lists:foldl(
-        fun(Revert, {TotalAmount, AccCurrency} = Acc) ->
-            Status = w2w_transfer_revert:status(Revert),
-            PotentialSucceeded = Status =:= succeeded orelse w2w_transfer_revert:is_active(Revert),
-            case PotentialSucceeded of
-                true ->
-                    {RevertAmount, AccCurrency} = w2w_transfer_revert:body(Revert),
-                    {TotalAmount + RevertAmount, AccCurrency};
-                false ->
-                    Acc
-            end
-        end,
-        {0, Currency},
-        Reverts
-    ).
 
 %% Adjustment validators
 

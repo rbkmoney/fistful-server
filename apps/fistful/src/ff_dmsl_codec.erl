@@ -149,15 +149,15 @@ unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
     payment_tool = {bank_card, #domain_BankCard{
         token          = Token,
         payment_system = PaymentSystem,
-        bin            = Bin
-        % masked_pan     = MaskedPan
+        bin            = Bin,
+        last_digits    = LastDigits
     }}
 }}) ->
     {bank_card, #{
         token           => Token,
         payment_system  => PaymentSystem,
-        bin             => Bin
-        % masked_pan      => MaskedPan
+        bin             => Bin,
+        masked_pan      => LastDigits
     }};
 
 unmarshal(amount, V) ->
@@ -217,7 +217,7 @@ marshal(resource, {bank_card, BankCard}) ->
     {bank_card, #domain_BankCard{
         token           = ff_resource:token(BankCard),
         bin             = ff_resource:bin(BankCard),
-        % masked_pan      = ff_resource:masked_pan(BankCard),
+        last_digits     = ff_resource:masked_pan(BankCard),
         payment_system  = ff_resource:payment_system(BankCard),
         issuer_country  = ff_resource:country_code(BankCard),
         bank_name       = ff_resource:bank_name(BankCard)

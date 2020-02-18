@@ -495,7 +495,7 @@ default_termset(Options) ->
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
-                        {inclusive, ?cash(      0, <<"RUB">>)},
+                        {inclusive, ?cash( -50000, <<"RUB">>)},
                         {exclusive, ?cash(5000001, <<"RUB">>)}
                     )}
                 },
@@ -844,9 +844,9 @@ default_termset(Options) ->
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {value, [
                             ?cfpost(
-                                {system, settlement},
-                                {system, subagent},
-                                ?share(10, 100, operation_amount)
+                                {wallet, sender_settlement},
+                                {wallet, receiver_settlement},
+                                ?share(1, 1, operation_amount)
                             )
                         ]}
                     },
@@ -854,9 +854,9 @@ default_termset(Options) ->
                         if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
                         then_ = {value, [
                             ?cfpost(
-                                {system, settlement},
-                                {system, subagent},
-                                ?share(10, 100, operation_amount)
+                                {wallet, sender_settlement},
+                                {wallet, receiver_settlement},
+                                ?share(1, 1, operation_amount)
                             )
                         ]}
                     },
@@ -864,9 +864,9 @@ default_termset(Options) ->
                         if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
                         then_ = {value, [
                             ?cfpost(
-                                {system, settlement},
-                                {system, subagent},
-                                ?share(10, 100, operation_amount)
+                                {wallet, sender_settlement},
+                                {wallet, receiver_settlement},
+                                ?share(1, 1, operation_amount)
                             )
                         ]}
                     }

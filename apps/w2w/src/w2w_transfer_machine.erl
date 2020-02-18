@@ -20,13 +20,6 @@
 -type create_error() ::
     w2w_transfer:create_error() |
     exists.
--type start_revert_error() ::
-    w2w_transfer:start_revert_error() |
-    unknown_w2w_transfer_error().
-
--type start_revert_adjustment_error() ::
-    w2w_transfer:start_revert_adjustment_error() |
-    unknown_w2w_transfer_error().
 
 -type start_adjustment_error() ::
     w2w_transfer:start_adjustment_error() |
@@ -44,8 +37,6 @@
 -export_type([event_range/0]).
 -export_type([external_id/0]).
 -export_type([create_error/0]).
--export_type([start_revert_error/0]).
--export_type([start_revert_adjustment_error/0]).
 -export_type([start_adjustment_error/0]).
 
 %% API
@@ -55,9 +46,6 @@
 -export([get/2]).
 -export([events/2]).
 -export([repair/2]).
-
--export([start_revert/2]).
--export([start_revert_adjustment/3]).
 
 -export([start_adjustment/2]).
 
@@ -80,15 +68,9 @@
 %% Internal types
 
 -type ctx()           :: ff_entity_context:context().
--type revert_params() :: w2w_transfer:revert_params().
--type revert_id()     :: w2w_transfer_revert:id().
-
 -type adjustment_params()        :: w2w_transfer:adjustment_params().
--type revert_adjustment_params() :: w2w_transfer:revert_adjustment_params().
 
 -type call() ::
-    {start_revert, revert_params()} |
-    {start_revert_adjustment, revert_adjustment_params()} |
     {start_adjustment, adjustment_params()}.
 
 -define(NS, 'ff/w2w_transfer_v1').
@@ -142,20 +124,6 @@ events(ID, {After, Limit}) ->
 repair(ID, Scenario) ->
     machinery:repair(?NS, ID, Scenario, backend()).
 
--spec start_revert(id(), revert_params()) ->
-    ok |
-    {error, start_revert_error()}.
-
-start_revert(ID, Params) ->
-    call(ID, {start_revert, Params}).
-
--spec start_revert_adjustment(id(), revert_id(), revert_adjustment_params()) ->
-    ok |
-    {error, start_revert_adjustment_error()}.
-
-start_revert_adjustment(W2WTransferID, RevertID, Params) ->
-    call(W2WTransferID, {start_revert_adjustment, RevertID, Params}).
-
 -spec start_adjustment(id(), adjustment_params()) ->
     ok |
     {error, start_adjustment_error()}.
@@ -205,10 +173,6 @@ process_timeout(Machine, _, _Opts) ->
 -spec process_call(call(), machine(), handler_args(), handler_opts()) -> {Response, result()} when
     Response :: ok | {error, w2w_transfer:start_revert_error()}.
 
-process_call({start_revert, Params}, Machine, _, _Opts) ->
-    do_start_revert(Params, Machine);
-process_call({start_revert_adjustment, RevertID, Params}, Machine, _, _Opts) ->
-    do_start_revert_adjustment(RevertID, Params, Machine);
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
     do_start_adjustment(Params, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
@@ -224,30 +188,6 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
 
 backend() ->
     fistful:backend(?NS).
-
--spec do_start_revert(revert_params(), machine()) -> {Response, result()} when
-    Response :: ok | {error, w2w_transfer:start_revert_error()}.
-
-do_start_revert(Params, Machine) ->
-    St = ff_machine:collapse(w2w_transfer, Machine),
-    case w2w_transfer:start_revert(Params, w2w_transfer(St)) of
-        {ok, Result} ->
-            {ok, process_result(Result)};
-        {error, _Reason} = Error ->
-            {Error, #{}}
-    end.
-
--spec do_start_revert_adjustment(revert_id(), revert_adjustment_params(), machine()) -> {Response, result()} when
-    Response :: ok | {error, w2w_transfer:start_revert_adjustment_error()}.
-
-do_start_revert_adjustment(RevertID, Params, Machine) ->
-    St = ff_machine:collapse(w2w_transfer, Machine),
-    case w2w_transfer:start_revert_adjustment(RevertID, Params, w2w_transfer(St)) of
-        {ok, Result} ->
-            {ok, process_result(Result)};
-        {error, _Reason} = Error ->
-            {Error, #{}}
-    end.
 
 -spec do_start_adjustment(adjustment_params(), machine()) -> {Response, result()} when
     Response :: ok | {error, w2w_transfer:start_adjustment_error()}.

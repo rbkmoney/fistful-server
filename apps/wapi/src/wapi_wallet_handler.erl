@@ -645,6 +645,37 @@ process_request('GetP2PTransferEvents', #{p2pTransferID := ID, continuationToken
         {error, {token, {not_verified, invalid_signature}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Continuation Token can't be verified">>))
+    end;
+
+%% W2W
+process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:create_w2w_transfer(Params, Context) of
+        {ok, W2WTransfer} ->
+            wapi_handler_utils:reply_ok(202, W2WTransfer);
+        {error, {sender, not_found}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such wallet sender">>));
+        {error, {receiver, not_found}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such wallet receiver">>));
+        {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, {terms, {terms_violation, {cash_range, {_Cash, _CashRange}}}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
+        {error, {terms, {terms_violation, w2w_forbidden}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"W2W transfer not allowed">>))
+    end;
+process_request('GetW2WTransfer', #{w2wTransferID := ID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_w2w_transfer(ID, Context) of
+        {ok, W2WTransfer} ->
+            wapi_handler_utils:reply_ok(200, W2WTransfer);
+        {error, {w2w_transfer, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {w2w_transfer, {unknown_w2w_transfer, _ID}}} ->
+            wapi_handler_utils:reply_ok(404)
     end.
 
 %% Internal functions

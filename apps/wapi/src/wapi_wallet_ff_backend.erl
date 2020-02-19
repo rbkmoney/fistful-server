@@ -63,6 +63,9 @@
 -export([get_p2p_transfer/2]).
 -export([get_p2p_transfer_events/2]).
 
+-export([create_w2w_transfer/2]).
+-export([get_w2w_transfer/2]).
+
 %% Types
 
 -type ctx()         :: wapi_handler:context().
@@ -674,6 +677,8 @@ delete_webhook(WebhookID, IdentityID, Context) ->
         end
     end).
 
+%% P2P
+
 -spec quote_p2p_transfer(params(), ctx()) -> result(map(),
     {invalid_resource_token, _} |
     p2p_quote:get_quote_error()
@@ -759,6 +764,32 @@ get_p2p_transfer_events({ID, CT}, Context) ->
             p2p_session_event_id => max_event_id(P2PSessionEventsLastID, P2PSessionEventID)
         }),
         to_swag(p2p_transfer_events, {MixedEvents, ContinuationToken})
+    end).
+
+%% W2W
+
+-spec create_w2w_transfer(params(), ctx()) -> result(map(), w2w_transfer:create_error()).
+create_w2w_transfer(Params, Context) ->
+    CreateFun =
+        fun(ID, EntityCtx) ->
+            do(fun() ->
+                ParsedParams = from_swag(create_w2w_params, Params),
+                w2w_transfer_machine:create(
+                    genlib_map:compact(ParsedParams#{id => ID}),
+                    EntityCtx
+                )
+            end)
+        end,
+    do(fun () -> unwrap(create_entity(w2w_transfer, Params, CreateFun, Context)) end).
+
+-spec get_w2w_transfer(params(), ctx()) -> result(map(),
+    {w2w_transfer, unauthorized} |
+    {w2w_transfer, {unknown_w2w_transfer, binary()}}
+).
+get_w2w_transfer(ID, Context) ->
+    do(fun () ->
+        State = get_state(w2w_transfer, ID, Context),
+        to_swag(w2w_transfer, State)
     end).
 
 %% Internal functions
@@ -1115,7 +1146,8 @@ do_get_state(identity,     Id) -> ff_identity_machine:get(Id);
 do_get_state(wallet,       Id) -> ff_wallet_machine:get(Id);
 do_get_state(destination,  Id) -> ff_destination:get_machine(Id);
 do_get_state(withdrawal,   Id) -> ff_withdrawal_machine:get(Id);
-do_get_state(p2p_transfer, Id) -> p2p_transfer_machine:get(Id).
+do_get_state(p2p_transfer, Id) -> p2p_transfer_machine:get(Id);
+do_get_state(w2w_transfer, Id) -> w2w_transfer_machine:get(Id).
 
 check_resource(Resource, Id, Context) ->
     _ = get_state(Resource, Id, Context),
@@ -1518,6 +1550,13 @@ from_swag(create_p2p_params, Params) ->
         body        => from_swag(withdrawal_body, maps:get(<<"body">>, Params)),
         quote_token => maps:get(<<"quoteToken">>, Params, undefined),
         metadata    => maps:get(<<"metadata">>, Params, #{})
+    }, Params);
+
+from_swag(create_w2w_params, Params) ->
+    add_external_id(#{
+        wallet_from_id => maps:get(<<"sender">>, Params),
+        wallet_to_id => maps:get(<<"receiver">>, Params),
+        body => from_swag(withdrawal_body, maps:get(<<"body">>, Params))
     }, Params);
 
 from_swag(destination_resource, Resource = #{
@@ -2031,6 +2070,41 @@ to_swag(p2p_transfer_status, {failed, P2PTransferFailure}) ->
         <<"status">> => <<"Failed">>,
         <<"failure">> => to_swag(sub_failure, P2PTransferFailure)
     };
+
+to_swag(w2w_transfer, W2WTransferState) ->
+    #{
+        version := 1,
+        id := Id,
+        body := Cash,
+        created_at := CreatedAt,
+        wallet_from_id := Sender,
+        wallet_to_id := Receiver,
+        status := Status
+    } = W2WTransfer = w2w_transfer_machine:w2w_transfer(W2WTransferState),
+    to_swag(map, #{
+        <<"id">> => Id,
+        <<"createdAt">> => to_swag(timestamp_ms, CreatedAt),
+        <<"body">> => to_swag(withdrawal_body, Cash),
+        <<"sender">> => Sender,
+        <<"receiver">> => Receiver,
+        <<"status">> => to_swag(w2w_transfer_status, Status),
+        <<"externalID">> => maps:get(external_id, W2WTransfer, undefined)
+    });
+
+to_swag(w2w_transfer_status, pending) ->
+    #{
+        <<"status">> => <<"Pending">>
+    };
+to_swag(w2w_transfer_status, succeeded) ->
+    #{
+        <<"status">> => <<"Succeeded">>
+    };
+to_swag(w2w_transfer_status, {failed, W2WTransferFailure}) ->
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => to_swag(sub_failure, W2WTransferFailure)
+    };
+
 to_swag(sub_failure, #{
     code := Code
 } = SubError) ->

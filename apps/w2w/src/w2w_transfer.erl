@@ -56,7 +56,7 @@
 -type create_error() ::
     {wallet_from, notfound} |
     {wallet_to, notfound} |
-    ff_party:validate_w2w_transfer_creation_error() |
+    {terms, ff_party:validate_w2w_transfer_creation_error()} |
     {inconsistent_currency, {W2WTransfer :: currency_id(), WalletFrom :: currency_id(), WalletTo :: currency_id()}}.
 
 -type invalid_w2w_transfer_status_error() ::
@@ -236,7 +236,7 @@ create(Params) ->
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
         ),
-        valid =  unwrap(validate_w2w_transfer_creation(Terms, Params, WalletFrom, WalletTo)),
+        valid =  unwrap(terms, validate_w2w_transfer_creation(Terms, Params, WalletFrom, WalletTo)),
         ExternalID = maps:get(external_id, Params, undefined),
         [
             {created, add_external_id(ExternalID, #{

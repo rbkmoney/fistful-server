@@ -652,18 +652,15 @@ process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Conte
     case wapi_wallet_ff_backend:create_w2w_transfer(Params, Context) of
         {ok, W2WTransfer} ->
             wapi_handler_utils:reply_ok(202, W2WTransfer);
-        {error, {sender, not_found}} ->
+        {error, {wallet_from, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet sender">>));
-        {error, {receiver, not_found}} ->
+        {error, {wallet_to, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet receiver">>));
         {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
-        {error, {terms, {terms_violation, {cash_range, {_Cash, _CashRange}}}}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
         {error, {terms, {terms_violation, w2w_forbidden}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"W2W transfer not allowed">>))

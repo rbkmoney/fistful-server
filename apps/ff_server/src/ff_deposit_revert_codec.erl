@@ -25,7 +25,7 @@ marshal(change, {status_changed, Status}) ->
 marshal(change, {p_transfer, TransferChange}) ->
     {transfer, #deposit_revert_TransferChange{payload = ff_p_transfer_codec:marshal(change, TransferChange)}};
 marshal(change, {limit_check, Details}) ->
-    {limit_check, #deposit_revert_LimitCheckChange{details = ff_limit_check_codec:marshal(details_receiver, Details)}};
+    {limit_check, #deposit_revert_LimitCheckChange{details = ff_limit_check_codec:marshal(details, Details)}};
 marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
     {adjustment, #deposit_revert_AdjustmentChange{
         id = marshal(id, ID),
@@ -78,7 +78,7 @@ unmarshal(change, {status_changed, #deposit_revert_StatusChange{status = Status}
 unmarshal(change, {transfer, #deposit_revert_TransferChange{payload = TransferChange}}) ->
     {p_transfer, ff_p_transfer_codec:unmarshal(change, TransferChange)};
 unmarshal(change, {limit_check, #deposit_revert_LimitCheckChange{details = Details}}) ->
-    {limit_check, ff_limit_check_codec:unmarshal(details_legacy, Details)};
+    {limit_check, ff_limit_check_codec:unmarshal(details, Details)};
 unmarshal(change, {adjustment, Change}) ->
     #deposit_revert_AdjustmentChange{
         id = ID,

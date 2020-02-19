@@ -13,6 +13,7 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
+-export([create_w2w_test/1]).
 -export([create_destination_failed_test/1]).
 -export([withdrawal_to_bank_card_test/1]).
 -export([withdrawal_to_crypto_wallet_test/1]).
@@ -53,6 +54,7 @@ all() ->
 groups() ->
     [
         {default, [sequence, {repeat, 2}], [
+            create_w2w_test,
             create_destination_failed_test,
             withdrawal_to_bank_card_test,
             withdrawal_to_crypto_wallet_test,
@@ -138,6 +140,22 @@ end_per_testcase(_Name, _C) ->
 -define(ID_CLASS, <<"person">>).
 
 -spec woody_retry_test(config()) -> test_return().
+
+-spec create_w2w_test(config()) -> test_return().
+
+create_w2w_test(C) ->
+    Name = <<"Keyn Fawkes">>,
+    Provider = ?ID_PROVIDER,
+    Class = ?ID_CLASS,
+    IdentityID = create_identity(Name, Provider, Class, C),
+    ok = check_identity(Name, IdentityID, Provider, Class, C),
+    WalletFromID = create_wallet(IdentityID, C),
+    ok = check_wallet(WalletFromID, C),
+    WalletToID = create_wallet(IdentityID, C),
+    ok = check_wallet(WalletToID, C),
+
+    W2WTransferID = create_w2w_transfer(WalletFromID, WalletToID, C),
+    ok = check_w2w_transfer(WalletFromID, WalletToID, W2WTransferID, C).
 
 -spec create_destination_failed_test(config()) -> test_return().
 
@@ -792,6 +810,50 @@ get_withdrawal(WithdrawalID, C) ->
         fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
         #{binding => #{<<"withdrawalID">> => WithdrawalID}},
         ct_helper:cfg(context, C)
+    ).
+
+create_w2w_transfer(WalletFromID, WalletToID, C) ->
+    {ok, W2WTransfer} = call_api(
+        fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
+        #{body => genlib_map:compact(#{
+            <<"body">> => #{
+                <<"amount">> => ?INTEGER,
+                <<"currency">> => ?RUB
+            },
+            <<"sender">> => WalletFromID,
+            <<"receiver">> => WalletToID
+        })},
+        ct_helper:cfg(context, C)
+    ),
+    maps:get(<<"id">>, W2WTransfer).
+
+get_w2w_transfer(ID, C) ->
+    call_api(
+        fun swag_client_wallet_w2_w_api:get_w2_w_transfer/3,
+        #{binding => #{<<"w2wTransferID">> => ID}},
+        ct_helper:cfg(context, C)
+    ).
+
+check_w2w_transfer(WalletFromID, WalletToID, W2WTransferID, C) ->
+    ct_helper:await(
+        ok,
+        fun () ->
+            case get_w2w_transfer(W2WTransferID, C) of
+                {ok, W2WTransfer} ->
+                    #{
+                        <<"body">> := #{
+                            <<"amount">> := ?INTEGER,
+                            <<"currency">> := ?RUB
+                        },
+                        <<"sender">> := WalletFromID,
+                        <<"receiver">> := WalletToID
+                    } = W2WTransfer,
+                    ok;
+                Other ->
+                    Other
+            end
+        end,
+        {linear, 20, 1000}
     ).
 
 %%

@@ -22,12 +22,6 @@ marshal(details, {wallet_sender, WalletDetails}) ->
 marshal(details, {wallet_receiver, WalletDetails}) ->
     {wallet_receiver, marshal(wallet_details, WalletDetails)};
 
-%% TODO remove this after migration
-marshal(details_sender, {_, WalletDetails}) ->
-    {wallet_sender, marshal(wallet_details, WalletDetails)};
-marshal(details_receiver, {_, WalletDetails}) ->
-    {wallet_receiver, marshal(wallet_details, WalletDetails)};
-
 marshal(wallet_details, ok) ->
     {ok, #lim_check_WalletOk{}};
 marshal(wallet_details, {failed, Details}) ->
@@ -39,10 +33,6 @@ marshal(wallet_details, {failed, Details}) ->
 
 -spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
     ff_codec:decoded_value().
-
-%% TODO remove this after migration
-unmarshal(details_legacy, {_, WalletDetails}) ->
-    {wallet, unmarshal(wallet_details, WalletDetails)};
 
 unmarshal(details, {wallet_sender, WalletDetails}) ->
     {wallet_sender, unmarshal(wallet_details, WalletDetails)};
@@ -61,21 +51,6 @@ unmarshal(wallet_details, {failed, Details}) ->
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -spec test() -> _.
-
-%% TODO remove this after migration
--spec wallet_ok_legacy_test() -> _.
-wallet_ok_legacy_test() ->
-    Details = {wallet, ok},
-    ?assertEqual(Details, unmarshal(details_legacy, (marshal(details_sender, Details)))).
-
-%% TODO remove this after migration
--spec wallet_fail_legacy_test() -> _.
-wallet_fail_legacy_test() ->
-    Details = {wallet, {failed, #{
-        expected_range => {{exclusive, {1, <<"RUB">>}}, {inclusive, {10, <<"RUB">>}}},
-        balance => {0, <<"RUB">>}
-    }}},
-    ?assertEqual(Details, unmarshal(details_legacy, (marshal(details_sender, Details)))).
 
 -spec wallet_ok_test() -> _.
 wallet_ok_test() ->

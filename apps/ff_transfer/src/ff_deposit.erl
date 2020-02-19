@@ -45,7 +45,7 @@
     {status_changed, status()}.
 
 -type limit_check_details() ::
-    {wallet, wallet_limit_check_details()}.
+    {wallet_receiver, wallet_limit_check_details()}.
 
 -type wallet_limit_check_details() ::
     ok |
@@ -573,13 +573,13 @@ process_limit_check(Deposit) ->
     Clock = ff_postings_transfer:clock(p_transfer(Deposit)),
     Events = case validate_wallet_limits(Terms, Wallet, Clock) of
         {ok, valid} ->
-            [{limit_check, {wallet, ok}}];
+            [{limit_check, {wallet_receiver, ok}}];
         {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
             Details = #{
                 expected_range => Range,
                 balance => Cash
             },
-            [{limit_check, {wallet, {failed, Details}}}]
+            [{limit_check, {wallet_receiver, {failed, Details}}}]
     end,
     {continue, Events}.
 
@@ -754,9 +754,9 @@ limit_check_status(Deposit) when not is_map_key(limit_checks, Deposit) ->
     unknown.
 
 -spec is_limit_check_ok(limit_check_details()) -> boolean().
-is_limit_check_ok({wallet, ok}) ->
+is_limit_check_ok({wallet_receiver, ok}) ->
     true;
-is_limit_check_ok({wallet, {failed, _Details}}) ->
+is_limit_check_ok({wallet_receiver, {failed, _Details}}) ->
     false.
 
 -spec validate_wallet_limits(terms(), wallet(), clock()) ->
@@ -1074,6 +1074,8 @@ maybe_migrate({adjustment, _Payload} = Event) ->
     ff_adjustment_utils:maybe_migrate(Event);
 
 % Old events
+maybe_migrate({limit_check, {wallet, Details}}) ->
+    {limit_check, {wallet_receiver, Details}};
 maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
     #{
         version     := 1,

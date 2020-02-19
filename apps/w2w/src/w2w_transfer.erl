@@ -16,7 +16,6 @@
     party_revision := party_revision(),
     domain_revision := domain_revision(),
     created_at := ff_time:timestamp_ms(),
-    p_transfer => p_transfer(),
     status => status(),
     external_id => id(),
     limit_checks => [limit_check_details()],
@@ -43,7 +42,7 @@
     {status_changed, status()}.
 
 -type limit_check_details() ::
-    {wallet, wallet_limit_check_details()}.
+    {wallet_sender | wallet_receiver, wallet_limit_check_details()}.
 
 -type wallet_limit_check_details() ::
     ok |

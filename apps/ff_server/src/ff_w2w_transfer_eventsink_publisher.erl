@@ -9,7 +9,7 @@
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
 
--type event() :: ff_eventsink_publisher:event(ff_w2w_transfer:event()).
+-type event() :: ff_eventsink_publisher:event(w2w_transfer:event()).
 -type sinkevent() :: ff_eventsink_publisher:sinkevent(ff_proto_w2w_transfer_thrift:'SinkEvent'()).
 
 %%

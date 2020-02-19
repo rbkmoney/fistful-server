@@ -132,9 +132,7 @@
 
 %% Internal types
 
-% -type account()               :: ff_account:account().
 -type process_result()        :: {action(), [event()]}.
-% -type cash_flow_plan()        :: ff_cash_flow:cash_flow_plan().
 -type wallet_id()             :: ff_wallet:id().
 -type wallet()                :: ff_wallet:wallet().
 -type body()                  :: ff_transaction:body().
@@ -316,7 +314,6 @@ is_finished(#{status := pending}) ->
 -spec apply_event(event(), w2w_transfer() | undefined) ->
     w2w_transfer().
 apply_event(Ev, T0) ->
-    % io:format("apply_event ~n Ev --- ~p~n W2W --- ~p", [Ev, T0]),
     T1 = apply_event_(Ev, T0),
     T2 = save_adjustable_info(Ev, T1),
     T2.

@@ -42,10 +42,8 @@
     wrapped_adjustment_event() |
     {status_changed, status()}.
 
--type limit_check_details() :: #{
-    wallet_from := wallet_limit_check_details(),
-    wallet_to := wallet_limit_check_details()
-}.
+-type limit_check_details() ::
+    {wallet, wallet_limit_check_details()}.
 
 -type wallet_limit_check_details() ::
     ok |
@@ -420,11 +418,12 @@ process_limit_check(W2WTransfer) ->
     WalletFromID = wallet_from_id(W2WTransfer),
     WalletToID = wallet_to_id(W2WTransfer),
 
-    LimitCheck = #{
-        wallet_from => process_wallet_limit_check(WalletFromID, W2WTransfer),
-        wallet_to => process_wallet_limit_check(WalletToID, W2WTransfer)
-    },
-    {continue, [{limit_check, LimitCheck}]}.
+    LimitCheckFrom = process_wallet_limit_check(WalletFromID, W2WTransfer),
+    LimitCheckTo = process_wallet_limit_check(WalletToID, W2WTransfer),
+    {continue, [
+        {limit_check, {wallet_sender, LimitCheckFrom}},
+        {limit_check, {wallet_receiver, LimitCheckTo}}
+    ]}.
 
 -spec process_transfer_finish(w2w_transfer()) ->
     process_result().
@@ -639,9 +638,13 @@ limit_check_status(W2WTransfer) when not is_map_key(limit_checks, W2WTransfer) -
     unknown.
 
 -spec is_limit_check_ok(limit_check_details()) -> boolean().
-is_limit_check_ok(#{wallet_from := ok, wallet_to := ok}) ->
+is_limit_check_ok({wallet_sender, ok}) ->
     true;
-is_limit_check_ok(_) ->
+is_limit_check_ok({wallet_receiver, ok}) ->
+    true;
+is_limit_check_ok({wallet_sender, {failed, _Details}}) ->
+    false;
+is_limit_check_ok({wallet_receiver, {failed, _Details}}) ->
     false.
 
 -spec validate_wallet_limits(terms(), wallet(), clock()) ->

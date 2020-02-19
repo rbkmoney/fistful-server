@@ -20,6 +20,7 @@
 -export([get_create_deposit_events_ok/1]).
 -export([get_shifted_create_identity_events_ok/1]).
 -export([get_create_p2p_transfer_events_ok/1]).
+-export([get_create_w2w_transfer_events_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -38,7 +39,8 @@ all() ->
         get_create_deposit_events_ok,
         get_withdrawal_session_events_ok,
         get_shifted_create_identity_events_ok,
-        get_create_p2p_transfer_events_ok
+        get_create_p2p_transfer_events_ok,
+        get_create_w2w_transfer_events_ok
     ].
 
 
@@ -323,6 +325,23 @@ get_create_p2p_transfer_events_ok(C) ->
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
+-spec get_create_w2w_transfer_events_ok(config()) -> test_return().
+
+get_create_w2w_transfer_events_ok(C) ->
+    Sink = w2w_transfer_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
+
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    WalFromID = create_wallet(IID, <<"HAHA NO1">>, <<"RUB">>, C),
+    WalToID = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
+
+    ID = process_w2w(WalFromID, WalToID),
+
+    {ok, RawEvents} = w2w_transfer_machine:events(ID, {undefined, 1000}),
+    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
+    MaxID = LastEvent + length(RawEvents).
+
 create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
@@ -418,6 +437,39 @@ process_withdrawal(WalID, DestID) ->
         genlib_retry:linear(15, 1000)
     ),
     WdrID.
+
+process_w2w(WalletFromID, WalletToID) ->
+    ID = generate_id(),
+    ok = w2w_transfer_machine:create(
+        #{id => ID, wallet_from_id => WalletFromID, wallet_to_id => WalletToID, body => {10000, <<"RUB">>}},
+        ff_entity_context:new()
+    ),
+    succeeded = await_final_w2w_transfer_status(ID),
+    ID.
+
+get_w2w_transfer(DepositID) ->
+    {ok, Machine} = w2w_transfer_machine:get(DepositID),
+    w2w_transfer_machine:w2w_transfer(Machine).
+
+get_w2w_transfer_status(DepositID) ->
+    w2w_transfer:status(get_w2w_transfer(DepositID)).
+
+await_final_w2w_transfer_status(DepositID) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            {ok, Machine} = w2w_transfer_machine:get(DepositID),
+            Deposit = w2w_transfer_machine:w2w_transfer(Machine),
+            case w2w_transfer:is_finished(Deposit) of
+                false ->
+                    {not_finished, Deposit};
+                true ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(90, 1000)
+    ),
+    get_w2w_transfer_status(DepositID).
 
 get_deposit(DepositID) ->
     {ok, Machine} = ff_deposit_machine:get(DepositID),

@@ -121,7 +121,7 @@ marshal(change, {session_finished, {SessionID, SessionResult}}) ->
 marshal(change, {route_changed, Route}) ->
     {route, #wthd_RouteChange{route = marshal(route, Route)}};
 marshal(change, {limit_check, Details}) ->
-    {limit_check, #wthd_LimitCheckChange{details = ff_limit_check_codec:marshal(details, Details)}};
+    {limit_check, #wthd_LimitCheckChange{details = ff_limit_check_codec:marshal(details_sender, Details)}};
 marshal(change, {resource_got, Resource}) ->
     {resource, {got, #wthd_ResourceGot{resource = marshal(resource, Resource)}}};
 marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
@@ -186,7 +186,7 @@ unmarshal(change, {session, SessionChange}) ->
 unmarshal(change, {route, Route}) ->
     {route_changed, unmarshal(route, Route)};
 unmarshal(change, {limit_check, #wthd_LimitCheckChange{details = Details}}) ->
-    {limit_check, ff_limit_check_codec:unmarshal(details, Details)};
+    {limit_check, ff_limit_check_codec:unmarshal(details_legacy, Details)};
 unmarshal(change, {resource, {got, #wthd_ResourceGot{resource = Resource}}}) ->
     {resource_got, unmarshal(resource, Resource)};
 unmarshal(change, {adjustment, Change}) ->

@@ -174,25 +174,3 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
-
-create_identity(C) ->
-    PartyID = ?config(party, C),
-    Params = #{
-        <<"provider">> => <<"good-one">>,
-        <<"class">> => <<"person">>,
-        <<"name">> => <<"HAHA NO2">>
-    },
-    wapi_wallet_ff_backend:create_identity(Params, create_context(PartyID, C)).
-
-create_context(PartyID, C) ->
-    maps:merge(create_auth_ctx(PartyID), create_woody_ctx(C)).
-
-create_woody_ctx(C) ->
-    #{
-        woody_context => ct_helper:get_woody_ctx(C)
-    }.
-
-create_auth_ctx(PartyID) ->
-    #{
-        swagger_context => #{auth_context => {?STRING, {PartyID, empty}, empty}}
-    }.

@@ -73,7 +73,7 @@ init_per_group(G, C) ->
     })),
     Party = create_party(C),
     % Token = issue_token(Party, [{[party], write}], unlimited),
-    Token = issue_token(Party, [{[party], write}], {deadline, 10}),
+    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], {deadline, 10}),
     Context = get_context("localhost:8080", Token),
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
     [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].
@@ -162,11 +162,6 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
-
-issue_token(PartyID, ACL, LifeTime) ->
-    Claims = #{?STRING => ?STRING},
-    {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
-    Token.
 
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).

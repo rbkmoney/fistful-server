@@ -230,15 +230,9 @@ create_identity(C) ->
     wapi_wallet_ff_backend:create_identity(Params, create_context(PartyID, C)).
 
 create_context(PartyID, C) ->
-    maps:merge(create_auth_ctx(PartyID), create_woody_ctx(C)).
+    maps:merge(wapi_ct_helper:create_auth_ctx(PartyID), create_woody_ctx(C)).
 
 create_woody_ctx(C) ->
     #{
         woody_context => ct_helper:get_woody_ctx(C)
     }.
-
-create_auth_ctx(PartyID) ->
-    #{
-        swagger_context => #{auth_context => {{PartyID, empty}, #{}}}
-    }.
-

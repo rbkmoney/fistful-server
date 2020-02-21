@@ -56,12 +56,12 @@ marshal(cash_flow_change_plan, Plan) ->
     };
 marshal(status_change_plan, Plan) ->
     #w2w_adj_StatusChangePlan{
-        new_status = ff_deposit_status_codec:marshal(status, maps:get(new_status, Plan))
+        new_status = ff_w2w_transfer_status_codec:marshal(status, maps:get(new_status, Plan))
     };
 
 marshal(change_request, {change_status, Status}) ->
     {change_status, #w2w_adj_ChangeStatusRequest{
-        new_status = ff_deposit_status_codec:marshal(status, Status)
+        new_status = ff_w2w_transfer_status_codec:marshal(status, Status)
     }};
 
 marshal(T, V) ->
@@ -117,12 +117,12 @@ unmarshal(cash_flow_change_plan, Plan) ->
 unmarshal(status_change_plan, Plan) ->
     Status = Plan#w2w_adj_StatusChangePlan.new_status,
     #{
-        new_status => ff_deposit_status_codec:unmarshal(status, Status)
+        new_status => ff_w2w_transfer_status_codec:unmarshal(status, Status)
     };
 
 unmarshal(change_request, {change_status, Request}) ->
     Status = Request#w2w_adj_ChangeStatusRequest.new_status,
-    {change_status, ff_deposit_status_codec:unmarshal(status, Status)};
+    {change_status, ff_w2w_transfer_status_codec:unmarshal(status, Status)};
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

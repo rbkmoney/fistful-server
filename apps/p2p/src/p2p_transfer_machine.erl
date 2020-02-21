@@ -107,8 +107,8 @@ get(ID) ->
     {error, unknown_p2p_transfer_error()}.
 
 events(ID, Range) ->
-    case machinery:get(?NS, ID, Range, backend()) of
-        {ok, #{history := History}} ->
+    case ff_machine:history(p2p_transfer, ?NS, ID, Range) of
+        {ok, History} ->
             {ok, [{EventID, TsEv} || {EventID, _, TsEv} <- History]};
         {error, notfound} ->
             {error, {unknown_p2p_transfer, ID}}

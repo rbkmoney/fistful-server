@@ -115,8 +115,8 @@ get(ID, {After, Limit}) ->
     {error, unknown_withdrawal_error()}.
 
 events(ID, {After, Limit}) ->
-    case machinery:get(?NS, ID, {After, Limit, forward}, backend()) of
-        {ok, #{history := History}} ->
+    case ff_machine:history(ff_withdrawal, ?NS, ID, {After, Limit, forward}) of
+        {ok, History} ->
             {ok, [{EventID, TsEv} || {EventID, _, TsEv} <- History]};
         {error, notfound} ->
             {error, {unknown_withdrawal, ID}}

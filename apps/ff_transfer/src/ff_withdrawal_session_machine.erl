@@ -86,7 +86,7 @@ get(ID) ->
 
 events(ID, Range) ->
     do(fun () ->
-        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
+        History = unwrap(ff_machine:history(ff_withdrawal_session, ?NS, ID, Range)),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 

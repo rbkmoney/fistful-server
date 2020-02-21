@@ -50,6 +50,7 @@
 -export([get/4]).
 
 -export([collapse/2]).
+-export([history/4]).
 
 -export([emit_event/1]).
 -export([emit_events/1]).
@@ -68,6 +69,9 @@
 -callback apply_event(event(), model()) ->
     model().
 
+-callback maybe_migrate(event()) ->
+    event().
+
 -callback process_call(st()) ->
     {machinery:response(_), [event()]}.
 
@@ -84,6 +88,7 @@
 -type event()   :: any().
 -type st()      :: st(model()).
 -type machine() :: machine(model()).
+-type history() :: [machinery:event(timestamped_event(event()))].
 
 %%
 
@@ -126,6 +131,16 @@ get(Mod, NS, Ref, Range) ->
         collapse(Mod, unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))))
     end).
 
+-spec history(module(), namespace(), ref(), range()) ->
+    {ok, history()} |
+    {error, notfound}.
+
+history(Mod, NS, Ref, Range) ->
+    do(fun () ->
+        #{history := History} = unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))),
+        migrate_history(Mod, History)
+    end).
+
 -spec collapse(module(), machine()) ->
     st().
 
@@ -136,6 +151,12 @@ collapse(Mod, #{history := History}) ->
 
 collapse_history(Mod, History, St0) ->
     lists:foldl(fun (Ev, St) -> merge_event(Mod, Ev, St) end, St0, History).
+
+-spec migrate_history(module(), history()) ->
+    history().
+
+migrate_history(Mod, History) ->
+    [migrate_event(Mod, Ev) || Ev <- History].
 
 -spec emit_event(E) ->
     [timestamped_event(E)].
@@ -161,6 +182,9 @@ merge_timestamped_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
     {Body, St#{times => {Created, Ts}}};
 merge_timestamped_event({ev, Ts, Body}, St = #{}) ->
     {Body, St#{times => {Ts, Ts}}}.
+
+migrate_event(Mod, {ID, Ts, {ev, EventTs, EventBody}}) ->
+    {ID, Ts, {ev, EventTs, Mod:maybe_migrate(EventBody)}}.
 
 %%
 

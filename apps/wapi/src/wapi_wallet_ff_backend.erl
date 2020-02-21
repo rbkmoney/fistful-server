@@ -769,7 +769,7 @@ get_p2p_transfer_events({ID, CT}, Context) ->
 %% W2W
 
 -spec create_w2w_transfer(params(), ctx()) -> result(map(), w2w_transfer:create_error()).
-create_w2w_transfer(Params = #{wallet_from_id := WalletFromID}, Context) ->
+create_w2w_transfer(Params = #{<<"sender">> := WalletFromID}, Context) ->
     _ = check_resource(wallet, WalletFromID, Context),
     CreateFun =
         fun(ID, EntityCtx) ->

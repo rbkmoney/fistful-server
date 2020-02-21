@@ -132,7 +132,7 @@ create_bad_amount_test(C) ->
         external_id => W2WTransferID
     },
     Result = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
-    ?assertMatch({error, {bad_w2w_transfer_amount, {0, <<"RUB">>}}}, Result).
+    ?assertMatch({error, {terms, {bad_w2w_transfer_amount, {0, <<"RUB">>}}}}, Result).
 
 -spec create_currency_validation_error_test(config()) -> test_return().
 create_currency_validation_error_test(C) ->
@@ -157,7 +157,7 @@ create_currency_validation_error_test(C) ->
             #domain_CurrencyRef{symbolic_code = <<"USD">>}
         ]
     },
-    ?assertMatch({error, {terms_violation, {not_allowed_currency, Details}}}, Result).
+    ?assertMatch({error, {terms, {terms_violation, {not_allowed_currency, Details}}}}, Result).
 
 -spec create_wallet_from_notfound_test(config()) -> test_return().
 create_wallet_from_notfound_test(C) ->

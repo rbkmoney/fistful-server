@@ -1461,13 +1461,15 @@ maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}) ->
     Ev;
 maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}) ->
     Ev;
+maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}) ->
+    Ev;
 maybe_migrate({p_transfer, PEvent}) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
 maybe_migrate({adjustment, _Payload} = Event) ->
     ff_adjustment_utils:maybe_migrate(Event);
 % Old events
 maybe_migrate({limit_check, {wallet, Details}}) ->
-    {limit_check, {wallet_sender, Details}};
+    maybe_migrate({limit_check, {wallet_sender, Details}});
 maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
     #{
         version     := 1,

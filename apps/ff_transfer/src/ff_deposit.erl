@@ -1066,6 +1066,8 @@ maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
     Ev;
 maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}) ->
     Ev;
+maybe_migrate(Ev = {limit_check, {wallet_receiver, _Details}}) ->
+    Ev;
 maybe_migrate({p_transfer, PEvent}) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, deposit)};
 maybe_migrate({revert, _Payload} = Event) ->
@@ -1075,7 +1077,7 @@ maybe_migrate({adjustment, _Payload} = Event) ->
 
 % Old events
 maybe_migrate({limit_check, {wallet, Details}}) ->
-    {limit_check, {wallet_receiver, Details}};
+    maybe_migrate({limit_check, {wallet_receiver, Details}});
 maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
     #{
         version     := 1,

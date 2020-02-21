@@ -334,10 +334,14 @@ apply_event_({adjustment, _Ev} = Event, T) ->
 
 -spec maybe_migrate(event() | legacy_event()) ->
     event().
+% Actual events
+maybe_migrate(Ev = {limit_check, {wallet_receiver, _Details}}) ->
+    Ev;
 maybe_migrate({adjustment, _Payload} = Event) ->
     ff_adjustment_utils:maybe_migrate(Event);
+% Old events
 maybe_migrate({limit_check, {wallet, Details}}) ->
-    {limit_check, {wallet_receiver, Details}};
+    maybe_migrate({limit_check, {wallet_receiver, Details}});
 maybe_migrate(Ev) ->
     Ev.
 

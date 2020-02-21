@@ -769,7 +769,8 @@ get_p2p_transfer_events({ID, CT}, Context) ->
 %% W2W
 
 -spec create_w2w_transfer(params(), ctx()) -> result(map(), w2w_transfer:create_error()).
-create_w2w_transfer(Params, Context) ->
+create_w2w_transfer(Params = #{wallet_from_id := WalletFromID}, Context) ->
+    _ = check_resource(wallet, WalletFromID, Context),
     CreateFun =
         fun(ID, EntityCtx) ->
             do(fun() ->
@@ -872,8 +873,8 @@ maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
     ),
     check_quote_body(maps:get(<<"cashFrom">>, Data), maps:get(<<"body">>, Params)),
     {ok, #{
-        cash_from   => from_swag(withdrawal_body, maps:get(<<"cashFrom">>, Data)),
-        cash_to     => from_swag(withdrawal_body, maps:get(<<"cashTo">>, Data)),
+        cash_from   => from_swag(body, maps:get(<<"cashFrom">>, Data)),
+        cash_to     => from_swag(body, maps:get(<<"cashTo">>, Data)),
         created_at  => maps:get(<<"createdAt">>, Data),
         expires_on  => maps:get(<<"expiresOn">>, Data),
         quote_data  => maps:get(<<"quoteData">>, Data)
@@ -905,8 +906,8 @@ create_quote_token(#{
         <<"walletID">>      => WalletID,
         <<"destinationID">> => DestinationID,
         <<"partyID">>       => PartyID,
-        <<"cashFrom">>      => to_swag(withdrawal_body, CashFrom),
-        <<"cashTo">>        => to_swag(withdrawal_body, CashTo),
+        <<"cashFrom">>      => to_swag(body, CashFrom),
+        <<"cashTo">>        => to_swag(body, CashTo),
         <<"createdAt">>     => to_swag(timestamp, CreatedAt),
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"quoteData">>     => QuoteData
@@ -918,7 +919,7 @@ create_quote_token(#{
 create_p2p_quote_token(Quote, PartyID) ->
     Data = #{
         <<"version">>        => 1,
-        <<"amount">>         => to_swag(withdrawal_body, p2p_quote:amount(Quote)),
+        <<"amount">>         => to_swag(body, p2p_quote:amount(Quote)),
         <<"partyRevision">>  => p2p_quote:party_revision(Quote),
         <<"domainRevision">> => p2p_quote:domain_revision(Quote),
         <<"createdAt">>      => to_swag(timestamp_ms, p2p_quote:created_at(Quote)),
@@ -944,7 +945,7 @@ decode_p2p_quote_token(Token) ->
     case jsx:decode(Token, [return_maps]) of
         #{<<"version">> := 1} = DecodedJson ->
             DecodedToken = #{
-                amount          => from_swag(withdrawal_body, maps:get(<<"amount">>, DecodedJson)),
+                amount          => from_swag(body, maps:get(<<"amount">>, DecodedJson)),
                 party_revision  => maps:get(<<"partyRevision">>, DecodedJson),
                 domain_revision => maps:get(<<"domainRevision">>, DecodedJson),
                 created_at      => ff_time:from_rfc3339(maps:get(<<"createdAt">>, DecodedJson)),
@@ -1458,7 +1459,7 @@ from_swag(create_quote_params, Params) ->
         wallet_id       => maps:get(<<"walletID">>, Params),
         currency_from   => from_swag(currency, maps:get(<<"currencyFrom">>, Params)),
         currency_to     => from_swag(currency, maps:get(<<"currencyTo">>, Params)),
-        body            => from_swag(withdrawal_body, maps:get(<<"cash">>, Params)),
+        body            => from_swag(body, maps:get(<<"cash">>, Params)),
         destination_id  => maps:get(<<"destinationID">>, Params, undefined)
     }, Params));
 from_swag(identity_params, Params) ->
@@ -1530,7 +1531,7 @@ from_swag(quote_p2p_params, Params) ->
         sender      => maps:get(<<"sender">>, Params),
         receiver    => maps:get(<<"receiver">>, Params),
         identity_id => maps:get(<<"identityID">>, Params),
-        body        => from_swag(withdrawal_body, maps:get(<<"body">>, Params))
+        body        => from_swag(body, maps:get(<<"body">>, Params))
     }, Params);
 
 from_swag(compact_resource, #{
@@ -1547,7 +1548,7 @@ from_swag(create_p2p_params, Params) ->
         sender      => maps:get(<<"sender">>, Params),
         receiver    => maps:get(<<"receiver">>, Params),
         identity_id => maps:get(<<"identityID">>, Params),
-        body        => from_swag(withdrawal_body, maps:get(<<"body">>, Params)),
+        body        => from_swag(body, maps:get(<<"body">>, Params)),
         quote_token => maps:get(<<"quoteToken">>, Params, undefined),
         metadata    => maps:get(<<"metadata">>, Params, #{})
     }, Params);
@@ -1556,7 +1557,7 @@ from_swag(create_w2w_params, Params) ->
     add_external_id(#{
         wallet_from_id => maps:get(<<"sender">>, Params),
         wallet_to_id => maps:get(<<"receiver">>, Params),
-        body => from_swag(withdrawal_body, maps:get(<<"body">>, Params))
+        body => from_swag(body, maps:get(<<"body">>, Params))
     }, Params);
 
 from_swag(destination_resource, Resource = #{
@@ -1586,13 +1587,13 @@ from_swag(withdrawal_params, Params) ->
     add_external_id(#{
         wallet_id      => maps:get(<<"wallet">>     , Params),
         destination_id => maps:get(<<"destination">>, Params),
-        body           => from_swag(withdrawal_body , maps:get(<<"body">>, Params))
+        body           => from_swag(body , maps:get(<<"body">>, Params))
     }, Params);
 %% TODO
 %%  - remove this clause when we fix negative accounts and turn on validation in swag
-from_swag(withdrawal_body, #{<<"amount">> := Amount}) when Amount < 0 ->
+from_swag(body, #{<<"amount">> := Amount}) when Amount < 0 ->
     wapi_handler:throw_result(wapi_handler_utils:reply_error(400, #{<<"errorType">> => <<"WrongSize">>}));
-from_swag(withdrawal_body, Body) ->
+from_swag(body, Body) ->
     {genlib:to_int(maps:get(<<"amount">>, Body)), maps:get(<<"currency">>, Body)};
 from_swag(currency, V) ->
     V;
@@ -1925,13 +1926,13 @@ to_swag(withdrawal, State) ->
             <<"createdAt">>   => to_swag(timestamp, ff_machine:created(State)),
             <<"wallet">>      => ff_withdrawal:wallet_id(Withdrawal),
             <<"destination">> => ff_withdrawal:destination_id(Withdrawal),
-            <<"body">>        => to_swag(withdrawal_body, ff_withdrawal:body(Withdrawal)),
+            <<"body">>        => to_swag(body, ff_withdrawal:body(Withdrawal)),
             <<"metadata">>    => genlib_map:get(<<"metadata">>, WapiCtx),
             ?EXTERNAL_ID      => ff_withdrawal:external_id(Withdrawal)
         },
         to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))
     ));
-to_swag(withdrawal_body, {Amount, Currency}) ->
+to_swag(body, {Amount, Currency}) ->
     to_swag(map, #{
         <<"amount">>   => Amount,
         <<"currency">> => to_swag(currency, Currency)
@@ -2021,8 +2022,8 @@ to_swag(quote, {#{
     expires_on  := ExpiresOn
 }, Token}) ->
     #{
-        <<"cashFrom">>      => to_swag(withdrawal_body, CashFrom),
-        <<"cashTo">>        => to_swag(withdrawal_body, CashTo),
+        <<"cashFrom">>      => to_swag(body, CashFrom),
+        <<"cashTo">>        => to_swag(body, CashTo),
         <<"createdAt">>     => to_swag(timestamp, CreatedAt),
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"quoteToken">>    => Token
@@ -2030,7 +2031,7 @@ to_swag(quote, {#{
 
 to_swag(p2p_transfer_quote, {Cash, Token, ExpiresOn}) ->
     #{
-        <<"customerFee">> => to_swag(withdrawal_body, Cash),
+        <<"customerFee">> => to_swag(body, Cash),
         <<"expiresOn">>   => to_swag(timestamp_ms, ExpiresOn),
         <<"token">>       => Token
     };
@@ -2049,7 +2050,7 @@ to_swag(p2p_transfer, P2PTransferState) ->
     to_swag(map, #{
         <<"id">> => Id,
         <<"createdAt">> => to_swag(timestamp_ms, CreatedAt),
-        <<"body">> => to_swag(withdrawal_body, Cash),
+        <<"body">> => to_swag(body, Cash),
         <<"sender">> => to_swag(sender_resource, Sender),
         <<"receiver">> => to_swag(receiver_resource, Receiver),
         <<"status">> => to_swag(p2p_transfer_status, Status),
@@ -2084,7 +2085,7 @@ to_swag(w2w_transfer, W2WTransferState) ->
     to_swag(map, #{
         <<"id">> => Id,
         <<"createdAt">> => to_swag(timestamp_ms, CreatedAt),
-        <<"body">> => to_swag(withdrawal_body, Cash),
+        <<"body">> => to_swag(body, Cash),
         <<"sender">> => Sender,
         <<"receiver">> => Receiver,
         <<"status">> => to_swag(w2w_transfer_status, Status),

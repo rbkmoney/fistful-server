@@ -46,6 +46,7 @@
 %% API
 
 -define(request_result, wapi_req_result).
+-define(APP, wapi).
 
 -spec handle_request(tag(), operation_id(), req_data(), swagger_context(), opts()) ->
     request_result().
@@ -71,7 +72,7 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
         ok = ff_context:save(create_ff_context(WoodyContext, Opts)),
 
         Context      = create_handler_context(SwagContext, WoodyContext),
-        Handler      = get_handler(Tag),
+        Handler      = get_handler(Tag, genlib_app:env(?APP, transport)),
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
             {ok, AuthDetails} ->
                 ok = logger:info("Operation ~p authorized via ~p", [OperationID, AuthDetails]),
@@ -94,8 +95,9 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
 throw_result(Res) ->
     erlang:throw({?request_result, Res}).
 
-get_handler(wallet)  -> wapi_wallet_handler;
-get_handler(payres)  -> wapi_payres_handler.
+get_handler(wallet, thrift)  -> wapi_wallet_thrift_handler;
+get_handler(wallet, _)  -> wapi_wallet_handler;
+get_handler(payres, _)  -> wapi_payres_handler.
 
 -spec create_woody_context(tag(), req_data(), wapi_auth:context(), opts()) ->
     woody_context:ctx().
@@ -112,8 +114,6 @@ attach_deadline(undefined, Context) ->
     Context;
 attach_deadline(Deadline, Context) ->
     woody_context:set_deadline(Deadline, Context).
-
--define(APP, wapi).
 
 collect_user_identity(AuthContext, _Opts) ->
     genlib_map:compact(#{

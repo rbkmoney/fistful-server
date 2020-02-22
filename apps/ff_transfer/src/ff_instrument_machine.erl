@@ -155,9 +155,6 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
 
 events(NS, ID, Range) ->
     do(fun () ->
-        #{history := History} = unwrap(machinery:get(NS, ID, Range, backend(NS))),
+        History = unwrap(ff_machine:history(ff_instrument, NS, ID, Range)),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
-
-backend(NS) ->
-    fistful:backend(NS).

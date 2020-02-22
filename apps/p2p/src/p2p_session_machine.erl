@@ -106,8 +106,8 @@ create(ID, TransferParams, Params) ->
     {error, unknown_p2p_session_error()}.
 
 events(Ref, Range) ->
-    case machinery:get(?NS, Ref, Range, backend()) of
-        {ok, #{history := History}} ->
+    case ff_machine:history(p2p_session, ?NS, Ref, Range) of
+        {ok, History} ->
             Events = [{EventID, TsEv} || {EventID, _, TsEv} <- History],
             {ok, Events};
         {error, notfound} ->

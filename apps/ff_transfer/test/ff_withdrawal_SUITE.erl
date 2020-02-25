@@ -214,7 +214,7 @@ limit_check_fail_test(C) ->
         id => WithdrawalID,
         destination_id => DestinationID,
         wallet_id => WalletID,
-        body => {50200, <<"RUB">>}
+        body => {200, <<"RUB">>}
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),

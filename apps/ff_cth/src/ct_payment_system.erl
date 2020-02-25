@@ -495,7 +495,7 @@ default_termset(Options) ->
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
-                        {inclusive, ?cash( -50000, <<"RUB">>)},
+                        {inclusive, ?cash(      0, <<"RUB">>)},
                         {exclusive, ?cash(5000001, <<"RUB">>)}
                     )}
                 },

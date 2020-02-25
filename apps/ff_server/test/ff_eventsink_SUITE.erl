@@ -335,6 +335,8 @@ get_create_w2w_transfer_events_ok(C) ->
     IID = create_person_identity(Party, C),
     WalFromID = create_wallet(IID, <<"HAHA NO1">>, <<"RUB">>, C),
     WalToID = create_wallet(IID, <<"HAHA NO2">>, <<"RUB">>, C),
+    SrcID   = create_source(IID, C),
+    _DepID  = process_deposit(SrcID, WalFromID),
 
     ID = process_w2w(WalFromID, WalToID),
 

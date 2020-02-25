@@ -2,6 +2,7 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
+-include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
 
@@ -98,7 +99,7 @@ limit_check_fail_test(C) ->
         wallet_to_id := WalletToID
     } = prepare_standard_environment(<<"RUB">>, C),
     W2WTransferID = generate_id(),
-    W2WTransferCash = {6000000, <<"RUB">>},
+    W2WTransferCash = {50001, <<"RUB">>},
     W2WTransferParams = #{
         id => W2WTransferID,
         body => W2WTransferCash,
@@ -106,6 +107,7 @@ limit_check_fail_test(C) ->
         wallet_to_id => WalletToID,
         external_id => W2WTransferID
     },
+    ?assertEqual(?final_balance(50000, <<"RUB">>), get_wallet_balance(WalletFromID)),
     ok = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     Result = await_final_w2w_transfer_status(W2WTransferID),
     ?assertMatch({failed, #{
@@ -114,7 +116,8 @@ limit_check_fail_test(C) ->
             code := <<"amount">>
         }
     }}, Result),
-    ok = await_wallet_balance({0, <<"RUB">>}, WalletToID).
+    ?assertEqual(?final_balance(50000, <<"RUB">>), get_wallet_balance(WalletFromID)),
+    ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletToID)).
 
 -spec create_bad_amount_test(config()) -> test_return().
 create_bad_amount_test(C) ->
@@ -221,7 +224,7 @@ create_ok_test(C) ->
         wallet_to_id := WalletToID
     } = prepare_standard_environment(<<"RUB">>, C),
     W2WTransferID = generate_id(),
-    W2WTransferCash = {5000, <<"RUB">>},
+    W2WTransferCash = {50000, <<"RUB">>},
     W2WTransferParams = #{
         id => W2WTransferID,
         body => W2WTransferCash,
@@ -229,10 +232,12 @@ create_ok_test(C) ->
         wallet_to_id => WalletToID,
         external_id => W2WTransferID
     },
+    ?assertEqual(?final_balance(50000, <<"RUB">>), get_wallet_balance(WalletFromID)),
+    ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletToID)),
     ok = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     succeeded = await_final_w2w_transfer_status(W2WTransferID),
-    ok = await_wallet_balance({-5000, <<"RUB">>}, WalletFromID),
-    ok = await_wallet_balance({5000, <<"RUB">>}, WalletToID),
+    ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletFromID)),
+    ?assertEqual(?final_balance(50000, <<"RUB">>), get_wallet_balance(WalletToID)),
     W2WTransfer = get_w2w_transfer(W2WTransferID),
     W2WTransferCash = w2w_transfer:body(W2WTransfer),
     WalletFromID = w2w_transfer:wallet_from_id(W2WTransfer),
@@ -254,6 +259,7 @@ prepare_standard_environment(Currency, C) ->
     ok = await_wallet_balance({0, Currency}, WalletFromID),
     WalletToID = create_wallet(IdentityID, <<"My wallet to">>, <<"RUB">>, C),
     ok = await_wallet_balance({0, Currency}, WalletToID),
+    ok = set_wallet_balance({50000, <<"RUB">>}, WalletFromID),
     #{
         identity_id => IdentityID,
         party_id => PartyID,
@@ -338,5 +344,36 @@ get_account_balance(Account) ->
     ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
+set_wallet_balance({Amount, Currency}, ID) ->
+    TransactionID = generate_id(),
+    {ok, Machine} = ff_wallet_machine:get(ID),
+    Account = ff_wallet:account(ff_wallet_machine:wallet(Machine)),
+    AccounterID = ff_account:accounter_account_id(Account),
+    {CurrentAmount, _, Currency} = get_account_balance(Account),
+    {ok, AnotherAccounterID} = create_account(Currency),
+    Postings = [{AnotherAccounterID, AccounterID, {Amount - CurrentAmount, Currency}}],
+    {ok, _} = ff_transaction:prepare(TransactionID, Postings),
+    {ok, _} = ff_transaction:commit(TransactionID, Postings),
+    ok.
+
 generate_id() ->
     ff_id:generate_snowflake_id().
+
+create_account(CurrencyCode) ->
+    Description = <<"ff_test">>,
+    case call_accounter('CreateAccount', [construct_account_prototype(CurrencyCode, Description)]) of
+        {ok, Result} ->
+            {ok, Result};
+        {exception, Exception} ->
+            {error, {exception, Exception}}
+    end.
+
+construct_account_prototype(CurrencyCode, Description) ->
+    #shumpune_AccountPrototype{
+        currency_sym_code = CurrencyCode,
+        description = Description
+    }.
+
+call_accounter(Function, Args) ->
+    Service = {shumpune_shumpune_thrift, 'Accounter'},
+    ff_woody_client:call(accounter, {Service, Function, Args}, woody_context:new()).

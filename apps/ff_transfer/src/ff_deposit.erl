@@ -240,11 +240,7 @@ body(#{body := V}) ->
 
 -spec status(deposit()) -> status() | undefined.
 status(Deposit) ->
-    OwnStatus = maps:get(status, Deposit, undefined),
-    %% `OwnStatus` is used in case of `{created, deposit()}` event marshaling
-    %% The event deposit is not created from events, so `adjustments` can not have
-    %% initial deposit status.
-    ff_adjustment_utils:status(adjustments_index(Deposit), OwnStatus).
+    maps:get(status, Deposit, undefined).
 
 -spec p_transfer(deposit())  -> p_transfer() | undefined.
 p_transfer(Deposit) ->
@@ -536,8 +532,7 @@ do_process_transfer(revert, Deposit) ->
     Result = ff_deposit_revert_utils:process_reverts(reverts_index(Deposit)),
     handle_child_result(Result, Deposit);
 do_process_transfer(adjustment, Deposit) ->
-    Result = ff_adjustment_utils:process_adjustments(adjustments_index(Deposit)),
-    handle_child_result(Result, Deposit);
+    process_adjustment(Deposit);
 do_process_transfer(stop, _Deposit) ->
     {undefined, []}.
 
@@ -1009,9 +1004,33 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _Deposit) ->
         }
     }.
 
+-spec process_adjustment(deposit()) ->
+    process_result().
+process_adjustment(Deposit) ->
+    #{
+        action := Action,
+        events := Events0,
+        changes := Changes
+    } = ff_adjustment_utils:process_adjustments(adjustments_index(Deposit)),
+    Events1 = Events0 ++ handle_adjustment_changes(Changes),
+    handle_child_result({Action, Events1}, Deposit).
+
+-spec handle_adjustment_changes(ff_adjustment:changes() | undefined) ->
+    [event()].
+handle_adjustment_changes(undefined) ->
+    [];
+handle_adjustment_changes(Changes) ->
+    StatusChange = maps:get(new_status, Changes, undefined),
+    handle_adjustment_status_change(StatusChange).
+
+-spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) ->
+    [event()].
+handle_adjustment_status_change(undefined) ->
+    undefined;
+handle_adjustment_status_change(#{new_status := Status}) ->
+    [{status_changed, Status}].
+
 -spec save_adjustable_info(event(), deposit()) -> deposit().
-save_adjustable_info({status_changed, Status}, Deposit) ->
-    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, Deposit);
 save_adjustable_info({p_transfer, {status_changed, committed}}, Deposit) ->
     CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(Deposit)),
     update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, Deposit);

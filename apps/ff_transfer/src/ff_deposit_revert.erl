@@ -193,12 +193,8 @@ body(#{body := V}) ->
     V.
 
 -spec status(revert()) -> status().
-status(Revert) ->
-    OwnStatus = maps:get(status, Revert),
-    %% `OwnStatus` is used in case of `{created, revert()}` event marshaling
-    %% The event revert is not created from events, so `adjustments` can not have
-    %% initial revert status.
-    ff_adjustment_utils:status(adjustments_index(Revert), OwnStatus).
+status(#{status := V}) ->
+    V.
 
 -spec reason(revert()) -> reason() | undefined.
 reason(T) ->
@@ -399,7 +395,7 @@ do_process_transfer({fail, Reason}, Revert) ->
 do_process_transfer(finish, Revert) ->
     process_transfer_finish(Revert);
 do_process_transfer(adjustment, Revert) ->
-    ff_adjustment_utils:process_adjustments(adjustments_index(Revert)).
+    process_adjustment(Revert).
 
 -spec create_p_transfer(revert()) ->
     process_result().
@@ -636,12 +632,32 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _Revert) ->
         }
     }.
 
+-spec process_adjustment(revert()) ->
+    process_result().
+process_adjustment(Revert) ->
+    #{
+        action := Action,
+        events := Events,
+        changes := Changes
+    } = ff_adjustment_utils:process_adjustments(adjustments_index(Revert)),
+    {Action, Events ++ handle_adjustment_changes(Changes)}.
+
+-spec handle_adjustment_changes(ff_adjustment:changes() | undefined) ->
+    [event()].
+handle_adjustment_changes(undefined) ->
+    [];
+handle_adjustment_changes(Changes) ->
+    StatusChange = maps:get(new_status, Changes, undefined),
+    handle_adjustment_status_change(StatusChange).
+
+-spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) ->
+    [event()].
+handle_adjustment_status_change(undefined) ->
+    undefined;
+handle_adjustment_status_change(#{new_status := Status}) ->
+    [{status_changed, Status}].
+
 -spec save_adjustable_info(event(), revert()) -> revert().
-save_adjustable_info({created, _Revert}, Revert) ->
-    #{status := Status} = Revert,
-    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, Revert);
-save_adjustable_info({status_changed, Status}, Revert) ->
-    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, Revert);
 save_adjustable_info({p_transfer, {status_changed, committed}}, Revert) ->
     CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(Revert)),
     update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, Revert);

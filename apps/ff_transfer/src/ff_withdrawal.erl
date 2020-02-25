@@ -20,8 +20,8 @@
     created_at      => ff_time:timestamp_ms(),
     party_revision  => party_revision(),
     domain_revision => domain_revision(),
-    session         => session(),
     route           => route(),
+    session         => session(),
     p_transfer      => p_transfer(),
     resource        => destination_resource(),
     limit_checks    => [limit_check_details()],
@@ -1475,47 +1475,32 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
         version     := 1,
         id          := ID,
         handler     := ff_withdrawal,
-        source      := SourceAccount,
-        destination := DestinationAccount,
         body        := Body,
         params      := #{
             destination := DestinationID,
             source      := SourceID
         }
     } = T,
-    maybe_migrate({created, #{
+    Route = maps:get(route, T, undefined),
+    maybe_migrate({created, genlib_map:compact(#{
         version       => 2,
         id            => ID,
         transfer_type => withdrawal,
         body          => Body,
+        route         => Route,
         params        => #{
             wallet_id             => SourceID,
-            destination_id        => DestinationID,
-            wallet_account        => SourceAccount,
-            destination_account   => DestinationAccount,
-            wallet_cash_flow_plan => #{
-                postings => [
-                    #{
-                        sender   => {wallet, sender_settlement},
-                        receiver => {wallet, receiver_destination},
-                        volume   => {share, {{1, 1}, operation_amount, default}}
-                    }
-                ]
-            }
+            destination_id        => DestinationID
         }
-    }});
+    })});
 maybe_migrate({created, T}) ->
     DestinationID = maps:get(destination, T),
-    {ok, DestinationSt} = ff_destination:get_machine(DestinationID),
-    DestinationAcc = ff_destination:account(ff_destination:get(DestinationSt)),
     SourceID = maps:get(source, T),
-    {ok, SourceSt} = ff_wallet_machine:get(SourceID),
-    SourceAcc = ff_wallet:account(ff_wallet_machine:wallet(SourceSt)),
+    ProviderID = maps:get(provider, T),
     maybe_migrate({created, T#{
         version     => 1,
         handler     => ff_withdrawal,
-        source      => SourceAcc,
-        destination => DestinationAcc,
+        route       => #{provider_id => ProviderID},
         params => #{
             destination => DestinationID,
             source      => SourceID
@@ -1537,3 +1522,113 @@ maybe_migrate({session_finished, SessionID}) ->
 % Other events
 maybe_migrate(Ev) ->
     Ev.
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec v0_created_migration_test() -> _.
+v0_created_migration_test() ->
+    ID = genlib:unique(),
+    WalletID = genlib:unique(),
+    DestinationID = genlib:unique(),
+    ProviderID = genlib:unique(),
+    Body = {100, <<"RUB">>},
+    LegacyEvent = {created, #{
+        id          => ID,
+        source      => WalletID,
+        destination => DestinationID,
+        body        => Body,
+        provider    => ProviderID
+    }},
+    {created, Withdrawal} = maybe_migrate(LegacyEvent),
+    ?assertEqual(ID, id(Withdrawal)),
+    ?assertEqual(WalletID, wallet_id(Withdrawal)),
+    ?assertEqual(DestinationID, destination_id(Withdrawal)),
+    ?assertEqual(Body, body(Withdrawal)),
+    ?assertEqual(#{provider_id => ProviderID}, route(Withdrawal)).
+
+-spec v1_created_migration_test() -> _.
+v1_created_migration_test() ->
+    ID = genlib:unique(),
+    WalletID = genlib:unique(),
+    WalletAccount = #{
+        id => WalletID,
+        identity => genlib:unique(),
+        currency => <<"RUB">>,
+        accounter_account_id => 123
+    },
+    DestinationID = genlib:unique(),
+    DestinationAccount = #{
+        id => DestinationID,
+        identity => genlib:unique(),
+        currency => <<"RUB">>,
+        accounter_account_id => 123
+    },
+    Body = {100, <<"RUB">>},
+    LegacyEvent = {created, #{
+        version     => 1,
+        id          => ID,
+        handler     => ff_withdrawal,
+        source      => WalletAccount,
+        destination => DestinationAccount,
+        body        => Body,
+        params      => #{
+            source => WalletID,
+            destination => DestinationID
+        }
+    }},
+    {created, Withdrawal} = maybe_migrate(LegacyEvent),
+    ?assertEqual(ID, id(Withdrawal)),
+    ?assertEqual(WalletID, wallet_id(Withdrawal)),
+    ?assertEqual(DestinationID, destination_id(Withdrawal)),
+    ?assertEqual(Body, body(Withdrawal)).
+
+-spec v2_created_migration_test() -> _.
+v2_created_migration_test() ->
+    ID = genlib:unique(),
+    WalletID = genlib:unique(),
+    WalletAccount = #{
+        id => WalletID,
+        identity => genlib:unique(),
+        currency => <<"RUB">>,
+        accounter_account_id => 123
+    },
+    DestinationID = genlib:unique(),
+    DestinationAccount = #{
+        id => DestinationID,
+        identity => genlib:unique(),
+        currency => <<"RUB">>,
+        accounter_account_id => 123
+    },
+    Body = {100, <<"RUB">>},
+    LegacyEvent = {created, #{
+        version       => 2,
+        id            => ID,
+        transfer_type => withdrawal,
+        body          => Body,
+        params        => #{
+            wallet_id             => WalletID,
+            destination_id        => DestinationID,
+            wallet_account        => WalletAccount,
+            destination_account   => DestinationAccount,
+            wallet_cash_flow_plan => #{
+                postings => [
+                    #{
+                        sender   => {wallet, sender_settlement},
+                        receiver => {wallet, receiver_destination},
+                        volume   => {share, {{1, 1}, operation_amount, default}}
+                    }
+                ]
+            }
+        }
+    }},
+    {created, Withdrawal} = maybe_migrate(LegacyEvent),
+    ?assertEqual(ID, id(Withdrawal)),
+    ?assertEqual(WalletID, wallet_id(Withdrawal)),
+    ?assertEqual(DestinationID, destination_id(Withdrawal)),
+    ?assertEqual(Body, body(Withdrawal)).
+
+-endif.

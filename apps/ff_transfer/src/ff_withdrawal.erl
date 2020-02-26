@@ -103,7 +103,7 @@
 }.
 
 -type limit_check_details() ::
-    {wallet, wallet_limit_check_details()}.
+    {wallet_sender, wallet_limit_check_details()}.
 
 -type wallet_limit_check_details() ::
     ok |
@@ -754,13 +754,13 @@ process_limit_check(Withdrawal) ->
     Clock = ff_postings_transfer:clock(p_transfer(Withdrawal)),
     Events = case validate_wallet_limits(Terms, Wallet, Clock) of
         {ok, valid} ->
-            [{limit_check, {wallet, ok}}];
+            [{limit_check, {wallet_sender, ok}}];
         {error, {terms_violation, {wallet_limit, {cash_range, {Cash, Range}}}}} ->
             Details = #{
                 expected_range => Range,
                 balance => Cash
             },
-            [{limit_check, {wallet, {failed, Details}}}]
+            [{limit_check, {wallet_sender, {failed, Details}}}]
     end,
     {continue, Events}.
 
@@ -988,7 +988,7 @@ construct_payment_tool({bank_card, ResourceBankCard}) ->
     {bank_card, #domain_BankCard{
         token           = maps:get(token, ResourceBankCard),
         bin             = maps:get(bin, ResourceBankCard),
-        masked_pan      = maps:get(masked_pan, ResourceBankCard),
+        last_digits     = maps:get(masked_pan, ResourceBankCard),
         payment_system  = maps:get(payment_system, ResourceBankCard),
         issuer_country  = maps:get(iso_country_code, ResourceBankCard, undefined),
         bank_name       = maps:get(bank_name, ResourceBankCard, undefined)
@@ -1228,9 +1228,9 @@ limit_check_processing_status(Withdrawal) ->
     end.
 
 -spec is_limit_check_ok(limit_check_details()) -> boolean().
-is_limit_check_ok({wallet, ok}) ->
+is_limit_check_ok({wallet_sender, ok}) ->
     true;
-is_limit_check_ok({wallet, {failed, _Details}}) ->
+is_limit_check_ok({wallet_sender, {failed, _Details}}) ->
     false.
 
 -spec validate_wallet_limits(terms(), wallet(), clock()) ->
@@ -1391,7 +1391,7 @@ update_adjusment_index(Updater, Value, Withdrawal) ->
 build_failure(limit_check, Withdrawal) ->
     {failed, Details} = limit_check_status(Withdrawal),
     case Details of
-        {wallet, _WalletLimitDetails} ->
+        {wallet_sender, _WalletLimitDetails} ->
             #{
                 code => <<"account_limit_exceeded">>,
                 reason => genlib:format(Details),
@@ -1461,11 +1461,15 @@ maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}) ->
     Ev;
 maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}) ->
     Ev;
+maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}) ->
+    Ev;
 maybe_migrate({p_transfer, PEvent}) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
 maybe_migrate({adjustment, _Payload} = Event) ->
     ff_adjustment_utils:maybe_migrate(Event);
 % Old events
+maybe_migrate({limit_check, {wallet, Details}}) ->
+    maybe_migrate({limit_check, {wallet_sender, Details}});
 maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
     #{
         version     := 1,

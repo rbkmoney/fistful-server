@@ -377,8 +377,8 @@ withdrawal_state_content_test(C) ->
     {ok, WithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
     ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.sessions),
     ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.adjustments),
-    ?assertEqual(
-        {succeeded, #wthd_status_Succeeded{}},
+    ?assertNotEqual(
+        undefined,
         (WithdrawalState#wthd_WithdrawalState.withdrawal)#wthd_Withdrawal.status
     ).
 

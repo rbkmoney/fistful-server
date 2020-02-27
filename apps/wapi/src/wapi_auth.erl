@@ -163,7 +163,7 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
     )).
 
 -spec resolve_token_spec(token_spec()) ->
-    {claims(), uac_authorizer_jwt:domains()}.
+    claims().
 resolve_token_spec({destinations, DestinationId}) ->
     #{
         <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
@@ -270,6 +270,10 @@ get_operation_access('QuoteP2PTransfer', _) ->
 get_operation_access('GetP2PTransfer', _) ->
     [];
 get_operation_access('GetP2PTransferEvents', _) ->
+    [];
+get_operation_access('CreateW2WTransfer', _) ->
+    [];
+get_operation_access('GetW2WTransfer', _) ->
     [].
 
 -spec get_access_config() -> map().

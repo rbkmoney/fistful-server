@@ -47,6 +47,7 @@ unmarshal_withdrawal(Withdrawal) ->
             destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id)
         }),
         status => maybe_unmarshal(status, Withdrawal#wthd_Withdrawal.status),
+        route => maybe_unmarshal(route, Withdrawal#wthd_Withdrawal.route),
         external_id => maybe_unmarshal(id, Withdrawal#wthd_Withdrawal.external_id),
         domain_revision => maybe_unmarshal(domain_revision, Withdrawal#wthd_Withdrawal.domain_revision),
         party_revision => maybe_unmarshal(party_revision, Withdrawal#wthd_Withdrawal.party_revision),

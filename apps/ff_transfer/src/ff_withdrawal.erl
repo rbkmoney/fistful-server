@@ -1491,7 +1491,7 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
         params        => #{
             wallet_id             => SourceID,
             destination_id        => DestinationID,
-            % The fields below are required to correctly decode legacy events.
+            % Fields below are required to correctly decode legacy events.
             % When decoding legacy events, the `erlang:binary_to_existing_atom/2` function is used,
             % so the code must contain atoms from the event.
             % They are not used now, so their value does not matter.

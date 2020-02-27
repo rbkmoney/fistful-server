@@ -13,6 +13,7 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
+-export([create_w2w_test/1]).
 -export([create_destination_failed_test/1]).
 -export([withdrawal_to_bank_card_test/1]).
 -export([withdrawal_to_crypto_wallet_test/1]).
@@ -55,6 +56,7 @@ all() ->
 groups() ->
     [
         {default, [sequence, {repeat, 2}], [
+            create_w2w_test,
             create_destination_failed_test,
             withdrawal_to_bank_card_test,
             withdrawal_to_crypto_wallet_test,
@@ -144,6 +146,22 @@ end_per_testcase(_Name, _C) ->
 -define(ID_CLASS, <<"person">>).
 
 -spec woody_retry_test(config()) -> test_return().
+
+-spec create_w2w_test(config()) -> test_return().
+
+create_w2w_test(C) ->
+    Name = <<"Keyn Fawkes">>,
+    Provider = ?ID_PROVIDER,
+    Class = ?ID_CLASS,
+    IdentityID = create_identity(Name, Provider, Class, C),
+    ok = check_identity(Name, IdentityID, Provider, Class, C),
+    WalletFromID = create_wallet(IdentityID, C),
+    ok = check_wallet(WalletFromID, C),
+    WalletToID = create_wallet(IdentityID, C),
+    ok = check_wallet(WalletToID, C),
+
+    W2WTransferID = create_w2w_transfer(WalletFromID, WalletToID, C),
+    ok = check_w2w_transfer(WalletFromID, WalletToID, W2WTransferID, C).
 
 -spec create_destination_failed_test(config()) -> test_return().
 
@@ -788,6 +806,50 @@ get_withdrawal(WithdrawalID, C) ->
         ct_helper:cfg(context, C)
     ).
 
+create_w2w_transfer(WalletFromID, WalletToID, C) ->
+    {ok, W2WTransfer} = call_api(
+        fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
+        #{body => genlib_map:compact(#{
+            <<"body">> => #{
+                <<"amount">> => ?INTEGER,
+                <<"currency">> => ?RUB
+            },
+            <<"sender">> => WalletFromID,
+            <<"receiver">> => WalletToID
+        })},
+        ct_helper:cfg(context, C)
+    ),
+    maps:get(<<"id">>, W2WTransfer).
+
+get_w2w_transfer(ID, C) ->
+    call_api(
+        fun swag_client_wallet_w2_w_api:get_w2_w_transfer/3,
+        #{binding => #{<<"w2wTransferID">> => ID}},
+        ct_helper:cfg(context, C)
+    ).
+
+check_w2w_transfer(WalletFromID, WalletToID, W2WTransferID, C) ->
+    ct_helper:await(
+        ok,
+        fun () ->
+            case get_w2w_transfer(W2WTransferID, C) of
+                {ok, W2WTransfer} ->
+                    #{
+                        <<"body">> := #{
+                            <<"amount">> := ?INTEGER,
+                            <<"currency">> := ?RUB
+                        },
+                        <<"sender">> := WalletFromID,
+                        <<"receiver">> := WalletToID
+                    } = W2WTransfer,
+                    ok;
+                Other ->
+                    Other
+            end
+        end,
+        {linear, 20, 1000}
+    ).
+
 %%
 
 -include_lib("ff_cth/include/ct_domain.hrl").
@@ -834,6 +896,85 @@ get_default_termset() ->
                                 ?share(10, 100, operation_amount)
                             )
                         ]}
+                    }
+                ]}
+            },
+            w2w = #domain_W2WServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
+                allow = {constant, true},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10000001, <<"RUB">>)}
+                        )}
+                    },
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"EUR">>)},
+                            {exclusive, ?cash(10000001, <<"EUR">>)}
+                        )}
+                    },
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"USD">>)},
+                            {exclusive, ?cash(10000001, <<"USD">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_settlement},
+                                ?share(1, 1, operation_amount)
+                            )
+                        ]}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_settlement},
+                                ?share(1, 1, operation_amount)
+                            )
+                        ]}
+                    },
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_settlement},
+                                ?share(1, 1, operation_amount)
+                            )
+                        ]}
+                    }
+                ]},
+                fees = {decisions, [
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
+                    },
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
+                    },
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
                     }
                 ]}
             }

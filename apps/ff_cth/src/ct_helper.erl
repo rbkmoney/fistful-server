@@ -168,6 +168,9 @@ start_app(ff_server = AppName) ->
             },
             p2p_session => #{
                 namespace => <<"ff/p2p_transfer/session_v1">>
+            },
+            w2w_transfer => #{
+                namespace => <<"ff/w2w_transfer_v1">>
             }
         }}
     ]), #{}};

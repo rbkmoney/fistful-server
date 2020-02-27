@@ -2122,4 +2122,4 @@ map_fistful_stat_error(_Reason) ->
     }.
 
 issue_quote_token(PartyID, Data) ->
-    uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), unlimited, {PartyID, undefined}, Data, ?SIGNEE).
+    uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), unlimited, PartyID, Data, ?SIGNEE).

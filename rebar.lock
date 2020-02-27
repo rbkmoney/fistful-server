@@ -158,7 +158,7 @@
   1},
  {<<"uac">>,
   {git,"git@github.com:rbkmoney/erlang_uac.git",
-       {ref,"5d79a2c358bbd751f99cd1d59591e2f2c08f285a"}},
+       {ref,"6224ff44be537823ea24052eb3340b1f8ca53e3e"}},
   0},
  {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.4.1">>},2},
  {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.7.3">>},0},

@@ -123,15 +123,16 @@ issue_token(ACL, LifeTime) ->
     }.
 
 issue_token(PartyID, ACL, LifeTime) ->
-    Claims = #{?STRING => ?STRING},
-    DomainRoles = #{
-        <<"common-api">> => uac_acl:from_list(ACL)
+    Claims = #{
+        ?STRING => ?STRING,
+        <<"resource_access">> =>#{
+            <<"common-api">> => uac_acl:from_list(ACL)
+        }
     },
     uac_authorizer_jwt:issue(
         wapi_utils:get_unique_id(),
         LifeTime,
         PartyID,
-        DomainRoles,
         Claims,
         ?SIGNEE
     ).
@@ -243,5 +244,5 @@ get_lifetime(YY, MM, DD) ->
 
 create_auth_ctx(PartyID) ->
     #{
-        swagger_context => #{auth_context => {?STRING, {PartyID, empty}, empty}}
+        swagger_context => #{auth_context => {?STRING, PartyID, #{}}}
     }.

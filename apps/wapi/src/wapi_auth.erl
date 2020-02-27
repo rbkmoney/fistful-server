@@ -153,12 +153,11 @@ issue_access_token(PartyID, TokenSpec) ->
 -spec issue_access_token(wapi_handler_utils:owner(), token_spec(), uac_authorizer_jwt:expiration()) ->
     uac_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec, Expiration) ->
-    {Claims, DomainRoles} = resolve_token_spec(TokenSpec),
+    Claims = resolve_token_spec(TokenSpec),
     wapi_utils:unwrap(uac_authorizer_jwt:issue(
         wapi_utils:get_unique_id(),
         Expiration,
         PartyID,
-        DomainRoles,
         Claims,
         ?SIGNEE
     )).
@@ -166,17 +165,19 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
 -spec resolve_token_spec(token_spec()) ->
     {claims(), uac_authorizer_jwt:domains()}.
 resolve_token_spec({destinations, DestinationId}) ->
-    Claims = #{},
-    DomainRoles = #{?DOMAIN => uac_acl:from_list(
-        [{[party, {destinations, DestinationId}], write}]
-    )},
-    {Claims, DomainRoles};
+    #{
+        <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
+            [{[party, {destinations, DestinationId}], write}]
+        )}
+    };
 resolve_token_spec({wallets, WalletId, #{<<"amount">> := Amount, <<"currency">> := Currency}}) ->
-    Claims = #{<<"amount">> => Amount, <<"currency">> => Currency},
-    DomainRoles = #{?DOMAIN => uac_acl:from_list(
-        [{[party, {wallets, WalletId}], write}]
-    )},
-    {Claims, DomainRoles}.
+    #{
+        <<"amount">> => Amount,
+        <<"currency">> => Currency,
+        <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
+            [{[party, {wallets, WalletId}], write}]
+        )}
+    }.
 
 %%
 
@@ -311,24 +312,21 @@ hierarchy_to_acl(Hierarchy) ->
     ).
 
 -spec create_wapi_context(uac_authorizer_jwt:t()) -> uac_authorizer_jwt:t().
-create_wapi_context(Context) ->
+create_wapi_context({ID, Party, Claims}) ->
     % Create new acl
     % So far we want to give every token full set of permissions
     % This is a temporary solution
     % @TODO remove when we issue new tokens
-    {ID, {Party, DomainRoles}, Claims} = Context,
-    NewDomainRoles = maybe_grant_wapi_roles(DomainRoles),
-    {ID, {Party, NewDomainRoles}, Claims}.
+    NewClaims = maybe_grant_wapi_roles(Claims),
+    {ID, Party, NewClaims}.
 
-maybe_grant_wapi_roles(undefined) ->
-    undefined;
-maybe_grant_wapi_roles(DomainRoles) ->
-    case DomainRoles of
+maybe_grant_wapi_roles(Claims) ->
+    case genlib_map:get(<<"resource_access">>, Claims) of
         #{?DOMAIN := _} ->
-            DomainRoles;
+            Claims;
         #{<<"common-api">> := _} ->
             Hierarchy = wapi_auth:get_resource_hierarchy(),
-            DomainRoles#{?DOMAIN => hierarchy_to_acl(Hierarchy)};
+            Claims#{<<"resource_access">> => #{?DOMAIN => hierarchy_to_acl(Hierarchy)}};
         _ ->
             undefined
     end.

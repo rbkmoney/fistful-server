@@ -261,7 +261,7 @@ withdrawal_symmetry_test() ->
         external_id = genlib:unique(),
         status = {pending, #wthd_status_Pending{}},
         route = #wthd_Route{
-            provider_id = <<"Hmm">>
+            provider_id = <<"22">>
         },
         domain_revision = 1,
         party_revision = 3,

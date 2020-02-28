@@ -96,6 +96,7 @@
     transfer_type   := withdrawal,
 
     status          => status(),
+    route           => route(),
     external_id     => external_id(),
     created_at      => ff_time:timestamp_ms(),
     party_revision  => party_revision(),

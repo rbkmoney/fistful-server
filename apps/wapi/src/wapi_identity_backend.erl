@@ -421,7 +421,7 @@ unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
 }}) ->
     #{
         <<"status">>  => <<"Completed">>,
-        <<"validUntil">> => unmarshal(string, Time)
+        <<"validUntil">> => maybe_unmarshal(string, Time)
     };
 unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
     resolution = denied
@@ -439,8 +439,8 @@ unmarshal(proof, #idnt_ChallengeProof{
     token = Token
 }) ->
     genlib_map:compact(#{
-        <<"type">>  => unmarshal(proof_type, Type),
-        <<"token">>  => unmarshal(string, Token)
+        <<"type">>  => maybe_unmarshal(proof_type, Type),
+        <<"token">>  => maybe_unmarshal(string, Token)
     });
 
 unmarshal(proof_type, rus_domestic_passport) ->

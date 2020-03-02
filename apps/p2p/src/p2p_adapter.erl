@@ -19,6 +19,7 @@
 -export_type([callback/0]).
 -export_type([context/0]).
 
+-export_type([session/0]).
 -export_type([adapter_state/0]).
 -export_type([adapter_opts/0]).
 

@@ -44,7 +44,7 @@
 -type operation_info()              :: p2p_adapter:operation_info().
 -type p2p_operation_info()          :: dmsl_p2p_adapter_thrift:'OperationInfo'().
 
--type adapter_state()               :: p2p_adapter:adapter_state().
+-type session()                     :: p2p_adapter:session().
 -type p2p_session()                 :: dmsl_p2p_adapter_thrift:'Session'().
 
 -type cash()                        :: p2p_adapter:cash().
@@ -76,7 +76,7 @@
              (callback_response,       callback_response())       -> p2p_callback_response();
              (callback,                callback())                -> p2p_callback();
              (context,                 context())                 -> p2p_context();
-             (session,                 adapter_state())           -> p2p_session();
+             (session,                 session())                 -> p2p_session();
              (operation_info,          operation_info())          -> p2p_operation_info();
              (resource,                resource())                -> disposable_resource();
              (cash,                    cash())                    -> p2p_cash();
@@ -170,7 +170,7 @@ maybe_marshal(T, V) ->
                (user_interaction_intent,  p2p_user_interaction_intent()) -> user_interaction_intent();
                (callback,                 p2p_callback())                -> callback();
                (context,                  p2p_context())                 -> context();
-               (session,                  p2p_session())                 -> adapter_state();
+               (session,                  p2p_session())                 -> session();
                (operation_info,           p2p_operation_info())          -> operation_info();
                (cash,                     p2p_cash())                    -> cash();
                (deadline,                 binary())                      -> deadline().

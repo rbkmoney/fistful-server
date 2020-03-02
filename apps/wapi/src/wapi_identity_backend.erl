@@ -419,10 +419,10 @@ unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
     valid_until = Time,
     resolution = approved
 }}) ->
-    #{
+    genlib_map:compact(#{
         <<"status">>  => <<"Completed">>,
         <<"validUntil">> => maybe_unmarshal(string, Time)
-    };
+    });
 unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
     resolution = denied
 }}) ->

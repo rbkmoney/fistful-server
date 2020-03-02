@@ -70,7 +70,10 @@ handle_callback(_C) ->
 
 construct_context() ->
     #{
-        session   => <<>>,
+        session   => #{
+            id => <<"TEST_ID">>,
+            adapter_state => <<>>
+        },
         operation => construct_operation_info(),
         options   => #{}
     }.

@@ -101,25 +101,30 @@ marshal(callback, #{tag := Tag, payload := Payload}) ->
     };
 
 marshal(context, #{
-        session   := AdapterState,
+        session   := Session,
         operation := OperationInfo,
         options   := AdapterOpts
 }) ->
     #p2p_adapter_Context{
-        session   = marshal(session, AdapterState),
+        session   = marshal(session, Session),
         operation = marshal(operation_info, OperationInfo),
         options   = AdapterOpts
     };
 
-marshal(session, AdapterState) ->
-    #p2p_adapter_Session{state = AdapterState};
+marshal(session, Session = #{
+    id := ID
+}) ->
+    AdapterState = maps:get(adapter_state, Session, undefined),
+    #p2p_adapter_Session{id = ID, state = AdapterState};
 
 marshal(operation_info, OperationInfo = #{
+        id       := ID,
         body     := Cash,
         sender   := Sender,
         receiver := Receiver
 }) ->
     {process, #p2p_adapter_ProcessOperationInfo{
+        id            = ID,
         body          = marshal(cash,     Cash),
         sender        = marshal(resource, Sender),
         receiver      = marshal(resource, Receiver),
@@ -239,16 +244,21 @@ unmarshal(context, #p2p_adapter_Context{
         options   => AdapterOpts
     });
 
-unmarshal(session, #p2p_adapter_Session{state = AdapterState}) ->
-    AdapterState;
+unmarshal(session, #p2p_adapter_Session{id = ID, state = AdapterState}) ->
+    genlib_map:compact(#{
+        id => ID,
+        adapter_state => AdapterState
+    });
 
 unmarshal(operation_info, {process, #p2p_adapter_ProcessOperationInfo{
+    id       = ID,
     body     = Body,
     sender   = Sender,
     receiver = Receiver,
     deadline = Deadline
 }}) ->
     genlib_map:compact(#{
+        id       => ID,
         body     => unmarshal(cash, Body),
         sender   => ff_dmsl_codec:unmarshal(resource, Sender),
         receiver => ff_dmsl_codec:unmarshal(resource, Receiver),

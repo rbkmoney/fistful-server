@@ -96,6 +96,7 @@
     transfer_type   := withdrawal,
 
     status          => status(),
+    route           => route(),
     external_id     => external_id(),
     created_at      => ff_time:timestamp_ms(),
     party_revision  => party_revision(),
@@ -339,7 +340,7 @@ created_at(T) ->
 gen(Args) ->
     TypeKeys = [
         id, transfer_type, body, params, status, external_id,
-        domain_revision, party_revision, created_at
+        domain_revision, party_revision, created_at, route
     ],
     genlib_map:compact(maps:with(TypeKeys, Args)).
 
@@ -1490,7 +1491,14 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
         route         => Route,
         params        => #{
             wallet_id             => SourceID,
-            destination_id        => DestinationID
+            destination_id        => DestinationID,
+            % Fields below are required to correctly decode legacy events.
+            % When decoding legacy events, the `erlang:binary_to_existing_atom/2` function is used,
+            % so the code must contain atoms from the event.
+            % They are not used now, so their value does not matter.
+            wallet_account        => [],
+            destination_account   => [],
+            wallet_cash_flow_plan => []
         }
     })});
 maybe_migrate({created, T}) ->

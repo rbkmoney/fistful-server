@@ -2,12 +2,13 @@
 
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
 -export([check_resource/3]).
 -export([check_resource_by_id/3]).
 
 -type id() :: binary().
--type resource_type() :: identity | wallet.
+-type resource_type() :: identity | wallet | destination.
 -type handler_context() :: wapi_handler:context().
 -type data() ::
     ff_proto_identity_thrift:'Identity'() |
@@ -42,7 +43,11 @@ get_context_by_id(Resource = identity, IdentityID, WoodyCtx) ->
 get_context_by_id(Resource = wallet, WalletID, WoodyCtx) ->
     Request = {fistful_wallet, 'Get', [WalletID]},
     {ok, Wallet} = wapi_handler_utils:service_call(Request, WoodyCtx),
-    get_context(Resource, Wallet).
+    get_context(Resource, Wallet);
+get_context_by_id(Resource = destination, DestinationID, WoodyCtx) ->
+    Request = {fistful_destination, 'Get', [DestinationID]},
+    {ok, Destination} = wapi_handler_utils:service_call(Request, WoodyCtx),
+    get_context(Resource, Destination).
 
 get_context(identity, Identity) ->
     #idnt_Identity{context = Ctx} = Identity,
@@ -50,6 +55,10 @@ get_context(identity, Identity) ->
     wapi_backend_utils:get_from_ctx(<<"owner">>, Context);
 get_context(wallet, Wallet) ->
     #wlt_Wallet{context = Ctx} = Wallet,
+    Context = ff_codec:unmarshal(context, Ctx),
+    wapi_backend_utils:get_from_ctx(<<"owner">>, Context);
+get_context(destination, Destination) ->
+    #dst_Destination{context = Ctx} = Destination,
     Context = ff_codec:unmarshal(context, Ctx),
     wapi_backend_utils:get_from_ctx(<<"owner">>, Context).
 

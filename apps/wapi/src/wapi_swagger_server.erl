@@ -80,5 +80,4 @@ get_operation_id(Req=#{host := _Host, path := _Path}, Env) ->
             #{}
     end;
 get_operation_id(_Req, _Env) ->
-    logger:warning("Partial request detected (no host or path in request), skip getting operation_id"),
     #{}.

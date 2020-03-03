@@ -360,6 +360,7 @@ user_interactions_index(Session) ->
 collect_build_context_params(Session) ->
     {_Adapter, AdapterOpts} = adapter(Session),
     #{
+        id              => id(Session),
         adapter_state   => adapter_state(Session),
         transfer_params => transfer_params(Session),
         adapter_opts    => AdapterOpts,

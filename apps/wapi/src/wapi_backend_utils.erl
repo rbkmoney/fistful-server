@@ -12,7 +12,14 @@
 -type id() :: binary().
 -type hash() :: integer().
 -type params() :: map().
--type gen_type() :: identity | identity_challenge | wallet.
+-type gen_type() ::
+      identity
+    | identity_challenge
+    | wallet
+    | destination
+    | withdrawal
+    | p2p_transfer
+    | w2w_transfer.
 
 -export([gen_id/3]).
 -export([gen_id/4]).
@@ -20,8 +27,15 @@
 -export([add_to_ctx/2]).
 -export([add_to_ctx/3]).
 -export([get_from_ctx/2]).
+-export([get_idempotent_key/3]).
 
 %% Pipeline
+
+-spec get_idempotent_key(gen_type(), id(), id() | undefined) ->
+    binary().
+
+get_idempotent_key(Type, PartyID, ExternalID) ->
+    bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID).
 
 -spec gen_id(gen_type(), params(), handler_context()) ->
     {ok, id()} | {error, {external_id_conflict, id()}}.

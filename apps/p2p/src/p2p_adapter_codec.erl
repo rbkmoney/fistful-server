@@ -44,7 +44,7 @@
 -type operation_info()              :: p2p_adapter:operation_info().
 -type p2p_operation_info()          :: dmsl_p2p_adapter_thrift:'OperationInfo'().
 
--type adapter_state()               :: p2p_adapter:adapter_state().
+-type session()                     :: p2p_adapter:session().
 -type p2p_session()                 :: dmsl_p2p_adapter_thrift:'Session'().
 
 -type cash()                        :: p2p_adapter:cash().
@@ -76,7 +76,7 @@
              (callback_response,       callback_response())       -> p2p_callback_response();
              (callback,                callback())                -> p2p_callback();
              (context,                 context())                 -> p2p_context();
-             (session,                 adapter_state())           -> p2p_session();
+             (session,                 session())                 -> p2p_session();
              (operation_info,          operation_info())          -> p2p_operation_info();
              (resource,                resource())                -> disposable_resource();
              (cash,                    cash())                    -> p2p_cash();
@@ -101,25 +101,30 @@ marshal(callback, #{tag := Tag, payload := Payload}) ->
     };
 
 marshal(context, #{
-        session   := AdapterState,
+        session   := Session,
         operation := OperationInfo,
         options   := AdapterOpts
 }) ->
     #p2p_adapter_Context{
-        session   = marshal(session, AdapterState),
+        session   = marshal(session, Session),
         operation = marshal(operation_info, OperationInfo),
         options   = AdapterOpts
     };
 
-marshal(session, AdapterState) ->
-    #p2p_adapter_Session{state = AdapterState};
+marshal(session, Session = #{
+    id := ID
+}) ->
+    AdapterState = maps:get(adapter_state, Session, undefined),
+    #p2p_adapter_Session{id = ID, state = AdapterState};
 
 marshal(operation_info, OperationInfo = #{
+        id       := ID,
         body     := Cash,
         sender   := Sender,
         receiver := Receiver
 }) ->
     {process, #p2p_adapter_ProcessOperationInfo{
+        id            = ID,
         body          = marshal(cash,     Cash),
         sender        = marshal(resource, Sender),
         receiver      = marshal(resource, Receiver),
@@ -165,7 +170,7 @@ maybe_marshal(T, V) ->
                (user_interaction_intent,  p2p_user_interaction_intent()) -> user_interaction_intent();
                (callback,                 p2p_callback())                -> callback();
                (context,                  p2p_context())                 -> context();
-               (session,                  p2p_session())                 -> adapter_state();
+               (session,                  p2p_session())                 -> session();
                (operation_info,           p2p_operation_info())          -> operation_info();
                (cash,                     p2p_cash())                    -> cash();
                (deadline,                 binary())                      -> deadline().
@@ -239,16 +244,21 @@ unmarshal(context, #p2p_adapter_Context{
         options   => AdapterOpts
     });
 
-unmarshal(session, #p2p_adapter_Session{state = AdapterState}) ->
-    AdapterState;
+unmarshal(session, #p2p_adapter_Session{id = ID, state = AdapterState}) ->
+    genlib_map:compact(#{
+        id => ID,
+        adapter_state => AdapterState
+    });
 
 unmarshal(operation_info, {process, #p2p_adapter_ProcessOperationInfo{
+    id       = ID,
     body     = Body,
     sender   = Sender,
     receiver = Receiver,
     deadline = Deadline
 }}) ->
     genlib_map:compact(#{
+        id       => ID,
         body     => unmarshal(cash, Body),
         sender   => ff_dmsl_codec:unmarshal(resource, Sender),
         receiver => ff_dmsl_codec:unmarshal(resource, Receiver),

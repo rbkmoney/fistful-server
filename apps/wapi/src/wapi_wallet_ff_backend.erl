@@ -267,7 +267,7 @@ get_wallet(WalletID, Context) ->
 get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
     AuthContext = wapi_handler_utils:get_auth_context(Context),
     PartyID = get_party_id(AuthContext),
-    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, wallet, PartyID, ExternalID),
+    IdempotentKey = wapi_backend_utils:get_idempotent_key(wallet, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
         {ok, WalletID, _} -> get_wallet(WalletID, Context);
         {error, internal_id_not_found} -> {error, {wallet, notfound}}
@@ -335,7 +335,7 @@ get_destination(DestinationID, Context) ->
 ).
 get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
     PartyID = wapi_handler_utils:get_owner(Context),
-    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, destination, PartyID, ExternalID),
+    IdempotentKey = wapi_backend_utils:get_idempotent_key(destination, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
         {ok, DestinationID, _CtxData} ->
             get_destination(DestinationID, Context);
@@ -405,7 +405,7 @@ get_withdrawal(WithdrawalId, Context) ->
 ).
 get_withdrawal_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
     PartyID = wapi_handler_utils:get_owner(Context),
-    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, withdrawal, PartyID, ExternalID),
+    IdempotentKey = wapi_backend_utils:get_idempotent_key(withdrawal, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
         {ok, WithdrawalId, _CtxData} ->
             get_withdrawal(WithdrawalId, Context);
@@ -1246,7 +1246,7 @@ get_contract_id_from_identity(IdentityID, Context) ->
 
 gen_id(Type, ExternalID, Hash, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),
-    IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
+    IdempotentKey = wapi_backend_utils:get_idempotent_key(Type, PartyID, ExternalID),
     gen_id_by_type(Type, IdempotentKey, Hash, Context).
 
 %@TODO: Bring back later

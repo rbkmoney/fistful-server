@@ -16,6 +16,7 @@
 -export([wallet_check_test/1]).
 -export([identity_check_test/1]).
 -export([identity_challenge_check_test/1]).
+-export([destination_check_test/1]).
 
 -type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -38,7 +39,8 @@ groups() ->
         {default, [sequence], [
             identity_check_test,
             identity_challenge_check_test,
-            wallet_check_test
+            wallet_check_test,
+            destination_check_test
         ]}
     ].
 
@@ -146,6 +148,20 @@ wallet_check_test(C) ->
     WalletID2 = create_wallet(IdentityID2, C),
     ok = check_wallet(WalletID2, C),
     ?assertEqual(Keys, maps:keys(get_wallet(WalletID2, C))).
+
+-spec destination_check_test(config()) -> test_return().
+
+destination_check_test(C) ->
+    Name = <<"Keyn Fawkes">>,
+    Provider = ?ID_PROVIDER,
+    Class = ?ID_CLASS,
+    IdentityID1 = create_identity(Name, Provider, Class, C),
+    DestinationID1 = create_destination(IdentityID1, C),
+    Keys = maps:keys(get_destination(DestinationID1, C)),
+    ok = application:set_env(wapi, transport, thrift),
+    IdentityID2 = create_identity(Name, Provider, Class, C),
+    DestinationID2 = create_destination(IdentityID2, C),
+    ?assertEqual(Keys, maps:keys(get_destination(DestinationID2, C))).
 
 %%
 
@@ -287,6 +303,39 @@ get_wallet(WalletID, C) ->
         ct_helper:cfg(context, C)
     ),
     Wallet.
+
+create_destination(IdentityID, C) ->
+    create_destination(IdentityID, #{}, C).
+
+create_destination(IdentityID, Params, C) ->
+    DefaultParams = #{
+        <<"name">> => ?STRING,
+        <<"identity">> => IdentityID,
+        <<"currency">> => ?RUB,
+        <<"resource">> => #{
+            <<"type">> => <<"BankCardDestinationResource">>,
+            <<"token">> => wapi_utils:map_to_base64url(#{
+                <<"token">> => ?STRING,
+                <<"bin">> => <<"424242">>,
+                <<"lastDigits">> => <<"4242">>,
+                <<"paymentSystem">> => <<"visa">>
+            })
+        }
+    },
+    {ok, Destination} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_destination/3,
+        #{body => maps:merge(DefaultParams, Params)},
+        ct_helper:cfg(context, C)
+    ),
+    maps:get(<<"id">>, Destination).
+
+get_destination(DestinationID, C) ->
+    {ok, Destination} = call_api(
+        fun swag_client_wallet_withdrawals_api:get_destination/3,
+        #{binding => #{<<"destinationID">> => DestinationID}},
+        ct_helper:cfg(context, C)
+    ),
+    Destination.
 
 %%
 

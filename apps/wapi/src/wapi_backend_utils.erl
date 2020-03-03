@@ -12,7 +12,14 @@
 -type id() :: binary().
 -type hash() :: integer().
 -type params() :: map().
--type gen_type() :: identity | identity_challenge | wallet | destination | withdrawal | p2p_transfer.
+-type gen_type() :: 
+      identity
+    | identity_challenge
+    | wallet
+    | destination
+    | withdrawal
+    | p2p_transfer
+    | w2w_transfer.
 
 -export([gen_id/3]).
 -export([gen_id/4]).

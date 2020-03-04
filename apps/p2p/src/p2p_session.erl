@@ -51,7 +51,8 @@
     adapter := adapter_with_opts(),
     adapter_state => adapter_state(),
     callbacks => callbacks_index(),
-    user_interactions => user_interactions_index()
+    user_interactions => user_interactions_index(),
+    transaction_info => ff_adapter:transaction_info()
 }.
 
 -type status() ::
@@ -381,6 +382,8 @@ apply_event_({created, Session}, undefined) ->
     Session;
 apply_event_({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
+apply_event_({transaction_bound, TransactionInfo}, Session) ->
+    Session#{transaction_info => TransactionInfo};
 apply_event_({finished, Result}, Session) ->
     set_session_status({finished, Result}, Session);
 apply_event_({callback, _Ev} = Event, Session) ->

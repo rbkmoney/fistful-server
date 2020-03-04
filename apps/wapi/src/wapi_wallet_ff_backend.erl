@@ -1377,6 +1377,7 @@ decode_stat(withdrawal_stat, Response) ->
         <<"createdAt"   >> => Response#fistfulstat_StatWithdrawal.created_at,
         <<"wallet"      >> => Response#fistfulstat_StatWithdrawal.source_id,
         <<"destination" >> => Response#fistfulstat_StatWithdrawal.destination_id,
+        <<"externalID"  >> => Response#fistfulstat_StatWithdrawal.external_id,
         <<"body"        >> => decode_stat_cash(
             Response#fistfulstat_StatWithdrawal.amount,
             Response#fistfulstat_StatWithdrawal.currency_symbolic_code

@@ -19,6 +19,7 @@
 -export_type([callback/0]).
 -export_type([context/0]).
 
+-export_type([session/0]).
 -export_type([adapter_state/0]).
 -export_type([adapter_opts/0]).
 
@@ -42,15 +43,21 @@
 -type adapter()                 :: ff_adapter:adapter().
 
 -type context()                 :: #{
-    session   := adapter_state(),
+    session   := session(),
     operation := operation_info(),
     options   := adapter_opts()
+}.
+
+-type session()                 :: #{
+    id := id(),
+    adapter_state => adapter_state()
 }.
 
 -type operation_info()          :: #{
     body          := cash(),
     sender        := resource(),
     receiver      := resource(),
+    id            := id(),
     deadline      => deadline(),
     merchant_fees => fees(),
     provider_fees => fees()
@@ -112,6 +119,7 @@
 }.
 
 -type build_context_params()    :: #{
+    id              := id(),
     adapter_state   := adapter_state(),
     transfer_params := transfer_params(),
     adapter_opts    := adapter_opts(),
@@ -146,11 +154,15 @@ handle_callback(Adapter, Callback, Context) ->
 -spec build_context(build_context_params()) ->
     context().
 build_context(Params = #{
+    id              := SessionID,
     adapter_state   := AdapterState,
     adapter_opts    := AdapterOpts
 }) ->
     #{
-        session   => AdapterState,
+        session   => #{
+            id => SessionID,
+            adapter_state => AdapterState
+        },
         operation => build_operation_info(Params),
         options   => AdapterOpts
     }.
@@ -167,12 +179,14 @@ call(Adapter, Function, Args) ->
     operation_info().
 build_operation_info(Params = #{transfer_params := TransferParams, domain_revision := DomainRevision}) ->
     Body         = build_operation_info_body(Params),
+    ID           = maps:get(id, TransferParams),
     Sender       = maps:get(sender, TransferParams),
     Receiver     = maps:get(receiver, TransferParams),
     Deadline     = maps:get(deadline, TransferParams, undefined),
     MerchantFees = maps:get(merchant_fees, TransferParams, undefined),
     ProviderFees = maps:get(provider_fees, TransferParams, undefined),
     genlib_map:compact(#{
+        id            => ID,
         body          => Body,
         sender        => Sender,
         receiver      => Receiver,

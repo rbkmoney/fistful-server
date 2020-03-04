@@ -145,6 +145,70 @@ process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
         {error, {external_id_conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
     end;
+
+%% Destinations
+
+process_request('GetDestination', #{'destinationID' := DestinationId}, Context, _Opts) ->
+    case wapi_destination_backend:get(DestinationId, Context) of
+        {ok, Destination}                    -> wapi_handler_utils:reply_ok(200, Destination);
+        {error, {destination, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {destination, unauthorized}} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('GetDestinationByExternalID', #{'externalID' := ExternalID}, Context, _Opts) ->
+    case wapi_destination_backend:get_by_external_id(ExternalID, Context) of
+        {ok, Destination} ->
+            wapi_handler_utils:reply_ok(200, Destination);
+        {error, {external_id, {unknown_external_id, ExternalID}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {destination, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {destination, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) ->
+    case wapi_destination_backend:create(Params, Context) of
+        {ok, Destination = #{<<"id">> := DestinationId}} ->
+            wapi_handler_utils:reply_ok(201, Destination, get_location('GetDestination', [DestinationId], Opts));
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {currency, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
+        {error, {inaccessible, _}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
+        {error, {external_id_conflict, {ID, ExternalID}}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
+        {error, invalid_resource_token} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => <<"BankCardDestinationResource">>,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
+    end;
+process_request('IssueDestinationGrant', #{
+    'destinationID'           := DestinationId,
+    'DestinationGrantRequest' := #{<<"validUntil">> := Expiration}
+}, Context, _Opts) ->
+    case wapi_destination_backend:get(DestinationId, Context) of
+        {ok, _} ->
+            case issue_grant_token({destinations, DestinationId}, Expiration, Context) of
+                {ok, Token} ->
+                    wapi_handler_utils:reply_ok(201, #{
+                        <<"token">>      => Token,
+                        <<"validUntil">> => Expiration
+                    });
+                {error, expired} ->
+                    wapi_handler_utils:reply_ok(422,
+                        wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)
+                    )
+            end;
+        {error, {destination, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {destination, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+
 process_request(OperationID, Params, Context, Opts) ->
     wapi_wallet_handler:process_request(OperationID, Params, Context, Opts).
 
@@ -153,3 +217,21 @@ process_request(OperationID, Params, Context, Opts) ->
 get_location(OperationId, Params, Opts) ->
     #{path := PathSpec} = swag_server_wallet_router:get_operation(OperationId),
     wapi_handler_utils:get_location(PathSpec, Params, Opts).
+
+issue_grant_token(TokenSpec, Expiration, Context) ->
+    case get_expiration_deadline(Expiration) of
+        {ok, Deadline} ->
+            {ok, wapi_auth:issue_access_token(wapi_handler_utils:get_owner(Context), TokenSpec, {deadline, Deadline})};
+        Error = {error, _} ->
+            Error
+    end.
+
+get_expiration_deadline(Expiration) ->
+    {DateTime, MilliSec} = woody_deadline:from_binary(wapi_utils:to_universal_time(Expiration)),
+    Deadline = genlib_time:daytime_to_unixtime(DateTime) + MilliSec div 1000,
+    case genlib_time:unow() - Deadline < 0 of
+        true ->
+            {ok, Deadline};
+        false ->
+            {error, expired}
+    end.

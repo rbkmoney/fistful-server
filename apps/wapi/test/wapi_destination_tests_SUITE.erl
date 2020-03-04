@@ -1,4 +1,4 @@
--module(wapi_wallet_tests_SUITE).
+-module(wapi_destination_tests_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 
@@ -7,7 +7,7 @@
 -include_lib("jose/include/jose_jwk.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -21,8 +21,9 @@
 -export([init/1]).
 
 -export([
-    create_wallet/1,
-    get_wallet/1
+    create/1,
+    get/1,
+    get_by_id/1
 ]).
 
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
@@ -50,10 +51,11 @@ all() ->
     [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
-        {base, [],
+        {base, [sequence],
             [
-                create_wallet,
-                get_wallet
+                create,
+                get,
+                get_by_id
             ]
         }
     ].
@@ -92,11 +94,8 @@ init_per_group(Group, Config) when Group =:= base ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
     Party = create_party(Config),
-    BasePermissions = [
-        {[party], read},
-        {[party], write}
-    ],
-    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, {deadline, 10}),
+    % Token = issue_token(Party, [{[party], write}], unlimited),
+    Token = issue_token(Party, [{[party], write}], {deadline, 10}),
     Config1 = [{party, Party} | Config],
     [{context, wapi_ct_helper:get_context(Token)} | Config1];
 init_per_group(_, Config) ->
@@ -123,38 +122,65 @@ end_per_testcase(_Name, C) ->
 
 %%% Tests
 
--spec create_wallet(config()) ->
+-spec create(config()) ->
     _.
-create_wallet(C) ->
+create(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end},
-        {fistful_wallet, fun('Create', _) -> {ok, ?WALLET(PartyID)} end}
+        {fistful_destination, fun('Create', _) -> {ok, ?DESTINATION(PartyID)} end}
     ], C),
     {ok, _} = call_api(
-        fun swag_client_wallet_wallets_api:create_wallet/3,
+        fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{
             body => #{
                 <<"name">> => ?STRING,
                 <<"identity">> => ?STRING,
-                <<"currency">> => ?RUB
-                   }
+                <<"currency">> => ?RUB,
+                <<"externalID">> => ?STRING,
+                <<"resource">> => #{
+                    <<"type">> => <<"BankCardDestinationResource">>,
+                    <<"token">> => wapi_utils:map_to_base64url(#{
+                        <<"token">> => ?STRING,
+                        <<"bin">> => <<"424242">>,
+                        <<"lastDigits">> => <<"4242">>,
+                        <<"paymentSystem">> => <<"visa">>
+                    })
+                }
+            }
         },
         ct_helper:cfg(context, C)
     ).
 
--spec get_wallet(config()) ->
+-spec get(config()) ->
     _.
-get_wallet(C) ->
+get(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
-        {fistful_wallet, fun('Get', _) -> {ok, ?WALLET(PartyID)} end}
+        {fistful_destination, fun('Get', _) -> {ok, ?DESTINATION(PartyID)} end}
     ], C),
     {ok, _} = call_api(
-        fun swag_client_wallet_wallets_api:get_wallet/3,
+        fun swag_client_wallet_withdrawals_api:get_destination/3,
         #{
             binding => #{
-                <<"walletID">> => ?STRING
+                <<"destinationID">> => ?STRING
+            }
+        },
+    ct_helper:cfg(context, C)
+).
+
+-spec get_by_id(config()) ->
+    _.
+get_by_id(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_destination, fun('Get', _) -> {ok, ?DESTINATION(PartyID)} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_withdrawals_api:get_destination_by_external_id/3,
+        #{
+            binding => #{
+                <<"externalID">> => ?STRING
             }
         },
     ct_helper:cfg(context, C)
@@ -173,3 +199,9 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
+
+issue_token(PartyID, ACL, LifeTime) ->
+    Claims = #{?STRING => ?STRING},
+    {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
+    Token.
+

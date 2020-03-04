@@ -130,6 +130,7 @@ marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
     BankName = maps:get(bank_name, BankCard, undefined),
     IsoCountryCode = maps:get(iso_country_code, BankCard, undefined),
     CardType = maps:get(card_type, BankCard, undefined),
+    ExpDate = maps:get(exp_date, BankCard, undefined),
     BinDataID = maps:get(bin_data_id, BankCard, undefined),
     {bank_card, #'BankCard'{
         token = marshal(string, Token),
@@ -139,6 +140,7 @@ marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
         payment_system = PaymentSystem,
         issuer_country = IsoCountryCode,
         card_type = CardType,
+        exp_date = maybe_marshal(exp_date, ExpDate),
         bin_data_id = marshal_msgpack(BinDataID)
     }};
 marshal(resource, {crypto_wallet, #{id := ID, currency := Currency}}) ->
@@ -147,6 +149,12 @@ marshal(resource, {crypto_wallet, #{id := ID, currency := Currency}}) ->
         currency = marshal(crypto_currency, Currency),
         data     = marshal(crypto_data, Currency)
     }};
+
+marshal(exp_date, {Month, Year}) ->
+    #'BankCardExpDate'{
+        month = marshal(integer, Month),
+        year = marshal(integer, Year)
+    };
 
 marshal(crypto_currency, {Currency, _}) ->
     Currency;

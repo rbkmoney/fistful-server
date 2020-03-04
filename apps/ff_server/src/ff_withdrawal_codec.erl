@@ -28,6 +28,7 @@ marshal_withdrawal(Withdrawal) ->
         wallet_id = marshal(id, ff_withdrawal:wallet_id(Withdrawal)),
         destination_id = marshal(id, ff_withdrawal:destination_id(Withdrawal)),
         status = maybe_marshal(status, ff_withdrawal:status(Withdrawal)),
+        route = maybe_marshal(route, ff_withdrawal:route(Withdrawal)),
         external_id = maybe_marshal(id, ff_withdrawal:external_id(Withdrawal)),
         domain_revision = maybe_marshal(domain_revision, ff_withdrawal:domain_revision(Withdrawal)),
         party_revision = maybe_marshal(party_revision, ff_withdrawal:party_revision(Withdrawal)),
@@ -46,6 +47,7 @@ unmarshal_withdrawal(Withdrawal) ->
             destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id)
         }),
         status => maybe_unmarshal(status, Withdrawal#wthd_Withdrawal.status),
+        route => maybe_unmarshal(route, Withdrawal#wthd_Withdrawal.route),
         external_id => maybe_unmarshal(id, Withdrawal#wthd_Withdrawal.external_id),
         domain_revision => maybe_unmarshal(domain_revision, Withdrawal#wthd_Withdrawal.domain_revision),
         party_revision => maybe_unmarshal(party_revision, Withdrawal#wthd_Withdrawal.party_revision),
@@ -88,6 +90,7 @@ marshal_withdrawal_state(Withdrawal, Context) ->
         withdrawal = marshal_withdrawal(Withdrawal),
         context = ff_codec:marshal(context, Context),
         sessions = [marshal(session_state, S) || S <- Sessions],
+        effective_route = maybe_marshal(route, ff_withdrawal:route(Withdrawal)),
         effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
         adjustments = [ff_withdrawal_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments]
     }.
@@ -257,6 +260,9 @@ withdrawal_symmetry_test() ->
         destination_id = genlib:unique(),
         external_id = genlib:unique(),
         status = {pending, #wthd_status_Pending{}},
+        route = #wthd_Route{
+            provider_id = <<"22">>
+        },
         domain_revision = 1,
         party_revision = 3,
         created_at = <<"2099-01-01T00:00:00.123000Z">>

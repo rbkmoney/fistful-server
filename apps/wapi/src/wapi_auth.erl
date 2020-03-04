@@ -274,6 +274,8 @@ get_operation_access('GetP2PTransferEvents', _) ->
 get_operation_access('CreateW2WTransfer', _) ->
     [];
 get_operation_access('GetW2WTransfer', _) ->
+    [];
+get_operation_access('GetDestinationByExternalID', _) ->
     [].
 
 -spec get_access_config() -> map().

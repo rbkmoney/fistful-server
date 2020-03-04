@@ -267,7 +267,7 @@ get_wallet(WalletID, Context) ->
 ).
 get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
     AuthContext = wapi_handler_utils:get_auth_context(Context),
-    PartyID = get_party_id(AuthContext),
+    PartyID = uac_authorizer_jwt:get_subject_id(AuthContext),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(wallet, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
         {ok, WalletID, _} -> get_wallet(WalletID, Context);
@@ -940,7 +940,7 @@ verify_p2p_quote_token(Token) ->
 
 decode_p2p_quote_token(#{<<"version">> := 1} = Token) ->
             DecodedToken = #{
-                amount          => from_swag(withdrawal_body, maps:get(<<"amount">>, Token)),
+                amount          => from_swag(body, maps:get(<<"amount">>, Token)),
                 party_revision  => maps:get(<<"partyRevision">>, Token),
                 domain_revision => maps:get(<<"domainRevision">>, Token),
                 created_at      => ff_time:from_rfc3339(maps:get(<<"createdAt">>, Token)),

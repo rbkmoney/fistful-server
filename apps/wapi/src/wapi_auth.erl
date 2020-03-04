@@ -104,8 +104,8 @@ authorize_resource_by_grant(_, _) ->
 
 authorize_resource_by_grant(Resource, Grant, Access, Params) ->
     case uac_authorizer_jwt:verify(Grant, #{}) of
-        {ok, {_Id, {_, ACL}, Claims}} ->
-            verify_claims(Resource, verify_access(Access, ACL, Claims), Params);
+        {ok, {_Id, _, Claims}} ->
+            verify_claims(Resource, verify_access(Access, Claims), Params);
         Error = {error, _} ->
             Error
     end.
@@ -118,7 +118,7 @@ get_resource_accesses(destination, ID) ->
 get_resource_accesses(wallet, ID) ->
     [party, {wallets, ID}].
 
-verify_access(Access, #{?DOMAIN := ACL}, Claims) ->
+verify_access(Access, #{<<"resource_access">> := #{?DOMAIN := ACL}} = Claims) ->
     case lists:all(
         fun ({Scope, Permission}) -> lists:member(Permission, uac_acl:match(Scope, ACL)) end,
         Access
@@ -126,7 +126,7 @@ verify_access(Access, #{?DOMAIN := ACL}, Claims) ->
         true  -> {ok, Claims};
         false -> {error, insufficient_access}
     end;
-verify_access(_, _, _) ->
+verify_access(_, _) ->
     {error, insufficient_access}.
 
 verify_claims(_, Error = {error, _}, _) ->

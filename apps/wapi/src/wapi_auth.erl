@@ -191,6 +191,8 @@ get_operation_access('CreateDestination', _) ->
     [{[party, destinations], write}];
 get_operation_access('GetDestination', #{destinationID := ID}) ->
     [{[party, {destinations, ID}], read}];
+get_operation_access('GetDestinationByExternalID', _) ->
+    [{[party, destinations], read}];
 get_operation_access('IssueDestinationGrant', #{destinationID := ID}) ->
     [{[party, {destinations, ID}], write}];
 get_operation_access('DownloadFile', _) ->
@@ -264,19 +266,17 @@ get_operation_access('PollWithdrawalEvents', _) ->
 get_operation_access('GetWithdrawalEvents', _) ->
     [{[withdrawals], read}];
 get_operation_access('CreateP2PTransfer', _) ->
-    [];
+    [{[p2p], write}];
 get_operation_access('QuoteP2PTransfer', _) ->
-    [];
+    [{[p2p], write}];
 get_operation_access('GetP2PTransfer', _) ->
-    [];
+    [{[p2p], read}];
 get_operation_access('GetP2PTransferEvents', _) ->
-    [];
+    [{[p2p], read}];
 get_operation_access('CreateW2WTransfer', _) ->
-    [];
+    [{[w2w], write}];
 get_operation_access('GetW2WTransfer', _) ->
-    [];
-get_operation_access('GetDestinationByExternalID', _) ->
-    [].
+    [{[w2w], read}].
 
 -spec get_access_config() -> map().
 
@@ -296,6 +296,8 @@ get_resource_hierarchy() ->
             wallets           => #{},
             destinations      => #{}
         },
+        p2p         => #{},
+        w2w         => #{},
         webhooks    => #{},
         withdrawals => #{}
     }.

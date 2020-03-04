@@ -153,10 +153,10 @@ issue_access_token(PartyID, TokenSpec) ->
 -spec issue_access_token(wapi_handler_utils:owner(), token_spec(), uac_authorizer_jwt:expiration()) ->
     uac_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec, Expiration) ->
-    Claims = resolve_token_spec(TokenSpec),
+    Claims0 = resolve_token_spec(TokenSpec),
+    Claims = Claims0#{<<"exp">> => Expiration},
     wapi_utils:unwrap(uac_authorizer_jwt:issue(
         wapi_utils:get_unique_id(),
-        Expiration,
         PartyID,
         Claims,
         ?SIGNEE

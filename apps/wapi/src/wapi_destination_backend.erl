@@ -133,14 +133,11 @@ when Type =:= <<"BankCardDestinationResource">> ->
 construct_resource(#{<<"type">> := Type} = Resource)
 when Type =:= <<"CryptoWalletDestinationResource">> ->
     #{
-        <<"id">> := CryptoWalletID,
-        <<"currency">> := CryptoCurrency
+        <<"id">> := CryptoWalletID
     } = Resource,
-    Tag = maps:get(<<"tag">>, Resource, undefined),
     CostructedResource = {crypto_wallet, genlib_map:compact(#{
         id => CryptoWalletID,
-        currency => marshal(crypto_currency, CryptoCurrency),
-        tag => marshal(string, Tag)
+        currency => marshal_crypto_currency_data(Resource)
     })},
     {ok, ff_codec:marshal(resource, CostructedResource)}.
 
@@ -180,13 +177,6 @@ marshal(resource, #{
         masked_pan => maps:get(<<"lastDigits">>, BankCard)
     }},
     ff_codec:marshal(resource, Resource);
-
-marshal(crypto_currency, <<"Bitcoin">>) -> bitcoin;
-marshal(crypto_currency, <<"Litecoin">>) -> litecoin;
-marshal(crypto_currency, <<"BitcoinCash">>) -> bitcoin_cash;
-marshal(crypto_currency, <<"Ripple">>) -> ripple;
-marshal(crypto_currency, <<"Ethereum">>) -> ethereum;
-marshal(crypto_currency, <<"Zcash">>) -> zcash;
 
 marshal(context, Context) ->
     ff_codec:marshal(context, Context);
@@ -251,27 +241,15 @@ unmarshal(resource, {bank_card, #'BankCard'{
     });
 unmarshal(resource, {crypto_wallet, #'CryptoWallet'{
     id = CryptoWalletID,
-    currency = CryptoWalletCurrency,
     data = Data
 }}) ->
+    {Currency, Params} = unmarshal_crypto_currency_data(Data),
     genlib_map:compact(#{
         <<"type">> => <<"CryptoWalletDestinationResource">>,
         <<"id">> => unmarshal(string, CryptoWalletID),
-        <<"currency">> => unmarshal(crypto_currency, CryptoWalletCurrency),
-        <<"tag">> => maybe_unmarshal(crypto_data, Data)
+        <<"currency">> => Currency,
+        <<"tag">> => genlib_map:get(tag, Params)
     });
-
-unmarshal(crypto_data, {ripple, #'CryptoDataRipple'{tag = Tag}}) ->
-    unmarshal(string, Tag);
-unmarshal(crypto_data, _) ->
-    undefined;
-
-unmarshal(crypto_currency, bitcoin) -> <<"Bitcoin">>;
-unmarshal(crypto_currency, litecoin) -> <<"Litecoin">>;
-unmarshal(crypto_currency, bitcoin_cash) -> <<"BitcoinCash">>;
-unmarshal(crypto_currency, ripple) -> <<"Ripple">>;
-unmarshal(crypto_currency, ethereum) -> <<"Ethereum">>;
-unmarshal(crypto_currency, zcash) -> <<"Zcash">>;
 
 unmarshal(context, Context) ->
     ff_codec:unmarshal(context, Context);
@@ -283,3 +261,43 @@ maybe_unmarshal(_, undefined) ->
     undefined;
 maybe_unmarshal(T, V) ->
     unmarshal(T, V).
+
+marshal_crypto_currency_data(Resource) ->
+    #{
+        <<"currency">> := CryptoCurrencyName
+    } = Resource,
+    Name = marshal_crypto_currency_name(CryptoCurrencyName),
+    Params = marshal_crypto_currency_params(Name, Resource),
+    {Name, Params}.
+
+unmarshal_crypto_currency_data({Name, Params}) ->
+    {unmarshal_crypto_currency_name(Name), unmarshal_crypto_currency_params(Name, Params)}.
+
+marshal_crypto_currency_name(<<"Bitcoin">>) -> bitcoin;
+marshal_crypto_currency_name(<<"Litecoin">>) -> litecoin;
+marshal_crypto_currency_name(<<"BitcoinCash">>) -> bitcoin_cash;
+marshal_crypto_currency_name(<<"Ripple">>) -> ripple;
+marshal_crypto_currency_name(<<"Ethereum">>) -> ethereum;
+marshal_crypto_currency_name(<<"Zcash">>) -> zcash.
+
+unmarshal_crypto_currency_name(bitcoin) -> <<"Bitcoin">>;
+unmarshal_crypto_currency_name(litecoin) -> <<"Litecoin">>;
+unmarshal_crypto_currency_name(bitcoin_cash) -> <<"BitcoinCash">>;
+unmarshal_crypto_currency_name(ripple) -> <<"Ripple">>;
+unmarshal_crypto_currency_name(ethereum) -> <<"Ethereum">>;
+unmarshal_crypto_currency_name(zcash) -> <<"Zcash">>.
+
+marshal_crypto_currency_params(ripple, Resource) ->
+    Tag = maps:get(<<"tag">>, Resource, undefined),
+    #{
+        tag => maybe_marshal(string, Tag)
+    };
+marshal_crypto_currency_params(_Other, _Resource) ->
+    #{}.
+
+unmarshal_crypto_currency_params(ripple, #'CryptoDataRipple'{tag = Tag}) ->
+    genlib_map:compact(#{
+        tag => maybe_unmarshal(string, Tag)
+    });
+unmarshal_crypto_currency_params(_Other, _Params) ->
+    #{}.

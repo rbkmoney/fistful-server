@@ -169,6 +169,8 @@ marshal(crypto_data, {ethereum, #{}}) ->
     {ethereum, #'CryptoDataEthereum'{}};
 marshal(crypto_data, {zcash, #{}}) ->
     {zcash, #'CryptoDataZcash'{}};
+marshal(crypto_data, {usdt, #{}}) ->
+    {usdt, #'CryptoDataUSDT'{}};
 marshal(crypto_data, {ripple, Data}) ->
     {ripple, #'CryptoDataRipple'{
         tag = maybe_marshal(string, maps:get(tag, Data, undefined))

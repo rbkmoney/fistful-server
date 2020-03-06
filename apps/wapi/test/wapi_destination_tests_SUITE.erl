@@ -25,6 +25,7 @@
 -export([bitcoin_cash_resource_test/1]).
 -export([ripple_resource_test/1]).
 -export([ethereum_resource_test/1]).
+-export([usdt_resource_test/1]).
 -export([zcash_resource_test/1]).
 
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
@@ -59,6 +60,7 @@ groups() ->
             bitcoin_cash_resource_test,
             ripple_resource_test,
             ethereum_resource_test,
+            usdt_resource_test,
             zcash_resource_test
         ]}
     ].
@@ -164,6 +166,14 @@ ethereum_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(ethereum, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Ethereum">>, maps:get(<<"currency">>, SwagResource)),
+    {crypto_wallet, #'CryptoWallet'{id = ID}} = Resource,
+    ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
+
+-spec usdt_resource_test(config()) -> _.
+usdt_resource_test(C) ->
+    {ok, Resource, SwagResource} = do_destination_lifecycle(usdt, C),
+    ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
+    ?assertEqual(<<"USDT">>, maps:get(<<"currency">>, SwagResource)),
     {crypto_wallet, #'CryptoWallet'{id = ID}} = Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
@@ -363,5 +373,7 @@ generate_wallet_data(ripple) ->
     }};
 generate_wallet_data(ethereum) ->
     {ethereum, #'CryptoDataEthereum'{}};
+generate_wallet_data(usdt) ->
+    {usdt, #'CryptoDataUSDT'{}};
 generate_wallet_data(zcash) ->
     {zcash, #'CryptoDataZcash'{}}.

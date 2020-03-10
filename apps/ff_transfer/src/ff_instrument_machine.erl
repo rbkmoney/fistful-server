@@ -10,6 +10,7 @@
 -type ns()          :: machinery:namespace().
 -type ctx()         :: ff_entity_context:context().
 -type instrument(T) :: ff_instrument:instrument(T).
+-type metadata()    :: ff_instrument:metadata().
 
 -type st(T) ::
     ff_machine:st(instrument(T)).
@@ -48,7 +49,8 @@
     name        := binary(),
     currency    := ff_currency:id(),
     resource    := ff_instrument:resource(T),
-    external_id => id()
+    external_id => id(),
+    metadata    => metadata()
 }.
 
 -spec create(ns(), params(_), ctx()) ->
@@ -72,7 +74,8 @@ create(NS, Params = #{
             Name,
             CurrencyID,
             Resource,
-            maps:get(external_id, Params, undefined)
+            maps:get(external_id, Params, undefined),
+            maps:get(metadata, Params, undefined)
         )),
         unwrap(machinery:start(NS, ID, {Events, Ctx}, fistful:backend(NS)))
     end).

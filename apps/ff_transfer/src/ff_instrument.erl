@@ -12,6 +12,7 @@
 -type id()          :: binary().
 -type external_id() :: id() | undefined.
 -type name()        :: binary().
+-type metadata()    :: ff_entity_context:context().
 -type resource(T)   :: T.
 -type account()     :: ff_account:account().
 -type identity()    :: ff_identity:id().
@@ -27,7 +28,8 @@
     resource    := resource(T),
     name        := name(),
     status      := status() | undefined,
-    external_id => id()
+    external_id => id(),
+    metadata    => metadata()
 }.
 
 -type event(T) ::
@@ -41,6 +43,7 @@
 -export_type([resource/1]).
 -export_type([event/1]).
 -export_type([name/0]).
+-export_type([metadata/0]).
 
 -export([account/1]).
 
@@ -51,8 +54,9 @@
 -export([resource/1]).
 -export([status/1]).
 -export([external_id/1]).
+-export([metadata/1]).
 
--export([create/6]).
+-export([create/1]).
 -export([authorize/1]).
 
 -export([is_accessible/1]).
@@ -113,21 +117,40 @@ status(_) ->
 
 external_id(#{external_id := ExternalID}) ->
     ExternalID;
-external_id(_Transfer) ->
+external_id(_Instrument) ->
+    undefined.
+
+-spec metadata(instrument(_)) ->
+    metadata().
+
+metadata(#{metadata := Metadata}) ->
+    Metadata;
+metadata(_Instrument) ->
     undefined.
 
 %%
 
--spec create(id(), identity(), binary(), currency(), resource(T), external_id()) ->
+-spec create(ff_instrument_machine:params(T)) ->
     {ok, [event(T)]} |
     {error, _WalletError}.
 
-create(ID, IdentityID, Name, CurrencyID, Resource, ExternalID) ->
+create(Params = #{
+    id := ID,
+    identity := IdentityID,
+    name := Name,
+    currency := CurrencyID,
+    resource := Resource
+}) ->
     do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Events = unwrap(ff_account:create(ID, Identity, Currency)),
-        [{created, add_external_id(ExternalID, #{name => Name, resource => Resource})}] ++
+        [{created, genlib_map:compact(#{
+            name => Name, 
+            resource => Resource,
+            external_id => maps:get(external_id, Params, undefined),
+            metadata => maps:get(metadata, Params, undefined)
+        })}] ++
         [{account, Ev} || Ev <- Events] ++
         [{status_changed, unauthorized}]
     end).
@@ -149,11 +172,6 @@ authorize(#{status := authorized}) ->
 
 is_accessible(Instrument) ->
     ff_account:is_accessible(account(Instrument)).
-
-add_external_id(undefined, Event) ->
-    Event;
-add_external_id(ExternalID, Event) ->
-    Event#{external_id => ExternalID}.
 
 %%
 

@@ -6,7 +6,7 @@
 
 -export([unmarshal_destination_params/1]).
 
--export([marshal_destination/1]).
+-export([marshal_destination/2]).
 -export([unmarshal_destination/1]).
 
 -export([marshal/2]).
@@ -27,41 +27,63 @@ unmarshal_destination_params(Params) ->
         external_id => maybe_unmarshal(id, Params#dst_DestinationParams.external_id)
     }).
 
--spec marshal_destination(ff_destination:destination()) ->
-    ff_proto_destination_thrift:'Destination'().
+-spec marshal_destination(ff_destination:id(), ff_destination:machine()) ->
+    ff_proto_destination_thrift:'DestinationState'().
 
-marshal_destination(Destination) ->
-    #dst_Destination{
-        id          = marshal(id,       ff_destination:id(Destination)),
-        name        = marshal(string,   ff_destination:name(Destination)),
-        resource    = marshal(resource, ff_destination:resource(Destination)),
-        external_id = marshal(id,       ff_destination:external_id(Destination)),
-        account     = marshal(account,  ff_destination:account(Destination)),
-        status      = marshal(status,   ff_destination:status(Destination))
+marshal_destination(ID, Machine) ->
+    Context     = marshal(ctx, ff_destination:ctx(Machine)),
+    Destination = ff_destination:get(Machine),
+    Blocking    = case ff_destination:is_accessible(Destination) of
+        {ok, accessible} ->
+            unblocked;
+        _ ->
+            blocked
+    end,
+    #dst_DestinationState{
+        id = ID,
+        name = marshal(string, ff_destination:name(Destination)),
+        resource = marshal(resource, ff_destination:resource(Destination)),
+        external_id = marshal(id, ff_destination:external_id(Destination)),
+        account = marshal(account, ff_destination:account(Destination)),
+        status = marshal(status, ff_destination:status(Destination)),
+        created_at = marshal(timestamp, ff_machine:created(Machine)),
+        blocking = Blocking,
+        metadata = marshal(ctx, ff_destination:metadata(Destination)),
+        context = Context
     }.
 
--spec unmarshal_destination(ff_proto_destination_thrift:'Destination'()) ->
+-spec unmarshal_destination(ff_proto_destination_thrift:'DestinationState'()) ->
     ff_destination:destination().
 
 unmarshal_destination(Dest) ->
     genlib_map:compact(#{
-        id          => unmarshal(id,           Dest#dst_Destination.id),
-        account     => maybe_unmarshal(account, Dest#dst_Destination.account),
-        resource    => unmarshal(resource,     Dest#dst_Destination.resource),
-        name        => unmarshal(string,       Dest#dst_Destination.name),
-        status      => maybe_unmarshal(status, Dest#dst_Destination.status),
-        external_id => maybe_unmarshal(id,     Dest#dst_Destination.external_id)
+        resource => unmarshal(resource, Dest#dst_DestinationState.resource),
+        name => unmarshal(string, Dest#dst_DestinationState.name),
+        account => maybe_unmarshal(account, Dest#dst_DestinationState.account),
+        status => maybe_unmarshal(status, Dest#dst_DestinationState.status),
+        external_id => maybe_unmarshal(external_id, Dest#dst_DestinationState.external_id),
+        metadata => maybe_unmarshal(ctx, Dest#dst_DestinationState.metadata)
     }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
 marshal(change, {created, Destination}) ->
-    {created, marshal_destination(Destination)};
+    {created, marshal(create_change, Destination)};
 marshal(change, {account, AccountChange}) ->
     {account, marshal(account_change, AccountChange)};
 marshal(change, {status_changed, StatusChange}) ->
     {status, marshal(status_change, StatusChange)};
+
+marshal(create_change, Destination = #{
+    name := Name,
+    resource := Resource
+}) ->
+    #dst_DestinationState{
+        name = Name,
+        resource = Resource,
+        external_id = maybe_marshal(id, maps:get(external_id, Destination,  undefined))
+    };
 
 marshal(status, authorized) ->
     {authorized, #dst_Authorized{}};
@@ -115,6 +137,11 @@ unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
 %% Internals
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
 
 maybe_unmarshal(_Type, undefined) ->
     undefined;

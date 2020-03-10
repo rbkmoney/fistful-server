@@ -96,6 +96,7 @@
 -type events()  :: ff_instrument_machine:events(resource()).
 
 -export_type([id/0]).
+-export_type([machine/0]).
 -export_type([destination/0]).
 -export_type([status/0]).
 -export_type([resource/0]).

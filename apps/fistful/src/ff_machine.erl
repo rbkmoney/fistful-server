@@ -32,10 +32,16 @@
 -type result(T) ::
     machinery:result(timestamped_event(T), auxst()).
 
+-type merge_params() :: #{
+    ctx => ctx(),
+    timestamp => timestamp()
+}.
+
 -export_type([st/1]).
 -export_type([machine/1]).
 -export_type([result/1]).
 -export_type([timestamped_event/1]).
+-export_type([merge_params/0]).
 
 %% Accessors
 
@@ -69,7 +75,7 @@
 -callback apply_event(event(), model()) ->
     model().
 
--callback maybe_migrate(event()) ->
+-callback maybe_migrate(event(), ctx() | undefined) ->
     event().
 
 -callback process_call(st()) ->
@@ -137,8 +143,11 @@ get(Mod, NS, Ref, Range) ->
 
 history(Mod, NS, Ref, Range) ->
     do(fun () ->
-        #{history := History} = unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))),
-        migrate_history(Mod, History)
+        Machine = #{history := History} = unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))),
+        MergeParams = #{
+            ctx => maps:get(ctx, Machine, undefined)
+        },
+        migrate_history(Mod, History, MergeParams)
     end).
 
 -spec collapse(module(), machine()) ->
@@ -152,11 +161,11 @@ collapse(Mod, #{history := History}) ->
 collapse_history(Mod, History, St0) ->
     lists:foldl(fun (Ev, St) -> merge_event(Mod, Ev, St) end, St0, History).
 
--spec migrate_history(module(), history()) ->
+-spec migrate_history(module(), history(), merge_params()) ->
     history().
 
-migrate_history(Mod, History) ->
-    [migrate_event(Mod, Ev) || Ev <- History].
+migrate_history(Mod, History, MergeParams) ->
+    [migrate_event(Mod, Ev, MergeParams) || Ev <- History].
 
 -spec emit_event(E) ->
     [timestamped_event(E)].
@@ -175,7 +184,12 @@ emit_timestamped_events(Events, Ts) ->
 
 merge_event(Mod, {_ID, _Ts, TsEvent}, St0) ->
     {Ev, St1} = merge_timestamped_event(TsEvent, St0),
-    Model1 = Mod:apply_event(Ev, maps:get(model, St1, undefined)),
+    {ev, Ts, _Body} = TsEvent,
+    MergeParams = #{
+        ctx => maps:get(ctx, St1, undefined),
+        timestamp => Ts
+    },
+    Model1 = Mod:apply_event(Mod:maybe_migrate(Ev, MergeParams), maps:get(model, St1, undefined)),
     St1#{model => Model1}.
 
 merge_timestamped_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
@@ -183,8 +197,8 @@ merge_timestamped_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
 merge_timestamped_event({ev, Ts, Body}, St = #{}) ->
     {Body, St#{times => {Ts, Ts}}}.
 
-migrate_event(Mod, {ID, Ts, {ev, EventTs, EventBody}}) ->
-    {ID, Ts, {ev, EventTs, Mod:maybe_migrate(EventBody)}}.
+migrate_event(Mod, {ID, Ts, {ev, EventTs, EventBody}}, MergeParams) ->
+    {ID, Ts, {ev, EventTs, Mod:maybe_migrate(EventBody, MergeParams#{timestamp => EventTs})}}.
 
 %%
 

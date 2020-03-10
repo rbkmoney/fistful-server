@@ -42,6 +42,8 @@
     wrapped_adjustment_event() |
     {status_changed, status()}.
 
+-type legacy_event() :: any().
+
 -type limit_check_details() ::
     {wallet_sender | wallet_receiver, wallet_limit_check_details()}.
 
@@ -125,6 +127,7 @@
 %% Event source
 
 -export([apply_event/2]).
+-export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -330,6 +333,14 @@ apply_event_({p_transfer, Ev}, T) ->
     T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))};
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
+
+-spec maybe_migrate(event() | legacy_event(), ff_machine:merge_params()) ->
+    event().
+% Other events
+maybe_migrate({adjustment, _Ev} = Event, _MergeParams) ->
+    ff_adjustment_utils:maybe_migrate(Event);
+maybe_migrate(Ev, _MergeParams) ->
+    Ev.
 
 %% Internals
 

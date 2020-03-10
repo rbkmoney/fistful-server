@@ -51,6 +51,8 @@
     {effective_challenge_changed, challenge_id()}                    |
     {{challenge        , challenge_id()}, ff_identity_challenge:event()}.
 
+-type legacy_event() :: any().
+
 -type create_error() ::
     {provider, notfound} |
     {identity_class, notfound} |
@@ -94,6 +96,7 @@
 -export([poll_challenge_completion/2]).
 
 -export([apply_event/2]).
+-export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -318,3 +321,9 @@ with_challenges(Fun, Identity) ->
 
 with_challenge(ID, Fun, Challenges) ->
     maps:update_with(ID, Fun, maps:merge(#{ID => undefined}, Challenges)).
+
+-spec maybe_migrate(event() | legacy_event(), ff_machine:merge_params()) ->
+    event().
+
+maybe_migrate(Ev, _MergeParams) ->
+    Ev.

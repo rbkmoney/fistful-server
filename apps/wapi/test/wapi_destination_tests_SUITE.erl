@@ -294,6 +294,8 @@ build_crypto_cyrrency_spec({ripple, #'CryptoDataRipple'{tag = Tag}}) ->
     };
 build_crypto_cyrrency_spec({ethereum, #'CryptoDataEthereum'{}}) ->
     #{<<"currency">> => <<"Bitcoin">>};
+build_crypto_cyrrency_spec({usdt, #'CryptoDataUSDT'{}}) ->
+    #{<<"currency">> => <<"USDT">>};
 build_crypto_cyrrency_spec({zcash, #'CryptoDataZcash'{}}) ->
     #{<<"currency">> => <<"Zcash">>}.
 

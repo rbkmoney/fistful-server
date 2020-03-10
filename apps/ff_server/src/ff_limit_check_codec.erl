@@ -17,8 +17,10 @@
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
-marshal(details, {wallet, WalletDetails}) ->
-    {wallet, marshal(wallet_details, WalletDetails)};
+marshal(details, {wallet_sender, WalletDetails}) ->
+    {wallet_sender, marshal(wallet_details, WalletDetails)};
+marshal(details, {wallet_receiver, WalletDetails}) ->
+    {wallet_receiver, marshal(wallet_details, WalletDetails)};
 
 marshal(wallet_details, ok) ->
     {ok, #lim_check_WalletOk{}};
@@ -32,8 +34,10 @@ marshal(wallet_details, {failed, Details}) ->
 -spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
     ff_codec:decoded_value().
 
-unmarshal(details, {wallet, WalletDetails}) ->
-    {wallet, unmarshal(wallet_details, WalletDetails)};
+unmarshal(details, {wallet_sender, WalletDetails}) ->
+    {wallet_sender, unmarshal(wallet_details, WalletDetails)};
+unmarshal(details, {wallet_receiver, WalletDetails}) ->
+    {wallet_receiver, unmarshal(wallet_details, WalletDetails)};
 
 unmarshal(wallet_details, {ok, #lim_check_WalletOk{}}) ->
     ok;
@@ -50,15 +54,22 @@ unmarshal(wallet_details, {failed, Details}) ->
 
 -spec wallet_ok_test() -> _.
 wallet_ok_test() ->
-    Details = {wallet, ok},
-    ?assertEqual(Details, unmarshal(details, (marshal(details, Details)))).
+    Details0 = {wallet_sender, ok},
+    ?assertEqual(Details0, unmarshal(details, (marshal(details, Details0)))),
+    Details1 = {wallet_receiver, ok},
+    ?assertEqual(Details1, unmarshal(details, (marshal(details, Details1)))).
 
 -spec wallet_fail_test() -> _.
 wallet_fail_test() ->
-    Details = {wallet, {failed, #{
+    Details0 = {wallet_sender, {failed, #{
         expected_range => {{exclusive, {1, <<"RUB">>}}, {inclusive, {10, <<"RUB">>}}},
         balance => {0, <<"RUB">>}
     }}},
-    ?assertEqual(Details, unmarshal(details, (marshal(details, Details)))).
+    ?assertEqual(Details0, unmarshal(details, (marshal(details, Details0)))),
+    Details1 = {wallet_receiver, {failed, #{
+        expected_range => {{exclusive, {1, <<"RUB">>}}, {inclusive, {10, <<"RUB">>}}},
+        balance => {0, <<"RUB">>}
+    }}},
+    ?assertEqual(Details1, unmarshal(details, (marshal(details, Details1)))).
 
 -endif.

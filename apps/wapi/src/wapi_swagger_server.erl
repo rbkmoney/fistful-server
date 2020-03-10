@@ -63,7 +63,11 @@ mk_operation_id_getter(#{env := Env}) ->
         get_operation_id(Req, Env)
     end.
 
-get_operation_id(Req, Env) ->
+%% Ensure that request has host and path required for
+%% cowboy_router:execute/2.
+%% NOTE: Be careful when upgrade cowboy in this project
+%% because cowboy_router:execute/2 call can change.
+get_operation_id(Req=#{host := _Host, path := _Path}, Env) ->
     case cowboy_router:execute(Req, Env) of
         {ok, _, #{handler_opts := {_Operations, _LogicHandler, _SwaggerHandlerOpts} = HandlerOpts}} ->
             case swag_server_wallet_utils:get_operation_id(Req, HandlerOpts) of
@@ -74,4 +78,6 @@ get_operation_id(Req, Env) ->
             end;
         _ ->
             #{}
-    end.
+    end;
+get_operation_id(_Req, _Env) ->
+    #{}.

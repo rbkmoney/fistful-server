@@ -36,6 +36,29 @@
     accounter_account_id = ?INTEGER
 }).
 
+-define(RESOURCE, {bank_card, #'BankCard'{
+    token = ?STRING,
+    bin = <<"424242">>,
+    masked_pan = <<"4242">>,
+    bank_name = ?STRING,
+    payment_system = visa,
+    issuer_country = rus,
+    card_type = debit
+}}).
+
+-define(DESTINATION_STATUS, {authorized, #dst_Authorized{}}).
+
+-define(DESTINATION(PartyID), #dst_Destination{
+    id          = ?STRING,
+    name        = ?STRING,
+    status      = ?DESTINATION_STATUS,
+    account     = ?ACCOUNT,
+    resource    = ?RESOURCE,
+    external_id = ?STRING,
+    created_at  = ?TIMESTAMP,
+    context     = ?DEFAULT_CONTEXT(PartyID)
+}).
+
 -define(WALLET(PartyID), #wlt_Wallet{
     id          = ?STRING,
     name        = ?STRING,

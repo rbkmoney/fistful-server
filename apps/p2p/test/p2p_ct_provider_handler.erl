@@ -27,7 +27,11 @@
 
 -define(ADAPTER_PROCESS_RESULT(Intent, NextState), #p2p_adapter_ProcessResult{
     intent = Intent,
-    next_state = NextState
+    next_state = NextState,
+    trx = #domain_TransactionInfo{
+        id = <<"Trx_ID">>,
+        extra = #{}
+    }
 }).
 
 -define(ADAPTER_SLEEP_INTENT(Timeout, CallbackTag, UI), {sleep, #p2p_adapter_SleepIntent{

@@ -122,7 +122,8 @@ start_app(wapi_woody_client = AppName) ->
             identdoc_storage    => "http://cds:8022/v1/identity_document_storage",
             fistful_stat        => "http://fistful-magista:8022/stat",
             fistful_wallet      => "http://localhost:8022/v1/wallet",
-            fistful_identity    => "http://localhost:8022/v1/identity"
+            fistful_identity    => "http://localhost:8022/v1/identity",
+            fistful_destination => "http://localhost:8022/v1/destination"
         }},
         {service_retries, #{
             fistful_stat    => #{
@@ -169,6 +170,9 @@ start_app(ff_server = AppName) ->
             },
             p2p_session => #{
                 namespace => <<"ff/p2p_transfer/session_v1">>
+            },
+            w2w_transfer => #{
+                namespace => <<"ff/w2w_transfer_v1">>
             }
         }}
     ]), #{}};

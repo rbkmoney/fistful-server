@@ -527,6 +527,7 @@ deposit_state_content_test(C) ->
     {ok, DepositState} = call_deposit('Get', [DepositID, #'EventRange'{}]),
     ?assertMatch([_], DepositState#deposit_DepositState.reverts),
     ?assertMatch([_], DepositState#deposit_DepositState.adjustments),
+    ?assertNotEqual(undefined, DepositState#deposit_DepositState.effective_final_cash_flow),
     ?assertNotEqual(
         undefined,
         (DepositState#deposit_DepositState.deposit)#deposit_Deposit.status

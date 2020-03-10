@@ -19,7 +19,7 @@
 -type process_result() :: #{
     action := action(),
     events := [wrapped_event()],
-    changes := changes() | undefined
+    changes := changes()
 }.
 
 -type unknown_adjustment_error() :: {unknown_adjustment, id()}.
@@ -35,7 +35,6 @@
 
 -export([set_cash_flow/2]).
 
--export([status/2]).
 -export([cash_flow/1]).
 
 -export([adjustments/1]).
@@ -56,7 +55,6 @@
 -type target_id()       :: binary().
 -type adjustment()      :: ff_adjustment:adjustment().
 -type event()           :: ff_adjustment:event().
--type target_status()   :: term().
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
 -type action()          :: machinery:action() | undefined.
 -type changes()         :: ff_adjustment:changes().
@@ -73,10 +71,6 @@ new_index() ->
 -spec set_cash_flow(final_cash_flow(), index()) -> index().
 set_cash_flow(Body, Index) ->
     Index#{cash_flow => Body}.
-
--spec status(index(), target_status() | undefined) -> target_status() | undefined.
-status(Index, Default) ->
-    maps:get(status, Index, Default).
 
 -spec cash_flow(index()) -> final_cash_flow() | undefined.
 cash_flow(Index) ->
@@ -204,18 +198,18 @@ do_get_not_finished([Adjustment | Tail]) ->
     end.
 
 -spec detect_changes(adjustment(), [event()]) ->
-    changes() | undefined.
+    changes().
 detect_changes(Adjustment, Events) ->
-    case lists:any(fun is_succeeded_ctatus_change/1, Events) of
+    case lists:any(fun is_succeeded_status_change/1, Events) of
         true ->
             ff_adjustment:changes_plan(Adjustment);
         false ->
-            undefined
+            #{}
     end.
 
--spec is_succeeded_ctatus_change(event()) ->
+-spec is_succeeded_status_change(event()) ->
     boolean().
-is_succeeded_ctatus_change({status_changed, succeeded}) ->
+is_succeeded_status_change({status_changed, succeeded}) ->
     true;
-is_succeeded_ctatus_change(_Other) ->
+is_succeeded_status_change(_Other) ->
     false.

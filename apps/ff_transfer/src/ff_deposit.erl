@@ -1015,10 +1015,8 @@ process_adjustment(Deposit) ->
     Events1 = Events0 ++ handle_adjustment_changes(Changes),
     handle_child_result({Action, Events1}, Deposit).
 
--spec handle_adjustment_changes(ff_adjustment:changes() | undefined) ->
+-spec handle_adjustment_changes(ff_adjustment:changes()) ->
     [event()].
-handle_adjustment_changes(undefined) ->
-    [];
 handle_adjustment_changes(Changes) ->
     StatusChange = maps:get(new_status, Changes, undefined),
     handle_adjustment_status_change(StatusChange).
@@ -1026,7 +1024,7 @@ handle_adjustment_changes(Changes) ->
 -spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) ->
     [event()].
 handle_adjustment_status_change(undefined) ->
-    undefined;
+    [];
 handle_adjustment_status_change(#{new_status := Status}) ->
     [{status_changed, Status}].
 

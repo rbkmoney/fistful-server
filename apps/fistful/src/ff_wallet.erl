@@ -157,10 +157,10 @@ apply_event({account, Ev}, Wallet) ->
     Account = maps:get(account, Wallet, undefined),
     Wallet#{account => ff_account:apply_event(Ev, Account)}.
 
--spec maybe_migrate(event() | legacy_event(), ff_machine:merge_params()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
-maybe_migrate(Ev, _MergeParams) ->
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
 %% Internal functions

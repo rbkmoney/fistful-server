@@ -168,17 +168,17 @@ apply_event({account, Ev}, Instrument = #{account := Account}) ->
 apply_event({account, Ev}, Instrument) ->
     apply_event({account, Ev}, Instrument#{account => undefined}).
 
--spec maybe_migrate(event(T), ff_machine:merge_params()) ->
+-spec maybe_migrate(event(T), ff_machine:migrate_params()) ->
     event(T).
 
 maybe_migrate(Event = {created, #{
     version := 1
-}}, _MergeParams) ->
+}}, _MigrateParams) ->
     Event;
 maybe_migrate({created, Instrument = #{
         resource    := Resource,
         name        := Name
-}}, _MergeParams) ->
+}}, _MigrateParams) ->
     NewInstrument = genlib_map:compact(#{
         version     => 1,
         resource    => maybe_migrate_resource(Resource),
@@ -188,7 +188,7 @@ maybe_migrate({created, Instrument = #{
     {created, NewInstrument};
 
 %% Other events
-maybe_migrate(Event, _MergeParams) ->
+maybe_migrate(Event, _MigrateParams) ->
     Event.
 
 maybe_migrate_resource({crypto_wallet, #{id := ID, currency := ripple, tag := Tag}}) ->

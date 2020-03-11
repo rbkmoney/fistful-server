@@ -424,14 +424,14 @@ set_user_interactions_index(UserInteractions, Session) ->
 set_session_status(SessionState, Session) ->
     Session#{status => SessionState}.
 
--spec maybe_migrate(event() | legacy_event(), ff_machine:merge_params()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 % Other events
-maybe_migrate({callback, _Ev} = Event, _MergeParams) ->
+maybe_migrate({callback, _Ev} = Event, _MigrateParams) ->
     p2p_callback_utils:maybe_migrate(Event);
-maybe_migrate({user_interaction, _Ev} = Event, _MergeParams) ->
+maybe_migrate({user_interaction, _Ev} = Event, _MigrateParams) ->
     p2p_user_interaction_utils:maybe_migrate(Event);
-maybe_migrate(Ev, _MergeParams) ->
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
 -spec init(session(), action()) ->

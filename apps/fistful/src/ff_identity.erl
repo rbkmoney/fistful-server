@@ -322,8 +322,8 @@ with_challenges(Fun, Identity) ->
 with_challenge(ID, Fun, Challenges) ->
     maps:update_with(ID, Fun, maps:merge(#{ID => undefined}, Challenges)).
 
--spec maybe_migrate(event() | legacy_event(), ff_machine:merge_params()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
-maybe_migrate(Ev, _MergeParams) ->
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.

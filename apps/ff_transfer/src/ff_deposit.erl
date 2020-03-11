@@ -1058,26 +1058,26 @@ get_wallet_identity(Wallet) ->
 
 %% Migration
 
--spec maybe_migrate(event() | legacy_event(), ff_machine:merge_params()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 % Actual events
-maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MergeParams) ->
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MergeParams) ->
+maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {limit_check, {wallet_receiver, _Details}}, _MergeParams) ->
+maybe_migrate(Ev = {limit_check, {wallet_receiver, _Details}}, _MigrateParams) ->
     Ev;
-maybe_migrate({p_transfer, PEvent}, _MergeParams) ->
+maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, deposit)};
-maybe_migrate({revert, _Payload} = Event, _MergeParams) ->
+maybe_migrate({revert, _Payload} = Event, _MigrateParams) ->
     ff_deposit_revert_utils:maybe_migrate(Event);
-maybe_migrate({adjustment, _Payload} = Event, _MergeParams) ->
+maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
     ff_adjustment_utils:maybe_migrate(Event);
 
 % Old events
-maybe_migrate({limit_check, {wallet, Details}}, MergeParams) ->
-    maybe_migrate({limit_check, {wallet_receiver, Details}}, MergeParams);
-maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, MergeParams) ->
+maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->
+    maybe_migrate({limit_check, {wallet_receiver, Details}}, MigrateParams);
+maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, MigrateParams) ->
     #{
         version     := 1,
         id          := ID,
@@ -1110,15 +1110,15 @@ maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, MergeParams
                 ]
             }
         }
-    }}, MergeParams);
-maybe_migrate({transfer, PTransferEv}, MergeParams) ->
-    maybe_migrate({p_transfer, PTransferEv}, MergeParams);
-maybe_migrate({status_changed, {failed, LegacyFailure}}, MergeParams) ->
+    }}, MigrateParams);
+maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
+    maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
+maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
     Failure = #{
         code => <<"unknown">>,
         reason => genlib:format(LegacyFailure)
     },
-    maybe_migrate({status_changed, {failed, Failure}}, MergeParams);
+    maybe_migrate({status_changed, {failed, Failure}}, MigrateParams);
 % Other events
-maybe_migrate(Ev, _MergeParams) ->
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.

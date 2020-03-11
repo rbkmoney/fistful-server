@@ -1452,25 +1452,25 @@ apply_event_({route_changed, Route}, T) ->
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
 
--spec maybe_migrate(event() | legacy_event(), ff_machine:merge_params()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 % Actual events
-maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MergeParams) ->
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MergeParams) ->
+maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}, _MergeParams) ->
+maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}, _MergeParams) ->
+maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}, _MigrateParams) ->
     Ev;
-maybe_migrate({p_transfer, PEvent}, _MergeParams) ->
+maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
-maybe_migrate({adjustment, _Payload} = Event, _MergeParams) ->
+maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
     ff_adjustment_utils:maybe_migrate(Event);
 % Old events
-maybe_migrate({limit_check, {wallet, Details}}, MergeParams) ->
-    maybe_migrate({limit_check, {wallet_sender, Details}}, MergeParams);
-maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MergeParams) ->
+maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->
+    maybe_migrate({limit_check, {wallet_sender, Details}}, MigrateParams);
+maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateParams) ->
     #{
         version     := 1,
         id          := ID,
@@ -1499,8 +1499,8 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MergePar
             destination_account   => [],
             wallet_cash_flow_plan => []
         }
-    })}, MergeParams);
-maybe_migrate({created, T}, MergeParams) ->
+    })}, MigrateParams);
+maybe_migrate({created, T}, MigrateParams) ->
     DestinationID = maps:get(destination, T),
     SourceID = maps:get(source, T),
     ProviderID = maps:get(provider, T),
@@ -1512,22 +1512,22 @@ maybe_migrate({created, T}, MergeParams) ->
             destination => DestinationID,
             source      => SourceID
         }
-    }}, MergeParams);
-maybe_migrate({transfer, PTransferEv}, MergeParams) ->
-    maybe_migrate({p_transfer, PTransferEv}, MergeParams);
-maybe_migrate({status_changed, {failed, LegacyFailure}}, MergeParams) ->
+    }}, MigrateParams);
+maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
+    maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
+maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
     Failure = #{
         code => <<"unknown">>,
         reason => genlib:format(LegacyFailure)
     },
-    maybe_migrate({status_changed, {failed, Failure}}, MergeParams);
-maybe_migrate({session_finished, SessionID}, MergeParams) ->
+    maybe_migrate({status_changed, {failed, Failure}}, MigrateParams);
+maybe_migrate({session_finished, SessionID}, MigrateParams) ->
     {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
     Session = ff_withdrawal_session_machine:session(SessionMachine),
     {finished, Result} = ff_withdrawal_session:status(Session),
-    maybe_migrate({session_finished, {SessionID, Result}}, MergeParams);
+    maybe_migrate({session_finished, {SessionID, Result}}, MigrateParams);
 % Other events
-maybe_migrate(Ev, _MergeParams) ->
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
 %% Tests

@@ -134,7 +134,7 @@ get(Mod, NS, Ref) ->
 
 get(Mod, NS, Ref, Range) ->
     do(fun () ->
-        Machine = unwrap(migrate_machine(Mod, NS, Ref, Range)),
+        Machine = unwrap(get_and_migrate_machine(Mod, NS, Ref, Range)),
         collapse(Mod, Machine)
     end).
 
@@ -144,7 +144,7 @@ get(Mod, NS, Ref, Range) ->
 
 history(Mod, NS, Ref, Range) ->
     do(fun () ->
-        #{history := History} = unwrap(migrate_machine(Mod, NS, Ref, Range)),
+        #{history := History} = unwrap(get_and_migrate_machine(Mod, NS, Ref, Range)),
         History
     end).
 
@@ -190,11 +190,11 @@ merge_timestamped_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
 merge_timestamped_event({ev, Ts, Body}, St = #{}) ->
     {Body, St#{times => {Ts, Ts}}}.
 
--spec migrate_machine(module(), namespace(), ref(), range()) ->
+-spec get_and_migrate_machine(module(), namespace(), ref(), range()) ->
     {ok, machine()} |
     {error, notfound}.
 
-migrate_machine(Mod, NS, Ref, Range) ->
+get_and_migrate_machine(Mod, NS, Ref, Range) ->
     do(fun () ->
         migrate_machine(Mod, unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))))
     end).

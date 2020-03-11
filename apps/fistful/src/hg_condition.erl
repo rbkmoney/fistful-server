@@ -48,6 +48,22 @@ test_party_definition({wallet_is, ID1}, #{wallet_id := ID2}) ->
 test_party_definition(_, _) ->
     undefined.
 
+test_p2p_tool(
+    #domain_P2PToolCondition{
+        sender_is = SenderIs,
+        receiver_is = undefined
+    }, 
+    #domain_P2PTool{sender = Sender}
+) ->
+    test({payment_tool, SenderIs}, #{payment_tool => Sender});
+test_p2p_tool(
+    #domain_P2PToolCondition{
+        sender_is = undefined,
+        receiver_is = ReceiverIs
+    }, 
+    #domain_P2PTool{receiver = Receiver}
+) ->
+    test({payment_tool, ReceiverIs}, #{payment_tool => Receiver});
 test_p2p_tool(P2PCondition, P2PTool) ->
     #domain_P2PToolCondition{
         sender_is = SenderIs,
@@ -62,8 +78,7 @@ test_p2p_tool(P2PCondition, P2PTool) ->
         test({payment_tool, ReceiverIs}, #{payment_tool => Receiver})
     } of
             {true, true} -> true;
-            {true, undefined} -> true;
-            {undefined, true} -> true;
-            {undefined, undefined} -> undefined;
+            {T1, T2} when  T1 =:= undefined
+                    orelse T2 =:= undefined -> undefined;
             {_, _} -> false
     end.

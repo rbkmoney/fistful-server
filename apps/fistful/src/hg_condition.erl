@@ -52,7 +52,7 @@ test_p2p_tool(
     #domain_P2PToolCondition{
         sender_is = SenderIs,
         receiver_is = undefined
-    }, 
+    },
     #domain_P2PTool{sender = Sender}
 ) ->
     test({payment_tool, SenderIs}, #{payment_tool => Sender});
@@ -60,7 +60,7 @@ test_p2p_tool(
     #domain_P2PToolCondition{
         sender_is = undefined,
         receiver_is = ReceiverIs
-    }, 
+    },
     #domain_P2PTool{receiver = Receiver}
 ) ->
     test({payment_tool, ReceiverIs}, #{payment_tool => Receiver});

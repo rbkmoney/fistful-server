@@ -63,6 +63,7 @@
      | {litecoin,     #{}}
      | {ethereum,     #{}}
      | {zcash,        #{}}
+     | {usdt,         #{}}
      | {ripple,       #{tag => binary()}}
      .
 

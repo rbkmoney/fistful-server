@@ -279,7 +279,7 @@ generate_id() ->
     ff_id:generate_snowflake_id().
 
 create_resource_raw(Token, C) ->
-    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, C),
     case Token of
         undefined ->
             StoreSource;

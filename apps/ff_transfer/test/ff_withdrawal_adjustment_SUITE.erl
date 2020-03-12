@@ -440,7 +440,7 @@ generate_id() ->
 
 create_destination(IID, C) ->
     ID = generate_id(),
-    Resource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
+    Resource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, C)},
     Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => <<"RUB">>, resource => Resource},
     ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(

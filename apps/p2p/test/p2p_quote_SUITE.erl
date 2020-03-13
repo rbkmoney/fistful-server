@@ -83,7 +83,7 @@ get_fee_ok_test(C) ->
 -spec visa_to_nspkmir_not_allow_test(config()) -> test_return().
 visa_to_nspkmir_not_allow_test(C) ->
     Cash = {22500, <<"RUB">>},
-    #{bin := Bin, masked_pan := Pan} = ct_cardstore:bank_card(<<"2204399999000900">>, {12, 2025}, C),
+    #{bin := Bin, masked_pan := Pan} = ct_cardstore:bank_card(<<"2204399999000900">>, C),
     #{
         identity_id := Identity,
         sender := CardSender
@@ -102,7 +102,7 @@ visa_to_nspkmir_not_allow_test(C) ->
 prepare_standard_environment(C) ->
     Party = create_party(C),
     IdentityID = create_person_identity(Party, C),
-    CardSender = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    CardSender = ct_cardstore:bank_card(<<"4150399999000900">>, C),
     #{
         identity_id => IdentityID,
         party_id => Party,

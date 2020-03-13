@@ -139,7 +139,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
     ID.
 
 create_destination(IID, C) ->
-    DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, C)},
+    DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)},
     DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
     authorized = ct_helper:await(
         authorized,

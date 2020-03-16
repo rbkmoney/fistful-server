@@ -530,7 +530,7 @@ create_destination(IID, Token, C) ->
 
 create_destination(IID, Currency, Token, C) ->
     ID = generate_id(),
-    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, C),
+    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     NewStoreResource = case Token of
         undefined ->
             StoreSource;

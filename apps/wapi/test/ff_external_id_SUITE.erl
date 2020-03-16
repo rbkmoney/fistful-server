@@ -165,7 +165,7 @@ idempotency_wallet_conflict(C) ->
 
 idempotency_destination_ok(C) ->
     BankCard = #{masked_pan := MP} =
-        ct_cardstore:bank_card(<<"4150399999000900">>, C),
+        ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     PS = <<"visa">>,
     Party = create_party(C),
     ExternalID = genlib:unique(),
@@ -195,7 +195,7 @@ idempotency_destination_ok(C) ->
 
 idempotency_destination_conflict(C) ->
     BankCard = #{masked_pan := MP} =
-        ct_cardstore:bank_card(<<"4150399999000900">>, C),
+        ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     PS = <<"visa">>,
     Party = create_party(C),
     ExternalID = genlib:unique(),
@@ -286,7 +286,7 @@ wait_for_destination_authorized(DestID) ->
 
 create_destination_legacy(IdentityID, Party, C) ->
     BankCard = #{masked_pan := MP} =
-        ct_cardstore:bank_card(<<"4150399999000900">>, C),
+        ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     PaymentSystem = <<"visa">>,
     Params = #{
         <<"identity">>  => IdentityID,

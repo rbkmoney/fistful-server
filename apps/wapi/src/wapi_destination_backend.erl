@@ -278,6 +278,7 @@ marshal_crypto_currency_name(<<"Litecoin">>) -> litecoin;
 marshal_crypto_currency_name(<<"BitcoinCash">>) -> bitcoin_cash;
 marshal_crypto_currency_name(<<"Ripple">>) -> ripple;
 marshal_crypto_currency_name(<<"Ethereum">>) -> ethereum;
+marshal_crypto_currency_name(<<"USDT">>) -> usdt;
 marshal_crypto_currency_name(<<"Zcash">>) -> zcash.
 
 unmarshal_crypto_currency_name(bitcoin) -> <<"Bitcoin">>;
@@ -285,6 +286,7 @@ unmarshal_crypto_currency_name(litecoin) -> <<"Litecoin">>;
 unmarshal_crypto_currency_name(bitcoin_cash) -> <<"BitcoinCash">>;
 unmarshal_crypto_currency_name(ripple) -> <<"Ripple">>;
 unmarshal_crypto_currency_name(ethereum) -> <<"Ethereum">>;
+unmarshal_crypto_currency_name(usdt) -> <<"USDT">>;
 unmarshal_crypto_currency_name(zcash) -> <<"Zcash">>.
 
 marshal_crypto_currency_params(ripple, Resource) ->

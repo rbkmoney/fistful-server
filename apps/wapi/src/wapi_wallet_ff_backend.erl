@@ -1583,6 +1583,7 @@ from_swag(crypto_wallet_currency_name, <<"BitcoinCash">>) -> bitcoin_cash;
 from_swag(crypto_wallet_currency_name, <<"Ethereum">>)    -> ethereum;
 from_swag(crypto_wallet_currency_name, <<"Zcash">>)       -> zcash;
 from_swag(crypto_wallet_currency_name, <<"Ripple">>)      -> ripple;
+from_swag(crypto_wallet_currency_name, <<"USDT">>)        -> usdt;
 
 from_swag(withdrawal_params, Params) ->
     add_external_id(#{
@@ -1915,6 +1916,7 @@ to_swag(crypto_wallet_currency, {litecoin, #{}})         -> #{<<"currency">> => 
 to_swag(crypto_wallet_currency, {bitcoin_cash, #{}})     -> #{<<"currency">> => <<"BitcoinCash">>};
 to_swag(crypto_wallet_currency, {ethereum, #{}})         -> #{<<"currency">> => <<"Ethereum">>};
 to_swag(crypto_wallet_currency, {zcash, #{}})            -> #{<<"currency">> => <<"Zcash">>};
+to_swag(crypto_wallet_currency, {usdt, #{}})             -> #{<<"currency">> => <<"USDT">>};
 to_swag(crypto_wallet_currency, {ripple, #{tag := Tag}}) -> #{<<"currency">> => <<"Ripple">>, <<"tag">> => Tag};
 to_swag(crypto_wallet_currency, {ripple, #{}})           -> #{<<"currency">> => <<"Ripple">>};
 

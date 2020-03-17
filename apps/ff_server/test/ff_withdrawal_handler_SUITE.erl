@@ -376,9 +376,9 @@ withdrawal_state_content_test(C) ->
     {ok, _AdjustmentState} = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
     {ok, WithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
     ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.sessions),
+    ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.adjustments),
     ?assertNotEqual(undefined, WithdrawalState#wthd_WithdrawalState.effective_final_cash_flow),
     ?assertNotEqual(undefined, WithdrawalState#wthd_WithdrawalState.effective_route),
-    ?assertNotEqual(undefined, WithdrawalState#wthd_WithdrawalState.adjustments),
     ?assertNotEqual(
         undefined,
         (WithdrawalState#wthd_WithdrawalState.withdrawal)#wthd_Withdrawal.status

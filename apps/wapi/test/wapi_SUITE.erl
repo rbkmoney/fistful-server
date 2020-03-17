@@ -316,8 +316,10 @@ check_withdrawal_limit_exceeded_test(C) ->
     WithdrawalID  = create_withdrawal(WalletID, DestID, C, undefined, 100000),
     await_final_withdrawal_status(WithdrawalID),
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C, 100000),
-    ?assertEqual({ok, #{<<"failure">> => #{<<"code">> => <<"account_limit_exceeded">>}}},
-        get_withdrawal(<<"unexist withdrawal">>, C)).
+    ?assertMatch({ok, #{
+        <<"status">> := <<"Failed">>,
+        <<"failure">> := #{<<"code">> := <<"account_limit_exceeded">>}}
+    }, get_withdrawal(WithdrawalID, C)).
 
 -spec unknown_withdrawal_test(config()) -> test_return().
 

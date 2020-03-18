@@ -2199,6 +2199,10 @@ map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
             code = <<"cash_range">>
         }
     };
+map_internal_error(#{code := <<"account_limit_exceeded">>}) ->
+    #domain_Failure{
+        code = <<"account_limit_exceeded">>
+    };
 map_internal_error(_Reason) ->
     #domain_Failure{
         code = <<"failed">>

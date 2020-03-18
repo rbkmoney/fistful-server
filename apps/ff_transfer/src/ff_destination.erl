@@ -60,7 +60,7 @@
     exp_date        => exp_date()
 }.
 
--type bank_card_auth_data() :: 
+-type bank_card_auth_data() ::
     {session, session_auth_data()}.
 
 -type session_auth_data() :: #{
@@ -180,7 +180,9 @@ resource_full(Destination, ResourceID) ->
                 BinData = unwrap(bin_data, ff_bin_data:get(Token, UnwrappedResourceID)),
                 KeyList = [payment_system, bank_name, iso_country_code, card_type],
                 ExtendData = maps:with(KeyList, BinData),
-                {bank_card, Resource#{bank_card => maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})}};
+                {bank_card, Resource#{
+                    bank_card => maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})
+                }};
             {crypto_wallet, _CryptoWallet} = Resource ->
                 Resource
         end

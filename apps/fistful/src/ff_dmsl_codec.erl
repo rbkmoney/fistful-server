@@ -157,7 +157,7 @@ unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
     AuthData = case ID of
         undefined ->
             undefined;
-        ID -> 
+        ID ->
             {session, #{session_id => unmarshal(string, ID)}}
     end,
     {bank_card, genlib_map:compact(#{

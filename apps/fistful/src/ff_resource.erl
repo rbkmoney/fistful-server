@@ -34,7 +34,7 @@
 }.
 
 -type exp_date() :: {binary(), binary()}.
--type bank_card_auth_data() :: 
+-type bank_card_auth_data() ::
     {session, session_auth_data()}.
 
 -type session_auth_data() :: #{
@@ -170,7 +170,10 @@ create_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} =
             auth_data => maps:get(auth_data, Params, undefined)
         })}
     end);
-create_resource({crypto_wallet, #{crypto_wallet := #{id := ID, currency := Currency} = CryptoWalletParams}}, _ResourceID) ->
+create_resource({crypto_wallet, #{crypto_wallet := #{
+    id := ID,
+    currency := Currency
+} = CryptoWalletParams}}, _ResourceID) ->
     {ok, {crypto_wallet, #{
         crypto_wallet => #{
             id => ID,

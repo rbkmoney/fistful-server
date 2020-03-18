@@ -821,13 +821,13 @@ orelse Type =:= <<"BankCardReceiverResource">> ->
     end;
 construct_resource(#{<<"type">> := Type, <<"id">> := CryptoWalletID} = Resource)
 when Type =:= <<"CryptoWalletDestinationResource">> ->
-    {ok, {crypto_wallet, genlib_map:compact(#{
+    {ok, {crypto_wallet, #{crypto_wallet => genlib_map:compact(#{
         id       => CryptoWalletID,
         currency => from_swag(crypto_wallet_currency, Resource)
-    })}}.
+    })}}}.
 
 encode_bank_card(BankCard) ->
-    {bank_card, genlib_map:compact(#{
+    {bank_card, #{bank_card => genlib_map:compact(#{
         token           => BankCard#'BankCard'.token,
         bin             => BankCard#'BankCard'.bin,
         masked_pan      => BankCard#'BankCard'.masked_pan,
@@ -835,7 +835,7 @@ encode_bank_card(BankCard) ->
         %% ExpDate is optional in swag_wallets 'StoreBankCard'. But some adapters waiting exp_date.
         %% Add error, somethink like BankCardReject.exp_date_required
         exp_date        => encode_exp_date(BankCard#'BankCard'.exp_date)
-    })}.
+    })}}.
 
 encode_exp_date(undefined) ->
     undefined;
@@ -1510,23 +1510,23 @@ from_swag(destination_resource, #{
     <<"token">> := WapiToken
 }) ->
     BankCard = wapi_utils:base64url_to_map(WapiToken),
-    {bank_card, #{
+    {bank_card, #{bank_card => #{
         token          => maps:get(<<"token">>, BankCard),
         payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
-    }};
+    }}};
 from_swag(destination_resource, Resource = #{
     <<"type">>     := <<"CryptoWalletDestinationResource">>,
     <<"id">>       := CryptoWalletID,
     <<"currency">> := CryptoWalletCurrency
 }) ->
     Tag = maps:get(<<"tag">>, Resource, undefined),
-    {crypto_wallet, genlib_map:compact(#{
+    {crypto_wallet, #{crypto_wallet => genlib_map:compact(#{
         id       => CryptoWalletID,
         currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
         tag      => Tag
-    })};
+    })}};
 from_swag(quote_p2p_params, Params) ->
     add_external_id(#{
         sender      => maps:get(<<"sender">>, Params),
@@ -1870,19 +1870,19 @@ to_swag(destination_status, authorized) ->
     #{<<"status">> => <<"Authorized">>};
 to_swag(destination_status, unauthorized) ->
     #{<<"status">> => <<"Unauthorized">>};
-to_swag(destination_resource, {bank_card, BankCard}) ->
+to_swag(destination_resource, {bank_card, #{bank_card := BankCard}}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardDestinationResource">>,
         <<"token">>         => maps:get(token, BankCard),
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
-to_swag(destination_resource, {crypto_wallet, CryptoWallet}) ->
+to_swag(destination_resource, {crypto_wallet, #{crypto_wallet := CryptoWallet}}) ->
     to_swag(map, maps:merge(#{
         <<"type">>     => <<"CryptoWalletDestinationResource">>,
         <<"id">>       => maps:get(id, CryptoWallet)
     }, to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet))));
-to_swag(sender_resource, {bank_card, BankCard}) ->
+to_swag(sender_resource, {bank_card, #{bank_card := BankCard}}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardSenderResource">>,
         <<"token">>         => maps:get(token, BankCard),
@@ -1890,7 +1890,7 @@ to_swag(sender_resource, {bank_card, BankCard}) ->
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
-to_swag(receiver_resource, {bank_card, BankCard}) ->
+to_swag(receiver_resource, {bank_card, #{bank_card := BankCard}}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardReceiverResource">>,
         <<"token">>         => maps:get(token, BankCard),

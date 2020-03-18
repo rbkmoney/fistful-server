@@ -151,14 +151,24 @@ unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
         payment_system = PaymentSystem,
         bin            = Bin,
         last_digits    = LastDigits
-    }}
+    }},
+    payment_session_id = ID
 }}) ->
-    {bank_card, #{
-        token           => Token,
-        payment_system  => PaymentSystem,
-        bin             => Bin,
-        masked_pan      => LastDigits
-    }};
+    AuthData = case ID of
+        undefined ->
+            undefined;
+        ID -> 
+            {session, #{session_id => unmarshal(string, ID)}}
+    end,
+    {bank_card, genlib_map:compact(#{
+        bank_card => #{
+            token           => Token,
+            payment_system  => PaymentSystem,
+            bin             => Bin,
+            masked_pan      => LastDigits
+        },
+        auth_data => AuthData
+    })};
 
 unmarshal(amount, V) ->
     unmarshal(integer, V);
@@ -207,21 +217,32 @@ marshal(payment_resource_payer, Payer = #{resource := Resource}) ->
     ClientInfo = maps:get(client_info, Payer, undefined),
     ContactInfo = maps:get(contact_info, Payer, undefined),
     #domain_PaymentResourcePayer{
-        resource = #domain_DisposablePaymentResource{
-            payment_tool = marshal(resource, Resource),
-            client_info = maybe_marshal(client_info, ClientInfo)
-        },
+        resource = marshal(disposable_payment_resource, {Resource, ClientInfo}),
         contact_info = marshal(contact_info, ContactInfo)
     };
+
+marshal(disposable_payment_resource, {Resource, ClientInfo}) ->
+    #domain_DisposablePaymentResource{
+        payment_tool = marshal(ff_resource, Resource),
+        payment_session_id = try_get_session_auth_data(Resource),
+        client_info = maybe_marshal(client_info, ClientInfo)
+    };
+
+marshal(ff_resource, {bank_card, #{bank_card := BankCard}}) ->
+    {bank_card, marshal(bank_card, BankCard)};
+
 marshal(resource, {bank_card, BankCard}) ->
-    {bank_card, #domain_BankCard{
+    {bank_card, marshal(bank_card, BankCard)};
+marshal(bank_card, BankCard) ->
+    #domain_BankCard{
         token           = ff_resource:token(BankCard),
         bin             = ff_resource:bin(BankCard),
         last_digits     = ff_resource:masked_pan(BankCard),
         payment_system  = ff_resource:payment_system(BankCard),
         issuer_country  = ff_resource:country_code(BankCard),
         bank_name       = ff_resource:bank_name(BankCard)
-    }};
+    };
+
 marshal(contact_info, undefined) ->
     #domain_ContactInfo{};
 marshal(contact_info, ContactInfo) ->
@@ -240,8 +261,8 @@ marshal(client_info, ClientInfo) ->
 
 marshal(p2p_tool, {Sender, Receiver}) ->
     #domain_P2PTool{
-        sender = marshal(resource, Sender),
-        receiver = marshal(resource, Receiver)
+        sender = marshal(ff_resource, Sender),
+        receiver = marshal(ff_resource, Receiver)
     };
 
 marshal(risk_score, low) ->
@@ -265,3 +286,8 @@ maybe_marshal(_Type, undefined) ->
     undefined;
 maybe_marshal(Type, Value) ->
     marshal(Type, Value).
+
+try_get_session_auth_data(#{auth_data := {session, #{session_id := ID}}}) ->
+    marshal(string, ID);
+try_get_session_auth_data(_) ->
+    undefined.

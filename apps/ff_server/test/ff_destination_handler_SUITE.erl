@@ -77,29 +77,29 @@ end_per_testcase(_Name, _C) ->
 -spec create_bank_card_destination_ok(config()) -> test_return().
 
 create_bank_card_destination_ok(C) ->
-    Resource = {bank_card, #'BankCard'{
+    Resource = {bank_card, #'ResourceBankCard'{bank_card = #'BankCard'{
         token = <<"TOKEN shmOKEN">>
-    }},
+    }}},
     create_destination_ok(Resource, C).
 
 -spec create_crypto_wallet_destination_ok(config()) -> test_return().
 
 create_crypto_wallet_destination_ok(C) ->
-    Resource = {crypto_wallet, #'CryptoWallet'{
+    Resource = {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
         id = <<"f195298af836f41d072cb390ee62bee8">>,
         currency = bitcoin_cash,
         data = {bitcoin_cash, #'CryptoDataBitcoinCash'{}}
-    }},
+    }}},
     create_destination_ok(Resource, C).
 
 -spec create_ripple_wallet_destination_ok(config()) -> test_return().
 
 create_ripple_wallet_destination_ok(C) ->
-    Resource = {crypto_wallet, #'CryptoWallet'{
+    Resource = {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
         id = <<"ab843336bf7738dc697522fbb90508de">>,
         currency = ripple,
         data = {ripple, #'CryptoDataRipple'{tag = undefined}}
-    }},
+    }}},
     create_destination_ok(Resource, C).
 
 %%----------------------------------------------------------------------

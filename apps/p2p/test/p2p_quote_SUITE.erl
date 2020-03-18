@@ -75,7 +75,7 @@ get_fee_ok_test(C) ->
         identity_id := Identity,
         sender := CardSender
     } = prepare_standard_environment(C),
-    Sender = {bank_card, CardSender},
+    Sender = {bank_card, #{bank_card => CardSender}},
     {ok, {Fee, CashVolume, _}} = p2p_quote:get_quote(Cash, Identity, Sender, Sender),
     ?assertEqual({share, {{65, 10000}, operation_amount, default}}, CashVolume),
     ?assertEqual({146, <<"RUB">>}, Fee).
@@ -88,12 +88,12 @@ visa_to_nspkmir_not_allow_test(C) ->
         identity_id := Identity,
         sender := CardSender
     } = prepare_standard_environment(C),
-    Sender = {bank_card, CardSender},
-    Receiver = {bank_card, #{
+    Sender = {bank_card, #{bank_card => CardSender}},
+    Receiver = {bank_card, #{bank_card => #{
         bin => Bin,
         masked_pan => Pan,
         token => <<"NSPK MIR">>
-    }},
+    }}},
     Result = p2p_quote:get_quote(Cash, Identity, Sender, Receiver),
     ?assertEqual({error, {terms, {terms_violation, p2p_forbidden}}}, Result).
 

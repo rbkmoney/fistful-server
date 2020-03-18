@@ -199,12 +199,12 @@ encode_currency(#{
 
 -spec encode_resource(resource()) -> domain_destination().
 encode_resource(
-    {bank_card, #{
+    {bank_card, #{bank_card := #{
         token          := Token,
         payment_system := PaymentSystem,
         bin            := BIN,
         masked_pan     := LastDigits
-    } = BankCard}
+    } = BankCard}}
 ) ->
     CardHolderName = genlib_map:get(cardholder_name, BankCard),
     ExpDate = genlib_map:get(exp_date, BankCard),
@@ -217,10 +217,10 @@ encode_resource(
         exp_date        = encode_exp_date(ExpDate)
     }};
 encode_resource(
-    {crypto_wallet, #{
+    {crypto_wallet, #{crypto_wallet := #{
         id       := CryptoWalletID,
         currency := {Currency, Data}
-    }}
+    }}}
 ) ->
     {crypto_wallet, #domain_CryptoWallet{
         id              = CryptoWalletID,

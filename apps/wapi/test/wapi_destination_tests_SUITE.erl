@@ -117,7 +117,7 @@ end_per_testcase(_Name, C) ->
 -spec bank_card_resource_test(config()) -> _.
 bank_card_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(bank_card, C),
-    {bank_card, R} = Resource,
+    {bank_card, #'ResourceBankCard'{bank_card = R}} = Resource,
     ?assertEqual(<<"BankCardDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(R#'BankCard'.token, maps:get(<<"token">>, SwagResource)),
     ?assertEqual(R#'BankCard'.bin, maps:get(<<"bin">>, SwagResource)),
@@ -128,7 +128,7 @@ bitcoin_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(bitcoin, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Bitcoin">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'CryptoWallet'{id = ID}} = Resource,
+    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec litecoin_resource_test(config()) -> _.
@@ -136,7 +136,7 @@ litecoin_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(litecoin, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Litecoin">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'CryptoWallet'{id = ID}} = Resource,
+    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec bitcoin_cash_resource_test(config()) -> _.
@@ -144,7 +144,7 @@ bitcoin_cash_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(bitcoin_cash, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"BitcoinCash">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'CryptoWallet'{id = ID}} = Resource,
+    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec ripple_resource_test(config()) -> _.
@@ -152,12 +152,12 @@ ripple_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(ripple, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Ripple">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'CryptoWallet'{
+    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
         id = ID,
         data = {ripple, #'CryptoDataRipple'{
             tag = Tag
         }}
-    }} = Resource,
+    }}} = Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)),
     ?assertEqual(Tag, maps:get(<<"tag">>, SwagResource)).
 
@@ -166,7 +166,7 @@ ethereum_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(ethereum, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Ethereum">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'CryptoWallet'{id = ID}} = Resource,
+    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec usdt_resource_test(config()) -> _.
@@ -174,7 +174,7 @@ usdt_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(usdt, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"USDT">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'CryptoWallet'{id = ID}} = Resource,
+    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec zcash_resource_test(config()) -> _.
@@ -182,7 +182,7 @@ zcash_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(zcash, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Zcash">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'CryptoWallet'{id = ID}} = Resource,
+    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 %%
@@ -266,19 +266,19 @@ build_destination_spec(D) ->
         <<"identity">> => (D#dst_Destination.account)#account_Account.identity,
         <<"currency">> => ((D#dst_Destination.account)#account_Account.currency)#'CurrencyRef'.symbolic_code,
         <<"externalID">> => D#dst_Destination.external_id,
-        <<"resource">> => build_resorce_spec(D#dst_Destination.resource)
+        <<"resource">> => build_resource_spec(D#dst_Destination.resource)
     }.
 
-build_resorce_spec({bank_card, R}) ->
+build_resource_spec({bank_card, R}) ->
     #{
         <<"type">> => <<"BankCardDestinationResource">>,
-        <<"token">> => wapi_crypto:encrypt_bankcard_token(R)
+        <<"token">> => wapi_crypto:encrypt_bankcard_token(R#'ResourceBankCard'.bank_card)
     };
-build_resorce_spec({crypto_wallet, R}) ->
-    Spec = build_crypto_cyrrency_spec(R#'CryptoWallet'.data),
+build_resource_spec({crypto_wallet, R}) ->
+    Spec = build_crypto_cyrrency_spec((R#'ResourceCryptoWallet'.crypto_wallet)#'CryptoWallet'.data),
     Spec#{
         <<"type">> => <<"CryptoWalletDestinationResource">>,
-        <<"id">> => R#'CryptoWallet'.id
+        <<"id">> => (R#'ResourceCryptoWallet'.crypto_wallet)#'CryptoWallet'.id
     }.
 
 build_crypto_cyrrency_spec({bitcoin, #'CryptoDataBitcoin'{}}) ->
@@ -342,7 +342,7 @@ generate_destination(IdentityID, Resource, Context) ->
     }.
 
 generate_resource(bank_card) ->
-    {bank_card, #'BankCard'{
+    {bank_card, #'ResourceBankCard'{bank_card = #'BankCard'{
         token = uniq(),
         bin = <<"424242">>,
         masked_pan = <<"4242">>,
@@ -354,14 +354,14 @@ generate_resource(bank_card) ->
             month = 12,
             year = 2200
         }
-    }};
+    }}};
 generate_resource(ResourceType) ->
     {Currency, Params} = generate_wallet_data(ResourceType),
-    {crypto_wallet, #'CryptoWallet'{
+    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
         id = uniq(),
         data = {Currency, Params},
         currency = Currency
-    }}.
+    }}}.
 
 generate_wallet_data(bitcoin) ->
     {bitcoin, #'CryptoDataBitcoin'{}};

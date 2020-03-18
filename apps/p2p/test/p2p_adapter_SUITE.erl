@@ -90,9 +90,14 @@ construct_operation_info(ID) ->
     }.
 
 construct_resource() ->
-    {bank_card, #{bank_card => #{
-        token          => <<"token">>,
-        bin            => <<"bin">>,
-        payment_system => visa,
-        masked_pan     => <<"masked_pan">>
-    }}}.
+    {bank_card, #{
+        bank_card => #{
+            token          => <<"token">>,
+            bin            => <<"bin">>,
+            payment_system => visa,
+            masked_pan     => <<"masked_pan">>
+        },
+        auth_data => {session, #{
+            session_id => <<"ID">>
+        }}
+    }}.

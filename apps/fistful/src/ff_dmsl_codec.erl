@@ -287,7 +287,7 @@ maybe_marshal(_Type, undefined) ->
 maybe_marshal(Type, Value) ->
     marshal(Type, Value).
 
-try_get_session_auth_data(#{auth_data := {session, #{session_id := ID}}}) ->
+try_get_session_auth_data({bank_card, #{auth_data := {session, #{session_id := ID}}}}) ->
     marshal(string, ID);
 try_get_session_auth_data(_) ->
     undefined.

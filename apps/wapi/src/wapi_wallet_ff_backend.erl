@@ -801,17 +801,30 @@ when Type =:= <<"BankCardDestinationResource">> ->
         unrecognized ->
             {ok, from_swag(destination_resource, Resource)};
         {ok, BankCard} ->
-            {ok, encode_bank_card(BankCard)};
+            {ok, {bank_card, encode_bank_card(BankCard)}};
+        {error, {decryption_failed, _} = Error} ->
+            logger:warning("~s token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end;
+construct_resource(#{<<"type">> := Type, <<"token">> := Token, <<"authData">> := AuthData})
+when   Type =:= <<"BankCardSenderResourceParams">>  ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        {ok, BankCard} ->
+            {ok, encode_resource_bank_card(BankCard, AuthData)};
+        unrecognized ->
+            logger:warning("~s token unrecognized", [Type]),
+            {error, {invalid_resource_token, Type}};
         {error, {decryption_failed, _} = Error} ->
             logger:warning("~s token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
     end;
 construct_resource(#{<<"type">> := Type, <<"token">> := Token})
 when   Type =:= <<"BankCardSenderResource">>
-orelse Type =:= <<"BankCardReceiverResource">> ->
+orelse Type =:= <<"BankCardReceiverResource">>
+orelse Type =:= <<"BankCardReceiverResourceParams">> ->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         {ok, BankCard} ->
-            {ok, encode_bank_card(BankCard)};
+            {ok, {bank_card, encode_bank_card(BankCard)}};
         unrecognized ->
             logger:warning("~s token unrecognized", [Type]),
             {error, {invalid_resource_token, Type}};
@@ -826,16 +839,22 @@ when Type =:= <<"CryptoWalletDestinationResource">> ->
         currency => from_swag(crypto_wallet_currency, Resource)
     })}}}.
 
+encode_resource_bank_card(BankCard, AuthData) ->
+    EncodedBankCard = encode_bank_card(BankCard),
+    {bank_card, EncodedBankCard#{auth_data => {session, #{session_id => AuthData}}}}.
+
 encode_bank_card(BankCard) ->
-    {bank_card, #{bank_card => genlib_map:compact(#{
-        token           => BankCard#'BankCard'.token,
-        bin             => BankCard#'BankCard'.bin,
-        masked_pan      => BankCard#'BankCard'.masked_pan,
-        cardholder_name => BankCard#'BankCard'.cardholder_name,
-        %% ExpDate is optional in swag_wallets 'StoreBankCard'. But some adapters waiting exp_date.
-        %% Add error, somethink like BankCardReject.exp_date_required
-        exp_date        => encode_exp_date(BankCard#'BankCard'.exp_date)
-    })}}.
+    #{
+        bank_card => genlib_map:compact(#{
+            token           => BankCard#'BankCard'.token,
+            bin             => BankCard#'BankCard'.bin,
+            masked_pan      => BankCard#'BankCard'.masked_pan,
+            cardholder_name => BankCard#'BankCard'.cardholder_name,
+            %% ExpDate is optional in swag_wallets 'StoreBankCard'. But some adapters waiting exp_date.
+            %% Add error, somethink like BankCardReject.exp_date_required
+            exp_date        => encode_exp_date(BankCard#'BankCard'.exp_date)
+        })
+    }.
 
 encode_exp_date(undefined) ->
     undefined;

@@ -137,7 +137,7 @@ services:
       retries: 10
 
   cds:
-    image: dr2.rbkmoney.com/rbkmoney/cds:c56f518ad5869e97187e3ca7390166a997369f96
+    image: dr2.rbkmoney.com/rbkmoney/cds:7aeee60277aab0e6ebb6e6b1334752d3091082f4
     command: /opt/cds/bin/cds foreground
     volumes:
       - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config

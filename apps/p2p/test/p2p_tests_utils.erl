@@ -55,7 +55,7 @@ prepare_standard_environment(_P2PTransferCash, Token, C) ->
     }.
 
 create_resource_raw(Token, C) ->
-    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, C),
+    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     NewStoreResource =
         case Token of
             undefined ->

@@ -306,11 +306,7 @@ body(#{body := V}) ->
 
 -spec status(withdrawal()) -> status() | undefined.
 status(T) ->
-    OwnStatus = maps:get(status, T, undefined),
-    %% `OwnStatus` is used in case of `{created, withdrawal()}` event marshaling
-    %% The event withdrawal is not created from events, so `adjustments` can not have
-    %% initial withdrawal status.
-    ff_adjustment_utils:status(adjustments_index(T), OwnStatus).
+    maps:get(status, T, undefined).
 
 -spec route(withdrawal()) -> route() | undefined.
 route(T) ->
@@ -635,8 +631,7 @@ do_process_transfer({fail, Reason}, Withdrawal) ->
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
 do_process_transfer(adjustment, Withdrawal) ->
-    Result = ff_adjustment_utils:process_adjustments(adjustments_index(Withdrawal)),
-    handle_child_result(Result, Withdrawal);
+    process_adjustment(Withdrawal);
 do_process_transfer(stop, _Withdrawal) ->
     {undefined, []}.
 
@@ -1369,9 +1364,31 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _Withdrawal) ->
         }
     }.
 
+-spec process_adjustment(withdrawal()) ->
+    process_result().
+process_adjustment(Withdrawal) ->
+    #{
+        action := Action,
+        events := Events0,
+        changes := Changes
+    } = ff_adjustment_utils:process_adjustments(adjustments_index(Withdrawal)),
+    Events1 = Events0 ++ handle_adjustment_changes(Changes),
+    handle_child_result({Action, Events1}, Withdrawal).
+
+-spec handle_adjustment_changes(ff_adjustment:changes()) ->
+    [event()].
+handle_adjustment_changes(Changes) ->
+    StatusChange = maps:get(new_status, Changes, undefined),
+    handle_adjustment_status_change(StatusChange).
+
+-spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) ->
+    [event()].
+handle_adjustment_status_change(undefined) ->
+    [];
+handle_adjustment_status_change(#{new_status := Status}) ->
+    [{status_changed, Status}].
+
 -spec save_adjustable_info(event(), withdrawal()) -> withdrawal().
-save_adjustable_info({status_changed, Status}, Withdrawal) ->
-    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, Withdrawal);
 save_adjustable_info({p_transfer, {status_changed, committed}}, Withdrawal) ->
     CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(Withdrawal)),
     update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, Withdrawal);

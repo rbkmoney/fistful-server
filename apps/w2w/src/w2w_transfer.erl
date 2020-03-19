@@ -186,11 +186,7 @@ body(#{body := V}) ->
 
 -spec status(w2w_transfer()) -> status() | undefined.
 status(W2WTransfer) ->
-    OwnStatus = maps:get(status, W2WTransfer, undefined),
-    %% `OwnStatus` is used in case of `{created, w2w_transfer()}` event marshaling
-    %% The event w2w_transfer is not created from events, so `adjustments` can not have
-    %% initial w2w_transfer status.
-    ff_adjustment_utils:status(adjustments_index(W2WTransfer), OwnStatus).
+    maps:get(status, W2WTransfer, undefined).
 
 -spec p_transfer(w2w_transfer())  -> p_transfer() | undefined.
 p_transfer(W2WTransfer) ->
@@ -398,8 +394,7 @@ do_process_transfer({fail, Reason}, W2WTransfer) ->
 do_process_transfer(finish, W2WTransfer) ->
     process_transfer_finish(W2WTransfer);
 do_process_transfer(adjustment, W2WTransfer) ->
-    Result = ff_adjustment_utils:process_adjustments(adjustments_index(W2WTransfer)),
-    handle_child_result(Result, W2WTransfer).
+    process_adjustment(W2WTransfer).
 
 -spec create_p_transfer(w2w_transfer()) ->
     process_result().
@@ -780,9 +775,31 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _W2WTransfer) ->
         }
     }.
 
+-spec process_adjustment(w2w_transfer()) ->
+    process_result().
+process_adjustment(W2WTransfer) ->
+    #{
+        action := Action,
+        events := Events0,
+        changes := Changes
+    } = ff_adjustment_utils:process_adjustments(adjustments_index(W2WTransfer)),
+    Events1 = Events0 ++ handle_adjustment_changes(Changes),
+    handle_child_result({Action, Events1}, W2WTransfer).
+
+-spec handle_adjustment_changes(ff_adjustment:changes()) ->
+    [event()].
+handle_adjustment_changes(Changes) ->
+    StatusChange = maps:get(new_status, Changes, undefined),
+    handle_adjustment_status_change(StatusChange).
+
+-spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) ->
+    [event()].
+handle_adjustment_status_change(undefined) ->
+    [];
+handle_adjustment_status_change(#{new_status := Status}) ->
+    [{status_changed, Status}].
+
 -spec save_adjustable_info(event(), w2w_transfer()) -> w2w_transfer().
-save_adjustable_info({status_changed, Status}, W2WTransfer) ->
-    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, W2WTransfer);
 save_adjustable_info({p_transfer, {status_changed, committed}}, W2WTransfer) ->
     CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(W2WTransfer)),
     update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, W2WTransfer);

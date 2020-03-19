@@ -29,8 +29,7 @@
     bin => binary(),
     masked_pan => binary(),
     cardholder_name => binary(),
-    exp_date => exp_date(),
-    auth_data => bank_card_auth_data()
+    exp_date => exp_date()
 }.
 
 -type exp_date() :: {binary(), binary()}.
@@ -43,8 +42,7 @@
 
 -type crypto_wallet_params() :: #{
     id := binary(),
-    currency := atom(),
-    tag => binary()
+    currency := crypto_currency()
 }.
 
 -type resource_id() :: {bank_card, bin_data_id()}.
@@ -173,11 +171,11 @@ create_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} =
 create_resource({crypto_wallet, #{crypto_wallet := #{
     id := ID,
     currency := Currency
-} = CryptoWalletParams}}, _ResourceID) ->
+}}}, _ResourceID) ->
     {ok, {crypto_wallet, #{
         crypto_wallet => #{
             id => ID,
-            currency => {Currency, genlib_map:compact(#{tag => maps:get(tag, CryptoWalletParams, undefined)})}
+            currency => Currency
         }
     }}}.
 

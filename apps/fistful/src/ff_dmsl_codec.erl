@@ -223,16 +223,14 @@ marshal(payment_resource_payer, Payer = #{resource := Resource}) ->
 
 marshal(disposable_payment_resource, {Resource, ClientInfo}) ->
     #domain_DisposablePaymentResource{
-        payment_tool = marshal(ff_resource, Resource),
+        payment_tool = marshal(payment_tool, Resource),
         payment_session_id = try_get_session_auth_data(Resource),
         client_info = maybe_marshal(client_info, ClientInfo)
     };
 
-marshal(ff_resource, {bank_card, #{bank_card := BankCard}}) ->
+marshal(payment_tool, {bank_card, #{bank_card := BankCard}}) ->
     {bank_card, marshal(bank_card, BankCard)};
 
-marshal(resource, {bank_card, BankCard}) ->
-    {bank_card, marshal(bank_card, BankCard)};
 marshal(bank_card, BankCard) ->
     #domain_BankCard{
         token           = ff_resource:token(BankCard),
@@ -261,8 +259,8 @@ marshal(client_info, ClientInfo) ->
 
 marshal(p2p_tool, {Sender, Receiver}) ->
     #domain_P2PTool{
-        sender = marshal(ff_resource, Sender),
-        receiver = marshal(ff_resource, Receiver)
+        sender = marshal(payment_tool, Sender),
+        receiver = marshal(payment_tool, Receiver)
     };
 
 marshal(risk_score, low) ->

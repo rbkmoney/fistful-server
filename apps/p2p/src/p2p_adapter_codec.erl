@@ -134,9 +134,7 @@ marshal(operation_info, OperationInfo = #{
     }};
 
 marshal(resource, Resource) ->
-    {disposable, #domain_DisposablePaymentResource{
-        payment_tool = ff_dmsl_codec:marshal(resource, Resource)
-    }};
+    {disposable, ff_dmsl_codec:marshal(disposable_payment_resource, {Resource, undefined})};
 
 marshal(cash, {Amount, Currency}) ->
     #p2p_adapter_Cash{

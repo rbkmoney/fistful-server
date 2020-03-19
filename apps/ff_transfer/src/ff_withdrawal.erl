@@ -35,8 +35,7 @@
     destination_id       := ff_destination:id(),
     body                 := body(),
     external_id          => id(),
-    quote                => quote(),
-    destination_resource => destination_resource()
+    quote                => quote()
 }.
 
 -type status() ::
@@ -980,7 +979,7 @@ build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} =
 
 -spec construct_payment_tool(ff_destination:resource_full() | ff_destination:resource()) ->
     dmsl_domain_thrift:'PaymentTool'().
-construct_payment_tool({bank_card, ResourceBankCard}) ->
+construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
     {bank_card, #domain_BankCard{
         token           = maps:get(token, ResourceBankCard),
         bin             = maps:get(bin, ResourceBankCard),
@@ -990,7 +989,7 @@ construct_payment_tool({bank_card, ResourceBankCard}) ->
         bank_name       = maps:get(bank_name, ResourceBankCard, undefined)
     }};
 
-construct_payment_tool({crypto_wallet, #{currency := {Currency, _}}}) ->
+construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currency, _}}}}) ->
    {crypto_currency, Currency}.
 
 %% Quote helpers
@@ -1058,7 +1057,7 @@ get_quote_(Params, Destination, Resource) ->
     Quote :: ff_adapter_withdrawal:quote().
 wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote) ->
     #{quote_data := QuoteData} = Quote,
-    ResourceID = ff_destination:resource_full_id(Resource),
+    ResourceID = ff_destination:full_bank_card_id(Resource),
     Quote#{quote_data := genlib_map:compact(#{
         <<"version">> => 1,
         <<"quote_data">> => QuoteData,
@@ -1485,6 +1484,9 @@ maybe_migrate({p_transfer, PEvent}) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
 maybe_migrate({adjustment, _Payload} = Event) ->
     ff_adjustment_utils:maybe_migrate(Event);
+maybe_migrate({resource_got, Resource}) ->
+    {resource_got, ff_instrument:maybe_migrate_resource(Resource)};
+
 % Old events
 maybe_migrate({limit_check, {wallet, Details}}) ->
     maybe_migrate({limit_check, {wallet_sender, Details}});

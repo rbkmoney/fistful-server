@@ -73,10 +73,10 @@ marshal(quote, #{}) ->
 marshal(status, Status) ->
     ff_p2p_transfer_status_codec:marshal(status, Status);
 
-marshal(participant, {raw, #{resource_params := Resource} = Raw}) ->
+marshal(participant, {raw, #{resource_params := ResourceParams} = Raw}) ->
     ContactInfo = maps:get(contact_info, Raw, undefined),
     {resource, #p2p_transfer_RawResource{
-        resource = marshal(resource, Resource),
+        resource = marshal(resource, ResourceParams),
         contact_info = marshal(contact_info, ContactInfo)
     }};
 
@@ -314,10 +314,10 @@ p2p_transfer_codec_test() ->
         external_id => genlib:unique()
     },
 
-    Resource = {bank_card, #{
+    Resource = {bank_card, #{bank_card => #{
         token => genlib:unique(),
         bin_data_id => {binary, genlib:unique()}
-    }},
+    }}},
 
     Participant = {raw, #{
         resource_params => Resource,

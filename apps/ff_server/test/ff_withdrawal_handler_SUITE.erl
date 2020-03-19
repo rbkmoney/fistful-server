@@ -537,7 +537,7 @@ create_destination(IID, Currency, Token, C) ->
         Token ->
             StoreSource#{token => Token}
         end,
-    Resource = {bank_card, NewStoreResource},
+    Resource = {bank_card, #{bank_card => NewStoreResource}},
     Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
     ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(

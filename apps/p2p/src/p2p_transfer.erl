@@ -8,7 +8,7 @@
 
 -type id() :: binary().
 
--define(ACTUAL_FORMAT_VERSION, 1).
+-define(ACTUAL_FORMAT_VERSION, 2).
 
 -opaque p2p_transfer() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
@@ -1094,7 +1094,33 @@ apply_event_({adjustment, _Ev} = Event, T) ->
 
 -spec maybe_migrate(event() | legacy_event()) ->
     event().
-% Actual events
+
+maybe_migrate({resource_got, Sender, Receiver}) ->
+    {resource_got, maybe_migrate_resource(Sender), maybe_migrate_resource(Receiver)};
+maybe_migrate({created, #{version := 1} = Transfer}) ->
+    #{
+        version := 1,
+        sender := Sender,
+        receiver := Receiver
+    } = Transfer,
+    maybe_migrate({created, genlib_map:compact(Transfer#{
+        version => 2,
+        sender => maybe_migrate_participant(Sender),
+        receiver => maybe_migrate_participant(Receiver)
+    })});
+% Other events
 maybe_migrate(Ev) ->
     Ev.
 
+maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->
+    maybe_migrate_resource({crypto_wallet, #{crypto_wallet => CryptoWallet}});
+maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
+    maybe_migrate_resource({bank_card, #{bank_card => BankCard}});
+maybe_migrate_resource(Resource) ->
+    Resource.
+
+maybe_migrate_participant({raw, #{resource_params := Resource} = Participant}) ->
+    maybe_migrate_participant({raw, Participant#{resource_params => maybe_migrate_resource(Resource)}});
+
+maybe_migrate_participant(Resource) ->
+    Resource.

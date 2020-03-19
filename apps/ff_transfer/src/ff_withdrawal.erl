@@ -1467,6 +1467,9 @@ maybe_migrate({p_transfer, PEvent}) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
 maybe_migrate({adjustment, _Payload} = Event) ->
     ff_adjustment_utils:maybe_migrate(Event);
+maybe_migrate({resource_got, Resource}) ->
+    {resource_got, ff_instrument:maybe_migrate_resource(Resource)};
+
 % Old events
 maybe_migrate({limit_check, {wallet, Details}}) ->
     maybe_migrate({limit_check, {wallet_sender, Details}});

@@ -38,7 +38,7 @@
 %%
 %% Types
 %%
--define(ACTUAL_FORMAT_VERSION, 1).
+-define(ACTUAL_FORMAT_VERSION, 2).
 
 -opaque session() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
@@ -430,9 +430,32 @@ set_session_status(SessionState, Session) ->
 
 -spec maybe_migrate(event() | legacy_event()) ->
     event().
+
+maybe_migrate({created, #{version := 1} = Session}) ->
+    #{
+        version := 1,
+        transfer_params := #{
+            sender := Sender,
+            receiver := Receiver
+        } = Params
+    } = Session,
+    maybe_migrate({created, genlib_map:compact(Session#{
+        version => 2,
+        transfer_params => Params#{
+            sender => maybe_migrate_resource(Sender),
+            receiver => maybe_migrate_resource(Receiver)
+        }
+    })});
 % Other events
 maybe_migrate(Ev) ->
     Ev.
+
+maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->
+    maybe_migrate_resource({crypto_wallet, #{crypto_wallet => CryptoWallet}});
+maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
+    maybe_migrate_resource({bank_card, #{bank_card => BankCard}});
+maybe_migrate_resource(Resource) ->
+    Resource.
 
 -spec init(session(), action()) ->
     {list(event()), action() | undefined}.

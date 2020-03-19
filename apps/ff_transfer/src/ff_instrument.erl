@@ -59,6 +59,7 @@
 
 -export([apply_event/2]).
 -export([maybe_migrate/1]).
+-export([maybe_migrate_resource/1]).
 
 %% Pipeline
 
@@ -198,9 +199,18 @@ maybe_migrate({created, Instrument = #{
 maybe_migrate(Event) ->
     Event.
 
+-spec maybe_migrate_resource(any()) ->
+    any().
+
 maybe_migrate_resource({crypto_wallet, #{id := ID, currency := ripple, tag := Tag}}) ->
-    {crypto_wallet, #{id => ID, currency => {ripple, #{tag => Tag}}}};
+    maybe_migrate_resource({crypto_wallet, #{id => ID, currency => {ripple, #{tag => Tag}}}});
 maybe_migrate_resource({crypto_wallet, #{id := ID, currency := Currency}}) when is_atom(Currency) ->
-    {crypto_wallet, #{id => ID, currency => {Currency, #{}}}};
+    maybe_migrate_resource({crypto_wallet, #{id => ID, currency => {Currency, #{}}}});
+
+maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->
+    maybe_migrate_resource({crypto_wallet, #{crypto_wallet => CryptoWallet}});
+maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
+    maybe_migrate_resource({bank_card, #{bank_card => BankCard}});
+
 maybe_migrate_resource(Resource) ->
     Resource.

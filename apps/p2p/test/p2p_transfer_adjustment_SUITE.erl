@@ -386,7 +386,7 @@ generate_id() ->
     ff_id:generate_snowflake_id().
 
 create_resource_raw(C) ->
-    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, C),
+    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     p2p_participant:create(raw, {bank_card, #{
         bank_card => StoreSource,
         auth_data => {session, #{

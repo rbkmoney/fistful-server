@@ -13,6 +13,8 @@
 -export([all/0]).
 -export([groups/0]).
 -export([init_per_suite/1]).
+-export([init_per_group/2]).
+-export([end_per_group/2]).
 -export([end_per_suite/1]).
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
@@ -93,7 +95,7 @@ end_per_suite(C) ->
 
 -spec init_per_group(group_name(), config()) ->
     config().
-init_per_group(Group, Config) when Group =:= base ->
+init_per_group(Group, Config) when Group =:= default ->
     ok = ff_context:save(ff_context:create(#{
         party_client => party_client:create_client(),
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)

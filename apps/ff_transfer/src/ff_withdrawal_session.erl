@@ -293,6 +293,7 @@ process_intent({sleep, Timer}) ->
     session().
 create_session(ID, Data, #{resource := Resource, provider_id := ProviderID}) ->
     #{
+        version    => ?ACTUAL_FORMAT_VERSION,
         id         => ID,
         withdrawal => create_adapter_withdrawal(Data, Resource),
         provider   => ProviderID,

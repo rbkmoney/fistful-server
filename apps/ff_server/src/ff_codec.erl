@@ -123,7 +123,17 @@ marshal(account, #{
         accounter_account_id = marshal(event_id, AAID)
     };
 
-marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
+marshal(resource, {bank_card, #{bank_card := BankCard} = ResourceBankCard}) ->
+    {bank_card, #'ResourceBankCard'{
+        bank_card = marshal(bank_card, BankCard),
+        auth_data = maybe_marshal(bank_card_auth_data, maps:get(auth_data, ResourceBankCard, undefined))
+    }};
+marshal(resource, {crypto_wallet, #{crypto_wallet := CryptoWallet}}) ->
+    {crypto_wallet, #'ResourceCryptoWallet'{
+        crypto_wallet = marshal(crypto_wallet, CryptoWallet)
+    }};
+
+marshal(bank_card, BankCard = #{token := Token}) ->
     Bin = maps:get(bin, BankCard, undefined),
     PaymentSystem = maps:get(payment_system, BankCard, undefined),
     MaskedPan = maps:get(masked_pan, BankCard, undefined),
@@ -132,7 +142,7 @@ marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
     CardType = maps:get(card_type, BankCard, undefined),
     ExpDate = maps:get(exp_date, BankCard, undefined),
     BinDataID = maps:get(bin_data_id, BankCard, undefined),
-    {bank_card, #'BankCard'{
+    #'BankCard'{
         token = marshal(string, Token),
         bin = marshal(string, Bin),
         masked_pan = marshal(string, MaskedPan),
@@ -142,13 +152,19 @@ marshal(resource, {bank_card, BankCard = #{token := Token}}) ->
         card_type = CardType,
         exp_date = maybe_marshal(exp_date, ExpDate),
         bin_data_id = marshal_msgpack(BinDataID)
+    };
+
+marshal(bank_card_auth_data, {session, #{session_id := ID}}) ->
+    {session_data, #'SessionAuthData'{
+        id = marshal(string, ID)
     }};
-marshal(resource, {crypto_wallet, #{id := ID, currency := Currency}}) ->
-    {crypto_wallet, #'CryptoWallet'{
+
+marshal(crypto_wallet, #{id := ID, currency := Currency}) ->
+    #'CryptoWallet'{
         id       = marshal(string, ID),
         currency = marshal(crypto_currency, Currency),
         data     = marshal(crypto_data, Currency)
-    }};
+    };
 
 marshal(exp_date, {Month, Year}) ->
     #'BankCardExpDate'{
@@ -169,6 +185,8 @@ marshal(crypto_data, {ethereum, #{}}) ->
     {ethereum, #'CryptoDataEthereum'{}};
 marshal(crypto_data, {zcash, #{}}) ->
     {zcash, #'CryptoDataZcash'{}};
+marshal(crypto_data, {usdt, #{}}) ->
+    {usdt, #'CryptoDataUSDT'{}};
 marshal(crypto_data, {ripple, Data}) ->
     {ripple, #'CryptoDataRipple'{
         tag = maybe_marshal(string, maps:get(tag, Data, undefined))
@@ -341,10 +359,23 @@ unmarshal(account, #'account_Account'{
 unmarshal(accounter_account_id, V) ->
     unmarshal(integer, V);
 
-unmarshal(resource, {bank_card, BankCard}) ->
-    {bank_card, unmarshal(bank_card, BankCard)};
-unmarshal(resource, {crypto_wallet, CryptoWallet}) ->
-    {crypto_wallet, unmarshal(crypto_wallet, CryptoWallet)};
+unmarshal(resource, {bank_card, #'ResourceBankCard'{
+    bank_card = BankCard,
+    auth_data = AuthData
+}}) ->
+    {bank_card, genlib_map:compact(#{
+        bank_card => unmarshal(bank_card, BankCard),
+        auth_data => maybe_unmarshal(bank_card_auth_data, AuthData)
+    })};
+unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = CryptoWallet}}) ->
+    {crypto_wallet, #{
+        crypto_wallet => unmarshal(crypto_wallet, CryptoWallet)
+    }};
+
+unmarshal(bank_card_auth_data, {session_data, #'SessionAuthData'{id = ID}}) ->
+    #{
+        session_id => unmarshal(string, ID)
+    };
 
 unmarshal(bank_card, #'BankCard'{
     token = Token,

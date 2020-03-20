@@ -179,11 +179,12 @@ create_p2p_transfer_ok_test(C) ->
                     <<"currency">> => ?RUB
                 },
                 <<"sender">> => #{
-                    <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => SenderToken
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
                 },
                 <<"receiver">> => #{
-                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
                 }
             }
@@ -199,7 +200,7 @@ create_p2p_transfer_fail_test(C) ->
     #{
         identity_id := IdentityID
     } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
-    {error, {400, #{<<"name">> := <<"BankCardReceiverResource">>}}} = call_api(
+    {error, {400, #{<<"name">> := <<"BankCardReceiverResourceParams">>}}} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
             body => #{
@@ -209,11 +210,12 @@ create_p2p_transfer_fail_test(C) ->
                     <<"currency">> => ?RUB
                 },
                 <<"sender">> => #{
-                    <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => SenderToken
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
                 },
                 <<"receiver">> => #{
-                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
                 }
             }
@@ -260,11 +262,12 @@ create_p2p_transfer_with_token_ok_test(C) ->
                     <<"currency">> => ?RUB
                 },
                 <<"sender">> => #{
-                    <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => SenderToken
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
                 },
                 <<"receiver">> => #{
-                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
                 },
                 <<"quoteToken">> => Token
@@ -291,11 +294,12 @@ get_p2p_transfer_ok_test(C) ->
                     <<"currency">> => ?RUB
                 },
                 <<"sender">> => #{
-                    <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => SenderToken
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
                 },
                 <<"receiver">> => #{
-                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
                 }
             }
@@ -343,11 +347,12 @@ get_p2p_transfer_events_ok_test(C) ->
                     <<"currency">> => ?RUB
                 },
                 <<"sender">> => #{
-                    <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => SenderToken
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
                 },
                 <<"receiver">> => #{
-                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
                 }
             }

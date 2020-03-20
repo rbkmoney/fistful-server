@@ -241,7 +241,12 @@ prepare_resource(#{token := Token} = RawBankCard) ->
     {ok, BinData} = ff_bin_data:get(Token, undefined),
     KeyList = [payment_system, bank_name, iso_country_code, card_type],
     ExtendData = maps:with(KeyList, BinData),
-    {bank_card, maps:merge(RawBankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})}.
+    {bank_card, #{
+        bank_card => maps:merge(RawBankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),
+        auth_data => {session, #{
+            session_id => <<"ID">>
+        }}
+    }}.
 
 get_p2p_session(SessionID) ->
     {ok, Machine} = p2p_session_machine:get(SessionID),

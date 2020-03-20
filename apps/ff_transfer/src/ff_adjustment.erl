@@ -54,6 +54,8 @@
 -export_type([id/0]).
 -export_type([event/0]).
 -export_type([changes/0]).
+-export_type([cash_flow_change/0]).
+-export_type([status_change/0]).
 -export_type([status/0]).
 -export_type([adjustment/0]).
 -export_type([params/0]).

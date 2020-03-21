@@ -26,7 +26,9 @@
 %% Types
 %%
 
+-define(ACTUAL_FORMAT_VERSION, 1).
 -type session() :: #{
+    version       := ?ACTUAL_FORMAT_VERSION,
     id            := id(),
     status        := status(),
     withdrawal    := withdrawal(),
@@ -115,15 +117,29 @@ apply_event_({finished, Result}, Session) ->
 
 -spec maybe_migrate(event() | legacy_event()) ->
     event().
+
+maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+    Event;
 maybe_migrate({created, Session = #{
     withdrawal := Withdrawal = #{
         destination := Destination
     }
 }}) ->
-    {ok, Resource} = ff_destination:resource_full(Destination),
+    {ok, Resource} = ff_destination:resource_full(ff_instrument:maybe_migrate_resource(Destination)),
     NewWithdrawal0 = maps:without([destination], Withdrawal),
     NewWithdrawal1 = NewWithdrawal0#{resource => Resource},
-    {created, Session#{withdrawal => NewWithdrawal1}};
+    maybe_migrate({created, Session#{withdrawal => NewWithdrawal1}});
+maybe_migrate({created, Session = #{
+    withdrawal := Withdrawal = #{
+        resource := Resource
+    }
+}}) ->
+    NewResource = ff_instrument:maybe_migrate_resource(Resource),
+    maybe_migrate({created, Session#{
+        version => 1,
+        withdrawal => Withdrawal#{
+            resource => NewResource
+    }}});
 maybe_migrate({next_state, Value}) when Value =/= undefined ->
     {next_state, try_unmarshal_msgpack(Value)};
 maybe_migrate({finished, {failed, {'domain_Failure', Code, Reason, SubFailure}}}) ->
@@ -277,6 +293,7 @@ process_intent({sleep, Timer}) ->
     session().
 create_session(ID, Data, #{resource := Resource, provider_id := ProviderID}) ->
     #{
+        version    => ?ACTUAL_FORMAT_VERSION,
         id         => ID,
         withdrawal => create_adapter_withdrawal(Data, Resource),
         provider   => ProviderID,

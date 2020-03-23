@@ -118,6 +118,7 @@
 -export([external_id/1]).
 -export([resource_full/1]).
 -export([resource_full/2]).
+-export([process_resource_full/2]).
 -export([full_bank_card_id/1]).
 
 %% API
@@ -173,19 +174,25 @@ resource_full(Destination) ->
     }.
 
 resource_full(Destination, ResourceID) ->
+    process_resource_full(resource(Destination), ResourceID).
+
+-spec process_resource_full(resource(), full_bank_card_id() | undefined) ->
+    {ok, resource_full()} |
+    {error,
+        {bin_data, not_found}
+    }.
+
+process_resource_full({crypto_wallet, _CryptoWallet} = Resource, _ResourceID) ->
+    {ok, Resource};
+process_resource_full({bank_card, #{bank_card := #{token := Token} = BankCard} = Resource}, ResourceID) ->
     do(fun() ->
-        case resource(Destination) of
-            {bank_card, #{bank_card := #{token := Token} = BankCard} = Resource} ->
-                UnwrappedResourceID = unwrap_resource_id(ResourceID),
-                BinData = unwrap(bin_data, ff_bin_data:get(Token, UnwrappedResourceID)),
-                KeyList = [payment_system, bank_name, iso_country_code, card_type],
-                ExtendData = maps:with(KeyList, BinData),
-                {bank_card, Resource#{
-                    bank_card => maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})
-                }};
-            {crypto_wallet, _CryptoWallet} = Resource ->
-                Resource
-        end
+        UnwrappedResourceID = unwrap_resource_id(ResourceID),
+        BinData = unwrap(bin_data, ff_bin_data:get(Token, UnwrappedResourceID)),
+        KeyList = [payment_system, bank_name, iso_country_code, card_type],
+        ExtendData = maps:with(KeyList, BinData),
+        {bank_card, Resource#{
+            bank_card => maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})
+        }}
     end).
 
 -spec full_bank_card_id(resource_full() | undefined) ->

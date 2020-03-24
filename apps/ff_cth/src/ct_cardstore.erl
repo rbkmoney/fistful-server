@@ -13,7 +13,7 @@
         masked_pan     => binary()
     }.
 
-bank_card(PAN, {MM, YYYY}, C) ->
+bank_card(PAN, {MM, YYYY} = ExpDate, C) ->
     CardData = #cds_PutCardData{
         pan      = PAN,
         exp_date = #cds_ExpDate{month = MM, year = YYYY}
@@ -31,8 +31,10 @@ bank_card(PAN, {MM, YYYY}, C) ->
             last_digits    = Masked
         }}} ->
             #{
-                token          => Token,
-                bin            => BIN,
-                masked_pan     => Masked
+                token           => Token,
+                bin             => BIN,
+                masked_pan      => Masked,
+                exp_date        => ExpDate,
+                cardholder_name => <<"ct_cardholder_name">>
             }
     end.

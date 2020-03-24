@@ -141,6 +141,7 @@ marshal(bank_card, BankCard = #{token := Token}) ->
     IsoCountryCode = maps:get(iso_country_code, BankCard, undefined),
     CardType = maps:get(card_type, BankCard, undefined),
     ExpDate = maps:get(exp_date, BankCard, undefined),
+    CardholderName = maps:get(cardholder_name, BankCard, undefined),
     BinDataID = maps:get(bin_data_id, BankCard, undefined),
     #'BankCard'{
         token = marshal(string, Token),
@@ -151,6 +152,7 @@ marshal(bank_card, BankCard = #{token := Token}) ->
         issuer_country = IsoCountryCode,
         card_type = CardType,
         exp_date = maybe_marshal(exp_date, ExpDate),
+        cardholder_name = maybe_marshal(string, CardholderName),
         bin_data_id = marshal_msgpack(BinDataID)
     };
 
@@ -385,7 +387,9 @@ unmarshal(bank_card, #'BankCard'{
     payment_system = PaymentSystem,
     issuer_country = IsoCountryCode,
     card_type = CardType,
-    bin_data_id = BinDataID
+    bin_data_id = BinDataID,
+    exp_date = ExpDate,
+    cardholder_name = CardholderName
 }) ->
     genlib_map:compact(#{
         token => unmarshal(string, Token),
@@ -395,8 +399,16 @@ unmarshal(bank_card, #'BankCard'{
         bank_name => maybe_unmarshal(string, BankName),
         issuer_country => maybe_unmarshal(iso_country_code, IsoCountryCode),
         card_type => maybe_unmarshal(card_type, CardType),
+        exp_date => maybe_unmarshal(exp_date, ExpDate),
+        cardholder_name => maybe_unmarshal(string, CardholderName),
         bin_data_id => unmarshal_msgpack(BinDataID)
     });
+
+unmarshal(exp_date, #'BankCardExpDate'{
+    month = Month,
+    year = Year
+}) ->
+    {unmarshal(integer, Month), unmarshal(integer, Year)};
 
 unmarshal(payment_system, V) when is_atom(V) ->
     V;

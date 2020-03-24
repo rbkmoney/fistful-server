@@ -427,7 +427,7 @@ set_session_status(SessionState, Session) ->
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
-maybe_migrate({created, #{version := 1} = Session}) ->
+maybe_migrate({created, #{version := 1} = Session}, MigrateParams) ->
     #{
         version := 1,
         transfer_params := #{
@@ -441,7 +441,7 @@ maybe_migrate({created, #{version := 1} = Session}) ->
             sender => maybe_migrate_resource(Sender),
             receiver => maybe_migrate_resource(Receiver)
         }
-    })});
+    })}, MigrateParams);
 % Other events
 maybe_migrate({callback, _Ev} = Event, _MigrateParams) ->
     p2p_callback_utils:maybe_migrate(Event);

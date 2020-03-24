@@ -1483,7 +1483,7 @@ maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
 maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
     ff_adjustment_utils:maybe_migrate(Event);
-maybe_migrate({resource_got, Resource}) ->
+maybe_migrate({resource_got, Resource}, _MigrateParams) ->
     {resource_got, ff_instrument:maybe_migrate_resource(Resource)};
 
 % Old events

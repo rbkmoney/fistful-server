@@ -1110,12 +1110,12 @@ apply_event_({adjustment, _Ev} = Event, T) ->
 
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
-    
+
 maybe_migrate({adjustment, _Ev} = Event, _MigrateParams) ->
     ff_adjustment_utils:maybe_migrate(Event);
-maybe_migrate({resource_got, Sender, Receiver}) ->
+maybe_migrate({resource_got, Sender, Receiver}, _MigrateParams) ->
     {resource_got, maybe_migrate_resource(Sender), maybe_migrate_resource(Receiver)};
-maybe_migrate({created, #{version := 1} = Transfer}) ->
+maybe_migrate({created, #{version := 1} = Transfer}, MigrateParams) ->
     #{
         version := 1,
         sender := Sender,
@@ -1125,9 +1125,9 @@ maybe_migrate({created, #{version := 1} = Transfer}) ->
         version => 2,
         sender => maybe_migrate_participant(Sender),
         receiver => maybe_migrate_participant(Receiver)
-    })});
+    })}, MigrateParams);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
 maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->

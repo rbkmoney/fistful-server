@@ -114,29 +114,29 @@ apply_event({finished, Result}, Session) ->
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
-maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
 maybe_migrate({created, Session = #{
     withdrawal := Withdrawal = #{
         destination := #{resource := OldResource}
     }
-}}) ->
+}}, MigrateParams) ->
     {ok, Resource} = ff_destination:process_resource_full(ff_instrument:maybe_migrate_resource(OldResource), undefined),
     NewWithdrawal0 = maps:without([destination], Withdrawal),
     NewWithdrawal1 = NewWithdrawal0#{resource => Resource},
-    maybe_migrate({created, Session#{withdrawal => NewWithdrawal1}});
+    maybe_migrate({created, Session#{withdrawal => NewWithdrawal1}}, MigrateParams);
 maybe_migrate({created, Session = #{
     withdrawal := Withdrawal = #{
         resource := Resource
     }
-}}) ->
+}}, MigrateParams) ->
     NewResource = ff_instrument:maybe_migrate_resource(Resource),
     maybe_migrate({created, Session#{
         version => 1,
         withdrawal => Withdrawal#{
             resource => NewResource
-    }}});
-maybe_migrate({next_state, Value}) when Value =/= undefined ->
+    }}}, MigrateParams);
+maybe_migrate({next_state, Value}, _MigrateParams) when Value =/= undefined ->
     {next_state, try_unmarshal_msgpack(Value)};
 maybe_migrate({finished, {failed, {'domain_Failure', Code, Reason, SubFailure}}}, _MigrateParams) ->
     {finished, {failed, genlib_map:compact(#{

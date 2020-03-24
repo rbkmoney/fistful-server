@@ -213,8 +213,6 @@ services:
       interval: 5s
       timeout: 1s
       retries: 10
-    ports:
-      - 8099:8022
 
   fistful-magista:
     image: dr2.rbkmoney.com/rbkmoney/fistful-magista:1b87307648dc94ad956f7c803546a68f87c0c016

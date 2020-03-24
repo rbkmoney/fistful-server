@@ -160,7 +160,7 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/1]).
+-export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -240,11 +240,7 @@ body(#{body := V}) ->
 
 -spec status(deposit()) -> status() | undefined.
 status(Deposit) ->
-    OwnStatus = maps:get(status, Deposit, undefined),
-    %% `OwnStatus` is used in case of `{created, deposit()}` event marshaling
-    %% The event deposit is not created from events, so `adjustments` can not have
-    %% initial deposit status.
-    ff_adjustment_utils:status(adjustments_index(Deposit), OwnStatus).
+    maps:get(status, Deposit, undefined).
 
 -spec p_transfer(deposit())  -> p_transfer() | undefined.
 p_transfer(Deposit) ->
@@ -414,9 +410,8 @@ is_finished(#{status := pending}) ->
 -spec apply_event(event() | legacy_event(), deposit() | undefined) ->
     deposit().
 apply_event(Ev, T0) ->
-    Migrated = maybe_migrate(Ev),
-    T1 = apply_event_(Migrated, T0),
-    T2 = save_adjustable_info(Migrated, T1),
+    T1 = apply_event_(Ev, T0),
+    T2 = save_adjustable_info(Ev, T1),
     T2.
 
 -spec apply_event_(event(), deposit() | undefined) ->
@@ -536,8 +531,7 @@ do_process_transfer(revert, Deposit) ->
     Result = ff_deposit_revert_utils:process_reverts(reverts_index(Deposit)),
     handle_child_result(Result, Deposit);
 do_process_transfer(adjustment, Deposit) ->
-    Result = ff_adjustment_utils:process_adjustments(adjustments_index(Deposit)),
-    handle_child_result(Result, Deposit);
+    process_adjustment(Deposit);
 do_process_transfer(stop, _Deposit) ->
     {undefined, []}.
 
@@ -1009,9 +1003,31 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _Deposit) ->
         }
     }.
 
+-spec process_adjustment(deposit()) ->
+    process_result().
+process_adjustment(Deposit) ->
+    #{
+        action := Action,
+        events := Events0,
+        changes := Changes
+    } = ff_adjustment_utils:process_adjustments(adjustments_index(Deposit)),
+    Events1 = Events0 ++ handle_adjustment_changes(Changes),
+    handle_child_result({Action, Events1}, Deposit).
+
+-spec handle_adjustment_changes(ff_adjustment:changes()) ->
+    [event()].
+handle_adjustment_changes(Changes) ->
+    StatusChange = maps:get(new_status, Changes, undefined),
+    handle_adjustment_status_change(StatusChange).
+
+-spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) ->
+    [event()].
+handle_adjustment_status_change(undefined) ->
+    [];
+handle_adjustment_status_change(#{new_status := Status}) ->
+    [{status_changed, Status}].
+
 -spec save_adjustable_info(event(), deposit()) -> deposit().
-save_adjustable_info({status_changed, Status}, Deposit) ->
-    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, Deposit);
 save_adjustable_info({p_transfer, {status_changed, committed}}, Deposit) ->
     CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(Deposit)),
     update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, Deposit);
@@ -1059,26 +1075,26 @@ get_wallet_identity(Wallet) ->
 
 %% Migration
 
--spec maybe_migrate(event() | legacy_event()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 % Actual events
-maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}) ->
+maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {limit_check, {wallet_receiver, _Details}}) ->
+maybe_migrate(Ev = {limit_check, {wallet_receiver, _Details}}, _MigrateParams) ->
     Ev;
-maybe_migrate({p_transfer, PEvent}) ->
+maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, deposit)};
-maybe_migrate({revert, _Payload} = Event) ->
+maybe_migrate({revert, _Payload} = Event, _MigrateParams) ->
     ff_deposit_revert_utils:maybe_migrate(Event);
-maybe_migrate({adjustment, _Payload} = Event) ->
+maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
     ff_adjustment_utils:maybe_migrate(Event);
 
 % Old events
-maybe_migrate({limit_check, {wallet, Details}}) ->
-    maybe_migrate({limit_check, {wallet_receiver, Details}});
-maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
+maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->
+    maybe_migrate({limit_check, {wallet_receiver, Details}}, MigrateParams);
+maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, MigrateParams) ->
     #{
         version     := 1,
         id          := ID,
@@ -1111,15 +1127,15 @@ maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}) ->
                 ]
             }
         }
-    }});
-maybe_migrate({transfer, PTransferEv}) ->
-    maybe_migrate({p_transfer, PTransferEv});
-maybe_migrate({status_changed, {failed, LegacyFailure}}) ->
+    }}, MigrateParams);
+maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
+    maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
+maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
     Failure = #{
         code => <<"unknown">>,
         reason => genlib:format(LegacyFailure)
     },
-    maybe_migrate({status_changed, {failed, Failure}});
+    maybe_migrate({status_changed, {failed, Failure}}, MigrateParams);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.

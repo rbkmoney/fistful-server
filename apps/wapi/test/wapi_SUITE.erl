@@ -29,6 +29,7 @@
 -export([not_allowed_currency_test/1]).
 -export([get_wallet_by_external_id/1]).
 -export([check_withdrawal_limit_test/1]).
+-export([check_withdrawal_limit_exceeded_test/1]).
 
 -export([consume_eventsinks/1]).
 
@@ -75,7 +76,8 @@ groups() ->
         ]},
         {errors, [], [
             not_allowed_currency_test,
-            check_withdrawal_limit_test
+            check_withdrawal_limit_test,
+            check_withdrawal_limit_exceeded_test
         ]},
         {eventsink, [], [
             consume_eventsinks
@@ -290,6 +292,34 @@ check_withdrawal_limit_test(C) ->
         })},
         ct_helper:cfg(context, C)
     ).
+
+-spec check_withdrawal_limit_exceeded_test(config()) -> test_return().
+
+check_withdrawal_limit_exceeded_test(C) ->
+    Name          = <<"Tony Dacota">>,
+    Provider      = ?ID_PROVIDER,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ok            = check_identity(Name, IdentityID, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    ok            = check_wallet(WalletID, C),
+    CardToken     = store_bank_card(C),
+    {ok, _Card}   = get_bank_card(CardToken, C),
+    Resource      = make_bank_card_resource(CardToken),
+    {ok, Dest}    = create_destination(IdentityID, Resource, C),
+    DestID        = destination_id(Dest),
+    ok            = check_destination(IdentityID, DestID, Resource, C),
+    {ok, _Grants} = issue_destination_grants(DestID, C),
+    % ожидаем выполнения асинхронного вызова выдачи прав на вывод
+    await_destination(DestID),
+
+    WithdrawalID  = create_withdrawal(WalletID, DestID, C, undefined, 100000),
+    await_final_withdrawal_status(WithdrawalID),
+    ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C, 100000),
+    ?assertMatch({ok, #{
+        <<"status">> := <<"Failed">>,
+        <<"failure">> := #{<<"code">> := <<"account_limit_exceeded">>}}
+    }, get_withdrawal(WithdrawalID, C)).
 
 -spec unknown_withdrawal_test(config()) -> test_return().
 
@@ -712,6 +742,22 @@ await_destination(DestID) ->
         end
     ).
 
+await_final_withdrawal_status(WithdrawalID) ->
+    ct_helper:await(
+        finished,
+        fun () ->
+            {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
+            Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
+            case ff_withdrawal:is_finished(Withdrawal) of
+                false ->
+                    {not_finished, Withdrawal};
+                true ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(10, 1000)
+    ).
+
 get_destination(DestID, C) ->
     call_api(
         fun swag_client_wallet_withdrawals_api:get_destination/3,
@@ -737,13 +783,16 @@ create_withdrawal(WalletID, DestID, C) ->
     create_withdrawal(WalletID, DestID, C, undefined).
 
 create_withdrawal(WalletID, DestID, C, QuoteToken) ->
+    create_withdrawal(WalletID, DestID, C, QuoteToken, 100).
+
+create_withdrawal(WalletID, DestID, C, QuoteToken, Amount) ->
     {ok, Withdrawal} = call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
         #{body => genlib_map:compact(#{
             <<"wallet">> => WalletID,
             <<"destination">> => DestID,
             <<"body">> => #{
-                <<"amount">> => 100,
+                <<"amount">> => Amount,
                 <<"currency">> => <<"RUB">>
             },
             <<"quoteToken">> => QuoteToken
@@ -784,6 +833,9 @@ create_withdrawal(WalletID, DestID, C, QuoteToken) ->
 %     ).
 
 check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
+    check_withdrawal(WalletID, DestID, WithdrawalID, C, 100).
+
+check_withdrawal(WalletID, DestID, WithdrawalID, C, Amount) ->
     ct_helper:await(
         ok,
         fun () ->
@@ -793,7 +845,7 @@ check_withdrawal(WalletID, DestID, WithdrawalID, C) ->
                         <<"wallet">> := WalletID,
                         <<"destination">> := DestID,
                         <<"body">> := #{
-                            <<"amount">> := 100,
+                            <<"amount">> := Amount,
                             <<"currency">> := <<"RUB">>
                         }
                     } = Withdrawal,
@@ -871,8 +923,8 @@ get_default_termset() ->
                 #domain_CashLimitDecision{
                     if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                     then_ = {value, ?cashrng(
-                        {inclusive, ?cash(-10000000, <<"RUB">>)},
-                        {exclusive, ?cash( 10000001, <<"RUB">>)}
+                        {inclusive, ?cash(-10000, <<"RUB">>)},
+                        {exclusive, ?cash( 10001, <<"RUB">>)}
                     )}
                 }
             ]},
@@ -882,8 +934,8 @@ get_default_termset() ->
                     #domain_CashLimitDecision{
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {value, ?cashrng(
-                            {inclusive, ?cash(       0, <<"RUB">>)},
-                            {exclusive, ?cash(10000000, <<"RUB">>)}
+                            {inclusive, ?cash(     0, <<"RUB">>)},
+                            {exclusive, ?cash(100001, <<"RUB">>)}
                         )}
                     }
                 ]},
@@ -913,21 +965,21 @@ get_default_termset() ->
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
                         then_ = {value, ?cashrng(
                             {inclusive, ?cash(       0, <<"RUB">>)},
-                            {exclusive, ?cash(10000001, <<"RUB">>)}
+                            {exclusive, ?cash(10001, <<"RUB">>)}
                         )}
                     },
                     #domain_CashLimitDecision{
                         if_   = {condition, {currency_is, ?cur(<<"EUR">>)}},
                         then_ = {value, ?cashrng(
                             {inclusive, ?cash(       0, <<"EUR">>)},
-                            {exclusive, ?cash(10000001, <<"EUR">>)}
+                            {exclusive, ?cash(10001, <<"EUR">>)}
                         )}
                     },
                     #domain_CashLimitDecision{
                         if_   = {condition, {currency_is, ?cur(<<"USD">>)}},
                         then_ = {value, ?cashrng(
                             {inclusive, ?cash(       0, <<"USD">>)},
-                            {exclusive, ?cash(10000001, <<"USD">>)}
+                            {exclusive, ?cash(10001, <<"USD">>)}
                         )}
                     }
                 ]},

@@ -35,8 +35,7 @@
     destination_id       := ff_destination:id(),
     body                 := body(),
     external_id          => id(),
-    quote                => quote(),
-    destination_resource => destination_resource()
+    quote                => quote()
 }.
 
 -type status() ::
@@ -191,7 +190,7 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/1]).
+-export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -307,11 +306,7 @@ body(#{body := V}) ->
 
 -spec status(withdrawal()) -> status() | undefined.
 status(T) ->
-    OwnStatus = maps:get(status, T, undefined),
-    %% `OwnStatus` is used in case of `{created, withdrawal()}` event marshaling
-    %% The event withdrawal is not created from events, so `adjustments` can not have
-    %% initial withdrawal status.
-    ff_adjustment_utils:status(adjustments_index(T), OwnStatus).
+    maps:get(status, T, undefined).
 
 -spec route(withdrawal()) -> route() | undefined.
 route(T) ->
@@ -636,8 +631,7 @@ do_process_transfer({fail, Reason}, Withdrawal) ->
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
 do_process_transfer(adjustment, Withdrawal) ->
-    Result = ff_adjustment_utils:process_adjustments(adjustments_index(Withdrawal)),
-    handle_child_result(Result, Withdrawal);
+    process_adjustment(Withdrawal);
 do_process_transfer(stop, _Withdrawal) ->
     {undefined, []}.
 
@@ -985,7 +979,7 @@ build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} =
 
 -spec construct_payment_tool(ff_destination:resource_full() | ff_destination:resource()) ->
     dmsl_domain_thrift:'PaymentTool'().
-construct_payment_tool({bank_card, ResourceBankCard}) ->
+construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
     {bank_card, #domain_BankCard{
         token           = maps:get(token, ResourceBankCard),
         bin             = maps:get(bin, ResourceBankCard),
@@ -995,7 +989,7 @@ construct_payment_tool({bank_card, ResourceBankCard}) ->
         bank_name       = maps:get(bank_name, ResourceBankCard, undefined)
     }};
 
-construct_payment_tool({crypto_wallet, #{currency := {Currency, _}}}) ->
+construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currency, _}}}}) ->
    {crypto_currency, Currency}.
 
 %% Quote helpers
@@ -1063,7 +1057,7 @@ get_quote_(Params, Destination, Resource) ->
     Quote :: ff_adapter_withdrawal:quote().
 wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote) ->
     #{quote_data := QuoteData} = Quote,
-    ResourceID = ff_destination:resource_full_id(Resource),
+    ResourceID = ff_destination:full_bank_card_id(Resource),
     Quote#{quote_data := genlib_map:compact(#{
         <<"version">> => 1,
         <<"quote_data">> => QuoteData,
@@ -1370,9 +1364,31 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _Withdrawal) ->
         }
     }.
 
+-spec process_adjustment(withdrawal()) ->
+    process_result().
+process_adjustment(Withdrawal) ->
+    #{
+        action := Action,
+        events := Events0,
+        changes := Changes
+    } = ff_adjustment_utils:process_adjustments(adjustments_index(Withdrawal)),
+    Events1 = Events0 ++ handle_adjustment_changes(Changes),
+    handle_child_result({Action, Events1}, Withdrawal).
+
+-spec handle_adjustment_changes(ff_adjustment:changes()) ->
+    [event()].
+handle_adjustment_changes(Changes) ->
+    StatusChange = maps:get(new_status, Changes, undefined),
+    handle_adjustment_status_change(StatusChange).
+
+-spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) ->
+    [event()].
+handle_adjustment_status_change(undefined) ->
+    [];
+handle_adjustment_status_change(#{new_status := Status}) ->
+    [{status_changed, Status}].
+
 -spec save_adjustable_info(event(), withdrawal()) -> withdrawal().
-save_adjustable_info({status_changed, Status}, Withdrawal) ->
-    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, Withdrawal);
 save_adjustable_info({p_transfer, {status_changed, committed}}, Withdrawal) ->
     CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(Withdrawal)),
     update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, Withdrawal);
@@ -1425,9 +1441,8 @@ build_failure(session, Withdrawal) ->
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(withdrawal())) ->
     withdrawal().
 apply_event(Ev, T0) ->
-    Migrated = maybe_migrate(Ev),
-    T1 = apply_event_(Migrated, T0),
-    T2 = save_adjustable_info(Migrated, T1),
+    T1 = apply_event_(Ev, T0),
+    T2 = save_adjustable_info(Ev, T1),
     T2.
 
 -spec apply_event_(event(), ff_maybe:maybe(withdrawal())) ->
@@ -1453,25 +1468,28 @@ apply_event_({route_changed, Route}, T) ->
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
 
--spec maybe_migrate(event() | legacy_event()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 % Actual events
-maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}) ->
+maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}) ->
+maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}) ->
+maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}, _MigrateParams) ->
     Ev;
-maybe_migrate({p_transfer, PEvent}) ->
+maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
-maybe_migrate({adjustment, _Payload} = Event) ->
+maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
     ff_adjustment_utils:maybe_migrate(Event);
+maybe_migrate({resource_got, Resource}, _MigrateParams) ->
+    {resource_got, ff_instrument:maybe_migrate_resource(Resource)};
+
 % Old events
-maybe_migrate({limit_check, {wallet, Details}}) ->
-    maybe_migrate({limit_check, {wallet_sender, Details}});
-maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
+maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->
+    maybe_migrate({limit_check, {wallet_sender, Details}}, MigrateParams);
+maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateParams) ->
     #{
         version     := 1,
         id          := ID,
@@ -1500,8 +1518,8 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
             destination_account   => [],
             wallet_cash_flow_plan => []
         }
-    })});
-maybe_migrate({created, T}) ->
+    })}, MigrateParams);
+maybe_migrate({created, T}, MigrateParams) ->
     DestinationID = maps:get(destination, T),
     SourceID = maps:get(source, T),
     ProviderID = maps:get(provider, T),
@@ -1513,22 +1531,22 @@ maybe_migrate({created, T}) ->
             destination => DestinationID,
             source      => SourceID
         }
-    }});
-maybe_migrate({transfer, PTransferEv}) ->
-    maybe_migrate({p_transfer, PTransferEv});
-maybe_migrate({status_changed, {failed, LegacyFailure}}) ->
+    }}, MigrateParams);
+maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
+    maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
+maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
     Failure = #{
         code => <<"unknown">>,
         reason => genlib:format(LegacyFailure)
     },
-    maybe_migrate({status_changed, {failed, Failure}});
-maybe_migrate({session_finished, SessionID}) ->
+    maybe_migrate({status_changed, {failed, Failure}}, MigrateParams);
+maybe_migrate({session_finished, SessionID}, MigrateParams) ->
     {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
     Session = ff_withdrawal_session_machine:session(SessionMachine),
     {finished, Result} = ff_withdrawal_session:status(Session),
-    maybe_migrate({session_finished, {SessionID, Result}});
+    maybe_migrate({session_finished, {SessionID, Result}}, MigrateParams);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
 %% Tests
@@ -1551,7 +1569,7 @@ v0_created_migration_test() ->
         body        => Body,
         provider    => ProviderID
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
@@ -1588,7 +1606,7 @@ v1_created_migration_test() ->
             destination => DestinationID
         }
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
@@ -1633,7 +1651,7 @@ v2_created_migration_test() ->
             }
         }
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),

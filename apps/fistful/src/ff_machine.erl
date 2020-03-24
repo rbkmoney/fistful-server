@@ -32,10 +32,16 @@
 -type result(T) ::
     machinery:result(timestamped_event(T), auxst()).
 
+-type migrate_params() :: #{
+    ctx => ctx(),
+    timestamp => timestamp()
+}.
+
 -export_type([st/1]).
 -export_type([machine/1]).
 -export_type([result/1]).
 -export_type([timestamped_event/1]).
+-export_type([migrate_params/0]).
 
 %% Accessors
 
@@ -69,7 +75,7 @@
 -callback apply_event(event(), model()) ->
     model().
 
--callback maybe_migrate(event()) ->
+-callback maybe_migrate(event(), migrate_params()) ->
     event().
 
 -callback process_call(st()) ->
@@ -128,7 +134,8 @@ get(Mod, NS, Ref) ->
 
 get(Mod, NS, Ref, Range) ->
     do(fun () ->
-        collapse(Mod, unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))))
+        Machine = unwrap(get_and_migrate_machine(Mod, NS, Ref, Range)),
+        collapse(Mod, Machine)
     end).
 
 -spec history(module(), namespace(), ref(), range()) ->
@@ -137,8 +144,8 @@ get(Mod, NS, Ref, Range) ->
 
 history(Mod, NS, Ref, Range) ->
     do(fun () ->
-        #{history := History} = unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))),
-        migrate_history(Mod, History)
+        #{history := History} = unwrap(get_and_migrate_machine(Mod, NS, Ref, Range)),
+        History
     end).
 
 -spec collapse(module(), machine()) ->
@@ -152,11 +159,11 @@ collapse(Mod, #{history := History}) ->
 collapse_history(Mod, History, St0) ->
     lists:foldl(fun (Ev, St) -> merge_event(Mod, Ev, St) end, St0, History).
 
--spec migrate_history(module(), history()) ->
+-spec migrate_history(module(), history(), migrate_params()) ->
     history().
 
-migrate_history(Mod, History) ->
-    [migrate_event(Mod, Ev) || Ev <- History].
+migrate_history(Mod, History, MigrateParams) ->
+    [migrate_event(Mod, Ev, MigrateParams) || Ev <- History].
 
 -spec emit_event(E) ->
     [timestamped_event(E)].
@@ -183,8 +190,26 @@ merge_timestamped_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
 merge_timestamped_event({ev, Ts, Body}, St = #{}) ->
     {Body, St#{times => {Ts, Ts}}}.
 
-migrate_event(Mod, {ID, Ts, {ev, EventTs, EventBody}}) ->
-    {ID, Ts, {ev, EventTs, Mod:maybe_migrate(EventBody)}}.
+-spec get_and_migrate_machine(module(), namespace(), ref(), range()) ->
+    {ok, machine()} |
+    {error, notfound}.
+
+get_and_migrate_machine(Mod, NS, Ref, Range) ->
+    do(fun () ->
+        migrate_machine(Mod, unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))))
+    end).
+
+-spec migrate_machine(module(), machine()) ->
+    machine().
+
+migrate_machine(Mod, Machine = #{history := History}) ->
+    MigrateParams = #{
+        ctx => maps:get(ctx, maps:get(aux_state, Machine, #{}), undefined)
+    },
+    Machine#{history => migrate_history(Mod, History, MigrateParams)}.
+
+migrate_event(Mod, {ID, Ts, {ev, EventTs, EventBody}}, MigrateParams) ->
+    {ID, Ts, {ev, EventTs, Mod:maybe_migrate(EventBody, MigrateParams#{timestamp => EventTs})}}.
 
 %%
 

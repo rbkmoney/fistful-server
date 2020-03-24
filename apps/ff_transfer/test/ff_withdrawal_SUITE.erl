@@ -16,6 +16,7 @@
 -export([end_per_testcase/2]).
 
 %% Tests
+-export([migrate_session_test/1]).
 -export([session_fail_test/1]).
 -export([quote_fail_test/1]).
 -export([route_not_found_fail_test/1]).
@@ -65,6 +66,7 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
+            migrate_session_test,
             session_fail_test,
             quote_fail_test,
             route_not_found_fail_test,
@@ -120,6 +122,38 @@ end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
 %% Tests
+
+-spec migrate_session_test(config()) -> test_return().
+migrate_session_test(_C) ->
+    ID = genlib:unique(),
+    ProviderID = genlib:unique(),
+    Body = {100, <<"RUB">>},
+    Resource = {bank_card, #{
+        token => <<"some token">>
+    }},
+    Destination = #{
+        resource => Resource
+    },
+    Identity = #{},
+    Withdrawal = #{
+        id => genlib:unique(),
+        destination => Destination,
+        cash => Body,
+        sender => Identity,
+        receiver => Identity,
+        quote => #{}
+    },
+    LegacyEvent = {created, #{
+        id => ID,
+        status => active,
+        withdrawal => Withdrawal,
+        provider => ProviderID,
+        adapter => {#{}, #{}}
+    }},
+
+    {created, Session} = ff_withdrawal_session:maybe_migrate(LegacyEvent, #{}),
+    ?assertEqual(ID, maps:get(id, Session)),
+    ?assertEqual(1, maps:get(version, Session)).
 
 -spec session_fail_test(config()) -> test_return().
 session_fail_test(C) ->
@@ -599,7 +633,7 @@ create_destination(IID, Currency, Token, C) ->
         Token ->
             StoreSource#{token => Token}
         end,
-    Resource = {bank_card, NewStoreResource},
+    Resource = {bank_card, #{bank_card => NewStoreResource}},
     Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
     ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
@@ -613,10 +647,10 @@ create_destination(IID, Currency, Token, C) ->
 
 create_crypto_destination(IID, _C) ->
     ID = generate_id(),
-    Resource = {crypto_wallet, #{
+    Resource = {crypto_wallet, #{crypto_wallet => #{
         id => <<"a30e277c07400c9940628828949efd48">>,
         currency => {litecoin, #{}}
-    }},
+    }}},
     Params = #{id => ID, identity => IID, name => <<"CryptoDestination">>, currency => <<"RUB">>, resource => Resource},
     ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(

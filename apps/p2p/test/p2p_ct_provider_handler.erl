@@ -13,6 +13,20 @@
         }
     }}
 }).
+
+-define(ADAPTER_CONTEXT(Amount, Token, SessionID, State), #p2p_adapter_Context{
+    operation = {process, #p2p_adapter_ProcessOperationInfo{
+        body = #p2p_adapter_Cash{amount = Amount},
+        sender = {disposable, #domain_DisposablePaymentResource{
+            payment_tool = {bank_card, #domain_BankCard{
+                token = Token
+            }},
+            payment_session_id = SessionID
+        }}
+    }},
+    session = #p2p_adapter_Session{state = State}
+}).
+
 -define(ADAPTER_CONTEXT(Amount, Token, State), #p2p_adapter_Context{
     operation = {process, #p2p_adapter_ProcessOperationInfo{
         body = #p2p_adapter_Cash{amount = Amount},
@@ -27,7 +41,11 @@
 
 -define(ADAPTER_PROCESS_RESULT(Intent, NextState), #p2p_adapter_ProcessResult{
     intent = Intent,
-    next_state = NextState
+    next_state = NextState,
+    trx = #domain_TransactionInfo{
+        id = <<"Trx_ID">>,
+        extra = #{}
+    }
 }).
 
 -define(ADAPTER_SLEEP_INTENT(Timeout, CallbackTag, UI), {sleep, #p2p_adapter_SleepIntent{
@@ -72,6 +90,11 @@ handle_function(Func, Args, Ctx, Opts) ->
         end
     ).
 
+handle_function_('Process', [?ADAPTER_CONTEXT(_Amount, _Token, undefined, _State)], _Ctx, _Opts) ->
+    {ok, ?ADAPTER_PROCESS_RESULT(
+        ?ADAPTER_FINISH_INTENT({failure, #domain_Failure{code = <<"unknown session id">>}}),
+        undefined
+    )};
 handle_function_('Process', [?ADAPTER_CONTEXT(101, _Token, State)], _Ctx, _Opts) ->
     case State of
         undefined ->

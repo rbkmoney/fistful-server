@@ -216,7 +216,7 @@ session_callback_ok_test(C) ->
         ip_address => <<"some ip_address">>,
         fingerprint => <<"some fingerprint">>
     },
-    {raw, #{resource_params := {bank_card, #{token := Token}}}} = ResourceSender,
+    {raw, #{resource_params := {bank_card, #{bank_card := #{token := Token}}}}} = ResourceSender,
     Callback = ?CALLBACK(Token, <<"payload">>),
     P2PTransferParams = #{
         id => P2PTransferID,

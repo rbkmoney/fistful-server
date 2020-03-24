@@ -29,7 +29,7 @@
 
 %% ff_machine
 -export([apply_event/2]).
--export([maybe_migrate/1]).
+-export([maybe_migrate/2]).
 -export([init/2]).
 
 %% ff_repair
@@ -38,7 +38,7 @@
 %%
 %% Types
 %%
--define(ACTUAL_FORMAT_VERSION, 1).
+-define(ACTUAL_FORMAT_VERSION, 2).
 
 -opaque session() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
@@ -51,7 +51,8 @@
     adapter := adapter_with_opts(),
     adapter_state => adapter_state(),
     callbacks => callbacks_index(),
-    user_interactions => user_interactions_index()
+    user_interactions => user_interactions_index(),
+    transaction_info => transaction_info()
 }.
 
 -type status() ::
@@ -61,7 +62,7 @@
 -type event() ::
     {created, session()} |
     {next_state, adapter_state()} |
-    {transaction_bound, ff_adapter:transaction_info()} |
+    {transaction_bound, transaction_info()} |
     {finished, session_result()} |
     wrapped_callback_event() |
     wrapped_user_interaction_event().
@@ -81,6 +82,7 @@
 
 -type body() :: ff_transaction:body().
 
+-type transaction_info() :: ff_adapter:transaction_info().
 -type adapter_state() :: p2p_adapter:adapter_state().
 -type session_result() :: p2p_adapter:finish_status().
 
@@ -157,6 +159,10 @@ status(#{status := V}) ->
 adapter_state(Session = #{}) ->
     maps:get(adapter_state, Session, undefined).
 
+-spec transaction_info(session()) -> transaction_info() | undefined.
+transaction_info(Session = #{}) ->
+    maps:get(transaction_info, Session, undefined).
+
 -spec party_revision(session()) -> party_revision().
 party_revision(#{party_revision := PartyRevision}) ->
     PartyRevision.
@@ -215,7 +221,7 @@ process_session(Session) ->
     {ok, ProcessResult} = p2p_adapter:process(Adapter, Context),
     #{intent := Intent} = ProcessResult,
     Events0 = process_next_state(ProcessResult, []),
-    Events1 = process_transaction_info(ProcessResult, Events0),
+    Events1 = process_transaction_info(ProcessResult, Events0, Session),
     process_intent(Intent, Events1, Session).
 
 process_next_state(#{next_state := NextState}, Events) ->
@@ -223,9 +229,10 @@ process_next_state(#{next_state := NextState}, Events) ->
 process_next_state(_, Events) ->
     Events.
 
-process_transaction_info(#{transaction_info := TrxInfo}, Events) ->
+process_transaction_info(#{transaction_info := TrxInfo}, Events, Session) ->
+    ok = assert_transaction_info(TrxInfo, transaction_info(Session)),
     Events ++ [{transaction_bound, TrxInfo}];
-process_transaction_info(_, Events) ->
+process_transaction_info(_, Events, _Session) ->
     Events.
 
 process_intent({sleep, #{timer := Timer} = Data}, Events0, Session) ->
@@ -325,7 +332,7 @@ do_process_callback(Params, Callback, Session) ->
     #{intent := Intent, response := Response} = HandleCallbackResult,
     Events0 = p2p_callback_utils:process_response(Response, Callback),
     Events1 = process_next_state(HandleCallbackResult, Events0),
-    Events2 = process_transaction_info(HandleCallbackResult, Events1),
+    Events2 = process_transaction_info(HandleCallbackResult, Events1, Session),
     {ok, {Response, process_intent(Intent, Events2, Session)}}.
 
 build_failure({deadline_reached, _Deadline} = Details) ->
@@ -368,24 +375,29 @@ collect_build_context_params(Session) ->
         party_revision  => party_revision(Session)
     }.
 
+assert_transaction_info(_TrxInfo, undefined) ->
+    ok;
+assert_transaction_info(TrxInfo, TrxInfo) ->
+    ok;
+assert_transaction_info(TrxInfoNew, _TrxInfo) ->
+    erlang:error({transaction_info_is_different, TrxInfoNew}).
+
 %% Events apply
 
 -spec apply_event(event(), undefined | session()) ->
     session().
-apply_event(Ev, S) ->
-    apply_event_(maybe_migrate(Ev), S).
 
--spec apply_event_(event(), undefined | session()) ->
-    session().
-apply_event_({created, Session}, undefined) ->
+apply_event({created, Session}, undefined) ->
     Session;
-apply_event_({next_state, AdapterState}, Session) ->
+apply_event({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
-apply_event_({finished, Result}, Session) ->
+apply_event({transaction_bound, TransactionInfo}, Session) ->
+    Session#{transaction_info => TransactionInfo};
+apply_event({finished, Result}, Session) ->
     set_session_status({finished, Result}, Session);
-apply_event_({callback, _Ev} = Event, Session) ->
+apply_event({callback, _Ev} = Event, Session) ->
     apply_callback_event(Event, Session);
-apply_event_({user_interaction, _Ev} = Event, Session) ->
+apply_event({user_interaction, _Ev} = Event, Session) ->
     apply_user_interaction_event(Event, Session).
 
 -spec apply_callback_event(wrapped_callback_event(), session()) -> session().
@@ -412,11 +424,38 @@ set_user_interactions_index(UserInteractions, Session) ->
 set_session_status(SessionState, Session) ->
     Session#{status => SessionState}.
 
--spec maybe_migrate(event() | legacy_event()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
+
+maybe_migrate({created, #{version := 1} = Session}, MigrateParams) ->
+    #{
+        version := 1,
+        transfer_params := #{
+            sender := Sender,
+            receiver := Receiver
+        } = Params
+    } = Session,
+    maybe_migrate({created, genlib_map:compact(Session#{
+        version => 2,
+        transfer_params => Params#{
+            sender => maybe_migrate_resource(Sender),
+            receiver => maybe_migrate_resource(Receiver)
+        }
+    })}, MigrateParams);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate({callback, _Ev} = Event, _MigrateParams) ->
+    p2p_callback_utils:maybe_migrate(Event);
+maybe_migrate({user_interaction, _Ev} = Event, _MigrateParams) ->
+    p2p_user_interaction_utils:maybe_migrate(Event);
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.
+
+maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->
+    maybe_migrate_resource({crypto_wallet, #{crypto_wallet => CryptoWallet}});
+maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
+    maybe_migrate_resource({bank_card, #{bank_card => BankCard}});
+maybe_migrate_resource(Resource) ->
+    Resource.
 
 -spec init(session(), action()) ->
     {list(event()), action() | undefined}.

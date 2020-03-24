@@ -58,7 +58,7 @@
 -export([is_accessible/1]).
 
 -export([apply_event/2]).
--export([maybe_migrate/1]).
+-export([maybe_migrate/2]).
 -export([maybe_migrate_resource/1]).
 
 %% Pipeline
@@ -160,33 +160,26 @@ add_external_id(ExternalID, Event) ->
 -spec apply_event(event(T), ff_maybe:maybe(instrument(T))) ->
     instrument(T).
 
-apply_event(Event, T) ->
-    Migrated = maybe_migrate(Event),
-    apply_event_(Migrated, T).
-
--spec apply_event_(event(T), ff_maybe:maybe(instrument(T))) ->
-    instrument(T).
-
-apply_event_({created, Instrument}, undefined) ->
+apply_event({created, Instrument}, undefined) ->
     Instrument;
-apply_event_({status_changed, S}, Instrument) ->
+apply_event({status_changed, S}, Instrument) ->
     Instrument#{status => S};
-apply_event_({account, Ev}, Instrument = #{account := Account}) ->
+apply_event({account, Ev}, Instrument = #{account := Account}) ->
     Instrument#{account => ff_account:apply_event(Ev, Account)};
-apply_event_({account, Ev}, Instrument) ->
+apply_event({account, Ev}, Instrument) ->
     apply_event({account, Ev}, Instrument#{account => undefined}).
 
--spec maybe_migrate(event(T)) ->
+-spec maybe_migrate(event(T), ff_machine:migrate_params()) ->
     event(T).
 
 maybe_migrate(Event = {created, #{
     version := 1
-}}) ->
+}}, _MigrateParams) ->
     Event;
 maybe_migrate({created, Instrument = #{
         resource    := Resource,
         name        := Name
-}}) ->
+}}, _MigrateParams) ->
     NewInstrument = genlib_map:compact(#{
         version     => 1,
         resource    => maybe_migrate_resource(Resource),
@@ -196,7 +189,7 @@ maybe_migrate({created, Instrument = #{
     {created, NewInstrument};
 
 %% Other events
-maybe_migrate(Event) ->
+maybe_migrate(Event, _MigrateParams) ->
     Event.
 
 -spec maybe_migrate_resource(any()) ->

@@ -18,6 +18,8 @@
     {created, wallet()} |
     {account, ff_account:event()}.
 
+-type legacy_event() :: any().
+
 -type create_error() ::
     {identity, notfound} |
     {currency, notfound} |
@@ -46,6 +48,7 @@
 -export([close/1]).
 
 -export([apply_event/2]).
+-export([maybe_migrate/2]).
 
 %% Internal types
 
@@ -153,6 +156,12 @@ apply_event({created, Wallet}, undefined) ->
 apply_event({account, Ev}, Wallet) ->
     Account = maps:get(account, Wallet, undefined),
     Wallet#{account => ff_account:apply_event(Ev, Account)}.
+
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
+    event().
+
+maybe_migrate(Ev, _MigrateParams) ->
+    Ev.
 
 %% Internal functions
 

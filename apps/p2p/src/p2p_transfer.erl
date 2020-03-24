@@ -164,7 +164,7 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/1]).
+-export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -1080,9 +1080,8 @@ validate_definition(_Tag, Value) ->
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(p2p_transfer())) ->
     p2p_transfer().
 apply_event(Ev, T0) ->
-    Migrated = maybe_migrate(Ev),
-    T1 = apply_event_(Migrated, T0),
-    T2 = save_adjustable_info(Migrated, T1),
+    T1 = apply_event_(Ev, T0),
+    T2 = save_adjustable_info(Ev, T1),
     T2.
 
 -spec apply_event_(event(), ff_maybe:maybe(p2p_transfer())) ->
@@ -1109,12 +1108,14 @@ apply_event_({route_changed, Route}, T) ->
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
 
--spec maybe_migrate(event() | legacy_event()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
-maybe_migrate({resource_got, Sender, Receiver}) ->
+maybe_migrate({adjustment, _Ev} = Event, _MigrateParams) ->
+    ff_adjustment_utils:maybe_migrate(Event);
+maybe_migrate({resource_got, Sender, Receiver}, _MigrateParams) ->
     {resource_got, maybe_migrate_resource(Sender), maybe_migrate_resource(Receiver)};
-maybe_migrate({created, #{version := 1} = Transfer}) ->
+maybe_migrate({created, #{version := 1} = Transfer}, MigrateParams) ->
     #{
         version := 1,
         sender := Sender,
@@ -1124,9 +1125,9 @@ maybe_migrate({created, #{version := 1} = Transfer}) ->
         version => 2,
         sender => maybe_migrate_participant(Sender),
         receiver => maybe_migrate_participant(Receiver)
-    })});
+    })}, MigrateParams);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
 maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->

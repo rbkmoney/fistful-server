@@ -151,7 +151,7 @@ migrate_session_test(_C) ->
         adapter => {#{}, #{}}
     }},
 
-    {created, Session} = ff_withdrawal_session:maybe_migrate(LegacyEvent),
+    {created, Session} = ff_withdrawal_session:maybe_migrate(LegacyEvent, #{}),
     ?assertEqual(ID, maps:get(id, Session)),
     ?assertEqual(1, maps:get(version, Session)).
 

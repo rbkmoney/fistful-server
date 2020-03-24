@@ -26,7 +26,9 @@
 %% Types
 %%
 
+-define(ACTUAL_FORMAT_VERSION, 1).
 -type session() :: #{
+    version       := ?ACTUAL_FORMAT_VERSION,
     id            := id(),
     status        := status(),
     withdrawal    := withdrawal(),
@@ -111,16 +113,30 @@ apply_event({finished, Result}, Session) ->
 
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
+
+maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+    Event;
 maybe_migrate({created, Session = #{
     withdrawal := Withdrawal = #{
-        destination := Destination
+        destination := #{resource := OldResource}
     }
-}}, _MigrateParams) ->
-    {ok, Resource} = ff_destination:resource_full(Destination),
+}}) ->
+    {ok, Resource} = ff_destination:process_resource_full(ff_instrument:maybe_migrate_resource(OldResource), undefined),
     NewWithdrawal0 = maps:without([destination], Withdrawal),
     NewWithdrawal1 = NewWithdrawal0#{resource => Resource},
-    {created, Session#{withdrawal => NewWithdrawal1}};
-maybe_migrate({next_state, Value}, _MigrateParams) when Value =/= undefined ->
+    maybe_migrate({created, Session#{withdrawal => NewWithdrawal1}});
+maybe_migrate({created, Session = #{
+    withdrawal := Withdrawal = #{
+        resource := Resource
+    }
+}}) ->
+    NewResource = ff_instrument:maybe_migrate_resource(Resource),
+    maybe_migrate({created, Session#{
+        version => 1,
+        withdrawal => Withdrawal#{
+            resource => NewResource
+    }}});
+maybe_migrate({next_state, Value}) when Value =/= undefined ->
     {next_state, try_unmarshal_msgpack(Value)};
 maybe_migrate({finished, {failed, {'domain_Failure', Code, Reason, SubFailure}}}, _MigrateParams) ->
     {finished, {failed, genlib_map:compact(#{
@@ -273,6 +289,7 @@ process_intent({sleep, Timer}) ->
     session().
 create_session(ID, Data, #{resource := Resource, provider_id := ProviderID}) ->
     #{
+        version    => ?ACTUAL_FORMAT_VERSION,
         id         => ID,
         withdrawal => create_adapter_withdrawal(Data, Resource),
         provider   => ProviderID,

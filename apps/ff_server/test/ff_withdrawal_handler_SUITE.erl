@@ -376,9 +376,9 @@ withdrawal_state_content_test(C) ->
     {ok, _AdjustmentState} = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
     {ok, WithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
     ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.sessions),
+    ?assertMatch([_], WithdrawalState#wthd_WithdrawalState.adjustments),
     ?assertNotEqual(undefined, WithdrawalState#wthd_WithdrawalState.effective_final_cash_flow),
     ?assertNotEqual(undefined, WithdrawalState#wthd_WithdrawalState.effective_route),
-    ?assertNotEqual(undefined, WithdrawalState#wthd_WithdrawalState.adjustments),
     ?assertNotEqual(
         undefined,
         (WithdrawalState#wthd_WithdrawalState.withdrawal)#wthd_Withdrawal.status
@@ -530,14 +530,14 @@ create_destination(IID, Token, C) ->
 
 create_destination(IID, Currency, Token, C) ->
     ID = generate_id(),
-    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, C),
+    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     NewStoreResource = case Token of
         undefined ->
             StoreSource;
         Token ->
             StoreSource#{token => Token}
         end,
-    Resource = {bank_card, NewStoreResource},
+    Resource = {bank_card, #{bank_card => NewStoreResource}},
     Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
     ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(

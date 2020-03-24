@@ -35,8 +35,7 @@
     destination_id       := ff_destination:id(),
     body                 := body(),
     external_id          => id(),
-    quote                => quote(),
-    destination_resource => destination_resource()
+    quote                => quote()
 }.
 
 -type status() ::
@@ -307,11 +306,7 @@ body(#{body := V}) ->
 
 -spec status(withdrawal()) -> status() | undefined.
 status(T) ->
-    OwnStatus = maps:get(status, T, undefined),
-    %% `OwnStatus` is used in case of `{created, withdrawal()}` event marshaling
-    %% The event withdrawal is not created from events, so `adjustments` can not have
-    %% initial withdrawal status.
-    ff_adjustment_utils:status(adjustments_index(T), OwnStatus).
+    maps:get(status, T, undefined).
 
 -spec route(withdrawal()) -> route() | undefined.
 route(T) ->
@@ -636,8 +631,7 @@ do_process_transfer({fail, Reason}, Withdrawal) ->
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
 do_process_transfer(adjustment, Withdrawal) ->
-    Result = ff_adjustment_utils:process_adjustments(adjustments_index(Withdrawal)),
-    handle_child_result(Result, Withdrawal);
+    process_adjustment(Withdrawal);
 do_process_transfer(stop, _Withdrawal) ->
     {undefined, []}.
 
@@ -985,7 +979,7 @@ build_party_varset(#{body := Body, wallet_id := WalletID, party_id := PartyID} =
 
 -spec construct_payment_tool(ff_destination:resource_full() | ff_destination:resource()) ->
     dmsl_domain_thrift:'PaymentTool'().
-construct_payment_tool({bank_card, ResourceBankCard}) ->
+construct_payment_tool({bank_card, #{bank_card := ResourceBankCard}}) ->
     {bank_card, #domain_BankCard{
         token           = maps:get(token, ResourceBankCard),
         bin             = maps:get(bin, ResourceBankCard),
@@ -995,7 +989,7 @@ construct_payment_tool({bank_card, ResourceBankCard}) ->
         bank_name       = maps:get(bank_name, ResourceBankCard, undefined)
     }};
 
-construct_payment_tool({crypto_wallet, #{currency := {Currency, _}}}) ->
+construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currency, _}}}}) ->
    {crypto_currency, Currency}.
 
 %% Quote helpers
@@ -1063,7 +1057,7 @@ get_quote_(Params, Destination, Resource) ->
     Quote :: ff_adapter_withdrawal:quote().
 wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote) ->
     #{quote_data := QuoteData} = Quote,
-    ResourceID = ff_destination:resource_full_id(Resource),
+    ResourceID = ff_destination:full_bank_card_id(Resource),
     Quote#{quote_data := genlib_map:compact(#{
         <<"version">> => 1,
         <<"quote_data">> => QuoteData,
@@ -1370,9 +1364,31 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _Withdrawal) ->
         }
     }.
 
+-spec process_adjustment(withdrawal()) ->
+    process_result().
+process_adjustment(Withdrawal) ->
+    #{
+        action := Action,
+        events := Events0,
+        changes := Changes
+    } = ff_adjustment_utils:process_adjustments(adjustments_index(Withdrawal)),
+    Events1 = Events0 ++ handle_adjustment_changes(Changes),
+    handle_child_result({Action, Events1}, Withdrawal).
+
+-spec handle_adjustment_changes(ff_adjustment:changes()) ->
+    [event()].
+handle_adjustment_changes(Changes) ->
+    StatusChange = maps:get(new_status, Changes, undefined),
+    handle_adjustment_status_change(StatusChange).
+
+-spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) ->
+    [event()].
+handle_adjustment_status_change(undefined) ->
+    [];
+handle_adjustment_status_change(#{new_status := Status}) ->
+    [{status_changed, Status}].
+
 -spec save_adjustable_info(event(), withdrawal()) -> withdrawal().
-save_adjustable_info({status_changed, Status}, Withdrawal) ->
-    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, Withdrawal);
 save_adjustable_info({p_transfer, {status_changed, committed}}, Withdrawal) ->
     CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(Withdrawal)),
     update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, Withdrawal);
@@ -1467,6 +1483,9 @@ maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
 maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
     ff_adjustment_utils:maybe_migrate(Event);
+maybe_migrate({resource_got, Resource}) ->
+    {resource_got, ff_instrument:maybe_migrate_resource(Resource)};
+
 % Old events
 maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->
     maybe_migrate({limit_check, {wallet_sender, Details}}, MigrateParams);

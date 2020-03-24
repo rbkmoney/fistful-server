@@ -275,11 +275,11 @@ get_create_p2p_transfer_events_ok(C) ->
     Sink = p2p_transfer_event_sink,
     LastEvent = ct_eventsink:last_id(Sink),
 
-    Resource = {bank_card, #{
+    Resource = {bank_card, #{bank_card => #{
         token => genlib:unique(),
         bin => <<"some bin">>,
         masked_pan => <<"some masked_pan">>
-    }},
+    }}},
 
     Participant = {raw, #{
         resource_params => Resource,
@@ -411,7 +411,7 @@ process_deposit(SrcID, WalID) ->
     DepID.
 
 create_destination(IID, C) ->
-    DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, C)},
+    DestResource = {bank_card, #{bank_card => ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)}},
     DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
     authorized = ct_helper:await(
         authorized,

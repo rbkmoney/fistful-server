@@ -460,7 +460,7 @@ process_deposit(SrcID, WalID) ->
     ok = await_wallet_balance({10000, <<"RUB">>}, WalID).
 
 create_destination(IID, C) ->
-    DestResource = {bank_card, ct_cardstore:bank_card(<<"4150399999000900">>, C)},
+    DestResource = {bank_card, #{bank_card => ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)}},
     DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
     authorized = ct_helper:await(
         authorized,
@@ -472,10 +472,10 @@ create_destination(IID, C) ->
     DestID.
 
 create_crypto_destination(IID, C) ->
-    Resource = {crypto_wallet, #{
+    Resource = {crypto_wallet, #{crypto_wallet => #{
         id => <<"a30e277c07400c9940628828949efd48">>,
         currency => {litecoin, #{}}
-    }},
+    }}},
     DestID = create_instrument(destination, IID, <<"CryptoDestination">>, <<"RUB">>, Resource, C),
     authorized = ct_helper:await(
         authorized,

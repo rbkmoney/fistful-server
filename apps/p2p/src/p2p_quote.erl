@@ -117,7 +117,7 @@ receiver_id(#{receiver := {bank_card, #{bin_data_id := BinDataID}}}) ->
 
 -spec compact(ff_resource:resource()) ->
     compact_resource().
-compact({bank_card, BankCard}) ->
+compact({bank_card, #{bank_card := BankCard}}) ->
     {bank_card, #{
         token => ff_resource:token(BankCard),
         bin_data_id => ff_resource:bin_data_id(BankCard)

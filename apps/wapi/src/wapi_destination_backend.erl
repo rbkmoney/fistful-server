@@ -118,13 +118,13 @@ when Type =:= <<"BankCardDestinationResource">> ->
                 month = Month,
                 year = Year
             } = BankCard#'BankCard'.exp_date,
-            CostructedResource = {bank_card, #{
+            CostructedResource = {bank_card, #{bank_card => #{
                 token => BankCard#'BankCard'.token,
                 bin => BankCard#'BankCard'.bin,
                 masked_pan => BankCard#'BankCard'.masked_pan,
                 cardholder_name => BankCard#'BankCard'.cardholder_name,
                 exp_date => {Month, Year}
-            }},
+            }}},
             {ok, ff_codec:marshal(resource, CostructedResource)};
         {error, {decryption_failed, _} = Error} ->
             logger:warning("Resource token decryption failed: ~p", [Error]),
@@ -135,10 +135,10 @@ when Type =:= <<"CryptoWalletDestinationResource">> ->
     #{
         <<"id">> := CryptoWalletID
     } = Resource,
-    CostructedResource = {crypto_wallet, genlib_map:compact(#{
+    CostructedResource = {crypto_wallet, #{crypto_wallet => genlib_map:compact(#{
         id => CryptoWalletID,
         currency => marshal_crypto_currency_data(Resource)
-    })},
+    })}},
     {ok, ff_codec:marshal(resource, CostructedResource)}.
 
 service_call(Params, Context) ->
@@ -170,12 +170,12 @@ marshal(resource, #{
     <<"token">> := Token
 }) ->
     BankCard = wapi_utils:base64url_to_map(Token),
-    Resource = {bank_card, #{
+    Resource = {bank_card, #{bank_card => #{
         token => maps:get(<<"token">>, BankCard),
         payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
         bin => maps:get(<<"bin">>, BankCard),
         masked_pan => maps:get(<<"lastDigits">>, BankCard)
-    }},
+    }}},
     ff_codec:marshal(resource, Resource);
 
 marshal(context, Context) ->
@@ -228,21 +228,21 @@ unmarshal(status, {authorized, #dst_Authorized{}}) ->
 unmarshal(status, {unauthorized, #dst_Unauthorized{}}) ->
     <<"Unauthorized">>;
 
-unmarshal(resource, {bank_card, #'BankCard'{
+unmarshal(resource, {bank_card, #'ResourceBankCard'{bank_card = #'BankCard'{
     token = Token,
     bin = Bin,
     masked_pan = MaskedPan
-}}) ->
+}}}) ->
     genlib_map:compact(#{
         <<"type">> => <<"BankCardDestinationResource">>,
         <<"token">> => unmarshal(string, Token),
         <<"bin">> => unmarshal(string, Bin),
         <<"lastDigits">> => wapi_utils:get_last_pan_digits(MaskedPan)
     });
-unmarshal(resource, {crypto_wallet, #'CryptoWallet'{
+unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
     id = CryptoWalletID,
     data = Data
-}}) ->
+}}}) ->
     {Currency, Params} = unmarshal_crypto_currency_data(Data),
     genlib_map:compact(#{
         <<"type">> => <<"CryptoWalletDestinationResource">>,

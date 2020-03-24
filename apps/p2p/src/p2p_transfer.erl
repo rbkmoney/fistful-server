@@ -8,7 +8,7 @@
 
 -type id() :: binary().
 
--define(ACTUAL_FORMAT_VERSION, 1).
+-define(ACTUAL_FORMAT_VERSION, 2).
 
 -opaque p2p_transfer() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
@@ -263,11 +263,7 @@ owner(#{owner := V}) ->
 
 -spec status(p2p_transfer()) -> status() | undefined.
 status(T) ->
-    OwnStatus = maps:get(status, T, undefined),
-    %% `OwnStatus` is used in case of `{created, p2p_transfer()}` event marshaling
-    %% The event p2p_transfer is not created from events, so `adjustments` can not have
-    %% initial p2p_transfer status.
-    ff_adjustment_utils:status(adjustments_index(T), OwnStatus).
+    maps:get(status, T, undefined).
 
 -spec risk_score(p2p_transfer()) -> risk_score() | undefined.
 risk_score(T) ->
@@ -590,8 +586,7 @@ do_process_transfer({fail, Reason}, P2PTransfer) ->
 do_process_transfer(finish, P2PTransfer) ->
     process_transfer_finish(P2PTransfer);
 do_process_transfer(adjustment, P2PTransfer) ->
-    Result = ff_adjustment_utils:process_adjustments(adjustments_index(P2PTransfer)),
-    handle_child_result(Result, P2PTransfer).
+    process_adjustment(P2PTransfer).
 
 -spec process_risk_scoring(p2p_transfer()) ->
     process_result().
@@ -1025,9 +1020,31 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _P2PTransfer) ->
         }
     }.
 
+-spec process_adjustment(p2p_transfer()) ->
+    process_result().
+process_adjustment(P2PTransfer) ->
+    #{
+        action := Action,
+        events := Events0,
+        changes := Changes
+    } = ff_adjustment_utils:process_adjustments(adjustments_index(P2PTransfer)),
+    Events1 = Events0 ++ handle_adjustment_changes(Changes),
+    handle_child_result({Action, Events1}, P2PTransfer).
+
+-spec handle_adjustment_changes(ff_adjustment:changes()) ->
+    [event()].
+handle_adjustment_changes(Changes) ->
+    StatusChange = maps:get(new_status, Changes, undefined),
+    handle_adjustment_status_change(StatusChange).
+
+-spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) ->
+    [event()].
+handle_adjustment_status_change(undefined) ->
+    [];
+handle_adjustment_status_change(#{new_status := Status}) ->
+    [{status_changed, Status}].
+
 -spec save_adjustable_info(event(), p2p_transfer()) -> p2p_transfer().
-save_adjustable_info({status_changed, Status}, P2PTransfer) ->
-    update_adjusment_index(fun ff_adjustment_utils:set_status/2, Status, P2PTransfer);
 save_adjustable_info({p_transfer, {status_changed, committed}}, P2PTransfer) ->
     CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(P2PTransfer)),
     update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, P2PTransfer);
@@ -1093,8 +1110,35 @@ apply_event_({adjustment, _Ev} = Event, T) ->
 
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
-
+    
 maybe_migrate({adjustment, _Ev} = Event, _MigrateParams) ->
     ff_adjustment_utils:maybe_migrate(Event);
-maybe_migrate(Ev, _MigrateParams) ->
+maybe_migrate({resource_got, Sender, Receiver}) ->
+    {resource_got, maybe_migrate_resource(Sender), maybe_migrate_resource(Receiver)};
+maybe_migrate({created, #{version := 1} = Transfer}) ->
+    #{
+        version := 1,
+        sender := Sender,
+        receiver := Receiver
+    } = Transfer,
+    maybe_migrate({created, genlib_map:compact(Transfer#{
+        version => 2,
+        sender => maybe_migrate_participant(Sender),
+        receiver => maybe_migrate_participant(Receiver)
+    })});
+% Other events
+maybe_migrate(Ev) ->
     Ev.
+
+maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->
+    maybe_migrate_resource({crypto_wallet, #{crypto_wallet => CryptoWallet}});
+maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
+    maybe_migrate_resource({bank_card, #{bank_card => BankCard}});
+maybe_migrate_resource(Resource) ->
+    Resource.
+
+maybe_migrate_participant({raw, #{resource_params := Resource} = Participant}) ->
+    maybe_migrate_participant({raw, Participant#{resource_params => maybe_migrate_resource(Resource)}});
+
+maybe_migrate_participant(Resource) ->
+    Resource.

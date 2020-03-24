@@ -309,10 +309,10 @@ p2p_session_codec_test() ->
         extra => <<"Extra">>
     },
 
-    Resource = {bank_card, #{
+    Resource = {bank_card, #{bank_card => #{
         token => <<"token">>,
         payment_system => visa
-    }},
+    }}},
 
     TransferParams = #{
         id => genlib:unique(),

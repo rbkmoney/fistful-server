@@ -287,6 +287,7 @@ wait_for_destination_authorized(DestID) ->
 create_destination_legacy(IdentityID, Party, C) ->
     BankCard = #{masked_pan := MP} =
         ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    NewBankCard = maps:without([exp_date, cardholder_name], BankCard),
     PaymentSystem = <<"visa">>,
     Params = #{
         <<"identity">>  => IdentityID,
@@ -294,7 +295,7 @@ create_destination_legacy(IdentityID, Party, C) ->
         <<"name">>      => <<"XDesination">>,
         <<"resource">>  => #{
             <<"type">>  => <<"BankCardDestinationResource">>,
-            <<"token">> => wapi_utils:map_to_base64url(BankCard#{
+            <<"token">> => wapi_utils:map_to_base64url(NewBankCard#{
                 lastDigits      => MP,
                 paymentSystem   => PaymentSystem
             })

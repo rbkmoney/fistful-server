@@ -122,10 +122,10 @@ maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
     Event;
 maybe_migrate({created, Session = #{
     withdrawal := Withdrawal = #{
-        destination := Destination
+        destination := #{resource := OldResource}
     }
 }}) ->
-    {ok, Resource} = ff_destination:resource_full(ff_instrument:maybe_migrate_resource(Destination)),
+    {ok, Resource} = ff_destination:process_resource_full(ff_instrument:maybe_migrate_resource(OldResource), undefined),
     NewWithdrawal0 = maps:without([destination], Withdrawal),
     NewWithdrawal1 = NewWithdrawal0#{resource => Resource},
     maybe_migrate({created, Session#{withdrawal => NewWithdrawal1}});

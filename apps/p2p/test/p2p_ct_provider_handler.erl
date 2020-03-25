@@ -14,12 +14,14 @@
     }}
 }).
 
--define(ADAPTER_CONTEXT(Amount, Token, SessionID, State), #p2p_adapter_Context{
+-define(ADAPTER_CONTEXT(Amount, Token, SessionID, State, ExpDate, CardholderName), #p2p_adapter_Context{
     operation = {process, #p2p_adapter_ProcessOperationInfo{
         body = #p2p_adapter_Cash{amount = Amount},
         sender = {disposable, #domain_DisposablePaymentResource{
             payment_tool = {bank_card, #domain_BankCard{
-                token = Token
+                token = Token,
+                exp_date = ExpDate,
+                cardholder_name = CardholderName
             }},
             payment_session_id = SessionID
         }}
@@ -90,7 +92,38 @@ handle_function(Func, Args, Ctx, Opts) ->
         end
     ).
 
-handle_function_('Process', [?ADAPTER_CONTEXT(_Amount, _Token, undefined, _State)], _Ctx, _Opts) ->
+handle_function_('Process', [?ADAPTER_CONTEXT(
+    _Amount,
+    _Token,
+    _SessionID,
+    _State,
+    undefined,
+    _CardholderName
+)], _Ctx, _Opts) ->
+    {ok, ?ADAPTER_PROCESS_RESULT(
+        ?ADAPTER_FINISH_INTENT({failure, #domain_Failure{code = <<"unknown exp date">>}}),
+        undefined
+    )};
+handle_function_('Process', [?ADAPTER_CONTEXT(
+    _Amount,
+    _Token,
+    _SessionID,
+    _State,
+    _ExpDate,
+    undefined
+)], _Ctx, _Opts) ->
+    {ok, ?ADAPTER_PROCESS_RESULT(
+        ?ADAPTER_FINISH_INTENT({failure, #domain_Failure{code = <<"unknown cardholder name">>}}),
+        undefined
+    )};
+handle_function_('Process', [?ADAPTER_CONTEXT(
+    _Amount,
+    _Token,
+    undefined,
+    _State,
+    _ExpDate,
+    _CardholderName
+)], _Ctx, _Opts) ->
     {ok, ?ADAPTER_PROCESS_RESULT(
         ?ADAPTER_FINISH_INTENT({failure, #domain_Failure{code = <<"unknown session id">>}}),
         undefined

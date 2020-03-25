@@ -28,11 +28,14 @@
     token := binary(),
     bin => binary(),
     masked_pan => binary(),
-    cardholder_name => binary(),
+    cardholder_name => cardholder_name(),
     exp_date => exp_date()
 }.
 
--type exp_date() :: {binary(), binary()}.
+-type cardholder_name() :: binary().
+-type month() :: integer().
+-type year() :: integer().
+-type exp_date() :: {month(), year()}.
 -type bank_card_auth_data() ::
     {session, session_auth_data()}.
 
@@ -106,6 +109,8 @@
 -export([payment_system/1]).
 -export([country_code/1]).
 -export([bank_name/1]).
+-export([exp_date/1]).
+-export([cardholder_name/1]).
 
 %% Pipeline
 
@@ -146,6 +151,16 @@ country_code(BankCard) ->
     bank_name().
 bank_name(BankCard) ->
     maps:get(bank_name, BankCard, undefined).
+
+-spec exp_date(bank_card()) ->
+    exp_date().
+exp_date(BankCard) ->
+    maps:get(exp_date, BankCard, undefined).
+
+-spec cardholder_name(bank_card()) ->
+    cardholder_name().
+cardholder_name(BankCard) ->
+    maps:get(cardholder_name, BankCard, undefined).
 
 -spec create_resource(resource_params()) ->
     {ok, resource()} |

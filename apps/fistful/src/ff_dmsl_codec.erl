@@ -147,10 +147,12 @@ unmarshal(user_interaction, {redirect, {post_request,
 
 unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
     payment_tool = {bank_card, #domain_BankCard{
-        token          = Token,
-        payment_system = PaymentSystem,
-        bin            = Bin,
-        last_digits    = LastDigits
+        token           = Token,
+        payment_system  = PaymentSystem,
+        bin             = Bin,
+        last_digits     = LastDigits,
+        exp_date        = ExpDate,
+        cardholder_name = CardholderName
     }},
     payment_session_id = ID
 }}) ->
@@ -165,10 +167,18 @@ unmarshal(resource, {disposable, #domain_DisposablePaymentResource{
             token           => Token,
             payment_system  => PaymentSystem,
             bin             => Bin,
-            masked_pan      => LastDigits
+            masked_pan      => LastDigits,
+            exp_date        => maybe_unmarshal(exp_date, ExpDate),
+            cardholder_name => maybe_unmarshal(string, CardholderName)
         },
         auth_data => AuthData
     })};
+
+unmarshal(exp_date, #'domain_BankCardExpDate'{
+    month = Month,
+    year = Year
+}) ->
+    {unmarshal(integer, Month), unmarshal(integer, Year)};
 
 unmarshal(amount, V) ->
     unmarshal(integer, V);
@@ -232,13 +242,22 @@ marshal(payment_tool, {bank_card, #{bank_card := BankCard}}) ->
     {bank_card, marshal(bank_card, BankCard)};
 
 marshal(bank_card, BankCard) ->
+    ExpDate = ff_resource:exp_date(BankCard),
     #domain_BankCard{
         token           = ff_resource:token(BankCard),
         bin             = ff_resource:bin(BankCard),
         last_digits     = ff_resource:masked_pan(BankCard),
         payment_system  = ff_resource:payment_system(BankCard),
         issuer_country  = ff_resource:country_code(BankCard),
-        bank_name       = ff_resource:bank_name(BankCard)
+        bank_name       = ff_resource:bank_name(BankCard),
+        exp_date        = maybe_marshal(exp_date, ExpDate),
+        cardholder_name = ff_resource:cardholder_name(BankCard)
+    };
+
+marshal(exp_date, {Month, Year}) ->
+    #domain_BankCardExpDate{
+        month = marshal(integer, Month),
+        year = marshal(integer, Year)
     };
 
 marshal(contact_info, undefined) ->

@@ -38,7 +38,14 @@ marshal(adjustment_params, Params) ->
     };
 marshal(adjustment_state, Adjustment) ->
     #p2p_adj_AdjustmentState{
-        adjustment = marshal(adjustment, Adjustment)
+        id = marshal(id, ff_adjustment:id(Adjustment)),
+        status = maybe_marshal(status, ff_adjustment:status(Adjustment)),
+        changes_plan = marshal(changes_plan, ff_adjustment:changes_plan(Adjustment)),
+        created_at = marshal(timestamp_ms, ff_adjustment:created_at(Adjustment)),
+        domain_revision = marshal(domain_revision, ff_adjustment:domain_revision(Adjustment)),
+        party_revision = marshal(domain_revision, ff_adjustment:party_revision(Adjustment)),
+        operation_timestamp = marshal(timestamp_ms, ff_adjustment:operation_timestamp(Adjustment)),
+        external_id = maybe_marshal(id, ff_adjustment:external_id(Adjustment))
     };
 
 marshal(status, pending) ->

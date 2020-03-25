@@ -60,23 +60,9 @@
         exists
     }.
 
-create(NS, Params = #{
-    id := ID,
-    identity := IdentityID,
-    name := Name,
-    currency := CurrencyID,
-    resource := Resource
-}, Ctx) ->
+create(NS, Params = #{id := ID}, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_instrument:create(
-            ID,
-            IdentityID,
-            Name,
-            CurrencyID,
-            Resource,
-            maps:get(external_id, Params, undefined),
-            maps:get(metadata, Params, undefined)
-        )),
+        Events = unwrap(ff_instrument:create(Params)),
         unwrap(machinery:start(NS, ID, {Events, Ctx}, fistful:backend(NS)))
     end).
 

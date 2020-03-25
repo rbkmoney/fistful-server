@@ -27,8 +27,9 @@
 -type blocking()        :: unblocked | blocked.
 -type level()           :: ff_identity_class:level().
 -type level_id()        :: ff_identity_class:level_id().
+-type meta_data()       :: ff_entity_context:md().
 
--type identity() :: #{
+-type identity_state() :: #{
     id           := id(),
     party        := party_id(),
     provider     := provider_id(),
@@ -39,6 +40,18 @@
     effective    => challenge_id(),
     external_id  => id(),
     blocking     => blocking(),
+    meta_data    => meta_data(),
+    created_at   => ff_time:timestamp_ms()
+}.
+
+-type identity() :: #{
+    id           := id(),
+    party        := party_id(),
+    provider     := provider_id(),
+    class        := class_id(),
+    contract     := contract_id(),
+    external_id  => id(),
+    meta_data    => meta_data(),
     created_at   => ff_time:timestamp_ms()
 }.
 
@@ -46,9 +59,9 @@
     ff_identity_challenge:challenge().
 
 -type event() ::
-    {created           , identity()}                                 |
-    {level_changed     , level_id()}                                    |
-    {effective_challenge_changed, challenge_id()}                    |
+    {created           , identity()} |
+    {level_changed     , level_id()} |
+    {effective_challenge_changed, challenge_id()} |
     {{challenge        , challenge_id()}, ff_identity_challenge:event()}.
 
 -type legacy_event() :: any().
@@ -66,6 +79,7 @@
     ff_identity_challenge:create_error().
 
 -export_type([identity/0]).
+-export_type([identity_state/0]).
 -export_type([event/0]).
 -export_type([id/0]).
 -export_type([create_error/0]).
@@ -104,29 +118,29 @@
 
 %% Accessors
 
--spec id(identity()) ->
+-spec id(identity_state()) ->
     id().
--spec provider(identity()) ->
+-spec provider(identity_state()) ->
     provider_id().
--spec class(identity()) ->
+-spec class(identity_state()) ->
     class_id().
--spec party(identity()) ->
+-spec party(identity_state()) ->
     party_id().
--spec contract(identity()) ->
+-spec contract(identity_state()) ->
     contract_id().
--spec blocking(identity()) ->
+-spec blocking(identity_state()) ->
     boolean() | undefined.
--spec level(identity()) ->
+-spec level(identity_state()) ->
     level_id() | undefined.
--spec challenges(identity()) ->
+-spec challenges(identity_state()) ->
     #{challenge_id() => challenge()}.
--spec effective_challenge(identity()) ->
+-spec effective_challenge(identity_state()) ->
     ff_map:result(challenge_id()).
--spec challenge(challenge_id(), identity()) ->
+-spec challenge(challenge_id(), identity_state()) ->
     ff_map:result(challenge()).
--spec external_id(identity()) ->
+-spec external_id(identity_state()) ->
     external_id().
--spec created_at(identity()) ->
+-spec created_at(identity_state()) ->
     ff_time:timestamp_ms() | undefined.
 
 id(#{id := V}) ->
@@ -165,7 +179,7 @@ external_id(Identity) ->
 created_at(Identity) ->
     maps:get(created_at, Identity, undefined).
 
--spec is_accessible(identity()) ->
+-spec is_accessible(identity_state()) ->
     {ok, accessible} |
     {error, ff_party:inaccessibility()}.
 
@@ -173,7 +187,7 @@ is_accessible(Identity) ->
     ff_party:is_accessible(party(Identity)).
 
 
--spec set_blocking(identity()) -> identity().
+-spec set_blocking(identity_state()) -> identity_state().
 
 set_blocking(Identity) ->
     Blocking =  case {ok, accessible} =/= is_accessible(Identity) of
@@ -210,6 +224,7 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
                 contract => Contract,
                 %% TODO need migration for events
                 created_at => ff_time:now()
+                %% TODO add meta data here
             })},
             {level_changed,
                 LevelID
@@ -219,7 +234,7 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
 
 %%
 
--spec start_challenge(challenge_id(), challenge_class(), [ff_identity_challenge:proof()], identity()) ->
+-spec start_challenge(challenge_id(), challenge_class(), [ff_identity_challenge:proof()], identity_state()) ->
     {ok, [event()]} |
     {error, start_challenge_error()}.
 
@@ -243,7 +258,7 @@ start_challenge(ChallengeID, ChallengeClassID, Proofs, Identity) ->
         [{{challenge, ChallengeID}, Ev} || Ev <- Events]
     end).
 
--spec poll_challenge_completion(challenge_id(), identity()) ->
+-spec poll_challenge_completion(challenge_id(), identity_state()) ->
     {ok, [event()]} |
     {error,
         notfound |
@@ -295,8 +310,8 @@ add_external_id(ExternalID, Event) ->
 
 %%
 
--spec apply_event(event(), ff_maybe:maybe(identity())) ->
-    identity().
+-spec apply_event(event(), ff_maybe:maybe(identity_state())) ->
+    identity_state().
 
 apply_event({created, Identity}, undefined) ->
     Identity;

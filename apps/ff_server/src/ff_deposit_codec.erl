@@ -4,6 +4,7 @@
 
 -include_lib("fistful_proto/include/ff_proto_deposit_thrift.hrl").
 
+-export([marshal_deposit_state/1]).
 -export([marshal/2]).
 -export([unmarshal/2]).
 
@@ -11,6 +12,28 @@
 
 -define(to_session_event(SessionID, Payload),
     {session, #{id => SessionID, payload => Payload}}).
+
+-spec marshal_deposit_state(ff_deposit:deposit_state()) ->
+    ff_proto_deposit_thrift:'DepositState'().
+
+marshal_deposit_state(DepositState) ->
+    CashFlow = ff_deposit:effective_final_cash_flow(DepositState),
+    Reverts = ff_deposit:reverts(DepositState),
+    Adjustments = ff_deposit:adjustments(DepositState),
+    #deposit_DepositState{
+        id = marshal(id, ff_deposit:id(DepositState)),
+        body = marshal(cash, ff_deposit:body(DepositState)),
+        status = maybe_marshal(status, ff_deposit:status(DepositState)),
+        wallet_id = marshal(id, ff_deposit:wallet_id(DepositState)),
+        source_id = marshal(id, ff_deposit:source_id(DepositState)),
+        external_id = maybe_marshal(id, ff_deposit:external_id(DepositState)),
+        domain_revision = maybe_marshal(domain_revision, ff_deposit:domain_revision(DepositState)),
+        party_revision = maybe_marshal(party_revision, ff_deposit:party_revision(DepositState)),
+        created_at = maybe_marshal(timestamp_ms, ff_deposit:created_at(DepositState)),
+        effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
+        reverts = [ff_deposit_revert_codec:marshal(revert_state, R) || R <- Reverts],
+        adjustments = [ff_deposit_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments]
+    }.
 
 %% API
 
@@ -66,21 +89,9 @@ marshal(deposit_params, DepositParams) ->
         source_id = marshal(id, maps:get(source_id, DepositParams)),
         external_id = maybe_marshal(id, maps:get(external_id, DepositParams, undefined))
     };
-marshal(deposit_state, DepositState) ->
-    #{
-        deposit := Deposit,
-        context := Context
-    } = DepositState,
-    CashFlow = ff_deposit:effective_final_cash_flow(Deposit),
-    Reverts = ff_deposit:reverts(Deposit),
-    Adjustments = ff_deposit:adjustments(Deposit),
-    #deposit_DepositState{
-        deposit = marshal(deposit, Deposit),
-        context = marshal(context, Context),
-        effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
-        reverts = [ff_deposit_revert_codec:marshal(revert_state, R) || R <- Reverts],
-        adjustments = [ff_deposit_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments]
-    };
+
+marshal(ctx, Ctx) ->
+    maybe_marshal(context, Ctx);
 
 marshal(status, Status) ->
     ff_deposit_status_codec:marshal(status, Status);
@@ -146,6 +157,9 @@ unmarshal(deposit_params, DepositParams) ->
         source_id => unmarshal(id, DepositParams#deposit_DepositParams.source_id),
         external_id => maybe_marshal(id, DepositParams#deposit_DepositParams.external_id)
     });
+
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

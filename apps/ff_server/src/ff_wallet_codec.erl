@@ -4,36 +4,23 @@
 
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
--export([marshal_wallet/1]).
--export([unmarshal_wallet/1]).
+-export([marshal_wallet_state/1]).
 -export([unmarshal_wallet_params/1]).
 
 -export([marshal/2]).
 -export([unmarshal/2]).
 
 %% API
--spec marshal_wallet(ff_wallet:wallet()) ->
-    ff_proto_wallet_thrift:'Wallet'().
+-spec marshal_wallet_state(ff_wallet:wallet_state()) ->
+    ff_proto_wallet_thrift:'WalletState'().
 
-marshal_wallet(Wallet) ->
-    #wlt_Wallet{
-        name        = marshal(string,   ff_wallet:name(Wallet)),
-        blocking    = marshal(blocking, ff_wallet:blocking(Wallet)),
-        account     = marshal(account,  ff_wallet:account(Wallet)),
-        external_id = marshal(id,       ff_wallet:external_id(Wallet))
+marshal_wallet_state(WalletState) ->
+    #wlt_WalletState{
+        name = marshal(string, ff_wallet:name(WalletState)),
+        blocking = marshal(blocking, ff_wallet:blocking(WalletState)),
+        account = marshal(account, ff_wallet:account(WalletState)),
+        external_id = marshal(id, ff_wallet:external_id(WalletState))
     }.
-
--spec unmarshal_wallet(ff_proto_wallet_thrift:'Wallet'()) ->
-    ff_wallet:wallet().
-
-unmarshal_wallet(#wlt_Wallet{
-    name = Name,
-    external_id = ExternalID
-}) ->
-    genlib_map:compact(#{
-        name => unmarshal(string, Name),
-        external_id => unmarshal(id, ExternalID)
-    }).
 
 -spec unmarshal_wallet_params(ff_proto_wallet_thrift:'WalletParams'()) ->
     ff_wallet_machine:params().
@@ -57,9 +44,16 @@ unmarshal_wallet_params(#wlt_WalletParams{
     ff_codec:encoded_value().
 
 marshal(change, {created, Wallet}) ->
-    {created, marshal_wallet(Wallet)};
+    {created, marshal(wallet, Wallet)};
 marshal(change, {account, AccountChange}) ->
     {account, marshal(account_change, AccountChange)};
+
+marshal(wallet, Wallet) ->
+    #wlt_Wallet{
+        name = marshal(string, ff_wallet:name(Wallet)),
+        blocking = marshal(blocking, ff_wallet:blocking(Wallet)),
+        external_id = marshal(id, ff_wallet:external_id(Wallet))
+    };
 
 marshal(ctx, Ctx) ->
     marshal(context, Ctx);
@@ -84,6 +78,15 @@ unmarshal(change, {created, Wallet}) ->
     {created, unmarshal(wallet, Wallet)};
 unmarshal(change, {account, AccountChange}) ->
     {account, unmarshal(account_change, AccountChange)};
+
+unmarshal(wallet, #wlt_Wallet{
+    name = Name,
+    external_id = ExternalID
+}) ->
+    genlib_map:compact(#{
+        name => unmarshal(string, Name),
+        external_id => unmarshal(id, ExternalID)
+    });
 
 unmarshal(account_params, #account_AccountParams{
     identity_id   = IdentityID,

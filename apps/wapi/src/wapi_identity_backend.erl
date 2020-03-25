@@ -246,7 +246,7 @@ filter_events_by_challenge_id(_ID, [], Result) ->
     Result;
 filter_events_by_challenge_id(
     ID, [
-        #idnt_IdentityEvent{
+        #idnt_Event{
             change = {identity_challenge, #idnt_ChallengeChange{
                 id = ID,
                 payload = {status_changed, _Status} = Payload
@@ -275,7 +275,7 @@ filter_challenges_by_status(_Status, [], _, Result) ->
     Result;
 filter_challenges_by_status(
     FilteringStatus,
-    [Challenge = #idnt_Challenge{status = Status} | Rest],
+    [Challenge = #idnt_ChallengeState{status = Status} | Rest],
     HandlerContext,
     Acc
 ) ->
@@ -374,16 +374,16 @@ marshal(T, V) ->
 unmarshal({list, Type}, List) ->
     lists:map(fun(V) -> unmarshal(Type, V) end, List);
 
-unmarshal(identity, #idnt_Identity{
-    id          = IdentityID,
-    blocking    = Blocking,
-    cls         = Class,
-    provider    = Provider,
-    level       = Level,
-    effective_challenge = EffectiveChallenge,
+unmarshal(identity, #idnt_IdentityState{
+    id = IdentityID,
+    blocking = Blocking,
+    class_id = Class,
+    provider_id = Provider,
+    level_id = Level,
+    effective_challenge_id = EffectiveChallenge,
     external_id = ExternalID,
-    created_at  = CreatedAt,
-    context     = Ctx
+    created_at = CreatedAt,
+    context = Ctx
 }) ->
     Context = unmarshal(context, Ctx),
     genlib_map:compact(#{
@@ -399,7 +399,7 @@ unmarshal(identity, #idnt_Identity{
         <<"metadata">>              => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
     });
 
-unmarshal(challenge, {#idnt_Challenge{
+unmarshal(challenge, {#idnt_ChallengeState{
     id          = ID,
     cls         = Class,
     proofs      = Proofs,

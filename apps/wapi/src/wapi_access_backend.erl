@@ -50,15 +50,15 @@ get_context_by_id(Resource = destination, DestinationID, WoodyCtx) ->
     get_context(Resource, Destination).
 
 get_context(identity, Identity) ->
-    #idnt_Identity{context = Ctx} = Identity,
+    #idnt_IdentityState{context = Ctx} = Identity,
     Context = ff_codec:unmarshal(context, Ctx),
     wapi_backend_utils:get_from_ctx(<<"owner">>, Context);
 get_context(wallet, Wallet) ->
-    #wlt_Wallet{context = Ctx} = Wallet,
+    #wlt_WalletState{context = Ctx} = Wallet,
     Context = ff_codec:unmarshal(context, Ctx),
     wapi_backend_utils:get_from_ctx(<<"owner">>, Context);
 get_context(destination, Destination) ->
-    #dst_Destination{context = Ctx} = Destination,
+    #dst_DestinationState{context = Ctx} = Destination,
     Context = ff_codec:unmarshal(context, Ctx),
     wapi_backend_utils:get_from_ctx(<<"owner">>, Context).
 

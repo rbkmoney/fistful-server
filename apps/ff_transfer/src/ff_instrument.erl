@@ -146,7 +146,7 @@ create(Params = #{
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Events = unwrap(ff_account:create(ID, Identity, Currency)),
         [{created, genlib_map:compact(#{
-            name => Name, 
+            name => Name,
             resource => Resource,
             external_id => maps:get(external_id, Params, undefined),
             metadata => maps:get(metadata, Params, undefined)

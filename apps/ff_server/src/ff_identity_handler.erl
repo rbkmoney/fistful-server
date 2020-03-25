@@ -45,8 +45,8 @@ handle_function_('Get', [ID], _Opts) ->
         {ok, Machine} ->
             Identity = ff_identity:set_blocking(ff_identity_machine:identity(Machine)),
             Ctx      = ff_identity_codec:marshal(ctx, ff_identity_machine:ctx(Machine)),
-            Response = ff_identity_codec:marshal_identity(Identity),
-            {ok, Response#idnt_Identity{context = Ctx}};
+            Response = ff_identity_codec:marshal_identity_state(Identity),
+            {ok, Response#idnt_IdentityState{context = Ctx}};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;
@@ -59,7 +59,7 @@ handle_function_('StartChallenge', [IdentityID, Params], _Opts) ->
             {ok, Machine}   = ff_identity_machine:get(IdentityID),
             Identity        = ff_identity_machine:identity(Machine),
             {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
-            {ok, ff_identity_codec:marshal_challenge(Challenge)};
+            {ok, ff_identity_codec:marshal_challenge_state(Challenge)};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {challenge, {pending, _}}} ->
@@ -82,7 +82,7 @@ handle_function_('GetChallenges', [ID], _Opts) ->
         {ok, Machine} ->
             Identity = ff_identity_machine:identity(Machine),
             Challenges = ff_identity:challenges(Identity),
-            {ok, [ff_identity_codec:marshal_challenge(C) || C <- maps:values(Challenges)]};
+            {ok, [ff_identity_codec:marshal_challenge_state(C) || C <- maps:values(Challenges)]};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;

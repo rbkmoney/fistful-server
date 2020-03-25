@@ -189,7 +189,7 @@ maybe_marshal(_, undefined) ->
 maybe_marshal(T, V) ->
     marshal(T, V).
 
-unmarshal(destination, #dst_Destination{
+unmarshal(destination, #dst_DestinationState{
     id = DestinationID,
     name = Name,
     account = Account,

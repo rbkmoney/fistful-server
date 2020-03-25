@@ -5,9 +5,7 @@
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
 -export([unmarshal_destination_params/1]).
-
--export([marshal_destination/2]).
--export([unmarshal_destination/1]).
+-export([marshal_destination_state/1]).
 
 -export([marshal/2]).
 -export([unmarshal/2]).
@@ -27,43 +25,25 @@ unmarshal_destination_params(Params) ->
         external_id => maybe_unmarshal(id, Params#dst_DestinationParams.external_id)
     }).
 
--spec marshal_destination(ff_destination:id(), ff_destination:machine()) ->
+-spec marshal_destination_state(ff_destination:destination_state()) ->
     ff_proto_destination_thrift:'DestinationState'().
 
-marshal_destination(ID, Machine) ->
-    Context     = marshal(ctx, ff_destination:ctx(Machine)),
-    Destination = ff_destination:get(Machine),
-    Blocking    = case ff_destination:is_accessible(Destination) of
+marshal_destination_state(DestinationState) ->
+    Blocking    = case ff_destination:is_accessible(DestinationState) of
         {ok, accessible} ->
             unblocked;
         _ ->
             blocked
     end,
     #dst_DestinationState{
-        id = ID,
-        name = marshal(string, ff_destination:name(Destination)),
-        resource = marshal(resource, ff_destination:resource(Destination)),
-        external_id = marshal(id, ff_destination:external_id(Destination)),
-        account = marshal(account, ff_destination:account(Destination)),
-        status = marshal(status, ff_destination:status(Destination)),
-        created_at = marshal(timestamp, ff_machine:created(Machine)),
-        blocking = Blocking,
-        metadata = marshal(ctx, ff_destination:metadata(Destination)),
-        context = Context
+        name = marshal(string, ff_destination:name(DestinationState)),
+        resource = marshal(resource, ff_destination:resource(DestinationState)),
+        external_id = marshal(id, ff_destination:external_id(DestinationState)),
+        account = marshal(account, ff_destination:account(DestinationState)),
+        status = marshal(status, ff_destination:status(DestinationState)),
+        blocking = Blocking
+        % metadata = marshal(ctx, ff_destination:metadata(DestinationState))
     }.
-
--spec unmarshal_destination(ff_proto_destination_thrift:'DestinationState'()) ->
-    ff_destination:destination().
-
-unmarshal_destination(Dest) ->
-    genlib_map:compact(#{
-        resource => unmarshal(resource, Dest#dst_DestinationState.resource),
-        name => unmarshal(string, Dest#dst_DestinationState.name),
-        account => maybe_unmarshal(account, Dest#dst_DestinationState.account),
-        status => maybe_unmarshal(status, Dest#dst_DestinationState.status),
-        external_id => maybe_unmarshal(external_id, Dest#dst_DestinationState.external_id),
-        metadata => maybe_unmarshal(ctx, Dest#dst_DestinationState.metadata)
-    }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
@@ -79,7 +59,7 @@ marshal(create_change, Destination = #{
     name := Name,
     resource := Resource
 }) ->
-    #dst_DestinationState{
+    #dst_Destination{
         name = Name,
         resource = Resource,
         external_id = maybe_marshal(id, maps:get(external_id, Destination,  undefined))
@@ -119,6 +99,14 @@ unmarshal(change, {account, AccountChange}) ->
     {account, unmarshal(account_change, AccountChange)};
 unmarshal(change, {status, StatusChange}) ->
     {status_changed, unmarshal(status_change, StatusChange)};
+
+unmarshal(destination, Dest) ->
+    genlib_map:compact(#{
+        resource => unmarshal(resource, Dest#dst_Destination.resource),
+        name => unmarshal(string, Dest#dst_Destination.name),
+        external_id => maybe_unmarshal(external_id, Dest#dst_Destination.external_id),
+        metadata => maybe_unmarshal(ctx, Dest#dst_Destination.metadata)
+    });
 
 unmarshal(status, {authorized, #dst_Authorized{}}) ->
     authorized;
@@ -175,7 +163,7 @@ destination_test() ->
         external_id => genlib:unique()
     },
 
-    ?assertEqual(In, unmarshal_destination(marshal_destination(In))).
+    ?assertEqual(In, unmarshal_destination(marshal_destination_state(In))).
 
 -spec crypto_wallet_resource_test() -> _.
 crypto_wallet_resource_test() ->

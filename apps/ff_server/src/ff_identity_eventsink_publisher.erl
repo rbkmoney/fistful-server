@@ -31,7 +31,7 @@ publish_event(#{
         id            = marshal(event_id, ID),
         created_at    = marshal(timestamp, Dt),
         source        = marshal(id, SourceID),
-        payload       = #idnt_Event{
+        payload       = #idnt_EventSinkPayload{
             sequence   = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
             changes    = [marshal(change, Payload)]

@@ -7,10 +7,16 @@
 -type id()          :: ff_account:id().
 -type external_id() :: id() | undefined.
 
--type wallet() :: #{
+-type wallet_state() :: #{
     name        := binary(),
     blocking    := blocking(),
     account     => account(),
+    external_id => id()
+}.
+
+-type wallet() :: #{
+    name        := binary(),
+    blocking    := blocking(),
     external_id => id()
 }.
 
@@ -27,6 +33,7 @@
 
 -export_type([id/0]).
 -export_type([wallet/0]).
+-export_type([wallet_state/0]).
 -export_type([event/0]).
 -export_type([create_error/0]).
 
@@ -63,17 +70,17 @@
 
 %% Accessors
 
--spec account(wallet()) -> account().
+-spec account(wallet_state()) -> account().
 
--spec id(wallet()) ->
+-spec id(wallet_state()) ->
     id().
--spec identity(wallet()) ->
+-spec identity(wallet_state()) ->
     identity().
--spec name(wallet()) ->
+-spec name(wallet_state()) ->
     binary().
--spec currency(wallet()) ->
+-spec currency(wallet_state()) ->
     currency().
--spec blocking(wallet()) ->
+-spec blocking(wallet_state()) ->
     blocking().
 
 account(Wallet) ->
@@ -90,7 +97,7 @@ currency(Wallet) ->
 blocking(#{blocking := Blocking}) ->
     Blocking.
 
--spec external_id(wallet()) ->
+-spec external_id(wallet_state()) ->
     external_id().
 
 external_id(#{external_id := ExternalID}) ->
@@ -117,7 +124,7 @@ create(ID, IdentityID, Name, CurrencyID, ExternalID) ->
         [{account, Ev} || Ev <- unwrap(ff_account:create(ID, Identity, Currency))]
     end).
 
--spec is_accessible(wallet()) ->
+-spec is_accessible(wallet_state()) ->
     {ok, accessible} |
     {error, inaccessibility()}.
 
@@ -127,7 +134,7 @@ is_accessible(Wallet) ->
         accessible = unwrap(ff_account:is_accessible(account(Wallet)))
     end).
 
--spec close(wallet()) ->
+-spec close(wallet_state()) ->
     {ok, [event()]} |
     {error,
         inaccessibility() |
@@ -148,8 +155,8 @@ add_external_id(ExternalID, Event) ->
 
 %%
 
--spec apply_event(event(), undefined | wallet()) ->
-    wallet().
+-spec apply_event(event(), undefined | wallet_state()) ->
+    wallet_state().
 
 apply_event({created, Wallet}, undefined) ->
     Wallet;
@@ -165,7 +172,7 @@ maybe_migrate(Ev, _MigrateParams) ->
 
 %% Internal functions
 
--spec check_accessible(wallet()) ->
+-spec check_accessible(wallet_state()) ->
     {ok, accessible} |
     {error, inaccessibility()}.
 

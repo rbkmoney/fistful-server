@@ -8,9 +8,11 @@
 
 -spec bank_card(binary(), {1..12, 2000..9999}, ct_helper:config()) ->
     #{
-        token          := binary(),
-        bin            => binary(),
-        masked_pan     => binary()
+        token           := binary(),
+        bin             => binary(),
+        masked_pan      => binary(),
+        exp_date        => {integer(), integer()},
+        cardholder_name => binary()
     }.
 
 bank_card(PAN, {MM, YYYY} = ExpDate, C) ->

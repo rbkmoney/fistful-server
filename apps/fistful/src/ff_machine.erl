@@ -134,7 +134,7 @@ get(Mod, NS, Ref) ->
 
 get(Mod, NS, Ref, Range) ->
     do(fun () ->
-        Machine = unwrap(get_and_migrate_machine(Mod, NS, Ref, Range)),
+        Machine = unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))),
         collapse(Mod, Machine)
     end).
 
@@ -144,17 +144,21 @@ get(Mod, NS, Ref, Range) ->
 
 history(Mod, NS, Ref, Range) ->
     do(fun () ->
-        #{history := History} = unwrap(get_and_migrate_machine(Mod, NS, Ref, Range)),
+        Machine = unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))),
+        #{history := History} = migrate_machine(Mod, Machine),
         History
     end).
 
 -spec collapse(module(), machine()) ->
     st().
 
-collapse(Mod, #{history := History, aux_state := #{ctx := Ctx}}) ->
-    collapse_history(Mod, History, #{ctx => Ctx});
-collapse(Mod, #{history := History}) ->
-    collapse_history(Mod, History, #{ctx => ff_entity_context:new()}).
+collapse(Mod, Machine) ->
+    collapse_(Mod, migrate_machine(Mod, Machine)).
+
+-spec collapse_(module(), machine()) ->
+    st().
+collapse_(Mod, #{history := History, aux_state := #{ctx := Ctx}}) ->
+    collapse_history(Mod, History, #{ctx => Ctx}).
 
 collapse_history(Mod, History, St0) ->
     lists:foldl(fun (Ev, St) -> merge_event(Mod, Ev, St) end, St0, History).
@@ -189,15 +193,6 @@ merge_timestamped_event({ev, Ts, Body}, St = #{times := {Created, _Updated}}) ->
     {Body, St#{times => {Created, Ts}}};
 merge_timestamped_event({ev, Ts, Body}, St = #{}) ->
     {Body, St#{times => {Ts, Ts}}}.
-
--spec get_and_migrate_machine(module(), namespace(), ref(), range()) ->
-    {ok, machine()} |
-    {error, notfound}.
-
-get_and_migrate_machine(Mod, NS, Ref, Range) ->
-    do(fun () ->
-        migrate_machine(Mod, unwrap(machinery:get(NS, Ref, Range, fistful:backend(NS))))
-    end).
 
 -spec migrate_machine(module(), machine()) ->
     machine().

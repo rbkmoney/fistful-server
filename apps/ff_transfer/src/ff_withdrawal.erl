@@ -190,7 +190,7 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/1]).
+-export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -1441,9 +1441,8 @@ build_failure(session, Withdrawal) ->
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(withdrawal())) ->
     withdrawal().
 apply_event(Ev, T0) ->
-    Migrated = maybe_migrate(Ev),
-    T1 = apply_event_(Migrated, T0),
-    T2 = save_adjustable_info(Migrated, T1),
+    T1 = apply_event_(Ev, T0),
+    T2 = save_adjustable_info(Ev, T1),
     T2.
 
 -spec apply_event_(event(), ff_maybe:maybe(withdrawal())) ->
@@ -1469,28 +1468,28 @@ apply_event_({route_changed, Route}, T) ->
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
 
--spec maybe_migrate(event() | legacy_event()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 % Actual events
-maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}) ->
+maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}) ->
+maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}) ->
+maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}, _MigrateParams) ->
     Ev;
-maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}) ->
+maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}, _MigrateParams) ->
     Ev;
-maybe_migrate({p_transfer, PEvent}) ->
+maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
-maybe_migrate({adjustment, _Payload} = Event) ->
+maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
     ff_adjustment_utils:maybe_migrate(Event);
-maybe_migrate({resource_got, Resource}) ->
+maybe_migrate({resource_got, Resource}, _MigrateParams) ->
     {resource_got, ff_instrument:maybe_migrate_resource(Resource)};
 
 % Old events
-maybe_migrate({limit_check, {wallet, Details}}) ->
-    maybe_migrate({limit_check, {wallet_sender, Details}});
-maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
+maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->
+    maybe_migrate({limit_check, {wallet_sender, Details}}, MigrateParams);
+maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateParams) ->
     #{
         version     := 1,
         id          := ID,
@@ -1519,8 +1518,8 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}) ->
             destination_account   => [],
             wallet_cash_flow_plan => []
         }
-    })});
-maybe_migrate({created, T}) ->
+    })}, MigrateParams);
+maybe_migrate({created, T}, MigrateParams) ->
     DestinationID = maps:get(destination, T),
     SourceID = maps:get(source, T),
     ProviderID = maps:get(provider, T),
@@ -1532,22 +1531,22 @@ maybe_migrate({created, T}) ->
             destination => DestinationID,
             source      => SourceID
         }
-    }});
-maybe_migrate({transfer, PTransferEv}) ->
-    maybe_migrate({p_transfer, PTransferEv});
-maybe_migrate({status_changed, {failed, LegacyFailure}}) ->
+    }}, MigrateParams);
+maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
+    maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
+maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
     Failure = #{
         code => <<"unknown">>,
         reason => genlib:format(LegacyFailure)
     },
-    maybe_migrate({status_changed, {failed, Failure}});
-maybe_migrate({session_finished, SessionID}) ->
+    maybe_migrate({status_changed, {failed, Failure}}, MigrateParams);
+maybe_migrate({session_finished, SessionID}, MigrateParams) ->
     {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
     Session = ff_withdrawal_session_machine:session(SessionMachine),
     {finished, Result} = ff_withdrawal_session:status(Session),
-    maybe_migrate({session_finished, {SessionID, Result}});
+    maybe_migrate({session_finished, {SessionID, Result}}, MigrateParams);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
 %% Tests
@@ -1570,7 +1569,7 @@ v0_created_migration_test() ->
         body        => Body,
         provider    => ProviderID
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
@@ -1607,7 +1606,7 @@ v1_created_migration_test() ->
             destination => DestinationID
         }
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
@@ -1652,7 +1651,7 @@ v2_created_migration_test() ->
             }
         }
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),

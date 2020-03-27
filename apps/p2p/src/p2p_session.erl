@@ -29,7 +29,7 @@
 
 %% ff_machine
 -export([apply_event/2]).
--export([maybe_migrate/1]).
+-export([maybe_migrate/2]).
 -export([init/2]).
 
 %% ff_repair
@@ -386,22 +386,18 @@ assert_transaction_info(TrxInfoNew, _TrxInfo) ->
 
 -spec apply_event(event(), undefined | session()) ->
     session().
-apply_event(Ev, S) ->
-    apply_event_(maybe_migrate(Ev), S).
 
--spec apply_event_(event(), undefined | session()) ->
-    session().
-apply_event_({created, Session}, undefined) ->
+apply_event({created, Session}, undefined) ->
     Session;
-apply_event_({next_state, AdapterState}, Session) ->
+apply_event({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
-apply_event_({transaction_bound, TransactionInfo}, Session) ->
+apply_event({transaction_bound, TransactionInfo}, Session) ->
     Session#{transaction_info => TransactionInfo};
-apply_event_({finished, Result}, Session) ->
+apply_event({finished, Result}, Session) ->
     set_session_status({finished, Result}, Session);
-apply_event_({callback, _Ev} = Event, Session) ->
+apply_event({callback, _Ev} = Event, Session) ->
     apply_callback_event(Event, Session);
-apply_event_({user_interaction, _Ev} = Event, Session) ->
+apply_event({user_interaction, _Ev} = Event, Session) ->
     apply_user_interaction_event(Event, Session).
 
 -spec apply_callback_event(wrapped_callback_event(), session()) -> session().
@@ -428,10 +424,10 @@ set_user_interactions_index(UserInteractions, Session) ->
 set_session_status(SessionState, Session) ->
     Session#{status => SessionState}.
 
--spec maybe_migrate(event() | legacy_event()) ->
+-spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
-maybe_migrate({created, #{version := 1} = Session}) ->
+maybe_migrate({created, #{version := 1} = Session}, MigrateParams) ->
     #{
         version := 1,
         transfer_params := #{
@@ -445,9 +441,13 @@ maybe_migrate({created, #{version := 1} = Session}) ->
             sender => maybe_migrate_resource(Sender),
             receiver => maybe_migrate_resource(Receiver)
         }
-    })});
+    })}, MigrateParams);
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate({callback, _Ev} = Event, _MigrateParams) ->
+    p2p_callback_utils:maybe_migrate(Event);
+maybe_migrate({user_interaction, _Ev} = Event, _MigrateParams) ->
+    p2p_user_interaction_utils:maybe_migrate(Event);
+maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
 maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->

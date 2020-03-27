@@ -5,6 +5,9 @@ def finalHook = {
   runStage('store CT logs') {
     archive '_build/test/logs/'
   }
+  runStage('store services logs') {
+    archive 'test/log/'
+  }
 }
 
 build('fistful-server', 'docker-host', finalHook) {

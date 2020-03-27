@@ -6,7 +6,7 @@
 
 -export([unmarshal_withdrawal_params/1]).
 
--export([marshal_withdrawal_state/1]).
+-export([marshal_withdrawal_state/2]).
 -export([marshal_event/1]).
 
 -export([marshal/2]).
@@ -26,10 +26,10 @@ unmarshal_withdrawal_params(Params) ->
         external_id    => maybe_unmarshal(id, Params#wthd_WithdrawalParams.external_id)
     }).
 
--spec marshal_withdrawal_state(ff_withdrawal:withdrawal_state()) ->
+-spec marshal_withdrawal_state(ff_withdrawal:withdrawal_state(), ff_entity_context:context()) ->
     ff_proto_withdrawal_thrift:'WithdrawalState'().
 
-marshal_withdrawal_state(WithdrawalState) ->
+marshal_withdrawal_state(WithdrawalState, Context) ->
     CashFlow = ff_withdrawal:effective_final_cash_flow(WithdrawalState),
     Adjustments = ff_withdrawal:adjustments(WithdrawalState),
     Sessions = ff_withdrawal:sessions(WithdrawalState),
@@ -47,7 +47,8 @@ marshal_withdrawal_state(WithdrawalState) ->
         sessions = [marshal(session_state, S) || S <- Sessions],
         effective_route = maybe_marshal(route, ff_withdrawal:route(WithdrawalState)),
         effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
-        adjustments = [ff_withdrawal_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments]
+        adjustments = [ff_withdrawal_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments],
+        context = marshal(ctx, Context)
         %% TODO add meta here
         %% TODO add quote here
     }.
@@ -249,7 +250,6 @@ withdrawal_symmetry_test() ->
         wallet_id = genlib:unique(),
         destination_id = genlib:unique(),
         external_id = genlib:unique(),
-        status = {pending, #wthd_status_Pending{}},
         route = #wthd_Route{
             provider_id = <<"22">>
         },
@@ -257,20 +257,6 @@ withdrawal_symmetry_test() ->
         party_revision = 3,
         created_at = <<"2099-01-01T00:00:00.123000Z">>
     },
-    ?assertEqual(In, marshal_withdrawal(unmarshal_withdrawal(In))).
-
--spec withdrawal_params_symmetry_test() -> _.
-withdrawal_params_symmetry_test() ->
-    In = #wthd_WithdrawalParams{
-        id = genlib:unique(),
-        body = #'Cash'{
-            amount = 10101,
-            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
-        },
-        wallet_id = genlib:unique(),
-        destination_id = genlib:unique(),
-        external_id = undefined
-    },
-    ?assertEqual(In, marshal_withdrawal_params(unmarshal_withdrawal_params(In))).
+    ?assertEqual(In, marshal(withdrawal, unmarshal(withdrawal, In))).
 
 -endif.

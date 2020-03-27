@@ -48,7 +48,7 @@
 
 -define(DESTINATION_STATUS, {authorized, #dst_Authorized{}}).
 
--define(DESTINATION(PartyID), #dst_Destination{
+-define(DESTINATION(PartyID), #dst_DestinationState{
     id          = ?STRING,
     name        = ?STRING,
     status      = ?DESTINATION_STATUS,
@@ -59,7 +59,7 @@
     context     = ?DEFAULT_CONTEXT(PartyID)
 }).
 
--define(WALLET(PartyID), #wlt_Wallet{
+-define(WALLET(PartyID), #wlt_WalletState{
     id          = ?STRING,
     name        = ?STRING,
     blocking    = ?BLOCKING,
@@ -69,15 +69,15 @@
     context     = ?DEFAULT_CONTEXT(PartyID)
 }).
 
--define(IDENTITY(PartyID), #idnt_Identity{
-    id          = ?STRING,
-    party       = ?STRING,
-    provider    = ?STRING,
-    cls         = ?STRING,
-    context     = ?DEFAULT_CONTEXT(PartyID)
+-define(IDENTITY(PartyID), #idnt_IdentityState{
+    id = ?STRING,
+    party_id = ?STRING,
+    provider_id = ?STRING,
+    class_id = ?STRING,
+    context = ?DEFAULT_CONTEXT(PartyID)
 }).
 
--define(IDENTITY_CHALLENGE(Status), #idnt_Challenge{
+-define(IDENTITY_CHALLENGE(Status), #idnt_ChallengeState{
     cls         = ?STRING,
     proofs      = [
         #idnt_ChallengeProof{
@@ -94,7 +94,7 @@
     valid_until = ?TIMESTAMP
 }}).
 
--define(IDENTITY_CHALLENGE_EVENT(Change), #idnt_IdentityEvent{
+-define(IDENTITY_CHALLENGE_EVENT(Change), #idnt_Event{
     change = Change,
     occured_at = ?TIMESTAMP,
     sequence = ?INTEGER

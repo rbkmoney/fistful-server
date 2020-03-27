@@ -97,13 +97,13 @@ create_ok(C) ->
     CreateResult = call_service('Create', [Params]),
     GetResult    = call_service('Get', [ID]),
     {ok, Wallet} = GetResult,
-    Account      = Wallet#wlt_Wallet.account,
+    Account      = Wallet#wlt_WalletState.account,
     CurrencyRef  = Account#account_Account.currency,
     ?assertMatch(CreateResult, GetResult),
-    ?assertMatch(<<"Valet">>,  Wallet#wlt_Wallet.name),
-    ?assertMatch(unblocked,    Wallet#wlt_Wallet.blocking),
-    ?assertMatch(ExternalID,   Wallet#wlt_Wallet.external_id),
-    ?assertMatch(Ctx,          Wallet#wlt_Wallet.context),
+    ?assertMatch(<<"Valet">>,  Wallet#wlt_WalletState.name),
+    ?assertMatch(unblocked,    Wallet#wlt_WalletState.blocking),
+    ?assertMatch(ExternalID,   Wallet#wlt_WalletState.external_id),
+    ?assertMatch(Ctx,          Wallet#wlt_WalletState.context),
     ?assertMatch(IdentityID,   Account#account_Account.identity),
     ?assertMatch(Currency,     CurrencyRef#'CurrencyRef'.symbolic_code).
 

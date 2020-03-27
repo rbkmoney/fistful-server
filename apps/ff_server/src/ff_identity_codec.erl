@@ -49,7 +49,7 @@ unmarshal_challenge_params(#idnt_ChallengeParams{
     }).
 
 -spec marshal_identity_event({integer(), ff_machine:timestamped_event(ff_identity:event())}) ->
-    ff_proto_identity_thrift:'IdentityEvent'().
+    ff_proto_identity_thrift:'Event'().
 
 marshal_identity_event({ID, {ev, Timestamp, Ev}}) ->
     #idnt_Event{
@@ -297,34 +297,24 @@ maybe_unmarshal(Type, Value) ->
 
 -spec identity_test() -> _.
 identity_test() ->
-    Blocking   = blocked,
     IdentityIn = #{
         id          => genlib:unique(),
         party       => genlib:unique(),
         provider    => genlib:unique(),
         class       => genlib:unique(),
         contract    => genlib:unique(),
-        level       => genlib:unique(),
-        blocking    => Blocking,
-        external_id => genlib:unique(),
-        effective   => genlib:unique()
+        external_id => genlib:unique()
     },
-    IdentityOut = unmarshal_identity(marshal_identity(IdentityIn)),
+    IdentityOut = unmarshal(identity, marshal(identity, IdentityIn)),
     ?assertEqual(IdentityOut, IdentityIn).
 
 -spec challenge_test() -> _.
 challenge_test() ->
-    Status = {completed, #{
-            resolution => approved,
-            valid_until => {calendar:universal_time(), 0}
-        }},
     ChallengeIn = #{
         id     => genlib:unique(),
-        proofs => [{rus_retiree_insurance_cert, <<"Bananazzzz">>}],
-        status => Status,
-        challenge_class => genlib:unique()
+        proofs => [{rus_retiree_insurance_cert, <<"Bananazzzz">>}]
     },
-    ChallengeOut = unmarshal_challenge(marshal_challenge(ChallengeIn)),
+    ChallengeOut = unmarshal(challenge_payload_created, marshal(challenge_payload_created, ChallengeIn)),
     ?assertEqual(ChallengeIn, ChallengeOut).
 
 -endif.

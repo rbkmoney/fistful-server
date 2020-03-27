@@ -264,7 +264,7 @@ filter_events_by_challenge_id(ID, [_H | Rest], Acc) ->
 
 get_challenge_by_id(_ID, [], _) ->
     {error, {challenge, notfound}};
-get_challenge_by_id(ID, [Challenge = #idnt_Challenge{id = ID} | _Rest], HandlerContext) ->
+get_challenge_by_id(ID, [Challenge = #idnt_ChallengeState{id = ID} | _Rest], HandlerContext) ->
     {ok, unmarshal(challenge, {Challenge, HandlerContext})};
 get_challenge_by_id(ID, [_Challenge | Rest], HandlerContext) ->
     get_challenge_by_id(ID, Rest, HandlerContext).

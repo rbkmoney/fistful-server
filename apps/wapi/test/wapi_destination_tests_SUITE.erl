@@ -192,7 +192,7 @@ do_destination_lifecycle(ResourceType, C) ->
     Identity = generate_identity(PartyID),
     Resource = generate_resource(ResourceType),
     Context = generate_context(PartyID),
-    Destination = generate_destination(Identity#idnt_Identity.id, Resource, Context),
+    Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun('Get', _) -> {ok, Identity} end},
         {fistful_destination,
@@ -223,23 +223,23 @@ do_destination_lifecycle(ResourceType, C) ->
         fun swag_client_wallet_withdrawals_api:get_destination_by_external_id/3,
         #{
             binding => #{
-                <<"externalID">> => Destination#dst_Destination.external_id
+                <<"externalID">> => Destination#dst_DestinationState.external_id
             }
         },
         ct_helper:cfg(context, C)
     ),
     ?assertEqual(GetResult, GetByIDResult),
-    ?assertEqual(Destination#dst_Destination.id, maps:get(<<"id">>, CreateResult)),
-    ?assertEqual(Destination#dst_Destination.external_id, maps:get(<<"externalID">>, CreateResult)),
-    ?assertEqual(Identity#idnt_Identity.id, maps:get(<<"identity">>, CreateResult)),
+    ?assertEqual(Destination#dst_DestinationState.id, maps:get(<<"id">>, CreateResult)),
+    ?assertEqual(Destination#dst_DestinationState.external_id, maps:get(<<"externalID">>, CreateResult)),
+    ?assertEqual(Identity#idnt_IdentityState.id, maps:get(<<"identity">>, CreateResult)),
     ?assertEqual(
-        ((Destination#dst_Destination.account)#account_Account.currency)#'CurrencyRef'.symbolic_code,
+        ((Destination#dst_DestinationState.account)#account_Account.currency)#'CurrencyRef'.symbolic_code,
         maps:get(<<"currency">>, CreateResult)
     ),
     ?assertEqual(<<"Authorized">>, maps:get(<<"status">>, CreateResult)),
     ?assertEqual(false, maps:get(<<"isBlocked">>, CreateResult)),
-    ?assertEqual(Destination#dst_Destination.created_at, maps:get(<<"createdAt">>, CreateResult)),
-    ?assertEqual(Destination#dst_Destination.created_at, maps:get(<<"createdAt">>, CreateResult)),
+    ?assertEqual(Destination#dst_DestinationState.created_at, maps:get(<<"createdAt">>, CreateResult)),
+    ?assertEqual(Destination#dst_DestinationState.created_at, maps:get(<<"createdAt">>, CreateResult)),
     ?assertEqual(#{<<"key">> => <<"val">>}, maps:get(<<"metadata">>, CreateResult)),
     {ok, Resource, maps:get(<<"resource">>, CreateResult)}.
 
@@ -262,11 +262,11 @@ issue_token(PartyID, ACL, LifeTime) ->
 
 build_destination_spec(D) ->
     #{
-        <<"name">> => D#dst_Destination.name,
-        <<"identity">> => (D#dst_Destination.account)#account_Account.identity,
-        <<"currency">> => ((D#dst_Destination.account)#account_Account.currency)#'CurrencyRef'.symbolic_code,
-        <<"externalID">> => D#dst_Destination.external_id,
-        <<"resource">> => build_resource_spec(D#dst_Destination.resource)
+        <<"name">> => D#dst_DestinationState.name,
+        <<"identity">> => (D#dst_DestinationState.account)#account_Account.identity,
+        <<"currency">> => ((D#dst_DestinationState.account)#account_Account.currency)#'CurrencyRef'.symbolic_code,
+        <<"externalID">> => D#dst_DestinationState.external_id,
+        <<"resource">> => build_resource_spec(D#dst_DestinationState.resource)
     }.
 
 build_resource_spec({bank_card, R}) ->
@@ -303,12 +303,12 @@ uniq() ->
     genlib:bsuuid().
 
 generate_identity(PartyID) ->
-    #idnt_Identity{
-        id          = uniq(),
-        party       = PartyID,
-        provider    = uniq(),
-        cls         = uniq(),
-        context     = generate_context(PartyID)
+    #idnt_IdentityState{
+        id = uniq(),
+        party_id = PartyID,
+        provider_id = uniq(),
+        class_id = uniq(),
+        context = generate_context(PartyID)
     }.
 
 generate_context(PartyID) ->
@@ -322,7 +322,7 @@ generate_context(PartyID) ->
 
 generate_destination(IdentityID, Resource, Context) ->
     ID = uniq(),
-    #dst_Destination{
+    #dst_DestinationState{
         id          = ID,
         name        = uniq(),
         status      = {authorized, #dst_Authorized{}},

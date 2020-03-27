@@ -25,7 +25,7 @@ unmarshal_destination_params(Params) ->
         external_id => maybe_unmarshal(id, Params#dst_DestinationParams.external_id)
     }).
 
--spec marshal_destination_state(ff_destination:destination_state()) ->
+-spec marshal_destination_state(ff_destination:destination()) ->
     ff_proto_destination_thrift:'DestinationState'().
 
 marshal_destination_state(DestinationState) ->
@@ -61,7 +61,7 @@ marshal(create_change, Destination = #{
 }) ->
     #dst_Destination{
         name = Name,
-        resource = Resource,
+        resource = marshal(resource, Resource),
         external_id = maybe_marshal(id, maps:get(external_id, Destination,  undefined))
     };
 
@@ -104,7 +104,7 @@ unmarshal(destination, Dest) ->
     genlib_map:compact(#{
         resource => unmarshal(resource, Dest#dst_Destination.resource),
         name => unmarshal(string, Dest#dst_Destination.name),
-        external_id => maybe_unmarshal(external_id, Dest#dst_Destination.external_id),
+        external_id => maybe_unmarshal(id, Dest#dst_Destination.external_id),
         metadata => maybe_unmarshal(ctx, Dest#dst_Destination.metadata)
     });
 
@@ -147,23 +147,12 @@ destination_test() ->
     Resource = {bank_card, #{bank_card => #{
         token => <<"token auth">>
     }}},
-    AAID = 12345,
-    AccountID = genlib:unique(),
     In = #{
-        id => AccountID,
-        account => #{
-            id       => AccountID,
-            identity => genlib:unique(),
-            currency => <<"RUN">>,
-            accounter_account_id => AAID
-        },
         name        => <<"Wallet">>,
-        status      => unauthorized,
-        resource    => Resource,
-        external_id => genlib:unique()
+        resource    => Resource
     },
 
-    ?assertEqual(In, unmarshal_destination(marshal_destination_state(In))).
+    ?assertEqual(In, unmarshal(destination, marshal(create_change, In))).
 
 -spec crypto_wallet_resource_test() -> _.
 crypto_wallet_resource_test() ->

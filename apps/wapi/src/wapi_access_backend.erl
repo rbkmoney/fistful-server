@@ -11,8 +11,8 @@
 -type resource_type() :: identity | wallet | destination.
 -type handler_context() :: wapi_handler:context().
 -type data() ::
-    ff_proto_identity_thrift:'Identity'() |
-    ff_proto_wallet_thrift:'Wallet'().
+    ff_proto_identity_thrift:'IdentityState'() |
+    ff_proto_wallet_thrift:'WalletState'().
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 

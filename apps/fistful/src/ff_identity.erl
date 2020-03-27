@@ -56,7 +56,7 @@
 }.
 
 -type challenge() ::
-    ff_identity_challenge:challenge().
+    ff_identity_challenge:challenge_state().
 
 -type event() ::
     {created           , identity()} |

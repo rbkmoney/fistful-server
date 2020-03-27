@@ -19,7 +19,7 @@
 %% API
 
 -type id()        :: machinery:id().
--type identity()  :: ff_identity:identity().
+-type identity()  :: ff_identity:identity_state().
 -type ctx()       :: ff_entity_context:context().
 
 -type st() :: ff_machine:st(identity()).

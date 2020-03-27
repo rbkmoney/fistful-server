@@ -4,7 +4,7 @@
 
 -include_lib("fistful_proto/include/ff_proto_deposit_thrift.hrl").
 
--export([marshal_deposit_state/1]).
+-export([marshal_deposit_state/2]).
 -export([marshal/2]).
 -export([unmarshal/2]).
 
@@ -13,10 +13,10 @@
 -define(to_session_event(SessionID, Payload),
     {session, #{id => SessionID, payload => Payload}}).
 
--spec marshal_deposit_state(ff_deposit:deposit_state()) ->
+-spec marshal_deposit_state(ff_deposit:deposit_state(), ff_entity_context:context()) ->
     ff_proto_deposit_thrift:'DepositState'().
 
-marshal_deposit_state(DepositState) ->
+marshal_deposit_state(DepositState, Context) ->
     CashFlow = ff_deposit:effective_final_cash_flow(DepositState),
     Reverts = ff_deposit:reverts(DepositState),
     Adjustments = ff_deposit:adjustments(DepositState),
@@ -32,7 +32,8 @@ marshal_deposit_state(DepositState) ->
         created_at = maybe_marshal(timestamp_ms, ff_deposit:created_at(DepositState)),
         effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
         reverts = [ff_deposit_revert_codec:marshal(revert_state, R) || R <- Reverts],
-        adjustments = [ff_deposit_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments]
+        adjustments = [ff_deposit_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments],
+        context = marshal(ctx, Context)
     }.
 
 %% API

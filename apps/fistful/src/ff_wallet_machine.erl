@@ -10,7 +10,7 @@
 -module(ff_wallet_machine).
 
 -type id()        :: machinery:id().
--type wallet()    :: ff_wallet:wallet().
+-type wallet()    :: ff_wallet:wallet_state().
 -type ctx()       :: ff_entity_context:context().
 
 -type st()        :: ff_machine:st(wallet()).

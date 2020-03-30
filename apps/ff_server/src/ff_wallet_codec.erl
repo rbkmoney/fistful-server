@@ -18,8 +18,9 @@ marshal_wallet_state(WalletState) ->
     #wlt_WalletState{
         name = marshal(string, ff_wallet:name(WalletState)),
         blocking = marshal(blocking, ff_wallet:blocking(WalletState)),
-        account = marshal(account, ff_wallet:account(WalletState)),
-        external_id = marshal(id, ff_wallet:external_id(WalletState))
+        account = maybe_marshal(account, ff_wallet:account(WalletState)),
+        external_id = maybe_marshal(id, ff_wallet:external_id(WalletState)),
+        created_at = maybe_marshal(timestamp, ff_wallet:created_at(WalletState))
     }.
 
 -spec unmarshal_wallet_params(ff_proto_wallet_thrift:'WalletParams'()) ->
@@ -50,9 +51,10 @@ marshal(change, {account, AccountChange}) ->
 
 marshal(wallet, Wallet) ->
     #wlt_Wallet{
-        name = marshal(string, ff_wallet:name(Wallet)),
-        blocking = marshal(blocking, ff_wallet:blocking(Wallet)),
-        external_id = marshal(id, ff_wallet:external_id(Wallet))
+        name = marshal(string, maps:get(name, Wallet, <<>>)),
+        blocking = marshal(blocking, maps:get(blocking, Wallet)),
+        external_id = maybe_marshal(id, maps:get(external_id, Wallet, undefined)),
+        created_at = maybe_marshal(timestamp, maps:get(created_at, Wallet, undefined))
     };
 
 marshal(ctx, Ctx) ->
@@ -81,11 +83,13 @@ unmarshal(change, {account, AccountChange}) ->
 
 unmarshal(wallet, #wlt_Wallet{
     name = Name,
-    external_id = ExternalID
+    external_id = ExternalID,
+    created_at = CreatedAt
 }) ->
     genlib_map:compact(#{
         name => unmarshal(string, Name),
-        external_id => unmarshal(id, ExternalID)
+        created_at => maybe_unmarshal(timestamp, CreatedAt),
+        external_id => maybe_unmarshal(id, ExternalID)
     });
 
 unmarshal(account_params, #account_AccountParams{
@@ -102,7 +106,13 @@ unmarshal(T, V) ->
 
 %% Internals
 
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
+
 maybe_unmarshal(_Type, undefined) ->
     undefined;
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
+

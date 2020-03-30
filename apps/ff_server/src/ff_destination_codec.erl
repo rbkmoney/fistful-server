@@ -41,6 +41,7 @@ marshal_destination_state(DestinationState) ->
         external_id = marshal(id, ff_destination:external_id(DestinationState)),
         account = marshal(account, ff_destination:account(DestinationState)),
         status = marshal(status, ff_destination:status(DestinationState)),
+        created_at = marshal(timestamp, ff_destination:created_at(DestinationState)),
         blocking = Blocking
         % metadata = marshal(ctx, ff_destination:metadata(DestinationState))
     }.
@@ -62,6 +63,7 @@ marshal(create_change, Destination = #{
     #dst_Destination{
         name = Name,
         resource = marshal(resource, Resource),
+        created_at = maybe_marshal(timestamp, maps:get(created_at, Destination,  undefined)),
         external_id = maybe_marshal(id, maps:get(external_id, Destination,  undefined))
     };
 
@@ -104,6 +106,7 @@ unmarshal(destination, Dest) ->
     genlib_map:compact(#{
         resource => unmarshal(resource, Dest#dst_Destination.resource),
         name => unmarshal(string, Dest#dst_Destination.name),
+        created_at => maybe_unmarshal(timestamp, Dest#dst_Destination.created_at),
         external_id => maybe_unmarshal(id, Dest#dst_Destination.external_id),
         metadata => maybe_unmarshal(ctx, Dest#dst_Destination.metadata)
     });

@@ -29,7 +29,9 @@
 -type level_id()        :: ff_identity_class:level_id().
 -type meta_data()       :: ff_entity_context:md().
 
+-define(ACTUAL_FORMAT_VERSION, 1).
 -type identity_state() :: #{
+    version      := ?ACTUAL_FORMAT_VERSION,
     id           := id(),
     party        := party_id(),
     provider     := provider_id(),
@@ -45,6 +47,7 @@
 }.
 
 -type identity() :: #{
+    version      := ?ACTUAL_FORMAT_VERSION,
     id           := id(),
     party        := party_id(),
     provider     := provider_id(),
@@ -217,6 +220,7 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
         })),
         [
             {created, add_external_id(ExternalID, #{
+                version  => ?ACTUAL_FORMAT_VERSION,
                 id       => ID,
                 party    => Party,
                 provider => ProviderID,
@@ -340,5 +344,17 @@ with_challenge(ID, Fun, Challenges) ->
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
+maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
+    Event;
+maybe_migrate({created, Identity = #{created_at := _CreatedAt}}, MigrateParams) ->
+    maybe_migrate({created, Identity#{
+        version => 1
+    }}, MigrateParams);
+maybe_migrate({created, Identity}, MigrateParams) ->
+    Timestamp = maps:get(timestamp, MigrateParams),
+    CreatedAt = ff_codec:unmarshal(timestamp_ms, ff_codec:marshal(timestamp, Timestamp)),
+    maybe_migrate({created, Identity#{
+        created_at => CreatedAt
+    }}, MigrateParams);
 maybe_migrate(Ev, _MigrateParams) ->
     Ev.

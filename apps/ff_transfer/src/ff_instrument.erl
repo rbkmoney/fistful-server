@@ -66,6 +66,7 @@
 -export([resource/1]).
 -export([status/1]).
 -export([external_id/1]).
+-export([created_at/1]).
 -export([metadata/1]).
 
 -export([create/1]).
@@ -131,6 +132,12 @@ external_id(#{external_id := ExternalID}) ->
     ExternalID;
 external_id(_Instrument) ->
     undefined.
+
+-spec created_at(instrument_state(_)) ->
+    timestamp().
+
+created_at(#{created_at := CreatedAt}) ->
+    CreatedAt.
 
 -spec metadata(instrument_state(_)) ->
     metadata().

@@ -45,11 +45,9 @@ handle_function_('Get', [ID], _Opts) ->
         {ok, Machine} ->
             Wallet    = ff_wallet_machine:wallet(Machine),
             Ctx       = ff_machine:ctx(Machine),
-            CreatedAt = ff_machine:created(Machine),
             Response  = ff_wallet_codec:marshal_wallet_state(Wallet),
             {ok, Response#wlt_WalletState{
                 id         = ff_wallet_codec:marshal(id, ID),
-                created_at = ff_wallet_codec:marshal(timestamp, CreatedAt),
                 context    = ff_wallet_codec:marshal(ctx, Ctx)
             }};
         {error, notfound} ->

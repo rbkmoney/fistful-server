@@ -118,6 +118,7 @@
 -export([currency/1]).
 -export([resource/1]).
 -export([status/1]).
+-export([created_at/1]).
 -export([external_id/1]).
 -export([resource_full/1]).
 -export([resource_full/2]).
@@ -160,6 +161,11 @@ account(Destination)  -> ff_instrument:account(Destination).
     id() | undefined.
 
 external_id(T)        -> ff_instrument:external_id(T).
+
+-spec created_at(destination_state()) ->
+    f_time:timestamp_ms().
+
+created_at(T)         -> ff_instrument:created_at(T).
 
 -spec resource_full(destination_state()) ->
     {ok, resource_full()} |

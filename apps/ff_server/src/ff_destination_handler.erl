@@ -46,11 +46,9 @@ handle_function_('Get', [ID], _Opts) ->
         {ok, Machine} ->
             Destination = ff_destination:get(Machine),
             Context = ff_destination_codec:marshal(ctx, ff_destination:ctx(Machine)),
-            CreatedAt = ff_machine:created(Machine),
             Response = ff_destination_codec:marshal_destination_state(Destination),
             {ok, Response#dst_DestinationState{
                 id = ff_destination_codec:marshal(id, ID),
-                created_at = ff_destination_codec:marshal(timestamp, CreatedAt),
                 context = Context
             }};
         {error, notfound} ->

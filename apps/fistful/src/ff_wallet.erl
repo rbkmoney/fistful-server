@@ -7,17 +7,22 @@
 -type id()          :: ff_account:id().
 -type external_id() :: id() | undefined.
 
+-define(ACTUAL_FORMAT_VERSION, 1).
 -type wallet_state() :: #{
+    version     := ?ACTUAL_FORMAT_VERSION,
     name        := binary(),
     blocking    := blocking(),
     account     => account(),
-    external_id => id()
+    external_id => id(),
+    created_at  => ff_time:timestamp_ms()
 }.
 
 -type wallet() :: #{
+    version     := ?ACTUAL_FORMAT_VERSION,
     name        := binary(),
     blocking    := blocking(),
-    external_id => id()
+    external_id => id(),
+    created_at  => ff_time:timestamp_ms()
 }.
 
 -type event() ::
@@ -49,6 +54,7 @@
 -export([currency/1]).
 -export([blocking/1]).
 -export([external_id/1]).
+-export([created_at/1]).
 
 -export([create/5]).
 -export([is_accessible/1]).
@@ -105,6 +111,12 @@ external_id(#{external_id := ExternalID}) ->
 external_id(_Wallet) ->
     undefined.
 
+-spec created_at(wallet_state()) ->
+    ff_time:timestamp_ms().
+
+created_at(#{created_at := CreatedAt}) ->
+    CreatedAt.
+
 %%
 
 -spec create(id(), identity(), binary(), currency(), external_id()) ->
@@ -117,8 +129,10 @@ create(ID, IdentityID, Name, CurrencyID, ExternalID) ->
         Identity = ff_identity_machine:identity(IdentityMachine),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Wallet = #{
+            version => ?ACTUAL_FORMAT_VERSION,
             name => Name,
-            blocking => unblocked
+            blocking => unblocked,
+            created_at => ff_time:now()
         },
         [{created, add_external_id(ExternalID, Wallet)}] ++
         [{account, Ev} || Ev <- unwrap(ff_account:create(ID, Identity, Currency))]
@@ -167,6 +181,15 @@ apply_event({account, Ev}, Wallet) ->
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
+maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
+    Event;
+maybe_migrate({created, Wallet}, MigrateParams) ->
+    Timestamp = maps:get(timestamp, MigrateParams),
+    CreatedAt = ff_codec:unmarshal(timestamp_ms, ff_codec:marshal(timestamp, Timestamp)),
+    maybe_migrate({created, Wallet#{
+        version => 1,
+        created_at => CreatedAt
+    }}, MigrateParams);
 maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 

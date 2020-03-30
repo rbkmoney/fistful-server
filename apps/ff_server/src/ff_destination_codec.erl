@@ -25,7 +25,7 @@ unmarshal_destination_params(Params) ->
         external_id => maybe_unmarshal(id, Params#dst_DestinationParams.external_id)
     }).
 
--spec marshal_destination_state(ff_destination:destination()) ->
+-spec marshal_destination_state(ff_destination:destination_state()) ->
     ff_proto_destination_thrift:'DestinationState'().
 
 marshal_destination_state(DestinationState) ->

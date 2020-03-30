@@ -84,7 +84,7 @@ get(ID) ->
             {error, notfound}
     end.
 
--spec choose(ff_destination:destination(), ff_transaction:body()) ->
+-spec choose(ff_destination:destination_state(), ff_transaction:body()) ->
     {ok, id()} |
     {error, notfound}.
 

@@ -2,7 +2,7 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--type identity()        :: ff_identity:identity().
+-type identity()        :: ff_identity:identity_state().
 -type terms()           :: ff_party:terms().
 -type contract_params() :: #{
     cash            := ff_cash:cash(),

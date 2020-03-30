@@ -216,12 +216,12 @@
 %% Internal types
 
 -type body()                  :: ff_transaction:body().
--type identity()              :: ff_identity:identity().
+-type identity()              :: ff_identity:identity_state().
 -type party_id()              :: ff_party:id().
 -type wallet_id()             :: ff_wallet:id().
--type wallet()                :: ff_wallet:wallet().
+-type wallet()                :: ff_wallet:wallet_state().
 -type destination_id()        :: ff_destination:id().
--type destination()           :: ff_destination:destination().
+-type destination()           :: ff_destination:destination_state().
 -type process_result()        :: {action(), [event()]}.
 -type final_cash_flow()       :: ff_cash_flow:final_cash_flow().
 -type external_id()           :: id() | undefined.

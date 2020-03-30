@@ -9,7 +9,7 @@
 -type id()          :: machinery:id().
 -type ns()          :: machinery:namespace().
 -type ctx()         :: ff_entity_context:context().
--type instrument(T) :: ff_instrument:instrument(T).
+-type instrument(T) :: ff_instrument:instrument_state(T).
 -type metadata()    :: ff_instrument:metadata().
 
 -type st(T) ::

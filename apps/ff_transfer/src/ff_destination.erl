@@ -89,15 +89,17 @@
      .
 
 -type destination() :: ff_instrument:instrument(resource()).
--type params()      :: ff_instrument_machine:params(resource()).
--type machine()     :: ff_instrument_machine:st(resource()).
--type event()       :: ff_instrument:event(resource()).
+-type destination_state() :: ff_instrument:instrument_state(resource()).
+-type params() :: ff_instrument_machine:params(resource()).
+-type machine() :: ff_instrument_machine:st(resource()).
+-type event() :: ff_instrument:event(resource()).
 
--type events()  :: ff_instrument_machine:events(resource()).
+-type events() :: ff_instrument_machine:events(resource()).
 
 -export_type([id/0]).
 -export_type([machine/0]).
 -export_type([destination/0]).
+-export_type([destination_state/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
 -export_type([resource_type/0]).
@@ -137,13 +139,13 @@
 
 %% Accessors
 
--spec id(destination())       -> id().
--spec name(destination())     -> name().
--spec account(destination())  -> account().
--spec identity(destination()) -> identity().
--spec currency(destination()) -> currency().
--spec resource(destination()) -> resource().
--spec status(destination())   -> status().
+-spec id(destination_state())       -> id().
+-spec name(destination_state())     -> name().
+-spec account(destination_state())  -> account().
+-spec identity(destination_state()) -> identity().
+-spec currency(destination_state()) -> currency().
+-spec resource(destination_state()) -> resource().
+-spec status(destination_state())   -> status().
 
 
 id(Destination)       -> ff_instrument:id(Destination).
@@ -154,12 +156,12 @@ resource(Destination) -> ff_instrument:resource(Destination).
 status(Destination)   -> ff_instrument:status(Destination).
 account(Destination)  -> ff_instrument:account(Destination).
 
--spec external_id(destination()) ->
+-spec external_id(destination_state()) ->
     id() | undefined.
 
 external_id(T)        -> ff_instrument:external_id(T).
 
--spec resource_full(destination()) ->
+-spec resource_full(destination_state()) ->
     {ok, resource_full()} |
     {error,
         {bin_data, not_found}
@@ -168,7 +170,7 @@ external_id(T)        -> ff_instrument:external_id(T).
 resource_full(Destination) ->
     resource_full(Destination, undefined).
 
--spec resource_full(destination(), full_bank_card_id() | undefined) ->
+-spec resource_full(destination_state(), full_bank_card_id() | undefined) ->
     {ok, resource_full()} |
     {error,
         {bin_data, not_found}
@@ -231,7 +233,7 @@ get_machine(ID) ->
     ff_instrument_machine:get(?NS, ID).
 
 -spec get(machine()) ->
-    destination().
+    destination_state().
 
 get(Machine) ->
     ff_instrument_machine:instrument(Machine).
@@ -242,7 +244,7 @@ get(Machine) ->
 ctx(St) ->
     ff_machine:ctx(St).
 
--spec is_accessible(destination()) ->
+-spec is_accessible(destination_state()) ->
     {ok, accessible} |
     {error, ff_party:inaccessibility()}.
 

@@ -356,6 +356,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
         DestinationParams = from_swag(destination_params, Params),
+        _ = check_destination_params(DestinationParams),
         Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
         ff_destination:create(
             DestinationParams#{id => ID, resource => Resource},
@@ -838,6 +839,13 @@ when Type =:= <<"CryptoWalletDestinationResource">> ->
         id       => CryptoWalletID,
         currency => from_swag(crypto_wallet_currency, Resource)
     })}}}.
+
+%%@TODO delete as soon as a more permanent solution is in place
+check_destination_params(#{name := Name}) ->
+    case re:run(Name, <<"\\d{12,19}">>, [{capture, none}]) of
+        nomatch -> ok;
+        match -> throw({illegal_pattern, name})
+    end.
 
 encode_resource_bank_card(BankCard, AuthData) ->
     EncodedBankCard = encode_bank_card(BankCard),

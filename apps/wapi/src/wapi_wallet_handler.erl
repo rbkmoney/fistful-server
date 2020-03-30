@@ -272,6 +272,12 @@ process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) 
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, invalid} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid currency">>));
+        {error, {illegal_pattern, Name}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"SchemaViolated">>,
+                <<"name">>        => Name,
+                <<"description">> => <<"Illegal pattern found in parameter">>
+            });
         {error, {invalid_resource_token, Type}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"InvalidResourceToken">>,

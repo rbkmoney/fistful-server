@@ -162,10 +162,10 @@ create_w2w_test(C) ->
 -spec create_destination_failed_test(config()) -> test_return().
 
 create_destination_failed_test(C) ->
-    Name0          = <<"Keyn Fawkes">>,
+    Name          = <<"Keyn Fawkes">>,
     Provider      = ?ID_PROVIDER,
     Class         = ?ID_CLASS,
-    IdentityID    = create_identity(Name0, Provider, Class, C),
+    IdentityID    = create_identity(Name, Provider, Class, C),
     Resource0      = #{
         <<"type">>  => <<"BankCardDestinationResource">>,
         <<"token">> => <<"v1.megatoken">>

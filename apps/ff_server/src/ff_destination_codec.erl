@@ -42,8 +42,8 @@ marshal_destination_state(DestinationState) ->
         account = marshal(account, ff_destination:account(DestinationState)),
         status = marshal(status, ff_destination:status(DestinationState)),
         created_at = marshal(timestamp, ff_destination:created_at(DestinationState)),
-        blocking = Blocking
-        % metadata = marshal(ctx, ff_destination:metadata(DestinationState))
+        blocking = Blocking,
+        metadata = marshal(ctx, ff_destination:metadata(DestinationState))
     }.
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
@@ -64,7 +64,8 @@ marshal(create_change, Destination = #{
         name = Name,
         resource = marshal(resource, Resource),
         created_at = maybe_marshal(timestamp, maps:get(created_at, Destination,  undefined)),
-        external_id = maybe_marshal(id, maps:get(external_id, Destination,  undefined))
+        external_id = maybe_marshal(id, maps:get(external_id, Destination,  undefined)),
+        metadata = maybe_marshal(ctx, maps:get(metadata, Destination,  undefined))
     };
 
 marshal(status, authorized) ->

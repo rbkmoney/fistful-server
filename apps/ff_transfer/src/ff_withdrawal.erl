@@ -27,7 +27,7 @@
     limit_checks    => [limit_check_details()],
     adjustments     => adjustments_index(),
     status          => status(),
-    meta_data       => meta_data(),
+    metadata        => metadata(),
     external_id     => id()
 }.
 
@@ -41,7 +41,7 @@
     party_revision  => party_revision(),
     domain_revision => domain_revision(),
     route           => route(),
-    meta_data       => meta_data(),
+    metadata        => metadata(),
     external_id     => id()
 }.
 
@@ -51,7 +51,8 @@
     destination_id       := ff_destination:id(),
     body                 := body(),
     external_id          => id(),
-    quote                => quote()
+    quote                => quote(),
+    metadata             => metadata()
 }.
 
 -type status() ::
@@ -115,7 +116,8 @@
     external_id     => external_id(),
     created_at      => ff_time:timestamp_ms(),
     party_revision  => party_revision(),
-    domain_revision => domain_revision()
+    domain_revision => domain_revision(),
+    metadata        => metadata()
 }.
 
 -type limit_check_details() ::
@@ -190,6 +192,7 @@
 -export([party_revision/1]).
 -export([domain_revision/1]).
 -export([destination_resource/1]).
+-export([metadata/1]).
 
 %% API
 
@@ -240,7 +243,7 @@
 -type domain_revision()       :: ff_domain_config:revision().
 -type terms()                 :: ff_party:terms().
 -type party_varset()          :: hg_selector:varset().
--type meta_data()             :: ff_entity_context:md().
+-type metadata()              :: ff_entity_context:md().
 
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
@@ -346,6 +349,10 @@ domain_revision(T) ->
 created_at(T) ->
     maps:get(created_at, T, undefined).
 
+-spec metadata(withdrawal_state()) -> metadata() | undefined.
+metadata(T) ->
+    maps:get(metadata, T, undefined).
+
 %% API
 
 -spec gen(gen_args()) ->
@@ -353,7 +360,7 @@ created_at(T) ->
 gen(Args) ->
     TypeKeys = [
         id, transfer_type, body, params, status, external_id,
-        domain_revision, party_revision, created_at, route
+        domain_revision, party_revision, created_at, route, metadata
     ],
     genlib_map:compact(maps:with(TypeKeys, Args)).
 
@@ -393,9 +400,8 @@ create(Params) ->
             destination_id => DestinationID,
             quote => Quote
         }),
-        ExternalID = maps:get(external_id, Params, undefined),
         [
-            {created, add_external_id(ExternalID, #{
+            {created, genlib_map:compact(#{
                 version         => ?ACTUAL_FORMAT_VERSION,
                 id              => ID,
                 transfer_type   => withdrawal,
@@ -403,7 +409,9 @@ create(Params) ->
                 params          => TransferParams,
                 created_at      => CreatedAt,
                 party_revision  => PartyRevision,
-                domain_revision => DomainRevision
+                domain_revision => DomainRevision,
+                external_id     => maps:get(external_id, Params, undefined),
+                metadata        => maps:get(metadata, Params, undefined)
             })},
             {status_changed, pending},
             {resource_got, Resource}
@@ -517,11 +525,6 @@ route_selection_status(Withdrawal) ->
         _Known ->
             found
     end.
-
-add_external_id(undefined, Event) ->
-    Event;
-add_external_id(ExternalID, Event) ->
-    Event#{external_id => ExternalID}.
 
 -spec adjustments_index(withdrawal_state()) -> adjustments_index().
 adjustments_index(Withdrawal) ->

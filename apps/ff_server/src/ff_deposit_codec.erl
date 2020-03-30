@@ -33,7 +33,8 @@ marshal_deposit_state(DepositState, Context) ->
         effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
         reverts = [ff_deposit_revert_codec:marshal(revert_state, R) || R <- Reverts],
         adjustments = [ff_deposit_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments],
-        context = marshal(ctx, Context)
+        context = marshal(ctx, Context),
+        metadata = marshal(ctx, ff_deposit:metadata(DepositState))
     }.
 
 %% API
@@ -80,7 +81,8 @@ marshal(deposit, Deposit) ->
         external_id = maybe_marshal(id, ff_deposit:external_id(Deposit)),
         domain_revision = maybe_marshal(domain_revision, ff_deposit:domain_revision(Deposit)),
         party_revision = maybe_marshal(party_revision, ff_deposit:party_revision(Deposit)),
-        created_at = maybe_marshal(timestamp_ms, ff_deposit:created_at(Deposit))
+        created_at = maybe_marshal(timestamp_ms, ff_deposit:created_at(Deposit)),
+        metadata = maybe_marshal(ctx, ff_deposit:metadata(Deposit))
     };
 marshal(deposit_params, DepositParams) ->
     #deposit_DepositParams{
@@ -147,7 +149,8 @@ unmarshal(deposit, Deposit) ->
         }),
         party_revision => maybe_unmarshal(party_revision, Deposit#deposit_Deposit.party_revision),
         domain_revision => maybe_unmarshal(domain_revision, Deposit#deposit_Deposit.domain_revision),
-        created_at => maybe_unmarshal(timestamp_ms, Deposit#deposit_Deposit.created_at)
+        created_at => maybe_unmarshal(timestamp_ms, Deposit#deposit_Deposit.created_at),
+        metadata => maybe_unmarshal(ctx, Deposit#deposit_Deposit.metadata)
     };
 
 unmarshal(deposit_params, DepositParams) ->

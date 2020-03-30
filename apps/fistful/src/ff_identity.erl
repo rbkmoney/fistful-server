@@ -27,7 +27,7 @@
 -type blocking()        :: unblocked | blocked.
 -type level()           :: ff_identity_class:level().
 -type level_id()        :: ff_identity_class:level_id().
--type meta_data()       :: ff_entity_context:md().
+-type metadata()        :: ff_entity_context:md().
 
 -define(ACTUAL_FORMAT_VERSION, 1).
 -type identity_state() :: #{
@@ -42,7 +42,7 @@
     effective    => challenge_id(),
     external_id  => id(),
     blocking     => blocking(),
-    meta_data    => meta_data(),
+    metadata     => metadata(),
     created_at   => ff_time:timestamp_ms()
 }.
 
@@ -54,7 +54,7 @@
     class        := class_id(),
     contract     := contract_id(),
     external_id  => id(),
-    meta_data    => meta_data(),
+    metadata     => metadata(),
     created_at   => ff_time:timestamp_ms()
 }.
 
@@ -68,6 +68,15 @@
     {{challenge        , challenge_id()}, ff_identity_challenge:event()}.
 
 -type legacy_event() :: any().
+
+-type params() :: #{
+    id          := id(),
+    party       := ff_party:id(),
+    provider    := ff_provider:id(),
+    class       := ff_identity:class_id(),
+    external_id => id(),
+    metadata    => metadata()
+}.
 
 -type create_error() ::
     {provider, notfound} |
@@ -90,6 +99,7 @@
 -export_type([challenge_class_id/0]).
 -export_type([class_id/0]).
 -export_type([level_id/0]).
+-export_type([params/0]).
 
 -export([id/1]).
 -export([provider/1]).
@@ -103,11 +113,12 @@
 -export([external_id/1]).
 -export([blocking/1]).
 -export([created_at/1]).
+-export([metadata/1]).
 
 -export([is_accessible/1]).
 -export([set_blocking/1]).
 
--export([create/5]).
+-export([create/1]).
 
 -export([start_challenge/4]).
 -export([poll_challenge_completion/2]).
@@ -145,6 +156,8 @@
     external_id().
 -spec created_at(identity_state()) ->
     ff_time:timestamp_ms() | undefined.
+-spec metadata(identity_state()) ->
+    metadata() | undefined.
 
 id(#{id := V}) ->
     V.
@@ -182,6 +195,9 @@ external_id(Identity) ->
 created_at(Identity) ->
     maps:get(created_at, Identity, undefined).
 
+metadata(Identity) ->
+    maps:get(metadata, Identity, undefined).
+
 -spec is_accessible(identity_state()) ->
     {ok, accessible} |
     {error, ff_party:inaccessibility()}.
@@ -203,11 +219,11 @@ set_blocking(Identity) ->
 
 %% Constructor
 
--spec create(id(), party_id(), provider_id(), class_id(), external_id()) ->
+-spec create(params()) ->
     {ok, [event()]} |
     {error, create_error()}.
 
-create(ID, Party, ProviderID, ClassID, ExternalID) ->
+create(Params = #{id := ID, party := Party, provider := ProviderID, class := ClassID}) ->
     do(fun () ->
         Provider = unwrap(provider, ff_provider:get(ProviderID)),
         Class = unwrap(identity_class, ff_provider:get_identity_class(ClassID, Provider)),
@@ -219,16 +235,16 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
             contractor_level  => ff_identity_class:contractor_level(Level)
         })),
         [
-            {created, add_external_id(ExternalID, #{
-                version  => ?ACTUAL_FORMAT_VERSION,
-                id       => ID,
-                party    => Party,
+            {created, genlib_map:compact(#{
+                version => ?ACTUAL_FORMAT_VERSION,
+                id => ID,
+                party => Party,
                 provider => ProviderID,
-                class    => ClassID,
+                class => ClassID,
                 contract => Contract,
-                %% TODO need migration for events
-                created_at => ff_time:now()
-                %% TODO add meta data here
+                created_at => ff_time:now(),
+                external_id => maps:get(external_id, Params, undefined),
+                metadata => maps:get(metadata, Params, undefined)
             })},
             {level_changed,
                 LevelID
@@ -306,11 +322,6 @@ get_challenge_class(Challenge, Identity) ->
         get_identity_class(Identity)
     ),
     V.
-
-add_external_id(undefined, Event) ->
-    Event;
-add_external_id(ExternalID, Event) ->
-    Event#{external_id => ExternalID}.
 
 %%
 

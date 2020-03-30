@@ -48,8 +48,8 @@ marshal_withdrawal_state(WithdrawalState, Context) ->
         effective_route = maybe_marshal(route, ff_withdrawal:route(WithdrawalState)),
         effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
         adjustments = [ff_withdrawal_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments],
-        context = marshal(ctx, Context)
-        %% TODO add meta here
+        context = marshal(ctx, Context),
+        metadata = marshal(ctx, ff_withdrawal:metadata(WithdrawalState))
         %% TODO add quote here
     }.
 
@@ -101,8 +101,8 @@ marshal(withdrawal, Withdrawal) ->
         external_id = maybe_marshal(id, ff_withdrawal:external_id(Withdrawal)),
         domain_revision = maybe_marshal(domain_revision, ff_withdrawal:domain_revision(Withdrawal)),
         party_revision = maybe_marshal(party_revision, ff_withdrawal:party_revision(Withdrawal)),
-        created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(Withdrawal))
-        %% TODO add meta here
+        created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(Withdrawal)),
+        metadata = maybe_marshal(ctx, ff_withdrawal:metadata(Withdrawal))
         %% TODO add quote here
     };
 
@@ -185,8 +185,8 @@ unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
         domain_revision => maybe_unmarshal(domain_revision, Withdrawal#wthd_Withdrawal.domain_revision),
         party_revision => maybe_unmarshal(party_revision, Withdrawal#wthd_Withdrawal.party_revision),
         created_at => maybe_unmarshal(timestamp_ms, Withdrawal#wthd_Withdrawal.created_at),
-        transfer_type => withdrawal
-        %% TODO add meta here
+        transfer_type => withdrawal,
+        metadata => maybe_unmarshal(ctx, Withdrawal#wthd_Withdrawal.metadata)
     });
 
 unmarshal(route, #wthd_Route{provider_id = ProviderID}) ->

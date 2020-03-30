@@ -88,6 +88,7 @@ marshal_identity_state(IdentityState) ->
         blocking = maybe_marshal(blocking, ff_identity:blocking(IdentityState)),
         created_at = maybe_marshal(created_at, ff_identity:created_at(IdentityState)),
         external_id = maybe_marshal(id, ff_identity:external_id(IdentityState)),
+        metadata = maybe_marshal(ctx, ff_identity:metadata(IdentityState)),
         effective_challenge_id = EffectiveChallengeID
     }.
 
@@ -116,8 +117,8 @@ marshal(identity, Identity) ->
         cls = marshal(id, ff_identity:class(Identity)),
         contract = maybe_marshal(id, ff_identity:contract(Identity)),
         created_at = maybe_marshal(created_at, ff_identity:created_at(Identity)),
-        external_id = maybe_marshal(id, ff_identity:external_id(Identity))
-        %% TODO add meta here
+        external_id = maybe_marshal(id, ff_identity:external_id(Identity)),
+        metadata = maybe_marshal(ctx, ff_identity:metadata(Identity))
     };
 
 marshal(challenge_change, #{
@@ -206,8 +207,8 @@ unmarshal(identity, #idnt_Identity{
     cls         = ClassID,
     contract    = ContractID,
     external_id = ExternalID,
-    created_at  = CreatedAt
-    %% TODO add meta here
+    created_at  = CreatedAt,
+    metadata    = Metadata
 }) ->
     genlib_map:compact(#{
         id          => unmarshal(id, ID),
@@ -216,7 +217,8 @@ unmarshal(identity, #idnt_Identity{
         class       => unmarshal(id, ClassID),
         contract    => unmarshal(id, ContractID),
         external_id => maybe_unmarshal(id, ExternalID),
-        created_at  => maybe_unmarshal(created_at, CreatedAt)
+        created_at  => maybe_unmarshal(created_at, CreatedAt),
+        metadata    => maybe_unmarshal(ctx, Metadata)
     });
 
 unmarshal(challenge_payload, {created, Challenge}) ->

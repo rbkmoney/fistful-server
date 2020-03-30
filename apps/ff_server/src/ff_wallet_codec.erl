@@ -20,7 +20,8 @@ marshal_wallet_state(WalletState) ->
         blocking = marshal(blocking, ff_wallet:blocking(WalletState)),
         account = maybe_marshal(account, ff_wallet:account(WalletState)),
         external_id = maybe_marshal(id, ff_wallet:external_id(WalletState)),
-        created_at = maybe_marshal(timestamp, ff_wallet:created_at(WalletState))
+        created_at = maybe_marshal(timestamp, ff_wallet:created_at(WalletState)),
+        metadata = maybe_marshal(ctx, ff_wallet:metadata(WalletState))
     }.
 
 -spec unmarshal_wallet_params(ff_proto_wallet_thrift:'WalletParams'()) ->
@@ -54,7 +55,8 @@ marshal(wallet, Wallet) ->
         name = marshal(string, maps:get(name, Wallet, <<>>)),
         blocking = marshal(blocking, maps:get(blocking, Wallet)),
         external_id = maybe_marshal(id, maps:get(external_id, Wallet, undefined)),
-        created_at = maybe_marshal(timestamp, maps:get(created_at, Wallet, undefined))
+        created_at = maybe_marshal(timestamp, maps:get(created_at, Wallet, undefined)),
+        metadata = maybe_marshal(ctx, maps:get(metadata, Wallet, undefined))
     };
 
 marshal(ctx, Ctx) ->
@@ -84,12 +86,14 @@ unmarshal(change, {account, AccountChange}) ->
 unmarshal(wallet, #wlt_Wallet{
     name = Name,
     external_id = ExternalID,
-    created_at = CreatedAt
+    created_at = CreatedAt,
+    metadata = Metadata
 }) ->
     genlib_map:compact(#{
         name => unmarshal(string, Name),
         created_at => maybe_unmarshal(timestamp, CreatedAt),
-        external_id => maybe_unmarshal(id, ExternalID)
+        external_id => maybe_unmarshal(id, ExternalID),
+        metadata => maybe_unmarshal(ctx, Metadata)
     });
 
 unmarshal(account_params, #account_AccountParams{

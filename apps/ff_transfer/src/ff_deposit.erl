@@ -18,7 +18,7 @@
     created_at      => ff_time:timestamp_ms(),
     p_transfer      => p_transfer(),
     status          => status(),
-    meta_data       => meta_data(),
+    metadata        => metadata(),
     external_id     => id(),
     limit_checks    => [limit_check_details()],
     reverts         => reverts_index(),
@@ -34,7 +34,7 @@
     party_revision  => party_revision(),
     domain_revision => domain_revision(),
     created_at      => ff_time:timestamp_ms(),
-    meta_data       => meta_data(),
+    metadata        => metadata(),
     external_id     => id()
 }.
 
@@ -153,6 +153,7 @@
 -export([party_revision/1]).
 -export([domain_revision/1]).
 -export([created_at/1]).
+-export([metadata/1]).
 
 %% API
 -export([create/1]).
@@ -212,7 +213,7 @@
 -type identity()              :: ff_identity:identity_state().
 -type terms()                 :: ff_party:terms().
 -type clock()                 :: ff_transaction:clock().
--type meta_data()             :: ff_entity_context:md().
+-type metadata()              :: ff_entity_context:md().
 
 -type transfer_params() :: #{
     source_id             := source_id(),
@@ -279,6 +280,10 @@ domain_revision(T) ->
 created_at(T) ->
     maps:get(created_at, T, undefined).
 
+-spec metadata(deposit_state()) -> metadata() | undefined.
+metadata(T) ->
+    maps:get(metadata, T, undefined).
+
 %% API
 
 -spec create(params()) ->
@@ -305,7 +310,6 @@ create(Params) ->
             PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
         ),
         valid =  unwrap(validate_deposit_creation(Terms, Params, Source, Wallet)),
-        ExternalID = maps:get(external_id, Params, undefined),
         TransferParams = #{
             wallet_id             => WalletID,
             source_id             => SourceID,
@@ -322,7 +326,7 @@ create(Params) ->
             }
         },
         [
-            {created, add_external_id(ExternalID, #{
+            {created, genlib_map:compact(#{
                 version         => ?ACTUAL_FORMAT_VERSION,
                 id              => ID,
                 transfer_type   => deposit,
@@ -330,7 +334,9 @@ create(Params) ->
                 params          => TransferParams,
                 party_revision  => PartyRevision,
                 domain_revision => DomainRevision,
-                created_at      => CreatedAt
+                created_at      => CreatedAt,
+                external_id     => maps:get(external_id, Params, undefined),
+                metadata        => maps:get(metadata, Params, undefined)
             })},
             {status_changed, pending}
         ]
@@ -478,11 +484,6 @@ do_start_adjustment(Params, Deposit) ->
 -spec params(deposit_state()) -> transfer_params().
 params(#{params := V}) ->
     V.
-
-add_external_id(undefined, Event) ->
-    Event;
-add_external_id(ExternalID, Event) ->
-    Event#{external_id => ExternalID}.
 
 -spec deduce_activity(deposit_state()) ->
     activity().

@@ -12,7 +12,7 @@
 -type id()          :: binary().
 -type external_id() :: id() | undefined.
 -type name()        :: binary().
--type metadata()    :: ff_entity_context:context().
+-type metadata()    :: ff_entity_context:md().
 -type resource(T)   :: T.
 -type account()     :: ff_account:account().
 -type identity()    :: ff_identity:id().

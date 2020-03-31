@@ -20,7 +20,7 @@ marshal_wallet_state(WalletState) ->
         blocking = marshal(blocking, ff_wallet:blocking(WalletState)),
         account = maybe_marshal(account, ff_wallet:account(WalletState)),
         external_id = maybe_marshal(id, ff_wallet:external_id(WalletState)),
-        created_at = maybe_marshal(timestamp, ff_wallet:created_at(WalletState)),
+        created_at = maybe_marshal(timestamp_ms, ff_wallet:created_at(WalletState)),
         metadata = maybe_marshal(ctx, ff_wallet:metadata(WalletState))
     }.
 
@@ -55,7 +55,7 @@ marshal(wallet, Wallet) ->
         name = marshal(string, maps:get(name, Wallet, <<>>)),
         blocking = marshal(blocking, maps:get(blocking, Wallet)),
         external_id = maybe_marshal(id, maps:get(external_id, Wallet, undefined)),
-        created_at = maybe_marshal(timestamp, maps:get(created_at, Wallet, undefined)),
+        created_at = maybe_marshal(timestamp_ms, maps:get(created_at, Wallet, undefined)),
         metadata = maybe_marshal(ctx, maps:get(metadata, Wallet, undefined))
     };
 
@@ -91,7 +91,7 @@ unmarshal(wallet, #wlt_Wallet{
 }) ->
     genlib_map:compact(#{
         name => unmarshal(string, Name),
-        created_at => maybe_unmarshal(timestamp, CreatedAt),
+        created_at => maybe_unmarshal(timestamp_ms, CreatedAt),
         external_id => maybe_unmarshal(id, ExternalID),
         metadata => maybe_unmarshal(ctx, Metadata)
     });

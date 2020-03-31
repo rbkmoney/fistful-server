@@ -29,6 +29,7 @@ marshal(source, Source = #{
         name = marshal(string, Name),
         resource = marshal(resource, Resource),
         external_id = maybe_marshal(id, maps:get(external_id, Source, undefined)),
+        created_at = maybe_marshal(timestamp_ms, maps:get(created_at, Source,  undefined)),
         metadata = maybe_marshal(context, maps:get(metadata, Source, undefined))
     };
 marshal(resource, #{type := internal} = Internal) ->
@@ -71,12 +72,14 @@ unmarshal(source, #src_Source{
     name = Name,
     resource = Resource,
     external_id = ExternalID,
+    created_at = CreatedAt,
     metadata = Metadata
 }) ->
     genlib_map:compact(#{
         name => unmarshal(string, Name),
         resource => unmarshal(resource, Resource),
         external_id => maybe_unmarshal(id, ExternalID),
+        created_at => maybe_unmarshal(timestamp_ms, CreatedAt),
         metadata => maybe_unmarshal(context, Metadata)
     });
 unmarshal(resource, {internal, #src_Internal{details = Details}}) ->

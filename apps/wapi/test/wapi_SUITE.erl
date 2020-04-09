@@ -176,8 +176,12 @@ create_destination_failed_test(C) ->
     DestinationName = <<"4242424242424242">>,
     CardToken     = store_bank_card(C),
     Resource1     = make_bank_card_resource(CardToken),
-    {error, {400, #{<<"errorType">> := <<"SchemaViolated">>}}}
-        = create_destination(DestinationName, IdentityID, Resource1, C).
+    {error, {response_validation_failed, _,
+        #{
+            <<"errorType">> := <<"schema_violated">>,
+            <<"name">> := <<"Destination">>
+        }
+    }} = create_destination(DestinationName, IdentityID, Resource1, C).
 
 -spec withdrawal_to_bank_card_test(config()) -> test_return().
 

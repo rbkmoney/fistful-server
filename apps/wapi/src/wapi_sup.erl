@@ -28,7 +28,8 @@ init([]) ->
     {LogicHandlers, LogicHandlerSpecs} = get_logic_handler_info(),
     HealthCheck = enable_health_logging(genlib_app:env(wapi, health_check, #{})),
     HealthRoutes = [{'_', [erl_health_handle:get_route(HealthCheck)]}],
-    SwaggerSpec = wapi_swagger_server:child_spec(HealthRoutes, LogicHandlers),
+    SwaggerHandlerOpts = genlib_app:env(wapi, swagger_handler_opts, #{}),
+    SwaggerSpec = wapi_swagger_server:child_spec(HealthRoutes, LogicHandlers, SwaggerHandlerOpts),
     {ok, {
         {one_for_all, 0, 1},
             [LechiffreSpec] ++

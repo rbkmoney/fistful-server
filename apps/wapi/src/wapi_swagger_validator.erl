@@ -26,7 +26,7 @@ validate_param(_Rule, _Value, _Meta) ->
     validate_schema_result().
 
 validate_schema(
-    {<<"type">>,<<"string">>},
+    {<<"type">>, <<"string">>},
     Value,
     #{
         operation_id := 'CreateDestination',

@@ -31,14 +31,14 @@ validate_schema(
     #{
         operation_id := 'CreateDestination',
         definition_name := 'Destination',
-        current_path := [<<"name">>],
+      % current_path := [<<"name">>], % check all fields
         msg_type := request
     },
     JesseState
 ) when is_binary(Value) ->
     case check_destination_name(Value) of
         ok ->
-            pass; %pass back to the built-in validator
+            pass; % pass back to the built-in validator
         error ->
             jesse_error:handle_data_invalid(wrong_format, Value, JesseState)
     end;
@@ -46,7 +46,35 @@ validate_schema(_Rule, _Value, _Meta, _JesseState) ->
     pass.
 
 check_destination_name(Name) ->
-    case re:run(Name, <<"\\d{12,19}">>, [{capture, none}]) of
+    case re:run(Name, <<"\\d{12,19}">>, [{capture, all, binary}, global]) of
         nomatch -> ok;
-        match -> error
+        {match, Captured} -> check_luhn(Captured)
     end.
+
+check_luhn([]) ->
+    ok;
+check_luhn([Captured | Rest]) ->
+    case lists:any(fun do_check_luhn/1, Captured) of
+        true -> error;
+        false -> check_luhn(Rest)
+    end.
+
+do_check_luhn(String) ->
+    do_check_luhn(String, 0).
+
+do_check_luhn(<<CheckSum>>, Sum) ->
+    case Sum * 9 rem 10 of
+        M when M =:= CheckSum - $0 ->
+            true;
+        _M ->
+            false
+    end;
+do_check_luhn(<<N, Rest/binary>>, Sum) when byte_size(Rest) rem 2 =:= 1 ->
+    case (N - $0) * 2 of
+        M when M >= 10 ->
+            do_check_luhn(Rest, Sum + M div 10 + M rem 10);
+        M ->
+            do_check_luhn(Rest, Sum + M)
+    end;
+do_check_luhn(<<N, Rest/binary>>, Sum) ->
+    do_check_luhn(Rest, Sum + N - $0).

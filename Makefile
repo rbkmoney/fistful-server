@@ -20,7 +20,7 @@ BASE_IMAGE_NAME := service-erlang
 BASE_IMAGE_TAG := da0ab769f01b650b389d18fc85e7418e727cbe96
 
 # Build image tag to be used
-BUILD_IMAGE_TAG := 48bb1242dc485e8def2e23b95f1ecf451c9c02db
+BUILD_IMAGE_TAG := 3f37de870777df8ecfaaf80d911e61c5ad78ac1f
 
 REGISTRY := dr2.rbkmoney.com
 

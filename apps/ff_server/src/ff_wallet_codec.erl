@@ -4,24 +4,26 @@
 
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
--export([marshal_wallet_state/1]).
+-export([marshal_wallet_state/3]).
 -export([unmarshal_wallet_params/1]).
 
 -export([marshal/2]).
 -export([unmarshal/2]).
 
 %% API
--spec marshal_wallet_state(ff_wallet:wallet_state()) ->
+-spec marshal_wallet_state(ff_wallet:wallet_state(), ff_wallet:id(), ff_entity_context:context()) ->
     ff_proto_wallet_thrift:'WalletState'().
 
-marshal_wallet_state(WalletState) ->
+marshal_wallet_state(WalletState, ID, Context) ->
     #wlt_WalletState{
+        id = marshal(id, ID),
         name = marshal(string, ff_wallet:name(WalletState)),
         blocking = marshal(blocking, ff_wallet:blocking(WalletState)),
         account = maybe_marshal(account, ff_wallet:account(WalletState)),
         external_id = maybe_marshal(id, ff_wallet:external_id(WalletState)),
         created_at = maybe_marshal(timestamp_ms, ff_wallet:created_at(WalletState)),
-        metadata = maybe_marshal(ctx, ff_wallet:metadata(WalletState))
+        metadata = maybe_marshal(ctx, ff_wallet:metadata(WalletState)),
+        context = marshal(ctx, Context)
     }.
 
 -spec unmarshal_wallet_params(ff_proto_wallet_thrift:'WalletParams'()) ->

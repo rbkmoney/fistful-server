@@ -45,11 +45,8 @@ handle_function_('Get', [ID], _Opts) ->
         {ok, Machine} ->
             Wallet    = ff_wallet_machine:wallet(Machine),
             Ctx       = ff_machine:ctx(Machine),
-            Response  = ff_wallet_codec:marshal_wallet_state(Wallet),
-            {ok, Response#wlt_WalletState{
-                id         = ff_wallet_codec:marshal(id, ID),
-                context    = ff_wallet_codec:marshal(ctx, Ctx)
-            }};
+            Response  = ff_wallet_codec:marshal_wallet_state(Wallet, ID, Ctx),
+            {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_WalletNotFound{})
     end.

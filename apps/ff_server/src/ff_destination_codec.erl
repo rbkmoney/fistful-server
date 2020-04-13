@@ -5,7 +5,7 @@
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
 -export([unmarshal_destination_params/1]).
--export([marshal_destination_state/1]).
+-export([marshal_destination_state/3]).
 
 -export([marshal/2]).
 -export([unmarshal/2]).
@@ -25,17 +25,18 @@ unmarshal_destination_params(Params) ->
         external_id => maybe_unmarshal(id, Params#dst_DestinationParams.external_id)
     }).
 
--spec marshal_destination_state(ff_destination:destination_state()) ->
+-spec marshal_destination_state(ff_destination:destination_state(), ff_destination:id(), ff_entity_context:context()) ->
     ff_proto_destination_thrift:'DestinationState'().
 
-marshal_destination_state(DestinationState) ->
-    Blocking    = case ff_destination:is_accessible(DestinationState) of
+marshal_destination_state(DestinationState, ID, Context) ->
+    Blocking = case ff_destination:is_accessible(DestinationState) of
         {ok, accessible} ->
             unblocked;
         _ ->
             blocked
     end,
     #dst_DestinationState{
+        id = marshal(id, ID),
         name = marshal(string, ff_destination:name(DestinationState)),
         resource = marshal(resource, ff_destination:resource(DestinationState)),
         external_id = marshal(id, ff_destination:external_id(DestinationState)),
@@ -43,7 +44,8 @@ marshal_destination_state(DestinationState) ->
         status = marshal(status, ff_destination:status(DestinationState)),
         created_at = marshal(timestamp_ms, ff_destination:created_at(DestinationState)),
         blocking = Blocking,
-        metadata = marshal(ctx, ff_destination:metadata(DestinationState))
+        metadata = marshal(ctx, ff_destination:metadata(DestinationState)),
+        context = marshal(ctx, Context)
     }.
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->

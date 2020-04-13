@@ -43,8 +43,8 @@ marshal(session, #{
         status = marshal(status, Status),
         p2p_transfer = marshal(p2p_transfer, TransferParams),
         provider = marshal(integer, ProviderID),
-        party_revision = marshal(integer, PartyRevision),
-        domain_revision = marshal(integer, DomainRevision)
+        party_revision = marshal(party_revision, PartyRevision),
+        domain_revision = marshal(domain_revision, DomainRevision)
     };
 
 marshal(status, active) ->
@@ -184,8 +184,8 @@ unmarshal(session, #p2p_session_Session{
         status => unmarshal(status, Status),
         transfer_params => unmarshal(p2p_transfer, P2PTransfer),
         provider_id => unmarshal(integer, ProviderID),
-        party_revision => unmarshal(integer, PartyRevision),
-        domain_revision => unmarshal(integer, DomainRevision)
+        party_revision => unmarshal(party_revision, PartyRevision),
+        domain_revision => unmarshal(domain_revision, DomainRevision)
     };
 
 unmarshal(status, {active, #p2p_session_SessionActive{}}) ->

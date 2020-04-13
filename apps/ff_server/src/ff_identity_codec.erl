@@ -9,7 +9,7 @@
 
 -export([marshal_identity_event/1]).
 -export([marshal_challenge_state/1]).
--export([marshal_identity_state/1]).
+-export([marshal_identity_state/2]).
 
 -export([marshal/2]).
 -export([unmarshal/2]).
@@ -70,10 +70,10 @@ marshal_challenge_state(ChallengeState) ->
         status = marshal(challenge_payload_status_changed, Status)
     }.
 
--spec marshal_identity_state(ff_identity:identity_state()) ->
+-spec marshal_identity_state(ff_identity:identity_state(), ff_entity_context:context()) ->
     ff_proto_identity_thrift:'IdentityState'().
 
-marshal_identity_state(IdentityState) ->
+marshal_identity_state(IdentityState, Context) ->
     EffectiveChallengeID = case ff_identity:effective_challenge(IdentityState) of
         {ok, ID} -> maybe_marshal(id, ID);
         {error, notfound} -> undefined
@@ -89,7 +89,8 @@ marshal_identity_state(IdentityState) ->
         created_at = maybe_marshal(created_at, ff_identity:created_at(IdentityState)),
         external_id = maybe_marshal(id, ff_identity:external_id(IdentityState)),
         metadata = maybe_marshal(ctx, ff_identity:metadata(IdentityState)),
-        effective_challenge_id = EffectiveChallengeID
+        effective_challenge_id = EffectiveChallengeID,
+        context = maybe_marshal(ctx, Context)
     }.
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().

@@ -45,12 +45,9 @@ handle_function_('Get', [ID], _Opts) ->
     case ff_destination:get_machine(ID) of
         {ok, Machine} ->
             Destination = ff_destination:get(Machine),
-            Context = ff_destination_codec:marshal(ctx, ff_destination:ctx(Machine)),
-            Response = ff_destination_codec:marshal_destination_state(Destination),
-            {ok, Response#dst_DestinationState{
-                id = ff_destination_codec:marshal(id, ID),
-                context = Context
-            }};
+            Context = ff_destination:ctx(Machine),
+            Response = ff_destination_codec:marshal_destination_state(Destination, ID, Context),
+            {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DestinationNotFound{})
     end.

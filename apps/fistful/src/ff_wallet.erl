@@ -10,6 +10,7 @@
 
 -define(ACTUAL_FORMAT_VERSION, 1).
 -type wallet_state() :: #{
+    version     := ?ACTUAL_FORMAT_VERSION,
     name        := binary(),
     blocking    := blocking(),
     account     => account(),

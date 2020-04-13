@@ -8,6 +8,7 @@
 
 -define(ACTUAL_FORMAT_VERSION, 2).
 -opaque deposit_state() :: #{
+    version         := ?ACTUAL_FORMAT_VERSION,
     id              := id(),
     transfer_type   := deposit,
     body            := body(),

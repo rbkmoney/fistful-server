@@ -31,6 +31,7 @@
 
 -define(ACTUAL_FORMAT_VERSION, 1).
 -type identity_state() :: #{
+    version      := ?ACTUAL_FORMAT_VERSION,
     id           := id(),
     party        := party_id(),
     provider     := provider_id(),

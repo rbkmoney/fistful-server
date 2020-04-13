@@ -24,7 +24,6 @@
 
 -define(ACTUAL_FORMAT_VERSION, 2).
 -type instrument_state(T) :: #{
-    version     := ?ACTUAL_FORMAT_VERSION,
     account     := account() | undefined,
     resource    := resource(T),
     name        := name(),

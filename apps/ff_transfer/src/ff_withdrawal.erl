@@ -12,7 +12,6 @@
 
 -define(ACTUAL_FORMAT_VERSION, 2).
 -opaque withdrawal_state() :: #{
-    version         := ?ACTUAL_FORMAT_VERSION,
     id              := id(),
     transfer_type   := withdrawal,
     body            := body(),
@@ -356,10 +355,10 @@ metadata(T) ->
 %% API
 
 -spec gen(gen_args()) ->
-    withdrawal_state().
+    withdrawal().
 gen(Args) ->
     TypeKeys = [
-        id, transfer_type, body, params, status, external_id,
+        id, transfer_type, body, params, external_id,
         domain_revision, party_revision, created_at, route, metadata
     ],
     genlib_map:compact(maps:with(TypeKeys, Args)).

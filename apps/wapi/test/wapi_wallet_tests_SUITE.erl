@@ -134,8 +134,11 @@ create_wallet(C) ->
             body => #{
                 <<"name">> => ?STRING,
                 <<"identity">> => ?STRING,
-                <<"currency">> => ?RUB
-                   }
+                <<"currency">> => ?RUB,
+                <<"metadata">> => #{
+                    <<"somedata">> => ?STRING
+                }
+            }
         },
         ct_helper:cfg(context, C)
     ).

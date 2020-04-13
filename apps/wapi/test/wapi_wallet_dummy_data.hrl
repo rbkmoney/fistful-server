@@ -18,6 +18,8 @@
     }}
 }).
 
+-define(DEFAULT_METADATA(), {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}).
+
 -define(CASH, #'Cash'{
     amount = ?INTEGER,
     currency = #'CurrencyRef'{
@@ -66,6 +68,7 @@
     account     = ?ACCOUNT,
     external_id = ?STRING,
     created_at  = ?TIMESTAMP,
+    metadata    = ?DEFAULT_METADATA(),
     context     = ?DEFAULT_CONTEXT(PartyID)
 }).
 
@@ -74,6 +77,7 @@
     party_id = ?STRING,
     provider_id = ?STRING,
     class_id = ?STRING,
+    metadata = ?DEFAULT_METADATA(),
     context = ?DEFAULT_CONTEXT(PartyID)
 }).
 

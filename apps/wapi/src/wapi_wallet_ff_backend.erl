@@ -149,7 +149,7 @@ get_identity(IdentityId, Context) ->
     {external_id_conflict, id(), external_id()}
 ).
 create_identity(Params, Context) ->
-    IdentityParams = add_meta_to_params(Params, from_swag(identity_params, Params)),
+    IdentityParams = from_swag(identity_params, Params),
     CreateIdentity = fun(ID, EntityCtx) ->
         ff_identity_machine:create(
             maps:merge(IdentityParams#{id => ID}, #{party => wapi_handler_utils:get_owner(Context)}),
@@ -281,7 +281,7 @@ get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context
     ff_wallet:create_error()
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
-    WalletParams = add_meta_to_params(Params, from_swag(wallet_params, Params)),
+    WalletParams = from_swag(wallet_params, Params),
     CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
         ff_wallet_machine:create(
@@ -355,7 +355,7 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         _ = check_resource(identity, IdenityId, Context),
-        DestinationParams = add_meta_to_params(Params, from_swag(destination_params, Params)),
+        DestinationParams = from_swag(destination_params, Params),
         Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
         ff_destination:create(
             DestinationParams#{id => ID, resource => Resource},
@@ -383,7 +383,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         Quote = unwrap(maybe_check_quote_token(Params, Context)),
-        WithdrawalParams = add_meta_to_params(Params, from_swag(withdrawal_params, Params)),
+        WithdrawalParams = from_swag(withdrawal_params, Params),
         ff_withdrawal_machine:create(
             genlib_map:compact(WithdrawalParams#{id => ID, quote => Quote}),
             add_meta_to_ctx([], Params, EntityCtx)
@@ -715,7 +715,7 @@ create_p2p_transfer(Params, Context) ->
         fun(ID, EntityCtx) ->
             do(fun() ->
                 ParsedParams = unwrap(maybe_add_p2p_quote_token(
-                    add_meta_to_params(Params, from_swag(create_p2p_params, Params))
+                    from_swag(create_p2p_params, Params)
                 )),
                 SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
                 ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
@@ -776,7 +776,7 @@ create_w2w_transfer(Params = #{<<"sender">> := WalletFromID}, Context) ->
     CreateFun =
         fun(ID, EntityCtx) ->
             do(fun() ->
-                ParsedParams = add_meta_to_params(Params, from_swag(create_w2w_params, Params)),
+                ParsedParams = from_swag(create_w2w_params, Params),
                 w2w_transfer_machine:create(
                     genlib_map:compact(ParsedParams#{id => ID}),
                     EntityCtx
@@ -1491,10 +1491,10 @@ from_swag(create_quote_params, Params) ->
         destination_id  => maps:get(<<"destinationID">>, Params, undefined)
     }, Params));
 from_swag(identity_params, Params) ->
-    add_external_id(#{
+    add_meta_to_params(Params, add_external_id(#{
         provider => maps:get(<<"provider">>, Params),
         class    => maps:get(<<"class">>   , Params)
-    }, Params);
+    }, Params));
 from_swag(identity_challenge_params, Params) ->
     #{
        class  => maps:get(<<"type">>, Params),
@@ -1519,18 +1519,18 @@ from_swag(proof_type, <<"RUSRetireeInsuranceCertificate">>) ->
     rus_retiree_insurance_cert;
 
 from_swag(wallet_params, Params) ->
-    add_external_id(#{
+    add_meta_to_params(Params, add_external_id(#{
         identity => maps:get(<<"identity">>, Params),
         currency => maps:get(<<"currency">>, Params),
         name     => maps:get(<<"name">>    , Params)
-    }, Params);
+    }, Params));
 from_swag(destination_params, Params) ->
-    add_external_id(#{
+    add_meta_to_params(Params, add_external_id(#{
         identity => maps:get(<<"identity">>, Params),
         currency => maps:get(<<"currency">>, Params),
         name     => maps:get(<<"name">>    , Params),
         resource => maps:get(<<"resource">>, Params)
-    }, Params);
+    }, Params));
 %% TODO delete this code, after add encrypted token
 from_swag(destination_resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
@@ -1572,21 +1572,21 @@ from_swag(compact_resource, #{
         bin_data_id => BinDataID
     }};
 from_swag(create_p2p_params, Params) ->
-    add_external_id(#{
+    add_meta_to_params(Params, add_external_id(#{
         sender      => maps:get(<<"sender">>, Params),
         receiver    => maps:get(<<"receiver">>, Params),
         identity_id => maps:get(<<"identityID">>, Params),
         body        => from_swag(body, maps:get(<<"body">>, Params)),
         quote_token => maps:get(<<"quoteToken">>, Params, undefined),
         metadata    => maps:get(<<"metadata">>, Params, #{})
-    }, Params);
+    }, Params));
 
 from_swag(create_w2w_params, Params) ->
-    add_external_id(#{
+    add_meta_to_params(Params, add_external_id(#{
         wallet_from_id => maps:get(<<"sender">>, Params),
         wallet_to_id => maps:get(<<"receiver">>, Params),
         body => from_swag(body, maps:get(<<"body">>, Params))
-    }, Params);
+    }, Params));
 
 from_swag(destination_resource, Resource = #{
     <<"type">>     := <<"CryptoWalletDestinationResource">>,
@@ -1613,11 +1613,11 @@ from_swag(crypto_wallet_currency_name, <<"Ripple">>)      -> ripple;
 from_swag(crypto_wallet_currency_name, <<"USDT">>)        -> usdt;
 
 from_swag(withdrawal_params, Params) ->
-    add_external_id(#{
+    add_meta_to_params(Params, add_external_id(#{
         wallet_id      => maps:get(<<"wallet">>     , Params),
         destination_id => maps:get(<<"destination">>, Params),
         body           => from_swag(body , maps:get(<<"body">>, Params))
-    }, Params);
+    }, Params));
 %% TODO
 %%  - remove this clause when we fix negative accounts and turn on validation in swag
 from_swag(body, #{<<"amount">> := Amount}) when Amount < 0 ->

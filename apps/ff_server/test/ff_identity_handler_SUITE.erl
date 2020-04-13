@@ -79,7 +79,8 @@ create_identity_ok(_C) ->
     ClassID = <<"person">>,
     Ctx = #{<<"NS">> => #{<<"owner">> => PartyID}},
     Context = ff_entity_context_codec:marshal(Ctx),
-    Identity = create_identity(EID, PartyID, ProvID, ClassID, Context),
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
+    Identity = create_identity(EID, PartyID, ProvID, ClassID, Context, Metadata),
     IID = Identity#idnt_IdentityState.id,
     {ok, Identity_} = call_api('Get', [IID]),
 
@@ -88,6 +89,7 @@ create_identity_ok(_C) ->
     PartyID = Identity_#idnt_IdentityState.party_id,
     ClassID = Identity_#idnt_IdentityState.class_id,
     blocked = Identity_#idnt_IdentityState.blocking,
+    Metadata = Identity_#idnt_IdentityState.metadata,
     Ctx = ff_entity_context_codec:unmarshal(Identity_#idnt_IdentityState.context),
     ok.
 
@@ -195,7 +197,7 @@ get_challenges_ok(C) ->
     ProvID      = <<"good-one">>,
     ClassID     = <<"person">>,
     ChlClassID  = <<"sword-initiation">>,
-    Identity = create_identity(EID, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
+    Identity    = create_identity(EID, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
 
     IID = Identity#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
@@ -212,12 +214,16 @@ get_challenges_ok(C) ->
 %% INTERNAL
 %%----------
 create_identity(EID, PartyID, ProvID, ClassID, Ctx) ->
+    create_identity(EID, PartyID, ProvID, ClassID, Ctx, #{}).
+
+create_identity(EID, PartyID, ProvID, ClassID, Ctx, Metadata) ->
     Params = #idnt_IdentityParams{
         id          = genlib:unique(),
         party       = PartyID,
         provider    = ProvID,
         cls         = ClassID,
         external_id = EID,
+        metadata    = Metadata,
         context     = Ctx
     },
     {ok, IdentityState} = call_api('Create', [Params]),

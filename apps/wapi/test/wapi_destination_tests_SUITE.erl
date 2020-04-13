@@ -191,8 +191,9 @@ do_destination_lifecycle(ResourceType, C) ->
     PartyID = ?config(party, C),
     Identity = generate_identity(PartyID),
     Resource = generate_resource(ResourceType),
-    Context = generate_context(PartyID),
-    Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
+    Metadata = {obj, #{{str, <<"key">>} => {str, <<"val">>}}},
+    Context = generate_context(PartyID, Metadata),
+    Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context, Metadata),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun('Get', _) -> {ok, Identity} end},
         {fistful_destination,
@@ -308,19 +309,19 @@ generate_identity(PartyID) ->
         party_id = PartyID,
         provider_id = uniq(),
         class_id = uniq(),
-        context = generate_context(PartyID)
+        context = generate_context(PartyID, #{})
     }.
 
-generate_context(PartyID) ->
+generate_context(PartyID, Metadata) ->
     #{
         <<"com.rbkmoney.wapi">> => {obj, #{
             {str, <<"owner">>} => {str, PartyID},
             {str, <<"name">>} => {str, uniq()},
-            {str, <<"metadata">>} => {obj, #{{str, <<"key">>} => {str, <<"val">>}}}
+            {str, <<"metadata">>} => Metadata
         }}
     }.
 
-generate_destination(IdentityID, Resource, Context) ->
+generate_destination(IdentityID, Resource, Context, Metadata) ->
     ID = uniq(),
     #dst_DestinationState{
         id          = ID,
@@ -338,6 +339,7 @@ generate_destination(IdentityID, Resource, Context) ->
         external_id = uniq(),
         created_at  = <<"2016-03-22T06:12:27Z">>,
         blocking    = unblocked,
+        metadata    = Metadata,
         context     = Context
     }.
 

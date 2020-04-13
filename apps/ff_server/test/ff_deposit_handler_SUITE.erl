@@ -202,11 +202,13 @@ create_ok_test(C) ->
     DepositID = generate_id(),
     ExternalID = generate_id(),
     Context = #{<<"NS">> => #{generate_id() => generate_id()}},
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = #deposit_DepositParams{
         id            = DepositID,
         body          = Body,
         source_id     = SourceID,
         wallet_id     = WalletID,
+        metadata      = Metadata,
         external_id   = ExternalID
     },
     {ok, DepositState} = call_deposit('Create', [Params, ff_entity_context_codec:marshal(Context)]),
@@ -216,6 +218,7 @@ create_ok_test(C) ->
     ?assertEqual(SourceID, DepositState#deposit_DepositState.source_id),
     ?assertEqual(ExternalID, DepositState#deposit_DepositState.external_id),
     ?assertEqual(Body, DepositState#deposit_DepositState.body),
+    ?assertEqual(Metadata, DepositState#deposit_DepositState.metadata),
     ?assertEqual(
         ff_deposit:domain_revision(Expected),
         DepositState#deposit_DepositState.domain_revision

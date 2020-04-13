@@ -5,6 +5,7 @@
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 -export([unmarshal_withdrawal_params/1]).
+-export([marshal_withdrawal_params/1]).
 
 -export([marshal_withdrawal_state/2]).
 -export([marshal_event/1]).
@@ -13,6 +14,18 @@
 -export([unmarshal/2]).
 
 %% API
+
+-spec marshal_withdrawal_params(ff_withdrawal:params()) ->
+    ff_proto_withdrawal_thrift:'WithdrawalParams'().
+
+marshal_withdrawal_params(Params) ->
+    #wthd_WithdrawalParams{
+        id             = marshal(id, maps:get(id, Params)),
+        wallet_id      = marshal(id, maps:get(wallet_id, Params)),
+        destination_id = marshal(id, maps:get(destination_id, Params)),
+        body           = marshal(cash, maps:get(body, Params)),
+        external_id    = maybe_marshal(id, maps:get(external_id, Params, undefined))
+    }.
 
 -spec unmarshal_withdrawal_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
     ff_withdrawal:params().
@@ -258,5 +271,19 @@ withdrawal_symmetry_test() ->
         created_at = <<"2099-01-01T00:00:00.123000Z">>
     },
     ?assertEqual(In, marshal(withdrawal, unmarshal(withdrawal, In))).
+
+-spec withdrawal_params_symmetry_test() -> _.
+withdrawal_params_symmetry_test() ->
+    In = #wthd_WithdrawalParams{
+        id = genlib:unique(),
+        body = #'Cash'{
+            amount = 10101,
+            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+        },
+        wallet_id = genlib:unique(),
+        destination_id = genlib:unique(),
+        external_id = undefined
+    },
+    ?assertEqual(In, marshal_withdrawal_params(unmarshal_withdrawal_params(In))).
 
 -endif.

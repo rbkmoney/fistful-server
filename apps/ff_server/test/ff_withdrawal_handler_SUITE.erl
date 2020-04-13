@@ -112,11 +112,13 @@ create_withdrawal_ok_test(C) ->
     WithdrawalID = generate_id(),
     ExternalID = generate_id(),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = #wthd_WithdrawalParams{
         id = WithdrawalID,
         wallet_id = WalletID,
         destination_id = DestinationID,
         body = Cash,
+        metadata = Metadata,
         external_id = ExternalID
     },
     {ok, WithdrawalState} = call_withdrawal('Create', [Params, Ctx]),
@@ -127,6 +129,7 @@ create_withdrawal_ok_test(C) ->
     ?assertEqual(WalletID, WithdrawalState#wthd_WithdrawalState.wallet_id),
     ?assertEqual(DestinationID, WithdrawalState#wthd_WithdrawalState.destination_id),
     ?assertEqual(Cash, WithdrawalState#wthd_WithdrawalState.body),
+    ?assertEqual(Metadata, WithdrawalState#wthd_WithdrawalState.metadata),
     ?assertEqual(
         ff_withdrawal:domain_revision(Expected),
         WithdrawalState#wthd_WithdrawalState.domain_revision

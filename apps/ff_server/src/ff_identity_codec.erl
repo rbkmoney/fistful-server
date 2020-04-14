@@ -24,14 +24,16 @@ unmarshal_identity_params(#idnt_IdentityParams{
     party       = PartyID,
     provider    = ProviderID,
     cls         = ClassID,
-    external_id = ExternalID
+    external_id = ExternalID,
+    metadata    = Metadata
 }) ->
     genlib_map:compact(#{
         id          => unmarshal(id, ID),
         party       => unmarshal(id, PartyID),
         provider    => unmarshal(id, ProviderID),
         class       => unmarshal(id, ClassID),
-        external_id => maybe_unmarshal(id, ExternalID)
+        external_id => maybe_unmarshal(id, ExternalID),
+        metadata    => maybe_unmarshal(ctx, Metadata)
     }).
 
 -spec unmarshal_challenge_params(ff_proto_identity_thrift:'ChallengeParams'()) ->

@@ -191,9 +191,8 @@ do_destination_lifecycle(ResourceType, C) ->
     PartyID = ?config(party, C),
     Identity = generate_identity(PartyID),
     Resource = generate_resource(ResourceType),
-    Metadata = {obj, #{{str, <<"key">>} => {str, <<"val">>}}},
-    Context = generate_context(PartyID, Metadata),
-    Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context, Metadata),
+    Context = generate_context(PartyID),
+    Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun('Get', _) -> {ok, Identity} end},
         {fistful_destination,
@@ -239,7 +238,6 @@ do_destination_lifecycle(ResourceType, C) ->
     ),
     ?assertEqual(<<"Authorized">>, maps:get(<<"status">>, CreateResult)),
     ?assertEqual(false, maps:get(<<"isBlocked">>, CreateResult)),
-    ?assertEqual(Destination#dst_DestinationState.created_at, maps:get(<<"createdAt">>, CreateResult)),
     ?assertEqual(Destination#dst_DestinationState.created_at, maps:get(<<"createdAt">>, CreateResult)),
     ?assertEqual(#{<<"key">> => <<"val">>}, maps:get(<<"metadata">>, CreateResult)),
     {ok, Resource, maps:get(<<"resource">>, CreateResult)}.
@@ -309,19 +307,19 @@ generate_identity(PartyID) ->
         party_id = PartyID,
         provider_id = uniq(),
         class_id = uniq(),
-        context = generate_context(PartyID, #{})
+        context = generate_context(PartyID)
     }.
 
-generate_context(PartyID, Metadata) ->
+generate_context(PartyID) ->
     #{
         <<"com.rbkmoney.wapi">> => {obj, #{
             {str, <<"owner">>} => {str, PartyID},
             {str, <<"name">>} => {str, uniq()},
-            {str, <<"metadata">>} => Metadata
+            {str, <<"metadata">>} => {obj, #{{str, <<"key">>} => {str, <<"val">>}}}
         }}
     }.
 
-generate_destination(IdentityID, Resource, Context, Metadata) ->
+generate_destination(IdentityID, Resource, Context) ->
     ID = uniq(),
     #dst_DestinationState{
         id          = ID,
@@ -339,7 +337,7 @@ generate_destination(IdentityID, Resource, Context, Metadata) ->
         external_id = uniq(),
         created_at  = <<"2016-03-22T06:12:27Z">>,
         blocking    = unblocked,
-        metadata    = Metadata,
+        metadata    = #{<<"key">> => {str, <<"val">>}},
         context     = Context
     }.
 

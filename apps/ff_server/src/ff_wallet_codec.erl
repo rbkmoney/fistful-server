@@ -33,7 +33,8 @@ unmarshal_wallet_params(#wlt_WalletParams{
     id = ID,
     account_params = AccountParams,
     name = Name,
-    external_id = ExternalID
+    external_id = ExternalID,
+    metadata = Metadata
 }) ->
     {IdentityID, Currency} = unmarshal(account_params, AccountParams),
     genlib_map:compact(#{
@@ -41,7 +42,8 @@ unmarshal_wallet_params(#wlt_WalletParams{
         name        => unmarshal(string, Name),
         identity    => IdentityID,
         currency    => Currency,
-        external_id => maybe_unmarshal(id, ExternalID)
+        external_id => maybe_unmarshal(id, ExternalID),
+        metadata    => maybe_unmarshal(ctx, Metadata)
     }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->

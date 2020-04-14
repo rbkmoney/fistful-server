@@ -18,7 +18,7 @@
     }}
 }).
 
--define(DEFAULT_METADATA(), {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}).
+-define(DEFAULT_METADATA(), #{<<"somedata">> => {str, ?STRING}}).
 
 -define(CASH, #'Cash'{
     amount = ?INTEGER,

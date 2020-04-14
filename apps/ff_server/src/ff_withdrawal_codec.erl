@@ -24,7 +24,8 @@ marshal_withdrawal_params(Params) ->
         wallet_id      = marshal(id, maps:get(wallet_id, Params)),
         destination_id = marshal(id, maps:get(destination_id, Params)),
         body           = marshal(cash, maps:get(body, Params)),
-        external_id    = maybe_marshal(id, maps:get(external_id, Params, undefined))
+        external_id    = maybe_marshal(id, maps:get(external_id, Params, undefined)),
+        metadata       = maybe_marshal(ctx, maps:get(metadata, Params, undefined))
     }.
 
 -spec unmarshal_withdrawal_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
@@ -36,7 +37,8 @@ unmarshal_withdrawal_params(Params) ->
         wallet_id      => unmarshal(id, Params#wthd_WithdrawalParams.wallet_id),
         destination_id => unmarshal(id, Params#wthd_WithdrawalParams.destination_id),
         body           => unmarshal(cash, Params#wthd_WithdrawalParams.body),
-        external_id    => maybe_unmarshal(id, Params#wthd_WithdrawalParams.external_id)
+        external_id    => maybe_unmarshal(id, Params#wthd_WithdrawalParams.external_id),
+        metadata       => maybe_unmarshal(ctx, Params#wthd_WithdrawalParams.metadata)
     }).
 
 -spec marshal_withdrawal_state(ff_withdrawal:withdrawal_state(), ff_entity_context:context()) ->

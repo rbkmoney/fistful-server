@@ -22,7 +22,8 @@ unmarshal_destination_params(Params) ->
         name        => unmarshal(string,   Params#dst_DestinationParams.name),
         currency    => unmarshal(string,   Params#dst_DestinationParams.currency),
         resource    => unmarshal(resource, Params#dst_DestinationParams.resource),
-        external_id => maybe_unmarshal(id, Params#dst_DestinationParams.external_id)
+        external_id => maybe_unmarshal(id, Params#dst_DestinationParams.external_id),
+        metadata    => maybe_unmarshal(ctx, Params#dst_DestinationParams.metadata)
     }).
 
 -spec marshal_destination_state(ff_destination:destination_state(), ff_destination:id(), ff_entity_context:context()) ->

@@ -90,7 +90,8 @@ marshal(deposit_params, DepositParams) ->
         body = marshal(cash, maps:get(body, DepositParams)),
         wallet_id = marshal(id, maps:get(wallet_id, DepositParams)),
         source_id = marshal(id, maps:get(source_id, DepositParams)),
-        external_id = maybe_marshal(id, maps:get(external_id, DepositParams, undefined))
+        external_id = maybe_marshal(id, maps:get(external_id, DepositParams, undefined)),
+        metadata = maybe_marshal(ctx, maps:get(metadata, DepositParams, undefined))
     };
 
 marshal(ctx, Ctx) ->
@@ -141,7 +142,7 @@ unmarshal(deposit, Deposit) ->
     #{
         id => unmarshal(id, Deposit#deposit_Deposit.id),
         body => unmarshal(cash, Deposit#deposit_Deposit.body),
-        status => maybe_marshal(status, Deposit#deposit_Deposit.status),
+        status => maybe_unmarshal(status, Deposit#deposit_Deposit.status),
         params => genlib_map:compact(#{
             wallet_id => unmarshal(id, Deposit#deposit_Deposit.wallet_id),
             source_id => unmarshal(id, Deposit#deposit_Deposit.source_id),
@@ -159,7 +160,8 @@ unmarshal(deposit_params, DepositParams) ->
         body => unmarshal(cash, DepositParams#deposit_DepositParams.body),
         wallet_id => unmarshal(id, DepositParams#deposit_DepositParams.wallet_id),
         source_id => unmarshal(id, DepositParams#deposit_DepositParams.source_id),
-        external_id => maybe_marshal(id, DepositParams#deposit_DepositParams.external_id)
+        metadata => maybe_unmarshal(ctx, DepositParams#deposit_DepositParams.metadata),
+        external_id => maybe_unmarshal(id, DepositParams#deposit_DepositParams.external_id)
     });
 
 unmarshal(ctx, Ctx) ->
@@ -206,6 +208,7 @@ deposit_symmetry_test() ->
 
 -spec deposit_params_symmetry_test() -> _.
 deposit_params_symmetry_test() ->
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Encoded = #deposit_DepositParams{
         body = #'Cash'{
             amount = 10101,
@@ -214,7 +217,8 @@ deposit_params_symmetry_test() ->
         source_id = genlib:unique(),
         wallet_id = genlib:unique(),
         external_id = undefined,
-        id = genlib:unique()
+        id = genlib:unique(),
+        metadata = Metadata
     },
     ?assertEqual(Encoded, marshal(deposit_params, unmarshal(deposit_params, Encoded))).
 

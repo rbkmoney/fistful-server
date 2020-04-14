@@ -166,6 +166,7 @@ create(Params = #{
         Events = unwrap(ff_account:create(ID, Identity, Currency)),
         CreatedAt = ff_time:now(),
         [{created, genlib_map:compact(#{
+            version => ?ACTUAL_FORMAT_VERSION,
             name => Name,
             resource => Resource,
             external_id => maps:get(external_id, Params, undefined),

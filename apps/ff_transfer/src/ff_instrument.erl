@@ -252,3 +252,25 @@ maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
 
 maybe_migrate_resource(Resource) ->
     Resource.
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec v1_created_migration_test() -> _.
+v1_created_migration_test() ->
+    CreatedAt = ff_time:now(),
+    LegacyEvent = {created, #{
+        version     => 1,
+        resource    => {crypto_wallet, #{crypto_wallet => #{}}},
+        name        => <<"some name">>,
+        external_id => genlib:unique()
+    }},
+    {created, #{version := Version}} = maybe_migrate(LegacyEvent, #{
+        timestamp => ff_codec:unmarshal(timestamp, ff_codec:marshal(timestamp_ms, CreatedAt))
+    }),
+    ?assertEqual(2, Version).
+
+-endif.

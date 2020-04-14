@@ -1,6 +1,6 @@
 -module(wapi_swagger_server).
 
--export([child_spec/2]).
+-export([child_spec/3]).
 
 -export_type([logic_handler/0]).
 -export_type([logic_handlers/0]).
@@ -8,16 +8,18 @@
 -type logic_handler() :: swag_server_wallet:logic_handler(_).
 -type logic_handlers() :: #{atom() => logic_handler()}.
 
+-type swagger_handler_opts() :: swag_server_wallet_router:swagger_handler_opts().
+
 -define(APP, wapi).
 -define(DEFAULT_ACCEPTORS_POOLSIZE, 100).
 -define(DEFAULT_IP_ADDR, "::").
 -define(DEFAULT_PORT, 8080).
 
--spec child_spec(cowboy_router:routes(), logic_handlers()) ->
+-spec child_spec(cowboy_router:routes(), logic_handlers(), swagger_handler_opts()) ->
     supervisor:child_spec().
-child_spec(HealthRoutes, LogicHandlers) ->
+child_spec(HealthRoutes, LogicHandlers, SwaggerHandlerOpts) ->
     {Transport, TransportOpts} = get_socket_transport(),
-    CowboyOpts = get_cowboy_config(HealthRoutes, LogicHandlers),
+    CowboyOpts = get_cowboy_config(HealthRoutes, LogicHandlers, SwaggerHandlerOpts),
     ranch:child_spec(?MODULE, Transport, TransportOpts, cowboy_clear, CowboyOpts).
 
 get_socket_transport() ->
@@ -26,11 +28,14 @@ get_socket_transport() ->
     AcceptorsPool = genlib_app:env(?APP, acceptors_poolsize, ?DEFAULT_ACCEPTORS_POOLSIZE),
     {ranch_tcp, #{socket_opts => [{ip, IP}, {port, Port}], num_acceptors => AcceptorsPool}}.
 
-get_cowboy_config(HealthRoutes, LogicHandlers) ->
+get_cowboy_config(HealthRoutes, LogicHandlers, SwaggerHandlerOpts) ->
     Dispatch =
         cowboy_router:compile(squash_routes(
             HealthRoutes ++
-            swag_server_wallet_router:get_paths(maps:get(wallet, LogicHandlers))
+            swag_server_wallet_router:get_paths(
+                maps:get(wallet, LogicHandlers),
+                SwaggerHandlerOpts
+            )
         )),
     CowboyOpts = #{
         env => #{

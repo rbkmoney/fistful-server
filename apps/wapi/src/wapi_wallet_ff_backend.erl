@@ -1982,9 +1982,19 @@ to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
         )]
     });
 
-to_swag(timestamp, {{Date, Time}, Usec}) ->
-    {ok, Timestamp} = rfc3339:format({Date, Time, Usec, undefined}),
-    Timestamp;
+to_swag(timestamp, {DateTime, Usec}) ->
+    DateTimeinSeconds = genlib_time:to_unixtime(DateTime),
+    {TimeinUnit, Unit} =
+        case Usec of
+            undefined ->
+                {DateTimeinSeconds, second};
+            0 ->
+                {DateTimeinSeconds, second};
+            Usec ->
+                MicroSec = erlang:convert_time_unit(DateTimeinSeconds, second, millisecond),
+                {MicroSec + Usec, millisecond}
+        end,
+    genlib_rfc3339:format(TimeinUnit, Unit);
 to_swag(timestamp_ms, Timestamp) ->
     ff_time:to_rfc3339(Timestamp);
 to_swag(currency, Currency) ->

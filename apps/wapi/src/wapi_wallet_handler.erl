@@ -723,4 +723,4 @@ get_expiration_deadline(Expiration) ->
 get_default_url_lifetime() ->
     Now      = erlang:system_time(second),
     Lifetime = application:get_env(wapi, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
-    wapi_utils:unwrap(rfc3339:format(Now + Lifetime, second)).
+    wapi_utils:unwrap(genlib_rfc3339:format(Now + Lifetime, second)).

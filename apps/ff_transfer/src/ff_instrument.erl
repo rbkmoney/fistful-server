@@ -22,7 +22,7 @@
     unauthorized |
     authorized.
 
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 -type instrument_state(T) :: #{
     version     := ?ACTUAL_FORMAT_VERSION,
     account     := account() | undefined,
@@ -221,6 +221,13 @@ maybe_migrate({created, Instrument = #{version := 1}}, MigrateParams) ->
         version => 2,
         created_at => CreatedAt
     }}, MigrateParams);
+maybe_migrate({created, Instrument = #{version := 2}}, MigrateParams) ->
+    Context = maps:get(ctx, MigrateParams, undefined),
+    Metadata = ff_entity_context:try_get_legacy_metadata(Context),
+    maybe_migrate({created, genlib_map:compact(Instrument#{
+        version => 3,
+        metadata => Metadata
+    })}, MigrateParams);
 maybe_migrate({created, Instrument = #{
         resource    := Resource,
         name        := Name
@@ -271,6 +278,28 @@ v1_created_migration_test() ->
     {created, #{version := Version}} = maybe_migrate(LegacyEvent, #{
         timestamp => ff_codec:unmarshal(timestamp, ff_codec:marshal(timestamp_ms, CreatedAt))
     }),
-    ?assertEqual(2, Version).
+    ?assertEqual(3, Version).
+
+-spec v2_created_migration_test() -> _.
+v2_created_migration_test() ->
+    CreatedAt = ff_time:now(),
+    LegacyEvent = {created, #{
+        version => 2,
+        resource    => {crypto_wallet, #{crypto_wallet => #{}}},
+        name        => <<"some name">>,
+        external_id => genlib:unique(),
+        created_at  => CreatedAt
+    }},
+    {created, #{version := Version, metadata := Metadata}} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
+    ?assertEqual(3, Version),
+    ?assertEqual(#{<<"some key">> => <<"some val">>}, Metadata).
 
 -endif.

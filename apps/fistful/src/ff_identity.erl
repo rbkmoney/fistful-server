@@ -29,7 +29,7 @@
 -type level_id()        :: ff_identity_class:level_id().
 -type metadata()        :: ff_entity_context:md().
 
--define(ACTUAL_FORMAT_VERSION, 1).
+-define(ACTUAL_FORMAT_VERSION, 2).
 -type identity_state() :: #{
     version      := ?ACTUAL_FORMAT_VERSION,
     id           := id(),
@@ -357,6 +357,13 @@ with_challenge(ID, Fun, Challenges) ->
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
+maybe_migrate({created, Identity = #{version := 1}}, MigrateParams) ->
+    Context = maps:get(ctx, MigrateParams, undefined),
+    Metadata = ff_entity_context:try_get_legacy_metadata(Context),
+    maybe_migrate({created, genlib_map:compact(Identity#{
+        version => 2,
+        metadata => Metadata
+    })}, MigrateParams);
 maybe_migrate({created, Identity = #{created_at := _CreatedAt}}, MigrateParams) ->
     maybe_migrate({created, Identity#{
         version => 1
@@ -369,3 +376,31 @@ maybe_migrate({created, Identity}, MigrateParams) ->
     }}, MigrateParams);
 maybe_migrate(Ev, _MigrateParams) ->
     Ev.
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec v2_created_migration_test() -> _.
+v2_created_migration_test() ->
+    ID = genlib:unique(),
+    LegacyEvent = {created, #{
+        version       => 1,
+        id            => ID,
+        created_at    => ff_time:now()
+    }},
+    {created, Identity} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
+    ?assertEqual(ID, id(Identity)),
+    ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Identity)).
+
+-endif.

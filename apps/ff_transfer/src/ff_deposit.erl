@@ -6,7 +6,7 @@
 
 -type id()    :: binary().
 
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 -opaque deposit_state() :: #{
     version         := ?ACTUAL_FORMAT_VERSION,
     id              := id(),
@@ -1146,6 +1146,13 @@ maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, MigratePara
             }
         }
     }}, MigrateParams);
+maybe_migrate({created, Deposit = #{version := 2}}, MigrateParams) ->
+    Context = maps:get(ctx, MigrateParams, undefined),
+    Metadata = ff_entity_context:try_get_legacy_metadata(Context),
+    maybe_migrate({created, genlib_map:compact(Deposit#{
+        version => 3,
+        metadata => Metadata
+    })}, MigrateParams);
 maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
     maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
 maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
@@ -1157,3 +1164,33 @@ maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
 % Other events
 maybe_migrate(Ev, _MigrateParams) ->
     Ev.
+
+
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec v3_created_migration_test() -> _.
+v3_created_migration_test() ->
+    ID = genlib:unique(),
+    LegacyEvent = {created, #{
+        version       => 2,
+        id            => ID,
+        transfer_type => deposit
+    }},
+    {created, Deposit} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
+    ?assertEqual(ID, id(Deposit)),
+    ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Deposit)).
+
+-endif.

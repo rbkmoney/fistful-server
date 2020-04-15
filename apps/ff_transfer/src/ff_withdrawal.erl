@@ -10,7 +10,7 @@
 -type id() :: binary().
 -type clock() :: ff_transaction:clock().
 
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 -opaque withdrawal_state() :: #{
     version         := ?ACTUAL_FORMAT_VERSION,
     id              := id(),
@@ -1540,6 +1540,13 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateP
             wallet_cash_flow_plan => []
         }
     })}, MigrateParams);
+maybe_migrate({created, Withdrawal = #{version := 2}}, MigrateParams) ->
+    Context = maps:get(ctx, MigrateParams, undefined),
+    Metadata = ff_entity_context:try_get_legacy_metadata(Context),
+    maybe_migrate({created, genlib_map:compact(Withdrawal#{
+        version => 3,
+        metadata => Metadata
+    })}, MigrateParams);
 maybe_migrate({created, T}, MigrateParams) ->
     DestinationID = maps:get(destination, T),
     SourceID = maps:get(source, T),
@@ -1677,5 +1684,25 @@ v2_created_migration_test() ->
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
     ?assertEqual(Body, body(Withdrawal)).
+
+-spec v3_created_migration_test() -> _.
+v3_created_migration_test() ->
+    ID = genlib:unique(),
+    LegacyEvent = {created, #{
+        version       => 2,
+        id            => ID,
+        transfer_type => withdrawal
+    }},
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
+    ?assertEqual(ID, id(Withdrawal)),
+    ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Withdrawal)).
 
 -endif.

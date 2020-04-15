@@ -200,7 +200,7 @@ try_parse_woody_default(DeadlineStr) ->
     catch
         error:{bad_deadline, _Reason} ->
             {error, bad_deadline};
-        error:{badmatch, {error, baddate}} ->
+        error:{badmatch, _} ->
             {error, bad_deadline};
         error:deadline_reached ->
             {error, bad_deadline}

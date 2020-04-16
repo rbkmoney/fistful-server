@@ -238,8 +238,9 @@ marshal(timestamp, {DateTime, USec}) ->
             0 ->
                 {DateTimeinSeconds, second};
             USec ->
-                MilliSec = erlang:convert_time_unit(DateTimeinSeconds, second, millisecond),
-                {MilliSec + USec, millisecond}
+                MicroSec = erlang:convert_time_unit(DateTimeinSeconds, second, microsecond),
+                MilliSec = erlang:convert_time_unit(MicroSec + USec, microsecond, millisecond),
+                {MilliSec, millisecond}
         end,
     genlib_rfc3339:format(TimeinUnit, Unit);
 marshal(timestamp_ms, V) ->

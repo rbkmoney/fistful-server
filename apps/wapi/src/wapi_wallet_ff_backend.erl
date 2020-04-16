@@ -1991,8 +1991,9 @@ to_swag(timestamp, {DateTime, Usec}) ->
             0 ->
                 {DateTimeinSeconds, second};
             Usec ->
-                MicroSec = erlang:convert_time_unit(DateTimeinSeconds, second, millisecond),
-                {MicroSec + Usec, millisecond}
+                MicroSec = erlang:convert_time_unit(DateTimeinSeconds, second, microsecond),
+                MilliSec = erlang:convert_time_unit(MicroSec + Usec, microsecond, millisecond),
+                {MilliSec, millisecond}
         end,
     genlib_rfc3339:format(TimeinUnit, Unit);
 to_swag(timestamp_ms, Timestamp) ->

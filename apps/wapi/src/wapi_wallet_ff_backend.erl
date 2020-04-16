@@ -1181,7 +1181,7 @@ make_ctx(Context) ->
 add_meta_to_ctx(WapiKeys, Params, Context = #{?CTX_NS := Ctx}) ->
     Context#{?CTX_NS => maps:merge(
         Ctx,
-        maps:with([<<"metadata">> | WapiKeys], Params)
+        maps:with([WapiKeys], Params)
     )}.
 
 add_meta_to_params(SwagParams, Params) ->
@@ -1723,7 +1723,7 @@ to_swag(identity, State) ->
         <<"level">>              => ff_identity:level(Identity),
         <<"effectiveChallenge">> => to_swag(identity_effective_challenge, ff_identity:effective_challenge(Identity)),
         <<"isBlocked">>          => to_swag(is_blocked, ff_identity:is_accessible(Identity)),
-        <<"metadata">>           => maps:get(<<"metadata">>, WapiCtx, undefined),
+        <<"metadata">>           => ff_identity:metadata(Identity),
         ?EXTERNAL_ID             => ff_identity:external_id(Identity)
     });
 to_swag(identity_effective_challenge, {ok, ChallegeId}) ->
@@ -1847,7 +1847,6 @@ to_swag(user_interaction_form, Form) ->
 
 to_swag(wallet, State) ->
     Wallet = ff_wallet_machine:wallet(State),
-    WapiCtx = get_ctx(State),
     to_swag(map, #{
         <<"id">>         => ff_wallet:id(Wallet),
         <<"name">>       => ff_wallet:name(Wallet),
@@ -1855,7 +1854,7 @@ to_swag(wallet, State) ->
         <<"isBlocked">>  => to_swag(is_blocked, ff_wallet:is_accessible(Wallet)),
         <<"identity">>   => ff_wallet:identity(Wallet),
         <<"currency">>   => to_swag(currency, ff_wallet:currency(Wallet)),
-        <<"metadata">>   => genlib_map:get(<<"metadata">>, WapiCtx),
+        <<"metadata">>   => ff_wallet:metadata(Wallet),
         ?EXTERNAL_ID     => ff_wallet:external_id(Wallet)
     });
 to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
@@ -1872,7 +1871,6 @@ to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
     };
 to_swag(destination, State) ->
     Destination = ff_destination:get(State),
-    WapiCtx = get_ctx(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>         => ff_destination:id(Destination),
@@ -1882,7 +1880,7 @@ to_swag(destination, State) ->
             <<"identity">>   => ff_destination:identity(Destination),
             <<"currency">>   => to_swag(currency, ff_destination:currency(Destination)),
             <<"resource">>   => to_swag(destination_resource, ff_destination:resource(Destination)),
-            <<"metadata">>   => genlib_map:get(<<"metadata">>, WapiCtx),
+            <<"metadata">>   => ff_destination:metadata(Destination),
             ?EXTERNAL_ID     => ff_destination:external_id(Destination)
         },
         to_swag(destination_status, ff_destination:status(Destination))
@@ -1949,7 +1947,6 @@ to_swag(crypto_wallet_currency, {ripple, #{}})           -> #{<<"currency">> => 
 
 to_swag(withdrawal, State) ->
     Withdrawal = ff_withdrawal_machine:withdrawal(State),
-    WapiCtx = get_ctx(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>          => ff_withdrawal:id(Withdrawal),
@@ -1957,7 +1954,7 @@ to_swag(withdrawal, State) ->
             <<"wallet">>      => ff_withdrawal:wallet_id(Withdrawal),
             <<"destination">> => ff_withdrawal:destination_id(Withdrawal),
             <<"body">>        => to_swag(body, ff_withdrawal:body(Withdrawal)),
-            <<"metadata">>    => genlib_map:get(<<"metadata">>, WapiCtx),
+            <<"metadata">>    => ff_withdrawal:metadata(Withdrawal),
             ?EXTERNAL_ID      => ff_withdrawal:external_id(Withdrawal)
         },
         to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))

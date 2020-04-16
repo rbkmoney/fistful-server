@@ -39,8 +39,6 @@ get(Ns, Ctx) ->
 
 -spec try_get_legacy_metadata(context() | undefined) ->
     md() | undefined.
-try_get_legacy_metadata(undefined) ->
-    undefined;
 try_get_legacy_metadata(#{<<"com.rbkmoney.wapi">> := #{<<"metadata">> := Metadata}}) ->
     Metadata;
 try_get_legacy_metadata(_) ->

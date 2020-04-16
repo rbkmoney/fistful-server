@@ -48,6 +48,8 @@
     {account, ff_account:event()} |
     {status_changed, status()}.
 
+-type legacy_event() :: any().
+
 -export_type([id/0]).
 -export_type([instrument/1]).
 -export_type([instrument_state/1]).
@@ -209,7 +211,7 @@ apply_event({account, Ev}, Instrument = #{account := Account}) ->
 apply_event({account, Ev}, Instrument) ->
     apply_event({account, Ev}, Instrument#{account => undefined}).
 
--spec maybe_migrate(event(T), ff_machine:migrate_params()) ->
+-spec maybe_migrate(event(T) | legacy_event(), ff_machine:migrate_params()) ->
     event(T).
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->

@@ -1182,7 +1182,7 @@ make_ctx(Context) ->
 add_meta_to_ctx(WapiKeys, Params, Context = #{?CTX_NS := Ctx}) ->
     Context#{?CTX_NS => maps:merge(
         Ctx,
-        maps:with([WapiKeys], Params)
+        maps:with(WapiKeys, Params)
     )}.
 
 add_meta_to_params(SwagParams, Params) ->

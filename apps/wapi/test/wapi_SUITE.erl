@@ -44,25 +44,25 @@
 
 all() ->
     [ {group, default}
-    % , {group, quote}
-    % , {group, woody}
-    % , {group, errors}
-    % , {group, eventsink}
+    , {group, quote}
+    , {group, woody}
+    , {group, errors}
+    , {group, eventsink}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 
 groups() ->
     [
-        {default, [sequence, {repeat, 1}], [
-            % create_w2w_test
-            % create_destination_failed_test,
-            withdrawal_to_bank_card_test
-            % withdrawal_to_crypto_wallet_test,
-            % withdrawal_to_ripple_wallet_test,
-            % withdrawal_to_ripple_wallet_with_tag_test,
-            % unknown_withdrawal_test,
-            % get_wallet_by_external_id
+        {default, [sequence, {repeat, 2}], [
+            create_w2w_test,
+            create_destination_failed_test,
+            withdrawal_to_bank_card_test,
+            withdrawal_to_crypto_wallet_test,
+            withdrawal_to_ripple_wallet_test,
+            withdrawal_to_ripple_wallet_with_tag_test,
+            unknown_withdrawal_test,
+            get_wallet_by_external_id
         ]},
         {quote, [], [
             quote_encode_decode_test,

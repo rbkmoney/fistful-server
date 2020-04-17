@@ -4,6 +4,8 @@
 
 -module(ff_withdrawal).
 
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 -include_lib("damsel/include/dmsl_payment_processing_thrift.hrl").
 -include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
@@ -376,7 +378,7 @@ create(Params) ->
             quote => Quote
         }),
         ExternalID = maps:get(external_id, Params, undefined),
-        [
+        wrap_events([
             {created, add_external_id(ExternalID, #{
                 version         => ?ACTUAL_FORMAT_VERSION,
                 id              => ID,
@@ -389,8 +391,19 @@ create(Params) ->
             })},
             {status_changed, pending},
             {resource_got, Resource}
-        ]
+        ])
     end).
+
+wrap_events(Events) when is_list(Events) -> % Maybe it is changes, not events?
+    [serialize_event(ff_withdrawal_codec:marshal(change, E)) || E <- Events].
+
+serialize_event(E) ->
+    Type = {struct, union, {ff_proto_withdrawal_thrift, 'Change'}},
+    Bin = ff_proto_utils:serialize(Type, E),
+    #{
+       format_version => 1,
+       data => {bin, Bin}
+    }.
 
 -spec start_adjustment(adjustment_params(), withdrawal()) ->
     {ok, process_result()} |
@@ -1440,10 +1453,15 @@ build_failure(session, Withdrawal) ->
 
 -spec apply_event(event() | legacy_event(), ff_maybe:maybe(withdrawal())) ->
     withdrawal().
-apply_event(Ev, T0) ->
+apply_event(Ev0, T0) ->
+    Ev = unmarshal_event(Ev0),
     T1 = apply_event_(Ev, T0),
     T2 = save_adjustable_info(Ev, T1),
     T2.
+
+unmarshal_event(#{data := Bin}) ->
+    Type = {struct, union, {ff_proto_withdrawal_thrift, 'Change'}},
+    ff_withdrawal_codec:unmarshal(change, ff_proto_utils:deserialize(Type, Bin)).
 
 -spec apply_event_(event(), ff_maybe:maybe(withdrawal())) ->
     withdrawal().

@@ -13,6 +13,8 @@
 
 -module(ff_identity).
 
+-include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
+
 %% API
 
 -type id()              :: binary().
@@ -201,7 +203,7 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
             contract_template => ff_identity_class:contract_template(Class),
             contractor_level  => ff_identity_class:contractor_level(Level)
         })),
-        [
+        Events = [
             {created, add_external_id(ExternalID, #{
                 id       => ID,
                 party    => Party,
@@ -214,10 +216,29 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
             {level_changed,
                 LevelID
             }
-        ]
+        ],
+        R = wrap_changes(Events),
+        R
     end).
 
 %%
+
+wrap_changes(Events) when is_list(Events) -> % Maybe it is changes, not events?
+    [serialize_event(ff_identity_codec:marshal(change, E)) || E <- Events].
+
+serialize_event(E) ->
+    Type = {struct, union, {ff_proto_identity_thrift, 'Change'}},
+    Bin = ff_proto_utils:serialize(Type, E),
+    #{
+       format_version => 1,
+       data => {bin, Bin}
+    }.
+
+% wrap_event({created, Identity}) ->
+%     Idnt = ff_identity_codec:marshal_identity(Identity),
+%     {created, Idnt};
+% wrap_event({level_changed, LevelID}) ->
+%     {level_changed, LevelID}. % really?
 
 -spec start_challenge(challenge_id(), challenge_class(), [ff_identity_challenge:proof()], identity()) ->
     {ok, [event()]} |
@@ -294,17 +315,27 @@ add_external_id(ExternalID, Event) ->
     Event#{external_id => ExternalID}.
 
 %%
-
 -spec apply_event(event(), ff_maybe:maybe(identity())) ->
     identity().
 
-apply_event({created, Identity}, undefined) ->
+apply_event(Event0, Identity) ->
+    Event = unmarshal_event(Event0),
+    do_apply_event(Event, Identity).
+
+unmarshal_event(#{data := Bin}) ->
+    Type = {struct, union, {ff_proto_identity_thrift, 'Change'}},
+   ff_identity_codec:unmarshal(change, ff_proto_utils:deserialize(Type, Bin)).
+
+-spec do_apply_event(event(), ff_maybe:maybe(identity())) ->
+    identity().
+
+do_apply_event({created, Identity}, undefined) ->
     Identity;
-apply_event({level_changed, L}, Identity) ->
+do_apply_event({level_changed, L}, Identity) ->
     Identity#{level => L};
-apply_event({effective_challenge_changed, ID}, Identity) ->
-    Identity#{effective => ID};
-apply_event({{challenge, ID}, Ev}, Identity) ->
+do_apply_event({effective_challenge_changed, ID}, Identity) ->
+    Identity#{effective_challenge => ID};
+do_apply_event({{challenge, ID}, Ev}, Identity) ->
     with_challenges(
         fun (Cs) ->
             with_challenge(

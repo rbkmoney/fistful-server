@@ -326,7 +326,7 @@ do_apply_event({created, Identity}, undefined) ->
 do_apply_event({level_changed, L}, Identity) ->
     Identity#{level => L};
 do_apply_event({effective_challenge_changed, ID}, Identity) ->
-    Identity#{effective_challenge => ID};
+    Identity#{effective => ID};
 do_apply_event({{challenge, ID}, Ev}, Identity) ->
     with_challenges(
         fun (Cs) ->

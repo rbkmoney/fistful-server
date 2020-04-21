@@ -1532,7 +1532,6 @@ from_swag(destination_resource, #{
     BankCard = wapi_utils:base64url_to_map(WapiToken),
     {bank_card, #{bank_card => #{
         token          => maps:get(<<"token">>, BankCard),
-        % payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }}};
@@ -1906,7 +1905,6 @@ to_swag(sender_resource, {bank_card, #{bank_card := BankCard}}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardSenderResource">>,
         <<"token">>         => maps:get(token, BankCard),
-        % <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
@@ -1914,7 +1912,6 @@ to_swag(receiver_resource, {bank_card, #{bank_card := BankCard}}) ->
     to_swag(map, #{
         <<"type">>          => <<"BankCardReceiverResource">>,
         <<"token">>         => maps:get(token, BankCard),
-        % <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });

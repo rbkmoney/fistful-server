@@ -8,6 +8,8 @@
 
 -export([get_access_config/0]).
 
+-export([get_signee/0]).
+
 -export([create_wapi_context/1]).
 
 -type context () :: uac_authorizer_jwt:t().
@@ -157,7 +159,7 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
         wapi_utils:get_unique_id(),
         PartyID,
         Claims,
-        signee()
+        get_signee()
     )).
 
 -spec resolve_token_spec(token_spec()) ->
@@ -335,5 +337,6 @@ maybe_grant_wapi_roles(Claims) ->
             undefined
     end.
 
-signee() ->
-    application:get_env(wapi, signee).
+-spec get_signee() -> term().
+get_signee() ->
+    wapi_utils:unwrap(application:get_env(wapi, signee)).

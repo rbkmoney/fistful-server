@@ -106,6 +106,7 @@ start_app(wapi = AppName) ->
                 }
             }
         }},
+        {signee, wapi},
         {lechiffre_opts,  #{
             encryption_key_path => "/opt/wapi/config/jwk.json",
             decryption_key_paths => [

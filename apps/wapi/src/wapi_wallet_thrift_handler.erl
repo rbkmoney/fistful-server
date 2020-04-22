@@ -31,7 +31,7 @@ authorize_api_key(OperationID, ApiKey, _Opts) ->
             Context = wapi_auth:create_wapi_context(Context0),
             {true, Context};
         {error, Error} ->
-            _ = logger:info("API Key authorization failed for ~p due to ~p", [OperationID, Error]),
+            _ = logger:info("API Key authorization failed: ~p", [Error]),
             false
     end.
 

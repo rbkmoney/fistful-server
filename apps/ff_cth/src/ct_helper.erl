@@ -111,6 +111,11 @@ start_app(wapi = AppName) ->
             decryption_key_paths => [
                 "/opt/wapi/config/jwk.json"
             ]
+        }},
+        {swagger_handler_opts, #{
+            validation_opts => #{
+                custom_validator => wapi_swagger_validator
+            }
         }}
     ]), #{}};
 

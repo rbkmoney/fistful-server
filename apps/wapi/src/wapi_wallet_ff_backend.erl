@@ -351,7 +351,8 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
     {identity, notfound}        |
     {currency, notfound}        |
     {inaccessible, _}           |
-    {external_id_conflict, id(), external_id()}
+    {external_id_conflict, id(), external_id()} |
+    {illegal_pattern, _}
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->

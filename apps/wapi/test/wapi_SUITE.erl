@@ -30,6 +30,7 @@
 -export([get_wallet_by_external_id/1]).
 -export([check_withdrawal_limit_test/1]).
 -export([check_withdrawal_limit_exceeded_test/1]).
+-export([create_withdrawal_with_two_grants/1]).
 
 -export([consume_eventsinks/1]).
 
@@ -63,6 +64,7 @@ groups() ->
             withdrawal_to_crypto_wallet_test,
             withdrawal_to_ripple_wallet_test,
             withdrawal_to_ripple_wallet_with_tag_test,
+            create_withdrawal_with_two_grants,
             unknown_withdrawal_test,
             get_wallet_by_external_id
         ]},
@@ -286,6 +288,35 @@ withdrawal_to_ripple_wallet_with_tag_test(C) ->
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
 -spec check_withdrawal_limit_test(config()) -> test_return().
+
+-spec create_withdrawal_with_two_grants(config()) -> test_return().
+create_withdrawal_with_two_grants(C) ->
+    Name          = <<"Keyn Fawkes">>,
+    Provider      = ?ID_PROVIDER,
+    Class         = ?ID_CLASS,
+    IdentityID    = create_identity(Name, Provider, Class, C),
+    ok            = check_identity(Name, IdentityID, Provider, Class, C),
+    WalletID      = create_wallet(IdentityID, C),
+    ok            = check_wallet(WalletID, C),
+    CardToken     = store_bank_card(C),
+    {ok, _Card}   = get_bank_card(CardToken, C),
+    Resource      = make_bank_card_resource(CardToken),
+    {ok, Dest}    = create_destination(IdentityID, Resource, C),
+    DestID        = destination_id(Dest),
+    ok            = check_destination(IdentityID, DestID, Resource, C),
+    {ok, #{<<"token">> := DestinationGrant}} = issue_destination_grants(DestID, C),
+    {ok, #{<<"token">> := WalletGrant}} = issue_wallet_grants(WalletID, C),
+    % ожидаем выполнения асинхронного вызова выдачи прав на вывод
+    await_destination(DestID),
+
+    % User who has two grants yet no rights in his token to create withdrawal, should be able to it
+    % So we test createWithdrawal with another token
+    PartyID = ct_helper:cfg(party, C),
+    {ok, Token} = wapi_ct_helper:issue_token(PartyID, [], unlimited),
+    FakeTokenCfg  = [{context, get_context("localhost:8080", Token)}],
+
+    WithdrawalID  = create_withdrawal(WalletID, DestID, FakeTokenCfg, undefined, 100, WalletGrant, DestinationGrant),
+    ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
 check_withdrawal_limit_test(C) ->
     Name          = <<"Tony Dacota">>,
@@ -797,6 +828,24 @@ issue_destination_grants(DestID, C) ->
         ct_helper:cfg(context, C)
     ).
 
+issue_wallet_grants(WalletID, C) ->
+    call_api(
+        fun swag_client_wallet_wallets_api:issue_wallet_grant/3,
+        #{
+            binding => #{
+                <<"walletID">> => WalletID
+            },
+            body => #{
+                <<"asset">> => #{
+                    <<"amount">> => 1000000000,
+                    <<"currency">> => <<"RUB">>
+                },
+                <<"validUntil">> => <<"2800-12-12T00:00:00.0Z">>
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
 create_withdrawal(WalletID, DestID, C) ->
     create_withdrawal(WalletID, DestID, C, undefined).
 
@@ -804,6 +853,9 @@ create_withdrawal(WalletID, DestID, C, QuoteToken) ->
     create_withdrawal(WalletID, DestID, C, QuoteToken, 100).
 
 create_withdrawal(WalletID, DestID, C, QuoteToken, Amount) ->
+    create_withdrawal(WalletID, DestID, C, QuoteToken, Amount, undefined, undefined).
+
+create_withdrawal(WalletID, DestID, C, QuoteToken, Amount, WalletGrant, DestinationGrant) ->
     {ok, Withdrawal} = call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
         #{body => genlib_map:compact(#{
@@ -813,7 +865,9 @@ create_withdrawal(WalletID, DestID, C, QuoteToken, Amount) ->
                 <<"amount">> => Amount,
                 <<"currency">> => <<"RUB">>
             },
-            <<"quoteToken">> => QuoteToken
+            <<"quoteToken">> => QuoteToken,
+            <<"walletGrant">> => WalletGrant,
+            <<"destinationGrant">> => DestinationGrant
         })},
         ct_helper:cfg(context, C)
     ),

@@ -750,7 +750,8 @@ get_p2p_transfer(ID, Context) ->
 ).
 get_p2p_transfer_events({ID, CT}, Context) ->
     do(fun () ->
-        DecodedCT = unwrap(prepare_p2p_transfer_event_continuation_token(CT)),
+        PartyID = wapi_handler_utils:get_owner(Context),
+        DecodedCT = unwrap(prepare_p2p_transfer_event_continuation_token(PartyID, CT)),
         P2PTransferEventID = maps:get(p2p_transfer_event_id, DecodedCT, undefined),
         P2PSessionEventID = maps:get(p2p_session_event_id, DecodedCT, undefined),
         Limit = genlib_app:env(wapi, events_fetch_limit, ?DEFAULT_EVENTS_LIMIT),
@@ -1008,22 +1009,24 @@ create_p2p_transfer_events_continuation_token(#{
     {ok, SignedToken} = issue_quote_token(PartyID, DecodedToken),
     SignedToken.
 
-prepare_p2p_transfer_event_continuation_token(undefined) ->
+prepare_p2p_transfer_event_continuation_token(_, undefined) ->
     {ok, #{}};
-prepare_p2p_transfer_event_continuation_token(CT) ->
+prepare_p2p_transfer_event_continuation_token(PartyID, CT) ->
     do(fun() ->
-        VerifiedCT = unwrap(verify_p2p_transfer_event_continuation_token(CT)),
+        VerifiedCT = unwrap(verify_p2p_transfer_event_continuation_token(PartyID, CT)),
         DecodedCT = unwrap(decode_p2p_transfer_event_continuation_token(VerifiedCT)),
         DecodedCT
     end).
 
-verify_p2p_transfer_event_continuation_token(CT) ->
+verify_p2p_transfer_event_continuation_token(PartyID, CT) ->
     do(fun() ->
         case uac_authorizer_jwt:verify(CT, #{}) of
-            {ok, {_, _, VerifiedToken}} ->
+            {ok, {_, PartyID, VerifiedToken}} ->
                 VerifiedToken;
             {error, Error} ->
-                {error, {token, {not_verified, Error}}}
+                {error, {token, {not_verified, Error}}};
+            _ ->
+                {error, {token, {not_verified, wrong_party_id}}}
         end
     end).
 

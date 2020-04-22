@@ -30,11 +30,7 @@
 -type auth_details() :: auth_method() | [{resource(), auth_details()}].
 -type auth_error()   :: [{resource(), [{auth_method(), atom()}]}].
 
--define(SIGNEE, wapi).
-% common-api is a legacy domain that we support until we can properly issue and handle tokens
-% with domain-specific roles. Actual domain here should be smth like wallet-api
 -define(DOMAIN, <<"wallet-api">>).
-% -define(DOMAIN, <<"common-api">>).
 
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
     ok  | {error, auth_error()}.
@@ -44,6 +40,8 @@ authorize_operation('CreateWithdrawal' = OperationID,
     #{swagger_context := #{auth_context := AuthContext}} = Context
 ) ->
     case authorize_withdrawal(Params, Context) of
+        {ok, [{_, grant}, {_, grant}]} ->
+            ok;
         {ok, _} ->
             OperationACL = get_operation_access(OperationID, Req),
             uac:authorize_operation(OperationACL, AuthContext);
@@ -159,7 +157,7 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
         wapi_utils:get_unique_id(),
         PartyID,
         Claims,
-        ?SIGNEE
+        signee()
     )).
 
 -spec resolve_token_spec(token_spec()) ->
@@ -302,12 +300,10 @@ get_resource_hierarchy() ->
         withdrawals => #{}
     }.
 
-all_scopes(Key, Value, AccIn) when map_size(Value) > 0 ->
+all_scopes(Key, Value, AccIn) ->
     Scopes0 = maps:fold(fun all_scopes/3, [], Value),
     Scopes1 = lists:map(fun(Scope) -> [Key | Scope] end, Scopes0),
-    Scopes1 ++ [[Key] | AccIn];
-all_scopes(Key, _Value, AccIn) ->
-    [[Key] | AccIn].
+    Scopes1 ++ [[Key] | AccIn].
 
 hierarchy_to_acl(Hierarchy) ->
     Scopes = maps:fold(fun all_scopes/3, [], Hierarchy),
@@ -338,3 +334,6 @@ maybe_grant_wapi_roles(Claims) ->
         _ ->
             undefined
     end.
+
+signee() ->
+    application:get_env(wapi, signee).

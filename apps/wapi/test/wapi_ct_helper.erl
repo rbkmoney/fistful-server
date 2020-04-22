@@ -98,7 +98,8 @@ start_wapi(Config) ->
                     wapi => {pem_file, get_keysource("keys/local/private.pem", Config)}
                 }
             }
-        }}
+        }},
+        {signee, ?SIGNEE}
     ]).
 
 -spec get_keysource(_, config()) ->

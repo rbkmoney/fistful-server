@@ -95,7 +95,7 @@ end_per_suite(C) ->
 
 -spec init_per_group(group_name(), config()) ->
     config().
-init_per_group(Group, Config) when Group =:= default ->
+init_per_group(default = Group, Config) ->
     ok = ff_context:save(ff_context:create(#{
         party_client => party_client:create_client(),
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)

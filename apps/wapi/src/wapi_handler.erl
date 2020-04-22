@@ -75,7 +75,7 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
         Handler      = get_handler(Tag, genlib_app:env(?APP, transport)),
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
             ok ->
-                ok = logger:info("Operation ~p authorized", [OperationID]),
+                ok = logger:debug("Operation ~p authorized", [OperationID]),
                 Handler:process_request(OperationID, Req, Context, Opts);
             {error, Error} ->
                 ok = logger:info("Operation ~p authorization failed due to ~p", [OperationID, Error]),

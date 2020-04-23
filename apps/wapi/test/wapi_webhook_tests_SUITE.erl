@@ -34,6 +34,10 @@
 -type config()          :: [{atom(), any()}].
 -type group_name()      :: atom().
 
+% common-api is used since it is the domain used in production RN
+% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
+-define(DOMAIN, <<"common-api">>).
+
 -behaviour(supervisor).
 
 -spec init([]) ->
@@ -96,7 +100,7 @@ init_per_group(Group, Config) when Group =:= base ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
     Party = create_party(Config),
-    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited),
+    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
     [{context, wapi_ct_helper:get_context(Token)} | Config1];
 init_per_group(_, Config) ->

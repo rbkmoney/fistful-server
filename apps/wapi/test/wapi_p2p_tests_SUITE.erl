@@ -26,6 +26,9 @@
     get_p2p_transfer_events_ok_test/1
 ]).
 
+% common-api is used since it is the domain used in production RN
+% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
+-define(DOMAIN, <<"common-api">>).
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
@@ -100,7 +103,7 @@ init_per_group(Group, Config) when Group =:= p2p ->
         {[party], write},
         {[party], read}
     ],
-    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited),
+    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
     [{context, wapi_ct_helper:get_context(Token)}, {context_pcidss, ContextPcidss} | Config1];

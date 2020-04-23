@@ -25,6 +25,9 @@
     get_wallet/1
 ]).
 
+% common-api is used since it is the domain used in production RN
+% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
+-define(DOMAIN, <<"common-api">>).
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
@@ -96,7 +99,7 @@ init_per_group(Group, Config) when Group =:= base ->
         {[party], read},
         {[party], write}
     ],
-    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, {deadline, 10}),
+    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, {deadline, 10}, ?DOMAIN),
     Config1 = [{party, Party} | Config],
     [{context, wapi_ct_helper:get_context(Token)} | Config1];
 init_per_group(_, Config) ->

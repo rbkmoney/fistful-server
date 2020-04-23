@@ -30,7 +30,6 @@
 -export([get_wallet_by_external_id/1]).
 -export([check_withdrawal_limit_test/1]).
 -export([check_withdrawal_limit_exceeded_test/1]).
--export([create_withdrawal_with_two_grants/1]).
 
 -export([consume_eventsinks/1]).
 
@@ -47,6 +46,7 @@
 
 all() ->
     [ {group, default}
+    , {group, wallet_api_token}
     , {group, quote}
     , {group, woody}
     , {group, errors}
@@ -57,17 +57,8 @@ all() ->
 
 groups() ->
     [
-        {default, [sequence, {repeat, 2}], [
-            create_w2w_test,
-            create_destination_failed_test,
-            withdrawal_to_bank_card_test,
-            withdrawal_to_crypto_wallet_test,
-            withdrawal_to_ripple_wallet_test,
-            withdrawal_to_ripple_wallet_with_tag_test,
-            create_withdrawal_with_two_grants,
-            unknown_withdrawal_test,
-            get_wallet_by_external_id
-        ]},
+        {default, [sequence, {repeat, 2}], group_default()},
+        {wallet_api_token, [sequence, {repeat, 2}], group_default()},
         {quote, [], [
             quote_encode_decode_test,
             get_quote_test,
@@ -87,6 +78,17 @@ groups() ->
             consume_eventsinks
         ]}
     ].
+
+group_default() -> [
+    create_w2w_test,
+    create_destination_failed_test,
+    withdrawal_to_bank_card_test,
+    withdrawal_to_crypto_wallet_test,
+    withdrawal_to_ripple_wallet_test,
+    withdrawal_to_ripple_wallet_with_tag_test,
+    unknown_withdrawal_test,
+    get_wallet_by_external_id
+].
 
 -spec init_per_suite(config()) -> config().
 
@@ -118,13 +120,7 @@ init_per_group(G, C) ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
     })),
     Party = create_party(C),
-    BasePermissions = [
-        {[party], read},
-        {[party], write}
-    ],
-    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited),
-    Context = get_context("localhost:8080", Token),
-    ContextPcidss = get_context("wapi-pcidss:8080", Token),
+    {Context, ContextPcidss} = create_context_for_group(G, Party),
     [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].
 
 -spec end_per_group(group_name(), config()) -> _.
@@ -288,35 +284,6 @@ withdrawal_to_ripple_wallet_with_tag_test(C) ->
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
 -spec check_withdrawal_limit_test(config()) -> test_return().
-
--spec create_withdrawal_with_two_grants(config()) -> test_return().
-create_withdrawal_with_two_grants(C) ->
-    Name          = <<"Keyn Fawkes">>,
-    Provider      = ?ID_PROVIDER,
-    Class         = ?ID_CLASS,
-    IdentityID    = create_identity(Name, Provider, Class, C),
-    ok            = check_identity(Name, IdentityID, Provider, Class, C),
-    WalletID      = create_wallet(IdentityID, C),
-    ok            = check_wallet(WalletID, C),
-    CardToken     = store_bank_card(C),
-    {ok, _Card}   = get_bank_card(CardToken, C),
-    Resource      = make_bank_card_resource(CardToken),
-    {ok, Dest}    = create_destination(IdentityID, Resource, C),
-    DestID        = destination_id(Dest),
-    ok            = check_destination(IdentityID, DestID, Resource, C),
-    {ok, #{<<"token">> := DestinationGrant}} = issue_destination_grants(DestID, C),
-    {ok, #{<<"token">> := WalletGrant}} = issue_wallet_grants(WalletID, C),
-    % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    await_destination(DestID),
-
-    % User who has two grants yet no rights in his token to create withdrawal, should be able to it
-    % So we test createWithdrawal with another token
-    PartyID = ct_helper:cfg(party, C),
-    {ok, Token} = wapi_ct_helper:issue_token(PartyID, [], unlimited),
-    FakeTokenCfg  = [{context, get_context("localhost:8080", Token)}],
-
-    WithdrawalID  = create_withdrawal(WalletID, DestID, FakeTokenCfg, undefined, 100, WalletGrant, DestinationGrant),
-    ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
 check_withdrawal_limit_test(C) ->
     Name          = <<"Tony Dacota">>,
@@ -828,24 +795,6 @@ issue_destination_grants(DestID, C) ->
         ct_helper:cfg(context, C)
     ).
 
-issue_wallet_grants(WalletID, C) ->
-    call_api(
-        fun swag_client_wallet_wallets_api:issue_wallet_grant/3,
-        #{
-            binding => #{
-                <<"walletID">> => WalletID
-            },
-            body => #{
-                <<"asset">> => #{
-                    <<"amount">> => 1000000000,
-                    <<"currency">> => <<"RUB">>
-                },
-                <<"validUntil">> => <<"2800-12-12T00:00:00.0Z">>
-            }
-        },
-        ct_helper:cfg(context, C)
-    ).
-
 create_withdrawal(WalletID, DestID, C) ->
     create_withdrawal(WalletID, DestID, C, undefined).
 
@@ -1145,3 +1094,46 @@ consume_eventsinks(_) ->
         , withdrawal_session_event_sink
     ],
     [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
+
+% We use <<"common-api">> domain in tests to immitate the production
+% One test group will use  <<"wallet-api">> to test that it actually works fine
+% TODO: use <<"wallet-api">> everywhere as soon as wallet-api tokens will become a thing
+
+create_context_for_group(wallet_api_token, Party) ->
+    {ok, Token} = issue_wapi_token(Party),
+    Context = get_context("localhost:8080", Token),
+    {ok, PcidssToken} = issue_capi_token(Party),
+    ContextPcidss = get_context("wapi-pcidss:8080", PcidssToken),
+    {Context, ContextPcidss};
+
+create_context_for_group(_Group, Party) ->
+    {ok, Token} = issue_capi_token(Party),
+    Context = get_context("localhost:8080", Token),
+    ContextPcidss = get_context("wapi-pcidss:8080", Token),
+    {Context, ContextPcidss}.
+
+issue_wapi_token(Party) ->
+    Permissions = [
+        {[party], read},
+        {[party], write},
+        {[p2p], read},
+        {[p2p], write},
+        {[w2w], read},
+        {[w2w], write},
+        {[withdrawals], read},
+        {[withdrawals], write},
+        {[webhooks], read},
+        {[webhooks], write},
+        {[party, wallets], write},
+        {[party, wallets], read},
+        {[party, destinations], write},
+        {[party, destinations], read}
+    ],
+    wapi_ct_helper:issue_token(Party, Permissions, unlimited, <<"wallet-api">>).
+
+issue_capi_token(Party) ->
+    Permissions = [
+        {[party], read},
+        {[party], write}
+    ],
+    wapi_ct_helper:issue_token(Party, Permissions, unlimited, <<"common-api">>).

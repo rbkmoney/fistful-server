@@ -10,6 +10,7 @@
 -export([start_wapi/1]).
 -export([issue_token/2]).
 -export([issue_token/3]).
+-export([issue_token/4]).
 -export([get_context/1]).
 -export([get_keysource/2]).
 -export([start_mocked_service_sup/1]).
@@ -23,6 +24,7 @@
 -define(WAPI_PORT,      8080).
 -define(WAPI_HOST_NAME, "localhost").
 -define(WAPI_URL,       ?WAPI_HOST_NAME ++ ":" ++ integer_to_list(?WAPI_PORT)).
+-define(DOMAIN,         <<"wallet-api">>).
 
 %%
 -type config()          :: [{atom(), any()}].
@@ -108,7 +110,7 @@ start_wapi(Config) ->
 get_keysource(Key, Config) ->
     filename:join(?config(data_dir, Config), Key).
 
--spec issue_token(_, _) ->
+-spec issue_token(_, _) -> % TODO: spec
     {ok, binary()} |
     {error,
         nonexistent_signee
@@ -117,18 +119,27 @@ get_keysource(Key, Config) ->
 issue_token(ACL, LifeTime) ->
     issue_token(?STRING, ACL, LifeTime).
 
--spec issue_token(_, _, _) ->
+-spec issue_token(_, _, _, _) -> % TODO: spec
+    {ok, binary()} |
+    {error,
+        nonexistent_signee
+    }.
+
+-spec issue_token(_, _, _) -> % TODO: spec
     {ok, binary()} |
     {error,
         nonexistent_signee
     }.
 
 issue_token(PartyID, ACL, LifeTime) ->
+    issue_token(PartyID, ACL, LifeTime, ?DOMAIN).
+
+issue_token(PartyID, ACL, LifeTime, Domain) ->
     Claims = #{
         ?STRING => ?STRING,
         <<"exp">> => LifeTime,
         <<"resource_access">> =>#{
-            <<"common-api">> => uac_acl:from_list(ACL)
+            Domain => uac_acl:from_list(ACL)
         }
     },
     uac_authorizer_jwt:issue(

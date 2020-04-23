@@ -167,7 +167,6 @@ idempotency_destination_ok(C) ->
     BankCard = #{masked_pan := MP} =
         ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     NewBankCard = maps:without([exp_date, cardholder_name], BankCard),
-    PS = <<"visa">>,
     Party = create_party(C),
     ExternalID = genlib:unique(),
     Context = create_context(Party, C),
@@ -178,9 +177,7 @@ idempotency_destination_ok(C) ->
         <<"name">>      => <<"XDesination">>,
         <<"resource">>  => #{
             <<"type">>  => <<"BankCardDestinationResource">>,
-            <<"token">> => wapi_utils:map_to_base64url(NewBankCard#{
-                paymentSystem => PS,
-                lastDigits => MP})
+            <<"token">> => wapi_utils:map_to_base64url(NewBankCard#{lastDigits => MP})
         },
         <<"externalID">> => ExternalID
     },
@@ -198,7 +195,6 @@ idempotency_destination_conflict(C) ->
     BankCard = #{masked_pan := MP} =
         ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     NewBankCard = maps:without([exp_date, cardholder_name], BankCard),
-    PS = <<"visa">>,
     Party = create_party(C),
     ExternalID = genlib:unique(),
     {ok, #{<<"id">> := IdentityID}} = create_identity(Party, C),
@@ -208,9 +204,7 @@ idempotency_destination_conflict(C) ->
         <<"name">>      => <<"XDesination">>,
         <<"resource">>  => #{
             <<"type">>  => <<"BankCardDestinationResource">>,
-            <<"token">> => wapi_utils:map_to_base64url(NewBankCard#{
-                paymentSystem   => PS,
-                lastDigits      => MP})
+            <<"token">> => wapi_utils:map_to_base64url(NewBankCard#{lastDigits => MP})
         },
         <<"externalID">> => ExternalID
     },
@@ -290,17 +284,13 @@ create_destination_legacy(IdentityID, Party, C) ->
     BankCard = #{masked_pan := MP} =
         ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
     NewBankCard = maps:without([exp_date, cardholder_name], BankCard),
-    PaymentSystem = <<"visa">>,
     Params = #{
         <<"identity">>  => IdentityID,
         <<"currency">>  => <<"RUB">>,
         <<"name">>      => <<"XDesination">>,
         <<"resource">>  => #{
             <<"type">>  => <<"BankCardDestinationResource">>,
-            <<"token">> => wapi_utils:map_to_base64url(NewBankCard#{
-                lastDigits      => MP,
-                paymentSystem   => PaymentSystem
-            })
+            <<"token">> => wapi_utils:map_to_base64url(NewBankCard#{lastDigits => MP})
         }
     },
     wapi_wallet_ff_backend:create_destination(Params, create_context(Party, C)).

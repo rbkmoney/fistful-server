@@ -83,6 +83,7 @@
 -define(SIGNEE, wapi).
 -define(BENDER_DOMAIN, <<"wapi">>).
 -define(DEFAULT_EVENTS_LIMIT, 50).
+-define(DOMAIN, <<"wallet-api">>).
 
 -dialyzer([{nowarn_function, [to_swag/2]}]).
 
@@ -380,10 +381,12 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {quote, {invalid_body, _}}    |
     {quote, {invalid_destination, _}} |
     {terms, {terms_violation, _}} |
-    {destination_resource, {bin_data, not_found}}
+    {destination_resource, {bin_data, not_found}} |
+    {unauthorized_withdrawal, _}
 ).
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
+        _ = unwrap(authorize_withdrawal(Params, Context)),
         Quote = unwrap(maybe_check_quote_token(Params, Context)),
         WithdrawalParams = from_swag(withdrawal_params, Params),
         ff_withdrawal_machine:create(
@@ -2224,6 +2227,101 @@ map_fistful_stat_error(_Reason) ->
     #domain_Failure{
         code = <<"failed">>
     }.
+
+authorize_withdrawal(Params, Context) ->
+    case do_authorize_withdrawal(Params, Context) of
+        {ok, _} ->
+            ok;
+        {error, Error} ->
+            {error, {unauthorized_withdrawal, Error}}
+    end.
+
+do_authorize_withdrawal(Params, Context) ->
+    lists:foldl(
+        fun(R, AuthState) ->
+            case {authorize_resource(R, Params, Context), AuthState} of
+                {{ok, AuthMethod}, {ok, AuthData}}   -> {ok, [{R, AuthMethod} | AuthData]};
+                {{ok, _}, {error, _}}                -> AuthState;
+                {{error, Error}, {error, ErrorData}} -> {error, [{R, Error} | ErrorData]};
+                {{error, Error}, {ok, _}}            -> {error, [{R, Error}]}
+            end
+        end,
+        {ok, []},
+        [destination, wallet]
+    ).
+
+authorize_resource(Resource, Params, Context) ->
+    %% TODO
+    %%  - ff_pipeline:do/1 would make the code rather more clear here.
+    authorize_resource_by_bearer(authorize_resource_by_grant(Resource, Params), Resource, Params, Context).
+
+authorize_resource_by_bearer(ok, _Resource, _Params, _Context) ->
+    {ok, grant};
+authorize_resource_by_bearer({error, GrantError}, Resource, Params, Context) ->
+    case get_resource(Resource, maps:get(genlib:to_binary(Resource), Params), Context) of
+        {ok, _} ->
+            {ok, bearer_token};
+        {error, BearerError} ->
+            {error, [{bearer_token, BearerError}, {grant, GrantError}]}
+    end.
+
+get_resource(destination, ID, Context) ->
+    wapi_wallet_ff_backend:get_destination(ID, Context);
+get_resource(wallet, ID, Context) ->
+    wapi_wallet_ff_backend:get_wallet(ID, Context).
+
+authorize_resource_by_grant(R = destination, #{
+    <<"destination">>      := ID,
+    <<"destinationGrant">> := Grant
+}) ->
+    authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), undefined);
+authorize_resource_by_grant(R = wallet, #{
+    <<"wallet">>      := ID,
+    <<"walletGrant">> := Grant,
+    <<"body">>        := WithdrawalBody
+}) ->
+    authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), WithdrawalBody);
+authorize_resource_by_grant(_, _) ->
+    {error, missing}.
+
+authorize_resource_by_grant(Resource, Grant, Access, Params) ->
+    case uac_authorizer_jwt:verify(Grant, #{}) of
+        {ok, {_Id, _, Claims}} ->
+            verify_claims(Resource, verify_access(Access, Claims), Params);
+        Error = {error, _} ->
+            Error
+    end.
+
+get_resource_accesses(Resource, ID, Permission) ->
+    [{get_resource_accesses(Resource, ID), Permission}].
+
+get_resource_accesses(destination, ID) ->
+    [party, {destinations, ID}];
+get_resource_accesses(wallet, ID) ->
+    [party, {wallets, ID}].
+
+verify_access(Access, #{<<"resource_access">> := #{?DOMAIN := ACL}} = Claims) ->
+    case lists:all(
+        fun ({Scope, Permission}) -> lists:member(Permission, uac_acl:match(Scope, ACL)) end,
+        Access
+    ) of
+        true  -> {ok, Claims};
+        false -> {error, insufficient_access}
+    end;
+verify_access(_, _) ->
+    {error, insufficient_access}.
+
+verify_claims(_, Error = {error, _}, _) ->
+    Error;
+verify_claims(destination, {ok, _Claims}, _) ->
+    ok;
+verify_claims(wallet,
+    {ok, #{<<"amount">> := GrantAmount, <<"currency">> := Currency}},
+    #{     <<"amount">> := ReqAmount,   <<"currency">> := Currency }
+) when GrantAmount >= ReqAmount ->
+    ok;
+verify_claims(_, _, _) ->
+    {error, insufficient_claims}.
 
 issue_quote_token(PartyID, Data) ->
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).

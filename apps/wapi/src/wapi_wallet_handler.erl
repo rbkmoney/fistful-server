@@ -357,7 +357,9 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {destination_resource, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Unknown card issuer">>)
-            )
+            );
+        {error, {unauthorized_withdrawal, _}} ->
+            wapi_handler_utils:reply_ok(401)
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of

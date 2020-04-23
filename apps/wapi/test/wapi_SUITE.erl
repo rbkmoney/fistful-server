@@ -166,12 +166,32 @@ create_destination_failed_test(C) ->
     Provider      = ?ID_PROVIDER,
     Class         = ?ID_CLASS,
     IdentityID    = create_identity(Name, Provider, Class, C),
-    Resource      = #{
+    Resource0      = #{
         <<"type">>  => <<"BankCardDestinationResource">>,
         <<"token">> => <<"v1.megatoken">>
     },
     {error, {400, #{<<"errorType">> := <<"InvalidResourceToken">>}}}
-        = create_destination(IdentityID, Resource, C).
+        = create_destination(IdentityID, Resource0, C),
+    %%
+    DestinationName0 = <<"abc4242424242424242">>,
+    CardToken     = store_bank_card(C),
+    Resource1     = make_bank_card_resource(CardToken),
+    {error, {response_validation_failed, _,
+        #{
+            <<"errorType">> := <<"schema_violated">>,
+            <<"name">> := <<"Destination">>
+        }
+    }} = create_destination(DestinationName0, IdentityID, Resource1, C),
+    DestinationName1 = <<"abc1231241241241244">>,
+    IdentityID1 = <<"4242424242424242">>,
+    {error, {response_validation_failed, _,
+        #{
+            <<"errorType">> := <<"schema_violated">>,
+            <<"name">> := <<"Destination">>
+        }
+    }} = create_destination(DestinationName1, IdentityID1, Resource1, C),
+    DestinationName2 = <<"1231241241241244">>,
+    {ok, _} = create_destination(DestinationName2, IdentityID, Resource1, C).
 
 -spec withdrawal_to_bank_card_test(config()) -> test_return().
 
@@ -699,10 +719,14 @@ destination_id(Dest) ->
     maps:get(<<"id">>, Dest).
 
 create_destination(IdentityID, Resource, C) ->
+    Name = <<"Worldwide PHP Awareness Initiative">>,
+    create_destination(Name, IdentityID, Resource, C).
+
+create_destination(Name, IdentityID, Resource, C) ->
     call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{body => #{
-            <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
+            <<"name">>     => Name,
             <<"identity">> => IdentityID,
             <<"currency">> => <<"RUB">>,
             <<"resource">> => Resource,

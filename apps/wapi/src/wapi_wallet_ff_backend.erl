@@ -350,7 +350,8 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
     {identity, notfound}        |
     {currency, notfound}        |
     {inaccessible, _}           |
-    {external_id_conflict, id(), external_id()}
+    {external_id_conflict, id(), external_id()} |
+    {illegal_pattern, _}
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
@@ -1531,7 +1532,6 @@ from_swag(destination_resource, #{
     BankCard = wapi_utils:base64url_to_map(WapiToken),
     {bank_card, #{bank_card => #{
         token          => maps:get(<<"token">>, BankCard),
-        payment_system => erlang:binary_to_existing_atom(maps:get(<<"paymentSystem">>, BankCard), latin1),
         bin            => maps:get(<<"bin">>, BankCard),
         masked_pan     => maps:get(<<"lastDigits">>, BankCard)
     }}};

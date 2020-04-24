@@ -116,6 +116,16 @@ apply_event({finished, Result}, Session) ->
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
+maybe_migrate({created, Session = #{version := 1, withdrawal := Withdrawal = #{
+    sender := Sender,
+    receiver := Receiver
+}}}, MigrateParams) ->
+    maybe_migrate({created, Session#{
+        version => 2,
+        withdrawal => Withdrawal#{
+            sender => try_migrate_identity_state(Sender, MigrateParams),
+            receiver => try_migrate_identity_state(Receiver, MigrateParams)
+    }}}, MigrateParams);
 maybe_migrate({created, Session = #{
     withdrawal := Withdrawal = #{
         destination := #{resource := OldResource}
@@ -135,16 +145,6 @@ maybe_migrate({created, Session = #{
         version => 1,
         withdrawal => Withdrawal#{
             resource => NewResource
-    }}}, MigrateParams);
-maybe_migrate({created, Session = #{version := 1, withdrawal := Withdrawal = #{
-    sender := Sender,
-    receiver := Receiver
-}}}, MigrateParams) ->
-    maybe_migrate({created, Session#{
-        version => 2,
-        withdrawal => Withdrawal#{
-            sender => try_migrate_identity_state(Sender, MigrateParams),
-            receiver => try_migrate_identity_state(Receiver, MigrateParams)
     }}}, MigrateParams);
 maybe_migrate({next_state, Value}, _MigrateParams) when Value =/= undefined ->
     {next_state, try_unmarshal_msgpack(Value)};

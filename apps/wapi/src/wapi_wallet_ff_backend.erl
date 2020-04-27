@@ -1185,12 +1185,6 @@ add_meta_to_ctx(WapiKeys, Params, Context = #{?CTX_NS := Ctx}) ->
         maps:with(WapiKeys, Params)
     )}.
 
-add_meta_to_params(SwagParams, Params) ->
-    Metadata = maps:get(<<"metadata">>, SwagParams, undefined),
-    Params#{
-        metadata => Metadata
-    }.
-
 add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
     Context#{?CTX_NS => Ctx#{Key => Value}}.
 
@@ -1492,9 +1486,10 @@ from_swag(create_quote_params, Params) ->
         destination_id  => maps:get(<<"destinationID">>, Params, undefined)
     }, Params));
 from_swag(identity_params, Params) ->
-    add_meta_to_params(Params, add_external_id(#{
+    genlib_map:compact(add_external_id(#{
         provider => maps:get(<<"provider">>, Params),
-        class    => maps:get(<<"class">>   , Params)
+        class    => maps:get(<<"class">>   , Params),
+        metadata => maps:get(<<"metadata">>, Params, undefined)
     }, Params));
 from_swag(identity_challenge_params, Params) ->
     #{
@@ -1520,17 +1515,19 @@ from_swag(proof_type, <<"RUSRetireeInsuranceCertificate">>) ->
     rus_retiree_insurance_cert;
 
 from_swag(wallet_params, Params) ->
-    add_meta_to_params(Params, add_external_id(#{
-        identity => maps:get(<<"identity">>, Params),
-        currency => maps:get(<<"currency">>, Params),
-        name     => maps:get(<<"name">>    , Params)
-    }, Params));
-from_swag(destination_params, Params) ->
-    add_meta_to_params(Params, add_external_id(#{
+    genlib_map:compact(add_external_id(#{
         identity => maps:get(<<"identity">>, Params),
         currency => maps:get(<<"currency">>, Params),
         name     => maps:get(<<"name">>    , Params),
-        resource => maps:get(<<"resource">>, Params)
+        metadata => maps:get(<<"metadata">>, Params, undefined)
+    }, Params));
+from_swag(destination_params, Params) ->
+    genlib_map:compact(add_external_id(#{
+        identity => maps:get(<<"identity">>, Params),
+        currency => maps:get(<<"currency">>, Params),
+        name     => maps:get(<<"name">>    , Params),
+        resource => maps:get(<<"resource">>, Params),
+        metadata => maps:get(<<"metadata">>, Params, undefined)
     }, Params));
 %% TODO delete this code, after add encrypted token
 from_swag(destination_resource, #{
@@ -1573,20 +1570,21 @@ from_swag(compact_resource, #{
         bin_data_id => BinDataID
     }};
 from_swag(create_p2p_params, Params) ->
-    add_meta_to_params(Params, add_external_id(#{
+    add_external_id(#{
         sender      => maps:get(<<"sender">>, Params),
         receiver    => maps:get(<<"receiver">>, Params),
         identity_id => maps:get(<<"identityID">>, Params),
         body        => from_swag(body, maps:get(<<"body">>, Params)),
         quote_token => maps:get(<<"quoteToken">>, Params, undefined),
         metadata    => maps:get(<<"metadata">>, Params, #{})
-    }, Params));
+    }, Params);
 
 from_swag(create_w2w_params, Params) ->
-    add_meta_to_params(Params, add_external_id(#{
+    genlib_map:compact(add_external_id(#{
         wallet_from_id => maps:get(<<"sender">>, Params),
         wallet_to_id => maps:get(<<"receiver">>, Params),
-        body => from_swag(body, maps:get(<<"body">>, Params))
+        body => from_swag(body, maps:get(<<"body">>, Params)),
+        metadata => maps:get(<<"metadata">>, Params, undefined)
     }, Params));
 
 from_swag(destination_resource, Resource = #{
@@ -1614,10 +1612,11 @@ from_swag(crypto_wallet_currency_name, <<"Ripple">>)      -> ripple;
 from_swag(crypto_wallet_currency_name, <<"USDT">>)        -> usdt;
 
 from_swag(withdrawal_params, Params) ->
-    add_meta_to_params(Params, add_external_id(#{
+    genlib_map:compact(add_external_id(#{
         wallet_id      => maps:get(<<"wallet">>     , Params),
         destination_id => maps:get(<<"destination">>, Params),
-        body           => from_swag(body , maps:get(<<"body">>, Params))
+        body           => from_swag(body , maps:get(<<"body">>, Params)),
+        metadata       => maps:get(<<"metadata">>, Params, undefined)
     }, Params));
 %% TODO
 %%  - remove this clause when we fix negative accounts and turn on validation in swag

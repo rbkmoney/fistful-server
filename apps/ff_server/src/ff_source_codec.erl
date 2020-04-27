@@ -57,7 +57,7 @@ unmarshal({list, T}, V) ->
 unmarshal(repair_scenario, {add_events, #src_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
         events => unmarshal({list, change}, Events),
-        actions => maybe_unmarshal(complex_action, Action)
+        action => maybe_unmarshal(complex_action, Action)
     })};
 
 unmarshal(change, {created, Source}) ->

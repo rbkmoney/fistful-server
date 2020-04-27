@@ -70,7 +70,7 @@ unmarshal({list, T}, V) ->
 unmarshal(repair_scenario, {add_events, #w2w_transfer_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
         events => unmarshal({list, change}, Events),
-        actions => maybe_unmarshal(complex_action, Action)
+        action => maybe_unmarshal(complex_action, Action)
     })};
 
 unmarshal(change, {created, #w2w_transfer_CreatedChange{w2w_transfer = W2WTransfer}}) ->

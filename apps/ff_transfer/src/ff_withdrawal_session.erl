@@ -250,6 +250,7 @@ try_unmarshal_msgpack({obj, V}) when is_map(V) ->
 try_unmarshal_msgpack(V) ->
     V.
 
+    % Вид устаревшей структуры данных для облегчения будущих миграций
     % LegacyIdentity v0 = #{
     %     id           := id(),
     %     party        := party_id(),

@@ -8,7 +8,6 @@
 
 -define(ACTUAL_FORMAT_VERSION, 3).
 -opaque deposit_state() :: #{
-    version         := ?ACTUAL_FORMAT_VERSION,
     id              := id(),
     transfer_type   := deposit,
     body            := body(),
@@ -1146,9 +1145,15 @@ maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, MigratePara
             }
         }
     }}, MigrateParams);
-maybe_migrate({created, Deposit = #{version := 2}}, MigrateParams) ->
+maybe_migrate({created, Deposit = #{version := 2, id := ID}}, MigrateParams) ->
     Context = maps:get(ctx, MigrateParams, undefined),
-    Metadata = ff_entity_context:try_get_legacy_metadata(Context),
+    Metadata = case ff_entity_context:try_get_legacy_metadata(Context) of
+        undefined ->
+            {ok, State} = ff_machine:get(ff_deposit, 'ff/deposit_v1', ID, {undefined, 0, forward}),
+            ff_entity_context:try_get_legacy_metadata(maps:get(ctx, State, undefined));
+        Data ->
+            Data
+    end,
     maybe_migrate({created, genlib_map:compact(Deposit#{
         version => 3,
         metadata => Metadata
@@ -1176,10 +1181,41 @@ maybe_migrate(Ev, _MigrateParams) ->
 -spec v3_created_migration_test() -> _.
 v3_created_migration_test() ->
     ID = genlib:unique(),
+    WalletID = genlib:unique(),
+    WalletAccount = #{
+        id => WalletID,
+        identity => genlib:unique(),
+        currency => <<"RUB">>,
+        accounter_account_id => 123
+    },
+    SourceID = genlib:unique(),
+    SourceAccount = #{
+        id => SourceID,
+        identity => genlib:unique(),
+        currency => <<"RUB">>,
+        accounter_account_id => 123
+    },
+    Body = {100, <<"RUB">>},
     LegacyEvent = {created, #{
         version       => 2,
         id            => ID,
-        transfer_type => deposit
+        transfer_type => deposit,
+        body          => Body,
+        params        => #{
+            wallet_id             => WalletID,
+            source_id             => SourceID,
+            wallet_account        => WalletAccount,
+            source_account        => SourceAccount,
+            wallet_cash_flow_plan => #{
+                postings => [
+                    #{
+                        sender   => {wallet, sender_source},
+                        receiver => {wallet, receiver_settlement},
+                        volume   => {share, {{1, 1}, operation_amount, default}}
+                    }
+                ]
+            }
+        }
     }},
     {created, Deposit} = maybe_migrate(LegacyEvent, #{
         ctx => #{

@@ -12,7 +12,6 @@
 
 -define(ACTUAL_FORMAT_VERSION, 3).
 -opaque withdrawal_state() :: #{
-    version         := ?ACTUAL_FORMAT_VERSION,
     id              := id(),
     transfer_type   := withdrawal,
     body            := body(),
@@ -1540,9 +1539,15 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateP
             wallet_cash_flow_plan => []
         }
     })}, MigrateParams);
-maybe_migrate({created, Withdrawal = #{version := 2}}, MigrateParams) ->
+maybe_migrate({created, Withdrawal = #{version := 2, id := ID}}, MigrateParams) ->
     Context = maps:get(ctx, MigrateParams, undefined),
-    Metadata = ff_entity_context:try_get_legacy_metadata(Context),
+    Metadata = case ff_entity_context:try_get_legacy_metadata(Context) of
+        undefined ->
+            {ok, State} = ff_machine:get(ff_withdrawal, 'ff/withdrawal_v2', ID, {undefined, 0, forward}),
+            ff_entity_context:try_get_legacy_metadata(maps:get(ctx, State, undefined));
+        Data ->
+            Data
+    end,
     maybe_migrate({created, genlib_map:compact(Withdrawal#{
         version => 3,
         metadata => Metadata
@@ -1597,7 +1602,15 @@ v0_created_migration_test() ->
         body        => Body,
         provider    => ProviderID
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
@@ -1634,7 +1647,15 @@ v1_created_migration_test() ->
             destination => DestinationID
         }
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
@@ -1679,7 +1700,15 @@ v2_created_migration_test() ->
             }
         }
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
@@ -1688,10 +1717,41 @@ v2_created_migration_test() ->
 -spec v3_created_migration_test() -> _.
 v3_created_migration_test() ->
     ID = genlib:unique(),
+    WalletID = genlib:unique(),
+    WalletAccount = #{
+        id => WalletID,
+        identity => genlib:unique(),
+        currency => <<"RUB">>,
+        accounter_account_id => 123
+    },
+    DestinationID = genlib:unique(),
+    DestinationAccount = #{
+        id => DestinationID,
+        identity => genlib:unique(),
+        currency => <<"RUB">>,
+        accounter_account_id => 123
+    },
+    Body = {100, <<"RUB">>},
     LegacyEvent = {created, #{
         version       => 2,
         id            => ID,
-        transfer_type => withdrawal
+        transfer_type => withdrawal,
+        body          => Body,
+        params        => #{
+            wallet_id             => WalletID,
+            destination_id        => DestinationID,
+            wallet_account        => WalletAccount,
+            destination_account   => DestinationAccount,
+            wallet_cash_flow_plan => #{
+                postings => [
+                    #{
+                        sender   => {wallet, sender_settlement},
+                        receiver => {wallet, receiver_destination},
+                        volume   => {share, {{1, 1}, operation_amount, default}}
+                    }
+                ]
+            }
+        }
     }},
     {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
         ctx => #{

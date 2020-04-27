@@ -31,7 +31,6 @@
 
 -define(ACTUAL_FORMAT_VERSION, 2).
 -type identity_state() :: #{
-    version      := ?ACTUAL_FORMAT_VERSION,
     id           := id(),
     party        := party_id(),
     provider     := provider_id(),
@@ -357,9 +356,15 @@ with_challenge(ID, Fun, Challenges) ->
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
-maybe_migrate({created, Identity = #{version := 1}}, MigrateParams) ->
+maybe_migrate({created, Identity = #{version := 1, id := ID}}, MigrateParams) ->
     Context = maps:get(ctx, MigrateParams, undefined),
-    Metadata = ff_entity_context:try_get_legacy_metadata(Context),
+    Metadata = case ff_entity_context:try_get_legacy_metadata(Context) of
+        undefined ->
+            {ok, State} = ff_machine:get(ff_identity, 'ff/identity', ID, {undefined, 0, forward}),
+            ff_entity_context:try_get_legacy_metadata(maps:get(ctx, State, undefined));
+        Data ->
+            Data
+    end,
     maybe_migrate({created, genlib_map:compact(Identity#{
         version => 2,
         metadata => Metadata

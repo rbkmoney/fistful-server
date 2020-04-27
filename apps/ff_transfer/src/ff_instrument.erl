@@ -24,7 +24,6 @@
 
 -define(ACTUAL_FORMAT_VERSION, 3).
 -type instrument_state(T) :: #{
-    version     := ?ACTUAL_FORMAT_VERSION,
     account     := account() | undefined,
     resource    := resource(T),
     name        := name(),
@@ -225,6 +224,7 @@ maybe_migrate({created, Instrument = #{version := 1}}, MigrateParams) ->
     }}, MigrateParams);
 maybe_migrate({created, Instrument = #{version := 2}}, MigrateParams) ->
     Context = maps:get(ctx, MigrateParams, undefined),
+    %% TODO add metada migration for eventsink after decouple instruments
     Metadata = ff_entity_context:try_get_legacy_metadata(Context),
     maybe_migrate({created, genlib_map:compact(Instrument#{
         version => 3,

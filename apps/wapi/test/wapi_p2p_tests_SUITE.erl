@@ -357,15 +357,6 @@ get_p2p_transfer_events_ok_test(C) ->
         },
         ct_helper:cfg(context, C)
     ),
-    {ok, #{<<"result">> := []}} = call_api(
-        fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
-        #{
-            binding => #{
-                <<"p2pTransferID">> => TransferID
-            }
-        },
-        ct_helper:cfg(context, C)
-    ),
 %%    Callback = ?CALLBACK(Token, <<"payload">>),
     ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(get), C),
 %%    _ = call_p2p_adapter(Callback),
@@ -397,15 +388,6 @@ get_p2p_transfer_failure_events_ok_test(C) ->
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
                 }
-            }
-        },
-        ct_helper:cfg(context, C)
-    ),
-    {ok, #{<<"result">> := []}} = call_api(
-        fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
-        #{
-            binding => #{
-                <<"p2pTransferID">> => TransferID
             }
         },
         ct_helper:cfg(context, C)
@@ -545,7 +527,7 @@ user_interaction_redirect(post) ->
         <<"interactionType">> => <<"Redirect">>,
         <<"request">> => #{
             <<"requestType">> => <<"BrowserPostRequest">>,
-            <<"uriTemplate">> => <<"https://securepay.rsb.ru/ecomm2/ClientHandler?trans_id=PXl2XJbaBgGWruT9I1mL0ZIyOc0=">>,
+            <<"uriTemplate">> => <<"https://test-bank.ru/handler?id=1">>,
             <<"form">> => [#{
                 <<"key">> => <<"TermUrl">>,
                 <<"template">> => <<"https://checkout.rbk.money/v1/finish-interaction.html">>

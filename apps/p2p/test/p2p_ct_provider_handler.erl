@@ -77,7 +77,7 @@
     user_interaction = {redirect,
         {post_request,
             #'BrowserPostRequest'{
-                uri = <<"https://securepay.rsb.ru/ecomm2/ClientHandler?trans_id=PXl2XJbaBgGWruT9I1mL0ZIyOc0=">>,
+                uri = <<"https://test-bank.ru/handler?id=1">>,
                 form = #{<<"TermUrl">> => <<"https://checkout.rbk.money/v1/finish-interaction.html">>}
             }
         }

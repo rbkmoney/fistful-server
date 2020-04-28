@@ -73,6 +73,17 @@
     }
 }}).
 
+-define(ADAPTER_UI_FORM_CREATED, {create, #p2p_adapter_UserInteractionCreate{
+    user_interaction = {redirect,
+        {post_request,
+            #'BrowserPostRequest'{
+                uri = <<"https://test-bank.ru/handler?id=1">>,
+                form = #{<<"TermUrl">> => <<"https://checkout.rbk.money/v1/finish-interaction.html">>}
+            }
+        }
+    }
+}}).
+
 -define(ADAPTER_UI_FINISH, {finish, #p2p_adapter_UserInteractionFinish{}}).
 
 %% woody_server_thrift_handler callbacks
@@ -135,6 +146,30 @@ handle_function_('Process', [?ADAPTER_CONTEXT(101, _Token, State)], _Ctx, _Opts)
                 ?ADAPTER_SLEEP_INTENT(2, undefined, ?ADAPTER_UI(
                     <<"test_user_interaction">>,
                     ?ADAPTER_UI_CREATED
+                )),
+                <<"user_sleep">>
+            )};
+        <<"user_sleep">> ->
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_SLEEP_INTENT(2, undefined, ?ADAPTER_UI(
+                    <<"test_user_interaction">>,
+                    ?ADAPTER_UI_FINISH
+                )),
+                <<"user_ui_finished">>
+            )};
+        <<"user_ui_finished">> ->
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_FINISH_INTENT({success, #p2p_adapter_Success{}}),
+                <<"user_sleep_finished">>
+            )}
+    end;
+handle_function_('Process', [?ADAPTER_CONTEXT(102, _Token, State)], _Ctx, _Opts) ->
+    case State of
+        undefined ->
+            {ok, ?ADAPTER_PROCESS_RESULT(
+                ?ADAPTER_SLEEP_INTENT(2, undefined, ?ADAPTER_UI(
+                    <<"test_user_interaction">>,
+                    ?ADAPTER_UI_FORM_CREATED
                 )),
                 <<"user_sleep">>
             )};

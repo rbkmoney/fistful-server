@@ -1146,17 +1146,17 @@ maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, MigratePara
         }
     }}, MigrateParams);
 maybe_migrate({created, Deposit = #{version := 2, id := ID}}, MigrateParams) ->
-    Context = maps:get(ctx, MigrateParams, undefined),
-    Metadata = case ff_entity_context:try_get_legacy_metadata(Context) of
+    Ctx = maps:get(ctx, MigrateParams, undefined),
+    Context = case Ctx of
         undefined ->
-            {ok, State} = ff_machine:get(ff_deposit, 'ff/deposit_v1', ID, {undefined, 0, forward}),
-            ff_entity_context:try_get_legacy_metadata(maps:get(ctx, State, undefined));
+            {ok, State} = ff_machine:get(ff_withdrawal, 'ff/withdrawal_v2', ID, {undefined, 0, forward}),
+            maps:get(ctx, State, undefined);
         Data ->
             Data
     end,
     maybe_migrate({created, genlib_map:compact(Deposit#{
         version => 3,
-        metadata => Metadata
+        metadata => ff_entity_context:try_get_legacy_metadata(Context)
     })}, MigrateParams);
 maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
     maybe_migrate({p_transfer, PTransferEv}, MigrateParams);

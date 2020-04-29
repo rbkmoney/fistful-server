@@ -1540,17 +1540,17 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateP
         }
     })}, MigrateParams);
 maybe_migrate({created, Withdrawal = #{version := 2, id := ID}}, MigrateParams) ->
-    Context = maps:get(ctx, MigrateParams, undefined),
-    Metadata = case ff_entity_context:try_get_legacy_metadata(Context) of
+    Ctx = maps:get(ctx, MigrateParams, undefined),
+    Context = case Ctx of
         undefined ->
             {ok, State} = ff_machine:get(ff_withdrawal, 'ff/withdrawal_v2', ID, {undefined, 0, forward}),
-            ff_entity_context:try_get_legacy_metadata(maps:get(ctx, State, undefined));
+            maps:get(ctx, State, undefined);
         Data ->
             Data
     end,
     maybe_migrate({created, genlib_map:compact(Withdrawal#{
         version => 3,
-        metadata => Metadata
+        metadata => ff_entity_context:try_get_legacy_metadata(Context)
     })}, MigrateParams);
 maybe_migrate({created, T}, MigrateParams) ->
     DestinationID = maps:get(destination, T),

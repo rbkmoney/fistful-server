@@ -200,20 +200,20 @@ apply_event({account, Ev}, Wallet) ->
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
 maybe_migrate({created, Wallet = #{version := 1}}, MigrateParams) ->
-    Context = maps:get(ctx, MigrateParams, undefined),
+    Ctx = maps:get(ctx, MigrateParams, undefined),
     ID = maps:get(id, MigrateParams, undefined),
-    Metadata = case {ff_entity_context:try_get_legacy_metadata(Context), ID} of
+    Context = case {Ctx, ID} of
         {undefined, undefined} ->
             undefined;
         {undefined, ID} ->
             {ok, State} = ff_machine:get(ff_wallet, 'ff/wallet_v2', ID, {undefined, 0, forward}),
-            ff_entity_context:try_get_legacy_metadata(maps:get(ctx, State, undefined));
+            maps:get(ctx, State, undefined);
         {Data, _} ->
             Data
     end,
     maybe_migrate({created, genlib_map:compact(Wallet#{
         version => 2,
-        metadata => Metadata
+        metadata => ff_entity_context:try_get_legacy_metadata(Context)
     })}, MigrateParams);
 maybe_migrate({created, Wallet}, MigrateParams) ->
     Timestamp = maps:get(timestamp, MigrateParams),

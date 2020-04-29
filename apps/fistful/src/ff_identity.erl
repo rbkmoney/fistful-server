@@ -357,17 +357,17 @@ with_challenge(ID, Fun, Challenges) ->
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
 maybe_migrate({created, Identity = #{version := 1, id := ID}}, MigrateParams) ->
-    Context = maps:get(ctx, MigrateParams, undefined),
-    Metadata = case ff_entity_context:try_get_legacy_metadata(Context) of
+    Ctx = maps:get(ctx, MigrateParams, undefined),
+    Context = case Ctx of
         undefined ->
             {ok, State} = ff_machine:get(ff_identity, 'ff/identity', ID, {undefined, 0, forward}),
-            ff_entity_context:try_get_legacy_metadata(maps:get(ctx, State, undefined));
+            maps:get(ctx, State, undefined);
         Data ->
             Data
     end,
     maybe_migrate({created, genlib_map:compact(Identity#{
         version => 2,
-        metadata => Metadata
+        metadata => ff_entity_context:try_get_legacy_metadata(Context)
     })}, MigrateParams);
 maybe_migrate({created, Identity = #{created_at := _CreatedAt}}, MigrateParams) ->
     maybe_migrate({created, Identity#{

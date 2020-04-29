@@ -8,15 +8,22 @@
 
 -export([marshal/2]).
 -export([unmarshal/2]).
--export([get_version/1]).
 
 -define(CONTENT_TYPE, {struct, struct, {mg_proto_state_processing_thrift, 'Content'}}).
 
--spec get_version(_) -> 2.
-get_version(_) ->
-    2.
 
--spec marshal(_, _) -> _.
+-type t()  :: machinery_mg_schema:t().
+-type v(T) :: machinery_mg_schema:v(T).
+
+-type changes() :: [ff_withdrawal:event()].
+-type context() :: ff_entity_context:context().
+-type event()   :: ff_machine:timestamped_event(ff_withdrawal:event()).
+-type aux_state() :: ff_machine:auxst().
+
+-type withdrawal_data() :: {changes(), context()} | aux_state() | event().
+
+-spec marshal(t(), v(withdrawal_data())) ->
+    machinery_msgpack:t().
 marshal(T, V) ->
     do_marshal(T, V).
 
@@ -40,7 +47,8 @@ do_marshal(event, {ev, Ts, Change}) ->
     Bin = wrap(Type, Data, Version),
     {bin, Bin}.
 
--spec unmarshal(_, _) -> _.
+-spec unmarshal(t(), machinery_msgpack:t()) ->
+    withdrawal_data().
 unmarshal(T, V) ->
     do_unmarshal(T, V).
 

@@ -77,7 +77,6 @@ repair(NS, ID, Range, Args, Backend) ->
 
 init(Args, Machine, Options, MachineryOptions) ->
     #{handler := Handler} = Options,
-    ct:log("fistful dispatching signal args: ~p to handler: ~p", [Args, Handler]),
     ok = ff_context:save(create_context(Options, MachineryOptions)),
     try
         machinery:dispatch_signal({init, Args}, Machine, machinery_utils:get_handler(Handler), #{})

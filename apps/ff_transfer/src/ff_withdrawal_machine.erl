@@ -163,10 +163,7 @@ backend() ->
 -spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) ->
     result().
 
-init(Smth, #{}, _, _Opts) ->
-    Stacktrace = process_info(self(), current_stacktrace),
-    ct:log("Init, got: ~p, Stacktrace: ~p", [Smth, Stacktrace]),
-    {Events, Ctx} = Smth,
+init({Events, Ctx}, #{}, _, _Opts) ->
     #{
         events    => ff_machine:emit_events(Events),
         action    => continue,

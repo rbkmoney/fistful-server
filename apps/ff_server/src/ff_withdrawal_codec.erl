@@ -52,8 +52,7 @@ unmarshal_withdrawal(Withdrawal) ->
         domain_revision => maybe_unmarshal(domain_revision, Withdrawal#wthd_Withdrawal.domain_revision),
         party_revision => maybe_unmarshal(party_revision, Withdrawal#wthd_Withdrawal.party_revision),
         created_at => maybe_unmarshal(timestamp_ms, Withdrawal#wthd_Withdrawal.created_at),
-        transfer_type => withdrawal,
-        version => 2
+        transfer_type => withdrawal
     }).
 
 -spec marshal_withdrawal_params(ff_withdrawal:params()) ->

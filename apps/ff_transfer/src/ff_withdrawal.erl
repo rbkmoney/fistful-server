@@ -335,7 +335,7 @@ created_at(T) ->
 gen(Args) ->
     TypeKeys = [
         id, transfer_type, body, params, status, external_id,
-        domain_revision, party_revision, created_at, route, version
+        domain_revision, party_revision, created_at, route
     ],
     genlib_map:compact(maps:with(TypeKeys, Args)).
 

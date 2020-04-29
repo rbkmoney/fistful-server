@@ -76,16 +76,16 @@ init([]) ->
     % TODO
     %  - Make it palatable
     {Backends, Handlers} = lists:unzip([
-        contruct_backend_childspec('ff/identity'                , ff_identity_machine           , PartyClient),
-        contruct_backend_childspec('ff/wallet_v2'               , ff_wallet_machine             , PartyClient),
-        contruct_backend_childspec('ff/source_v1'               , ff_instrument_machine         , PartyClient),
-        contruct_backend_childspec('ff/destination_v2'          , ff_instrument_machine         , PartyClient),
-        contruct_backend_childspec('ff/deposit_v1'              , ff_deposit_machine            , PartyClient),
-        contruct_backend_childspec('ff/withdrawal_v2'           , ff_withdrawal_machine         , PartyClient),
-        contruct_backend_childspec('ff/withdrawal/session_v2'   , ff_withdrawal_session_machine , PartyClient),
-        contruct_backend_childspec('ff/p2p_transfer_v1'         , p2p_transfer_machine          , PartyClient),
-        contruct_backend_childspec('ff/p2p_transfer/session_v1' , p2p_session_machine           , PartyClient),
-        contruct_backend_childspec('ff/w2w_transfer_v1'         , w2w_transfer_machine          , PartyClient)
+        construct_backend_childspec('ff/identity'                , ff_identity_machine           , PartyClient),
+        construct_backend_childspec('ff/wallet_v2'               , ff_wallet_machine             , PartyClient),
+        construct_backend_childspec('ff/source_v1'               , ff_instrument_machine         , PartyClient),
+        construct_backend_childspec('ff/destination_v2'          , ff_instrument_machine         , PartyClient),
+        construct_backend_childspec('ff/deposit_v1'              , ff_deposit_machine            , PartyClient),
+        construct_backend_childspec('ff/withdrawal_v2'           , ff_withdrawal_machine         , PartyClient),
+        construct_backend_childspec('ff/withdrawal/session_v2'   , ff_withdrawal_session_machine , PartyClient),
+        construct_backend_childspec('ff/p2p_transfer_v1'         , p2p_transfer_machine          , PartyClient),
+        construct_backend_childspec('ff/p2p_transfer/session_v1' , p2p_session_machine           , PartyClient),
+        construct_backend_childspec('ff/w2w_transfer_v1'         , w2w_transfer_machine          , PartyClient)
     ]),
     ok = application:set_env(fistful, backends, maps:from_list(Backends)),
 
@@ -139,7 +139,23 @@ get_handler(Service, Handler, WrapperOpts) ->
     {Path, ServiceSpec} = ff_services:get_service_spec(Service),
     {Path, {ServiceSpec, wrap_handler(Handler, WrapperOpts)}}.
 
-contruct_backend_childspec(NS, Handler, PartyClient) ->
+
+construct_backend_childspec('ff/withdrawal_v2' = NS, Handler, PartyClient) ->
+    Be = {machinery_mg_backend, #{
+        schema => ff_withdrawal_machinery_mg_schema,
+        client => get_service_client(automaton)
+    }},
+    {
+        {NS, Be},
+        {{fistful, #{handler => Handler, party_client => PartyClient}},
+            #{
+                path           => ff_string:join(["/v1/stateproc/", NS]),
+                backend_config => #{schema => ff_withdrawal_machinery_mg_schema}
+            }
+        }
+    };
+
+construct_backend_childspec(NS, Handler, PartyClient) ->
     Be = {machinery_mg_backend, #{
         schema => machinery_mg_schema_generic,
         client => get_service_client(automaton)

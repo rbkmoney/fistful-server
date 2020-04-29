@@ -44,17 +44,17 @@
 
 all() ->
     [ {group, default}
-    , {group, quote}
-    , {group, woody}
-    , {group, errors}
-    , {group, eventsink}
+    % , {group, quote}
+    % , {group, woody}
+    % , {group, errors}
+    % , {group, eventsink}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 
 groups() ->
     [
-        {default, [sequence, {repeat, 2}], [
+        {default, [sequence, {repeat, 1}], [
             create_w2w_test,
             create_destination_failed_test,
             withdrawal_to_bank_card_test,

@@ -23,7 +23,8 @@
     create_p2p_transfer_with_token_ok_test/1,
     get_p2p_transfer_ok_test/1,
     get_p2p_transfer_not_found_test/1,
-    get_p2p_transfer_events_ok_test/1
+    get_p2p_transfer_events_ok_test/1,
+    get_p2p_transfer_failure_events_ok_test/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -63,7 +64,8 @@ groups() ->
             create_p2p_transfer_with_token_ok_test,
             get_p2p_transfer_ok_test,
             get_p2p_transfer_not_found_test,
-            get_p2p_transfer_events_ok_test
+            get_p2p_transfer_events_ok_test,
+            get_p2p_transfer_failure_events_ok_test
         ]}
     ].
 
@@ -362,19 +364,43 @@ get_p2p_transfer_events_ok_test(C) ->
         },
         ct_helper:cfg(context, C)
     ),
-    {ok, #{<<"result">> := []}} = call_api(
-        fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
+%%    Callback = ?CALLBACK(Token, <<"payload">>),
+    ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(get), C),
+%%    _ = call_p2p_adapter(Callback),
+    ok = await_successful_transfer_events(TransferID, user_interaction_redirect(get), C).
+
+-spec get_p2p_transfer_failure_events_ok_test(config()) ->
+    _.
+get_p2p_transfer_failure_events_ok_test(C) ->
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    #{
+        identity_id := IdentityID
+    } = p2p_tests_utils:prepare_standard_environment({102, ?RUB}, C),
+    {ok, #{<<"id">> := TransferID}} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
-            binding => #{
-                <<"p2pTransferID">> => TransferID
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => 102,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                }
             }
         },
         ct_helper:cfg(context, C)
     ),
-%%    Callback = ?CALLBACK(Token, <<"payload">>),
-    ok = await_user_interaction_created_events(TransferID, C),
-%%    _ = call_p2p_adapter(Callback),
-    ok = await_successful_transfer_events(TransferID, C).
+    ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(post), C),
+    ok = await_successful_transfer_events(TransferID, user_interaction_redirect(post), C).
 
 %%
 
@@ -405,7 +431,7 @@ store_bank_card(C, Pan, ExpDate, CardHolder) ->
     ),
     maps:get(<<"token">>, Res).
 
-await_user_interaction_created_events(TransferID, C) ->
+await_user_interaction_created_events(TransferID, UserInteraction, C) ->
     finished = ct_helper:await(
         finished,
         fun () ->
@@ -418,6 +444,7 @@ await_user_interaction_created_events(TransferID, C) ->
                 },
                 ct_helper:cfg(context, C)
             ),
+
             case Result of
                 {ok, #{<<"result">> := [
                     #{
@@ -425,13 +452,7 @@ await_user_interaction_created_events(TransferID, C) ->
                             <<"changeType">> := <<"P2PTransferInteractionChanged">>,
                             <<"userInteractionChange">> := #{
                                 <<"changeType">> := <<"UserInteractionCreated">>,
-                                <<"userInteraction">> := #{
-                                    <<"interactionType">> := <<"Redirect">>,
-                                    <<"request">> := #{
-                                        <<"requestType">> := <<"BrowserGetRequest">>,
-                                        <<"uriTemplate">> := <<"uri">>
-                                    }
-                                }
+                                <<"userInteraction">> := UserInteraction
                             },
                             <<"userInteractionID">> := <<"test_user_interaction">>
                         }
@@ -445,7 +466,7 @@ await_user_interaction_created_events(TransferID, C) ->
     ),
     ok.
 
-await_successful_transfer_events(TransferID, C) ->
+await_successful_transfer_events(TransferID, UserInteraction, C) ->
     finished = ct_helper:await(
         finished,
         fun () ->
@@ -465,13 +486,7 @@ await_successful_transfer_events(TransferID, C) ->
                             <<"changeType">> := <<"P2PTransferInteractionChanged">>,
                             <<"userInteractionChange">> := #{
                                 <<"changeType">> := <<"UserInteractionCreated">>,
-                                <<"userInteraction">> := #{
-                                    <<"interactionType">> := <<"Redirect">>,
-                                    <<"request">> := #{
-                                        <<"requestType">> := <<"BrowserGetRequest">>,
-                                        <<"uriTemplate">> := <<"uri">>
-                                    }
-                                }
+                                <<"userInteraction">> := UserInteraction
                             },
                             <<"userInteractionID">> := <<"test_user_interaction">>
                         }
@@ -500,3 +515,24 @@ await_successful_transfer_events(TransferID, C) ->
         genlib_retry:linear(15, 1000)
     ),
     ok.
+
+user_interaction_redirect(get) ->
+    #{
+        <<"interactionType">> => <<"Redirect">>,
+        <<"request">> => #{
+            <<"requestType">> => <<"BrowserGetRequest">>,
+            <<"uriTemplate">> => <<"uri">>
+        }
+    };
+user_interaction_redirect(post) ->
+    #{
+        <<"interactionType">> => <<"Redirect">>,
+        <<"request">> => #{
+            <<"requestType">> => <<"BrowserPostRequest">>,
+            <<"uriTemplate">> => <<"https://test-bank.ru/handler?id=1">>,
+            <<"form">> => [#{
+                <<"key">> => <<"TermUrl">>,
+                <<"template">> => <<"https://checkout.rbk.money/v1/finish-interaction.html">>
+            }]
+        }
+    }.

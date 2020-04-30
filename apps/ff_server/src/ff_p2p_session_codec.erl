@@ -147,7 +147,7 @@ unmarshal({list, T}, V) ->
 unmarshal(repair_scenario, {add_events, #p2p_session_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
         events => unmarshal({list, change}, Events),
-        actions => maybe_unmarshal(complex_action, Action)
+        action => maybe_unmarshal(complex_action, Action)
     })};
 unmarshal(repair_scenario, {set_session_result, #p2p_session_SetResultRepair{result = Result}}) ->
     {set_session_result, unmarshal(session_result, Result)};

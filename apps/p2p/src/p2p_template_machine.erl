@@ -107,7 +107,7 @@ repair(Ref, Scenario) ->
 
 %% machinery callbacks
 
--spec init([event()], machine(), handler_args(), handler_opts()) ->
+-spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) ->
     result().
 init({Events, Ctx}, #{}, _, _Opts) ->
     #{
@@ -116,7 +116,7 @@ init({Events, Ctx}, #{}, _, _Opts) ->
     }.
 
 -spec process_timeout(machine(), handler_args(), handler_opts()) ->
-    result().
+    no_return().
 process_timeout(Machine, _, _Opts) ->
     erlang:error({unexpected_timeout, Machine}).
 

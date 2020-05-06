@@ -317,8 +317,7 @@ create_destination(IdentityID, Params, C) ->
             <<"token">> => wapi_utils:map_to_base64url(#{
                 <<"token">> => ?STRING,
                 <<"bin">> => <<"424242">>,
-                <<"lastDigits">> => <<"4242">>,
-                <<"paymentSystem">> => <<"visa">>
+                <<"lastDigits">> => <<"4242">>
             })
         }
     },

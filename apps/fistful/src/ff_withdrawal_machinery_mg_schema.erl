@@ -10,7 +10,7 @@
 -export([unmarshal/2]).
 
 -define(CONTENT_TYPE, {struct, struct, {mg_proto_state_processing_thrift, 'Content'}}).
-
+-define(VERSION, 1).
 
 -type t()  :: machinery_mg_schema:t().
 -type v(T) :: machinery_mg_schema:v(T).
@@ -29,8 +29,7 @@ marshal(event, {ev, Ts, Change}) ->
     TimeStamp = ff_codec:marshal(timestamp, Ts),
     Data = #wthd_NoIdEvent{change = ThriftChange, occured_at = TimeStamp},
     Type = {struct, union, {ff_proto_withdrawal_thrift, 'NoIdEvent'}},
-    Version = get_withdrawal_version(Change),
-    Bin = wrap(Type, Data, Version),
+    Bin = wrap(Type, Data),
     {bin, Bin};
 marshal(T, V) ->
     machinery_mg_schema_generic:marshal(T, V).
@@ -39,42 +38,28 @@ marshal(T, V) ->
     withdrawal_data().
 unmarshal(event, V) ->
     Type = {struct, union, {ff_proto_withdrawal_thrift, 'NoIdEvent'}},
-    #{
-        data := {TimeStamp, Change},
-        version := Version
-    } = unwrap(Type, V),
-    {ev, ff_codec:unmarshal(timestamp, TimeStamp), add_version(ff_withdrawal_codec:unmarshal(change, Change), Version)};
+    {TimeStamp, Change} = unwrap(Type, V),
+    {ev, ff_codec:unmarshal(timestamp, TimeStamp), add_version(ff_withdrawal_codec:unmarshal(change, Change), 2)};
 
 unmarshal(T, V) ->
     machinery_mg_schema_generic:unmarshal(T, V).
 
-add_version(Changes, Version) when is_list(Changes) ->
-    F = fun(Change) when is_tuple(Change) -> add_version(Change, Version) end,
-    lists:map(F, Changes);
-
+% TODO: migrations
 add_version({created, Withdrawal}, Version) ->
     {created, Withdrawal#{version => Version}};
 add_version(Change, _) ->
     Change.
 
-get_withdrawal_version([{created, _} = Change | _]) ->
-    get_withdrawal_version(Change);
-get_withdrawal_version({created, Withdrawal}) ->
-    maps:get(version, Withdrawal, undefined); % 1?
-get_withdrawal_version(_) ->
-    undefined. % 1?
-
-
-wrap(Type, Data, Version) ->
+wrap(Type, Data) ->
     Content = #mg_stateproc_Content{
         data = {bin, ff_proto_utils:serialize(Type, Data)},
-        format_version = Version
+        format_version = ?VERSION
     },
     ff_proto_utils:serialize(?CONTENT_TYPE, Content).
 
 unwrap(Type, Bin) ->
     #mg_stateproc_Content{
-        format_version = Version,
-        data = Data
+        data = Data,
+        format_version = _Version
     } = ff_proto_utils:deserialize(?CONTENT_TYPE, Bin),
-    #{data => ff_proto_utils:deserialize(Type, Data), version => Version}.
+    ff_proto_utils:deserialize(Type, Data).

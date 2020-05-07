@@ -26,7 +26,7 @@
     false | {true, wapi_auth:context()}.
 authorize_api_key(OperationID, ApiKey, _Opts) ->
     ok = scoper:add_scope('swag.server', #{api => wallet, operation_id => OperationID}),
-    case uac:authorize_api_key(ApiKey, #{}) of
+    case uac:authorize_api_key(ApiKey, wapi_auth:get_verification_options()) of
         {ok, Context0} ->
             Context = wapi_auth:create_wapi_context(Context0),
             {true, Context};
@@ -316,6 +316,14 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
         {error, {destination, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
+        {error, {destination, missing}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination grant missing">>));
+        {error, {destination, invalid_grant}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination grant invalid">>));
+        {error, {destination, insufficient_claims}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination grant insufficient claims">>));
+        {error, {destination, insufficient_access}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination grant insufficient access">>));
         {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
         {error, {provider, notfound}} ->
@@ -326,6 +334,12 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Inaccessible source or destination">>)
             );
+        {error, {wallet, missing}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet grant missing">>));
+        {error, {wallet, insufficient_claims}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet grant insufficient claims">>));
+        {error, {wallet, insufficient_access}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet grant insufficient access">>));
         {error, {wallet, {currency, invalid}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid currency for source or destination">>)
@@ -357,9 +371,7 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {destination_resource, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Unknown card issuer">>)
-            );
-        {error, {unauthorized_withdrawal, _}} ->
-            wapi_handler_utils:reply_ok(401)
+            )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_withdrawal(WithdrawalId, Context) of

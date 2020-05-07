@@ -26,7 +26,7 @@
     false | {true, wapi_auth:context()}.
 authorize_api_key(OperationID, ApiKey, _Opts) ->
     ok = scoper:add_meta(#{api => wallet, operation_id => OperationID}),
-    case uac:authorize_api_key(ApiKey, #{}) of
+    case uac:authorize_api_key(ApiKey, wapi_auth:get_verification_options()) of
         {ok, Context0} ->
             Context = wapi_auth:create_wapi_context(Context0),
             {true, Context};

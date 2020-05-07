@@ -6,6 +6,8 @@
 
 -export([get_resource_hierarchy/0]).
 
+-export([get_verification_options/0]).
+
 -export([get_access_config/0]).
 
 -export([get_signee/0]).
@@ -30,12 +32,11 @@
 -type auth_method()  :: bearer_token | grant.
 -type resource()     :: wallet | destination.
 -type auth_details() :: auth_method() | [{resource(), auth_details()}].
--type auth_error()   :: [{resource(), [{auth_method(), atom()}]}].
 
 -define(DOMAIN, <<"wallet-api">>).
 
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
-    ok  | {error, auth_error()}.
+    ok  | {error, unauthorized}.
 
 authorize_operation(OperationID, Req, #{swagger_context := #{auth_context := AuthContext}}) ->
     OperationACL = get_operation_access(OperationID, Req),
@@ -200,6 +201,12 @@ get_resource_hierarchy() ->
         w2w         => #{},
         webhooks    => #{},
         withdrawals => #{}
+    }.
+
+-spec get_verification_options() -> uac:verification_opts().
+get_verification_options() ->
+    #{
+        domains_to_decode => [<<"common-api">>, <<"wallet-api">>]
     }.
 
 all_scopes(Key, Value, AccIn) ->

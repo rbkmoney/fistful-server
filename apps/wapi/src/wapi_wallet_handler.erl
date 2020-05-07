@@ -321,9 +321,13 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {destination, invalid_grant}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination grant invalid">>));
         {error, {destination, insufficient_claims}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination grant insufficient claims">>));
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Destination grant insufficient claims">>)
+            );
         {error, {destination, insufficient_access}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination grant insufficient access">>));
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Destination grant insufficient access">>)
+            );
         {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
         {error, {provider, notfound}} ->

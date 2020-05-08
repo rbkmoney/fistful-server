@@ -28,20 +28,33 @@ marshal(event, {ev, Ts, Change}) ->
     ThriftChange = ff_withdrawal_codec:marshal(change, Change),
     TimeStamp = ff_codec:marshal(timestamp, Ts),
     Data = #wthd_NoIdEvent{change = ThriftChange, occured_at = TimeStamp},
-    Type = {struct, union, {ff_proto_withdrawal_thrift, 'NoIdEvent'}},
+    Type = {struct, struct, {ff_proto_withdrawal_thrift, 'NoIdEvent'}},
     Bin = wrap(Type, Data),
     {bin, Bin};
-marshal(T, V) ->
+
+marshal(T, V) when
+    T =:= {args, init} orelse
+    T =:= aux_state
+->
     machinery_mg_schema_generic:marshal(T, V).
 
 -spec unmarshal(t(), machinery_msgpack:t()) ->
     withdrawal_data().
 unmarshal(event, V) ->
-    Type = {struct, union, {ff_proto_withdrawal_thrift, 'NoIdEvent'}},
-    {TimeStamp, Change} = unwrap(Type, V),
-    {ev, ff_codec:unmarshal(timestamp, TimeStamp), ff_withdrawal_codec:unmarshal(change, Change)};
+    Type = {struct, struct, {ff_proto_withdrawal_thrift, 'NoIdEvent'}},
+    {#wthd_NoIdEvent{
+        occured_at = TimeStamp0,
+        change = Change0
+    }, Version} = unwrap(Type, V),
+    TimeStamp = ff_codec:unmarshal(timestamp, TimeStamp0),
+    Change1   = ff_withdrawal_codec:unmarshal(change, Change0),
+    Change2   = maybe_maybe_migrate(Change1, #{timestamp => TimeStamp}, Version),
+    {ev, TimeStamp, Change2};
 
-unmarshal(T, V) ->
+unmarshal(T, V) when
+    T =:= {args, init} orelse
+    T =:= aux_state
+->
     machinery_mg_schema_generic:unmarshal(T, V).
 
 wrap(Type, Data) ->
@@ -53,19 +66,18 @@ wrap(Type, Data) ->
 
 unwrap(Type, Bin) ->
     #mg_stateproc_Content{
-        data = Data,
+        data = Data0,
         format_version = Version
     } = ff_proto_utils:deserialize(?CONTENT_TYPE, Bin),
-    {TimeStamp, Change0} = ff_proto_utils:deserialize(Type, Data),
-    {TimeStamp, case Version of
-        ?VERSION ->
-            Change0;
-        _Other ->
-            maybe_migrate(Change0, #{timestamp => TimeStamp})
-    end}.
-
+    Data = ff_proto_utils:deserialize(Type, Data0),
+    {Data, Version}.
 
 %% Migrations
+
+maybe_maybe_migrate(Change, _, ?VERSION) -> % TODO: better name
+    Change;
+maybe_maybe_migrate(Change, MigrateParams, _) ->
+    maybe_migrate(Change, MigrateParams).
 
 maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
     Ev;
@@ -147,6 +159,7 @@ maybe_migrate(Ev, _MigrateParams) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
 -spec test() -> _.
 
 -spec v0_created_migration_test() -> _.
@@ -164,11 +177,11 @@ v0_created_migration_test() ->
         provider    => ProviderID
     }},
     {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
-    ?assertEqual(ID, id(Withdrawal)),
-    ?assertEqual(WalletID, wallet_id(Withdrawal)),
-    ?assertEqual(DestinationID, destination_id(Withdrawal)),
-    ?assertEqual(Body, body(Withdrawal)),
-    ?assertEqual(#{provider_id => ProviderID}, route(Withdrawal)).
+    ?assertEqual(ID, ff_withdrawal:id(Withdrawal)),
+    ?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
+    ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
+    ?assertEqual(Body, ff_withdrawal:body(Withdrawal)),
+    ?assertEqual(#{provider_id => ProviderID}, ff_withdrawal:route(Withdrawal)).
 
 -spec v1_created_migration_test() -> _.
 v1_created_migration_test() ->
@@ -200,11 +213,11 @@ v1_created_migration_test() ->
             destination => DestinationID
         }
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
-    ?assertEqual(ID, id(Withdrawal)),
-    ?assertEqual(WalletID, wallet_id(Withdrawal)),
-    ?assertEqual(DestinationID, destination_id(Withdrawal)),
-    ?assertEqual(Body, body(Withdrawal)).
+    {created, Withdrawal} = ff_withdrawal:maybe_migrate(LegacyEvent, #{}),
+    ?assertEqual(ID, ff_withdrawal:id(Withdrawal)),
+    ?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
+    ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
+    ?assertEqual(Body, ff_withdrawal:body(Withdrawal)).
 
 -spec v2_created_migration_test() -> _.
 v2_created_migration_test() ->
@@ -246,9 +259,9 @@ v2_created_migration_test() ->
         }
     }},
     {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
-    ?assertEqual(ID, id(Withdrawal)),
-    ?assertEqual(WalletID, wallet_id(Withdrawal)),
-    ?assertEqual(DestinationID, destination_id(Withdrawal)),
-    ?assertEqual(Body, body(Withdrawal)).
+    ?assertEqual(ID, ff_withdrawal:id(Withdrawal)),
+    ?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
+    ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
+    ?assertEqual(Body, ff_withdrawal:body(Withdrawal)).
 
 -endif.

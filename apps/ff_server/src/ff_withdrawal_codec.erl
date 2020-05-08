@@ -186,7 +186,7 @@ unmarshal(change, {transfer, #wthd_TransferChange{payload = TransferChange}}) ->
     {p_transfer, ff_p_transfer_codec:unmarshal(change, TransferChange)};
 unmarshal(change, {session, SessionChange}) ->
     unmarshal(session_event, SessionChange);
-unmarshal(change, {route, Route}) ->
+unmarshal(change, {route, #wthd_RouteChange{route = Route}}) ->
     {route_changed, unmarshal(route, Route)};
 unmarshal(change, {limit_check, #wthd_LimitCheckChange{details = Details}}) ->
     {limit_check, ff_limit_check_codec:unmarshal(details, Details)};

@@ -57,8 +57,6 @@ serialize(Type, Data) ->
 -spec deserialize(thrift_type(), binary()) ->
     term().
 
-deserialize(_, {bin, <<>>}) ->
-    <<>>;
 deserialize(Type, {bin, Data}) ->
     {ok, Trans} = thrift_membuffer_transport:new(Data),
     {ok, Proto} = thrift_binary_protocol:new(Trans, [{strict_read, true}, {strict_write, true}]),

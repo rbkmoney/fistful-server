@@ -45,7 +45,7 @@
 
 serialize(Type, Data) ->
     {ok, Trans} = thrift_membuffer_transport:new(),
-    {ok, Proto} = thrift_binary_protocol:new(Trans, [{strict_read, true}, {strict_write, true}]),
+    {ok, Proto} = new_protocol(Trans),
     case thrift_protocol:write(Proto, {Type, Data}) of
         {NewProto, ok} ->
             {_, {ok, Result}} = thrift_protocol:close_transport(NewProto),
@@ -59,10 +59,13 @@ serialize(Type, Data) ->
 
 deserialize(Type, {bin, Data}) ->
     {ok, Trans} = thrift_membuffer_transport:new(Data),
-    {ok, Proto} = thrift_binary_protocol:new(Trans, [{strict_read, true}, {strict_write, true}]),
+    {ok, Proto} = new_protocol(Trans),
     case thrift_protocol:read(Proto, Type) of
         {_NewProto, {ok, Result}} ->
             Result;
         {_NewProto, {error, Reason}} ->
             erlang:error({thrift, {protocol, Reason}})
     end.
+
+new_protocol(Trans) ->
+    thrift_binary_protocol:new(Trans, [{strict_read, true}, {strict_write, true}]).

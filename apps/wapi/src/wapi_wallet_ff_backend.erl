@@ -2238,7 +2238,7 @@ authorize_resource(Resource, Params, Context) ->
     case authorize_resource_by_grant(Resource, Params) of
         ok ->
             ok;
-        {error, _} ->
+        {error, missing} ->
             authorize_resource_by_bearer(Resource, Params, Context)
     end.
 

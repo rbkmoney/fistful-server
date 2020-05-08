@@ -83,6 +83,10 @@
     external_id => id()
 }.
 
+-type create_error() ::
+    {identity, notfound} |
+    {terms, ff_party:validate_w2w_transfer_creation_error()}.
+
 -export_type([event/0]).
 -export_type([params/0]).
 -export_type([template/0]).
@@ -98,6 +102,7 @@
 
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
+-type terms() :: ff_party:terms().
 
 %% Pipeline
 
@@ -153,7 +158,8 @@ external_id(T) ->
 %% API
 
 -spec create(params()) ->
-    {ok, [event()]}.
+    {ok, [event()]} |
+    {error, create_error()}.
 create(Params = #{
     id := ID,
     identity_id := IdentityID,
@@ -162,18 +168,50 @@ create(Params = #{
     do(fun() ->
         Identity = unwrap(identity, get_identity(IdentityID)),
         {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
+        PartyID = ff_identity:party(Identity),
+        ContractID = ff_identity:contract(Identity),
+        CreatedAt = ff_time:now(),
+        DomainRevision = ff_domain_config:head(),
+        Varset = create_party_varset(Fields),
+        {ok, Terms} = ff_party:get_contract_terms(
+            PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
+        ),
+        valid =  unwrap(terms, validate_p2p_template_creation(Terms, Params)),
         Template = genlib_map:compact(#{
             version => ?ACTUAL_FORMAT_VERSION,
             id => ID,
             identity_id => IdentityID,
-            domain_revision => ff_domain_config:head(),
+            domain_revision => DomainRevision,
             party_revision => PartyRevision,
             fields => Fields,
             blocking => unblocked,
-            created_at => ff_time:now(),
+            created_at => CreatedAt,
             external_id => maps:get(external_id, Params, undefined)
         }),
         [{created, Template}]
+    end).
+
+create_party_varset(#{body := #{value := Body}}) ->
+    {_Amount, Currency} = Body,
+    genlib_map:compact(#{
+        currency => ff_dmsl_codec:marshal(currency_ref, Currency),
+        cost => ff_dmsl_codec:marshal(cash, Body)
+    });
+create_party_varset(_) ->
+    #{}.
+
+%% P2PTemplate validators
+
+-spec validate_p2p_template_creation(terms(), fields()) ->
+    {ok, valid} |
+    {error, create_error()}.
+validate_p2p_template_creation(Terms, #{body := #{value := Body}}) ->
+    do(fun() ->
+        valid = unwrap(ff_party:validate_p2p_template_creation(Terms, Body))
+    end);
+validate_p2p_template_creation(Terms, _) ->
+    do(fun() ->
+        valid = unwrap(ff_party:validate_p2p_template_creation(Terms))
     end).
 
 -spec get_identity(identity_id()) ->

@@ -50,6 +50,10 @@
     {bad_w2w_transfer_amount, Cash :: cash()}|
     invalid_w2w_terms_error().
 
+-type validate_p2p_template_creation_error() ::
+    {bad_p2p_template_amount, Cash :: cash()} |
+    p2p_template_forbidden_error().
+
 -export_type([id/0]).
 -export_type([revision/0]).
 -export_type([terms/0]).
@@ -80,6 +84,8 @@
 -export([validate_withdrawal_creation/2]).
 -export([validate_deposit_creation/2]).
 -export([validate_w2w_transfer_creation/2]).
+-export([validate_p2p_template_creation/1]).
+-export([validate_p2p_template_creation/2]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
@@ -111,6 +117,7 @@
 -type cash_range_validation_error() :: {terms_violation, {cash_range, {cash(), cash_range()}}}.
 -type p2p_forbidden_error() :: {terms_violation, p2p_forbidden}.
 -type w2w_forbidden_error() :: {terms_violation, w2w_forbidden}.
+-type p2p_template_forbidden_error() :: {terms_violation, p2p_template_forbidden}.
 
 -type not_reduced_error() :: {not_reduced, {Name :: atom(), TermsPart :: any()}}.
 
@@ -336,6 +343,30 @@ validate_w2w_transfer_creation(Terms, {_Amount, CurrencyID} = Cash) ->
         valid = unwrap(validate_w2w_terms_currency(CurrencyID, W2WServiceTerms)),
         valid = unwrap(validate_w2w_cash_limit(Cash, W2WServiceTerms)),
         valid = unwrap(validate_w2w_allow(W2WServiceTerms))
+    end).
+
+-spec validate_p2p_template_creation(terms(), cash()) -> Result when
+    Result :: {ok, valid} | {error, Error},
+    Error :: validate_p2p_template_creation_error().
+
+validate_p2p_template_creation(_Terms, {Amount, _Currency} = Cash) when Amount < 1 ->
+    {error, {bad_p2p_template_amount, Cash}};
+validate_p2p_template_creation(Terms, {_Amount, _CurrencyID} = _Cash) ->
+    #domain_TermSet{wallets = WalletTerms} = Terms,
+    do(fun () ->
+        #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,
+        valid = unwrap(validate_p2p_template_allow(P2PServiceTerms))
+    end).
+
+-spec validate_p2p_template_creation(terms()) -> Result when
+    Result :: {ok, valid} | {error, Error},
+    Error :: validate_p2p_template_creation_error().
+
+validate_p2p_template_creation(Terms) ->
+    #domain_TermSet{wallets = WalletTerms} = Terms,
+    do(fun () ->
+        #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,
+        valid = unwrap(validate_p2p_template_allow(P2PServiceTerms))
     end).
 
 -spec get_withdrawal_cash_flow_plan(terms()) ->
@@ -751,6 +782,18 @@ validate_w2w_cash_limit(Cash, Terms) ->
     {ok, valid} | {error, w2w_forbidden_error()}.
 validate_w2w_allow(W2WServiceTerms) ->
     #domain_W2WServiceTerms{allow = Constant} = W2WServiceTerms,
+    case Constant of
+        {constant, true} ->
+            {ok, valid};
+        {constant, false} ->
+            {error, {terms_violation, w2w_forbidden}}
+    end.
+
+-spec validate_p2p_template_allow(p2p_terms()) ->
+    {ok, valid} | {error, p2p_forbidden_error()}.
+validate_p2p_template_allow(P2PServiceTerms) ->
+    #domain_P2PServiceTerms{templates = P2PTemplateServiceTerms} = P2PServiceTerms,
+    #domain_P2PTemplateServiceTerms{allow = Constant} = P2PTemplateServiceTerms,
     case Constant of
         {constant, true} ->
             {ok, valid};

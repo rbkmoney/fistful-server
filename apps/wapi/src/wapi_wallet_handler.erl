@@ -316,15 +316,9 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
         {error, {destination, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
-        {error, {destination, invalid_grant}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination grant invalid">>));
-        {error, {destination, insufficient_claims}} ->
+        {error, {destination, {unauthorized, _}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Destination grant insufficient claims">>)
-            );
-        {error, {destination, insufficient_access}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Destination grant insufficient access">>)
+                wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>)
             );
         {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
@@ -334,14 +328,12 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
+        {error, {wallet, {unauthorized, _}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet unauthorized">>));
         {error, {wallet, {inaccessible, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Inaccessible source or destination">>)
             );
-        {error, {wallet, insufficient_claims}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet grant insufficient claims">>));
-        {error, {wallet, insufficient_access}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet grant insufficient access">>));
         {error, {wallet, {currency, invalid}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid currency for source or destination">>)

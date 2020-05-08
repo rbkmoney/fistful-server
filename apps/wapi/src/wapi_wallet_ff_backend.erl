@@ -382,11 +382,11 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {quote, {invalid_destination, _}} |
     {terms, {terms_violation, _}} |
     {destination_resource, {bin_data, not_found}} |
-    {unauthorized_withdrawal, _}
-).
+    {Resource, {unauthorized, _}}
+) when Resource :: wallet | destination.
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
-        _ = unwrap(authorize_withdrawal(Params, Context)),
+        _ = authorize_withdrawal(Params, Context),
         Quote = unwrap(maybe_check_quote_token(Params, Context)),
         WithdrawalParams = from_swag(withdrawal_params, Params),
         ff_withdrawal_machine:create(
@@ -2278,7 +2278,7 @@ verify_access(Access, #{<<"resource_access">> := #{?DOMAIN := ACL}}) ->
 verify_access(Access, #{<<"resource_access">> := #{<<"common-api">> := ACL}}) -> % Legacy grants support
     do_verify_access(Access, ACL);
 verify_access(_, _) ->
-    {error, insufficient_access}.
+    {error, {unauthorized, insufficient_access}}.
 
 do_verify_access(Access, ACL) ->
     case lists:all(
@@ -2286,7 +2286,7 @@ do_verify_access(Access, ACL) ->
         Access
     ) of
         true  -> ok;
-        false -> {error, insufficient_access}
+        false -> {error, {unauthorized, insufficient_access}}
     end.
 
 verify_claims(destination, _Claims, _) ->
@@ -2297,7 +2297,7 @@ verify_claims(wallet,
 ) when GrantAmount >= ReqAmount ->
     ok;
 verify_claims(_, _, _) ->
-    {error, insufficient_claims}.
+    {error, {unauthorized, insufficient_claims}}.
 
 issue_quote_token(PartyID, Data) ->
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).

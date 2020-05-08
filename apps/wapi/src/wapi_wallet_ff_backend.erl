@@ -2257,16 +2257,13 @@ authorize_resource_by_grant(R = wallet, #{
     <<"body">>        := WithdrawalBody
 }) ->
     authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), WithdrawalBody);
-authorize_resource_by_grant(R, _) ->
-    {error, {R, missing}}.
+authorize_resource_by_grant(_, _) ->
+    {error, missing}.
 
 authorize_resource_by_grant(Resource, Grant, Access, Params) ->
-    case uac_authorizer_jwt:verify(Grant, #{}) of
-        {ok, {_Id, _, Claims}} ->
-            verify_claims(Resource, verify_access(Access, Claims), Params);
-        {error, _} ->
-            {error, {Resource, unauthorized}}
-    end.
+    {_, _, Claims} = unwrap(Resource, uac_authorizer_jwt:verify(Grant, #{})),
+    _ = unwrap(Resource, verify_access(Access, Claims)),
+    _ = unwrap(Resource, verify_claims(Resource, Claims, Params)).
 
 get_resource_accesses(Resource, ID, Permission) ->
     [{get_resource_accesses(Resource, ID), Permission}].
@@ -2276,28 +2273,31 @@ get_resource_accesses(destination, ID) ->
 get_resource_accesses(wallet, ID) ->
     [party, {wallets, ID}].
 
-verify_access(Access, #{<<"resource_access">> := #{?DOMAIN := ACL}} = Claims) ->
+verify_access(Access, #{<<"resource_access">> := #{?DOMAIN := ACL}}) ->
+    do_verify_access(Access, ACL);
+verify_access(Access, #{<<"resource_access">> := #{<<"common-api">> := ACL}}) -> % Legacy grants support
+    do_verify_access(Access, ACL);
+verify_access(_, _) ->
+    {error, insufficient_access}.
+
+do_verify_access(Access, ACL) ->
     case lists:all(
         fun ({Scope, Permission}) -> lists:member(Permission, uac_acl:match(Scope, ACL)) end,
         Access
     ) of
-        true  -> {ok, Claims};
+        true  -> ok;
         false -> {error, insufficient_access}
-    end;
-verify_access(_, _) ->
-    {error, insufficient_access}.
+    end.
 
-verify_claims(Resource, {error, Reason}, _) ->
-    {error, {Resource, Reason}};
-verify_claims(destination, {ok, _Claims}, _) ->
+verify_claims(destination, _Claims, _) ->
     ok;
 verify_claims(wallet,
-    {ok, #{<<"amount">> := GrantAmount, <<"currency">> := Currency}},
-    #{     <<"amount">> := ReqAmount,   <<"currency">> := Currency }
+    #{<<"amount">> := GrantAmount, <<"currency">> := Currency},
+    #{<<"amount">> := ReqAmount,   <<"currency">> := Currency}
 ) when GrantAmount >= ReqAmount ->
     ok;
-verify_claims(Resource, _, _) ->
-    {error, {Resource, insufficient_claims}}.
+verify_claims(_, _, _) ->
+    {error, insufficient_claims}.
 
 issue_quote_token(PartyID, Data) ->
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).

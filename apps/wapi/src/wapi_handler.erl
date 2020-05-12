@@ -132,9 +132,12 @@ create_handler_context(SwagContext, WoodyContext) ->
         swagger_context => SwagContext
     }.
 
-process_woody_error(_Source, result_unexpected   , _Details) -> wapi_handler_utils:reply_error(500);
-process_woody_error(_Source, resource_unavailable, _Details) -> wapi_handler_utils:reply_error(503);
-process_woody_error(_Source, result_unknown      , _Details) -> wapi_handler_utils:reply_error(504).
+process_woody_error(_Source, result_unexpected, _Details) ->
+    wapi_handler_utils:reply_error(500);
+process_woody_error(_Source, resource_unavailable, _Details) ->
+    wapi_handler_utils:reply_error(504);
+process_woody_error(_Source, result_unknown, _Details) ->
+    wapi_handler_utils:reply_error(504).
 
 -spec create_ff_context(woody_context:ctx(), opts()) ->
     ff_context:context().

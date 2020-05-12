@@ -16,7 +16,7 @@
 -export([domain_revision/1]).
 -export([created_at/1]).
 -export([identity_id/1]).
--export([fields/1]).
+-export([details/1]).
 -export([external_id/1]).
 
 %% ff_machine
@@ -35,7 +35,7 @@
     party_revision := party_revision(),
     created_at := timestamp(),
     blocking := blocking(),
-    fields := fields(),
+    details := details(),
     external_id => id()
 }.
 
@@ -47,23 +47,23 @@
     party_revision := party_revision(),
     created_at := timestamp(),
     blocking := blocking(),
-    fields := fields(),
+    details := details(),
     external_id => id()
 }.
 
 -type blocking() :: unblocked | blocked.
 
--type fields() :: #{
-    body => field_body(),
-    metadata => field_metadata()
+-type details() :: #{
+    body => template_body(),
+    metadata => template_metadata()
 }.
 
--type field_body() :: #{
+-type template_body() :: #{
     value := body()
 }.
 
--type field_metadata() :: #{
-    default := metadata()
+-type template_metadata() :: #{
+    value := metadata()
 }.
 
 -type event() ::
@@ -79,13 +79,13 @@
 -type params() :: #{
     id := id(),
     identity_id := identity_id(),
-    fields := fields(),
+    details := details(),
     external_id => id()
 }.
 
 -type create_error() ::
     {identity, notfound} |
-    {terms, ff_party:validate_w2w_transfer_creation_error()}.
+    {terms, ff_party:validate_p2p_template_creation_error()}.
 
 -export_type([event/0]).
 -export_type([params/0]).
@@ -129,10 +129,10 @@ identity_id(#{identity_id := V}) ->
 blocking(#{blocking := V}) ->
     V.
 
--spec fields(template()) ->
-    fields().
+-spec details(template()) ->
+    details().
 
-fields(#{fields := V}) ->
+details(#{details := V}) ->
     V.
 
 -spec party_revision(template()) -> party_revision().
@@ -163,7 +163,7 @@ external_id(T) ->
 create(Params = #{
     id := ID,
     identity_id := IdentityID,
-    fields := Fields
+    details := Details
 }) ->
     do(fun() ->
         Identity = unwrap(identity, get_identity(IdentityID)),
@@ -172,18 +172,18 @@ create(Params = #{
         ContractID = ff_identity:contract(Identity),
         CreatedAt = ff_time:now(),
         DomainRevision = ff_domain_config:head(),
-        Varset = create_party_varset(Fields),
+        Varset = create_party_varset(Details),
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
         ),
-        valid =  unwrap(terms, validate_p2p_template_creation(Terms, Params)),
+        valid =  unwrap(terms, validate_p2p_template_creation(Terms, Details)),
         Template = genlib_map:compact(#{
             version => ?ACTUAL_FORMAT_VERSION,
             id => ID,
             identity_id => IdentityID,
             domain_revision => DomainRevision,
             party_revision => PartyRevision,
-            fields => Fields,
+            details => Details,
             blocking => unblocked,
             created_at => CreatedAt,
             external_id => maps:get(external_id, Params, undefined)
@@ -202,7 +202,7 @@ create_party_varset(_) ->
 
 %% P2PTemplate validators
 
--spec validate_p2p_template_creation(terms(), fields()) ->
+-spec validate_p2p_template_creation(terms(), details()) ->
     {ok, valid} |
     {error, create_error()}.
 validate_p2p_template_creation(Terms, #{body := #{value := Body}}) ->

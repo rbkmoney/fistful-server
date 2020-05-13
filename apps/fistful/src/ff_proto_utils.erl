@@ -54,7 +54,7 @@ serialize(Type, Data) ->
             erlang:error({thrift, {protocol, Reason}})
     end.
 
--spec deserialize(thrift_type(), binary()) ->
+-spec deserialize(thrift_type(), {bin, binary()}) ->
     term().
 
 deserialize(Type, {bin, Data}) ->

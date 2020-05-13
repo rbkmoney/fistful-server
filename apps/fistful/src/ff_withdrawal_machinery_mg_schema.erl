@@ -45,10 +45,10 @@ unmarshal(event, V) ->
     {#wthd_NoIdEvent{
         occured_at = TimeStamp0,
         change = Change0
-    }, Version} = unwrap(Type, V),
+    }, _Version} = unwrap(Type, V),
     TimeStamp = ff_codec:unmarshal(timestamp, TimeStamp0),
     Change1   = ff_withdrawal_codec:unmarshal(change, Change0),
-    Change2   = maybe_maybe_migrate(Change1, #{timestamp => TimeStamp}, Version),
+    Change2   = maybe_migrate(Change1, #{timestamp => TimeStamp}),
     {ev, TimeStamp, Change2};
 
 unmarshal(T, V) when
@@ -74,11 +74,9 @@ unwrap(Type, Bin) ->
 
 %% Migrations
 
-maybe_maybe_migrate(Change, _, ?VERSION) -> % TODO: better name
+% TODO: check if there are no ambiguity in pattern matching
+maybe_migrate({created, #{transfer_type := _}} = Change, _) ->
     Change;
-maybe_maybe_migrate(Change, MigrateParams, _) ->
-    maybe_migrate(Change, MigrateParams).
-
 maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
     Ev;
 maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}, _MigrateParams) ->
@@ -95,9 +93,8 @@ maybe_migrate({resource_got, Resource}, _MigrateParams) ->
 % Old events
 maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->
     maybe_migrate({limit_check, {wallet_sender, Details}}, MigrateParams);
-maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateParams) ->
+maybe_migrate({created, #{handler := ff_withdrawal} = T}, MigrateParams) ->
     #{
-        version     := 1,
         id          := ID,
         handler     := ff_withdrawal,
         body        := Body,
@@ -108,7 +105,6 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateP
     } = T,
     Route = maps:get(route, T, undefined),
     maybe_migrate({created, genlib_map:compact(#{
-        version       => 2,
         id            => ID,
         transfer_type => withdrawal,
         body          => Body,
@@ -125,12 +121,12 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateP
             wallet_cash_flow_plan => []
         }
     })}, MigrateParams);
-maybe_migrate({created, T}, MigrateParams) ->
-    DestinationID = maps:get(destination, T),
-    SourceID = maps:get(source, T),
-    ProviderID = maps:get(provider, T),
+maybe_migrate({created, #{
+        destination := DestinationID,
+        source      := SourceID,
+        provider    := ProviderID
+    } = T}, MigrateParams) ->
     maybe_migrate({created, T#{
-        version     => 1,
         handler     => ff_withdrawal,
         route       => #{provider_id => ProviderID},
         params => #{
@@ -213,7 +209,7 @@ v1_created_migration_test() ->
             destination => DestinationID
         }
     }},
-    {created, Withdrawal} = ff_withdrawal:maybe_migrate(LegacyEvent, #{}),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
     ?assertEqual(ID, ff_withdrawal:id(Withdrawal)),
     ?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),

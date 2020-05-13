@@ -19,7 +19,7 @@
 -export([preserve_revisions_test/1]).
 -export([unknown_test/1]).
 
-% -export([consume_eventsinks/1]).
+-export([consume_eventsinks/1]).
 
 %% Internal types
 
@@ -33,8 +33,8 @@
 -spec all() -> [test_case_name() | {group, group_name()}].
 all() ->
     [
-        {group, default}
-        % {group, eventsink}
+        {group, default},
+        {group, eventsink}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
@@ -45,10 +45,10 @@ groups() ->
             create_ok_test,
             preserve_revisions_test,
             unknown_test
+        ]},
+        {eventsink, [], [
+            consume_eventsinks
         ]}
-        % {eventsink, [], [
-        %     consume_eventsinks
-        % ]}
     ].
 
 -spec init_per_suite(config()) -> config().
@@ -92,17 +92,17 @@ create_ok_test(C) ->
         identity_id := IdentityID
     } = prepare_standard_environment(C),
     P2PTemplateID = generate_id(),
-    Fields = #{},
+    Details = #{},
     P2PTemplateParams = #{
         id => P2PTemplateID,
         identity_id => IdentityID,
-        fields => Fields,
+        details => Details,
         external_id => P2PTemplateID
     },
     ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
     P2PTemplate = get_p2p_template(P2PTemplateID),
     ?assertEqual(IdentityID, p2p_template:identity_id(P2PTemplate)),
-    ?assertEqual(Fields, p2p_template:fields(P2PTemplate)),
+    ?assertEqual(Details, p2p_template:details(P2PTemplate)),
     ?assertEqual(P2PTemplateID, p2p_template:external_id(P2PTemplate)).
 
 -spec preserve_revisions_test(config()) -> test_return().
@@ -114,7 +114,7 @@ preserve_revisions_test(C) ->
     P2PTemplateParams = #{
         id => P2PTemplateID,
         identity_id => IdentityID,
-        fields => #{}
+        details => #{}
     },
     ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
     P2PTemplate = get_p2p_template(P2PTemplateID),
@@ -128,13 +128,12 @@ unknown_test(_C) ->
     Result = p2p_template_machine:get(P2PTemplateID),
     ?assertMatch({error, {unknown_p2p_template, P2PTemplateID}}, Result).
 
-% -spec consume_eventsinks(config()) -> test_return().
-% consume_eventsinks(_) ->
-%     EventSinks = [
-%           p2p_template_event_sink,
-%           p2p_session_event_sink
-%     ],
-%     [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
+-spec consume_eventsinks(config()) -> test_return().
+consume_eventsinks(_) ->
+    EventSinks = [
+          p2p_template_event_sink
+    ],
+    [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
 
 %% Utils
 

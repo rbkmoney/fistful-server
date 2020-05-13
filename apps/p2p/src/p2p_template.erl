@@ -34,8 +34,8 @@
     domain_revision := domain_revision(),
     party_revision := party_revision(),
     created_at := timestamp(),
-    blocking := blocking(),
     details := details(),
+    blocking => blocking(),
     external_id => id()
 }.
 
@@ -46,7 +46,6 @@
     domain_revision := domain_revision(),
     party_revision := party_revision(),
     created_at := timestamp(),
-    blocking := blocking(),
     details := details(),
     external_id => id()
 }.
@@ -67,9 +66,15 @@
 }.
 
 -type event() ::
-    {created, template()}.
+    {created, template()} |
+    {blocking_changed, blocking()}.
 
--type body() :: ff_transaction:body().
+-type amount() :: integer().
+-type body() :: #{
+    amount => amount(),
+    currency := ff_currency:id()
+}.
+
 -type metadata() :: ff_entity_context:md().
 -type timestamp() :: ff_time:timestamp_ms().
 
@@ -124,10 +129,10 @@ identity_id(#{identity_id := V}) ->
 
 
 -spec blocking(template()) ->
-    blocking().
+    blocking() | undefined.
 
-blocking(#{blocking := V}) ->
-    V.
+blocking(T) ->
+    maps:get(blocking, T, undefined).
 
 -spec details(template()) ->
     details().
@@ -184,11 +189,10 @@ create(Params = #{
             domain_revision => DomainRevision,
             party_revision => PartyRevision,
             details => Details,
-            blocking => unblocked,
             created_at => CreatedAt,
             external_id => maps:get(external_id, Params, undefined)
         }),
-        [{created, Template}]
+        [{created, Template}, {blocking_changed, unblocked}]
     end).
 
 create_party_varset(#{body := #{value := Body}}) ->
@@ -228,7 +232,9 @@ get_identity(IdentityID) ->
     template().
 
 apply_event({created, Template}, undefined) ->
-    Template.
+    Template;
+apply_event({blocking_changed, Blocking}, Template) ->
+    Template#{blocking => Blocking}.
 
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().

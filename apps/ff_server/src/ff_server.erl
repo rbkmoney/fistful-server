@@ -179,8 +179,8 @@ get_eventsink_handlers() ->
         {withdrawal_session, withdrawal_session_event_sink, ff_withdrawal_session_eventsink_publisher},
         {p2p_transfer, p2p_transfer_event_sink, ff_p2p_transfer_eventsink_publisher},
         {p2p_session, p2p_session_event_sink, ff_p2p_session_eventsink_publisher},
-        {w2w_transfer, w2w_transfer_event_sink, ff_w2w_transfer_eventsink_publisher}
-        % {p2p_template, p2p_template_event_sink, ff_p2p_template_eventsink_publisher}
+        {w2w_transfer, w2w_transfer_event_sink, ff_w2w_transfer_eventsink_publisher},
+        {p2p_template, p2p_template_event_sink, ff_p2p_template_eventsink_publisher}
     ],
     [get_eventsink_handler(Name, Service, Publisher, Cfg) || {Name, Service, Publisher} <- Publishers].
 

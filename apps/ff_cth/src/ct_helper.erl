@@ -178,6 +178,9 @@ start_app(ff_server = AppName) ->
             },
             w2w_transfer => #{
                 namespace => <<"ff/w2w_transfer_v1">>
+            },
+            p2p_template => #{
+                namespace => <<"ff/p2p_template_v1">>
             }
         }}
     ]), #{}};

@@ -1832,7 +1832,7 @@ to_swag(user_interaction_form, Form) ->
                 <<"key">> => Key,
                 <<"template">> => Template
             },
-            AccIn ++ FormField
+            [FormField | AccIn]
         end,
         [], Form
     );

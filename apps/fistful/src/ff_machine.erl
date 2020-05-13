@@ -42,6 +42,7 @@
 -export_type([result/1]).
 -export_type([timestamped_event/1]).
 -export_type([migrate_params/0]).
+-export_type([auxst/0]).
 
 %% Accessors
 

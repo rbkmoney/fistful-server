@@ -30,7 +30,7 @@
   0},
  {<<"cowboy_cors">>,
   {git,"https://github.com/rbkmoney/cowboy_cors.git",
-       {ref,"47bc63d47ed83a588a41593005953532c493e30e"}},
+       {ref,"62f24fa78cd48e80a9aba86b508d1b160a2737e9"}},
   0},
  {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.8.0">>},1},
  {<<"damsel">>,

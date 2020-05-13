@@ -2278,7 +2278,7 @@ verify_access(Access, #{<<"resource_access">> := #{?DOMAIN := ACL}}) ->
 verify_access(Access, #{<<"resource_access">> := #{<<"common-api">> := ACL}}) -> % Legacy grants support
     do_verify_access(Access, ACL);
 verify_access(_, _) ->
-    {error, {unauthorized, insufficient_access}}.
+    {error, {unauthorized, {grant, insufficient_access}}}.
 
 do_verify_access(Access, ACL) ->
     case lists:all(
@@ -2286,7 +2286,7 @@ do_verify_access(Access, ACL) ->
         Access
     ) of
         true  -> ok;
-        false -> {error, {unauthorized, insufficient_access}}
+        false -> {error, {unauthorized, {grant, insufficient_access}}}
     end.
 
 verify_claims(destination, _Claims, _) ->
@@ -2297,7 +2297,7 @@ verify_claims(wallet,
 ) when GrantAmount >= ReqAmount ->
     ok;
 verify_claims(_, _, _) ->
-    {error, {unauthorized, insufficient_claims}}.
+    {error, {unauthorized, {grant, insufficient_claims}}}.
 
 issue_quote_token(PartyID, Data) ->
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).

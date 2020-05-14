@@ -45,7 +45,7 @@
 -spec get_owner(handler_context()) ->
     owner().
 get_owner(Context) ->
-    wapi_auth:get_subject_id(get_auth_context(Context)).
+    uac_authorizer_jwt:get_subject_id(get_auth_context(Context)).
 
 -spec get_auth_context(handler_context()) ->
     wapi_auth:context().

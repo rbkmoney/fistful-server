@@ -34,7 +34,9 @@ marshal(event, {ev, Ts, Change}) ->
 
 marshal(T, V) when
     T =:= {args, init} orelse
-    T =:= aux_state
+    T =:= {args, call} orelse
+    T =:= aux_state    orelse
+    T =:= response
 ->
     machinery_mg_schema_generic:marshal(T, V).
 
@@ -53,7 +55,9 @@ unmarshal(event, V) ->
 
 unmarshal(T, V) when
     T =:= {args, init} orelse
-    T =:= aux_state
+    T =:= {args, call} orelse
+    T =:= aux_state    orelse
+    T =:= response
 ->
     machinery_mg_schema_generic:unmarshal(T, V).
 

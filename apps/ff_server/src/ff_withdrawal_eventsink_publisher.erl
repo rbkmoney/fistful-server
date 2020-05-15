@@ -31,9 +31,10 @@ publish_event(#{
     event       := {
         EventID,
         Dt,
-        {ev, EventDt, Payload}
+        Event
     }
 }) ->
+    {ev, EventDt, Payload} = unmarshal(event, {bin, Event}),
     #wthd_SinkEvent{
         id            = marshal(event_id, ID),
         created_at    = marshal(timestamp, Dt),
@@ -41,7 +42,7 @@ publish_event(#{
         payload       = #wthd_EventSinkPayload{
             sequence   = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
-            changes    = [marshal(change, ff_withdrawal:maybe_migrate(Payload, #{timestamp => EventDt}))]
+            changes    = [marshal(change, Payload)]
         }
     }.
 
@@ -49,3 +50,6 @@ publish_event(#{
 
 marshal(Type, Value) ->
     ff_withdrawal_codec:marshal(Type, Value).
+
+unmarshal(Type, Value) ->
+    ff_withdrawal_machinery_mg_schema:unmarshal(Type, Value).

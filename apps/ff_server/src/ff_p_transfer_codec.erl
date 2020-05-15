@@ -24,9 +24,10 @@ marshal(change, {status_changed, Status}) ->
 marshal(change, {clock_updated, Clock}) ->
     {clock_updated, #transfer_ClockChange{clock = marshal(clock, Clock)}};
 
-marshal(transfer, #{final_cash_flow := Cashflow}) ->
+marshal(transfer, #{final_cash_flow := Cashflow, id:= ID}) ->
     #transfer_Transfer{
-        cashflow = ff_cash_flow_codec:marshal(final_cash_flow, Cashflow)
+        cashflow = ff_cash_flow_codec:marshal(final_cash_flow, Cashflow),
+        id = ID
     };
 
 marshal(status, created) ->
@@ -58,9 +59,10 @@ unmarshal(change, {status_changed, #transfer_StatusChange{status = Status}}) ->
 unmarshal(change, {clock_updated, #transfer_ClockChange{clock = Clock}}) ->
     {clock_updated, unmarshal(clock, Clock)};
 
-unmarshal(transfer, #transfer_Transfer{cashflow = Cashflow}) ->
+unmarshal(transfer, #transfer_Transfer{cashflow = Cashflow, id = ID}) ->
     #{
-        final_cash_flow => ff_cash_flow_codec:unmarshal(final_cash_flow, Cashflow)
+        final_cash_flow => ff_cash_flow_codec:unmarshal(final_cash_flow, Cashflow),
+        id => ID
     };
 
 unmarshal(account_type, CashflowAccount) ->

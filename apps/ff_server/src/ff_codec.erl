@@ -7,9 +7,11 @@
 
 -export([unmarshal/2]).
 -export([unmarshal/3]).
+-export([unmarshal_msgpack/1]).
 
 -export([marshal/2]).
 -export([marshal/3]).
+-export([marshal_msgpack/1]).
 
 %% Types
 
@@ -538,6 +540,9 @@ to_calendar_datetime(Date, Time = {H, _, S}) when H =:= 24 orelse S =:= 60 ->
 to_calendar_datetime(Date, Time) ->
     {Date, Time}.
 
+% TODO: spec
+-spec marshal_msgpack(_) -> _.
+
 marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};
 marshal_msgpack(V) when is_boolean(V) -> {b, V};
 marshal_msgpack(V) when is_integer(V) -> {i, V};
@@ -551,6 +556,9 @@ marshal_msgpack(V) when is_map(V) ->
     {obj, maps:fold(fun(Key, Value, Map) -> Map#{marshal_msgpack(Key) => marshal_msgpack(Value)} end, #{}, V)};
 marshal_msgpack(undefined) ->
     undefined.
+
+% TODO: spec
+-spec unmarshal_msgpack(_) -> _.
 
 unmarshal_msgpack({nl,  #msgp_Nil{}})        -> nil;
 unmarshal_msgpack({b,   V}) when is_boolean(V) -> V;

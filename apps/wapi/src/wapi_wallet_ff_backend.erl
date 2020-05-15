@@ -1983,7 +1983,7 @@ to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     });
 
 to_swag(timestamp, {DateTime, Usec}) ->
-    DateTimeinSeconds = genlib_time:to_unixtime(DateTime),
+    DateTimeinSeconds = genlib_time:daytime_to_unixtime(DateTime),
     {TimeinUnit, Unit} =
         case Usec of
             undefined ->

@@ -28,6 +28,9 @@
     download_file_ok_test/1
 ]).
 
+% common-api is used since it is the domain used in production RN
+% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
+-define(DOMAIN, <<"common-api">>).
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
@@ -98,7 +101,7 @@ init_per_group(Group, Config) when Group =:= base ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
     Party = create_party(Config),
-    Token = issue_token(Party, [{[party], write}], unlimited),
+    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
     [{context, wapi_ct_helper:get_context(Token)} | Config1];
 init_per_group(_, Config) ->
@@ -284,20 +287,10 @@ create_identity(C) ->
     wapi_wallet_ff_backend:create_identity(Params, create_context(PartyID, C)).
 
 create_context(PartyID, C) ->
-    maps:merge(create_auth_ctx(PartyID), create_woody_ctx(C)).
+    maps:merge(wapi_ct_helper:create_auth_ctx(PartyID), create_woody_ctx(C)).
 
 create_woody_ctx(C) ->
     #{
         woody_context => ct_helper:get_woody_ctx(C)
     }.
-
-create_auth_ctx(PartyID) ->
-    #{
-        swagger_context => #{auth_context => {{PartyID, empty}, #{}}}
-    }.
-
-issue_token(PartyID, ACL, LifeTime) ->
-    Claims = #{?STRING => ?STRING},
-    {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
-    Token.
 

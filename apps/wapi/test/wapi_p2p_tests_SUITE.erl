@@ -27,6 +27,9 @@
     get_p2p_transfer_failure_events_ok_test/1
 ]).
 
+% common-api is used since it is the domain used in production RN
+% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
+-define(DOMAIN, <<"common-api">>).
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
@@ -98,7 +101,11 @@ init_per_group(Group, Config) when Group =:= p2p ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
     Party = create_party(Config),
-    Token = issue_token(Party, [{[party], write}, {[party], read}], unlimited),
+    BasePermissions = [
+        {[party], write},
+        {[party], read}
+    ],
+    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
     [{context, wapi_ct_helper:get_context(Token)}, {context_pcidss, ContextPcidss} | Config1];
@@ -408,11 +415,6 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
-
-issue_token(PartyID, ACL, LifeTime) ->
-    Claims = #{?STRING => ?STRING},
-    {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
-    Token.
 
 store_bank_card(C, Pan) ->
     store_bank_card(C, Pan, undefined, undefined).

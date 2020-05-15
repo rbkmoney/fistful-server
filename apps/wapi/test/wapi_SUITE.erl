@@ -40,10 +40,13 @@
 
 -import(ct_helper, [cfg/2]).
 
+-define(SIGNEE, wapi).
+
 -spec all() -> [test_case_name() | {group, group_name()}].
 
 all() ->
     [ {group, default}
+    , {group, wallet_api_token}
     , {group, quote}
     , {group, woody}
     , {group, errors}
@@ -54,16 +57,8 @@ all() ->
 
 groups() ->
     [
-        {default, [sequence, {repeat, 2}], [
-            create_w2w_test,
-            create_destination_failed_test,
-            withdrawal_to_bank_card_test,
-            withdrawal_to_crypto_wallet_test,
-            withdrawal_to_ripple_wallet_test,
-            withdrawal_to_ripple_wallet_with_tag_test,
-            unknown_withdrawal_test,
-            get_wallet_by_external_id
-        ]},
+        {default, [sequence, {repeat, 2}], group_default()},
+        {wallet_api_token, [sequence, {repeat, 2}], group_default()},
         {quote, [], [
             quote_encode_decode_test,
             get_quote_test,
@@ -83,6 +78,17 @@ groups() ->
             consume_eventsinks
         ]}
     ].
+
+group_default() -> [
+    create_w2w_test,
+    create_destination_failed_test,
+    withdrawal_to_bank_card_test,
+    withdrawal_to_crypto_wallet_test,
+    withdrawal_to_ripple_wallet_test,
+    withdrawal_to_ripple_wallet_with_tag_test,
+    unknown_withdrawal_test,
+    get_wallet_by_external_id
+].
 
 -spec init_per_suite(config()) -> config().
 
@@ -114,9 +120,7 @@ init_per_group(G, C) ->
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
     })),
     Party = create_party(C),
-    Token = issue_token(Party, [{[party], write}, {[party], read}], {deadline, 10}),
-    Context = get_context("localhost:8080", Token),
-    ContextPcidss = get_context("wapi-pcidss:8080", Token),
+    {Context, ContextPcidss} = create_context_for_group(G, Party),
     [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].
 
 -spec end_per_group(group_name(), config()) -> _.
@@ -385,9 +389,7 @@ quote_encode_decode_test(C) ->
             <<"resource_id">> => #{<<"bank_card">> => <<"test">>}
         }
     },
-    JSONData = jsx:encode(Data),
-    {ok, Token} = wapi_signer:sign(JSONData),
-
+    {ok, Token} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()),
     _WithdrawalID = create_withdrawal(
         WalletID,
         DestID,
@@ -428,11 +430,11 @@ get_quote_test(C) ->
         ct_helper:cfg(context, C)
     ),
     CashFrom = maps:get(<<"cashFrom">>, Quote),
-    {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
+    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(maps:get(<<"quoteToken">>, Quote), #{}),
     #{
         <<"version">>       := 1,
         <<"cashFrom">>     := CashFrom
-    } = jsx:decode(JSONData, [return_maps]).
+    } = Data.
 
 -spec get_quote_without_destination_test(config()) -> test_return().
 
@@ -460,11 +462,11 @@ get_quote_without_destination_test(C) ->
         ct_helper:cfg(context, C)
     ),
     CashFrom = maps:get(<<"cashFrom">>, Quote),
-    {ok, JSONData} = wapi_signer:verify(maps:get(<<"quoteToken">>, Quote)),
+    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(maps:get(<<"quoteToken">>, Quote), #{}),
     #{
         <<"version">>       := 1,
         <<"cashFrom">>     := CashFrom
-    } = jsx:decode(JSONData, [return_maps]).
+    } = Data.
 
 -spec get_quote_without_destination_fail_test(config()) -> test_return().
 
@@ -544,7 +546,7 @@ woody_retry_test(C) ->
         currencyID => <<"RUB">>,
         limit      => <<"123">>
     },
-    Ctx = create_auth_ctx(<<"12332">>),
+    Ctx = wapi_ct_helper:create_auth_ctx(<<"12332">>),
     T1 = erlang:monotonic_time(),
     try
         wapi_wallet_ff_backend:list_wallets(Params, Ctx#{woody_context => ct_helper:get_woody_ctx(C)})
@@ -592,18 +594,8 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
-issue_token(PartyID, ACL, LifeTime) ->
-    Claims = #{?STRING => ?STRING},
-    {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
-    Token.
-
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).
-
-create_auth_ctx(PartyID) ->
-    #{
-        swagger_context => #{auth_context => {{PartyID, empty}, empty}}
-    }.
 
 %%
 
@@ -810,6 +802,9 @@ create_withdrawal(WalletID, DestID, C, QuoteToken) ->
     create_withdrawal(WalletID, DestID, C, QuoteToken, 100).
 
 create_withdrawal(WalletID, DestID, C, QuoteToken, Amount) ->
+    create_withdrawal(WalletID, DestID, C, QuoteToken, Amount, undefined, undefined).
+
+create_withdrawal(WalletID, DestID, C, QuoteToken, Amount, WalletGrant, DestinationGrant) ->
     {ok, Withdrawal} = call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
         #{body => genlib_map:compact(#{
@@ -819,7 +814,9 @@ create_withdrawal(WalletID, DestID, C, QuoteToken, Amount) ->
                 <<"amount">> => Amount,
                 <<"currency">> => <<"RUB">>
             },
-            <<"quoteToken">> => QuoteToken
+            <<"quoteToken">> => QuoteToken,
+            <<"walletGrant">> => WalletGrant,
+            <<"destinationGrant">> => DestinationGrant
         })},
         ct_helper:cfg(context, C)
     ),
@@ -1097,3 +1094,46 @@ consume_eventsinks(_) ->
         , withdrawal_session_event_sink
     ],
     [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
+
+% We use <<"common-api">> domain in tests to immitate the production
+% One test group will use  <<"wallet-api">> to test that it actually works fine
+% TODO: use <<"wallet-api">> everywhere as soon as wallet-api tokens will become a thing
+
+create_context_for_group(wallet_api_token, Party) ->
+    {ok, Token} = issue_wapi_token(Party),
+    Context = get_context("localhost:8080", Token),
+    {ok, PcidssToken} = issue_capi_token(Party),
+    ContextPcidss = get_context("wapi-pcidss:8080", PcidssToken),
+    {Context, ContextPcidss};
+
+create_context_for_group(_Group, Party) ->
+    {ok, Token} = issue_capi_token(Party),
+    Context = get_context("localhost:8080", Token),
+    ContextPcidss = get_context("wapi-pcidss:8080", Token),
+    {Context, ContextPcidss}.
+
+issue_wapi_token(Party) ->
+    Permissions = [
+        {[party], read},
+        {[party], write},
+        {[p2p], read},
+        {[p2p], write},
+        {[w2w], read},
+        {[w2w], write},
+        {[withdrawals], read},
+        {[withdrawals], write},
+        {[webhooks], read},
+        {[webhooks], write},
+        {[party, wallets], write},
+        {[party, wallets], read},
+        {[party, destinations], write},
+        {[party, destinations], read}
+    ],
+    wapi_ct_helper:issue_token(Party, Permissions, unlimited, <<"wallet-api">>).
+
+issue_capi_token(Party) ->
+    Permissions = [
+        {[party], read},
+        {[party], write}
+    ],
+    wapi_ct_helper:issue_token(Party, Permissions, unlimited, <<"common-api">>).

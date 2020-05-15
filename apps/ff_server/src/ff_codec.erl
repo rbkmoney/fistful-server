@@ -229,13 +229,20 @@ marshal(sub_failure, Failure) ->
         sub = maybe_marshal(sub_failure, ff_failure:sub_failure(Failure))
     };
 
-marshal(timestamp, {{Date, Time}, USec} = V) ->
-    case rfc3339:format({Date, Time, USec, 0}) of
-        {ok, R} when is_binary(R) ->
-            R;
-        Error ->
-            error({bad_timestamp, Error}, [timestamp, V])
-    end;
+marshal(timestamp, {DateTime, USec}) ->
+    DateTimeinSeconds = genlib_time:daytime_to_unixtime(DateTime),
+    {TimeinUnit, Unit} =
+        case USec of
+            undefined ->
+                {DateTimeinSeconds, second};
+            0 ->
+                {DateTimeinSeconds, second};
+            USec ->
+                MicroSec = erlang:convert_time_unit(DateTimeinSeconds, second, microsecond),
+                MilliSec = erlang:convert_time_unit(MicroSec + USec, microsecond, millisecond),
+                {MilliSec, millisecond}
+        end,
+    genlib_rfc3339:format(TimeinUnit, Unit);
 marshal(timestamp_ms, V) ->
     ff_time:to_rfc3339(V);
 marshal(domain_revision, V) when is_integer(V) ->
@@ -513,30 +520,23 @@ maybe_marshal(_Type, undefined) ->
 maybe_marshal(Type, Value) ->
     marshal(Type, Value).
 
-%% Suppress dialyzer warning until rfc3339 spec will be fixed.
-%% see https://github.com/talentdeficit/rfc3339/pull/5
--dialyzer([{nowarn_function, [parse_timestamp/1]}, no_match]).
 -spec parse_timestamp(binary()) ->
     machinery:timestamp().
 parse_timestamp(Bin) ->
-    case rfc3339:parse(Bin) of
-        {ok, {_Date, _Time, _Usec, TZ}} when TZ =/= 0 andalso TZ =/= undefined ->
-            erlang:error({bad_deadline, not_utc}, [Bin]);
-        {ok, {Date, Time, undefined, _TZ}} ->
-            {to_calendar_datetime(Date, Time), 0};
-        {ok, {Date, Time, Usec, _TZ}} ->
-            {to_calendar_datetime(Date, Time), Usec div 1000};
-        {error, Error} ->
+    try
+        Millis = genlib_rfc3339:parse(Bin, millisecond),
+        case genlib_rfc3339:is_utc(Bin) of
+            false ->
+                erlang:error({bad_deadline, not_utc}, [Bin]);
+            true ->
+                MSec = Millis rem 1000,
+                DateTime = calendar:system_time_to_universal_time(Millis, millisecond),
+                {DateTime, MSec}
+        end
+    catch
+        _:Error  ->
             erlang:error({bad_timestamp, Error}, [Bin])
     end.
-
-to_calendar_datetime(Date, Time = {H, _, S}) when H =:= 24 orelse S =:= 60 ->
-    %% Type specifications for hours and seconds differ in calendar and rfc3339,
-    %% so make a proper calendar:datetime() here.
-    Sec = calendar:datetime_to_gregorian_seconds({Date, Time}),
-    calendar:gregorian_seconds_to_datetime(Sec);
-to_calendar_datetime(Date, Time) ->
-    {Date, Time}.
 
 marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};
 marshal_msgpack(V) when is_boolean(V) -> {b, V};

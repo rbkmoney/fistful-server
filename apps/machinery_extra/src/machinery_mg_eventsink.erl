@@ -75,12 +75,18 @@ unmarshal(namespace, V) ->
 unmarshal(event_id, V) ->
     unmarshal(integer, V);
 unmarshal(timestamp, V) when is_binary(V) ->
-    case rfc3339:parse(V) of
-        {ok, {Date, Time, USec, TZOffset}} when TZOffset == undefined orelse TZOffset == 0 ->
-            {{Date, Time}, USec};
-        {ok, _} ->
-            error(badarg, {timestamp, V, badoffset});
-        {error, Reason} ->
+    try
+        MicroSec = genlib_rfc3339:parse(V, microsecond),
+        case genlib_rfc3339:is_utc(V) of
+            false ->
+                error(badarg, {timestamp, V, badoffset});
+            true ->
+                USec = MicroSec rem 1000000,
+                DateTime = calendar:system_time_to_universal_time(MicroSec, microsecond),
+                {DateTime, USec}
+        end
+    catch
+        _:Reason  ->
             error(badarg, {timestamp, V, Reason})
     end;
 unmarshal(

@@ -13,6 +13,8 @@
 -export([all/0]).
 -export([groups/0]).
 -export([init_per_suite/1]).
+-export([init_per_group/2]).
+-export([end_per_group/2]).
 -export([end_per_suite/1]).
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
@@ -28,6 +30,9 @@
 -export([usdt_resource_test/1]).
 -export([zcash_resource_test/1]).
 
+% common-api is used since it is the domain used in production RN
+% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
+-define(DOMAIN, <<"common-api">>).
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
@@ -73,7 +78,7 @@ groups() ->
 init_per_suite(Config0) ->
     %% TODO remove this after cut off wapi
     ok = application:set_env(wapi, transport, thrift),
-    Config1 = ct_helper:makeup_cfg([
+    ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
             optional_apps => [
@@ -82,14 +87,7 @@ init_per_suite(Config0) ->
                 wapi
             ]
         })
-    ], Config0),
-    ok = ff_context:save(ff_context:create(#{
-        party_client => party_client:create_client(),
-        woody_context => woody_context:new(<<"init_per_suite">>)
-    })),
-    Party = create_party(Config1),
-    Token = issue_token(Party, [{[party], write}], {deadline, 10}),
-    [{party, Party}, {context, wapi_ct_helper:get_context(Token)} | Config1].
+    ], Config0).
 
 -spec end_per_suite(config()) ->
     _.
@@ -97,6 +95,25 @@ end_per_suite(C) ->
     %% TODO remove this after cut off wapi
     ok = application:unset_env(wapi, transport),
     ok = ct_payment_system:shutdown(C).
+
+-spec init_per_group(group_name(), config()) ->
+    config().
+init_per_group(default = Group, Config) ->
+    ok = ff_context:save(ff_context:create(#{
+        party_client => party_client:create_client(),
+        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
+    })),
+    Party = create_party(Config),
+    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], {deadline, 10}, ?DOMAIN),
+    Config1 = [{party, Party} | Config],
+    [{context, wapi_ct_helper:get_context(Token)} | Config1];
+init_per_group(_, Config) ->
+    Config.
+
+-spec end_per_group(group_name(), config()) ->
+    _.
+end_per_group(_Group, _C) ->
+    ok.
 
 -spec init_per_testcase(test_case_name(), config()) ->
     config().
@@ -254,11 +271,6 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
-
-issue_token(PartyID, ACL, LifeTime) ->
-    Claims = #{?STRING => ?STRING},
-    {ok, Token} = wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, LifeTime),
-    Token.
 
 build_destination_spec(D) ->
     #{

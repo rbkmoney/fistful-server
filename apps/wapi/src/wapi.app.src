@@ -29,7 +29,8 @@
         snowflake,
         woody_user_identity,
         payproc_errors,
-        ff_server
+        ff_server,
+        uac
     ]},
     {env, []}
 ]}.

@@ -32,7 +32,8 @@ marshal_withdrawal(Withdrawal) ->
         external_id = maybe_marshal(id, ff_withdrawal:external_id(Withdrawal)),
         domain_revision = maybe_marshal(domain_revision, ff_withdrawal:domain_revision(Withdrawal)),
         party_revision = maybe_marshal(party_revision, ff_withdrawal:party_revision(Withdrawal)),
-        created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(Withdrawal))
+        created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(Withdrawal)),
+        quote = maybe_marshal(quote, ff_withdrawal:quote(Withdrawal))
     }.
 
 -spec unmarshal_withdrawal(ff_proto_withdrawal_thrift:'Withdrawal'()) ->
@@ -44,7 +45,8 @@ unmarshal_withdrawal(Withdrawal) ->
         body => unmarshal(cash, Withdrawal#wthd_Withdrawal.body),
         params => genlib_map:compact(#{
             wallet_id => unmarshal(id, Withdrawal#wthd_Withdrawal.wallet_id),
-            destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id)
+            destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id),
+            quote => unmarshal(quote, Withdrawal#wthd_Withdrawal.quote)
         }),
         status => maybe_unmarshal(status, Withdrawal#wthd_Withdrawal.status),
         route => maybe_unmarshal(route, Withdrawal#wthd_Withdrawal.route),
@@ -156,6 +158,18 @@ marshal(session_state, Session) ->
         result = maybe_marshal(session_result, maps:get(result, Session, undefined))
     };
 
+marshal(quote, Quote) ->
+    #wthd_Quote{
+        cash_from = marshal(cash, maps:get(cash_from, Quote)),
+        cash_to = marshal(cash, maps:get(cash_to, Quote)),
+        created_at = maps:get(created_at, Quote),
+        expires_on = maps:get(expires_on, Quote),
+        quote_data = maybe_marshal(quote_data, maps:get(quote_data, Quote, undefined))
+    };
+
+marshal(quote_data, QuoteData) ->
+    maps:map(fun(_, V) -> ff_codec:marshal_msgpack(V) end, QuoteData);
+
 marshal(ctx, Ctx) ->
     marshal(context, Ctx);
 
@@ -193,9 +207,9 @@ unmarshal(change, {limit_check, #wthd_LimitCheckChange{details = Details}}) ->
 unmarshal(change, {resource, {got, #wthd_ResourceGot{resource = Resource}}}) ->
     {resource_got, unmarshal(resource, Resource)};
 unmarshal(change, {adjustment, Change}) ->
-    {revert, #{
+    {adjustment, #{
         id => unmarshal(id, Change#wthd_AdjustmentChange.id),
-        payload => ff_withdrawal_adjustment_codec:unmarshal(id, Change#wthd_AdjustmentChange.payload)
+        payload => ff_withdrawal_adjustment_codec:unmarshal(change, Change#wthd_AdjustmentChange.payload)
     }};
 
 unmarshal(route, #wthd_Route{provider_id = ProviderID}) ->
@@ -223,6 +237,18 @@ unmarshal(session_state, Session) ->
         id => unmarshal(id, Session#wthd_SessionState.id),
         result => maybe_unmarshal(session_result, Session#wthd_SessionState.result)
     });
+
+unmarshal(quote, Quote) ->
+    genlib_map:compact(#{
+        cash_from => unmarshal(cash, Quote#wthd_Quote.cash_from),
+        cash_to   => unmarshal(cash, Quote#wthd_Quote.cash_to),
+        created_at => Quote#wthd_Quote.created_at,
+        expires_on => Quote#wthd_Quote.expires_on,
+        quote_data => maybe_unmarshal(quote_data, Quote#wthd_Quote.quote_data)
+    });
+
+unmarshal(quote_data, QuoteData) ->
+    maps:map(fun(_, V) -> ff_codec:unmarshal_msgpack(V) end, QuoteData);
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);

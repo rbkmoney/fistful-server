@@ -132,9 +132,15 @@ create_handler_context(SwagContext, WoodyContext) ->
         swagger_context => SwagContext
     }.
 
-process_woody_error(_Source, result_unexpected   , _Details) -> wapi_handler_utils:reply_error(500);
-process_woody_error(_Source, resource_unavailable, _Details) -> wapi_handler_utils:reply_error(503);
-process_woody_error(_Source, result_unknown      , _Details) -> wapi_handler_utils:reply_error(504).
+process_woody_error(_Source, result_unexpected, _Details) ->
+    wapi_handler_utils:reply_error(500);
+process_woody_error(_Source, resource_unavailable, _Details) ->
+    % Return an 504 since it is unknown if state of the system has been altered
+    % @TODO Implement some sort of tagging for operations that mutate the state,
+    % so we can still return 503s for those that don't
+    wapi_handler_utils:reply_error(504);
+process_woody_error(_Source, result_unknown, _Details) ->
+    wapi_handler_utils:reply_error(504).
 
 -spec create_ff_context(woody_context:ctx(), opts()) ->
     ff_context:context().

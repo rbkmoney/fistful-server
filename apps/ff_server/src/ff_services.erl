@@ -64,7 +64,9 @@ get_service(w2w_transfer_repairer) ->
 get_service(p2p_template_event_sink) ->
     {ff_proto_p2p_template_thrift, 'EventSink'};
 get_service(p2p_template_repairer) ->
-    {ff_proto_p2p_template_thrift, 'Repairer'}.
+    {ff_proto_p2p_template_thrift, 'Repairer'};
+get_service(p2p_template_management) ->
+    {ff_proto_p2p_template_thrift, 'Management'}.
 
 -spec get_service_spec(service_name()) -> service_spec().
 get_service_spec(Name) ->
@@ -120,4 +122,6 @@ get_service_path(w2w_transfer_repairer) ->
 get_service_path(p2p_template_event_sink) ->
     "/v1/eventsink/p2p_template";
 get_service_path(p2p_template_repairer) ->
-    "/v1/repair/p2p_template".
+    "/v1/repair/p2p_template";
+get_service_path(p2p_template_management) ->
+    "/v1/p2p_template".

@@ -4,10 +4,44 @@
 
 -include_lib("fistful_proto/include/ff_proto_p2p_template_thrift.hrl").
 
+-export([marshal_p2p_template_state/2]).
+-export([unmarshal_p2p_template_params/1]).
 -export([marshal/2]).
 -export([unmarshal/2]).
 
 %% API
+
+-spec marshal_p2p_template_state(p2p_template:template_state(), ff_entity_context:context()) ->
+    ff_proto_p2p_template_thrift:'P2PTemplateState'().
+
+marshal_p2p_template_state(P2PTemplate, Ctx) ->
+    #p2p_template_P2PTemplateState{
+        id = marshal(id, p2p_template:id(P2PTemplate)),
+        identity_id = marshal(id, p2p_template:identity_id(P2PTemplate)),
+        domain_revision = marshal(domain_revision, p2p_template:domain_revision(P2PTemplate)),
+        party_revision = marshal(party_revision, p2p_template:party_revision(P2PTemplate)),
+        created_at = marshal(timestamp_ms, p2p_template:created_at(P2PTemplate)),
+        template_details = marshal(details, p2p_template:details(P2PTemplate)),
+        blocking = maybe_marshal(blocking, p2p_template:blocking(P2PTemplate)),
+        external_id = marshal(id, p2p_template:external_id(P2PTemplate)),
+        context = marshal(ctx, Ctx)
+    }.
+
+-spec unmarshal_p2p_template_params(ff_proto_p2p_template_thrift:'P2PTemplateParams'()) ->
+    p2p_template_machine:params().
+
+unmarshal_p2p_template_params(#p2p_template_P2PTemplateParams{
+    id = ID,
+    identity_id = IdentityID,
+    template_details = Details,
+    external_id = ExternalID
+}) ->
+    genlib_map:compact(#{
+        id => unmarshal(id, ID),
+        identity_id => unmarshal(id, IdentityID),
+        details => unmarshal(details, Details),
+        external_id => maybe_unmarshal(id, ExternalID)
+    }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
@@ -59,13 +93,16 @@ marshal(template_body, #{value := Body = #{currency := Currency}}) ->
 
 marshal(template_metadata, #{value := Metadata}) ->
     #p2p_template_P2PTemplateMetadata{
-        value = marshal(context, Metadata)
+        value = marshal(ctx, Metadata)
     };
 
 marshal(blocking, unblocked) ->
     unblocked;
 marshal(blocking, blocked) ->
     blocked;
+
+marshal(ctx, Ctx) ->
+    maybe_marshal(context, Ctx);
 
 marshal(timestamp, Timestamp) when is_integer(Timestamp) ->
     ff_time:to_rfc3339(Timestamp);
@@ -143,6 +180,9 @@ unmarshal(blocking, blocked) ->
 
 unmarshal(timestamp, Timestamp) ->
     unmarshal(string, Timestamp);
+
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

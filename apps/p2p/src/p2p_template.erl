@@ -7,6 +7,7 @@
 %% API
 
 -export([create/1]).
+-export([set_blocking/2]).
 
 %% Accessors
 
@@ -96,6 +97,8 @@
 -export_type([params/0]).
 -export_type([template/0]).
 -export_type([template_state/0]).
+-export_type([blocking/0]).
+-export_type([create_error/0]).
 
 %%
 %% Internal types
@@ -108,6 +111,7 @@
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
 -type terms() :: ff_party:terms().
+-type process_result() :: {undefined, [event()]}.
 
 %% Pipeline
 
@@ -115,46 +119,46 @@
 
 %% Accessors
 
--spec id(template()) ->
+-spec id(template_state()) ->
     id().
 
 id(#{id := V}) ->
     V.
 
--spec identity_id(template()) ->
+-spec identity_id(template_state()) ->
     identity_id().
 
 identity_id(#{identity_id := V}) ->
     V.
 
 
--spec blocking(template()) ->
+-spec blocking(template_state()) ->
     blocking() | undefined.
 
 blocking(T) ->
     maps:get(blocking, T, undefined).
 
--spec details(template()) ->
+-spec details(template_state()) ->
     details().
 
 details(#{details := V}) ->
     V.
 
--spec party_revision(template()) -> party_revision().
+-spec party_revision(template_state()) -> party_revision().
 party_revision(#{party_revision := PartyRevision}) ->
     PartyRevision.
 
--spec domain_revision(template()) -> domain_revision().
+-spec domain_revision(template_state()) -> domain_revision().
 domain_revision(#{domain_revision := DomainRevision}) ->
     DomainRevision.
 
--spec created_at(template()) ->
+-spec created_at(template_state()) ->
     timestamp().
 
 created_at(#{created_at := V}) ->
     V.
 
--spec external_id(template()) ->
+-spec external_id(template_state()) ->
     id() | undefined.
 
 external_id(T) ->
@@ -195,6 +199,11 @@ create(Params = #{
         [{created, Template}, {blocking_changed, unblocked}]
     end).
 
+-spec set_blocking(blocking(), template_state()) ->
+    {ok, process_result()}.
+set_blocking(Blocking, _State) ->
+    {ok, {undefined, [{blocking_changed, Blocking}]}}.
+
 create_party_varset(#{body := #{value := Body}}) ->
     {_Amount, Currency} = Body,
     genlib_map:compact(#{
@@ -228,8 +237,8 @@ get_identity(IdentityID) ->
 
 %% Events apply
 
--spec apply_event(event(), undefined | template()) ->
-    template().
+-spec apply_event(event(), undefined | template_state()) ->
+    template_state().
 
 apply_event({created, Template}, undefined) ->
     Template;

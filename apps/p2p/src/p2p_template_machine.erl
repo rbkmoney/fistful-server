@@ -9,10 +9,12 @@
 
 %% API
 
--export([template/1]).
+-export([p2p_template/1]).
 
+-export([set_blocking/2]).
 -export([create/2]).
 -export([get/1]).
+-export([get/2]).
 -export([events/2]).
 -export([repair/2]).
 
@@ -35,6 +37,7 @@
 %%
 
 -type ref() :: machinery:ref().
+-type range() :: machinery:range().
 -type id() :: machinery:id().
 -type params() :: p2p_template:params().
 
@@ -43,14 +46,17 @@
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
+-type template() :: p2p_template:template_state().
 -type st() :: ff_machine:st(template()).
--type template() :: p2p_template:template().
 -type event() :: p2p_template:event().
 -type event_id() :: integer().
 -type events() :: [{event_id(), ff_machine:timestamped_event(event())}].
 -type ctx() :: ff_entity_context:context().
+-type blocking() :: p2p_template:blocking().
+-type create_error() :: p2p_template:create_error().
 
 -export_type([events/0]).
+-export_type([params/0]).
 
 %% Pipeline
 
@@ -65,22 +71,34 @@
     {error, unknown_p2p_template_error()}.
 
 get(Ref) ->
-    case ff_machine:get(p2p_template, ?NS, Ref) of
+    get(Ref, {undefined, undefined, forward}).
+
+-spec get(ref(), range()) ->
+    {ok, st()}        |
+    {error, unknown_p2p_template_error()}.
+
+get(Ref, Range) ->
+    case ff_machine:get(p2p_template, ?NS, Ref, Range) of
         {ok, _Machine} = Result ->
             Result;
         {error, notfound} ->
             {error, {unknown_p2p_template, Ref}}
     end.
 
--spec template(st()) -> template().
+-spec p2p_template(st()) -> template().
 
-template(St) ->
+p2p_template(St) ->
     ff_machine:model(St).
 
 %%
 
+-spec set_blocking(id(), blocking()) ->
+    ok | {error, unknown_p2p_template_error()}.
+set_blocking(ID, Blocking) ->
+    call(ID, {set_blocking, Blocking}).
+
 -spec create(params(), ctx()) ->
-    ok | {error, exists}.
+    ok | {error, exists | create_error()}.
 create(Params = #{id := ID}, Ctx) ->
     do(fun () ->
         Events = unwrap(p2p_template:create(Params)),
@@ -121,8 +139,11 @@ process_timeout(Machine, _, _Opts) ->
     erlang:error({unexpected_timeout, Machine}).
 
 -spec process_call(any(), machine(), handler_args(), handler_opts()) ->
-    no_return().
+    {Response, result()} | no_return() when
+    Response :: ok.
 
+process_call({set_blocking, Blocking}, Machine, _, _Opts) ->
+    do_set_blocking(Blocking, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
@@ -135,6 +156,28 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
 %%
 %% Internals
 %%
+
+do_set_blocking(Blocking, Machine) ->
+    St = ff_machine:collapse(p2p_template, Machine),
+    {ok, Result} = p2p_template:set_blocking(Blocking, p2p_template(St)),
+    {ok, process_result(Result, St)}.
+
+process_result({_Action, Events}, _St) ->
+    genlib_map:compact(#{
+        events => set_events(Events),
+        action => undefined
+    }).
+
+set_events(Events) ->
+    ff_machine:emit_events(Events).
+
+call(ID, Call) ->
+    case machinery:call(?NS, ID, Call, backend()) of
+        {ok, Reply} ->
+            Reply;
+        {error, notfound} ->
+            {error, {unknown_p2p_template, ID}}
+    end.
 
 backend() ->
     fistful:backend(?NS).

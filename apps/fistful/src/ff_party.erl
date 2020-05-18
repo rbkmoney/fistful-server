@@ -350,6 +350,8 @@ validate_w2w_transfer_creation(Terms, {_Amount, CurrencyID} = Cash) ->
     Result :: {ok, valid} | {error, Error},
     Error :: validate_p2p_template_creation_error().
 
+validate_p2p_template_creation(Terms, {undefined, _Currency}) ->
+    validate_p2p_template_creation(Terms);
 validate_p2p_template_creation(_Terms, {Amount, _Currency} = Cash) when Amount < 1 ->
     {error, {bad_p2p_template_amount, Cash}};
 validate_p2p_template_creation(Terms, {_Amount, _CurrencyID} = _Cash) ->

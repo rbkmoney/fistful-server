@@ -1982,9 +1982,9 @@ to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
         )]
     });
 
-to_swag(timestamp, {{Date, Time}, Usec}) ->
-    {ok, Timestamp} = rfc3339:format({Date, Time, Usec, undefined}),
-    Timestamp;
+to_swag(timestamp, {DateTime, USec}) ->
+    DateTimeSeconds = genlib_time:daytime_to_unixtime(DateTime),
+    genlib_rfc3339:format_relaxed(DateTimeSeconds + USec, microsecond);
 to_swag(timestamp_ms, Timestamp) ->
     ff_time:to_rfc3339(Timestamp);
 to_swag(currency, Currency) ->

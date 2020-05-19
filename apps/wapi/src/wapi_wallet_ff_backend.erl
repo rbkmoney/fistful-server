@@ -63,6 +63,9 @@
 -export([get_p2p_transfer/2]).
 -export([get_p2p_transfer_events/2]).
 
+-export([create_p2p_template/2]).
+-export([get_p2p_template/2]).
+
 -export([create_w2w_transfer/2]).
 -export([get_w2w_transfer/2]).
 
@@ -767,6 +770,33 @@ get_p2p_transfer_events({ID, CT}, Context) ->
         to_swag(p2p_transfer_events, {MixedEvents, ContinuationToken})
     end).
 
+%% P2P Templates
+
+-spec create_p2p_template(params(), ctx()) -> result(map(), p2p_template:create_error()).
+create_p2p_template(Params, Context) ->
+    CreateFun =
+        fun(ID, EntityCtx) ->
+            do(fun() ->
+                ParsedParams = unwrap(from_swag(p2p_template_create_params, Params)),
+                p2p_template_machine:create(
+                    genlib_map:compact(ParsedParams#{
+                        id => ID
+                    }),
+                    add_meta_to_ctx([], Params, EntityCtx)
+                )
+            end)
+        end,
+    do(fun () -> unwrap(create_entity(p2p_template, Params, CreateFun, Context)) end).
+
+-spec get_p2p_template(params(), ctx()) -> result(map(),
+    p2p_template_machine:unknown_p2p_template_error()
+).
+get_p2p_template(ID, Context) ->
+    do(fun () ->
+        State = get_state(p2p_template, ID, Context),
+        to_swag(p2p_template, State)
+    end).
+
 %% W2W
 
 -spec create_w2w_transfer(params(), ctx()) -> result(map(), w2w_transfer:create_error()).
@@ -1168,6 +1198,7 @@ do_get_state(wallet,       Id) -> ff_wallet_machine:get(Id);
 do_get_state(destination,  Id) -> ff_destination:get_machine(Id);
 do_get_state(withdrawal,   Id) -> ff_withdrawal_machine:get(Id);
 do_get_state(p2p_transfer, Id) -> p2p_transfer_machine:get(Id);
+do_get_state(p2p_template, Id) -> p2p_template_machine:get(Id);
 do_get_state(w2w_transfer, Id) -> w2w_transfer_machine:get(Id).
 
 check_resource(Resource, Id, Context) ->
@@ -1573,6 +1604,27 @@ from_swag(create_p2p_params, Params) ->
         metadata    => maps:get(<<"metadata">>, Params, #{})
     }, Params);
 
+from_swag(p2p_template_create_params, Params) ->
+    add_external_id(#{
+        identity_id => maps:get(<<"identityID">>, Params),
+        details => from_swag(p2p_template_details, maps:get(<<"details">>, Params))
+    }, Params);
+
+from_swag(p2p_template_details, Details) ->
+    genlib_map:compact(#{
+        body => from_swag(p2p_template_body, maps:get(<<"body">>, Details)),
+        metadata => maybe_from_swag(p2p_template_metadata, maps:get(<<"metadata">>, Details, undefined))
+    });
+
+from_swag(p2p_template_body, #{<<"value">> := Body}) ->
+    #{value => genlib_map:compact(#{
+        currency => from_swag(currency, maps:get(<<"currency">>, Body)),
+        amount => maybe_from_swag(amount, maps:get(<<"amount">>, Body, undefined))
+    })};
+
+from_swag(p2p_template_metadata, #{<<"defaultMetadata">> := Metadata}) ->
+    #{value => Metadata};
+
 from_swag(create_w2w_params, Params) ->
     add_external_id(#{
         wallet_from_id => maps:get(<<"sender">>, Params),
@@ -1616,6 +1668,8 @@ from_swag(body, #{<<"amount">> := Amount}) when Amount < 0 ->
     wapi_handler:throw_result(wapi_handler_utils:reply_error(400, #{<<"errorType">> => <<"WrongSize">>}));
 from_swag(body, Body) ->
     {genlib:to_int(maps:get(<<"amount">>, Body)), maps:get(<<"currency">>, Body)};
+from_swag(amount, Amount) ->
+    genlib:to_int(Amount);
 from_swag(currency, V) ->
     V;
 from_swag(residence, V) ->
@@ -1677,6 +1731,11 @@ from_swag({list, Type}, List) ->
     lists:map(fun(V) -> from_swag(Type, V) end, List);
 from_swag({set, Type}, List) ->
     ordsets:from_list(from_swag({list, Type}, List)).
+
+maybe_from_swag(_T, undefined) ->
+    undefined;
+maybe_from_swag(T, V) ->
+    from_swag(T, V).
 
 -spec to_swag(_Type, _Value) ->
     swag_term() | undefined.
@@ -2007,6 +2066,10 @@ to_swag(is_blocked, {ok, accessible}) ->
     false;
 to_swag(is_blocked, _) ->
     true;
+to_swag(blocking, unblocked) ->
+    false;
+to_swag(blocking, _) ->
+    true;
 to_swag(report_object, #ff_reports_Report{
     report_id = ReportID,
     time_range = TimeRange,
@@ -2093,6 +2156,38 @@ to_swag(p2p_transfer_status, {failed, P2PTransferFailure}) ->
         <<"status">> => <<"Failed">>,
         <<"failure">> => to_swag(sub_failure, P2PTransferFailure)
     };
+
+to_swag(p2p_template, P2PTemplateState) ->
+    #{
+        id := ID,
+        identity_id := IdentityID,
+        details := Details,
+        created_at := CreatedAt
+    } = P2PTemplate = p2p_template_machine:p2p_template(P2PTemplateState),
+    Blocking = p2p_template:blocking(P2PTemplate),
+    to_swag(map, #{
+        <<"id">> => ID,
+        <<"identityID">> => IdentityID,
+        <<"isBlocked">> => maybe_to_swag(blocking, Blocking),
+        <<"details">> => to_swag(p2p_template_details, Details),
+        <<"createdAt">> => to_swag(timestamp_ms, CreatedAt),
+        <<"externalID">> => maps:get(external_id, P2PTemplate, undefined)
+    });
+
+to_swag(p2p_template_details, Details) ->
+    to_swag(map, #{
+        <<"body">> => to_swag(p2p_template_body, maps:get(body, Details)),
+        <<"metadata">> => maybe_to_swag(p2p_template_metadata, maps:get(metadata, Details, undefined))
+    });
+
+to_swag(p2p_template_body, #{value := Body}) ->
+    #{<<"value">> => to_swag(map, #{
+        <<"currency">> => to_swag(currency, maps:get(currency, Body)),
+        <<"amount">> => maybe_to_swag(amount, maps:get(amount, Body, undefined))
+    })};
+
+to_swag(p2p_template_metadata, #{value := Metadata}) ->
+    #{<<"defaultMetadata">> => Metadata};
 
 to_swag(w2w_transfer, W2WTransferState) ->
     #{
@@ -2210,6 +2305,11 @@ to_swag(map, Map) ->
     genlib_map:compact(Map);
 to_swag(_, V) ->
     V.
+
+maybe_to_swag(_T, undefined) ->
+    undefined;
+maybe_to_swag(T, V) ->
+    to_swag(T, V).
 
 map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
     #domain_Failure{

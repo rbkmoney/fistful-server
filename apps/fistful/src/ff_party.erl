@@ -793,7 +793,7 @@ validate_w2w_allow(W2WServiceTerms) ->
     end.
 
 -spec validate_p2p_template_allow(p2p_terms()) ->
-    {ok, valid} | {error, p2p_forbidden_error()}.
+    {ok, valid} | {error, p2p_template_forbidden_error()}.
 validate_p2p_template_allow(P2PServiceTerms) ->
     #domain_P2PServiceTerms{templates = P2PTemplateServiceTerms} = P2PServiceTerms,
     #domain_P2PTemplateServiceTerms{allow = Constant} = P2PTemplateServiceTerms,
@@ -801,7 +801,7 @@ validate_p2p_template_allow(P2PServiceTerms) ->
         {constant, true} ->
             {ok, valid};
         {constant, false} ->
-            {error, {terms_violation, w2w_forbidden}}
+            {error, {terms_violation, p2p_template_forbidden}}
     end.
 
 -spec validate_currency(currency_id(), ordsets:ordset(currency_ref())) ->

@@ -57,6 +57,7 @@
 
 -export_type([events/0]).
 -export_type([params/0]).
+-export_type([unknown_p2p_template_error/0]).
 
 %% Pipeline
 

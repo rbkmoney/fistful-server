@@ -162,6 +162,8 @@ get_operation_access('CreateWithdrawal', _) ->
     [{[withdrawals], write}];
 get_operation_access('GetWithdrawal', _) ->
     [{[withdrawals], read}];
+get_operation_access('GetWithdrawalByExternalID', _) ->
+    [{[withdrawals], read}];
 get_operation_access('PollWithdrawalEvents', _) ->
     [{[withdrawals], read}];
 get_operation_access('GetWithdrawalEvents', _) ->

@@ -662,6 +662,26 @@ process_request('GetP2PTransferEvents', #{p2pTransferID := ID, continuationToken
                 wapi_handler_utils:get_error_msg(<<"Continuation Token can't be verified">>))
     end;
 
+%% P2P Templates
+process_request('СreateP2PTransferTemplate', #{'P2PTransferTemplateParameters' := Params}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:create_p2p_template(Params, Context) of
+        {ok, P2PTemplate} ->
+            wapi_handler_utils:reply_ok(202, P2PTemplate);
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {terms, {terms_violation, p2p_template_forbidden}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"P2P template not allowed">>))
+    end;
+process_request('GetP2PTransferTemplateByID', #{p2pTransferTemplateID := ID}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:get_p2p_template(ID, Context) of
+        {ok, P2PTemplate} ->
+            wapi_handler_utils:reply_ok(200, P2PTemplate);
+        {error, {unknown_p2p_template, _ID}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+
 %% W2W
 process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_w2w_transfer(Params, Context) of

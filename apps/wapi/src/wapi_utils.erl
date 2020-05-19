@@ -102,14 +102,8 @@ mask(leading, MaskLen, MaskChar, Chardata) ->
 
 -spec to_universal_time(Timestamp :: binary()) -> TimestampUTC :: binary().
 to_universal_time(Timestamp) ->
-    TimestampMS = genlib_rfc3339:parse(Timestamp, millisecond),
-    case TimestampMS rem 1000 of
-        0 ->
-            TimestampS = erlang:convert_time_unit(TimestampMS, millisecond, second),
-            genlib_rfc3339:format(TimestampS, second);
-        _ ->
-            genlib_rfc3339:format(TimestampMS, millisecond)
-    end.
+    TimestampMS = genlib_rfc3339:parse(Timestamp, microsecond),
+    genlib_rfc3339:format_relaxed(TimestampMS, microsecond).
 
 -spec unwrap(ok | {ok, Value} | {error, _Error}) ->
     Value | no_return().
@@ -254,7 +248,7 @@ get_unique_id() ->
 
 -spec to_universal_time_test() -> _.
 to_universal_time_test() ->
-    ?assertEqual(<<"2017-04-19T13:56:07Z">>,        to_universal_time(<<"2017-04-19T13:56:07Z">>)),
+    ?assertEqual(<<"2017-04-19T13:56:07Z">>, to_universal_time(<<"2017-04-19T13:56:07Z">>)),
     ?assertEqual(<<"2017-04-19T13:56:07.530Z">>, to_universal_time(<<"2017-04-19T13:56:07.53Z">>)),
     ?assertEqual(<<"2017-04-19T10:36:07.530Z">>, to_universal_time(<<"2017-04-19T13:56:07.53+03:20">>)),
     ?assertEqual(<<"2017-04-19T17:16:07.530Z">>, to_universal_time(<<"2017-04-19T13:56:07.53-03:20">>)).

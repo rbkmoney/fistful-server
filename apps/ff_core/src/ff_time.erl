@@ -29,13 +29,7 @@ now() ->
 
 -spec to_rfc3339(timestamp_ms()) -> binary().
 to_rfc3339(Timestamp) ->
-    case Timestamp rem 1000 of
-        0 ->
-            TimestampS = erlang:convert_time_unit(Timestamp, millisecond, second),
-            genlib_rfc3339:format(TimestampS, second);
-        _ ->
-            genlib_rfc3339:format(Timestamp, millisecond)
-    end.
+    genlib_rfc3339:format_relaxed(Timestamp, millisecond).
 
 -spec from_rfc3339(binary()) -> timestamp_ms().
 from_rfc3339(BTimestamp) ->

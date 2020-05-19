@@ -233,16 +233,13 @@ marshal(timestamp, {DateTime, USec}) ->
     DateTimeinSeconds = genlib_time:daytime_to_unixtime(DateTime),
     {TimeinUnit, Unit} =
         case USec of
-            undefined ->
-                {DateTimeinSeconds, second};
             0 ->
                 {DateTimeinSeconds, second};
             USec ->
                 MicroSec = erlang:convert_time_unit(DateTimeinSeconds, second, microsecond),
-                MilliSec = erlang:convert_time_unit(MicroSec + USec, microsecond, millisecond),
-                {MilliSec, millisecond}
+                {MicroSec + USec, microsecond}
         end,
-    genlib_rfc3339:format(TimeinUnit, Unit);
+    genlib_rfc3339:format_relaxed(TimeinUnit, Unit);
 marshal(timestamp_ms, V) ->
     ff_time:to_rfc3339(V);
 marshal(domain_revision, V) when is_integer(V) ->
@@ -524,18 +521,18 @@ maybe_marshal(Type, Value) ->
     machinery:timestamp().
 parse_timestamp(Bin) ->
     try
-        Millis = genlib_rfc3339:parse(Bin, millisecond),
+        MicroSeconds = genlib_rfc3339:parse(Bin, microsecond),
         case genlib_rfc3339:is_utc(Bin) of
             false ->
-                erlang:error({bad_deadline, not_utc}, [Bin]);
+                erlang:error({bad_timestamp, not_utc}, [Bin]);
             true ->
-                MSec = Millis rem 1000,
-                DateTime = calendar:system_time_to_universal_time(Millis, millisecond),
-                {DateTime, MSec}
+                USec = MicroSeconds rem 1000000,
+                DateTime = calendar:system_time_to_universal_time(MicroSeconds, microsecond),
+                {DateTime, USec}
         end
     catch
-        _:Error  ->
-            erlang:error({bad_timestamp, Error}, [Bin])
+        _:Error:St  ->
+            erlang:error({bad_timestamp, Error}, [Bin, St])
     end.
 
 marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};

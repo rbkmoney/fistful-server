@@ -87,7 +87,7 @@ unmarshal(timestamp, V) when is_binary(V) ->
         end
     catch
         error:Reason:St  ->
-            erlang:error(badarg, [timestamp, V, Reason, St])
+            erlang:raise(error, {timestamp, V, Reason}, St)
     end;
 unmarshal(
     {evsink_event, Schema},

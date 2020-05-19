@@ -531,8 +531,8 @@ parse_timestamp(Bin) ->
                 {DateTime, USec}
         end
     catch
-        _:Error:St  ->
-            erlang:error({bad_timestamp, Error}, [Bin, St])
+        error:Error:St  ->
+            erlang:raise(error, {bad_timestamp, Bin, Error}, St)
     end.
 
 marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};

@@ -46,7 +46,7 @@ unmarshal_withdrawal(Withdrawal) ->
         params => genlib_map:compact(#{
             wallet_id => unmarshal(id, Withdrawal#wthd_Withdrawal.wallet_id),
             destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id),
-            quote => unmarshal(quote, Withdrawal#wthd_Withdrawal.quote)
+            quote => maybe_unmarshal(quote, Withdrawal#wthd_Withdrawal.quote)
         }),
         status => maybe_unmarshal(status, Withdrawal#wthd_Withdrawal.status),
         route => maybe_unmarshal(route, Withdrawal#wthd_Withdrawal.route),

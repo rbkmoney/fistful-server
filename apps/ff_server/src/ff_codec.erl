@@ -399,7 +399,7 @@ unmarshal(bank_card, #'BankCard'{
         bin => maybe_unmarshal(string, Bin),
         masked_pan => maybe_unmarshal(string, MaskedPan),
         bank_name => maybe_unmarshal(string, BankName),
-        issuer_country => maybe_unmarshal(iso_country_code, IsoCountryCode),
+        iso_country_code => maybe_unmarshal(iso_country_code, IsoCountryCode),
         card_type => maybe_unmarshal(card_type, CardType),
         exp_date => maybe_unmarshal(exp_date, ExpDate),
         cardholder_name => maybe_unmarshal(string, CardholderName),

@@ -8,7 +8,8 @@
     withdrawal_terms := dmsl_domain_thrift:'WithdrawalProvisionTerms'(),
     accounts := accounts(),
     adapter := ff_adapter:adapter(),
-    adapter_opts := map()
+    adapter_opts := map(),
+    terminal_selector := dmsl_domain_thrift:'WithdrawalTerminalSelector'()
 }.
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
@@ -18,6 +19,7 @@
 
 -export_type([id/0]).
 -export_type([withdrawal_provider/0]).
+-export_type([withdrawal_provider_ref/0]).
 
 -export([id/1]).
 -export([accounts/1]).
@@ -28,6 +30,7 @@
 -export([get/1]).
 -export([compute_fees/2]).
 -export([validate_terms/2]).
+-export([compute_withdrawal_terminals/2]).
 
 %% Pipeline
 
@@ -94,6 +97,17 @@ validate_terms(#{withdrawal_terms := WithdrawalTerms}, VS) ->
         valid = unwrap(validate_cash_limit(CashLimitSelector, VS))
     end).
 
+-spec compute_withdrawal_terminals(withdrawal_provider(), hg_selector:varset()) ->
+    {ok, [ff_payouts_terminal:id()]} | {error, term()}.
+
+compute_withdrawal_terminals(#{terminal_selector := TerminalSelector}, VS) ->
+    case hg_selector:reduce_to_value(TerminalSelector, VS) of
+        {ok, Terminals} ->
+            {ok, [TerminalID || #domain_WithdrawalTerminalRef{id = TerminalID} <- Terminals]};
+        Error ->
+            Error
+    end.
+
 %%
 
 validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
@@ -123,14 +137,16 @@ decode(ID, #domain_WithdrawalProvider{
     proxy = Proxy,
     identity = Identity,
     withdrawal_terms = WithdrawalTerms,
-    accounts = Accounts
+    accounts = Accounts,
+    terminal = TerminalSelector
 }) ->
     maps:merge(
         #{
-            id               => ID,
-            identity         => Identity,
-            withdrawal_terms => WithdrawalTerms,
-            accounts         => decode_accounts(Identity, Accounts)
+            id                => ID,
+            identity          => Identity,
+            withdrawal_terms  => WithdrawalTerms,
+            accounts          => decode_accounts(Identity, Accounts),
+            terminal_selector => TerminalSelector
         },
         decode_adapter(Proxy)
     ).

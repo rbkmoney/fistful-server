@@ -22,6 +22,7 @@
 -export([timed_term_set/1]).
 -export([globals/2]).
 -export([withdrawal_provider/4]).
+-export([withdrawal_terminal/1]).
 -export([p2p_provider/4]).
 
 %%
@@ -128,7 +129,23 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
             },
             accounts = #{
                 ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
-            }
+            },
+            terminal = {decisions, [
+                #domain_WithdrawalTerminalDecision{
+                    if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                    then_ = {value, [?wthdr_trm(1)]}
+                }
+            ]}
+        }
+    }}.
+
+-spec withdrawal_terminal(?dtp('WithdrawalTerminalRef')) ->
+    object().
+withdrawal_terminal(Ref) ->
+    {withdrawal_terminal, #domain_WithdrawalTerminalObject{
+        ref = Ref,
+        data = #domain_WithdrawalTerminal{
+            name = <<"WithdrawalTerminal">>
         }
     }}.
 

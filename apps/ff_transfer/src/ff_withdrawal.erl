@@ -63,7 +63,8 @@
     {destination_resource, {bin_data, not_found}}.
 
 -type route() :: #{
-    provider_id := provider_id()
+    provider_id := provider_id(),
+    terminal_id := terminal_id()
 }.
 
 -type prepared_route() :: #{
@@ -228,6 +229,14 @@
 
 % TODO I'm now sure about this change, it may crash old events. Or not. ))
 -type provider_id() :: pos_integer() | id().
+-type provider() :: ff_payouts_provider:withdrawal_provider().
+
+-type provider_def() :: {provider_id(), provider()}.
+
+-type terminal_id() :: ff_payouts_terminal:id().
+-type terminal() :: ff_payouts_terminal:withdrawal_terminal().
+
+-type terminal_def() :: {terminal_id(), terminal()}.
 
 -type legacy_event() :: any().
 
@@ -639,9 +648,9 @@ do_process_transfer(stop, _Withdrawal) ->
     process_result().
 process_routing(Withdrawal) ->
     case do_process_routing(Withdrawal) of
-        {ok, ProviderID} ->
+        {ok, Route} ->
             {continue, [
-                {route_changed, #{provider_id => ProviderID}}
+                {route_changed, Route}
             ]};
         {error, route_not_found} ->
             process_transfer_fail(route_not_found, Withdrawal);
@@ -649,7 +658,7 @@ process_routing(Withdrawal) ->
             process_transfer_fail(Reason, Withdrawal)
     end.
 
--spec do_process_routing(withdrawal()) -> {ok, provider_id()} | {error, Reason} when
+-spec do_process_routing(withdrawal()) -> {ok, route()} | {error, Reason} when
     Reason :: route_not_found | {inconsistent_quote_route, provider_id()}.
 do_process_routing(Withdrawal) ->
     WalletID = wallet_id(Withdrawal),
@@ -669,20 +678,21 @@ do_process_routing(Withdrawal) ->
     }),
 
     do(fun() ->
-        ProviderID = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        Route = #{provider_id := ProviderID}
+              = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
         valid = unwrap(validate_quote_provider(ProviderID, quote(Withdrawal))),
-        ProviderID
+        Route
     end).
 
 -spec prepare_route(party_varset(), identity(), domain_revision()) ->
-    {ok, provider_id()} | {error, route_not_found}.
+    {ok, route()} | {error, route_not_found}.
 
 prepare_route(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
         {ok, Providers}  ->
-            choose_provider(Providers, PartyVarset);
+            do(fun() -> choose_route(Providers, PartyVarset) end);
         {error, {misconfiguration, _Details} = Error} ->
             %% TODO: Do not interpret such error as an empty route list.
             %% The current implementation is made for compatibility reasons.
@@ -700,26 +710,104 @@ validate_quote_provider(ProviderID, #{quote_data := #{<<"provider_id">> := Provi
 validate_quote_provider(ProviderID, _) ->
     {error, {inconsistent_quote_route, ProviderID}}.
 
+-spec choose_route([provider_id()], party_varset()) ->
+    route() | no_return().
+choose_route(Providers, PartyVarset) ->
+    ProviderDef = choose_provider(Providers, PartyVarset),
+    Terminals = unwrap(get_provider_terminals(ProviderDef, PartyVarset)),
+    TerminalDef = choose_terminal(Terminals, PartyVarset),
+    make_route(ProviderDef, TerminalDef).
+
 -spec choose_provider([provider_id()], party_varset()) ->
-    {ok, provider_id()} | {error, route_not_found}.
+    provider_def() | no_return().
 choose_provider(Providers, VS) ->
-    case lists:filter(fun(P) -> validate_withdrawals_terms(P, VS) end, Providers) of
-        [ProviderID | _] ->
-            {ok, ProviderID};
+    case gather_valid_providers(Providers, VS) of
+        [Provider | _] ->
+            Provider;
         [] ->
-            {error, route_not_found}
+            throw({error, route_not_found})
     end.
 
--spec validate_withdrawals_terms(provider_id(), party_varset()) ->
+-spec gather_valid_providers([provider_id()], party_varset()) ->
+    [provider_def()].
+gather_valid_providers(Providers, VS) ->
+    lists:foldr(
+        fun(ID, Acc) ->
+            Provider = unwrap(ff_payouts_provider:get(ID)),
+            case validate_provider_terms(Provider, VS) of
+                true -> [{ID, Provider} | Acc];
+                false -> Acc
+            end
+        end,
+        [], Providers
+    ).
+
+-spec validate_provider_terms(provider(), party_varset()) ->
     boolean().
-validate_withdrawals_terms(ID, VS) ->
-    Provider = unwrap(ff_payouts_provider:get(ID)),
+validate_provider_terms(Provider, VS) ->
     case ff_payouts_provider:validate_terms(Provider, VS) of
         {ok, valid} ->
             true;
         {error, _Error} ->
             false
     end.
+
+-spec get_provider_terminals(provider_def(), party_varset()) ->
+    {ok, [terminal_id()]} | {error, route_not_found}.
+get_provider_terminals({_, Provider}, VS) ->
+    case ff_payouts_provider:compute_withdrawal_terminals(Provider, VS) of
+        {ok, Terminals}  ->
+            {ok, Terminals};
+        {error, {misconfiguration, _Details} = Error} ->
+            %% TODO: Do not interpret such error as an empty route list.
+            %% The current implementation is made for compatibility reasons.
+            %% Try to remove and follow the tests.
+            _ = logger:warning("Route search failed: ~p", [Error]),
+            {error, route_not_found}
+    end.
+
+-spec choose_terminal([terminal_id()], party_varset()) ->
+    terminal_def() | no_return().
+
+choose_terminal(Terminals, VS) ->
+    case gather_valid_terminals(Terminals, VS) of
+        [Terminal | _] ->
+            Terminal;
+        [] ->
+            throw({error, route_not_found})
+    end.
+
+-spec gather_valid_terminals([terminal_id()], party_varset()) ->
+    [terminal_def()].
+gather_valid_terminals(Terminals, VS) ->
+    lists:foldr(
+        fun(ID, Acc) ->
+            Terminal = unwrap(ff_payouts_terminal:get(ID)),
+            case validate_terminal_terms(Terminal, VS) of
+                true -> [{ID, Terminals} | Acc];
+                false -> Acc
+            end
+        end,
+        [], Terminals
+    ).
+
+-spec validate_terminal_terms(terminal(), party_varset()) ->
+    boolean().
+validate_terminal_terms(Provider, VS) ->
+    case ff_payouts_terminal:validate_terms(Provider, VS) of
+        {ok, valid} ->
+            true;
+        {error, _Error} ->
+            false
+    end.
+
+-spec make_route(provider_def(), terminal_def()) ->
+    route().
+make_route({ProviderID, _Provider}, {TerminalID, _Terminal}) ->
+    #{
+        provider_id => ProviderID,
+        terminal_id => TerminalID
+    }.
 
 -spec process_limit_check(withdrawal()) ->
     process_result().
@@ -1035,7 +1123,7 @@ get_quote_(Params, Destination, Resource) ->
             destination => Destination,
             resource => Resource
         }),
-        ProviderID = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        #{provider_id := ProviderID} = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),

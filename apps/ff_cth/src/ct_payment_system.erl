@@ -467,6 +467,9 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
+
+        ct_domain:withdrawal_terminal(?wthdr_trm(1)),
+
         ct_domain:p2p_provider(?p2p_prv(1), ?prx(5), dummy_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),

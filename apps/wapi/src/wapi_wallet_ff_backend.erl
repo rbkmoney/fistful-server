@@ -777,7 +777,7 @@ create_p2p_template(Params, Context) ->
     CreateFun =
         fun(ID, EntityCtx) ->
             do(fun() ->
-                ParsedParams = unwrap(from_swag(p2p_template_create_params, Params)),
+                ParsedParams = from_swag(p2p_template_create_params, Params),
                 p2p_template_machine:create(
                     genlib_map:compact(ParsedParams#{
                         id => ID
@@ -2125,6 +2125,7 @@ to_swag(p2p_transfer, P2PTransferState) ->
     #{
         version := 2,
         id := Id,
+        owner := IdentityID,
         body := Cash,
         created_at := CreatedAt,
         sender_resource := Sender,
@@ -2134,6 +2135,7 @@ to_swag(p2p_transfer, P2PTransferState) ->
     Metadata = maps:get(<<"metadata">>, get_ctx(P2PTransferState), undefined),
     to_swag(map, #{
         <<"id">> => Id,
+        <<"identityID">> => IdentityID,
         <<"createdAt">> => to_swag(timestamp_ms, CreatedAt),
         <<"body">> => to_swag(body, Cash),
         <<"sender">> => to_swag(sender_resource, Sender),

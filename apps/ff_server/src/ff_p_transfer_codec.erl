@@ -24,8 +24,9 @@ marshal(change, {status_changed, Status}) ->
 marshal(change, {clock_updated, Clock}) ->
     {clock_updated, #transfer_ClockChange{clock = marshal(clock, Clock)}};
 
-marshal(transfer, #{final_cash_flow := Cashflow}) ->
+marshal(transfer, #{final_cash_flow := Cashflow, id := ID}) ->
     #transfer_Transfer{
+        id = marshal(id, ID),
         cashflow = ff_cash_flow_codec:marshal(final_cash_flow, Cashflow)
     };
 

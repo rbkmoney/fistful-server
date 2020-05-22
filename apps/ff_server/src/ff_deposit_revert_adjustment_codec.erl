@@ -201,6 +201,7 @@ adjustment_codec_test() ->
     },
 
     Transfer = #{
+        id => genlib:unique(),
         final_cash_flow => FinalCashFlow
     },
 

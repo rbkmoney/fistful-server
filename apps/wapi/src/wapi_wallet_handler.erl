@@ -663,10 +663,10 @@ process_request('GetP2PTransferEvents', #{p2pTransferID := ID, continuationToken
     end;
 
 %% P2P Templates
-process_request('СreateP2PTransferTemplate', #{'P2PTransferTemplateParameters' := Params}, Context, _Opts) ->
+process_request('CreateP2PTransferTemplate', #{'P2PTransferTemplateParameters' := Params}, Context, _Opts) ->
     case wapi_wallet_ff_backend:create_p2p_template(Params, Context) of
         {ok, P2PTemplate} ->
-            wapi_handler_utils:reply_ok(202, P2PTemplate);
+            wapi_handler_utils:reply_ok(201, P2PTemplate);
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));

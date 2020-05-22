@@ -205,13 +205,17 @@ set_blocking(Blocking, _State) ->
     {ok, {undefined, [{blocking_changed, Blocking}]}}.
 
 create_party_varset(#{body := #{value := Body}}) ->
-    {_Amount, Currency} = Body,
+    {Amount, Currency} = template_body_to_cash(Body),
     genlib_map:compact(#{
         currency => ff_dmsl_codec:marshal(currency_ref, Currency),
-        cost => ff_dmsl_codec:marshal(cash, Body)
+        cost => ff_dmsl_codec:marshal(cash, {Amount, Currency})
     });
 create_party_varset(_) ->
     #{}.
+
+template_body_to_cash(Body = #{currency := Currency}) ->
+    Amount = maps:get(amount, Body, undefined),
+    {Amount, Currency}.
 
 %% P2PTemplate validators
 
@@ -220,7 +224,7 @@ create_party_varset(_) ->
     {error, create_error()}.
 validate_p2p_template_creation(Terms, #{body := #{value := Body}}) ->
     do(fun() ->
-        valid = unwrap(ff_party:validate_p2p_template_creation(Terms, Body))
+        valid = unwrap(ff_party:validate_p2p_template_creation(Terms, template_body_to_cash(Body)))
     end);
 validate_p2p_template_creation(Terms, _) ->
     do(fun() ->

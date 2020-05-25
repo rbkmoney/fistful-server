@@ -65,6 +65,8 @@
 
 -export([create_p2p_template/2]).
 -export([get_p2p_template/2]).
+-export([block_p2p_template/2]).
+-export([create_p2p_transfer_with_template/3]).
 
 -export([create_w2w_transfer/2]).
 -export([get_w2w_transfer/2]).
@@ -801,6 +803,30 @@ get_p2p_template(ID, Context) ->
         to_swag(p2p_template, State)
     end).
 
+-spec block_p2p_template(params(), ctx()) ->
+    ok | {error, p2p_template_machine:unknown_p2p_template_error()}.
+block_p2p_template(ID, _Context) ->
+    do(fun () ->
+        p2p_template_machine:set_blocking(ID, blocked)
+    end).
+
+-spec create_p2p_transfer_with_template(id(), params(), ctx()) -> result(map(),
+    p2p_template_machine:unknown_p2p_template_error() |
+    p2p_transfer:create_error() |
+    {invalid_resource_token, _} |
+    {token,
+        {unsupported_version, integer() | undefined} |
+        {not_verified, invalid_signature} |
+        {not_verified, identity_mismatch}
+    }
+).
+create_p2p_transfer_with_template(ID, Params, Context) ->
+    do(fun () ->
+        Template = p2p_template_machine:p2p_template(unwrap(p2p_template, p2p_template_machine:get(ID))),
+        P2PTransferParams = make_p2p_transfer_params(Params, Template),
+        create_p2p_transfer(P2PTransferParams, Context)
+    end).
+
 %% W2W
 
 -spec create_w2w_transfer(params(), ctx()) -> result(map(), w2w_transfer:create_error()).
@@ -1077,6 +1103,23 @@ decode_p2p_transfer_event_continuation_token(CT) ->
                 {error, {token, {unsupported_version, UnsupportedVersion}}}
         end
     end).
+
+make_p2p_transfer_params(Params, Template) ->
+    TemplateMeta = p2p_template:metadata(Template),
+    TransferMeta = maps:get(<<"metadata">>, Params, undefined),
+    genlib_map:compact(Params#{
+        <<"identityID">> => p2p_template:identity_id(Template),
+        <<"metadata">> => merge_p2p_template_metadata(TransferMeta, TemplateMeta)
+    }).
+
+merge_p2p_template_metadata(undefined, undefined) ->
+    undefined;
+merge_p2p_template_metadata(undefined, TemplateMeta) ->
+    TemplateMeta;
+merge_p2p_template_metadata(TransferMeta, undefined) ->
+    TransferMeta;
+merge_p2p_template_metadata(TransferMeta, TemplateMeta) ->
+    maps:merge(TransferMeta, TemplateMeta).
 
 -spec mix_events(list(p2p_transfer_machine:events() | p2p_session_machine:events())) ->
     [{id(), ff_machine:timestamped_event(p2p_transfer:event() | p2p_session:event())}].

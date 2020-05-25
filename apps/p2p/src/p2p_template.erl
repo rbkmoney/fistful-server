@@ -19,6 +19,8 @@
 -export([identity_id/1]).
 -export([details/1]).
 -export([external_id/1]).
+-export([body/1]).
+-export([metadata/1]).
 
 %% ff_machine
 -export([apply_event/2]).
@@ -163,6 +165,28 @@ created_at(#{created_at := V}) ->
 
 external_id(T) ->
     maps:get(external_id, T, undefined).
+
+-spec body(template_state()) ->
+    ff_cash:cash() | undefined.
+
+body(#{details := V}) ->
+    case maps:get(body, V, undefined) of
+        undefined ->
+            undefined;
+        #{value := Body} ->
+            template_body_to_cash(Body)
+    end.
+
+-spec metadata(template_state()) ->
+    metadata() | undefined.
+
+metadata(#{details := V}) ->
+    case maps:get(metadata, V, undefined) of
+        undefined ->
+            undefined;
+        #{value := Meatadata} ->
+            Meatadata
+    end.
 
 %% API
 

@@ -2311,6 +2311,6 @@ issue_quote_token(PartyID, Data) ->
 
 -spec date_time_convertion_test() -> _.
 date_time_convertion_test() ->
-    ?assertEqual(<<"2020-05-25T12:34:56.123456Z">>, to_swag(timestamp, {{{2020,05,25}, {12,34,56}}, 123456})).
+    ?assertEqual(<<"2020-05-25T12:34:56.123456Z">>, to_swag(timestamp, {{{2020, 05, 25}, {12, 34, 56}}, 123456})).
 
 -endif.

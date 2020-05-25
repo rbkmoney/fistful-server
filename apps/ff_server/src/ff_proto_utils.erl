@@ -54,10 +54,10 @@ serialize(Type, Data) ->
             erlang:error({thrift, {protocol, Reason}})
     end.
 
--spec deserialize(thrift_type(), {bin, binary()}) ->
+-spec deserialize(thrift_type(), binary()) ->
     term().
 
-deserialize(Type, {bin, Data}) ->
+deserialize(Type, Data) ->
     {ok, Trans} = thrift_membuffer_transport:new(Data),
     {ok, Proto} = new_protocol(Trans),
     case thrift_protocol:read(Proto, Type) of

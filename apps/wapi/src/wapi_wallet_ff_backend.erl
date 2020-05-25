@@ -1984,7 +1984,8 @@ to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
 
 to_swag(timestamp, {DateTime, USec}) ->
     DateTimeSeconds = genlib_time:daytime_to_unixtime(DateTime),
-    genlib_rfc3339:format_relaxed(DateTimeSeconds + USec, microsecond);
+    Micros = erlang:convert_time_unit(DateTimeSeconds, second, microsecond),
+    genlib_rfc3339:format_relaxed(Micros + USec, microsecond);
 to_swag(timestamp_ms, Timestamp) ->
     ff_time:to_rfc3339(Timestamp);
 to_swag(currency, Currency) ->
@@ -2301,3 +2302,15 @@ verify_claims(_, _, _) ->
 
 issue_quote_token(PartyID, Data) ->
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).
+
+-ifdef(TEST).
+
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() -> _.
+
+-spec date_time_convertion_test() -> _.
+date_time_convertion_test() ->
+    ?assertEqual(<<"2020-05-25T12:34:56.123456Z">>, to_swag(timestamp, {{{2020,05,25}, {12,34,56}}, 123456})).
+
+-endif.

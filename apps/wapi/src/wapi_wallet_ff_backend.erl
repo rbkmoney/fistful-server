@@ -820,7 +820,7 @@ create_p2p_transfer_with_template(ID, Params, Context) ->
     do(fun () ->
         Template = p2p_template_machine:p2p_template(unwrap(p2p_template, p2p_template_machine:get(ID))),
         P2PTransferParams = make_p2p_transfer_params(Params, Template),
-        create_p2p_transfer(P2PTransferParams, Context)
+        unwrap(create_p2p_transfer(P2PTransferParams, Context))
     end).
 
 %% W2W

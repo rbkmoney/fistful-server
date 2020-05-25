@@ -24,10 +24,10 @@ marshal(change, {status_changed, Status}) ->
 marshal(change, {clock_updated, Clock}) ->
     {clock_updated, #transfer_ClockChange{clock = marshal(clock, Clock)}};
 
-marshal(transfer, #{final_cash_flow := Cashflow}) ->
+marshal(transfer, Transfer) ->
     #transfer_Transfer{
-        id = <<"TODO">>, %% https://github.com/rbkmoney/fistful-proto/pull/82
-        cashflow = ff_cash_flow_codec:marshal(final_cash_flow, Cashflow)
+        id = ff_codec:marshal(id, ff_postings_transfer:id(Transfer)),
+        cashflow = ff_cash_flow_codec:marshal(final_cash_flow, ff_postings_transfer:final_cash_flow(Transfer))
     };
 
 marshal(status, created) ->
@@ -59,9 +59,10 @@ unmarshal(change, {status_changed, #transfer_StatusChange{status = Status}}) ->
 unmarshal(change, {clock_updated, #transfer_ClockChange{clock = Clock}}) ->
     {clock_updated, unmarshal(clock, Clock)};
 
-unmarshal(transfer, #transfer_Transfer{cashflow = Cashflow}) ->
+unmarshal(transfer, Transfer) ->
     #{
-        final_cash_flow => ff_cash_flow_codec:unmarshal(final_cash_flow, Cashflow)
+        id =>  ff_codec:unmarshal(id, Transfer#transfer_Transfer.id),
+        final_cash_flow => ff_cash_flow_codec:unmarshal(final_cash_flow, Transfer#transfer_Transfer.cashflow)
     };
 
 unmarshal(account_type, CashflowAccount) ->

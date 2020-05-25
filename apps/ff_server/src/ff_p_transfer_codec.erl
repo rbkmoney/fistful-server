@@ -26,6 +26,7 @@ marshal(change, {clock_updated, Clock}) ->
 
 marshal(transfer, #{final_cash_flow := Cashflow}) ->
     #transfer_Transfer{
+        id = <<"TODO">>, %% https://github.com/rbkmoney/fistful-proto/pull/82
         cashflow = ff_cash_flow_codec:marshal(final_cash_flow, Cashflow)
     };
 

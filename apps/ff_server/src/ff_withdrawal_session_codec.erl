@@ -23,13 +23,15 @@ marshal(session, #{
     id := SessionID,
     status := SessionStatus,
     withdrawal := Withdrawal,
-    provider := ProviderID
+    provider := ProviderID,
+    terminal := TerminalID
 }) ->
     #wthd_session_Session{
         id = marshal(id, SessionID),
         status = marshal(session_status, SessionStatus),
         withdrawal = marshal(withdrawal, Withdrawal),
-        provider = marshal(id, genlib:to_binary(ProviderID))
+        provider = marshal(id, genlib:to_binary(ProviderID)),
+        terminal = marshal(id, genlib:to_binary(TerminalID))
     };
 
 marshal(session_status, active) ->
@@ -113,13 +115,15 @@ unmarshal(session, #wthd_session_Session{
     id = SessionID,
     status = SessionStatus,
     withdrawal = Withdrawal,
-    provider = ProviderID
+    provider = ProviderID,
+    terminal = TerminalID
 }) ->
     #{
         id => unmarshal(id, SessionID),
         status => unmarshal(session_status, SessionStatus),
         withdrawal => unmarshal(withdrawal, Withdrawal),
-        provider => unmarshal(id, erlang:binary_to_integer(ProviderID))
+        provider => unmarshal(id, erlang:binary_to_integer(ProviderID)),
+        terminal => unmarshal(terminal_id, TerminalID)
     };
 
 unmarshal(session_status, {active, #wthd_session_SessionActive{}}) ->
@@ -153,6 +157,11 @@ unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info 
     {success, unmarshal(transaction_info, Trx)};
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
+
+unmarshal(terminal_id, undefined) ->
+    undefined;
+unmarshal(terminal_id, TerminalID) ->
+    unmarshal(id, erlang:binary_to_integer(TerminalID));
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

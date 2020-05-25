@@ -13,7 +13,7 @@
 -export([create/3]).
 -export([process_session/1]).
 
--export([get_adapter_with_opts/1]).
+-export([get_adapter_with_opts/2]).
 
 %% ff_machine
 -export([apply_event/2]).
@@ -33,6 +33,7 @@
     status        := status(),
     withdrawal    := withdrawal(),
     provider      := ff_withdrawal_provider:id(),
+    terminal      := ff_payouts_terminal:id() | undefined,
     adapter       := adapter_with_opts(),
     adapter_state => ff_adapter:state()
 }.
@@ -57,7 +58,8 @@
 
 -type params() :: #{
     resource := ff_destination:resource_full(),
-    provider_id := ff_withdrawal_provider:id()
+    provider_id := ff_withdrawal_provider:id(),
+    terminal_id := ff_payouts_terminal:id() | undefined
 }.
 
 -export_type([data/0]).
@@ -287,26 +289,42 @@ process_intent({sleep, Timer}) ->
 
 -spec create_session(id(), data(), params()) ->
     session().
-create_session(ID, Data, #{resource := Resource, provider_id := ProviderID}) ->
+create_session(ID, Data, Opts) ->
+    #{
+        resource := Resource,
+        provider_id := ProviderID
+    } = Opts,
+    TerminalID = maps:get(terminal_id, Opts, undefined),
     #{
         version    => ?ACTUAL_FORMAT_VERSION,
         id         => ID,
         withdrawal => create_adapter_withdrawal(Data, Resource),
         provider   => ProviderID,
-        adapter    => get_adapter_with_opts(ProviderID),
+        terminal   => TerminalID,
+        adapter    => get_adapter_with_opts(ProviderID, TerminalID),
         status     => active
     }.
 
--spec get_adapter_with_opts(ff_payouts_provider:id() | ff_withdrawal_provider:id()) -> adapter_with_opts().
-get_adapter_with_opts(ProviderID) when is_integer(ProviderID) ->
+-spec get_adapter_with_opts(ProviderID, TerminalID) -> adapter_with_opts() when
+    ProviderID :: ff_payouts_provider:id() | ff_withdrawal_provider:id(),
+    TerminalID :: ff_payouts_terminal:id() | undefined.
+get_adapter_with_opts(ProviderID, TerminalID) when is_integer(ProviderID) ->
     %% new_style
     Provider =  unwrap(ff_payouts_provider:get(ProviderID)),
-    {ff_payouts_provider:adapter(Provider), ff_payouts_provider:adapter_opts(Provider)};
-get_adapter_with_opts(ProviderID) when is_binary(ProviderID) ->
+    ProviderOpts = ff_payouts_provider:adapter_opts(Provider),
+    TerminalOpts = get_adapter_terminal_opts(TerminalID),
+    {ff_payouts_provider:adapter(Provider), maps:merge(TerminalOpts, ProviderOpts)};
+get_adapter_with_opts(ProviderID, undefined) when is_binary(ProviderID) ->
     %% old style
     %% TODO remove after update
     {ok, Provider} = ff_withdrawal_provider:get(ProviderID),
     {ff_withdrawal_provider:adapter(Provider), ff_withdrawal_provider:adapter_opts(Provider)}.
+
+get_adapter_terminal_opts(undefined) ->
+    #{};
+get_adapter_terminal_opts(TerminalID) ->
+    Terminal = unwrap(ff_payouts_terminal:get(TerminalID)),
+    ff_payouts_terminal:adapter_opts(Terminal).
 
 create_adapter_withdrawal(Data, Resource) ->
     Data#{resource => Resource}.

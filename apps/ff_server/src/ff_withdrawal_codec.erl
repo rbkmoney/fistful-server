@@ -133,8 +133,11 @@ marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
         payload = ff_withdrawal_adjustment_codec:marshal(change, Payload)
     }};
 
-marshal(route, #{provider_id := ProviderID}) ->
-    #wthd_Route{provider_id = marshal(provider_id, ProviderID)};
+marshal(route, #{provider_id := ProviderID, terminal_id := TerminalID}) ->
+    #wthd_Route{
+        provider_id = marshal(provider_id, ProviderID),
+        terminal_id = marshal(terminal_id, TerminalID)
+    };
 
 marshal(status, Status) ->
     ff_withdrawal_status_codec:marshal(status, Status);
@@ -161,6 +164,9 @@ marshal(ctx, Ctx) ->
 
 marshal(provider_id, ProviderID) ->
     marshal(id, genlib:to_binary(ProviderID));
+
+marshal(terminal_id, TerminalID) ->
+    marshal(id, genlib:to_binary(TerminalID));
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -198,14 +204,22 @@ unmarshal(change, {adjustment, Change}) ->
         payload => ff_withdrawal_adjustment_codec:unmarshal(id, Change#wthd_AdjustmentChange.payload)
     }};
 
-unmarshal(route, #wthd_Route{provider_id = ProviderID}) ->
-    #{provider_id => unmarshal(provider_id, ProviderID)};
+unmarshal(route, #wthd_Route{provider_id = ProviderID, terminal_id = TerminalID}) ->
+    #{
+        provider_id => unmarshal(provider_id, ProviderID),
+        terminal_id => unmarshal(terminal_id, TerminalID)
+    };
 
 unmarshal(status, Status) ->
     ff_withdrawal_status_codec:unmarshal(status, Status);
 
 unmarshal(provider_id, ProviderID) ->
     unmarshal(integer, erlang:binary_to_integer(ProviderID));
+
+unmarshal(terminal_id, undefined) ->
+    undefined;
+unmarshal(terminal_id, TerminalID) ->
+    unmarshal(integer, erlang:binary_to_integer(TerminalID));
 
 unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {started, #wthd_SessionStarted{}}}) ->
     {session_started, unmarshal(id, ID)};

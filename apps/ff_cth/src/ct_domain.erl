@@ -132,8 +132,18 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
             },
             terminal = {decisions, [
                 #domain_WithdrawalTerminalDecision{
-                    if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                    if_   = {condition, {cost_in, ?cashrng(
+                        {inclusive, ?cash(      0, <<"RUB">>)},
+                        {exclusive, ?cash(5000000, <<"RUB">>)}
+                    )}},
                     then_ = {value, [?wthdr_trm(1)]}
+                },
+                #domain_WithdrawalTerminalDecision{
+                    if_   = {condition, {cost_in, ?cashrng(
+                        {inclusive, ?cash( 5000000, <<"RUB">>)},
+                        {exclusive, ?cash(10000000, <<"RUB">>)}
+                    )}},
+                    then_ = {value, [?wthdr_trm(7)]}
                 }
             ]}
         }
@@ -141,11 +151,27 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
 
 -spec withdrawal_terminal(?dtp('WithdrawalTerminalRef')) ->
     object().
-withdrawal_terminal(Ref) ->
+withdrawal_terminal(?wthdr_trm(1) = Ref) ->
     {withdrawal_terminal, #domain_WithdrawalTerminalObject{
         ref = Ref,
         data = #domain_WithdrawalTerminal{
             name = <<"WithdrawalTerminal">>
+        }
+    }};
+withdrawal_terminal(?wthdr_trm(7) = Ref) ->
+    {withdrawal_terminal, #domain_WithdrawalTerminalObject{
+        ref = Ref,
+        data = #domain_WithdrawalTerminal{
+            name = <<"Terminal7">>,
+            terms = #domain_WithdrawalProvisionTerms{
+                currencies = {value, ?ordset([?cur(<<"BTC">>)])},
+                payout_methods = {value, ?ordset([])},
+                cash_limit = {value, ?cashrng(
+                    {inclusive, ?cash(0, <<"BTC">>)},
+                    {exclusive, ?cash(1, <<"BTC">>)}
+                )},
+                cash_flow = {value, ?ordset([])}
+            }
         }
     }}.
 

@@ -17,6 +17,7 @@
 -export_type([withdrawal_terminal/0]).
 -export_type([withdrawal_terminal_ref/0]).
 
+-export([adapter_opts/1]).
 -export([ref/1]).
 -export([get/1]).
 -export([validate_terms/2]).
@@ -24,6 +25,15 @@
 %% Pipeline
 
 -import(ff_pipeline, [do/1, unwrap/1]).
+
+%%
+
+-spec adapter_opts(withdrawal_terminal()) -> map().
+
+adapter_opts(#{adapter_opts := undefined}) ->
+    #{}; %% Opts are optional for terminals
+adapter_opts(#{adapter_opts := AdapterOpts}) ->
+    AdapterOpts.
 
 %%
 
@@ -46,6 +56,8 @@ get(ID) ->
     {ok, valid} |
     {error, Error :: term()}.
 
+validate_terms(#{withdrawal_terms := undefined}, _VS) ->
+    {ok, valid}; %% Terms are optional for terminals
 validate_terms(#{withdrawal_terms := WithdrawalTerms}, VS) ->
     #domain_WithdrawalProvisionTerms{
         currencies = CurrenciesSelector,

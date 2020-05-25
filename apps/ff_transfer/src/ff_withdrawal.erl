@@ -64,7 +64,7 @@
 
 -type route() :: #{
     provider_id := provider_id(),
-    terminal_id := terminal_id()
+    terminal_id := terminal_id() | undefined
 }.
 
 -type prepared_route() :: #{
@@ -678,9 +678,8 @@ do_process_routing(Withdrawal) ->
     }),
 
     do(fun() ->
-        Route = #{provider_id := ProviderID}
-              = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
-        valid = unwrap(validate_quote_provider(ProviderID, quote(Withdrawal))),
+        Route = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        valid = unwrap(validate_quote_provider(Route, quote(Withdrawal))),
         Route
     end).
 
@@ -692,7 +691,7 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
         {ok, Providers}  ->
-            do(fun() -> choose_route(Providers, PartyVarset) end);
+            choose_route(Providers, PartyVarset);
         {error, {misconfiguration, _Details} = Error} ->
             %% TODO: Do not interpret such error as an empty route list.
             %% The current implementation is made for compatibility reasons.
@@ -701,22 +700,24 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
             {error, route_not_found}
     end.
 
--spec validate_quote_provider(provider_id(), quote()) ->
+-spec validate_quote_provider(route(), quote()) ->
     {ok, valid} | {error, {inconsistent_quote_route, provider_id()}}.
-validate_quote_provider(_ProviderID, undefined) ->
+validate_quote_provider(_Route, undefined) ->
     {ok, valid};
-validate_quote_provider(ProviderID, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
+validate_quote_provider(#{provider_id := ProviderID}, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
     {ok, valid};
-validate_quote_provider(ProviderID, _) ->
+validate_quote_provider(#{provider_id := ProviderID}, _) ->
     {error, {inconsistent_quote_route, ProviderID}}.
 
 -spec choose_route([provider_id()], party_varset()) ->
-    route() | no_return().
+    route() | {error, route_not_found}.
 choose_route(Providers, PartyVarset) ->
-    ProviderDef = choose_provider(Providers, PartyVarset),
-    Terminals = unwrap(get_provider_terminals(ProviderDef, PartyVarset)),
-    TerminalDef = choose_terminal(Terminals, PartyVarset),
-    make_route(ProviderDef, TerminalDef).
+    do(fun() ->
+        ProviderDef = choose_provider(Providers, PartyVarset),
+        Terminals = unwrap(get_provider_terminals(ProviderDef, PartyVarset)),
+        TerminalDef = choose_terminal(Terminals, PartyVarset),
+        make_route(ProviderDef, TerminalDef)
+    end).
 
 -spec choose_provider([provider_id()], party_varset()) ->
     provider_def() | no_return().
@@ -725,7 +726,7 @@ choose_provider(Providers, VS) ->
         [Provider | _] ->
             Provider;
         [] ->
-            throw({error, route_not_found})
+            throw(route_not_found)
     end.
 
 -spec gather_valid_providers([provider_id()], party_varset()) ->
@@ -774,7 +775,7 @@ choose_terminal(Terminals, VS) ->
         [Terminal | _] ->
             Terminal;
         [] ->
-            throw({error, route_not_found})
+            throw(route_not_found)
     end.
 
 -spec gather_valid_terminals([terminal_id()], party_varset()) ->
@@ -871,7 +872,7 @@ process_session_creation(Withdrawal) ->
     Destination = ff_destination:get(DestinationMachine),
     DestinationAccount = ff_destination:account(Destination),
 
-    #{provider_id := ProviderID} = route(Withdrawal),
+    Route = route(Withdrawal),
     {ok, SenderSt} = ff_identity_machine:get(ff_account:identity(WalletAccount)),
     {ok, ReceiverSt} = ff_identity_machine:get(ff_account:identity(DestinationAccount)),
 
@@ -884,10 +885,16 @@ process_session_creation(Withdrawal) ->
     }),
     SessionParams = #{
         resource => destination_resource(Withdrawal),
-        provider_id => ProviderID
+        provider_id => get_route_provider(Route),
+        terminal_id => get_route_terminal(Route)
     },
     ok = create_session(ID, TransferData, SessionParams),
     {continue, [{session_started, ID}]}.
+
+get_route_provider(#{provider_id := ProviderID}) ->
+    ProviderID.
+get_route_terminal(#{terminal_id := TerminalID}) ->
+    TerminalID.
 
 construct_session_id(ID) ->
     ID.
@@ -1123,8 +1130,11 @@ get_quote_(Params, Destination, Resource) ->
             destination => Destination,
             resource => Resource
         }),
-        #{provider_id := ProviderID} = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
-        {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
+        #{
+            provider_id := ProviderID,
+            terminal_id := TerminalID
+        } = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID, TerminalID),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),
             currency_from => CurrencyFrom,

@@ -134,13 +134,13 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
                 #domain_WithdrawalTerminalDecision{
                     if_   = {condition, {cost_in, ?cashrng(
                         {inclusive, ?cash(      0, <<"RUB">>)},
-                        {exclusive, ?cash(5000000, <<"RUB">>)}
+                        {exclusive, ?cash(1000000, <<"RUB">>)}
                     )}},
                     then_ = {value, [?wthdr_trm(1)]}
                 },
                 #domain_WithdrawalTerminalDecision{
                     if_   = {condition, {cost_in, ?cashrng(
-                        {inclusive, ?cash( 5000000, <<"RUB">>)},
+                        {inclusive, ?cash( 1000000, <<"RUB">>)},
                         {exclusive, ?cash(10000000, <<"RUB">>)}
                     )}},
                     then_ = {value, [?wthdr_trm(7)]}
@@ -167,8 +167,8 @@ withdrawal_terminal(?wthdr_trm(7) = Ref) ->
                 currencies = {value, ?ordset([?cur(<<"BTC">>)])},
                 payout_methods = {value, ?ordset([])},
                 cash_limit = {value, ?cashrng(
-                    {inclusive, ?cash(0, <<"BTC">>)},
-                    {exclusive, ?cash(1, <<"BTC">>)}
+                    {inclusive, ?cash( 1000000, <<"BTC">>)},
+                    {exclusive, ?cash(10000000, <<"BTC">>)}
                 )},
                 cash_flow = {value, ?ordset([])}
             }

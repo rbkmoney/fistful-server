@@ -240,7 +240,7 @@ route_not_found_fail_test(C) ->
 
 -spec misconfigured_terminal_fail_test(config()) -> test_return().
 misconfigured_terminal_fail_test(C) ->
-    Cash = {6000000, <<"RUB">>},
+    Cash = {2000000, <<"RUB">>},
     #{
         wallet_id := WalletID,
         destination_id := DestinationID

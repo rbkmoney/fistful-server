@@ -221,7 +221,7 @@ process_request('IssueWalletGrant', #{
 }, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_wallet(WalletId, Context) of
         {ok, _} ->
-            case issue_grant_token({wallets, WalletId, Asset}, Expiration, Context) of
+            case wapi_backend_utils:issue_grant_token({wallets, WalletId, Asset}, Expiration, Context) of
                 {ok, Token} ->
                     wapi_handler_utils:reply_ok(201, #{
                         <<"token">>      => Token,
@@ -292,7 +292,7 @@ process_request('IssueDestinationGrant', #{
 }, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_destination(DestinationId, Context) of
         {ok, _} ->
-            case issue_grant_token({destinations, DestinationId}, Expiration, Context) of
+            case wapi_backend_utils:issue_grant_token({destinations, DestinationId}, Expiration, Context) of
                 {ok, Token} ->
                     wapi_handler_utils:reply_ok(201, #{
                         <<"token">>      => Token,
@@ -688,6 +688,38 @@ process_request('BlockP2PTransferTemplate', #{p2pTransferTemplateID := ID}, Cont
         {error, {unknown_p2p_template, _ID}} ->
             wapi_handler_utils:reply_ok(404)
     end;
+process_request('IssueP2PTransferTemplateAccessToken', #{
+    p2pTransferTemplateID := ID,
+    'P2PTransferTemplateTokenRequest' := #{<<"validUntil">> := Expiration}
+}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:issue_p2p_template_access_token(ID, Expiration, Context) of
+        {ok, Token} ->
+            % wapi_handler_utils:reply_ok(201, #{
+            %     <<"token">>      => Token,
+            %     <<"validUntil">> => Expiration
+            % });
+            wapi_handler_utils:reply_ok(201, Token);
+        {error, expired} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)
+            )
+    end;
+process_request('IssueP2PTransferTicket', #{
+    p2pTransferTemplateID := ID,
+    'P2PTransferTemplateTokenRequest' := #{<<"validUntil">> := Expiration}
+}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:issue_p2p_transfer_ticket(ID, Expiration, Context) of
+        {ok, Token} ->
+            % wapi_handler_utils:reply_ok(201, #{
+            %     <<"token">>      => Token,
+            %     <<"validUntil">> => Expiration
+            % });
+            wapi_handler_utils:reply_ok(201, Token);
+        {error, expired} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)
+            )
+    end;
 process_request('CreateP2PTransferWithTemplate', #{
     p2pTransferTemplateID := ID,
     'P2PTransferWithTemplateParameters' := Params
@@ -764,24 +796,6 @@ get_location(OperationId, Params, Opts) ->
 -spec not_implemented() -> no_return().
 not_implemented() ->
     wapi_handler_utils:throw_not_implemented().
-
-issue_grant_token(TokenSpec, Expiration, Context) ->
-    case get_expiration_deadline(Expiration) of
-        {ok, Deadline} ->
-            {ok, wapi_auth:issue_access_token(wapi_handler_utils:get_owner(Context), TokenSpec, {deadline, Deadline})};
-        Error = {error, _} ->
-            Error
-    end.
-
-get_expiration_deadline(Expiration) ->
-    {DateTime, MilliSec} = woody_deadline:from_binary(wapi_utils:to_universal_time(Expiration)),
-    Deadline = genlib_time:daytime_to_unixtime(DateTime) + MilliSec div 1000,
-    case genlib_time:unow() - Deadline < 0 of
-        true ->
-            {ok, Deadline};
-        false ->
-            {error, expired}
-    end.
 
 -define(DEFAULT_URL_LIFETIME, 60). % seconds
 

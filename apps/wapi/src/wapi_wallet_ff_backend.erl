@@ -66,6 +66,8 @@
 -export([create_p2p_template/2]).
 -export([get_p2p_template/2]).
 -export([block_p2p_template/2]).
+-export([issue_p2p_template_access_token/3]).
+-export([issue_p2p_transfer_ticket/3]).
 -export([create_p2p_transfer_with_template/3]).
 
 -export([create_w2w_transfer/2]).
@@ -804,10 +806,32 @@ get_p2p_template(ID, Context) ->
     end).
 
 -spec block_p2p_template(params(), ctx()) ->
-    ok | {error, p2p_template_machine:unknown_p2p_template_error()}.
-block_p2p_template(ID, _Context) ->
+    ok | {error,
+    {p2p_template, unauthorized} |
+    p2p_template_machine:unknown_p2p_template_error()
+}.
+block_p2p_template(ID, Context) ->
     do(fun () ->
+        _ = check_resource(p2p_template, ID, Context),
         p2p_template_machine:set_blocking(ID, blocked)
+    end).
+
+-spec issue_p2p_template_access_token(params(), binary(), ctx()) ->
+    ok | {error,
+    {p2p_template, unauthorized} |
+    p2p_template_machine:unknown_p2p_template_error()
+}.
+issue_p2p_template_access_token(ID, Expiration, Context) ->
+    do(fun () ->
+        _ = check_resource(p2p_template, ID, Context),
+        unwrap(wapi_backend_utils:issue_grant_token({p2p_templates, ID}, Expiration, Context))
+    end).
+
+-spec issue_p2p_transfer_ticket(params(), binary(), ctx()) ->
+    ok | {error, p2p_template_machine:unknown_p2p_template_error()}.
+issue_p2p_transfer_ticket(ID, Expiration, Context) ->
+    do(fun () ->
+        unwrap(wapi_backend_utils:issue_grant_token({p2p_template_transfers, ID, #{}}, Expiration, Context))
     end).
 
 -spec create_p2p_transfer_with_template(id(), params(), ctx()) -> result(map(),

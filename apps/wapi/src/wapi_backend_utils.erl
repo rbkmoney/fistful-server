@@ -29,6 +29,7 @@
 -export([add_to_ctx/3]).
 -export([get_from_ctx/2]).
 -export([get_idempotent_key/3]).
+-export([issue_grant_token/3]).
 
 %% Pipeline
 
@@ -110,3 +111,24 @@ get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
 
 create_params_hash(Value) ->
     erlang:phash2(Value).
+
+-spec issue_grant_token(_, binary(), handler_context()) ->
+    integer().
+
+issue_grant_token(TokenSpec, Expiration, Context) ->
+    case get_expiration_deadline(Expiration) of
+        {ok, Deadline} ->
+            {ok, wapi_auth:issue_access_token(wapi_handler_utils:get_owner(Context), TokenSpec, {deadline, Deadline})};
+        Error = {error, _} ->
+            Error
+    end.
+
+get_expiration_deadline(Expiration) ->
+    {DateTime, MilliSec} = woody_deadline:from_binary(wapi_utils:to_universal_time(Expiration)),
+    Deadline = genlib_time:daytime_to_unixtime(DateTime) + MilliSec div 1000,
+    case genlib_time:unow() - Deadline < 0 of
+        true ->
+            {ok, Deadline};
+        false ->
+            {error, expired}
+    end.

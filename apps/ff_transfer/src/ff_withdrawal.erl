@@ -62,11 +62,6 @@
     {terms, ff_party:validate_withdrawal_creation_error()} |
     {destination_resource, {bin_data, not_found}}.
 
--type route() :: #{
-    provider_id := provider_id(),
-    terminal_id := terminal_id() | undefined
-}.
-
 -type prepared_route() :: #{
     route := route(),
     party_revision := party_revision(),
@@ -145,7 +140,6 @@
 -export_type([id/0]).
 -export_type([params/0]).
 -export_type([event/0]).
--export_type([route/0]).
 -export_type([prepared_route/0]).
 -export_type([quote/0]).
 -export_type([quote_params/0]).
@@ -224,19 +218,12 @@
 -type domain_revision()       :: ff_domain_config:revision().
 -type terms()                 :: ff_party:terms().
 -type party_varset()          :: hg_selector:varset().
+-type route()                 :: ff_withdrawal_routing:route().
 
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
 % TODO I'm now sure about this change, it may crash old events. Or not. ))
--type provider_id() :: pos_integer() | id().
--type provider() :: ff_payouts_provider:withdrawal_provider().
-
--type provider_def() :: {provider_id(), provider()}.
-
--type terminal_id() :: ff_payouts_terminal:id().
--type terminal() :: ff_payouts_terminal:withdrawal_terminal().
-
--type terminal_def() :: {terminal_id(), terminal()}.
+-type provider_id()  :: pos_integer() | id().
 
 -type legacy_event() :: any().
 
@@ -687,18 +674,7 @@ do_process_routing(Withdrawal) ->
     {ok, route()} | {error, route_not_found}.
 
 prepare_route(PartyVarset, Identity, DomainRevision) ->
-    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
-        {ok, Providers}  ->
-            choose_route(Providers, PartyVarset);
-        {error, {misconfiguration, _Details} = Error} ->
-            %% TODO: Do not interpret such error as an empty route list.
-            %% The current implementation is made for compatibility reasons.
-            %% Try to remove and follow the tests.
-            _ = logger:warning("Route search failed: ~p", [Error]),
-            {error, route_not_found}
-    end.
+    ff_withdrawal_routing:prepare_route(PartyVarset, Identity, DomainRevision).
 
 -spec validate_quote_provider(route(), quote()) ->
     {ok, valid} | {error, {inconsistent_quote_route, provider_id()}}.
@@ -708,107 +684,6 @@ validate_quote_provider(#{provider_id := ProviderID}, #{quote_data := #{<<"provi
     {ok, valid};
 validate_quote_provider(#{provider_id := ProviderID}, _) ->
     {error, {inconsistent_quote_route, ProviderID}}.
-
--spec choose_route([provider_id()], party_varset()) ->
-    {ok, route()} | {error, route_not_found}.
-choose_route(Providers, PartyVarset) ->
-    do(fun() ->
-        ProviderDef = choose_provider(Providers, PartyVarset),
-        Terminals = unwrap(get_provider_terminals(ProviderDef, PartyVarset)),
-        TerminalDef = choose_terminal(Terminals, PartyVarset),
-        make_route(ProviderDef, TerminalDef)
-    end).
-
--spec choose_provider([provider_id()], party_varset()) ->
-    provider_def() | no_return().
-choose_provider(Providers, VS) ->
-    case gather_valid_providers(Providers, VS) of
-        [Provider | _] ->
-            Provider;
-        [] ->
-            throw(route_not_found)
-    end.
-
--spec gather_valid_providers([provider_id()], party_varset()) ->
-    [provider_def()].
-gather_valid_providers(Providers, VS) ->
-    lists:foldr(
-        fun(ID, Acc) ->
-            Provider = unwrap(ff_payouts_provider:get(ID)),
-            case validate_provider_terms(Provider, VS) of
-                true -> [{ID, Provider} | Acc];
-                false -> Acc
-            end
-        end,
-        [], Providers
-    ).
-
--spec validate_provider_terms(provider(), party_varset()) ->
-    boolean().
-validate_provider_terms(Provider, VS) ->
-    case ff_payouts_provider:validate_terms(Provider, VS) of
-        {ok, valid} ->
-            true;
-        {error, _Error} ->
-            false
-    end.
-
--spec get_provider_terminals(provider_def(), party_varset()) ->
-    {ok, [terminal_id()]} | {error, route_not_found}.
-get_provider_terminals({_, Provider}, VS) ->
-    case ff_payouts_provider:compute_withdrawal_terminals(Provider, VS) of
-        {ok, Terminals}  ->
-            {ok, Terminals};
-        {error, {misconfiguration, _Details} = Error} ->
-            %% TODO: Do not interpret such error as an empty route list.
-            %% The current implementation is made for compatibility reasons.
-            %% Try to remove and follow the tests.
-            _ = logger:warning("Route search failed: ~p", [Error]),
-            {error, route_not_found}
-    end.
-
--spec choose_terminal([terminal_id()], party_varset()) ->
-    terminal_def() | no_return().
-
-choose_terminal(Terminals, VS) ->
-    case gather_valid_terminals(Terminals, VS) of
-        [Terminal | _] ->
-            Terminal;
-        [] ->
-            throw(route_not_found)
-    end.
-
--spec gather_valid_terminals([terminal_id()], party_varset()) ->
-    [terminal_def()].
-gather_valid_terminals(Terminals, VS) ->
-    lists:foldr(
-        fun(ID, Acc) ->
-            Terminal = unwrap(ff_payouts_terminal:get(ID)),
-            case validate_terminal_terms(Terminal, VS) of
-                true -> [{ID, Terminals} | Acc];
-                false -> Acc
-            end
-        end,
-        [], Terminals
-    ).
-
--spec validate_terminal_terms(terminal(), party_varset()) ->
-    boolean().
-validate_terminal_terms(Provider, VS) ->
-    case ff_payouts_terminal:validate_terms(Provider, VS) of
-        {ok, valid} ->
-            true;
-        {error, _Error} ->
-            false
-    end.
-
--spec make_route(provider_def(), terminal_def()) ->
-    route().
-make_route({ProviderID, _Provider}, {TerminalID, _Terminal}) ->
-    #{
-        provider_id => ProviderID,
-        terminal_id => TerminalID
-    }.
 
 -spec process_limit_check(withdrawal()) ->
     process_result().

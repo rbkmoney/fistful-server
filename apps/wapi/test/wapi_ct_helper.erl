@@ -8,8 +8,6 @@
 -export([start_app/1]).
 -export([start_app/2]).
 -export([start_wapi/1]).
--export([issue_token/2]).
--export([issue_token/3]).
 -export([issue_token/4]).
 -export([get_context/1]).
 -export([get_keysource/2]).
@@ -110,33 +108,14 @@ start_wapi(Config) ->
 get_keysource(Key, Config) ->
     filename:join(?config(data_dir, Config), Key).
 
--spec issue_token(_, _) -> % TODO: spec
-    {ok, binary()} |
-    {error,
-        nonexistent_signee
-    }.
-
-issue_token(ACL, LifeTime) ->
-    issue_token(?STRING, ACL, LifeTime).
-
 -spec issue_token(_, _, _, _) -> % TODO: spec
     {ok, binary()} |
     {error,
         nonexistent_signee
     }.
 
--spec issue_token(_, _, _) -> % TODO: spec
-    {ok, binary()} |
-    {error,
-        nonexistent_signee
-    }.
-
-issue_token(PartyID, ACL, LifeTime) ->
-    issue_token(PartyID, ACL, LifeTime, ?DOMAIN).
-
 issue_token(PartyID, ACL, LifeTime, Domain) ->
     Claims = #{
-        ?STRING => ?STRING,
         <<"exp">> => LifeTime,
         <<"resource_access">> =>#{
             Domain => uac_acl:from_list(ACL)

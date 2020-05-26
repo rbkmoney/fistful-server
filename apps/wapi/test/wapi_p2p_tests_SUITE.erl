@@ -28,6 +28,8 @@
     create_p2p_template_ok_test/1,
     get_p2p_template_ok_test/1,
     block_p2p_template_ok_test/1,
+    issue_p2p_template_access_token_ok_test/1,
+    issue_p2p_transfer_ticket_ok_test/1,
     create_p2p_transfer_with_template_ok_test/1
 ]).
 
@@ -73,6 +75,8 @@ groups() ->
             create_p2p_template_ok_test,
             get_p2p_template_ok_test,
             block_p2p_template_ok_test,
+            issue_p2p_template_access_token_ok_test,
+            issue_p2p_transfer_ticket_ok_test,
             create_p2p_transfer_with_template_ok_test
         ]}
     ].
@@ -116,7 +120,13 @@ init_per_group(Group, Config) when Group =:= p2p ->
     {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
-    [{context, wapi_ct_helper:get_context(Token)}, {context_pcidss, ContextPcidss} | Config1];
+    {ok, WapiToken} = issue_wapi_token(Party),
+    [
+        {wapi_context, wapi_ct_helper:get_context(WapiToken)},
+        {context, wapi_ct_helper:get_context(Token)},
+        {context_pcidss, ContextPcidss} |
+        Config1
+    ];
 init_per_group(_, Config) ->
     Config.
 
@@ -141,6 +151,15 @@ end_per_testcase(_Name, C) ->
 
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).
+
+issue_wapi_token(Party) ->
+    Permissions = [
+        {[p2p], read},
+        {[p2p], write},
+        {[p2p_templates], read},
+        {[p2p_templates], write}
+    ],
+    wapi_ct_helper:issue_token(Party, Permissions, unlimited, <<"wallet-api">>).
 
 %%% Tests
 
@@ -436,7 +455,7 @@ create_p2p_template_ok_test(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        ct_helper:cfg(wapi_context, C)
     ),
     ok.
 
@@ -454,7 +473,7 @@ get_p2p_template_ok_test(C) ->
                 <<"p2pTransferTemplateID">> => TemplateID
             }
         },
-        ct_helper:cfg(context, C)
+        ct_helper:cfg(wapi_context, C)
     ).
 
 -spec block_p2p_template_ok_test(config()) ->
@@ -471,7 +490,50 @@ block_p2p_template_ok_test(C) ->
                 <<"p2pTransferTemplateID">> => TemplateID
             }
         },
-        ct_helper:cfg(context, C)
+        ct_helper:cfg(wapi_context, C)
+    ).
+
+-spec issue_p2p_template_access_token_ok_test(config()) ->
+    _.
+issue_p2p_template_access_token_ok_test(C) ->
+    #{
+        identity_id := IdentityID
+    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    {ok, #{<<"token">> := _Token}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_template_access_token/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"validUntil">> => ValidUntil
+            }
+        },
+        ct_helper:cfg(wapi_context, C)
+    ).
+
+-spec issue_p2p_transfer_ticket_ok_test(config()) ->
+    _.
+issue_p2p_transfer_ticket_ok_test(C) ->
+    #{
+        identity_id := IdentityID
+    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    TemplateToken = issue_p2p_template_access_token(TemplateID, C),
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    {ok, #{<<"token">> := _Token}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_ticket/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"validUntil">> => ValidUntil
+            }
+        },
+        wapi_ct_helper:get_context(TemplateToken)
     ).
 
 -spec create_p2p_transfer_with_template_ok_test(config()) ->
@@ -483,6 +545,8 @@ create_p2p_transfer_with_template_ok_test(C) ->
         identity_id := IdentityID
     } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
     TemplateID = create_p2p_template(IdentityID, C),
+    TemplateToken = issue_p2p_template_access_token(TemplateID, C),
+    Ticket = issue_p2p_transfer_ticket(TemplateID, TemplateToken),
     {ok, #{<<"id">> := TransferID}} = call_api(
         fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
         #{
@@ -505,7 +569,7 @@ create_p2p_transfer_with_template_ok_test(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        wapi_ct_helper:get_context(Ticket)
     ),
     ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(get), C),
     ok = await_successful_transfer_events(TransferID, user_interaction_redirect(get), C).
@@ -669,3 +733,36 @@ create_p2p_template(IdentityID, C) ->
         ct_helper:cfg(context, C)
     ),
     TemplateID.
+
+issue_p2p_template_access_token(TemplateID, C) ->
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    {ok, #{<<"token">> := TemplateToken}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_template_access_token/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"validUntil">> => ValidUntil
+            }
+        },
+        ct_helper:cfg(wapi_context, C)
+    ),
+    TemplateToken.
+
+issue_p2p_transfer_ticket(TemplateID, TemplateToken) ->
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    TemplateContext = wapi_ct_helper:get_context(TemplateToken),
+    {ok, #{<<"token">> := Token}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_ticket/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"validUntil">> => ValidUntil
+            }
+        },
+        TemplateContext
+    ),
+    Token.

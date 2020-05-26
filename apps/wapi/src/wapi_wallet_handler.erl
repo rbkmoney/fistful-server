@@ -694,11 +694,10 @@ process_request('IssueP2PTransferTemplateAccessToken', #{
 }, Context, _Opts) ->
     case wapi_wallet_ff_backend:issue_p2p_template_access_token(ID, Expiration, Context) of
         {ok, Token} ->
-            % wapi_handler_utils:reply_ok(201, #{
-            %     <<"token">>      => Token,
-            %     <<"validUntil">> => Expiration
-            % });
-            wapi_handler_utils:reply_ok(201, Token);
+            wapi_handler_utils:reply_ok(201, #{
+                <<"token">>      => Token,
+                <<"validUntil">> => Expiration
+            });
         {error, expired} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)
@@ -710,11 +709,10 @@ process_request('IssueP2PTransferTicket', #{
 }, Context, _Opts) ->
     case wapi_wallet_ff_backend:issue_p2p_transfer_ticket(ID, Expiration, Context) of
         {ok, Token} ->
-            % wapi_handler_utils:reply_ok(201, #{
-            %     <<"token">>      => Token,
-            %     <<"validUntil">> => Expiration
-            % });
-            wapi_handler_utils:reply_ok(201, Token);
+            wapi_handler_utils:reply_ok(201, #{
+                <<"token">>      => Token,
+                <<"validUntil">> => Expiration
+            });
         {error, expired} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)

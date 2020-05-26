@@ -31,7 +31,7 @@ marshal(session, #{
         status = marshal(session_status, SessionStatus),
         withdrawal = marshal(withdrawal, Withdrawal),
         provider = marshal(id, genlib:to_binary(ProviderID)),
-        terminal = marshal(id, genlib:to_binary(TerminalID))
+        terminal = marshal(terminal_id, TerminalID)
     };
 
 marshal(session_status, active) ->
@@ -72,6 +72,11 @@ marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_session_SessionResultFailed{
         failure = ff_codec:marshal(failure, Failure)
     }};
+
+marshal(terminal_id, undefined) ->
+    undefined;
+marshal(terminal_id, TerminalID) ->
+    marshal(id, genlib:to_binary(TerminalID));
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).

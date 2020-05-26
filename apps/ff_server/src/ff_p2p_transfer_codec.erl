@@ -42,6 +42,7 @@ marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
     }};
 
 marshal(transfer, Transfer = #{
+    id := ID,
     status := Status,
     owner := Owner,
     sender := Sender,
@@ -58,6 +59,7 @@ marshal(transfer, Transfer = #{
     ClientInfo = maps:get(client_info, Transfer, undefined),
 
     #p2p_transfer_P2PTransfer{
+        id = marshal(id, ID),
         owner = marshal(id, Owner),
         sender = marshal(participant, Sender),
         receiver = marshal(participant, Receiver),
@@ -185,6 +187,7 @@ unmarshal(change, {adjustment, Change}) ->
     }};
 
 unmarshal(transfer, #p2p_transfer_P2PTransfer{
+    id = ID,
     owner = Owner,
     sender = Sender,
     receiver = Receiver,
@@ -200,6 +203,7 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
     deadline = Deadline
 }) ->
     genlib_map:compact(#{
+        id => unmarshal(id, ID),
         status => unmarshal(status, Status),
         owner => unmarshal(id, Owner),
         body => unmarshal(cash, Body),
@@ -332,6 +336,7 @@ p2p_transfer_codec_test() ->
     }},
 
     P2PTransfer = #{
+        id => genlib:unique(),
         status => pending,
         owner => genlib:unique(),
         body => {123, <<"RUB">>},
@@ -380,6 +385,7 @@ p2p_timestamped_change_codec_test() ->
     }},
 
     P2PTransfer = #{
+        id => genlib:unique(),
         status => pending,
         owner => genlib:unique(),
         body => {123, <<"RUB">>},

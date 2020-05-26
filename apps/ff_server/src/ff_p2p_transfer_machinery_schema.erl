@@ -128,6 +128,7 @@ legacy_created_v0_2_decoding_test() ->
         contact_info => #{}
     }},
     P2PTransfer = #{
+        id => <<"transfer">>,
         status => pending,
         owner => <<"owner">>,
         body => {123, <<"RUB">>},
@@ -180,6 +181,7 @@ legacy_created_v0_2_decoding_test() ->
         {arr, [
             {str, <<"map">>},
             {obj, #{
+                {str, <<"id">>} => {bin, <<"transfer">>},
                 {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
                 {str, <<"created_at">>} => {i, 1590426777985},
                 {str, <<"deadline">>} => {i, 1590426777987},

@@ -710,7 +710,7 @@ validate_quote_provider(#{provider_id := ProviderID}, _) ->
     {error, {inconsistent_quote_route, ProviderID}}.
 
 -spec choose_route([provider_id()], party_varset()) ->
-    route() | {error, route_not_found}.
+    {ok, route()} | {error, route_not_found}.
 choose_route(Providers, PartyVarset) ->
     do(fun() ->
         ProviderDef = choose_provider(Providers, PartyVarset),

@@ -165,6 +165,8 @@ marshal(ctx, Ctx) ->
 marshal(provider_id, ProviderID) ->
     marshal(id, genlib:to_binary(ProviderID));
 
+marshal(terminal_id, undefined) ->
+    undefined;
 marshal(terminal_id, TerminalID) ->
     marshal(id, genlib:to_binary(TerminalID));
 
@@ -275,7 +277,8 @@ withdrawal_symmetry_test() ->
         external_id = genlib:unique(),
         status = {pending, #wthd_status_Pending{}},
         route = #wthd_Route{
-            provider_id = <<"22">>
+            provider_id = <<"22">>,
+            terminal_id = <<"7">>
         },
         domain_revision = 1,
         party_revision = 3,

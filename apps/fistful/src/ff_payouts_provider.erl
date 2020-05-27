@@ -9,7 +9,7 @@
     accounts := accounts(),
     adapter := ff_adapter:adapter(),
     adapter_opts := map(),
-    terminal_selector := dmsl_domain_thrift:'WithdrawalTerminalSelector'()
+    terminal_selector := dmsl_domain_thrift:'WithdrawalTerminalSelector'() | undefined
 }.
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
@@ -29,7 +29,6 @@
 -export([ref/1]).
 -export([get/1]).
 -export([compute_fees/2]).
--export([validate_terms/2]).
 -export([compute_withdrawal_terminals/2]).
 
 %% Pipeline
@@ -81,25 +80,11 @@ compute_fees(#{withdrawal_terms := WithdrawalTerms}, VS) ->
         postings => ff_cash_flow:decode_domain_postings(CashFlow)
     }.
 
--spec validate_terms(withdrawal_provider(), hg_selector:varset()) ->
-    {ok, valid} |
-    {error, Error :: term()}.
-
-validate_terms(#{withdrawal_terms := WithdrawalTerms}, VS) ->
-    #domain_WithdrawalProvisionTerms{
-        currencies = CurrenciesSelector,
-        payout_methods = PayoutMethodsSelector,
-        cash_limit = CashLimitSelector
-    } = WithdrawalTerms,
-    do(fun () ->
-        valid = unwrap(validate_currencies(CurrenciesSelector, VS)),
-        valid = unwrap(validate_payout_methods(PayoutMethodsSelector, VS)),
-        valid = unwrap(validate_cash_limit(CashLimitSelector, VS))
-    end).
-
 -spec compute_withdrawal_terminals(withdrawal_provider(), hg_selector:varset()) ->
     {ok, [ff_payouts_terminal:id()]} | {error, term()}.
 
+compute_withdrawal_terminals(#{terminal_selector := undefined}, _VS) ->
+    {error, {misconfiguration, {missing, terminal_selector}}};
 compute_withdrawal_terminals(#{terminal_selector := TerminalSelector}, VS) ->
     case hg_selector:reduce_to_value(TerminalSelector, VS) of
         {ok, Terminals} ->
@@ -109,29 +94,6 @@ compute_withdrawal_terminals(#{terminal_selector := TerminalSelector}, VS) ->
     end.
 
 %%
-
-validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
-    Currencies = unwrap(hg_selector:reduce_to_value(CurrenciesSelector, VS)),
-    case ordsets:is_element(CurrencyRef, Currencies) of
-        true ->
-            {ok, valid};
-        false ->
-            {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
-    end.
-
-validate_payout_methods(_, _) ->
-    %% PayoutMethodsSelector is useless for withdrawals
-    %% so we can just ignore it
-    {ok, valid}.
-
-validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
-    CashRange = unwrap(hg_selector:reduce_to_value(CashLimitSelector, VS)),
-    case hg_cash_range:is_inside(Cash, CashRange) of
-        within ->
-            {ok, valid};
-        _NotInRange  ->
-            {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
-    end.
 
 decode(ID, #domain_WithdrawalProvider{
     proxy = Proxy,

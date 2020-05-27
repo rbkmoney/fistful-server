@@ -1,12 +1,16 @@
 -module(ff_withdrawal_routing).
 
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
+
 -export([prepare_route/3]).
+-export([get_provider/1]).
+-export([get_terminal/1]).
 
 -import(ff_pipeline, [do/1, unwrap/1]).
 
 -type route() :: #{
     provider_id := provider_id(),
-    terminal_id := terminal_id() | undefined
+    terminal_id => terminal_id()
 }.
 
 -export_type([route/0]).
@@ -18,11 +22,13 @@
 
 -type provider_id()  :: pos_integer() | id().
 -type provider()     :: ff_payouts_provider:withdrawal_provider().
--type provider_def() :: {provider_id(), provider()}.
 
 -type terminal_id()  :: ff_payouts_terminal:id().
 -type terminal()     :: ff_payouts_terminal:withdrawal_terminal().
--type terminal_def() :: {terminal_id(), terminal()}.
+
+-type withdrawal_provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
+-type currency_selector() :: dmsl_domain_thrift:'CurrencySelector'().
+-type cash_limit_selector() :: dmsl_domain_thrift:'CashLimitSelector'().
 
 %%
 
@@ -43,6 +49,18 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
             {error, route_not_found}
     end.
 
+-spec get_provider(route()) ->
+    provider_id().
+
+get_provider(#{provider_id := ProviderID}) ->
+    ProviderID.
+
+-spec get_terminal(route()) ->
+    ff_maybe:maybe(terminal_id()).
+
+get_terminal(Route) ->
+    maps:get(terminal_id, Route, undefined).
+
 %%
 
 -spec choose_route([provider_id()], party_varset()) ->
@@ -50,106 +68,133 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
 
 choose_route(Providers, PartyVarset) ->
     do(fun() ->
-        ProviderDef = unwrap(choose_provider(Providers, PartyVarset)),
-        Terminals = unwrap(get_provider_terminals(ProviderDef, PartyVarset)),
-        TerminalDef = unwrap(choose_terminal(Terminals, PartyVarset)),
-        make_route(ProviderDef, TerminalDef)
+        unwrap(choose_route_(Providers, PartyVarset))
     end).
 
--spec choose_provider([provider_id()], party_varset()) ->
-    {ok, provider_def()} | {error, route_not_found}.
-
-choose_provider(Providers, VS) ->
-    case gather_valid_providers(Providers, VS) of
-        [Provider | _] ->
-            {ok, Provider};
+choose_route_([], _PartyVarset) ->
+    {error, route_not_found};
+choose_route_([ProviderID | Rest], PartyVarset) ->
+    Provider = unwrap(ff_payouts_provider:get(ProviderID)),
+    Terminals = unwrap(get_provider_terminals(Provider, PartyVarset)),
+    case get_valid_terminals(Terminals, Provider, PartyVarset, []) of
+        [TerminalID | _] ->
+            {ok, make_route(ProviderID, TerminalID)};
         [] ->
-            {error, route_not_found}
+            choose_route(Rest, PartyVarset)
     end.
 
--spec gather_valid_providers([provider_id()], party_varset()) ->
-    [provider_def()].
-
-gather_valid_providers(Providers, VS) ->
-    lists:foldr(
-        fun(ID, Acc) ->
-            Provider = unwrap(ff_payouts_provider:get(ID)),
-            case validate_provider_terms(Provider, VS) of
-                true -> [{ID, Provider} | Acc];
-                false -> Acc
-            end
-        end,
-        [], Providers
-    ).
-
--spec validate_provider_terms(provider(), party_varset()) ->
-    boolean().
-
-validate_provider_terms(Provider, VS) ->
-    case ff_payouts_provider:validate_terms(Provider, VS) of
-        {ok, valid} ->
-            true;
-        {error, _Error} ->
-            false
-    end.
-
--spec get_provider_terminals(provider_def(), party_varset()) ->
+-spec get_provider_terminals(provider(), party_varset()) ->
     {ok, [terminal_id()]} | {error, route_not_found}.
 
-get_provider_terminals({_, Provider}, VS) ->
+get_provider_terminals(Provider, VS) ->
     case ff_payouts_provider:compute_withdrawal_terminals(Provider, VS) of
         {ok, Terminals}  ->
             {ok, Terminals};
         {error, {misconfiguration, _Details} = Error} ->
-            %% TODO: Do not interpret such error as an empty route list.
-            %% The current implementation is made for compatibility reasons.
-            %% Try to remove and follow the tests.
             _ = logger:warning("Route search failed: ~p", [Error]),
             {error, route_not_found}
     end.
 
--spec choose_terminal([terminal_id()], party_varset()) ->
-    {ok, terminal_def()} | {error, route_not_found}.
-
-choose_terminal(Terminals, VS) ->
-    case gather_valid_terminals(Terminals, VS) of
-        [Terminal | _] ->
-            {ok, Terminal};
-        [] ->
-            {error, route_not_found}
-    end.
-
--spec gather_valid_terminals([terminal_id()], party_varset()) ->
-    [terminal_def()].
-
-gather_valid_terminals(Terminals, VS) ->
-    lists:foldr(
-        fun(ID, Acc) ->
-            Terminal = unwrap(ff_payouts_terminal:get(ID)),
-            case validate_terminal_terms(Terminal, VS) of
-                true -> [{ID, Terminals} | Acc];
-                false -> Acc
-            end
-        end,
-        [], Terminals
-    ).
-
--spec validate_terminal_terms(terminal(), party_varset()) ->
-    boolean().
-
-validate_terminal_terms(Provider, VS) ->
-    case ff_payouts_terminal:validate_terms(Provider, VS) of
+get_valid_terminals([], _Provider, _PartyVarset, Acc) ->
+    Acc;
+get_valid_terminals([TerminalID | Rest], Provider, PartyVarset, Acc0) ->
+    Terminal = unwrap(ff_payouts_terminal:get(TerminalID)),
+    Terms = get_combined_terms(Provider, Terminal),
+    Acc = case validate_combined_terms(Terms, PartyVarset) of
         {ok, valid} ->
-            true;
-        {error, _Error} ->
-            false
+            [TerminalID | Acc0];
+        _ ->
+            Acc0
+    end,
+    get_valid_terminals(Rest, Provider, PartyVarset, Acc).
+
+-spec get_combined_terms(provider(), terminal()) ->
+    withdrawal_provision_terms().
+
+get_combined_terms(#{withdrawal_terms := ProviderTerms}, Terminal) ->
+    TerminalTerms = maps:get(withdrawal_terms, Terminal, undefined),
+    merge_withdrawal_terms(ProviderTerms, TerminalTerms).
+
+-spec validate_combined_terms(withdrawal_provision_terms(), hg_selector:varset()) ->
+    {ok, valid} |
+    {error, Error :: term()}.
+
+validate_combined_terms(Terms, PartyVarset) ->
+    #domain_WithdrawalProvisionTerms{
+        currencies = CurrenciesSelector,
+        %% PayoutMethodsSelector is useless for withdrawals
+        %% so we can just ignore it
+        %% payout_methods = PayoutMethodsSelector,
+        cash_limit = CashLimitSelector
+    } = Terms,
+    do(fun () ->
+        valid = unwrap(validate_currencies(CurrenciesSelector, PartyVarset)),
+        valid = unwrap(validate_cash_limit(CashLimitSelector, PartyVarset))
+    end).
+
+-spec validate_currencies(currency_selector(), hg_selector:varset()) ->
+    {ok, valid} |
+    {error, Error :: term()}.
+
+validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
+    Currencies = unwrap(hg_selector:reduce_to_value(CurrenciesSelector, VS)),
+    case ordsets:is_element(CurrencyRef, Currencies) of
+        true ->
+            {ok, valid};
+        false ->
+            {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
     end.
 
--spec make_route(provider_def(), terminal_def()) ->
+
+-spec validate_cash_limit(cash_limit_selector(), hg_selector:varset()) ->
+    {ok, valid} |
+    {error, Error :: term()}.
+
+validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
+    CashRange = unwrap(hg_selector:reduce_to_value(CashLimitSelector, VS)),
+    case hg_cash_range:is_inside(Cash, CashRange) of
+        within ->
+            {ok, valid};
+        _NotInRange  ->
+            {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
+    end.
+
+
+-spec make_route(provider_id(), terminal_id()) ->
     route().
 
-make_route({ProviderID, _Provider}, {TerminalID, _Terminal}) ->
+make_route(ProviderID, TerminalID) ->
     #{
         provider_id => ProviderID,
         terminal_id => TerminalID
     }.
+
+merge_withdrawal_terms(
+    #domain_WithdrawalProvisionTerms{
+        currencies     = PCurrencies,
+        payout_methods = PPayoutMethods,
+        cash_limit     = PCashLimit,
+        cash_flow      = PCashflow
+    },
+    #domain_WithdrawalProvisionTerms{
+        currencies     = TCurrencies,
+        payout_methods = TPayoutMethods,
+        cash_limit     = TCashLimit,
+        cash_flow      = TCashflow
+    }
+) ->
+    #domain_WithdrawalProvisionTerms{
+        currencies      = select_defined(TCurrencies,    PCurrencies),
+        payout_methods  = select_defined(TPayoutMethods, PPayoutMethods),
+        cash_limit      = select_defined(TCashLimit,     PCashLimit),
+        cash_flow       = select_defined(TCashflow,      PCashflow)
+    };
+merge_withdrawal_terms(ProviderTerms, TerminalTerms) ->
+    select_defined(TerminalTerms, ProviderTerms).
+
+-spec select_defined(T | undefined, T | undefined) -> T | undefined.
+
+select_defined(V1, _V2) when V1 /= undefined ->
+    V1;
+select_defined(undefined, V2) ->
+    V2.

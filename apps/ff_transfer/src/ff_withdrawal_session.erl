@@ -13,6 +13,7 @@
 -export([create/3]).
 -export([process_session/1]).
 
+-export([get_adapter_with_opts/1]).
 -export([get_adapter_with_opts/2]).
 
 %% ff_machine
@@ -33,7 +34,7 @@
     status        := status(),
     withdrawal    := withdrawal(),
     provider      := ff_withdrawal_provider:id(),
-    terminal      := ff_payouts_terminal:id() | undefined,
+    terminal      => ff_payouts_terminal:id(),
     adapter       := adapter_with_opts(),
     adapter_state => ff_adapter:state()
 }.
@@ -58,8 +59,7 @@
 
 -type params() :: #{
     resource := ff_destination:resource_full(),
-    provider_id := ff_withdrawal_provider:id(),
-    terminal_id := ff_payouts_terminal:id() | undefined
+    route := ff_withdrawal_routing:route()
 }.
 
 -export_type([data/0]).
@@ -292,18 +292,24 @@ process_intent({sleep, Timer}) ->
 create_session(ID, Data, Opts) ->
     #{
         resource := Resource,
-        provider_id := ProviderID
+        route := Route
     } = Opts,
-    TerminalID = maps:get(terminal_id, Opts, undefined),
     #{
         version    => ?ACTUAL_FORMAT_VERSION,
         id         => ID,
         withdrawal => create_adapter_withdrawal(Data, Resource),
-        provider   => ProviderID,
-        terminal   => TerminalID,
-        adapter    => get_adapter_with_opts(ProviderID, TerminalID),
+        provider   => ff_withdrawal_routing:get_provider(Route),
+        terminal   => ff_withdrawal_routing:get_terminal(Route),
+        adapter    => get_adapter_with_opts(Route),
         status     => active
     }.
+
+-spec get_adapter_with_opts(ff_withdrawal_routing:route()) ->
+    adapter_with_opts().
+get_adapter_with_opts(Route) ->
+    ProviderID = ff_withdrawal_routing:get_provider(Route),
+    TerminalID = ff_withdrawal_routing:get_terminal(Route),
+    get_adapter_with_opts(ProviderID, TerminalID).
 
 -spec get_adapter_with_opts(ProviderID, TerminalID) -> adapter_with_opts() when
     ProviderID :: ff_payouts_provider:id() | ff_withdrawal_provider:id(),

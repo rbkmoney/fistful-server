@@ -224,6 +224,7 @@
 
 % TODO I'm now sure about this change, it may crash old events. Or not. ))
 -type provider_id()  :: pos_integer() | id().
+-type terminal_id()  :: ff_payouts_terminal:id().
 
 -type legacy_event() :: any().
 
@@ -639,14 +640,14 @@ process_routing(Withdrawal) ->
             {continue, [
                 {route_changed, Route}
             ]};
-        {error, route_not_found} ->
-            process_transfer_fail(route_not_found, Withdrawal);
-        {error, {inconsistent_quote_route, _ProviderID} = Reason} ->
-            process_transfer_fail(Reason, Withdrawal)
+        {error, Error} ->
+            process_transfer_fail(Error, Withdrawal)
     end.
 
 -spec do_process_routing(withdrawal()) -> {ok, route()} | {error, Reason} when
-    Reason :: route_not_found | {inconsistent_quote_route, provider_id()}.
+    Reason :: route_not_found | InconsistentQuote | InvalidQuote,
+    InconsistentQuote :: {inconsistent_quote_route, {provider_id | terminal_id, provider_id() | terminal_id()}},
+    InvalidQuote :: {invalid_quote, {missing, terminal_id} | expired | invalid_format}.
 do_process_routing(Withdrawal) ->
     WalletID = wallet_id(Withdrawal),
     {ok, Wallet} = get_wallet(WalletID),
@@ -666,7 +667,7 @@ do_process_routing(Withdrawal) ->
 
     do(fun() ->
         Route = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
-        valid = unwrap(validate_quote_provider(Route, quote(Withdrawal))),
+        valid = unwrap(validate_quote(Route, quote(Withdrawal))),
         Route
     end).
 
@@ -676,14 +677,31 @@ do_process_routing(Withdrawal) ->
 prepare_route(PartyVarset, Identity, DomainRevision) ->
     ff_withdrawal_routing:prepare_route(PartyVarset, Identity, DomainRevision).
 
--spec validate_quote_provider(route(), quote()) ->
-    {ok, valid} | {error, {inconsistent_quote_route, provider_id()}}.
-validate_quote_provider(_Route, undefined) ->
+-spec validate_quote(route(), quote()) -> {ok, valid} | {error, InconsistentQuote | InvalidQuote} when
+    InconsistentQuote :: {inconsistent_quote_route, {provider_id | terminal_id, provider_id() | terminal_id()}},
+    InvalidQuote :: {invalid_quote, {missing, terminal_id} | expired | invalid_format}.
+
+validate_quote(_Route, undefined) ->
     {ok, valid};
-validate_quote_provider(#{provider_id := ProviderID}, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
+validate_quote(Route, #{quote_data := #{<<"version">> := 1} = QuoteData}) ->
+    do(fun() ->
+        valid = unwrap(validate_quote_provider(Route, QuoteData)),
+        valid = unwrap(validate_quote_terminal(Route, QuoteData))
+    end);
+validate_quote(_, _) ->
+    {error, {invalid_quote, invalid_format}}.
+
+validate_quote_provider(#{provider_id := ProviderID}, #{<<"provider_id">> := ProviderID}) ->
     {ok, valid};
 validate_quote_provider(#{provider_id := ProviderID}, _) ->
-    {error, {inconsistent_quote_route, ProviderID}}.
+    {error, {inconsistent_quote_route, {provider_id, ProviderID}}}.
+
+validate_quote_terminal(#{terminal_id := TerminalID}, #{<<"terminal_id">> := TerminalID}) ->
+    {ok, valid};
+validate_quote_terminal(#{terminal_id := TerminalID}, _) ->
+    {error, {inconsistent_quote_route, {terminal_id, TerminalID}}};
+validate_quote_terminal(_, _) ->
+    {error, {invalid_quote, {missing, terminal_id}}}.
 
 -spec process_limit_check(withdrawal()) ->
     process_result().
@@ -760,16 +778,10 @@ process_session_creation(Withdrawal) ->
     }),
     SessionParams = #{
         resource => destination_resource(Withdrawal),
-        provider_id => get_route_provider(Route),
-        terminal_id => get_route_terminal(Route)
+        route => Route
     },
     ok = create_session(ID, TransferData, SessionParams),
     {continue, [{session_started, ID}]}.
-
-get_route_provider(#{provider_id := ProviderID}) ->
-    ProviderID.
-get_route_terminal(#{terminal_id := TerminalID}) ->
-    TerminalID.
 
 construct_session_id(ID) ->
     ID.
@@ -1005,11 +1017,8 @@ get_quote_(Params, Destination, Resource) ->
             destination => Destination,
             resource => Resource
         }),
-        #{
-            provider_id := ProviderID,
-            terminal_id := TerminalID
-        } = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
-        {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID, TerminalID),
+        Route = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(Route),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),
             currency_from => CurrencyFrom,
@@ -1017,24 +1026,26 @@ get_quote_(Params, Destination, Resource) ->
             body => Body
         },
         {ok, Quote} = ff_adapter_withdrawal:get_quote(Adapter, GetQuoteParams, AdapterOpts),
-        %% add provider id to quote_data
-        wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote)
+        wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, Route, Quote)
     end).
 
--spec wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote) -> quote() when
+-spec wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, Route, Quote) -> quote() when
     DomainRevision :: domain_revision(),
     PartyRevision :: party_revision(),
     Timestamp :: ff_time:timestamp_ms(),
-    ProviderID :: provider_id(),
+    Route :: route(),
     Resource :: destination_resource() | undefined,
     Quote :: ff_adapter_withdrawal:quote().
-wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote) ->
+wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, Route, Quote) ->
     #{quote_data := QuoteData} = Quote,
     ResourceID = ff_destination:full_bank_card_id(Resource),
+    ProviderID = ff_withdrawal_routing:get_provider(Route),
+    TerminalID = ff_withdrawal_routing:get_terminal(Route),
     Quote#{quote_data := genlib_map:compact(#{
         <<"version">> => 1,
         <<"quote_data">> => QuoteData,
         <<"provider_id">> => ProviderID,
+        <<"terminal_id">> => TerminalID, %Terminal id must be present for newer tokens
         <<"resource_id">> => ResourceID,
         <<"timestamp">> => Timestamp,
         <<"domain_revision">> => DomainRevision,
@@ -1394,12 +1405,16 @@ build_failure(route_not_found, _Withdrawal) ->
     #{
         code => <<"no_route_found">>
     };
-build_failure({inconsistent_quote_route, FoundProviderID}, Withdrawal) ->
-    #{quote_data := #{<<"provider_id">> := QuotaProviderID}} = quote(Withdrawal),
+build_failure({inconsistent_quote_route, {Type, FoundID}}, Withdrawal) ->
     Details = {inconsistent_quote_route, #{
-        expected => QuotaProviderID,
-        found => FoundProviderID
+        expected => get_quote_field(Type, quote(Withdrawal)),
+        found => {Type, FoundID}
     }},
+    #{
+        code => <<"unknown">>,
+        reason => genlib:format(Details)
+    };
+build_failure({invalid_quote, _Reason} = Details, _Withdrawal) ->
     #{
         code => <<"unknown">>,
         reason => genlib:format(Details)
@@ -1408,6 +1423,11 @@ build_failure(session, Withdrawal) ->
     Result = session_result(Withdrawal),
     {failed, Failure} = Result,
     Failure.
+
+get_quote_field(provider_id, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
+    ProviderID;
+get_quote_field(terminal_id, #{quote_data := #{<<"terminal_id">> := TerminalID}}) ->
+    TerminalID.
 
 %%
 

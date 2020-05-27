@@ -335,7 +335,8 @@ deposit_quote_withdrawal_ok(C) ->
             quote_data  => #{
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 3
+                <<"provider_id">> => 3,
+                <<"terminal_id">> => 1
             }
         }
     }),

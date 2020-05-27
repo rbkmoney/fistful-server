@@ -31,7 +31,7 @@ marshal(session, #{
         status = marshal(session_status, SessionStatus),
         withdrawal = marshal(withdrawal, Withdrawal),
         provider = marshal(id, genlib:to_binary(ProviderID)),
-        terminal = marshal(terminal_id, TerminalID)
+        terminal = maybe_marshal(terminal_id, TerminalID)
     };
 
 marshal(session_status, active) ->
@@ -73,8 +73,6 @@ marshal(session_result, {failed, Failure}) ->
         failure = ff_codec:marshal(failure, Failure)
     }};
 
-marshal(terminal_id, undefined) ->
-    undefined;
 marshal(terminal_id, TerminalID) ->
     marshal(id, genlib:to_binary(TerminalID));
 
@@ -128,7 +126,7 @@ unmarshal(session, #wthd_session_Session{
         status => unmarshal(session_status, SessionStatus),
         withdrawal => unmarshal(withdrawal, Withdrawal),
         provider => unmarshal(id, erlang:binary_to_integer(ProviderID)),
-        terminal => unmarshal(terminal_id, TerminalID)
+        terminal => maybe_unmarshal(terminal_id, TerminalID)
     };
 
 unmarshal(session_status, {active, #wthd_session_SessionActive{}}) ->
@@ -163,8 +161,6 @@ unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info 
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
 
-unmarshal(terminal_id, undefined) ->
-    undefined;
 unmarshal(terminal_id, TerminalID) ->
     unmarshal(id, erlang:binary_to_integer(TerminalID));
 
@@ -184,6 +180,11 @@ unmarshal_msgpack(undefined) ->
     undefined.
 
 %% Internals
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
 
 maybe_unmarshal(_Type, undefined) ->
     undefined;

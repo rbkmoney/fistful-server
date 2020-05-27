@@ -181,7 +181,8 @@ session_fail_test(C) ->
             quote_data  => #{
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"error">>},
-                <<"provider_id">> => 3
+                <<"provider_id">> => 3,
+                <<"terminal_id">> => 1
             }
         }
     },
@@ -211,7 +212,8 @@ quote_fail_test(C) ->
             quote_data  => #{
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 10
+                <<"provider_id">> => 10,
+                <<"terminal_id">> => 10
             }
         }
     },
@@ -452,7 +454,8 @@ quota_ok_test(C) ->
             quote_data  => #{
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 1
+                <<"provider_id">> => 1,
+                <<"terminal_id">> => 1
             }
         }
     },
@@ -528,6 +531,7 @@ use_quota_revisions_test(C) ->
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"test">>},
                 <<"provider_id">> => 1,
+                <<"terminal_id">> => 1,
                 <<"timestamp">> => Time,
                 <<"domain_revision">> => DomainRevision,
                 <<"party_revision">> => PartyRevision

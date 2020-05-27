@@ -133,10 +133,12 @@ marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
         payload = ff_withdrawal_adjustment_codec:marshal(change, Payload)
     }};
 
-marshal(route, #{provider_id := ProviderID, terminal_id := TerminalID}) ->
+marshal(route, Route) ->
+    ProviderID = ff_withdrawal_routing:get_provider(Route),
+    TerminalID = ff_withdrawal_routing:get_terminal(Route),
     #wthd_Route{
         provider_id = marshal(provider_id, ProviderID),
-        terminal_id = marshal(terminal_id, TerminalID)
+        terminal_id = maybe_marshal(terminal_id, TerminalID)
     };
 
 marshal(status, Status) ->
@@ -165,8 +167,6 @@ marshal(ctx, Ctx) ->
 marshal(provider_id, ProviderID) ->
     marshal(id, genlib:to_binary(ProviderID));
 
-marshal(terminal_id, undefined) ->
-    undefined;
 marshal(terminal_id, TerminalID) ->
     marshal(id, genlib:to_binary(TerminalID));
 
@@ -209,7 +209,7 @@ unmarshal(change, {adjustment, Change}) ->
 unmarshal(route, #wthd_Route{provider_id = ProviderID, terminal_id = TerminalID}) ->
     #{
         provider_id => unmarshal(provider_id, ProviderID),
-        terminal_id => unmarshal(terminal_id, TerminalID)
+        terminal_id => maybe_unmarshal(terminal_id, TerminalID)
     };
 
 unmarshal(status, Status) ->

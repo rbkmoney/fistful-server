@@ -179,7 +179,7 @@ create_failed_session(IdentityID, DestinationID, _C) ->
     {ok, DestinationResource} = ff_destination:resource_full(Destination),
     SessionParams = #{
         resource => DestinationResource,
-        provider_id => 1
+        route => #{provider_id => 1, terminal_id => 1}
     },
     ok = ff_withdrawal_session_machine:create(ID, TransferData, SessionParams),
     ID.

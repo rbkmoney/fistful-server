@@ -166,7 +166,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
 
 get_p2p_template(P2PTemplateID) ->
     {ok, Machine} = p2p_template_machine:get(P2PTemplateID),
-    p2p_template_machine:template(Machine).
+    p2p_template_machine:p2p_template(Machine).
 
 generate_id() ->
     ff_id:generate_snowflake_id().

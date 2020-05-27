@@ -113,7 +113,7 @@ create_params_hash(Value) ->
     erlang:phash2(Value).
 
 -spec issue_grant_token(_, binary(), handler_context()) ->
-    integer().
+    {ok, binary()} | {error, expired}.
 
 issue_grant_token(TokenSpec, Expiration, Context) ->
     case get_expiration_deadline(Expiration) of

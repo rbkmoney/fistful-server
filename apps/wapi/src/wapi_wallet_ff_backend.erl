@@ -715,6 +715,7 @@ quote_p2p_transfer(Params, Context) ->
 
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     p2p_transfer:create_error() |
+    {identity, unauthorized} |
     {invalid_resource_token, _} |
     {token,
         {unsupported_version, integer() | undefined} |
@@ -722,10 +723,11 @@ quote_p2p_transfer(Params, Context) ->
         {not_verified, identity_mismatch}
     }
 ).
-create_p2p_transfer(Params, Context) ->
+create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
     CreateFun =
         fun(ID, EntityCtx) ->
             do(fun() ->
+                _ = check_resource(identity, IdentityId, Context),
                 ParsedParams = unwrap(maybe_add_p2p_quote_token(from_swag(create_p2p_params, Params))),
                 SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
                 ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
@@ -780,11 +782,15 @@ get_p2p_transfer_events({ID, CT}, Context) ->
 
 %% P2P Templates
 
--spec create_p2p_template(params(), ctx()) -> result(map(), p2p_template:create_error()).
-create_p2p_template(Params, Context) ->
+-spec create_p2p_template(params(), ctx()) -> result(map(),
+    p2p_template:create_error() |
+    {identity, unauthorized}
+).
+create_p2p_template(Params = #{<<"identityID">> := IdentityId}, Context) ->
     CreateFun =
         fun(ID, EntityCtx) ->
             do(fun() ->
+                _ = check_resource(identity, IdentityId, Context),
                 ParsedParams = from_swag(p2p_template_create_params, Params),
                 p2p_template_machine:create(
                     genlib_map:compact(ParsedParams#{
@@ -817,9 +823,11 @@ block_p2p_template(ID, Context) ->
     end).
 
 -spec issue_p2p_template_access_token(params(), binary(), ctx()) ->
-    ok | {error,
-    {p2p_template, unauthorized} |
-    p2p_template_machine:unknown_p2p_template_error()
+    {ok, binary()} |
+    {error,
+        expired |
+        {p2p_template, unauthorized} |
+        p2p_template_machine:unknown_p2p_template_error()
 }.
 issue_p2p_template_access_token(ID, Expiration, Context) ->
     do(fun () ->
@@ -828,7 +836,11 @@ issue_p2p_template_access_token(ID, Expiration, Context) ->
     end).
 
 -spec issue_p2p_transfer_ticket(params(), binary(), ctx()) ->
-    ok | {error, p2p_template_machine:unknown_p2p_template_error()}.
+    {ok, binary()} |
+    {error,
+        expired |
+        p2p_template_machine:unknown_p2p_template_error()
+}.
 issue_p2p_transfer_ticket(ID, Expiration, Context) ->
     do(fun () ->
         unwrap(wapi_backend_utils:issue_grant_token({p2p_template_transfers, ID, #{}}, Expiration, Context))

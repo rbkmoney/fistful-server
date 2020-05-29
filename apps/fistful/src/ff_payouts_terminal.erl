@@ -12,12 +12,15 @@
 -type id() :: dmsl_domain_thrift:'ObjectID'().
 
 -type withdrawal_terminal_ref() :: dmsl_domain_thrift:'WithdrawalTerminalRef'().
+-type withdrawal_provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
 
 -export_type([id/0]).
 -export_type([withdrawal_terminal/0]).
 -export_type([withdrawal_terminal_ref/0]).
 
 -export([adapter_opts/1]).
+-export([terms/1]).
+
 -export([ref/1]).
 -export([get/1]).
 
@@ -28,10 +31,16 @@
 %%
 
 -spec adapter_opts(withdrawal_terminal()) ->
-    map() | undefined.
+    map().
 
 adapter_opts(WithdrawalTerminal) ->
     maps:get(adapter_opts, WithdrawalTerminal, #{}).
+
+-spec terms(withdrawal_terminal()) ->
+    withdrawal_provision_terms() | undefined.
+
+terms(WithdrawalTerminal) ->
+    maps:get(withdrawal_terms, WithdrawalTerminal, undefined).
 
 %%
 

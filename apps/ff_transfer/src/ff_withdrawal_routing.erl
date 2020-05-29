@@ -99,38 +99,55 @@ get_valid_terminals([], _Provider, _PartyVarset, Acc) ->
     Acc;
 get_valid_terminals([TerminalID | Rest], Provider, PartyVarset, Acc0) ->
     Terminal = unwrap(ff_payouts_terminal:get(TerminalID)),
-    Terms = get_combined_terms(Provider, Terminal),
-    Acc = case validate_combined_terms(Terms, PartyVarset) of
+    Acc = case validate_terms(Provider, Terminal, PartyVarset) of
         {ok, valid} ->
             [TerminalID | Acc0];
-        _ ->
+        {error, _Error} ->
             Acc0
     end,
     get_valid_terminals(Rest, Provider, PartyVarset, Acc).
 
--spec get_combined_terms(provider(), terminal()) ->
-    withdrawal_provision_terms().
+-spec validate_terms(provider(), terminal(), hg_selector:varset()) ->
+    {ok, valid} |
+    {error, Error :: term()}.
 
-get_combined_terms(#{withdrawal_terms := ProviderTerms}, Terminal) ->
-    TerminalTerms = maps:get(withdrawal_terms, Terminal, undefined),
-    merge_withdrawal_terms(ProviderTerms, TerminalTerms).
+validate_terms(Provider, Terminal, PartyVarset) ->
+    do(fun () ->
+        ProviderTerms = ff_payouts_provider:terms(Provider),
+        TerminalTerms = ff_payouts_terminal:terms(Terminal),
+        CombinedTerms = unwrap(get_combined_terms(ProviderTerms, TerminalTerms)),
+        unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
+    end).
 
 -spec validate_combined_terms(withdrawal_provision_terms(), hg_selector:varset()) ->
     {ok, valid} |
     {error, Error :: term()}.
 
-validate_combined_terms(Terms, PartyVarset) ->
-    #domain_WithdrawalProvisionTerms{
-        currencies = CurrenciesSelector,
-        %% PayoutMethodsSelector is useless for withdrawals
-        %% so we can just ignore it
-        %% payout_methods = PayoutMethodsSelector,
-        cash_limit = CashLimitSelector
-    } = Terms,
+validate_combined_terms(CombinedTerms, PartyVarset) ->
     do(fun () ->
+        #domain_WithdrawalProvisionTerms{
+            currencies = CurrenciesSelector,
+            %% PayoutMethodsSelector is useless for withdrawals
+            %% so we can just ignore it
+            %% payout_methods = PayoutMethodsSelector,
+            cash_limit = CashLimitSelector
+        } = CombinedTerms,
         valid = unwrap(validate_currencies(CurrenciesSelector, PartyVarset)),
         valid = unwrap(validate_cash_limit(CashLimitSelector, PartyVarset))
     end).
+
+-spec get_combined_terms(Terms, Terms) -> {ok, withdrawal_provision_terms()} | {error, terms_undefined} when
+    Terms :: ff_maybe:maybe(withdrawal_provision_terms()).
+
+get_combined_terms(ProviderTerms, TerminalTerms) when
+    ProviderTerms =:= undefined orelse
+    TerminalTerms =:= undefined
+->
+    %% Missing withdrawal_terms mean that operations for this provider/terminal are forbidden
+    %% @TODO maybe pass this error outside somehow?
+    {error, terms_undefined};
+get_combined_terms(ProviderTerms, TerminalTerms) ->
+    {ok, merge_withdrawal_terms(ProviderTerms, TerminalTerms)}.
 
 -spec validate_currencies(currency_selector(), hg_selector:varset()) ->
     {ok, valid} |
@@ -184,17 +201,10 @@ merge_withdrawal_terms(
     }
 ) ->
     #domain_WithdrawalProvisionTerms{
-        currencies      = select_defined(TCurrencies,    PCurrencies),
-        payout_methods  = select_defined(TPayoutMethods, PPayoutMethods),
-        cash_limit      = select_defined(TCashLimit,     PCashLimit),
-        cash_flow       = select_defined(TCashflow,      PCashflow)
+        currencies      = ff_maybe:get_defined(TCurrencies,    PCurrencies),
+        payout_methods  = ff_maybe:get_defined(TPayoutMethods, PPayoutMethods),
+        cash_limit      = ff_maybe:get_defined(TCashLimit,     PCashLimit),
+        cash_flow       = ff_maybe:get_defined(TCashflow,      PCashflow)
     };
 merge_withdrawal_terms(ProviderTerms, TerminalTerms) ->
-    select_defined(TerminalTerms, ProviderTerms).
-
--spec select_defined(T | undefined, T | undefined) -> T | undefined.
-
-select_defined(V1, _V2) when V1 /= undefined ->
-    V1;
-select_defined(undefined, V2) ->
-    V2.
+    ff_maybe:get_defined(TerminalTerms, ProviderTerms).

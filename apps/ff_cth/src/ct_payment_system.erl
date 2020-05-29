@@ -469,6 +469,7 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
 
         ct_domain:withdrawal_terminal(?wthdr_trm(1)),
+        ct_domain:withdrawal_terminal(?wthdr_trm(2)),
         ct_domain:withdrawal_terminal(?wthdr_trm(7)),
 
         ct_domain:p2p_provider(?p2p_prv(1), ?prx(5), dummy_provider_identity_id(Options), C),

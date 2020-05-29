@@ -4,8 +4,8 @@
 
 -type withdrawal_provider() :: #{
     id := id(),
-    identity := ff_identity:id(),
-    withdrawal_terms := dmsl_domain_thrift:'WithdrawalProvisionTerms'(),
+    identity := ff_identity:id() | undefined,
+    withdrawal_terms := dmsl_domain_thrift:'WithdrawalProvisionTerms'() | undefined,
     accounts := accounts(),
     adapter := ff_adapter:adapter(),
     adapter_opts := map(),
@@ -16,6 +16,7 @@
 -type accounts() :: #{ff_currency:id() => ff_account:account()}.
 
 -type withdrawal_provider_ref() :: dmsl_domain_thrift:'WithdrawalProviderRef'().
+-type withdrawal_provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
 
 -export_type([id/0]).
 -export_type([withdrawal_provider/0]).
@@ -25,6 +26,7 @@
 -export([accounts/1]).
 -export([adapter/1]).
 -export([adapter_opts/1]).
+-export([terms/1]).
 
 -export([ref/1]).
 -export([get/1]).
@@ -41,6 +43,7 @@
 -spec accounts(withdrawal_provider()) -> accounts().
 -spec adapter(withdrawal_provider()) -> ff_adapter:adapter().
 -spec adapter_opts(withdrawal_provider()) -> map().
+-spec terms(withdrawal_provider()) -> withdrawal_provision_terms().
 
 id(#{id := ID}) ->
     ID.
@@ -53,6 +56,9 @@ adapter(#{adapter := Adapter}) ->
 
 adapter_opts(#{adapter_opts := AdapterOpts}) ->
     AdapterOpts.
+
+terms(#{withdrawal_terms := WithdrawalTerms}) ->
+    WithdrawalTerms.
 
 %%
 

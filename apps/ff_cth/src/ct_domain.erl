@@ -140,7 +140,14 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
                 },
                 #domain_WithdrawalTerminalDecision{
                     if_   = {condition, {cost_in, ?cashrng(
-                        {inclusive, ?cash( 1000000, <<"RUB">>)},
+                        {inclusive, ?cash(1000000, <<"RUB">>)},
+                        {exclusive, ?cash(3000000, <<"RUB">>)}
+                    )}},
+                    then_ = {value, [?wthdr_trm(2)]}
+                },
+                #domain_WithdrawalTerminalDecision{
+                    if_   = {condition, {cost_in, ?cashrng(
+                        {inclusive, ?cash( 3000000, <<"RUB">>)},
                         {exclusive, ?cash(10000000, <<"RUB">>)}
                     )}},
                     then_ = {value, [?wthdr_trm(7)]}
@@ -155,7 +162,16 @@ withdrawal_terminal(?wthdr_trm(1) = Ref) ->
     {withdrawal_terminal, #domain_WithdrawalTerminalObject{
         ref = Ref,
         data = #domain_WithdrawalTerminal{
-            name = <<"WithdrawalTerminal">>
+            name = <<"WithdrawalTerminal">>,
+            terms = #domain_WithdrawalProvisionTerms{}
+        }
+    }};
+withdrawal_terminal(?wthdr_trm(2) = Ref) ->
+    {withdrawal_terminal, #domain_WithdrawalTerminalObject{
+        ref = Ref,
+        data = #domain_WithdrawalTerminal{
+            name = <<"WithdrawalTerminal">>,
+            terms = undefined
         }
     }};
 withdrawal_terminal(?wthdr_trm(7) = Ref) ->

@@ -14,6 +14,9 @@
 -export([end_per_testcase/2]).
 
 %% Tests
+-export([block_template_test/1]).
+-export([bad_template_amount_test/1]).
+-export([identity_not_found_test/1]).
 -export([create_not_allow_test/1]).
 -export([create_ok_test/1]).
 -export([preserve_revisions_test/1]).
@@ -41,6 +44,9 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
+            block_template_test,
+            bad_template_amount_test,
+            identity_not_found_test,
             create_not_allow_test,
             create_ok_test,
             preserve_revisions_test,
@@ -86,13 +92,13 @@ end_per_testcase(_Name, _C) ->
 
 %% Tests
 
--spec create_not_allow_test(config()) -> test_return().
-create_not_allow_test(C) ->
+-spec block_template_test(config()) -> test_return().
+block_template_test(C) ->
     #{
         identity_id := IdentityID
     } = prepare_standard_environment(C),
     P2PTemplateID = generate_id(),
-    Details = #{},
+    Details = make_template_details({1000, <<"RUB">>}),
     P2PTemplateParams = #{
         id => P2PTemplateID,
         identity_id => IdentityID,
@@ -100,10 +106,56 @@ create_not_allow_test(C) ->
         external_id => P2PTemplateID
     },
     ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
-    P2PTemplate = get_p2p_template(P2PTemplateID),
-    ?assertEqual(IdentityID, p2p_template:identity_id(P2PTemplate)),
-    ?assertEqual(Details, p2p_template:details(P2PTemplate)),
-    ?assertEqual(P2PTemplateID, p2p_template:external_id(P2PTemplate)).
+    P2PTemplate0 = get_p2p_template(P2PTemplateID),
+    ?assertEqual(unblocked, p2p_template:blocking(P2PTemplate0)),
+    p2p_template_machine:set_blocking(P2PTemplateID, blocked),
+    P2PTemplate1 = get_p2p_template(P2PTemplateID),
+    ?assertEqual(blocked, p2p_template:blocking(P2PTemplate1)).
+
+-spec bad_template_amount_test(config()) -> test_return().
+bad_template_amount_test(C) ->
+    #{
+        identity_id := IdentityID
+    } = prepare_standard_environment(C),
+    P2PTemplateID = generate_id(),
+    Details = make_template_details({-1, <<"RUB">>}),
+    P2PTemplateParams = #{
+        id => P2PTemplateID,
+        identity_id => IdentityID,
+        details => Details,
+        external_id => P2PTemplateID
+    },
+    {error, {terms, {bad_p2p_template_amount, {-1, <<"RUB">>}}}} =
+        p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()).
+
+-spec identity_not_found_test(config()) -> test_return().
+identity_not_found_test(_C) ->
+    P2PTemplateID = generate_id(),
+    Details = make_template_details({1000, <<"RUB">>}),
+    P2PTemplateParams = #{
+        id => P2PTemplateID,
+        identity_id => <<"fake id">>,
+        details => Details,
+        external_id => P2PTemplateID
+    },
+    {error, {identity, notfound}} =
+        p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()).
+
+-spec create_not_allow_test(config()) -> test_return().
+create_not_allow_test(C) ->
+    #{
+        identity_id := IdentityID
+    } = prepare_standard_environment(C),
+    P2PTemplateID = generate_id(),
+    Details = make_template_details({1000, <<"USD">>}),
+    P2PTemplateParams = #{
+        id => P2PTemplateID,
+        identity_id => IdentityID,
+        details => Details,
+        external_id => P2PTemplateID
+    },
+    {error, {terms, {terms_violation, p2p_template_forbidden}}} =
+        p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()).
 
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->
@@ -111,7 +163,7 @@ create_ok_test(C) ->
         identity_id := IdentityID
     } = prepare_standard_environment(C),
     P2PTemplateID = generate_id(),
-    Details = #{},
+    Details = make_template_details({1000, <<"RUB">>}),
     P2PTemplateParams = #{
         id => P2PTemplateID,
         identity_id => IdentityID,
@@ -133,7 +185,7 @@ preserve_revisions_test(C) ->
     P2PTemplateParams = #{
         id => P2PTemplateID,
         identity_id => IdentityID,
-        details => #{}
+        details => make_template_details({1000, <<"RUB">>})
     },
     ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
     P2PTemplate = get_p2p_template(P2PTemplateID),
@@ -155,6 +207,22 @@ consume_eventsinks(_) ->
     [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
 
 %% Utils
+
+make_template_details({Amount, Currency}) ->
+    make_template_details({Amount, Currency}, #{<<"test key">> => <<"test value">>}).
+
+make_template_details({Amount, Currency}, Metadata) ->
+    #{
+        body => #{
+            value => genlib_map:compact(#{
+                amount => Amount,
+                currency => Currency
+            })
+        },
+        metadata => #{
+            value => Metadata
+        }
+    }.
 
 prepare_standard_environment(C) ->
     PartyID = create_party(C),

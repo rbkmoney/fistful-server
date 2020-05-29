@@ -716,6 +716,7 @@ quote_p2p_transfer(Params, Context) ->
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     p2p_transfer:create_error() |
     {identity, unauthorized} |
+    {external_id_conflict, id(), external_id()} |
     {invalid_resource_token, _} |
     {token,
         {unsupported_version, integer() | undefined} |
@@ -784,6 +785,7 @@ get_p2p_transfer_events({ID, CT}, Context) ->
 
 -spec create_p2p_template(params(), ctx()) -> result(map(),
     p2p_template:create_error() |
+    {external_id_conflict, id(), external_id()} |
     {identity, unauthorized}
 ).
 create_p2p_template(Params = #{<<"identityID">> := IdentityId}, Context) ->
@@ -843,12 +845,15 @@ issue_p2p_template_access_token(ID, Expiration, Context) ->
 }.
 issue_p2p_transfer_ticket(ID, Expiration, Context) ->
     do(fun () ->
-        unwrap(wapi_backend_utils:issue_grant_token({p2p_template_transfers, ID, #{}}, Expiration, Context))
+        ExternalID = ff_id:generate_snowflake_id(),
+        Data = #{?EXTERNAL_ID => ExternalID},
+        unwrap(wapi_backend_utils:issue_grant_token({p2p_template_transfers, ID, Data}, Expiration, Context))
     end).
 
 -spec create_p2p_transfer_with_template(id(), params(), ctx()) -> result(map(),
     p2p_template_machine:unknown_p2p_template_error() |
     p2p_transfer:create_error() |
+    {external_id_conflict, id(), external_id()} |
     {invalid_resource_token, _} |
     {token,
         {unsupported_version, integer() | undefined} |
@@ -858,8 +863,11 @@ issue_p2p_transfer_ticket(ID, Expiration, Context) ->
 ).
 create_p2p_transfer_with_template(ID, Params, Context) ->
     do(fun () ->
+        {_, _, Claims} = wapi_handler_utils:get_auth_context(Context),
+        Data = maps:get(<<"data">>, Claims),
+        DataMap = maps:with([?EXTERNAL_ID], Data),
         Template = p2p_template_machine:p2p_template(unwrap(p2p_template, p2p_template_machine:get(ID))),
-        P2PTransferParams = make_p2p_transfer_params(Params, Template),
+        P2PTransferParams = make_p2p_transfer_params(maps:merge(Params, DataMap), Template),
         unwrap(create_p2p_transfer(P2PTransferParams, Context))
     end).
 

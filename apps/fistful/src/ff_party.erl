@@ -86,7 +86,7 @@
 -export([validate_withdrawal_creation/2]).
 -export([validate_deposit_creation/2]).
 -export([validate_w2w_transfer_creation/2]).
--export([validate_p2p_template_creation/2]).
+-export([validate_p2p_template_creation/3]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
@@ -351,18 +351,18 @@ validate_w2w_transfer_creation(Terms, {_Amount, CurrencyID} = Cash) ->
         valid = unwrap(validate_w2w_allow(W2WServiceTerms))
     end).
 
--spec validate_p2p_template_creation(terms(), cash()) -> Result when
+-spec validate_p2p_template_creation(terms(), cash(), hg_selector:varset()) -> Result when
     Result :: {ok, valid} | {error, Error},
     Error :: validate_p2p_template_creation_error().
 
-validate_p2p_template_creation(_Terms, {Amount, _Currency} = Cash) when is_integer(Amount) andalso (Amount < 1) ->
+validate_p2p_template_creation(_Terms, {Amount, _Currency} = Cash, _VS) when is_integer(Amount) andalso (Amount < 1) ->
     {error, {bad_p2p_template_amount, Cash}};
-validate_p2p_template_creation(Terms, {_Amount, _CurrencyID} = _Cash) ->
+validate_p2p_template_creation(Terms, {_Amount, _CurrencyID} = _Cash, VS) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
         {ok, valid} = validate_p2p_template_terms_is_reduced(WalletTerms),
         #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,
-        valid = unwrap(validate_p2p_template_allow(P2PServiceTerms))
+        valid = unwrap(validate_p2p_template_allow(P2PServiceTerms, VS))
     end).
 
 -spec get_withdrawal_cash_flow_plan(terms()) ->
@@ -800,16 +800,18 @@ validate_w2w_allow(W2WServiceTerms) ->
             {error, {terms_violation, w2w_forbidden}}
     end.
 
--spec validate_p2p_template_allow(p2p_terms()) ->
+-spec validate_p2p_template_allow(p2p_terms(), hg_selector:varset()) ->
     {ok, valid} | {error, p2p_template_forbidden_error()}.
-validate_p2p_template_allow(P2PServiceTerms) ->
+validate_p2p_template_allow(P2PServiceTerms, VS) ->
     #domain_P2PServiceTerms{templates = P2PTemplateServiceTerms} = P2PServiceTerms,
-    #domain_P2PTemplateServiceTerms{allow = Constant} = P2PTemplateServiceTerms,
-    case Constant of
+    #domain_P2PTemplateServiceTerms{allow = Selector} = P2PTemplateServiceTerms,
+    case hg_selector:reduce_predicate(Selector, VS) of
         {constant, true} ->
             {ok, valid};
         {constant, false} ->
-            {error, {terms_violation, p2p_template_forbidden}}
+            {error, {terms_violation, p2p_template_forbidden}};
+        _ ->
+            {error, {misconfiguration, {'Can\'t reduce selector to value', Selector, VS}}}
     end.
 
 -spec validate_currency(currency_id(), ordsets:ordset(currency_ref())) ->

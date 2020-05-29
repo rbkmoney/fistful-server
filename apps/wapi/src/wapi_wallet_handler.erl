@@ -615,6 +615,8 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {identity, unauthorized}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
@@ -673,6 +675,8 @@ process_request('CreateP2PTransferTemplate', #{'P2PTransferTemplateParameters' :
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {identity, unauthorized}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
@@ -735,14 +739,16 @@ process_request('IssueP2PTransferTicket', #{
             wapi_handler_utils:reply_ok(404)
     end;
 process_request('CreateP2PTransferWithTemplate', #{
-    p2pTransferTemplateID := ID,
+    p2pTransferTemplateID := TemplateID,
     'P2PTransferWithTemplateParameters' := Params
 }, Context, _Opts) ->
-    case wapi_wallet_ff_backend:create_p2p_transfer_with_template(ID, Params, Context) of
+    case wapi_wallet_ff_backend:create_p2p_transfer_with_template(TemplateID, Params, Context) of
         {ok, P2PTransfer} ->
             wapi_handler_utils:reply_ok(202, P2PTransfer);
         {error, {unknown_p2p_template, _ID}} ->
             wapi_handler_utils:reply_ok(404);
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));

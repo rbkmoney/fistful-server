@@ -20,17 +20,20 @@
     quote_p2p_transfer_ok_test/1,
     create_p2p_transfer_ok_test/1,
     create_p2p_transfer_fail_test/1,
+    create_p2p_transfer_conflict_test/1,
     create_p2p_transfer_with_token_ok_test/1,
     get_p2p_transfer_ok_test/1,
     get_p2p_transfer_not_found_test/1,
     get_p2p_transfer_events_ok_test/1,
     get_p2p_transfer_failure_events_ok_test/1,
+
     create_p2p_template_ok_test/1,
     get_p2p_template_ok_test/1,
     block_p2p_template_ok_test/1,
     issue_p2p_template_access_token_ok_test/1,
     issue_p2p_transfer_ticket_ok_test/1,
-    create_p2p_transfer_with_template_ok_test/1
+    create_p2p_transfer_with_template_ok_test/1,
+    create_p2p_transfer_with_template_conflict_test/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -67,17 +70,20 @@ groups() ->
             quote_p2p_transfer_ok_test,
             create_p2p_transfer_ok_test,
             create_p2p_transfer_fail_test,
+            create_p2p_transfer_conflict_test,
             create_p2p_transfer_with_token_ok_test,
             get_p2p_transfer_ok_test,
             get_p2p_transfer_not_found_test,
             get_p2p_transfer_events_ok_test,
             get_p2p_transfer_failure_events_ok_test,
+
             create_p2p_template_ok_test,
             get_p2p_template_ok_test,
             block_p2p_template_ok_test,
             issue_p2p_template_access_token_ok_test,
             issue_p2p_transfer_ticket_ok_test,
-            create_p2p_transfer_with_template_ok_test
+            create_p2p_transfer_with_template_ok_test,
+            create_p2p_transfer_with_template_conflict_test
         ]}
     ].
 
@@ -234,6 +240,59 @@ create_p2p_transfer_fail_test(C) ->
                 <<"body">> => #{
                     <<"amount">> => ?INTEGER,
                     <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec create_p2p_transfer_conflict_test(config()) ->
+    _.
+create_p2p_transfer_conflict_test(C) ->
+    SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    IdentityID = create_identity(C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"externalID">> => IdentityID,
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    {error, {409, _}} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"externalID">> => IdentityID,
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?USD
                 },
                 <<"sender">> => #{
                     <<"type">> => <<"BankCardSenderResourceParams">>,
@@ -548,6 +607,64 @@ create_p2p_transfer_with_template_ok_test(C) ->
     ),
     ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(get), C),
     ok = await_successful_transfer_events(TransferID, user_interaction_redirect(get), C).
+
+-spec create_p2p_transfer_with_template_conflict_test(config()) ->
+    _.
+create_p2p_transfer_with_template_conflict_test(C) ->
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    IdentityID = create_identity(C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    TemplateToken = issue_p2p_template_access_token(TemplateID, C),
+    Ticket = issue_p2p_transfer_ticket(TemplateID, TemplateToken),
+    {ok, #{<<"id">> := _TransferID}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"body">> => #{
+                    <<"amount">> => 101,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        wapi_ct_helper:get_context(Ticket)
+    ),
+    {error, {409, _}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"body">> => #{
+                    <<"amount">> => 105,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        wapi_ct_helper:get_context(Ticket)
+    ).
 
 %%
 

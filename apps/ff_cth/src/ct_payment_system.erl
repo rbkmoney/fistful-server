@@ -813,7 +813,7 @@ default_termset(Options) ->
                     days = 1, minutes = 1, seconds = 1
                 }}},
                 templates = #domain_P2PTemplateServiceTerms{
-                    allow = {constant, true}
+                    allow = {condition, {currency_is, ?cur(<<"RUB">>)}}
                 }
             },
             w2w = #domain_W2WServiceTerms{

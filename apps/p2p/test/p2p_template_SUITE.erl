@@ -14,7 +14,7 @@
 -export([end_per_testcase/2]).
 
 %% Tests
-% -export([create_not_allow_test/1]).
+-export([create_not_allow_test/1]).
 -export([create_ok_test/1]).
 -export([preserve_revisions_test/1]).
 -export([unknown_test/1]).
@@ -41,7 +41,7 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            % create_not_allow_test,
+            create_not_allow_test,
             create_ok_test,
             preserve_revisions_test,
             unknown_test
@@ -85,6 +85,25 @@ end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
 %% Tests
+
+-spec create_not_allow_test(config()) -> test_return().
+create_not_allow_test(C) ->
+    #{
+        identity_id := IdentityID
+    } = prepare_standard_environment(C),
+    P2PTemplateID = generate_id(),
+    Details = #{},
+    P2PTemplateParams = #{
+        id => P2PTemplateID,
+        identity_id => IdentityID,
+        details => Details,
+        external_id => P2PTemplateID
+    },
+    ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
+    P2PTemplate = get_p2p_template(P2PTemplateID),
+    ?assertEqual(IdentityID, p2p_template:identity_id(P2PTemplate)),
+    ?assertEqual(Details, p2p_template:details(P2PTemplate)),
+    ?assertEqual(P2PTemplateID, p2p_template:external_id(P2PTemplate)).
 
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->

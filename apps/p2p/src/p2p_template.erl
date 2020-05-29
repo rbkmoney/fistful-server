@@ -20,7 +20,7 @@
 -export([details/1]).
 -export([external_id/1]).
 -export([body/1]).
--export([metadata/1]).
+-export([template_metadata/1]).
 
 %% ff_machine
 -export([apply_event/2]).
@@ -56,7 +56,7 @@
 -type blocking() :: unblocked | blocked.
 
 -type details() :: #{
-    body => template_body(),
+    body := template_body(),
     metadata => template_metadata()
 }.
 
@@ -77,6 +77,8 @@
     amount => amount(),
     currency := ff_currency:id()
 }.
+
+-type cash() :: {amount() | undefined, ff_currency:id()}.
 
 -type metadata() :: ff_entity_context:md().
 -type timestamp() :: ff_time:timestamp_ms().
@@ -101,6 +103,7 @@
 -export_type([template_state/0]).
 -export_type([blocking/0]).
 -export_type([create_error/0]).
+-export_type([cash/0]).
 
 %%
 %% Internal types
@@ -112,7 +115,6 @@
 
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
--type terms() :: ff_party:terms().
 -type process_result() :: {undefined, [event()]}.
 
 %% Pipeline
@@ -132,7 +134,6 @@ id(#{id := V}) ->
 
 identity_id(#{identity_id := V}) ->
     V.
-
 
 -spec blocking(template_state()) ->
     blocking() | undefined.
@@ -167,20 +168,15 @@ external_id(T) ->
     maps:get(external_id, T, undefined).
 
 -spec body(template_state()) ->
-    ff_cash:cash() | undefined.
+    cash().
 
-body(#{details := V}) ->
-    case maps:get(body, V, undefined) of
-        undefined ->
-            undefined;
-        #{value := Body} ->
-            template_body_to_cash(Body)
-    end.
+body(#{details := #{body := #{value := Body}}}) ->
+    template_body_to_cash(Body).
 
--spec metadata(template_state()) ->
+-spec template_metadata(template_state()) ->
     metadata() | undefined.
 
-metadata(#{details := V}) ->
+template_metadata(#{details := V}) ->
     case maps:get(metadata, V, undefined) of
         undefined ->
             undefined;
@@ -209,7 +205,7 @@ create(Params = #{
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
         ),
-        valid =  unwrap(terms, validate_p2p_template_creation(Terms, Details)),
+        valid =  unwrap(terms, ff_party:validate_p2p_template_creation(Terms, body(Details))),
         Template = genlib_map:compact(#{
             version => ?ACTUAL_FORMAT_VERSION,
             id => ID,
@@ -225,15 +221,24 @@ create(Params = #{
 
 -spec set_blocking(blocking(), template_state()) ->
     {ok, process_result()}.
+set_blocking(Blocking, #{blocking := Blocking}) ->
+    {ok, {undefined, []}};
 set_blocking(Blocking, _State) ->
     {ok, {undefined, [{blocking_changed, Blocking}]}}.
 
 create_party_varset(#{body := #{value := Body}}) ->
     {Amount, Currency} = template_body_to_cash(Body),
-    genlib_map:compact(#{
-        currency => ff_dmsl_codec:marshal(currency_ref, Currency),
-        cost => ff_dmsl_codec:marshal(cash, {Amount, Currency})
-    });
+    case Amount of
+        undefined ->
+            #{
+                currency => ff_dmsl_codec:marshal(currency_ref, Currency)
+            };
+        Amount ->
+            #{
+                currency => ff_dmsl_codec:marshal(currency_ref, Currency),
+                cost => ff_dmsl_codec:marshal(cash, {Amount, Currency})
+            }
+    end;
 create_party_varset(_) ->
     #{}.
 
@@ -242,18 +247,6 @@ template_body_to_cash(Body = #{currency := Currency}) ->
     {Amount, Currency}.
 
 %% P2PTemplate validators
-
--spec validate_p2p_template_creation(terms(), details()) ->
-    {ok, valid} |
-    {error, create_error()}.
-validate_p2p_template_creation(Terms, #{body := #{value := Body}}) ->
-    do(fun() ->
-        valid = unwrap(ff_party:validate_p2p_template_creation(Terms, template_body_to_cash(Body)))
-    end);
-validate_p2p_template_creation(Terms, _) ->
-    do(fun() ->
-        valid = unwrap(ff_party:validate_p2p_template_creation(Terms))
-    end).
 
 -spec get_identity(identity_id()) ->
     {ok, identity()} | {error, notfound}.

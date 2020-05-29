@@ -78,7 +78,7 @@ marshal(details, Details) ->
     Body = maps:get(body, Details, undefined),
     Metadata = maps:get(metadata, Details, undefined),
     #p2p_template_P2PTemplateDetails{
-        body = maybe_marshal(template_body, Body),
+        body = marshal(template_body, Body),
         metadata = maybe_marshal(template_metadata, Metadata)
     };
 
@@ -152,7 +152,7 @@ unmarshal(details, #p2p_template_P2PTemplateDetails{
     metadata = Metadata
 }) ->
     genlib_map:compact(#{
-        body => maybe_unmarshal(template_body, Body),
+        body => unmarshal(template_body, Body),
         metadata => maybe_unmarshal(template_metadata, Metadata)
     });
 
@@ -166,7 +166,8 @@ unmarshal(template_body, #p2p_template_P2PTemplateBody{
         value => genlib_map:compact(#{
             amount => maybe_unmarshal(amount, Amount),
             currency => unmarshal(currency_ref, Currency)
-    })};
+        })
+    };
 
 unmarshal(template_metadata, #p2p_template_P2PTemplateMetadata{
     value = Metadata

@@ -1141,7 +1141,7 @@ decode_p2p_transfer_event_continuation_token(CT) ->
     end).
 
 make_p2p_transfer_params(Params, Template) ->
-    TemplateMeta = p2p_template:metadata(Template),
+    TemplateMeta = p2p_template:template_metadata(Template),
     TransferMeta = maps:get(<<"metadata">>, Params, undefined),
     genlib_map:compact(Params#{
         <<"identityID">> => p2p_template:identity_id(Template),

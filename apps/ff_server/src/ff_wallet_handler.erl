@@ -30,6 +30,8 @@ handle_function_('Create', [Params], Opts) ->
     of
         ok ->
             handle_function_('Get', [WalletID], Opts);
+        {error, exists} ->
+            handle_function_('Get', [WalletID], Opts);        
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {currency, notfound}} ->

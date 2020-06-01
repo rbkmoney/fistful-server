@@ -355,12 +355,12 @@ get_create_p2p_template_events_ok(C) ->
     Party = create_party(C),
     IID = create_person_identity(Party, C),
 
-    Fields = #{},
+    Details = make_template_details({1000, <<"RUB">>}),
     P2PTemplateID = generate_id(),
     P2PTemplateParams = #{
         id => P2PTemplateID,
         identity_id => IID,
-        details => Fields,
+        details => Details,
         external_id => P2PTemplateID
     },
     ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
@@ -603,3 +603,19 @@ is_commited_ev({transfer, #wthd_TransferChange{payload = TransferEvent}}) ->
     end;
 is_commited_ev(_Other) ->
     false.
+
+make_template_details({Amount, Currency}) ->
+    make_template_details({Amount, Currency}, #{<<"test key">> => <<"test value">>}).
+
+make_template_details({Amount, Currency}, Metadata) ->
+    #{
+        body => #{
+            value => genlib_map:compact(#{
+                amount => Amount,
+                currency => Currency
+            })
+        },
+        metadata => #{
+            value => Metadata
+        }
+    }.

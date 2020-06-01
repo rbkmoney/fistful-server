@@ -37,7 +37,7 @@ handle_function_('Create', [Params], Opts) ->
         {error, {party, _Inaccessible}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
         {error, exists} ->
-            woody_error:raise(business, #fistful_IDExists{});        
+            woody_error:raise(business, #fistful_IDExists{});
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;

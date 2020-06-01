@@ -348,12 +348,10 @@ create(TransferParams) ->
         SenderResource = unwrap(sender, prepare_resource(sender, Sender, Quote)),
         ReceiverResource = unwrap(receiver, prepare_resource(receiver, Receiver, Quote)),
         Identity = unwrap(identity, get_identity(IdentityID)),
-        {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
         Params = #{
             cash => Body,
             sender => SenderResource,
             receiver => ReceiverResource,
-            party_revision => PartyRevision,
             domain_revision => ff_domain_config:head(),
             timestamp => ff_time:now()
         },

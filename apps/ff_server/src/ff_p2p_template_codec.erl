@@ -83,7 +83,7 @@ marshal(details, Details) ->
     };
 
 marshal(template_body, #{value := Body = #{currency := Currency}}) ->
-    Amount = maps:get(body, Body, undefined),
+    Amount = maps:get(amount, Body, undefined),
     #p2p_template_P2PTemplateBody{
         value = #p2p_template_Cash{
             amount = maybe_marshal(amount, Amount),
@@ -211,6 +211,7 @@ p2p_template_codec_test() ->
     Details = #{
         body => #{
             value => #{
+                amount => 100,
                 currency => <<"RUB">>
             }
         },

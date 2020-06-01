@@ -15,6 +15,7 @@
 -export([end_per_testcase/2]).
 
 %% Tests
+-export([block_p2p_template_ok_test/1]).
 -export([create_p2p_template_ok_test/1]).
 -export([unknown_test/1]).
 
@@ -33,6 +34,7 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
+            block_p2p_template_ok_test,
             create_p2p_template_ok_test,
             unknown_test
         ]}
@@ -78,6 +80,30 @@ end_per_testcase(_Name, _C) ->
 
 %% Tests
 
+-spec block_p2p_template_ok_test(config()) -> test_return().
+block_p2p_template_ok_test(C) ->
+    #{
+        identity_id := IdentityID
+    } = prepare_standard_environment(C),
+    P2PTemplateID = generate_id(),
+    ExternalID = generate_id(),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Details = make_template_details({1000, <<"RUB">>}),
+    Params = #p2p_template_P2PTemplateParams{
+        id = P2PTemplateID,
+        identity_id = IdentityID,
+        external_id = ExternalID,
+        template_details = Details,
+        context = Ctx
+    },
+    {ok, _P2PTemplateState} = call_p2p_template('Create', [Params]),
+    Expected0 = get_p2p_template(P2PTemplateID),
+    ?assertEqual(unblocked, p2p_template:blocking(Expected0)),
+    {ok, ok} = call_p2p_template('SetBlocking', [P2PTemplateID, blocked]),
+    Expected1 = get_p2p_template(P2PTemplateID),
+    ?assertEqual(blocked, p2p_template:blocking(Expected1)).
+
+
 -spec create_p2p_template_ok_test(config()) -> test_return().
 create_p2p_template_ok_test(C) ->
     #{
@@ -86,7 +112,7 @@ create_p2p_template_ok_test(C) ->
     P2PTemplateID = generate_id(),
     ExternalID = generate_id(),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-    Details = #p2p_template_P2PTemplateDetails{},
+    Details = make_template_details({1000, <<"RUB">>}),
     Params = #p2p_template_P2PTemplateParams{
         id = P2PTemplateID,
         identity_id = IdentityID,
@@ -128,6 +154,17 @@ unknown_test(_C) ->
     ?assertEqual({exception, ExpectedError}, Result).
 
 %%  Internals
+
+make_template_details({Amount, Currency}) ->
+    make_template_details({Amount, Currency}, #{<<"test key">> => <<"test value">>}).
+
+make_template_details({Amount, Currency}, Metadata) ->
+    #p2p_template_P2PTemplateDetails{
+        body = ff_p2p_template_codec:marshal(template_body, #{value => #{currency => Currency, body => Amount}}),
+        metadata = #p2p_template_P2PTemplateMetadata{
+            value = ff_p2p_template_codec:marshal(ctx, Metadata)
+        }
+    }.
 
 call_p2p_template(Fun, Args) ->
     ServiceName = p2p_template_management,

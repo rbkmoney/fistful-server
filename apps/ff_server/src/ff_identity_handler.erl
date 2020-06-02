@@ -36,7 +36,7 @@ handle_function_('Create', [IdentityParams], Opts) ->
         {error, {inaccessible, _}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
         {error, exists} ->
-            woody_error:raise(business, #fistful_IDExists{});
+            handle_function_('Get', [IdentityID], Opts);
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;

@@ -74,12 +74,12 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
         Context      = create_handler_context(SwagContext, WoodyContext),
         Handler      = get_handler(Tag, genlib_app:env(?APP, transport)),
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
-            {ok, AuthDetails} ->
-                ok = logger:info("Operation ~p authorized via ~p", [OperationID, AuthDetails]),
+            ok ->
+                ok = logger:debug("Operation ~p authorized", [OperationID]),
                 Handler:process_request(OperationID, Req, Context, Opts);
             {error, Error} ->
                 ok = logger:info("Operation ~p authorization failed due to ~p", [OperationID, Error]),
-                wapi_handler_utils:reply_ok(401, wapi_handler_utils:get_error_msg(<<"Unauthorized operation">>))
+                wapi_handler_utils:reply_ok(401)
         end
     catch
         throw:{?request_result, Result} ->
@@ -117,11 +117,11 @@ attach_deadline(Deadline, Context) ->
 
 collect_user_identity(AuthContext, _Opts) ->
     genlib_map:compact(#{
-        id       => wapi_auth:get_subject_id(AuthContext),
+        id       => uac_authorizer_jwt:get_subject_id(AuthContext),
         %% TODO pass realm via Opts
         realm    => genlib_app:env(?APP, realm),
-        email    => wapi_auth:get_claim(<<"email">>, AuthContext, undefined),
-        username => wapi_auth:get_claim(<<"name">> , AuthContext, undefined)
+        email    => uac_authorizer_jwt:get_claim(<<"email">>, AuthContext, undefined),
+        username => uac_authorizer_jwt:get_claim(<<"name">> , AuthContext, undefined)
     }).
 
 -spec create_handler_context(swagger_context(), woody_context:ctx()) ->
@@ -132,9 +132,15 @@ create_handler_context(SwagContext, WoodyContext) ->
         swagger_context => SwagContext
     }.
 
-process_woody_error(_Source, result_unexpected   , _Details) -> wapi_handler_utils:reply_error(500);
-process_woody_error(_Source, resource_unavailable, _Details) -> wapi_handler_utils:reply_error(503);
-process_woody_error(_Source, result_unknown      , _Details) -> wapi_handler_utils:reply_error(504).
+process_woody_error(_Source, result_unexpected, _Details) ->
+    wapi_handler_utils:reply_error(500);
+process_woody_error(_Source, resource_unavailable, _Details) ->
+    % Return an 504 since it is unknown if state of the system has been altered
+    % @TODO Implement some sort of tagging for operations that mutate the state,
+    % so we can still return 503s for those that don't
+    wapi_handler_utils:reply_error(504);
+process_woody_error(_Source, result_unknown, _Details) ->
+    wapi_handler_utils:reply_error(504).
 
 -spec create_ff_context(woody_context:ctx(), opts()) ->
     ff_context:context().

@@ -72,8 +72,6 @@ create_identity(ID, Params, HandlerContext) ->
             {error, {identity_class, notfound}};
         {exception, #fistful_PartyInaccessible{}} ->
             {error, inaccessible};
-        {exception, #fistful_IDExists{}} ->
-            get_identity(ID, HandlerContext);
         {exception, Details} ->
             {error, Details}
     end.

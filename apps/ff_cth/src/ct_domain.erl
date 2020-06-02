@@ -390,5 +390,4 @@ account(SymCode, C) ->
     end.
 
 timestamp() ->
-    {ok, Now} = rfc3339:format(calendar:universal_time()),
-    Now.
+    genlib_rfc3339:format(genlib_time:daytime_to_unixtime(calendar:universal_time()), second).

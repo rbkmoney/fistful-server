@@ -80,8 +80,10 @@
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 -define(PARAMS_HASH, <<"params_hash">>).
 -define(EXTERNAL_ID, <<"externalID">>).
+-define(SIGNEE, wapi).
 -define(BENDER_DOMAIN, <<"wapi">>).
 -define(DEFAULT_EVENTS_LIMIT, 50).
+-define(DOMAIN, <<"wallet-api">>).
 
 -dialyzer([{nowarn_function, [to_swag/2]}]).
 
@@ -266,7 +268,7 @@ get_wallet(WalletID, Context) ->
 ).
 get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
     AuthContext = wapi_handler_utils:get_auth_context(Context),
-    PartyID = get_party_id(AuthContext),
+    PartyID = uac_authorizer_jwt:get_subject_id(AuthContext),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(wallet, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
         {ok, WalletID, _} -> get_wallet(WalletID, Context);
@@ -379,10 +381,12 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {quote, {invalid_body, _}}    |
     {quote, {invalid_destination, _}} |
     {terms, {terms_violation, _}} |
-    {destination_resource, {bin_data, not_found}}
-).
+    {destination_resource, {bin_data, not_found}} |
+    {Resource, {unauthorized, _}}
+) when Resource :: wallet | destination.
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
+        _ = authorize_withdrawal(Params, Context),
         Quote = unwrap(maybe_check_quote_token(Params, Context)),
         WithdrawalParams = from_swag(withdrawal_params, Params),
         ff_withdrawal_machine:create(
@@ -752,7 +756,8 @@ get_p2p_transfer(ID, Context) ->
 ).
 get_p2p_transfer_events({ID, CT}, Context) ->
     do(fun () ->
-        DecodedCT = unwrap(prepare_p2p_transfer_event_continuation_token(CT)),
+        PartyID = wapi_handler_utils:get_owner(Context),
+        DecodedCT = unwrap(prepare_p2p_transfer_event_continuation_token(PartyID, CT)),
         P2PTransferEventID = maps:get(p2p_transfer_event_id, DecodedCT, undefined),
         P2PSessionEventID = maps:get(p2p_session_event_id, DecodedCT, undefined),
         Limit = genlib_app:env(wapi, events_fetch_limit, ?DEFAULT_EVENTS_LIMIT),
@@ -761,11 +766,10 @@ get_p2p_transfer_events({ID, CT}, Context) ->
         {P2PTransferEvents, P2PTransferEventsLastID} =
             unwrap(maybe_get_transfer_events(ID, Limit, P2PTransferEventID, Context)),
         MixedEvents = mix_events([P2PTransferEvents, P2PSessionEvents]),
-
         ContinuationToken = create_p2p_transfer_events_continuation_token(#{
             p2p_transfer_event_id => max_event_id(P2PTransferEventsLastID, P2PTransferEventID),
             p2p_session_event_id => max_event_id(P2PSessionEventsLastID, P2PSessionEventID)
-        }),
+        }, Context),
         to_swag(p2p_transfer_events, {MixedEvents, ContinuationToken})
     end).
 
@@ -877,8 +881,7 @@ encode_webhook_id(WebhookID) ->
     end.
 
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
-    {ok, JSONData} = wapi_signer:verify(QuoteToken),
-    Data = jsx:decode(JSONData, [return_maps]),
+    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
     unwrap(quote_invalid_party,
         valid(
             maps:get(<<"partyID">>, Data),
@@ -934,8 +937,7 @@ create_quote_token(#{
         <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
         <<"quoteData">>     => QuoteData
     }),
-    JSONData = jsx:encode(Data),
-    {ok, Token} = wapi_signer:sign(JSONData),
+    {ok, Token} = issue_quote_token(PartyID, Data),
     Token.
 
 create_p2p_quote_token(Quote, PartyID) ->
@@ -951,35 +953,31 @@ create_p2p_quote_token(Quote, PartyID) ->
         <<"sender">>         => to_swag(compact_resource, p2p_quote:sender(Quote)),
         <<"receiver">>       => to_swag(compact_resource, p2p_quote:receiver(Quote))
     },
-    JSONData = jsx:encode(Data),
-    {ok, Token} = wapi_signer:sign(JSONData),
+    {ok, Token} = issue_quote_token(PartyID, Data),
     Token.
 
 verify_p2p_quote_token(Token) ->
-    case wapi_signer:verify(Token) of
-        {ok, VerifiedToken} ->
+    case uac_authorizer_jwt:verify(Token, #{}) of
+        {ok, {_, _, VerifiedToken}} ->
             {ok, VerifiedToken};
         {error, Error} ->
             {error, {token, {not_verified, Error}}}
     end.
 
-decode_p2p_quote_token(Token) ->
-    case jsx:decode(Token, [return_maps]) of
-        #{<<"version">> := 1} = DecodedJson ->
+decode_p2p_quote_token(#{<<"version">> := 1} = Token) ->
             DecodedToken = #{
-                amount          => from_swag(body, maps:get(<<"amount">>, DecodedJson)),
-                party_revision  => maps:get(<<"partyRevision">>, DecodedJson),
-                domain_revision => maps:get(<<"domainRevision">>, DecodedJson),
-                created_at      => ff_time:from_rfc3339(maps:get(<<"createdAt">>, DecodedJson)),
-                expires_on      => ff_time:from_rfc3339(maps:get(<<"expiresOn">>, DecodedJson)),
-                identity_id     => maps:get(<<"identityID">>, DecodedJson),
-                sender          => from_swag(compact_resource, maps:get(<<"sender">>, DecodedJson)),
-                receiver        => from_swag(compact_resource, maps:get(<<"receiver">>, DecodedJson))
+                amount          => from_swag(body, maps:get(<<"amount">>, Token)),
+                party_revision  => maps:get(<<"partyRevision">>, Token),
+                domain_revision => maps:get(<<"domainRevision">>, Token),
+                created_at      => ff_time:from_rfc3339(maps:get(<<"createdAt">>, Token)),
+                expires_on      => ff_time:from_rfc3339(maps:get(<<"expiresOn">>, Token)),
+                identity_id     => maps:get(<<"identityID">>, Token),
+                sender          => from_swag(compact_resource, maps:get(<<"sender">>, Token)),
+                receiver        => from_swag(compact_resource, maps:get(<<"receiver">>, Token))
             },
             {ok, DecodedToken};
-        #{<<"version">> := UnsupportedVersion} when is_integer(UnsupportedVersion) ->
-            {error, {token, {unsupported_version, UnsupportedVersion}}}
-    end.
+decode_p2p_quote_token(#{<<"version">> := UnsupportedVersion}) when is_integer(UnsupportedVersion) ->
+    {error, {token, {unsupported_version, UnsupportedVersion}}}.
 
 authorize_p2p_quote_token(Token, IdentityID) ->
     case Token of
@@ -1007,42 +1005,44 @@ max_event_id(NewEventID, OldEventID) ->
 create_p2p_transfer_events_continuation_token(#{
     p2p_transfer_event_id := P2PTransferEventID,
     p2p_session_event_id := P2PSessionEventID
-}) ->
+}, Context) ->
     DecodedToken = genlib_map:compact(#{
         <<"version">>               => 1,
         <<"p2p_transfer_event_id">> => P2PTransferEventID,
         <<"p2p_session_event_id">>  => P2PSessionEventID
     }),
-    EncodedToken = jsx:encode(DecodedToken),
-    {ok, SignedToken} = wapi_signer:sign(EncodedToken),
+    PartyID = wapi_handler_utils:get_owner(Context),
+    {ok, SignedToken} = issue_quote_token(PartyID, DecodedToken),
     SignedToken.
 
-prepare_p2p_transfer_event_continuation_token(undefined) ->
+prepare_p2p_transfer_event_continuation_token(_, undefined) ->
     {ok, #{}};
-prepare_p2p_transfer_event_continuation_token(CT) ->
+prepare_p2p_transfer_event_continuation_token(PartyID, CT) ->
     do(fun() ->
-        VerifiedCT = unwrap(verify_p2p_transfer_event_continuation_token(CT)),
+        VerifiedCT = unwrap(verify_p2p_transfer_event_continuation_token(PartyID, CT)),
         DecodedCT = unwrap(decode_p2p_transfer_event_continuation_token(VerifiedCT)),
         DecodedCT
     end).
 
-verify_p2p_transfer_event_continuation_token(CT) ->
+verify_p2p_transfer_event_continuation_token(PartyID, CT) ->
     do(fun() ->
-        case wapi_signer:verify(CT) of
-            {ok, VerifiedToken} ->
+        case uac_authorizer_jwt:verify(CT, #{}) of
+            {ok, {_, PartyID, VerifiedToken}} ->
                 VerifiedToken;
             {error, Error} ->
-                {error, {token, {not_verified, Error}}}
+                {error, {token, {not_verified, Error}}};
+            _ ->
+                {error, {token, {not_verified, wrong_party_id}}}
         end
     end).
 
 decode_p2p_transfer_event_continuation_token(CT) ->
     do(fun() ->
-        case jsx:decode(CT, [return_maps]) of
-            #{<<"version">> := 1} = DecodedJson ->
+        case CT of
+            #{<<"version">> := 1} ->
                 DecodedToken = #{
-                    p2p_transfer_event_id => maps:get(<<"p2p_transfer_event_id">>, DecodedJson, undefined),
-                    p2p_session_event_id => maps:get(<<"p2p_session_event_id">>, DecodedJson, undefined)
+                    p2p_transfer_event_id => maps:get(<<"p2p_transfer_event_id">>, CT, undefined),
+                    p2p_session_event_id => maps:get(<<"p2p_session_event_id">>, CT, undefined)
                 },
                 DecodedToken;
             #{<<"version">> := UnsupportedVersion} when is_integer(UnsupportedVersion) ->
@@ -1239,7 +1239,7 @@ create_party(Context) ->
     ok.
 
 get_email(AuthContext) ->
-    case wapi_auth:get_claim(<<"email">>, AuthContext, undefined) of
+    case uac_authorizer_jwt:get_claim(<<"email">>, AuthContext, undefined) of
         undefined -> {error, {email, notfound}};
         Email     -> {ok, Email}
     end.
@@ -1365,10 +1365,6 @@ process_stat_result(StatType, Result) ->
         {exception, #fistfulstat_BadToken{reason = Reason}} ->
             {error, {400, [], bad_request_error(invalidRequest, Reason)}}
     end.
-
-get_party_id(AuthContext) ->
-    {{PartyID, _}, _} = AuthContext,
-    PartyID.
 
 get_time(Key, Req) ->
     case genlib_map:get(Key, Req) of
@@ -1990,9 +1986,10 @@ to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
         )]
     });
 
-to_swag(timestamp, {{Date, Time}, Usec}) ->
-    {ok, Timestamp} = rfc3339:format({Date, Time, Usec, undefined}),
-    Timestamp;
+to_swag(timestamp, {DateTime, USec}) ->
+    DateTimeSeconds = genlib_time:daytime_to_unixtime(DateTime),
+    Micros = erlang:convert_time_unit(DateTimeSeconds, second, microsecond),
+    genlib_rfc3339:format_relaxed(Micros + USec, microsecond);
 to_swag(timestamp_ms, Timestamp) ->
     ff_time:to_rfc3339(Timestamp);
 to_swag(currency, Currency) ->
@@ -2235,3 +2232,89 @@ map_fistful_stat_error(_Reason) ->
     #domain_Failure{
         code = <<"failed">>
     }.
+
+authorize_withdrawal(Params, Context) ->
+    _ = authorize_resource(wallet, Params, Context),
+    _ = authorize_resource(destination, Params, Context).
+
+authorize_resource(Resource, Params, Context) ->
+    %% TODO
+    %%  - ff_pipeline:do/1 would make the code rather more clear here.
+    case authorize_resource_by_grant(Resource, Params) of
+        ok ->
+            ok;
+        {error, missing} ->
+            authorize_resource_by_bearer(Resource, Params, Context)
+    end.
+
+authorize_resource_by_bearer(Resource, Params, Context) ->
+    _ = get_state(Resource, maps:get(genlib:to_binary(Resource), Params), Context),
+    ok.
+
+authorize_resource_by_grant(R = destination, #{
+    <<"destination">>      := ID,
+    <<"destinationGrant">> := Grant
+}) ->
+    authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), undefined);
+authorize_resource_by_grant(R = wallet, #{
+    <<"wallet">>      := ID,
+    <<"walletGrant">> := Grant,
+    <<"body">>        := WithdrawalBody
+}) ->
+    authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), WithdrawalBody);
+authorize_resource_by_grant(_, _) ->
+    {error, missing}.
+
+authorize_resource_by_grant(Resource, Grant, Access, Params) ->
+    {_, _, Claims} = unwrap(Resource, uac_authorizer_jwt:verify(Grant, #{})),
+    _ = unwrap(Resource, verify_access(Access, Claims)),
+    _ = unwrap(Resource, verify_claims(Resource, Claims, Params)).
+
+get_resource_accesses(Resource, ID, Permission) ->
+    [{get_resource_accesses(Resource, ID), Permission}].
+
+get_resource_accesses(destination, ID) ->
+    [party, {destinations, ID}];
+get_resource_accesses(wallet, ID) ->
+    [party, {wallets, ID}].
+
+verify_access(Access, #{<<"resource_access">> := #{?DOMAIN := ACL}}) ->
+    do_verify_access(Access, ACL);
+verify_access(Access, #{<<"resource_access">> := #{<<"common-api">> := ACL}}) -> % Legacy grants support
+    do_verify_access(Access, ACL);
+verify_access(_, _) ->
+    {error, {unauthorized, {grant, insufficient_access}}}.
+
+do_verify_access(Access, ACL) ->
+    case lists:all(
+        fun ({Scope, Permission}) -> lists:member(Permission, uac_acl:match(Scope, ACL)) end,
+        Access
+    ) of
+        true  -> ok;
+        false -> {error, {unauthorized, {grant, insufficient_access}}}
+    end.
+
+verify_claims(destination, _Claims, _) ->
+    ok;
+verify_claims(wallet,
+    #{<<"amount">> := GrantAmount, <<"currency">> := Currency},
+    #{<<"amount">> := ReqAmount,   <<"currency">> := Currency}
+) when GrantAmount >= ReqAmount ->
+    ok;
+verify_claims(_, _, _) ->
+    {error, {unauthorized, {grant, insufficient_claims}}}.
+
+issue_quote_token(PartyID, Data) ->
+    uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).
+
+-ifdef(TEST).
+
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() -> _.
+
+-spec date_time_convertion_test() -> _.
+date_time_convertion_test() ->
+    ?assertEqual(<<"2020-05-25T12:34:56.123456Z">>, to_swag(timestamp, {{{2020, 05, 25}, {12, 34, 56}}, 123456})).
+
+-endif.

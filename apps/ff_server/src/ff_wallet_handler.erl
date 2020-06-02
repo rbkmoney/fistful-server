@@ -36,6 +36,8 @@ handle_function_('Create', [Params], Opts) ->
             woody_error:raise(business, #fistful_CurrencyNotFound{});
         {error, {party, _Inaccessible}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
+        {error, exists} ->
+            handle_function_('Get', [WalletID], Opts);
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;

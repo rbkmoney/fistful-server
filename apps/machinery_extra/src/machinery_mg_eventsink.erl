@@ -75,13 +75,19 @@ unmarshal(namespace, V) ->
 unmarshal(event_id, V) ->
     unmarshal(integer, V);
 unmarshal(timestamp, V) when is_binary(V) ->
-    case rfc3339:parse(V) of
-        {ok, {Date, Time, USec, TZOffset}} when TZOffset == undefined orelse TZOffset == 0 ->
-            {{Date, Time}, USec};
-        {ok, _} ->
-            error(badarg, {timestamp, V, badoffset});
-        {error, Reason} ->
-            error(badarg, {timestamp, V, Reason})
+    try
+        MilliSec = genlib_rfc3339:parse(V, millisecond),
+        case genlib_rfc3339:is_utc(V) of
+            false ->
+                erlang:error(badarg, [timestamp, V, badoffset]);
+            true ->
+                USec = MilliSec rem 1000,
+                DateTime = calendar:system_time_to_universal_time(MilliSec, millisecond),
+                {DateTime, USec}
+        end
+    catch
+        error:Reason:St  ->
+            erlang:raise(error, {timestamp, V, Reason}, St)
     end;
 unmarshal(
     {evsink_event, Schema},

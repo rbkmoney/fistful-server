@@ -99,14 +99,14 @@ start_app(wapi = AppName) ->
         {port, 8080},
         {realm, <<"external">>},
         {public_endpoint, <<"localhost:8080">>},
-        {authorizers, #{
+        {access_conf, #{
             jwt => #{
-                signee => wapi,
                 keyset => #{
                     wapi     => {pem_file, "/opt/wapi/config/private.pem"}
                 }
             }
         }},
+        {signee, wapi},
         {lechiffre_opts,  #{
             encryption_key_path => "/opt/wapi/config/jwk.json",
             decryption_key_paths => [

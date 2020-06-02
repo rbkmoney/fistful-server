@@ -24,12 +24,12 @@
         jsx,
         cowboy_cors,
         cowboy_access_log,
-        rfc3339,
         base64url,
         snowflake,
         woody_user_identity,
         payproc_errors,
-        ff_server
+        ff_server,
+        uac
     ]},
     {env, []}
 ]}.

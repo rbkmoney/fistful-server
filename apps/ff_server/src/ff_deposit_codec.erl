@@ -202,7 +202,7 @@ deposit_symmetry_test() ->
         id = genlib:unique(),
         domain_revision = 24500062,
         party_revision = 140028,
-        created_at = <<"2025-01-01T00:00:00.001000Z">>
+        created_at = <<"2025-01-01T00:00:00.001Z">>
     },
     ?assertEqual(Encoded, marshal(deposit, unmarshal(deposit, Encoded))).
 

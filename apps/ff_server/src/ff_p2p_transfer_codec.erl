@@ -344,6 +344,7 @@ p2p_transfer_codec_test() ->
     },
 
     PTransfer = #{
+        id => genlib:unique(),
         final_cash_flow => FinalCashFlow
     },
 

@@ -270,7 +270,7 @@ withdrawal_symmetry_test() ->
         },
         domain_revision = 1,
         party_revision = 3,
-        created_at = <<"2099-01-01T00:00:00.123000Z">>
+        created_at = <<"2099-01-01T00:00:00.123Z">>
     },
     ?assertEqual(In, marshal(withdrawal, unmarshal(withdrawal, In))).
 

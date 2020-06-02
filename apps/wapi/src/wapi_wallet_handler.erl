@@ -24,9 +24,16 @@
 
 -spec authorize_api_key(operation_id(), api_key(), handler_opts()) ->
     false | {true, wapi_auth:context()}.
-authorize_api_key(OperationID, ApiKey, Opts) ->
+authorize_api_key(OperationID, ApiKey, _Opts) ->
     ok = scoper:add_scope('swag.server', #{api => wallet, operation_id => OperationID}),
-    wapi_auth:authorize_api_key(OperationID, ApiKey, Opts).
+    case uac:authorize_api_key(ApiKey, wapi_auth:get_verification_options()) of
+        {ok, Context0} ->
+            Context = wapi_auth:create_wapi_context(Context0),
+            {true, Context};
+        {error, Error} ->
+            _ = logger:info("API Key authorization failed for ~p due to ~p", [OperationID, Error]),
+            false
+    end.
 
 -spec handle_request(swag_server_wallet:operation_id(), req_data(), request_context(), handler_opts()) ->
     request_result().
@@ -309,12 +316,20 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
         {error, {destination, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
+        {error, {destination, {unauthorized, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>)
+            );
         {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
         {error, {provider, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {external_id_conflict, ID, ExternalID}} ->
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
+        {error, {wallet, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
+        {error, {wallet, {unauthorized, _}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet unauthorized">>));
         {error, {wallet, {inaccessible, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Inaccessible source or destination">>)
@@ -708,4 +723,4 @@ get_expiration_deadline(Expiration) ->
 get_default_url_lifetime() ->
     Now      = erlang:system_time(second),
     Lifetime = application:get_env(wapi, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
-    wapi_utils:unwrap(rfc3339:format(Now + Lifetime, second)).
+    genlib_rfc3339:format(Now + Lifetime, second).

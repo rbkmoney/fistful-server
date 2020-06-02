@@ -1,19 +1,21 @@
 -module(wapi_auth).
 
--export([authorize_api_key/3]).
 -export([authorize_operation/3]).
 -export([issue_access_token/2]).
 -export([issue_access_token/3]).
 
--export([get_subject_id/1]).
--export([get_claims/1]).
--export([get_claim/2]).
--export([get_claim/3]).
-
 -export([get_resource_hierarchy/0]).
 
--type context () :: wapi_authorizer_jwt:t().
--type claims  () :: wapi_authorizer_jwt:claims().
+-export([get_verification_options/0]).
+
+-export([get_access_config/0]).
+
+-export([get_signee/0]).
+
+-export([create_wapi_context/1]).
+
+-type context () :: uac_authorizer_jwt:t().
+-type claims  () :: uac_authorizer_jwt:claims().
 -type consumer() :: client | merchant | provider.
 
 -export_type([context /0]).
@@ -21,56 +23,6 @@
 -export_type([consumer/0]).
 
 -type operation_id() :: wapi_handler:operation_id().
-
--type api_key() ::
-    swag_server_wallet:api_key().
-
--type handler_opts() :: wapi_handler:opts().
-
--spec authorize_api_key(operation_id(), api_key(), handler_opts()) ->
-    {true, context()}. %% | false.
-
-authorize_api_key(OperationID, ApiKey, _Opts) ->
-    case parse_api_key(ApiKey) of
-        {ok, {Type, Credentials}} ->
-            case do_authorize_api_key(OperationID, Type, Credentials) of
-                {ok, Context} ->
-                    {true, Context};
-                {error, Error} ->
-                    _ = log_auth_error(OperationID, Error),
-                    false
-            end;
-        {error, Error} ->
-            _ = log_auth_error(OperationID, Error),
-            false
-    end.
-
-log_auth_error(OperationID, Error) ->
-    logger:info("API Key authorization failed for ~p due to ~p", [OperationID, Error]).
-
--spec parse_api_key(ApiKey :: api_key()) ->
-    {ok, {bearer, Credentials :: binary()}} | {error, Reason :: atom()}.
-
-parse_api_key(ApiKey) ->
-    case ApiKey of
-        <<"Bearer ", Credentials/binary>> ->
-            {ok, {bearer, Credentials}};
-        _ ->
-            {error, unsupported_auth_scheme}
-    end.
-
--spec do_authorize_api_key(
-    OperationID :: operation_id(),
-    Type :: atom(),
-    Credentials :: binary()
-) ->
-    {ok, Context :: context()} | {error, Reason :: atom()}.
-
-do_authorize_api_key(_OperationID, bearer, Token) ->
-    % NOTE
-    % We are knowingly delegating actual request authorization to the logic handler
-    % so we could gather more data to perform fine-grained access control.
-    wapi_authorizer_jwt:verify(Token).
 
 %%
 
@@ -80,166 +32,220 @@ do_authorize_api_key(_OperationID, bearer, Token) ->
 -type auth_method()  :: bearer_token | grant.
 -type resource()     :: wallet | destination.
 -type auth_details() :: auth_method() | [{resource(), auth_details()}].
--type auth_error()   :: [{resource(), [{auth_method(), atom()}]}].
+
+-define(DOMAIN, <<"wallet-api">>).
 
 -spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
-    {ok, auth_details()}  | {error, auth_error()}.
+    ok  | {error, unauthorized}.
 
-authorize_operation('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context) ->
-    authorize_withdrawal(Params, Context);
-%% TODO: implement authorization
-authorize_operation(_OperationID, _Req, _) ->
-    {ok, bearer_token}.
-
-authorize_withdrawal(Params, Context) ->
-    lists:foldl(
-        fun(R, AuthState) ->
-            case {authorize_resource(R, Params, Context), AuthState} of
-                {{ok, AuthMethod}, {ok, AuthData}}   -> {ok, [{R, AuthMethod} | AuthData]};
-                {{ok, _}, {error, _}}                -> AuthState;
-                {{error, Error}, {error, ErrorData}} -> {error, [{R, Error} | ErrorData]};
-                {{error, Error}, {ok, _}}            -> {error, [{R, Error}]}
-            end
-        end,
-        {ok, []},
-        [destination, wallet]
-    ).
-
-authorize_resource(Resource, Params, Context) ->
-    %% TODO
-    %%  - ff_pipeline:do/1 would make the code rather more clear here.
-    authorize_resource_by_bearer(authorize_resource_by_grant(Resource, Params), Resource, Params, Context).
-
-authorize_resource_by_bearer(ok, _Resource, _Params, _Context) ->
-    {ok, grant};
-authorize_resource_by_bearer({error, GrantError}, Resource, Params, Context) ->
-    case get_resource(Resource, maps:get(genlib:to_binary(Resource), Params), Context) of
-        {ok, _} ->
-            {ok, bearer_token};
-        {error, BearerError} ->
-            {error, [{bearer_token, BearerError}, {grant, GrantError}]}
-    end.
-
-get_resource(destination, ID, Context) ->
-    wapi_wallet_ff_backend:get_destination(ID, Context);
-get_resource(wallet, ID, Context) ->
-    wapi_wallet_ff_backend:get_wallet(ID, Context).
-
-authorize_resource_by_grant(R = destination, #{
-    <<"destination">>      := ID,
-    <<"destinationGrant">> := Grant
-}) ->
-    authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), undefined);
-authorize_resource_by_grant(R = wallet, #{
-    <<"wallet">>      := ID,
-    <<"walletGrant">> := Grant,
-    <<"body">>        := WithdrawalBody
-}) ->
-    authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), WithdrawalBody);
-authorize_resource_by_grant(_, _) ->
-    {error, missing}.
-
-authorize_resource_by_grant(Resource, Grant, Access, Params) ->
-    case wapi_authorizer_jwt:verify(Grant) of
-        {ok, {{_, ACL}, Claims}} ->
-            verify_claims(Resource, verify_access(Access, ACL, Claims), Params);
-        Error = {error, _} ->
-            Error
-    end.
-
-get_resource_accesses(Resource, ID, Permission) ->
-    [{get_resource_accesses(Resource, ID), Permission}].
-
-get_resource_accesses(destination, ID) ->
-    [party, {destinations, ID}];
-get_resource_accesses(wallet, ID) ->
-    [party, {wallets, ID}].
-
-verify_access(Access, ACL, Claims) ->
-    case lists:all(
-        fun ({Scope, Permission}) -> lists:member(Permission, wapi_acl:match(Scope, ACL)) end,
-        Access
-    ) of
-        true  -> {ok, Claims};
-        false -> {error, insufficient_access}
-    end.
-
-verify_claims(_, Error = {error, _}, _) ->
-    Error;
-verify_claims(destination, {ok, _Claims}, _) ->
-    ok;
-verify_claims(wallet,
-    {ok, #{<<"amount">> := GrantAmount, <<"currency">> := Currency}},
-    #{     <<"amount">> := ReqAmount,   <<"currency">> := Currency }
-) when GrantAmount >= ReqAmount ->
-    ok;
-verify_claims(_, _, _) ->
-    {error, insufficient_claims}.
+authorize_operation(OperationID, Req, #{swagger_context := #{auth_context := AuthContext}}) ->
+    OperationACL = get_operation_access(OperationID, Req),
+    uac:authorize_operation(OperationACL, AuthContext).
 
 -type token_spec() ::
     {destinations, DestinationID :: binary()} |
     {wallets, WalletID :: binary(), Asset :: map()}.
 
 -spec issue_access_token(wapi_handler_utils:owner(), token_spec()) ->
-    wapi_authorizer_jwt:token().
+    uac_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec) ->
     issue_access_token(PartyID, TokenSpec, unlimited).
 
--spec issue_access_token(wapi_handler_utils:owner(), token_spec(), wapi_authorizer_jwt:expiration()) ->
-    wapi_authorizer_jwt:token().
+-spec issue_access_token(wapi_handler_utils:owner(), token_spec(), uac_authorizer_jwt:expiration()) ->
+    uac_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec, Expiration) ->
-    {Claims, ACL} = resolve_token_spec(TokenSpec),
-    wapi_utils:unwrap(wapi_authorizer_jwt:issue({{PartyID, wapi_acl:from_list(ACL)}, Claims}, Expiration)).
-
--type acl() :: [{wapi_acl:scope(), wapi_acl:permission()}].
+    Claims0 = resolve_token_spec(TokenSpec),
+    Claims = Claims0#{<<"exp">> => Expiration},
+    wapi_utils:unwrap(uac_authorizer_jwt:issue(
+        wapi_utils:get_unique_id(),
+        PartyID,
+        Claims,
+        get_signee()
+    )).
 
 -spec resolve_token_spec(token_spec()) ->
-    {claims(), acl()}.
+    claims().
 resolve_token_spec({destinations, DestinationId}) ->
-    Claims = #{},
-    ACL = [{[party, {destinations, DestinationId}], write}],
-    {Claims, ACL};
+    #{
+        <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
+            [{[party, {destinations, DestinationId}], write}]
+        )}
+    };
 resolve_token_spec({wallets, WalletId, #{<<"amount">> := Amount, <<"currency">> := Currency}}) ->
-    Claims = #{<<"amount">> => Amount, <<"currency">> => Currency},
-    ACL    = [{[party, {wallets, WalletId}], write}],
-    {Claims, ACL}.
-
--spec get_subject_id(context()) -> binary().
-
-get_subject_id({{SubjectID, _ACL}, _}) ->
-    SubjectID.
-
--spec get_claims(context()) -> claims().
-
-get_claims({_Subject, Claims}) ->
-    Claims.
-
--spec get_claim(binary(), context()) -> term().
-
-get_claim(ClaimName, {_Subject, Claims}) ->
-    maps:get(ClaimName, Claims).
-
--spec get_claim(binary(), context(), term()) -> term().
-
-get_claim(ClaimName, {_Subject, Claims}, Default) ->
-    maps:get(ClaimName, Claims, Default).
+    #{
+        <<"amount">> => Amount,
+        <<"currency">> => Currency,
+        <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
+            [{[party, {wallets, WalletId}], write}]
+        )}
+    }.
 
 %%
 
-%% TODO update for the wallet swag
-%% -spec get_operation_access(operation_id(), request_data()) ->
-%%     [{wapi_acl:scope(), wapi_acl:permission()}].
+get_operation_access('GetCurrency', _) ->
+    [{[party], read}];
+get_operation_access('ListDeposits', _) ->
+    [{[party], read}];
+get_operation_access('ListDestinations', _) ->
+    [{[party, destinations], read}];
+get_operation_access('CreateDestination', _) ->
+    [{[party, destinations], write}];
+get_operation_access('GetDestination', #{destinationID := ID}) ->
+    [{[party, {destinations, ID}], read}];
+get_operation_access('GetDestinationByExternalID', _) ->
+    [{[party, destinations], read}];
+get_operation_access('IssueDestinationGrant', #{destinationID := ID}) ->
+    [{[party, {destinations, ID}], write}];
+get_operation_access('DownloadFile', _) ->
+    [{[party], write}];
+get_operation_access('ListIdentities', _) ->
+    [{[party], read}];
+get_operation_access('CreateIdentity', _) ->
+    [{[party], write}];
+get_operation_access('GetIdentity', _) ->
+    [{[party], read}];
+get_operation_access('ListIdentityChallenges', _) ->
+    [{[party], read}];
+get_operation_access('StartIdentityChallenge', _) ->
+    [{[party], write}];
+get_operation_access('GetIdentityChallenge', _) ->
+    [{[party], read}];
+get_operation_access('PollIdentityChallengeEvents', _) ->
+    [{[party], read}];
+get_operation_access('GetIdentityChallengeEvent', _) ->
+    [{[party], read}];
+get_operation_access('CreateReport', _) ->
+    [{[party], write}];
+get_operation_access('GetReports', _) ->
+    [{[party], read}];
+get_operation_access('GetReport', _) ->
+    [{[party], read}];
+get_operation_access('ListProviders', _) ->
+    [{[party], read}];
+get_operation_access('GetProvider', _) ->
+    [{[party], read}];
+get_operation_access('ListProviderIdentityClasses', _) ->
+    [{[party], read}];
+get_operation_access('GetProviderIdentityClass', _) ->
+    [{[party], read}];
+get_operation_access('ListProviderIdentityLevels', _) ->
+    [{[party], read}];
+get_operation_access('GetProviderIdentityLevel', _) ->
+    [{[party], read}];
+get_operation_access('GetResidence', _) ->
+    [{[party], read}];
+get_operation_access('ListWallets', _) ->
+    [{[party, wallets], read}];
+get_operation_access('CreateWallet', _) ->
+    [{[party, wallets], write}];
+get_operation_access('GetWallet', #{walletID := ID}) ->
+    [{[party, {wallets, ID}], read}];
+get_operation_access('GetWalletByExternalID', _) ->
+    [{[party], read}];
+get_operation_access('GetWalletAccount', #{walletID := ID}) ->
+    [{[party, {wallets, ID}], read}];
+get_operation_access('IssueWalletGrant', #{walletID := ID}) ->
+    [{[party, {wallets, ID}], write}];
+get_operation_access('CreateWebhook', _) ->
+    [{[webhooks], write}];
+get_operation_access('GetWebhooks', _) ->
+    [{[webhooks], read}];
+get_operation_access('GetWebhookByID', _) ->
+    [{[webhooks], read}];
+get_operation_access('DeleteWebhookByID', _) ->
+    [{[webhooks], write}];
+get_operation_access('CreateQuote', _) ->
+    [{[party], write}];
+get_operation_access('ListWithdrawals', _) ->
+    [{[withdrawals], read}];
+get_operation_access('CreateWithdrawal', _) ->
+    [{[withdrawals], write}];
+get_operation_access('GetWithdrawal', _) ->
+    [{[withdrawals], read}];
+get_operation_access('GetWithdrawalByExternalID', _) ->
+    [{[withdrawals], read}];
+get_operation_access('PollWithdrawalEvents', _) ->
+    [{[withdrawals], read}];
+get_operation_access('GetWithdrawalEvents', _) ->
+    [{[withdrawals], read}];
+get_operation_access('CreateP2PTransfer', _) ->
+    [{[p2p], write}];
+get_operation_access('QuoteP2PTransfer', _) ->
+    [{[p2p], write}];
+get_operation_access('GetP2PTransfer', _) ->
+    [{[p2p], read}];
+get_operation_access('GetP2PTransferEvents', _) ->
+    [{[p2p], read}];
+get_operation_access('CreateW2WTransfer', _) ->
+    [{[w2w], write}];
+get_operation_access('GetW2WTransfer', _) ->
+    [{[w2w], read}].
 
-%% get_operation_access('CreateWithdrawal'     , #{'WithdrawalParameters' := #{<<"walletGrant">> => }}) ->
-%%     [{[payment_resources], write}].
+-spec get_access_config() -> map().
+
+get_access_config() ->
+    #{
+        domain_name => ?DOMAIN,
+        resource_hierarchy => get_resource_hierarchy()
+    }.
 
 -spec get_resource_hierarchy() -> #{atom() => map()}.
 
 %% TODO put some sense in here
+% This resource hierarchy refers to wallet api actaully
 get_resource_hierarchy() ->
     #{
         party => #{
             wallets           => #{},
             destinations      => #{}
-        }
+        },
+        p2p         => #{},
+        w2w         => #{},
+        webhooks    => #{},
+        withdrawals => #{}
     }.
+
+-spec get_verification_options() -> uac:verification_opts().
+get_verification_options() ->
+    #{
+        domains_to_decode => [<<"common-api">>, <<"wallet-api">>]
+    }.
+
+all_scopes(Key, Value, AccIn) ->
+    Scopes0 = maps:fold(fun all_scopes/3, [], Value),
+    Scopes1 = lists:map(fun(Scope) -> [Key | Scope] end, Scopes0),
+    Scopes1 ++ [[Key] | AccIn].
+
+hierarchy_to_acl(Hierarchy) ->
+    Scopes = maps:fold(fun all_scopes/3, [], Hierarchy),
+    lists:foldl(
+        fun(Scope, ACL0) ->
+            uac_acl:insert_scope(Scope, write, uac_acl:insert_scope(Scope, read, ACL0))
+        end,
+        uac_acl:new(),
+        Scopes
+    ).
+
+-spec create_wapi_context(uac_authorizer_jwt:t()) -> uac_authorizer_jwt:t().
+create_wapi_context({ID, Party, Claims}) ->
+    % Create new acl
+    % So far we want to give every token full set of permissions
+    % This is a temporary solution
+    % @TODO remove when we issue new tokens
+    NewClaims = maybe_grant_wapi_roles(Claims),
+    {ID, Party, NewClaims}.
+
+maybe_grant_wapi_roles(Claims) ->
+    case genlib_map:get(<<"resource_access">>, Claims) of
+        #{?DOMAIN := _} ->
+            Claims;
+        #{<<"common-api">> := _} ->
+            Hierarchy = wapi_auth:get_resource_hierarchy(),
+            Claims#{<<"resource_access">> => #{?DOMAIN => hierarchy_to_acl(Hierarchy)}};
+        _ ->
+            undefined
+    end.
+
+-spec get_signee() -> term().
+get_signee() ->
+    wapi_utils:unwrap(application:get_env(wapi, signee)).

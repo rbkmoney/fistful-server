@@ -49,8 +49,6 @@ create(WalletID, Params, HandlerContext) ->
             {error, {currency, notfound}};
         {exception, #fistful_PartyInaccessible{}} ->
             {error, inaccessible};
-        {exception, #fistful_IDExists{}} ->
-            get(WalletID, HandlerContext);
         {exception, Details} ->
             {error, Details}
     end.

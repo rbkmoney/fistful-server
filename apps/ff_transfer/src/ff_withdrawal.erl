@@ -481,7 +481,9 @@ is_finished(#{status := pending}) ->
     process_result().
 process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
-    do_process_transfer(Activity, Withdrawal).
+    R = do_process_transfer(Activity, Withdrawal),
+    erlang:display({?MODULE, ?LINE, Activity, R}),
+    R.
 
 %% Internals
 
@@ -689,20 +691,21 @@ do_process_routing(Withdrawal) ->
     }),
 
     do(fun() ->
-        ProviderID = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        Route = route(Withdrawal),
+        ProviderID = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision, Route)),
         valid = unwrap(validate_quote_provider(ProviderID, quote(Withdrawal))),
         ProviderID
     end).
 
--spec prepare_route(party_varset(), identity(), domain_revision()) ->
+-spec prepare_route(party_varset(), identity(), domain_revision(), route()) ->
     {ok, provider_id()} | {error, route_not_found}.
 
-prepare_route(PartyVarset, Identity, DomainRevision) ->
+prepare_route(PartyVarset, Identity, DomainRevision, Route) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
         {ok, Providers}  ->
-            choose_provider(Providers, PartyVarset);
+            choose_provider(Providers, PartyVarset, Route);
         {error, {misconfiguration, _Details} = Error} ->
             %% TODO: Do not interpret such error as an empty route list.
             %% The current implementation is made for compatibility reasons.
@@ -720,12 +723,22 @@ validate_quote_provider(ProviderID, #{quote_data := #{<<"provider_id">> := Provi
 validate_quote_provider(ProviderID, _) ->
     {error, {inconsistent_quote_route, ProviderID}}.
 
--spec choose_provider([provider_id()], party_varset()) ->
+-spec choose_provider([provider_id()], party_varset(), route()) ->
     {ok, provider_id()} | {error, route_not_found}.
-choose_provider(Providers, VS) ->
+choose_provider(Providers, VS, Route) ->
     case lists:filter(fun(P) -> validate_withdrawals_terms(P, VS) end, Providers) of
-        [ProviderID | _] ->
+        [ProviderID | _] when Route =:= undefined ->
             {ok, ProviderID};
+        [_ | _] = Providers ->
+            #{provider_id := Current} = Route,
+            %% Assume Providers is ordset
+            Remaining = lists:dropwhile(fun(E) -> E =< Current end, Providers),
+            case Remaining of
+                [ProviderID1 | _] ->
+                    {ok, ProviderID1};
+                [] ->
+                    {error, route_not_found}
+            end;
         [] ->
             {error, route_not_found}
     end.
@@ -1055,7 +1068,8 @@ get_quote_(Params, Destination, Resource) ->
             destination => Destination,
             resource => Resource
         }),
-        ProviderID = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        ProviderID = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity,
+            DomainRevision, undefined)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),

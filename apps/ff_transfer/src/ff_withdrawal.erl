@@ -20,14 +20,16 @@
     party_revision  => party_revision(),
     domain_revision => domain_revision(),
     route           => route(),
-    session         => session(),
+    sessions        => [session()],
     p_transfer      => p_transfer(),
     resource        => destination_resource(),
     limit_checks    => [limit_check_details()],
     adjustments     => adjustments_index(),
     status          => status(),
     metadata        => metadata(),
-    external_id     => id()
+    external_id     => id(),
+    %% Route data
+    route_session   => session()
 }.
 
 -opaque withdrawal() :: #{
@@ -450,12 +452,7 @@ effective_final_cash_flow(Withdrawal) ->
 
 -spec sessions(withdrawal_state()) -> [session()].
 sessions(Withdrawal) ->
-    case session(Withdrawal) of
-        undefined ->
-            [];
-        Session ->
-            [Session]
-    end.
+    maps:get(sessions, Withdrawal, []).
 
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(withdrawal_state()) -> boolean().
@@ -807,7 +804,7 @@ process_p_transfer_creation(Withdrawal) ->
 -spec process_session_creation(withdrawal_state()) ->
     process_result().
 process_session_creation(Withdrawal) ->
-    ID = construct_session_id(id(Withdrawal)),
+    ID = construct_session_id(Withdrawal),
     #{
         wallet_id := WalletID,
         destination_id := DestinationID
@@ -838,8 +835,9 @@ process_session_creation(Withdrawal) ->
     ok = create_session(ID, TransferData, SessionParams),
     {continue, [{session_started, ID}]}.
 
-construct_session_id(ID) ->
-    SubID = genlib:unique(),
+construct_session_id(Withdrawal) ->
+    ID = id(Withdrawal),
+    SubID = integer_to_binary(length(sessions(Withdrawal)) + 1),
     << ID/binary, "/", SubID/binary >>.
 
 -spec construct_p_transfer_id(id()) -> id().
@@ -1143,7 +1141,12 @@ quote_domain_revision(#{quote_data := QuoteData}) ->
 
 -spec session(withdrawal_state()) -> session() | undefined.
 session(Withdrawal) ->
-    maps:get(session, Withdrawal, undefined).
+    case sessions(Withdrawal) of
+        [] ->
+            undefined;
+        Sessions ->
+            hd(Sessions)
+    end.
 
 -spec session_id(withdrawal_state()) -> session_id() | undefined.
 session_id(T) ->
@@ -1156,7 +1159,7 @@ session_id(T) ->
 
 -spec session_result(withdrawal_state()) -> session_result() | unknown | undefined.
 session_result(Withdrawal) ->
-    case session(Withdrawal) of
+    case maps:get(route_session, Withdrawal, undefined) of
         undefined ->
             undefined;
         #{result := Result} ->
@@ -1508,12 +1511,20 @@ apply_event_({p_transfer, Ev}, T) ->
     T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))};
 apply_event_({session_started, SessionID}, T) ->
     Session = #{id => SessionID},
-    maps:put(session, Session, T);
+    Sessions = sessions(T),
+    T#{
+        route_session => Session,
+        sessions => [Session | Sessions]
+    };
 apply_event_({session_finished, {SessionID, Result}}, T) ->
-    #{id := SessionID} = Session = session(T),
-    maps:put(session, Session#{result => Result}, T);
+    [#{id := SessionID} = Session | Sessions] = sessions(T),
+    UpdSession = Session#{result => Result},
+    T#{
+        route_session => UpdSession,
+        sessions => [UpdSession | Sessions]
+    };
 apply_event_({route_changed, Route}, T) ->
-    T1 = maps:without([session, limit_checks, p_transfer], T),
+    T1 = maps:without([route_session, limit_checks, p_transfer], T),
     maps:put(route, Route, T1);
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).

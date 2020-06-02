@@ -79,7 +79,8 @@
     {destination_resource, {bin_data, not_found}}.
 
 -type route() :: #{
-    provider_id := provider_id()
+    provider_id := provider_id(),
+    pending_providers => [provider_id]
 }.
 
 -type prepared_route() :: #{
@@ -481,9 +482,7 @@ is_finished(#{status := pending}) ->
     process_result().
 process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
-    R = do_process_transfer(Activity, Withdrawal),
-    erlang:display({?MODULE, ?LINE, Activity, R}),
-    R.
+    do_process_transfer(Activity, Withdrawal).
 
 %% Internals
 
@@ -526,6 +525,12 @@ route_selection_status(Withdrawal) ->
         _Known ->
             found
     end.
+
+-spec has_pending_routes(withdrawal_state()) -> boolean().
+
+has_pending_routes(Withdrawal) ->
+    Route = route(Withdrawal),
+    [] =/= maps:get(pending_providers, Route, []).
 
 -spec adjustments_index(withdrawal_state()) -> adjustments_index().
 adjustments_index(Withdrawal) ->
@@ -649,7 +654,13 @@ do_process_transfer(session_starting, Withdrawal) ->
 do_process_transfer(session_polling, Withdrawal) ->
     process_session_poll(Withdrawal);
 do_process_transfer({fail, Reason}, Withdrawal) ->
-    process_transfer_fail(Reason, Withdrawal);
+    case has_pending_routes(Withdrawal) of
+        false ->
+            process_transfer_fail(Reason, Withdrawal);
+        true ->
+            {_, [FailEvent]} = process_transfer_fail(Reason, Withdrawal),
+            {continue, [FailEvent | process_route_change(Withdrawal)]}
+    end;
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
 do_process_transfer(adjustment, Withdrawal) ->
@@ -661,9 +672,9 @@ do_process_transfer(stop, _Withdrawal) ->
     process_result().
 process_routing(Withdrawal) ->
     case do_process_routing(Withdrawal) of
-        {ok, ProviderID} ->
+        {ok, [ProviderID | Providers]} ->
             {continue, [
-                {route_changed, #{provider_id => ProviderID}}
+                {route_changed, #{provider_id => ProviderID, pending_providers => Providers}}
             ]};
         {error, route_not_found} ->
             process_transfer_fail(route_not_found, Withdrawal);
@@ -671,7 +682,7 @@ process_routing(Withdrawal) ->
             process_transfer_fail(Reason, Withdrawal)
     end.
 
--spec do_process_routing(withdrawal_state()) -> {ok, provider_id()} | {error, Reason} when
+-spec do_process_routing(withdrawal_state()) -> {ok, [provider_id()]} | {error, Reason} when
     Reason :: route_not_found | {inconsistent_quote_route, provider_id()}.
 do_process_routing(Withdrawal) ->
     WalletID = wallet_id(Withdrawal),
@@ -691,21 +702,26 @@ do_process_routing(Withdrawal) ->
     }),
 
     do(fun() ->
-        Route = route(Withdrawal),
-        ProviderID = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision, Route)),
-        valid = unwrap(validate_quote_provider(ProviderID, quote(Withdrawal))),
-        ProviderID
+        Providers = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        case quote(Withdrawal) of
+            undefined ->
+                Providers;
+            Quote ->
+                ProviderID = hd(Providers),
+                valid = unwrap(validate_quote_provider(ProviderID, Quote)),
+                [ProviderID]
+        end
     end).
 
--spec prepare_route(party_varset(), identity(), domain_revision(), route()) ->
-    {ok, provider_id()} | {error, route_not_found}.
+-spec prepare_route(party_varset(), identity(), domain_revision()) ->
+    {ok, [provider_id()]} | {error, route_not_found}.
 
-prepare_route(PartyVarset, Identity, DomainRevision, Route) ->
+prepare_route(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
         {ok, Providers}  ->
-            choose_provider(Providers, PartyVarset, Route);
+            choose_provider(Providers, PartyVarset);
         {error, {misconfiguration, _Details} = Error} ->
             %% TODO: Do not interpret such error as an empty route list.
             %% The current implementation is made for compatibility reasons.
@@ -714,33 +730,21 @@ prepare_route(PartyVarset, Identity, DomainRevision, Route) ->
             {error, route_not_found}
     end.
 
--spec validate_quote_provider(provider_id(), quote()) ->
+-spec validate_quote_provider([provider_id()], quote()) ->
     {ok, valid} | {error, {inconsistent_quote_route, provider_id()}}.
-validate_quote_provider(_ProviderID, undefined) ->
-    {ok, valid};
 validate_quote_provider(ProviderID, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
     {ok, valid};
 validate_quote_provider(ProviderID, _) ->
     {error, {inconsistent_quote_route, ProviderID}}.
 
--spec choose_provider([provider_id()], party_varset(), route()) ->
-    {ok, provider_id()} | {error, route_not_found}.
-choose_provider(Providers, VS, Route) ->
+-spec choose_provider([provider_id()], party_varset()) ->
+    {ok, [provider_id()]} | {error, route_not_found}.
+choose_provider(Providers, VS) ->
     case lists:filter(fun(P) -> validate_withdrawals_terms(P, VS) end, Providers) of
-        [ProviderID | _] when Route =:= undefined ->
-            {ok, ProviderID};
-        [_ | _] = Providers ->
-            #{provider_id := Current} = Route,
-            %% Assume Providers is ordset
-            Remaining = lists:dropwhile(fun(E) -> E =< Current end, Providers),
-            case Remaining of
-                [ProviderID1 | _] ->
-                    {ok, ProviderID1};
-                [] ->
-                    {error, route_not_found}
-            end;
         [] ->
-            {error, route_not_found}
+            {error, route_not_found};
+        Providers ->
+            {ok, Providers}
     end.
 
 -spec validate_withdrawals_terms(provider_id(), party_varset()) ->
@@ -835,11 +839,13 @@ process_session_creation(Withdrawal) ->
     {continue, [{session_started, ID}]}.
 
 construct_session_id(ID) ->
-    ID.
+    SubID = genlib:unique(),
+    << ID/binary, "/", SubID/binary >>.
 
 -spec construct_p_transfer_id(id()) -> id().
 construct_p_transfer_id(ID) ->
-    <<"ff/withdrawal/", ID/binary>>.
+    SubID = genlib:unique(),
+    <<"ff/withdrawal/", ID/binary, "/", SubID/binary >>.
 
 create_session(ID, TransferData, SessionParams) ->
     case ff_withdrawal_session_machine:create(ID, TransferData, SessionParams) of
@@ -1068,8 +1074,7 @@ get_quote_(Params, Destination, Resource) ->
             destination => Destination,
             resource => Resource
         }),
-        ProviderID = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity,
-            DomainRevision, undefined)),
+        [ProviderID | _] = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),
@@ -1409,6 +1414,16 @@ process_adjustment(Withdrawal) ->
     Events1 = Events0 ++ handle_adjustment_changes(Changes),
     handle_child_result({Action, Events1}, Withdrawal).
 
+-spec process_route_change(withdrawal_state()) ->
+    [event()].
+process_route_change(Withdrawal) ->
+    Route = route(Withdrawal),
+    [New | Rest] = maps:get(pending_providers, Route),
+    [
+        {route_changed, #{provider_id => New, pending_providers => Rest}},
+        {status_changed, pending}
+    ].
+
 -spec handle_adjustment_changes(ff_adjustment:changes()) ->
     [event()].
 handle_adjustment_changes(Changes) ->
@@ -1498,7 +1513,8 @@ apply_event_({session_finished, {SessionID, Result}}, T) ->
     #{id := SessionID} = Session = session(T),
     maps:put(session, Session#{result => Result}, T);
 apply_event_({route_changed, Route}, T) ->
-    maps:put(route, Route, T);
+    T1 = maps:without([session, limit_checks, p_transfer], T),
+    maps:put(route, Route, T1);
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
 

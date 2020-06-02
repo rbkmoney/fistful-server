@@ -44,24 +44,10 @@ handle_function_('Create', [Params], Opts) ->
 handle_function_('Get', [ID], _Opts) ->
     case ff_destination:get_machine(ID) of
         {ok, Machine} ->
-            {ok, machine_to_destination(ID, Machine)};
+            Destination = ff_destination:get(Machine),
+            Context = ff_destination:ctx(Machine),
+            Response = ff_destination_codec:marshal_destination_state(Destination, ID, Context),
+            {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DestinationNotFound{})
     end.
-
-machine_to_destination(ID, Machine) ->
-    CreatedAt   = ff_destination_codec:marshal(timestamp, ff_machine:created(Machine)),
-    Context     = ff_destination_codec:marshal(ctx, ff_destination:ctx(Machine)),
-    Destination = ff_destination_codec:marshal_destination(ff_destination:get(Machine)),
-    Blocking    = case ff_destination:is_accessible(ff_destination:get(Machine)) of
-        {ok, accessible} ->
-            unblocked;
-        _ ->
-            blocked
-    end,
-    Destination#dst_Destination{
-        id         = ID,
-        created_at = CreatedAt,
-        context    = Context,
-        blocking   = Blocking
-    }.

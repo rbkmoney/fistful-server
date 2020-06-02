@@ -100,7 +100,7 @@
 -type domain_cash_range() :: dmsl_domain_thrift:'CashRange'().
 -type domain_revision() :: ff_domain_config:revision().
 -type timestamp() :: ff_time:timestamp_ms().
--type wallet() :: ff_wallet:wallet().
+-type wallet() :: ff_wallet:wallet_state().
 -type payment_institution_id() :: ff_payment_institution:id().
 -type bound_type() :: 'exclusive' | 'inclusive'.
 -type cash_range() :: {{bound_type(), cash()}, {bound_type(), cash()}}.
@@ -217,7 +217,7 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
         ok
     end).
 
--spec get_identity_payment_institution_id(ff_identity:identity()) -> Result when
+-spec get_identity_payment_institution_id(ff_identity:identity_state()) -> Result when
     Result :: {ok, payment_institution_id()} | {error, Error},
     Error ::
         {party_not_found, id()} |

@@ -109,7 +109,7 @@ marshal(context, Ctx) ->
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-unmarshal(wallet, #wlt_Wallet{
+unmarshal(wallet, #wlt_WalletState{
     id = WalletID,
     name = Name,
     blocking = Blocking,

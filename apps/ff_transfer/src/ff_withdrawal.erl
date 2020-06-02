@@ -10,9 +10,8 @@
 -type id() :: binary().
 -type clock() :: ff_transaction:clock().
 
--define(ACTUAL_FORMAT_VERSION, 2).
--opaque withdrawal() :: #{
-    version         := ?ACTUAL_FORMAT_VERSION,
+-define(ACTUAL_FORMAT_VERSION, 3).
+-opaque withdrawal_state() :: #{
     id              := id(),
     transfer_type   := withdrawal,
     body            := body(),
@@ -27,15 +26,32 @@
     limit_checks    => [limit_check_details()],
     adjustments     => adjustments_index(),
     status          => status(),
+    metadata        => metadata(),
     external_id     => id()
 }.
+
+-opaque withdrawal() :: #{
+    version         := ?ACTUAL_FORMAT_VERSION,
+    id              := id(),
+    transfer_type   := withdrawal,
+    body            := body(),
+    params          := transfer_params(),
+    created_at      => ff_time:timestamp_ms(),
+    party_revision  => party_revision(),
+    domain_revision => domain_revision(),
+    route           => route(),
+    metadata        => metadata(),
+    external_id     => id()
+}.
+
 -type params() :: #{
     id                   := id(),
     wallet_id            := ff_wallet_machine:id(),
     destination_id       := ff_destination:id(),
     body                 := body(),
     external_id          => id(),
-    quote                => quote()
+    quote                => quote(),
+    metadata             => metadata()
 }.
 
 -type status() ::
@@ -99,7 +115,8 @@
     external_id     => external_id(),
     created_at      => ff_time:timestamp_ms(),
     party_revision  => party_revision(),
-    domain_revision => domain_revision()
+    domain_revision => domain_revision(),
+    metadata        => metadata()
 }.
 
 -type limit_check_details() ::
@@ -141,6 +158,7 @@
 -type action() :: poll | continue | undefined.
 
 -export_type([withdrawal/0]).
+-export_type([withdrawal_state/0]).
 -export_type([id/0]).
 -export_type([params/0]).
 -export_type([event/0]).
@@ -173,6 +191,7 @@
 -export([party_revision/1]).
 -export([domain_revision/1]).
 -export([destination_resource/1]).
+-export([metadata/1]).
 
 %% API
 
@@ -199,12 +218,12 @@
 %% Internal types
 
 -type body()                  :: ff_transaction:body().
--type identity()              :: ff_identity:identity().
+-type identity()              :: ff_identity:identity_state().
 -type party_id()              :: ff_party:id().
 -type wallet_id()             :: ff_wallet:id().
--type wallet()                :: ff_wallet:wallet().
+-type wallet()                :: ff_wallet:wallet_state().
 -type destination_id()        :: ff_destination:id().
--type destination()           :: ff_destination:destination().
+-type destination()           :: ff_destination:destination_state().
 -type process_result()        :: {action(), [event()]}.
 -type final_cash_flow()       :: ff_cash_flow:final_cash_flow().
 -type external_id()           :: id() | undefined.
@@ -223,6 +242,7 @@
 -type domain_revision()       :: ff_domain_config:revision().
 -type terms()                 :: ff_party:terms().
 -type party_varset()          :: hg_selector:varset().
+-type metadata()              :: ff_entity_context:md().
 
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
@@ -271,15 +291,15 @@
 
 %% Accessors
 
--spec wallet_id(withdrawal()) -> wallet_id().
+-spec wallet_id(withdrawal_state()) -> wallet_id().
 wallet_id(T) ->
     maps:get(wallet_id, params(T)).
 
--spec destination_id(withdrawal()) -> destination_id().
+-spec destination_id(withdrawal_state()) -> destination_id().
 destination_id(T) ->
     maps:get(destination_id, params(T)).
 
--spec destination_resource(withdrawal()) ->
+-spec destination_resource(withdrawal_state()) ->
     destination_resource().
 destination_resource(#{resource := Resource}) ->
     Resource;
@@ -292,41 +312,45 @@ destination_resource(Withdrawal) ->
 
 %%
 
--spec quote(withdrawal()) -> quote() | undefined.
+-spec quote(withdrawal_state()) -> quote() | undefined.
 quote(T) ->
     maps:get(quote, params(T), undefined).
 
--spec id(withdrawal()) -> id().
+-spec id(withdrawal_state()) -> id().
 id(#{id := V}) ->
     V.
 
--spec body(withdrawal()) -> body().
+-spec body(withdrawal_state()) -> body().
 body(#{body := V}) ->
     V.
 
--spec status(withdrawal()) -> status() | undefined.
+-spec status(withdrawal_state()) -> status() | undefined.
 status(T) ->
     maps:get(status, T, undefined).
 
--spec route(withdrawal()) -> route() | undefined.
+-spec route(withdrawal_state()) -> route() | undefined.
 route(T) ->
     maps:get(route, T, undefined).
 
--spec external_id(withdrawal()) -> external_id() | undefined.
+-spec external_id(withdrawal_state()) -> external_id() | undefined.
 external_id(T) ->
     maps:get(external_id, T, undefined).
 
--spec party_revision(withdrawal()) -> party_revision() | undefined.
+-spec party_revision(withdrawal_state()) -> party_revision() | undefined.
 party_revision(T) ->
     maps:get(party_revision, T, undefined).
 
--spec domain_revision(withdrawal()) -> domain_revision() | undefined.
+-spec domain_revision(withdrawal_state()) -> domain_revision() | undefined.
 domain_revision(T) ->
     maps:get(domain_revision, T, undefined).
 
--spec created_at(withdrawal()) -> ff_time:timestamp_ms() | undefined.
+-spec created_at(withdrawal_state()) -> ff_time:timestamp_ms() | undefined.
 created_at(T) ->
     maps:get(created_at, T, undefined).
+
+-spec metadata(withdrawal_state()) -> metadata() | undefined.
+metadata(T) ->
+    maps:get(metadata, T, undefined).
 
 %% API
 
@@ -334,8 +358,8 @@ created_at(T) ->
     withdrawal().
 gen(Args) ->
     TypeKeys = [
-        id, transfer_type, body, params, status, external_id,
-        domain_revision, party_revision, created_at, route
+        id, transfer_type, body, params, external_id,
+        domain_revision, party_revision, created_at, route, metadata
     ],
     genlib_map:compact(maps:with(TypeKeys, Args)).
 
@@ -375,9 +399,8 @@ create(Params) ->
             destination_id => DestinationID,
             quote => Quote
         }),
-        ExternalID = maps:get(external_id, Params, undefined),
         [
-            {created, add_external_id(ExternalID, #{
+            {created, genlib_map:compact(#{
                 version         => ?ACTUAL_FORMAT_VERSION,
                 id              => ID,
                 transfer_type   => withdrawal,
@@ -385,14 +408,16 @@ create(Params) ->
                 params          => TransferParams,
                 created_at      => CreatedAt,
                 party_revision  => PartyRevision,
-                domain_revision => DomainRevision
+                domain_revision => DomainRevision,
+                external_id     => maps:get(external_id, Params, undefined),
+                metadata        => maps:get(metadata, Params, undefined)
             })},
             {status_changed, pending},
             {resource_got, Resource}
         ]
     end).
 
--spec start_adjustment(adjustment_params(), withdrawal()) ->
+-spec start_adjustment(adjustment_params(), withdrawal_state()) ->
     {ok, process_result()} |
     {error, start_adjustment_error()}.
 start_adjustment(Params, Withdrawal) ->
@@ -404,16 +429,16 @@ start_adjustment(Params, Withdrawal) ->
             {ok, {undefined, []}}
     end.
 
--spec find_adjustment(adjustment_id(), withdrawal()) ->
+-spec find_adjustment(adjustment_id(), withdrawal_state()) ->
     {ok, adjustment()} | {error, unknown_adjustment_error()}.
 find_adjustment(AdjustmentID, Withdrawal) ->
     ff_adjustment_utils:get_by_id(AdjustmentID, adjustments_index(Withdrawal)).
 
--spec adjustments(withdrawal()) -> [adjustment()].
+-spec adjustments(withdrawal_state()) -> [adjustment()].
 adjustments(Withdrawal) ->
     ff_adjustment_utils:adjustments(adjustments_index(Withdrawal)).
 
--spec effective_final_cash_flow(withdrawal()) -> final_cash_flow().
+-spec effective_final_cash_flow(withdrawal_state()) -> final_cash_flow().
 effective_final_cash_flow(Withdrawal) ->
     case ff_adjustment_utils:cash_flow(adjustments_index(Withdrawal)) of
         undefined ->
@@ -422,7 +447,7 @@ effective_final_cash_flow(Withdrawal) ->
             CashFlow
     end.
 
--spec sessions(withdrawal()) -> [session()].
+-spec sessions(withdrawal_state()) -> [session()].
 sessions(Withdrawal) ->
     case session(Withdrawal) of
         undefined ->
@@ -432,7 +457,7 @@ sessions(Withdrawal) ->
     end.
 
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
--spec is_active(withdrawal()) -> boolean().
+-spec is_active(withdrawal_state()) -> boolean().
 is_active(#{status := succeeded} = Withdrawal) ->
     is_childs_active(Withdrawal);
 is_active(#{status := {failed, _}} = Withdrawal) ->
@@ -442,7 +467,7 @@ is_active(#{status := pending}) ->
 
 %% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
 %% изменением дочерних сущностей, например запуском adjustment.
--spec is_finished(withdrawal()) -> boolean().
+-spec is_finished(withdrawal_state()) -> boolean().
 is_finished(#{status := succeeded}) ->
     true;
 is_finished(#{status := {failed, _}}) ->
@@ -452,7 +477,7 @@ is_finished(#{status := pending}) ->
 
 %% Transfer callbacks
 
--spec process_transfer(withdrawal()) ->
+-spec process_transfer(withdrawal_state()) ->
     process_result().
 process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
@@ -460,7 +485,7 @@ process_transfer(Withdrawal) ->
 
 %% Internals
 
--spec do_start_adjustment(adjustment_params(), withdrawal()) ->
+-spec do_start_adjustment(adjustment_params(), withdrawal_state()) ->
     {ok, process_result()} |
     {error, start_adjustment_error()}.
 do_start_adjustment(Params, Withdrawal) ->
@@ -474,15 +499,15 @@ do_start_adjustment(Params, Withdrawal) ->
 
 %% Internal getters
 
--spec params(withdrawal()) -> transfer_params().
+-spec params(withdrawal_state()) -> transfer_params().
 params(#{params := V}) ->
     V.
 
--spec p_transfer(withdrawal()) -> p_transfer() | undefined.
+-spec p_transfer(withdrawal_state()) -> p_transfer() | undefined.
 p_transfer(Withdrawal) ->
     maps:get(p_transfer, Withdrawal, undefined).
 
--spec p_transfer_status(withdrawal()) -> ff_postings_transfer:status() | undefined.
+-spec p_transfer_status(withdrawal_state()) -> ff_postings_transfer:status() | undefined.
 p_transfer_status(Withdrawal) ->
     case p_transfer(Withdrawal) of
         undefined ->
@@ -491,7 +516,7 @@ p_transfer_status(Withdrawal) ->
             ff_postings_transfer:status(Transfer)
     end.
 
--spec route_selection_status(withdrawal()) -> unknown | found.
+-spec route_selection_status(withdrawal_state()) -> unknown | found.
 route_selection_status(Withdrawal) ->
     case route(Withdrawal) of
         undefined ->
@@ -500,12 +525,7 @@ route_selection_status(Withdrawal) ->
             found
     end.
 
-add_external_id(undefined, Event) ->
-    Event;
-add_external_id(ExternalID, Event) ->
-    Event#{external_id => ExternalID}.
-
--spec adjustments_index(withdrawal()) -> adjustments_index().
+-spec adjustments_index(withdrawal_state()) -> adjustments_index().
 adjustments_index(Withdrawal) ->
     case maps:find(adjustments, Withdrawal) of
         {ok, Adjustments} ->
@@ -514,16 +534,16 @@ adjustments_index(Withdrawal) ->
             ff_adjustment_utils:new_index()
     end.
 
--spec set_adjustments_index(adjustments_index(), withdrawal()) -> withdrawal().
+-spec set_adjustments_index(adjustments_index(), withdrawal_state()) -> withdrawal_state().
 set_adjustments_index(Adjustments, Withdrawal) ->
     Withdrawal#{adjustments => Adjustments}.
 
--spec operation_timestamp(withdrawal()) -> ff_time:timestamp_ms().
+-spec operation_timestamp(withdrawal_state()) -> ff_time:timestamp_ms().
 operation_timestamp(Withdrawal) ->
     QuoteTimestamp = quote_timestamp(quote(Withdrawal)),
     ff_maybe:get_defined([QuoteTimestamp, created_at(Withdrawal), ff_time:now()]).
 
--spec operation_party_revision(withdrawal()) ->
+-spec operation_party_revision(withdrawal_state()) ->
     domain_revision().
 operation_party_revision(Withdrawal) ->
     case party_revision(Withdrawal) of
@@ -536,7 +556,7 @@ operation_party_revision(Withdrawal) ->
             Revision
     end.
 
--spec operation_domain_revision(withdrawal()) ->
+-spec operation_domain_revision(withdrawal_state()) ->
     domain_revision().
 operation_domain_revision(Withdrawal) ->
     case domain_revision(Withdrawal) of
@@ -548,7 +568,7 @@ operation_domain_revision(Withdrawal) ->
 
 %% Processing helpers
 
--spec deduce_activity(withdrawal()) ->
+-spec deduce_activity(withdrawal_state()) ->
     activity().
 deduce_activity(Withdrawal) ->
     Params = #{
@@ -605,7 +625,7 @@ do_finished_activity(#{status := succeeded, p_transfer := committed}) ->
 do_finished_activity(#{status := {failed, _}, p_transfer := cancelled}) ->
     stop.
 
--spec do_process_transfer(activity(), withdrawal()) ->
+-spec do_process_transfer(activity(), withdrawal_state()) ->
     process_result().
 do_process_transfer(routing, Withdrawal) ->
     process_routing(Withdrawal);
@@ -635,7 +655,7 @@ do_process_transfer(adjustment, Withdrawal) ->
 do_process_transfer(stop, _Withdrawal) ->
     {undefined, []}.
 
--spec process_routing(withdrawal()) ->
+-spec process_routing(withdrawal_state()) ->
     process_result().
 process_routing(Withdrawal) ->
     case do_process_routing(Withdrawal) of
@@ -649,7 +669,7 @@ process_routing(Withdrawal) ->
             process_transfer_fail(Reason, Withdrawal)
     end.
 
--spec do_process_routing(withdrawal()) -> {ok, provider_id()} | {error, Reason} when
+-spec do_process_routing(withdrawal_state()) -> {ok, provider_id()} | {error, Reason} when
     Reason :: route_not_found | {inconsistent_quote_route, provider_id()}.
 do_process_routing(Withdrawal) ->
     WalletID = wallet_id(Withdrawal),
@@ -721,7 +741,7 @@ validate_withdrawals_terms(ID, VS) ->
             false
     end.
 
--spec process_limit_check(withdrawal()) ->
+-spec process_limit_check(withdrawal_state()) ->
     process_result().
 process_limit_check(Withdrawal) ->
     WalletID = wallet_id(Withdrawal),
@@ -759,7 +779,7 @@ process_limit_check(Withdrawal) ->
     end,
     {continue, Events}.
 
--spec process_p_transfer_creation(withdrawal()) ->
+-spec process_p_transfer_creation(withdrawal_state()) ->
     process_result().
 process_p_transfer_creation(Withdrawal) ->
     FinalCashFlow = make_final_cash_flow(Withdrawal),
@@ -767,7 +787,7 @@ process_p_transfer_creation(Withdrawal) ->
     {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
     {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
 
--spec process_session_creation(withdrawal()) ->
+-spec process_session_creation(withdrawal_state()) ->
     process_result().
 process_session_creation(Withdrawal) ->
     ID = construct_session_id(id(Withdrawal)),
@@ -816,7 +836,7 @@ create_session(ID, TransferData, SessionParams) ->
             ok
     end.
 
--spec process_session_poll(withdrawal()) ->
+-spec process_session_poll(withdrawal_state()) ->
     process_result().
 process_session_poll(Withdrawal) ->
     SessionID = session_id(Withdrawal),
@@ -829,18 +849,18 @@ process_session_poll(Withdrawal) ->
             {continue, [{session_finished, {SessionID, Result}}]}
     end.
 
--spec process_transfer_finish(withdrawal()) ->
+-spec process_transfer_finish(withdrawal_state()) ->
     process_result().
 process_transfer_finish(_Withdrawal) ->
     {undefined, [{status_changed, succeeded}]}.
 
--spec process_transfer_fail(fail_type(), withdrawal()) ->
+-spec process_transfer_fail(fail_type(), withdrawal_state()) ->
     process_result().
 process_transfer_fail(FailType, Withdrawal) ->
     Failure = build_failure(FailType, Withdrawal),
     {undefined, [{status_changed, {failed, Failure}}]}.
 
--spec handle_child_result(process_result(), withdrawal()) -> process_result().
+-spec handle_child_result(process_result(), withdrawal_state()) -> process_result().
 handle_child_result({undefined, Events} = Result, Withdrawal) ->
     NextWithdrawal = lists:foldl(fun(E, Acc) -> apply_event(E, Acc) end, Withdrawal, Events),
     case is_active(NextWithdrawal) of
@@ -852,11 +872,11 @@ handle_child_result({undefined, Events} = Result, Withdrawal) ->
 handle_child_result({_OtherAction, _Events} = Result, _Withdrawal) ->
     Result.
 
--spec is_childs_active(withdrawal()) -> boolean().
+-spec is_childs_active(withdrawal_state()) -> boolean().
 is_childs_active(Withdrawal) ->
     ff_adjustment_utils:is_active(adjustments_index(Withdrawal)).
 
--spec make_final_cash_flow(withdrawal()) ->
+-spec make_final_cash_flow(withdrawal_state()) ->
     final_cash_flow().
 make_final_cash_flow(Withdrawal) ->
     Body = body(Withdrawal),
@@ -1102,11 +1122,11 @@ quote_domain_revision(#{quote_data := QuoteData}) ->
 
 %% Session management
 
--spec session(withdrawal()) -> session() | undefined.
+-spec session(withdrawal_state()) -> session() | undefined.
 session(Withdrawal) ->
     maps:get(session, Withdrawal, undefined).
 
--spec session_id(withdrawal()) -> session_id() | undefined.
+-spec session_id(withdrawal_state()) -> session_id() | undefined.
 session_id(T) ->
     case session(T) of
         undefined ->
@@ -1115,7 +1135,7 @@ session_id(T) ->
             SessionID
     end.
 
--spec session_result(withdrawal()) -> session_result() | unknown | undefined.
+-spec session_result(withdrawal_state()) -> session_result() | unknown | undefined.
 session_result(Withdrawal) ->
     case session(Withdrawal) of
         undefined ->
@@ -1126,7 +1146,7 @@ session_result(Withdrawal) ->
             unknown
     end.
 
--spec session_processing_status(withdrawal()) ->
+-spec session_processing_status(withdrawal_state()) ->
     undefined | pending | succeeded | failed.
 session_processing_status(Withdrawal) ->
     case session_result(Withdrawal) of
@@ -1187,18 +1207,18 @@ validate_destination_status(Destination) ->
 
 %% Limit helpers
 
--spec limit_checks(withdrawal()) ->
+-spec limit_checks(withdrawal_state()) ->
     [limit_check_details()].
 limit_checks(Withdrawal) ->
     maps:get(limit_checks, Withdrawal, []).
 
--spec add_limit_check(limit_check_details(), withdrawal()) ->
-    withdrawal().
+-spec add_limit_check(limit_check_details(), withdrawal_state()) ->
+    withdrawal_state().
 add_limit_check(Check, Withdrawal) ->
     Checks = limit_checks(Withdrawal),
     Withdrawal#{limit_checks => [Check | Checks]}.
 
--spec limit_check_status(withdrawal()) ->
+-spec limit_check_status(withdrawal_state()) ->
     ok | {failed, limit_check_details()} | unknown.
 limit_check_status(#{limit_checks := Checks}) ->
     case lists:dropwhile(fun is_limit_check_ok/1, Checks) of
@@ -1210,7 +1230,7 @@ limit_check_status(#{limit_checks := Checks}) ->
 limit_check_status(Withdrawal) when not is_map_key(limit_checks, Withdrawal) ->
     unknown.
 
--spec limit_check_processing_status(withdrawal()) ->
+-spec limit_check_processing_status(withdrawal_state()) ->
     ok | failed | unknown.
 limit_check_processing_status(Withdrawal) ->
     case limit_check_status(Withdrawal) of
@@ -1243,7 +1263,7 @@ validate_wallet_limits(Terms, Wallet, Clock) ->
 
 %% Adjustment validators
 
--spec validate_adjustment_start(adjustment_params(), withdrawal()) ->
+-spec validate_adjustment_start(adjustment_params(), withdrawal_state()) ->
     {ok, valid} |
     {error, start_adjustment_error()}.
 validate_adjustment_start(Params, Withdrawal) ->
@@ -1253,7 +1273,7 @@ validate_adjustment_start(Params, Withdrawal) ->
         valid = unwrap(validate_status_change(Params, Withdrawal))
     end).
 
--spec validate_withdrawal_finish(withdrawal()) ->
+-spec validate_withdrawal_finish(withdrawal_state()) ->
     {ok, valid} |
     {error, {invalid_withdrawal_status, status()}}.
 validate_withdrawal_finish(Withdrawal) ->
@@ -1264,7 +1284,7 @@ validate_withdrawal_finish(Withdrawal) ->
             {error, {invalid_withdrawal_status, status(Withdrawal)}}
     end.
 
--spec validate_no_pending_adjustment(withdrawal()) ->
+-spec validate_no_pending_adjustment(withdrawal_state()) ->
     {ok, valid} |
     {error, {another_adjustment_in_progress, adjustment_id()}}.
 validate_no_pending_adjustment(Withdrawal) ->
@@ -1275,7 +1295,7 @@ validate_no_pending_adjustment(Withdrawal) ->
             {error, {another_adjustment_in_progress, AdjustmentID}}
     end.
 
--spec validate_status_change(adjustment_params(), withdrawal()) ->
+-spec validate_status_change(adjustment_params(), withdrawal_state()) ->
     {ok, valid} |
     {error, invalid_status_change_error()}.
 validate_status_change(#{change := {change_status, Status}}, Withdrawal) ->
@@ -1306,13 +1326,13 @@ validate_change_same_status(Status, Status) ->
 
 %% Adjustment helpers
 
--spec apply_adjustment_event(wrapped_adjustment_event(), withdrawal()) -> withdrawal().
+-spec apply_adjustment_event(wrapped_adjustment_event(), withdrawal_state()) -> withdrawal_state().
 apply_adjustment_event(WrappedEvent, Withdrawal) ->
     Adjustments0 = adjustments_index(Withdrawal),
     Adjustments1 = ff_adjustment_utils:apply_event(WrappedEvent, Adjustments0),
     set_adjustments_index(Adjustments1, Withdrawal).
 
--spec make_adjustment_params(adjustment_params(), withdrawal()) ->
+-spec make_adjustment_params(adjustment_params(), withdrawal_state()) ->
     ff_adjustment:params().
 make_adjustment_params(Params, Withdrawal) ->
     #{id := ID, change := Change} = Params,
@@ -1325,13 +1345,13 @@ make_adjustment_params(Params, Withdrawal) ->
         operation_timestamp => operation_timestamp(Withdrawal)
     }).
 
--spec make_adjustment_change(adjustment_change(), withdrawal()) ->
+-spec make_adjustment_change(adjustment_change(), withdrawal_state()) ->
     ff_adjustment:changes().
 make_adjustment_change({change_status, NewStatus}, Withdrawal) ->
     CurrentStatus = status(Withdrawal),
     make_change_status_params(CurrentStatus, NewStatus, Withdrawal).
 
--spec make_change_status_params(status(), status(), withdrawal()) ->
+-spec make_change_status_params(status(), status(), withdrawal_state()) ->
     ff_adjustment:changes().
 make_change_status_params(succeeded, {failed, _} = NewStatus, Withdrawal) ->
     CurrentCashFlow = effective_final_cash_flow(Withdrawal),
@@ -1364,7 +1384,7 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _Withdrawal) ->
         }
     }.
 
--spec process_adjustment(withdrawal()) ->
+-spec process_adjustment(withdrawal_state()) ->
     process_result().
 process_adjustment(Withdrawal) ->
     #{
@@ -1388,14 +1408,14 @@ handle_adjustment_status_change(undefined) ->
 handle_adjustment_status_change(#{new_status := Status}) ->
     [{status_changed, Status}].
 
--spec save_adjustable_info(event(), withdrawal()) -> withdrawal().
+-spec save_adjustable_info(event(), withdrawal_state()) -> withdrawal_state().
 save_adjustable_info({p_transfer, {status_changed, committed}}, Withdrawal) ->
     CashFlow = ff_postings_transfer:final_cash_flow(p_transfer(Withdrawal)),
     update_adjusment_index(fun ff_adjustment_utils:set_cash_flow/2, CashFlow, Withdrawal);
 save_adjustable_info(_Ev, Withdrawal) ->
     Withdrawal.
 
--spec update_adjusment_index(Updater, Value, withdrawal()) -> withdrawal() when
+-spec update_adjusment_index(Updater, Value, withdrawal_state()) -> withdrawal_state() when
     Updater :: fun((Value, adjustments_index()) -> adjustments_index()),
     Value :: any().
 update_adjusment_index(Updater, Value, Withdrawal) ->
@@ -1404,7 +1424,7 @@ update_adjusment_index(Updater, Value, Withdrawal) ->
 
 %% Failure helpers
 
--spec build_failure(fail_type(), withdrawal()) -> failure().
+-spec build_failure(fail_type(), withdrawal_state()) -> failure().
 build_failure(limit_check, Withdrawal) ->
     {failed, Details} = limit_check_status(Withdrawal),
     case Details of
@@ -1438,15 +1458,15 @@ build_failure(session, Withdrawal) ->
 
 %%
 
--spec apply_event(event() | legacy_event(), ff_maybe:maybe(withdrawal())) ->
-    withdrawal().
+-spec apply_event(event() | legacy_event(), ff_maybe:maybe(withdrawal_state())) ->
+    withdrawal_state().
 apply_event(Ev, T0) ->
     T1 = apply_event_(Ev, T0),
     T2 = save_adjustable_info(Ev, T1),
     T2.
 
--spec apply_event_(event(), ff_maybe:maybe(withdrawal())) ->
-    withdrawal().
+-spec apply_event_(event(), ff_maybe:maybe(withdrawal_state())) ->
+    withdrawal_state().
 apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, Status}, T) ->
@@ -1519,6 +1539,19 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateP
             wallet_cash_flow_plan => []
         }
     })}, MigrateParams);
+maybe_migrate({created, Withdrawal = #{version := 2, id := ID}}, MigrateParams) ->
+    Ctx = maps:get(ctx, MigrateParams, undefined),
+    Context = case Ctx of
+        undefined ->
+            {ok, State} = ff_machine:get(ff_withdrawal, 'ff/withdrawal_v2', ID, {undefined, 0, forward}),
+            maps:get(ctx, State, undefined);
+        Data ->
+            Data
+    end,
+    maybe_migrate({created, genlib_map:compact(Withdrawal#{
+        version => 3,
+        metadata => ff_entity_context:try_get_legacy_metadata(Context)
+    })}, MigrateParams);
 maybe_migrate({created, T}, MigrateParams) ->
     DestinationID = maps:get(destination, T),
     SourceID = maps:get(source, T),
@@ -1569,7 +1602,15 @@ v0_created_migration_test() ->
         body        => Body,
         provider    => ProviderID
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
@@ -1606,7 +1647,15 @@ v1_created_migration_test() ->
             destination => DestinationID
         }
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
@@ -1651,10 +1700,69 @@ v2_created_migration_test() ->
             }
         }
     }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{}),
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
     ?assertEqual(Body, body(Withdrawal)).
+
+-spec v3_created_migration_test() -> _.
+v3_created_migration_test() ->
+    ID = genlib:unique(),
+    WalletID = genlib:unique(),
+    WalletAccount = #{
+        id => WalletID,
+        identity => genlib:unique(),
+        currency => <<"RUB">>,
+        accounter_account_id => 123
+    },
+    DestinationID = genlib:unique(),
+    DestinationAccount = #{
+        id => DestinationID,
+        identity => genlib:unique(),
+        currency => <<"RUB">>,
+        accounter_account_id => 123
+    },
+    Body = {100, <<"RUB">>},
+    LegacyEvent = {created, #{
+        version       => 2,
+        id            => ID,
+        transfer_type => withdrawal,
+        body          => Body,
+        params        => #{
+            wallet_id             => WalletID,
+            destination_id        => DestinationID,
+            wallet_account        => WalletAccount,
+            destination_account   => DestinationAccount,
+            wallet_cash_flow_plan => #{
+                postings => [
+                    #{
+                        sender   => {wallet, sender_settlement},
+                        receiver => {wallet, receiver_destination},
+                        volume   => {share, {{1, 1}, operation_amount, default}}
+                    }
+                ]
+            }
+        }
+    }},
+    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
+    ?assertEqual(ID, id(Withdrawal)),
+    ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Withdrawal)).
 
 -endif.

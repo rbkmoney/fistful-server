@@ -17,7 +17,7 @@
 -type identity_id() :: id().
 
 -type resource()    :: ff_destination:resource_full().
--type identity()    :: ff_identity:identity().
+-type identity()    :: ff_identity:identity_state().
 -type cash()        :: ff_transaction:body().
 -type exp_date()    :: ff_destination:exp_date().
 

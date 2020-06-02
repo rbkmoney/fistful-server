@@ -36,6 +36,7 @@ marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
     }};
 
 marshal(transfer, Transfer = #{
+    id := ID,
     status := Status,
     owner := Owner,
     sender := Sender,
@@ -52,14 +53,15 @@ marshal(transfer, Transfer = #{
     ClientInfo = maps:get(client_info, Transfer, undefined),
 
     #p2p_transfer_P2PTransfer{
+        id = marshal(id, ID),
         owner = marshal(id, Owner),
         sender = marshal(participant, Sender),
         receiver = marshal(participant, Receiver),
         body = marshal(cash, Body),
         status = marshal(status, Status),
         created_at = marshal(timestamp, CreatedAt),
-        domain_revision = marshal(integer, DomainRevision),
-        party_revision = marshal(integer, PartyRevision),
+        domain_revision = marshal(domain_revision, DomainRevision),
+        party_revision = marshal(party_revision, PartyRevision),
         operation_timestamp = marshal(timestamp, OperationTimestamp),
         quote = maybe_marshal(quote, Quote),
         external_id = maybe_marshal(id, ExternalID),
@@ -177,6 +179,7 @@ unmarshal(change, {adjustment, Change}) ->
     }};
 
 unmarshal(transfer, #p2p_transfer_P2PTransfer{
+    id = ID,
     owner = Owner,
     sender = Sender,
     receiver = Receiver,
@@ -191,13 +194,14 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
     external_id = ExternalID
 }) ->
     genlib_map:compact(#{
+        id => unmarshal(id, ID),
         status => unmarshal(status, Status),
         owner => unmarshal(id, Owner),
         body => unmarshal(cash, Body),
         sender => unmarshal(participant, Sender),
         receiver => unmarshal(participant, Receiver),
-        domain_revision => unmarshal(integer, DomainRevision),
-        party_revision => unmarshal(integer, PartyRevision),
+        domain_revision => unmarshal(domain_revision, DomainRevision),
+        party_revision => unmarshal(party_revision, PartyRevision),
         operation_timestamp => ff_time:from_rfc3339(unmarshal(timestamp, OperationTimestamp)),
         created_at => ff_time:from_rfc3339(unmarshal(timestamp, CreatedAt)),
         quote => maybe_unmarshal(quote, Quote),
@@ -325,6 +329,7 @@ p2p_transfer_codec_test() ->
     }},
 
     P2PTransfer = #{
+        id => genlib:unique(),
         status => pending,
         owner => genlib:unique(),
         body => {123, <<"RUB">>},

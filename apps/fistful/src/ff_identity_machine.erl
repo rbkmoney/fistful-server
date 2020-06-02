@@ -19,7 +19,7 @@
 %% API
 
 -type id()        :: machinery:id().
--type identity()  :: ff_identity:identity().
+-type identity()  :: ff_identity:identity_state().
 -type ctx()       :: ff_entity_context:context().
 
 -type st() :: ff_machine:st(identity()).
@@ -60,13 +60,7 @@
 
 -define(NS, 'ff/identity').
 
--type params() :: #{
-    id          := id(),
-    party       := ff_party:id(),
-    provider    := ff_provider:id(),
-    class       := ff_identity:class_id(),
-    external_id => id()
-}.
+-type params() :: ff_identity:params().
 
 -spec create(params(), ctx()) ->
     ok |
@@ -75,15 +69,9 @@
         exists
     }.
 
-create(Params = #{id := ID, party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
+create(Params = #{id := ID}, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_identity:create(
-            ID,
-            Party,
-            ProviderID,
-            IdentityClassID,
-            maps:get(external_id, Params, undefined)
-        )),
+        Events = unwrap(ff_identity:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 

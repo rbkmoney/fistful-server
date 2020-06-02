@@ -12,7 +12,7 @@
 -type change() :: ff_deposit:event().
 -type event() :: {integer(), ff_machine:timestamped_event(change())}.
 -type st() :: ff_machine:st(deposit()).
--type deposit() :: ff_deposit:deposit().
+-type deposit() :: ff_deposit:deposit_state().
 -type external_id() :: id().
 -type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 

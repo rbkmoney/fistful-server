@@ -202,32 +202,34 @@ create_ok_test(C) ->
     DepositID = generate_id(),
     ExternalID = generate_id(),
     Context = #{<<"NS">> => #{generate_id() => generate_id()}},
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = #deposit_DepositParams{
         id            = DepositID,
         body          = Body,
         source_id     = SourceID,
         wallet_id     = WalletID,
+        metadata      = Metadata,
         external_id   = ExternalID
     },
     {ok, DepositState} = call_deposit('Create', [Params, ff_entity_context_codec:marshal(Context)]),
     Expected = get_deposit(DepositID),
-    Deposit = DepositState#deposit_DepositState.deposit,
-    ?assertEqual(DepositID, Deposit#deposit_Deposit.id),
-    ?assertEqual(WalletID, Deposit#deposit_Deposit.wallet_id),
-    ?assertEqual(SourceID, Deposit#deposit_Deposit.source_id),
-    ?assertEqual(ExternalID, Deposit#deposit_Deposit.external_id),
-    ?assertEqual(Body, Deposit#deposit_Deposit.body),
+    ?assertEqual(DepositID, DepositState#deposit_DepositState.id),
+    ?assertEqual(WalletID, DepositState#deposit_DepositState.wallet_id),
+    ?assertEqual(SourceID, DepositState#deposit_DepositState.source_id),
+    ?assertEqual(ExternalID, DepositState#deposit_DepositState.external_id),
+    ?assertEqual(Body, DepositState#deposit_DepositState.body),
+    ?assertEqual(Metadata, DepositState#deposit_DepositState.metadata),
     ?assertEqual(
         ff_deposit:domain_revision(Expected),
-        Deposit#deposit_Deposit.domain_revision
+        DepositState#deposit_DepositState.domain_revision
     ),
     ?assertEqual(
         ff_deposit:party_revision(Expected),
-        Deposit#deposit_Deposit.party_revision
+        DepositState#deposit_DepositState.party_revision
     ),
     ?assertEqual(
         ff_deposit:created_at(Expected),
-        ff_codec:unmarshal(timestamp_ms, Deposit#deposit_Deposit.created_at)
+        ff_codec:unmarshal(timestamp_ms, DepositState#deposit_DepositState.created_at)
     ).
 
 -spec unknown_test(config()) -> test_return().
@@ -275,24 +277,23 @@ create_adjustment_ok_test(C) ->
     {ok, AdjustmentState} = call_deposit('CreateAdjustment', [DepositID, Params]),
     ExpectedAdjustment = get_adjustment(DepositID, AdjustmentID),
 
-    Adjustment = AdjustmentState#dep_adj_AdjustmentState.adjustment,
-    ?assertEqual(AdjustmentID, Adjustment#dep_adj_Adjustment.id),
-    ?assertEqual(ExternalID, Adjustment#dep_adj_Adjustment.external_id),
+    ?assertEqual(AdjustmentID, AdjustmentState#dep_adj_AdjustmentState.id),
+    ?assertEqual(ExternalID, AdjustmentState#dep_adj_AdjustmentState.external_id),
     ?assertEqual(
         ff_adjustment:created_at(ExpectedAdjustment),
-        ff_codec:unmarshal(timestamp_ms, Adjustment#dep_adj_Adjustment.created_at)
+        ff_codec:unmarshal(timestamp_ms, AdjustmentState#dep_adj_AdjustmentState.created_at)
     ),
     ?assertEqual(
         ff_adjustment:domain_revision(ExpectedAdjustment),
-        Adjustment#dep_adj_Adjustment.domain_revision
+        AdjustmentState#dep_adj_AdjustmentState.domain_revision
     ),
     ?assertEqual(
         ff_adjustment:party_revision(ExpectedAdjustment),
-        Adjustment#dep_adj_Adjustment.party_revision
+        AdjustmentState#dep_adj_AdjustmentState.party_revision
     ),
     ?assertEqual(
         ff_deposit_adjustment_codec:marshal(changes_plan, ff_adjustment:changes_plan(ExpectedAdjustment)),
-        Adjustment#dep_adj_Adjustment.changes_plan
+        AdjustmentState#dep_adj_AdjustmentState.changes_plan
     ).
 
 -spec create_adjustment_unavailable_status_error_test(config()) -> test_return().
@@ -347,22 +348,21 @@ create_revert_ok_test(C) ->
     {ok, RevertState} = call_deposit('CreateRevert', [DepositID, Params]),
     Expected = get_revert(DepositID, RevertID),
 
-    Revert = RevertState#deposit_revert_RevertState.revert,
-    ?assertEqual(RevertID, Revert#deposit_revert_Revert.id),
-    ?assertEqual(ExternalID, Revert#deposit_revert_Revert.external_id),
-    ?assertEqual(Body, Revert#deposit_revert_Revert.body),
-    ?assertEqual(Reason, Revert#deposit_revert_Revert.reason),
+    ?assertEqual(RevertID, RevertState#deposit_revert_RevertState.id),
+    ?assertEqual(ExternalID, RevertState#deposit_revert_RevertState.external_id),
+    ?assertEqual(Body, RevertState#deposit_revert_RevertState.body),
+    ?assertEqual(Reason, RevertState#deposit_revert_RevertState.reason),
     ?assertEqual(
         ff_deposit_revert:created_at(Expected),
-        ff_codec:unmarshal(timestamp_ms, Revert#deposit_revert_Revert.created_at)
+        ff_codec:unmarshal(timestamp_ms, RevertState#deposit_revert_RevertState.created_at)
     ),
     ?assertEqual(
         ff_deposit_revert:domain_revision(Expected),
-        Revert#deposit_revert_Revert.domain_revision
+        RevertState#deposit_revert_RevertState.domain_revision
     ),
     ?assertEqual(
         ff_deposit_revert:party_revision(Expected),
-        Revert#deposit_revert_Revert.party_revision
+        RevertState#deposit_revert_RevertState.party_revision
     ).
 
 -spec create_revert_inconsistent_revert_currency_error_test(config()) -> test_return().
@@ -447,24 +447,23 @@ create_revert_adjustment_ok_test(C) ->
     {ok, AdjustmentState} = call_deposit('CreateRevertAdjustment', [DepositID, RevertID, Params]),
     ExpectedAdjustment = get_revert_adjustment(DepositID, RevertID, AdjustmentID),
 
-    Adjustment = AdjustmentState#dep_rev_adj_AdjustmentState.adjustment,
-    ?assertEqual(AdjustmentID, Adjustment#dep_rev_adj_Adjustment.id),
-    ?assertEqual(ExternalID, Adjustment#dep_rev_adj_Adjustment.external_id),
+    ?assertEqual(AdjustmentID, AdjustmentState#dep_rev_adj_AdjustmentState.id),
+    ?assertEqual(ExternalID, AdjustmentState#dep_rev_adj_AdjustmentState.external_id),
     ?assertEqual(
         ff_adjustment:created_at(ExpectedAdjustment),
-        ff_codec:unmarshal(timestamp_ms, Adjustment#dep_rev_adj_Adjustment.created_at)
+        ff_codec:unmarshal(timestamp_ms, AdjustmentState#dep_rev_adj_AdjustmentState.created_at)
     ),
     ?assertEqual(
         ff_adjustment:domain_revision(ExpectedAdjustment),
-        Adjustment#dep_rev_adj_Adjustment.domain_revision
+        AdjustmentState#dep_rev_adj_AdjustmentState.domain_revision
     ),
     ?assertEqual(
         ff_adjustment:party_revision(ExpectedAdjustment),
-        Adjustment#dep_rev_adj_Adjustment.party_revision
+        AdjustmentState#dep_rev_adj_AdjustmentState.party_revision
     ),
     ?assertEqual(
         ff_deposit_revert_adjustment_codec:marshal(changes_plan, ff_adjustment:changes_plan(ExpectedAdjustment)),
-        Adjustment#dep_rev_adj_Adjustment.changes_plan
+        AdjustmentState#dep_rev_adj_AdjustmentState.changes_plan
     ).
 
 -spec create_revert_adjustment_unavailable_status_error_test(config()) -> test_return().
@@ -530,7 +529,7 @@ deposit_state_content_test(C) ->
     ?assertNotEqual(undefined, DepositState#deposit_DepositState.effective_final_cash_flow),
     ?assertNotEqual(
         undefined,
-        (DepositState#deposit_DepositState.deposit)#deposit_Deposit.status
+        DepositState#deposit_DepositState.status
     ),
 
     [RevertState] = DepositState#deposit_DepositState.reverts,

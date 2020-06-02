@@ -29,7 +29,8 @@
     metadata        => metadata(),
     external_id     => id(),
     %% Route data
-    route_session   => session()
+    route_session   => session(),
+    p_transfer_count   => non_neg_integer()
 }.
 
 -opaque withdrawal() :: #{
@@ -797,7 +798,7 @@ process_limit_check(Withdrawal) ->
     process_result().
 process_p_transfer_creation(Withdrawal) ->
     FinalCashFlow = make_final_cash_flow(Withdrawal),
-    PTransferID = construct_p_transfer_id(id(Withdrawal)),
+    PTransferID = construct_p_transfer_id(Withdrawal),
     {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
     {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
 
@@ -835,15 +836,20 @@ process_session_creation(Withdrawal) ->
     ok = create_session(ID, TransferData, SessionParams),
     {continue, [{session_started, ID}]}.
 
+-spec construct_session_id(withdrawal_state()) -> id().
 construct_session_id(Withdrawal) ->
     ID = id(Withdrawal),
     SubID = integer_to_binary(length(sessions(Withdrawal)) + 1),
     << ID/binary, "/", SubID/binary >>.
 
--spec construct_p_transfer_id(id()) -> id().
-construct_p_transfer_id(ID) ->
-    SubID = genlib:unique(),
+-spec construct_p_transfer_id(withdrawal_state()) -> id().
+construct_p_transfer_id(Withdrawal) ->
+    ID = id(Withdrawal),
+    SubID = integer_to_binary(p_transfer_count(Withdrawal) + 1),
     <<"ff/withdrawal/", ID/binary, "/", SubID/binary >>.
+
+p_transfer_count(Withdrawal) ->
+    maps:get(p_transfer_count, Withdrawal, 0).
 
 create_session(ID, TransferData, SessionParams) ->
     case ff_withdrawal_session_machine:create(ID, TransferData, SessionParams) of
@@ -1508,7 +1514,11 @@ apply_event_({resource_got, Resource}, T) ->
 apply_event_({limit_check, Details}, T) ->
     add_limit_check(Details, T);
 apply_event_({p_transfer, Ev}, T) ->
-    T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))};
+    D = case Ev of {created, _} -> 1; _ -> 0 end,
+    T#{
+        p_transfer_count => p_transfer_count(T) + D,
+        p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))
+    };
 apply_event_({session_started, SessionID}, T) ->
     Session = #{id => SessionID},
     Sessions = sessions(T),
@@ -1524,6 +1534,7 @@ apply_event_({session_finished, {SessionID, Result}}, T) ->
         sessions => [UpdSession | Sessions]
     };
 apply_event_({route_changed, Route}, T) ->
+    %% Route changed, drop stale data
     T1 = maps:without([route_session, limit_checks, p_transfer], T),
     maps:put(route, Route, T1);
 apply_event_({adjustment, _Ev} = Event, T) ->

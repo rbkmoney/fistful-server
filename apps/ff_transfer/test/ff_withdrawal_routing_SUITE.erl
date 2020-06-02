@@ -106,7 +106,7 @@ end_per_testcase(_Name, _C) ->
 -spec adapter_unreachable_route_test(config()) -> test_return().
 adapter_unreachable_route_test(C) ->
     Currency = <<"RUB">>,
-    Cash = {1000, Currency},
+    Cash = {100500, Currency},
     #{
         wallet_id := WalletID,
         destination_id := DestinationID

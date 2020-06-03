@@ -728,7 +728,7 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
     CreateFun =
         fun(ID, EntityCtx) ->
             do(fun() ->
-            	_ = check_resource(identity, IdentityId, Context),
+                _ = check_resource(identity, IdentityId, Context),
                 ParsedParams = unwrap(maybe_add_p2p_quote_token(
                     from_swag(create_p2p_params, Params)
                 )),

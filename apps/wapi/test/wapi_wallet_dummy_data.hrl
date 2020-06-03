@@ -231,21 +231,31 @@
     payment_methods = {value,
         [
             #domain_PaymentMethodRef{
-                id = {bank_card, mastercard}
-            },
-            #domain_PaymentMethodRef{
-                id = {bank_card, visa}
-            },
-            #domain_PaymentMethodRef{
-                id = {tokenized_bank_card, #domain_TokenizedBankCard{
+                id = {bank_card, #domain_BankCardPaymentMethod{
                     payment_system = mastercard,
-                    token_provider = applepay
+                    has_cvv = true,
                 }}
             },
             #domain_PaymentMethodRef{
-                id = {tokenized_bank_card, #domain_TokenizedBankCard{
+                id = {bank_card, #domain_BankCardPaymentMethod{
                     payment_system = visa,
-                    token_provider = applepay
+                    has_cvv = true,
+                }}
+            },
+            #domain_PaymentMethodRef{
+                id = {bank_card, #domain_BankCardPaymentMethod{
+                    payment_system = mastercard,
+                    token_provider = applepay,
+                    tokenization_method = none,
+                    has_cvv = true
+                }}
+            },
+            #domain_PaymentMethodRef{
+                id = {bank_card, #domain_BankCardPaymentMethod{
+                    payment_system = visa,
+                    token_provider = applepay,
+                    tokenization_method = none,
+                    has_cvv = true
                 }}
             }
         ]

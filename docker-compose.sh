@@ -174,7 +174,7 @@ services:
       - cds
 
   machinegun:
-    image: dr2.rbkmoney.com/rbkmoney/machinegun:4986e50e2abcedbf589aaf8cce89c2b420589f04
+    image: dr2.rbkmoney.com/rbkmoney/machinegun:9b160a5f39fa54b1a20ca9cc8a9a881cbcc9ed4f
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml

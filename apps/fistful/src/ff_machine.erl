@@ -67,6 +67,7 @@
 -export([init/4]).
 -export([process_timeout/3]).
 -export([process_call/4]).
+-export([process_repair/4]).
 
 %% Model callbacks
 
@@ -79,8 +80,11 @@
 -callback maybe_migrate(event(), migrate_params()) ->
     event().
 
--callback process_call(st()) ->
+-callback process_call(machinery:args(_), st()) ->
     {machinery:response(_), [event()]}.
+
+-callback process_repair(machinery:args(_), st()) ->
+    {ok, machinery:response(_), [event()]} | {error, machinery:error(_)}.
 
 -callback process_timeout(st()) ->
     [event()].
@@ -237,3 +241,17 @@ process_call(Args, Machine, Mod, _) ->
     {Response, #{
         events => emit_events(Events)
     }}.
+
+-spec process_repair(machinery:args(_), machinery:machine(E, A), module(), _) ->
+    {ok, machinery:response(_), machinery:result(E, A)} | {error, machinery:error(_)}.
+
+process_repair(Args, Machine, Mod, _) ->
+    case Mod:process_repair(Args, collapse(Mod, Machine)) of
+        {ok, Response, Events} ->
+            {ok, Response, #{
+                events => emit_events(Events)
+            }};
+        {error, _Reason} = Error ->
+            Error
+    end.
+

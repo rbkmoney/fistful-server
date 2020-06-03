@@ -30,6 +30,9 @@
 -type unknown_p2p_transfer_error() ::
     {unknown_p2p_transfer, id()}.
 
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
+
 -export_type([id/0]).
 -export_type([st/0]).
 -export_type([action/0]).
@@ -40,6 +43,8 @@
 -export_type([external_id/0]).
 -export_type([create_error/0]).
 -export_type([start_adjustment_error/0]).
+-export_type([repair_error/0]).
+-export_type([repair_response/0]).
 
 %% API
 
@@ -122,7 +127,7 @@ start_adjustment(P2PTransferID, Params) ->
     call(P2PTransferID, {start_adjustment, Params}).
 
 -spec repair(ref(), ff_repair:scenario()) ->
-    ok | {error, notfound | working}.
+    {ok, repair_response()} | {error, notfound | working | {failed, repair_error()}}.
 repair(Ref, Scenario) ->
     machinery:repair(?NS, Ref, Scenario, backend()).
 
@@ -180,7 +185,7 @@ process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, repair_error()}.
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(p2p_transfer, Machine, Scenario).

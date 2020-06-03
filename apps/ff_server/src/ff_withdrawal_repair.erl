@@ -17,7 +17,7 @@
 handle_function('Repair', [ID, Scenario], _Opts) ->
     DecodedScenario = ff_withdrawal_codec:unmarshal(repair_scenario, Scenario),
     case ff_withdrawal_machine:repair(ID, DecodedScenario) of
-        ok ->
+        {ok, _Response} ->
             {ok, ok};
         {error, notfound} ->
             woody_error:raise(business, #fistful_WithdrawalNotFound{});

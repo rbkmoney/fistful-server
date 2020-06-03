@@ -728,8 +728,10 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
     CreateFun =
         fun(ID, EntityCtx) ->
             do(fun() ->
-                _ = check_resource(identity, IdentityId, Context),
-                ParsedParams = unwrap(maybe_add_p2p_quote_token(from_swag(create_p2p_params, Params))),
+            	_ = check_resource(identity, IdentityId, Context),
+                ParsedParams = unwrap(maybe_add_p2p_quote_token(
+                    from_swag(create_p2p_params, Params)
+                )),
                 SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
                 ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
                 p2p_transfer_machine:create(
@@ -1298,7 +1300,7 @@ make_ctx(Context) ->
 add_meta_to_ctx(WapiKeys, Params, Context = #{?CTX_NS := Ctx}) ->
     Context#{?CTX_NS => maps:merge(
         Ctx,
-        maps:with([<<"metadata">> | WapiKeys], Params)
+        maps:with(WapiKeys, Params)
     )}.
 
 add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
@@ -1598,10 +1600,11 @@ from_swag(create_quote_params, Params) ->
         destination_id  => maps:get(<<"destinationID">>, Params, undefined)
     }, Params));
 from_swag(identity_params, Params) ->
-    add_external_id(#{
+    genlib_map:compact(add_external_id(#{
         provider => maps:get(<<"provider">>, Params),
-        class    => maps:get(<<"class">>   , Params)
-    }, Params);
+        class    => maps:get(<<"class">>   , Params),
+        metadata => maps:get(<<"metadata">>, Params, undefined)
+    }, Params));
 from_swag(identity_challenge_params, Params) ->
     #{
        class  => maps:get(<<"type">>, Params),
@@ -1626,18 +1629,20 @@ from_swag(proof_type, <<"RUSRetireeInsuranceCertificate">>) ->
     rus_retiree_insurance_cert;
 
 from_swag(wallet_params, Params) ->
-    add_external_id(#{
-        identity => maps:get(<<"identity">>, Params),
-        currency => maps:get(<<"currency">>, Params),
-        name     => maps:get(<<"name">>    , Params)
-    }, Params);
-from_swag(destination_params, Params) ->
-    add_external_id(#{
+    genlib_map:compact(add_external_id(#{
         identity => maps:get(<<"identity">>, Params),
         currency => maps:get(<<"currency">>, Params),
         name     => maps:get(<<"name">>    , Params),
-        resource => maps:get(<<"resource">>, Params)
-    }, Params);
+        metadata => maps:get(<<"metadata">>, Params, undefined)
+    }, Params));
+from_swag(destination_params, Params) ->
+    genlib_map:compact(add_external_id(#{
+        identity => maps:get(<<"identity">>, Params),
+        currency => maps:get(<<"currency">>, Params),
+        name     => maps:get(<<"name">>    , Params),
+        resource => maps:get(<<"resource">>, Params),
+        metadata => maps:get(<<"metadata">>, Params, undefined)
+    }, Params));
 %% TODO delete this code, after add encrypted token
 from_swag(destination_resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
@@ -1709,11 +1714,12 @@ from_swag(p2p_template_metadata, #{<<"defaultMetadata">> := Metadata}) ->
     #{value => Metadata};
 
 from_swag(create_w2w_params, Params) ->
-    add_external_id(#{
+    genlib_map:compact(add_external_id(#{
         wallet_from_id => maps:get(<<"sender">>, Params),
         wallet_to_id => maps:get(<<"receiver">>, Params),
-        body => from_swag(body, maps:get(<<"body">>, Params))
-    }, Params);
+        body => from_swag(body, maps:get(<<"body">>, Params)),
+        metadata => maps:get(<<"metadata">>, Params, undefined)
+    }, Params));
 
 from_swag(destination_resource, Resource = #{
     <<"type">>     := <<"CryptoWalletDestinationResource">>,
@@ -1740,11 +1746,12 @@ from_swag(crypto_wallet_currency_name, <<"Ripple">>)      -> ripple;
 from_swag(crypto_wallet_currency_name, <<"USDT">>)        -> usdt;
 
 from_swag(withdrawal_params, Params) ->
-    add_external_id(#{
+    genlib_map:compact(add_external_id(#{
         wallet_id      => maps:get(<<"wallet">>     , Params),
         destination_id => maps:get(<<"destination">>, Params),
-        body           => from_swag(body , maps:get(<<"body">>, Params))
-    }, Params);
+        body           => from_swag(body , maps:get(<<"body">>, Params)),
+        metadata       => maps:get(<<"metadata">>, Params, undefined)
+    }, Params));
 %% TODO
 %%  - remove this clause when we fix negative accounts and turn on validation in swag
 from_swag(body, #{<<"amount">> := Amount}) when Amount < 0 ->
@@ -1857,7 +1864,7 @@ to_swag(identity, State) ->
         <<"level">>              => ff_identity:level(Identity),
         <<"effectiveChallenge">> => to_swag(identity_effective_challenge, ff_identity:effective_challenge(Identity)),
         <<"isBlocked">>          => to_swag(is_blocked, ff_identity:is_accessible(Identity)),
-        <<"metadata">>           => maps:get(<<"metadata">>, WapiCtx, undefined),
+        <<"metadata">>           => ff_identity:metadata(Identity),
         ?EXTERNAL_ID             => ff_identity:external_id(Identity)
     });
 to_swag(identity_effective_challenge, {ok, ChallegeId}) ->
@@ -1981,7 +1988,6 @@ to_swag(user_interaction_form, Form) ->
 
 to_swag(wallet, State) ->
     Wallet = ff_wallet_machine:wallet(State),
-    WapiCtx = get_ctx(State),
     to_swag(map, #{
         <<"id">>         => ff_wallet:id(Wallet),
         <<"name">>       => ff_wallet:name(Wallet),
@@ -1989,7 +1995,7 @@ to_swag(wallet, State) ->
         <<"isBlocked">>  => to_swag(is_blocked, ff_wallet:is_accessible(Wallet)),
         <<"identity">>   => ff_wallet:identity(Wallet),
         <<"currency">>   => to_swag(currency, ff_wallet:currency(Wallet)),
-        <<"metadata">>   => genlib_map:get(<<"metadata">>, WapiCtx),
+        <<"metadata">>   => ff_wallet:metadata(Wallet),
         ?EXTERNAL_ID     => ff_wallet:external_id(Wallet)
     });
 to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
@@ -2006,7 +2012,6 @@ to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
     };
 to_swag(destination, State) ->
     Destination = ff_destination:get(State),
-    WapiCtx = get_ctx(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>         => ff_destination:id(Destination),
@@ -2016,7 +2021,7 @@ to_swag(destination, State) ->
             <<"identity">>   => ff_destination:identity(Destination),
             <<"currency">>   => to_swag(currency, ff_destination:currency(Destination)),
             <<"resource">>   => to_swag(destination_resource, ff_destination:resource(Destination)),
-            <<"metadata">>   => genlib_map:get(<<"metadata">>, WapiCtx),
+            <<"metadata">>   => ff_destination:metadata(Destination),
             ?EXTERNAL_ID     => ff_destination:external_id(Destination)
         },
         to_swag(destination_status, ff_destination:status(Destination))
@@ -2083,7 +2088,6 @@ to_swag(crypto_wallet_currency, {ripple, #{}})           -> #{<<"currency">> => 
 
 to_swag(withdrawal, State) ->
     Withdrawal = ff_withdrawal_machine:withdrawal(State),
-    WapiCtx = get_ctx(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>          => ff_withdrawal:id(Withdrawal),
@@ -2091,7 +2095,7 @@ to_swag(withdrawal, State) ->
             <<"wallet">>      => ff_withdrawal:wallet_id(Withdrawal),
             <<"destination">> => ff_withdrawal:destination_id(Withdrawal),
             <<"body">>        => to_swag(body, ff_withdrawal:body(Withdrawal)),
-            <<"metadata">>    => genlib_map:get(<<"metadata">>, WapiCtx),
+            <<"metadata">>    => ff_withdrawal:metadata(Withdrawal),
             ?EXTERNAL_ID      => ff_withdrawal:external_id(Withdrawal)
         },
         to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))

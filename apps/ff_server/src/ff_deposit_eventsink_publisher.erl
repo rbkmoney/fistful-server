@@ -41,7 +41,13 @@ publish_event(#{
         payload       = #deposit_EventSinkPayload{
             sequence   = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
-            changes    = [marshal(change, ff_deposit:maybe_migrate(Payload, #{timestamp => EventDt}))]
+            changes    = [marshal(change, ff_deposit:maybe_migrate(
+                Payload,
+                #{
+                    timestamp => EventDt,
+                    id => SourceID
+                }
+            ))]
         }
     }.
 

@@ -20,15 +20,17 @@
     details => binary()
 }.
 
--type source()      :: ff_instrument:instrument(resource()).
--type params()      :: ff_instrument_machine:params(resource()).
--type machine()     :: ff_instrument_machine:st(resource()).
+-type source() :: ff_instrument:instrument(resource()).
+-type source_state() :: ff_instrument:instrument_state(resource()).
+-type params() :: ff_instrument_machine:params(resource()).
+-type machine() :: ff_instrument_machine:st(resource()).
 
--type event()       :: ff_instrument:event(resource()).
--type events()      :: ff_instrument_machine:events(resource()).
+-type event() :: ff_instrument:event(resource()).
+-type events() :: ff_instrument_machine:events(resource()).
 
 -export_type([id/0]).
 -export_type([source/0]).
+-export_type([source_state/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
 -export_type([event/0]).
@@ -54,13 +56,13 @@
 
 %% Accessors
 
--spec id(source())       -> id().
--spec name(source())     -> name().
--spec account(source())  -> account().
--spec identity(source()) -> identity().
--spec currency(source()) -> currency().
--spec resource(source()) -> resource().
--spec status(source())   -> status() | undefined.
+-spec id(source_state())       -> id().
+-spec name(source_state())     -> name().
+-spec account(source_state())  -> account().
+-spec identity(source_state()) -> identity().
+-spec currency(source_state()) -> currency().
+-spec resource(source_state()) -> resource().
+-spec status(source_state())   -> status() | undefined.
 
 id(Source)       -> ff_instrument:id(Source).
 name(Source)     -> ff_instrument:name(Source).
@@ -70,7 +72,7 @@ resource(Source) -> ff_instrument:resource(Source).
 status(Source)   -> ff_instrument:status(Source).
 account(Source)  -> ff_instrument:account(Source).
 
--spec external_id(source()) ->
+-spec external_id(source_state()) ->
     id() | undefined.
 external_id(T)   -> ff_instrument:external_id(T).
 
@@ -95,11 +97,11 @@ get_machine(ID) ->
     ff_instrument_machine:get(?NS, ID).
 
 -spec get(machine()) ->
-    source().
+    source_state().
 get(Machine) ->
     ff_instrument_machine:instrument(Machine).
 
--spec is_accessible(source()) ->
+-spec is_accessible(source_state()) ->
     {ok, accessible} |
     {error, ff_party:inaccessibility()}.
 

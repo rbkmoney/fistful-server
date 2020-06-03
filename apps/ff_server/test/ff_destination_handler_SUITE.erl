@@ -114,6 +114,7 @@ create_destination_ok(Resource, C) ->
     ExternalId = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = #dst_DestinationParams{
         id          = ID,
         identity    = IdentityID,
@@ -121,32 +122,34 @@ create_destination_ok(Resource, C) ->
         currency    = Currency,
         resource    = Resource,
         external_id = ExternalId,
+        metadata    = Metadata,
         context     = Ctx
     },
     {ok, Dst}  = call_service('Create', [Params]),
-    DstName     = Dst#dst_Destination.name,
-    ID          = Dst#dst_Destination.id,
-    Resource    = Dst#dst_Destination.resource,
-    ExternalId  = Dst#dst_Destination.external_id,
-    Ctx         = Dst#dst_Destination.context,
+    DstName     = Dst#dst_DestinationState.name,
+    ID          = Dst#dst_DestinationState.id,
+    Resource    = Dst#dst_DestinationState.resource,
+    ExternalId  = Dst#dst_DestinationState.external_id,
+    Metadata    = Dst#dst_DestinationState.metadata,
+    Ctx         = Dst#dst_DestinationState.context,
 
-    Account = Dst#dst_Destination.account,
+    Account = Dst#dst_DestinationState.account,
     IdentityID = Account#account_Account.identity,
     #'CurrencyRef'{symbolic_code = Currency} = Account#account_Account.currency,
 
-    {unauthorized, #dst_Unauthorized{}} = Dst#dst_Destination.status,
+    {unauthorized, #dst_Unauthorized{}} = Dst#dst_DestinationState.status,
 
     {authorized, #dst_Authorized{}} = ct_helper:await(
         {authorized, #dst_Authorized{}},
         fun () ->
-            {ok, #dst_Destination{status = Status}}
+            {ok, #dst_DestinationState{status = Status}}
                 = call_service('Get', [ID]),
             Status
         end,
         genlib_retry:linear(15, 1000)
     ),
 
-    {ok, #dst_Destination{}} = call_service('Get', [ID]).
+    {ok, #dst_DestinationState{}} = call_service('Get', [ID]).
 
 call_service(Fun, Args) ->
     Service = {ff_proto_destination_thrift, 'Management'},

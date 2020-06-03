@@ -4,6 +4,7 @@
 
 -include_lib("fistful_proto/include/ff_proto_deposit_thrift.hrl").
 
+-export([marshal_deposit_state/2]).
 -export([marshal/2]).
 -export([unmarshal/2]).
 
@@ -11,6 +12,30 @@
 
 -define(to_session_event(SessionID, Payload),
     {session, #{id => SessionID, payload => Payload}}).
+
+-spec marshal_deposit_state(ff_deposit:deposit_state(), ff_entity_context:context()) ->
+    ff_proto_deposit_thrift:'DepositState'().
+
+marshal_deposit_state(DepositState, Context) ->
+    CashFlow = ff_deposit:effective_final_cash_flow(DepositState),
+    Reverts = ff_deposit:reverts(DepositState),
+    Adjustments = ff_deposit:adjustments(DepositState),
+    #deposit_DepositState{
+        id = marshal(id, ff_deposit:id(DepositState)),
+        body = marshal(cash, ff_deposit:body(DepositState)),
+        status = maybe_marshal(status, ff_deposit:status(DepositState)),
+        wallet_id = marshal(id, ff_deposit:wallet_id(DepositState)),
+        source_id = marshal(id, ff_deposit:source_id(DepositState)),
+        external_id = maybe_marshal(id, ff_deposit:external_id(DepositState)),
+        domain_revision = maybe_marshal(domain_revision, ff_deposit:domain_revision(DepositState)),
+        party_revision = maybe_marshal(party_revision, ff_deposit:party_revision(DepositState)),
+        created_at = maybe_marshal(timestamp_ms, ff_deposit:created_at(DepositState)),
+        effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
+        reverts = [ff_deposit_revert_codec:marshal(revert_state, R) || R <- Reverts],
+        adjustments = [ff_deposit_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments],
+        context = marshal(ctx, Context),
+        metadata = marshal(ctx, ff_deposit:metadata(DepositState))
+    }.
 
 %% API
 
@@ -56,7 +81,8 @@ marshal(deposit, Deposit) ->
         external_id = maybe_marshal(id, ff_deposit:external_id(Deposit)),
         domain_revision = maybe_marshal(domain_revision, ff_deposit:domain_revision(Deposit)),
         party_revision = maybe_marshal(party_revision, ff_deposit:party_revision(Deposit)),
-        created_at = maybe_marshal(timestamp_ms, ff_deposit:created_at(Deposit))
+        created_at = maybe_marshal(timestamp_ms, ff_deposit:created_at(Deposit)),
+        metadata = maybe_marshal(ctx, ff_deposit:metadata(Deposit))
     };
 marshal(deposit_params, DepositParams) ->
     #deposit_DepositParams{
@@ -64,23 +90,12 @@ marshal(deposit_params, DepositParams) ->
         body = marshal(cash, maps:get(body, DepositParams)),
         wallet_id = marshal(id, maps:get(wallet_id, DepositParams)),
         source_id = marshal(id, maps:get(source_id, DepositParams)),
-        external_id = maybe_marshal(id, maps:get(external_id, DepositParams, undefined))
+        external_id = maybe_marshal(id, maps:get(external_id, DepositParams, undefined)),
+        metadata = maybe_marshal(ctx, maps:get(metadata, DepositParams, undefined))
     };
-marshal(deposit_state, DepositState) ->
-    #{
-        deposit := Deposit,
-        context := Context
-    } = DepositState,
-    CashFlow = ff_deposit:effective_final_cash_flow(Deposit),
-    Reverts = ff_deposit:reverts(Deposit),
-    Adjustments = ff_deposit:adjustments(Deposit),
-    #deposit_DepositState{
-        deposit = marshal(deposit, Deposit),
-        context = marshal(context, Context),
-        effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
-        reverts = [ff_deposit_revert_codec:marshal(revert_state, R) || R <- Reverts],
-        adjustments = [ff_deposit_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments]
-    };
+
+marshal(ctx, Ctx) ->
+    maybe_marshal(context, Ctx);
 
 marshal(status, Status) ->
     ff_deposit_status_codec:marshal(status, Status);
@@ -127,7 +142,7 @@ unmarshal(deposit, Deposit) ->
     #{
         id => unmarshal(id, Deposit#deposit_Deposit.id),
         body => unmarshal(cash, Deposit#deposit_Deposit.body),
-        status => maybe_marshal(status, Deposit#deposit_Deposit.status),
+        status => maybe_unmarshal(status, Deposit#deposit_Deposit.status),
         params => genlib_map:compact(#{
             wallet_id => unmarshal(id, Deposit#deposit_Deposit.wallet_id),
             source_id => unmarshal(id, Deposit#deposit_Deposit.source_id),
@@ -135,7 +150,8 @@ unmarshal(deposit, Deposit) ->
         }),
         party_revision => maybe_unmarshal(party_revision, Deposit#deposit_Deposit.party_revision),
         domain_revision => maybe_unmarshal(domain_revision, Deposit#deposit_Deposit.domain_revision),
-        created_at => maybe_unmarshal(timestamp_ms, Deposit#deposit_Deposit.created_at)
+        created_at => maybe_unmarshal(timestamp_ms, Deposit#deposit_Deposit.created_at),
+        metadata => maybe_unmarshal(ctx, Deposit#deposit_Deposit.metadata)
     };
 
 unmarshal(deposit_params, DepositParams) ->
@@ -144,8 +160,12 @@ unmarshal(deposit_params, DepositParams) ->
         body => unmarshal(cash, DepositParams#deposit_DepositParams.body),
         wallet_id => unmarshal(id, DepositParams#deposit_DepositParams.wallet_id),
         source_id => unmarshal(id, DepositParams#deposit_DepositParams.source_id),
-        external_id => maybe_marshal(id, DepositParams#deposit_DepositParams.external_id)
+        metadata => maybe_unmarshal(ctx, DepositParams#deposit_DepositParams.metadata),
+        external_id => maybe_unmarshal(id, DepositParams#deposit_DepositParams.external_id)
     });
+
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
@@ -188,6 +208,7 @@ deposit_symmetry_test() ->
 
 -spec deposit_params_symmetry_test() -> _.
 deposit_params_symmetry_test() ->
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Encoded = #deposit_DepositParams{
         body = #'Cash'{
             amount = 10101,
@@ -196,7 +217,8 @@ deposit_params_symmetry_test() ->
         source_id = genlib:unique(),
         wallet_id = genlib:unique(),
         external_id = undefined,
-        id = genlib:unique()
+        id = genlib:unique(),
+        metadata = Metadata
     },
     ?assertEqual(Encoded, marshal(deposit_params, unmarshal(deposit_params, Encoded))).
 

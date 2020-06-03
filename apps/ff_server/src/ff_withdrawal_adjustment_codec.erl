@@ -26,7 +26,7 @@ marshal(adjustment, Adjustment) ->
         changes_plan = marshal(changes_plan, ff_adjustment:changes_plan(Adjustment)),
         created_at = marshal(timestamp_ms, ff_adjustment:created_at(Adjustment)),
         domain_revision = marshal(domain_revision, ff_adjustment:domain_revision(Adjustment)),
-        party_revision = marshal(domain_revision, ff_adjustment:party_revision(Adjustment)),
+        party_revision = marshal(party_revision, ff_adjustment:party_revision(Adjustment)),
         operation_timestamp = marshal(timestamp_ms, ff_adjustment:operation_timestamp(Adjustment)),
         external_id = maybe_marshal(id, ff_adjustment:external_id(Adjustment))
     };
@@ -38,7 +38,14 @@ marshal(adjustment_params, Params) ->
     };
 marshal(adjustment_state, Adjustment) ->
     #wthd_adj_AdjustmentState{
-        adjustment = marshal(adjustment, Adjustment)
+        id = marshal(id, ff_adjustment:id(Adjustment)),
+        status = maybe_marshal(status, ff_adjustment:status(Adjustment)),
+        changes_plan = marshal(changes_plan, ff_adjustment:changes_plan(Adjustment)),
+        created_at = marshal(timestamp_ms, ff_adjustment:created_at(Adjustment)),
+        domain_revision = marshal(domain_revision, ff_adjustment:domain_revision(Adjustment)),
+        party_revision = marshal(party_revision, ff_adjustment:party_revision(Adjustment)),
+        operation_timestamp = marshal(timestamp_ms, ff_adjustment:operation_timestamp(Adjustment)),
+        external_id = maybe_marshal(id, ff_adjustment:external_id(Adjustment))
     };
 
 marshal(status, pending) ->
@@ -89,7 +96,7 @@ unmarshal(adjustment, Adjustment) ->
         changes_plan => unmarshal(changes_plan, Adjustment#wthd_adj_Adjustment.changes_plan),
         created_at => unmarshal(timestamp_ms, Adjustment#wthd_adj_Adjustment.created_at),
         domain_revision => unmarshal(domain_revision, Adjustment#wthd_adj_Adjustment.domain_revision),
-        party_revision => unmarshal(domain_revision, Adjustment#wthd_adj_Adjustment.party_revision),
+        party_revision => unmarshal(party_revision, Adjustment#wthd_adj_Adjustment.party_revision),
         operation_timestamp => unmarshal(timestamp_ms, Adjustment#wthd_adj_Adjustment.operation_timestamp),
         external_id => maybe_unmarshal(id, Adjustment#wthd_adj_Adjustment.external_id)
     };

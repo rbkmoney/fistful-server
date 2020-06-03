@@ -56,7 +56,16 @@ marshal(revert_state, Revert) ->
     CashFlow = ff_deposit_revert:effective_final_cash_flow(Revert),
     Adjustments = ff_deposit_revert:adjustments(Revert),
     #deposit_revert_RevertState{
-        revert = marshal(revert, Revert),
+        id = marshal(id, ff_deposit_revert:id(Revert)),
+        wallet_id = marshal(id, ff_deposit_revert:wallet_id(Revert)),
+        source_id = marshal(id, ff_deposit_revert:source_id(Revert)),
+        status = marshal(status, ff_deposit_revert:status(Revert)),
+        body = marshal(cash, ff_deposit_revert:body(Revert)),
+        created_at = marshal(timestamp_ms, ff_deposit_revert:created_at(Revert)),
+        domain_revision = marshal(domain_revision, ff_deposit_revert:domain_revision(Revert)),
+        party_revision = marshal(party_revision, ff_deposit_revert:party_revision(Revert)),
+        reason = maybe_marshal(string, ff_deposit_revert:reason(Revert)),
+        external_id = maybe_marshal(id, ff_deposit_revert:external_id(Revert)),
         effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
         adjustments = [ff_deposit_revert_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments]
     };

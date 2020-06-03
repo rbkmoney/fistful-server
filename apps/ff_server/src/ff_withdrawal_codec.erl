@@ -4,11 +4,8 @@
 
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
--export([marshal_withdrawal_params/1]).
 -export([unmarshal_withdrawal_params/1]).
-
--export([marshal_withdrawal/1]).
--export([unmarshal_withdrawal/1]).
+-export([marshal_withdrawal_params/1]).
 
 -export([marshal_withdrawal_state/2]).
 -export([marshal_event/1]).
@@ -17,43 +14,6 @@
 -export([unmarshal/2]).
 
 %% API
-
--spec marshal_withdrawal(ff_withdrawal:withdrawal()) ->
-    ff_proto_withdrawal_thrift:'Withdrawal'().
-
-marshal_withdrawal(Withdrawal) ->
-    #wthd_Withdrawal{
-        id = marshal(id, ff_withdrawal:id(Withdrawal)),
-        body = marshal(cash, ff_withdrawal:body(Withdrawal)),
-        wallet_id = marshal(id, ff_withdrawal:wallet_id(Withdrawal)),
-        destination_id = marshal(id, ff_withdrawal:destination_id(Withdrawal)),
-        status = maybe_marshal(status, ff_withdrawal:status(Withdrawal)),
-        route = maybe_marshal(route, ff_withdrawal:route(Withdrawal)),
-        external_id = maybe_marshal(id, ff_withdrawal:external_id(Withdrawal)),
-        domain_revision = maybe_marshal(domain_revision, ff_withdrawal:domain_revision(Withdrawal)),
-        party_revision = maybe_marshal(party_revision, ff_withdrawal:party_revision(Withdrawal)),
-        created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(Withdrawal))
-    }.
-
--spec unmarshal_withdrawal(ff_proto_withdrawal_thrift:'Withdrawal'()) ->
-    ff_withdrawal:withdrawal().
-
-unmarshal_withdrawal(Withdrawal) ->
-    ff_withdrawal:gen(#{
-        id => unmarshal(id, Withdrawal#wthd_Withdrawal.id),
-        body => unmarshal(cash, Withdrawal#wthd_Withdrawal.body),
-        params => genlib_map:compact(#{
-            wallet_id => unmarshal(id, Withdrawal#wthd_Withdrawal.wallet_id),
-            destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id)
-        }),
-        status => maybe_unmarshal(status, Withdrawal#wthd_Withdrawal.status),
-        route => maybe_unmarshal(route, Withdrawal#wthd_Withdrawal.route),
-        external_id => maybe_unmarshal(id, Withdrawal#wthd_Withdrawal.external_id),
-        domain_revision => maybe_unmarshal(domain_revision, Withdrawal#wthd_Withdrawal.domain_revision),
-        party_revision => maybe_unmarshal(party_revision, Withdrawal#wthd_Withdrawal.party_revision),
-        created_at => maybe_unmarshal(timestamp_ms, Withdrawal#wthd_Withdrawal.created_at),
-        transfer_type => withdrawal
-    }).
 
 -spec marshal_withdrawal_params(ff_withdrawal:params()) ->
     ff_proto_withdrawal_thrift:'WithdrawalParams'().
@@ -64,7 +24,8 @@ marshal_withdrawal_params(Params) ->
         wallet_id      = marshal(id, maps:get(wallet_id, Params)),
         destination_id = marshal(id, maps:get(destination_id, Params)),
         body           = marshal(cash, maps:get(body, Params)),
-        external_id    = maybe_marshal(id, maps:get(external_id, Params, undefined))
+        external_id    = maybe_marshal(id, maps:get(external_id, Params, undefined)),
+        metadata       = maybe_marshal(ctx, maps:get(metadata, Params, undefined))
     }.
 
 -spec unmarshal_withdrawal_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
@@ -76,23 +37,35 @@ unmarshal_withdrawal_params(Params) ->
         wallet_id      => unmarshal(id, Params#wthd_WithdrawalParams.wallet_id),
         destination_id => unmarshal(id, Params#wthd_WithdrawalParams.destination_id),
         body           => unmarshal(cash, Params#wthd_WithdrawalParams.body),
-        external_id    => maybe_unmarshal(id, Params#wthd_WithdrawalParams.external_id)
+        external_id    => maybe_unmarshal(id, Params#wthd_WithdrawalParams.external_id),
+        metadata       => maybe_unmarshal(ctx, Params#wthd_WithdrawalParams.metadata)
     }).
 
--spec marshal_withdrawal_state(ff_withdrawal:withdrawal(), ff_entity_context:context()) ->
+-spec marshal_withdrawal_state(ff_withdrawal:withdrawal_state(), ff_entity_context:context()) ->
     ff_proto_withdrawal_thrift:'WithdrawalState'().
 
-marshal_withdrawal_state(Withdrawal, Context) ->
-    CashFlow = ff_withdrawal:effective_final_cash_flow(Withdrawal),
-    Adjustments = ff_withdrawal:adjustments(Withdrawal),
-    Sessions = ff_withdrawal:sessions(Withdrawal),
+marshal_withdrawal_state(WithdrawalState, Context) ->
+    CashFlow = ff_withdrawal:effective_final_cash_flow(WithdrawalState),
+    Adjustments = ff_withdrawal:adjustments(WithdrawalState),
+    Sessions = ff_withdrawal:sessions(WithdrawalState),
     #wthd_WithdrawalState{
-        withdrawal = marshal_withdrawal(Withdrawal),
-        context = ff_codec:marshal(context, Context),
+        id = marshal(id, ff_withdrawal:id(WithdrawalState)),
+        body = marshal(cash, ff_withdrawal:body(WithdrawalState)),
+        wallet_id = marshal(id, ff_withdrawal:wallet_id(WithdrawalState)),
+        destination_id = marshal(id, ff_withdrawal:destination_id(WithdrawalState)),
+        route = maybe_marshal(route, ff_withdrawal:route(WithdrawalState)),
+        external_id = maybe_marshal(id, ff_withdrawal:external_id(WithdrawalState)),
+        domain_revision = maybe_marshal(domain_revision, ff_withdrawal:domain_revision(WithdrawalState)),
+        party_revision = maybe_marshal(party_revision, ff_withdrawal:party_revision(WithdrawalState)),
+        created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(WithdrawalState)),
+        status = maybe_marshal(status, ff_withdrawal:status(WithdrawalState)),
         sessions = [marshal(session_state, S) || S <- Sessions],
-        effective_route = maybe_marshal(route, ff_withdrawal:route(Withdrawal)),
+        effective_route = maybe_marshal(route, ff_withdrawal:route(WithdrawalState)),
         effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
-        adjustments = [ff_withdrawal_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments]
+        adjustments = [ff_withdrawal_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments],
+        context = marshal(ctx, Context),
+        metadata = marshal(ctx, ff_withdrawal:metadata(WithdrawalState))
+        %% TODO add quote here
     }.
 
 -spec marshal_event(ff_withdrawal_machine:event()) ->
@@ -112,7 +85,7 @@ marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
 marshal(change, {created, Withdrawal}) ->
-    {created, #wthd_CreatedChange{withdrawal = marshal_withdrawal(Withdrawal)}};
+    {created, #wthd_CreatedChange{withdrawal = marshal(withdrawal, Withdrawal)}};
 marshal(change, {status_changed, Status}) ->
     {status_changed, #wthd_StatusChange{status = ff_withdrawal_status_codec:marshal(status, Status)}};
 marshal(change, {p_transfer, TransferChange}) ->
@@ -132,6 +105,21 @@ marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
         id = marshal(id, ID),
         payload = ff_withdrawal_adjustment_codec:marshal(change, Payload)
     }};
+
+marshal(withdrawal, Withdrawal) ->
+    #wthd_Withdrawal{
+        id = marshal(id, ff_withdrawal:id(Withdrawal)),
+        body = marshal(cash, ff_withdrawal:body(Withdrawal)),
+        wallet_id = marshal(id, ff_withdrawal:wallet_id(Withdrawal)),
+        destination_id = marshal(id, ff_withdrawal:destination_id(Withdrawal)),
+        route = maybe_marshal(route, ff_withdrawal:route(Withdrawal)),
+        external_id = maybe_marshal(id, ff_withdrawal:external_id(Withdrawal)),
+        domain_revision = maybe_marshal(domain_revision, ff_withdrawal:domain_revision(Withdrawal)),
+        party_revision = maybe_marshal(party_revision, ff_withdrawal:party_revision(Withdrawal)),
+        created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(Withdrawal)),
+        metadata = maybe_marshal(ctx, ff_withdrawal:metadata(Withdrawal))
+        %% TODO add quote here
+    };
 
 marshal(route, #{provider_id := ProviderID}) ->
     #wthd_Route{provider_id = marshal(provider_id, ProviderID)};
@@ -157,7 +145,7 @@ marshal(session_state, Session) ->
     };
 
 marshal(ctx, Ctx) ->
-    marshal(context, Ctx);
+    maybe_marshal(context, Ctx);
 
 marshal(provider_id, ProviderID) ->
     marshal(id, genlib:to_binary(ProviderID));
@@ -179,7 +167,7 @@ unmarshal(repair_scenario, {add_events, #wthd_AddEventsRepair{events = Events, a
     })};
 
 unmarshal(change, {created, #wthd_CreatedChange{withdrawal = Withdrawal}}) ->
-    {created, unmarshal_withdrawal(Withdrawal)};
+    {created, unmarshal(withdrawal, Withdrawal)};
 unmarshal(change, {status_changed, #wthd_StatusChange{status = Status}}) ->
     {status_changed, unmarshal(status, Status)};
 unmarshal(change, {transfer, #wthd_TransferChange{payload = TransferChange}}) ->
@@ -197,6 +185,24 @@ unmarshal(change, {adjustment, Change}) ->
         id => unmarshal(id, Change#wthd_AdjustmentChange.id),
         payload => ff_withdrawal_adjustment_codec:unmarshal(id, Change#wthd_AdjustmentChange.payload)
     }};
+
+unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
+    ff_withdrawal:gen(#{
+        id => unmarshal(id, Withdrawal#wthd_Withdrawal.id),
+        body => unmarshal(cash, Withdrawal#wthd_Withdrawal.body),
+        params => genlib_map:compact(#{
+            wallet_id => unmarshal(id, Withdrawal#wthd_Withdrawal.wallet_id),
+            destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id)
+            %% TODO add quote here
+        }),
+        route => maybe_unmarshal(route, Withdrawal#wthd_Withdrawal.route),
+        external_id => maybe_unmarshal(id, Withdrawal#wthd_Withdrawal.external_id),
+        domain_revision => maybe_unmarshal(domain_revision, Withdrawal#wthd_Withdrawal.domain_revision),
+        party_revision => maybe_unmarshal(party_revision, Withdrawal#wthd_Withdrawal.party_revision),
+        created_at => maybe_unmarshal(timestamp_ms, Withdrawal#wthd_Withdrawal.created_at),
+        transfer_type => withdrawal,
+        metadata => maybe_unmarshal(ctx, Withdrawal#wthd_Withdrawal.metadata)
+    });
 
 unmarshal(route, #wthd_Route{provider_id = ProviderID}) ->
     #{provider_id => unmarshal(provider_id, ProviderID)};
@@ -259,7 +265,6 @@ withdrawal_symmetry_test() ->
         wallet_id = genlib:unique(),
         destination_id = genlib:unique(),
         external_id = genlib:unique(),
-        status = {pending, #wthd_status_Pending{}},
         route = #wthd_Route{
             provider_id = <<"22">>
         },
@@ -267,7 +272,7 @@ withdrawal_symmetry_test() ->
         party_revision = 3,
         created_at = <<"2099-01-01T00:00:00.123Z">>
     },
-    ?assertEqual(In, marshal_withdrawal(unmarshal_withdrawal(In))).
+    ?assertEqual(In, marshal(withdrawal, unmarshal(withdrawal, In))).
 
 -spec withdrawal_params_symmetry_test() -> _.
 withdrawal_params_symmetry_test() ->

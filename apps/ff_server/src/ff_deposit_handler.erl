@@ -62,10 +62,8 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
         {ok, Machine} ->
             Deposit = ff_deposit_machine:deposit(Machine),
             Context = ff_deposit_machine:ctx(Machine),
-            {ok, ff_deposit_codec:marshal(deposit_state, #{
-                deposit => Deposit,
-                context => Context
-            })};
+            Response = ff_deposit_codec:marshal_deposit_state(Deposit, Context),
+            {ok, Response};
         {error, {unknown_deposit, ID}} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end;

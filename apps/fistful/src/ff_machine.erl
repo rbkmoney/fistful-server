@@ -34,7 +34,8 @@
 
 -type migrate_params() :: #{
     ctx => ctx(),
-    timestamp => timestamp()
+    timestamp => timestamp(),
+    id => ref()
 }.
 
 -export_type([st/1]).
@@ -199,7 +200,8 @@ merge_timestamped_event({ev, Ts, Body}, St = #{}) ->
 
 migrate_machine(Mod, Machine = #{history := History}) ->
     MigrateParams = #{
-        ctx => maps:get(ctx, maps:get(aux_state, Machine, #{}), undefined)
+        ctx => maps:get(ctx, maps:get(aux_state, Machine, #{}), undefined),
+        id => maps:get(id, Machine, undefined)
     },
     Machine#{history => migrate_history(Mod, History, MigrateParams)}.
 

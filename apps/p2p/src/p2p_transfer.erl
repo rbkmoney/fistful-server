@@ -172,7 +172,7 @@
 
 %% Internal types
 -type body() :: ff_cash:cash().
--type identity() :: ff_identity:identity().
+-type identity() :: ff_identity:identity_state().
 -type identity_id() :: ff_identity:id().
 -type process_result() :: {action(), [event()]}.
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().

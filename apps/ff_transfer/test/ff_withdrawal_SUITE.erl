@@ -128,7 +128,7 @@ end_per_testcase(_Name, _C) ->
 %% Tests
 
 -spec migrate_session_test(config()) -> test_return().
-migrate_session_test(_C) ->
+migrate_session_test(C) ->
     ID = genlib:unique(),
     ProviderID = genlib:unique(),
     Body = {100, <<"RUB">>},
@@ -138,7 +138,10 @@ migrate_session_test(_C) ->
     Destination = #{
         resource => Resource
     },
-    Identity = #{},
+    Party = create_party(C),
+    IdentityID = create_person_identity(Party, C),
+    {ok, Machine} = ff_identity_machine:get(IdentityID),
+    Identity = ff_identity_machine:identity(Machine),
     Withdrawal = #{
         id => genlib:unique(),
         destination => Destination,
@@ -157,7 +160,7 @@ migrate_session_test(_C) ->
 
     {created, Session} = ff_withdrawal_session:maybe_migrate(LegacyEvent, #{}),
     ?assertEqual(ID, maps:get(id, Session)),
-    ?assertEqual(1, maps:get(version, Session)).
+    ?assertEqual(2, maps:get(version, Session)).
 
 -spec session_fail_test(config()) -> test_return().
 session_fail_test(C) ->

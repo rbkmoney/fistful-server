@@ -27,8 +27,10 @@
 -type blocking()        :: unblocked | blocked.
 -type level()           :: ff_identity_class:level().
 -type level_id()        :: ff_identity_class:level_id().
+-type metadata()        :: ff_entity_context:md().
 
--type identity() :: #{
+-define(ACTUAL_FORMAT_VERSION, 2).
+-type identity_state() :: #{
     id           := id(),
     party        := party_id(),
     provider     := provider_id(),
@@ -39,19 +41,41 @@
     effective    => challenge_id(),
     external_id  => id(),
     blocking     => blocking(),
+    metadata     => metadata(),
+    created_at   => ff_time:timestamp_ms()
+}.
+
+-type identity() :: #{
+    version      := ?ACTUAL_FORMAT_VERSION,
+    id           := id(),
+    party        := party_id(),
+    provider     := provider_id(),
+    class        := class_id(),
+    contract     := contract_id(),
+    external_id  => id(),
+    metadata     => metadata(),
     created_at   => ff_time:timestamp_ms()
 }.
 
 -type challenge() ::
-    ff_identity_challenge:challenge().
+    ff_identity_challenge:challenge_state().
 
 -type event() ::
-    {created           , identity()}                                 |
-    {level_changed     , level_id()}                                    |
-    {effective_challenge_changed, challenge_id()}                    |
+    {created           , identity()} |
+    {level_changed     , level_id()} |
+    {effective_challenge_changed, challenge_id()} |
     {{challenge        , challenge_id()}, ff_identity_challenge:event()}.
 
 -type legacy_event() :: any().
+
+-type params() :: #{
+    id          := id(),
+    party       := ff_party:id(),
+    provider    := ff_provider:id(),
+    class       := ff_identity:class_id(),
+    external_id => id(),
+    metadata    => metadata()
+}.
 
 -type create_error() ::
     {provider, notfound} |
@@ -66,6 +90,7 @@
     ff_identity_challenge:create_error().
 
 -export_type([identity/0]).
+-export_type([identity_state/0]).
 -export_type([event/0]).
 -export_type([id/0]).
 -export_type([create_error/0]).
@@ -73,6 +98,7 @@
 -export_type([challenge_class_id/0]).
 -export_type([class_id/0]).
 -export_type([level_id/0]).
+-export_type([params/0]).
 
 -export([id/1]).
 -export([provider/1]).
@@ -86,11 +112,12 @@
 -export([external_id/1]).
 -export([blocking/1]).
 -export([created_at/1]).
+-export([metadata/1]).
 
 -export([is_accessible/1]).
 -export([set_blocking/1]).
 
--export([create/5]).
+-export([create/1]).
 
 -export([start_challenge/4]).
 -export([poll_challenge_completion/2]).
@@ -104,30 +131,32 @@
 
 %% Accessors
 
--spec id(identity()) ->
+-spec id(identity_state()) ->
     id().
--spec provider(identity()) ->
+-spec provider(identity_state()) ->
     provider_id().
--spec class(identity()) ->
+-spec class(identity_state()) ->
     class_id().
--spec party(identity()) ->
+-spec party(identity_state()) ->
     party_id().
--spec contract(identity()) ->
+-spec contract(identity_state()) ->
     contract_id().
--spec blocking(identity()) ->
+-spec blocking(identity_state()) ->
     boolean() | undefined.
--spec level(identity()) ->
+-spec level(identity_state()) ->
     level_id() | undefined.
--spec challenges(identity()) ->
+-spec challenges(identity_state()) ->
     #{challenge_id() => challenge()}.
--spec effective_challenge(identity()) ->
+-spec effective_challenge(identity_state()) ->
     ff_map:result(challenge_id()).
--spec challenge(challenge_id(), identity()) ->
+-spec challenge(challenge_id(), identity_state()) ->
     ff_map:result(challenge()).
--spec external_id(identity()) ->
+-spec external_id(identity_state()) ->
     external_id().
--spec created_at(identity()) ->
+-spec created_at(identity_state()) ->
     ff_time:timestamp_ms() | undefined.
+-spec metadata(identity_state()) ->
+    metadata() | undefined.
 
 id(#{id := V}) ->
     V.
@@ -165,7 +194,10 @@ external_id(Identity) ->
 created_at(Identity) ->
     maps:get(created_at, Identity, undefined).
 
--spec is_accessible(identity()) ->
+metadata(Identity) ->
+    maps:get(metadata, Identity, undefined).
+
+-spec is_accessible(identity_state()) ->
     {ok, accessible} |
     {error, ff_party:inaccessibility()}.
 
@@ -173,7 +205,7 @@ is_accessible(Identity) ->
     ff_party:is_accessible(party(Identity)).
 
 
--spec set_blocking(identity()) -> identity().
+-spec set_blocking(identity_state()) -> identity_state().
 
 set_blocking(Identity) ->
     Blocking =  case {ok, accessible} =/= is_accessible(Identity) of
@@ -186,11 +218,11 @@ set_blocking(Identity) ->
 
 %% Constructor
 
--spec create(id(), party_id(), provider_id(), class_id(), external_id()) ->
+-spec create(params()) ->
     {ok, [event()]} |
     {error, create_error()}.
 
-create(ID, Party, ProviderID, ClassID, ExternalID) ->
+create(Params = #{id := ID, party := Party, provider := ProviderID, class := ClassID}) ->
     do(fun () ->
         Provider = unwrap(provider, ff_provider:get(ProviderID)),
         Class = unwrap(identity_class, ff_provider:get_identity_class(ClassID, Provider)),
@@ -202,14 +234,16 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
             contractor_level  => ff_identity_class:contractor_level(Level)
         })),
         [
-            {created, add_external_id(ExternalID, #{
-                id       => ID,
-                party    => Party,
+            {created, genlib_map:compact(#{
+                version => ?ACTUAL_FORMAT_VERSION,
+                id => ID,
+                party => Party,
                 provider => ProviderID,
-                class    => ClassID,
+                class => ClassID,
                 contract => Contract,
-                %% TODO need migration for events
-                created_at => ff_time:now()
+                created_at => ff_time:now(),
+                external_id => maps:get(external_id, Params, undefined),
+                metadata => maps:get(metadata, Params, undefined)
             })},
             {level_changed,
                 LevelID
@@ -219,7 +253,7 @@ create(ID, Party, ProviderID, ClassID, ExternalID) ->
 
 %%
 
--spec start_challenge(challenge_id(), challenge_class(), [ff_identity_challenge:proof()], identity()) ->
+-spec start_challenge(challenge_id(), challenge_class(), [ff_identity_challenge:proof()], identity_state()) ->
     {ok, [event()]} |
     {error, start_challenge_error()}.
 
@@ -243,7 +277,7 @@ start_challenge(ChallengeID, ChallengeClassID, Proofs, Identity) ->
         [{{challenge, ChallengeID}, Ev} || Ev <- Events]
     end).
 
--spec poll_challenge_completion(challenge_id(), identity()) ->
+-spec poll_challenge_completion(challenge_id(), identity_state()) ->
     {ok, [event()]} |
     {error,
         notfound |
@@ -288,15 +322,10 @@ get_challenge_class(Challenge, Identity) ->
     ),
     V.
 
-add_external_id(undefined, Event) ->
-    Event;
-add_external_id(ExternalID, Event) ->
-    Event#{external_id => ExternalID}.
-
 %%
 
--spec apply_event(event(), ff_maybe:maybe(identity())) ->
-    identity().
+-spec apply_event(event(), ff_maybe:maybe(identity_state())) ->
+    identity_state().
 
 apply_event({created, Identity}, undefined) ->
     Identity;
@@ -325,5 +354,58 @@ with_challenge(ID, Fun, Challenges) ->
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
+maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
+    Event;
+maybe_migrate({created, Identity = #{version := 1, id := ID}}, MigrateParams) ->
+    Ctx = maps:get(ctx, MigrateParams, undefined),
+    Context = case Ctx of
+        undefined ->
+            {ok, State} = ff_machine:get(ff_identity, 'ff/identity', ID, {undefined, 0, forward}),
+            maps:get(ctx, State, undefined);
+        Data ->
+            Data
+    end,
+    maybe_migrate({created, genlib_map:compact(Identity#{
+        version => 2,
+        metadata => ff_entity_context:try_get_legacy_metadata(Context)
+    })}, MigrateParams);
+maybe_migrate({created, Identity = #{created_at := _CreatedAt}}, MigrateParams) ->
+    maybe_migrate({created, Identity#{
+        version => 1
+    }}, MigrateParams);
+maybe_migrate({created, Identity}, MigrateParams) ->
+    Timestamp = maps:get(timestamp, MigrateParams),
+    CreatedAt = ff_codec:unmarshal(timestamp_ms, ff_codec:marshal(timestamp, Timestamp)),
+    maybe_migrate({created, Identity#{
+        created_at => CreatedAt
+    }}, MigrateParams);
 maybe_migrate(Ev, _MigrateParams) ->
     Ev.
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec v2_created_migration_test() -> _.
+v2_created_migration_test() ->
+    ID = genlib:unique(),
+    LegacyEvent = {created, #{
+        version       => 1,
+        id            => ID,
+        created_at    => ff_time:now()
+    }},
+    {created, Identity} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
+    ?assertEqual(ID, id(Identity)),
+    ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Identity)).
+
+-endif.

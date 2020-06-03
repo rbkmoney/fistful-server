@@ -57,8 +57,8 @@ marshal(withdrawal, Params = #{
         id = marshal(id, WithdrawalID),
         destination_resource = marshal(resource, Resource),
         cash = marshal(cash, Cash),
-        sender   = ff_identity_codec:marshal_identity(SenderIdentity),
-        receiver = ff_identity_codec:marshal_identity(ReceiverIdentity)
+        sender   = ff_identity_codec:marshal(identity, SenderIdentity),
+        receiver = ff_identity_codec:marshal(identity, ReceiverIdentity)
     };
 
 marshal(msgpack_value, V) ->

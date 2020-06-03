@@ -137,7 +137,7 @@
 
 -type process_result()        :: {action(), [event()]}.
 -type wallet_id()             :: ff_wallet:id().
--type wallet()                :: ff_wallet:wallet().
+-type wallet()                :: ff_wallet:wallet_state().
 -type body()                  :: ff_transaction:body().
 -type cash()                  :: ff_cash:cash().
 -type cash_range()            :: ff_range:range(cash()).
@@ -152,7 +152,7 @@
 -type final_cash_flow()       :: ff_cash_flow:final_cash_flow().
 -type party_revision()        :: ff_party:revision().
 -type domain_revision()       :: ff_domain_config:revision().
--type identity()              :: ff_identity:identity().
+-type identity()              :: ff_identity:identity_state().
 -type terms()                 :: ff_party:terms().
 -type clock()                 :: ff_transaction:clock().
 

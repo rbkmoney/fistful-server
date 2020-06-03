@@ -16,7 +16,7 @@
 -export_type([route/0]).
 
 -type id()              :: binary().
--type identity()        :: ff_identity:identity().
+-type identity()        :: ff_identity:identity_state().
 -type domain_revision() :: ff_domain_config:revision().
 -type party_varset()    :: hg_selector:varset().
 

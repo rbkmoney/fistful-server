@@ -12,7 +12,7 @@
 -type change() :: ff_withdrawal:event().
 -type event() :: {integer(), ff_machine:timestamped_event(change())}.
 -type st() :: ff_machine:st(withdrawal()).
--type withdrawal() :: ff_withdrawal:withdrawal().
+-type withdrawal() :: ff_withdrawal:withdrawal_state().
 -type external_id() :: id().
 -type action() :: ff_withdrawal:action().
 -type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.

@@ -21,7 +21,7 @@
 -type master_id() :: id(binary()).
 -type claim_id()  :: id(binary()).
 
--type challenge() :: #{
+-type challenge_state() :: #{
     id              := id(_),
     claimant        := claimant(),
     provider        := provider(),
@@ -31,6 +31,17 @@
     master_id       := master_id(),
     claim_id        := claim_id(),
     status          := status()
+}.
+
+-type challenge() :: #{
+    id              := id(_),
+    claimant        := claimant(),
+    provider        := provider(),
+    identity_class  := identity_class(),
+    challenge_class := challenge_class_id(),
+    proofs          := [proof()],
+    master_id       := master_id(),
+    claim_id        := claim_id()
 }.
 
 -type level_id() :: ff_identity_class:level_id().
@@ -80,6 +91,7 @@
     conflict.
 
 -export_type([challenge/0]).
+-export_type([challenge_state/0]).
 -export_type([event/0]).
 -export_type([create_error/0]).
 -export_type([proof/0]).
@@ -108,37 +120,37 @@
 
 %%
 
--spec id(challenge()) ->
+-spec id(challenge_state()) ->
     id(_).
 
 id(#{id := V}) ->
     V.
 
--spec status(challenge()) ->
+-spec status(challenge_state()) ->
     status() | undefined.
 
 status(Challenge) ->
     maps:get(status, Challenge, undefined).
 
--spec claimant(challenge()) ->
+-spec claimant(challenge_state()) ->
     claimant().
 
 claimant(#{claimant := V}) ->
     V.
 
--spec class(challenge()) ->
+-spec class(challenge_state()) ->
     challenge_class_id().
 
 class(#{challenge_class := V}) ->
     V.
 
--spec proofs(challenge()) ->
+-spec proofs(challenge_state()) ->
     [proof()].
 
 proofs(#{proofs := V}) ->
     V.
 
--spec resolution(challenge()) ->
+-spec resolution(challenge_state()) ->
     {ok, resolution()} |
     {error, undefined} .
 
@@ -150,13 +162,13 @@ resolution(Challenge) ->
             {error, undefined}
     end.
 
--spec master_id(challenge()) ->
+-spec master_id(challenge_state()) ->
     id(_).
 
 master_id(#{master_id := V}) ->
     V.
 
--spec claim_id(challenge()) ->
+-spec claim_id(challenge_state()) ->
     id(_).
 
 claim_id(#{claim_id := V}) ->
@@ -194,7 +206,7 @@ create(ID, Claimant, ProviderID, IdentityClassID, ChallengeClassID, Proofs) ->
         ]
     end).
 
--spec poll_completion(challenge()) ->
+-spec poll_completion(challenge_state()) ->
     {ok, [event()]} |
     {error,
         notfound |
@@ -221,8 +233,8 @@ poll_completion(Challenge) ->
 
 %%
 
--spec apply_event(event(), ff_maybe:maybe(challenge())) ->
-    challenge().
+-spec apply_event(event(), ff_maybe:maybe(challenge_state())) ->
+    challenge_state().
 
 apply_event({created, Challenge}, undefined) ->
     Challenge;

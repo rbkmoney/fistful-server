@@ -27,7 +27,7 @@
 %% Types
 %%
 
--define(ACTUAL_FORMAT_VERSION, 1).
+-define(ACTUAL_FORMAT_VERSION, 2).
 -type session() :: #{
     version       := ?ACTUAL_FORMAT_VERSION,
     id            := id(),
@@ -52,8 +52,8 @@
 -type data() :: #{
     id         := id(),
     cash       := ff_transaction:body(),
-    sender     := ff_identity:identity(),
-    receiver   := ff_identity:identity(),
+    sender     := ff_identity:identity_state(),
+    receiver   := ff_identity:identity_state(),
     quote_data => ff_adapter_withdrawal:quote_data()
 }.
 
@@ -118,6 +118,16 @@ apply_event({finished, Result}, Session) ->
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
+maybe_migrate({created, Session = #{version := 1, withdrawal := Withdrawal = #{
+    sender := Sender,
+    receiver := Receiver
+}}}, MigrateParams) ->
+    maybe_migrate({created, Session#{
+        version => 2,
+        withdrawal => Withdrawal#{
+            sender => try_migrate_identity_state(Sender, MigrateParams),
+            receiver => try_migrate_identity_state(Receiver, MigrateParams)
+    }}}, MigrateParams);
 maybe_migrate({created, Session = #{
     withdrawal := Withdrawal = #{
         destination := #{resource := OldResource}
@@ -241,6 +251,29 @@ try_unmarshal_msgpack({obj, V}) when is_map(V) ->
 % Not msgpack value
 try_unmarshal_msgpack(V) ->
     V.
+
+    % Вид устаревшей структуры данных для облегчения будущих миграций
+    % LegacyIdentity v0 = #{
+    %     id           := id(),
+    %     party        := party_id(),
+    %     provider     := provider_id(),
+    %     class        := class_id(),
+    %     contract     := contract_id(),
+    %     level        => level_id(),
+    %     challenges   => #{challenge_id() => challenge()},
+    %     effective    => challenge_id(),
+    %     external_id  => id(),
+    %     blocking     => blocking()
+    % }
+
+try_migrate_identity_state(Identity = #{id := ID}, _MigrateParams) ->
+    {ok, Machine} = ff_identity_machine:get(ID),
+    NewIdentity = ff_identity_machine:identity(Machine),
+    Identity#{
+        version => 1,
+        created_at => ff_identity:created_at(NewIdentity),
+        metadata => ff_identity:metadata(NewIdentity)
+    }.
 
 -spec process_session(session()) -> result().
 process_session(#{status := active} = Session) ->

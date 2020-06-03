@@ -112,40 +112,42 @@ create_withdrawal_ok_test(C) ->
     WithdrawalID = generate_id(),
     ExternalID = generate_id(),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = #wthd_WithdrawalParams{
         id = WithdrawalID,
         wallet_id = WalletID,
         destination_id = DestinationID,
         body = Cash,
+        metadata = Metadata,
         external_id = ExternalID
     },
     {ok, WithdrawalState} = call_withdrawal('Create', [Params, Ctx]),
 
     Expected = get_withdrawal(WithdrawalID),
-    Withdrawal = WithdrawalState#wthd_WithdrawalState.withdrawal,
-    ?assertEqual(WithdrawalID, Withdrawal#wthd_Withdrawal.id),
-    ?assertEqual(ExternalID, Withdrawal#wthd_Withdrawal.external_id),
-    ?assertEqual(WalletID, Withdrawal#wthd_Withdrawal.wallet_id),
-    ?assertEqual(DestinationID, Withdrawal#wthd_Withdrawal.destination_id),
-    ?assertEqual(Cash, Withdrawal#wthd_Withdrawal.body),
+    ?assertEqual(WithdrawalID, WithdrawalState#wthd_WithdrawalState.id),
+    ?assertEqual(ExternalID, WithdrawalState#wthd_WithdrawalState.external_id),
+    ?assertEqual(WalletID, WithdrawalState#wthd_WithdrawalState.wallet_id),
+    ?assertEqual(DestinationID, WithdrawalState#wthd_WithdrawalState.destination_id),
+    ?assertEqual(Cash, WithdrawalState#wthd_WithdrawalState.body),
+    ?assertEqual(Metadata, WithdrawalState#wthd_WithdrawalState.metadata),
     ?assertEqual(
         ff_withdrawal:domain_revision(Expected),
-        Withdrawal#wthd_Withdrawal.domain_revision
+        WithdrawalState#wthd_WithdrawalState.domain_revision
     ),
     ?assertEqual(
         ff_withdrawal:party_revision(Expected),
-        Withdrawal#wthd_Withdrawal.party_revision
+        WithdrawalState#wthd_WithdrawalState.party_revision
     ),
     ?assertEqual(
         ff_withdrawal:created_at(Expected),
-        ff_codec:unmarshal(timestamp_ms, Withdrawal#wthd_Withdrawal.created_at)
+        ff_codec:unmarshal(timestamp_ms, WithdrawalState#wthd_WithdrawalState.created_at)
     ),
 
     succeeded = await_final_withdrawal_status(WithdrawalID),
     {ok, FinalWithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
     ?assertMatch(
         {succeeded, _},
-        (FinalWithdrawalState#wthd_WithdrawalState.withdrawal)#wthd_Withdrawal.status
+        FinalWithdrawalState#wthd_WithdrawalState.status
     ).
 
 -spec create_cashlimit_validation_error_test(config()) -> test_return().
@@ -308,24 +310,23 @@ create_adjustment_ok_test(C) ->
     {ok, AdjustmentState} = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
     ExpectedAdjustment = get_adjustment(WithdrawalID, AdjustmentID),
 
-    Adjustment = AdjustmentState#wthd_adj_AdjustmentState.adjustment,
-    ?assertEqual(AdjustmentID, Adjustment#wthd_adj_Adjustment.id),
-    ?assertEqual(ExternalID, Adjustment#wthd_adj_Adjustment.external_id),
+    ?assertEqual(AdjustmentID, AdjustmentState#wthd_adj_AdjustmentState.id),
+    ?assertEqual(ExternalID, AdjustmentState#wthd_adj_AdjustmentState.external_id),
     ?assertEqual(
         ff_adjustment:created_at(ExpectedAdjustment),
-        ff_codec:unmarshal(timestamp_ms, Adjustment#wthd_adj_Adjustment.created_at)
+        ff_codec:unmarshal(timestamp_ms, AdjustmentState#wthd_adj_AdjustmentState.created_at)
     ),
     ?assertEqual(
         ff_adjustment:domain_revision(ExpectedAdjustment),
-        Adjustment#wthd_adj_Adjustment.domain_revision
+        AdjustmentState#wthd_adj_AdjustmentState.domain_revision
     ),
     ?assertEqual(
         ff_adjustment:party_revision(ExpectedAdjustment),
-        Adjustment#wthd_adj_Adjustment.party_revision
+        AdjustmentState#wthd_adj_AdjustmentState.party_revision
     ),
     ?assertEqual(
         ff_withdrawal_adjustment_codec:marshal(changes_plan, ff_adjustment:changes_plan(ExpectedAdjustment)),
-        Adjustment#wthd_adj_Adjustment.changes_plan
+        AdjustmentState#wthd_adj_AdjustmentState.changes_plan
     ).
 
 -spec create_adjustment_unavailable_status_error_test(config()) -> test_return().
@@ -381,7 +382,7 @@ withdrawal_state_content_test(C) ->
     ?assertNotEqual(undefined, WithdrawalState#wthd_WithdrawalState.effective_route),
     ?assertNotEqual(
         undefined,
-        (WithdrawalState#wthd_WithdrawalState.withdrawal)#wthd_Withdrawal.status
+        WithdrawalState#wthd_WithdrawalState.status
     ).
 
 %%  Internals

@@ -145,7 +145,10 @@ create_identity(C) ->
             body => #{
                 <<"name">> => ?STRING,
                 <<"class">> => ?STRING,
-                <<"provider">> => ?STRING
+                <<"provider">> => ?STRING,
+                <<"metadata">> => #{
+                    <<"somedata">> => ?STRING
+                }
             }
         },
         ct_helper:cfg(context, C)

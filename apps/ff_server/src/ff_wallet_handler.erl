@@ -36,6 +36,8 @@ handle_function_('Create', [Params], Opts) ->
             woody_error:raise(business, #fistful_CurrencyNotFound{});
         {error, {party, _Inaccessible}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
+        {error, exists} ->
+            handle_function_('Get', [WalletID], Opts);
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
@@ -45,13 +47,8 @@ handle_function_('Get', [ID], _Opts) ->
         {ok, Machine} ->
             Wallet    = ff_wallet_machine:wallet(Machine),
             Ctx       = ff_machine:ctx(Machine),
-            CreatedAt = ff_machine:created(Machine),
-            Response  = ff_wallet_codec:marshal_wallet(Wallet),
-            {ok, Response#wlt_Wallet{
-                id         = ff_wallet_codec:marshal(id, ID),
-                created_at = ff_wallet_codec:marshal(timestamp, CreatedAt),
-                context    = ff_wallet_codec:marshal(ctx, Ctx)
-            }};
+            Response  = ff_wallet_codec:marshal_wallet_state(Wallet, ID, Ctx),
+            {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_WalletNotFound{})
     end.

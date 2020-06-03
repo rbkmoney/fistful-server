@@ -79,16 +79,18 @@ create_identity_ok(_C) ->
     ClassID = <<"person">>,
     Ctx = #{<<"NS">> => #{<<"owner">> => PartyID}},
     Context = ff_entity_context_codec:marshal(Ctx),
-    Identity = create_identity(EID, PartyID, ProvID, ClassID, Context),
-    IID = Identity#idnt_Identity.id,
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
+    Identity = create_identity(EID, PartyID, ProvID, ClassID, Context, Metadata),
+    IID = Identity#idnt_IdentityState.id,
     {ok, Identity_} = call_api('Get', [IID]),
 
-    ProvID = Identity_#idnt_Identity.provider,
-    IID = Identity_#idnt_Identity.id,
-    PartyID = Identity_#idnt_Identity.party,
-    ClassID = Identity_#idnt_Identity.cls,
-    blocked = Identity_#idnt_Identity.blocking,
-    Ctx = ff_entity_context_codec:unmarshal(Identity_#idnt_Identity.context),
+    ProvID = Identity_#idnt_IdentityState.provider_id,
+    IID = Identity_#idnt_IdentityState.id,
+    PartyID = Identity_#idnt_IdentityState.party_id,
+    ClassID = Identity_#idnt_IdentityState.class_id,
+    blocked = Identity_#idnt_IdentityState.blocking,
+    Metadata = Identity_#idnt_IdentityState.metadata,
+    Ctx = ff_entity_context_codec:unmarshal(Identity_#idnt_IdentityState.context),
     ok.
 
 run_challenge_ok(C) ->
@@ -101,15 +103,15 @@ run_challenge_ok(C) ->
     ChlClassID  = <<"sword-initiation">>,
     IdentityState = create_identity(EID, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
 
-    IID = IdentityState#idnt_Identity.id,
+    IID = IdentityState#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
     {ok, Challenge} = call_api('StartChallenge', [IID, Params2]),
 
-    ChallengeID = Challenge#idnt_Challenge.id,
-    ChlClassID  = Challenge#idnt_Challenge.cls,
+    ChallengeID = Challenge#idnt_ChallengeState.id,
+    ChlClassID  = Challenge#idnt_ChallengeState.cls,
     Proofs = Params2#idnt_ChallengeParams.proofs,
-    Proofs = Challenge#idnt_Challenge.proofs,
-    true = {failed, #idnt_ChallengeFailed{}} =/= Challenge#idnt_Challenge.status.
+    Proofs = Challenge#idnt_ChallengeState.proofs,
+    true = {failed, #idnt_ChallengeFailed{}} =/= Challenge#idnt_ChallengeState.status.
 
 
 get_challenge_event_ok(C) ->
@@ -121,7 +123,7 @@ get_challenge_event_ok(C) ->
     ChlClassID = <<"sword-initiation">>,
     Identity = create_identity(EID, PartyID, ProvID, ClassID, Context),
 
-    IID = Identity#idnt_Identity.id,
+    IID = Identity#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, IID, C),
     {ok, _} = call_api('StartChallenge', [IID, Params2]),
     Range = #'EventRange'{
@@ -130,7 +132,7 @@ get_challenge_event_ok(C) ->
     },
 
     FindStatusChanged = fun
-        (#idnt_IdentityEvent{change = {identity_challenge,  ChallengeChange}}, AccIn) ->
+        (#idnt_Event{change = {identity_challenge,  ChallengeChange}}, AccIn) ->
             case ChallengeChange#idnt_ChallengeChange.payload of
                 {status_changed, Status} -> Status;
                 _Other -> AccIn
@@ -148,8 +150,8 @@ get_challenge_event_ok(C) ->
         genlib_retry:linear(10, 1000)
     ),
     {ok, Identity2} = call_api('Get', [IID]),
-    ?assertNotEqual(undefined, Identity2#idnt_Identity.effective_challenge),
-    ?assertNotEqual(undefined, Identity2#idnt_Identity.level).
+    ?assertNotEqual(undefined, Identity2#idnt_IdentityState.effective_challenge_id),
+    ?assertNotEqual(undefined, Identity2#idnt_IdentityState.level_id).
 
 get_event_unknown_identity_ok(_C) ->
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
@@ -174,7 +176,7 @@ start_challenge_token_fail(C) ->
     IdentityState = create_identity(EID, PID, ProvID, CID, Ctx),
     {Type1, Token1} = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
     {Type2, _Token2} = ct_identdocstore:rus_domestic_passport(C),
-    IID = IdentityState#idnt_Identity.id,
+    IID = IdentityState#idnt_IdentityState.id,
     Proofs = [
         #idnt_ChallengeProof{type = Type1, token = Token1},
         #idnt_ChallengeProof{type = Type2, token = <<"Token">>}
@@ -195,29 +197,33 @@ get_challenges_ok(C) ->
     ProvID      = <<"good-one">>,
     ClassID     = <<"person">>,
     ChlClassID  = <<"sword-initiation">>,
-    Identity = create_identity(EID, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
+    Identity    = create_identity(EID, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
 
-    IID = Identity#idnt_Identity.id,
+    IID = Identity#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
     {ok, Challenge} = call_api('StartChallenge', [IID, Params2]),
     {ok, Challenges} = call_api('GetChallenges', [IID]),
-    CID = Challenge#idnt_Challenge.id,
+    CID = Challenge#idnt_ChallengeState.id,
     [Chl] = lists:filter(fun(Item) ->
-            CID =:= Item#idnt_Challenge.id
+            CID =:= Item#idnt_ChallengeState.id
         end, Challenges),
-    ?assertEqual(Chl#idnt_Challenge.cls,    Challenge#idnt_Challenge.cls),
-    ?assertEqual(Chl#idnt_Challenge.proofs, Challenge#idnt_Challenge.proofs).
+    ?assertEqual(Chl#idnt_ChallengeState.cls,    Challenge#idnt_ChallengeState.cls),
+    ?assertEqual(Chl#idnt_ChallengeState.proofs, Challenge#idnt_ChallengeState.proofs).
 
 %%----------
 %% INTERNAL
 %%----------
 create_identity(EID, PartyID, ProvID, ClassID, Ctx) ->
+    create_identity(EID, PartyID, ProvID, ClassID, Ctx, #{}).
+
+create_identity(EID, PartyID, ProvID, ClassID, Ctx, Metadata) ->
     Params = #idnt_IdentityParams{
         id          = genlib:unique(),
         party       = PartyID,
         provider    = ProvID,
         cls         = ClassID,
         external_id = EID,
+        metadata    = Metadata,
         context     = Ctx
     },
     {ok, IdentityState} = call_api('Create', [Params]),

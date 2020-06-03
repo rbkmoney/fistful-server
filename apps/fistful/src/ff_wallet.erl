@@ -6,12 +6,25 @@
 
 -type id()          :: ff_account:id().
 -type external_id() :: id() | undefined.
+-type metadata()    :: ff_entity_context:md().
 
--type wallet() :: #{
+-define(ACTUAL_FORMAT_VERSION, 2).
+-type wallet_state() :: #{
     name        := binary(),
     blocking    := blocking(),
     account     => account(),
-    external_id => id()
+    external_id => id(),
+    metadata    => metadata(),
+    created_at  => ff_time:timestamp_ms()
+}.
+
+-type wallet() :: #{
+    version     := ?ACTUAL_FORMAT_VERSION,
+    name        := binary(),
+    blocking    := blocking(),
+    external_id => id(),
+    metadata    => metadata(),
+    created_at  => ff_time:timestamp_ms()
 }.
 
 -type event() ::
@@ -20,6 +33,15 @@
 
 -type legacy_event() :: any().
 
+-type params()  :: #{
+    id          := id(),
+    identity    := ff_identity_machine:id(),
+    name        := binary(),
+    currency    := ff_currency:id(),
+    external_id => id(),
+    metadata    => metadata()
+}.
+
 -type create_error() ::
     {identity, notfound} |
     {currency, notfound} |
@@ -27,8 +49,10 @@
 
 -export_type([id/0]).
 -export_type([wallet/0]).
+-export_type([wallet_state/0]).
 -export_type([event/0]).
 -export_type([create_error/0]).
+-export_type([params/0]).
 
 -type inaccessibility() ::
     {inaccessible, blocked}.
@@ -42,8 +66,10 @@
 -export([currency/1]).
 -export([blocking/1]).
 -export([external_id/1]).
+-export([created_at/1]).
+-export([metadata/1]).
 
--export([create/5]).
+-export([create/1]).
 -export([is_accessible/1]).
 -export([close/1]).
 
@@ -63,17 +89,17 @@
 
 %% Accessors
 
--spec account(wallet()) -> account().
+-spec account(wallet_state()) -> account().
 
--spec id(wallet()) ->
+-spec id(wallet_state()) ->
     id().
--spec identity(wallet()) ->
+-spec identity(wallet_state()) ->
     identity().
--spec name(wallet()) ->
+-spec name(wallet_state()) ->
     binary().
--spec currency(wallet()) ->
+-spec currency(wallet_state()) ->
     currency().
--spec blocking(wallet()) ->
+-spec blocking(wallet_state()) ->
     blocking().
 
 account(Wallet) ->
@@ -90,7 +116,7 @@ currency(Wallet) ->
 blocking(#{blocking := Blocking}) ->
     Blocking.
 
--spec external_id(wallet()) ->
+-spec external_id(wallet_state()) ->
     external_id().
 
 external_id(#{external_id := ExternalID}) ->
@@ -98,26 +124,42 @@ external_id(#{external_id := ExternalID}) ->
 external_id(_Wallet) ->
     undefined.
 
+-spec created_at(wallet_state()) ->
+    ff_time:timestamp_ms().
+
+created_at(#{created_at := CreatedAt}) ->
+    CreatedAt.
+
+-spec metadata(wallet_state()) ->
+    metadata() | undefined.
+
+metadata(Wallet) ->
+    maps:get(metadata, Wallet, undefined).
+
 %%
 
--spec create(id(), identity(), binary(), currency(), external_id()) ->
+-spec create(params()) ->
     {ok, [event()]} |
     {error, create_error()}.
 
-create(ID, IdentityID, Name, CurrencyID, ExternalID) ->
+create(Params = #{id := ID, identity := IdentityID, name := Name, currency := CurrencyID}) ->
     do(fun () ->
         IdentityMachine = unwrap(identity, ff_identity_machine:get(IdentityID)),
         Identity = ff_identity_machine:identity(IdentityMachine),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
-        Wallet = #{
+        Wallet = genlib_map:compact(#{
+            version => ?ACTUAL_FORMAT_VERSION,
             name => Name,
-            blocking => unblocked
-        },
-        [{created, add_external_id(ExternalID, Wallet)}] ++
+            blocking => unblocked,
+            created_at => ff_time:now(),
+            external_id => maps:get(external_id, Params, undefined),
+            metadata => maps:get(metadata, Params, undefined)
+        }),
+        [{created, Wallet}] ++
         [{account, Ev} || Ev <- unwrap(ff_account:create(ID, Identity, Currency))]
     end).
 
--spec is_accessible(wallet()) ->
+-spec is_accessible(wallet_state()) ->
     {ok, accessible} |
     {error, inaccessibility()}.
 
@@ -127,7 +169,7 @@ is_accessible(Wallet) ->
         accessible = unwrap(ff_account:is_accessible(account(Wallet)))
     end).
 
--spec close(wallet()) ->
+-spec close(wallet_state()) ->
     {ok, [event()]} |
     {error,
         inaccessibility() |
@@ -141,15 +183,10 @@ close(Wallet) ->
         []
     end).
 
-add_external_id(undefined, Event) ->
-    Event;
-add_external_id(ExternalID, Event) ->
-    Event#{external_id => ExternalID}.
-
 %%
 
--spec apply_event(event(), undefined | wallet()) ->
-    wallet().
+-spec apply_event(event(), undefined | wallet_state()) ->
+    wallet_state().
 
 apply_event({created, Wallet}, undefined) ->
     Wallet;
@@ -160,12 +197,37 @@ apply_event({account, Ev}, Wallet) ->
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
+maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
+    Event;
+maybe_migrate({created, Wallet = #{version := 1}}, MigrateParams) ->
+    Ctx = maps:get(ctx, MigrateParams, undefined),
+    ID = maps:get(id, MigrateParams, undefined),
+    Context = case {Ctx, ID} of
+        {undefined, undefined} ->
+            undefined;
+        {undefined, ID} ->
+            {ok, State} = ff_machine:get(ff_wallet, 'ff/wallet_v2', ID, {undefined, 0, forward}),
+            maps:get(ctx, State, undefined);
+        {Data, _} ->
+            Data
+    end,
+    maybe_migrate({created, genlib_map:compact(Wallet#{
+        version => 2,
+        metadata => ff_entity_context:try_get_legacy_metadata(Context)
+    })}, MigrateParams);
+maybe_migrate({created, Wallet}, MigrateParams) ->
+    Timestamp = maps:get(timestamp, MigrateParams),
+    CreatedAt = ff_codec:unmarshal(timestamp_ms, ff_codec:marshal(timestamp, Timestamp)),
+    maybe_migrate({created, Wallet#{
+        version => 1,
+        created_at => CreatedAt
+    }}, MigrateParams);
 maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
 %% Internal functions
 
--spec check_accessible(wallet()) ->
+-spec check_accessible(wallet_state()) ->
     {ok, accessible} |
     {error, inaccessibility()}.
 
@@ -176,3 +238,31 @@ check_accessible(Wallet) ->
         blocked ->
             {error, blocked}
     end.
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec v2_created_migration_test() -> _.
+v2_created_migration_test() ->
+    Name = genlib:unique(),
+    LegacyEvent = {created, #{
+        version       => 1,
+        name          => Name,
+        created_at    => ff_time:now()
+    }},
+    {created, Wallet} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
+    ?assertEqual(Name, name(Wallet)),
+    ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Wallet)).
+
+-endif.

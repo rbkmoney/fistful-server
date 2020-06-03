@@ -5,9 +5,7 @@
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
 -export([unmarshal_destination_params/1]).
-
--export([marshal_destination/1]).
--export([unmarshal_destination/1]).
+-export([marshal_destination_state/3]).
 
 -export([marshal/2]).
 -export([unmarshal/2]).
@@ -24,44 +22,54 @@ unmarshal_destination_params(Params) ->
         name        => unmarshal(string,   Params#dst_DestinationParams.name),
         currency    => unmarshal(string,   Params#dst_DestinationParams.currency),
         resource    => unmarshal(resource, Params#dst_DestinationParams.resource),
-        external_id => maybe_unmarshal(id, Params#dst_DestinationParams.external_id)
+        external_id => maybe_unmarshal(id, Params#dst_DestinationParams.external_id),
+        metadata    => maybe_unmarshal(ctx, Params#dst_DestinationParams.metadata)
     }).
 
--spec marshal_destination(ff_destination:destination()) ->
-    ff_proto_destination_thrift:'Destination'().
+-spec marshal_destination_state(ff_destination:destination_state(), ff_destination:id(), ff_entity_context:context()) ->
+    ff_proto_destination_thrift:'DestinationState'().
 
-marshal_destination(Destination) ->
-    #dst_Destination{
-        id          = marshal(id,       ff_destination:id(Destination)),
-        name        = marshal(string,   ff_destination:name(Destination)),
-        resource    = marshal(resource, ff_destination:resource(Destination)),
-        external_id = marshal(id,       ff_destination:external_id(Destination)),
-        account     = marshal(account,  ff_destination:account(Destination)),
-        status      = marshal(status,   ff_destination:status(Destination))
+marshal_destination_state(DestinationState, ID, Context) ->
+    Blocking = case ff_destination:is_accessible(DestinationState) of
+        {ok, accessible} ->
+            unblocked;
+        _ ->
+            blocked
+    end,
+    #dst_DestinationState{
+        id = marshal(id, ID),
+        name = marshal(string, ff_destination:name(DestinationState)),
+        resource = marshal(resource, ff_destination:resource(DestinationState)),
+        external_id = marshal(id, ff_destination:external_id(DestinationState)),
+        account = marshal(account, ff_destination:account(DestinationState)),
+        status = marshal(status, ff_destination:status(DestinationState)),
+        created_at = marshal(timestamp_ms, ff_destination:created_at(DestinationState)),
+        blocking = Blocking,
+        metadata = marshal(ctx, ff_destination:metadata(DestinationState)),
+        context = marshal(ctx, Context)
     }.
-
--spec unmarshal_destination(ff_proto_destination_thrift:'Destination'()) ->
-    ff_destination:destination().
-
-unmarshal_destination(Dest) ->
-    genlib_map:compact(#{
-        id          => unmarshal(id,           Dest#dst_Destination.id),
-        account     => maybe_unmarshal(account, Dest#dst_Destination.account),
-        resource    => unmarshal(resource,     Dest#dst_Destination.resource),
-        name        => unmarshal(string,       Dest#dst_Destination.name),
-        status      => maybe_unmarshal(status, Dest#dst_Destination.status),
-        external_id => maybe_unmarshal(id,     Dest#dst_Destination.external_id)
-    }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
 marshal(change, {created, Destination}) ->
-    {created, marshal_destination(Destination)};
+    {created, marshal(create_change, Destination)};
 marshal(change, {account, AccountChange}) ->
     {account, marshal(account_change, AccountChange)};
 marshal(change, {status_changed, StatusChange}) ->
     {status, marshal(status_change, StatusChange)};
+
+marshal(create_change, Destination = #{
+    name := Name,
+    resource := Resource
+}) ->
+    #dst_Destination{
+        name = Name,
+        resource = marshal(resource, Resource),
+        created_at = maybe_marshal(timestamp_ms, maps:get(created_at, Destination,  undefined)),
+        external_id = maybe_marshal(id, maps:get(external_id, Destination,  undefined)),
+        metadata = maybe_marshal(ctx, maps:get(metadata, Destination,  undefined))
+    };
 
 marshal(status, authorized) ->
     {authorized, #dst_Authorized{}};
@@ -98,6 +106,15 @@ unmarshal(change, {account, AccountChange}) ->
 unmarshal(change, {status, StatusChange}) ->
     {status_changed, unmarshal(status_change, StatusChange)};
 
+unmarshal(destination, Dest) ->
+    genlib_map:compact(#{
+        resource => unmarshal(resource, Dest#dst_Destination.resource),
+        name => unmarshal(string, Dest#dst_Destination.name),
+        created_at => maybe_unmarshal(timestamp_ms, Dest#dst_Destination.created_at),
+        external_id => maybe_unmarshal(id, Dest#dst_Destination.external_id),
+        metadata => maybe_unmarshal(ctx, Dest#dst_Destination.metadata)
+    });
+
 unmarshal(status, {authorized, #dst_Authorized{}}) ->
     authorized;
 unmarshal(status, {unauthorized, #dst_Unauthorized{}}) ->
@@ -116,6 +133,11 @@ unmarshal(T, V) ->
 
 %% Internals
 
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
+
 maybe_unmarshal(_Type, undefined) ->
     undefined;
 maybe_unmarshal(Type, Value) ->
@@ -132,23 +154,12 @@ destination_test() ->
     Resource = {bank_card, #{bank_card => #{
         token => <<"token auth">>
     }}},
-    AAID = 12345,
-    AccountID = genlib:unique(),
     In = #{
-        id => AccountID,
-        account => #{
-            id       => AccountID,
-            identity => genlib:unique(),
-            currency => <<"RUN">>,
-            accounter_account_id => AAID
-        },
         name        => <<"Wallet">>,
-        status      => unauthorized,
-        resource    => Resource,
-        external_id => genlib:unique()
+        resource    => Resource
     },
 
-    ?assertEqual(In, unmarshal_destination(marshal_destination(In))).
+    ?assertEqual(In, unmarshal(destination, marshal(create_change, In))).
 
 -spec crypto_wallet_resource_test() -> _.
 crypto_wallet_resource_test() ->

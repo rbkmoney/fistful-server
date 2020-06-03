@@ -187,8 +187,10 @@ services:
       retries: 10
 
   bender:
-    image: dr2.rbkmoney.com/rbkmoney/bender:2fcb2711d3d0adec0685926dafdab832b7506091
+    image: dr2.rbkmoney.com/rbkmoney/bender:2a9a0f556033f33f4d79e5f53280a415780318d6
     command: /opt/bender/bin/bender foreground
+    volumes:
+      - ./test/log/bender:/var/log/bender
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s

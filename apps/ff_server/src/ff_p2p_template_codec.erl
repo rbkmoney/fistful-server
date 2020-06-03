@@ -75,7 +75,7 @@ marshal(template, Template = #{
     };
 
 marshal(details, Details) ->
-    Body = maps:get(body, Details, undefined),
+    Body = maps:get(body, Details),
     Metadata = maps:get(metadata, Details, undefined),
     #p2p_template_P2PTemplateDetails{
         body = marshal(template_body, Body),

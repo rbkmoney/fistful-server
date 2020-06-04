@@ -29,7 +29,6 @@
     metadata        => metadata(),
     external_id     => id(),
     %% Route data
-    route_session   => session(),
     p_transfer_count   => non_neg_integer()
 }.
 
@@ -453,7 +452,7 @@ effective_final_cash_flow(Withdrawal) ->
 
 -spec sessions(withdrawal_state()) -> [session()].
 sessions(Withdrawal) ->
-    maps:get(sessions, Withdrawal, []).
+    ff_withdrawal_session_utils:get_sessions(Withdrawal).
 
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(withdrawal_state()) -> boolean().
@@ -1147,12 +1146,7 @@ quote_domain_revision(#{quote_data := QuoteData}) ->
 
 -spec session(withdrawal_state()) -> session() | undefined.
 session(Withdrawal) ->
-    case sessions(Withdrawal) of
-        [] ->
-            undefined;
-        Sessions ->
-            hd(Sessions)
-    end.
+    ff_withdrawal_session_utils:get_current_session(Withdrawal).
 
 -spec session_id(withdrawal_state()) -> session_id() | undefined.
 session_id(T) ->
@@ -1165,7 +1159,7 @@ session_id(T) ->
 
 -spec session_result(withdrawal_state()) -> session_result() | unknown | undefined.
 session_result(Withdrawal) ->
-    case maps:get(route_session, Withdrawal, undefined) of
+    case session(Withdrawal) of
         undefined ->
             undefined;
         #{result := Result} ->
@@ -1177,15 +1171,23 @@ session_result(Withdrawal) ->
 -spec session_processing_status(withdrawal_state()) ->
     undefined | pending | succeeded | failed.
 session_processing_status(Withdrawal) ->
-    case session_result(Withdrawal) of
+    session_processing_status_(route(Withdrawal), Withdrawal).
+
+session_processing_status_(undefined, _Withdrawal)->
+    %% No route - no session
+    undefined;
+session_processing_status_(#{provider_id := ID}, Withdrawal)->
+    case session(Withdrawal) of
         undefined ->
             undefined;
-        unknown ->
-            pending;
-        {success, _TrxInfo} ->
+        #{result := {success, _}, provider_id := ID} ->
             succeeded;
-        {failed, _Failure} ->
-            failed
+        #{result := {failed, _}, provider_id := ID} ->
+            failed;
+        #{provider_id := ID} ->
+            pending;
+        _ ->
+            undefined
     end.
 
 %% Withdrawal validators
@@ -1520,22 +1522,15 @@ apply_event_({p_transfer, Ev}, T) ->
         p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))
     };
 apply_event_({session_started, SessionID}, T) ->
-    Session = #{id => SessionID},
-    Sessions = sessions(T),
-    T#{
-        route_session => Session,
-        sessions => [Session | Sessions]
-    };
+    #{provider_id := ProviderID} = maps:get(route, T),
+    ff_withdrawal_session_utils:create_session(SessionID, ProviderID, T);
 apply_event_({session_finished, {SessionID, Result}}, T) ->
-    [#{id := SessionID} = Session | Sessions] = sessions(T),
+    Session = ff_withdrawal_session_utils:get_session(SessionID, T),
     UpdSession = Session#{result => Result},
-    T#{
-        route_session => UpdSession,
-        sessions => [UpdSession | Sessions]
-    };
+    ff_withdrawal_session_utils:update_session(UpdSession, T);
 apply_event_({route_changed, Route}, T) ->
     %% Route changed, drop stale data
-    T1 = maps:without([route_session, limit_checks, p_transfer], T),
+    T1 = maps:without([limit_checks, p_transfer], T),
     maps:put(route, Route, T1);
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).

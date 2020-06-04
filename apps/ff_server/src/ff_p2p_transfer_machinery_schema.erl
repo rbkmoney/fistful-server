@@ -42,15 +42,16 @@ get_version(aux_state) ->
 
 -spec marshal(t(), v(data())) ->
     machinery_msgpack:t().
-marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, TimestampedChange) ->
-    ThriftChange = ff_p2p_transfer_codec:marshal(timestamped_change, TimestampedChange),
-    Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'TimestampedChange'}},
-    {bin, ff_proto_utils:serialize(Type, ThriftChange)};
+marshal({event, Format}, TimestampedChange) ->
+    marshal_event(Format, TimestampedChange);
 marshal(T, V) when
     T =:= {args, init} orelse
     T =:= {args, call} orelse
+    T =:= {args, repair} orelse
     T =:= {aux_state, undefined} orelse
-    T =:= response
+    T =:= {response, call} orelse
+    T =:= {response, {repair, success}} orelse
+    T =:= {response, {repair, failure}}
 ->
     machinery_mg_schema_generic:marshal(T, V).
 
@@ -61,12 +62,22 @@ unmarshal({event, FormatVersion}, EncodedChange) ->
 unmarshal(T, V) when
     T =:= {args, init} orelse
     T =:= {args, call} orelse
+    T =:= {args, repair} orelse
     T =:= {aux_state, undefined} orelse
-    T =:= response
+    T =:= {response, call} orelse
+    T =:= {response, {repair, success}} orelse
+    T =:= {response, {repair, failure}}
 ->
     machinery_mg_schema_generic:unmarshal(T, V).
 
 %% Internals
+
+-spec marshal_event(machinery_mg_schema:version(), event()) ->
+    machinery_msgpack:t().
+marshal_event(1, TimestampedChange) ->
+    ThriftChange = ff_p2p_transfer_codec:marshal(timestamped_change, TimestampedChange),
+    Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'TimestampedChange'}},
+    {bin, ff_proto_utils:serialize(Type, ThriftChange)}.
 
 -spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t()) ->
     event().
@@ -94,6 +105,16 @@ maybe_migrate({created, #{version := 1} = Transfer}) ->
         sender => maybe_migrate_participant(Sender),
         receiver => maybe_migrate_participant(Receiver)
     })});
+maybe_migrate({created, #{version := 2} = Transfer}) ->
+    #{
+        version := 2,
+        sender := Sender,
+        receiver := Receiver
+    } = Transfer,
+    {created, genlib_map:compact(Transfer#{
+        sender => maybe_migrate_participant(Sender),
+        receiver => maybe_migrate_participant(Receiver)
+    })};
 % Other events
 maybe_migrate(Ev) ->
     Ev.
@@ -106,8 +127,10 @@ maybe_migrate_resource(Resource) ->
     Resource.
 
 maybe_migrate_participant({raw, #{resource_params := Resource} = Participant}) ->
-    maybe_migrate_participant({raw, Participant#{resource_params => maybe_migrate_resource(Resource)}});
-
+    {raw, Participant#{
+        resource_params => maybe_migrate_resource(Resource),
+        contact_info => maps:get(contact_info, Participant, #{})
+    }};
 maybe_migrate_participant(Resource) ->
     Resource.
 
@@ -128,6 +151,7 @@ legacy_created_v0_2_decoding_test() ->
         contact_info => #{}
     }},
     P2PTransfer = #{
+        version => 2,
         id => <<"transfer">>,
         status => pending,
         owner => <<"owner">>,
@@ -144,34 +168,45 @@ legacy_created_v0_2_decoding_test() ->
     },
     Change = {created, P2PTransfer},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
-    LegacyParticipant = {arr, [
+    ResourceParams = {arr, [
+        {str, <<"tup">>},
+        {str, <<"bank_card">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"bank_card">>} =>
+                {arr, [
+                    {str, <<"map">>},
+                    {obj, #{
+                        {str, <<"bin_data_id">>} => {arr, [
+                            {str, <<"tup">>},
+                            {str, <<"binary">>},
+                            {bin, <<"bin">>}
+                        ]},
+                        {str, <<"token">>} => {bin, <<"token">>}
+                    }}
+                ]}
+            }}
+        ]}
+    ]},
+    LegacyParticipant1 = {arr, [
         {str, <<"tup">>},
         {str, <<"raw">>},
         {arr, [
             {str, <<"map">>},
             {obj, #{
                 {str, <<"contact_info">>} => {arr, [{str, <<"map">>}, {obj, #{}}]},
-                {str, <<"resource_params">>} => {arr, [
-                    {str, <<"tup">>},
-                    {str, <<"bank_card">>},
-                    {arr, [
-                        {str, <<"map">>},
-                        {obj, #{
-                            {str, <<"bank_card">>} =>
-                            {arr, [
-                                {str, <<"map">>},
-                                {obj, #{
-                                    {str, <<"bin_data_id">>} => {arr, [
-                                        {str, <<"tup">>},
-                                        {str, <<"binary">>},
-                                        {bin, <<"bin">>}
-                                    ]},
-                                    {str, <<"token">>} => {bin, <<"token">>}
-                                }}
-                            ]}
-                        }}
-                    ]}
-                ]}
+                {str, <<"resource_params">>} => ResourceParams
+            }}
+        ]}
+    ]},
+    LegacyParticipant2 = {arr, [
+        {str, <<"tup">>},
+        {str, <<"raw">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"resource_params">>} => ResourceParams
             }}
         ]}
     ]},
@@ -181,6 +216,7 @@ legacy_created_v0_2_decoding_test() ->
         {arr, [
             {str, <<"map">>},
             {obj, #{
+                {str, <<"version">>} => {i, 2},
                 {str, <<"id">>} => {bin, <<"transfer">>},
                 {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
                 {str, <<"created_at">>} => {i, 1590426777985},
@@ -191,8 +227,8 @@ legacy_created_v0_2_decoding_test() ->
                 {str, <<"owner">>} => {bin, <<"owner">>},
                 {str, <<"party_revision">>} => {i, 321},
                 {str, <<"quote">>} => {arr, [{str, <<"map">>}, {obj, #{}}]},
-                {str, <<"receiver">>} => LegacyParticipant,
-                {str, <<"sender">>} => LegacyParticipant,
+                {str, <<"receiver">>} => LegacyParticipant1,
+                {str, <<"sender">>} => LegacyParticipant2,
                 {str, <<"status">>} => {str, <<"pending">>}
             }}
         ]}

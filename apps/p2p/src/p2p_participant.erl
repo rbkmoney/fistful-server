@@ -19,10 +19,9 @@
 
 -type raw_params() :: #{
     resource_params := resource_params(),
-    contact_info => contact_info()
+    contact_info := contact_info()
 }.
 
--export([create/2]).
 -export([create/3]).
 -export([get_resource/1]).
 -export([get_resource/2]).
@@ -31,14 +30,9 @@
 -import(ff_pipeline, [do/1, unwrap/1]).
 
 -spec contact_info(participant()) ->
-    contact_info() | undefined.
+    contact_info().
 contact_info({raw, Raw}) ->
-    maps:get(contact_info, Raw, undefined).
-
--spec create(raw, resource_params()) ->
-    participant().
-create(raw, ResourceParams) ->
-    {raw, #{resource_params => ResourceParams}}.
+    maps:get(contact_info, Raw).
 
 -spec create(raw, resource_params(), contact_info()) ->
     participant().

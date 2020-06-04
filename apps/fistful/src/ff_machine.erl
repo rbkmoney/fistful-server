@@ -90,6 +90,8 @@
 -callback process_timeout(st()) ->
     [event()].
 
+-optional_callbacks([maybe_migrate/2]).
+
 %% Pipeline helpers
 
 -import(ff_pipeline, [do/1, unwrap/1]).
@@ -210,8 +212,13 @@ migrate_machine(Mod, Machine = #{history := History}) ->
     },
     Machine#{history => migrate_history(Mod, History, MigrateParams)}.
 
-migrate_event(Mod, {ID, Ts, {ev, EventTs, EventBody}}, MigrateParams) ->
-    {ID, Ts, {ev, EventTs, Mod:maybe_migrate(EventBody, MigrateParams#{timestamp => EventTs})}}.
+migrate_event(Mod, {ID, Ts, {ev, EventTs, EventBody}} = Event, MigrateParams) ->
+    case erlang:function_exported(Mod, maybe_migrate, 2) of
+        true ->
+            {ID, Ts, {ev, EventTs, Mod:maybe_migrate(EventBody, MigrateParams#{timestamp => EventTs})}};
+        false ->
+            Event
+    end.
 
 %%
 

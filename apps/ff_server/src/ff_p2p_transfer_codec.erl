@@ -82,14 +82,12 @@ marshal(status, Status) ->
     ff_p2p_transfer_status_codec:marshal(status, Status);
 
 marshal(participant, {raw, #{resource_params := ResourceParams} = Raw}) ->
-    ContactInfo = maps:get(contact_info, Raw, undefined),
+    ContactInfo = maps:get(contact_info, Raw),
     {resource, #p2p_transfer_RawResource{
         resource = marshal(resource, ResourceParams),
         contact_info = marshal(contact_info, ContactInfo)
     }};
 
-marshal(contact_info, undefined) ->
-    #'ContactInfo'{};
 marshal(contact_info, ContactInfo) ->
     PhoneNumber = maps:get(phone_number, ContactInfo, undefined),
     Email = maps:get(email, ContactInfo, undefined),
@@ -203,6 +201,7 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
     deadline = Deadline
 }) ->
     genlib_map:compact(#{
+        version => 2,
         id => unmarshal(id, ID),
         status => unmarshal(status, Status),
         owner => unmarshal(id, Owner),
@@ -336,6 +335,7 @@ p2p_transfer_codec_test() ->
     }},
 
     P2PTransfer = #{
+        version => 2,
         id => genlib:unique(),
         status => pending,
         owner => genlib:unique(),
@@ -385,6 +385,7 @@ p2p_timestamped_change_codec_test() ->
     }},
 
     P2PTransfer = #{
+        version => 2,
         id => genlib:unique(),
         status => pending,
         owner => genlib:unique(),

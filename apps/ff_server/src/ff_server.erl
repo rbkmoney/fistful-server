@@ -140,8 +140,9 @@ get_handler(Service, Handler, WrapperOpts) ->
     {Path, {ServiceSpec, wrap_handler(Handler, WrapperOpts)}}.
 
 contruct_backend_childspec(NS, Handler, PartyClient) ->
+    Schema = get_namespace_schema(NS),
     Be = {machinery_mg_backend, #{
-        schema => machinery_mg_schema_generic,
+        schema => Schema,
         client => get_service_client(automaton)
     }},
     {
@@ -149,7 +150,7 @@ contruct_backend_childspec(NS, Handler, PartyClient) ->
         {{fistful, #{handler => Handler, party_client => PartyClient}},
             #{
                 path           => ff_string:join(["/v1/stateproc/", NS]),
-                backend_config => #{schema => machinery_mg_schema_generic}
+                backend_config => #{schema => Schema}
             }
         }
     }.
@@ -165,7 +166,6 @@ get_service_client(ServiceID) ->
 get_eventsink_handlers() ->
     Client = get_service_client(eventsink),
     Cfg = #{
-        schema => machinery_mg_schema_generic,
         client => Client
     },
     Publishers = [
@@ -188,11 +188,39 @@ get_eventsink_handler(Name, Service, Publisher, Config) ->
         {ok, Opts} ->
             NS = maps:get(namespace, Opts),
             StartEvent = maps:get(start_event, Opts, 0),
-            FullConfig = Config#{ns => NS, publisher => Publisher, start_event => StartEvent},
+            FullConfig = Config#{
+                ns => NS,
+                publisher => Publisher,
+                start_event => StartEvent,
+                schema => get_namespace_schema(NS)
+            },
             {Service, {ff_eventsink_handler, FullConfig}};
         error ->
             erlang:error({unknown_eventsink, Name, Sinks})
     end.
+
+get_namespace_schema(NS) when is_binary(NS) ->
+    get_namespace_schema(erlang:binary_to_existing_atom(NS, utf8));
+get_namespace_schema('ff/identity') ->
+    machinery_mg_schema_generic;
+get_namespace_schema('ff/wallet_v2') ->
+    machinery_mg_schema_generic;
+get_namespace_schema('ff/source_v1') ->
+    machinery_mg_schema_generic;
+get_namespace_schema('ff/destination_v2') ->
+    machinery_mg_schema_generic;
+get_namespace_schema('ff/deposit_v1') ->
+    machinery_mg_schema_generic;
+get_namespace_schema('ff/withdrawal_v2') ->
+    machinery_mg_schema_generic;
+get_namespace_schema('ff/withdrawal/session_v2') ->
+    machinery_mg_schema_generic;
+get_namespace_schema('ff/p2p_transfer_v1') ->
+    ff_p2p_transfer_machinery_schema;
+get_namespace_schema('ff/p2p_transfer/session_v1') ->
+    machinery_mg_schema_generic;
+get_namespace_schema('ff/w2w_transfer_v1') ->
+    machinery_mg_schema_generic.
 
 wrap_handler(Handler, WrapperOpts) ->
     FullOpts = maps:merge(#{handler => Handler}, WrapperOpts),

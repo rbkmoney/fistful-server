@@ -27,9 +27,7 @@
     adjustments     => adjustments_index(),
     status          => status(),
     metadata        => metadata(),
-    external_id     => id(),
-    %% Route data
-    p_transfer_count   => non_neg_integer()
+    external_id     => id()
 }.
 
 -opaque withdrawal() :: #{
@@ -844,11 +842,8 @@ construct_session_id(Withdrawal) ->
 -spec construct_p_transfer_id(withdrawal_state()) -> id().
 construct_p_transfer_id(Withdrawal) ->
     ID = id(Withdrawal),
-    SubID = integer_to_binary(p_transfer_count(Withdrawal) + 1),
+    SubID = integer_to_binary(length(sessions(Withdrawal)) + 1),
     <<"ff/withdrawal/", ID/binary, "/", SubID/binary >>.
-
-p_transfer_count(Withdrawal) ->
-    maps:get(p_transfer_count, Withdrawal, 0).
 
 create_session(ID, TransferData, SessionParams) ->
     case ff_withdrawal_session_machine:create(ID, TransferData, SessionParams) of
@@ -1515,9 +1510,7 @@ apply_event_({resource_got, Resource}, T) ->
 apply_event_({limit_check, Details}, T) ->
     add_limit_check(Details, T);
 apply_event_({p_transfer, Ev}, T) ->
-    D = case Ev of {created, _} -> 1; _ -> 0 end,
     T#{
-        p_transfer_count => p_transfer_count(T) + D,
         p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))
     };
 apply_event_({session_started, SessionID}, T) ->

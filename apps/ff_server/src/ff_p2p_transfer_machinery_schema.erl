@@ -140,8 +140,137 @@ maybe_migrate_participant(Resource) ->
 -include_lib("eunit/include/eunit.hrl").
 -spec test() -> _.
 
--spec legacy_created_v0_2_decoding_test() -> _.
-legacy_created_v0_2_decoding_test() ->
+-spec created_v0_1_decoding_test() -> _.
+created_v0_1_decoding_test() ->
+    Resource1 = {crypto_wallet, #{crypto_wallet => #{
+        id => <<"address">>,
+        currency => {bitcoin_cash, #{}}
+    }}},
+    Resource2 = {bank_card, #{bank_card => #{
+        token => <<"token">>,
+        bin_data_id => {binary, <<"bin">>}
+    }}},
+    Participant1 = {raw, #{
+        resource_params => Resource1,
+        contact_info => #{}
+    }},
+    Participant2 = {raw, #{
+        resource_params => Resource2,
+        contact_info => #{}
+    }},
+    P2PTransfer = #{
+        version => 2,
+        id => <<"transfer">>,
+        status => pending,
+        owner => <<"owner">>,
+        body => {123, <<"RUB">>},
+        created_at => 1590426777985,
+        sender => Participant1,
+        receiver => Participant2,
+        quote => #{},
+        domain_revision => 123,
+        party_revision => 321,
+        operation_timestamp => 1590426777986,
+        external_id => <<"external_id">>,
+        deadline => 1590426777987
+    },
+    Change = {created, P2PTransfer},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    ResourceParams1 = {arr, [
+        {str, <<"tup">>},
+        {str, <<"crypto_wallet">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"currency">>} => {arr, [
+                    {str, <<"tup">>},
+                    {str, <<"bitcoin_cash">>},
+                    {arr, [{str, <<"map">>}, {obj, #{}}]}
+                ]},
+                {str, <<"id">>} => {bin, <<"address">>}
+            }}
+        ]}
+    ]},
+    ResourceParams2 = {arr, [
+        {str, <<"tup">>},
+        {str, <<"bank_card">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"bin_data_id">>} => {arr, [
+                    {str, <<"tup">>},
+                    {str, <<"binary">>},
+                    {bin, <<"bin">>}
+                ]},
+                {str, <<"token">>} => {bin, <<"token">>}
+            }}
+        ]}
+    ]},
+    LegacyParticipant1 = {arr, [
+        {str, <<"tup">>},
+        {str, <<"raw">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"contact_info">>} => {arr, [{str, <<"map">>}, {obj, #{}}]},
+                {str, <<"resource_params">>} => ResourceParams1
+            }}
+        ]}
+    ]},
+    LegacyParticipant2 = {arr, [
+        {str, <<"tup">>},
+        {str, <<"raw">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"resource_params">>} => ResourceParams2
+            }}
+        ]}
+    ]},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"created">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"version">>} => {i, 2},
+                {str, <<"id">>} => {bin, <<"transfer">>},
+                {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
+                {str, <<"created_at">>} => {i, 1590426777985},
+                {str, <<"deadline">>} => {i, 1590426777987},
+                {str, <<"domain_revision">>} => {i, 123},
+                {str, <<"external_id">>} => {bin, <<"external_id">>},
+                {str, <<"operation_timestamp">>} => {i, 1590426777986},
+                {str, <<"owner">>} => {bin, <<"owner">>},
+                {str, <<"party_revision">>} => {i, 321},
+                {str, <<"quote">>} => {arr, [{str, <<"map">>}, {obj, #{}}]},
+                {str, <<"receiver">>} => LegacyParticipant2,
+                {str, <<"sender">>} => LegacyParticipant1,
+                {str, <<"status">>} => {str, <<"pending">>}
+            }}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec created_v0_2_decoding_test() -> _.
+created_v0_2_decoding_test() ->
     Resource = {bank_card, #{bank_card => #{
         token => <<"token">>,
         bin_data_id => {binary, <<"bin">>}
@@ -252,8 +381,8 @@ legacy_created_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec legacy_resource_got_v0_2_decoding_test() -> _.
-legacy_resource_got_v0_2_decoding_test() ->
+-spec resource_got_v0_2_decoding_test() -> _.
+resource_got_v0_2_decoding_test() ->
     Resource = {bank_card, #{bank_card => #{
         token => <<"token">>,
         bin_data_id => {binary, <<"bin">>}
@@ -305,8 +434,8 @@ legacy_resource_got_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec legacy_risk_score_changed_v0_2_decoding_test() -> _.
-legacy_risk_score_changed_v0_2_decoding_test() ->
+-spec risk_score_changed_v0_2_decoding_test() -> _.
+risk_score_changed_v0_2_decoding_test() ->
     Change = {risk_score_changed, low},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
@@ -333,8 +462,8 @@ legacy_risk_score_changed_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec legacy_route_changed_v0_2_decoding_test() -> _.
-legacy_route_changed_v0_2_decoding_test() ->
+-spec route_changed_v0_2_decoding_test() -> _.
+route_changed_v0_2_decoding_test() ->
     Change = {route_changed, #{provider_id => 1}},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
@@ -364,8 +493,8 @@ legacy_route_changed_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec legacy_p_transfer_v0_2_decoding_test() -> _.
-legacy_p_transfer_v0_2_decoding_test() ->
+-spec p_transfer_v0_2_decoding_test() -> _.
+p_transfer_v0_2_decoding_test() ->
     PTransfer = #{
         id => <<"external_id">>,
         final_cash_flow => #{
@@ -411,8 +540,8 @@ legacy_p_transfer_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec legacy_session_v0_2_decoding_test() -> _.
-legacy_session_v0_2_decoding_test() ->
+-spec session_v0_2_decoding_test() -> _.
+session_v0_2_decoding_test() ->
     Change = {session, {<<"session_id">>, started}},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
@@ -439,6 +568,119 @@ legacy_session_v0_2_decoding_test() ->
         LegacyChange
     ]},
     DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec created_v1_decoding_test() -> _.
+created_v1_decoding_test() ->
+    Resource = {bank_card, #{bank_card => #{
+        token => <<"token">>,
+        bin_data_id => {binary, <<"bin">>}
+    }}},
+    Participant = {raw, #{
+        resource_params => Resource,
+        contact_info => #{}
+    }},
+    P2PTransfer = #{
+        version => 2,
+        id => <<"transfer">>,
+        status => pending,
+        owner => <<"owner">>,
+        body => {123, <<"RUB">>},
+        created_at => 1590426777985,
+        sender => Participant,
+        receiver => Participant,
+        quote => #{},
+        domain_revision => 123,
+        party_revision => 321,
+        operation_timestamp => 1590426777986,
+        external_id => <<"external_id">>,
+        deadline => 1590426777987
+    },
+    Change = {created, P2PTransfer},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQwAAQsADwAAAAh0cmFuc2ZlcgsAAQAAAAVvd2"
+        "5lcgwAAgwAAQwAAQwAAQwAAQsAAQAAAAV0b2tlbgwAFQsABgAAAANiaW4AAAAADAACAAAADAADDAABDAABDAABDAAB"
+        "CwABAAAABXRva2VuDAAVCwAGAAAAA2JpbgAAAAAMAAIAAAAMAAQKAAEAAAAAAAAAewwAAgsAAQAAAANSVUIAAAwABQ"
+        "wAAQAACwAGAAAAGDIwMjAtMDUtMjVUMTc6MTI6NTcuOTg1WgoABwAAAAAAAAB7CgAIAAAAAAAAAUELAAkAAAAYMjAy"
+        "MC0wNS0yNVQxNzoxMjo1Ny45ODZaDAAKAAsACwAAAAtleHRlcm5hbF9pZAsADAAAABgyMDIwLTA1LTI1VDE3OjEyOj"
+        "U3Ljk4N1oAAAAA"
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec resource_got_v1_decoding_test() -> _.
+resource_got_v1_decoding_test() ->
+    Resource = {bank_card, #{bank_card => #{
+        token => <<"token">>,
+        bin_data_id => {binary, <<"bin">>}
+    }}},
+    Change = {resource_got, Resource, Resource},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAwwAAQwAAQwAAQwAAQwAAQsAAQAAAAV0b2tlbg"
+        "wAFQsABgAAAANiaW4AAAAADAACDAABDAABCwABAAAABXRva2VuDAAVCwAGAAAAA2JpbgAAAAAAAAAAAA=="
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec risk_score_changed_v1_decoding_test() -> _.
+risk_score_changed_v1_decoding_test() ->
+    Change = {risk_score_changed, low},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwABAgAAQAAAAEAAAA="
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec route_changed_v1_decoding_test() -> _.
+route_changed_v1_decoding_test() ->
+    Change = {route_changed, #{provider_id => 1}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwABQwAAQgAAQAAAAEAAAAA"
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec p_transfer_v1_decoding_test() -> _.
+p_transfer_v1_decoding_test() ->
+    PTransfer = #{
+        id => <<"external_id">>,
+        final_cash_flow => #{
+            postings => []
+        }
+    },
+    Change = {p_transfer, {created, PTransfer}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwABgwAAQwAAQwAAQsAAgAAAAtleHRlcm5hbF9pZA"
+        "wAAQ8AAQwAAAAAAAAAAAAAAA=="
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec session_v1_decoding_test() -> _.
+session_v1_decoding_test() ->
+    Change = {session, {<<"session_id">>, started}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwABwsAAQAAAApzZXNzaW9uX2lkDAACDAABAAAAAAA="
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).

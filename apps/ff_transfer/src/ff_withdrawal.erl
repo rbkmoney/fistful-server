@@ -83,7 +83,7 @@
 
 -type route() :: #{
     provider_id := provider_id(),
-    pending_providers => [provider_id]
+    pending_providers => [provider_id()]
 }.
 
 -type prepared_route() :: #{

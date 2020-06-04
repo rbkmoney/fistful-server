@@ -1176,18 +1176,17 @@ session_processing_status(Withdrawal) ->
 session_processing_status_(undefined, _Withdrawal)->
     %% No route - no session
     undefined;
-session_processing_status_(#{provider_id := ID}, Withdrawal)->
-    case session(Withdrawal) of
+session_processing_status_(#{provider_id := PrID}, Withdrawal)->
+    Session = ff_withdrawal_session_utils:get_session_by_provider_id(PrID, Withdrawal),
+    case Session of
         undefined ->
             undefined;
-        #{result := {success, _}, provider_id := ID} ->
+        #{result := {success, _}} ->
             succeeded;
-        #{result := {failed, _}, provider_id := ID} ->
+        #{result := {failed, _}} ->
             failed;
-        #{provider_id := ID} ->
-            pending;
-        _ ->
-            undefined
+        #{} ->
+            pending
     end.
 
 %% Withdrawal validators

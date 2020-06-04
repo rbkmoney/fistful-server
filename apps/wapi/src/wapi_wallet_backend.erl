@@ -49,8 +49,6 @@ create(WalletID, Params, HandlerContext) ->
             {error, {currency, notfound}};
         {exception, #fistful_PartyInaccessible{}} ->
             {error, inaccessible};
-        {exception, #fistful_IDExists{}} ->
-            get(WalletID, HandlerContext);
         {exception, Details} ->
             {error, Details}
     end.
@@ -111,7 +109,7 @@ marshal(context, Ctx) ->
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-unmarshal(wallet, #wlt_Wallet{
+unmarshal(wallet, #wlt_WalletState{
     id = WalletID,
     name = Name,
     blocking = Blocking,

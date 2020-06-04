@@ -34,7 +34,13 @@ publish_event(#{
         payload       = #wlt_Event{
             sequence   = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
-            changes    = [marshal(change, Payload)]
+            changes    = [marshal(change, ff_wallet:maybe_migrate(
+                Payload,
+                #{
+                    timestamp => EventDt,
+                    id => SourceID
+                }
+            ))]
         }
     }.
 

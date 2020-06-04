@@ -12,35 +12,51 @@
 -type id()          :: binary().
 -type external_id() :: id() | undefined.
 -type name()        :: binary().
+-type metadata()    :: ff_entity_context:md().
 -type resource(T)   :: T.
 -type account()     :: ff_account:account().
 -type identity()    :: ff_identity:id().
 -type currency()    :: ff_currency:id().
+-type timestamp()   :: ff_time:timestamp_ms().
 -type status()      ::
     unauthorized |
     authorized.
 
--define(ACTUAL_FORMAT_VERSION, 1).
--type instrument(T) :: #{
-    version     := ?ACTUAL_FORMAT_VERSION,
+-define(ACTUAL_FORMAT_VERSION, 3).
+-type instrument_state(T) :: #{
     account     := account() | undefined,
     resource    := resource(T),
     name        := name(),
     status      := status() | undefined,
-    external_id => id()
+    created_at  => timestamp(),
+    external_id => id(),
+    metadata    => metadata()
+}.
+
+-type instrument(T) :: #{
+    version     := ?ACTUAL_FORMAT_VERSION,
+    resource    := resource(T),
+    name        := name(),
+    created_at  => timestamp(),
+    external_id => id(),
+    metadata    => metadata()
 }.
 
 -type event(T) ::
-    {created, instrument(T)} |
+    {created, instrument_state(T)} |
     {account, ff_account:event()} |
     {status_changed, status()}.
 
+-type legacy_event() :: any().
+
 -export_type([id/0]).
 -export_type([instrument/1]).
+-export_type([instrument_state/1]).
 -export_type([status/0]).
 -export_type([resource/1]).
 -export_type([event/1]).
 -export_type([name/0]).
+-export_type([metadata/0]).
 
 -export([account/1]).
 
@@ -51,8 +67,10 @@
 -export([resource/1]).
 -export([status/1]).
 -export([external_id/1]).
+-export([created_at/1]).
+-export([metadata/1]).
 
--export([create/6]).
+-export([create/1]).
 -export([authorize/1]).
 
 -export([is_accessible/1]).
@@ -67,7 +85,7 @@
 
 %% Accessors
 
--spec account(instrument(_)) ->
+-spec account(instrument_state(_)) ->
     account() | undefined.
 
 account(#{account := V}) ->
@@ -75,17 +93,17 @@ account(#{account := V}) ->
 account(_) ->
     undefined.
 
--spec id(instrument(_)) ->
+-spec id(instrument_state(_)) ->
     id().
--spec name(instrument(_)) ->
+-spec name(instrument_state(_)) ->
     binary().
--spec identity(instrument(_)) ->
+-spec identity(instrument_state(_)) ->
     identity().
--spec currency(instrument(_)) ->
+-spec currency(instrument_state(_)) ->
     currency().
--spec resource(instrument(T)) ->
+-spec resource(instrument_state(T)) ->
     resource(T).
--spec status(instrument(_)) ->
+-spec status(instrument_state(_)) ->
     status() | undefined.
 
 id(Instrument) ->
@@ -108,31 +126,59 @@ status(#{status := V}) ->
 status(_) ->
     undefined.
 
--spec external_id(instrument(_)) ->
+-spec external_id(instrument_state(_)) ->
     external_id().
 
 external_id(#{external_id := ExternalID}) ->
     ExternalID;
-external_id(_Transfer) ->
+external_id(_Instrument) ->
+    undefined.
+
+-spec created_at(instrument_state(_)) ->
+    timestamp().
+
+created_at(#{created_at := CreatedAt}) ->
+    CreatedAt.
+
+-spec metadata(instrument_state(_)) ->
+    metadata().
+
+metadata(#{metadata := Metadata}) ->
+    Metadata;
+metadata(_Instrument) ->
     undefined.
 
 %%
 
--spec create(id(), identity(), binary(), currency(), resource(T), external_id()) ->
+-spec create(ff_instrument_machine:params(T)) ->
     {ok, [event(T)]} |
     {error, _WalletError}.
 
-create(ID, IdentityID, Name, CurrencyID, Resource, ExternalID) ->
+create(Params = #{
+    id := ID,
+    identity := IdentityID,
+    name := Name,
+    currency := CurrencyID,
+    resource := Resource
+}) ->
     do(fun () ->
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Events = unwrap(ff_account:create(ID, Identity, Currency)),
-        [{created, add_external_id(ExternalID, #{name => Name, resource => Resource})}] ++
+        CreatedAt = ff_time:now(),
+        [{created, genlib_map:compact(#{
+            version => ?ACTUAL_FORMAT_VERSION,
+            name => Name,
+            resource => Resource,
+            external_id => maps:get(external_id, Params, undefined),
+            metadata => maps:get(metadata, Params, undefined),
+            created_at => CreatedAt
+        })}] ++
         [{account, Ev} || Ev <- Events] ++
         [{status_changed, unauthorized}]
     end).
 
--spec authorize(instrument(T)) ->
+-spec authorize(instrument_state(T)) ->
     {ok, [event(T)]} |
     {error, _TODO}.
 
@@ -143,22 +189,17 @@ authorize(#{status := unauthorized}) ->
 authorize(#{status := authorized}) ->
     {ok, []}.
 
--spec is_accessible(instrument(_)) ->
+-spec is_accessible(instrument_state(_)) ->
     {ok, accessible} |
     {error, ff_party:inaccessibility()}.
 
 is_accessible(Instrument) ->
     ff_account:is_accessible(account(Instrument)).
 
-add_external_id(undefined, Event) ->
-    Event;
-add_external_id(ExternalID, Event) ->
-    Event#{external_id => ExternalID}.
-
 %%
 
--spec apply_event(event(T), ff_maybe:maybe(instrument(T))) ->
-    instrument(T).
+-spec apply_event(event(T), ff_maybe:maybe(instrument_state(T))) ->
+    instrument_state(T).
 
 apply_event({created, Instrument}, undefined) ->
     Instrument;
@@ -169,24 +210,37 @@ apply_event({account, Ev}, Instrument = #{account := Account}) ->
 apply_event({account, Ev}, Instrument) ->
     apply_event({account, Ev}, Instrument#{account => undefined}).
 
--spec maybe_migrate(event(T), ff_machine:migrate_params()) ->
+-spec maybe_migrate(event(T) | legacy_event(), ff_machine:migrate_params()) ->
     event(T).
 
-maybe_migrate(Event = {created, #{
-    version := 1
-}}, _MigrateParams) ->
+maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
+maybe_migrate({created, Instrument = #{version := 1}}, MigrateParams) ->
+    Timestamp = maps:get(timestamp, MigrateParams),
+    CreatedAt = ff_codec:unmarshal(timestamp_ms, ff_codec:marshal(timestamp, Timestamp)),
+    maybe_migrate({created, Instrument#{
+        version => 2,
+        created_at => CreatedAt
+    }}, MigrateParams);
+maybe_migrate({created, Instrument = #{version := 2}}, MigrateParams) ->
+    Context = maps:get(ctx, MigrateParams, undefined),
+    %% TODO add metada migration for eventsink after decouple instruments
+    Metadata = ff_entity_context:try_get_legacy_metadata(Context),
+    maybe_migrate({created, genlib_map:compact(Instrument#{
+        version => 3,
+        metadata => Metadata
+    })}, MigrateParams);
 maybe_migrate({created, Instrument = #{
         resource    := Resource,
         name        := Name
-}}, _MigrateParams) ->
+}}, MigrateParams) ->
     NewInstrument = genlib_map:compact(#{
         version     => 1,
         resource    => maybe_migrate_resource(Resource),
         name        => Name,
         external_id => maps:get(external_id, Instrument, undefined)
     }),
-    {created, NewInstrument};
+    maybe_migrate({created, NewInstrument}, MigrateParams);
 
 %% Other events
 maybe_migrate(Event, _MigrateParams) ->
@@ -207,3 +261,47 @@ maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
 
 maybe_migrate_resource(Resource) ->
     Resource.
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec v1_created_migration_test() -> _.
+v1_created_migration_test() ->
+    CreatedAt = ff_time:now(),
+    LegacyEvent = {created, #{
+        version     => 1,
+        resource    => {crypto_wallet, #{crypto_wallet => #{}}},
+        name        => <<"some name">>,
+        external_id => genlib:unique()
+    }},
+    {created, #{version := Version}} = maybe_migrate(LegacyEvent, #{
+        timestamp => ff_codec:unmarshal(timestamp, ff_codec:marshal(timestamp_ms, CreatedAt))
+    }),
+    ?assertEqual(3, Version).
+
+-spec v2_created_migration_test() -> _.
+v2_created_migration_test() ->
+    CreatedAt = ff_time:now(),
+    LegacyEvent = {created, #{
+        version => 2,
+        resource    => {crypto_wallet, #{crypto_wallet => #{}}},
+        name        => <<"some name">>,
+        external_id => genlib:unique(),
+        created_at  => CreatedAt
+    }},
+    {created, #{version := Version, metadata := Metadata}} = maybe_migrate(LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
+    ?assertEqual(3, Version),
+    ?assertEqual(#{<<"some key">> => <<"some val">>}, Metadata).
+
+-endif.

@@ -10,21 +10,20 @@
 -module(ff_wallet_machine).
 
 -type id()        :: machinery:id().
--type wallet()    :: ff_wallet:wallet().
+-type wallet()    :: ff_wallet:wallet_state().
 -type ctx()       :: ff_entity_context:context().
 
 -type st()        :: ff_machine:st(wallet()).
 
--type params()  :: #{
-    id          := id(),
-    identity    := ff_identity_machine:id(),
-    name        := binary(),
-    currency    := ff_currency:id(),
-    external_id => id()
-}.
+-type params()  :: ff_wallet:params().
+
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
 
 -export_type([id/0]).
 -export_type([params/0]).
+-export_type([repair_error/0]).
+-export_type([repair_response/0]).
 
 -export([create/2]).
 -export([get/1]).
@@ -67,15 +66,9 @@ ctx(St) ->
 -spec create(params(), ctx()) ->
     ok | {error, exists | ff_wallet:create_error() }.
 
-create(Params = #{id := ID, identity := IdentityID, name := Name, currency := CurrencyID}, Ctx) ->
+create(Params = #{id := ID}, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_wallet:create(
-            ID,
-            IdentityID,
-            Name,
-            CurrencyID,
-            maps:get(external_id, Params, undefined)
-        )),
+        Events = unwrap(ff_wallet:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
@@ -131,7 +124,7 @@ process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, repair_error()}.
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_wallet, Machine, Scenario).

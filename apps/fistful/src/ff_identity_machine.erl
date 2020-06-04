@@ -19,7 +19,7 @@
 %% API
 
 -type id()        :: machinery:id().
--type identity()  :: ff_identity:identity().
+-type identity()  :: ff_identity:identity_state().
 -type ctx()       :: ff_entity_context:context().
 
 -type st() :: ff_machine:st(identity()).
@@ -31,9 +31,14 @@
     {challenge, {pending, challenge_id()}} |
     {challenge, ff_identity:start_challenge_error()}.
 
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
+
 -export_type([id/0]).
 -export_type([challenge_params/0]).
 -export_type([params/0]).
+-export_type([repair_error/0]).
+-export_type([repair_response/0]).
 
 -export([create/2]).
 -export([get/1]).
@@ -60,13 +65,7 @@
 
 -define(NS, 'ff/identity').
 
--type params() :: #{
-    id          := id(),
-    party       := ff_party:id(),
-    provider    := ff_provider:id(),
-    class       := ff_identity:class_id(),
-    external_id => id()
-}.
+-type params() :: ff_identity:params().
 
 -spec create(params(), ctx()) ->
     ok |
@@ -75,15 +74,9 @@
         exists
     }.
 
-create(Params = #{id := ID, party := Party, provider := ProviderID, class := IdentityClassID}, Ctx) ->
+create(Params = #{id := ID}, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_identity:create(
-            ID,
-            Party,
-            ProviderID,
-            IdentityClassID,
-            maps:get(external_id, Params, undefined)
-        )),
+        Events = unwrap(ff_identity:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
@@ -203,7 +196,7 @@ process_call({start_challenge, Params}, Machine, _Args, _Opts) ->
     end.
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, repair_error()}.
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_identity, Machine, Scenario).

@@ -12,7 +12,7 @@
 -type change() :: ff_deposit:event().
 -type event() :: {integer(), ff_machine:timestamped_event(change())}.
 -type st() :: ff_machine:st(deposit()).
--type deposit() :: ff_deposit:deposit().
+-type deposit() :: ff_deposit:deposit_state().
 -type external_id() :: id().
 -type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
@@ -32,6 +32,9 @@
     ff_deposit:start_adjustment_error() |
     unknown_deposit_error().
 
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
+
 -type unknown_deposit_error() ::
     {unknown_deposit, id()}.
 
@@ -44,6 +47,7 @@
 -export_type([event_range/0]).
 -export_type([external_id/0]).
 -export_type([create_error/0]).
+-export_type([repair_error/0]).
 -export_type([start_revert_error/0]).
 -export_type([start_revert_adjustment_error/0]).
 -export_type([start_adjustment_error/0]).
@@ -138,7 +142,7 @@ events(ID, {After, Limit}) ->
     end.
 
 -spec repair(id(), ff_repair:scenario()) ->
-    ok | {error, notfound | working}.
+    {ok, repair_response()} | {error, notfound | working | {failed, repair_error()}}.
 repair(ID, Scenario) ->
     machinery:repair(?NS, ID, Scenario, backend()).
 
@@ -215,7 +219,7 @@ process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, repair_error()}.
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_deposit, Machine, Scenario).

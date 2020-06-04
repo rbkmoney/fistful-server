@@ -19,7 +19,7 @@
 -export([identity_id/1]).
 -export([details/1]).
 -export([external_id/1]).
--export([body/1]).
+-export([template_body/1]).
 -export([template_metadata/1]).
 
 %% ff_machine
@@ -78,7 +78,7 @@
     currency := ff_currency:id()
 }.
 
--type cash() :: {amount() | undefined, ff_currency:id()}.
+-type template_cash() :: {amount() | undefined, ff_currency:id()}.
 
 -type metadata() :: ff_entity_context:md().
 -type timestamp() :: ff_time:timestamp_ms().
@@ -103,7 +103,7 @@
 -export_type([template_state/0]).
 -export_type([blocking/0]).
 -export_type([create_error/0]).
--export_type([cash/0]).
+-export_type([template_cash/0]).
 
 %%
 %% Internal types
@@ -167,10 +167,10 @@ created_at(#{created_at := V}) ->
 external_id(T) ->
     maps:get(external_id, T, undefined).
 
--spec body(template_state()) ->
-    cash().
+-spec template_body(template_state()) ->
+    template_cash().
 
-body(#{details := #{body := #{value := Body}}}) ->
+template_body(#{details := #{body := #{value := Body}}}) ->
     template_body_to_cash(Body).
 
 -spec template_metadata(template_state()) ->

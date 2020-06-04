@@ -124,8 +124,7 @@ issue_grant_token(TokenSpec, Expiration, Context) ->
     end.
 
 get_expiration_deadline(Expiration) ->
-    {DateTime, MilliSec} = woody_deadline:from_binary(wapi_utils:to_universal_time(Expiration)),
-    Deadline = genlib_time:daytime_to_unixtime(DateTime) + MilliSec div 1000,
+    Deadline = genlib_rfc3339:parse(Expiration, second),
     case genlib_time:unow() - Deadline < 0 of
         true ->
             {ok, Deadline};

@@ -698,8 +698,7 @@ process_request('BlockP2PTransferTemplate', #{p2pTransferTemplateID := ID}, Cont
         {error, {unknown_p2p_template, _ID}} ->
             wapi_handler_utils:reply_ok(404);
         {error, {p2p_template, unauthorized}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"No such template">>))
+            wapi_handler_utils:reply_ok(404)
     end;
 process_request('IssueP2PTransferTemplateAccessToken', #{
     p2pTransferTemplateID := ID,
@@ -712,8 +711,7 @@ process_request('IssueP2PTransferTemplateAccessToken', #{
                 <<"validUntil">> => Expiration
             });
         {error, {p2p_template, unauthorized}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"No such template">>));
+            wapi_handler_utils:reply_ok(404);
         {error, expired} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)

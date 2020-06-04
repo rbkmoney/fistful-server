@@ -163,10 +163,10 @@ do_set_blocking(Blocking, Machine) ->
     {ok, Result} = p2p_template:set_blocking(Blocking, p2p_template(St)),
     {ok, process_result(Result, St)}.
 
-process_result({_Action, Events}, _St) ->
+process_result({Action, Events}, _St) ->
     genlib_map:compact(#{
         events => set_events(Events),
-        action => undefined
+        action => Action
     }).
 
 set_events(Events) ->

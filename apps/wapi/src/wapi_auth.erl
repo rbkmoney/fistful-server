@@ -73,9 +73,9 @@ resolve_token_spec({p2p_templates, P2PTemplateID}) ->
             [{[{p2p_templates, P2PTemplateID}], write}, {[p2p_templates], read}]
         )}
     };
-resolve_token_spec({p2p_template_transfers, P2PTemplateID, Data}) ->
+resolve_token_spec({p2p_template_transfers, P2PTemplateID, #{<<"externalID">> := ExternalID}}) ->
     #{
-        <<"data">> => Data,
+        <<"data">> => #{<<"externalID">> => ExternalID},
         <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
             [{[{p2p_templates, P2PTemplateID}, p2p_template_transfers], write}, {[p2p], read}]
         )}

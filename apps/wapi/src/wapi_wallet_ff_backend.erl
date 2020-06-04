@@ -2156,7 +2156,7 @@ to_swag(is_blocked, _) ->
     true;
 to_swag(blocking, unblocked) ->
     false;
-to_swag(blocking, _) ->
+to_swag(blocking, blocked) ->
     true;
 to_swag(report_object, #ff_reports_Report{
     report_id = ReportID,

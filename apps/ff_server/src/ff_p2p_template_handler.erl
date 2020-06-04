@@ -45,7 +45,7 @@ handle_function_('Create', [MarshaledParams], Opts) ->
 
 handle_function_('Get', [ID, EventRange], _Opts) ->
     {After, Limit} = ff_codec:unmarshal(event_range, EventRange),
-    ok = scoper:add_meta(#{id => ID, range => {After, Limit}}),
+    ok = scoper:add_meta(#{id => ID}),
     case p2p_template_machine:get(ID, {After, Limit, forward}) of
         {ok, Machine} ->
             P2PTemplate = p2p_template_machine:p2p_template(Machine),
@@ -57,7 +57,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     end;
 
 handle_function_('SetBlocking', [ID, Blocking], _Opts) ->
-    ok = scoper:add_meta(#{id => ID, blocking => Blocking}),
+    ok = scoper:add_meta(#{id => ID}),
     case p2p_template_machine:set_blocking(ID, ff_p2p_template_codec:unmarshal(blocking, Blocking)) of
         ok ->
             {ok, ok};

@@ -20,7 +20,7 @@ start() ->
 -spec stop(pid()) -> ok.
 
 stop(Pid) ->
-    gen_server:stop(Pid).
+    ok = proc_lib:stop(Pid).
 
 %%
 

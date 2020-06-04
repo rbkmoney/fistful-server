@@ -33,6 +33,12 @@
 %% Types
 %%
 
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
+
+-export_type([repair_error/0]).
+-export_type([repair_response/0]).
+
 %%
 %% Internal types
 %%
@@ -91,7 +97,7 @@ events(ID, Range) ->
     end).
 
 -spec repair(id(), ff_repair:scenario()) ->
-    ok | {error, notfound | working}.
+    {ok, repair_response()} | {error, notfound | working | {failed, repair_error()}}.
 repair(ID, Scenario) ->
     machinery:repair(?NS, ID, Scenario, backend()).
 
@@ -121,12 +127,12 @@ process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, repair_error()}.
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ScenarioProcessors = #{
         set_session_result => fun(Args, RMachine) ->
             State = ff_machine:collapse(ff_withdrawal_session, RMachine),
-            ff_withdrawal_session:set_session_result(Args, session(State))
+            {ok, {ok, ff_withdrawal_session:set_session_result(Args, session(State))}}
         end
     },
     ff_repair:apply_scenario(ff_withdrawal_session, Machine, Scenario, ScenarioProcessors).

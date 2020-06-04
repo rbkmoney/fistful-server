@@ -98,7 +98,7 @@ unmarshal(
         'event'         = Event
     }
 ) ->
-    #mg_stateproc_Event{id = EventID, created_at = CreatedAt, format_version = _Format, data = Data} = Event,
+    #mg_stateproc_Event{id = EventID, created_at = CreatedAt, format_version = Format, data = Data} = Event,
     #{
         id          => unmarshal(event_id, ID),
         ns          => unmarshal(namespace, Ns),
@@ -106,7 +106,7 @@ unmarshal(
         event       => {
             unmarshal(event_id, EventID),
             unmarshal(timestamp, CreatedAt),
-            unmarshal({schema, Schema, event}, Data)
+            unmarshal({schema, Schema, {event, Format}}, Data)
         }
     };
 

@@ -204,8 +204,8 @@ legacy_created_v0_2_decoding_test() ->
             {str, <<"tup">>},
             {arr, [
                 {str, <<"tup">>},
-                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5},{i, 25}]},
-                {arr, [{str, <<"tup">>}, {i, 19},{i, 19},{i, 10}]}
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
             ]},
             {i, 293305}
         ]},
@@ -257,8 +257,8 @@ legacy_resource_got_v0_2_decoding_test() ->
             {str, <<"tup">>},
             {arr, [
                 {str, <<"tup">>},
-                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5},{i, 25}]},
-                {arr, [{str, <<"tup">>}, {i, 19},{i, 19},{i, 10}]}
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
             ]},
             {i, 293305}
         ]},
@@ -285,8 +285,8 @@ legacy_risk_score_changed_v0_2_decoding_test() ->
             {str, <<"tup">>},
             {arr, [
                 {str, <<"tup">>},
-                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5},{i, 25}]},
-                {arr, [{str, <<"tup">>}, {i, 19},{i, 19},{i, 10}]}
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
             ]},
             {i, 293305}
         ]},
@@ -316,8 +316,8 @@ legacy_route_changed_v0_2_decoding_test() ->
             {str, <<"tup">>},
             {arr, [
                 {str, <<"tup">>},
-                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5},{i, 25}]},
-                {arr, [{str, <<"tup">>}, {i, 19},{i, 19},{i, 10}]}
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
             ]},
             {i, 293305}
         ]},
@@ -363,8 +363,8 @@ legacy_p_transfer_v0_2_decoding_test() ->
             {str, <<"tup">>},
             {arr, [
                 {str, <<"tup">>},
-                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5},{i, 25}]},
-                {arr, [{str, <<"tup">>}, {i, 19},{i, 19},{i, 10}]}
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
             ]},
             {i, 293305}
         ]},
@@ -395,8 +395,8 @@ legacy_session_v0_2_decoding_test() ->
             {str, <<"tup">>},
             {arr, [
                 {str, <<"tup">>},
-                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5},{i, 25}]},
-                {arr, [{str, <<"tup">>}, {i, 19},{i, 19},{i, 10}]}
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
             ]},
             {i, 293305}
         ]},

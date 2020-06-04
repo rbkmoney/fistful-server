@@ -728,7 +728,7 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
             {error, route_not_found}
     end.
 
--spec validate_quote_provider([provider_id()], quote()) ->
+-spec validate_quote_provider(provider_id(), quote()) ->
     {ok, valid} | {error, {inconsistent_quote_route, provider_id()}}.
 validate_quote_provider(ProviderID, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
     {ok, valid};

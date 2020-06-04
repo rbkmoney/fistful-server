@@ -12,7 +12,9 @@
 
 %% Constants
 
--define(CURRENT_EVENT_FORMAT_VERSION, 1).
+% TODO: Replace version to 1 after p2p provider migration
+% see https://rbkmoney.atlassian.net/browse/MSPF-561 for details
+-define(CURRENT_EVENT_FORMAT_VERSION, undefined).
 
 %% Internal types
 
@@ -74,6 +76,9 @@ unmarshal(T, V) when
 
 -spec marshal_event(machinery_mg_schema:version(), event()) ->
     machinery_msgpack:t().
+marshal_event(undefined = Version, TimestampedChange) ->
+    % TODO: Remove this clause after MSPF-561 finish
+    machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange);
 marshal_event(1, TimestampedChange) ->
     ThriftChange = ff_p2p_transfer_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'TimestampedChange'}},

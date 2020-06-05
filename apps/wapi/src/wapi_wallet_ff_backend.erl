@@ -847,8 +847,10 @@ issue_p2p_template_access_token(ID, Expiration, Context) ->
 }.
 issue_p2p_transfer_ticket(ID, Expiration, Context) ->
     do(fun () ->
-        ExternalID = ff_id:generate_snowflake_id(),
-        Data = #{?EXTERNAL_ID => ExternalID},
+        PartyID = wapi_handler_utils:get_owner(Context),
+        Key  = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID),
+        {ok, TransferID} = bender_client:gen_by_snowflake(Key, 0, Context),
+        Data = #{<<"transferID">> => TransferID},
         unwrap(wapi_backend_utils:issue_grant_token({p2p_template_transfers, ID, Data}, Expiration, Context))
     end).
 
@@ -867,7 +869,7 @@ create_p2p_transfer_with_template(ID, Params, Context) ->
     do(fun () ->
         {_, _, Claims} = wapi_handler_utils:get_auth_context(Context),
         Data = maps:get(<<"data">>, Claims),
-        DataMap = maps:with([?EXTERNAL_ID], Data),
+        DataMap = maps:with([<<"transferID">>], Data),
         Template = p2p_template_machine:p2p_template(unwrap(p2p_template, p2p_template_machine:get(ID))),
         P2PTransferParams = make_p2p_transfer_params(maps:merge(Params, DataMap), Template),
         unwrap(create_p2p_transfer(P2PTransferParams, Context))

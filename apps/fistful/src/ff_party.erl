@@ -86,7 +86,7 @@
 -export([validate_withdrawal_creation/2]).
 -export([validate_deposit_creation/2]).
 -export([validate_w2w_transfer_creation/2]).
--export([validate_p2p_template_creation/3]).
+-export([validate_p2p_template_creation/2]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
@@ -137,6 +137,7 @@
     {invalid_terms, {undefined_p2p_terms, wallet_terms()}}.
 
 -type invalid_p2p_template_terms_error() ::
+    {invalid_terms, not_reduced_error()} |
     {invalid_terms, undefined_wallet_terms} |
     {invalid_terms, {undefined_p2p_terms, wallet_terms()}} |
     {invalid_terms, {undefined_p2p_template_terms, wallet_terms()}}.
@@ -351,18 +352,16 @@ validate_w2w_transfer_creation(Terms, {_Amount, CurrencyID} = Cash) ->
         valid = unwrap(validate_w2w_allow(W2WServiceTerms))
     end).
 
--spec validate_p2p_template_creation(terms(), cash(), hg_selector:varset()) -> Result when
+-spec validate_p2p_template_creation(terms(), cash()) -> Result when
     Result :: {ok, valid} | {error, Error},
     Error :: validate_p2p_template_creation_error().
 
-validate_p2p_template_creation(_Terms, {Amount, _Currency} = Cash, _VS) when is_integer(Amount) andalso (Amount < 1) ->
+validate_p2p_template_creation(_Terms, {Amount, _Currency} = Cash) when is_integer(Amount) andalso (Amount < 1) ->
     {error, {bad_p2p_template_amount, Cash}};
-validate_p2p_template_creation(Terms, {_Amount, _CurrencyID} = _Cash, VS) ->
+validate_p2p_template_creation(Terms, {_Amount, _CurrencyID} = _Cash) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     do(fun () ->
-        {ok, valid} = validate_p2p_template_terms_is_reduced(WalletTerms),
-        #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,
-        valid = unwrap(validate_p2p_template_allow(P2PServiceTerms, VS))
+        validate_p2p_template_terms_is_reduced(WalletTerms)
     end).
 
 -spec get_withdrawal_cash_flow_plan(terms()) ->
@@ -652,8 +651,17 @@ validate_p2p_template_terms_is_reduced(WalletTerms = #domain_WalletServiceTerms{
     }
 }) ->
     {error, {invalid_terms, {undefined_p2p_template_terms, WalletTerms}}};
-validate_p2p_template_terms_is_reduced(_Terms) ->
-    {ok, valid}.
+validate_p2p_template_terms_is_reduced(#domain_WalletServiceTerms{p2p = P2PServiceTerms}) ->
+    #domain_P2PServiceTerms{templates = P2PTemplateServiceTerms} = P2PServiceTerms,
+    #domain_P2PTemplateServiceTerms{allow = Selector} = P2PTemplateServiceTerms,
+    case Selector of
+        {constant, true} ->
+            {ok, valid};
+        {constant, false} ->
+            {error, {terms_violation, p2p_template_forbidden}};
+        _ ->
+            {error, {invalid_terms, {not_reduced, {p2p_template_allow, Selector}}}}
+    end.
 
 -spec validate_w2w_terms_is_reduced(wallet_terms() | undefined) ->
     {ok, valid} | {error, invalid_w2w_terms_error()}.

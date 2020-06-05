@@ -70,14 +70,14 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
 resolve_token_spec({p2p_templates, P2PTemplateID}) ->
     #{
         <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
-            [{[{p2p_templates, P2PTemplateID}], write}, {[p2p_templates], read}]
+            [{[{p2p_templates, P2PTemplateID}, p2p_template_tickets], write}, {[{p2p_templates, P2PTemplateID}], read}]
         )}
     };
-resolve_token_spec({p2p_template_transfers, P2PTemplateID, #{<<"externalID">> := ExternalID}}) ->
+resolve_token_spec({p2p_template_transfers, P2PTemplateID, #{<<"transferID">> := TransferID}}) ->
     #{
-        <<"data">> => #{<<"externalID">> => ExternalID},
+        <<"data">> => #{<<"transferID">> => TransferID},
         <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
-            [{[{p2p_templates, P2PTemplateID}, p2p_template_transfers], write}, {[p2p], read}]
+            [{[{p2p_templates, P2PTemplateID}, p2p_template_transfers], write}, {[{p2p, TransferID}], read}]
         )}
     };
 resolve_token_spec({destinations, DestinationId}) ->
@@ -187,20 +187,20 @@ get_operation_access('CreateP2PTransfer', _) ->
     [{[p2p], write}];
 get_operation_access('QuoteP2PTransfer', _) ->
     [{[p2p], write}];
-get_operation_access('GetP2PTransfer', _) ->
-    [{[p2p], read}];
+get_operation_access('GetP2PTransfer', #{'p2pTransferID' := ID}) ->
+    [{[{p2p, ID}], read}];
 get_operation_access('GetP2PTransferEvents', _) ->
     [{[p2p], read}];
 get_operation_access('CreateP2PTransferTemplate', _) ->
     [{[p2p_templates], write}];
-get_operation_access('GetP2PTransferTemplateByID', _) ->
-    [{[p2p_templates], read}];
+get_operation_access('GetP2PTransferTemplateByID', #{'p2pTransferTemplateID' := ID}) ->
+    [{[{p2p_templates, ID}], read}];
 get_operation_access('BlockP2PTransferTemplate', _) ->
     [{[p2p_templates], write}];
 get_operation_access('IssueP2PTransferTemplateAccessToken', _) ->
     [{[p2p_templates], write}];
 get_operation_access('IssueP2PTransferTicket', #{'p2pTransferTemplateID' := ID}) ->
-    [{[{p2p_templates, ID}], write}];
+    [{[{p2p_templates, ID}, p2p_template_tickets], write}];
 get_operation_access('CreateP2PTransferWithTemplate', #{'p2pTransferTemplateID' := ID}) ->
     [{[{p2p_templates, ID}, p2p_template_transfers], write}];
 get_operation_access('CreateW2WTransfer', _) ->
@@ -227,7 +227,10 @@ get_resource_hierarchy() ->
             destinations => #{}
         },
         p2p => #{},
-        p2p_templates => #{p2p_template_transfers => #{}},
+        p2p_templates => #{
+            p2p_template_tickets => #{},
+            p2p_template_transfers => #{}
+        },
         w2w => #{},
         webhooks => #{},
         withdrawals => #{}

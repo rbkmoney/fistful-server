@@ -205,7 +205,7 @@ create(Params = #{
         {ok, Terms} = ff_party:get_contract_terms(
             PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
         ),
-        valid =  unwrap(terms, ff_party:validate_p2p_template_creation(Terms, template_body_to_cash(Body), Varset)),
+        valid =  unwrap(terms, ff_party:validate_p2p_template_creation(Terms, template_body_to_cash(Body))),
         Template = genlib_map:compact(#{
             version => ?ACTUAL_FORMAT_VERSION,
             id => ID,

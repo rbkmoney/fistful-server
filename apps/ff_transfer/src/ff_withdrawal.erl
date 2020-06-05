@@ -20,10 +20,8 @@
     party_revision  => party_revision(),
     domain_revision => domain_revision(),
     route           => route(),
-    sessions        => [session()],
-    p_transfer      => p_transfer(),
+    routes          => routes(),
     resource        => destination_resource(),
-    limit_checks    => [limit_check_details()],
     adjustments     => adjustments_index(),
     status          => status(),
     metadata        => metadata(),
@@ -82,6 +80,8 @@
     provider_id := provider_id(),
     pending_providers => [provider_id()]
 }.
+
+-type routes() :: ff_withdrawal_route_utils:routes().
 
 -type prepared_route() :: #{
     route := route(),
@@ -173,6 +173,7 @@
 -export_type([action/0]).
 -export_type([adjustment_params/0]).
 -export_type([start_adjustment_error/0]).
+-export_type([limit_check_details/0]).
 
 %% Transfer logic callbacks
 
@@ -187,6 +188,8 @@
 -export([body/1]).
 -export([status/1]).
 -export([route/1]).
+-export([routes/1]).
+-export([update_routes/2]).
 -export([external_id/1]).
 -export([created_at/1]).
 -export([party_revision/1]).
@@ -333,6 +336,14 @@ status(T) ->
 route(T) ->
     maps:get(route, T, undefined).
 
+-spec routes(withdrawal_state()) -> routes() | undefined.
+routes(T) ->
+    maps:get(routes, T, undefined).
+
+-spec update_routes(routes(), withdrawal_state()) -> withdrawal_state().
+update_routes(Routes, T) ->
+    maps:put(routes, Routes, T).
+
 -spec external_id(withdrawal_state()) -> external_id() | undefined.
 external_id(T) ->
     maps:get(external_id, T, undefined).
@@ -450,7 +461,7 @@ effective_final_cash_flow(Withdrawal) ->
 
 -spec sessions(withdrawal_state()) -> [session()].
 sessions(Withdrawal) ->
-    ff_withdrawal_session_utils:get_sessions(Withdrawal).
+    ff_withdrawal_route_utils:get_sessions(Withdrawal).
 
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(withdrawal_state()) -> boolean().
@@ -501,10 +512,18 @@ params(#{params := V}) ->
 
 -spec p_transfer(withdrawal_state()) -> p_transfer() | undefined.
 p_transfer(Withdrawal) ->
-    maps:get(p_transfer, Withdrawal, undefined).
+    ff_withdrawal_route_utils:get_current_p_transfer(Withdrawal).
 
 -spec p_transfer_status(withdrawal_state()) -> ff_postings_transfer:status() | undefined.
 p_transfer_status(Withdrawal) ->
+    case routes(Withdrawal) of
+        undefined ->
+            undefined;
+        _ ->
+            p_transfer_status_(Withdrawal)
+    end.
+
+p_transfer_status_(Withdrawal) ->
     case p_transfer(Withdrawal) of
         undefined ->
             undefined;
@@ -634,14 +653,17 @@ do_process_transfer(routing, Withdrawal) ->
 do_process_transfer(p_transfer_start, Withdrawal) ->
     process_p_transfer_creation(Withdrawal);
 do_process_transfer(p_transfer_prepare, Withdrawal) ->
-    {ok, Events} = ff_pipeline:with(p_transfer, Withdrawal, fun ff_postings_transfer:prepare/1),
-    {continue, Events};
+    Tr = ff_withdrawal_route_utils:get_current_p_transfer(Withdrawal),
+    {ok, Events} = ff_postings_transfer:prepare(Tr),
+    {continue, [{p_transfer, Ev} || Ev <- Events]};
 do_process_transfer(p_transfer_commit, Withdrawal) ->
-    {ok, Events} = ff_pipeline:with(p_transfer, Withdrawal, fun ff_postings_transfer:commit/1),
-    {continue, Events};
+    Tr = ff_withdrawal_route_utils:get_current_p_transfer(Withdrawal),
+    {ok, Events} = ff_postings_transfer:commit(Tr),
+    {continue, [{p_transfer, Ev} || Ev <- Events]};
 do_process_transfer(p_transfer_cancel, Withdrawal) ->
-    {ok, Events} = ff_pipeline:with(p_transfer, Withdrawal, fun ff_postings_transfer:cancel/1),
-    {continue, Events};
+    Tr = ff_withdrawal_route_utils:get_current_p_transfer(Withdrawal),
+    {ok, Events} = ff_postings_transfer:cancel(Tr),
+    {continue, [{p_transfer, Ev} || Ev <- Events]};
 do_process_transfer(limit_check, Withdrawal) ->
     process_limit_check(Withdrawal);
 do_process_transfer(session_starting, Withdrawal) ->
@@ -836,13 +858,13 @@ process_session_creation(Withdrawal) ->
 -spec construct_session_id(withdrawal_state()) -> id().
 construct_session_id(Withdrawal) ->
     ID = id(Withdrawal),
-    SubID = integer_to_binary(length(sessions(Withdrawal)) + 1),
+    SubID = integer_to_binary(length(sessions(Withdrawal))),
     << ID/binary, "/", SubID/binary >>.
 
 -spec construct_p_transfer_id(withdrawal_state()) -> id().
 construct_p_transfer_id(Withdrawal) ->
     ID = id(Withdrawal),
-    SubID = integer_to_binary(length(sessions(Withdrawal)) + 1),
+    SubID = integer_to_binary(length(sessions(Withdrawal))),
     <<"ff/withdrawal/", ID/binary, "/", SubID/binary >>.
 
 create_session(ID, TransferData, SessionParams) ->
@@ -1141,7 +1163,7 @@ quote_domain_revision(#{quote_data := QuoteData}) ->
 
 -spec session(withdrawal_state()) -> session() | undefined.
 session(Withdrawal) ->
-    ff_withdrawal_session_utils:get_current_session(Withdrawal).
+    ff_withdrawal_route_utils:get_current_session(Withdrawal).
 
 -spec session_id(withdrawal_state()) -> session_id() | undefined.
 session_id(T) ->
@@ -1166,13 +1188,15 @@ session_result(Withdrawal) ->
 -spec session_processing_status(withdrawal_state()) ->
     undefined | pending | succeeded | failed.
 session_processing_status(Withdrawal) ->
-    session_processing_status_(route(Withdrawal), Withdrawal).
+    case routes(Withdrawal) of
+        undefined ->
+            undefined;
+        _ ->
+            session_processing_status_(Withdrawal)
+    end.
 
-session_processing_status_(undefined, _Withdrawal)->
-    %% No route - no session
-    undefined;
-session_processing_status_(#{provider_id := PrID}, Withdrawal)->
-    Session = ff_withdrawal_session_utils:get_session_by_provider_id(PrID, Withdrawal),
+session_processing_status_(Withdrawal) ->
+    Session = session(Withdrawal),
     case Session of
         undefined ->
             undefined;
@@ -1231,28 +1255,38 @@ validate_destination_status(Destination) ->
 
 %% Limit helpers
 
--spec limit_checks(withdrawal_state()) ->
-    [limit_check_details()].
-limit_checks(Withdrawal) ->
-    maps:get(limit_checks, Withdrawal, []).
-
 -spec add_limit_check(limit_check_details(), withdrawal_state()) ->
     withdrawal_state().
 add_limit_check(Check, Withdrawal) ->
-    Checks = limit_checks(Withdrawal),
-    Withdrawal#{limit_checks => [Check | Checks]}.
+    Checks =
+        case ff_withdrawal_route_utils:get_current_limit_checks(Withdrawal) of
+            undefined ->
+                [Check];
+            C ->
+                [Check | C]
+        end,
+    ff_withdrawal_route_utils:update_current_limit_checks(Checks, Withdrawal).
 
 -spec limit_check_status(withdrawal_state()) ->
     ok | {failed, limit_check_details()} | unknown.
-limit_check_status(#{limit_checks := Checks}) ->
+limit_check_status(Withdrawal) ->
+    case routes(Withdrawal) of
+        undefined ->
+            unknown;
+        _ ->
+            Checks = ff_withdrawal_route_utils:get_current_limit_checks(Withdrawal),
+            limit_check_status_(Checks)
+    end.
+
+limit_check_status_(undefined) ->
+    unknown;
+limit_check_status_(Checks) ->
     case lists:dropwhile(fun is_limit_check_ok/1, Checks) of
         [] ->
             ok;
         [H | _Tail] ->
             {failed, H}
-    end;
-limit_check_status(Withdrawal) when not is_map_key(limit_checks, Withdrawal) ->
-    unknown.
+    end.
 
 -spec limit_check_processing_status(withdrawal_state()) ->
     ok | failed | unknown.
@@ -1510,20 +1544,19 @@ apply_event_({resource_got, Resource}, T) ->
 apply_event_({limit_check, Details}, T) ->
     add_limit_check(Details, T);
 apply_event_({p_transfer, Ev}, T) ->
-    T#{
-        p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))
-    };
+    Tr = ff_postings_transfer:apply_event(Ev, p_transfer(T)),
+    ff_withdrawal_route_utils:update_current_p_transfer(Tr, T);
 apply_event_({session_started, SessionID}, T) ->
-    #{provider_id := ProviderID} = maps:get(route, T),
-    ff_withdrawal_session_utils:create_session(SessionID, ProviderID, T);
+    Session = #{id => SessionID},
+    ff_withdrawal_route_utils:update_current_session(Session, T);
 apply_event_({session_finished, {SessionID, Result}}, T) ->
-    Session = ff_withdrawal_session_utils:get_session(SessionID, T),
+    #{id := SessionID} = Session = ff_withdrawal_route_utils:get_current_session(T),
     UpdSession = Session#{result => Result},
-    ff_withdrawal_session_utils:update_session(UpdSession, T);
+    ff_withdrawal_route_utils:update_current_session(UpdSession, T);
 apply_event_({route_changed, Route}, T) ->
-    %% Route changed, drop stale data
-    T1 = maps:without([limit_checks, p_transfer], T),
-    maps:put(route, Route, T1);
+    #{provider_id := PrID} = Route,
+    T1 = maps:put(route, Route, T),
+    ff_withdrawal_route_utils:new_route(PrID, T1);
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
 

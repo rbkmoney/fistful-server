@@ -188,7 +188,9 @@ get_withdrawal_session_events_ok(C) ->
     DestID  = create_destination(IID, C),
     WdrID   = process_withdrawal(WalID, DestID),
 
-    {ok, #{model := #{sessions := [#{id := SessID}]}}} = ff_withdrawal_machine:get(WdrID),
+    {ok, St} = ff_withdrawal_machine:get(WdrID),
+    Withdrawal = ff_withdrawal_machine:withdrawal(St),
+    [#{id := SessID}] = ff_withdrawal:sessions(Withdrawal),
 
     {ok, RawEvents} = ff_withdrawal_session_machine:events(
         SessID,

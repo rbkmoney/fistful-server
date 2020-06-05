@@ -14,13 +14,27 @@
 -define(DEFAULT_ACCEPTORS_POOLSIZE, 100).
 -define(DEFAULT_IP_ADDR, "::").
 -define(DEFAULT_PORT, 8080).
+-define(RANCH_REF, ?MODULE).
 
 -spec child_spec(cowboy_router:routes(), logic_handlers(), swagger_handler_opts()) ->
     supervisor:child_spec().
 child_spec(HealthRoutes, LogicHandlers, SwaggerHandlerOpts) ->
     {Transport, TransportOpts} = get_socket_transport(),
     CowboyOpts = get_cowboy_config(HealthRoutes, LogicHandlers, SwaggerHandlerOpts),
-    ranch:child_spec(?MODULE, Transport, TransportOpts, cowboy_clear, CowboyOpts).
+    CowboyOpts1 = cowboy_access_log_h:set_extra_info_fun(mk_operation_id_getter(CowboyOpts), CowboyOpts),
+    GsTimeout = genlib_app:env(?APP, graceful_shutdown_timeout, 5000),
+    #{
+        id => ?MODULE,
+        type => supervisor,
+        start => {genlib_adhoc_supervisor, start_link, [
+            #{strategy => one_for_all},
+            [
+                ranch:child_spec(?RANCH_REF, Transport, TransportOpts, cowboy_clear, CowboyOpts1),
+                wapi_drainer:child_spec(#{ranch_ref => ?RANCH_REF, shutdown => GsTimeout})
+            ]
+        ]}
+    }.
+    % ranch:child_spec(?MODULE, Transport, TransportOpts, cowboy_clear, CowboyOpts).
 
 get_socket_transport() ->
     {ok, IP} = inet:parse_address(genlib_app:env(?APP, ip, ?DEFAULT_IP_ADDR)),

@@ -38,6 +38,7 @@
 -opaque routes() :: #{
     routes := #{provider_id() => route()},
     inversed_routes := [provider_id()],
+    index := non_neg_integer(),
     current => provider_id()
 }.
 
@@ -53,16 +54,19 @@
 -export([update_current_limit_checks/2]).
 
 -export([get_sessions/1]).
+-export([get_index/1]).
 
 -spec new_route(provider_id(), withdrawal_state()) ->
     withdrawal_state().
 new_route(PrID, Withdrawal) ->
     #{
         routes := Routes,
-        inversed_routes := InvRoutes
+        inversed_routes := InvRoutes,
+        index := Index
     } = ExRoutes = routes(Withdrawal),
     UpdRoutes = ExRoutes#{
         current => PrID,
+        index => Index + 1,
         inversed_routes => [PrID | InvRoutes],
         routes => Routes#{PrID => #{}}
     },
@@ -127,6 +131,11 @@ get_sessions(Withdrawal) ->
         InvRoutes
     ).
 
+-spec get_index(withdrawal_state()) -> non_neg_integer().
+get_index(Withdrawal) ->
+    #{index := Index} = routes(Withdrawal),
+    Index.
+
 %% Internal
 
 %% @private
@@ -162,5 +171,6 @@ routes(Withdrawal) ->
 init_routes() ->
     #{
         routes => #{},
-        inversed_routes => []
+        inversed_routes => [],
+        index => 0
     }.

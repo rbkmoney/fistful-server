@@ -238,7 +238,7 @@ created_v0_1_decoding_test() ->
         {arr, [
             {str, <<"map">>},
             {obj, #{
-                {str, <<"version">>} => {i, 2},
+                {str, <<"version">>} => {i, 1},
                 {str, <<"id">>} => {bin, <<"transfer">>},
                 {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
                 {str, <<"created_at">>} => {i, 1590426777985},

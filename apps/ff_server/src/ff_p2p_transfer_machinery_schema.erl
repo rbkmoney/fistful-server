@@ -18,9 +18,9 @@
 
 %% Internal types
 
--type t() :: machinery_mg_schema:t().
--type v(T) :: machinery_mg_schema:v(T).
--type vt() :: machinery_mg_schema:vt().
+-type type() :: machinery_mg_schema:t().
+-type value(T) :: machinery_mg_schema:v(T).
+-type value_type() :: machinery_mg_schema:vt().
 
 -type event()   :: ff_machine:timestamped_event(p2p_transfer:event()).
 -type aux_state() :: ff_machine:auxst().
@@ -35,14 +35,14 @@
 
 %% machinery_mg_schema callbacks
 
--spec get_version(vt()) ->
+-spec get_version(value_type()) ->
     machinery_mg_schema:version().
 get_version(event) ->
     ?CURRENT_EVENT_FORMAT_VERSION;
 get_version(aux_state) ->
     undefined.
 
--spec marshal(t(), v(data())) ->
+-spec marshal(type(), value(data())) ->
     machinery_msgpack:t().
 marshal({event, Format}, TimestampedChange) ->
     marshal_event(Format, TimestampedChange);
@@ -57,7 +57,7 @@ marshal(T, V) when
 ->
     machinery_mg_schema_generic:marshal(T, V).
 
--spec unmarshal(t(), machinery_msgpack:t()) ->
+-spec unmarshal(type(), machinery_msgpack:t()) ->
     data().
 unmarshal({event, FormatVersion}, EncodedChange) ->
     unmarshal_event(FormatVersion, EncodedChange);

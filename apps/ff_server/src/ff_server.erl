@@ -189,7 +189,7 @@ get_eventsink_handler(Name, Service, Publisher, Config) ->
             NS = maps:get(namespace, Opts),
             StartEvent = maps:get(start_event, Opts, 0),
             FullConfig = Config#{
-                ns => NS,
+                ns => erlang:atom_to_binary(NS, utf8),
                 publisher => Publisher,
                 start_event => StartEvent,
                 schema => get_namespace_schema(NS)
@@ -199,8 +199,6 @@ get_eventsink_handler(Name, Service, Publisher, Config) ->
             erlang:error({unknown_eventsink, Name, Sinks})
     end.
 
-get_namespace_schema(NS) when is_binary(NS) ->
-    get_namespace_schema(erlang:binary_to_existing_atom(NS, utf8));
 get_namespace_schema('ff/identity') ->
     machinery_mg_schema_generic;
 get_namespace_schema('ff/wallet_v2') ->

@@ -8,6 +8,7 @@
 
 -export([create/1]).
 -export([set_blocking/2]).
+-export([create_transfer/2]).
 
 %% Accessors
 
@@ -97,6 +98,18 @@
     {identity, notfound} |
     {terms, ff_party:validate_p2p_template_creation_error()}.
 
+-type transfer_params() :: #{
+    id := id(),
+    body := body(),
+    sender := participant(),
+    receiver := participant(),
+    context := ctx(),
+    quote => quote(),
+    client_info => p2p_transfer:client_info(),
+    deadline => deadline(),
+    metadata => metadata()
+}.
+
 -export_type([event/0]).
 -export_type([params/0]).
 -export_type([template/0]).
@@ -104,6 +117,7 @@
 -export_type([blocking/0]).
 -export_type([create_error/0]).
 -export_type([template_cash/0]).
+-export_type([transfer_params/0]).
 
 %%
 %% Internal types
@@ -116,6 +130,10 @@
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
 -type process_result() :: {undefined, [event()]}.
+-type quote() :: p2p_quote:quote().
+-type participant() :: p2p_participant:participant().
+-type deadline() :: p2p_session:deadline().
+-type ctx() :: ff_entity_context:context().
 
 %% Pipeline
 
@@ -225,6 +243,45 @@ set_blocking(Blocking, #{blocking := Blocking}) ->
     {ok, {undefined, []}};
 set_blocking(Blocking, _State) ->
     {ok, {undefined, [{blocking_changed, Blocking}]}}.
+
+-spec create_transfer(transfer_params(), template_state()) ->
+    {ok | {error, p2p_transfer:create_error() | exists}, process_result()}.
+create_transfer(Params = #{
+    id := ID,
+    body := Body,
+    sender := Sender,
+    receiver := Receiver,
+    context := Context
+}, Template) ->
+    Quote = maps:get(quote, Params, undefined),
+    ClientInfo = maps:get(client_info, Params, undefined),
+    Deadline = maps:get(deadline, Params, undefined),
+    TransferMeta = maps:get(metadata, Params, undefined),
+    CreateTransferParams = genlib_map:compact(#{
+        id => ID,
+        identity_id => identity_id(Template),
+        body => Body,
+        sender => Sender,
+        receiver => Receiver,
+        quote => Quote,
+        client_info => ClientInfo,
+        deadline => Deadline,
+        metadata => merge_metadata(TransferMeta, template_metadata(Template))
+    }),
+    Result = p2p_transfer_machine:create(
+        CreateTransferParams,
+        Context
+    ),
+    {Result, {undefined, []}}.
+
+merge_metadata(undefined, undefined) ->
+    undefined;
+merge_metadata(undefined, TemplateMeta) ->
+    TemplateMeta;
+merge_metadata(TransferMeta, undefined) ->
+    TransferMeta;
+merge_metadata(TransferMeta, TemplateMeta) ->
+    maps:merge(TransferMeta, TemplateMeta).
 
 create_party_varset(#{body := #{value := Body}}) ->
     {Amount, Currency} = template_body_to_cash(Body),

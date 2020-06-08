@@ -845,11 +845,11 @@ issue_p2p_template_access_token(ID, Expiration, Context) ->
         expired |
         p2p_template_machine:unknown_p2p_template_error()
 }.
-issue_p2p_transfer_ticket(ID, Expiration, Context) ->
+issue_p2p_transfer_ticket(ID, Expiration, Context = #{woody_context := WoodyCtx}) ->
     do(fun () ->
         PartyID = wapi_handler_utils:get_owner(Context),
-        Key  = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID),
-        {ok, TransferID} = bender_client:gen_by_snowflake(Key, 0, Context),
+        Key  = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID, undefined),
+        {ok, TransferID} = bender_client:gen_by_snowflake(Key, 0, WoodyCtx),
         Data = #{<<"transferID">> => TransferID},
         unwrap(wapi_backend_utils:issue_grant_token({p2p_template_transfers, ID, Data}, Expiration, Context))
     end).
@@ -869,10 +869,19 @@ create_p2p_transfer_with_template(ID, Params, Context) ->
     do(fun () ->
         {_, _, Claims} = wapi_handler_utils:get_auth_context(Context),
         Data = maps:get(<<"data">>, Claims),
-        DataMap = maps:with([<<"transferID">>], Data),
-        Template = p2p_template_machine:p2p_template(unwrap(p2p_template, p2p_template_machine:get(ID))),
-        P2PTransferParams = make_p2p_transfer_params(maps:merge(Params, DataMap), Template),
-        unwrap(create_p2p_transfer(P2PTransferParams, Context))
+        TransferID = maps:get(<<"transferID">>, Data),
+        ParsedParams = unwrap(maybe_add_p2p_quote_token(
+            from_swag(create_p2p_with_template_params, Params)
+        )),
+        SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
+        ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
+        Result = p2p_template_machine:create_transfer(ID, ParsedParams#{
+            id => TransferID,
+            sender => {raw, #{resource_params => SenderResource}},
+            receiver => {raw, #{resource_params => ReceiverResource}},
+            context => make_ctx(Context)
+        }),
+        handle_create_entity_result(Result, p2p_transfer, TransferID, Context)
     end).
 
 %% W2W
@@ -1151,23 +1160,6 @@ decode_p2p_transfer_event_continuation_token(CT) ->
                 {error, {token, {unsupported_version, UnsupportedVersion}}}
         end
     end).
-
-make_p2p_transfer_params(Params, Template) ->
-    TemplateMeta = p2p_template:template_metadata(Template),
-    TransferMeta = maps:get(<<"metadata">>, Params, undefined),
-    genlib_map:compact(Params#{
-        <<"identityID">> => p2p_template:identity_id(Template),
-        <<"metadata">> => merge_p2p_template_metadata(TransferMeta, TemplateMeta)
-    }).
-
-merge_p2p_template_metadata(undefined, undefined) ->
-    undefined;
-merge_p2p_template_metadata(undefined, TemplateMeta) ->
-    TemplateMeta;
-merge_p2p_template_metadata(TransferMeta, undefined) ->
-    TransferMeta;
-merge_p2p_template_metadata(TransferMeta, TemplateMeta) ->
-    maps:merge(TransferMeta, TemplateMeta).
 
 -spec mix_events(list(p2p_transfer_machine:events() | p2p_session_machine:events())) ->
     [{id(), ff_machine:timestamped_event(p2p_transfer:event() | p2p_session:event())}].
@@ -1693,6 +1685,15 @@ from_swag(create_p2p_params, Params) ->
         quote_token => maps:get(<<"quoteToken">>, Params, undefined),
         metadata    => maps:get(<<"metadata">>, Params, #{})
     }, Params);
+
+from_swag(create_p2p_with_template_params, Params) ->
+    #{
+        sender      => maps:get(<<"sender">>, Params),
+        receiver    => maps:get(<<"receiver">>, Params),
+        body        => from_swag(body, maps:get(<<"body">>, Params)),
+        quote_token => maps:get(<<"quoteToken">>, Params, undefined),
+        metadata    => maps:get(<<"metadata">>, Params, #{})
+    };
 
 from_swag(p2p_template_create_params, Params) ->
     add_external_id(#{

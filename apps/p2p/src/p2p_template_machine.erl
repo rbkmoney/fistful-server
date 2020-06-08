@@ -11,6 +11,7 @@
 
 -export([p2p_template/1]).
 
+-export([create_transfer/2]).
 -export([set_blocking/2]).
 -export([create/2]).
 -export([get/1]).
@@ -93,6 +94,15 @@ p2p_template(St) ->
 
 %%
 
+-spec create_transfer(id(), p2p_template:transfer_params()) ->
+    ok | {error,
+        unknown_p2p_template_error() |
+        p2p_transfer:create_error() |
+        exists
+}.
+create_transfer(ID, Params) ->
+    call(ID, {create_transfer, Params}).
+
 -spec set_blocking(id(), blocking()) ->
     ok | {error, unknown_p2p_template_error()}.
 set_blocking(ID, Blocking) ->
@@ -143,6 +153,8 @@ process_timeout(Machine, _, _Opts) ->
     {Response, result()} | no_return() when
     Response :: ok.
 
+process_call({create_transfer, Params}, Machine, _, _Opts) ->
+    do_create_transfer(Params, Machine);
 process_call({set_blocking, Blocking}, Machine, _, _Opts) ->
     do_set_blocking(Blocking, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
@@ -157,6 +169,11 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
 %%
 %% Internals
 %%
+
+do_create_transfer(Params, Machine) ->
+    St = ff_machine:collapse(p2p_template, Machine),
+    {CreateResult, Result} = p2p_template:create_transfer(Params, p2p_template(St)),
+    {CreateResult, process_result(Result, St)}.
 
 do_set_blocking(Blocking, Machine) ->
     St = ff_machine:collapse(p2p_template, Machine),

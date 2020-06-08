@@ -808,20 +808,6 @@ validate_w2w_allow(W2WServiceTerms) ->
             {error, {terms_violation, w2w_forbidden}}
     end.
 
--spec validate_p2p_template_allow(p2p_terms(), hg_selector:varset()) ->
-    {ok, valid} | {error, p2p_template_forbidden_error()}.
-validate_p2p_template_allow(P2PServiceTerms, VS) ->
-    #domain_P2PServiceTerms{templates = P2PTemplateServiceTerms} = P2PServiceTerms,
-    #domain_P2PTemplateServiceTerms{allow = Selector} = P2PTemplateServiceTerms,
-    case hg_selector:reduce_predicate(Selector, VS) of
-        {constant, true} ->
-            {ok, valid};
-        {constant, false} ->
-            {error, {terms_violation, p2p_template_forbidden}};
-        _ ->
-            {error, {misconfiguration, {'Can\'t reduce selector to value', Selector, VS}}}
-    end.
-
 -spec validate_currency(currency_id(), ordsets:ordset(currency_ref())) ->
     {ok, valid} | {error, currency_validation_error()}.
 validate_currency(CurrencyID, Currencies) ->

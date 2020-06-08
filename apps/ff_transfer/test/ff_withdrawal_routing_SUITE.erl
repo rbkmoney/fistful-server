@@ -34,6 +34,7 @@
 %% Tests
 
 -export([adapter_unreachable_route_test/1]).
+-export([adapter_unreachable_quote_test/1]).
 
 %% Internal types
 
@@ -65,7 +66,8 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            adapter_unreachable_route_test
+            adapter_unreachable_route_test,
+            adapter_unreachable_quote_test
         ]}
     ].
 
@@ -127,6 +129,38 @@ adapter_unreachable_route_test(C) ->
     ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
     ?assertEqual(Cash, ff_withdrawal:body(Withdrawal)),
     ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)).
+
+-spec adapter_unreachable_quote_test(config()) -> test_return().
+adapter_unreachable_quote_test(C) ->
+    Currency = <<"RUB">>,
+    Cash = {100500, Currency},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID,
+        quote => #{
+            cash_from   => Cash,
+            cash_to     => {2120, <<"USD">>},
+            created_at  => <<"2020-03-22T06:12:27Z">>,
+            expires_on  => <<"2020-03-22T06:12:27Z">>,
+            quote_data  => #{
+                <<"version">> => 1,
+                <<"quote_data">> => #{<<"test">> => <<"test">>},
+                <<"provider_id">> => 4
+            }
+        }
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    ?assertEqual(
+        {failed,#{code => <<"authorization_error">>}},
+        await_final_withdrawal_status(WithdrawalID)).
 
 %% Utils
 

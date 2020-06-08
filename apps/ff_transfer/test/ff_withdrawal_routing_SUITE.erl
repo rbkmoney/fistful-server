@@ -159,7 +159,7 @@ adapter_unreachable_quote_test(C) ->
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(
-        {failed,#{code => <<"authorization_error">>}},
+        {failed, #{code => <<"authorization_error">>}},
         await_final_withdrawal_status(WithdrawalID)).
 
 %% Utils

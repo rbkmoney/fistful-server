@@ -77,8 +77,7 @@
     {destination_resource, {bin_data, not_found}}.
 
 -type route() :: #{
-    provider_id := provider_id(),
-    pending_providers => [provider_id()]
+    provider_id := provider_id()
 }.
 
 -type routes() :: ff_withdrawal_route_utils:routes().
@@ -540,12 +539,6 @@ route_selection_status(Withdrawal) ->
             found
     end.
 
--spec has_pending_routes(withdrawal_state()) -> boolean().
-
-has_pending_routes(Withdrawal) ->
-    Route = route(Withdrawal),
-    [] =/= maps:get(pending_providers, Route, []).
-
 -spec adjustments_index(withdrawal_state()) -> adjustments_index().
 adjustments_index(Withdrawal) ->
     case maps:find(adjustments, Withdrawal) of
@@ -671,12 +664,13 @@ do_process_transfer(session_starting, Withdrawal) ->
 do_process_transfer(session_polling, Withdrawal) ->
     process_session_poll(Withdrawal);
 do_process_transfer({fail, Reason}, Withdrawal) ->
-    case has_pending_routes(Withdrawal) of
-        false ->
-            process_transfer_fail(Reason, Withdrawal);
-        true ->
-            {_, [FailEvent]} = process_transfer_fail(Reason, Withdrawal),
-            {continue, [FailEvent | process_route_change(Withdrawal)]}
+    case do_process_routing(Withdrawal) of
+        {ok, Providers} ->
+            process_route_change(Providers, Withdrawal, Reason);
+        {error, _FailType} ->
+            %% No more routes or inconcistent route found
+            %% Return Reason for backward compatibility
+            process_transfer_fail(Reason, Withdrawal)
     end;
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
@@ -689,9 +683,9 @@ do_process_transfer(stop, _Withdrawal) ->
     process_result().
 process_routing(Withdrawal) ->
     case do_process_routing(Withdrawal) of
-        {ok, [ProviderID | Providers]} ->
+        {ok, [ProviderID | _]} ->
             {continue, [
-                {route_changed, #{provider_id => ProviderID, pending_providers => Providers}}
+                {route_changed, #{provider_id => ProviderID}}
             ]};
         {error, route_not_found} ->
             process_transfer_fail(route_not_found, Withdrawal);
@@ -1455,15 +1449,22 @@ process_adjustment(Withdrawal) ->
     Events1 = Events0 ++ handle_adjustment_changes(Changes),
     handle_child_result({Action, Events1}, Withdrawal).
 
--spec process_route_change(withdrawal_state()) ->
-    [event()].
-process_route_change(Withdrawal) ->
-    Route = route(Withdrawal),
-    [New | Rest] = maps:get(pending_providers, Route),
-    [
-        {route_changed, #{provider_id => New, pending_providers => Rest}},
-        {status_changed, pending}
-    ].
+-spec process_route_change([provider_id()], withdrawal_state(), fail_type()) ->
+    process_result().
+process_route_change(Providers, Withdrawal, Reason) ->
+    case ff_withdrawal_route_utils:next_route(Providers, Withdrawal) of
+        {ok, Route} ->
+            {_, [FailEvent]} = process_transfer_fail(Reason, Withdrawal),
+            {continue, [
+                FailEvent,
+                {route_changed, Route},
+                {status_changed, pending}
+            ]};
+        {error, route_not_found} ->
+            %% No more routes, return last error
+            %% Backward compatibility
+            process_transfer_fail(Reason, Withdrawal)
+    end.
 
 -spec handle_adjustment_changes(ff_adjustment:changes()) ->
     [event()].

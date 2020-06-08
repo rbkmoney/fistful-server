@@ -22,21 +22,21 @@
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type limit_check_details() :: ff_withdrawal:limit_check_details().
 -type account()  :: ff_account:account().
-
+-type route() :: ff_withdrawal:route().
 -type result() :: ff_withdrawal_session:session_result().
 -type session() :: #{
     id := id(),
     result => result()
 }.
 
--type route() :: #{
+-type route_data() :: #{
     session => session(),
     p_transfer => p_transfer(),
     limit_checks => [limit_check_details()]
 }.
 
 -opaque routes() :: #{
-    routes := #{provider_id() => route()},
+    routes := #{provider_id() => route_data()},
     inversed_routes := [provider_id()],
     index := non_neg_integer(),
     current => provider_id()
@@ -46,6 +46,7 @@
 
 %% API
 -export([new_route/2]).
+-export([next_route/2]).
 -export([get_current_session/1]).
 -export([get_current_p_transfer/1]).
 -export([get_current_limit_checks/1]).
@@ -71,6 +72,23 @@ new_route(PrID, Withdrawal) ->
         routes => Routes#{PrID => #{}}
     },
     ff_withdrawal:update_routes(UpdRoutes, Withdrawal).
+
+-spec next_route([provider_id()], withdrawal_state()) -> {ok, route()} | {error, route_not_found}.
+next_route(Providers, Withdraval) ->
+    #{inversed_routes := ExRoutes} = routes(Withdraval),
+    PendingProviders =
+        lists:filter(
+            fun(ID) ->
+                not lists:member(ID, ExRoutes)
+            end,
+            Providers
+        ),
+    case PendingProviders of
+        [ProviderID | _] ->
+            {ok, #{provider_id => ProviderID}};
+        [] ->
+            {error, route_not_found}
+    end.
 
 -spec get_current_session(withdrawal_state()) ->  undefined | session().
 get_current_session(Withdrawal) ->

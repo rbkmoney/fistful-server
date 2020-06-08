@@ -865,23 +865,31 @@ issue_p2p_transfer_ticket(ID, Expiration, Context = #{woody_context := WoodyCtx}
         {not_verified, identity_mismatch}
     }
 ).
-create_p2p_transfer_with_template(ID, Params, Context) ->
+create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := WoodyCtx}) ->
     do(fun () ->
         {_, _, Claims} = wapi_handler_utils:get_auth_context(Context),
         Data = maps:get(<<"data">>, Claims),
         TransferID = maps:get(<<"transferID">>, Data),
-        ParsedParams = unwrap(maybe_add_p2p_quote_token(
-            from_swag(create_p2p_with_template_params, Params)
-        )),
-        SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
-        ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
-        Result = p2p_template_machine:create_transfer(ID, ParsedParams#{
-            id => TransferID,
-            sender => {raw, #{resource_params => SenderResource}},
-            receiver => {raw, #{resource_params => ReceiverResource}},
-            context => make_ctx(Context)
-        }),
-        handle_create_entity_result(Result, p2p_transfer, TransferID, Context)
+        PartyID = wapi_handler_utils:get_owner(Context),
+        Hash = erlang:phash2(Params),
+        IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer, PartyID, TransferID),
+        case bender_client:gen_by_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
+            {ok, TransferID} ->
+                ParsedParams = unwrap(maybe_add_p2p_quote_token(
+                    from_swag(create_p2p_with_template_params, Params)
+                )),
+                SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
+                ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
+                Result = p2p_template_machine:create_transfer(ID, ParsedParams#{
+                    id => TransferID,
+                    sender => {raw, #{resource_params => SenderResource}},
+                    receiver => {raw, #{resource_params => ReceiverResource}},
+                    context => make_ctx(Context)
+                }),
+                unwrap(handle_create_entity_result(Result, p2p_transfer, TransferID, Context));
+            {error, {external_id_conflict, ConflictID}} ->
+                throw({external_id_conflict, TransferID, ConflictID})
+        end
     end).
 
 %% W2W

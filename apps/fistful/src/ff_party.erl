@@ -360,9 +360,7 @@ validate_p2p_template_creation(_Terms, {Amount, _Currency} = Cash) when is_integ
     {error, {bad_p2p_template_amount, Cash}};
 validate_p2p_template_creation(Terms, {_Amount, _CurrencyID} = _Cash) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
-    do(fun () ->
-        validate_p2p_template_terms_is_reduced(WalletTerms)
-    end).
+    validate_p2p_template_terms_is_reduced(WalletTerms).
 
 -spec get_withdrawal_cash_flow_plan(terms()) ->
     {ok, ff_cash_flow:cash_flow_plan()} | {error, _Error}.

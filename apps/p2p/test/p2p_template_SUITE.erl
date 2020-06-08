@@ -14,6 +14,7 @@
 -export([end_per_testcase/2]).
 
 %% Tests
+-export([create_transfer_test/1]).
 -export([block_template_test/1]).
 -export([bad_template_amount_test/1]).
 -export([identity_not_found_test/1]).
@@ -44,6 +45,7 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
+            create_transfer_test,
             block_template_test,
             bad_template_amount_test,
             identity_not_found_test,
@@ -91,6 +93,42 @@ end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
 %% Tests
+
+-spec create_transfer_test(config()) -> test_return().
+create_transfer_test(C) ->
+    Cash = {100, <<"RUB">>},
+    #{
+        identity_id := IdentityID
+    } = prepare_standard_environment(C),
+    P2PTemplateID = generate_id(),
+    Details = make_template_details(Cash),
+    P2PTemplateParams = #{
+        id => P2PTemplateID,
+        identity_id => IdentityID,
+        details => Details,
+        external_id => P2PTemplateID
+    },
+    ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
+    _P2PTemplate = get_p2p_template(P2PTemplateID),
+    P2PTransferID = generate_id(),
+    ClientInfo = #{
+        ip_address => <<"some ip_address">>,
+        fingerprint => <<"some fingerprint">>
+    },
+    #{
+        sender := ResourceSender,
+        receiver := ResourceReceiver
+    } = p2p_tests_utils:prepare_standard_environment(Cash, C),
+    P2PTransferParams = #{
+        id => P2PTransferID,
+        body => {500, <<"RUB">>},
+        sender => ResourceSender,
+        receiver => ResourceReceiver,
+        context => #{},
+        client_info => ClientInfo
+    },
+    ok = p2p_template_machine:create_transfer(P2PTemplateID, P2PTransferParams),
+    {ok, _Machine} = p2p_transfer_machine:get(P2PTransferID).
 
 -spec block_template_test(config()) -> test_return().
 block_template_test(C) ->

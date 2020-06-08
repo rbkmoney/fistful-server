@@ -102,7 +102,7 @@ init_per_group(Group, Config) when Group =:= base ->
     ],
     {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, {deadline, 10}, ?DOMAIN),
     Config1 = [{party, Party} | Config],
-    [{context, wapi_ct_helper:get_context(Token)} | Config1];
+    [{context, wapi_ct_helper:get_context(Token)}, {token, Token} | Config1];
 init_per_group(_, Config) ->
     Config.
 
@@ -132,60 +132,32 @@ end_per_testcase(_Name, C) ->
     _.
 shutdown_test(C) ->
     PartyID = ?config(party, C),
-    Context = ct_helper:cfg(context, C),
+    Token = ?config(token, C),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun('Get', _) -> ok = timer:sleep(2000), {ok, ?IDENTITY(PartyID)} end},
         {fistful_wallet, fun('Create', _) -> {ok, ?WALLET(PartyID)} end}
     ], C),
-    {ok, _} = call_api(
-        fun swag_client_wallet_wallets_api:create_wallet/3,
-        #{
-            body => #{
-                <<"name">> => ?STRING,
-                <<"identity">> => ?STRING,
-                <<"currency">> => ?RUB,
-                <<"metadata">> => #{
-                    <<"somedata">> => ?STRING
-                }
-            }
-        },
-        Context
-    ),
-    ok = spawn_workers(Context, self(), ?NUMBER_OF_WORKERS),
+    ok = spawn_workers(Token, self(), ?NUMBER_OF_WORKERS),
     ok = timer:sleep(1000),
     ok = application:stop(wapi),
     ok = receive_loop(fun(Result) -> {ok, _} = Result end, ?NUMBER_OF_WORKERS, timer:seconds(20)),
-    ok = spawn_workers(Context, self(), ?NUMBER_OF_WORKERS),
+    ok = spawn_workers(Token, self(), ?NUMBER_OF_WORKERS),
     ok = receive_loop(fun(Result) -> {error, econnrefused} = Result end, ?NUMBER_OF_WORKERS, timer:seconds(20)).
 
 -spec request_interrupt_test(config()) ->
     _.
 request_interrupt_test(C) ->
     PartyID = ?config(party, C),
-    Context = ct_helper:cfg(context, C),
+    Token = ?config(token, C),
     wapi_ct_helper:mock_services([
-        {fistful_identity, fun('Get', _) -> ok = timer:sleep(2000), {ok, ?IDENTITY(PartyID)} end},
+        {fistful_identity, fun('Get', _) -> ok = timer:sleep(20000), {ok, ?IDENTITY(PartyID)} end},
         {fistful_wallet, fun('Create', _) -> {ok, ?WALLET(PartyID)} end}
     ], C),
-    {ok, _} = call_api(
-        fun swag_client_wallet_wallets_api:create_wallet/3,
-        #{
-            body => #{
-                <<"name">> => ?STRING,
-                <<"identity">> => ?STRING,
-                <<"currency">> => ?RUB,
-                <<"metadata">> => #{
-                    <<"somedata">> => ?STRING
-                }
-            }
-        },
-        Context
-    ),
-    ok = spawn_workers(Context, self(), ?NUMBER_OF_WORKERS),
+    ok = spawn_workers(Token, self(), ?NUMBER_OF_WORKERS),
     ok = timer:sleep(1000),
     ok = application:stop(wapi),
     ok = receive_loop(fun({error, closed}) -> ok end, ?NUMBER_OF_WORKERS, timer:seconds(20)),
-    ok = spawn_workers(Context, self(), ?NUMBER_OF_WORKERS),
+    ok = spawn_workers(Token, self(), ?NUMBER_OF_WORKERS),
     ok = receive_loop(fun(Result) -> {error, econnrefused} = Result end, ?NUMBER_OF_WORKERS, timer:seconds(20)).
 
 %%
@@ -203,11 +175,12 @@ receive_loop(MatchFun, N, Timeout) ->
 
 spawn_workers(_, _, N) when N =< 0 ->
     ok;
-spawn_workers(Context, ParentPID, N) ->
-    erlang:spawn_link(fun() -> worker(Context, ParentPID) end),
-    spawn_workers(Context, ParentPID, N - 1).
+spawn_workers(Token, ParentPID, N) ->
+    erlang:spawn_link(fun() -> worker(Token, ParentPID) end),
+    spawn_workers(Token, ParentPID, N - 1).
 
-worker(Context, ParentPID) ->
+worker(Token, ParentPID) ->
+    Context = get_context(Token),
     Result = call_api(
         fun swag_client_wallet_wallets_api:create_wallet/3,
         #{
@@ -224,8 +197,12 @@ worker(Context, ParentPID) ->
     ),
     ParentPID ! {result, Result}.
 
-% build_deadline(CurrentSeconds) ->
-%     genlib_rfc3339:format_relaxed(genlib_time:add_hours(CurrentSeconds, 1), second).
+get_context(Token) ->
+    Deadline = build_deadline(genlib_time:now()),
+    wapi_ct_helper:get_context(Token, Deadline).
+
+build_deadline(CurrentSeconds) ->
+    genlib_rfc3339:format_relaxed(genlib_time:add_hours(CurrentSeconds, 1), second).
 
 %%
 

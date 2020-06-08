@@ -17,7 +17,7 @@
 handle_function('Repair', [ID, Scenario], _Opts) ->
     DecodedScenario = ff_w2w_transfer_codec:unmarshal(repair_scenario, Scenario),
     case w2w_transfer_machine:repair(ID, DecodedScenario) of
-        ok ->
+        {ok, _Response} ->
             {ok, ok};
         {error, notfound} ->
             woody_error:raise(business, #fistful_W2WNotFound{});

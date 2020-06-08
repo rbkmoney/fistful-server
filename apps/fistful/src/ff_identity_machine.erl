@@ -31,9 +31,14 @@
     {challenge, {pending, challenge_id()}} |
     {challenge, ff_identity:start_challenge_error()}.
 
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
+
 -export_type([id/0]).
 -export_type([challenge_params/0]).
 -export_type([params/0]).
+-export_type([repair_error/0]).
+-export_type([repair_response/0]).
 
 -export([create/2]).
 -export([get/1]).
@@ -191,7 +196,7 @@ process_call({start_challenge, Params}, Machine, _Args, _Opts) ->
     end.
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, repair_error()}.
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_identity, Machine, Scenario).

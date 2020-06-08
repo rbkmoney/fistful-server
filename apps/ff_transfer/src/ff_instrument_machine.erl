@@ -15,8 +15,13 @@
 -type st(T) ::
     ff_machine:st(instrument(T)).
 
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
+
 -export_type([id/0]).
 -export_type([st/1]).
+-export_type([repair_error/0]).
+-export_type([repair_response/0]).
 -export_type([events/1]).
 -export_type([params/1]).
 
@@ -133,7 +138,7 @@ process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, repair_error()}.
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_instrument, Machine, Scenario).

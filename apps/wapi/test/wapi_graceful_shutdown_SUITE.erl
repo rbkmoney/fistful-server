@@ -184,7 +184,7 @@ request_interrupt_test(C) ->
     ok = spawn_workers(Context, self(), ?NUMBER_OF_WORKERS),
     ok = timer:sleep(1000),
     ok = application:stop(wapi),
-    ok = receive_loop(fun(Result) -> {ok, _} = Result end, ?NUMBER_OF_WORKERS, timer:seconds(20)),
+    ok = receive_loop(fun({error, closed}) -> ok end, ?NUMBER_OF_WORKERS, timer:seconds(20)),
     ok = spawn_workers(Context, self(), ?NUMBER_OF_WORKERS),
     ok = receive_loop(fun(Result) -> {error, econnrefused} = Result end, ?NUMBER_OF_WORKERS, timer:seconds(20)).
 

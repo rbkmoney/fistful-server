@@ -665,13 +665,8 @@ do_process_transfer(session_starting, Withdrawal) ->
 do_process_transfer(session_polling, Withdrawal) ->
     process_session_poll(Withdrawal);
 do_process_transfer({fail, Reason}, Withdrawal) ->
-    case do_process_routing(Withdrawal) of
-        {ok, Providers} ->
-            process_route_change(Providers, Withdrawal, Reason);
-        {error, _FailType} ->
-            %% No more routes or inconcistent route found
-            process_transfer_fail(Reason, Withdrawal)
-    end;
+    {ok, Providers} = do_process_routing(Withdrawal),
+    process_route_change(Providers, Withdrawal, Reason);
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
 do_process_transfer(adjustment, Withdrawal) ->

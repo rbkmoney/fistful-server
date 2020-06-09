@@ -80,7 +80,7 @@
     provider_id := provider_id()
 }.
 
--type attempts() :: ff_withdrawal_attempt_utils:attempts().
+-type attempts() :: ff_withdrawal_route_attempt_utils:attempts().
 
 -type prepared_route() :: #{
     route := route(),
@@ -409,7 +409,7 @@ create(Params) ->
             destination_id => DestinationID,
             quote => Quote
         }),
-        Attempts = ff_withdrawal_attempt_utils:init(),
+        Attempts = ff_withdrawal_route_attempt_utils:init(),
         [
             {created, genlib_map:compact(#{
                 version         => ?ACTUAL_FORMAT_VERSION,
@@ -461,7 +461,7 @@ effective_final_cash_flow(Withdrawal) ->
 
 -spec sessions(withdrawal_state()) -> [session()].
 sessions(Withdrawal) ->
-    ff_withdrawal_attempt_utils:get_sessions(attempts(Withdrawal)).
+    ff_withdrawal_route_attempt_utils:get_sessions(attempts(Withdrawal)).
 
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(withdrawal_state()) -> boolean().
@@ -512,7 +512,7 @@ params(#{params := V}) ->
 
 -spec p_transfer(withdrawal_state()) -> p_transfer() | undefined.
 p_transfer(Withdrawal) ->
-    ff_withdrawal_attempt_utils:get_current_p_transfer(attempts(Withdrawal)).
+    ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)).
 
 -spec p_transfer_status(withdrawal_state()) -> ff_postings_transfer:status() | undefined.
 p_transfer_status(Withdrawal) ->
@@ -647,15 +647,15 @@ do_process_transfer(routing, Withdrawal) ->
 do_process_transfer(p_transfer_start, Withdrawal) ->
     process_p_transfer_creation(Withdrawal);
 do_process_transfer(p_transfer_prepare, Withdrawal) ->
-    Tr = ff_withdrawal_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
+    Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
     {ok, Events} = ff_postings_transfer:prepare(Tr),
     {continue, [{p_transfer, Ev} || Ev <- Events]};
 do_process_transfer(p_transfer_commit, Withdrawal) ->
-    Tr = ff_withdrawal_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
+    Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
     {ok, Events} = ff_postings_transfer:commit(Tr),
     {continue, [{p_transfer, Ev} || Ev <- Events]};
 do_process_transfer(p_transfer_cancel, Withdrawal) ->
-    Tr = ff_withdrawal_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
+    Tr = ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
     {ok, Events} = ff_postings_transfer:cancel(Tr),
     {continue, [{p_transfer, Ev} || Ev <- Events]};
 do_process_transfer(limit_check, Withdrawal) ->
@@ -847,14 +847,14 @@ process_session_creation(Withdrawal) ->
 -spec construct_session_id(withdrawal_state()) -> id().
 construct_session_id(Withdrawal) ->
     ID = id(Withdrawal),
-    Index = ff_withdrawal_attempt_utils:get_index(attempts(Withdrawal)),
+    Index = ff_withdrawal_route_attempt_utils:get_index(attempts(Withdrawal)),
     SubID = integer_to_binary(Index),
     << ID/binary, "/", SubID/binary >>.
 
 -spec construct_p_transfer_id(withdrawal_state()) -> id().
 construct_p_transfer_id(Withdrawal) ->
     ID = id(Withdrawal),
-    Index = ff_withdrawal_attempt_utils:get_index(attempts(Withdrawal)),
+    Index = ff_withdrawal_route_attempt_utils:get_index(attempts(Withdrawal)),
     SubID = integer_to_binary(Index),
     <<"ff/withdrawal/", ID/binary, "/", SubID/binary >>.
 
@@ -1154,7 +1154,7 @@ quote_domain_revision(#{quote_data := QuoteData}) ->
 
 -spec session(withdrawal_state()) -> session() | undefined.
 session(Withdrawal) ->
-    ff_withdrawal_attempt_utils:get_current_session(attempts(Withdrawal)).
+    ff_withdrawal_route_attempt_utils:get_current_session(attempts(Withdrawal)).
 
 -spec session_id(withdrawal_state()) -> session_id() | undefined.
 session_id(T) ->
@@ -1251,20 +1251,20 @@ validate_destination_status(Destination) ->
 add_limit_check(Check, Withdrawal) ->
     Attempts = attempts(Withdrawal),
     Checks =
-        case ff_withdrawal_attempt_utils:get_current_limit_checks(Attempts) of
+        case ff_withdrawal_route_attempt_utils:get_current_limit_checks(Attempts) of
             undefined ->
                 [Check];
             C ->
                 [Check | C]
         end,
-    R = ff_withdrawal_attempt_utils:update_current_limit_checks(Checks, Attempts),
+    R = ff_withdrawal_route_attempt_utils:update_current_limit_checks(Checks, Attempts),
     update_attempts(R, Withdrawal).
 
 -spec limit_check_status(withdrawal_state()) ->
     ok | {failed, limit_check_details()} | unknown.
 limit_check_status(Withdrawal) ->
     Attempts = attempts(Withdrawal),
-    Checks = ff_withdrawal_attempt_utils:get_current_limit_checks(Attempts),
+    Checks = ff_withdrawal_route_attempt_utils:get_current_limit_checks(Attempts),
     limit_check_status_(Checks).
 
 limit_check_status_(undefined) ->
@@ -1446,7 +1446,9 @@ process_adjustment(Withdrawal) ->
     process_result().
 process_route_change(Providers, Withdrawal, Reason) ->
     Attempts = attempts(Withdrawal),
-    case ff_withdrawal_attempt_utils:next_route(Providers, Attempts) of
+    %% TODO Remove line below after switch to [route()] from [provider_id()]
+    Routes = [#{provider_id => ID} || ID <- Providers],
+    case ff_withdrawal_route_attempt_utils:next_route(Routes, Attempts) of
         {ok, Route} ->
             {continue, [
                 {route_changed, Route},
@@ -1540,24 +1542,23 @@ apply_event_({limit_check, Details}, T) ->
 apply_event_({p_transfer, Ev}, T) ->
     Tr = ff_postings_transfer:apply_event(Ev, p_transfer(T)),
     Attempts = attempts(T),
-    R = ff_withdrawal_attempt_utils:update_current_p_transfer(Tr, Attempts),
+    R = ff_withdrawal_route_attempt_utils:update_current_p_transfer(Tr, Attempts),
     update_attempts(R, T);
 apply_event_({session_started, SessionID}, T) ->
     Session = #{id => SessionID},
     Attempts = attempts(T),
-    R = ff_withdrawal_attempt_utils:update_current_session(Session, Attempts),
+    R = ff_withdrawal_route_attempt_utils:update_current_session(Session, Attempts),
     update_attempts(R, T);
 apply_event_({session_finished, {SessionID, Result}}, T) ->
     Attempts = attempts(T),
-    Session = ff_withdrawal_attempt_utils:get_current_session(Attempts),
+    Session = ff_withdrawal_route_attempt_utils:get_current_session(Attempts),
     SessionID = maps:get(id, Session),
     UpdSession = Session#{result => Result},
-    R = ff_withdrawal_attempt_utils:update_current_session(UpdSession, Attempts),
+    R = ff_withdrawal_route_attempt_utils:update_current_session(UpdSession, Attempts),
     update_attempts(R, T);
 apply_event_({route_changed, Route}, T) ->
-    #{provider_id := PrID} = Route,
     Attempts = attempts(T),
-    R = ff_withdrawal_attempt_utils:new(PrID, Attempts),
+    R = ff_withdrawal_route_attempt_utils:new_route(Route, Attempts),
     T#{
         route => Route,
         attempts => R

@@ -14,19 +14,13 @@
 %%% limitations under the License.
 %%%
 
--module(ff_withdrawal_attempt_utils).
+-module(ff_withdrawal_route_attempt_utils).
 
--type id() :: binary().
--type provider_id() :: pos_integer() | id().
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type limit_check_details() :: ff_withdrawal:limit_check_details().
 -type account()  :: ff_account:account().
 -type route() :: ff_withdrawal:route().
--type result() :: ff_withdrawal_session:session_result().
--type session() :: #{
-    id := id(),
-    result => result()
-}.
+-type session() :: ff_withdrawal:session().
 
 -type attempt() :: #{
     session => session(),
@@ -35,17 +29,17 @@
 }.
 
 -opaque attempts() :: #{
-    attempts := #{provider_id() => attempt()},
-    inversed_providers := [provider_id()],
+    attempts := #{route() => attempt()},
+    inversed_routes := [route()],
     index := non_neg_integer(),
-    current => provider_id()
+    current => route()
 }.
 
 -export_type([attempts/0]).
 
 %% API
 -export([init/0]).
--export([new/2]).
+-export([new_route/2]).
 -export([next_route/2]).
 -export([get_current_session/1]).
 -export([get_current_p_transfer/1]).
@@ -61,82 +55,82 @@
 init() ->
     #{
         attempts => #{},
-        inversed_providers => [],
+        inversed_routes => [],
         index => 0
     }.
 
--spec new(provider_id(), attempts()) ->
+-spec new_route(route(), attempts()) ->
     attempts().
-new(PrID, Existing) ->
+new_route(Route, Existing) ->
     #{
         attempts := Attempts,
-        inversed_providers := InvProviders,
+        inversed_routes := InvRoutes,
         index := Index
     } = Existing,
     Existing#{
-        current => PrID,
+        current => Route,
         index => Index + 1,
-        inversed_providers => [PrID | InvProviders],
-        attempts => Attempts#{PrID => #{}}
+        inversed_routes => [Route | InvRoutes],
+        attempts => Attempts#{Route => #{}}
     }.
 
--spec next_route([provider_id()], attempts()) -> {ok, route()} | {error, route_not_found}.
-next_route(Providers, #{attempts := Existing}) ->
-    PendingProviders =
+-spec next_route([route()], attempts()) -> {ok, route()} | {error, route_not_found}.
+next_route(Routes, #{attempts := Existing}) ->
+    PendingRoutes =
         lists:filter(
-            fun(ID) ->
-                not maps:is_key(ID, Existing)
+            fun(R) ->
+                not maps:is_key(R, Existing)
             end,
-            Providers
+            Routes
         ),
-    case PendingProviders of
-        [ProviderID | _] ->
-            {ok, #{provider_id => ProviderID}};
+    case PendingRoutes of
+        [Route | _] ->
+            {ok, Route};
         [] ->
             {error, route_not_found}
     end.
 
 -spec get_current_session(attempts()) ->  undefined | session().
 get_current_session(Attempts) ->
-    Attempt = get_current_attempt(Attempts),
+    Attempt = current(Attempts),
     maps:get(session, Attempt, undefined).
 
 -spec get_current_p_transfer(attempts()) -> undefined | p_transfer().
 get_current_p_transfer(Attempts) ->
-    Attempt = get_current_attempt(Attempts),
+    Attempt = current(Attempts),
     maps:get(p_transfer, Attempt, undefined).
 
 -spec get_current_limit_checks(attempts()) -> undefined | [limit_check_details()].
 get_current_limit_checks(Attempts) ->
-    Attempt = get_current_attempt(Attempts),
+    Attempt = current(Attempts),
     maps:get(limit_checks, Attempt, undefined).
 
 -spec update_current_session(session(), attempts()) -> attempts().
 update_current_session(Session, Attempts) ->
-    Attempt = get_current_attempt(Attempts),
+    Attempt = current(Attempts),
     Updated = Attempt#{
         session => Session
     },
-    update_current_attempt(Updated, Attempts).
+    update_current(Updated, Attempts).
 
 -spec update_current_p_transfer(account(), attempts()) -> attempts().
 update_current_p_transfer(Account, Attempts) ->
-    Attempt = get_current_attempt(Attempts),
+    Attempt = current(Attempts),
     Updated = Attempt#{
         p_transfer => Account
     },
-    update_current_attempt(Updated, Attempts).
+    update_current(Updated, Attempts).
 
 -spec update_current_limit_checks([limit_check_details()], attempts()) -> attempts().
 update_current_limit_checks(LimitChecks, Routes) ->
-    Attempt = get_current_attempt(Routes),
+    Attempt = current(Routes),
     Updated = Attempt#{
         limit_checks => LimitChecks
     },
-    update_current_attempt(Updated, Routes).
+    update_current(Updated, Routes).
 
 -spec get_sessions(attempts()) -> [session()].
-get_sessions(#{attempts := Attempts, inversed_providers := InvProviders}) ->
+get_sessions(#{attempts := Attempts, inversed_routes := InvRoutes}) ->
     lists:foldl(
         fun(ID, Acc) ->
             Route = maps:get(ID, Attempts),
@@ -148,7 +142,7 @@ get_sessions(#{attempts := Attempts, inversed_providers := InvProviders}) ->
             end
         end,
         [],
-        InvProviders
+        InvRoutes
     ).
 
 -spec get_index(attempts()) -> non_neg_integer().
@@ -158,15 +152,15 @@ get_index(#{index := Index}) ->
 %% Internal
 
 %% @private
-get_current_attempt(#{current := PrID, attempts := Routes}) ->
-    maps:get(PrID, Routes);
-get_current_attempt(_) ->
+current(#{current := Route, attempts := Attempts}) ->
+    maps:get(Route, Attempts);
+current(_) ->
     #{}.
 
 %% @private
-update_current_attempt(Route, #{current := PrID, attempts := Routes} = R) ->
+update_current(Attempt, #{current := Route, attempts := Attempts} = R) ->
     R#{
-        attempts => Routes#{
-            PrID => Route
+        attempts => Attempts#{
+            Route => Attempt
         }
     }.

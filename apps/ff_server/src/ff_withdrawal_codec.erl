@@ -224,8 +224,6 @@ unmarshal(status, Status) ->
 unmarshal(provider_id, ProviderID) ->
     unmarshal(integer, erlang:binary_to_integer(ProviderID));
 
-unmarshal(terminal_id, undefined) ->
-    undefined;
 unmarshal(terminal_id, TerminalID) ->
     unmarshal(integer, erlang:binary_to_integer(TerminalID));
 

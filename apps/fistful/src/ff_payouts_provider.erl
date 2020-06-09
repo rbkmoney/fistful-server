@@ -4,12 +4,12 @@
 
 -type withdrawal_provider() :: #{
     id := id(),
-    identity := ff_identity:id() | undefined,
-    withdrawal_terms := dmsl_domain_thrift:'WithdrawalProvisionTerms'() | undefined,
+    identity => ff_identity:id(),
+    withdrawal_terms => dmsl_domain_thrift:'WithdrawalProvisionTerms'(),
     accounts := accounts(),
     adapter := ff_adapter:adapter(),
     adapter_opts := map(),
-    terminal_selector := dmsl_domain_thrift:'WithdrawalTerminalSelector'() | undefined
+    terminal_selector => dmsl_domain_thrift:'WithdrawalTerminalSelector'()
 }.
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
@@ -43,7 +43,7 @@
 -spec accounts(withdrawal_provider()) -> accounts().
 -spec adapter(withdrawal_provider()) -> ff_adapter:adapter().
 -spec adapter_opts(withdrawal_provider()) -> map().
--spec terms(withdrawal_provider()) -> withdrawal_provision_terms().
+-spec terms(withdrawal_provider()) -> withdrawal_provision_terms() | undefined.
 
 id(#{id := ID}) ->
     ID.
@@ -57,8 +57,8 @@ adapter(#{adapter := Adapter}) ->
 adapter_opts(#{adapter_opts := AdapterOpts}) ->
     AdapterOpts.
 
-terms(#{withdrawal_terms := WithdrawalTerms}) ->
-    WithdrawalTerms.
+terms(WithdrawalProvider) ->
+    maps:get(withdrawal_terms, WithdrawalProvider, undefined).
 
 %%
 
@@ -77,9 +77,18 @@ get(ID) ->
         decode(ID, WithdrawalProvider)
     end).
 
--spec compute_fees(withdrawal_provider(), hg_selector:varset()) -> ff_cash_flow:cash_flow_fee().
+-spec compute_fees(withdrawal_provider(), hg_selector:varset()) ->
+    {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
 
-compute_fees(#{withdrawal_terms := WithdrawalTerms}, VS) ->
+compute_fees(WithdrawalProvider, VS) ->
+    case terms(WithdrawalProvider) of
+        Terms when Terms =/= undefined ->
+            {ok, compute_fees_(Terms, VS)};
+        _ ->
+            {error, {misconfiguration, {missing, withdrawal_terms}}}
+    end.
+
+compute_fees_(WithdrawalTerms, VS) ->
     #domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector} = WithdrawalTerms,
     CashFlow = unwrap(hg_selector:reduce_to_value(CashFlowSelector, VS)),
     #{
@@ -89,9 +98,15 @@ compute_fees(#{withdrawal_terms := WithdrawalTerms}, VS) ->
 -spec compute_withdrawal_terminals(withdrawal_provider(), hg_selector:varset()) ->
     {ok, [ff_payouts_terminal:id()]} | {error, term()}.
 
-compute_withdrawal_terminals(#{terminal_selector := undefined}, _VS) ->
-    {error, {misconfiguration, {missing, terminal_selector}}};
-compute_withdrawal_terminals(#{terminal_selector := TerminalSelector}, VS) ->
+compute_withdrawal_terminals(WithdrawalProvider, VS) ->
+    case maps:get(terminal_selector, WithdrawalProvider, undefined) of
+        Selector when Selector =/= undefined ->
+            compute_withdrawal_terminals_(Selector, VS);
+        _ ->
+            {error, {misconfiguration, {missing, terminal_selector}}}
+    end.
+
+compute_withdrawal_terminals_(TerminalSelector, VS) ->
     case hg_selector:reduce_to_value(TerminalSelector, VS) of
         {ok, Terminals} ->
             {ok, [TerminalID || #domain_WithdrawalTerminalRef{id = TerminalID} <- Terminals]};
@@ -108,7 +123,7 @@ decode(ID, #domain_WithdrawalProvider{
     accounts = Accounts,
     terminal = TerminalSelector
 }) ->
-    maps:merge(
+    genlib_map:compact(maps:merge(
         #{
             id                => ID,
             identity          => Identity,
@@ -117,7 +132,7 @@ decode(ID, #domain_WithdrawalProvider{
             terminal_selector => TerminalSelector
         },
         decode_adapter(Proxy)
-    ).
+    )).
 
 decode_accounts(Identity, Accounts) ->
     maps:fold(

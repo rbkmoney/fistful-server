@@ -81,9 +81,6 @@
 -type adapter_with_opts() :: {ff_withdrawal_provider:adapter(), ff_withdrawal_provider:adapter_opts()}.
 -type legacy_event() :: any().
 
-%% Pipeline
-
--import(ff_pipeline, [unwrap/1]).
 
 %%
 %% API
@@ -349,7 +346,7 @@ get_adapter_with_opts(Route) ->
     TerminalID :: ff_payouts_terminal:id() | undefined.
 get_adapter_with_opts(ProviderID, TerminalID) when is_integer(ProviderID) ->
     %% new_style
-    Provider =  unwrap(ff_payouts_provider:get(ProviderID)),
+    {ok, Provider} = ff_payouts_provider:get(ProviderID),
     ProviderOpts = ff_payouts_provider:adapter_opts(Provider),
     TerminalOpts = get_adapter_terminal_opts(TerminalID),
     {ff_payouts_provider:adapter(Provider), maps:merge(TerminalOpts, ProviderOpts)};
@@ -362,7 +359,7 @@ get_adapter_with_opts(ProviderID, undefined) when is_binary(ProviderID) ->
 get_adapter_terminal_opts(undefined) ->
     #{};
 get_adapter_terminal_opts(TerminalID) ->
-    Terminal = unwrap(ff_payouts_terminal:get(TerminalID)),
+    {ok, Terminal} = ff_payouts_terminal:get(TerminalID),
     ff_payouts_terminal:adapter_opts(Terminal).
 
 create_adapter_withdrawal(Data, Resource) ->

@@ -665,9 +665,8 @@ process_routing(Withdrawal) ->
     end.
 
 -spec do_process_routing(withdrawal_state()) -> {ok, route()} | {error, Reason} when
-    Reason :: route_not_found | InconsistentQuote | InvalidQuote,
-    InconsistentQuote :: {inconsistent_quote_route, {provider_id | terminal_id, provider_id() | terminal_id()}},
-    InvalidQuote :: {invalid_quote, {missing, terminal_id} | expired | invalid_format}.
+    Reason :: route_not_found | InconsistentQuote,
+    InconsistentQuote :: {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}.
 do_process_routing(Withdrawal) ->
     WalletID = wallet_id(Withdrawal),
     {ok, Wallet} = get_wallet(WalletID),
@@ -687,7 +686,7 @@ do_process_routing(Withdrawal) ->
 
     do(fun() ->
         Route = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
-        valid = unwrap(validate_quote(Route, quote(Withdrawal))),
+        valid = unwrap(validate_quote_route(Route, quote(Withdrawal))),
         Route
     end).
 
@@ -697,19 +696,16 @@ do_process_routing(Withdrawal) ->
 prepare_route(PartyVarset, Identity, DomainRevision) ->
     ff_withdrawal_routing:prepare_route(PartyVarset, Identity, DomainRevision).
 
--spec validate_quote(route(), quote()) -> {ok, valid} | {error, InconsistentQuote | InvalidQuote} when
-    InconsistentQuote :: {inconsistent_quote_route, {provider_id | terminal_id, provider_id() | terminal_id()}},
-    InvalidQuote :: {invalid_quote, {missing, terminal_id} | expired | invalid_format}.
+-spec validate_quote_route(route(), quote()) -> {ok, valid} | {error, InconsistentQuote} when
+    InconsistentQuote :: {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}.
 
-validate_quote(_Route, undefined) ->
+validate_quote_route(_Route, undefined) ->
     {ok, valid};
-validate_quote(Route, #{quote_data := #{<<"version">> := 1} = QuoteData}) ->
+validate_quote_route(Route, #{quote_data := QuoteData}) ->
     do(fun() ->
         valid = unwrap(validate_quote_provider(Route, QuoteData)),
         valid = unwrap(validate_quote_terminal(Route, QuoteData))
-    end);
-validate_quote(_, _) ->
-    {error, {invalid_quote, invalid_format}}.
+    end).
 
 validate_quote_provider(#{provider_id := ProviderID}, #{<<"provider_id">> := ProviderID}) ->
     {ok, valid};
@@ -719,9 +715,7 @@ validate_quote_provider(#{provider_id := ProviderID}, _) ->
 validate_quote_terminal(#{terminal_id := TerminalID}, #{<<"terminal_id">> := TerminalID}) ->
     {ok, valid};
 validate_quote_terminal(#{terminal_id := TerminalID}, _) ->
-    {error, {inconsistent_quote_route, {terminal_id, TerminalID}}};
-validate_quote_terminal(_, _) ->
-    {error, {invalid_quote, {missing, terminal_id}}}.
+    {error, {inconsistent_quote_route, {terminal_id, TerminalID}}}.
 
 -spec process_limit_check(withdrawal_state()) ->
     process_result().
@@ -899,7 +893,7 @@ make_final_cash_flow(Withdrawal) ->
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-    ProviderFee = ff_payouts_provider:compute_fees(Provider, PartyVarset),
+    {ok, ProviderFee} = ff_payouts_provider:compute_fees(Provider, PartyVarset),
 
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
@@ -1430,11 +1424,6 @@ build_failure({inconsistent_quote_route, {Type, FoundID}}, Withdrawal) ->
         expected => get_quote_field(Type, quote(Withdrawal)),
         found => {Type, FoundID}
     }},
-    #{
-        code => <<"unknown">>,
-        reason => genlib:format(Details)
-    };
-build_failure({invalid_quote, _Reason} = Details, _Withdrawal) ->
     #{
         code => <<"unknown">>,
         reason => genlib:format(Details)

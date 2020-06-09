@@ -18,7 +18,6 @@
 
 -type id() :: binary().
 -type provider_id() :: pos_integer() | id().
--type withdrawal_state() :: ff_withdrawal:withdrawal_state().
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type limit_check_details() :: ff_withdrawal:limit_check_details().
 -type account()  :: ff_account:account().
@@ -45,6 +44,7 @@
 -export_type([routes/0]).
 
 %% API
+-export([init_routes/0]).
 -export([new_route/2]).
 -export([next_route/2]).
 -export([get_current_session/1]).
@@ -57,29 +57,35 @@
 -export([get_sessions/1]).
 -export([get_index/1]).
 
--spec new_route(provider_id(), withdrawal_state()) ->
-    withdrawal_state().
-new_route(PrID, Withdrawal) ->
+-spec init_routes() -> routes().
+init_routes() ->
+    #{
+        routes => #{},
+        inversed_routes => [],
+        index => 0
+    }.
+
+-spec new_route(provider_id(), routes()) ->
+    routes().
+new_route(PrID, ExRoutes) ->
     #{
         routes := Routes,
         inversed_routes := InvRoutes,
         index := Index
-    } = ExRoutes = routes(Withdrawal),
-    UpdRoutes = ExRoutes#{
+    } = ExRoutes,
+    ExRoutes#{
         current => PrID,
         index => Index + 1,
         inversed_routes => [PrID | InvRoutes],
         routes => Routes#{PrID => #{}}
-    },
-    ff_withdrawal:update_routes(UpdRoutes, Withdrawal).
+    }.
 
--spec next_route([provider_id()], withdrawal_state()) -> {ok, route()} | {error, route_not_found}.
-next_route(Providers, Withdraval) ->
-    #{inversed_routes := ExRoutes} = routes(Withdraval),
+-spec next_route([provider_id()], routes()) -> {ok, route()} | {error, route_not_found}.
+next_route(Providers, #{routes := ExRoutes}) ->
     PendingProviders =
         lists:filter(
             fun(ID) ->
-                not lists:member(ID, ExRoutes)
+                not maps:is_key(ID, ExRoutes)
             end,
             Providers
         ),
@@ -90,51 +96,47 @@ next_route(Providers, Withdraval) ->
             {error, route_not_found}
     end.
 
--spec get_current_session(withdrawal_state()) ->  undefined | session().
-get_current_session(Withdrawal) ->
-    Route = get_current_route(Withdrawal),
+-spec get_current_session(routes()) ->  undefined | session().
+get_current_session(Routes) ->
+    Route = get_current_route(Routes),
     maps:get(session, Route, undefined).
 
--spec get_current_p_transfer(withdrawal_state()) -> undefined | p_transfer().
-get_current_p_transfer(Withdrawal) ->
-    Route = get_current_route(Withdrawal),
+-spec get_current_p_transfer(routes()) -> undefined | p_transfer().
+get_current_p_transfer(Routes) ->
+    Route = get_current_route(Routes),
     maps:get(p_transfer, Route, undefined).
 
--spec get_current_limit_checks(withdrawal_state()) -> undefined | [limit_check_details()].
-get_current_limit_checks(Withdrawal) ->
-    Route = get_current_route(Withdrawal),
+-spec get_current_limit_checks(routes()) -> undefined | [limit_check_details()].
+get_current_limit_checks(Routes) ->
+    Route = get_current_route(Routes),
     maps:get(limit_checks, Route, undefined).
 
--spec update_current_session(session(), withdrawal_state()) -> withdrawal_state().
-update_current_session(Session, Withdrawal) ->
-    Route = get_current_route(Withdrawal),
+-spec update_current_session(session(), routes()) -> routes().
+update_current_session(Session, Routes) ->
+    Route = get_current_route(Routes),
     UpRoute = Route#{
         session => Session
     },
-    update_current_route(UpRoute, Withdrawal).
+    update_current_route(UpRoute, Routes).
 
--spec update_current_p_transfer(account(), withdrawal_state()) -> withdrawal_state().
-update_current_p_transfer(Account, Withdrawal) ->
-    Route = get_current_route(Withdrawal),
+-spec update_current_p_transfer(account(), routes()) -> routes().
+update_current_p_transfer(Account, Routes) ->
+    Route = get_current_route(Routes),
     UpRoute = Route#{
         p_transfer => Account
     },
-    update_current_route(UpRoute, Withdrawal).
+    update_current_route(UpRoute, Routes).
 
--spec update_current_limit_checks([limit_check_details()], withdrawal_state()) -> withdrawal_state().
-update_current_limit_checks(LimitChecks, Withdrawal) ->
-    Route = get_current_route(Withdrawal),
+-spec update_current_limit_checks([limit_check_details()], routes()) -> routes().
+update_current_limit_checks(LimitChecks, Routes) ->
+    Route = get_current_route(Routes),
     UpRoute = Route#{
         limit_checks => LimitChecks
     },
-    update_current_route(UpRoute, Withdrawal).
+    update_current_route(UpRoute, Routes).
 
--spec get_sessions(withdrawal_state()) -> [session()].
-get_sessions(Withdrawal) ->
-    #{
-        routes := Routes,
-        inversed_routes := InvRoutes
-    } = routes(Withdrawal),
+-spec get_sessions(routes()) -> [session()].
+get_sessions(#{routes := Routes, inversed_routes := InvRoutes}) ->
     lists:foldl(
         fun(ID, Acc) ->
             Route = maps:get(ID, Routes),
@@ -149,46 +151,22 @@ get_sessions(Withdrawal) ->
         InvRoutes
     ).
 
--spec get_index(withdrawal_state()) -> non_neg_integer().
-get_index(Withdrawal) ->
-    #{index := Index} = routes(Withdrawal),
-    Index.
+-spec get_index(routes()) -> non_neg_integer().
+get_index(Routes) ->
+    maps:get(index, Routes).
 
 %% Internal
 
 %% @private
-get_current_route(Withdrawal) ->
-    #{
-        current := PrID,
-        routes := Routes
-    } = routes(Withdrawal),
-    maps:get(PrID, Routes).
+get_current_route(#{current := PrID, routes := Routes}) ->
+    maps:get(PrID, Routes);
+get_current_route(_) ->
+    #{}.
 
 %% @private
-update_current_route(Route, Withdrawal) ->
-    #{
-        current := PrID,
-        routes := Routes
-    } = R = routes(Withdrawal),
-    UpR = R#{
+update_current_route(Route, #{current := PrID, routes := Routes} = R) ->
+    R#{
         routes => Routes#{
             PrID => Route
         }
-    },
-    ff_withdrawal:update_routes(UpR, Withdrawal).
-
-%% @private
-routes(Withdrawal) ->
-    case ff_withdrawal:routes(Withdrawal) of
-        undefined ->
-            init_routes();
-        Routes ->
-            Routes
-    end.
-
-init_routes() ->
-    #{
-        routes => #{},
-        inversed_routes => [],
-        index => 0
     }.

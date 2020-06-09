@@ -20,7 +20,7 @@
     party_revision  => party_revision(),
     domain_revision => domain_revision(),
     route           => route(),
-    routes          => routes(),
+    attempts        => attempts(),
     resource        => destination_resource(),
     adjustments     => adjustments_index(),
     status          => status(),
@@ -80,7 +80,7 @@
     provider_id := provider_id()
 }.
 
--type routes() :: ff_withdrawal_route_utils:routes().
+-type attempts() :: ff_withdrawal_attempt_utils:attempts().
 
 -type prepared_route() :: #{
     route := route(),
@@ -187,7 +187,7 @@
 -export([body/1]).
 -export([status/1]).
 -export([route/1]).
--export([routes/1]).
+-export([attempts/1]).
 -export([external_id/1]).
 -export([created_at/1]).
 -export([party_revision/1]).
@@ -334,13 +334,13 @@ status(T) ->
 route(T) ->
     maps:get(route, T, undefined).
 
--spec routes(withdrawal_state()) -> routes() | undefined.
-routes(T) ->
-    maps:get(routes, T, undefined).
+-spec attempts(withdrawal_state()) -> attempts() | undefined.
+attempts(T) ->
+    maps:get(attempts, T, undefined).
 
--spec update_routes(routes(), withdrawal_state()) -> withdrawal_state().
-update_routes(Routes, T) ->
-    maps:put(routes, Routes, T).
+-spec update_attempts(attempts(), withdrawal_state()) -> withdrawal_state().
+update_attempts(Attempts, T) ->
+    maps:put(attempts, Attempts, T).
 
 -spec external_id(withdrawal_state()) -> external_id() | undefined.
 external_id(T) ->
@@ -409,7 +409,7 @@ create(Params) ->
             destination_id => DestinationID,
             quote => Quote
         }),
-        Routes = ff_withdrawal_route_utils:init_routes(),
+        Attempts = ff_withdrawal_attempt_utils:init(),
         [
             {created, genlib_map:compact(#{
                 version         => ?ACTUAL_FORMAT_VERSION,
@@ -418,7 +418,7 @@ create(Params) ->
                 body            => Body,
                 params          => TransferParams,
                 created_at      => CreatedAt,
-                routes          => Routes,
+                attempts        => Attempts,
                 party_revision  => PartyRevision,
                 domain_revision => DomainRevision,
                 external_id     => maps:get(external_id, Params, undefined),
@@ -461,7 +461,7 @@ effective_final_cash_flow(Withdrawal) ->
 
 -spec sessions(withdrawal_state()) -> [session()].
 sessions(Withdrawal) ->
-    ff_withdrawal_route_utils:get_sessions(routes(Withdrawal)).
+    ff_withdrawal_attempt_utils:get_sessions(attempts(Withdrawal)).
 
 %% Сущность в настоящий момент нуждается в передаче ей управления для совершения каких-то действий
 -spec is_active(withdrawal_state()) -> boolean().
@@ -512,11 +512,11 @@ params(#{params := V}) ->
 
 -spec p_transfer(withdrawal_state()) -> p_transfer() | undefined.
 p_transfer(Withdrawal) ->
-    ff_withdrawal_route_utils:get_current_p_transfer(routes(Withdrawal)).
+    ff_withdrawal_attempt_utils:get_current_p_transfer(attempts(Withdrawal)).
 
 -spec p_transfer_status(withdrawal_state()) -> ff_postings_transfer:status() | undefined.
 p_transfer_status(Withdrawal) ->
-    case routes(Withdrawal) of
+    case attempts(Withdrawal) of
         undefined ->
             undefined;
         _ ->
@@ -647,15 +647,15 @@ do_process_transfer(routing, Withdrawal) ->
 do_process_transfer(p_transfer_start, Withdrawal) ->
     process_p_transfer_creation(Withdrawal);
 do_process_transfer(p_transfer_prepare, Withdrawal) ->
-    Tr = ff_withdrawal_route_utils:get_current_p_transfer(routes(Withdrawal)),
+    Tr = ff_withdrawal_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
     {ok, Events} = ff_postings_transfer:prepare(Tr),
     {continue, [{p_transfer, Ev} || Ev <- Events]};
 do_process_transfer(p_transfer_commit, Withdrawal) ->
-    Tr = ff_withdrawal_route_utils:get_current_p_transfer(routes(Withdrawal)),
+    Tr = ff_withdrawal_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
     {ok, Events} = ff_postings_transfer:commit(Tr),
     {continue, [{p_transfer, Ev} || Ev <- Events]};
 do_process_transfer(p_transfer_cancel, Withdrawal) ->
-    Tr = ff_withdrawal_route_utils:get_current_p_transfer(routes(Withdrawal)),
+    Tr = ff_withdrawal_attempt_utils:get_current_p_transfer(attempts(Withdrawal)),
     {ok, Events} = ff_postings_transfer:cancel(Tr),
     {continue, [{p_transfer, Ev} || Ev <- Events]};
 do_process_transfer(limit_check, Withdrawal) ->
@@ -670,7 +670,6 @@ do_process_transfer({fail, Reason}, Withdrawal) ->
             process_route_change(Providers, Withdrawal, Reason);
         {error, _FailType} ->
             %% No more routes or inconcistent route found
-            %% Return Reason for backward compatibility
             process_transfer_fail(Reason, Withdrawal)
     end;
 do_process_transfer(finish, Withdrawal) ->
@@ -853,14 +852,14 @@ process_session_creation(Withdrawal) ->
 -spec construct_session_id(withdrawal_state()) -> id().
 construct_session_id(Withdrawal) ->
     ID = id(Withdrawal),
-    Index = ff_withdrawal_route_utils:get_index(routes(Withdrawal)),
+    Index = ff_withdrawal_attempt_utils:get_index(attempts(Withdrawal)),
     SubID = integer_to_binary(Index),
     << ID/binary, "/", SubID/binary >>.
 
 -spec construct_p_transfer_id(withdrawal_state()) -> id().
 construct_p_transfer_id(Withdrawal) ->
     ID = id(Withdrawal),
-    Index = ff_withdrawal_route_utils:get_index(routes(Withdrawal)),
+    Index = ff_withdrawal_attempt_utils:get_index(attempts(Withdrawal)),
     SubID = integer_to_binary(Index),
     <<"ff/withdrawal/", ID/binary, "/", SubID/binary >>.
 
@@ -1160,7 +1159,7 @@ quote_domain_revision(#{quote_data := QuoteData}) ->
 
 -spec session(withdrawal_state()) -> session() | undefined.
 session(Withdrawal) ->
-    ff_withdrawal_route_utils:get_current_session(routes(Withdrawal)).
+    ff_withdrawal_attempt_utils:get_current_session(attempts(Withdrawal)).
 
 -spec session_id(withdrawal_state()) -> session_id() | undefined.
 session_id(T) ->
@@ -1185,7 +1184,7 @@ session_result(Withdrawal) ->
 -spec session_processing_status(withdrawal_state()) ->
     undefined | pending | succeeded | failed.
 session_processing_status(Withdrawal) ->
-    case routes(Withdrawal) of
+    case attempts(Withdrawal) of
         undefined ->
             undefined;
         _ ->
@@ -1255,22 +1254,22 @@ validate_destination_status(Destination) ->
 -spec add_limit_check(limit_check_details(), withdrawal_state()) ->
     withdrawal_state().
 add_limit_check(Check, Withdrawal) ->
-    Routes = routes(Withdrawal),
+    Attempts = attempts(Withdrawal),
     Checks =
-        case ff_withdrawal_route_utils:get_current_limit_checks(Routes) of
+        case ff_withdrawal_attempt_utils:get_current_limit_checks(Attempts) of
             undefined ->
                 [Check];
             C ->
                 [Check | C]
         end,
-    R = ff_withdrawal_route_utils:update_current_limit_checks(Checks, Routes),
-    update_routes(R, Withdrawal).
+    R = ff_withdrawal_attempt_utils:update_current_limit_checks(Checks, Attempts),
+    update_attempts(R, Withdrawal).
 
 -spec limit_check_status(withdrawal_state()) ->
     ok | {failed, limit_check_details()} | unknown.
 limit_check_status(Withdrawal) ->
-    Routes = routes(Withdrawal),
-    Checks = ff_withdrawal_route_utils:get_current_limit_checks(Routes),
+    Attempts = attempts(Withdrawal),
+    Checks = ff_withdrawal_attempt_utils:get_current_limit_checks(Attempts),
     limit_check_status_(Checks).
 
 limit_check_status_(undefined) ->
@@ -1451,8 +1450,8 @@ process_adjustment(Withdrawal) ->
 -spec process_route_change([provider_id()], withdrawal_state(), fail_type()) ->
     process_result().
 process_route_change(Providers, Withdrawal, Reason) ->
-    Routes = routes(Withdrawal),
-    case ff_withdrawal_route_utils:next_route(Providers, Routes) of
+    Attempts = attempts(Withdrawal),
+    case ff_withdrawal_attempt_utils:next_route(Providers, Attempts) of
         {ok, Route} ->
             {_, [FailEvent]} = process_transfer_fail(Reason, Withdrawal),
             {continue, [
@@ -1547,28 +1546,28 @@ apply_event_({limit_check, Details}, T) ->
     add_limit_check(Details, T);
 apply_event_({p_transfer, Ev}, T) ->
     Tr = ff_postings_transfer:apply_event(Ev, p_transfer(T)),
-    Routes = routes(T),
-    R = ff_withdrawal_route_utils:update_current_p_transfer(Tr, Routes),
-    update_routes(R, T);
+    Attempts = attempts(T),
+    R = ff_withdrawal_attempt_utils:update_current_p_transfer(Tr, Attempts),
+    update_attempts(R, T);
 apply_event_({session_started, SessionID}, T) ->
     Session = #{id => SessionID},
-    Routes = routes(T),
-    R = ff_withdrawal_route_utils:update_current_session(Session, Routes),
-    update_routes(R, T);
+    Attempts = attempts(T),
+    R = ff_withdrawal_attempt_utils:update_current_session(Session, Attempts),
+    update_attempts(R, T);
 apply_event_({session_finished, {SessionID, Result}}, T) ->
-    Routes = routes(T),
-    Session = ff_withdrawal_route_utils:get_current_session(Routes),
+    Attempts = attempts(T),
+    Session = ff_withdrawal_attempt_utils:get_current_session(Attempts),
     SessionID = maps:get(id, Session),
     UpdSession = Session#{result => Result},
-    R = ff_withdrawal_route_utils:update_current_session(UpdSession, Routes),
-    update_routes(R, T);
+    R = ff_withdrawal_attempt_utils:update_current_session(UpdSession, Attempts),
+    update_attempts(R, T);
 apply_event_({route_changed, Route}, T) ->
     #{provider_id := PrID} = Route,
-    Routes = routes(T),
-    R = ff_withdrawal_route_utils:new_route(PrID, Routes),
+    Attempts = attempts(T),
+    R = ff_withdrawal_attempt_utils:new(PrID, Attempts),
     T#{
         route => Route,
-        routes => R
+        attempts => R
     };
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).

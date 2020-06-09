@@ -733,7 +733,7 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
         {ok, Providers}  ->
-            choose_provider(Providers, PartyVarset);
+            filter_providers(Providers, PartyVarset);
         {error, {misconfiguration, _Details} = Error} ->
             %% TODO: Do not interpret such error as an empty route list.
             %% The current implementation is made for compatibility reasons.
@@ -749,9 +749,9 @@ validate_quote_provider(ProviderID, #{quote_data := #{<<"provider_id">> := Provi
 validate_quote_provider(ProviderID, _) ->
     {error, {inconsistent_quote_route, ProviderID}}.
 
--spec choose_provider([provider_id()], party_varset()) ->
+-spec filter_providers([provider_id()], party_varset()) ->
     {ok, [provider_id()]} | {error, route_not_found}.
-choose_provider(Providers, VS) ->
+filter_providers(Providers, VS) ->
     case lists:filter(fun(P) -> validate_withdrawals_terms(P, VS) end, Providers) of
         [] ->
             {error, route_not_found};

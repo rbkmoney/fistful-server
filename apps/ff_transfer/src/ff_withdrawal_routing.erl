@@ -154,13 +154,13 @@ get_combined_terms(ProviderTerms, TerminalTerms) ->
     {ok, valid} |
     {error, Error :: term()}.
 
-validate_selectors_defined(#domain_WithdrawalProvisionTerms{
-    currencies = CurrenciesSelector,
-    payout_methods = PayoutMethodsSelector,
-    cash_limit = CashLimitSelector,
-    cash_flow = CashFlowSelector
-}) ->
-    Selectors = [CurrenciesSelector, PayoutMethodsSelector, CashLimitSelector, CashFlowSelector],
+validate_selectors_defined(Terms) ->
+    Selectors = [
+        Terms#domain_WithdrawalProvisionTerms.currencies,
+        Terms#domain_WithdrawalProvisionTerms.payout_methods,
+        Terms#domain_WithdrawalProvisionTerms.cash_limit,
+        Terms#domain_WithdrawalProvisionTerms.cash_flow
+    ],
     case lists:any(fun(Selector) -> Selector =:= undefined end, Selectors) of
         false ->
             {ok, valid};

@@ -95,6 +95,26 @@ p2p_provider(Ref, ProxyRef, IdentityID, C) ->
 
 -spec withdrawal_provider(?dtp('WithdrawalProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
     object().
+withdrawal_provider(?wthdr_prv(4) = Ref, ProxyRef, IdentityID, C) ->
+    AccountID = account(<<"RUB">>, C),
+    {withdrawal_provider, #domain_WithdrawalProviderObject{
+        ref = Ref,
+        data = #domain_WithdrawalProvider{
+            name = <<"WithdrawalProvider">>,
+            proxy = #domain_Proxy{ref = ProxyRef, additional = #{}},
+            identity = IdentityID,
+            withdrawal_terms = undefined,
+            accounts = #{
+                ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
+            },
+            terminal = {decisions, [
+                #domain_WithdrawalTerminalDecision{
+                    if_   = {constant, true},
+                    then_ = {value, [?wthdr_trm(4)]}
+                }
+            ]}
+        }
+    }};
 
 withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
     AccountID = account(<<"RUB">>, C),
@@ -140,13 +160,6 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
                 },
                 #domain_WithdrawalTerminalDecision{
                     if_   = {condition, {cost_in, ?cashrng(
-                        {inclusive, ?cash(1000000, <<"RUB">>)},
-                        {exclusive, ?cash(3000000, <<"RUB">>)}
-                    )}},
-                    then_ = {value, [?wthdr_trm(2)]}
-                },
-                #domain_WithdrawalTerminalDecision{
-                    if_   = {condition, {cost_in, ?cashrng(
                         {inclusive, ?cash( 3000000, <<"RUB">>)},
                         {exclusive, ?cash(10000000, <<"RUB">>)}
                     )}},
@@ -166,7 +179,7 @@ withdrawal_terminal(?wthdr_trm(1) = Ref) ->
             terms = #domain_WithdrawalProvisionTerms{}
         }
     }};
-withdrawal_terminal(?wthdr_trm(2) = Ref) ->
+withdrawal_terminal(?wthdr_trm(4) = Ref) ->
     {withdrawal_terminal, #domain_WithdrawalTerminalObject{
         ref = Ref,
         data = #domain_WithdrawalTerminal{

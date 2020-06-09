@@ -369,6 +369,13 @@ domain_config(Options, C) ->
                 identity                  = payment_inst_identity_id(Options),
                 withdrawal_providers      = {decisions, [
                     #domain_WithdrawalProviderDecision{
+                        if_   = {condition, {cost_in, ?cashrng(
+                            {inclusive, ?cash(123123, <<"RUB">>)},
+                            {inclusive, ?cash(123123, <<"RUB">>)}
+                        )}},
+                        then_ = {value, [?wthdr_prv(4)]}
+                    },
+                    #domain_WithdrawalProviderDecision{
                         if_ = {
                             condition,
                             {payment_tool, {bank_card, #domain_BankCardCondition{
@@ -467,9 +474,10 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?wthdr_prv(4), ?prx(2), provider_identity_id(Options), C),
 
         ct_domain:withdrawal_terminal(?wthdr_trm(1)),
-        ct_domain:withdrawal_terminal(?wthdr_trm(2)),
+        ct_domain:withdrawal_terminal(?wthdr_trm(4)),
         ct_domain:withdrawal_terminal(?wthdr_trm(7)),
 
         ct_domain:p2p_provider(?p2p_prv(1), ?prx(5), dummy_provider_identity_id(Options), C),

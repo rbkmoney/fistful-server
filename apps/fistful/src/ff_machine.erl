@@ -42,6 +42,7 @@
 -export_type([machine/1]).
 -export_type([result/1]).
 -export_type([timestamped_event/1]).
+-export_type([auxst/0]).
 -export_type([migrate_params/0]).
 
 %% Accessors
@@ -67,6 +68,7 @@
 -export([init/4]).
 -export([process_timeout/3]).
 -export([process_call/4]).
+-export([process_repair/4]).
 
 %% Model callbacks
 
@@ -79,11 +81,16 @@
 -callback maybe_migrate(event(), migrate_params()) ->
     event().
 
--callback process_call(st()) ->
+-callback process_call(machinery:args(_), st()) ->
     {machinery:response(_), [event()]}.
+
+-callback process_repair(machinery:args(_), st()) ->
+    {ok, machinery:response(_), [event()]} | {error, machinery:error(_)}.
 
 -callback process_timeout(st()) ->
     [event()].
+
+-optional_callbacks([maybe_migrate/2]).
 
 %% Pipeline helpers
 
@@ -205,8 +212,13 @@ migrate_machine(Mod, Machine = #{history := History}) ->
     },
     Machine#{history => migrate_history(Mod, History, MigrateParams)}.
 
-migrate_event(Mod, {ID, Ts, {ev, EventTs, EventBody}}, MigrateParams) ->
-    {ID, Ts, {ev, EventTs, Mod:maybe_migrate(EventBody, MigrateParams#{timestamp => EventTs})}}.
+migrate_event(Mod, {ID, Ts, {ev, EventTs, EventBody}} = Event, MigrateParams) ->
+    case erlang:function_exported(Mod, maybe_migrate, 2) of
+        true ->
+            {ID, Ts, {ev, EventTs, Mod:maybe_migrate(EventBody, MigrateParams#{timestamp => EventTs})}};
+        false ->
+            Event
+    end.
 
 %%
 
@@ -237,3 +249,17 @@ process_call(Args, Machine, Mod, _) ->
     {Response, #{
         events => emit_events(Events)
     }}.
+
+-spec process_repair(machinery:args(_), machinery:machine(E, A), module(), _) ->
+    {ok, machinery:response(_), machinery:result(E, A)} | {error, machinery:error(_)}.
+
+process_repair(Args, Machine, Mod, _) ->
+    case Mod:process_repair(Args, collapse(Mod, Machine)) of
+        {ok, Response, Events} ->
+            {ok, Response, #{
+                events => emit_events(Events)
+            }};
+        {error, _Reason} = Error ->
+            Error
+    end.
+

@@ -63,7 +63,7 @@ call(NS, ID, Range, Args, Backend) ->
     machinery:call(NS, ID, Range, Args, set_backend_context(Backend)).
 
 -spec repair(namespace(), id(), range(), args(_), machinery:backend(_)) ->
-    ok | {error, notfound | working}.
+    {ok, response(_)} | {error, notfound | working | {failed, machinery:error(_)}}.
 
 repair(NS, ID, Range, Args, Backend) ->
     machinery:repair(NS, ID, Range, Args, set_backend_context(Backend)).
@@ -109,13 +109,13 @@ process_call(Args, Machine, Options, MachineryOptions) ->
     end.
 
 -spec process_repair(args(_), machine(E, A), options(), handler_opts()) ->
-    result(E, A).
+    {ok, {response(_), result(E, A)}} | {error, machinery:error(_)}.
 
 process_repair(Args, Machine, Options, MachineryOptions) ->
     #{handler := Handler} = Options,
     ok = ff_context:save(create_context(Options, MachineryOptions)),
     try
-        machinery:dispatch_signal({repair, Args}, Machine, machinery_utils:get_handler(Handler), #{})
+        machinery:dispatch_repair(Args, Machine, machinery_utils:get_handler(Handler), #{})
     after
         ff_context:cleanup()
     end.

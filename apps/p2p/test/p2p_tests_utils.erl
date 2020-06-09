@@ -56,19 +56,19 @@ prepare_standard_environment(_P2PTransferCash, Token, C) ->
 
 create_resource_raw(Token, C) ->
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    NewStoreResource =
-        case Token of
-            undefined ->
-                StoreSource;
-            Token ->
-                StoreSource#{token => Token}
-        end,
-    p2p_participant:create(raw, {bank_card, #{
+    NewStoreResource = case Token of
+        undefined ->
+            StoreSource;
+        Token ->
+            StoreSource#{token => Token}
+    end,
+    Resource = {bank_card, #{
         bank_card => NewStoreResource,
         auth_data => {session, #{
             session_id => <<"ID">>
         }}
-    }}).
+    }},
+    p2p_participant:create(raw, Resource, #{}).
 
 create_person_identity(Party, C, ProviderID) ->
     create_identity(Party, ProviderID, <<"person">>, C).

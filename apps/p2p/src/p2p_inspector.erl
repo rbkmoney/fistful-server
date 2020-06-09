@@ -9,7 +9,7 @@
 -type domain_revision() :: ff_domain_config:revision().
 -type payment_resource_payer() :: #{
     resource := ff_resource:resource(),
-    contact_info => p2p_participant:contact_info(),
+    contact_info := p2p_participant:contact_info(),
     client_info => p2p_transfer:client_info()
 }.
 

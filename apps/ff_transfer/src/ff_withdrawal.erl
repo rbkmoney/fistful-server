@@ -1453,9 +1453,7 @@ process_route_change(Providers, Withdrawal, Reason) ->
     Attempts = attempts(Withdrawal),
     case ff_withdrawal_attempt_utils:next_route(Providers, Attempts) of
         {ok, Route} ->
-            {_, [FailEvent]} = process_transfer_fail(Reason, Withdrawal),
             {continue, [
-                FailEvent,
                 {route_changed, Route},
                 {status_changed, pending}
             ]};

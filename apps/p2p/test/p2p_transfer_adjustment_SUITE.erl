@@ -387,12 +387,13 @@ generate_id() ->
 
 create_resource_raw(C) ->
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    p2p_participant:create(raw, {bank_card, #{
+    Resource = {bank_card, #{
         bank_card => StoreSource,
         auth_data => {session, #{
             session_id => <<"ID">>
         }}
-    }}).
+    }},
+    p2p_participant:create(raw, Resource, #{email => <<"test@example.com">>}).
 
 await_final_adjustment_status(P2PTransferID, AdjustmentID) ->
     finished = ct_helper:await(

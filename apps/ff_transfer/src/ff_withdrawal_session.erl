@@ -319,11 +319,7 @@ process_intent({sleep, Timer}) ->
 
 -spec create_session(id(), data(), params()) ->
     session().
-create_session(ID, Data, Opts) ->
-    #{
-        resource := Resource,
-        route := Route
-    } = Opts,
+create_session(ID, Data, #{resource := Resource, route := Route}) ->
     #{
         version    => ?ACTUAL_FORMAT_VERSION,
         id         => ID,

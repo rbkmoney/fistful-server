@@ -7,8 +7,8 @@
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
 
 -export([get_version/1]).
--export([marshal/2]).
--export([unmarshal/2]).
+-export([marshal/3]).
+-export([unmarshal/3]).
 
 %% Constants
 
@@ -21,6 +21,7 @@
 -type type() :: machinery_mg_schema:t().
 -type value(T) :: machinery_mg_schema:v(T).
 -type value_type() :: machinery_mg_schema:vt().
+-type context() :: machinery_mg_schema:context().
 
 -type event()   :: ff_machine:timestamped_event(p2p_transfer:event()).
 -type aux_state() :: ff_machine:auxst().
@@ -42,11 +43,11 @@ get_version(event) ->
 get_version(aux_state) ->
     undefined.
 
--spec marshal(type(), value(data())) ->
-    machinery_msgpack:t().
-marshal({event, Format}, TimestampedChange) ->
-    marshal_event(Format, TimestampedChange);
-marshal(T, V) when
+-spec marshal(type(), value(data()), context()) ->
+    {machinery_msgpack:t(), context()}.
+marshal({event, Format}, TimestampedChange, Context) ->
+    marshal_event(Format, TimestampedChange, Context);
+marshal(T, V, C) when
     T =:= {args, init} orelse
     T =:= {args, call} orelse
     T =:= {args, repair} orelse
@@ -55,13 +56,13 @@ marshal(T, V) when
     T =:= {response, {repair, success}} orelse
     T =:= {response, {repair, failure}}
 ->
-    machinery_mg_schema_generic:marshal(T, V).
+    machinery_mg_schema_generic:marshal(T, V, C).
 
--spec unmarshal(type(), machinery_msgpack:t()) ->
-    data().
-unmarshal({event, FormatVersion}, EncodedChange) ->
-    unmarshal_event(FormatVersion, EncodedChange);
-unmarshal(T, V) when
+-spec unmarshal(type(), machinery_msgpack:t(), context()) ->
+    {data(), context()}.
+unmarshal({event, FormatVersion}, EncodedChange, Context) ->
+    unmarshal_event(FormatVersion, EncodedChange, Context);
+unmarshal(T, V, C) when
     T =:= {args, init} orelse
     T =:= {args, call} orelse
     T =:= {args, repair} orelse
@@ -70,30 +71,31 @@ unmarshal(T, V) when
     T =:= {response, {repair, success}} orelse
     T =:= {response, {repair, failure}}
 ->
-    machinery_mg_schema_generic:unmarshal(T, V).
+    machinery_mg_schema_generic:unmarshal(T, V, C).
 
 %% Internals
 
--spec marshal_event(machinery_mg_schema:version(), event()) ->
-    machinery_msgpack:t().
-marshal_event(undefined = Version, TimestampedChange) ->
+-spec marshal_event(machinery_mg_schema:version(), event(), context()) ->
+    {machinery_msgpack:t(), context()}.
+marshal_event(undefined = Version, TimestampedChange, Context) ->
     % TODO: Remove this clause after MSPF-561 finish
-    machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange);
-marshal_event(1, TimestampedChange) ->
+    machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange, Context);
+marshal_event(1, TimestampedChange, Context) ->
     ThriftChange = ff_p2p_transfer_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'TimestampedChange'}},
-    {bin, ff_proto_utils:serialize(Type, ThriftChange)}.
+    {{bin, ff_proto_utils:serialize(Type, ThriftChange)}, Context}.
 
--spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t()) ->
-    event().
-unmarshal_event(1, EncodedChange) ->
+-spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) ->
+    {event(), context()}.
+unmarshal_event(1, EncodedChange, Context) ->
     {bin, EncodedThriftChange} = EncodedChange,
     Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'TimestampedChange'}},
     ThriftChange = ff_proto_utils:deserialize(Type, EncodedThriftChange),
-    ff_p2p_transfer_codec:unmarshal(timestamped_change, ThriftChange);
-unmarshal_event(undefined = Version, EncodedChange) ->
-    {ev, Timestamp, Change} = machinery_mg_schema_generic:unmarshal({event, Version}, EncodedChange),
-    {ev, Timestamp, maybe_migrate(Change)}.
+    {ff_p2p_transfer_codec:unmarshal(timestamped_change, ThriftChange), Context};
+unmarshal_event(undefined = Version, EncodedChange, Context0) ->
+    {Event, Context1} = machinery_mg_schema_generic:unmarshal({event, Version}, EncodedChange, Context0),
+    {ev, Timestamp, Change} = Event,
+    {{ev, Timestamp, maybe_migrate(Change)}, Context1}.
 
 -spec maybe_migrate(any()) ->
     p2p_transfer:event().
@@ -144,6 +146,20 @@ maybe_migrate_participant(Resource) ->
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -spec test() -> _.
+
+% tests helpers
+
+-spec marshal(type(), value(data())) ->
+    machinery_msgpack:t().
+marshal(Type, Value) ->
+    {Result, _Context} = marshal(Type, Value, #{}),
+    Result.
+
+-spec unmarshal(type(), machinery_msgpack:t()) ->
+    data().
+unmarshal(Type, Value) ->
+    {Result, _Context} = unmarshal(Type, Value, #{}),
+    Result.
 
 -spec created_v0_1_decoding_test() -> _.
 created_v0_1_decoding_test() ->

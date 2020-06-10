@@ -52,6 +52,12 @@ marshal(event, {EventID, {ev, Timestamp, Change}}) ->
         change = marshal(change, Change)
     };
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #deposit_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Deposit}) ->
     {created, #deposit_CreatedChange{deposit = marshal(deposit, Deposit)}};
 marshal(change, {status_changed, Status}) ->
@@ -116,6 +122,11 @@ unmarshal(repair_scenario, {add_events, #deposit_AddEventsRepair{events = Events
         action => maybe_unmarshal(complex_action, Action)
     })};
 
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#deposit_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#deposit_TimestampedChange.change),
+    {ev, Timestamp, Change};
+
 unmarshal(change, {created, #deposit_CreatedChange{deposit = Deposit}}) ->
     {created, unmarshal(deposit, Deposit)};
 unmarshal(change, {status_changed, #deposit_StatusChange{status = DepositStatus}}) ->
@@ -140,6 +151,7 @@ unmarshal(status, Status) ->
 
 unmarshal(deposit, Deposit) ->
     #{
+        version => 2,
         id => unmarshal(id, Deposit#deposit_Deposit.id),
         body => unmarshal(cash, Deposit#deposit_Deposit.body),
         status => maybe_unmarshal(status, Deposit#deposit_Deposit.status),
@@ -221,5 +233,28 @@ deposit_params_symmetry_test() ->
         metadata = Metadata
     },
     ?assertEqual(Encoded, marshal(deposit_params, unmarshal(deposit_params, Encoded))).
+
+-spec deposit_timestamped_change_codec_test() -> _.
+deposit_timestamped_change_codec_test() ->
+    Deposit = #{
+        version => 2,
+        id => genlib:unique(),
+        status => pending,
+        body => {123, <<"RUB">>},
+        created_at => ff_time:now(),
+        domain_revision => 123,
+        party_revision => 321,
+        params => #{
+            wallet_id => genlib:unique(),
+            source_id => genlib:unique(),
+            external_id => genlib:unique()
+        }
+    },
+    Change = {created, Deposit},
+    TimestampedChange = {ev, machinery_time:now(), Change},
+    Type = {struct, struct, {ff_proto_deposit_thrift, 'TimestampedChange'}},
+    Binary = ff_proto_utils:serialize(Type, marshal(timestamped_change, TimestampedChange)),
+    Decoded = ff_proto_utils:deserialize(Type, Binary),
+    ?assertEqual(TimestampedChange, unmarshal(timestamped_change, Decoded)).
 
 -endif.

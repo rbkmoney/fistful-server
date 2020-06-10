@@ -123,6 +123,8 @@ update_current_limit_checks(LimitChecks, Routes) ->
     update_current(Updated, Routes).
 
 -spec get_sessions(attempts()) -> [session()].
+get_sessions(undefined) ->
+    [];
 get_sessions(#{attempts := Attempts, inversed_routes := InvRoutes}) ->
     lists:foldl(
         fun(ID, Acc) ->

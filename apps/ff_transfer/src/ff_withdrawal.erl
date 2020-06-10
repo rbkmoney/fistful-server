@@ -1059,7 +1059,7 @@ wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, Route, Quote) ->
         <<"version">> => 1,
         <<"quote_data">> => QuoteData,
         <<"provider_id">> => ProviderID,
-        <<"terminal_id">> => TerminalID, %Terminal id must be present for newer tokens
+        <<"terminal_id">> => TerminalID,
         <<"resource_id">> => ResourceID,
         <<"timestamp">> => Timestamp,
         <<"domain_revision">> => DomainRevision,
@@ -1435,8 +1435,8 @@ build_failure(session, Withdrawal) ->
 
 get_quote_field(provider_id, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
     ProviderID;
-get_quote_field(terminal_id, #{quote_data := #{<<"terminal_id">> := TerminalID}}) ->
-    TerminalID.
+get_quote_field(terminal_id, #{quote_data := QuoteData}) ->
+    maps:get(<<"terminal_id">>, QuoteData, undefined).
 
 %%
 

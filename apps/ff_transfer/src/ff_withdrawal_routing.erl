@@ -121,7 +121,7 @@ validate_terms(Provider, Terminal, PartyVarset) ->
     end).
 
 assert_terms_defined(undefined, undefined) ->
-    %% Missing withdrawal_terms mean that operations for this provider/terminal are forbidden
+    %% Missing withdrawal_terms mean that operations for this provider and terminal are forbidden
     {error, terms_undefined};
 assert_terms_defined(_, _) ->
     ok.

@@ -338,10 +338,6 @@ route(T) ->
 attempts(T) ->
     maps:get(attempts, T, undefined).
 
--spec update_attempts(attempts(), withdrawal_state()) -> withdrawal_state().
-update_attempts(Attempts, T) ->
-    maps:put(attempts, Attempts, T).
-
 -spec external_id(withdrawal_state()) -> external_id() | undefined.
 external_id(T) ->
     maps:get(external_id, T, undefined).
@@ -505,6 +501,10 @@ do_start_adjustment(Params, Withdrawal) ->
     end).
 
 %% Internal getters
+
+-spec update_attempts(attempts(), withdrawal_state()) -> withdrawal_state().
+update_attempts(Attempts, T) ->
+    maps:put(attempts, Attempts, T).
 
 -spec params(withdrawal_state()) -> transfer_params().
 params(#{params := V}) ->
@@ -1451,8 +1451,7 @@ process_route_change(Providers, Withdrawal, Reason) ->
     case ff_withdrawal_route_attempt_utils:next_route(Routes, Attempts) of
         {ok, Route} ->
             {continue, [
-                {route_changed, Route},
-                {status_changed, pending}
+                {route_changed, Route}
             ]};
         {error, route_not_found} ->
             %% No more routes, return last error

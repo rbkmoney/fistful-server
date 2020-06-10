@@ -95,7 +95,7 @@ p2p_provider(Ref, ProxyRef, IdentityID, C) ->
 
 -spec withdrawal_provider(?dtp('WithdrawalProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
     object().
-withdrawal_provider(?wthdr_prv(4) = Ref, ProxyRef, IdentityID, C) ->
+withdrawal_provider(?wthdr_prv(6) = Ref, ProxyRef, IdentityID, C) ->
     AccountID = account(<<"RUB">>, C),
     {withdrawal_provider, #domain_WithdrawalProviderObject{
         ref = Ref,
@@ -110,7 +110,7 @@ withdrawal_provider(?wthdr_prv(4) = Ref, ProxyRef, IdentityID, C) ->
             terminal = {decisions, [
                 #domain_WithdrawalTerminalDecision{
                     if_   = {constant, true},
-                    then_ = {value, [?wthdr_trm(4)]}
+                    then_ = {value, [?wthdr_trm(6)]}
                 }
             ]}
         }
@@ -179,7 +179,7 @@ withdrawal_terminal(?wthdr_trm(1) = Ref) ->
             terms = #domain_WithdrawalProvisionTerms{}
         }
     }};
-withdrawal_terminal(?wthdr_trm(4) = Ref) ->
+withdrawal_terminal(?wthdr_trm(6) = Ref) ->
     {withdrawal_terminal, #domain_WithdrawalTerminalObject{
         ref = Ref,
         data = #domain_WithdrawalTerminal{

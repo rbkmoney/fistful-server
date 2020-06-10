@@ -12,19 +12,21 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function('ProcessWithdrawal', [Withdrawal, InternalState, Options], _Context, _Opts) ->
+handle_function('ProcessWithdrawal', [Withdrawal, InternalState, Options], _Context, Opts) ->
+    Handler = get_handler(Opts),
     DWithdrawal = decode_withdrawal(Withdrawal),
     DState = decode_state(InternalState),
     DOptions = decode_options(Options),
-    {ok, Intent, NewState} = ff_ct_provider:process_withdrawal(DWithdrawal, DState, DOptions),
+    {ok, Intent, NewState} = Handler:process_withdrawal(DWithdrawal, DState, DOptions),
     {ok, #wthadpt_ProcessResult{
         intent = encode_intent(Intent),
         next_state = encode_state(NewState)
     }};
-handle_function('GetQuote', [QuoteParams, Options], _Context, _Opts) ->
+handle_function('GetQuote', [QuoteParams, Options], _Context, Opts) ->
+    Handler = get_handler(Opts),
     Params = decode_quote_params(QuoteParams),
     DOptions = decode_options(Options),
-    {ok, Quote} = ff_ct_provider:get_quote(Params, DOptions),
+    {ok, Quote} = Handler:get_quote(Params, DOptions),
     {ok, encode_quote(Quote)}.
 
 %%
@@ -104,3 +106,7 @@ encode_quote(#{
         expires_on = ExpiresOn,
         quote_data = QuoteData
     }.
+
+
+get_handler(Opts) ->
+    proplists:get_value(handler, Opts, ff_ct_provider).

@@ -2,7 +2,7 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--export([prepare_route/3]).
+-export([prepare_routes/3]).
 -export([get_provider/1]).
 -export([get_terminal/1]).
 
@@ -32,15 +32,15 @@
 
 %%
 
--spec prepare_route(party_varset(), identity(), domain_revision()) ->
-    {ok, route()} | {error, route_not_found}.
+-spec prepare_routes(party_varset(), identity(), domain_revision()) ->
+    {ok, [route()]} | {error, route_not_found}.
 
-prepare_route(PartyVarset, Identity, DomainRevision) ->
+prepare_routes(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
         {ok, Providers}  ->
-            choose_route(Providers, PartyVarset);
+            filter_routes(Providers, PartyVarset);
         {error, {misconfiguration, _Details} = Error} ->
             %% TODO: Do not interpret such error as an empty route list.
             %% The current implementation is made for compatibility reasons.
@@ -63,25 +63,29 @@ get_terminal(Route) ->
 
 %%
 
--spec choose_route([provider_id()], party_varset()) ->
-    {ok, route()} | {error, route_not_found}.
+-spec filter_routes([provider_id()], party_varset()) ->
+    {ok, [route()]} | {error, route_not_found}.
 
-choose_route(Providers, PartyVarset) ->
+filter_routes(Providers, PartyVarset) ->
     do(fun() ->
-        unwrap(choose_route_(Providers, PartyVarset))
+        unwrap(filter_routes_(Providers, PartyVarset, []))
     end).
 
-choose_route_([], _PartyVarset) ->
+filter_routes_([], _PartyVarset, []) ->
     {error, route_not_found};
-choose_route_([ProviderID | Rest], PartyVarset) ->
+filter_routes_([], _PartyVarset, Acc) ->
+    {ok, Acc};
+filter_routes_([ProviderID | Rest], PartyVarset, Acc0) ->
     Provider = unwrap(ff_payouts_provider:get(ProviderID)),
     {ok, Terminals} = get_provider_terminals(Provider, PartyVarset),
-    case get_valid_terminals(Terminals, Provider, PartyVarset, []) of
-        [TerminalID | _] ->
-            {ok, make_route(ProviderID, TerminalID)};
+    Acc = case get_valid_terminals(Terminals, Provider, PartyVarset, []) of
         [] ->
-            choose_route_(Rest, PartyVarset)
-    end.
+            Acc0;
+        TerminalIDs ->
+            Routes = [make_route(ProviderID, TerminalID) || TerminalID <- TerminalIDs],
+            Acc0 ++ Routes
+    end,
+    filter_routes_(Rest, PartyVarset, Acc).
 
 -spec get_provider_terminals(provider(), party_varset()) ->
     {ok, [terminal_id()]}.

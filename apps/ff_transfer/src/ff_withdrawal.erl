@@ -405,7 +405,6 @@ create(Params) ->
             destination_id => DestinationID,
             quote => Quote
         }),
-        Attempts = ff_withdrawal_route_attempt_utils:init(),
         [
             {created, genlib_map:compact(#{
                 version         => ?ACTUAL_FORMAT_VERSION,
@@ -414,7 +413,6 @@ create(Params) ->
                 body            => Body,
                 params          => TransferParams,
                 created_at      => CreatedAt,
-                attempts        => Attempts,
                 party_revision  => PartyRevision,
                 domain_revision => DomainRevision,
                 external_id     => maps:get(external_id, Params, undefined),

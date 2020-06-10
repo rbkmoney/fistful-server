@@ -38,7 +38,6 @@
 -export_type([attempts/0]).
 
 %% API
--export([init/0]).
 -export([new_route/2]).
 -export([next_route/2]).
 -export([get_current_session/1]).
@@ -51,16 +50,10 @@
 -export([get_sessions/1]).
 -export([get_index/1]).
 
--spec init() -> attempts().
-init() ->
-    #{
-        attempts => #{},
-        inversed_routes => [],
-        index => 0
-    }.
-
 -spec new_route(route(), attempts()) ->
     attempts().
+new_route(Route, undefined) ->
+    new_route(Route, init());
 new_route(Route, Existing) ->
     #{
         attempts := Attempts,
@@ -150,6 +143,14 @@ get_index(#{index := Index}) ->
     Index.
 
 %% Internal
+
+-spec init() -> attempts().
+init() ->
+    #{
+        attempts => #{},
+        inversed_routes => [],
+        index => 0
+    }.
 
 %% @private
 current(#{current := Route, attempts := Attempts}) ->

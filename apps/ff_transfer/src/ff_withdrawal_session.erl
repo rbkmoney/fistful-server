@@ -59,7 +59,8 @@
 
 -type params() :: #{
     resource := ff_destination:resource_full(),
-    route := ff_withdrawal_routing:route()
+    route := ff_withdrawal_routing:route(),
+    withdrawal_id := ff_withdrawal:id()
 }.
 
 -export_type([data/0]).

@@ -836,6 +836,7 @@ process_session_creation(Withdrawal) ->
         quote       => unwrap_quote(quote(Withdrawal))
     }),
     SessionParams = #{
+        withdrawal_id => id(Withdrawal),
         resource => destination_resource(Withdrawal),
         provider_id => ProviderID
     },

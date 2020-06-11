@@ -23,6 +23,7 @@
 
 -type withdrawal() :: #{
     id          => binary(),
+    session_id  => binary(),
     resource    => resource(),
     cash        => cash(),
     sender      => identity() | undefined,
@@ -144,6 +145,7 @@ encode_quote_params(Params) ->
 encode_withdrawal(Withdrawal) ->
     #{
         id := ID,
+        session_id := SesID,
         cash := Cash,
         resource := Resource,
         sender := Sender,
@@ -151,6 +153,7 @@ encode_withdrawal(Withdrawal) ->
     } = Withdrawal,
     #wthadpt_Withdrawal{
         id = ID,
+        session_id = SesID,
         body = encode_body(Cash),
         destination = encode_resource(Resource),
         sender = encode_identity(Sender),

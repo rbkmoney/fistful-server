@@ -23,7 +23,7 @@
 
 -type withdrawal() :: #{
     id          => binary(),
-    session_id  => binary() | undefined,
+    session_id  => binary(),
     resource    => resource(),
     cash        => cash(),
     sender      => identity() | undefined,

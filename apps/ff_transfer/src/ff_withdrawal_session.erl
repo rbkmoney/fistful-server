@@ -319,11 +319,11 @@ process_intent({sleep, Timer}) ->
 
 -spec create_session(id(), data(), params()) ->
     session().
-create_session(ID, Data, #{resource := Resource, route := Route}) ->
+create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, route := Route}) ->
     #{
         version    => ?ACTUAL_FORMAT_VERSION,
         id         => ID,
-        withdrawal => create_adapter_withdrawal(Data, Resource),
+        withdrawal => create_adapter_withdrawal(Data, Res, WdthID),
         provider   => ff_withdrawal_routing:get_provider(Route),
         terminal   => ff_withdrawal_routing:get_terminal(Route),
         adapter    => get_adapter_with_opts(Route),
@@ -358,8 +358,8 @@ get_adapter_terminal_opts(TerminalID) ->
     {ok, Terminal} = ff_payouts_terminal:get(TerminalID),
     ff_payouts_terminal:adapter_opts(Terminal).
 
-create_adapter_withdrawal(Data, Resource) ->
-    Data#{resource => Resource}.
+create_adapter_withdrawal(#{id := SesID} = Data, Resource, WdthID) ->
+    Data#{resource => Resource, id => WdthID, session_id => SesID}.
 
 -spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->

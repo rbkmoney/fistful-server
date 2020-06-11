@@ -93,27 +93,36 @@ unmarshal(
     {evsink_event, Schema},
     #'mg_stateproc_SinkEvent'{
         'id'            = ID,
-        'source_ns'     = Ns,
-        'source_id'     = SourceID,
+        'source_ns'     = NS0,
+        'source_id'     = SourceID0,
         'event'         = Event
     }
 ) ->
-    #mg_stateproc_Event{id = EventID, created_at = CreatedAt, format_version = Format, data = Data} = Event,
+    #mg_stateproc_Event{id = EventID, created_at = CreatedAt0, format_version = Format, data = Data0} = Event,
+    SourceID1 = unmarshal(id, SourceID0),
+    NS1 = unmarshal(namespace, NS0),
+    CreatedAt1 = unmarshal(timestamp, CreatedAt0),
+    Context = #{
+        machine_ref => SourceID1,
+        machine_ns => NS1,
+        created_at => CreatedAt1
+    },
+    {Data1, Context} = unmarshal({schema, Schema, {event, Format}, Context}, Data0),
     #{
         id          => unmarshal(event_id, ID),
-        ns          => unmarshal(namespace, Ns),
-        source_id   => unmarshal(id, SourceID),
+        ns          => NS1,
+        source_id   => SourceID1,
         event       => {
             unmarshal(event_id, EventID),
-            unmarshal(timestamp, CreatedAt),
-            unmarshal({schema, Schema, {event, Format}}, Data)
+            CreatedAt1,
+            Data1
         }
     };
 
 unmarshal({list, T}, V) when is_list(V) ->
     [unmarshal(T, E) || E <- V];
-unmarshal({schema, Schema, T}, V) ->
-    machinery_mg_schema:unmarshal(Schema, T, V);
+unmarshal({schema, Schema, T, Context}, V) ->
+    machinery_mg_schema:unmarshal(Schema, T, V, Context);
 unmarshal(string, V) when is_binary(V) ->
     V;
 unmarshal(atom, V) when is_binary(V) ->

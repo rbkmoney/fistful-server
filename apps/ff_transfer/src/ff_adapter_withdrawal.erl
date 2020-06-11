@@ -145,12 +145,12 @@ encode_quote_params(Params) ->
 encode_withdrawal(Withdrawal) ->
     #{
         id := ID,
-        session_id := SesID,
         cash := Cash,
         resource := Resource,
         sender := Sender,
         receiver := Receiver
     } = Withdrawal,
+    SesID = maps:get(session_id, Withdrawal, undefined),
     #wthadpt_Withdrawal{
         id = ID,
         session_id = SesID,

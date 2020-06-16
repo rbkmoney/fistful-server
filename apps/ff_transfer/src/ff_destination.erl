@@ -44,6 +44,7 @@
     card_type           => charge_card | credit | debit | credit_or_debit,
     bin_data_id         := ff_bin_data:bin_data_id(),
     cardholder_name     => binary(),
+    category            => binary(),
     exp_date            => exp_date()
 }.
 
@@ -203,7 +204,7 @@ process_resource_full({bank_card, #{bank_card := #{token := Token} = BankCard} =
     do(fun() ->
         UnwrappedResourceID = unwrap_resource_id(ResourceID),
         BinData = unwrap(bin_data, ff_bin_data:get(Token, UnwrappedResourceID)),
-        KeyList = [payment_system, bank_name, iso_country_code, card_type],
+        KeyList = [payment_system, bank_name, iso_country_code, card_type, category],
         ExtendData = maps:with(KeyList, BinData),
         {bank_card, Resource#{
             bank_card => maps:merge(BankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)})

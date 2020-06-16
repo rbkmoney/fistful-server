@@ -188,8 +188,12 @@ get_withdrawal_session_events_ok(C) ->
     DestID  = create_destination(IID, C),
     WdrID   = process_withdrawal(WalID, DestID),
 
+    {ok, St} = ff_withdrawal_machine:get(WdrID),
+    Withdrawal = ff_withdrawal_machine:withdrawal(St),
+    [#{id := SessID}] = ff_withdrawal:sessions(Withdrawal),
+
     {ok, RawEvents} = ff_withdrawal_session_machine:events(
-        WdrID,
+        SessID,
         {undefined, 1000, forward}
     ),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),

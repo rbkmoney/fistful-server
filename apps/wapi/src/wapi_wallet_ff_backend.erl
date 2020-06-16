@@ -872,7 +872,7 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
         TransferID = maps:get(<<"transferID">>, Data),
         PartyID = wapi_handler_utils:get_owner(Context),
         Hash = erlang:phash2(Params),
-        IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer, PartyID, TransferID),
+        IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
         case bender_client:gen_by_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
             {ok, TransferID} ->
                 ParsedParams = unwrap(maybe_add_p2p_quote_token(
@@ -880,7 +880,7 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
                 )),
                 SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
                 ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
-                Result = p2p_template_machine:create_transfer(ID, ParsedParams#{
+                Result = p2p_template:force_create_transfer(ID, ParsedParams#{
                     id => TransferID,
                     sender => {raw, #{resource_params => SenderResource}},
                     receiver => {raw, #{resource_params => ReceiverResource}},

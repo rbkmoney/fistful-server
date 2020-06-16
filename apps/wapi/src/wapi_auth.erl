@@ -77,7 +77,11 @@ resolve_token_spec({p2p_template_transfers, P2PTemplateID, #{<<"transferID">> :=
     #{
         <<"data">> => #{<<"transferID">> => TransferID},
         <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
-            [{[{p2p_templates, P2PTemplateID}, p2p_template_transfers], write}, {[{p2p, TransferID}], read}]
+            [
+                {[{p2p_templates, P2PTemplateID}, p2p_template_transfers], write},
+                {[p2p, p2p_quotes], write},
+                {[{p2p, TransferID}], read}
+            ]
         )}
     };
 resolve_token_spec({destinations, DestinationId}) ->
@@ -170,7 +174,7 @@ get_operation_access('GetWebhookByID', _) ->
 get_operation_access('DeleteWebhookByID', _) ->
     [{[webhooks], write}];
 get_operation_access('CreateQuote', _) ->
-    [{[party], write}];
+    [{[withdrawals, withdrawal_quotes], write}];
 get_operation_access('ListWithdrawals', _) ->
     [{[withdrawals], read}];
 get_operation_access('CreateWithdrawal', _) ->
@@ -186,7 +190,7 @@ get_operation_access('GetWithdrawalEvents', _) ->
 get_operation_access('CreateP2PTransfer', _) ->
     [{[p2p], write}];
 get_operation_access('QuoteP2PTransfer', _) ->
-    [{[p2p], write}];
+    [{[p2p, p2p_quotes], write}];
 get_operation_access('GetP2PTransfer', #{'p2pTransferID' := ID}) ->
     [{[{p2p, ID}], read}];
 get_operation_access('GetP2PTransferEvents', _) ->
@@ -226,14 +230,14 @@ get_resource_hierarchy() ->
             wallets => #{},
             destinations => #{}
         },
-        p2p => #{},
+        p2p => #{p2p_quotes => #{}},
         p2p_templates => #{
             p2p_template_tickets => #{},
             p2p_template_transfers => #{}
         },
         w2w => #{},
         webhooks => #{},
-        withdrawals => #{}
+        withdrawals => #{withdrawal_quotes => #{}}
     }.
 
 -spec get_verification_options() -> uac:verification_opts().

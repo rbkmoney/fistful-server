@@ -8,6 +8,7 @@
 
 -export([create/1]).
 -export([set_blocking/2]).
+-export([force_create_transfer/2]).
 -export([create_transfer/2]).
 
 %% Accessors
@@ -243,6 +244,16 @@ set_blocking(Blocking, #{blocking := Blocking}) ->
     {ok, {undefined, []}};
 set_blocking(Blocking, _State) ->
     {ok, {undefined, [{blocking_changed, Blocking}]}}.
+
+-spec force_create_transfer(id(), transfer_params()) ->
+    ok | {error, p2p_transfer:create_error() | exists}.
+force_create_transfer(ID, Params) ->
+    do(fun() ->
+        Machine = unwrap(p2p_template_machine:get(ID)),
+        State = p2p_template_machine:p2p_template(Machine),
+        {Result, _} = create_transfer(Params, State),
+        unwrap(Result)
+    end).
 
 -spec create_transfer(transfer_params(), template_state()) ->
     {ok | {error, p2p_transfer:create_error() | exists}, process_result()}.

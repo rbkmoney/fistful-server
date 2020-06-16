@@ -52,6 +52,12 @@ marshal_destination_state(DestinationState, ID, Context) ->
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #dst_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Destination}) ->
     {created, marshal(create_change, Destination)};
 marshal(change, {account, AccountChange}) ->
@@ -98,6 +104,11 @@ unmarshal(repair_scenario, {add_events, #dst_AddEventsRepair{events = Events, ac
         events => unmarshal({list, change}, Events),
         action => maybe_unmarshal(complex_action, Action)
     })};
+
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#dst_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#dst_TimestampedChange.change),
+    {ev, Timestamp, Change};
 
 unmarshal(change, {created, Destination}) ->
     {created, unmarshal(destination, Destination)};

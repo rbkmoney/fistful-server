@@ -49,6 +49,12 @@ unmarshal_wallet_params(#wlt_WalletParams{
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #wlt_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Wallet}) ->
     {created, marshal(wallet, Wallet)};
 marshal(change, {account, AccountChange}) ->
@@ -75,6 +81,11 @@ marshal(T, V) ->
 
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
+
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#wlt_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#wlt_TimestampedChange.change),
+    {ev, Timestamp, Change};
 
 unmarshal(repair_scenario, {add_events, #wlt_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{

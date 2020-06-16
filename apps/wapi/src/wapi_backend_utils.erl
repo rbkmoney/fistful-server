@@ -20,6 +20,7 @@
     | withdrawal
     | p2p_transfer
     | p2p_template
+    | p2p_transfer_with_template
     | w2w_transfer.
 
 -export([gen_id/3]).

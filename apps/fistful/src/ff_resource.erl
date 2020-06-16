@@ -111,6 +111,7 @@
 -export([masked_pan/1]).
 -export([payment_system/1]).
 -export([country_code/1]).
+-export([category/1]).
 -export([bank_name/1]).
 -export([exp_date/1]).
 -export([cardholder_name/1]).

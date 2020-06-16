@@ -150,21 +150,21 @@ unmarshal(status, Status) ->
     ff_deposit_status_codec:unmarshal(status, Status);
 
 unmarshal(deposit, Deposit) ->
-    #{
+    genlib_map:compact(#{
         version => 2,
         id => unmarshal(id, Deposit#deposit_Deposit.id),
         body => unmarshal(cash, Deposit#deposit_Deposit.body),
         status => maybe_unmarshal(status, Deposit#deposit_Deposit.status),
         params => genlib_map:compact(#{
             wallet_id => unmarshal(id, Deposit#deposit_Deposit.wallet_id),
-            source_id => unmarshal(id, Deposit#deposit_Deposit.source_id),
-            external_id => maybe_unmarshal(id, Deposit#deposit_Deposit.external_id)
+            source_id => unmarshal(id, Deposit#deposit_Deposit.source_id)
         }),
+        external_id => maybe_unmarshal(id, Deposit#deposit_Deposit.external_id),
         party_revision => maybe_unmarshal(party_revision, Deposit#deposit_Deposit.party_revision),
         domain_revision => maybe_unmarshal(domain_revision, Deposit#deposit_Deposit.domain_revision),
         created_at => maybe_unmarshal(timestamp_ms, Deposit#deposit_Deposit.created_at),
         metadata => maybe_unmarshal(ctx, Deposit#deposit_Deposit.metadata)
-    };
+    });
 
 unmarshal(deposit_params, DepositParams) ->
     genlib_map:compact(#{
@@ -246,9 +246,9 @@ deposit_timestamped_change_codec_test() ->
         party_revision => 321,
         params => #{
             wallet_id => genlib:unique(),
-            source_id => genlib:unique(),
-            external_id => genlib:unique()
-        }
+            source_id => genlib:unique()
+        },
+        external_id => genlib:unique()
     },
     Change = {created, Deposit},
     TimestampedChange = {ev, machinery_time:now(), Change},

@@ -119,6 +119,7 @@ unmarshal(change, {status, StatusChange}) ->
 
 unmarshal(destination, Dest) ->
     genlib_map:compact(#{
+        version => 3,
         resource => unmarshal(resource, Dest#dst_Destination.resource),
         name => unmarshal(string, Dest#dst_Destination.name),
         created_at => maybe_unmarshal(timestamp_ms, Dest#dst_Destination.created_at),
@@ -166,6 +167,7 @@ destination_test() ->
         token => <<"token auth">>
     }}},
     In = #{
+        version     => 3,
         name        => <<"Wallet">>,
         resource    => Resource
     },

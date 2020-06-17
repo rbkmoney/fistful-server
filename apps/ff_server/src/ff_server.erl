@@ -221,6 +221,8 @@ get_namespace_schema('ff/p2p_transfer_v1') ->
 get_namespace_schema('ff/p2p_transfer/session_v1') ->
     machinery_mg_schema_generic;
 get_namespace_schema('ff/w2w_transfer_v1') ->
+    machinery_mg_schema_generic;
+get_namespace_schema('ff/p2p_template_v1') ->
     machinery_mg_schema_generic.
 
 wrap_handler(Handler, WrapperOpts) ->

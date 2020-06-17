@@ -882,8 +882,8 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
                 ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
                 Result = p2p_template:force_create_transfer(ID, ParsedParams#{
                     id => TransferID,
-                    sender => {raw, #{resource_params => SenderResource}},
-                    receiver => {raw, #{resource_params => ReceiverResource}},
+                    sender => {raw, #{resource_params => SenderResource, contact_info => #{}}},
+                    receiver => {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
                     context => make_ctx(Context)
                 }),
                 unwrap(handle_create_entity_result(Result, p2p_transfer, TransferID, Context));

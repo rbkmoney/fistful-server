@@ -40,6 +40,8 @@
 -type ref() :: machinery:ref().
 -type range() :: machinery:range().
 -type id() :: machinery:id().
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
 -type params() :: p2p_template:params().
 
 -type machine() :: ff_machine:machine(event()).
@@ -130,7 +132,7 @@ events(Ref, Range) ->
     end.
 
 -spec repair(ref(), ff_repair:scenario()) ->
-    ok | {error, notfound | working}.
+    {ok, repair_response()} | {error, notfound | working | {failed, repair_error()}}.
 repair(Ref, Scenario) ->
     machinery:repair(?NS, Ref, Scenario, backend()).
 
@@ -161,10 +163,9 @@ process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, repair_error()}.
 process_repair(Scenario, Machine, _Args, _Opts) ->
-    ScenarioProcessors = #{},
-    ff_repair:apply_scenario(p2p_template, Machine, Scenario, ScenarioProcessors).
+    ff_repair:apply_scenario(p2p_template, Machine, Scenario).
 
 %%
 %% Internals

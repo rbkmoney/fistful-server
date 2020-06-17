@@ -74,14 +74,14 @@ unmarshal(T, V, C) when
 %% Internals
 
 -spec marshal_event(machinery_mg_schema:version(), event(), context()) ->
-    machinery_msgpack:t().
+    {machinery_msgpack:t(), context()}.
 marshal_event(1, TimestampedChange, Context) ->
     ThriftChange = ff_destination_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_destination_thrift, 'TimestampedChange'}},
     {{bin, ff_proto_utils:serialize(Type, ThriftChange)}, Context}.
 
 -spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) ->
-    event().
+    {event(), context()}.
 unmarshal_event(1, EncodedChange, Context) ->
     {bin, EncodedThriftChange} = EncodedChange,
     Type = {struct, struct, {ff_proto_destination_thrift, 'TimestampedChange'}},

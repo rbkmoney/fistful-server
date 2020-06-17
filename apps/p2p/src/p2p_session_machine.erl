@@ -38,8 +38,13 @@
 -type process_callback_result()     :: {succeeded, p2p_callback:response()}
                                      | {finished,  p2p_adapter:context()}.
 
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
+
 -export_type([process_callback_error/0]).
 -export_type([process_callback_result/0]).
+-export_type([repair_error/0]).
+-export_type([repair_response/0]).
 
 %%
 %% Internal types
@@ -122,7 +127,7 @@ process_callback(#{tag := Tag} = Params) ->
     call({tag, Tag}, {process_callback, Params}).
 
 -spec repair(ref(), ff_repair:scenario()) ->
-    ok | {error, notfound | working}.
+    {ok, repair_response()} | {error, notfound | working | {failed, repair_error()}}.
 repair(Ref, Scenario) ->
     machinery:repair(?NS, Ref, Scenario, backend()).
 
@@ -160,12 +165,12 @@ process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, notfound | working | {failed, repair_error()}}.
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ScenarioProcessors = #{
         set_session_result => fun(Args, RMachine) ->
             State = ff_machine:collapse(p2p_session, RMachine),
-            p2p_session:set_session_result(Args, session(State))
+            {ok, {ok, p2p_session:set_session_result(Args, session(State))}}
         end
     },
     ff_repair:apply_scenario(p2p_session, Machine, Scenario, ScenarioProcessors).

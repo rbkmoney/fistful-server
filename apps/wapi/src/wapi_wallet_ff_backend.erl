@@ -737,8 +737,8 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                 p2p_transfer_machine:create(
                     genlib_map:compact(ParsedParams#{
                         id => ID,
-                        sender => {raw, #{resource_params => SenderResource}},
-                        receiver => {raw, #{resource_params => ReceiverResource}}
+                        sender => {raw, #{resource_params => SenderResource, contact_info => #{}}},
+                        receiver => {raw, #{resource_params => ReceiverResource, contact_info => #{}}}
                     }),
                     add_meta_to_ctx([], Params, EntityCtx)
                 )

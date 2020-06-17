@@ -178,6 +178,7 @@ create_failed_session(IdentityID, DestinationID, _C) ->
     Destination = ff_destination:get(DestinationMachine),
     {ok, DestinationResource} = ff_destination:resource_full(Destination),
     SessionParams = #{
+        withdrawal_id => ID,
         resource => DestinationResource,
         provider_id => 1
     },

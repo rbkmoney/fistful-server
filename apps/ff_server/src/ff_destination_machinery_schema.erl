@@ -112,8 +112,8 @@ unmarshal(Type, Value) ->
     {Result, _Context} = unmarshal(Type, Value, #{}),
     Result.
 
--spec created_v0_decoding_test() -> _.
-created_v0_decoding_test() ->
+-spec created_v0_0_decoding_test() -> _.
+created_v0_0_decoding_test() ->
     Resource = {crypto_wallet, #{crypto_wallet => #{
         id => <<"kek">>,
         currency => {bitcoin, #{}}
@@ -175,8 +175,8 @@ created_v0_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec created_v1_decoding_test() -> _.
-created_v1_decoding_test() ->
+-spec created_v0_1_decoding_test() -> _.
+created_v0_1_decoding_test() ->
     Resource = {bank_card, #{bank_card => #{
         token => <<"token">>,
         bin_data_id => {binary, <<"ebin">>}
@@ -246,8 +246,8 @@ created_v1_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec account_decoding_test() -> _.
-account_decoding_test() ->
+-spec account_v0_decoding_test() -> _.
+account_v0_decoding_test() ->
     Change = {account, {created, #{
         id => <<"1">>,
         identity => <<"Solo">>,
@@ -295,8 +295,8 @@ account_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec status_decoding_test() -> _.
-status_decoding_test() ->
+-spec status_v0_decoding_test() -> _.
+status_v0_decoding_test() ->
     Event = {
         ev,
         {{{2020, 5, 25}, {19, 19, 10}}, 293305},
@@ -323,6 +323,71 @@ status_decoding_test() ->
     ]},
 
     DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec created_v1_3_decoding_test() -> _.
+created_v1_3_decoding_test() ->
+    Resource = {crypto_wallet, #{crypto_wallet => #{
+        id => <<"kek">>,
+        currency => {bitcoin, #{}}
+    }}},
+    Destination = #{
+        version     => 3,
+        resource    => Resource,
+        name        => <<"name">>,
+        created_at  => 1590434350293,
+        external_id => <<"external_id">>
+    },
+    Change = {created, Destination},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQsAAQAAAARuYW1lDAA"
+        "CDAACDAABCwABAAAAA2tlawwAAwwAAQAACAACAAAAAAAAAAsAAwAAAAtleHRlcm5hbF9pZA"
+        "sABwAAABgyMDIwLTA1LTI1VDE5OjE5OjEwLjI5M1oAAAA="
+    >>)},
+
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec account_v1_decoding_test() -> _.
+account_v1_decoding_test() ->
+    Change = {account, {created, #{
+        id => <<"1">>,
+        identity => <<"Solo">>,
+        currency => <<"USD">>,
+        accounter_account_id => 322
+    }}},
+
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAgwAAQsAAwAAAAExCw"
+        "ABAAAABFNvbG8MAAILAAEAAAADVVNEAAoABAAAAAAAAAFCAAAAAA=="
+    >>)},
+
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec status_v1_decoding_test() -> _.
+status_v1_decoding_test() ->
+    Event = {
+        ev,
+        {{{2020, 5, 25}, {19, 19, 10}}, 293305},
+        {status_changed, unauthorized}
+    },
+
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAwwAAQwAAgAAAAAA"
+    >>)},
+
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).

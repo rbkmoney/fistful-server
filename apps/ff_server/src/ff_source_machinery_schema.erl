@@ -12,7 +12,8 @@
 
 %% Constants
 
--define(CURRENT_EVENT_FORMAT_VERSION, 1).
+% @TODO: Set to one after migration
+-define(CURRENT_EVENT_FORMAT_VERSION, undefined).
 
 %% Internal types
 
@@ -75,6 +76,9 @@ unmarshal(T, V, C) when
 
 -spec marshal_event(machinery_mg_schema:version(), event(), context()) ->
     {machinery_msgpack:t(), context()}.
+marshal_event(undefined = Version, TimestampedChange, Context) ->
+    % @TODO: Remove after migration
+    machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange, Context);
 marshal_event(1, TimestampedChange, Context) ->
     ThriftChange = ff_source_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_source_thrift, 'TimestampedChange'}},

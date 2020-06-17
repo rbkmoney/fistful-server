@@ -296,6 +296,67 @@ status_undef_1_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
+-spec created_1_decoding_test() -> _.
+created_1_decoding_test() ->
+    Resource = #{
+        type    => internal,
+        details => <<"details">>
+    },
+    Source = #{
+        version     => 3,
+        resource    => Resource,
+        name        => <<"name">>,
+        created_at  => 1590434350293,
+        external_id => <<"external_id">>
+    },
+    Change = {created, Source},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQsAAQAAAARuYW1lDA"
+        "ACDAABCwABAAAAB2RldGFpbHMAAAsAAwAAAAtleHRlcm5hbF9pZAsABgAAABgyMDIwLTA1"
+        "LTI1VDE5OjE5OjEwLjI5M1oAAAA="
+    >>)},
+
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec account_1_decoding_test() -> _.
+account_1_decoding_test() ->
+    Change = {account, {created, #{
+        id => <<"id">>,
+        identity => <<"identity">>,
+        currency => <<"USD">>,
+        accounter_account_id => 1
+    }}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAgwAAQsAAwAAAAJpZA"
+        "sAAQAAAAhpZGVudGl0eQwAAgsAAQAAAANVU0QACgAEAAAAAAAAAAEAAAAA"
+    >>)},
+
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec status_1_decoding_test() -> _.
+status_1_decoding_test() ->
+    Change = {status_changed, unauthorized},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAwwAAQwAAgAAAAAA"
+    >>)},
+
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
 -spec marshal(type(), value(data())) ->
     machinery_msgpack:t().
 marshal(Type, Value) ->

@@ -80,6 +80,7 @@ decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Versi
         bank_name = BankName,
         iso_country_code = IsoCountryCode,
         card_type = CardType,
+        category = Category,
         bin_data_id = BinDataID
     } = Bindata,
     genlib_map:compact(#{
@@ -89,6 +90,7 @@ decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Versi
         bank_name           => BankName,
         iso_country_code    => decode_residence(IsoCountryCode),
         card_type           => decode_card_type(CardType),
+        category            => Category,
         version             => Version
     }).
 

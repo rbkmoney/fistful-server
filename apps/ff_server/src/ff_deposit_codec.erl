@@ -138,12 +138,12 @@ unmarshal(change, {limit_check, #deposit_LimitCheckChange{details = Details}}) -
 unmarshal(change, {revert, Change}) ->
     {revert, #{
         id => unmarshal(id, Change#deposit_RevertChange.id),
-        payload => ff_deposit_revert_codec:unmarshal(id, Change#deposit_RevertChange.payload)
+        payload => ff_deposit_revert_codec:unmarshal(change, Change#deposit_RevertChange.payload)
     }};
 unmarshal(change, {adjustment, Change}) ->
-    {revert, #{
+    {adjustment, #{
         id => unmarshal(id, Change#deposit_AdjustmentChange.id),
-        payload => ff_deposit_adjustment_codec:unmarshal(id, Change#deposit_AdjustmentChange.payload)
+        payload => ff_deposit_adjustment_codec:unmarshal(change, Change#deposit_AdjustmentChange.payload)
     }};
 
 unmarshal(status, Status) ->

@@ -12,7 +12,7 @@
 
 %% Constants
 
--define(CURRENT_EVENT_FORMAT_VERSION, undefined).
+-define(CURRENT_EVENT_FORMAT_VERSION, 1).
 
 %% Internal types
 
@@ -96,8 +96,316 @@ unmarshal_event(undefined = Version, EncodedChange, Context0) ->
 
 -spec maybe_migrate(any()) ->
     ff_deposit:event().
-maybe_migrate({created, #{version := 3}} = Event) ->
+maybe_migrate({created, #{version := 2}} = Event) ->
     Event;
+maybe_migrate({created, Deposit}) ->
+    {created, Deposit#{version => 2}};
 % Other events
 maybe_migrate(Ev) ->
     Ev.
+
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+% tests helpers
+
+-spec marshal(type(), value(data())) ->
+    machinery_msgpack:t().
+marshal(Type, Value) ->
+    {Result, _Context} = marshal(Type, Value, #{}),
+    Result.
+
+-spec unmarshal(type(), machinery_msgpack:t()) ->
+    data().
+unmarshal(Type, Value) ->
+    {Result, _Context} = unmarshal(Type, Value, #{}),
+    Result.
+
+-spec created_v0_2_decoding_test() -> _.
+created_v0_2_decoding_test() ->
+    Deposit = #{
+        version => 2,
+        id => <<"deposit">>,
+        status => pending,
+        body => {123, <<"RUB">>},
+        created_at => 1590426777985,
+        domain_revision => 123,
+        party_revision => 321,
+        external_id => <<"external_id">>,
+        params => #{
+            wallet_id => <<"wallet_id">>,
+            source_id => <<"source_id">>
+        }
+    },
+    Change = {created, Deposit},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"created">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"id">>} => {bin, <<"deposit">>},
+                {str, <<"status">>} => {str, <<"pending">>},
+                {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
+                {str, <<"created_at">>} => {i, 1590426777985},
+                {str, <<"domain_revision">>} => {i, 123},
+                {str, <<"party_revision">>} => {i, 321},
+                {str, <<"external_id">>} => {bin, <<"external_id">>},
+                {str, <<"params">>} => {arr, [{str, <<"map">>}, {obj, #{
+                    {str, <<"wallet_id">>} => {bin, <<"wallet_id">>},
+                    {str, <<"source_id">>} => {bin, <<"source_id">>}
+                }}]}
+            }}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec p_transfer_v0_2_decoding_test() -> _.
+p_transfer_v0_2_decoding_test() ->
+    PTransfer = #{
+        id => <<"external_id">>,
+        final_cash_flow => #{
+            postings => []
+        }
+    },
+    Change = {p_transfer, {created, PTransfer}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"p_transfer">>},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"created">>},
+            {arr, [
+                {str, <<"map">>},
+                {obj, #{
+                    {str, <<"final_cash_flow">>} => {arr, [
+                        {str, <<"map">>},
+                        {obj, #{{str, <<"postings">>} => {arr, []}}}
+                    ]},
+                    {str, <<"id">>} => {bin, <<"external_id">>}
+                }}
+            ]}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec limit_check_v0_2_decoding_test() -> _.
+limit_check_v0_2_decoding_test() ->
+    Change = {limit_check, {wallet_sender, ok}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"limit_check">>},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"wallet_sender">>},
+            {str, <<"ok">>}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec revert_v0_2_decoding_test() -> _.
+revert_v0_2_decoding_test() ->
+    Revert = #{
+        id => <<"id">>,
+        payload => {created, #{
+            id => <<"deposit_revert">>,
+            status => pending,
+            body => {123, <<"RUB">>},
+            created_at => 1590426777985,
+            domain_revision => 123,
+            party_revision => 321,
+            external_id => <<"external_id">>,
+            wallet_id => <<"wallet_id">>,
+            source_id => <<"source_id">>
+        }}
+    },
+    Change = {revert, Revert},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyRevert = {arr, [{str, <<"map">>}, {obj, #{
+        {str, <<"id">>} => {bin, <<"deposit_revert">>},
+        {str, <<"status">>} => {str, <<"pending">>},
+        {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
+        {str, <<"created_at">>} => {i, 1590426777985},
+        {str, <<"domain_revision">>} => {i, 123},
+        {str, <<"party_revision">>} => {i, 321},
+        {str, <<"external_id">>} => {bin, <<"external_id">>},
+        {str, <<"wallet_id">>} => {bin, <<"wallet_id">>},
+        {str, <<"source_id">>} => {bin, <<"source_id">>}
+    }}]},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"revert">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"id">>} => {bin, <<"id">>},
+                {str, <<"payload">>} => {arr, [
+                    {str, <<"tup">>},
+                    {str, <<"created">>},
+                    LegacyRevert
+                ]}
+            }}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec adjustment_v0_2_decoding_test() -> _.
+adjustment_v0_2_decoding_test() ->
+    CashFlowChange = #{
+        old_cash_flow_inverted => #{postings => []},
+        new_cash_flow => #{postings => []}
+    },
+
+    Plan = #{
+        new_cash_flow => CashFlowChange,
+        new_status => #{
+            new_status => succeeded
+        }
+    },
+    Adjustment = #{
+        id => <<"adjustment">>,
+        payload => {created, #{
+            id => <<"adjustment">>,
+            status => pending,
+            changes_plan => Plan,
+            created_at => 1590426777985,
+            domain_revision => 123,
+            party_revision => 321,
+            operation_timestamp => 1590426777986,
+            external_id => <<"external_id">>
+        }}
+    },
+    Change = {adjustment, Adjustment},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyPlan = {arr, [{str, <<"map">>}, {obj, #{
+        {str, <<"new_cash_flow">>} => {arr, [{str, <<"map">>}, {obj, #{
+            {str, <<"old_cash_flow_inverted">>} =>
+                {arr, [{str, <<"map">>}, {obj, #{{str, <<"postings">>} => {arr, []}}}]},
+            {str, <<"new_cash_flow">>} =>
+                {arr, [{str, <<"map">>}, {obj, #{{str, <<"postings">>} => {arr, []}}}]}
+        }}]},
+        {str, <<"new_status">>} => {arr, [{str, <<"map">>}, {obj, #{
+            {str, <<"new_status">>} => {str, <<"succeeded">>}
+        }}]}
+    }}]},
+    LegacyAdjustment = {arr, [{str, <<"map">>}, {obj, #{
+        {str, <<"id">>} => {bin, <<"adjustment">>},
+        {str, <<"status">>} => {str, <<"pending">>},
+        {str, <<"changes_plan">>} => LegacyPlan,
+        {str, <<"created_at">>} => {i, 1590426777985},
+        {str, <<"domain_revision">>} => {i, 123},
+        {str, <<"party_revision">>} => {i, 321},
+        {str, <<"operation_timestamp">>} => {i, 1590426777986},
+        {str, <<"external_id">>} => {bin, <<"external_id">>}
+    }}]},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"adjustment">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"id">>} => {bin, <<"adjustment">>},
+                {str, <<"payload">>} => {arr, [
+                    {str, <<"tup">>},
+                    {str, <<"created">>},
+                    LegacyAdjustment
+                ]}
+            }}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-endif.

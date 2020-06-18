@@ -96,10 +96,10 @@ unmarshal_event(undefined = Version, EncodedChange, Context0) ->
 
 -spec maybe_migrate(any()) ->
     ff_deposit:event().
-maybe_migrate({created, #{version := 2}} = Event) ->
+maybe_migrate({created, #{version := 3}} = Event) ->
     Event;
 maybe_migrate({created, Deposit}) ->
-    {created, Deposit#{version => 2}};
+    {created, Deposit#{version => 3}};
 % Other events
 maybe_migrate(Ev) ->
     Ev.
@@ -123,10 +123,10 @@ unmarshal(Type, Value) ->
     {Result, _Context} = unmarshal(Type, Value, #{}),
     Result.
 
--spec created_v0_2_decoding_test() -> _.
-created_v0_2_decoding_test() ->
+-spec created_v0_3_decoding_test() -> _.
+created_v0_3_decoding_test() ->
     Deposit = #{
-        version => 2,
+        version => 3,
         id => <<"deposit">>,
         status => pending,
         body => {123, <<"RUB">>},
@@ -181,8 +181,8 @@ created_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec p_transfer_v0_2_decoding_test() -> _.
-p_transfer_v0_2_decoding_test() ->
+-spec p_transfer_v0_3_decoding_test() -> _.
+p_transfer_v0_3_decoding_test() ->
     PTransfer = #{
         id => <<"external_id">>,
         final_cash_flow => #{
@@ -228,8 +228,8 @@ p_transfer_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec limit_check_v0_2_decoding_test() -> _.
-limit_check_v0_2_decoding_test() ->
+-spec limit_check_v0_3_decoding_test() -> _.
+limit_check_v0_3_decoding_test() ->
     Change = {limit_check, {wallet_sender, ok}},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
@@ -260,8 +260,8 @@ limit_check_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec revert_v0_2_decoding_test() -> _.
-revert_v0_2_decoding_test() ->
+-spec revert_v0_3_decoding_test() -> _.
+revert_v0_3_decoding_test() ->
     Revert = #{
         id => <<"id">>,
         payload => {created, #{
@@ -324,8 +324,8 @@ revert_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec adjustment_v0_2_decoding_test() -> _.
-adjustment_v0_2_decoding_test() ->
+-spec adjustment_v0_3_decoding_test() -> _.
+adjustment_v0_3_decoding_test() ->
     CashFlowChange = #{
         old_cash_flow_inverted => #{postings => []},
         new_cash_flow => #{postings => []}

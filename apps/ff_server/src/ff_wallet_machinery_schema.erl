@@ -11,7 +11,7 @@
 -export([unmarshal/3]).
 
 %% Constants
--define(CURRENT_EVENT_FORMAT_VERSION, 1).
+-define(CURRENT_EVENT_FORMAT_VERSION, undefined).
 
 %% Internal types
 
@@ -74,6 +74,9 @@ unmarshal(T, V, C) when
 
 -spec marshal_event(machinery_mg_schema:version(), event(), context()) ->
     {machinery_msgpack:t(), context()}.
+marshal_event(undefined = Version, TimestampedChange, Context) ->
+    % TODO: Удалить после выкатки
+    machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange, Context);
 marshal_event(1, TimestampedChange, Context) ->
     ThriftChange = ff_wallet_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_wallet_thrift, 'TimestampedChange'}},
@@ -116,3 +119,84 @@ maybe_migrate({created, Wallet}, MigrateContext) ->
     }}, MigrateContext);
 maybe_migrate(Ev, _MigrateContext) ->
     Ev.
+
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+% tests helpers
+
+-spec marshal(type(), value(data())) ->
+    machinery_msgpack:t().
+marshal(Type, Value) ->
+    {Result, _Context} = marshal(Type, Value, #{}),
+    Result.
+
+-spec unmarshal(type(), machinery_msgpack:t()) ->
+    data().
+unmarshal(Type, Value) ->
+    {Result, _Context} = unmarshal(Type, Value, #{}),
+    Result.
+
+-spec created_v0_2_decoding_test() -> _.
+created_v0_2_decoding_test() ->
+    Change = {created, #{
+        version       => 2,
+        name          => <<"name">>,
+        blocking      => unblocked,
+        created_at    => 123
+    }},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"created">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"version">>} => {i, 1},
+                {str, <<"name">>} => {bin, <<"name">>},
+                {str, <<"blocking">>} => {str, <<"unblocked">>},
+                {str, <<"created_at">>} => {i, 123}
+            }}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec created_v2_decoding_test() -> _.
+created_v2_decoding_test() ->
+    Change = {created, #{
+        version       => 1,
+        name          => <<"name">>,
+        blocking      => unblocked,
+        created_at    => 123
+    }},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQsAAQAAAARuYW1lCAAEAAAAAAsABgAAABgxOTcwLTAxLTAxVDAwOjAwOjAwLjEy"
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-endif.

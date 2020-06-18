@@ -8,7 +8,14 @@
 
 %% Constants
 
--define(CURRENT_EVENT_FORMAT_VERSION, 1).
+%%@TODO remove post migration
+%%======
+-define(CURRENT_EVENT_FORMAT_VERSION, undefined).
+%%======
+%%@TODO uncomment post migration
+%%======
+%% -define(CURRENT_EVENT_FORMAT_VERSION, 1).
+%%======
 
 -export([get_version/1]).
 -export([marshal/3]).
@@ -75,6 +82,11 @@ unmarshal(T, V, C) when
 
 -spec marshal_event(machinery_mg_schema:version(), event(), context()) ->
     {machinery_msgpack:t(), context()}.
+%%@TODO remove post migration
+%%======
+marshal_event(undefined = Version, TimestampedChange, Context) ->
+     machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange, Context);
+%%======
 marshal_event(1, TimestampedChange, Context) ->
     ThriftChange = ff_destination_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_destination_thrift, 'TimestampedChange'}},

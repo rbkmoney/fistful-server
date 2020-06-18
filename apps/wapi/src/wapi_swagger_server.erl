@@ -30,7 +30,7 @@ child_spec(HealthRoutes, LogicHandlers, SwaggerHandlerOpts) ->
             #{strategy => one_for_all},
             [
                 ranch:child_spec(?RANCH_REF, Transport, TransportOpts, cowboy_clear, CowboyOpts1),
-                wapi_drainer:child_spec(#{ranch_ref => ?RANCH_REF, shutdown => GsTimeout})
+                cowboy_draining_server:child_spec(#{ranch_ref => ?RANCH_REF, shutdown => GsTimeout})
             ]
         ]}
     }.

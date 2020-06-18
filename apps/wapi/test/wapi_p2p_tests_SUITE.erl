@@ -677,7 +677,7 @@ create_p2p_transfer_with_template_and_quote_ok_test(C) ->
     TemplateID = create_p2p_template(IdentityID, C),
     TemplateToken = issue_p2p_template_access_token(TemplateID, C),
     Ticket = issue_p2p_transfer_ticket(TemplateID, TemplateToken),
-    {ok, #{token := QuoteToken}} = call_api(
+    {ok, #{<<"token">> := QuoteToken}} = call_api(
         fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
         #{
             body => #{

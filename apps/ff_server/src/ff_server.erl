@@ -206,7 +206,7 @@ get_namespace_schema('ff/wallet_v2') ->
 get_namespace_schema('ff/source_v1') ->
     ff_source_machinery_schema;
 get_namespace_schema('ff/destination_v2') ->
-    machinery_mg_schema_generic;
+    ff_destination_machinery_schema;
 get_namespace_schema('ff/deposit_v1') ->
     machinery_mg_schema_generic;
 get_namespace_schema('ff/withdrawal_v2') ->

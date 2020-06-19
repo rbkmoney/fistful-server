@@ -100,6 +100,12 @@ marshal_identity_state(IdentityState, Context) ->
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+   #idnt_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Identity}) ->
     {created, marshal(identity, Identity)};
 marshal(change, {level_changed, LevelID}) ->
@@ -188,6 +194,11 @@ marshal(T, V) ->
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
 
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#idnt_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#idnt_TimestampedChange.change),
+    {ev, Timestamp, Change};
+
 unmarshal(repair_scenario, {add_events, #idnt_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
         events => unmarshal({list, change}, Events),
@@ -221,7 +232,8 @@ unmarshal(identity, #idnt_Identity{
         contract    => unmarshal(id, ContractID),
         external_id => maybe_unmarshal(id, ExternalID),
         created_at  => maybe_unmarshal(created_at, CreatedAt),
-        metadata    => maybe_unmarshal(ctx, Metadata)
+        metadata    => maybe_unmarshal(ctx, Metadata),
+        version     => 2
     });
 
 unmarshal(challenge_payload, {created, Challenge}) ->

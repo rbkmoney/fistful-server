@@ -200,7 +200,7 @@ get_eventsink_handler(Name, Service, Publisher, Config) ->
     end.
 
 get_namespace_schema('ff/identity') ->
-    machinery_mg_schema_generic;
+    ff_identity_machinery_schema;
 get_namespace_schema('ff/wallet_v2') ->
     machinery_mg_schema_generic;
 get_namespace_schema('ff/source_v1') ->

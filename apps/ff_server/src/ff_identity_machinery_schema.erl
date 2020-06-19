@@ -80,7 +80,7 @@ unmarshal(T, V, C) when
 marshal_event(undefined = Version, TimestampedChange, Context) ->
     % TODO: Remove this clause after MSPF-561 finish
     machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange, Context);
-marshal_event(2, TimestampedChange, Context) ->
+marshal_event(?CURRENT_EVENT_FORMAT_VERSION, TimestampedChange, Context) ->
     ThriftChange = ff_identity_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_identity_thrift, 'TimestampedChange'}},
     ct:log("Serialize thrift change: ~p", [ThriftChange]),
@@ -88,7 +88,7 @@ marshal_event(2, TimestampedChange, Context) ->
 
 -spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) ->
     event().
-unmarshal_event(2, EncodedChange, Context) ->
+unmarshal_event(?CURRENT_EVENT_FORMAT_VERSION, EncodedChange, Context) ->
     {bin, EncodedThriftChange} = EncodedChange,
     Type = {struct, struct, {ff_proto_identity_thrift, 'TimestampedChange'}},
     ThriftChange = ff_proto_utils:deserialize(Type, EncodedThriftChange),

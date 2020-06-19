@@ -144,11 +144,15 @@ marshal(challenge_payload, {status_changed, ChallengeStatus}) ->
     {status_changed, marshal(challenge_payload_status_changed, ChallengeStatus)};
 marshal(challenge_payload_created, Challenge = #{
     id := ID
-}) ->
+} = C) ->
+    ct:log("Challenge: ~p", [C]),
     Proofs = maps:get(proofs, Challenge, []),
     #idnt_Challenge{
         cls    = marshal(id, ID),
-        proofs = marshal({list, challenge_proofs}, Proofs)
+        provider_id = marshal(id, maps:get(provider, Challenge, undefined)),
+        class_id = marshal(id, maps:get(challenge_class, Challenge, undefined)),
+        proofs = marshal({list, challenge_proofs}, Proofs),
+        claim_id =  marshal(id, maps:get(claim_id, Challenge, undefined))
     };
 
 marshal(challenge_proofs, {Type, Token}) ->
@@ -165,6 +169,7 @@ marshal(challenge_payload_status_changed, {completed, Status = #{
     resolution := Resolution
 }}) ->
     ValidUntil = maps:get(valid_until, Status, undefined),
+    ct:log("valid until: ~p", [ValidUntil]),
     NewStatus = #idnt_ChallengeCompleted{
         resolution = marshal(resolution, Resolution),
         valid_until = marshal(timestamp, ValidUntil)
@@ -242,10 +247,15 @@ unmarshal(challenge_payload, {status_changed, ChallengeStatus}) ->
     {status_changed, unmarshal(challenge_payload_status_changed, ChallengeStatus)};
 unmarshal(challenge_payload_created, #idnt_Challenge{
     cls    = ID,
-    proofs = Proofs
-}) ->
+    proofs = Proofs,
+    claim_id = ClaimID,
+    class_id = ChallengeClassID
+} = I) ->
+    ct:log("Challenge: ~p", [I]),
     #{
         id     => unmarshal(id, ID),
+        claim_id => unmarshal(id, ClaimID),
+        challenge_class => unmarshal(id, ChallengeClassID),
         proofs => unmarshal({list, challenge_proofs}, Proofs)
     };
 
@@ -269,7 +279,7 @@ unmarshal(challenge_payload_status_changed, {completed, #idnt_ChallengeCompleted
 }}) ->
     {completed, genlib_map:compact(#{
         resolution => unmarshal(resolution, Resolution),
-        valid_until => unmarshal(timestamp, ValidUntil)
+        valid_until => maybe_unmarshal(timestamp, ValidUntil)
     })};
 unmarshal(challenge_payload_status_changed, {failed, #idnt_ChallengeFailed{}}) ->
     % FIXME: Describe failures in protocol

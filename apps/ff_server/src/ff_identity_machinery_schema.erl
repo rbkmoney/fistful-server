@@ -46,6 +46,7 @@ get_version(aux_state) ->
 -spec marshal(type(), value(data()), context()) ->
     machinery_msgpack:t().
 marshal({event, Format}, TimestampedChange, Context) ->
+    ct:log("Marshal event: ~p", [TimestampedChange]),
     marshal_event(Format, TimestampedChange, Context);
 marshal(T, V, C) when
     T =:= {args, init} orelse

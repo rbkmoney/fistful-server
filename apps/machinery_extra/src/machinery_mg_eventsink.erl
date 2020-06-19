@@ -107,6 +107,7 @@ unmarshal(
         machine_ns => NS1,
         created_at => CreatedAt1
     },
+    ct:log("~p unmarshal event, schema: ~p, event: ~p", [?MODULE, Schema, Data0]),
     {Data1, Context} = unmarshal({schema, Schema, {event, Format}, Context}, Data0),
     #{
         id          => unmarshal(event_id, ID),

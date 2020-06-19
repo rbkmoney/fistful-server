@@ -215,13 +215,6 @@ apply_event({account, Ev}, Instrument) ->
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
-maybe_migrate({created, Instrument = #{version := 1}}, MigrateParams) ->
-    Timestamp = maps:get(timestamp, MigrateParams),
-    CreatedAt = ff_codec:unmarshal(timestamp_ms, ff_codec:marshal(timestamp, Timestamp)),
-    maybe_migrate({created, Instrument#{
-        version => 2,
-        created_at => CreatedAt
-    }}, MigrateParams);
 maybe_migrate({created, Instrument = #{version := 2}}, MigrateParams) ->
     Context = maps:get(ctx, MigrateParams, undefined),
     %% TODO add metada migration for eventsink after decouple instruments
@@ -230,6 +223,13 @@ maybe_migrate({created, Instrument = #{version := 2}}, MigrateParams) ->
         version => 3,
         metadata => Metadata
     })}, MigrateParams);
+maybe_migrate({created, Instrument = #{version := 1}}, MigrateParams) ->
+    Timestamp = maps:get(timestamp, MigrateParams),
+    CreatedAt = ff_codec:unmarshal(timestamp_ms, ff_codec:marshal(timestamp, Timestamp)),
+    maybe_migrate({created, Instrument#{
+        version => 2,
+        created_at => CreatedAt
+    }}, MigrateParams);
 maybe_migrate({created, Instrument = #{
         resource    := Resource,
         name        := Name

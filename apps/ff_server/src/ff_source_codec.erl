@@ -12,6 +12,12 @@
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #src_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Source}) ->
     {created, marshal(source, Source)};
 marshal(change, {account, AccountChange}) ->
@@ -61,6 +67,11 @@ unmarshal(repair_scenario, {add_events, #src_AddEventsRepair{events = Events, ac
         action => maybe_unmarshal(complex_action, Action)
     })};
 
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#src_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#src_TimestampedChange.change),
+    {ev, Timestamp, Change};
+
 unmarshal(change, {created, Source}) ->
     {created, unmarshal(source, Source)};
 unmarshal(change, {account, AccountChange}) ->
@@ -76,6 +87,7 @@ unmarshal(source, #src_Source{
     metadata = Metadata
 }) ->
     genlib_map:compact(#{
+        version => 3,
         name => unmarshal(string, Name),
         resource => unmarshal(resource, Resource),
         external_id => maybe_unmarshal(id, ExternalID),

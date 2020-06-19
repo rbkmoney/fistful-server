@@ -100,12 +100,15 @@ unmarshal(change, {account, AccountChange}) ->
 
 unmarshal(wallet, #wlt_Wallet{
     name = Name,
+    blocking = Blocking,
     external_id = ExternalID,
     created_at = CreatedAt,
     metadata = Metadata
 }) ->
     genlib_map:compact(#{
+        version => 2,
         name => unmarshal(string, Name),
+        blocking => unmarshal(blocking, Blocking),
         created_at => maybe_unmarshal(timestamp_ms, CreatedAt),
         external_id => maybe_unmarshal(id, ExternalID),
         metadata => maybe_unmarshal(ctx, Metadata)

@@ -775,7 +775,43 @@ process_request('CreateP2PTransferWithTemplate', #{
                 <<"description">> => <<"Specified resource token is invalid">>
             })
     end;
-
+process_request('QuoteP2PTransferWithTemplate', #{
+    p2pTransferTemplateID := TemplateID,
+    'P2PTransferTemplateQuoteParameters' := Params
+}, Context, _Opts) ->
+    case wapi_wallet_ff_backend:quote_p2p_transfer_with_template(TemplateID, Params, Context) of
+        {ok, Quote} ->
+            wapi_handler_utils:reply_ok(201, Quote);
+        {error, {unknown_p2p_template, _ID}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {identity, not_found}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {party, _PartyContractError}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such party">>));
+        {error, {sender, {bin_data, not_found}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
+        {error, {receiver, {bin_data, not_found}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, {terms, {terms_violation, {cash_range, {_Cash, _CashRange}}}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
+        {error, {terms, {terms_violation, p2p_forbidden}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>));
+        {error, {invalid_resource_token, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
+    end;
 
 %% W2W
 process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Context, _Opts) ->

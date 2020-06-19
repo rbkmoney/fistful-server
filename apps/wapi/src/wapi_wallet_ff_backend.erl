@@ -69,6 +69,7 @@
 -export([issue_p2p_template_access_token/3]).
 -export([issue_p2p_transfer_ticket/3]).
 -export([create_p2p_transfer_with_template/3]).
+-export([quote_p2p_transfer_with_template/3]).
 
 -export([create_w2w_transfer/2]).
 -export([get_w2w_transfer/2]).
@@ -875,12 +876,12 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
         IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
         case bender_client:gen_by_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
             {ok, TransferID} ->
-                ParsedParams = unwrap(maybe_add_p2p_quote_token(
-                    from_swag(create_p2p_with_template_params, Params)
+                ParsedParams = unwrap(maybe_add_p2p_template_quote_token(
+                    ID, from_swag(create_p2p_with_template_params, Params)
                 )),
                 SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
                 ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
-                Result = p2p_template:force_create_transfer(ID, ParsedParams#{
+                Result = p2p_template:create_transfer(ID, ParsedParams#{
                     id => TransferID,
                     sender => {raw, #{resource_params => SenderResource, contact_info => #{}}},
                     receiver => {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
@@ -890,6 +891,32 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
             {error, {external_id_conflict, ConflictID}} ->
                 throw({external_id_conflict, TransferID, ConflictID})
         end
+    end).
+
+-spec quote_p2p_transfer_with_template(id(), params(), ctx()) -> result(map(),
+    p2p_template_machine:unknown_p2p_template_error() |
+    {invalid_resource_token, _} |
+    p2p_quote:get_quote_error()
+).
+quote_p2p_transfer_with_template(ID, Params, Context) ->
+    do(fun () ->
+        #{
+            sender := Sender,
+            receiver := Receiver,
+            body := Body
+        } = from_swag(quote_p2p_with_template_params, Params),
+        PartyID = wapi_handler_utils:get_owner(Context),
+        SenderResource = unwrap(construct_resource(Sender)),
+        ReceiverResource = unwrap(construct_resource(Receiver)),
+        {SurplusCash, _SurplusCashVolume, Quote}
+            = unwrap(p2p_template:get_quote(ID, #{
+                body => Body,
+                sender => SenderResource,
+                receiver => ReceiverResource
+            })),
+        Token = create_p2p_quote_token(Quote, PartyID),
+        ExpiresOn = p2p_quote:expires_on(Quote),
+        to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn})
     end).
 
 %% W2W
@@ -1105,6 +1132,18 @@ authorize_p2p_quote_token(Token, IdentityID) ->
         _OtherToken ->
             {error, {token, {not_verified, identity_mismatch}}}
     end.
+
+maybe_add_p2p_template_quote_token(_ID, #{quote_token := undefined} = Params) ->
+    {ok, Params};
+maybe_add_p2p_template_quote_token(ID, #{quote_token := QuoteToken} = Params) ->
+    do(fun() ->
+        VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
+        DecodedToken = unwrap(decode_p2p_quote_token(VerifiedToken)),
+        Machine = unwrap(p2p_template_machine:get(ID)),
+        State = p2p_template_machine:p2p_template(Machine),
+        ok = unwrap(authorize_p2p_quote_token(DecodedToken, p2p_template:identity_id(State))),
+        Params#{quote => DecodedToken}
+    end).
 
 maybe_add_p2p_quote_token(#{quote_token := undefined} = Params) ->
     {ok, Params};
@@ -1672,6 +1711,12 @@ from_swag(quote_p2p_params, Params) ->
         sender      => maps:get(<<"sender">>, Params),
         receiver    => maps:get(<<"receiver">>, Params),
         identity_id => maps:get(<<"identityID">>, Params),
+        body        => from_swag(body, maps:get(<<"body">>, Params))
+    }, Params);
+from_swag(quote_p2p_with_template_params, Params) ->
+    add_external_id(#{
+        sender      => maps:get(<<"sender">>, Params),
+        receiver    => maps:get(<<"receiver">>, Params),
         body        => from_swag(body, maps:get(<<"body">>, Params))
     }, Params);
 

@@ -79,7 +79,7 @@ resolve_token_spec({p2p_template_transfers, P2PTemplateID, #{<<"transferID">> :=
         <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
             [
                 {[{p2p_templates, P2PTemplateID}, p2p_template_transfers], write},
-                {[p2p, p2p_quotes], write},
+                {[{p2p_templates, P2PTemplateID}, p2p_template_quotes], write},
                 {[{p2p, TransferID}], read}
             ]
         )}
@@ -207,6 +207,8 @@ get_operation_access('IssueP2PTransferTicket', #{'p2pTransferTemplateID' := ID})
     [{[{p2p_templates, ID}, p2p_template_tickets], write}];
 get_operation_access('CreateP2PTransferWithTemplate', #{'p2pTransferTemplateID' := ID}) ->
     [{[{p2p_templates, ID}, p2p_template_transfers], write}];
+get_operation_access('QuoteP2PTransferWithTemplate', #{'p2pTransferTemplateID' := ID}) ->
+    [{[{p2p_templates, ID}, p2p_template_quotes], write}];
 get_operation_access('CreateW2WTransfer', _) ->
     [{[w2w], write}];
 get_operation_access('GetW2WTransfer', _) ->
@@ -233,7 +235,8 @@ get_resource_hierarchy() ->
         p2p => #{p2p_quotes => #{}},
         p2p_templates => #{
             p2p_template_tickets => #{},
-            p2p_template_transfers => #{}
+            p2p_template_transfers => #{},
+            p2p_template_quotes => #{}
         },
         w2w => #{},
         webhooks => #{},

@@ -127,7 +127,7 @@ create_transfer_test(C) ->
         context => #{},
         client_info => ClientInfo
     },
-    ok = p2p_template:create_transfer(P2PTemplateID, P2PTransferParams),
+    ok = p2p_template_machine:create_transfer(P2PTemplateID, P2PTransferParams),
     {ok, _Machine} = p2p_transfer_machine:get(P2PTransferID).
 
 -spec block_template_test(config()) -> test_return().

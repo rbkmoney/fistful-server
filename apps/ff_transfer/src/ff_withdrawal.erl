@@ -25,7 +25,8 @@
     adjustments     => adjustments_index(),
     status          => status(),
     metadata        => metadata(),
-    external_id     => id()
+    external_id     => id(),
+    attempt_limit   => attempt_limit()
 }.
 
 -opaque withdrawal() :: #{
@@ -245,6 +246,7 @@
 -type terms()                 :: ff_party:terms().
 -type party_varset()          :: hg_selector:varset().
 -type metadata()              :: ff_entity_context:md().
+-type attempt_limit()         :: ff_party:attempt_limit().
 
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 

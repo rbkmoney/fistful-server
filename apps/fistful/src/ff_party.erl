@@ -17,6 +17,7 @@
 -type clock()       :: ff_transaction:clock().
 -type revision()    :: dmsl_domain_thrift:'PartyRevision'().
 -type terms()       :: dmsl_domain_thrift:'TermSet'().
+-type attempt_limit() :: integer().
 
 -type party_params() :: #{
     email := binary()
@@ -70,6 +71,7 @@
 -export_type([validate_p2p_template_creation_error/0]).
 -export_type([cash/0]).
 -export_type([cash_range/0]).
+-export_type([attempt_limit/0]).
 
 -type inaccessibility() ::
     {inaccessible, blocked | suspended}.

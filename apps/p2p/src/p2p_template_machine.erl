@@ -10,6 +10,8 @@
 %% API
 
 -export([p2p_template/1]).
+-export([create_transfer/2]).
+-export([get_quote/2]).
 
 -export([set_blocking/2]).
 -export([create/2]).
@@ -92,6 +94,29 @@ get(Ref, Range) ->
 
 p2p_template(St) ->
     ff_machine:model(St).
+
+-spec get_quote(id(), p2p_template:quote_params()) ->
+    {ok, p2p_quote:get_quote_answer()} |
+    {error, p2p_quote:get_quote_error() | unknown_p2p_template_error()}.
+get_quote(ID, #{
+    body := Body,
+    sender := Sender,
+    receiver := Receiver
+}) ->
+    do(fun() ->
+        Machine = unwrap(p2p_template_machine:get(ID)),
+        State = p2p_template(Machine),
+        unwrap(p2p_quote:get_quote(Body, p2p_template:identity_id(State), Sender, Receiver))
+    end).
+
+-spec create_transfer(id(), p2p_template:transfer_params()) ->
+    ok | {error, p2p_transfer:create_error() | exists | unknown_p2p_template_error()}.
+create_transfer(ID, Params) ->
+    do(fun() ->
+        Machine = unwrap(p2p_template_machine:get(ID)),
+        State = p2p_template(Machine),
+        unwrap(p2p_template:create_transfer(Params, State))
+    end).
 
 %%
 

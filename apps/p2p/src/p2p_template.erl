@@ -9,7 +9,6 @@
 -export([create/1]).
 -export([set_blocking/2]).
 -export([create_transfer/2]).
--export([get_quote/2]).
 
 %% Accessors
 
@@ -125,6 +124,7 @@
 -export_type([create_error/0]).
 -export_type([template_cash/0]).
 -export_type([transfer_params/0]).
+-export_type([quote_params/0]).
 
 %%
 %% Internal types
@@ -251,30 +251,10 @@ set_blocking(Blocking, #{blocking := Blocking}) ->
 set_blocking(Blocking, _State) ->
     {ok, {undefined, [{blocking_changed, Blocking}]}}.
 
--spec get_quote(id(), quote_params()) ->
-    {ok, p2p_quote:get_quote_answer()} |
-    {error, p2p_quote:get_quote_error() | p2p_template_machine:unknown_p2p_template_error()}.
-get_quote(ID, #{
-    body := Body,
-    sender := Sender,
-    receiver := Receiver
-}) ->
-    do(fun() ->
-        Machine = unwrap(p2p_template_machine:get(ID)),
-        State = p2p_template_machine:p2p_template(Machine),
-        unwrap(p2p_quote:get_quote(Body, identity_id(State), Sender, Receiver))
-    end).
 
--spec create_transfer(id(), transfer_params()) ->
-    ok | {error, p2p_transfer:create_error() | exists | p2p_template_machine:unknown_p2p_template_error()}.
-create_transfer(ID, Params) ->
-    do(fun() ->
-        Machine = unwrap(p2p_template_machine:get(ID)),
-        State = p2p_template_machine:p2p_template(Machine),
-        unwrap(do_create_transfer(Params, State))
-    end).
-
-do_create_transfer(Params = #{
+-spec create_transfer(transfer_params(), template_state()) ->
+    ok | {error, p2p_transfer:create_error() | exists}.
+create_transfer(Params = #{
     id := ID,
     body := Body,
     sender := Sender,

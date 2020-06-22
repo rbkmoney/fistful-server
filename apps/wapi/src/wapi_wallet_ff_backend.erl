@@ -881,7 +881,7 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
                 )),
                 SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
                 ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
-                Result = p2p_template:create_transfer(ID, ParsedParams#{
+                Result = p2p_template_machine:create_transfer(ID, ParsedParams#{
                     id => TransferID,
                     sender => {raw, #{resource_params => SenderResource, contact_info => #{}}},
                     receiver => {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
@@ -909,7 +909,7 @@ quote_p2p_transfer_with_template(ID, Params, Context) ->
         SenderResource = unwrap(construct_resource(Sender)),
         ReceiverResource = unwrap(construct_resource(Receiver)),
         {SurplusCash, _SurplusCashVolume, Quote}
-            = unwrap(p2p_template:get_quote(ID, #{
+            = unwrap(p2p_template_machine:get_quote(ID, #{
                 body => Body,
                 sender => SenderResource,
                 receiver => ReceiverResource

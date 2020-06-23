@@ -222,6 +222,10 @@ create_p2p_transfer_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -251,6 +255,10 @@ create_p2p_transfer_fail_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -281,6 +289,10 @@ create_p2p_transfer_conflict_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -304,6 +316,10 @@ create_p2p_transfer_conflict_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -356,7 +372,11 @@ create_p2p_transfer_with_token_ok_test(C) ->
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
                 },
-                <<"quoteToken">> => Token
+                <<"quoteToken">> => Token,
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
             }
         },
         ct_helper:cfg(context, C)
@@ -385,6 +405,10 @@ get_p2p_transfer_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -436,6 +460,10 @@ get_p2p_transfer_events_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -469,6 +497,10 @@ get_p2p_transfer_failure_events_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -602,6 +634,10 @@ create_p2p_transfer_with_template_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -638,6 +674,10 @@ create_p2p_transfer_with_template_conflict_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -662,6 +702,10 @@ create_p2p_transfer_with_template_conflict_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -720,6 +764,10 @@ create_p2p_transfer_with_template_and_quote_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },

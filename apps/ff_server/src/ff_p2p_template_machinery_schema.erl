@@ -12,9 +12,7 @@
 
 %% Constants
 
-% TODO: Replace version to 1 after p2p provider migration
-% see https://rbkmoney.atlassian.net/browse/MSPF-561 for details
--define(CURRENT_EVENT_FORMAT_VERSION, undefined).
+-define(CURRENT_EVENT_FORMAT_VERSION, 1).
 
 %% Internal types
 
@@ -77,9 +75,6 @@ unmarshal(T, V, C) when
 
 -spec marshal_event(machinery_mg_schema:version(), event(), context()) ->
     {machinery_msgpack:t(), context()}.
-marshal_event(undefined = Version, TimestampedChange, Context) ->
-     % TODO: Удалить после выкатки
-    machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange, Context);
 marshal_event(1, TimestampedChange, Context) ->
     ThriftChange = ff_p2p_template_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_p2p_template_thrift, 'TimestampedChange'}},
@@ -91,17 +86,7 @@ unmarshal_event(1, EncodedChange, Context) ->
     {bin, EncodedThriftChange} = EncodedChange,
     Type = {struct, struct, {ff_proto_p2p_template_thrift, 'TimestampedChange'}},
     ThriftChange = ff_proto_utils:deserialize(Type, EncodedThriftChange),
-    {ff_p2p_template_codec:unmarshal(timestamped_change, ThriftChange), Context};
-unmarshal_event(undefined = Version, EncodedChange, Context0) ->
-    {Event, Context1} = machinery_mg_schema_generic:unmarshal({event, Version}, EncodedChange, Context0),
-    {ev, Timestamp, Change} = Event,
-    {{ev, Timestamp, maybe_migrate(Change)}, Context1}.
-
--spec maybe_migrate(any()) ->
-    p2p_template:event().
-% Other events
-maybe_migrate(Ev) ->
-    Ev.
+    {ff_p2p_template_codec:unmarshal(timestamped_change, ThriftChange), Context}.
 
 %% Tests
 

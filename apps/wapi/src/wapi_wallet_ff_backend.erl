@@ -2291,6 +2291,7 @@ to_swag(p2p_transfer, P2PTransferState) ->
         owner := IdentityID,
         body := Cash,
         created_at := CreatedAt,
+        sender := {raw, #{contact_info := ContactInfo}},
         sender_resource := Sender,
         receiver_resource := Receiver,
         status := Status
@@ -2301,6 +2302,7 @@ to_swag(p2p_transfer, P2PTransferState) ->
         <<"identityID">> => IdentityID,
         <<"createdAt">> => to_swag(timestamp_ms, CreatedAt),
         <<"body">> => to_swag(body, Cash),
+        <<"contactInfo">> => to_swag(contact_info, ContactInfo),
         <<"sender">> => to_swag(sender_resource, Sender),
         <<"receiver">> => to_swag(receiver_resource, Receiver),
         <<"status">> => to_swag(p2p_transfer_status, Status),
@@ -2321,6 +2323,12 @@ to_swag(p2p_transfer_status, {failed, P2PTransferFailure}) ->
         <<"status">> => <<"Failed">>,
         <<"failure">> => to_swag(sub_failure, P2PTransferFailure)
     };
+
+to_swag(contact_info, ContactInfo) ->
+    genlib_map:compact(#{
+        <<"phoneNumber">> => maps:get(phone_number, ContactInfo, undefined),
+        <<"email">> => maps:get(email, ContactInfo, undefined)
+    });
 
 to_swag(p2p_template, P2PTemplateState) ->
     #{

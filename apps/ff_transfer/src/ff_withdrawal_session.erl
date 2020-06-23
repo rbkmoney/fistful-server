@@ -57,7 +57,8 @@
 
 -type params() :: #{
     resource := ff_destination:resource_full(),
-    provider_id := ff_withdrawal_provider:id()
+    provider_id := ff_withdrawal_provider:id(),
+    withdrawal_id := ff_withdrawal:id()
 }.
 
 -export_type([data/0]).
@@ -320,13 +321,13 @@ process_intent({sleep, Timer}) ->
 
 -spec create_session(id(), data(), params()) ->
     session().
-create_session(ID, Data, #{resource := Resource, provider_id := ProviderID}) ->
+create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, provider_id := PrvID}) ->
     #{
         version    => ?ACTUAL_FORMAT_VERSION,
         id         => ID,
-        withdrawal => create_adapter_withdrawal(Data, Resource),
-        provider   => ProviderID,
-        adapter    => get_adapter_with_opts(ProviderID),
+        withdrawal => create_adapter_withdrawal(Data, Res, WdthID),
+        provider   => PrvID,
+        adapter    => get_adapter_with_opts(PrvID),
         status     => active
     }.
 
@@ -341,8 +342,8 @@ get_adapter_with_opts(ProviderID) when is_binary(ProviderID) ->
     {ok, Provider} = ff_withdrawal_provider:get(ProviderID),
     {ff_withdrawal_provider:adapter(Provider), ff_withdrawal_provider:adapter_opts(Provider)}.
 
-create_adapter_withdrawal(Data, Resource) ->
-    Data#{resource => Resource}.
+create_adapter_withdrawal(#{id := SesID} = Data, Resource, WdthID) ->
+    Data#{resource => Resource, id => WdthID, session_id => SesID}.
 
 -spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->

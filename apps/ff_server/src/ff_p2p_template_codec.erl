@@ -49,6 +49,12 @@ unmarshal_p2p_template_params(#p2p_template_P2PTemplateParams{
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #p2p_template_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Template}) ->
     {created, #p2p_template_CreatedChange{p2p_template = marshal(template, Template)}};
 marshal(change, {blocking_changed, Blocking}) ->
@@ -117,6 +123,11 @@ marshal(T, V) ->
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
 
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#p2p_template_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#p2p_template_TimestampedChange.change),
+    {ev, Timestamp, Change};
+
 unmarshal(repair_scenario, {add_events, #p2p_template_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
         events => unmarshal({list, change}, Events),
@@ -138,6 +149,7 @@ unmarshal(template, #p2p_template_P2PTemplate{
     external_id = ExternalID
 }) ->
     genlib_map:compact(#{
+        version => 1,
         id => unmarshal(id, ID),
         identity_id => unmarshal(id, IdentityID),
         details => unmarshal(details, Details),
@@ -223,6 +235,7 @@ p2p_template_codec_test() ->
     },
 
     P2PTemplate = #{
+        version => 1,
         id => genlib:unique(),
         identity_id => genlib:unique(),
         details => Details,

@@ -12,7 +12,7 @@
 
 %% Constants
 
--define(CURRENT_EVENT_FORMAT_VERSION, 1).
+-define(CURRENT_EVENT_FORMAT_VERSION, undefined).
 
 %% Internal types
 

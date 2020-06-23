@@ -21,6 +21,7 @@
 -export([get_shifted_create_identity_events_ok/1]).
 -export([get_create_p2p_transfer_events_ok/1]).
 -export([get_create_w2w_transfer_events_ok/1]).
+-export([get_create_p2p_template_events_ok/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -40,7 +41,8 @@ all() ->
         get_withdrawal_session_events_ok,
         get_shifted_create_identity_events_ok,
         get_create_p2p_transfer_events_ok,
-        get_create_w2w_transfer_events_ok
+        get_create_w2w_transfer_events_ok,
+        get_create_p2p_template_events_ok
     ].
 
 
@@ -348,6 +350,29 @@ get_create_w2w_transfer_events_ok(C) ->
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
+-spec get_create_p2p_template_events_ok(config()) -> test_return().
+
+get_create_p2p_template_events_ok(C) ->
+    Sink = p2p_template_event_sink,
+    LastEvent = ct_eventsink:last_id(Sink),
+
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+
+    Details = make_template_details({1000, <<"RUB">>}),
+    P2PTemplateID = generate_id(),
+    P2PTemplateParams = #{
+        id => P2PTemplateID,
+        identity_id => IID,
+        details => Details,
+        external_id => P2PTemplateID
+    },
+    ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
+
+    {ok, RawEvents} = p2p_template_machine:events(P2PTemplateID, {undefined, 1000, forward}),
+    {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
+    MaxID = LastEvent + length(RawEvents).
+
 create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
@@ -582,3 +607,19 @@ is_commited_ev({transfer, #wthd_TransferChange{payload = TransferEvent}}) ->
     end;
 is_commited_ev(_Other) ->
     false.
+
+make_template_details({Amount, Currency}) ->
+    make_template_details({Amount, Currency}, #{<<"test key">> => <<"test value">>}).
+
+make_template_details({Amount, Currency}, Metadata) ->
+    #{
+        body => #{
+            value => genlib_map:compact(#{
+                amount => Amount,
+                currency => Currency
+            })
+        },
+        metadata => #{
+            value => Metadata
+        }
+    }.

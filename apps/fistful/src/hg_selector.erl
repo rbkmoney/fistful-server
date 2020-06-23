@@ -54,6 +54,7 @@
 -export([collect/1]).
 -export([reduce/2]).
 -export([reduce_to_value/2]).
+-export([reduce_predicate/2]).
 
 -define(const(Bool), {constant, Bool}).
 
@@ -117,6 +118,8 @@ reduce_decisions([{Type, V, S} | Rest], VS) ->
     end;
 reduce_decisions([], _) ->
     [].
+
+-spec reduce_predicate(_, varset()) -> {constant, true | false} | term().
 
 reduce_predicate(?const(B), _) ->
     ?const(B);

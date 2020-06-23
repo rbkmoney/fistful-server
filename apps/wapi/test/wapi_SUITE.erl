@@ -1119,6 +1119,8 @@ issue_wapi_token(Party) ->
         {[party], write},
         {[p2p], read},
         {[p2p], write},
+        {[p2p_templates], read},
+        {[p2p_templates], write},
         {[w2w], read},
         {[w2w], write},
         {[withdrawals], read},

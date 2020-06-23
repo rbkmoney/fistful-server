@@ -845,7 +845,10 @@ default_termset(Options) ->
                 ]},
                 quote_lifetime = {value, {interval, #domain_LifetimeInterval{
                     days = 1, minutes = 1, seconds = 1
-                }}}
+                }}},
+                templates = #domain_P2PTemplateServiceTerms{
+                    allow = {condition, {currency_is, ?cur(<<"RUB">>)}}
+                }
             },
             w2w = #domain_W2WServiceTerms{
                 currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},

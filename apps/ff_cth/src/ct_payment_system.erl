@@ -530,6 +530,7 @@ default_termset(Options) ->
             ]},
             withdrawals = #domain_WithdrawalServiceTerms{
                 currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                attempt_limit = {value, #domain_AttemptLimit{attempts = 3}},
                 cash_limit = {decisions, [
                     #domain_CashLimitDecision{
                         if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},

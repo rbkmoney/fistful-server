@@ -25,8 +25,7 @@
     adjustments     => adjustments_index(),
     status          => status(),
     metadata        => metadata(),
-    external_id     => id(),
-    attempt_limit   => attempt_limit()
+    external_id     => id()
 }.
 
 -opaque withdrawal() :: #{
@@ -246,7 +245,6 @@
 -type terms()                 :: ff_party:terms().
 -type party_varset()          :: hg_selector:varset().
 -type metadata()              :: ff_entity_context:md().
--type attempt_limit()         :: ff_party:attempt_limit().
 
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
@@ -1449,13 +1447,17 @@ process_route_change(Providers, Withdrawal, Reason) ->
     Attempts = attempts(Withdrawal),
     %% TODO Remove line below after switch to [route()] from [provider_id()]
     Routes = [#{provider_id => ID} || ID <- Providers],
-    case ff_withdrawal_route_attempt_utils:next_route(Routes, Attempts) of
+    AttemptLimit = get_attempt_limit(Withdrawal),
+    case ff_withdrawal_route_attempt_utils:next_route(Routes, Attempts, AttemptLimit) of
         {ok, Route} ->
             {continue, [
                 {route_changed, Route}
             ]};
         {error, route_not_found} ->
             %% No more routes, return last error
+            process_transfer_fail(Reason, Withdrawal);
+        {error, attempt_limit_exceeded} ->
+            %% Attempt limit exceeded, return last error
             process_transfer_fail(Reason, Withdrawal)
     end.
 
@@ -1659,6 +1661,44 @@ maybe_migrate({session_finished, SessionID}, MigrateParams) ->
 % Other events
 maybe_migrate(Ev, _MigrateParams) ->
     Ev.
+
+get_attempt_limit(Withdrawal) ->
+    #{
+        body := Body,
+        params := #{
+            wallet_id := WalletID,
+            destination_id := DestinationID
+        },
+        created_at := Timestamp,
+        party_revision := PartyRevision,
+        domain_revision := DomainRevision,
+        resource := Resource
+    } = Withdrawal,
+    {ok, Wallet} = get_wallet(WalletID),
+    {ok, Destination} = get_destination(DestinationID),
+    Identity = get_wallet_identity(Wallet),
+    PartyID = ff_identity:party(Identity),
+    ContractID = ff_identity:contract(Identity),
+    VarsetParams = genlib_map:compact(#{
+        body => Body,
+        wallet_id => WalletID,
+        party_id => PartyID,
+        destination => Destination,
+        resource => Resource
+    }),
+
+    {ok, Terms} = ff_party:get_contract_terms(
+        PartyID, ContractID, build_party_varset(VarsetParams), Timestamp, PartyRevision, DomainRevision
+    ),
+    #domain_TermSet{wallets = WalletTerms} = Terms,
+    #domain_WalletServiceTerms{withdrawals = WithdrawalTerms} = WalletTerms,
+    #domain_WithdrawalServiceTerms{attempt_limit = AttemptLimit} = WithdrawalTerms,
+    get_attempt_limit_(AttemptLimit).
+
+get_attempt_limit_(undefined) ->
+    undefined;
+get_attempt_limit_({value, Limit}) ->
+    ff_dmsl_codec:unmarshal(attempt_limit, Limit).
 
 %% Tests
 

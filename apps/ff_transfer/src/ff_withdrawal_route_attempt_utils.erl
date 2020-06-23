@@ -21,6 +21,7 @@
 -type account()  :: ff_account:account().
 -type route() :: ff_withdrawal:route().
 -type session() :: ff_withdrawal:session().
+-type attempt_limit() :: ff_party:attempt_limit().
 
 -type attempt() :: #{
     session => session(),
@@ -39,7 +40,7 @@
 
 %% API
 -export([new_route/2]).
--export([next_route/2]).
+-export([next_route/3]).
 -export([get_current_session/1]).
 -export([get_current_p_transfer/1]).
 -export([get_current_limit_checks/1]).
@@ -67,8 +68,12 @@ new_route(Route, Existing) ->
         attempts => Attempts#{Route => #{}}
     }.
 
--spec next_route([route()], attempts()) -> {ok, route()} | {error, route_not_found}.
-next_route(Routes, #{attempts := Existing}) ->
+-spec next_route([route()], attempts(), attempt_limit()) ->
+    {ok, route()} | {error, route_not_found | attempt_limit_exceeded}.
+next_route(_Routes, #{index := Index}, AttemptLimit)
+    when is_integer(AttemptLimit) andalso Index > AttemptLimit ->
+    {error, attempt_limit_exceeded};
+next_route(Routes, #{attempts := Existing}, _AttemptLimit) ->
     PendingRoutes =
         lists:filter(
             fun(R) ->

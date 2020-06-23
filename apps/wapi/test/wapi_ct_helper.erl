@@ -12,7 +12,6 @@
 -export([issue_token/3]).
 -export([issue_token/4]).
 -export([get_context/1]).
--export([get_context/2]).
 -export([get_keysource/2]).
 -export([start_mocked_service_sup/1]).
 -export([stop_mocked_service_sup/1]).
@@ -155,19 +154,6 @@ issue_token(PartyID, ACL, LifeTime, Domain) ->
 
 get_context(Token) ->
     wapi_client_lib:get_context(?WAPI_URL, Token, 10000, ipv4).
-
--spec get_context(binary(), iolist() | undefined) ->
-    wapi_client_lib:context().
-
-get_context(Token, Deadline) ->
-    wapi_client_lib:get_context(
-        ?WAPI_URL,
-        Token,
-        10000,
-        ipv4,
-        wapi_client_lib:default_event_handler(),
-        Deadline
-    ).
 
 % TODO move it to `wapi_dummy_service`, looks more appropriate
 

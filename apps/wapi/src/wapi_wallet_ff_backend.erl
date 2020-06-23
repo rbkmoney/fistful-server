@@ -735,11 +735,16 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                 )),
                 SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
                 ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
+                RawSenderResource = {raw, #{
+                    resource_params => SenderResource,
+                    contact_info => maps:get(contact_info, ParsedParams)
+                }},
+                RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
                 p2p_transfer_machine:create(
                     genlib_map:compact(ParsedParams#{
                         id => ID,
-                        sender => {raw, #{resource_params => SenderResource, contact_info => #{}}},
-                        receiver => {raw, #{resource_params => ReceiverResource, contact_info => #{}}}
+                        sender => RawSenderResource,
+                        receiver => RawReceiverResource
                     }),
                     add_meta_to_ctx([], Params, EntityCtx)
                 )
@@ -881,10 +886,15 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
                 )),
                 SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
                 ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
+                RawSenderResource = {raw, #{
+                    resource_params => SenderResource,
+                    contact_info => maps:get(contact_info, ParsedParams)
+                }},
+                RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
                 Result = p2p_template_machine:create_transfer(ID, ParsedParams#{
                     id => TransferID,
-                    sender => {raw, #{resource_params => SenderResource, contact_info => #{}}},
-                    receiver => {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
+                    sender => RawSenderResource,
+                    receiver => RawReceiverResource,
                     context => make_ctx(Context)
                 }),
                 unwrap(handle_create_entity_result(Result, p2p_transfer, TransferID, Context));
@@ -1731,21 +1741,23 @@ from_swag(compact_resource, #{
     }};
 from_swag(create_p2p_params, Params) ->
     add_external_id(#{
-        sender      => maps:get(<<"sender">>, Params),
-        receiver    => maps:get(<<"receiver">>, Params),
+        sender => maps:get(<<"sender">>, Params),
+        receiver => maps:get(<<"receiver">>, Params),
         identity_id => maps:get(<<"identityID">>, Params),
-        body        => from_swag(body, maps:get(<<"body">>, Params)),
+        body => from_swag(body, maps:get(<<"body">>, Params)),
         quote_token => maps:get(<<"quoteToken">>, Params, undefined),
-        metadata    => maps:get(<<"metadata">>, Params, #{})
+        metadata => maps:get(<<"metadata">>, Params, #{}),
+        contact_info => from_swag(contact_info, maps:get(<<"contactInfo">>, Params))
     }, Params);
 
 from_swag(create_p2p_with_template_params, Params) ->
     #{
-        sender      => maps:get(<<"sender">>, Params),
-        receiver    => maps:get(<<"receiver">>, Params),
-        body        => from_swag(body, maps:get(<<"body">>, Params)),
+        sender => maps:get(<<"sender">>, Params),
+        receiver => maps:get(<<"receiver">>, Params),
+        body => from_swag(body, maps:get(<<"body">>, Params)),
         quote_token => maps:get(<<"quoteToken">>, Params, undefined),
-        metadata    => maps:get(<<"metadata">>, Params, #{})
+        metadata => maps:get(<<"metadata">>, Params, #{}),
+        contact_info => from_swag(contact_info, maps:get(<<"contactInfo">>, Params))
     };
 
 from_swag(p2p_template_create_params, Params) ->
@@ -1808,6 +1820,13 @@ from_swag(withdrawal_params, Params) ->
         body           => from_swag(body , maps:get(<<"body">>, Params)),
         metadata       => maps:get(<<"metadata">>, Params, undefined)
     }, Params));
+
+from_swag(contact_info, ContactInfo) ->
+    genlib_map:compact(#{
+        phone_number => maps:get(<<"phoneNumber">>, ContactInfo, undefined),
+        email => maps:get(<<"email">>, ContactInfo, undefined)
+    });
+
 %% TODO
 %%  - remove this clause when we fix negative accounts and turn on validation in swag
 from_swag(body, #{<<"amount">> := Amount}) when Amount < 0 ->

@@ -846,15 +846,15 @@ process_session_creation(Withdrawal) ->
 -spec construct_session_id(withdrawal_state()) -> id().
 construct_session_id(Withdrawal) ->
     ID = id(Withdrawal),
-    Index = ff_withdrawal_route_attempt_utils:get_index(attempts(Withdrawal)),
-    SubID = integer_to_binary(Index),
+    Attempt = ff_withdrawal_route_attempt_utils:get_attempt(attempts(Withdrawal)),
+    SubID = integer_to_binary(Attempt),
     << ID/binary, "/", SubID/binary >>.
 
 -spec construct_p_transfer_id(withdrawal_state()) -> id().
 construct_p_transfer_id(Withdrawal) ->
     ID = id(Withdrawal),
-    Index = ff_withdrawal_route_attempt_utils:get_index(attempts(Withdrawal)),
-    SubID = integer_to_binary(Index),
+    Attempt = ff_withdrawal_route_attempt_utils:get_attempt(attempts(Withdrawal)),
+    SubID = integer_to_binary(Attempt),
     <<"ff/withdrawal/", ID/binary, "/", SubID/binary >>.
 
 create_session(ID, TransferData, SessionParams) ->

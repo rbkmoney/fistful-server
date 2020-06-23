@@ -387,6 +387,19 @@ domain_config(Options, C) ->
                         then_ = {value, [?wthdr_prv(4), ?wthdr_prv(5)]}
                     },
                     #domain_WithdrawalProviderDecision{
+                        if_ = {condition, {cost_in, #domain_CashRange{
+                            upper = {inclusive, #domain_Cash{
+                                amount = 500100,
+                                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+                            }},
+                            lower = {inclusive, #domain_Cash{
+                                amount = 500100,
+                                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+                            }}
+                        }}},
+                        then_ = {value, [?wthdr_prv(4), ?wthdr_prv(6), ?wthdr_prv(7), ?wthdr_prv(8)]}
+                    },
+                    #domain_WithdrawalProviderDecision{
                         if_ = {
                             condition,
                             {payment_tool, {bank_card, #domain_BankCardCondition{
@@ -488,6 +501,9 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(4), ?prx(6), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?wthdr_prv(5), ?prx(2), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?wthdr_prv(6), ?prx(6), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?wthdr_prv(7), ?prx(6), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?wthdr_prv(8), ?prx(2), provider_identity_id(Options), C),
         ct_domain:p2p_provider(?p2p_prv(1), ?prx(5), dummy_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),

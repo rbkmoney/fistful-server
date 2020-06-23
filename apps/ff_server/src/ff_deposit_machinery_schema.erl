@@ -94,7 +94,7 @@ unmarshal_event(undefined = Version, EncodedChange, Context0) ->
     {ev, Timestamp, Change} = Event,
     {{ev, Timestamp, maybe_migrate(Change, Context1)}, Context1}.
 
--spec maybe_migrate(any(), ff_machine:migrate_params()) ->
+-spec maybe_migrate(any(), context()) ->
     ff_deposit:event().
 maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
     Ev;

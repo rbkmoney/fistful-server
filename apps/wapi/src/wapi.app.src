@@ -22,6 +22,7 @@
         scoper,
         jose,
         jsx,
+        cowboy_draining_server,
         cowboy_cors,
         cowboy_access_log,
         base64url,

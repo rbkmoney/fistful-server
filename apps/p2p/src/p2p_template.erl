@@ -25,7 +25,6 @@
 
 %% ff_machine
 -export([apply_event/2]).
--export([maybe_migrate/2]).
 
 %%
 %% Types
@@ -131,8 +130,6 @@
 %%
 
 -type id() :: machinery:id().
-
--type legacy_event() :: any().
 
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
@@ -327,10 +324,3 @@ apply_event({created, Template}, undefined) ->
     Template;
 apply_event({blocking_changed, Blocking}, Template) ->
     Template#{blocking => Blocking}.
-
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
-    event().
-
-% Other events
-maybe_migrate(Ev, _MigrateParams) ->
-    Ev.

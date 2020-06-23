@@ -34,7 +34,7 @@
   0},
  {<<"cowboy_draining_server">>,
   {git,"git@github.com:rbkmoney/cowboy_draining_server.git",
-       {ref,"5c31629022ea2f8139467cfa7297cf81a476cbb4"}},
+       {ref,"186cf4d0722d4ad79afe73d371df6b1371e51905"}},
   0},
  {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.8.0">>},1},
  {<<"damsel">>,

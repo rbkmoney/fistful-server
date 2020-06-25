@@ -46,7 +46,6 @@ get_version(aux_state) ->
 -spec marshal(type(), value(data()), context()) ->
     machinery_msgpack:t().
 marshal({event, Format}, TimestampedChange, Context) ->
-    ct:log("Marshal event: ~p", [TimestampedChange]),
     marshal_event(Format, TimestampedChange, Context);
 marshal(T, V, C) when
     T =:= {args, init} orelse
@@ -84,7 +83,6 @@ marshal_event(undefined = Version, TimestampedChange, Context) ->
 marshal_event(?CURRENT_EVENT_FORMAT_VERSION, TimestampedChange, Context) ->
     ThriftChange = ff_identity_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_identity_thrift, 'TimestampedChange'}},
-    ct:log("Serialize thrift change: ~p", [ThriftChange]),
     {{bin, ff_proto_utils:serialize(Type, ThriftChange)}, Context}.
 
 -spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) ->
@@ -93,7 +91,6 @@ unmarshal_event(?CURRENT_EVENT_FORMAT_VERSION, EncodedChange, Context) ->
     {bin, EncodedThriftChange} = EncodedChange,
     Type = {struct, struct, {ff_proto_identity_thrift, 'TimestampedChange'}},
     ThriftChange = ff_proto_utils:deserialize(Type, EncodedThriftChange),
-    ct:log("Deserialized thrift change: ~p", [ThriftChange]),
     {ff_identity_codec:unmarshal(timestamped_change, ThriftChange), Context};
 unmarshal_event(undefined = Version, EncodedChange, Context) ->
     {ev, Timestamp, Change} = machinery_mg_schema_generic:unmarshal({event, Version}, EncodedChange),

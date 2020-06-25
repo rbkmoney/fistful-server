@@ -327,7 +327,8 @@ identity_test() ->
         provider    => genlib:unique(),
         class       => genlib:unique(),
         contract    => genlib:unique(),
-        external_id => genlib:unique()
+        external_id => genlib:unique(),
+        version     => 2
     },
     IdentityOut = unmarshal(identity, marshal(identity, IdentityIn)),
     ?assertEqual(IdentityOut, IdentityIn).
@@ -336,7 +337,9 @@ identity_test() ->
 challenge_test() ->
     ChallengeIn = #{
         id     => genlib:unique(),
-        proofs => [{rus_retiree_insurance_cert, <<"Bananazzzz">>}]
+        proofs => [{rus_retiree_insurance_cert, <<"Bananazzzz">>}],
+        challenge_class => <<"ChallengeClass">>,
+        claim_id => <<"ClaimID">>
     },
     ChallengeOut = unmarshal(challenge_payload_created, marshal(challenge_payload_created, ChallengeIn)),
     ?assertEqual(ChallengeIn, ChallengeOut).

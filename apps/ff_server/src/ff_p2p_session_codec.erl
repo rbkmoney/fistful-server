@@ -340,7 +340,6 @@ p2p_session_codec_test() ->
         {user_interaction, #{id => genlib:unique(), payload => {created, UserInteraction}}}
     ],
     Marshaled = marshal({list, change}, Changes),
-    io:format("marshaled ~p~n", [Marshaled]),
     ?assertEqual(Changes, unmarshal({list, change}, Marshaled)).
 
 -endif.

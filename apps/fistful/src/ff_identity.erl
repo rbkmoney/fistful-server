@@ -66,7 +66,6 @@
     {effective_challenge_changed, challenge_id()} |
     {{challenge        , challenge_id()}, ff_identity_challenge:event()}.
 
--type legacy_event() :: any().
 
 -type params() :: #{
     id          := id(),
@@ -123,7 +122,6 @@
 -export([poll_challenge_completion/2]).
 
 -export([apply_event/2]).
--export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -350,62 +348,3 @@ with_challenges(Fun, Identity) ->
 
 with_challenge(ID, Fun, Challenges) ->
     maps:update_with(ID, Fun, maps:merge(#{ID => undefined}, Challenges)).
-
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
-    event().
-
-maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
-    Event;
-maybe_migrate({created, Identity = #{version := 1, id := ID}}, MigrateParams) ->
-    Ctx = maps:get(ctx, MigrateParams, undefined),
-    Context = case Ctx of
-        undefined ->
-            {ok, State} = ff_machine:get(ff_identity, 'ff/identity', ID, {undefined, 0, forward}),
-            maps:get(ctx, State, undefined);
-        Data ->
-            Data
-    end,
-    maybe_migrate({created, genlib_map:compact(Identity#{
-        version => 2,
-        metadata => ff_entity_context:try_get_legacy_metadata(Context)
-    })}, MigrateParams);
-maybe_migrate({created, Identity = #{created_at := _CreatedAt}}, MigrateParams) ->
-    maybe_migrate({created, Identity#{
-        version => 1
-    }}, MigrateParams);
-maybe_migrate({created, Identity}, MigrateParams) ->
-    Timestamp = maps:get(timestamp, MigrateParams),
-    CreatedAt = ff_codec:unmarshal(timestamp_ms, ff_codec:marshal(timestamp, Timestamp)),
-    maybe_migrate({created, Identity#{
-        created_at => CreatedAt
-    }}, MigrateParams);
-maybe_migrate(Ev, _MigrateParams) ->
-    Ev.
-
-%% Tests
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--spec test() -> _.
-
--spec v2_created_migration_test() -> _.
-v2_created_migration_test() ->
-    ID = genlib:unique(),
-    LegacyEvent = {created, #{
-        version       => 1,
-        id            => ID,
-        created_at    => ff_time:now()
-    }},
-    {created, Identity} = maybe_migrate(LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
-    ?assertEqual(ID, id(Identity)),
-    ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Identity)).
-
--endif.

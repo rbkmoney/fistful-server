@@ -31,8 +31,6 @@
     {created, wallet()} |
     {account, ff_account:event()}.
 
--type legacy_event() :: any().
-
 -type params()  :: #{
     id          := id(),
     identity    := ff_identity_machine:id(),
@@ -74,7 +72,6 @@
 -export([close/1]).
 
 -export([apply_event/2]).
--export([maybe_migrate/2]).
 
 %% Internal types
 
@@ -194,37 +191,6 @@ apply_event({account, Ev}, Wallet) ->
     Account = maps:get(account, Wallet, undefined),
     Wallet#{account => ff_account:apply_event(Ev, Account)}.
 
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
-    event().
-
-maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
-    Event;
-maybe_migrate({created, Wallet = #{version := 1}}, MigrateParams) ->
-    Ctx = maps:get(ctx, MigrateParams, undefined),
-    ID = maps:get(id, MigrateParams, undefined),
-    Context = case {Ctx, ID} of
-        {undefined, undefined} ->
-            undefined;
-        {undefined, ID} ->
-            {ok, State} = ff_machine:get(ff_wallet, 'ff/wallet_v2', ID, {undefined, 0, forward}),
-            maps:get(ctx, State, undefined);
-        {Data, _} ->
-            Data
-    end,
-    maybe_migrate({created, genlib_map:compact(Wallet#{
-        version => 2,
-        metadata => ff_entity_context:try_get_legacy_metadata(Context)
-    })}, MigrateParams);
-maybe_migrate({created, Wallet}, MigrateParams) ->
-    Timestamp = maps:get(timestamp, MigrateParams),
-    CreatedAt = ff_codec:unmarshal(timestamp_ms, ff_codec:marshal(timestamp, Timestamp)),
-    maybe_migrate({created, Wallet#{
-        version => 1,
-        created_at => CreatedAt
-    }}, MigrateParams);
-maybe_migrate(Ev, _MigrateParams) ->
-    Ev.
-
 %% Internal functions
 
 -spec check_accessible(wallet_state()) ->
@@ -238,31 +204,3 @@ check_accessible(Wallet) ->
         blocked ->
             {error, blocked}
     end.
-
-%% Tests
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--spec test() -> _.
-
--spec v2_created_migration_test() -> _.
-v2_created_migration_test() ->
-    Name = genlib:unique(),
-    LegacyEvent = {created, #{
-        version       => 1,
-        name          => Name,
-        created_at    => ff_time:now()
-    }},
-    {created, Wallet} = maybe_migrate(LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
-    ?assertEqual(Name, name(Wallet)),
-    ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Wallet)).
-
--endif.

@@ -46,7 +46,7 @@ get_version(aux_state) ->
     undefined.
 
 -spec marshal(type(), value(data()), context()) ->
-    machinery_msgpack:t().
+    {machinery_msgpack:t(), context()}.
 marshal({event, Format}, TimestampedChange, Context) ->
     marshal_event(Format, TimestampedChange, Context);
 marshal(T, V, C) when
@@ -61,7 +61,7 @@ marshal(T, V, C) when
     machinery_mg_schema_generic:marshal(T, V, C).
 
 -spec unmarshal(type(), machinery_msgpack:t(), context()) ->
-    data().
+    {data(), context()}.
 unmarshal({event, FormatVersion}, EncodedChange, Context) ->
     unmarshal_event(FormatVersion, EncodedChange, Context);
 unmarshal(T, V, C) when
@@ -78,7 +78,7 @@ unmarshal(T, V, C) when
 %% Internals
 
 -spec marshal_event(machinery_mg_schema:version(), event(), context()) ->
-    machinery_msgpack:t().
+    {machinery_msgpack:t(), context()}.
 marshal_event(undefined = Version, TimestampedChange, Context) ->
     % TODO: Remove this clause after MSPF-561 finish
     machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange, Context);
@@ -88,7 +88,7 @@ marshal_event(?ACTUAL_FORMAT_VERSION, TimestampedChange, Context) ->
     {{bin, ff_proto_utils:serialize(Type, ThriftChange)}, Context}.
 
 -spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) ->
-    event().
+    {event(), context()}.
 unmarshal_event(?ACTUAL_FORMAT_VERSION, EncodedChange, Context) ->
     {bin, EncodedThriftChange} = EncodedChange,
     Type = {struct, struct, {ff_proto_identity_thrift, 'TimestampedChange'}},
@@ -103,7 +103,7 @@ unmarshal_event(undefined = Version, EncodedChange, Context) ->
     {{ev, Timestamp, maybe_migrate(Change, Context1)}, Context1}.
 
 
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
+-spec maybe_migrate(event() | legacy_event(), context()) ->
     event().
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->

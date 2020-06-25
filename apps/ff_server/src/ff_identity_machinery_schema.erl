@@ -95,7 +95,11 @@ unmarshal_event(?ACTUAL_FORMAT_VERSION, EncodedChange, Context) ->
     ThriftChange = ff_proto_utils:deserialize(Type, EncodedThriftChange),
     {ff_identity_codec:unmarshal(timestamped_change, ThriftChange), Context};
 unmarshal_event(undefined = Version, EncodedChange, Context) ->
-    {{ev, Timestamp, Change}, Context1} = machinery_mg_schema_generic:unmarshal({event, Version}, EncodedChange, Context),
+    {{ev, Timestamp, Change}, Context1} = machinery_mg_schema_generic:unmarshal(
+        {event, Version},
+        EncodedChange,
+        Context
+    ),
     {{ev, Timestamp, maybe_migrate(Change, Context1)}, Context1}.
 
 
@@ -185,17 +189,17 @@ created_v0_2_decoding_test() ->
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
 
     LegacyChange = {arr, [
-        {str,<<"tup">>},
-        {str,<<"created">>},
+        {str, <<"tup">>},
+        {str, <<"created">>},
         {arr, [
-            {str,<<"map">>},
+            {str, <<"map">>},
             {obj, #{
-                {str,<<"class">>} => {bin,<<"class">>},
-                {str,<<"contract">>} => {bin,<<"ContractID">>},
-                {str,<<"created_at">>} => {i,1592576943762},
-                {str,<<"id">>} => {bin,<<"ID">>},
-                {str,<<"party">>} => {bin,<<"PartyID">>},
-                {str,<<"provider">>} => {bin,<<"good-one">>}
+                {str, <<"class">>} => {bin, <<"class">>},
+                {str, <<"contract">>} => {bin, <<"ContractID">>},
+                {str, <<"created_at">>} => {i, 1592576943762},
+                {str, <<"id">>} => {bin, <<"ID">>},
+                {str, <<"party">>} => {bin, <<"PartyID">>},
+                {str, <<"provider">>} => {bin, <<"good-one">>}
             }}
         ]}
     ]},
@@ -243,18 +247,18 @@ created_v1_2_decoding_test() ->
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
 
     LegacyChange = {arr, [
-        {str,<<"tup">>},
-        {str,<<"created">>},
+        {str, <<"tup">>},
+        {str, <<"created">>},
         {arr, [
-            {str,<<"map">>},
+            {str, <<"map">>},
             {obj, #{
-                {str,<<"class">>} => {bin,<<"class">>},
-                {str,<<"contract">>} => {bin,<<"ContractID">>},
-                {str,<<"created_at">>} => {i,1592576943762},
-                {str,<<"id">>} => {bin,<<"ID">>},
-                {str,<<"party">>} => {bin,<<"PartyID">>},
-                {str,<<"provider">>} => {bin,<<"good-one">>},
-                {str,<<"version">>} => {i,1}
+                {str, <<"class">>} => {bin, <<"class">>},
+                {str, <<"contract">>} => {bin, <<"ContractID">>},
+                {str, <<"created_at">>} => {i, 1592576943762},
+                {str, <<"id">>} => {bin, <<"ID">>},
+                {str, <<"party">>} => {bin, <<"PartyID">>},
+                {str, <<"provider">>} => {bin, <<"good-one">>},
+                {str, <<"version">>} => {i, 1}
             }}
         ]}
     ]},

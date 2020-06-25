@@ -31,7 +31,7 @@
 -export([ref/1]).
 -export([get/1]).
 -export([compute_fees/2]).
--export([compute_withdrawal_terminals/2]).
+-export([compute_withdrawal_terminals_with_priority/2]).
 
 %% Pipeline
 
@@ -95,10 +95,10 @@ compute_fees_(WithdrawalTerms, VS) ->
         postings => ff_cash_flow:decode_domain_postings(CashFlow)
     }.
 
--spec compute_withdrawal_terminals(withdrawal_provider(), hg_selector:varset()) ->
-    {ok, [ff_payouts_terminal:id()]} | {error, term()}.
+-spec compute_withdrawal_terminals_with_priority(withdrawal_provider(), hg_selector:varset()) ->
+    {ok, [{ff_payouts_terminal:id(), ff_payouts_terminal:withdrawal_terminal_priority()}]} | {error, term()}.
 
-compute_withdrawal_terminals(WithdrawalProvider, VS) ->
+compute_withdrawal_terminals_with_priority(WithdrawalProvider, VS) ->
     case maps:get(terminal_selector, WithdrawalProvider, undefined) of
         Selector when Selector =/= undefined ->
             compute_withdrawal_terminals_(Selector, VS);
@@ -109,7 +109,8 @@ compute_withdrawal_terminals(WithdrawalProvider, VS) ->
 compute_withdrawal_terminals_(TerminalSelector, VS) ->
     case hg_selector:reduce_to_value(TerminalSelector, VS) of
         {ok, Terminals} ->
-            {ok, [TerminalID || #domain_WithdrawalTerminalRef{id = TerminalID} <- Terminals]};
+            {ok, [{TerminalID, Priority}
+                || #domain_WithdrawalTerminalRef{id = TerminalID, priority = Priority} <- Terminals]};
         Error ->
             Error
     end.

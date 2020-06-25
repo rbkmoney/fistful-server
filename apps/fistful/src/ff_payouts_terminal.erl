@@ -10,6 +10,7 @@
 }.
 
 -type id() :: dmsl_domain_thrift:'ObjectID'().
+-type withdrawal_terminal_priority() :: integer() | undefined.
 
 -type withdrawal_terminal_ref() :: dmsl_domain_thrift:'WithdrawalTerminalRef'().
 -type withdrawal_provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
@@ -17,6 +18,7 @@
 -export_type([id/0]).
 -export_type([withdrawal_terminal/0]).
 -export_type([withdrawal_terminal_ref/0]).
+-export_type([withdrawal_terminal_priority/0]).
 
 -export([adapter_opts/1]).
 -export([terms/1]).

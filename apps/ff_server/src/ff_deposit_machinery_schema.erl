@@ -140,7 +140,7 @@ maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, MigratePara
             wallet_cash_flow_plan => []
         }
     }}, MigrateParams);
-maybe_migrate({created, Deposit = #{version := 2, id := ID}}, MigrateParams) ->
+maybe_migrate({created, Deposit = #{version := 2, id := ID, params := Params}}, MigrateParams) ->
     Ctx = maps:get(ctx, MigrateParams, undefined),
     Context = case Ctx of
                   undefined ->
@@ -151,10 +151,16 @@ maybe_migrate({created, Deposit = #{version := 2, id := ID}}, MigrateParams) ->
               end,
     maybe_migrate({created, genlib_map:compact(Deposit#{
         version => 3,
-        metadata => ff_entity_context:try_get_legacy_metadata(Context)
+        metadata => ff_entity_context:try_get_legacy_metadata(Context),
+        params => #{
+            wallet_id => maps:get(wallet_id, Params),
+            source_id => maps:get(source_id, Params)
+        }
     })}, MigrateParams);
 maybe_migrate({created, #{version := 3}} = Ev, _MigrateParams) ->
     Ev;
+maybe_migrate({created, Deposit}, _MigrateParams) ->
+    {created, Deposit#{version => 3}};
 maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
     maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
 maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
@@ -191,6 +197,7 @@ created_v0_3_decoding_test() ->
         version => 3,
         id => <<"deposit">>,
         status => pending,
+        transfer_type => deposit,
         body => {123, <<"RUB">>},
         created_at => 1590426777985,
         domain_revision => 123,
@@ -213,6 +220,7 @@ created_v0_3_decoding_test() ->
             {obj, #{
                 {str, <<"id">>} => {bin, <<"deposit">>},
                 {str, <<"status">>} => {str, <<"pending">>},
+                {str, <<"transfer_type">>} => {str, <<"deposit">>},
                 {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
                 {str, <<"created_at">>} => {i, 1590426777985},
                 {str, <<"domain_revision">>} => {i, 123},
@@ -250,6 +258,7 @@ created_v1_3_decoding_test() ->
     Deposit = #{
         version => 3,
         id => <<"deposit">>,
+        transfer_type => deposit,
         body => {123, <<"RUB">>},
         params => #{
             wallet_id => <<"wallet_id">>,
@@ -310,6 +319,7 @@ created_v2_3_decoding_test() ->
     Deposit = #{
         version => 3,
         id => <<"deposit">>,
+        transfer_type => deposit,
         body => {123, <<"RUB">>},
         created_at => 1590426777985,
         domain_revision => 123,
@@ -597,6 +607,7 @@ created_1_decoding_test() ->
     Deposit = #{
         version => 3,
         id => <<"deposit">>,
+        transfer_type => deposit,
         status => pending,
         body => {123, <<"RUB">>},
         created_at => 1590426777985,

@@ -152,6 +152,7 @@ unmarshal(status, Status) ->
 unmarshal(deposit, Deposit) ->
     genlib_map:compact(#{
         version => 3,
+        transfer_type => deposit,
         id => unmarshal(id, Deposit#deposit_Deposit.id),
         body => unmarshal(cash, Deposit#deposit_Deposit.body),
         status => maybe_unmarshal(status, Deposit#deposit_Deposit.status),
@@ -238,6 +239,7 @@ deposit_params_symmetry_test() ->
 deposit_timestamped_change_codec_test() ->
     Deposit = #{
         version => 3,
+        transfer_type => deposit,
         id => genlib:unique(),
         status => pending,
         body => {123, <<"RUB">>},

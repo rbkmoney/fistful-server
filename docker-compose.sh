@@ -88,7 +88,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr2.rbkmoney.com/rbkmoney/dominant:4c86d3f4292f33782cbeb3642cce7cbabbe9063b
+    image: dr2.rbkmoney.com/rbkmoney/dominant:e95ae08283013553280c74122d17165df206b69d
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:

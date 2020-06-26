@@ -20,11 +20,21 @@
     quote_p2p_transfer_ok_test/1,
     create_p2p_transfer_ok_test/1,
     create_p2p_transfer_fail_test/1,
+    create_p2p_transfer_conflict_test/1,
     create_p2p_transfer_with_token_ok_test/1,
     get_p2p_transfer_ok_test/1,
     get_p2p_transfer_not_found_test/1,
     get_p2p_transfer_events_ok_test/1,
-    get_p2p_transfer_failure_events_ok_test/1
+    get_p2p_transfer_failure_events_ok_test/1,
+
+    create_p2p_template_ok_test/1,
+    get_p2p_template_ok_test/1,
+    block_p2p_template_ok_test/1,
+    issue_p2p_template_access_token_ok_test/1,
+    issue_p2p_transfer_ticket_ok_test/1,
+    create_p2p_transfer_with_template_ok_test/1,
+    create_p2p_transfer_with_template_conflict_test/1,
+    create_p2p_transfer_with_template_and_quote_ok_test/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -61,11 +71,21 @@ groups() ->
             quote_p2p_transfer_ok_test,
             create_p2p_transfer_ok_test,
             create_p2p_transfer_fail_test,
+            create_p2p_transfer_conflict_test,
             create_p2p_transfer_with_token_ok_test,
             get_p2p_transfer_ok_test,
             get_p2p_transfer_not_found_test,
             get_p2p_transfer_events_ok_test,
-            get_p2p_transfer_failure_events_ok_test
+            get_p2p_transfer_failure_events_ok_test,
+
+            create_p2p_template_ok_test,
+            get_p2p_template_ok_test,
+            block_p2p_template_ok_test,
+            issue_p2p_template_access_token_ok_test,
+            issue_p2p_transfer_ticket_ok_test,
+            create_p2p_transfer_with_template_ok_test,
+            create_p2p_transfer_with_template_conflict_test,
+            create_p2p_transfer_with_template_and_quote_ok_test
         ]}
     ].
 
@@ -108,7 +128,13 @@ init_per_group(Group, Config) when Group =:= p2p ->
     {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
     ContextPcidss = get_context("wapi-pcidss:8080", Token),
-    [{context, wapi_ct_helper:get_context(Token)}, {context_pcidss, ContextPcidss} | Config1];
+    {ok, WapiToken} = issue_wapi_token(Party),
+    [
+        {wapi_context, wapi_ct_helper:get_context(WapiToken)},
+        {context, wapi_ct_helper:get_context(Token)},
+        {context_pcidss, ContextPcidss} |
+        Config1
+    ];
 init_per_group(_, Config) ->
     Config.
 
@@ -134,6 +160,15 @@ end_per_testcase(_Name, C) ->
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).
 
+issue_wapi_token(Party) ->
+    Permissions = [
+        {[p2p], read},
+        {[p2p], write},
+        {[p2p_templates], read},
+        {[p2p_templates], write}
+    ],
+    wapi_ct_helper:issue_token(Party, Permissions, unlimited, <<"wallet-api">>).
+
 %%% Tests
 
 -spec quote_p2p_transfer_ok_test(config()) ->
@@ -141,9 +176,7 @@ get_context(Endpoint, Token) ->
 quote_p2p_transfer_ok_test(C) ->
     SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    #{
-        identity_id := IdentityID
-    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    IdentityID = create_identity(C),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
         #{
@@ -171,9 +204,7 @@ quote_p2p_transfer_ok_test(C) ->
 create_p2p_transfer_ok_test(C) ->
     SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    #{
-        identity_id := IdentityID
-    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    IdentityID = create_identity(C),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
@@ -191,6 +222,10 @@ create_p2p_transfer_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -202,9 +237,7 @@ create_p2p_transfer_ok_test(C) ->
 create_p2p_transfer_fail_test(C) ->
     SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken   = <<"v1.kek_token">>,
-    #{
-        identity_id := IdentityID
-    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    IdentityID = create_identity(C),
     {error, {400, #{<<"name">> := <<"BankCardReceiverResourceParams">>}}} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
@@ -222,6 +255,71 @@ create_p2p_transfer_fail_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec create_p2p_transfer_conflict_test(config()) ->
+    _.
+create_p2p_transfer_conflict_test(C) ->
+    SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    IdentityID = create_identity(C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"externalID">> => IdentityID,
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    {error, {409, _}} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"externalID">> => IdentityID,
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?USD
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -233,9 +331,8 @@ create_p2p_transfer_fail_test(C) ->
 create_p2p_transfer_with_token_ok_test(C) ->
     SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>),
-    #{
-        identity_id := IdentityID
-    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    IdentityID = create_identity(C),
+    {ok, _} = ff_identity_machine:get(IdentityID),
     {ok, #{<<"token">> := Token}} = call_api(
         fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
         #{
@@ -275,7 +372,11 @@ create_p2p_transfer_with_token_ok_test(C) ->
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
                 },
-                <<"quoteToken">> => Token
+                <<"quoteToken">> => Token,
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
             }
         },
         ct_helper:cfg(context, C)
@@ -286,9 +387,7 @@ create_p2p_transfer_with_token_ok_test(C) ->
 get_p2p_transfer_ok_test(C) ->
     SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    #{
-        identity_id := IdentityID
-    } = p2p_tests_utils:prepare_standard_environment({?INTEGER, ?RUB}, C),
+    IdentityID = create_identity(C),
     {ok, #{<<"id">> := TransferID}} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
@@ -306,6 +405,10 @@ get_p2p_transfer_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -339,9 +442,7 @@ get_p2p_transfer_not_found_test(C) ->
 get_p2p_transfer_events_ok_test(C) ->
     SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    #{
-        identity_id := IdentityID
-    } = p2p_tests_utils:prepare_standard_environment({101, ?RUB}, C),
+    IdentityID = create_identity(C),
     {ok, #{<<"id">> := TransferID}} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
@@ -359,6 +460,10 @@ get_p2p_transfer_events_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -374,9 +479,7 @@ get_p2p_transfer_events_ok_test(C) ->
 get_p2p_transfer_failure_events_ok_test(C) ->
     SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    #{
-        identity_id := IdentityID
-    } = p2p_tests_utils:prepare_standard_environment({102, ?RUB}, C),
+    IdentityID = create_identity(C),
     {ok, #{<<"id">> := TransferID}} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
@@ -394,6 +497,10 @@ get_p2p_transfer_failure_events_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
                 }
             }
         },
@@ -401,6 +508,274 @@ get_p2p_transfer_failure_events_ok_test(C) ->
     ),
     ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(post), C),
     ok = await_successful_transfer_events(TransferID, user_interaction_redirect(post), C).
+
+-spec create_p2p_template_ok_test(config()) ->
+    _.
+create_p2p_template_ok_test(C) ->
+    IdentityID = create_identity(C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_template/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"details">> => #{
+                    <<"body">> => #{
+                        <<"value">> => #{
+                            <<"currency">> => ?RUB,
+                            <<"amount">> => ?INTEGER
+                        }
+                    },
+                    <<"metadata">> => #{
+                        <<"defaultMetadata">> => #{
+                            <<"some key">> => <<"some value">>
+                        }
+                    }
+                }
+            }
+        },
+        ct_helper:cfg(wapi_context, C)
+    ),
+    ok.
+
+-spec get_p2p_template_ok_test(config()) ->
+    _.
+get_p2p_template_ok_test(C) ->
+    IdentityID = create_identity(C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:get_p2_p_transfer_template_by_id/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            }
+        },
+        ct_helper:cfg(wapi_context, C)
+    ).
+
+-spec block_p2p_template_ok_test(config()) ->
+    _.
+block_p2p_template_ok_test(C) ->
+    IdentityID = create_identity(C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:block_p2_p_transfer_template/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            }
+        },
+        ct_helper:cfg(wapi_context, C)
+    ).
+
+-spec issue_p2p_template_access_token_ok_test(config()) ->
+    _.
+issue_p2p_template_access_token_ok_test(C) ->
+    IdentityID = create_identity(C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    {ok, #{<<"token">> := _Token}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_template_access_token/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"validUntil">> => ValidUntil
+            }
+        },
+        ct_helper:cfg(wapi_context, C)
+    ).
+
+-spec issue_p2p_transfer_ticket_ok_test(config()) ->
+    _.
+issue_p2p_transfer_ticket_ok_test(C) ->
+    IdentityID = create_identity(C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    TemplateToken = issue_p2p_template_access_token(TemplateID, C),
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    {ok, #{<<"token">> := _Token}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_ticket/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"validUntil">> => ValidUntil
+            }
+        },
+        wapi_ct_helper:get_context(TemplateToken)
+    ).
+
+-spec create_p2p_transfer_with_template_ok_test(config()) ->
+    _.
+create_p2p_transfer_with_template_ok_test(C) ->
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    IdentityID = create_identity(C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    TemplateToken = issue_p2p_template_access_token(TemplateID, C),
+    Ticket = issue_p2p_transfer_ticket(TemplateID, TemplateToken),
+    {ok, #{<<"id">> := TransferID}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"body">> => #{
+                    <<"amount">> => 101,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
+            }
+        },
+        wapi_ct_helper:get_context(Ticket)
+    ),
+    ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(get), C),
+    ok = await_successful_transfer_events(TransferID, user_interaction_redirect(get), C).
+
+-spec create_p2p_transfer_with_template_conflict_test(config()) ->
+    _.
+create_p2p_transfer_with_template_conflict_test(C) ->
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    IdentityID = create_identity(C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    TemplateToken = issue_p2p_template_access_token(TemplateID, C),
+    Ticket = issue_p2p_transfer_ticket(TemplateID, TemplateToken),
+    {ok, #{<<"id">> := _TransferID}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"body">> => #{
+                    <<"amount">> => 101,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
+            }
+        },
+        wapi_ct_helper:get_context(Ticket)
+    ),
+    {error, {409, _}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"body">> => #{
+                    <<"amount">> => 105,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
+            }
+        },
+        wapi_ct_helper:get_context(Ticket)
+    ).
+
+-spec create_p2p_transfer_with_template_and_quote_ok_test(config()) ->
+    _.
+create_p2p_transfer_with_template_and_quote_ok_test(C) ->
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    IdentityID = create_identity(C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    TemplateToken = issue_p2p_template_access_token(TemplateID, C),
+    Ticket = issue_p2p_transfer_ticket(TemplateID, TemplateToken),
+    {ok, #{<<"token">> := QuoteToken}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:quote_p2_p_transfer_with_template/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResource">>,
+                    <<"token">> => SenderToken
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        wapi_ct_helper:get_context(Ticket)
+    ),
+    {ok, #{<<"id">> := TransferID}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"quoteToken">> => QuoteToken,
+                <<"body">> => #{
+                    <<"amount">> => 101,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
+            }
+        },
+        wapi_ct_helper:get_context(Ticket)
+    ),
+    ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(get), C),
+    ok = await_successful_transfer_events(TransferID, user_interaction_redirect(get), C).
+
 
 %%
 
@@ -415,6 +790,21 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
+
+create_identity(C) ->
+    {ok, Identity} = call_api(
+        fun swag_client_wallet_identities_api:create_identity/3,
+        #{body => #{
+            <<"name">>     => <<"Keyn Fawkes">>,
+            <<"provider">> => <<"quote-owner">>,
+            <<"class">>    => <<"person">>,
+            <<"metadata">> => #{
+                ?STRING => ?STRING
+            }
+        }},
+        ct_helper:cfg(context, C)
+    ),
+    maps:get(<<"id">>, Identity).
 
 store_bank_card(C, Pan) ->
     store_bank_card(C, Pan, undefined, undefined).
@@ -536,3 +926,61 @@ user_interaction_redirect(post) ->
             }]
         }
     }.
+
+create_p2p_template(IdentityID, C) ->
+    {ok, #{<<"id">> := TemplateID}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_template/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"details">> => #{
+                    <<"body">> => #{
+                        <<"value">> => #{
+                            <<"currency">> => ?RUB,
+                            <<"amount">> => ?INTEGER
+                        }
+                    },
+                    <<"metadata">> => #{
+                        <<"defaultMetadata">> => #{
+                            <<"some key">> => <<"some value">>
+                        }
+                    }
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    TemplateID.
+
+issue_p2p_template_access_token(TemplateID, C) ->
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    {ok, #{<<"token">> := TemplateToken}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_template_access_token/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"validUntil">> => ValidUntil
+            }
+        },
+        ct_helper:cfg(wapi_context, C)
+    ),
+    TemplateToken.
+
+issue_p2p_transfer_ticket(TemplateID, TemplateToken) ->
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    TemplateContext = wapi_ct_helper:get_context(TemplateToken),
+    {ok, #{<<"token">> := Token}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_ticket/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"validUntil">> => ValidUntil
+            }
+        },
+        TemplateContext
+    ),
+    Token.

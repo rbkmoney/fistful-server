@@ -202,7 +202,16 @@ withdrawal_terminal(?wthdr_trm(7) = Ref) ->
                 cash_flow = {value, ?ordset([])}
             }
         }
+    }};
+withdrawal_terminal(Ref) ->
+    {withdrawal_terminal, #domain_WithdrawalTerminalObject{
+        ref = Ref,
+        data = #domain_WithdrawalTerminal{
+            name = <<"WithdrawalTerminal">>,
+            terms = #domain_WithdrawalProvisionTerms{}
+        }
     }}.
+
 
 -spec currency(?dtp('CurrencyRef')) ->
     object().

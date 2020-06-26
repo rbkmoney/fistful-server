@@ -35,6 +35,7 @@
 
 -export([adapter_unreachable_route_test/1]).
 -export([adapter_unreachable_quote_test/1]).
+-export([termial_priority_test/1]).
 
 %% Internal types
 
@@ -67,7 +68,8 @@ groups() ->
     [
         {default, [parallel], [
             adapter_unreachable_route_test,
-            adapter_unreachable_quote_test
+            adapter_unreachable_quote_test,
+            termial_priority_test
         ]}
     ].
 
@@ -130,6 +132,27 @@ adapter_unreachable_route_test(C) ->
     ?assertEqual(Cash, ff_withdrawal:body(Withdrawal)),
     ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)).
 
+-spec termial_priority_test(config()) -> test_return().
+termial_priority_test(C) ->
+    Currency = <<"RUB">>,
+    Cash = {500500, Currency},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    ?assertEqual(
+        {failed, #{code => <<"not_expected_error">>}},
+        await_final_withdrawal_status(WithdrawalID)).
+
 -spec adapter_unreachable_quote_test(config()) -> test_return().
 adapter_unreachable_quote_test(C) ->
     Currency = <<"RUB">>,
@@ -153,7 +176,7 @@ adapter_unreachable_quote_test(C) ->
             quote_data  => #{
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 4,
+                <<"provider_id">> => 5,
                 <<"terminal_id">> => 1
             }
         }

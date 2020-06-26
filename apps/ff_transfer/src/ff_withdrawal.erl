@@ -1454,9 +1454,20 @@ process_route_change(Providers, Withdrawal, Reason) ->
 -spec is_error_retryable(fail_type(), withdrawal_state()) ->
     boolean().
 is_error_retryable(Reason, Withdrawal) ->
-    RetryableErrors = genlib_app:env(?MODULE, retryable_errors, []),
+    Wallet = unwrap(get_wallet(wallet_id(Withdrawal))),
+    PartyID = ff_identity:party(get_wallet_identity(Wallet)),
+    RetryableErrors = get_retryable_error_list(PartyID),
     ErrorString = to_error_string(Reason, Withdrawal),
     match_error_whitelist(ErrorString, RetryableErrors).
+
+get_retryable_error_list(PartyID) ->
+    PartyRetryableErrors = genlib_app:env(?MODULE, party_retryable_errors, #{}),
+    case maps:get(PartyID, PartyRetryableErrors, undefined) of
+        undefined ->
+            genlib_app:env(?MODULE, default_retryable_errors, []);
+        ErrorList ->
+            ErrorList
+    end.
 
 -spec to_error_string(fail_type(), withdrawal_state()) ->
     binary().
@@ -1475,7 +1486,6 @@ to_session_error_string(#{code := Code, sub := SubFailure}) ->
     <<Code/binary, ":", SubFailureString/binary>>;
 to_session_error_string(#{code := Code}) ->
     <<Code/binary, ":">>.
-
 
 -spec match_error_whitelist(binary(), list(binary())) ->
     boolean().

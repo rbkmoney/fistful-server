@@ -96,27 +96,13 @@ end_per_group(_, _) ->
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
-init_per_testcase(adapter_unreachable_route_retryable_test = Name, C) ->
-    _ = application:set_env(ff_withdrawal, retryable_errors, [
-        <<"session:authorization_error:">>
-    ]),
-    set_testcase_context(Name, C);
 init_per_testcase(Name, C) ->
-    set_testcase_context(Name, C).
-
-set_testcase_context(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
-end_per_testcase(adapter_unreachable_route_retryable_test, _C) ->
-    _ = application:set_env(ff_withdrawal, retryable_errors, []),
-    unset_testcase_context();
 end_per_testcase(_Name, _C) ->
-    unset_testcase_context().
-
-unset_testcase_context() ->
     ok = ct_helper:unset_context().
 
 %% Tests
@@ -149,8 +135,10 @@ adapter_unreachable_route_retryable_test(C) ->
     Cash = {100500, Currency},
     #{
         wallet_id := WalletID,
-        destination_id := DestinationID
+        destination_id := DestinationID,
+        party_id := PartyID
     } = prepare_standard_environment(Cash, C),
+    _ = set_retryable_errors(PartyID, [<<"session:authorization_error:">>]),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -166,7 +154,8 @@ adapter_unreachable_route_retryable_test(C) ->
     ?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
     ?assertEqual(Cash, ff_withdrawal:body(Withdrawal)),
-    ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)).
+    ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)),
+    _ = set_retryable_errors(PartyID, []).
 
 -spec adapter_unreachable_quote_test(config()) -> test_return().
 adapter_unreachable_quote_test(C) ->
@@ -201,6 +190,10 @@ adapter_unreachable_quote_test(C) ->
         await_final_withdrawal_status(WithdrawalID)).
 
 %% Utils
+set_retryable_errors(PartyID, ErrorList) ->
+    application:set_env(ff_withdrawal, party_retryable_errors, #{
+        PartyID => ErrorList
+    }).
 
 get_withdrawal(WithdrawalID) ->
     {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),

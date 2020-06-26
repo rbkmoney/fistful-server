@@ -1696,7 +1696,10 @@ get_attempt_limit(Withdrawal) ->
     get_attempt_limit_(AttemptLimit).
 
 get_attempt_limit_(undefined) ->
-    undefined;
+    %% When attempt_limit is undefined
+    %% do not try all defined providers, if any
+    %% just stop after first one
+    1;
 get_attempt_limit_({value, Limit}) ->
     ff_dmsl_codec:unmarshal(attempt_limit, Limit).
 

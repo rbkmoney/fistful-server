@@ -26,7 +26,7 @@ marshal(change, {clock_updated, Clock}) ->
 
 marshal(transfer, Transfer) ->
     #transfer_Transfer{
-        id = ff_codec:marshal(id, ff_postings_transfer:id(Transfer)),
+        id = marshal(id, ff_postings_transfer:id(Transfer)),
         cashflow = ff_cash_flow_codec:marshal(final_cash_flow, ff_postings_transfer:final_cash_flow(Transfer))
     };
 

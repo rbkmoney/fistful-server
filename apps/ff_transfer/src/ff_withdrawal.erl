@@ -1444,6 +1444,50 @@ process_adjustment(Withdrawal) ->
 -spec process_route_change([provider_id()], withdrawal_state(), fail_type()) ->
     process_result().
 process_route_change(Providers, Withdrawal, Reason) ->
+    case is_error_retryable(Reason, Withdrawal) of
+        true ->
+            do_process_route_change(Providers, Withdrawal, Reason);
+        false ->
+            process_transfer_fail(Reason, Withdrawal)
+    end.
+
+-spec is_error_retryable(fail_type(), withdrawal_state()) ->
+    boolean().
+is_error_retryable(Reason, Withdrawal) ->
+    RetryableErrors = genlib_app:env(?MODULE, retryable_errors, []),
+    ErrorString = to_error_string(Reason, Withdrawal),
+    match_error_whitelist(ErrorString, RetryableErrors).
+
+-spec to_error_string(fail_type(), withdrawal_state()) ->
+    binary().
+to_error_string(session, Withdrawal) ->
+    {failed, Failure} = session_result(Withdrawal),
+    StringFailure = to_session_error_string(Failure),
+    <<"session:", StringFailure/binary>>;
+to_error_string(Reason, _Withdrawal) ->
+    StringReason = genlib:to_binary(Reason),
+    <<StringReason/binary, ":">>.
+
+-spec to_session_error_string(ff_adapter_withdrawal:failure()) ->
+    binary().
+to_session_error_string(#{code := Code, sub := SubFailure}) ->
+    SubFailureString = to_session_error_string(SubFailure),
+    <<Code/binary, ":", SubFailureString/binary>>;
+to_session_error_string(#{code := Code}) ->
+    <<Code/binary, ":">>.
+
+
+-spec match_error_whitelist(binary(), list(binary())) ->
+    boolean().
+match_error_whitelist(ErrorString, RetryableErrors) ->
+    lists:any(fun(RetryableError) ->
+        % Recieved error string must be equal or longer then the one in the whitelist
+        byte_size(RetryableError) =< binary:longest_common_prefix([ErrorString, RetryableError])
+    end, RetryableErrors).
+
+-spec do_process_route_change([provider_id()], withdrawal_state(), fail_type()) ->
+    process_result().
+do_process_route_change(Providers, Withdrawal, Reason) ->
     Attempts = attempts(Withdrawal),
     %% TODO Remove line below after switch to [route()] from [provider_id()]
     Routes = [#{provider_id => ID} || ID <- Providers],
@@ -1840,5 +1884,19 @@ v3_created_migration_test() ->
     }),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Withdrawal)).
+
+-spec match_error_whitelist_test() -> _.
+match_error_whitelist_test() ->
+    ErrorWhitelist = [
+        <<"some:test:error:">>,
+        <<"another:test:error:">>,
+        <<"wide_one:">>
+    ],
+    ?assertEqual(false, match_error_whitelist(<<":">>, ErrorWhitelist)),
+    ?assertEqual(false, match_error_whitelist(<<"some:completely:different:error:">>, ErrorWhitelist)),
+    ?assertEqual(false, match_error_whitelist(<<"some:test:">>, ErrorWhitelist)),
+    ?assertEqual(true, match_error_whitelist(<<"another:test:error:that:is:more:specific:">>, ErrorWhitelist)),
+    ?assertEqual(true, match_error_whitelist(<<"wide_one:">>, ErrorWhitelist)),
+    ?assertEqual(true, match_error_whitelist(<<"wide_one:sub_error">>, ErrorWhitelist)).
 
 -endif.

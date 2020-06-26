@@ -21,6 +21,7 @@
 -type account()  :: ff_account:account().
 -type route() :: ff_withdrawal:route().
 -type session() :: ff_withdrawal:session().
+-type attempt_limit() :: ff_party:attempt_limit().
 
 -type attempt() :: #{
     session => session(),
@@ -31,7 +32,7 @@
 -opaque attempts() :: #{
     attempts := #{route() => attempt()},
     inversed_routes := [route()],
-    index := non_neg_integer(),
+    attempt := non_neg_integer(),
     current => route()
 }.
 
@@ -39,7 +40,7 @@
 
 %% API
 -export([new_route/2]).
--export([next_route/2]).
+-export([next_route/3]).
 -export([get_current_session/1]).
 -export([get_current_p_transfer/1]).
 -export([get_current_limit_checks/1]).
@@ -48,7 +49,7 @@
 -export([update_current_limit_checks/2]).
 
 -export([get_sessions/1]).
--export([get_index/1]).
+-export([get_attempt/1]).
 
 -spec new_route(route(), attempts()) ->
     attempts().
@@ -58,17 +59,21 @@ new_route(Route, Existing) ->
     #{
         attempts := Attempts,
         inversed_routes := InvRoutes,
-        index := Index
+        attempt := Attempt
     } = Existing,
     Existing#{
         current => Route,
-        index => Index + 1,
+        attempt => Attempt + 1,
         inversed_routes => [Route | InvRoutes],
         attempts => Attempts#{Route => #{}}
     }.
 
--spec next_route([route()], attempts()) -> {ok, route()} | {error, route_not_found}.
-next_route(Routes, #{attempts := Existing}) ->
+-spec next_route([route()], attempts(), attempt_limit()) ->
+    {ok, route()} | {error, route_not_found | attempt_limit_exceeded}.
+next_route(_Routes, #{attempt := Attempt}, AttemptLimit)
+    when is_integer(AttemptLimit) andalso Attempt == AttemptLimit ->
+    {error, attempt_limit_exceeded};
+next_route(Routes, #{attempts := Existing}, _AttemptLimit) ->
     PendingRoutes =
         lists:filter(
             fun(R) ->
@@ -140,9 +145,9 @@ get_sessions(#{attempts := Attempts, inversed_routes := InvRoutes}) ->
         InvRoutes
     ).
 
--spec get_index(attempts()) -> non_neg_integer().
-get_index(#{index := Index}) ->
-    Index.
+-spec get_attempt(attempts()) -> non_neg_integer().
+get_attempt(#{attempt := Attempt}) ->
+    Attempt.
 
 %% Internal
 
@@ -151,7 +156,7 @@ init() ->
     #{
         attempts => #{},
         inversed_routes => [],
-        index => 0
+        attempt => 0
     }.
 
 %% @private

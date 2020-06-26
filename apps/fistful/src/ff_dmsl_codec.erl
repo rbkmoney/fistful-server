@@ -180,6 +180,11 @@ unmarshal(exp_date, #'domain_BankCardExpDate'{
 }) ->
     {unmarshal(integer, Month), unmarshal(integer, Year)};
 
+unmarshal(attempt_limit, #domain_AttemptLimit{
+    attempts = Attempts
+}) ->
+    unmarshal(integer, Attempts);
+
 unmarshal(amount, V) ->
     unmarshal(integer, V);
 unmarshal(string, V) when is_binary(V) ->
@@ -281,6 +286,11 @@ marshal(p2p_tool, {Sender, Receiver}) ->
     #domain_P2PTool{
         sender = marshal(payment_tool, Sender),
         receiver = marshal(payment_tool, Receiver)
+    };
+
+marshal(attempt_limit, Limit) ->
+    #domain_AttemptLimit{
+        attempts = Limit
     };
 
 marshal(risk_score, low) ->

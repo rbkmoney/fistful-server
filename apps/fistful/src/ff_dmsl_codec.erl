@@ -251,7 +251,8 @@ marshal(bank_card, BankCard) ->
         issuer_country  = ff_resource:country_code(BankCard),
         bank_name       = ff_resource:bank_name(BankCard),
         exp_date        = maybe_marshal(exp_date, ExpDate),
-        cardholder_name = ff_resource:cardholder_name(BankCard)
+        cardholder_name = ff_resource:cardholder_name(BankCard),
+        category        = ff_resource:category(BankCard)
     };
 
 marshal(exp_date, {Month, Year}) ->

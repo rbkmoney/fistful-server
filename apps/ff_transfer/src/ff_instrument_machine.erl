@@ -9,13 +9,19 @@
 -type id()          :: machinery:id().
 -type ns()          :: machinery:namespace().
 -type ctx()         :: ff_entity_context:context().
--type instrument(T) :: ff_instrument:instrument(T).
+-type instrument(T) :: ff_instrument:instrument_state(T).
+-type metadata()    :: ff_instrument:metadata().
 
 -type st(T) ::
     ff_machine:st(instrument(T)).
 
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
+
 -export_type([id/0]).
 -export_type([st/1]).
+-export_type([repair_error/0]).
+-export_type([repair_response/0]).
 -export_type([events/1]).
 -export_type([params/1]).
 
@@ -48,7 +54,8 @@
     name        := binary(),
     currency    := ff_currency:id(),
     resource    := ff_instrument:resource(T),
-    external_id => id()
+    external_id => id(),
+    metadata    => metadata()
 }.
 
 -spec create(ns(), params(_), ctx()) ->
@@ -58,22 +65,9 @@
         exists
     }.
 
-create(NS, Params = #{
-    id := ID,
-    identity := IdentityID,
-    name := Name,
-    currency := CurrencyID,
-    resource := Resource
-}, Ctx) ->
+create(NS, Params = #{id := ID}, Ctx) ->
     do(fun () ->
-        Events = unwrap(ff_instrument:create(
-            ID,
-            IdentityID,
-            Name,
-            CurrencyID,
-            Resource,
-            maps:get(external_id, Params, undefined)
-        )),
+        Events = unwrap(ff_instrument:create(Params)),
         unwrap(machinery:start(NS, ID, {Events, Ctx}, fistful:backend(NS)))
     end).
 
@@ -144,7 +138,7 @@ process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, repair_error()}.
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_instrument, Machine, Scenario).

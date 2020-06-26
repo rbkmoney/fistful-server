@@ -93,17 +93,19 @@ create_ok(C) ->
     ExternalID   = genlib:unique(),
     IdentityID   = create_person_identity(Party, C),
     Ctx          = #{<<"TEST_NS">> => {obj, #{ {str, <<"KEY">>} => {b, true}}}},
-    Params       = construct_wallet_params(ID, IdentityID, Currency, ExternalID, Ctx),
+    Metadata     = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
+    Params       = construct_wallet_params(ID, IdentityID, Currency, ExternalID, Ctx, Metadata),
     CreateResult = call_service('Create', [Params]),
     GetResult    = call_service('Get', [ID]),
     {ok, Wallet} = GetResult,
-    Account      = Wallet#wlt_Wallet.account,
+    Account      = Wallet#wlt_WalletState.account,
     CurrencyRef  = Account#account_Account.currency,
     ?assertMatch(CreateResult, GetResult),
-    ?assertMatch(<<"Valet">>,  Wallet#wlt_Wallet.name),
-    ?assertMatch(unblocked,    Wallet#wlt_Wallet.blocking),
-    ?assertMatch(ExternalID,   Wallet#wlt_Wallet.external_id),
-    ?assertMatch(Ctx,          Wallet#wlt_Wallet.context),
+    ?assertMatch(<<"Valet">>,  Wallet#wlt_WalletState.name),
+    ?assertMatch(unblocked,    Wallet#wlt_WalletState.blocking),
+    ?assertMatch(ExternalID,   Wallet#wlt_WalletState.external_id),
+    ?assertMatch(Metadata,     Wallet#wlt_WalletState.metadata),
+    ?assertMatch(Ctx,          Wallet#wlt_WalletState.context),
     ?assertMatch(IdentityID,   Account#account_Account.identity),
     ?assertMatch(Currency,     CurrencyRef#'CurrencyRef'.symbolic_code).
 
@@ -213,11 +215,12 @@ construct_wallet_params(ID, IdentityID, Currency, ExternalID) ->
             symbolic_code = Currency
         }
     }.
-construct_wallet_params(ID, IdentityID, Currency, ExternalID, Ctx) ->
+construct_wallet_params(ID, IdentityID, Currency, ExternalID, Ctx, Metadata) ->
     #wlt_WalletParams{
         id = ID,
         name = <<"Valet">>,
         external_id = ExternalID,
+        metadata = Metadata,
         context = Ctx,
         account_params = #account_AccountParams{
             identity_id   = IdentityID,

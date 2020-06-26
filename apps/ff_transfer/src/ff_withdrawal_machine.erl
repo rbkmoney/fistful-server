@@ -12,7 +12,7 @@
 -type change() :: ff_withdrawal:event().
 -type event() :: {integer(), ff_machine:timestamped_event(change())}.
 -type st() :: ff_machine:st(withdrawal()).
--type withdrawal() :: ff_withdrawal:withdrawal().
+-type withdrawal() :: ff_withdrawal:withdrawal_state().
 -type external_id() :: id().
 -type action() :: ff_withdrawal:action().
 -type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
@@ -29,6 +29,9 @@
 -type unknown_withdrawal_error() ::
     {unknown_withdrawal, id()}.
 
+-type repair_error() :: ff_repair:repair_error().
+-type repair_response() :: ff_repair:repair_response().
+
 -export_type([id/0]).
 -export_type([st/0]).
 -export_type([action/0]).
@@ -39,6 +42,8 @@
 -export_type([event_range/0]).
 -export_type([external_id/0]).
 -export_type([create_error/0]).
+-export_type([repair_error/0]).
+-export_type([repair_response/0]).
 -export_type([start_adjustment_error/0]).
 
 %% API
@@ -123,7 +128,7 @@ events(ID, {After, Limit}) ->
     end.
 
 -spec repair(id(), ff_repair:scenario()) ->
-    ok | {error, notfound | working}.
+    {ok, repair_response()} | {error, notfound | working | {failed, repair_error()}}.
 repair(ID, Scenario) ->
     machinery:repair(?NS, ID, Scenario, backend()).
 
@@ -187,7 +192,7 @@ process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
-    result().
+    {ok, {repair_response(), result()}} | {error, repair_error()}.
 
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_withdrawal, Machine, Scenario).

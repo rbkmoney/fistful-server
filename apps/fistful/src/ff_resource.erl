@@ -12,7 +12,8 @@
     card_type => card_type(),
     cardholder_name => binary(),
     exp_date => exp_date(),
-    bin_data_id => bin_data_id()
+    bin_data_id => bin_data_id(),
+    category => binary()
 }.
 
 -type resource_bank_card_params() :: #{
@@ -85,6 +86,7 @@
 -type bank_name() :: binary().
 -type iso_country_code() :: ff_bin_data:iso_country_code().
 -type card_type() :: charge_card | credit | debit | credit_or_debit.
+-type category() :: binary().
 
 -export_type([resource/0]).
 -export_type([resource_id/0]).
@@ -98,6 +100,7 @@
 -export_type([masked_pan/0]).
 -export_type([bank_name/0]).
 -export_type([iso_country_code/0]).
+-export_type([category/0]).
 -export_type([card_type/0]).
 
 -export([create_resource/1]).
@@ -108,6 +111,7 @@
 -export([masked_pan/1]).
 -export([payment_system/1]).
 -export([country_code/1]).
+-export([category/1]).
 -export([bank_name/1]).
 -export([exp_date/1]).
 -export([cardholder_name/1]).
@@ -147,6 +151,11 @@ payment_system(#{payment_system := PaymentSystem}) ->
 country_code(BankCard) ->
     maps:get(iso_country_code, BankCard, undefined).
 
+-spec category(bank_card()) ->
+    category().
+category(BankCard) ->
+    maps:get(category, BankCard, undefined).
+
 -spec bank_name(bank_card()) ->
     bank_name().
 bank_name(BankCard) ->
@@ -176,7 +185,7 @@ create_resource(Resource) ->
 create_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, ResourceID) ->
     do(fun() ->
         BinData = unwrap(bin_data, get_bin_data(Token, ResourceID)),
-        KeyList = [payment_system, bank_name, iso_country_code, card_type],
+        KeyList = [payment_system, bank_name, iso_country_code, card_type, category],
         ExtendData = maps:with(KeyList, BinData),
         {bank_card, genlib_map:compact(#{
             bank_card => maps:merge(BankCardParams, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),

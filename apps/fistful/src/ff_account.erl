@@ -49,7 +49,7 @@
 
 %% Internal types
 
--type identity() :: ff_identity:identity().
+-type identity() :: ff_identity:identity_state().
 -type currency() :: ff_currency:currency().
 -type identity_id() :: ff_identity:id().
 -type currency_id() :: ff_currency:id().

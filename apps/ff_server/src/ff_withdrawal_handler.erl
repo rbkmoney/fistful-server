@@ -63,7 +63,8 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
         {ok, Machine} ->
             Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
             Context = ff_withdrawal_machine:ctx(Machine),
-            {ok, ff_withdrawal_codec:marshal_withdrawal_state(Withdrawal, Context)};
+            Response = ff_withdrawal_codec:marshal_withdrawal_state(Withdrawal, Context),
+            {ok, Response};
         {error, {unknown_withdrawal, ID}} ->
             woody_error:raise(business, #fistful_WithdrawalNotFound{})
     end;

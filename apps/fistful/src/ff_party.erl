@@ -50,6 +50,11 @@
     {bad_w2w_transfer_amount, Cash :: cash()}|
     invalid_w2w_terms_error().
 
+-type validate_p2p_template_creation_error() ::
+    {bad_p2p_template_amount, Cash :: cash()} |
+    p2p_template_forbidden_error() |
+    invalid_p2p_template_terms_error().
+
 -export_type([id/0]).
 -export_type([revision/0]).
 -export_type([terms/0]).
@@ -62,6 +67,7 @@
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_withdrawal_creation_error/0]).
 -export_type([validate_w2w_transfer_creation_error/0]).
+-export_type([validate_p2p_template_creation_error/0]).
 -export_type([cash/0]).
 -export_type([cash_range/0]).
 
@@ -80,6 +86,7 @@
 -export([validate_withdrawal_creation/2]).
 -export([validate_deposit_creation/2]).
 -export([validate_w2w_transfer_creation/2]).
+-export([validate_p2p_template_creation/2]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
 -export([get_withdrawal_cash_flow_plan/1]).
@@ -100,7 +107,7 @@
 -type domain_cash_range() :: dmsl_domain_thrift:'CashRange'().
 -type domain_revision() :: ff_domain_config:revision().
 -type timestamp() :: ff_time:timestamp_ms().
--type wallet() :: ff_wallet:wallet().
+-type wallet() :: ff_wallet:wallet_state().
 -type payment_institution_id() :: ff_payment_institution:id().
 -type bound_type() :: 'exclusive' | 'inclusive'.
 -type cash_range() :: {{bound_type(), cash()}, {bound_type(), cash()}}.
@@ -111,6 +118,7 @@
 -type cash_range_validation_error() :: {terms_violation, {cash_range, {cash(), cash_range()}}}.
 -type p2p_forbidden_error() :: {terms_violation, p2p_forbidden}.
 -type w2w_forbidden_error() :: {terms_violation, w2w_forbidden}.
+-type p2p_template_forbidden_error() :: {terms_violation, p2p_template_forbidden}.
 
 -type not_reduced_error() :: {not_reduced, {Name :: atom(), TermsPart :: any()}}.
 
@@ -127,6 +135,12 @@
     {invalid_terms, not_reduced_error()} |
     {invalid_terms, undefined_wallet_terms} |
     {invalid_terms, {undefined_p2p_terms, wallet_terms()}}.
+
+-type invalid_p2p_template_terms_error() ::
+    {invalid_terms, not_reduced_error()} |
+    {invalid_terms, undefined_wallet_terms} |
+    {invalid_terms, {undefined_p2p_terms, wallet_terms()}} |
+    {invalid_terms, {undefined_p2p_template_terms, wallet_terms()}}.
 
 -type invalid_w2w_terms_error() ::
     {invalid_terms, not_reduced_error()} |
@@ -217,7 +231,7 @@ change_contractor_level(ID, ContractID, ContractorLevel) ->
         ok
     end).
 
--spec get_identity_payment_institution_id(ff_identity:identity()) -> Result when
+-spec get_identity_payment_institution_id(ff_identity:identity_state()) -> Result when
     Result :: {ok, payment_institution_id()} | {error, Error},
     Error ::
         {party_not_found, id()} |
@@ -337,6 +351,16 @@ validate_w2w_transfer_creation(Terms, {_Amount, CurrencyID} = Cash) ->
         valid = unwrap(validate_w2w_cash_limit(Cash, W2WServiceTerms)),
         valid = unwrap(validate_w2w_allow(W2WServiceTerms))
     end).
+
+-spec validate_p2p_template_creation(terms(), cash()) -> Result when
+    Result :: {ok, valid} | {error, Error},
+    Error :: validate_p2p_template_creation_error().
+
+validate_p2p_template_creation(_Terms, {Amount, _Currency} = Cash) when is_integer(Amount) andalso (Amount < 1) ->
+    {error, {bad_p2p_template_amount, Cash}};
+validate_p2p_template_creation(Terms, {_Amount, _CurrencyID} = _Cash) ->
+    #domain_TermSet{wallets = WalletTerms} = Terms,
+    validate_p2p_template_terms_is_reduced(WalletTerms).
 
 -spec get_withdrawal_cash_flow_plan(terms()) ->
     {ok, ff_cash_flow:cash_flow_plan()} | {error, _Error}.
@@ -612,6 +636,30 @@ validate_p2p_terms_is_reduced(Terms) ->
         {p2p_fee, FeeSelector},
         {p2p_quote_lifetime, LifetimeSelector}
     ]).
+
+-spec validate_p2p_template_terms_is_reduced(wallet_terms() | undefined) ->
+    {ok, valid} | {error, invalid_p2p_template_terms_error()}.
+validate_p2p_template_terms_is_reduced(undefined) ->
+    {error, {invalid_terms, undefined_wallet_terms}};
+validate_p2p_template_terms_is_reduced(#domain_WalletServiceTerms{p2p = undefined} = WalletTerms) ->
+    {error, {invalid_terms, {undefined_p2p_terms, WalletTerms}}};
+validate_p2p_template_terms_is_reduced(WalletTerms = #domain_WalletServiceTerms{
+    p2p = #domain_P2PServiceTerms{
+        templates = undefined
+    }
+}) ->
+    {error, {invalid_terms, {undefined_p2p_template_terms, WalletTerms}}};
+validate_p2p_template_terms_is_reduced(#domain_WalletServiceTerms{p2p = P2PServiceTerms}) ->
+    #domain_P2PServiceTerms{templates = P2PTemplateServiceTerms} = P2PServiceTerms,
+    #domain_P2PTemplateServiceTerms{allow = Selector} = P2PTemplateServiceTerms,
+    case Selector of
+        {constant, true} ->
+            {ok, valid};
+        {constant, false} ->
+            {error, {terms_violation, p2p_template_forbidden}};
+        _ ->
+            {error, {invalid_terms, {not_reduced, {p2p_template_allow, Selector}}}}
+    end.
 
 -spec validate_w2w_terms_is_reduced(wallet_terms() | undefined) ->
     {ok, valid} | {error, invalid_w2w_terms_error()}.

@@ -60,8 +60,6 @@ create(DestinationID, Params = #{<<"resource">> := Resource}, HandlerContext) ->
                     {error, {currency, notfound}};
                 {exception, #fistful_PartyInaccessible{}} ->
                     {error, inaccessible};
-                {exception, #fistful_IDExists{}} ->
-                    get(DestinationID, HandlerContext);
                 {exception, Details} ->
                     {error, Details}
             end;
@@ -188,7 +186,7 @@ maybe_marshal(_, undefined) ->
 maybe_marshal(T, V) ->
     marshal(T, V).
 
-unmarshal(destination, #dst_Destination{
+unmarshal(destination, #dst_DestinationState{
     id = DestinationID,
     name = Name,
     account = Account,

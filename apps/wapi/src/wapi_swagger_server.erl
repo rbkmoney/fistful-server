@@ -14,13 +14,23 @@
 -define(DEFAULT_ACCEPTORS_POOLSIZE, 100).
 -define(DEFAULT_IP_ADDR, "::").
 -define(DEFAULT_PORT, 8080).
+-define(RANCH_REF, ?MODULE).
 
 -spec child_spec(cowboy_router:routes(), logic_handlers(), swagger_handler_opts()) ->
     supervisor:child_spec().
 child_spec(HealthRoutes, LogicHandlers, SwaggerHandlerOpts) ->
     {Transport, TransportOpts} = get_socket_transport(),
     CowboyOpts = get_cowboy_config(HealthRoutes, LogicHandlers, SwaggerHandlerOpts),
-    ranch:child_spec(?MODULE, Transport, TransportOpts, cowboy_clear, CowboyOpts).
+    GsTimeout = genlib_app:env(?APP, graceful_shutdown_timeout, 5000),
+    Protocol = cowboy_clear,
+    cowboy_draining_server:child_spec(
+        ?RANCH_REF,
+        Transport,
+        TransportOpts,
+        Protocol,
+        CowboyOpts,
+        GsTimeout
+    ).
 
 get_socket_transport() ->
     {ok, IP} = inet:parse_address(genlib_app:env(?APP, ip, ?DEFAULT_IP_ADDR)),

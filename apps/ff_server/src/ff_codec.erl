@@ -148,9 +148,9 @@ marshal(bank_card, BankCard = #{token := Token}) ->
         bin = marshal(string, Bin),
         masked_pan = marshal(string, MaskedPan),
         bank_name = marshal(string, BankName),
-        payment_system = PaymentSystem,
-        issuer_country = IsoCountryCode,
-        card_type = CardType,
+        payment_system = maybe_marshal(payment_system, PaymentSystem),
+        issuer_country = maybe_marshal(iso_country_code, IsoCountryCode),
+        card_type = maybe_marshal(card_type, CardType),
         exp_date = maybe_marshal(exp_date, ExpDate),
         cardholder_name = maybe_marshal(string, CardholderName),
         bin_data_id = marshal_msgpack(BinDataID)
@@ -193,6 +193,15 @@ marshal(crypto_data, {ripple, Data}) ->
     {ripple, #'CryptoDataRipple'{
         tag = maybe_marshal(string, maps:get(tag, Data, undefined))
     }};
+
+marshal(payment_system, V) when is_atom(V) ->
+    V;
+
+marshal(iso_country_code, V) when is_atom(V) ->
+    V;
+
+marshal(card_type, V) when is_atom(V) ->
+    V;
 
 marshal(cash, {Amount, CurrencyRef}) ->
     #'Cash'{
@@ -379,9 +388,9 @@ unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = Cryp
     }};
 
 unmarshal(bank_card_auth_data, {session_data, #'SessionAuthData'{id = ID}}) ->
-    #{
+    {session, #{
         session_id => unmarshal(string, ID)
-    };
+    }};
 
 unmarshal(bank_card, #'BankCard'{
     token = Token,
@@ -401,7 +410,7 @@ unmarshal(bank_card, #'BankCard'{
         bin => maybe_unmarshal(string, Bin),
         masked_pan => maybe_unmarshal(string, MaskedPan),
         bank_name => maybe_unmarshal(string, BankName),
-        issuer_country => maybe_unmarshal(iso_country_code, IsoCountryCode),
+        iso_country_code => maybe_unmarshal(iso_country_code, IsoCountryCode),
         card_type => maybe_unmarshal(card_type, CardType),
         exp_date => maybe_unmarshal(exp_date, ExpDate),
         cardholder_name => maybe_unmarshal(string, CardholderName),
@@ -560,3 +569,30 @@ unmarshal_msgpack({obj, V}) when is_map(V)     ->
     maps:fold(fun(Key, Value, Map) -> Map#{unmarshal_msgpack(Key) => unmarshal_msgpack(Value)} end, #{}, V);
 unmarshal_msgpack(undefined) ->
     undefined.
+
+%% TESTS
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec bank_card_codec_test() -> _.
+bank_card_codec_test() ->
+    BankCard = #{
+        token => <<"token">>,
+        payment_system => visa,
+        bin => <<"12345">>,
+        masked_pan => <<"7890">>,
+        bank_name => <<"bank">>,
+        iso_country_code => zmb,
+        card_type => credit_or_debit,
+        exp_date => {12, 3456},
+        cardholder_name => <<"name">>,
+        bin_data_id => #{<<"foo">> => 1}
+    },
+    Type = {struct, struct, {ff_proto_base_thrift, 'BankCard'}},
+    Binary = ff_proto_utils:serialize(Type, marshal(bank_card, BankCard)),
+    Decoded = ff_proto_utils:deserialize(Type, Binary),
+    ?assertEqual(BankCard, unmarshal(bank_card, Decoded)).
+
+-endif.

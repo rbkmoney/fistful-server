@@ -15,6 +15,12 @@
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #p2p_transfer_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Transfer}) ->
     {created, #p2p_transfer_CreatedChange{p2p_transfer = marshal(transfer, Transfer)}};
 marshal(change, {status_changed, Status}) ->
@@ -36,6 +42,7 @@ marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
     }};
 
 marshal(transfer, Transfer = #{
+    id := ID,
     status := Status,
     owner := Owner,
     sender := Sender,
@@ -52,19 +59,20 @@ marshal(transfer, Transfer = #{
     ClientInfo = maps:get(client_info, Transfer, undefined),
 
     #p2p_transfer_P2PTransfer{
+        id = marshal(id, ID),
         owner = marshal(id, Owner),
         sender = marshal(participant, Sender),
         receiver = marshal(participant, Receiver),
         body = marshal(cash, Body),
         status = marshal(status, Status),
-        created_at = marshal(timestamp, CreatedAt),
-        domain_revision = marshal(integer, DomainRevision),
-        party_revision = marshal(integer, PartyRevision),
-        operation_timestamp = marshal(timestamp, OperationTimestamp),
+        created_at = marshal(timestamp_ms, CreatedAt),
+        domain_revision = marshal(domain_revision, DomainRevision),
+        party_revision = marshal(party_revision, PartyRevision),
+        operation_timestamp = marshal(timestamp_ms, OperationTimestamp),
         quote = maybe_marshal(quote, Quote),
         external_id = maybe_marshal(id, ExternalID),
         client_info = maybe_marshal(client_info, ClientInfo),
-        deadline = maybe_marshal(timestamp, Deadline)
+        deadline = maybe_marshal(timestamp_ms, Deadline)
     };
 
 marshal(quote, #{}) ->
@@ -74,14 +82,12 @@ marshal(status, Status) ->
     ff_p2p_transfer_status_codec:marshal(status, Status);
 
 marshal(participant, {raw, #{resource_params := ResourceParams} = Raw}) ->
-    ContactInfo = maps:get(contact_info, Raw, undefined),
+    ContactInfo = maps:get(contact_info, Raw),
     {resource, #p2p_transfer_RawResource{
         resource = marshal(resource, ResourceParams),
         contact_info = marshal(contact_info, ContactInfo)
     }};
 
-marshal(contact_info, undefined) ->
-    #'ContactInfo'{};
 marshal(contact_info, ContactInfo) ->
     PhoneNumber = maps:get(phone_number, ContactInfo, undefined),
     Email = maps:get(email, ContactInfo, undefined),
@@ -134,9 +140,6 @@ marshal(session_result, success) ->
 marshal(session_result, {failure, Failure}) ->
     {failed, #p2p_transfer_SessionFailed{failure = marshal(failure, Failure)}};
 
-marshal(timestamp, Timestamp) when is_integer(Timestamp) ->
-    ff_time:to_rfc3339(Timestamp);
-
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -152,6 +155,11 @@ unmarshal(repair_scenario, {add_events, #p2p_transfer_AddEventsRepair{events = E
         events => unmarshal({list, change}, Events),
         action => maybe_unmarshal(complex_action, Action)
     })};
+
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#p2p_transfer_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#p2p_transfer_TimestampedChange.change),
+    {ev, Timestamp, Change};
 
 unmarshal(change, {created, #p2p_transfer_CreatedChange{p2p_transfer = Transfer}}) ->
     {created, unmarshal(transfer, Transfer)};
@@ -177,6 +185,7 @@ unmarshal(change, {adjustment, Change}) ->
     }};
 
 unmarshal(transfer, #p2p_transfer_P2PTransfer{
+    id = ID,
     owner = Owner,
     sender = Sender,
     receiver = Receiver,
@@ -188,21 +197,25 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
     operation_timestamp = OperationTimestamp,
     quote = Quote,
     client_info = ClientInfo,
-    external_id = ExternalID
+    external_id = ExternalID,
+    deadline = Deadline
 }) ->
     genlib_map:compact(#{
+        version => 2,
+        id => unmarshal(id, ID),
         status => unmarshal(status, Status),
         owner => unmarshal(id, Owner),
         body => unmarshal(cash, Body),
         sender => unmarshal(participant, Sender),
         receiver => unmarshal(participant, Receiver),
-        domain_revision => unmarshal(integer, DomainRevision),
-        party_revision => unmarshal(integer, PartyRevision),
-        operation_timestamp => ff_time:from_rfc3339(unmarshal(timestamp, OperationTimestamp)),
-        created_at => ff_time:from_rfc3339(unmarshal(timestamp, CreatedAt)),
+        domain_revision => unmarshal(domain_revision, DomainRevision),
+        party_revision => unmarshal(domain_revision, PartyRevision),
+        operation_timestamp => unmarshal(timestamp_ms, OperationTimestamp),
+        created_at => unmarshal(timestamp_ms, CreatedAt),
         quote => maybe_unmarshal(quote, Quote),
         client_info => maybe_unmarshal(client_info, ClientInfo),
-        external_id => maybe_unmarshal(id, ExternalID)
+        external_id => maybe_unmarshal(id, ExternalID),
+        deadline => maybe_unmarshal(timestamp_ms, Deadline)
     });
 
 unmarshal(quote, #p2p_transfer_P2PQuote{}) ->
@@ -260,9 +273,6 @@ unmarshal(session_result, {succeeded, #p2p_transfer_SessionSucceeded{}}) ->
     success;
 unmarshal(session_result, {failed, #p2p_transfer_SessionFailed{failure = Failure}}) ->
     {failure, unmarshal(failure, Failure)};
-
-unmarshal(timestamp, Timestamp) ->
-    unmarshal(string, Timestamp);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
@@ -325,6 +335,8 @@ p2p_transfer_codec_test() ->
     }},
 
     P2PTransfer = #{
+        version => 2,
+        id => genlib:unique(),
         status => pending,
         owner => genlib:unique(),
         body => {123, <<"RUB">>},
@@ -335,7 +347,8 @@ p2p_transfer_codec_test() ->
         domain_revision => 123,
         party_revision => 321,
         operation_timestamp => ff_time:now(),
-        external_id => genlib:unique()
+        external_id => genlib:unique(),
+        deadline => ff_time:now()
     },
 
     PTransfer = #{
@@ -353,6 +366,44 @@ p2p_transfer_codec_test() ->
         {status_changed, succeeded},
         {adjustment, #{id => genlib:unique(), payload => {created, Adjustment}}}
     ],
-    ?assertEqual(Changes, unmarshal({list, change}, marshal({list, change}, Changes))).
+
+    Type = {struct, union, {ff_proto_p2p_transfer_thrift, 'Change'}},
+    Binaries = [ff_proto_utils:serialize(Type, C) || C <- marshal({list, change}, Changes)],
+    Decoded = [ff_proto_utils:deserialize(Type, B) || B <- Binaries],
+    ?assertEqual(Changes, unmarshal({list, change}, Decoded)).
+
+-spec p2p_timestamped_change_codec_test() -> _.
+p2p_timestamped_change_codec_test() ->
+    Resource = {bank_card, #{bank_card => #{
+        token => genlib:unique(),
+        bin_data_id => {binary, genlib:unique()}
+    }}},
+
+    Participant = {raw, #{
+        resource_params => Resource,
+        contact_info => #{}
+    }},
+
+    P2PTransfer = #{
+        version => 2,
+        id => genlib:unique(),
+        status => pending,
+        owner => genlib:unique(),
+        body => {123, <<"RUB">>},
+        created_at => ff_time:now(),
+        sender => Participant,
+        receiver => Participant,
+        quote => #{},
+        domain_revision => 123,
+        party_revision => 321,
+        operation_timestamp => ff_time:now(),
+        external_id => genlib:unique()
+    },
+    Change = {created, P2PTransfer},
+    TimestampedChange = {ev, machinery_time:now(), Change},
+    Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'TimestampedChange'}},
+    Binary = ff_proto_utils:serialize(Type, marshal(timestamped_change, TimestampedChange)),
+    Decoded = ff_proto_utils:deserialize(Type, Binary),
+    ?assertEqual(TimestampedChange, unmarshal(timestamped_change, Decoded)).
 
 -endif.

@@ -33,7 +33,8 @@
     p_transfer => p_transfer(),
     adjustments => adjustments_index(),
     deadline => deadline(),
-    external_id => id()
+    external_id => id(),
+    metadata => metadata()
 }.
 
 -type params() :: #{
@@ -45,7 +46,8 @@
     quote => quote(),
     client_info => client_info(),
     deadline => deadline(),
-    external_id => id()
+    external_id => id(),
+    metadata => metadata()
 }.
 
 -type quote() :: p2p_quote:quote().
@@ -149,6 +151,7 @@
 -export([receiver/1]).
 -export([sender_resource/1]).
 -export([receiver_resource/1]).
+-export([metadata/1]).
 
 -export([session_id/1]).
 
@@ -164,7 +167,6 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -172,7 +174,7 @@
 
 %% Internal types
 -type body() :: ff_cash:cash().
--type identity() :: ff_identity:identity().
+-type identity() :: ff_identity:identity_state().
 -type identity_id() :: ff_identity:id().
 -type process_result() :: {action(), [event()]}.
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
@@ -192,6 +194,7 @@
 -type resource() :: ff_resource:resource().
 -type contract_params() :: p2p_party:contract_params().
 -type deadline() :: p2p_session:deadline().
+-type metadata()    :: ff_entity_context:md().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -301,6 +304,12 @@ deadline(T) ->
 client_info(T) ->
     maps:get(client_info, T, undefined).
 
+-spec metadata(p2p_transfer()) ->
+    metadata() | undefined.
+
+metadata(T) ->
+    maps:get(metadata, T, undefined).
+
 -spec create_varset(identity(), p2p_transfer()) -> p2p_party:varset().
 create_varset(Identity, P2PTransfer) ->
     Sender = validate_definition(sender_resource, sender_resource(P2PTransfer)),
@@ -344,16 +353,17 @@ create(TransferParams) ->
         ClientInfo = maps:get(client_info, TransferParams, undefined),
         ExternalID = maps:get(external_id, TransferParams, undefined),
         Deadline = maps:get(deadline, TransferParams, undefined),
+        Metadata = maps:get(metadata, TransferParams, undefined),
         CreatedAt = ff_time:now(),
         SenderResource = unwrap(sender, prepare_resource(sender, Sender, Quote)),
         ReceiverResource = unwrap(receiver, prepare_resource(receiver, Receiver, Quote)),
         Identity = unwrap(identity, get_identity(IdentityID)),
-        {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
+        {ok, PartyRevision0} = ff_party:get_revision(ff_identity:party(Identity)),
         Params = #{
             cash => Body,
             sender => SenderResource,
             receiver => ReceiverResource,
-            party_revision => PartyRevision,
+            party_revision => PartyRevision0,
             domain_revision => ff_domain_config:head(),
             timestamp => ff_time:now()
         },
@@ -378,7 +388,8 @@ create(TransferParams) ->
                 quote => Quote,
                 client_info => ClientInfo,
                 status => pending,
-                deadline => Deadline
+                deadline => Deadline,
+                metadata => Metadata
             })},
             {resource_got, SenderResource, ReceiverResource}
         ]
@@ -1107,38 +1118,3 @@ apply_event_({route_changed, Route}, T) ->
     maps:put(route, Route, T);
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
-
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
-    event().
-
-maybe_migrate({adjustment, _Ev} = Event, _MigrateParams) ->
-    ff_adjustment_utils:maybe_migrate(Event);
-maybe_migrate({resource_got, Sender, Receiver}, _MigrateParams) ->
-    {resource_got, maybe_migrate_resource(Sender), maybe_migrate_resource(Receiver)};
-maybe_migrate({created, #{version := 1} = Transfer}, MigrateParams) ->
-    #{
-        version := 1,
-        sender := Sender,
-        receiver := Receiver
-    } = Transfer,
-    maybe_migrate({created, genlib_map:compact(Transfer#{
-        version => 2,
-        sender => maybe_migrate_participant(Sender),
-        receiver => maybe_migrate_participant(Receiver)
-    })}, MigrateParams);
-% Other events
-maybe_migrate(Ev, _MigrateParams) ->
-    Ev.
-
-maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->
-    maybe_migrate_resource({crypto_wallet, #{crypto_wallet => CryptoWallet}});
-maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
-    maybe_migrate_resource({bank_card, #{bank_card => BankCard}});
-maybe_migrate_resource(Resource) ->
-    Resource.
-
-maybe_migrate_participant({raw, #{resource_params := Resource} = Participant}) ->
-    maybe_migrate_participant({raw, Participant#{resource_params => maybe_migrate_resource(Resource)}});
-
-maybe_migrate_participant(Resource) ->
-    Resource.

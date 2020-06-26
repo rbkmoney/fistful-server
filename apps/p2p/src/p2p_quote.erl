@@ -8,7 +8,7 @@
 -type receiver()                  :: ff_resource:resource_params().
 -type cash()                      :: ff_cash:cash().
 -type terms()                     :: ff_party:terms().
--type identity()                  :: ff_identity:identity().
+-type identity()                  :: ff_identity:identity_state().
 -type identity_id()               :: ff_identity:id().
 -type compact_resource()          :: compact_bank_card_resource().
 -type surplus_cash_volume()       :: ff_cash_flow:plan_volume().
@@ -22,6 +22,9 @@
     {cash_flow,                     volume_finalize_error()} |
     {p2p_transfer:resource_owner(), {bin_data, not_found}} |
     {terms,                         validate_p2p_error()}.
+
+-type get_quote_answer() ::
+    {cash() | undefined, surplus_cash_volume() | undefined, quote()}.
 
 -type compact_bank_card_resource() :: {bank_card, #{
     token := binary(),
@@ -44,6 +47,7 @@
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
 -export_type([get_quote_error/0]).
+-export_type([get_quote_answer/0]).
 
 %% Accessors
 
@@ -126,7 +130,7 @@ compact({bank_card, #{bank_card := BankCard}}) ->
 %%
 
 -spec get_quote(cash(), identity_id(), sender(), receiver()) ->
-    {ok, {cash() | undefined, surplus_cash_volume() | undefined, quote()}} |
+    {ok, get_quote_answer()} |
     {error, get_quote_error()}.
 get_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->

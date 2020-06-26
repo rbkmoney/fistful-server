@@ -12,6 +12,12 @@
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #src_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Source}) ->
     {created, marshal(source, Source)};
 marshal(change, {account, AccountChange}) ->
@@ -19,17 +25,18 @@ marshal(change, {account, AccountChange}) ->
 marshal(change, {status_changed, Status}) ->
     {status, #src_StatusChange{status = marshal(status, Status)}};
 
-marshal(source, Params = #{
+marshal(source, Source = #{
     name := Name,
     resource := Resource
 }) ->
-    ExternalID = maps:get(external_id, Params, undefined),
     #src_Source{
-        id = marshal(id, ff_source:id(Params)),
-        status = maybe_marshal(status, ff_source:status(Params)),
+        id = marshal(id, ff_source:id(Source)),
+        status = maybe_marshal(status, ff_source:status(Source)),
         name = marshal(string, Name),
         resource = marshal(resource, Resource),
-        external_id = marshal(id, ExternalID)
+        external_id = maybe_marshal(id, maps:get(external_id, Source, undefined)),
+        created_at = maybe_marshal(timestamp_ms, maps:get(created_at, Source,  undefined)),
+        metadata = maybe_marshal(context, maps:get(metadata, Source, undefined))
     };
 marshal(resource, #{type := internal} = Internal) ->
     {internal, marshal(internal, Internal)};
@@ -60,6 +67,11 @@ unmarshal(repair_scenario, {add_events, #src_AddEventsRepair{events = Events, ac
         action => maybe_unmarshal(complex_action, Action)
     })};
 
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#src_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#src_TimestampedChange.change),
+    {ev, Timestamp, Change};
+
 unmarshal(change, {created, Source}) ->
     {created, unmarshal(source, Source)};
 unmarshal(change, {account, AccountChange}) ->
@@ -70,12 +82,17 @@ unmarshal(change, {status, #src_StatusChange{status = Status}}) ->
 unmarshal(source, #src_Source{
     name = Name,
     resource = Resource,
-    external_id = ExternalID
+    external_id = ExternalID,
+    created_at = CreatedAt,
+    metadata = Metadata
 }) ->
     genlib_map:compact(#{
+        version => 3,
         name => unmarshal(string, Name),
         resource => unmarshal(resource, Resource),
-        external_id => unmarshal(id, ExternalID)
+        external_id => maybe_unmarshal(id, ExternalID),
+        created_at => maybe_unmarshal(timestamp_ms, CreatedAt),
+        metadata => maybe_unmarshal(context, Metadata)
     });
 unmarshal(resource, {internal, #src_Internal{details = Details}}) ->
     genlib_map:compact(#{

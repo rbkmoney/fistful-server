@@ -62,13 +62,13 @@ unmarshal({event, FormatVersion}, EncodedChange, Context) ->
     unmarshal_event(FormatVersion, EncodedChange, Context);
 unmarshal(T, V, C) when
     T =:= {args, init} orelse
-        T =:= {args, call} orelse
-        T =:= {args, repair} orelse
-        T =:= {aux_state, undefined} orelse
-        T =:= {response, call} orelse
-        T =:= {response, {repair, success}} orelse
-        T =:= {response, {repair, failure}}
-    ->
+    T =:= {args, call} orelse
+    T =:= {args, repair} orelse
+    T =:= {aux_state, undefined} orelse
+    T =:= {response, call} orelse
+    T =:= {response, {repair, success}} orelse
+    T =:= {response, {repair, failure}}
+->
     machinery_mg_schema_generic:unmarshal(T, V, C).
 
 %% Internals

@@ -483,16 +483,12 @@ domain_config(Options, C) ->
 
         ct_domain:payment_method(?pmt(bank_card, #domain_BankCardPaymentMethod{
             payment_system = visa,
-            has_cvv = true
+            is_cvv_empty = false
         })),
         ct_domain:payment_method(?pmt(bank_card, #domain_BankCardPaymentMethod{
             payment_system = mastercard,
-            has_cvv = true
+            is_cvv_empty = false
         }))
-        % ct_domain:payment_method(?pmt(bank_card_deprecated, visa)),
-        % ct_domain:payment_method(?pmt(bank_card_deprecated, mastercard))
-
-
     ],
     maps:get(domain_config, Options, Default).
 

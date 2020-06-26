@@ -233,29 +233,29 @@
             #domain_PaymentMethodRef{
                 id = {bank_card, #domain_BankCardPaymentMethod{
                     payment_system = mastercard,
-                    has_cvv = true,
+                    is_cvv_empty = false
                 }}
             },
             #domain_PaymentMethodRef{
                 id = {bank_card, #domain_BankCardPaymentMethod{
                     payment_system = visa,
-                    has_cvv = true,
+                    is_cvv_empty = false
                 }}
             },
             #domain_PaymentMethodRef{
                 id = {bank_card, #domain_BankCardPaymentMethod{
                     payment_system = mastercard,
                     token_provider = applepay,
-                    tokenization_method = none,
-                    has_cvv = true
+                    tokenization_method = dpan,
+                    is_cvv_empty = false
                 }}
             },
             #domain_PaymentMethodRef{
                 id = {bank_card, #domain_BankCardPaymentMethod{
                     payment_system = visa,
                     token_provider = applepay,
-                    tokenization_method = none,
-                    has_cvv = true
+                    tokenization_method = dpan,
+                    is_cvv_empty = false
                 }}
             }
         ]

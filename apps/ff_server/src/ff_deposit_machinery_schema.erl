@@ -47,13 +47,13 @@ marshal({event, Format}, TimestampedChange, Context) ->
     marshal_event(Format, TimestampedChange, Context);
 marshal(T, V, C) when
     T =:= {args, init} orelse
-        T =:= {args, call} orelse
-        T =:= {args, repair} orelse
-        T =:= {aux_state, undefined} orelse
-        T =:= {response, call} orelse
-        T =:= {response, {repair, success}} orelse
-        T =:= {response, {repair, failure}}
-    ->
+    T =:= {args, call} orelse
+    T =:= {args, repair} orelse
+    T =:= {aux_state, undefined} orelse
+    T =:= {response, call} orelse
+    T =:= {response, {repair, success}} orelse
+    T =:= {response, {repair, failure}}
+->
     machinery_mg_schema_generic:marshal(T, V, C).
 
 -spec unmarshal(type(), machinery_msgpack:t(), context()) ->

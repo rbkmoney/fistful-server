@@ -34,6 +34,7 @@
 %% Tests
 
 -export([adapter_unreachable_route_test/1]).
+-export([adapter_unreachable_route_retryable_test/1]).
 -export([adapter_unreachable_quote_test/1]).
 
 %% Internal types
@@ -65,8 +66,9 @@ all() ->
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
-        {default, [parallel], [
+        {default, [
             adapter_unreachable_route_test,
+            adapter_unreachable_route_retryable_test,
             adapter_unreachable_quote_test
         ]}
     ].
@@ -94,19 +96,55 @@ end_per_group(_, _) ->
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
+init_per_testcase(adapter_unreachable_route_retryable_test = Name, C) ->
+    _ = application:set_env(ff_withdrawal, retryable_errors, [
+        <<"session:authorization_error:">>
+    ]),
+    set_testcase_context(Name, C);
 init_per_testcase(Name, C) ->
+    set_testcase_context(Name, C).
+
+set_testcase_context(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
+end_per_testcase(adapter_unreachable_route_retryable_test, _C) ->
+    _ = application:set_env(ff_withdrawal, retryable_errors, []),
+    unset_testcase_context();
 end_per_testcase(_Name, _C) ->
+    unset_testcase_context().
+
+unset_testcase_context() ->
     ok = ct_helper:unset_context().
 
 %% Tests
 
 -spec adapter_unreachable_route_test(config()) -> test_return().
 adapter_unreachable_route_test(C) ->
+    Currency = <<"RUB">>,
+    Cash = {100500, Currency},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    ?assertEqual(
+        {failed, #{code => <<"authorization_error">>}},
+        await_final_withdrawal_status(WithdrawalID)
+    ).
+
+-spec adapter_unreachable_route_retryable_test(config()) -> test_return().
+adapter_unreachable_route_retryable_test(C) ->
     Currency = <<"RUB">>,
     Cash = {100500, Currency},
     #{

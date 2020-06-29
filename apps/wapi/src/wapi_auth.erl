@@ -43,7 +43,7 @@ authorize_operation(OperationID, Req, #{swagger_context := #{auth_context := Aut
     uac:authorize_operation(OperationACL, AuthContext).
 
 -type token_spec() ::
-    {p2p_templates, P2PTemplateID :: binary()} |
+    {p2p_templates, P2PTemplateID :: binary(), Data :: map()} |
     {p2p_template_transfers, P2PTemplateID :: binary(), Data :: map()} |
     {destinations, DestinationID :: binary()} |
     {wallets, WalletID :: binary(), Asset :: map()}.

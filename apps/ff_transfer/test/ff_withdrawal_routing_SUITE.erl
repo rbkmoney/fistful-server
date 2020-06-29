@@ -140,7 +140,7 @@ adapter_unreachable_route_retryable_test(C) ->
         destination_id := DestinationID,
         party_id := PartyID
     } = prepare_standard_environment(Cash, C),
-    _ = set_retryable_errors(PartyID, [<<"authorization_error:">>]),
+    _ = set_retryable_errors(PartyID, [<<"authorization_error">>]),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,

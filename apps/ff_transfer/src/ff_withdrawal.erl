@@ -1457,44 +1457,62 @@ is_failure_transient(Reason, Withdrawal) ->
     {ok, Wallet} = get_wallet(wallet_id(Withdrawal)),
     PartyID = ff_identity:party(get_wallet_identity(Wallet)),
     RetryableErrors = get_retryable_error_list(PartyID),
-    ErrorString = to_error_string(Reason, Withdrawal),
-    match_error_whitelist(ErrorString, RetryableErrors).
+    ErrorTokens = to_error_token_list(Reason, Withdrawal),
+    match_error_whitelist(ErrorTokens, RetryableErrors).
 
+-spec get_retryable_error_list(party_id()) ->
+    list(list(binary())).
 get_retryable_error_list(PartyID) ->
     WithdrawalConfig = genlib_app:env(ff_transfer, withdrawal, #{}),
     PartyRetryableErrors = maps:get(party_transient_errors, WithdrawalConfig, #{}),
-    case maps:get(PartyID, PartyRetryableErrors, undefined) of
+    Errors = case maps:get(PartyID, PartyRetryableErrors, undefined) of
         undefined ->
             maps:get(default_transient_errors, WithdrawalConfig, []);
         ErrorList ->
             ErrorList
-    end.
+    end,
+    binaries_to_error_tokens(Errors).
 
--spec to_error_string(fail_type(), withdrawal_state()) ->
-    binary().
-to_error_string(session, Withdrawal) ->
+-spec binaries_to_error_tokens(list(binary())) ->
+    list(list(binary())).
+binaries_to_error_tokens(Errors) ->
+    lists:map(fun(Error) ->
+        binary:split(Error, <<":">>, [global])
+    end, Errors).
+
+-spec to_error_token_list(fail_type(), withdrawal_state()) ->
+    list(binary()).
+to_error_token_list(session, Withdrawal) ->
     {failed, Failure} = session_result(Withdrawal),
-    StringFailure = to_session_error_string(Failure),
-    <<StringFailure/binary>>;
-to_error_string(Reason, _Withdrawal) ->
-    StringReason = genlib:to_binary(Reason),
-    <<StringReason/binary, ":">>.
+    to_session_error_token_list(Failure);
+to_error_token_list(Reason, _Withdrawal) ->
+    [genlib:to_binary(Reason)].
 
--spec to_session_error_string(ff_adapter_withdrawal:failure()) ->
-    binary().
-to_session_error_string(#{code := Code, sub := SubFailure}) ->
-    SubFailureString = to_session_error_string(SubFailure),
-    <<Code/binary, ":", SubFailureString/binary>>;
-to_session_error_string(#{code := Code}) ->
-    <<Code/binary, ":">>.
+-spec to_session_error_token_list(ff_adapter_withdrawal:failure()) ->
+    list(binary()).
+to_session_error_token_list(#{code := Code, sub := SubFailure}) ->
+    SubFailureList = to_session_error_token_list(SubFailure),
+    [Code | SubFailureList];
+to_session_error_token_list(#{code := Code}) ->
+    [Code].
 
--spec match_error_whitelist(binary(), list(binary())) ->
+-spec match_error_whitelist(list(binary()), list(list(binary()))) ->
     boolean().
-match_error_whitelist(ErrorString, RetryableErrors) ->
+match_error_whitelist(ErrorTokens, RetryableErrors) ->
     lists:any(fun(RetryableError) ->
-        % Recieved error string must be equal or longer then the one in the whitelist
-        byte_size(RetryableError) =< binary:longest_common_prefix([ErrorString, RetryableError])
+        error_tokens_match(ErrorTokens, RetryableError)
     end, RetryableErrors).
+
+-spec error_tokens_match(list(binary()), list(binary())) ->
+    boolean().
+error_tokens_match(_, []) ->
+    true;
+error_tokens_match([], [_|_]) ->
+    false;
+error_tokens_match([Token0 | Rest0], [Token1 | Rest1]) when Token0 =:= Token1 ->
+    error_tokens_match(Rest0, Rest1);
+error_tokens_match([Token0 | _], [Token1 | _]) when Token0 =/= Token1 ->
+    false.
 
 -spec do_process_route_change([provider_id()], withdrawal_state(), fail_type()) ->
     process_result().
@@ -1943,16 +1961,33 @@ v3_created_migration_test() ->
 
 -spec match_error_whitelist_test() -> _.
 match_error_whitelist_test() ->
-    ErrorWhitelist = [
-        <<"some:test:error:">>,
-        <<"another:test:error:">>,
-        <<"wide_one:">>
-    ],
-    ?assertEqual(false, match_error_whitelist(<<":">>, ErrorWhitelist)),
-    ?assertEqual(false, match_error_whitelist(<<"some:completely:different:error:">>, ErrorWhitelist)),
-    ?assertEqual(false, match_error_whitelist(<<"some:test:">>, ErrorWhitelist)),
-    ?assertEqual(true, match_error_whitelist(<<"another:test:error:that:is:more:specific:">>, ErrorWhitelist)),
-    ?assertEqual(true, match_error_whitelist(<<"wide_one:">>, ErrorWhitelist)),
-    ?assertEqual(true, match_error_whitelist(<<"wide_one:sub_error">>, ErrorWhitelist)).
-
+    ErrorWhitelist = binaries_to_error_tokens([
+        <<"some:test:error">>,
+        <<"another:test:error">>,
+        <<"wide">>
+    ]),
+    ?assertEqual(false, match_error_whitelist(
+        [<<>>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(false, match_error_whitelist(
+        [<<"some">>, <<"completely">>, <<"different">>, <<"error">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(false, match_error_whitelist(
+        [<<"some">>, <<"test">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(false, match_error_whitelist(
+        [<<"wider">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(true,  match_error_whitelist(
+        [<<"some">>, <<"test">>, <<"error">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(true,  match_error_whitelist(
+        [<<"another">>, <<"test">>, <<"error">>, <<"that">>, <<"is">>, <<"more">>, <<"specific">>],
+        ErrorWhitelist
+    )).
 -endif.

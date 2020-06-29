@@ -144,7 +144,7 @@ maybe_migrate({created, Deposit = #{version := 2, id := ID, params := Params}}, 
     Ctx = maps:get(ctx, MigrateParams, undefined),
     Context = case Ctx of
                   undefined ->
-                      {ok, State} = ff_machine:get(ff_withdrawal, 'ff/withdrawal_v2', ID, {undefined, 0, forward}),
+                      {ok, State} = ff_machine:get(ff_deposit, 'ff/deposit_v1', ID, {undefined, 0, forward}),
                       maps:get(ctx, State, undefined);
                   Data ->
                       Data

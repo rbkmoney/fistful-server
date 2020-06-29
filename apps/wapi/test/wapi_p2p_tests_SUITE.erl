@@ -32,6 +32,7 @@
     block_p2p_template_ok_test/1,
     issue_p2p_template_access_token_ok_test/1,
     issue_p2p_transfer_ticket_ok_test/1,
+    issue_p2p_transfer_ticket_with_access_expiration_ok_test/1,
     create_p2p_transfer_with_template_ok_test/1,
     create_p2p_transfer_with_template_conflict_test/1,
     create_p2p_transfer_with_template_and_quote_ok_test/1
@@ -83,6 +84,7 @@ groups() ->
             block_p2p_template_ok_test,
             issue_p2p_template_access_token_ok_test,
             issue_p2p_transfer_ticket_ok_test,
+            issue_p2p_transfer_ticket_with_access_expiration_ok_test,
             create_p2p_transfer_with_template_ok_test,
             create_p2p_transfer_with_template_conflict_test,
             create_p2p_transfer_with_template_and_quote_ok_test
@@ -606,6 +608,27 @@ issue_p2p_transfer_ticket_ok_test(C) ->
         wapi_ct_helper:get_context(TemplateToken)
     ).
 
+-spec issue_p2p_transfer_ticket_with_access_expiration_ok_test(config()) ->
+    _.
+issue_p2p_transfer_ticket_with_access_expiration_ok_test(C) ->
+    IdentityID = create_identity(C),
+    TemplateID = create_p2p_template(IdentityID, C),
+    AccessValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    TemplateToken = issue_p2p_template_access_token(TemplateID, AccessValidUntil, C),
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(200000)),
+    {ok, #{<<"token">> := _Token, <<"validUntil">> := AccessValidUntil}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_ticket/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => TemplateID
+            },
+            body => #{
+                <<"validUntil">> => ValidUntil
+            }
+        },
+        wapi_ct_helper:get_context(TemplateToken)
+    ).
+
 -spec create_p2p_transfer_with_template_ok_test(config()) ->
     _.
 create_p2p_transfer_with_template_ok_test(C) ->
@@ -954,6 +977,9 @@ create_p2p_template(IdentityID, C) ->
 
 issue_p2p_template_access_token(TemplateID, C) ->
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    issue_p2p_template_access_token(TemplateID, ValidUntil, C).
+
+issue_p2p_template_access_token(TemplateID, ValidUntil, C) ->
     {ok, #{<<"token">> := TemplateToken}} = call_api(
         fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_template_access_token/3,
         #{

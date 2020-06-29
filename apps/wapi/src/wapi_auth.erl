@@ -67,8 +67,9 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
 
 -spec resolve_token_spec(token_spec()) ->
     claims().
-resolve_token_spec({p2p_templates, P2PTemplateID}) ->
+resolve_token_spec({p2p_templates, P2PTemplateID, #{<<"expiration">> := Expiration}}) ->
     #{
+        <<"data">> => #{<<"expiration">> => Expiration},
         <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
             [{[{p2p_templates, P2PTemplateID}, p2p_template_tickets], write}, {[{p2p_templates, P2PTemplateID}], read}]
         )}

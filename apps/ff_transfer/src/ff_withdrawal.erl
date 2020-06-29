@@ -1444,27 +1444,28 @@ process_adjustment(Withdrawal) ->
 -spec process_route_change([provider_id()], withdrawal_state(), fail_type()) ->
     process_result().
 process_route_change(Providers, Withdrawal, Reason) ->
-    case is_error_retryable(Reason, Withdrawal) of
+    case is_failure_transient(Reason, Withdrawal) of
         true ->
             do_process_route_change(Providers, Withdrawal, Reason);
         false ->
             process_transfer_fail(Reason, Withdrawal)
     end.
 
--spec is_error_retryable(fail_type(), withdrawal_state()) ->
+-spec is_failure_transient(fail_type(), withdrawal_state()) ->
     boolean().
-is_error_retryable(Reason, Withdrawal) ->
-    Wallet = unwrap(get_wallet(wallet_id(Withdrawal))),
+is_failure_transient(Reason, Withdrawal) ->
+    {ok, Wallet} = get_wallet(wallet_id(Withdrawal)),
     PartyID = ff_identity:party(get_wallet_identity(Wallet)),
     RetryableErrors = get_retryable_error_list(PartyID),
     ErrorString = to_error_string(Reason, Withdrawal),
     match_error_whitelist(ErrorString, RetryableErrors).
 
 get_retryable_error_list(PartyID) ->
-    PartyRetryableErrors = genlib_app:env(?MODULE, party_retryable_errors, #{}),
+    WithdrawalConfig = genlib_app:env(ff_transfer, withdrawal, #{}),
+    PartyRetryableErrors = maps:get(party_transient_errors, WithdrawalConfig, #{}),
     case maps:get(PartyID, PartyRetryableErrors, undefined) of
         undefined ->
-            genlib_app:env(?MODULE, default_retryable_errors, []);
+            maps:get(default_transient_errors, WithdrawalConfig, []);
         ErrorList ->
             ErrorList
     end.
@@ -1474,7 +1475,7 @@ get_retryable_error_list(PartyID) ->
 to_error_string(session, Withdrawal) ->
     {failed, Failure} = session_result(Withdrawal),
     StringFailure = to_session_error_string(Failure),
-    <<"session:", StringFailure/binary>>;
+    <<StringFailure/binary>>;
 to_error_string(Reason, _Withdrawal) ->
     StringReason = genlib:to_binary(Reason),
     <<StringReason/binary, ":">>.

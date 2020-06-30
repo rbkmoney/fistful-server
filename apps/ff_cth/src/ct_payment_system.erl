@@ -372,7 +372,7 @@ domain_config(Options, C) ->
                 realm                     = live,
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = payment_inst_identity_id(Options),
-                withdrawal_providers      = {decisions, [
+                withdrawal_providers_legacy = {decisions, [
                     #domain_WithdrawalProviderDecision{
                         if_ = {condition, {cost_in, #domain_CashRange{
                             upper = {inclusive, #domain_Cash{
@@ -432,7 +432,7 @@ domain_config(Options, C) ->
                 realm                     = live,
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = dummy_payment_inst_identity_id(Options),
-                withdrawal_providers      = {decisions, [
+                withdrawal_providers_legacy = {decisions, [
                     #domain_WithdrawalProviderDecision{
                         if_ = {condition, {cost_in, #domain_CashRange{
                             upper = {inclusive, #domain_Cash{
@@ -463,7 +463,7 @@ domain_config(Options, C) ->
                     }
                 ]},
                 p2p_inspector             = {value, ?p2p_insp(1)},
-                p2p_providers             = {decisions, [
+                p2p_providers_legacy      = {decisions, [
                     #domain_P2PProviderDecision{
                         if_ = {condition, {p2p_tool,
                             #domain_P2PToolCondition{

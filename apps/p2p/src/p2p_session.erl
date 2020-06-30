@@ -29,7 +29,6 @@
 
 %% ff_machine
 -export([apply_event/2]).
--export([maybe_migrate/2]).
 -export([init/2]).
 
 %% ff_repair
@@ -124,7 +123,6 @@
 -type result() :: machinery:result(event(), auxst()).
 -type action() :: machinery:action().
 -type adapter_with_opts() :: {ff_p2p_provider:adapter(), ff_p2p_provider:adapter_opts()}.
--type legacy_event() :: any().
 
 -type callbacks_index() :: p2p_callback_utils:index().
 -type unknown_p2p_callback_error() :: p2p_callback_utils:unknown_callback_error().
@@ -423,39 +421,6 @@ set_user_interactions_index(UserInteractions, Session) ->
 -spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->
     Session#{status => SessionState}.
-
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
-    event().
-
-maybe_migrate({created, #{version := 1} = Session}, MigrateParams) ->
-    #{
-        version := 1,
-        transfer_params := #{
-            sender := Sender,
-            receiver := Receiver
-        } = Params
-    } = Session,
-    maybe_migrate({created, genlib_map:compact(Session#{
-        version => 2,
-        transfer_params => Params#{
-            sender => maybe_migrate_resource(Sender),
-            receiver => maybe_migrate_resource(Receiver)
-        }
-    })}, MigrateParams);
-% Other events
-maybe_migrate({callback, _Ev} = Event, _MigrateParams) ->
-    p2p_callback_utils:maybe_migrate(Event);
-maybe_migrate({user_interaction, _Ev} = Event, _MigrateParams) ->
-    p2p_user_interaction_utils:maybe_migrate(Event);
-maybe_migrate(Ev, _MigrateParams) ->
-    Ev.
-
-maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->
-    maybe_migrate_resource({crypto_wallet, #{crypto_wallet => CryptoWallet}});
-maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
-    maybe_migrate_resource({bank_card, #{bank_card => BankCard}});
-maybe_migrate_resource(Resource) ->
-    Resource.
 
 -spec init(session(), action()) ->
     {list(event()), action() | undefined}.

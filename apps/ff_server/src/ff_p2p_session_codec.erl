@@ -17,6 +17,12 @@
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #p2p_session_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Session}) ->
     {created, #p2p_session_CreatedChange{session = marshal(session, Session)}};
 marshal(change, {next_state, AdapterState}) ->
@@ -152,6 +158,11 @@ unmarshal(repair_scenario, {add_events, #p2p_session_AddEventsRepair{events = Ev
 unmarshal(repair_scenario, {set_session_result, #p2p_session_SetResultRepair{result = Result}}) ->
     {set_session_result, unmarshal(session_result, Result)};
 
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#p2p_session_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#p2p_session_TimestampedChange.change),
+    {ev, Timestamp, Change};
+
 unmarshal(change, {created, #p2p_session_CreatedChange{session = Session}}) ->
     {created, unmarshal(session, Session)};
 unmarshal(change, {adapter_state, #p2p_session_AdapterStateChange{state = AdapterState}}) ->
@@ -180,6 +191,7 @@ unmarshal(session, #p2p_session_Session{
     domain_revision = DomainRevision
 }) ->
     #{
+        version => 2,
         id => unmarshal(id, ID),
         status => unmarshal(status, Status),
         transfer_params => unmarshal(p2p_transfer, P2PTransfer),
@@ -224,7 +236,10 @@ unmarshal(callback_event, {status_changed, #p2p_session_CallbackStatusChange{sta
     {status_changed, unmarshal(callback_status, Status)};
 
 unmarshal(callback, #p2p_session_Callback{tag = Tag}) ->
-    #{tag => unmarshal(string, Tag)};
+    #{
+        version => 1,
+        tag => unmarshal(string, Tag)
+    };
 
 unmarshal(callback_status, {pending, #p2p_session_CallbackStatusPending{}}) ->
     pending;
@@ -245,6 +260,7 @@ unmarshal(user_interaction, #p2p_session_UserInteraction{
     user_interaction = Content
 }) ->
     #{
+        version => 1,
         id => unmarshal(id, ID),
         content => unmarshal(user_interaction_content, Content)
     };
@@ -296,13 +312,17 @@ maybe_unmarshal(Type, Value) ->
 -spec p2p_session_codec_test() -> _.
 p2p_session_codec_test() ->
     UserInteraction = #{
+        version => 1,
         id => genlib:unique(),
         content => {redirect, #{
             content => {get, <<"URI">>}
         }}
     },
 
-    Callback = #{tag => <<"Tag">>},
+    Callback = #{
+        version => 1,
+        tag => <<"Tag">>
+    },
 
     TransactionInfo = #{
         id => genlib:unique(),
@@ -323,6 +343,7 @@ p2p_session_codec_test() ->
     },
 
     Session = #{
+        version => 2,
         id => genlib:unique(),
         status => active,
         transfer_params => TransferParams,

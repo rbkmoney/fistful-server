@@ -721,13 +721,13 @@ process_request('IssueP2PTransferTemplateAccessToken', #{
     end;
 process_request('IssueP2PTransferTicket', #{
     p2pTransferTemplateID := ID,
-    'P2PTransferTemplateTokenRequest' := #{<<"validUntil">> := Expiration}
+    'P2PTransferTemplateTokenRequest' := #{<<"validUntil">> := Expiration0}
 }, Context, _Opts) ->
-    case wapi_wallet_ff_backend:issue_p2p_transfer_ticket(ID, Expiration, Context) of
-        {ok, Token} ->
+    case wapi_wallet_ff_backend:issue_p2p_transfer_ticket(ID, Expiration0, Context) of
+        {ok, {Token, Expiration1}} ->
             wapi_handler_utils:reply_ok(201, #{
                 <<"token">>      => Token,
-                <<"validUntil">> => Expiration
+                <<"validUntil">> => Expiration1
             });
         {error, expired} ->
             wapi_handler_utils:reply_ok(422,

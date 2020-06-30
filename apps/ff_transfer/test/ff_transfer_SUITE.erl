@@ -292,7 +292,7 @@ deposit_withdrawal_ok(C) ->
 
     WdrID     = process_withdrawal(WalID, DestID),
     Events    = get_withdrawal_events(WdrID),
-    [<<"1">>] = route_changes(Events).
+    [1] = route_changes(Events).
 
 deposit_withdrawal_to_crypto_wallet(C) ->
     Party  = create_party(C),
@@ -304,9 +304,9 @@ deposit_withdrawal_to_crypto_wallet(C) ->
     ok     = process_deposit(SrcID, WalID),
     DestID = create_crypto_destination(IID, C),
     pass_identification(ICID, IID, C),
-    WdrID     = process_withdrawal(WalID, DestID),
-    Events    = get_withdrawal_events(WdrID),
-    [<<"2">>] = route_changes(Events).
+    WdrID = process_withdrawal(WalID, DestID),
+    Events = get_withdrawal_events(WdrID),
+    [2] = route_changes(Events).
 
 deposit_quote_withdrawal_ok(C) ->
     Party  = create_party(C),
@@ -340,8 +340,8 @@ deposit_quote_withdrawal_ok(C) ->
         }
     }),
 
-    Events    = get_withdrawal_events(WdrID),
-    [<<"3">>] = route_changes(Events).
+    Events = get_withdrawal_events(WdrID),
+    [3] = route_changes(Events).
 
 create_party(_C) ->
     ID = genlib:bsuuid(),

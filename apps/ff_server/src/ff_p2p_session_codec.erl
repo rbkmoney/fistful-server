@@ -34,17 +34,18 @@ marshal(session, #{
     id := ID,
     status := Status,
     transfer_params := TransferParams,
-    provider_id := ProviderID,
     domain_revision := DomainRevision,
-    party_revision := PartyRevision
-}) ->
+    party_revision := PartyRevision,
+    route := Route
+} = Session) ->
     #p2p_session_Session{
         id = marshal(id, ID),
         status = marshal(status, Status),
         p2p_transfer = marshal(p2p_transfer, TransferParams),
-        provider = marshal(integer, ProviderID),
+        route = marshal(route, Route),
         party_revision = marshal(party_revision, PartyRevision),
-        domain_revision = marshal(domain_revision, DomainRevision)
+        domain_revision = marshal(domain_revision, DomainRevision),
+        provider_legacy = maybe_marshal(integer, genlib_map:get(provider_id_legacy, Session))
     };
 
 marshal(status, active) ->
@@ -70,6 +71,11 @@ marshal(p2p_transfer, Transfer = #{
         receiver = marshal(resource, Receiver),
         cash = marshal(cash, Body),
         deadline = maybe_marshal(deadline, Deadline)
+    };
+
+marshal(route, Route) ->
+    #p2p_session_Route{
+        provider_id = marshal(provider_id, maps:get(provider_id, Route))
     };
 
 marshal(deadline, Deadline) ->
@@ -175,18 +181,21 @@ unmarshal(session, #p2p_session_Session{
     id = ID,
     status = Status,
     p2p_transfer = P2PTransfer,
-    provider = ProviderID,
+    route = Route,
     party_revision = PartyRevision,
-    domain_revision = DomainRevision
+    domain_revision = DomainRevision,
+    provider_legacy = ProviderID
 }) ->
-    #{
+    genlib_map:compact(#{
+        version => 3,
         id => unmarshal(id, ID),
         status => unmarshal(status, Status),
         transfer_params => unmarshal(p2p_transfer, P2PTransfer),
-        provider_id => unmarshal(integer, ProviderID),
+        route => unmarshal(route, Route),
         party_revision => unmarshal(party_revision, PartyRevision),
-        domain_revision => unmarshal(domain_revision, DomainRevision)
-    };
+        domain_revision => unmarshal(domain_revision, DomainRevision),
+        provider_id_legacy => unmarshal(integer, ProviderID)
+    });
 
 unmarshal(status, {active, #p2p_session_SessionActive{}}) ->
     active;
@@ -212,6 +221,11 @@ unmarshal(p2p_transfer, #p2p_session_P2PTransfer{
         body => unmarshal(cash, Body),
         deadline => maybe_unmarshal(deadline, Deadline)
     });
+
+unmarshal(route, Route) ->
+    #{
+        provider_id => unmarshal(provider_id, Route#p2p_session_Route.provider_id)
+    };
 
 unmarshal(deadline, Deadline) ->
     ff_time:from_rfc3339(Deadline);
@@ -323,12 +337,16 @@ p2p_session_codec_test() ->
     },
 
     Session = #{
+        version => 3,
         id => genlib:unique(),
         status => active,
         transfer_params => TransferParams,
-        provider_id => 1,
+        route => #{
+            provider_id => 401
+        },
         party_revision => 123,
-        domain_revision => 321
+        domain_revision => 321,
+        provider_id_legacy => 1
     },
 
     Changes = [

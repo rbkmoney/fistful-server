@@ -884,7 +884,7 @@ encode_payment_method({bank_card, #domain_BankCard{
     }}) ->
     #domain_PaymentMethodRef{
         id = {bank_card, #domain_BankCardPaymentMethod{
-            is_cvv_empty = IsCvvEmpty,
+            is_cvv_empty = genlib:define(IsCvvEmpty, false),
             payment_system = PaymentSystem,
             token_provider = TokenProvider,
             tokenization_method = TokenizationMethod

@@ -17,6 +17,7 @@
 -type clock()       :: ff_transaction:clock().
 -type revision()    :: dmsl_domain_thrift:'PartyRevision'().
 -type terms()       :: dmsl_domain_thrift:'TermSet'().
+-type attempt_limit() :: integer().
 
 -type party_params() :: #{
     email := binary()
@@ -70,6 +71,7 @@
 -export_type([validate_p2p_template_creation_error/0]).
 -export_type([cash/0]).
 -export_type([cash_range/0]).
+-export_type([attempt_limit/0]).
 
 -type inaccessibility() ::
     {inaccessible, blocked | suspended}.
@@ -119,6 +121,7 @@
 -type p2p_forbidden_error() :: {terms_violation, p2p_forbidden}.
 -type w2w_forbidden_error() :: {terms_violation, w2w_forbidden}.
 -type p2p_template_forbidden_error() :: {terms_violation, p2p_template_forbidden}.
+-type attempt_limit_error() :: {terms_violation, {attempt_limit, attempt_limit()}}.
 
 -type not_reduced_error() :: {not_reduced, {Name :: atom(), TermsPart :: any()}}.
 
@@ -306,7 +309,8 @@ validate_withdrawal_creation(Terms, {_, CurrencyID} = Cash) ->
         valid = unwrap(validate_wallet_terms_currency(CurrencyID, WalletTerms)),
         #domain_WalletServiceTerms{withdrawals = WithdrawalTerms} = WalletTerms,
         valid = unwrap(validate_withdrawal_terms_currency(CurrencyID, WithdrawalTerms)),
-        valid = unwrap(validate_withdrawal_cash_limit(Cash, WithdrawalTerms))
+        valid = unwrap(validate_withdrawal_cash_limit(Cash, WithdrawalTerms)),
+        valid = unwrap(validate_withdrawal_attempt_limit(WithdrawalTerms))
     end).
 
 -spec validate_deposit_creation(terms(), cash()) -> Result when
@@ -603,13 +607,15 @@ validate_withdrawal_terms_is_reduced(Terms) ->
     #domain_WithdrawalServiceTerms{
         currencies = WithdrawalCurrenciesSelector,
         cash_limit = CashLimitSelector,
-        cash_flow = CashFlowSelector
+        cash_flow = CashFlowSelector,
+        attempt_limit = AttemptLimitSelector
     } = WithdrawalTerms,
     do_validate_terms_is_reduced([
         {wallet_currencies, WalletCurrenciesSelector},
         {withdrawal_currencies, WithdrawalCurrenciesSelector},
         {withdrawal_cash_limit, CashLimitSelector},
-        {withdrawal_cash_flow, CashFlowSelector}
+        {withdrawal_cash_flow, CashFlowSelector},
+        {withdrawal_attempt_limit, AttemptLimitSelector}
     ]).
 
 -spec validate_p2p_terms_is_reduced(wallet_terms() | undefined) ->
@@ -752,6 +758,20 @@ validate_withdrawal_cash_limit(Cash, Terms) ->
     } = Terms,
     validate_cash_range(ff_dmsl_codec:marshal(cash, Cash), CashRange).
 
+-spec validate_withdrawal_attempt_limit(withdrawal_terms()) ->
+    {ok, valid} | {error, attempt_limit_error()}.
+
+validate_withdrawal_attempt_limit(Terms) ->
+    #domain_WithdrawalServiceTerms{
+        attempt_limit = AttemptLimit
+    } = Terms,
+    case AttemptLimit of
+        undefined ->
+            {ok, valid};
+        {value, Limit} ->
+            validate_attempt_limit(ff_dmsl_codec:unmarshal(attempt_limit, Limit))
+    end.
+
 -spec validate_p2p_terms_currency(currency_id(), p2p_terms()) ->
     {ok, valid} | {error, currency_validation_error()}.
 validate_p2p_terms_currency(CurrencyID, Terms) ->
@@ -856,6 +876,14 @@ compare_cash(
     {_, #domain_Cash{amount = Am, currency = C}}
 ) ->
     Fun(A, Am).
+
+-spec validate_attempt_limit(attempt_limit()) ->
+    {ok, valid} | {error, attempt_limit_error()}.
+
+validate_attempt_limit(AttemptLimit) when AttemptLimit > 0 ->
+    {ok, valid};
+validate_attempt_limit(AttemptLimit) ->
+    {error, {terms_violation, {attempt_limit, AttemptLimit}}}.
 
 %% Varset stuff
 

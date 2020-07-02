@@ -14,15 +14,13 @@
 -export([create/3]).
 -export([process_session/1]).
 
--export([get_adapter_with_opts/1]).
-
 -export([process_callback/2]).
 
 %% Accessors
 
 -export([id/1]).
+-export([provider_id/1]).
 -export([transfer_params/1]).
--export([adapter/1]).
 -export([adapter_state/1]).
 -export([party_revision/1]).
 -export([domain_revision/1]).
@@ -44,10 +42,9 @@
     id := id(),
     status := status(),
     transfer_params := transfer_params(),
-    provider_id := ff_p2p_provider:id(),
+    provider_id := provider_id(),
     domain_revision := domain_revision(),
     party_revision := party_revision(),
-    adapter := adapter_with_opts(),
     adapter_state => adapter_state(),
     callbacks => callbacks_index(),
     user_interactions => user_interactions_index(),
@@ -88,7 +85,7 @@
 -type deadline() :: p2p_adapter:deadline().
 
 -type params() :: #{
-    provider_id := ff_p2p_provider:id(),
+    provider_id := provider_id(),
     domain_revision := domain_revision(),
     party_revision := party_revision()
 }.
@@ -123,6 +120,7 @@
 -type result() :: machinery:result(event(), auxst()).
 -type action() :: machinery:action().
 -type adapter_with_opts() :: {ff_p2p_provider:adapter(), ff_p2p_provider:adapter_opts()}.
+-type provider_id() :: ff_p2p_provider:id().
 
 -type callbacks_index() :: p2p_callback_utils:index().
 -type unknown_p2p_callback_error() :: p2p_callback_utils:unknown_callback_error().
@@ -145,6 +143,12 @@
     id().
 
 id(#{id := V}) ->
+    V.
+
+-spec provider_id(session()) ->
+    provider_id().
+
+provider_id(#{id := V}) ->
     V.
 
 -spec status(session()) ->
@@ -183,10 +187,6 @@ is_finished(#{status := active}) ->
 transfer_params(#{transfer_params := V}) ->
     V.
 
--spec adapter(session()) -> adapter_with_opts().
-adapter(#{adapter := V}) ->
-    V.
-
 %%
 -spec create(id(), transfer_params(), params()) ->
     {ok, [event()]}.
@@ -202,19 +202,20 @@ create(ID, TransferParams, #{
         provider_id => ProviderID,
         domain_revision => DomainRevision,
         party_revision => PartyRevision,
-        adapter => get_adapter_with_opts(ProviderID),
         status => active
     },
     {ok, [{created, Session}]}.
 
--spec get_adapter_with_opts(ff_p2p_provider:id()) -> adapter_with_opts().
-get_adapter_with_opts(ProviderID) ->
-    Provider =  unwrap(ff_p2p_provider:get(ProviderID)),
+-spec get_adapter_with_opts(session()) -> adapter_with_opts().
+get_adapter_with_opts(SessionState) ->
+    Revision = domain_revision(SessionState),
+    ProviderID = provider_id(SessionState),
+    Provider =  unwrap(ff_p2p_provider:get(Revision, ProviderID)),
     {ff_p2p_provider:adapter(Provider), ff_p2p_provider:adapter_opts(Provider)}.
 
 -spec process_session(session()) -> result().
 process_session(Session) ->
-    {Adapter, _AdapterOpts} = adapter(Session),
+    {Adapter, _AdapterOpts} = get_adapter_with_opts(Session),
     Context = p2p_adapter:build_context(collect_build_context_params(Session)),
     {ok, ProcessResult} = p2p_adapter:process(Adapter, Context),
     #{intent := Intent} = ProcessResult,
@@ -309,7 +310,7 @@ process_callback(#{tag := CallbackTag} = Params, Session) ->
                 active ->
                     do_process_callback(Params, Callback, Session);
                 {finished, _} ->
-                    {_Adapter, _AdapterOpts} = adapter(Session),
+                    {_Adapter, _AdapterOpts} = get_adapter_with_opts(Session),
                     Context = p2p_adapter:build_context(collect_build_context_params(Session)),
                     {error, {{session_already_finished, Context}, #{}}}
             end
@@ -324,7 +325,7 @@ find_callback(CallbackTag, Session) ->
     {ok, {process_callback_response(), result()}}.
 
 do_process_callback(Params, Callback, Session) ->
-    {Adapter, _AdapterOpts} = adapter(Session),
+    {Adapter, _AdapterOpts} = get_adapter_with_opts(Session),
     Context = p2p_adapter:build_context(collect_build_context_params(Session)),
     {ok, HandleCallbackResult} = p2p_adapter:handle_callback(Adapter, Params, Context),
     #{intent := Intent, response := Response} = HandleCallbackResult,
@@ -363,7 +364,7 @@ user_interactions_index(Session) ->
 -spec collect_build_context_params(session()) ->
     p2p_adapter:build_context_params().
 collect_build_context_params(Session) ->
-    {_Adapter, AdapterOpts} = adapter(Session),
+    {_Adapter, AdapterOpts} = get_adapter_with_opts(Session),
     #{
         id              => id(Session),
         adapter_state   => adapter_state(Session),

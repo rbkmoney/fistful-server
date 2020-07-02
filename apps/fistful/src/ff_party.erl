@@ -876,9 +876,19 @@ encode_varset(Varset) ->
 
 encode_payment_method(undefined) ->
     undefined;
-encode_payment_method({bank_card, #domain_BankCard{payment_system = PaymentSystem}}) ->
+encode_payment_method({bank_card, #domain_BankCard{
+        payment_system = PaymentSystem,
+        is_cvv_empty = IsCvvEmpty,
+        token_provider = TokenProvider,
+        tokenization_method = TokenizationMethod
+    }}) ->
     #domain_PaymentMethodRef{
-        id = {bank_card, PaymentSystem}
+        id = {bank_card, #domain_BankCardPaymentMethod{
+            is_cvv_empty = genlib:define(IsCvvEmpty, false),
+            payment_system = PaymentSystem,
+            token_provider = TokenProvider,
+            tokenization_method = TokenizationMethod
+        }}
     };
 encode_payment_method({crypto_currency, CryptoCurrency}) ->
     #domain_PaymentMethodRef{

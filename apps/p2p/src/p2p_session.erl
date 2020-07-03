@@ -131,10 +131,6 @@
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
 
-%% Pipeline
-
--import(ff_pipeline, [unwrap/1]).
-
 %%
 %% API
 %%
@@ -208,9 +204,8 @@ create(ID, TransferParams, #{
 
 -spec get_adapter_with_opts(session()) -> adapter_with_opts().
 get_adapter_with_opts(SessionState) ->
-    Revision = domain_revision(SessionState),
     ProviderID = provider_id(SessionState),
-    Provider =  unwrap(ff_p2p_provider:get(Revision, ProviderID)),
+    {ok, Provider} =  ff_p2p_provider:get(head, ProviderID),
     {ff_p2p_provider:adapter(Provider), ff_p2p_provider:adapter_opts(Provider)}.
 
 -spec process_session(session()) -> result().

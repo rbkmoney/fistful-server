@@ -44,6 +44,9 @@ marshal(session_finished_status, success) ->
 marshal(session_finished_status, failed) ->
     {failed, #wthd_session_SessionFinishedFailed{}};
 
+marshal(route, ProviderID) ->
+    #wthd_session_Route{provider_id = marshal(provider_id, ProviderID)};
+
 marshal(withdrawal, Params = #{
     id := WithdrawalID,
     resource := Resource,

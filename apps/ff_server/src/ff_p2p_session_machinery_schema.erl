@@ -155,12 +155,16 @@ created_v0_2_decoding_test() ->
         bin_data_id => {binary, <<"bin">>}
     }}},
 
+    Fees = #{fees := #{operation_amount => {123, <<"RUB">>}}};
+
     TransferParams = #{
         id => <<"transfer">>,
         body => {123, <<"RUB">>},
         sender => Resource,
         receiver => Resource,
-        deadline => 1590426777987
+        deadline => 1590426777987,
+        merchant_fees => Fees,
+        provider_fees => Fees
     },
 
     P2PSession = #{
@@ -196,6 +200,18 @@ created_v0_2_decoding_test() ->
         ]}
     ]},
 
+    LegacyFees = {arr, [
+        {str, <<"map">>},
+        {obj, #{
+            {str, <<"fees">>} => {arr, [
+                {str, <<"map">>},
+                {obj, #{
+                    {str, <<"operation_amount">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]}
+                }]
+            }}
+        }}
+    ]},
+
     LegacyTransferParams = {arr, [
         {str, <<"map">>},
         {obj, #{
@@ -203,7 +219,9 @@ created_v0_2_decoding_test() ->
             {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
             {str, <<"deadline">>} => {i, 1590426777987},
             {str, <<"receiver">>} => ResourceParams,
-            {str, <<"sender">>} => ResourceParams
+            {str, <<"sender">>} => ResourceParams,
+            {str, <<"merchant_fees">>} => LegacyFees,
+            {str, <<"provider_fees">>} => LegacyFees
         }}
     ]},
 
@@ -274,7 +292,22 @@ next_state_v0_2_decoding_test() ->
 transaction_bound_v0_2_decoding_test() ->
     Change = {transaction_bound, #{
         id => <<"id">>,
-        extra => #{<<"key">> => <<"value">>}
+        timestamp => <<"timestamp">>,
+        extra => #{<<"key">> => <<"value">>},
+        additional_info => #{
+            rrn => <<"value">>,
+            approval_code => <<"value">>,
+            acs_url => <<"value">>,
+            pareq => <<"value">>,
+            md => <<"value">>,
+            term_url => <<"value">>,
+            pares => <<"value">>,
+            eci => <<"value">>,
+            cavv => <<"value">>,
+            xid => <<"value">>,
+            cavv_algorithm => <<"value">>,
+            three_ds_verification => <<"value">>
+        }
     }},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
@@ -284,10 +317,28 @@ transaction_bound_v0_2_decoding_test() ->
             {str, <<"map">>},
             {obj, #{
                 {str, <<"id">>} => {bin, <<"id">>},
+                {str, <<"timestamp">>} => {bin, <<"timestamp">>},
                 {str, <<"extra">>} => {arr, [
                     {str, <<"map">>},
                     {obj, #{
                         {bin, <<"key">>} => {bin, <<"value">>}
+                    }}
+                ]},
+                {str, <<"additional_info">>} => {arr, [
+                    {str, <<"map">>},
+                    {obj, #{
+                        {str, <<"rrn">>} => {bin, <<"value">>},
+                        {str, <<"approval_code">>} => {bin, <<"value">>},
+                        {str, <<"acs_url">>} => {bin, <<"value">>},
+                        {str, <<"pareq">>} => {bin, <<"value">>},
+                        {str, <<"md">>} => {bin, <<"value">>},
+                        {str, <<"term_url">>} => {bin, <<"value">>},
+                        {str, <<"pares">>} => {bin, <<"value">>},
+                        {str, <<"eci">>} => {bin, <<"value">>},
+                        {str, <<"cavv">>} => {bin, <<"value">>},
+                        {str, <<"xid">>} => {bin, <<"value">>},
+                        {str, <<"cavv_algorithm">>} => {bin, <<"value">>},
+                        {str, <<"three_ds_verification">>} => {bin, <<"value">>}
                     }}
                 ]}
             }}
@@ -596,12 +647,16 @@ created_v1_decoding_test() ->
         bin_data_id => {binary, <<"bin">>}
     }}},
 
+    Fees = #{fees := #{operation_amount => {123, <<"RUB">>}}};
+
     TransferParams = #{
         id => <<"transfer">>,
         body => {123, <<"RUB">>},
         sender => Resource,
         receiver => Resource,
-        deadline => 1590426777987
+        deadline => 1590426777987,
+        merchant_fees => Fees,
+        provider_fees => Fees
     },
 
     P2PSession = #{
@@ -642,7 +697,22 @@ next_state_v1_decoding_test() ->
 transaction_bound_v1_decoding_test() ->
     Change = {transaction_bound, #{
         id => <<"id">>,
-        extra => #{<<"key">> => <<"value">>}
+        timestamp => <<"timestamp">>,
+        extra => #{<<"key">> => <<"value">>},
+        additional_info => #{
+            rrn => <<"value">>,
+            approval_code => <<"value">>,
+            acs_url => <<"value">>,
+            pareq => <<"value">>,
+            md => <<"value">>,
+            term_url => <<"value">>,
+            pares => <<"value">>,
+            eci => <<"value">>,
+            cavv => <<"value">>,
+            xid => <<"value">>,
+            cavv_algorithm => <<"value">>,
+            three_ds_verification => <<"value">>
+        }
     }},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent = {bin, base64:decode(<<

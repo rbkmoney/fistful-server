@@ -115,8 +115,8 @@ compute_system_accounts(PaymentInstitution, VS) ->
 decode(ID, #domain_PaymentInstitution{
     wallet_system_account_set = SystemAccounts,
     identity = Identity,
-    withdrawal_providers_legacy = WithdrawalProviders,
-    p2p_providers_legacy = P2PProviders,
+    withdrawal_providers = WithdrawalProviders,
+    p2p_providers = P2PProviders,
     p2p_inspector = P2PInspector
 }) ->
     #{

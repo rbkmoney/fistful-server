@@ -46,9 +46,6 @@ marshal(session_finished_status, success) ->
 marshal(session_finished_status, failed) ->
     {failed, #wthd_session_SessionFinishedFailed{}};
 
-marshal(route, ProviderID) ->
-    #wthd_session_Route{provider_id = marshal(provider_id, ProviderID)};
-
 marshal(withdrawal, Params = #{
     id := WithdrawalID,
     resource := Resource,
@@ -62,6 +59,11 @@ marshal(withdrawal, Params = #{
         cash = marshal(cash, Cash),
         sender   = ff_identity_codec:marshal(identity, SenderIdentity),
         receiver = ff_identity_codec:marshal(identity, ReceiverIdentity)
+    };
+
+marshal(route, Route) ->
+    #wthd_session_Route{
+        provider_id = marshal(provider_id, maps:get(provider_id, Route))
     };
 
 marshal(msgpack_value, V) ->

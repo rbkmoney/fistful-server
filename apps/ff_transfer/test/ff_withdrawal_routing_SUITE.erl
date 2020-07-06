@@ -155,7 +155,8 @@ adapter_unreachable_quote_test(C) ->
             quote_data  => #{
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 4
+                <<"provider_id">> => 4,
+                <<"terminal_id">> => 1
             }
         }
     },

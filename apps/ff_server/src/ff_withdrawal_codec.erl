@@ -128,6 +128,7 @@ marshal(route, Route) ->
     } = Route,
     #wthd_Route{
         provider_id = marshal(provider_id, ProviderID),
+        terminal_id = maybe_marshal(terminal_id, genlib_map:get(terminal_id, Route)),
         provider_id_legacy = marshal(string, genlib_map:get(provider_id_legacy, Route))
     };
 
@@ -212,6 +213,7 @@ unmarshal(route, Route) ->
     genlib_map:compact(#{
         version => 1,
         provider_id => unmarshal(provider_id, Route#wthd_Route.provider_id),
+        terminal_id => maybe_unmarshal(terminal_id, Route#wthd_Route.terminal_id),
         provider_id_legacy => maybe_unmarshal(string, Route#wthd_Route.provider_id_legacy)
     });
 
@@ -272,6 +274,7 @@ withdrawal_symmetry_test() ->
         external_id = genlib:unique(),
         route = #wthd_Route{
             provider_id = 1,
+            terminal_id = 7,
             provider_id_legacy = <<"mocketbank">>
         },
         domain_revision = 1,

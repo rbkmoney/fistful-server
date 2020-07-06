@@ -48,7 +48,7 @@ marshal({event, Format}, TimestampedChange, Context) ->
 marshal(T, V, C0) when
     T =:= {aux_state, undefined}
     ->
-    Ctx = maps:get(ctx, V, undefined),
+    Ctx = get_aux_state_ctx(V),
     {AuxState, C1} = machinery_mg_schema_generic:marshal(T, V, C0),
     {AuxState, C1#{ctx => Ctx}};
 marshal(T, V, C) when
@@ -70,7 +70,7 @@ unmarshal(T, V, C0) when
     T =:= {aux_state, undefined}
     ->
     {AuxState, C1} = machinery_mg_schema_generic:unmarshal(T, V, C0),
-    {AuxState, C1#{ctx => maps:get(ctx, AuxState, undefined)}};
+    {AuxState, C1#{ctx => get_aux_state_ctx(AuxState)}};
 unmarshal(T, V, C) when
     T =:= {args, init} orelse
     T =:= {args, call} orelse
@@ -181,6 +181,10 @@ maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
 maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
+get_aux_state_ctx(AuxState) when is_map(AuxState) ->
+    maps:get(ctx, AuxState, undefined);
+get_aux_state_ctx(_) ->
+    undefined.
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -466,7 +470,8 @@ created_v2_3_saved_metadata_decoding_test() ->
         ]},
         LegacyChange
     ]},
-    {_MarshallAuxState, Context0} = marshal({aux_state, undefined}, AuxState, #{}),
+    {MarshalledAuxState, Context0} = marshal({aux_state, undefined}, AuxState, #{}),
+    {_UnmarshalledAuxState, _Context} = unmarshal({aux_state, undefined}, MarshalledAuxState, #{}),
     {DecodedLegacy, _Context} = unmarshal({event, undefined}, LegacyEvent, Context0),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),

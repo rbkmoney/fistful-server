@@ -26,15 +26,18 @@
 %% Types
 %%
 
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 -type session() :: #{
     version       := ?ACTUAL_FORMAT_VERSION,
     id            := id(),
     status        := status(),
     withdrawal    := withdrawal(),
-    provider      := ff_withdrawal_provider:id(),
+    route         := route(),
     adapter       := adapter_with_opts(),
-    adapter_state => ff_adapter:state()
+    adapter_state => ff_adapter:state(),
+
+    % Deprecated. Remove after MSPF-560 finish
+    provider_legacy => binary() | ff_payouts_provider:id()
 }.
 
 -type session_result() :: {success, ff_adapter_withdrawal:transaction_info()}
@@ -55,14 +58,19 @@
     quote_data => ff_adapter_withdrawal:quote_data()
 }.
 
+-type route() :: #{
+    provider_id := ff_payouts_provider:id()
+}.
+
 -type params() :: #{
     resource := ff_destination:resource_full(),
-    provider_id := ff_withdrawal_provider:id(),
+    route := route(),
     withdrawal_id := ff_withdrawal:id()
 }.
 
 -export_type([data/0]).
 -export_type([event/0]).
+-export_type([route/0]).
 -export_type([params/0]).
 -export_type([status/0]).
 -export_type([session/0]).
@@ -79,10 +87,6 @@
 -type withdrawal() :: ff_adapter_withdrawal:withdrawal().
 -type adapter_with_opts() :: {ff_withdrawal_provider:adapter(), ff_withdrawal_provider:adapter_opts()}.
 -type legacy_event() :: any().
-
-%% Pipeline
-
--import(ff_pipeline, [unwrap/1]).
 
 %%
 %% API
@@ -117,6 +121,33 @@ apply_event({finished, Result}, Session) ->
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
+maybe_migrate({created, #{version := 2} = Session}, MigrateParams) ->
+    KnowndLegacyIDs = #{
+        <<"mocketbank">> => 1,
+        <<"royalpay-payout">> => 2,
+        <<"accentpay">> => 3
+    },
+    {LegacyProviderID, Route} = case maps:get(provider, Session) of
+        ProviderID when is_integer(ProviderID) ->
+            {genlib:to_binary(ProviderID), #{
+                provider_id => ProviderID + 300
+            }};
+        ProviderID when is_binary(ProviderID) andalso is_map_key(ProviderID, KnowndLegacyIDs) ->
+            ModernID = maps:get(ProviderID, KnowndLegacyIDs),
+            {ProviderID, #{
+                provider_id => ModernID + 300
+            }};
+        ProviderID when is_binary(ProviderID) ->
+            {ProviderID, #{
+                provider_id => erlang:binary_to_integer(ProviderID) + 300
+            }}
+    end,
+    NewSession = (maps:without([provider], Session))#{
+        version => 3,
+        route => Route,
+        provider_legacy => LegacyProviderID
+    },
+    maybe_migrate({created, NewSession}, MigrateParams);
 maybe_migrate({created, Session = #{version := 1, withdrawal := Withdrawal = #{
     sender := Sender,
     receiver := Receiver
@@ -319,28 +350,30 @@ process_intent({sleep, Timer}) ->
 
 %%
 
--spec create_session(id(), data(), params()) ->
-    session().
-create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, provider_id := PrvID}) ->
+% TODO: Replace spec after the first deploy
+% -spec create_session(id(), data(), params()) ->
+%     session().
+-spec create_session(id(), data(), params() | (LeagcyParams :: map())) ->
+    session() | legacy_event().
+create_session(ID, Data, #{provider_id := ProviderID} = Params) ->
+    % TODO: Remove this clause after the first deploy
+    Route = #{provider_id => ProviderID + 300},
+    NewParams = (maps:without([provider_id], Params))#{route => Route},
+    create(ID, Data, NewParams);
+create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, route := Route}) ->
     #{
         version    => ?ACTUAL_FORMAT_VERSION,
         id         => ID,
         withdrawal => create_adapter_withdrawal(Data, Res, WdthID),
-        provider   => PrvID,
-        adapter    => get_adapter_with_opts(PrvID),
+        route      => Route,
+        adapter    => get_adapter_with_opts(maps:get(provider_id, Route)),
         status     => active
     }.
 
--spec get_adapter_with_opts(ff_payouts_provider:id() | ff_withdrawal_provider:id()) -> adapter_with_opts().
+-spec get_adapter_with_opts(ff_payouts_provider:id()) -> adapter_with_opts().
 get_adapter_with_opts(ProviderID) when is_integer(ProviderID) ->
-    %% new_style
-    Provider =  unwrap(ff_payouts_provider:get(ProviderID)),
-    {ff_payouts_provider:adapter(Provider), ff_payouts_provider:adapter_opts(Provider)};
-get_adapter_with_opts(ProviderID) when is_binary(ProviderID) ->
-    %% old style
-    %% TODO remove after update
-    {ok, Provider} = ff_withdrawal_provider:get(ProviderID),
-    {ff_withdrawal_provider:adapter(Provider), ff_withdrawal_provider:adapter_opts(Provider)}.
+    {ok, Provider} =  ff_payouts_provider:get(ProviderID),
+    {ff_payouts_provider:adapter(Provider), ff_payouts_provider:adapter_opts(Provider)}.
 
 create_adapter_withdrawal(#{id := SesID} = Data, Resource, WdthID) ->
     Data#{resource => Resource, id => WdthID, session_id => SesID}.

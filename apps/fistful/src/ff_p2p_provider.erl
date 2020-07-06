@@ -2,21 +2,21 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--type p2p_provider() :: #{
+-type provider() :: #{
     id := id(),
     identity := ff_identity:id(),
-    p2p_terms := dmsl_domain_thrift:'P2PProvisionTerms'(),
+    terms := dmsl_domain_thrift:'ProvisionTermSet'(),
     accounts := accounts(),
     adapter := ff_adapter:adapter(),
     adapter_opts := map()
 }.
 
--type id()       :: dmsl_domain_thrift:'ObjectID'().
+-type id() :: dmsl_domain_thrift:'ObjectID'().
 -type accounts() :: #{ff_currency:id() => ff_account:account()}.
 -type adapter() :: ff_adapter:adapter().
 -type adapter_opts() :: map().
 
--type p2p_provider_ref() :: dmsl_domain_thrift:'P2PProviderRef'().
+-type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
 -type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
 -type cash() :: dmsl_domain_thrift:'Cash'().
 -type cash_range() :: dmsl_domain_thrift:'CashRange'().
@@ -26,7 +26,7 @@
                                 }.
 
 -export_type([id/0]).
--export_type([p2p_provider/0]).
+-export_type([provider/0]).
 -export_type([adapter/0]).
 -export_type([adapter_opts/0]).
 -export_type([validate_terms_error/0]).
@@ -48,10 +48,10 @@
 
 %%
 
--spec id(p2p_provider()) -> id().
--spec accounts(p2p_provider()) -> accounts().
--spec adapter(p2p_provider()) -> ff_adapter:adapter().
--spec adapter_opts(p2p_provider()) -> map().
+-spec id(provider()) -> id().
+-spec accounts(provider()) -> accounts().
+-spec adapter(provider()) -> ff_adapter:adapter().
+-spec adapter_opts(provider()) -> map().
 
 id(#{id := ID}) ->
     ID.
@@ -67,42 +67,46 @@ adapter_opts(#{adapter_opts := AdapterOpts}) ->
 
 %%
 
--spec ref(id()) -> p2p_provider_ref().
+-spec ref(id()) -> provider_ref().
 
 ref(ID) ->
-    #domain_P2PProviderRef{id = ID}.
+    #domain_ProviderRef{id = ID}.
 
 -spec get(id()) ->
-    {ok, p2p_provider()} |
+    {ok, provider()} |
     {error, notfound}.
 
 get(ID) ->
     get(head, ID).
 
 -spec get(head | ff_domain_config:revision(), id()) ->
-    {ok, p2p_provider()} |
+    {ok, provider()} |
     {error, notfound}.
 
 get(Revision, ID) ->
     do(fun () ->
-        P2PProvider = unwrap(ff_domain_config:object(Revision, {p2p_provider, ref(ID)})),
+        P2PProvider = unwrap(ff_domain_config:object(Revision, {provider, ref(ID)})),
         decode(ID, P2PProvider)
     end).
 
--spec compute_fees(p2p_provider(), hg_selector:varset()) -> ff_cash_flow:cash_flow_fee().
+-spec compute_fees(provider(), hg_selector:varset()) -> ff_cash_flow:cash_flow_fee().
 
-compute_fees(#{p2p_terms := P2PTerms}, VS) ->
+compute_fees(#{terms := Terms}, VS) ->
+    #domain_ProvisionTermSet{wallet = WalletTerms} = Terms,
+    #domain_WalletProvisionTerms{p2p = P2PTerms} = WalletTerms,
     #domain_P2PProvisionTerms{cash_flow = CashFlowSelector} = P2PTerms,
     {ok, CashFlow} = hg_selector:reduce_to_value(CashFlowSelector, VS),
     #{
         postings => ff_cash_flow:decode_domain_postings(CashFlow)
     }.
 
--spec validate_terms(p2p_provider(), hg_selector:varset()) ->
+-spec validate_terms(provider(), hg_selector:varset()) ->
     {ok, valid} |
     {error, validate_terms_error()}.
 
-validate_terms(#{p2p_terms := P2PTerms}, VS) ->
+validate_terms(#{terms := Terms}, VS) ->
+    #domain_ProvisionTermSet{wallet = WalletTerms} = Terms,
+    #domain_WalletProvisionTerms{p2p = P2PTerms} = WalletTerms,
     #domain_P2PProvisionTerms{
         currencies = CurrenciesSelector,
         fees = FeeSelector,
@@ -138,17 +142,17 @@ validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
             {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
     end.
 
-decode(ID, #domain_P2PProvider{
+decode(ID, #domain_Provider{
     proxy = Proxy,
     identity = Identity,
-    p2p_terms = P2PTerms,
+    terms = Terms,
     accounts = Accounts
 }) ->
     maps:merge(
         #{
             id               => ID,
             identity         => Identity,
-            p2p_terms        => P2PTerms,
+            terms            => Terms,
             accounts         => decode_accounts(Identity, Accounts)
         },
         decode_adapter(Proxy)

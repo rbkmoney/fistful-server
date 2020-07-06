@@ -19,17 +19,19 @@ marshal(change, {next_state, AdapterState}) ->
 marshal(change, {finished, SessionResult}) ->
     {finished, marshal(session_result, SessionResult)};
 
-marshal(session, #{
-    id := SessionID,
-    status := SessionStatus,
-    withdrawal := Withdrawal,
-    provider := ProviderID
-}) ->
+marshal(session, Session) ->
+    #{
+        id := SessionID,
+        status := SessionStatus,
+        withdrawal := Withdrawal,
+        route := Route
+    } = Session,
     #wthd_session_Session{
         id = marshal(id, SessionID),
         status = marshal(session_status, SessionStatus),
         withdrawal = marshal(withdrawal, Withdrawal),
-        provider = marshal(id, genlib:to_binary(ProviderID))
+        route = marshal(route, Route),
+        provider_legacy = maybe_marshal(string, genlib_map:get(provider_legacy, Session))
     };
 
 marshal(session_status, active) ->
@@ -60,6 +62,11 @@ marshal(withdrawal, Params = #{
         cash = marshal(cash, Cash),
         sender   = ff_identity_codec:marshal(identity, SenderIdentity),
         receiver = ff_identity_codec:marshal(identity, ReceiverIdentity)
+    };
+
+marshal(route, Route) ->
+    #wthd_session_Route{
+        provider_id = marshal(provider_id, maps:get(provider_id, Route))
     };
 
 marshal(msgpack_value, V) ->
@@ -116,14 +123,17 @@ unmarshal(session, #wthd_session_Session{
     id = SessionID,
     status = SessionStatus,
     withdrawal = Withdrawal,
-    provider = ProviderID
+    route = Route,
+    provider_legacy = ProviderID
 }) ->
-    #{
+    genlib_map:compact(#{
+        version => 3,
         id => unmarshal(id, SessionID),
         status => unmarshal(session_status, SessionStatus),
         withdrawal => unmarshal(withdrawal, Withdrawal),
-        provider => unmarshal(id, erlang:binary_to_integer(ProviderID))
-    };
+        route => unmarshal(route, Route),
+        provider_legacy => maybe_unmarshal(string, ProviderID)
+    });
 
 unmarshal(session_status, {active, #wthd_session_SessionActive{}}) ->
     active;
@@ -148,6 +158,11 @@ unmarshal(withdrawal, #wthd_session_Withdrawal{
         sender => ff_identity_codec:unmarshal(identity, SenderIdentity),
         receiver => ff_identity_codec:unmarshal(identity, ReceiverIdentity)
     });
+
+unmarshal(route, Route) ->
+    #{
+        provider_id => unmarshal(provider_id, Route#wthd_session_Route.provider_id)
+    };
 
 unmarshal(msgpack_value, V) ->
     unmarshal_msgpack(V);
@@ -178,3 +193,8 @@ maybe_unmarshal(_Type, undefined) ->
     undefined;
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).

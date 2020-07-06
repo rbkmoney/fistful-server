@@ -373,7 +373,7 @@ domain_config(Options, C) ->
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = payment_inst_identity_id(Options),
                 withdrawal_providers      = {decisions, [
-                    #domain_WithdrawalProviderDecision{
+                    #domain_ProviderDecision{
                         if_ = {condition, {cost_in, #domain_CashRange{
                             upper = {inclusive, #domain_Cash{
                                 amount = 100500,
@@ -384,9 +384,9 @@ domain_config(Options, C) ->
                                 currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
                             }}
                         }}},
-                        then_ = {value, [?wthdr_prv(4), ?wthdr_prv(5)]}
+                        then_ = {value, [?prv(4), ?prv(5)]}
                     },
-                    #domain_WithdrawalProviderDecision{
+                    #domain_ProviderDecision{
                         if_ = {condition, {cost_in, #domain_CashRange{
                             upper = {inclusive, #domain_Cash{
                                 amount = 500100,
@@ -397,22 +397,22 @@ domain_config(Options, C) ->
                                 currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
                             }}
                         }}},
-                        then_ = {value, [?wthdr_prv(4), ?wthdr_prv(6), ?wthdr_prv(7), ?wthdr_prv(8)]}
+                        then_ = {value, [?prv(4), ?prv(6), ?prv(7), ?prv(8)]}
                     },
-                    #domain_WithdrawalProviderDecision{
+                    #domain_ProviderDecision{
                         if_ = {
                             condition,
                             {payment_tool, {bank_card, #domain_BankCardCondition{
                                 definition = {issuer_country_is, 'rus'}
                             }}}
                         },
-                        then_ = {value, [?wthdr_prv(1)]}
+                        then_ = {value, [?prv(1)]}
                     },
-                    #domain_WithdrawalProviderDecision{
+                    #domain_ProviderDecision{
                         if_ = {condition, {payment_tool, {crypto_currency, #domain_CryptoCurrencyCondition{}}}},
-                        then_ = {value, [?wthdr_prv(2)]}
+                        then_ = {value, [?prv(2)]}
                     },
-                    #domain_WithdrawalProviderDecision{
+                    #domain_ProviderDecision{
                         if_ = {constant, true},
                         then_ = {value, []}
                     }
@@ -433,7 +433,7 @@ domain_config(Options, C) ->
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = dummy_payment_inst_identity_id(Options),
                 withdrawal_providers      = {decisions, [
-                    #domain_WithdrawalProviderDecision{
+                    #domain_ProviderDecision{
                         if_ = {condition, {cost_in, #domain_CashRange{
                             upper = {inclusive, #domain_Cash{
                                 amount = 123,
@@ -444,27 +444,27 @@ domain_config(Options, C) ->
                                 currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
                             }}
                         }}},
-                        then_ = {value, [?wthdr_prv(3)]}
+                        then_ = {value, [?prv(3)]}
                     },
-                    #domain_WithdrawalProviderDecision{
+                    #domain_ProviderDecision{
                         if_ = {condition, {payment_tool, {crypto_currency, #domain_CryptoCurrencyCondition{
                             definition = {crypto_currency_is, litecoin}
                         }}}},
-                        then_ = {value, [?wthdr_prv(3)]}
+                        then_ = {value, [?prv(3)]}
                     },
-                    #domain_WithdrawalProviderDecision{
+                    #domain_ProviderDecision{
                         if_ = {
                             condition,
                             {payment_tool, {bank_card, #domain_BankCardCondition{
                                 definition = {issuer_country_is, 'rus'}
                             }}}
                         },
-                        then_ = {value, [?wthdr_prv(3)]}
+                        then_ = {value, [?prv(3)]}
                     }
                 ]},
                 p2p_inspector             = {value, ?p2p_insp(1)},
                 p2p_providers             = {decisions, [
-                    #domain_P2PProviderDecision{
+                    #domain_ProviderDecision{
                         if_ = {condition, {p2p_tool,
                             #domain_P2PToolCondition{
                                 sender_is = {bank_card, #domain_BankCardCondition{
@@ -475,9 +475,9 @@ domain_config(Options, C) ->
                                 }}
                             }
                         }},
-                        then_ = {value, [?p2p_prv(1)]}
+                        then_ = {value, [?prv(101)]}
                     },
-                    #domain_P2PProviderDecision{
+                    #domain_ProviderDecision{
                         if_ = {constant, true},
                         then_ = {value, []}
                     }
@@ -496,15 +496,15 @@ domain_config(Options, C) ->
         ct_domain:proxy(?prx(5), <<"P2P adapter">>, <<"http://localhost:8222", P2PAdapterAdr/binary>>),
         ct_domain:proxy(?prx(6), <<"Down proxy">>, <<"http://localhost:8222/downbank">>),
 
-        ct_domain:withdrawal_provider(?wthdr_prv(1), ?prx(2), provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?wthdr_prv(2), ?prx(2), provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?wthdr_prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?wthdr_prv(4), ?prx(6), provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?wthdr_prv(5), ?prx(2), provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?wthdr_prv(6), ?prx(6), provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?wthdr_prv(7), ?prx(6), provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?wthdr_prv(8), ?prx(2), provider_identity_id(Options), C),
-        ct_domain:p2p_provider(?p2p_prv(1), ?prx(5), dummy_provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(1), ?prx(2), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(2), ?prx(2), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(3), ?prx(3), dummy_provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(4), ?prx(6), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(5), ?prx(2), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(6), ?prx(6), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(7), ?prx(6), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(8), ?prx(2), provider_identity_id(Options), C),
+        ct_domain:p2p_provider(?prv(101), ?prx(5), dummy_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),

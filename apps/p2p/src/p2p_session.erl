@@ -35,20 +35,23 @@
 %%
 %% Types
 %%
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 
 -opaque session() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
     id := id(),
     status := status(),
     transfer_params := transfer_params(),
-    provider_id := provider_id(),
+    route := route(),
     domain_revision := domain_revision(),
     party_revision := party_revision(),
     adapter_state => adapter_state(),
     callbacks => callbacks_index(),
     user_interactions => user_interactions_index(),
-    transaction_info => transaction_info()
+    transaction_info => transaction_info(),
+
+    % Deprecated. Remove after MSPF-560 finish
+    provider_id_legacy := ff_p2p_provider:id()
 }.
 
 -type status() ::
@@ -76,6 +79,10 @@
     provider_fees => ff_fees:final()
 }.
 
+-type route() :: #{
+    provider_id := ff_p2p_provider:id()
+}.
+
 -type body() :: ff_transaction:body().
 
 -type transaction_info() :: ff_adapter:transaction_info().
@@ -85,7 +92,7 @@
 -type deadline() :: p2p_adapter:deadline().
 
 -type params() :: #{
-    provider_id := provider_id(),
+    route := route(),
     domain_revision := domain_revision(),
     party_revision := party_revision()
 }.
@@ -141,12 +148,6 @@
 id(#{id := V}) ->
     V.
 
--spec provider_id(session()) ->
-    provider_id().
-
-provider_id(#{id := V}) ->
-    V.
-
 -spec status(session()) ->
     status().
 
@@ -184,18 +185,27 @@ transfer_params(#{transfer_params := V}) ->
     V.
 
 %%
--spec create(id(), transfer_params(), params()) ->
-    {ok, [event()]}.
+
+% TODO: Replace spec after the first deploy
+% -spec create(id(), transfer_params(), params()) ->
+%     {ok, [event()]}.
+-spec create(id(), transfer_params(), params() | (LeagcyParams :: map())) ->
+    {ok, [event() | legacy_event()]}.
+create(ID, TransferParams, #{provider_id := ProviderID} = Params) ->
+    % TODO: Remove this clause after the first deploy
+    Route = #{provider_id => ProviderID + 400},
+    NewParams = (maps:without([provider_id], Params))#{route => Route},
+    create(ID, TransferParams, NewParams);
 create(ID, TransferParams, #{
-    provider_id := ProviderID,
+    route := Route,
     domain_revision := DomainRevision,
     party_revision := PartyRevision
 }) ->
     Session = #{
         version => ?ACTUAL_FORMAT_VERSION,
         id => ID,
+        route => Route,
         transfer_params => TransferParams,
-        provider_id => ProviderID,
         domain_revision => DomainRevision,
         party_revision => PartyRevision,
         status => active

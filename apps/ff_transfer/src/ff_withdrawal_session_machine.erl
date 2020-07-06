@@ -101,6 +101,13 @@ events(ID, Range) ->
 repair(ID, Scenario) ->
     machinery:repair(?NS, ID, Scenario, backend()).
 
+-spec process_callback(callback_params()) ->
+    {ok, process_callback_response()} |
+    {error, process_callback_error()}.
+
+process_callback(#{tag := Tag} = Params) ->
+    call({tag, Tag}, {process_callback, Params}).
+
 %% machinery callbacks
 
 -spec init([event()], machine(), handler_args(), handler_opts()) ->
@@ -123,6 +130,9 @@ process_timeout(Machine, _, _Opts) ->
 
 -spec process_call(any(), machine(), handler_args(), handler_opts()) ->
     {ok, result()}.
+
+process_call({process_callback, Params}, Machine, _, _Opts) ->
+    do_process_callback(Params, Machine);
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
 
@@ -143,3 +153,27 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
 
 backend() ->
     fistful:backend(?NS).
+
+call(Ref, Call) ->
+    case machinery:call(?NS, Ref, Call, backend()) of
+        {ok, Reply} ->
+            Reply;
+        {error, notfound} ->
+            {error, {unknown_session, Ref}}
+    end.
+
+-spec do_process_callback(callback_params(), machine()) -> {Response, result()} when
+    Response ::
+        {ok, process_callback_response()} |
+        {error, ff_withdrawal_session:process_callback_error()}.
+
+do_process_callback(Params, Machine) ->
+    St = ff_machine:collapse(ff_withdrawal_session, Machine),
+    case ff_withdrawal_session:process_callback(Params, session(St)) of
+        {ok, {Response, #{events := Events} = Result}} ->
+            {{ok, Response}, Result#{events => ff_machine:emit_events(Events)}};
+        {ok, {Response, Result}} ->
+            {{ok, Response}, Result};
+        {error, {Reason, Result}} ->
+            {{error, Reason}, Result}
+    end.

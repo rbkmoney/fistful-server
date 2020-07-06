@@ -12,6 +12,7 @@
 
 -export([create/3]).
 -export([process_session/1]).
+-export([process_callback/2]).
 
 -export([get_adapter_with_opts/1]).
 
@@ -34,7 +35,8 @@
     withdrawal    := withdrawal(),
     provider      := ff_withdrawal_provider:id(),
     adapter       := adapter_with_opts(),
-    adapter_state => ff_adapter:state()
+    adapter_state => ff_adapter:state(),
+    callbacks     => callbacks_index()
 }.
 
 -type session_result() :: {success, ff_adapter_withdrawal:transaction_info()}
@@ -45,7 +47,10 @@
 
 -type event() :: {created, session()}
     | {next_state, ff_adapter:state()}
-    | {finished, session_result()}.
+    | {finished, session_result()}
+    | wrapped_callback_event().
+
+-type wrapped_callback_event() :: ff_withdrawal_callback_utils:wrapped_event().
 
 -type data() :: #{
     id         := id(),
@@ -77,6 +82,7 @@
 
 -type result() :: machinery:result(event(), auxst()).
 -type withdrawal() :: ff_adapter_withdrawal:withdrawal().
+-type callbacks_index() :: ff_withdrawal_callback_utils:index().
 -type adapter_with_opts() :: {ff_withdrawal_provider:adapter(), ff_withdrawal_provider:adapter_opts()}.
 -type legacy_event() :: any().
 
@@ -94,6 +100,30 @@
 status(#{status := V}) ->
     V.
 
+-spec adapter(session()) -> adapter_with_opts().
+
+adapter(#{adapter := V}) ->
+    V.
+
+-spec adapter_state(session()) -> ff_adapter:state().
+
+adapter_state(Session) ->
+    maps:get(adapter_state, Session, undefined).
+
+-spec withdrawal(session()) -> withdrawal().
+
+withdrawal(#{withdrawal := V}) ->
+    V.
+
+-spec callbacks_index(session()) -> callbacks_index().
+callbacks_index(Session) ->
+    case maps:find(callbacks, Session) of
+        {ok, Callbacks} ->
+            Callbacks;
+        error ->
+            ff_withdrawal_callback_utils:new_index()
+    end.
+
 %%
 
 -spec create(id(), data(), params()) ->
@@ -110,7 +140,11 @@ apply_event({created, Session}, undefined) ->
 apply_event({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
 apply_event({finished, Result}, Session) ->
-    set_session_status({finished, Result}, Session).
+    set_session_status({finished, Result}, Session);
+apply_event({callback, _Ev} = WrappedEvent, Session) ->
+    Callbacks0 = callbacks_index(Session),
+    Callbacks1 = ff_withdrawal_callback_utils:apply_event(WrappedEvent, Callbacks0),
+    set_callbacks_index(Callbacks1, Session).
 
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
@@ -283,11 +317,12 @@ process_session(#{status := active} = Session) ->
     ASt = maps:get(adapter_state, Session, undefined),
     case ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
         {ok, Intent, ASt} ->
-            process_intent(Intent);
+            process_intent(Intent, Session);
         {ok, Intent, NextASt} ->
-            process_intent(Intent, NextASt);
+            Events = process_next_state(NextASt),
+            process_intent(Intent, Session, Events);
         {ok, Intent} ->
-            process_intent(Intent)
+            process_intent(Intent, Session)
     end.
 
 -spec set_session_result(session_result(), session()) ->
@@ -298,22 +333,68 @@ set_session_result(Result, #{status := active}) ->
         action => unset_timer
     }.
 
+-spec process_callback(callback_params(), session()) ->
+    {ok, {process_callback_response(), result()}} |
+    {error, {process_callback_error(), result()}}.
+process_callback(#{tag := CallbackTag} = Params, Session) ->
+    {ok, Callback} = find_callback(CallbackTag, Session),
+    case ff_withdrawal_callback:status(Callback) of
+        succeeded ->
+           {ok, {ff_withdrawal_callback:response(Callback), #{}}};
+        pending ->
+            case status(Session) of
+                active ->
+                    do_process_callback(Params, Callback, Session);
+                {finished, _} ->
+                    Params = make_adapter_params(Session),
+                    {error, {{session_already_finished, Params}, #{}}}
+            end
+    end.
+
 %%
 %% Internals
 %%
 
-process_intent(Intent, NextASt) ->
-    #{events := Events0} = Result = process_intent(Intent),
-    Events1 = Events0 ++ [{next_state, NextASt}],
+find_callback(CallbackTag, Session) ->
+    ff_withdrawal_callback_utils:get_by_tag(CallbackTag, callbacks_index(Session)).
+
+do_process_callback(CallbackParams, Callback, Session) ->
+    {Adapter, _AdapterOpts} = adapter(Session),
+    #{
+        withdrawal := Withdrawal,
+        state := ASt,
+        opts := AOpt
+    } = make_adapter_params(Session),
+    {ok, HandleCallbackResult} = ff_adapter_withdrawal:handle_callback(Adapter, CallbackParams, Withdrawal, ASt, AOpt),
+    #{intent := Intent, response := Response, next_state := NextASt} = HandleCallbackResult, %% TODO Check next_state
+    Events0 = process_next_state(NextASt),
+    Events1 = ff_withdrawal_callback_utils:process_response(Response, Callback),
+    {ok, {Response, process_intent(Intent, Session, Events0 ++ Events1)}}.
+
+make_adapter_params(Session) ->
+    {_Adapter, AdapterOpts} = adapter(Session),
+    #{
+        withdrawal => withdrawal(Session),
+        state => adapter_state(Session),
+        opts => AdapterOpts
+    }.
+
+process_next_state(NextASt) ->
+    [{next_state, NextASt}].
+
+process_intent(Intent, Session, AdditionalEvents) ->
+    #{events := Events0} = Result = process_intent(Intent, Session),
+    Events1 = Events0 ++ AdditionalEvents,
     Result#{events => Events1}.
 
-process_intent({finish, Result}) ->
+process_intent({finish, Result}, _Session) ->
     #{
         events => [{finished, Result}]
     };
-process_intent({sleep, Timer}) ->
+process_intent({sleep, #{timer := Timer} = Params}, Session) ->
+    CallbackEvents = create_callback(Params, Session),
     #{
-        events => [],
+        events => CallbackEvents,
         action => timer_action(Timer)
     }.
 
@@ -330,6 +411,17 @@ create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, provider_id
         adapter    => get_adapter_with_opts(PrvID),
         status     => active
     }.
+
+create_callback(#{tag := Tag}, Session) ->
+    case ff_withdrawal_callback_utils:get_by_tag(Tag, callbacks_index(Session)) of
+        {error, {unknown_callback, Tag}} ->
+            {ok, CallbackEvents} = ff_withdrawal_callback:create(#{tag => Tag}),
+            ff_withdrawal_callback_utils:wrap_events(Tag, CallbackEvents);
+        {ok, Callback} ->
+            erlang:error({callback_already_exists, Callback})
+    end;
+create_callback(_, _) ->
+    [].
 
 -spec get_adapter_with_opts(ff_payouts_provider:id() | ff_withdrawal_provider:id()) -> adapter_with_opts().
 get_adapter_with_opts(ProviderID) when is_integer(ProviderID) ->
@@ -348,6 +440,10 @@ create_adapter_withdrawal(#{id := SesID} = Data, Resource, WdthID) ->
 -spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->
     Session#{status => SessionState}.
+
+-spec set_callbacks_index(callbacks_index(), session()) -> session().
+set_callbacks_index(Callbacks, Session) ->
+    Session#{callbacks => Callbacks}.
 
 -spec timer_action({deadline, binary()} | {timeout, non_neg_integer()}) -> machinery:action().
 timer_action(Timer) ->

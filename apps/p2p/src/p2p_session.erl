@@ -19,11 +19,11 @@
 %% Accessors
 
 -export([id/1]).
--export([provider_id/1]).
 -export([transfer_params/1]).
 -export([adapter_state/1]).
 -export([party_revision/1]).
 -export([domain_revision/1]).
+-export([route/1]).
 
 %% ff_machine
 -export([apply_event/2]).
@@ -127,7 +127,6 @@
 -type result() :: machinery:result(event(), auxst()).
 -type action() :: machinery:action().
 -type adapter_with_opts() :: {ff_p2p_provider:adapter(), ff_p2p_provider:adapter_opts()}.
--type provider_id() :: ff_p2p_provider:id().
 
 -type callbacks_index() :: p2p_callback_utils:index().
 -type unknown_p2p_callback_error() :: p2p_callback_utils:unknown_callback_error().
@@ -137,7 +136,7 @@
 -type user_interactions_index() :: p2p_user_interaction_utils:index().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
-
+-type legacy_event() :: any().
 %%
 %% API
 %%
@@ -169,6 +168,10 @@ party_revision(#{party_revision := PartyRevision}) ->
 -spec domain_revision(session()) -> domain_revision().
 domain_revision(#{domain_revision := DomainRevision}) ->
     DomainRevision.
+
+-spec route(session()) -> route().
+route(#{route := Route}) ->
+    Route.
 
 %% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
 %% изменением дочерних сущностей, например запуском adjustment.
@@ -214,7 +217,7 @@ create(ID, TransferParams, #{
 
 -spec get_adapter_with_opts(session()) -> adapter_with_opts().
 get_adapter_with_opts(SessionState) ->
-    ProviderID = provider_id(SessionState),
+    #{provider_id := ProviderID} = route(SessionState),
     {ok, Provider} =  ff_p2p_provider:get(head, ProviderID),
     {ff_p2p_provider:adapter(Provider), ff_p2p_provider:adapter_opts(Provider)}.
 

@@ -64,11 +64,6 @@ marshal(withdrawal, Params = #{
         receiver = ff_identity_codec:marshal(identity, ReceiverIdentity)
     };
 
-marshal(route, Route) ->
-    #wthd_session_Route{
-        provider_id = marshal(provider_id, maps:get(provider_id, Route))
-    };
-
 marshal(msgpack_value, V) ->
     marshal_msgpack(V);
 

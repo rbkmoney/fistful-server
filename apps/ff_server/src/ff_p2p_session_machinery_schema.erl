@@ -155,7 +155,7 @@ created_v0_2_decoding_test() ->
         bin_data_id => {binary, <<"bin">>}
     }}},
 
-    Fees = #{fees := #{operation_amount => {123, <<"RUB">>}}};
+    Fees = #{fees => #{operation_amount => {123, <<"RUB">>}}},
 
     TransferParams = #{
         id => <<"transfer">>,
@@ -207,8 +207,8 @@ created_v0_2_decoding_test() ->
                 {str, <<"map">>},
                 {obj, #{
                     {str, <<"operation_amount">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]}
-                }]
-            }}
+                }}
+            ]}
         }}
     ]},
 
@@ -306,7 +306,7 @@ transaction_bound_v0_2_decoding_test() ->
             cavv => <<"value">>,
             xid => <<"value">>,
             cavv_algorithm => <<"value">>,
-            three_ds_verification => <<"value">>
+            three_ds_verification => authentication_successful
         }
     }},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
@@ -338,7 +338,7 @@ transaction_bound_v0_2_decoding_test() ->
                         {str, <<"cavv">>} => {bin, <<"value">>},
                         {str, <<"xid">>} => {bin, <<"value">>},
                         {str, <<"cavv_algorithm">>} => {bin, <<"value">>},
-                        {str, <<"three_ds_verification">>} => {bin, <<"value">>}
+                        {str, <<"three_ds_verification">>} => {str, <<"authentication_successful">>}
                     }}
                 ]}
             }}
@@ -647,7 +647,7 @@ created_v1_decoding_test() ->
         bin_data_id => {binary, <<"bin">>}
     }}},
 
-    Fees = #{fees := #{operation_amount => {123, <<"RUB">>}}};
+    Fees = #{fees => #{operation_amount => {123, <<"RUB">>}}},
 
     TransferParams = #{
         id => <<"transfer">>,
@@ -660,21 +660,26 @@ created_v1_decoding_test() ->
     },
 
     P2PSession = #{
-        version => 2,
+        version => 3,
         id => <<"session">>,
         status => active,
         transfer_params => TransferParams,
-        provider_id => 1,
+        route => #{provider_id => 1},
+        provider_id_legacy => 1,
         domain_revision => 123,
         party_revision => 321
     },
     Change = {created, P2PSession},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent = {bin, base64:decode(<<
-        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQwAAQsAAQAAAAdzZXNzaW9uDAACDAABAAAMAAMLAA"
-        "EAAAAIdHJhbnNmZXIMAAIMAAEMAAELAAEAAAAFdG9rZW4MABULAAYAAAADYmluAAAAAAwAAwwAAQwAAQsAAQAAAAV0b2tl"
-        "bgwAFQsABgAAAANiaW4AAAAADAAECgABAAAAAAAAAHsMAAILAAEAAAADUlVCAAALAAUAAAAYMjAyMC0wNS0yNVQxNzoxMj"
-        "o1Ny45ODdaAAgABAAAAAEKAAUAAAAAAAAAewoABgAAAAAAAAFBAAAAAA=="
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQwAAQs"
+        "AAQAAAAdzZXNzaW9uDAACDAABAAAMAAMLAAEAAAAIdHJhbnNmZXIMAAIMAA"
+        "EMAAELAAEAAAAFdG9rZW4MABULAAYAAAADYmluAAAAAAwAAwwAAQwAAQsAA"
+        "QAAAAV0b2tlbgwAFQsABgAAAANiaW4AAAAADAAECgABAAAAAAAAAHsMAAIL"
+        "AAEAAAADUlVCAAALAAUAAAAYMjAyMC0wNS0yNVQxNzoxMjo1Ny45ODdaDAA"
+        "GDQABCAwAAAABAAAAAAoAAQAAAAAAAAB7DAACCwABAAAAA1JVQgAAAAwABw"
+        "0AAQgMAAAAAQAAAAAKAAEAAAAAAAAAewwAAgsAAQAAAANSVUIAAAAADAAHC"
+        "AABAAAAAQAKAAUAAAAAAAAAewoABgAAAAAAAAFBCAAEAAAAAQAAAAA="
     >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
@@ -711,13 +716,17 @@ transaction_bound_v1_decoding_test() ->
             cavv => <<"value">>,
             xid => <<"value">>,
             cavv_algorithm => <<"value">>,
-            three_ds_verification => <<"value">>
+            three_ds_verification => authentication_successful
         }
     }},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent = {bin, base64:decode(<<
-        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAwwAAQsAAQAAAAJpZA0AAwsLAAAAAQ"
-        "AAAANrZXkAAAAFdmFsdWUAAAAA"
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAwwAAQ"
+        "sAAQAAAAJpZAsAAgAAAAl0aW1lc3RhbXANAAMLCwAAAAEAAAADa2V5AAAA"
+        "BXZhbHVlDAAECwABAAAABXZhbHVlCwACAAAABXZhbHVlCwADAAAABXZhbH"
+        "VlCwAEAAAABXZhbHVlCwAFAAAABXZhbHVlCwAGAAAABXZhbHVlCwAHAAAA"
+        "BXZhbHVlCwAIAAAABXZhbHVlCwAJAAAABXZhbHVlCwAKAAAABXZhbHVlCw"
+        "ALAAAABXZhbHVlCAAMAAAAAAAAAAAA"
     >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),

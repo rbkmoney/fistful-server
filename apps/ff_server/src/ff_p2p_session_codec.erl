@@ -71,12 +71,16 @@ marshal(p2p_transfer, Transfer = #{
     receiver := Receiver
 }) ->
     Deadline = maps:get(deadline, Transfer, undefined),
+    MerchantFees = maps:get(merchant_fees, Transfer, undefined),
+    ProviderFees = maps:get(provider_fees, Transfer, undefined),
     #p2p_session_P2PTransfer{
         id = marshal(id, ID),
         sender = marshal(resource, Sender),
         receiver = marshal(resource, Receiver),
         cash = marshal(cash, Body),
-        deadline = maybe_marshal(deadline, Deadline)
+        deadline = maybe_marshal(deadline, Deadline),
+        merchant_fees = maybe_marshal(fees, MerchantFees),
+        provider_fees = maybe_marshal(fees, ProviderFees)
     };
 
 marshal(route, Route) ->
@@ -86,6 +90,20 @@ marshal(route, Route) ->
 
 marshal(deadline, Deadline) ->
     ff_time:to_rfc3339(Deadline);
+
+marshal(fees, #{fees := Fees}) ->
+    #p2p_session_Fees{
+        fees = maps:fold(
+            fun(Key, Value, Map) ->
+                Map#{marshal(cash_flow_constant, Key) => marshal(cash, Value)}
+            end,
+            #{},
+            Fees
+        )
+    };
+
+marshal(cash_flow_constant, Constant) ->
+    Constant;
 
 marshal(callback_change, #{tag := Tag, payload := Payload}) ->
     #p2p_session_CallbackChange{
@@ -223,14 +241,18 @@ unmarshal(p2p_transfer, #p2p_session_P2PTransfer{
     sender = Sender,
     receiver = Receiver,
     cash = Body,
-    deadline = Deadline
+    deadline = Deadline,
+    merchant_fees = MerchantFees,
+    provider_fees = ProviderFees
 }) ->
     genlib_map:compact(#{
         id => unmarshal(id, ID),
         sender => unmarshal(resource, Sender),
         receiver => unmarshal(resource, Receiver),
         body => unmarshal(cash, Body),
-        deadline => maybe_unmarshal(deadline, Deadline)
+        deadline => maybe_unmarshal(deadline, Deadline),
+        merchant_fees => maybe_unmarshal(fees, MerchantFees),
+        provider_fees => maybe_unmarshal(fees, ProviderFees)
     });
 
 unmarshal(route, Route) ->
@@ -240,6 +262,18 @@ unmarshal(route, Route) ->
 
 unmarshal(deadline, Deadline) ->
     ff_time:from_rfc3339(Deadline);
+
+unmarshal(fees, #p2p_session_Fees{fees = Fees}) ->
+    #{fees => maps:fold(
+        fun(Key, Value, Map) ->
+            Map#{unmarshal(cash_flow_constant, Key) => unmarshal(cash, Value)}
+        end,
+        #{},
+        Fees
+    )};
+
+unmarshal(cash_flow_constant, Constant) ->
+    Constant;
 
 unmarshal(callback_event, {created, #p2p_session_CallbackCreatedChange{callback = Callback}}) ->
     {created, unmarshal(callback, Callback)};
@@ -352,7 +386,9 @@ p2p_session_codec_test() ->
         body => {123, <<"RUB">>},
         sender => Resource,
         receiver => Resource,
-        deadline => ff_time:now()
+        deadline => ff_time:now(),
+        merchant_fees => #{fees => #{operation_amount => {123, <<"RUB">>}}},
+        provider_fees => #{fees => #{surplus => {123, <<"RUB">>}}}
     },
 
     Session = #{

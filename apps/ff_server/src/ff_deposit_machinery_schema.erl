@@ -463,9 +463,9 @@ created_v2_3_saved_metadata_decoding_test() ->
         ]},
         LegacyChange
     ]},
-    {MarshalledAuxState, Context0} = marshal({aux_state, undefined}, AuxState, #{}),
-    {_UnmarshalledAuxState, _Context} = unmarshal({aux_state, undefined}, MarshalledAuxState, #{}),
-    {DecodedLegacy, _Context} = unmarshal({event, undefined}, LegacyEvent, Context0),
+    {MarshalledAuxState, _Context0} = marshal({aux_state, undefined}, AuxState, #{}),
+    {_UnmarshalledAuxState, Context0} = unmarshal({aux_state, undefined}, MarshalledAuxState, #{}),
+    {DecodedLegacy, _Context1} = unmarshal({event, undefined}, LegacyEvent, Context0),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).

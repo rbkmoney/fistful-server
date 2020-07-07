@@ -17,6 +17,12 @@
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #p2p_session_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Session}) ->
     {created, #p2p_session_CreatedChange{session = marshal(session, Session)}};
 marshal(change, {next_state, AdapterState}) ->
@@ -65,12 +71,16 @@ marshal(p2p_transfer, Transfer = #{
     receiver := Receiver
 }) ->
     Deadline = maps:get(deadline, Transfer, undefined),
+    MerchantFees = maps:get(merchant_fees, Transfer, undefined),
+    ProviderFees = maps:get(provider_fees, Transfer, undefined),
     #p2p_session_P2PTransfer{
         id = marshal(id, ID),
         sender = marshal(resource, Sender),
         receiver = marshal(resource, Receiver),
         cash = marshal(cash, Body),
-        deadline = maybe_marshal(deadline, Deadline)
+        deadline = maybe_marshal(deadline, Deadline),
+        merchant_fees = maybe_marshal(fees, MerchantFees),
+        provider_fees = maybe_marshal(fees, ProviderFees)
     };
 
 marshal(route, Route) ->
@@ -80,6 +90,20 @@ marshal(route, Route) ->
 
 marshal(deadline, Deadline) ->
     ff_time:to_rfc3339(Deadline);
+
+marshal(fees, #{fees := Fees}) ->
+    #p2p_session_Fees{
+        fees = maps:fold(
+            fun(Key, Value, Map) ->
+                Map#{marshal(cash_flow_constant, Key) => marshal(cash, Value)}
+            end,
+            #{},
+            Fees
+        )
+    };
+
+marshal(cash_flow_constant, Constant) ->
+    Constant;
 
 marshal(callback_change, #{tag := Tag, payload := Payload}) ->
     #p2p_session_CallbackChange{
@@ -158,6 +182,11 @@ unmarshal(repair_scenario, {add_events, #p2p_session_AddEventsRepair{events = Ev
 unmarshal(repair_scenario, {set_session_result, #p2p_session_SetResultRepair{result = Result}}) ->
     {set_session_result, unmarshal(session_result, Result)};
 
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#p2p_session_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#p2p_session_TimestampedChange.change),
+    {ev, Timestamp, Change};
+
 unmarshal(change, {created, #p2p_session_CreatedChange{session = Session}}) ->
     {created, unmarshal(session, Session)};
 unmarshal(change, {adapter_state, #p2p_session_AdapterStateChange{state = AdapterState}}) ->
@@ -212,14 +241,18 @@ unmarshal(p2p_transfer, #p2p_session_P2PTransfer{
     sender = Sender,
     receiver = Receiver,
     cash = Body,
-    deadline = Deadline
+    deadline = Deadline,
+    merchant_fees = MerchantFees,
+    provider_fees = ProviderFees
 }) ->
     genlib_map:compact(#{
         id => unmarshal(id, ID),
         sender => unmarshal(resource, Sender),
         receiver => unmarshal(resource, Receiver),
         body => unmarshal(cash, Body),
-        deadline => maybe_unmarshal(deadline, Deadline)
+        deadline => maybe_unmarshal(deadline, Deadline),
+        merchant_fees => maybe_unmarshal(fees, MerchantFees),
+        provider_fees => maybe_unmarshal(fees, ProviderFees)
     });
 
 unmarshal(route, Route) ->
@@ -230,6 +263,18 @@ unmarshal(route, Route) ->
 unmarshal(deadline, Deadline) ->
     ff_time:from_rfc3339(Deadline);
 
+unmarshal(fees, #p2p_session_Fees{fees = Fees}) ->
+    #{fees => maps:fold(
+        fun(Key, Value, Map) ->
+            Map#{unmarshal(cash_flow_constant, Key) => unmarshal(cash, Value)}
+        end,
+        #{},
+        Fees
+    )};
+
+unmarshal(cash_flow_constant, Constant) ->
+    Constant;
+
 unmarshal(callback_event, {created, #p2p_session_CallbackCreatedChange{callback = Callback}}) ->
     {created, unmarshal(callback, Callback)};
 unmarshal(callback_event, {finished, #p2p_session_CallbackResultChange{payload = Response}}) ->
@@ -238,7 +283,10 @@ unmarshal(callback_event, {status_changed, #p2p_session_CallbackStatusChange{sta
     {status_changed, unmarshal(callback_status, Status)};
 
 unmarshal(callback, #p2p_session_Callback{tag = Tag}) ->
-    #{tag => unmarshal(string, Tag)};
+    #{
+        version => 1,
+        tag => unmarshal(string, Tag)
+    };
 
 unmarshal(callback_status, {pending, #p2p_session_CallbackStatusPending{}}) ->
     pending;
@@ -259,6 +307,7 @@ unmarshal(user_interaction, #p2p_session_UserInteraction{
     user_interaction = Content
 }) ->
     #{
+        version => 1,
         id => unmarshal(id, ID),
         content => unmarshal(user_interaction_content, Content)
     };
@@ -310,13 +359,17 @@ maybe_unmarshal(Type, Value) ->
 -spec p2p_session_codec_test() -> _.
 p2p_session_codec_test() ->
     UserInteraction = #{
+        version => 1,
         id => genlib:unique(),
         content => {redirect, #{
             content => {get, <<"URI">>}
         }}
     },
 
-    Callback = #{tag => <<"Tag">>},
+    Callback = #{
+        version => 1,
+        tag => <<"Tag">>
+    },
 
     TransactionInfo = #{
         id => genlib:unique(),
@@ -333,7 +386,9 @@ p2p_session_codec_test() ->
         body => {123, <<"RUB">>},
         sender => Resource,
         receiver => Resource,
-        deadline => ff_time:now()
+        deadline => ff_time:now(),
+        merchant_fees => #{fees => #{operation_amount => {123, <<"RUB">>}}},
+        provider_fees => #{fees => #{surplus => {123, <<"RUB">>}}}
     },
 
     Session = #{

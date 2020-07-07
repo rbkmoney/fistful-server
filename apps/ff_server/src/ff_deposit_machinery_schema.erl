@@ -60,9 +60,7 @@ marshal(T, V, C) when
     {data(), context()}.
 unmarshal({event, FormatVersion}, EncodedChange, Context) ->
     unmarshal_event(FormatVersion, EncodedChange, Context);
-unmarshal(T, V, C0) when
-    T =:= {aux_state, undefined}
-    ->
+unmarshal({aux_state, undefined} = T, V, C0) ->
     {AuxState, C1} = machinery_mg_schema_generic:unmarshal(T, V, C0),
     {AuxState, C1#{ctx => get_aux_state_ctx(AuxState)}};
 unmarshal(T, V, C) when

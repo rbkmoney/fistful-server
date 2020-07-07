@@ -91,6 +91,7 @@ unmarshal(change, {transfer, #w2w_adj_TransferChange{payload = TransferChange}})
 
 unmarshal(adjustment, Adjustment) ->
     #{
+        version => 1,
         id => unmarshal(id, Adjustment#w2w_adj_Adjustment.id),
         status => unmarshal(status, Adjustment#w2w_adj_Adjustment.status),
         changes_plan => unmarshal(changes_plan, Adjustment#w2w_adj_Adjustment.changes_plan),
@@ -197,6 +198,7 @@ adjustment_codec_test() ->
     },
 
     Adjustment = #{
+        version => 1,
         id => genlib:unique(),
         status => pending,
         changes_plan => Plan,

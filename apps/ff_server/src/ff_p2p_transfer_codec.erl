@@ -262,7 +262,10 @@ unmarshal(risk_score, fatal) ->
     fatal;
 
 unmarshal(route, #p2p_transfer_Route{provider_id = ProviderID}) ->
-    #{provider_id => unmarshal(integer, ProviderID)};
+    #{
+        version => 1,
+        provider_id => unmarshal(integer, ProviderID)
+    };
 
 unmarshal(session, {SessionID, {started, #p2p_transfer_SessionStarted{}}}) ->
     {SessionID, started};
@@ -360,7 +363,7 @@ p2p_transfer_codec_test() ->
         {created, P2PTransfer},
         {resource_got, Resource, Resource},
         {risk_score_changed, low},
-        {route_changed, #{provider_id => 1}},
+        {route_changed, #{version => 1, provider_id => 1}},
         {p_transfer, {created, PTransfer}},
         {session, {genlib:unique(), started}},
         {status_changed, succeeded},

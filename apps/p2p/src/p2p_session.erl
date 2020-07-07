@@ -38,21 +38,24 @@
 %%
 %% Types
 %%
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 
 -opaque session() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
     id := id(),
     status := status(),
     transfer_params := transfer_params(),
-    provider_id := ff_p2p_provider:id(),
+    route := route(),
     domain_revision := domain_revision(),
     party_revision := party_revision(),
     adapter := adapter_with_opts(),
     adapter_state => adapter_state(),
     callbacks => callbacks_index(),
     user_interactions => user_interactions_index(),
-    transaction_info => transaction_info()
+    transaction_info => transaction_info(),
+
+    % Deprecated. Remove after MSPF-560 finish
+    provider_id_legacy := ff_p2p_provider:id()
 }.
 
 -type status() ::
@@ -80,6 +83,10 @@
     provider_fees => ff_fees:final()
 }.
 
+-type route() :: #{
+    provider_id := ff_p2p_provider:id()
+}.
+
 -type body() :: ff_transaction:body().
 
 -type transaction_info() :: ff_adapter:transaction_info().
@@ -89,7 +96,7 @@
 -type deadline() :: p2p_adapter:deadline().
 
 -type params() :: #{
-    provider_id := ff_p2p_provider:id(),
+    route := route(),
     domain_revision := domain_revision(),
     party_revision := party_revision()
 }.
@@ -134,10 +141,6 @@
 -type user_interactions_index() :: p2p_user_interaction_utils:index().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
-
-%% Pipeline
-
--import(ff_pipeline, [unwrap/1]).
 
 %%
 %% API
@@ -190,28 +193,37 @@ adapter(#{adapter := V}) ->
     V.
 
 %%
--spec create(id(), transfer_params(), params()) ->
-    {ok, [event()]}.
+
+% TODO: Replace spec after the first deploy
+% -spec create(id(), transfer_params(), params()) ->
+%     {ok, [event()]}.
+-spec create(id(), transfer_params(), params() | (LeagcyParams :: map())) ->
+    {ok, [event() | legacy_event()]}.
+create(ID, TransferParams, #{provider_id := ProviderID} = Params) ->
+    % TODO: Remove this clause after the first deploy
+    Route = #{provider_id => ProviderID + 400},
+    NewParams = (maps:without([provider_id], Params))#{route => Route},
+    create(ID, TransferParams, NewParams);
 create(ID, TransferParams, #{
-    provider_id := ProviderID,
+    route := Route,
     domain_revision := DomainRevision,
     party_revision := PartyRevision
 }) ->
     Session = #{
         version => ?ACTUAL_FORMAT_VERSION,
         id => ID,
+        route => Route,
         transfer_params => TransferParams,
-        provider_id => ProviderID,
         domain_revision => DomainRevision,
         party_revision => PartyRevision,
-        adapter => get_adapter_with_opts(ProviderID),
+        adapter => get_adapter_with_opts(maps:get(provider_id, Route)),
         status => active
     },
     {ok, [{created, Session}]}.
 
 -spec get_adapter_with_opts(ff_p2p_provider:id()) -> adapter_with_opts().
 get_adapter_with_opts(ProviderID) ->
-    Provider =  unwrap(ff_p2p_provider:get(ProviderID)),
+    {ok, Provider} =  ff_p2p_provider:get(ProviderID),
     {ff_p2p_provider:adapter(Provider), ff_p2p_provider:adapter_opts(Provider)}.
 
 -spec process_session(session()) -> result().
@@ -427,6 +439,17 @@ set_session_status(SessionState, Session) ->
 -spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
     event().
 
+maybe_migrate({created, #{version := 2} = Session}, MigrateParams) ->
+    #{
+        version := 2,
+        provider_id := ProviderID
+    } = Session,
+    NewSession = (maps:without([provider_id], Session))#{
+        version => 3,
+        route => #{provider_id => ProviderID + 400},
+        provider_id_legacy => ProviderID
+    },
+    maybe_migrate({created, NewSession}, MigrateParams);
 maybe_migrate({created, #{version := 1} = Session}, MigrateParams) ->
     #{
         version := 1,

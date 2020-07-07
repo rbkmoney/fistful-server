@@ -12,12 +12,12 @@ def finalHook = {
 
 build('fistful-server', 'docker-host', finalHook) {
   checkoutRepo()
-  loadBuildUtils()
+  loadBuildUtils('build-utils')
 
   def pipeErlangService
   runStage('load pipeline') {
-    env.JENKINS_LIB = "build_utils/jenkins_lib"
-    env.SH_TOOLS = "build_utils/sh"
+    env.JENKINS_LIB = "build-utils/jenkins_lib"
+    env.SH_TOOLS = "build-utils/sh"
     pipeErlangService = load("${env.JENKINS_LIB}/pipeErlangService.groovy")
   }
 

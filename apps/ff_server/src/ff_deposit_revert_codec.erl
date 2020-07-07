@@ -93,9 +93,9 @@ unmarshal(change, {adjustment, Change}) ->
         id = ID,
         payload = Payload
     } = Change,
-    {revert, #{
+    {adjustment, #{
         id => unmarshal(id, ID),
-        payload => ff_deposit_revert_adjustment_codec:unmarshal(id, Payload)
+        payload => ff_deposit_revert_adjustment_codec:unmarshal(change, Payload)
     }};
 
 unmarshal(status, Status) ->
@@ -175,5 +175,29 @@ revert_params_symmetry_test() ->
         id = genlib:unique()
     },
     ?assertEqual(Encoded, marshal(revert_params, unmarshal(revert_params, Encoded))).
+
+-spec change_adjustment_symmetry_test() -> _.
+change_adjustment_symmetry_test() ->
+    Encoded = {adjustment, #deposit_revert_AdjustmentChange{
+        id = genlib:unique(),
+        payload = {created, #dep_rev_adj_CreatedChange{
+            adjustment = #dep_rev_adj_Adjustment{
+                id = genlib:unique(),
+                status = {pending, #dep_rev_adj_Pending{}},
+                changes_plan = #dep_rev_adj_ChangesPlan{
+                    new_cash_flow = #dep_rev_adj_CashFlowChangePlan{
+                        old_cash_flow_inverted = #cashflow_FinalCashFlow{postings = []},
+                        new_cash_flow = #cashflow_FinalCashFlow{postings = []}
+                    }
+                },
+                created_at = <<"2000-01-01T00:00:00Z">>,
+                domain_revision = 123,
+                party_revision = 321,
+                operation_timestamp = <<"2000-01-01T00:00:00Z">>,
+                external_id = genlib:unique()
+            }
+        }}
+    }},
+    ?assertEqual(Encoded, marshal(change, unmarshal(change, Encoded))).
 
 -endif.

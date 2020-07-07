@@ -176,7 +176,6 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -184,9 +183,7 @@
 
 %% Internal types
 
--type account()               :: ff_account:account().
 -type process_result()        :: {action(), [event()]}.
--type cash_flow_plan()        :: ff_cash_flow:cash_flow_plan().
 -type source_id()             :: ff_source:id().
 -type source()                :: ff_source:source_state().
 -type wallet_id()             :: ff_wallet:id().
@@ -216,10 +213,7 @@
 
 -type transfer_params() :: #{
     source_id             := source_id(),
-    wallet_id             := wallet_id(),
-    wallet_account        := account(),
-    source_account        := account(),
-    wallet_cash_flow_plan := cash_flow_plan()
+    wallet_id             := wallet_id()
 }.
 
 -type activity() ::
@@ -310,19 +304,8 @@ create(Params) ->
         ),
         valid =  unwrap(validate_deposit_creation(Terms, Params, Source, Wallet)),
         TransferParams = #{
-            wallet_id             => WalletID,
-            source_id             => SourceID,
-            wallet_account        => ff_wallet:account(Wallet),
-            source_account        => ff_source:account(Source),
-            wallet_cash_flow_plan => #{
-                postings => [
-                    #{
-                        sender   => {wallet, sender_source},
-                        receiver => {wallet, receiver_settlement},
-                        volume   => {share, {{1, 1}, operation_amount, default}}
-                    }
-                ]
-            }
+            wallet_id => WalletID,
+            source_id => SourceID
         },
         [
             {created, genlib_map:compact(#{
@@ -1089,144 +1072,3 @@ get_wallet_identity(Wallet) ->
     IdentityID = ff_wallet:identity(Wallet),
     {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     ff_identity_machine:identity(IdentityMachine).
-
-%% Migration
-
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
-    event().
-% Actual events
-maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
-    Ev;
-maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
-    Ev;
-maybe_migrate(Ev = {limit_check, {wallet_receiver, _Details}}, _MigrateParams) ->
-    Ev;
-maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
-    {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, deposit)};
-maybe_migrate({revert, _Payload} = Event, _MigrateParams) ->
-    ff_deposit_revert_utils:maybe_migrate(Event);
-maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
-    ff_adjustment_utils:maybe_migrate(Event);
-
-% Old events
-maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->
-    maybe_migrate({limit_check, {wallet_receiver, Details}}, MigrateParams);
-maybe_migrate({created, #{version := 1, handler := ff_deposit} = T}, MigrateParams) ->
-    #{
-        version     := 1,
-        id          := ID,
-        handler     := ff_deposit,
-        source      := SourceAccount,
-        destination := DestinationAccount,
-        body        := Body,
-        params      := #{
-            destination := DestinationID,
-            source      := SourceID
-        }
-    } = T,
-    maybe_migrate({created, #{
-        version       => 2,
-        id            => ID,
-        transfer_type => deposit,
-        body          => Body,
-        params        => #{
-            wallet_id             => DestinationID,
-            source_id             => SourceID,
-            wallet_account        => DestinationAccount,
-            source_account        => SourceAccount,
-            wallet_cash_flow_plan => #{
-                postings => [
-                    #{
-                        sender   => {wallet, sender_source},
-                        receiver => {wallet, receiver_settlement},
-                        volume   => {share, {{1, 1}, operation_amount, default}}
-                    }
-                ]
-            }
-        }
-    }}, MigrateParams);
-maybe_migrate({created, Deposit = #{version := 2, id := ID}}, MigrateParams) ->
-    Ctx = maps:get(ctx, MigrateParams, undefined),
-    Context = case Ctx of
-        undefined ->
-            {ok, State} = ff_machine:get(ff_withdrawal, 'ff/withdrawal_v2', ID, {undefined, 0, forward}),
-            maps:get(ctx, State, undefined);
-        Data ->
-            Data
-    end,
-    maybe_migrate({created, genlib_map:compact(Deposit#{
-        version => 3,
-        metadata => ff_entity_context:try_get_legacy_metadata(Context)
-    })}, MigrateParams);
-maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
-    maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
-maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
-    Failure = #{
-        code => <<"unknown">>,
-        reason => genlib:format(LegacyFailure)
-    },
-    maybe_migrate({status_changed, {failed, Failure}}, MigrateParams);
-% Other events
-maybe_migrate(Ev, _MigrateParams) ->
-    Ev.
-
-
-
-%% Tests
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--spec test() -> _.
-
--spec v3_created_migration_test() -> _.
-v3_created_migration_test() ->
-    ID = genlib:unique(),
-    WalletID = genlib:unique(),
-    WalletAccount = #{
-        id => WalletID,
-        identity => genlib:unique(),
-        currency => <<"RUB">>,
-        accounter_account_id => 123
-    },
-    SourceID = genlib:unique(),
-    SourceAccount = #{
-        id => SourceID,
-        identity => genlib:unique(),
-        currency => <<"RUB">>,
-        accounter_account_id => 123
-    },
-    Body = {100, <<"RUB">>},
-    LegacyEvent = {created, #{
-        version       => 2,
-        id            => ID,
-        transfer_type => deposit,
-        body          => Body,
-        params        => #{
-            wallet_id             => WalletID,
-            source_id             => SourceID,
-            wallet_account        => WalletAccount,
-            source_account        => SourceAccount,
-            wallet_cash_flow_plan => #{
-                postings => [
-                    #{
-                        sender   => {wallet, sender_source},
-                        receiver => {wallet, receiver_settlement},
-                        volume   => {share, {{1, 1}, operation_amount, default}}
-                    }
-                ]
-            }
-        }
-    }},
-    {created, Deposit} = maybe_migrate(LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
-    ?assertEqual(ID, id(Deposit)),
-    ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Deposit)).
-
--endif.

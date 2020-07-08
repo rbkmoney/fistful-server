@@ -43,7 +43,7 @@ authorize_operation(OperationID, Req, #{swagger_context := #{auth_context := Aut
     uac:authorize_operation(OperationACL, AuthContext).
 
 -type token_spec() ::
-    {p2p_templates, P2PTemplateID :: binary()} |
+    {p2p_templates, P2PTemplateID :: binary(), Data :: map()} |
     {p2p_template_transfers, P2PTemplateID :: binary(), Data :: map()} |
     {destinations, DestinationID :: binary()} |
     {wallets, WalletID :: binary(), Asset :: map()}.
@@ -67,8 +67,9 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
 
 -spec resolve_token_spec(token_spec()) ->
     claims().
-resolve_token_spec({p2p_templates, P2PTemplateID}) ->
+resolve_token_spec({p2p_templates, P2PTemplateID, #{<<"expiration">> := Expiration}}) ->
     #{
+        <<"data">> => #{<<"expiration">> => Expiration},
         <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
             [{[{p2p_templates, P2PTemplateID}, p2p_template_tickets], write}, {[{p2p_templates, P2PTemplateID}], read}]
         )}

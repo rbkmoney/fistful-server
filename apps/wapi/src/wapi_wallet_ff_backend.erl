@@ -842,22 +842,32 @@ block_p2p_template(ID, Context) ->
 issue_p2p_template_access_token(ID, Expiration, Context) ->
     do(fun () ->
         _ = check_resource(p2p_template, ID, Context),
-        unwrap(wapi_backend_utils:issue_grant_token({p2p_templates, ID}, Expiration, Context))
+        Data = #{<<"expiration">> => Expiration},
+        unwrap(wapi_backend_utils:issue_grant_token({p2p_templates, ID, Data}, Expiration, Context))
     end).
 
 -spec issue_p2p_transfer_ticket(params(), binary(), ctx()) ->
-    {ok, binary()} |
+    {ok, {binary(), binary()}} |
     {error,
         expired |
         p2p_template_machine:unknown_p2p_template_error()
 }.
-issue_p2p_transfer_ticket(ID, Expiration, Context = #{woody_context := WoodyCtx}) ->
+issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx}) ->
     do(fun () ->
+        {_, _, Claims} = wapi_handler_utils:get_auth_context(Context),
+        AccessData = maps:get(<<"data">>, Claims),
+        AccessExpiration = maps:get(<<"expiration">>, AccessData),
         PartyID = wapi_handler_utils:get_owner(Context),
         Key  = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID, undefined),
         {ok, TransferID} = bender_client:gen_by_snowflake(Key, 0, WoodyCtx),
         Data = #{<<"transferID">> => TransferID},
-        unwrap(wapi_backend_utils:issue_grant_token({p2p_template_transfers, ID, Data}, Expiration, Context))
+        Expiration1 = choose_token_expiration(Expiration0, AccessExpiration),
+        case wapi_backend_utils:issue_grant_token({p2p_template_transfers, ID, Data}, Expiration1, Context) of
+            {ok, Token} ->
+                {Token, Expiration1};
+            {error, Error} ->
+                throw(Error)
+        end
     end).
 
 -spec create_p2p_transfer_with_template(id(), params(), ctx()) -> result(map(),
@@ -957,6 +967,16 @@ get_w2w_transfer(ID, Context) ->
     end).
 
 %% Internal functions
+
+choose_token_expiration(TicketExpiration, AccessExpiration) ->
+    TicketMs = woody_deadline:to_unixtime_ms(woody_deadline:from_binary(TicketExpiration)),
+    AccessMs = woody_deadline:to_unixtime_ms(woody_deadline:from_binary(AccessExpiration)),
+    case TicketMs > AccessMs of
+        true ->
+            AccessExpiration;
+        false ->
+            TicketExpiration
+    end.
 
 construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
 when Type =:= <<"BankCardDestinationResource">> ->

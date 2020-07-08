@@ -35,6 +35,7 @@
 
 -export([adapter_unreachable_route_test/1]).
 -export([adapter_unreachable_quote_test/1]).
+-export([attempt_limit_test/1]).
 
 %% Internal types
 
@@ -67,7 +68,8 @@ groups() ->
     [
         {default, [parallel], [
             adapter_unreachable_route_test,
-            adapter_unreachable_quote_test
+            adapter_unreachable_quote_test,
+            attempt_limit_test
         ]}
     ].
 
@@ -156,6 +158,28 @@ adapter_unreachable_quote_test(C) ->
                 <<"provider_id">> => 4
             }
         }
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    ?assertEqual(
+        {failed, #{code => <<"authorization_error">>}},
+        await_final_withdrawal_status(WithdrawalID)).
+
+
+-spec attempt_limit_test(config()) -> test_return().
+attempt_limit_test(C) ->
+    Currency = <<"RUB">>,
+    Cash = {500100, Currency},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(

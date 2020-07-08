@@ -19,8 +19,6 @@
 -define(insp(ID),       #domain_InspectorRef{id = ID}).
 -define(p2p_insp(ID),   #domain_P2PInspectorRef{id = ID}).
 -define(payinst(ID),    #domain_PaymentInstitutionRef{id = ID}).
--define(wthdr_prv(ID),  #domain_WithdrawalProviderRef{id = ID}).
--define(p2p_prv(ID),    #domain_P2PProviderRef{id = ID}).
 
 -define(cash(Amount, SymCode),
     #domain_Cash{amount = Amount, currency = ?cur(SymCode)}

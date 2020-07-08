@@ -101,6 +101,11 @@ unmarshal_event(undefined = Version, EncodedChange, Context0) ->
     p2p_transfer:event().
 maybe_migrate({resource_got, Sender, Receiver}) ->
     {resource_got, maybe_migrate_resource(Sender), maybe_migrate_resource(Receiver)};
+maybe_migrate({route_changed, Route}) when not is_map_key(version, Route) ->
+    #{
+        provider_id := LegacyProviderID
+    } = Route,
+    maybe_migrate({route_changed, Route#{version => 1, provider_id => LegacyProviderID + 400}});
 maybe_migrate({created, #{version := 1} = Transfer}) ->
     #{
         version := 1,
@@ -402,8 +407,8 @@ created_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec resource_got_v0_2_decoding_test() -> _.
-resource_got_v0_2_decoding_test() ->
+-spec resource_got_v0_0_decoding_test() -> _.
+resource_got_v0_0_decoding_test() ->
     Resource = {bank_card, #{bank_card => #{
         token => <<"token">>,
         bin_data_id => {binary, <<"bin">>}
@@ -455,8 +460,8 @@ resource_got_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec risk_score_changed_v0_2_decoding_test() -> _.
-risk_score_changed_v0_2_decoding_test() ->
+-spec risk_score_changed_v0_0_decoding_test() -> _.
+risk_score_changed_v0_0_decoding_test() ->
     Change = {risk_score_changed, low},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
@@ -483,9 +488,9 @@ risk_score_changed_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec route_changed_v0_2_decoding_test() -> _.
-route_changed_v0_2_decoding_test() ->
-    Change = {route_changed, #{provider_id => 1}},
+-spec route_changed_v0_0_decoding_test() -> _.
+route_changed_v0_0_decoding_test() ->
+    Change = {route_changed, #{version => 1, provider_id => 401}},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
         {str, <<"tup">>},
@@ -514,8 +519,42 @@ route_changed_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec p_transfer_v0_2_decoding_test() -> _.
-p_transfer_v0_2_decoding_test() ->
+-spec route_changed_v0_1_decoding_test() -> _.
+route_changed_v0_1_decoding_test() ->
+    Change = {route_changed, #{version => 1, provider_id => 1}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"route_changed">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"provider_id">>} => {i, 1},
+                {str, <<"version">>} => {i, 1}
+            }}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec p_transfer_v0_0_decoding_test() -> _.
+p_transfer_v0_0_decoding_test() ->
     PTransfer = #{
         id => <<"external_id">>,
         final_cash_flow => #{
@@ -561,8 +600,8 @@ p_transfer_v0_2_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec session_v0_2_decoding_test() -> _.
-session_v0_2_decoding_test() ->
+-spec session_v0_0_decoding_test() -> _.
+session_v0_0_decoding_test() ->
     Change = {session, {<<"session_id">>, started}},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
@@ -665,10 +704,10 @@ risk_score_changed_v1_decoding_test() ->
 
 -spec route_changed_v1_decoding_test() -> _.
 route_changed_v1_decoding_test() ->
-    Change = {route_changed, #{provider_id => 1}},
+    Change = {route_changed, #{version => 1, provider_id => 1}},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent = {bin, base64:decode(<<
-        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwABQwAAQgAAQAAAAEAAAAA"
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwABQwAAQgAAgAAAAEAAAAA"
     >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),

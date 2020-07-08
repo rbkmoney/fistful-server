@@ -77,7 +77,11 @@
     {destination_resource, {bin_data, not_found}}.
 
 -type route() :: #{
-    provider_id := provider_id()
+    version := 1,
+    provider_id := provider_id(),
+
+    % Deprecated. Remove after MSPF-560 finish
+    provider_id_legacy => binary()
 }.
 
 -type attempts() :: ff_withdrawal_route_attempt_utils:attempts().
@@ -248,8 +252,7 @@
 
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
-% TODO I'm now sure about this change, it may crash old events. Or not. ))
--type provider_id() :: pos_integer() | id().
+-type provider_id() :: ff_payouts_provider:id().
 
 -type legacy_event() :: any().
 
@@ -678,7 +681,10 @@ process_routing(Withdrawal) ->
     case do_process_routing(Withdrawal) of
         {ok, [ProviderID | _]} ->
             {continue, [
-                {route_changed, #{provider_id => ProviderID}}
+                {route_changed, #{
+                    version => 1,
+                    provider_id => ProviderID
+                }}
             ]};
         {error, route_not_found} ->
             process_transfer_fail(route_not_found, Withdrawal);
@@ -754,7 +760,7 @@ filter_providers(Providers, VS) ->
 -spec validate_withdrawals_terms(provider_id(), party_varset()) ->
     boolean().
 validate_withdrawals_terms(ID, VS) ->
-    Provider = unwrap(ff_payouts_provider:get(ID)),
+    {ok, Provider} = ff_payouts_provider:get(ID),
     case ff_payouts_provider:validate_terms(Provider, VS) of
         {ok, valid} ->
             true;
@@ -838,7 +844,9 @@ process_session_creation(Withdrawal) ->
     SessionParams = #{
         withdrawal_id => id(Withdrawal),
         resource => destination_resource(Withdrawal),
-        provider_id => ProviderID
+        route => #{
+            provider_id => ProviderID
+        }
     },
     ok = create_session(ID, TransferData, SessionParams),
     {continue, [{session_started, ID}]}.
@@ -846,15 +854,15 @@ process_session_creation(Withdrawal) ->
 -spec construct_session_id(withdrawal_state()) -> id().
 construct_session_id(Withdrawal) ->
     ID = id(Withdrawal),
-    Index = ff_withdrawal_route_attempt_utils:get_index(attempts(Withdrawal)),
-    SubID = integer_to_binary(Index),
+    Attempt = ff_withdrawal_route_attempt_utils:get_attempt(attempts(Withdrawal)),
+    SubID = integer_to_binary(Attempt),
     << ID/binary, "/", SubID/binary >>.
 
 -spec construct_p_transfer_id(withdrawal_state()) -> id().
 construct_p_transfer_id(Withdrawal) ->
     ID = id(Withdrawal),
-    Index = ff_withdrawal_route_attempt_utils:get_index(attempts(Withdrawal)),
-    SubID = integer_to_binary(Index),
+    Attempt = ff_withdrawal_route_attempt_utils:get_attempt(attempts(Withdrawal)),
+    SubID = integer_to_binary(Attempt),
     <<"ff/withdrawal/", ID/binary, "/", SubID/binary >>.
 
 create_session(ID, TransferData, SessionParams) ->
@@ -1446,14 +1454,18 @@ process_adjustment(Withdrawal) ->
 process_route_change(Providers, Withdrawal, Reason) ->
     Attempts = attempts(Withdrawal),
     %% TODO Remove line below after switch to [route()] from [provider_id()]
-    Routes = [#{provider_id => ID} || ID <- Providers],
-    case ff_withdrawal_route_attempt_utils:next_route(Routes, Attempts) of
+    Routes = [#{version => 1, provider_id => ID} || ID <- Providers],
+    AttemptLimit = get_attempt_limit(Withdrawal),
+    case ff_withdrawal_route_attempt_utils:next_route(Routes, Attempts, AttemptLimit) of
         {ok, Route} ->
             {continue, [
                 {route_changed, Route}
             ]};
         {error, route_not_found} ->
             %% No more routes, return last error
+            process_transfer_fail(Reason, Withdrawal);
+        {error, attempt_limit_exceeded} ->
+            %% Attempt limit exceeded, return last error
             process_transfer_fail(Reason, Withdrawal)
     end.
 
@@ -1575,6 +1587,8 @@ maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}, _MigrateParams) ->
     Ev;
 maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}, _MigrateParams) ->
     Ev;
+maybe_migrate({route_changed, Route}, _MigrateParams) ->
+    {route_changed, maybe_migrate_route(Route)};
 maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
     {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
 maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
@@ -1602,7 +1616,7 @@ maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateP
         id            => ID,
         transfer_type => withdrawal,
         body          => Body,
-        route         => Route,
+        route         => maybe_migrate_route(Route),
         params        => #{
             wallet_id             => SourceID,
             destination_id        => DestinationID,
@@ -1658,6 +1672,79 @@ maybe_migrate({session_finished, SessionID}, MigrateParams) ->
 maybe_migrate(Ev, _MigrateParams) ->
     Ev.
 
+maybe_migrate_route(undefined = Route) ->
+    Route;
+maybe_migrate_route(#{version := 1} = Route) ->
+    Route;
+maybe_migrate_route(Route) when not is_map_key(version, Route) ->
+    LegacyIDs = #{
+        <<"mocketbank">> => 1,
+        <<"royalpay-payout">> => 2,
+        <<"accentpay">> => 3
+    },
+    case maps:get(provider_id, Route) of
+        ProviderID when is_integer(ProviderID) ->
+            Route#{
+                version => 1,
+                provider_id => ProviderID + 300,
+                provider_id_legacy => genlib:to_binary(ProviderID)
+            };
+        ProviderID when is_binary(ProviderID) andalso is_map_key(ProviderID, LegacyIDs) ->
+            ModernID = maps:get(ProviderID, LegacyIDs),
+            Route#{
+                version => 1,
+                provider_id => ModernID + 300,
+                provider_id_legacy => ProviderID
+            };
+        ProviderID when is_binary(ProviderID) ->
+            Route#{
+                version => 1,
+                provider_id => erlang:binary_to_integer(ProviderID) + 300,
+                provider_id_legacy => ProviderID
+            }
+    end.
+
+get_attempt_limit(Withdrawal) ->
+    #{
+        body := Body,
+        params := #{
+            wallet_id := WalletID,
+            destination_id := DestinationID
+        },
+        created_at := Timestamp,
+        party_revision := PartyRevision,
+        domain_revision := DomainRevision,
+        resource := Resource
+    } = Withdrawal,
+    {ok, Wallet} = get_wallet(WalletID),
+    {ok, Destination} = get_destination(DestinationID),
+    Identity = get_wallet_identity(Wallet),
+    PartyID = ff_identity:party(Identity),
+    ContractID = ff_identity:contract(Identity),
+    VarsetParams = genlib_map:compact(#{
+        body => Body,
+        wallet_id => WalletID,
+        party_id => PartyID,
+        destination => Destination,
+        resource => Resource
+    }),
+
+    {ok, Terms} = ff_party:get_contract_terms(
+        PartyID, ContractID, build_party_varset(VarsetParams), Timestamp, PartyRevision, DomainRevision
+    ),
+    #domain_TermSet{wallets = WalletTerms} = Terms,
+    #domain_WalletServiceTerms{withdrawals = WithdrawalTerms} = WalletTerms,
+    #domain_WithdrawalServiceTerms{attempt_limit = AttemptLimit} = WithdrawalTerms,
+    get_attempt_limit_(AttemptLimit).
+
+get_attempt_limit_(undefined) ->
+    %% When attempt_limit is undefined
+    %% do not try all defined providers, if any
+    %% just stop after first one
+    1;
+get_attempt_limit_({value, Limit}) ->
+    ff_dmsl_codec:unmarshal(attempt_limit, Limit).
+
 %% Tests
 
 -ifdef(TEST).
@@ -1669,7 +1756,7 @@ v0_created_migration_test() ->
     ID = genlib:unique(),
     WalletID = genlib:unique(),
     DestinationID = genlib:unique(),
-    ProviderID = genlib:unique(),
+    ProviderID = <<"mocketbank">>,
     Body = {100, <<"RUB">>},
     LegacyEvent = {created, #{
         id          => ID,
@@ -1691,7 +1778,7 @@ v0_created_migration_test() ->
     ?assertEqual(WalletID, wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, destination_id(Withdrawal)),
     ?assertEqual(Body, body(Withdrawal)),
-    ?assertEqual(#{provider_id => ProviderID}, route(Withdrawal)).
+    ?assertEqual(#{version => 1, provider_id => 301, provider_id_legacy => <<"mocketbank">>}, route(Withdrawal)).
 
 -spec v1_created_migration_test() -> _.
 v1_created_migration_test() ->
@@ -1840,5 +1927,15 @@ v3_created_migration_test() ->
     }),
     ?assertEqual(ID, id(Withdrawal)),
     ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Withdrawal)).
+
+-spec v0_route_changed_migration_test() -> _.
+v0_route_changed_migration_test() ->
+    LegacyEvent = {route_changed, #{provider_id => 5}},
+    ModernEvent = {route_changed, #{
+        version => 1,
+        provider_id => 305,
+        provider_id_legacy => <<"5">>
+    }},
+    ?assertEqual(ModernEvent, maybe_migrate(LegacyEvent, #{})).
 
 -endif.

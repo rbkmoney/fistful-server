@@ -63,6 +63,9 @@ marshal(id, V) ->
 marshal(event_id, V) ->
     marshal(integer, V);
 
+marshal(provider_id, V) ->
+    marshal(integer, V);
+
 marshal(blocking, blocked) ->
     blocked;
 marshal(blocking, unblocked) ->
@@ -279,6 +282,9 @@ unmarshal({set, T}, V) ->
 unmarshal(id, V) ->
     unmarshal(string, V);
 unmarshal(event_id, V) ->
+    unmarshal(integer, V);
+
+unmarshal(provider_id, V) ->
     unmarshal(integer, V);
 
 unmarshal(blocking, blocked) ->

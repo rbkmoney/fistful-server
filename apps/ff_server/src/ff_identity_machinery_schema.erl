@@ -11,8 +11,9 @@
 -export([unmarshal/3]).
 
 %% Constants
-
--define(CURRENT_EVENT_FORMAT_VERSION, 1).
+% TODO: Replace version to 1 after migration
+% see https://rbkmoney.atlassian.net/browse/MSPF-561 for details
+-define(CURRENT_EVENT_FORMAT_VERSION, undefined).
 
 %% Internal types
 
@@ -62,6 +63,11 @@ marshal(T, V, C) when
     {data(), context()}.
 unmarshal({event, FormatVersion}, EncodedChange, Context) ->
     unmarshal_event(FormatVersion, EncodedChange, Context);
+
+unmarshal({aux_state, undefined} = T, V, C0) ->
+    {AuxState, C1} = machinery_mg_schema_generic:unmarshal(T, V, C0),
+    {AuxState, C1#{ctx => get_aux_state_ctx(AuxState)}};
+
 unmarshal(T, V, C) when
     T =:= {args, init} orelse
     T =:= {args, call} orelse
@@ -80,14 +86,14 @@ unmarshal(T, V, C) when
 marshal_event(undefined = Version, TimestampedChange, Context) ->
     % TODO: Remove this clause after MSPF-561 finish
     machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange, Context);
-marshal_event(?CURRENT_EVENT_FORMAT_VERSION, TimestampedChange, Context) ->
+marshal_event(1, TimestampedChange, Context) ->
     ThriftChange = ff_identity_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_identity_thrift, 'TimestampedChange'}},
     {{bin, ff_proto_utils:serialize(Type, ThriftChange)}, Context}.
 
 -spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) ->
     {event(), context()}.
-unmarshal_event(?CURRENT_EVENT_FORMAT_VERSION, EncodedChange, Context) ->
+unmarshal_event(1, EncodedChange, Context) ->
     {bin, EncodedThriftChange} = EncodedChange,
     Type = {struct, struct, {ff_proto_identity_thrift, 'TimestampedChange'}},
     ThriftChange = ff_proto_utils:deserialize(Type, EncodedThriftChange),
@@ -106,13 +112,14 @@ unmarshal_event(undefined = Version, EncodedChange, Context) ->
 
 maybe_migrate(Event = {created, #{version := 2}}, _MigrateContext) ->
     Event;
-maybe_migrate({created, Identity = #{version := 1}}, MigrateContext) ->
-    Context = case maps:get(machine_ref, MigrateContext, undefined) of
+maybe_migrate({created, Identity = #{version := 1, id := ID}}, MigrateContext) ->
+    Ctx = maps:get(ctx, MigrateContext, undefined),
+    Context = case Ctx of
         undefined ->
-            undefined;
-        ID ->
-            {ok, State} = ff_machine:get(ff_identity, 'ff/identity', ID, {undefined, 0, forward}),
-            maps:get(ctx, State, undefined)
+            {ok, State} = ff_machine:get(ff_deposit, 'ff/deposit_v1', ID, {undefined, 0, forward}),
+            maps:get(ctx, State, undefined);
+        Data ->
+            Data
     end,
     maybe_migrate({created, genlib_map:compact(Identity#{
         version => 2,
@@ -130,6 +137,11 @@ maybe_migrate({created, Identity}, MigrateContext) ->
     }}, MigrateContext);
 maybe_migrate(Ev, _MigrateContext) ->
     Ev.
+
+get_aux_state_ctx(AuxState) when is_map(AuxState) ->
+    maps:get(ctx, AuxState, undefined);
+get_aux_state_ctx(_) ->
+    undefined.
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -149,19 +161,6 @@ unmarshal(Type, Value) ->
     {Result, _Context} = unmarshal(Type, Value, #{}),
     Result.
 
-% -spec v2_created_migration_test() -> _.
-
-% v2_created_migration_test() ->
-%     ID = genlib:unique(),
-%     LegacyEvent = {created, #{
-%         version       => 2,
-%         id            => ID,
-%         created_at    => ff_time:now()
-%     }},
-%     {created, Identity} = maybe_migrate(LegacyEvent, #{}),
-%     ?assertEqual(ID, ff_identity:id(Identity)),
-%     ?assertEqual(#{<<"some key">> => <<"some val">>}, ff_identity:metadata(Identity)).
-
 -spec created_v0_2_decoding_test() -> _.
 created_v0_2_decoding_test() ->
     Identity = #{
@@ -171,6 +170,7 @@ created_v0_2_decoding_test() ->
         id => <<"ID">>,
         party => <<"PartyID">>,
         provider => <<"good-one">>,
+        metadata => #{<<"some key">> => <<"some val">>},
         version => 2
     },
     Change = {created, Identity},
@@ -206,7 +206,15 @@ created_v0_2_decoding_test() ->
         LegacyChange
     ]},
 
-    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -220,6 +228,7 @@ created_v1_2_decoding_test() ->
         id => <<"ID">>,
         party => <<"PartyID">>,
         provider => <<"good-one">>,
+        metadata => #{<<"some key">> => <<"some val">>},
         version => 2
     },
     Change = {created, Identity},

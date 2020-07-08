@@ -136,7 +136,6 @@
 -type user_interactions_index() :: p2p_user_interaction_utils:index().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
--type legacy_event() :: any().
 %%
 %% API
 %%
@@ -189,16 +188,8 @@ transfer_params(#{transfer_params := V}) ->
 
 %%
 
-% TODO: Replace spec after the first deploy
-% -spec create(id(), transfer_params(), params()) ->
-%     {ok, [event()]}.
--spec create(id(), transfer_params(), params() | (LeagcyParams :: map())) ->
-    {ok, [event() | legacy_event()]}.
-create(ID, TransferParams, #{provider_id := ProviderID} = Params) ->
-    % TODO: Remove this clause after the first deploy
-    Route = #{provider_id => ProviderID + 400},
-    NewParams = (maps:without([provider_id], Params))#{route => Route},
-    create(ID, TransferParams, NewParams);
+-spec create(id(), transfer_params(), params()) ->
+    {ok, [event()]}.
 create(ID, TransferParams, #{
     route := Route,
     domain_revision := DomainRevision,

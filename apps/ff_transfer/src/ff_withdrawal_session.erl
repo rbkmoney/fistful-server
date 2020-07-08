@@ -350,16 +350,8 @@ process_intent({sleep, Timer}) ->
 
 %%
 
-% TODO: Replace spec after the first deploy
-% -spec create_session(id(), data(), params()) ->
-%     session().
--spec create_session(id(), data(), params() | (LeagcyParams :: map())) ->
-    session() | legacy_event().
-create_session(ID, Data, #{provider_id := ProviderID} = Params) ->
-    % TODO: Remove this clause after the first deploy
-    Route = #{provider_id => ProviderID + 300},
-    NewParams = (maps:without([provider_id], Params))#{route => Route},
-    create(ID, Data, NewParams);
+-spec create_session(id(), data(), params()) ->
+    session().
 create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, route := Route}) ->
     #{
         version    => ?ACTUAL_FORMAT_VERSION,

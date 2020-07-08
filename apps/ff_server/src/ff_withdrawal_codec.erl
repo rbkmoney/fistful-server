@@ -128,7 +128,7 @@ marshal(route, Route) ->
     } = Route,
     #wthd_Route{
         provider_id = marshal(provider_id, ProviderID),
-        provider_id_legacy = marshal(string, genlib_map:get(provider_id_legacy, Route))
+        provider_id_legacy = marshal(string, get_legacy_provider_id(Route))
     };
 
 marshal(status, Status) ->
@@ -252,6 +252,11 @@ maybe_marshal(_Type, undefined) ->
     undefined;
 maybe_marshal(Type, Value) ->
     marshal(Type, Value).
+
+get_legacy_provider_id(#{provider_id_legacy := Provider}) when is_binary(Provider) ->
+    Provider;
+get_legacy_provider_id(#{provider_id := Provider}) when is_integer(Provider) ->
+    genlib:to_binary(Provider - 300).
 
 %% TESTS
 

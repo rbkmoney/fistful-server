@@ -119,16 +119,20 @@ validate_terms(Provider, Terminal, PartyVarset) ->
     do(fun () ->
         ProviderTerms = ff_payouts_provider:provision_terms(Provider),
         TerminalTerms = ff_payouts_terminal:provision_terms(Terminal),
+        _ = unwrap(assert_terms_defined(TerminalTerms, ProviderTerms)),
         CombinedTerms = merge_withdrawal_terms(ProviderTerms, TerminalTerms),
         unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
     end).
 
--spec validate_combined_terms(withdrawal_provision_terms() | undefined, hg_selector:varset()) ->
+assert_terms_defined(undefined, undefined) ->
+    {error, terms_undefined};
+assert_terms_defined(_, _) ->
+    {ok, valid}.
+
+-spec validate_combined_terms(withdrawal_provision_terms(), hg_selector:varset()) ->
     {ok, valid} |
     {error, Error :: term()}.
 
-validate_combined_terms(undefined, _PartyVarset) ->
-    {error, terms_undefined};
 validate_combined_terms(CombinedTerms, PartyVarset) ->
     do(fun () ->
         #domain_WithdrawalProvisionTerms{

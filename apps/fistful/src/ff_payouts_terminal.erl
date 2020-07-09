@@ -10,10 +10,6 @@
     risk_coverage => atom(),
     provider_ref => dmsl_domain_thrift:'ProviderRef'(),
     terms => dmsl_domain_thrift:'ProvisionTermSet'()
-    %id := id(),
-    %provider_ref => ff_payouts_provider:withdrawal_provider_ref(),
-    %withdrawal_terms => dmsl_domain_thrift:'WithdrawalProvisionTerms'(),
-    %adapter_opts => map()
 }.
 
 -type id() :: dmsl_domain_thrift:'ObjectID'().

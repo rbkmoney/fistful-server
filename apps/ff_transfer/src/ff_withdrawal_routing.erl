@@ -119,21 +119,16 @@ validate_terms(Provider, Terminal, PartyVarset) ->
     do(fun () ->
         ProviderTerms = ff_payouts_provider:provision_terms(Provider),
         TerminalTerms = ff_payouts_terminal:provision_terms(Terminal),
-        _ = unwrap(assert_terms_defined(ProviderTerms, TerminalTerms)),
-        CombinedTerms = get_combined_terms(ProviderTerms, TerminalTerms),
+        CombinedTerms = merge_withdrawal_terms(ProviderTerms, TerminalTerms),
         unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
     end).
 
-assert_terms_defined(undefined, undefined) ->
-    %% Missing withdrawal_terms mean that operations for this provider and terminal are forbidden
-    {error, terms_undefined};
-assert_terms_defined(_, _) ->
-    ok.
-
--spec validate_combined_terms(withdrawal_provision_terms(), hg_selector:varset()) ->
+-spec validate_combined_terms(withdrawal_provision_terms() | undefined, hg_selector:varset()) ->
     {ok, valid} |
     {error, Error :: term()}.
 
+validate_combined_terms(undefined, _PartyVarset) ->
+    {error, terms_undefined};
 validate_combined_terms(CombinedTerms, PartyVarset) ->
     do(fun () ->
         #domain_WithdrawalProvisionTerms{
@@ -147,12 +142,6 @@ validate_combined_terms(CombinedTerms, PartyVarset) ->
         valid = unwrap(validate_currencies(CurrenciesSelector, PartyVarset)),
         valid = unwrap(validate_cash_limit(CashLimitSelector, PartyVarset))
     end).
-
--spec get_combined_terms(Terms, Terms) -> withdrawal_provision_terms() when
-    Terms :: ff_maybe:maybe(withdrawal_provision_terms()).
-
-get_combined_terms(ProviderTerms, TerminalTerms) ->
-    merge_withdrawal_terms(ProviderTerms, TerminalTerms).
 
 -spec validate_selectors_defined(withdrawal_provision_terms()) ->
     {ok, valid} |

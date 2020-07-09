@@ -64,7 +64,7 @@ marshal(withdrawal, Params = #{
 marshal(route, Route) ->
     #wthd_session_Route{
         provider_id = marshal(provider_id, maps:get(provider_id, Route)),
-        terminal_id = maybe_marshal(terminal_id, genlib_map:get(terminal_id, Route))
+        terminal_id = marshal(terminal_id, genlib_map:get(terminal_id, Route))
     };
 
 marshal(msgpack_value, V) ->

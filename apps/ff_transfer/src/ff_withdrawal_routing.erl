@@ -11,7 +11,8 @@
 -type route() :: #{
     version := 1,
     provider_id := provider_id(),
-    terminal_id => terminal_id()
+    terminal_id => terminal_id(),
+    provider_id_legacy => provider_id()
 }.
 
 -export_type([route/0]).

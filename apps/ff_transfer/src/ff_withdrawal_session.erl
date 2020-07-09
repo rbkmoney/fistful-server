@@ -349,9 +349,8 @@ process_intent({sleep, Timer}) ->
 
 %%
 
-
 -spec create_session(id(), data(), params()) ->
-     session().
+    session().
 create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, route := Route}) ->
     #{
         version    => ?ACTUAL_FORMAT_VERSION,

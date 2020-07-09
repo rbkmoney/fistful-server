@@ -31,7 +31,7 @@ marshal(session, Session) ->
         status = marshal(session_status, SessionStatus),
         withdrawal = marshal(withdrawal, Withdrawal),
         route = marshal(route, Route),
-        provider_legacy = maybe_marshal(string, genlib_map:get(provider_legacy, Session))
+        provider_legacy = marshal(string, get_legacy_provider_id(Session))
     };
 
 marshal(session_status, active) ->
@@ -193,7 +193,7 @@ maybe_unmarshal(_Type, undefined) ->
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
 
-maybe_marshal(_Type, undefined) ->
-    undefined;
-maybe_marshal(Type, Value) ->
-    marshal(Type, Value).
+get_legacy_provider_id(#{provider_legacy := Provider}) when is_binary(Provider) ->
+    Provider;
+get_legacy_provider_id(#{route := #{provider_id := Provider}}) when is_integer(Provider) ->
+    genlib:to_binary(Provider - 300).

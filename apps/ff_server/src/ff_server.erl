@@ -203,7 +203,7 @@ get_eventsink_handler(Name, Service, Publisher, Config) ->
     end.
 
 get_namespace_schema('ff/identity') ->
-    machinery_mg_schema_generic;
+    ff_identity_machinery_schema;
 get_namespace_schema('ff/wallet_v2') ->
     ff_wallet_machinery_schema;
 get_namespace_schema('ff/source_v1') ->
@@ -211,7 +211,7 @@ get_namespace_schema('ff/source_v1') ->
 get_namespace_schema('ff/destination_v2') ->
     ff_destination_machinery_schema;
 get_namespace_schema('ff/deposit_v1') ->
-    machinery_mg_schema_generic;
+    ff_deposit_machinery_schema;
 get_namespace_schema('ff/withdrawal_v2') ->
     machinery_mg_schema_generic;
 get_namespace_schema('ff/withdrawal/session_v2') ->
@@ -219,9 +219,9 @@ get_namespace_schema('ff/withdrawal/session_v2') ->
 get_namespace_schema('ff/p2p_transfer_v1') ->
     ff_p2p_transfer_machinery_schema;
 get_namespace_schema('ff/p2p_transfer/session_v1') ->
-    machinery_mg_schema_generic;
+    ff_p2p_session_machinery_schema;
 get_namespace_schema('ff/w2w_transfer_v1') ->
-    machinery_mg_schema_generic;
+    ff_w2w_transfer_machinery_schema;
 get_namespace_schema('ff/p2p_template_v1') ->
     ff_p2p_template_machinery_schema.
 

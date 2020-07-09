@@ -14,22 +14,19 @@
 -export([create/3]).
 -export([process_session/1]).
 
--export([get_adapter_with_opts/1]).
-
 -export([process_callback/2]).
 
 %% Accessors
 
 -export([id/1]).
 -export([transfer_params/1]).
--export([adapter/1]).
 -export([adapter_state/1]).
 -export([party_revision/1]).
 -export([domain_revision/1]).
+-export([route/1]).
 
 %% ff_machine
 -export([apply_event/2]).
--export([maybe_migrate/2]).
 -export([init/2]).
 
 %% ff_repair
@@ -48,7 +45,6 @@
     route := route(),
     domain_revision := domain_revision(),
     party_revision := party_revision(),
-    adapter := adapter_with_opts(),
     adapter_state => adapter_state(),
     callbacks => callbacks_index(),
     user_interactions => user_interactions_index(),
@@ -131,7 +127,6 @@
 -type result() :: machinery:result(event(), auxst()).
 -type action() :: machinery:action().
 -type adapter_with_opts() :: {ff_p2p_provider:adapter(), ff_p2p_provider:adapter_opts()}.
--type legacy_event() :: any().
 
 -type callbacks_index() :: p2p_callback_utils:index().
 -type unknown_p2p_callback_error() :: p2p_callback_utils:unknown_callback_error().
@@ -141,7 +136,6 @@
 -type user_interactions_index() :: p2p_user_interaction_utils:index().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
-
 %%
 %% API
 %%
@@ -174,6 +168,10 @@ party_revision(#{party_revision := PartyRevision}) ->
 domain_revision(#{domain_revision := DomainRevision}) ->
     DomainRevision.
 
+-spec route(session()) -> route().
+route(#{route := Route}) ->
+    Route.
+
 %% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
 %% изменением дочерних сущностей, например запуском adjustment.
 -spec is_finished(session()) -> boolean().
@@ -188,22 +186,10 @@ is_finished(#{status := active}) ->
 transfer_params(#{transfer_params := V}) ->
     V.
 
--spec adapter(session()) -> adapter_with_opts().
-adapter(#{adapter := V}) ->
-    V.
-
 %%
 
-% TODO: Replace spec after the first deploy
-% -spec create(id(), transfer_params(), params()) ->
-%     {ok, [event()]}.
--spec create(id(), transfer_params(), params() | (LeagcyParams :: map())) ->
-    {ok, [event() | legacy_event()]}.
-create(ID, TransferParams, #{provider_id := ProviderID} = Params) ->
-    % TODO: Remove this clause after the first deploy
-    Route = #{provider_id => ProviderID + 400},
-    NewParams = (maps:without([provider_id], Params))#{route => Route},
-    create(ID, TransferParams, NewParams);
+-spec create(id(), transfer_params(), params()) ->
+    {ok, [event()]}.
 create(ID, TransferParams, #{
     route := Route,
     domain_revision := DomainRevision,
@@ -216,19 +202,19 @@ create(ID, TransferParams, #{
         transfer_params => TransferParams,
         domain_revision => DomainRevision,
         party_revision => PartyRevision,
-        adapter => get_adapter_with_opts(maps:get(provider_id, Route)),
         status => active
     },
     {ok, [{created, Session}]}.
 
--spec get_adapter_with_opts(ff_p2p_provider:id()) -> adapter_with_opts().
-get_adapter_with_opts(ProviderID) ->
-    {ok, Provider} =  ff_p2p_provider:get(ProviderID),
+-spec get_adapter_with_opts(session()) -> adapter_with_opts().
+get_adapter_with_opts(SessionState) ->
+    #{provider_id := ProviderID} = route(SessionState),
+    {ok, Provider} =  ff_p2p_provider:get(head, ProviderID),
     {ff_p2p_provider:adapter(Provider), ff_p2p_provider:adapter_opts(Provider)}.
 
 -spec process_session(session()) -> result().
 process_session(Session) ->
-    {Adapter, _AdapterOpts} = adapter(Session),
+    {Adapter, _AdapterOpts} = get_adapter_with_opts(Session),
     Context = p2p_adapter:build_context(collect_build_context_params(Session)),
     {ok, ProcessResult} = p2p_adapter:process(Adapter, Context),
     #{intent := Intent} = ProcessResult,
@@ -323,7 +309,7 @@ process_callback(#{tag := CallbackTag} = Params, Session) ->
                 active ->
                     do_process_callback(Params, Callback, Session);
                 {finished, _} ->
-                    {_Adapter, _AdapterOpts} = adapter(Session),
+                    {_Adapter, _AdapterOpts} = get_adapter_with_opts(Session),
                     Context = p2p_adapter:build_context(collect_build_context_params(Session)),
                     {error, {{session_already_finished, Context}, #{}}}
             end
@@ -338,7 +324,7 @@ find_callback(CallbackTag, Session) ->
     {ok, {process_callback_response(), result()}}.
 
 do_process_callback(Params, Callback, Session) ->
-    {Adapter, _AdapterOpts} = adapter(Session),
+    {Adapter, _AdapterOpts} = get_adapter_with_opts(Session),
     Context = p2p_adapter:build_context(collect_build_context_params(Session)),
     {ok, HandleCallbackResult} = p2p_adapter:handle_callback(Adapter, Params, Context),
     #{intent := Intent, response := Response} = HandleCallbackResult,
@@ -377,7 +363,7 @@ user_interactions_index(Session) ->
 -spec collect_build_context_params(session()) ->
     p2p_adapter:build_context_params().
 collect_build_context_params(Session) ->
-    {_Adapter, AdapterOpts} = adapter(Session),
+    {_Adapter, AdapterOpts} = get_adapter_with_opts(Session),
     #{
         id              => id(Session),
         adapter_state   => adapter_state(Session),
@@ -435,50 +421,6 @@ set_user_interactions_index(UserInteractions, Session) ->
 -spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->
     Session#{status => SessionState}.
-
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
-    event().
-
-maybe_migrate({created, #{version := 2} = Session}, MigrateParams) ->
-    #{
-        version := 2,
-        provider_id := ProviderID
-    } = Session,
-    NewSession = (maps:without([provider_id], Session))#{
-        version => 3,
-        route => #{provider_id => ProviderID + 400},
-        provider_id_legacy => ProviderID
-    },
-    maybe_migrate({created, NewSession}, MigrateParams);
-maybe_migrate({created, #{version := 1} = Session}, MigrateParams) ->
-    #{
-        version := 1,
-        transfer_params := #{
-            sender := Sender,
-            receiver := Receiver
-        } = Params
-    } = Session,
-    maybe_migrate({created, genlib_map:compact(Session#{
-        version => 2,
-        transfer_params => Params#{
-            sender => maybe_migrate_resource(Sender),
-            receiver => maybe_migrate_resource(Receiver)
-        }
-    })}, MigrateParams);
-% Other events
-maybe_migrate({callback, _Ev} = Event, _MigrateParams) ->
-    p2p_callback_utils:maybe_migrate(Event);
-maybe_migrate({user_interaction, _Ev} = Event, _MigrateParams) ->
-    p2p_user_interaction_utils:maybe_migrate(Event);
-maybe_migrate(Ev, _MigrateParams) ->
-    Ev.
-
-maybe_migrate_resource({crypto_wallet, #{id := _ID} = CryptoWallet}) ->
-    maybe_migrate_resource({crypto_wallet, #{crypto_wallet => CryptoWallet}});
-maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
-    maybe_migrate_resource({bank_card, #{bank_card => BankCard}});
-maybe_migrate_resource(Resource) ->
-    Resource.
 
 -spec init(session(), action()) ->
     {list(event()), action() | undefined}.

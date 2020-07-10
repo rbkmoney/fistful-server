@@ -63,7 +63,8 @@ marshal(withdrawal, Params = #{
 
 marshal(route, Route) ->
     #wthd_session_Route{
-        provider_id = marshal(provider_id, maps:get(provider_id, Route))
+        provider_id = marshal(provider_id, maps:get(provider_id, Route)),
+        terminal_id = maybe_marshal(terminal_id, genlib_map:get(terminal_id, Route))
     };
 
 marshal(msgpack_value, V) ->
@@ -158,7 +159,8 @@ unmarshal(withdrawal, #wthd_session_Withdrawal{
 
 unmarshal(route, Route) ->
     #{
-        provider_id => unmarshal(provider_id, Route#wthd_session_Route.provider_id)
+        provider_id => unmarshal(provider_id, Route#wthd_session_Route.provider_id),
+        terminal_id => maybe_unmarshal(terminal_id, Route#wthd_session_Route.terminal_id)
     };
 
 unmarshal(msgpack_value, V) ->
@@ -190,6 +192,11 @@ maybe_unmarshal(_Type, undefined) ->
     undefined;
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
 
 get_legacy_provider_id(#{provider_legacy := Provider}) when is_binary(Provider) ->
     Provider;

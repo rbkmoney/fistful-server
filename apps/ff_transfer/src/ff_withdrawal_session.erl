@@ -14,6 +14,7 @@
 -export([process_session/1]).
 
 -export([get_adapter_with_opts/1]).
+-export([get_adapter_with_opts/2]).
 
 %% ff_machine
 -export([apply_event/2]).
@@ -58,9 +59,7 @@
     quote_data => ff_adapter_withdrawal:quote_data()
 }.
 
--type route() :: #{
-    provider_id := ff_payouts_provider:id()
-}.
+-type route() :: ff_withdrawal_routing:route().
 
 -type params() :: #{
     resource := ff_destination:resource_full(),
@@ -358,14 +357,31 @@ create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, route := Ro
         id         => ID,
         withdrawal => create_adapter_withdrawal(Data, Res, WdthID),
         route      => Route,
-        adapter    => get_adapter_with_opts(maps:get(provider_id, Route)),
+        adapter    => get_adapter_with_opts(Route),
         status     => active
     }.
 
--spec get_adapter_with_opts(ff_payouts_provider:id()) -> adapter_with_opts().
-get_adapter_with_opts(ProviderID) when is_integer(ProviderID) ->
-    {ok, Provider} =  ff_payouts_provider:get(ProviderID),
-    {ff_payouts_provider:adapter(Provider), ff_payouts_provider:adapter_opts(Provider)}.
+-spec get_adapter_with_opts(ff_withdrawal_routing:route()) ->
+    adapter_with_opts().
+get_adapter_with_opts(Route) ->
+    ProviderID = ff_withdrawal_routing:get_provider(Route),
+    TerminalID = ff_withdrawal_routing:get_terminal(Route),
+    get_adapter_with_opts(ProviderID, TerminalID).
+
+-spec get_adapter_with_opts(ProviderID, TerminalID) -> adapter_with_opts() when
+    ProviderID :: ff_payouts_provider:id(),
+    TerminalID :: ff_payouts_terminal:id() | undefined.
+get_adapter_with_opts(ProviderID, TerminalID) when is_integer(ProviderID) ->
+    {ok, Provider} = ff_payouts_provider:get(ProviderID),
+    ProviderOpts = ff_payouts_provider:adapter_opts(Provider),
+    TerminalOpts = get_adapter_terminal_opts(TerminalID),
+    {ff_payouts_provider:adapter(Provider), maps:merge(TerminalOpts, ProviderOpts)}.
+
+get_adapter_terminal_opts(undefined) ->
+    #{};
+get_adapter_terminal_opts(TerminalID) ->
+    {ok, Terminal} = ff_payouts_terminal:get(TerminalID),
+    ff_payouts_terminal:adapter_opts(Terminal).
 
 create_adapter_withdrawal(#{id := SesID} = Data, Resource, WdthID) ->
     Data#{resource => Resource, id => WdthID, session_id => SesID}.

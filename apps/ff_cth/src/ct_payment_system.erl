@@ -374,6 +374,13 @@ domain_config(Options, C) ->
                 identity                  = payment_inst_identity_id(Options),
                 withdrawal_providers      = {decisions, [
                     #domain_ProviderDecision{
+                        if_   = {condition, {cost_in, ?cashrng(
+                            {inclusive, ?cash(123123, <<"RUB">>)},
+                            {inclusive, ?cash(123123, <<"RUB">>)}
+                        )}},
+                        then_ = {value, [?prv(16)]}
+                    },
+                    #domain_ProviderDecision{
                         if_ = {condition, {cost_in, #domain_CashRange{
                             upper = {inclusive, #domain_Cash{
                                 amount = 100500,
@@ -504,12 +511,17 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_provider(?prv(6), ?prx(6), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(7), ?prx(6), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(8), ?prx(2), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(16), ?prx(2), provider_identity_id(Options), C),
         ct_domain:p2p_provider(?prv(101), ?prx(5), dummy_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
         ct_domain:term_set_hierarchy(?trms(1), [ct_domain:timed_term_set(default_termset(Options))]),
         ct_domain:contract_template(?tmpl(2), ?trms(2)),
         ct_domain:term_set_hierarchy(?trms(2), [ct_domain:timed_term_set(company_termset(Options))]),
+
+        ct_domain:withdrawal_terminal(?trm(1)),
+        ct_domain:withdrawal_terminal(?trm(6)),
+        ct_domain:withdrawal_terminal(?trm(7)),
 
         ct_domain:currency(?cur(<<"RUB">>)),
         ct_domain:currency(?cur(<<"USD">>)),

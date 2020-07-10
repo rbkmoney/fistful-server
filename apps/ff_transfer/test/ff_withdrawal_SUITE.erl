@@ -20,6 +20,8 @@
 -export([session_fail_test/1]).
 -export([quote_fail_test/1]).
 -export([route_not_found_fail_test/1]).
+-export([provider_operations_forbidden_fail_test/1]).
+-export([misconfigured_terminal_fail_test/1]).
 -export([limit_check_fail_test/1]).
 -export([create_cashlimit_validation_error_test/1]).
 -export([create_wallet_currency_validation_error_test/1]).
@@ -70,6 +72,8 @@ groups() ->
             session_fail_test,
             quote_fail_test,
             route_not_found_fail_test,
+            provider_operations_forbidden_fail_test,
+            misconfigured_terminal_fail_test,
             limit_check_fail_test,
             create_cashlimit_validation_error_test,
             create_wallet_currency_validation_error_test,
@@ -182,7 +186,8 @@ session_fail_test(C) ->
             quote_data  => #{
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"error">>},
-                <<"provider_id">> => 3
+                <<"provider_id">> => 3,
+                <<"terminal_id">> => 1
             }
         }
     },
@@ -212,7 +217,8 @@ quote_fail_test(C) ->
             quote_data  => #{
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 10
+                <<"provider_id">> => 10,
+                <<"terminal_id">> => 10
             }
         }
     },
@@ -228,6 +234,43 @@ route_not_found_fail_test(C) ->
         wallet_id := WalletID,
         destination_id := DestinationID
     } = prepare_standard_environment(Cash, <<"USD_COUNTRY">>, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    Result = await_final_withdrawal_status(WithdrawalID),
+    ?assertMatch({failed, #{code := <<"no_route_found">>}}, Result).
+
+
+-spec provider_operations_forbidden_fail_test(config()) -> test_return().
+provider_operations_forbidden_fail_test(C) ->
+    Cash = {123123, <<"RUB">>},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    Result = await_final_withdrawal_status(WithdrawalID),
+    ?assertMatch({failed, #{code := <<"no_route_found">>}}, Result).
+
+-spec misconfigured_terminal_fail_test(config()) -> test_return().
+misconfigured_terminal_fail_test(C) ->
+    Cash = {3500000, <<"RUB">>},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -435,7 +478,8 @@ quota_ok_test(C) ->
             quote_data  => #{
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 1
+                <<"provider_id">> => 1,
+                <<"terminal_id">> => 1
             }
         }
     },
@@ -511,6 +555,7 @@ use_quota_revisions_test(C) ->
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"test">>},
                 <<"provider_id">> => 1,
+                <<"terminal_id">> => 1,
                 <<"timestamp">> => Time,
                 <<"domain_revision">> => DomainRevision,
                 <<"party_revision">> => PartyRevision
@@ -568,7 +613,7 @@ await_final_withdrawal_status(WithdrawalID) ->
                     finished
             end
         end,
-        genlib_retry:linear(10, 1000)
+        genlib_retry:linear(20, 1000)
     ),
     get_withdrawal_status(WithdrawalID).
 

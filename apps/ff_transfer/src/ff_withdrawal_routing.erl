@@ -26,6 +26,7 @@
 
 -type terminal_id()  :: ff_payouts_terminal:id().
 -type terminal()     :: ff_payouts_terminal:terminal().
+-type terminal_priority() :: ff_payouts_terminal:terminal_priority().
 
 -type withdrawal_provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
 -type currency_selector() :: dmsl_domain_thrift:'CurrencySelector'().
@@ -69,48 +70,54 @@ get_terminal(Route) ->
 
 filter_routes(Providers, PartyVarset) ->
     do(fun() ->
-        unwrap(filter_routes_(Providers, PartyVarset, []))
+        unwrap(filter_routes_(Providers, PartyVarset, #{}))
     end).
 
-filter_routes_([], _PartyVarset, []) ->
+filter_routes_([], _PartyVarset, Acc) when map_size(Acc) == 0->
     {error, route_not_found};
 filter_routes_([], _PartyVarset, Acc) ->
-    {ok, Acc};
+    {ok, convert_to_route(Acc)};
 filter_routes_([ProviderID | Rest], PartyVarset, Acc0) ->
     Provider = unwrap(ff_payouts_provider:get(ProviderID)),
-    {ok, Terminals} = get_provider_terminals(Provider, PartyVarset),
-    Acc = case get_valid_terminals(Terminals, Provider, PartyVarset, []) of
+    {ok, TerminalsWithPriority} = get_provider_terminals_with_priority(Provider, PartyVarset),
+    Acc = case get_valid_terminals_with_priority(TerminalsWithPriority, Provider, PartyVarset, []) of
         [] ->
             Acc0;
-        TerminalIDs ->
-            Routes = [make_route(ProviderID, TerminalID) || TerminalID <- TerminalIDs],
-            Acc0 ++ Routes
+        TPL ->
+            lists:foldl(
+                fun({TerminalID, Priority}, Acc1) ->
+                    Terms = maps:get(Priority, Acc1, []),
+                    maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc1)
+                end,
+                Acc0,
+                TPL
+            )
     end,
     filter_routes_(Rest, PartyVarset, Acc).
 
--spec get_provider_terminals(provider(), party_varset()) ->
-    {ok, [terminal_id()]}.
+-spec get_provider_terminals_with_priority(provider(), party_varset()) ->
+    {ok, [{terminal_id(), terminal_priority()}]}.
 
-get_provider_terminals(Provider, VS) ->
-    case ff_payouts_provider:compute_withdrawal_terminals(Provider, VS) of
-        {ok, Terminals}  ->
-            {ok, Terminals};
+get_provider_terminals_with_priority(Provider, VS) ->
+    case ff_payouts_provider:compute_withdrawal_terminals_with_priority(Provider, VS) of
+        {ok, TerminalsWithPriority}  ->
+            {ok, TerminalsWithPriority};
         {error, {misconfiguration, _Details} = Error} ->
             _ = logger:warning("Provider terminal search failed: ~p", [Error]),
             {ok, []}
     end.
 
-get_valid_terminals([], _Provider, _PartyVarset, Acc) ->
+get_valid_terminals_with_priority([], _Provider, _PartyVarset, Acc) ->
     Acc;
-get_valid_terminals([TerminalID | Rest], Provider, PartyVarset, Acc0) ->
+get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, PartyVarset, Acc0) ->
     Terminal = unwrap(ff_payouts_terminal:get(TerminalID)),
     Acc = case validate_terms(Provider, Terminal, PartyVarset) of
         {ok, valid} ->
-            [TerminalID | Acc0];
+            [{TerminalID, Priority} | Acc0];
         {error, _Error} ->
             Acc0
     end,
-    get_valid_terminals(Rest, Provider, PartyVarset, Acc).
+    get_valid_terminals_with_priority(Rest, Provider, PartyVarset, Acc).
 
 -spec validate_terms(provider(), terminal(), hg_selector:varset()) ->
     {ok, valid} |
@@ -224,3 +231,13 @@ merge_withdrawal_terms(
     };
 merge_withdrawal_terms(ProviderTerms, TerminalTerms) ->
     ff_maybe:get_defined(TerminalTerms, ProviderTerms).
+
+convert_to_route(ProviderTerminalMap) ->
+    lists:foldl(
+        fun({_, Data}, Acc) ->
+            SortedRoutes = [make_route(P, T) || {P, T} <- lists:sort(Data)],
+            SortedRoutes ++ Acc
+        end,
+        [],
+        lists:keysort(1, maps:to_list(ProviderTerminalMap))
+    ).

@@ -162,22 +162,40 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
             accounts = #{
                 ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
             },
-            terminal = {decisions, [
-                #domain_TerminalDecision{
-                    if_   = {condition, {cost_in, ?cashrng(
-                        {inclusive, ?cash(      0, <<"RUB">>)},
-                        {exclusive, ?cash(1000000, <<"RUB">>)}
-                    )}},
-                    then_ = {value, [?prv_trm(1)]}
-                },
-                #domain_TerminalDecision{
-                    if_   = {condition, {cost_in, ?cashrng(
-                        {inclusive, ?cash( 3000000, <<"RUB">>)},
-                        {exclusive, ?cash(10000000, <<"RUB">>)}
-                    )}},
-                    then_ = {value, [?prv_trm(7)]}
-                }
-            ]}
+            terminal =
+                case Ref of
+                    ?prv(9) ->
+                        {decisions, [
+                            #domain_TerminalDecision{
+                                if_   = {constant, true},
+                                then_ = {value, [?prv_trm(1, 500)]}
+                            }
+                        ]};
+                    ?prv(10) ->
+                        {decisions, [
+                            #domain_TerminalDecision{
+                                if_   = {constant, true},
+                                then_ = {value, [?prv_trm(1)]}
+                            }
+                        ]};
+                    _ ->
+                        {decisions, [
+                            #domain_TerminalDecision{
+                                if_   = {condition, {cost_in, ?cashrng(
+                                    {inclusive, ?cash(      0, <<"RUB">>)},
+                                    {exclusive, ?cash(1000000, <<"RUB">>)}
+                                )}},
+                                then_ = {value, [?prv_trm(1)]}
+                            },
+                            #domain_TerminalDecision{
+                                if_   = {condition, {cost_in, ?cashrng(
+                                    {inclusive, ?cash( 3000000, <<"RUB">>)},
+                                    {exclusive, ?cash(10000000, <<"RUB">>)}
+                                )}},
+                                then_ = {value, [?prv_trm(7)]}
+                            }
+                        ]}
+                end
         }
     }}.
 

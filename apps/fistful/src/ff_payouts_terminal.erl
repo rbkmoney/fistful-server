@@ -13,6 +13,7 @@
 }.
 
 -type id() :: dmsl_domain_thrift:'ObjectID'().
+-type terminal_priority() :: integer() | undefined.
 
 -type terminal_ref() :: dmsl_domain_thrift:'TerminalRef'().
 -type term_set() :: dmsl_domain_thrift:'ProvisionTermSet'().
@@ -21,6 +22,7 @@
 -export_type([id/0]).
 -export_type([terminal/0]).
 -export_type([terminal_ref/0]).
+-export_type([terminal_priority/0]).
 
 -export([adapter_opts/1]).
 -export([terms/1]).

@@ -101,7 +101,7 @@ start_processing_apps(Options) ->
                 {
                     <<"/downbank2">>,
                     {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'},
-                        {ff_ct_provider_handler, [{handler, ff_ct_fail2_provider}]}}
+                        {ff_ct_provider_handler, [{handler, ff_ct_unknown_failure_provider}]}}
                 },
                 {
                     P2PAdapterAdr,

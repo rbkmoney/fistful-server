@@ -1,4 +1,4 @@
--module(ff_ct_fail2_provider).
+-module(ff_ct_unknown_failure_provider).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").

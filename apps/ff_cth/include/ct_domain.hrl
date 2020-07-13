@@ -13,6 +13,7 @@
 -define(prv(ID),        #domain_ProviderRef{id = ID}).
 -define(trm(ID),        #domain_TerminalRef{id = ID}).
 -define(prv_trm(ID),    #domain_ProviderTerminalRef{id = ID}).
+-define(prv_trm(ID, P), #domain_ProviderTerminalRef{id = ID, priority = P}).
 -define(tmpl(ID),       #domain_ContractTemplateRef{id = ID}).
 -define(trms(ID),       #domain_TermSetHierarchyRef{id = ID}).
 -define(sas(ID),        #domain_SystemAccountSetRef{id = ID}).

@@ -99,6 +99,11 @@ start_processing_apps(Options) ->
                         {ff_ct_provider_handler, [{handler, ff_ct_fail_provider}]}}
                 },
                 {
+                    <<"/downbank2">>,
+                    {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'},
+                        {ff_ct_provider_handler, [{handler, ff_ct_fail2_provider}]}}
+                },
+                {
                     P2PAdapterAdr,
                     {{dmsl_p2p_adapter_thrift, 'P2PAdapter'}, {p2p_ct_provider_handler, []}}
                 },
@@ -407,6 +412,19 @@ domain_config(Options, C) ->
                         then_ = {value, [?prv(4), ?prv(6), ?prv(7), ?prv(8)]}
                     },
                     #domain_ProviderDecision{
+                        if_ = {condition, {cost_in, #domain_CashRange{
+                            upper = {inclusive, #domain_Cash{
+                                amount = 500500,
+                                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+                            }},
+                            lower = {inclusive, #domain_Cash{
+                                amount = 500500,
+                                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
+                            }}
+                        }}},
+                        then_ = {value, [?prv(9), ?prv(10)]}
+                    },
+                    #domain_ProviderDecision{
                         if_ = {
                             condition,
                             {payment_tool, {bank_card, #domain_BankCardCondition{
@@ -502,6 +520,7 @@ domain_config(Options, C) ->
         ct_domain:proxy(?prx(4), <<"P2P inspector proxy">>, <<"http://localhost:8222/p2p_inspector">>),
         ct_domain:proxy(?prx(5), <<"P2P adapter">>, <<"http://localhost:8222", P2PAdapterAdr/binary>>),
         ct_domain:proxy(?prx(6), <<"Down proxy">>, <<"http://localhost:8222/downbank">>),
+        ct_domain:proxy(?prx(7), <<"Another down proxy">>, <<"http://localhost:8222/downbank2">>),
 
         ct_domain:withdrawal_provider(?prv(1), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(2), ?prx(2), provider_identity_id(Options), C),
@@ -511,6 +530,8 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_provider(?prv(6), ?prx(6), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(7), ?prx(6), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(8), ?prx(2), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(9), ?prx(7), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(10), ?prx(6), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(16), ?prx(2), provider_identity_id(Options), C),
         ct_domain:p2p_provider(?prv(101), ?prx(5), dummy_provider_identity_id(Options), C),
 

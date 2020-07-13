@@ -76,7 +76,7 @@ filter_routes(Providers, PartyVarset) ->
 filter_routes_([], _PartyVarset, Acc) when map_size(Acc) == 0->
     {error, route_not_found};
 filter_routes_([], _PartyVarset, Acc) ->
-    {ok, sort_routes(Acc)};
+    {ok, convert_to_route(Acc)};
 filter_routes_([ProviderID | Rest], PartyVarset, Acc0) ->
     Provider = unwrap(ff_payouts_provider:get(ProviderID)),
     {ok, TerminalsWithPriority} = get_provider_terminals_with_priority(Provider, PartyVarset),
@@ -232,7 +232,7 @@ merge_withdrawal_terms(
 merge_withdrawal_terms(ProviderTerms, TerminalTerms) ->
     ff_maybe:get_defined(TerminalTerms, ProviderTerms).
 
-sort_routes(ProviderTerminalMap) ->
+convert_to_route(ProviderTerminalMap) ->
     lists:foldl(
         fun({_, Data}, Acc) ->
             SortedRoutes = [make_route(P, T) || {P, T} <- lists:sort(Data)],

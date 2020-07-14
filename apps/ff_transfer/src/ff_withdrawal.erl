@@ -114,7 +114,8 @@
     created_at      => ff_time:timestamp_ms(),
     party_revision  => party_revision(),
     domain_revision => domain_revision(),
-    metadata        => metadata()
+    metadata        => metadata(),
+    version         => non_neg_integer()
 }.
 
 -type limit_check_details() ::
@@ -209,7 +210,7 @@
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/2]).
+% -export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -363,7 +364,7 @@ metadata(T) ->
 gen(Args) ->
     TypeKeys = [
         id, transfer_type, body, params, external_id,
-        domain_revision, party_revision, created_at, route, metadata
+        domain_revision, party_revision, created_at, route, metadata, version
     ],
     genlib_map:compact(maps:with(TypeKeys, Args)).
 
@@ -1552,134 +1553,6 @@ apply_event_({route_changed, Route}, T) ->
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
 
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
-    event().
-% Actual events
-maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
-    Ev;
-maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
-    Ev;
-maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}, _MigrateParams) ->
-    Ev;
-maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}, _MigrateParams) ->
-    Ev;
-maybe_migrate({route_changed, Route}, _MigrateParams) ->
-    {route_changed, maybe_migrate_route(Route)};
-maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
-    {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
-maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
-    ff_adjustment_utils:maybe_migrate(Event);
-maybe_migrate({resource_got, Resource}, _MigrateParams) ->
-    {resource_got, ff_instrument:maybe_migrate_resource(Resource)};
-
-% Old events
-maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->
-    maybe_migrate({limit_check, {wallet_sender, Details}}, MigrateParams);
-maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateParams) ->
-    #{
-        version     := 1,
-        id          := ID,
-        handler     := ff_withdrawal,
-        body        := Body,
-        params      := #{
-            destination := DestinationID,
-            source      := SourceID
-        }
-    } = T,
-    Route = maps:get(route, T, undefined),
-    maybe_migrate({created, genlib_map:compact(#{
-        version       => 2,
-        id            => ID,
-        transfer_type => withdrawal,
-        body          => Body,
-        route         => maybe_migrate_route(Route),
-        params        => #{
-            wallet_id             => SourceID,
-            destination_id        => DestinationID,
-            % Fields below are required to correctly decode legacy events.
-            % When decoding legacy events, the `erlang:binary_to_existing_atom/2` function is used,
-            % so the code must contain atoms from the event.
-            % They are not used now, so their value does not matter.
-            wallet_account        => [],
-            destination_account   => [],
-            wallet_cash_flow_plan => []
-        }
-    })}, MigrateParams);
-maybe_migrate({created, Withdrawal = #{version := 2, id := ID}}, MigrateParams) ->
-    Ctx = maps:get(ctx, MigrateParams, undefined),
-    Context = case Ctx of
-        undefined ->
-            {ok, State} = ff_machine:get(ff_withdrawal, 'ff/withdrawal_v2', ID, {undefined, 0, forward}),
-            maps:get(ctx, State, undefined);
-        Data ->
-            Data
-    end,
-    maybe_migrate({created, genlib_map:compact(Withdrawal#{
-        version => 3,
-        metadata => ff_entity_context:try_get_legacy_metadata(Context)
-    })}, MigrateParams);
-maybe_migrate({created, T}, MigrateParams) ->
-    DestinationID = maps:get(destination, T),
-    SourceID = maps:get(source, T),
-    ProviderID = maps:get(provider, T),
-    maybe_migrate({created, T#{
-        version     => 1,
-        handler     => ff_withdrawal,
-        route       => #{provider_id => ProviderID},
-        params => #{
-            destination => DestinationID,
-            source      => SourceID
-        }
-    }}, MigrateParams);
-maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
-    maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
-maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
-    Failure = #{
-        code => <<"unknown">>,
-        reason => genlib:format(LegacyFailure)
-    },
-    maybe_migrate({status_changed, {failed, Failure}}, MigrateParams);
-maybe_migrate({session_finished, SessionID}, MigrateParams) ->
-    {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
-    Session = ff_withdrawal_session_machine:session(SessionMachine),
-    {finished, Result} = ff_withdrawal_session:status(Session),
-    maybe_migrate({session_finished, {SessionID, Result}}, MigrateParams);
-% Other events
-maybe_migrate(Ev, _MigrateParams) ->
-    Ev.
-
-maybe_migrate_route(undefined = Route) ->
-    Route;
-maybe_migrate_route(#{version := 1} = Route) ->
-    Route;
-maybe_migrate_route(Route) when not is_map_key(version, Route) ->
-    LegacyIDs = #{
-        <<"mocketbank">> => 1,
-        <<"royalpay-payout">> => 2,
-        <<"accentpay">> => 3
-    },
-    case maps:get(provider_id, Route) of
-        ProviderID when is_integer(ProviderID) ->
-            Route#{
-                version => 1,
-                provider_id => ProviderID + 300,
-                provider_id_legacy => genlib:to_binary(ProviderID)
-            };
-        ProviderID when is_binary(ProviderID) andalso is_map_key(ProviderID, LegacyIDs) ->
-            ModernID = maps:get(ProviderID, LegacyIDs),
-            Route#{
-                version => 1,
-                provider_id => ModernID + 300,
-                provider_id_legacy => ProviderID
-            };
-        ProviderID when is_binary(ProviderID) ->
-            Route#{
-                version => 1,
-                provider_id => erlang:binary_to_integer(ProviderID) + 300,
-                provider_id_legacy => ProviderID
-            }
-    end.
-
 get_attempt_limit(Withdrawal) ->
     #{
         body := Body,
@@ -1720,21 +1593,3 @@ get_attempt_limit_(undefined) ->
     1;
 get_attempt_limit_({value, Limit}) ->
     ff_dmsl_codec:unmarshal(attempt_limit, Limit).
-
-%% Tests
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--spec test() -> _.
-
--spec v0_route_changed_migration_test() -> _.
-v0_route_changed_migration_test() ->
-    LegacyEvent = {route_changed, #{provider_id => 5}},
-    ModernEvent = {route_changed, #{
-        version => 1,
-        provider_id => 305,
-        provider_id_legacy => <<"5">>
-    }},
-    ?assertEqual(ModernEvent, maybe_migrate(LegacyEvent, #{})).
-
--endif.

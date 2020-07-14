@@ -114,8 +114,7 @@
     created_at      => ff_time:timestamp_ms(),
     party_revision  => party_revision(),
     domain_revision => domain_revision(),
-    metadata        => metadata(),
-    version         => non_neg_integer()
+    metadata        => metadata()
 }.
 
 -type limit_check_details() ::
@@ -363,9 +362,10 @@ metadata(T) ->
 gen(Args) ->
     TypeKeys = [
         id, transfer_type, body, params, external_id,
-        domain_revision, party_revision, created_at, route, metadata, version
+        domain_revision, party_revision, created_at, route, metadata
     ],
-    genlib_map:compact(maps:with(TypeKeys, Args)).
+    Withdrawal = genlib_map:compact(maps:with(TypeKeys, Args)),
+    Withdrawal#{version => 3}.
 
 -spec create(params()) ->
     {ok, [event()]} |

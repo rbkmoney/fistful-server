@@ -217,8 +217,7 @@ unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
         party_revision => maybe_unmarshal(party_revision, Withdrawal#wthd_Withdrawal.party_revision),
         created_at => maybe_unmarshal(timestamp_ms, Withdrawal#wthd_Withdrawal.created_at),
         transfer_type => withdrawal,
-        metadata => maybe_unmarshal(ctx, Withdrawal#wthd_Withdrawal.metadata),
-        version => 3
+        metadata => maybe_unmarshal(ctx, Withdrawal#wthd_Withdrawal.metadata)
     });
 
 unmarshal(route, Route) ->

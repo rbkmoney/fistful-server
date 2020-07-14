@@ -17,7 +17,6 @@
 
 %% ff_machine
 -export([apply_event/2]).
--export([maybe_migrate/2]).
 
 %% ff_repair
 -export([set_session_result/2]).
@@ -33,7 +32,6 @@
     status        := status(),
     withdrawal    := withdrawal(),
     route         := route(),
-    adapter       := adapter_with_opts(),
     adapter_state => ff_adapter:state(),
 
     % Deprecated. Remove after MSPF-560 finish
@@ -86,7 +84,6 @@
 -type result() :: machinery:result(event(), auxst()).
 -type withdrawal() :: ff_adapter_withdrawal:withdrawal().
 -type adapter_with_opts() :: {ff_withdrawal_provider:adapter(), ff_withdrawal_provider:adapter_opts()}.
--type legacy_event() :: any().
 
 %%
 %% API
@@ -116,201 +113,9 @@ apply_event({next_state, AdapterState}, Session) ->
 apply_event({finished, Result}, Session) ->
     set_session_status({finished, Result}, Session).
 
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
-    event().
-
-maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
-    Event;
-maybe_migrate({created, #{version := 2} = Session}, MigrateParams) ->
-    KnowndLegacyIDs = #{
-        <<"mocketbank">> => 1,
-        <<"royalpay-payout">> => 2,
-        <<"accentpay">> => 3
-    },
-    {LegacyProviderID, Route} = case maps:get(provider, Session) of
-        ProviderID when is_integer(ProviderID) ->
-            {genlib:to_binary(ProviderID), #{
-                provider_id => ProviderID + 300
-            }};
-        ProviderID when is_binary(ProviderID) andalso is_map_key(ProviderID, KnowndLegacyIDs) ->
-            ModernID = maps:get(ProviderID, KnowndLegacyIDs),
-            {ProviderID, #{
-                provider_id => ModernID + 300
-            }};
-        ProviderID when is_binary(ProviderID) ->
-            {ProviderID, #{
-                provider_id => erlang:binary_to_integer(ProviderID) + 300
-            }}
-    end,
-    NewSession = (maps:without([provider], Session))#{
-        version => 3,
-        route => Route,
-        provider_legacy => LegacyProviderID
-    },
-    maybe_migrate({created, NewSession}, MigrateParams);
-maybe_migrate({created, Session = #{version := 1, withdrawal := Withdrawal = #{
-    sender := Sender,
-    receiver := Receiver
-}}}, MigrateParams) ->
-    maybe_migrate({created, Session#{
-        version => 2,
-        withdrawal => Withdrawal#{
-            sender => try_migrate_identity_state(Sender, MigrateParams),
-            receiver => try_migrate_identity_state(Receiver, MigrateParams)
-    }}}, MigrateParams);
-maybe_migrate({created, Session = #{
-    withdrawal := Withdrawal = #{
-        destination := #{resource := OldResource}
-    }
-}}, MigrateParams) ->
-    {ok, Resource} = ff_destination:process_resource_full(ff_instrument:maybe_migrate_resource(OldResource), undefined),
-    NewWithdrawal0 = maps:without([destination], Withdrawal),
-    NewWithdrawal1 = NewWithdrawal0#{resource => Resource},
-    maybe_migrate({created, Session#{withdrawal => NewWithdrawal1}}, MigrateParams);
-maybe_migrate({created, Session = #{
-    withdrawal := Withdrawal = #{
-        resource := Resource
-    }
-}}, MigrateParams) ->
-    NewResource = ff_instrument:maybe_migrate_resource(Resource),
-    maybe_migrate({created, Session#{
-        version => 1,
-        withdrawal => Withdrawal#{
-            resource => NewResource
-    }}}, MigrateParams);
-maybe_migrate({next_state, Value}, _MigrateParams) when Value =/= undefined ->
-    {next_state, try_unmarshal_msgpack(Value)};
-maybe_migrate({finished, {failed, {'domain_Failure', Code, Reason, SubFailure}}}, _MigrateParams) ->
-    {finished, {failed, genlib_map:compact(#{
-        code => migrate_unmarshal(string, Code),
-        reason => maybe_migrate_unmarshal(string, Reason),
-        sub => maybe_migrate_unmarshal(sub_failure, SubFailure)
-    })}};
-maybe_migrate({finished, {success, {'domain_TransactionInfo', ID, Timestamp, Extra, AddInfo}}}, _MigrateParams) ->
-    {finished, {success, genlib_map:compact(#{
-        id => ID,
-        timestamp => Timestamp,
-        extra => Extra,
-        additional_info => maybe_migrate_unmarshal(additional_transaction_info, AddInfo)
-    })}};
-maybe_migrate({finished, {success, {'domain_TransactionInfo', ID, Timestamp, Extra}}}, _MigrateParams) ->
-    {finished, {success, genlib_map:compact(#{
-        id => ID,
-        timestamp => Timestamp,
-        extra => Extra
-    })}};
-% Other events
-maybe_migrate(Ev, _MigrateParams) ->
-    Ev.
-
-migrate_unmarshal(sub_failure, {'domain_SubFailure', Code, SubFailure}) ->
-    genlib_map:compact(#{
-        code => migrate_unmarshal(string, Code),
-        sub => maybe_migrate_unmarshal(sub_failure, SubFailure)
-    });
-migrate_unmarshal(additional_transaction_info, AddInfo) ->
-    {
-        'domain_AdditionalTransactionInfo',
-        RRN,
-        ApprovalCode,
-        AcsURL,
-        Pareq,
-        MD,
-        TermURL,
-        Pares,
-        ECI,
-        CAVV,
-        XID,
-        CAVVAlgorithm,
-        ThreeDSVerification
-    } = AddInfo,
-    genlib_map:compact(#{
-        rrn => maybe_migrate_unmarshal(string, RRN),
-        approval_code => maybe_migrate_unmarshal(string, ApprovalCode),
-        acs_url => maybe_migrate_unmarshal(string, AcsURL),
-        pareq => maybe_migrate_unmarshal(string, Pareq),
-        md => maybe_migrate_unmarshal(string, MD),
-        term_url => maybe_migrate_unmarshal(string, TermURL),
-        pares => maybe_migrate_unmarshal(string, Pares),
-        eci => maybe_migrate_unmarshal(string, ECI),
-        cavv => maybe_migrate_unmarshal(string, CAVV),
-        xid => maybe_migrate_unmarshal(string, XID),
-        cavv_algorithm => maybe_migrate_unmarshal(string, CAVVAlgorithm),
-        three_ds_verification => maybe_migrate_unmarshal(
-            three_ds_verification,
-            ThreeDSVerification
-        )
-    });
-migrate_unmarshal(three_ds_verification, Value) when
-    Value =:= authentication_successful orelse
-    Value =:= attempts_processing_performed orelse
-    Value =:= authentication_failed orelse
-    Value =:= authentication_could_not_be_performed
-->
-    Value;
-migrate_unmarshal(string, V) when is_binary(V) ->
-    V.
-
-maybe_migrate_unmarshal(_Type, undefined) ->
-    undefined;
-maybe_migrate_unmarshal(Type, V) ->
-    migrate_unmarshal(Type, V).
-
-try_unmarshal_msgpack({nl, {'msgpack_Nil'}}) ->
-    nil;
-try_unmarshal_msgpack({b, V}) when is_boolean(V) ->
-    V;
-try_unmarshal_msgpack({i, V}) when is_integer(V) ->
-    V;
-try_unmarshal_msgpack({flt, V}) when is_float(V) ->
-    V;
-try_unmarshal_msgpack({str, V}) when is_binary(V) ->
-    V;
-try_unmarshal_msgpack({bin, V}) when is_binary(V) ->
-    {binary, V};
-try_unmarshal_msgpack({arr, V}) when is_list(V) ->
-    [try_unmarshal_msgpack(ListItem) || ListItem <- V];
-try_unmarshal_msgpack({obj, V}) when is_map(V) ->
-    maps:fold(
-        fun(Key, Value, Map) ->
-            Map#{try_unmarshal_msgpack(Key) => try_unmarshal_msgpack(Value)}
-        end,
-        #{},
-        V
-    );
-% Not msgpack value
-try_unmarshal_msgpack(V) ->
-    V.
-
-    % Вид устаревшей структуры данных для облегчения будущих миграций
-    % LegacyIdentity v0 = #{
-    %     id           := id(),
-    %     party        := party_id(),
-    %     provider     := provider_id(),
-    %     class        := class_id(),
-    %     contract     := contract_id(),
-    %     level        => level_id(),
-    %     challenges   => #{challenge_id() => challenge()},
-    %     effective    => challenge_id(),
-    %     external_id  => id(),
-    %     blocking     => blocking()
-    % }
-
-try_migrate_identity_state(Identity = #{id := ID}, _MigrateParams) ->
-    {ok, Machine} = ff_identity_machine:get(ID),
-    NewIdentity = ff_identity_machine:identity(Machine),
-    Identity#{
-        version => 1,
-        created_at => ff_identity:created_at(NewIdentity),
-        metadata => ff_identity:metadata(NewIdentity)
-    }.
-
 -spec process_session(session()) -> result().
-process_session(#{status := active} = Session) ->
-    #{
-        adapter := {Adapter, AdapterOpts},
-        withdrawal := Withdrawal
-    } = Session,
+process_session(#{status := active, withdrawal := Withdrawal, route := Route} = Session) ->
+    {Adapter, AdapterOpts} = get_adapter_with_opts(maps:get(provider_id, Route)),
     ASt = maps:get(adapter_state, Session, undefined),
     case ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
         {ok, Intent, ASt} ->
@@ -358,7 +163,6 @@ create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, route := Ro
         id         => ID,
         withdrawal => create_adapter_withdrawal(Data, Res, WdthID),
         route      => Route,
-        adapter    => get_adapter_with_opts(maps:get(provider_id, Route)),
         status     => active
     }.
 

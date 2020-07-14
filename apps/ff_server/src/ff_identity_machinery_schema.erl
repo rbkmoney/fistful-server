@@ -116,7 +116,7 @@ maybe_migrate({created, Identity = #{version := 1, id := ID}}, MigrateContext) -
     Ctx = maps:get(ctx, MigrateContext, undefined),
     Context = case Ctx of
         undefined ->
-            {ok, State} = ff_machine:get(ff_deposit, 'ff/deposit_v1', ID, {undefined, 0, forward}),
+            {ok, State} = ff_machine:get(ff_identity, 'ff/identity', ID, {undefined, 0, forward}),
             maps:get(ctx, State, undefined);
         Data ->
             Data
@@ -187,7 +187,9 @@ created_v0_2_decoding_test() ->
                 {str, <<"created_at">>} => {i, 1592576943762},
                 {str, <<"id">>} => {bin, <<"ID">>},
                 {str, <<"party">>} => {bin, <<"PartyID">>},
-                {str, <<"provider">>} => {bin, <<"good-one">>}
+                {str, <<"provider">>} => {bin, <<"good-one">>},
+                {str, <<"metadata">>} => {arr, [{str, <<"map">>}, {obj, #{{bin, <<"some key">>} => {bin, <<"some val">>}}}]},
+                {str, <<"version">>} => {i, 2}
             }}
         ]}
     ]},
@@ -206,15 +208,7 @@ created_v0_2_decoding_test() ->
         LegacyChange
     ]},
 
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
@@ -246,7 +240,8 @@ created_v1_2_decoding_test() ->
                 {str, <<"id">>} => {bin, <<"ID">>},
                 {str, <<"party">>} => {bin, <<"PartyID">>},
                 {str, <<"provider">>} => {bin, <<"good-one">>},
-                {str, <<"version">>} => {i, 1}
+                {str, <<"metadata">>} => {arr, [{str, <<"map">>}, {obj, #{{bin, <<"some key">>} => {bin, <<"some val">>}}}]},
+                {str, <<"version">>} => {i, 2}
             }}
         ]}
     ]},
@@ -265,15 +260,7 @@ created_v1_2_decoding_test() ->
         LegacyChange
     ]},
 
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).

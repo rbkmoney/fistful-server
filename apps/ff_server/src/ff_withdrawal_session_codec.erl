@@ -12,6 +12,13 @@
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
+
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #wthd_session_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Session}) ->
     {created, marshal(session, Session)};
 marshal(change, {next_state, AdapterState}) ->
@@ -53,17 +60,36 @@ marshal(withdrawal, Params = #{
 }) ->
     SenderIdentity = maps:get(sender, Params, undefined),
     ReceiverIdentity = maps:get(receiver, Params, undefined),
+    SessionID = maps:get(session_id, Params, undefined),
+    Quote = maps:get(quote, Params, undefined),
     #wthd_session_Withdrawal{
         id = marshal(id, WithdrawalID),
         destination_resource = marshal(resource, Resource),
         cash = marshal(cash, Cash),
         sender   = ff_identity_codec:marshal(identity, SenderIdentity),
-        receiver = ff_identity_codec:marshal(identity, ReceiverIdentity)
+        receiver = ff_identity_codec:marshal(identity, ReceiverIdentity),
+        session_id = maybe_marshal(id, SessionID),
+        quote = maybe_marshal(quote, Quote)
     };
 
 marshal(route, Route) ->
     #wthd_session_Route{
         provider_id = marshal(provider_id, maps:get(provider_id, Route))
+    };
+
+marshal(quote, #{
+    cash_from := CashFrom,
+    cash_to := CashTo,
+    created_at := CreatedAt,
+    expires_on := ExpiresOn,
+    quote_data := Data
+}) ->
+    #wthd_session_Quote{
+        cash_from = marshal(cash, CashFrom),
+        cash_to = marshal(cash, CashTo),
+        created_at = CreatedAt,
+        expires_on = ExpiresOn,
+        quote_data = Data
     };
 
 marshal(msgpack_value, V) ->
@@ -100,6 +126,11 @@ marshal_msgpack(undefined) ->
 
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
+
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#wthd_session_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#wthd_session_TimestampedChange.change),
+    {ev, Timestamp, Change};
 
 unmarshal(repair_scenario, {add_events, #wthd_session_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
@@ -146,20 +177,39 @@ unmarshal(withdrawal, #wthd_session_Withdrawal{
     destination_resource = Resource,
     cash = Cash,
     sender = SenderIdentity,
-    receiver = ReceiverIdentity
+    receiver = ReceiverIdentity,
+    session_id = SessionID,
+    quote = Quote
 }) ->
     genlib_map:compact(#{
         id => unmarshal(id, WithdrawalID),
         resource => unmarshal(resource, Resource),
         cash => unmarshal(cash, Cash),
         sender => ff_identity_codec:unmarshal(identity, SenderIdentity),
-        receiver => ff_identity_codec:unmarshal(identity, ReceiverIdentity)
+        receiver => ff_identity_codec:unmarshal(identity, ReceiverIdentity),
+        session_id => maybe_unmarshal(id, SessionID),
+        quote => maybe_unmarshal(quote, Quote)
     });
 
 unmarshal(route, Route) ->
     #{
         provider_id => unmarshal(provider_id, Route#wthd_session_Route.provider_id)
     };
+
+unmarshal(quote, #wthd_session_Quote{
+    cash_from = CashFrom,
+    cash_to = CashTo,
+    created_at = CreatedAt,
+    expires_on = ExpiresOn,
+    quote_data = Data
+}) ->
+    genlib_map:compact(#{
+        cash_from => unmarshal(cash, CashFrom),
+        cash_to => unmarshal(cash, CashTo),
+        created_at => CreatedAt,
+        expires_on => ExpiresOn,
+        quote_data => Data
+    });
 
 unmarshal(msgpack_value, V) ->
     unmarshal_msgpack(V);
@@ -185,6 +235,11 @@ unmarshal_msgpack(undefined) ->
     undefined.
 
 %% Internals
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
 
 maybe_unmarshal(_Type, undefined) ->
     undefined;

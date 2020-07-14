@@ -222,8 +222,10 @@ termial_priority_test(C) ->
     Cash = {500500, Currency},
     #{
         wallet_id := WalletID,
-        destination_id := DestinationID
+        destination_id := DestinationID,
+        party_id := PartyID
     } = prepare_standard_environment(Cash, C),
+    _ = set_retryable_errors(PartyID, [<<"authorization_error">>]),
     WithdrawalID = generate_id(),
     WithdrawalParams = #{
         id => WithdrawalID,
@@ -235,7 +237,8 @@ termial_priority_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(
         {failed, #{code => <<"not_expected_error">>}},
-        await_final_withdrawal_status(WithdrawalID)).
+        await_final_withdrawal_status(WithdrawalID)),
+    _ = set_retryable_errors(PartyID, []).
 
 %% Utils
 set_retryable_errors(PartyID, ErrorList) ->

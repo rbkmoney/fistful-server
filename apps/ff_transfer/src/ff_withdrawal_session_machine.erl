@@ -59,7 +59,9 @@
 
 -type callback_params() :: ff_withdrawal_session:callback_params().
 -type process_callback_response() :: ff_withdrawal_session:process_callback_response().
--type process_callback_error() :: ff_withdrawal_session:process_callback_error().
+-type process_callback_error() ::
+    {unknown_session, {tag, id()}} |
+    ff_withdrawal_session:process_callback_error().
 
 
 %% Pipeline

@@ -134,7 +134,8 @@ call(Adapter, Function, Args) ->
 
 -spec decode_result
     (dmsl_withdrawals_provider_adapter_thrift:'ProcessResult'()) -> process_result();
-    (dmsl_withdrawals_provider_adapter_thrift:'Quote'()) -> {ok, quote()}.
+    (dmsl_withdrawals_provider_adapter_thrift:'Quote'()) -> {ok, quote()};
+    (dmsl_withdrawals_provider_adapter_thrift:'CallbackResult'()) -> {ok, handle_callback_result()}.
 
 decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = undefined}) ->
     {ok, unmarshal(intent, Intent)};

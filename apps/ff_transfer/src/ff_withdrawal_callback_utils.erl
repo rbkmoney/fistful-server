@@ -66,14 +66,14 @@ get_by_tag(Tag, #{callbacks := Callbacks}) ->
 -spec apply_event(wrapped_event(), index()) -> index().
 apply_event(WrappedEvent, #{callbacks := Callbacks} = Index) ->
     {Tag, Event} = unwrap_event(WrappedEvent),
-    P2PCallback0 = maps:get(Tag, Callbacks, undefined),
-    P2PCallback1 = ff_withdrawal_callback:apply_event(Event, P2PCallback0),
-    Index#{callbacks := Callbacks#{Tag => P2PCallback1}}.
+    Callback0 = maps:get(Tag, Callbacks, undefined),
+    Callback1 = ff_withdrawal_callback:apply_event(Event, Callback0),
+    Index#{callbacks := Callbacks#{Tag => Callback1}}.
 
 -spec maybe_migrate(wrapped_event() | any()) -> wrapped_event().
 maybe_migrate(Event) ->
-    {Tag, P2PCallbackEvent} = unwrap_event(Event),
-    Migrated = ff_withdrawal_callback:maybe_migrate(P2PCallbackEvent),
+    {Tag, CallbackEvent} = unwrap_event(Event),
+    Migrated = ff_withdrawal_callback:maybe_migrate(CallbackEvent),
     wrap_event(Tag, Migrated).
 
 -spec process_response(response(), callback()) ->

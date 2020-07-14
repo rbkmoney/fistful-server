@@ -8,11 +8,88 @@
 -export([marshal/2]).
 -export([unmarshal/2]).
 
+%% @TODO: Not symmetrical right now
+
 %%
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
+marshal(adapter_state, undefined) ->
+    {nl, #msgpack_Nil{}};
+marshal(adapter_state, ASt) ->
+    marshal_msgpack(ASt);
+
+marshal(body, {Amount, CurrencyID}) ->
+    {ok, Currency} = ff_currency:get(CurrencyID),
+    DomainCurrency = marshal(currency, Currency),
+    #wthadpt_Cash{amount = Amount, currency = DomainCurrency};
+
+marshal(callback, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
+
+marshal(callback_result, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
+
+marshal(callback_response, #{payload := Payload}) ->
+    #wthadpt_CallbackResponse{payload = Payload};
+
+marshal(currency, #{
+    name := Name,
+    symcode := Symcode,
+    numcode := Numcode,
+    exponent := Exponent
+}) ->
+    #domain_Currency{
+        name = Name,
+        symbolic_code = Symcode,
+        numeric_code = Numcode,
+        exponent = Exponent
+    };
+
+marshal(challenge_documents, Challenge) ->
+    lists:foldl(fun try_encode_proof_document/2, [], ff_identity_challenge:proofs(Challenge));
+
+marshal(exp_date, {Month, Year}) ->
+    #domain_BankCardExpDate{
+        month = Month,
+        year = Year
+    };
+
+marshal(identity, Identity) ->
+    % TODO: Add real contact fields
+    #wthdm_Identity{
+        id        = ff_identity:id(Identity),
+        documents = marshal(identity_documents, Identity),
+        contact   = [{phone_number, <<"9876543210">>}]
+    };
+
+marshal(identity_documents, Identity) ->
+    case ff_identity:effective_challenge(Identity) of
+        {ok, ChallengeID} ->
+            {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
+            marshal(challenge_documents, Challenge);
+        {error, notfound} ->
+            []
+    end;
+
+marshal(intent, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
+
+marshal(process_callback_result, {succeeded, CallbackResponse}) ->
+    {succeeded, #wthadpt_ProcessCallbackSucceeded{
+        response = marshal(callback_response, CallbackResponse)
+    }};
+marshal(process_callback_result, {finished, #{
+    withdrawal := Withdrawal,
+    state := AdapterState,
+    opts := Options
+}}) ->
+    {finished, #wthadpt_ProcessCallbackFinished{
+        withdrawal = marshal(withdrawal, Withdrawal),
+        state = marshal(adapter_state, AdapterState),
+        opts = Options
+    }};
 
 marshal(quote_params, #{
     currency_from := CurrencyIDFrom,
@@ -29,24 +106,6 @@ marshal(quote_params, #{
         exchange_cash = marshal(body, Body)
     };
 
-marshal(withdrawal, #{
-    id := ID,
-    cash := Cash,
-    resource := Resource,
-    sender := Sender,
-    receiver := Receiver
-} = Withdrawal) ->
-    SesID = maps:get(session_id, Withdrawal, undefined),
-    #wthadpt_Withdrawal{
-        id = ID,
-        session_id = SesID,
-        body = marshal(body, Cash),
-        destination = marshal(resource, Resource),
-        sender = maybe_marshal(identity, Sender),
-        receiver = maybe_marshal(identity, Receiver),
-        quote = maybe_marshal(quote, maps:get(quote, Withdrawal, undefined))
-    };
-
 marshal(quote, #{
     cash_from  := CashFrom,
     cash_to    := CashTo,
@@ -60,24 +119,6 @@ marshal(quote, #{
         created_at = CreatedAt,
         expires_on = ExpiresOn,
         quote_data = marshal_msgpack(QuoteData)
-    };
-
-marshal(body, {Amount, CurrencyID}) ->
-    {ok, Currency} = ff_currency:get(CurrencyID),
-    DomainCurrency = marshal(currency, Currency),
-    #wthadpt_Cash{amount = Amount, currency = DomainCurrency};
-
-marshal(currency, #{
-    name := Name,
-    symcode := Symcode,
-    numcode := Numcode,
-    exponent := Exponent
-}) ->
-    #domain_Currency{
-        name = Name,
-        symbolic_code = Symcode,
-        numeric_code = Numcode,
-        exponent = Exponent
     };
 
 marshal(resource,
@@ -111,54 +152,23 @@ marshal(resource,
         destination_tag = maps:get(tag, Data, undefined)
     }};
 
-marshal(exp_date, {Month, Year}) ->
-    #domain_BankCardExpDate{
-        month = Month,
-        year = Year
+marshal(withdrawal, #{
+    id := ID,
+    cash := Cash,
+    resource := Resource,
+    sender := Sender,
+    receiver := Receiver
+} = Withdrawal) ->
+    SesID = maps:get(session_id, Withdrawal, undefined),
+    #wthadpt_Withdrawal{
+        id = ID,
+        session_id = SesID,
+        body = marshal(body, Cash),
+        destination = marshal(resource, Resource),
+        sender = maybe_marshal(identity, Sender),
+        receiver = maybe_marshal(identity, Receiver),
+        quote = maybe_marshal(quote, maps:get(quote, Withdrawal, undefined))
     };
-
-marshal(identity, Identity) ->
-    % TODO: Add real contact fields
-    #wthdm_Identity{
-        id        = ff_identity:id(Identity),
-        documents = marshal(identity_documents, Identity),
-        contact   = [{phone_number, <<"9876543210">>}]
-    };
-
-marshal(identity_documents, Identity) ->
-    case ff_identity:effective_challenge(Identity) of
-        {ok, ChallengeID} ->
-            {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
-            marshal(challenge_documents, Challenge);
-        {error, notfound} ->
-            []
-    end;
-
-marshal(challenge_documents, Challenge) ->
-    lists:foldl(fun try_encode_proof_document/2, [], ff_identity_challenge:proofs(Challenge));
-
-marshal(adapter_state, undefined) ->
-    {nl, #msgpack_Nil{}};
-marshal(adapter_state, ASt) ->
-    marshal_msgpack(ASt);
-
-marshal(process_callback_result, {succeeded, CallbackResponse}) ->
-    {succeeded, #wthadpt_ProcessCallbackSucceeded{
-        response = marshal(callback_response, CallbackResponse)
-    }};
-marshal(process_callback_result, {finished, #{
-    withdrawal := Withdrawal,
-    state := AdapterState,
-    opts := Options
-}}) ->
-    {finished, #wthadpt_ProcessCallbackFinished{
-        withdrawal = marshal(withdrawal, Withdrawal),
-        state = marshal(adapter_state, AdapterState),
-        opts = Options
-    }};
-
-marshal(callback_response, #{payload := Payload}) ->
-    #wthadpt_CallbackResponse{payload = Payload};
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -176,48 +186,12 @@ try_encode_proof_document(_, Acc) ->
 unmarshal(adapter_state, ASt) ->
     unmarshal_msgpack(ASt);
 
-unmarshal(intent, {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = TrxInfo}}}}) ->
-    {finish, {success, ff_dmsl_codec:unmarshal(transaction_info, TrxInfo)}};
-unmarshal(intent, {finish, #wthadpt_FinishIntent{status = {failure, Failure}}}) ->
-    {finish, {failed, ff_dmsl_codec:unmarshal(failure, Failure)}};
-unmarshal(intent, {sleep, #wthadpt_SleepIntent{timer = Timer, callback_tag = Tag}}) ->
-    {sleep, genlib_map:compact(#{timer => Timer, tag => Tag})};
-
-unmarshal(quote, #wthadpt_Quote{
-    cash_from = CashFrom,
-    cash_to = CashTo,
-    created_at = CreatedAt,
-    expires_on = ExpiresOn,
-    quote_data = QuoteData
-}) ->
-    #{
-        cash_from => unmarshal(body, CashFrom),
-        cash_to => unmarshal(body, CashTo),
-        created_at => CreatedAt,
-        expires_on => ExpiresOn,
-        quote_data => unmarshal_msgpack(QuoteData)
-    };
-
 unmarshal(body, #wthadpt_Cash{
     amount = Amount,
     currency = DomainCurrency
 }) ->
     CurrencyID = ff_currency:id(unmarshal(currency, DomainCurrency)),
     {Amount, CurrencyID};
-
-unmarshal(currency, #domain_Currency{
-    name = Name,
-    symbolic_code = Symcode,
-    numeric_code = Numcode,
-    exponent = Exponent
-}) ->
-    #{
-        id => Symcode,
-        name => Name,
-        symcode => Symcode,
-        numcode => Numcode,
-        exponent => Exponent
-    };
 
 unmarshal(callback, #wthadpt_Callback{
     tag     = Tag,
@@ -238,6 +212,66 @@ unmarshal(callback_result, #wthadpt_CallbackResult{
 
 unmarshal(callback_response, #wthadpt_CallbackResponse{payload = Payload}) ->
     #{payload => Payload};
+
+unmarshal(currency, #domain_Currency{
+    name = Name,
+    symbolic_code = Symcode,
+    numeric_code = Numcode,
+    exponent = Exponent
+}) ->
+    #{
+        id => Symcode,
+        name => Name,
+        symcode => Symcode,
+        numcode => Numcode,
+        exponent => Exponent
+    };
+
+unmarshal(challenge_documents, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
+
+unmarshal(exp_date, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
+
+unmarshal(identity, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
+
+unmarshal(identity_documents, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
+
+unmarshal(intent, {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = TrxInfo}}}}) ->
+    {finish, {success, ff_dmsl_codec:unmarshal(transaction_info, TrxInfo)}};
+unmarshal(intent, {finish, #wthadpt_FinishIntent{status = {failure, Failure}}}) ->
+    {finish, {failed, ff_dmsl_codec:unmarshal(failure, Failure)}};
+unmarshal(intent, {sleep, #wthadpt_SleepIntent{timer = Timer, callback_tag = Tag}}) ->
+    {sleep, genlib_map:compact(#{timer => Timer, tag => Tag})};
+
+unmarshal(process_callback_result, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
+
+unmarshal(quote_params, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
+
+unmarshal(quote, #wthadpt_Quote{
+    cash_from = CashFrom,
+    cash_to = CashTo,
+    created_at = CreatedAt,
+    expires_on = ExpiresOn,
+    quote_data = QuoteData
+}) ->
+    #{
+        cash_from => unmarshal(body, CashFrom),
+        cash_to => unmarshal(body, CashTo),
+        created_at => CreatedAt,
+        expires_on => ExpiresOn,
+        quote_data => unmarshal_msgpack(QuoteData)
+    };
+
+unmarshal(resource, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
+
+unmarshal(withdrawal, _NotImplemented) ->
+    erlang:error(not_implemented); %@TODO
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

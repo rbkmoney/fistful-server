@@ -390,8 +390,8 @@ process_callback(#{tag := CallbackTag} = Params, Session) ->
                 active ->
                     do_process_callback(Params, Callback, Session);
                 {finished, _} ->
-                    Params = make_adapter_params(Session),
-                    {error, {{session_already_finished, Params}, #{}}}
+                    FinishParams = make_adapter_params(Session),
+                    {error, {{session_already_finished, FinishParams}, #{}}}
             end
     end.
 

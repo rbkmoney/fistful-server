@@ -331,43 +331,43 @@ v1_created_migration_test() ->
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
         {str, <<"tup">>},
-        {str, <"created">>},
+        {str, <<"created">>},
         {arr, [
-            {str, <"map">>},
+            {str, <<"map">>},
             {obj, #{
-                {str, <"body">>} => {arr, [
-                    {str, <"tup">>},
-                    {i, 00},
-                    {bin, <"RUB">>}
+                {str, <<"body">>} => {arr, [
+                    {str, <<"tup">>},
+                    {i, 100},
+                    {bin, <<"RUB">>}
                 ]},
-                {str, <"destination">>} => {arr, [
-                    {str, <"map">>},
+                {str, <<"destination">>} => {arr, [
+                    {str, <<"map">>},
                     {obj, #{
-                        {str, <"accounter_account_id">>} => {i, 23},
-                        {str, <"currency">>} => {bin, <"RUB">>},
-                        {str, <"id">>} => {bin, <"destinationID">>},
-                        {str, <"identity">>} => {bin, <"8FkoOxPRjbUXshllJieYV6qIjr3">>}
+                        {str, <<"accounter_account_id">>} => {i, 123},
+                        {str, <<"currency">>} => {bin, <<"RUB">>},
+                        {str, <<"id">>} => {bin, <<"destinationID">>},
+                        {str, <<"identity">>} => {bin, <<"8FkoOxPRjbUXshllJieYV6qIjr3">>}
                     }}
                 ]},
-                {str, <"handler">>} => {str, <"ff_withdrawal">>},
-                {str, <"id">>} => {bin, <"ID">>},
-                {str, <"params">>} => {arr, [
-                    {str, <"map">>},
+                {str, <<"handler">>} => {str, <<"ff_withdrawal">>},
+                {str, <<"id">>} => {bin, <<"ID">>},
+                {str, <<"params">>} => {arr, [
+                    {str, <<"map">>},
                     {obj, #{
-                        {str, <"destination">>} => {bin, <"destinationID">>},
-                        {str, <"source">>} => {bin, <"walletID">>}
+                        {str, <<"destination">>} => {bin, <<"destinationID">>},
+                        {str, <<"source">>} => {bin, <<"walletID">>}
                     }}
                 ]},
-                {str, <"source">>} => {arr, [
-                    {str, <"map">>},
+                {str, <<"source">>} => {arr, [
+                    {str, <<"map">>},
                     {obj, #{
-                        {str, <"accounter_account_id">>} => {i, 23},
-                        {str, <"currency">>} => {bin, <"RUB">>},
-                        {str, <"id">>} => {bin, <"walletID">>},
-                        {str, <"identity">>} => {bin, <"Fy3g1eq99fZJBeQDHNPmCNCRu4X">>}
+                        {str, <<"accounter_account_id">>} => {i, 123},
+                        {str, <<"currency">>} => {bin, <<"RUB">>},
+                        {str, <<"id">>} => {bin, <<"walletID">>},
+                        {str, <<"identity">>} => {bin, <<"Fy3g1eq99fZJBeQDHNPmCNCRu4X">>}
                     }}
                 ]},
-                {str, <"version">>} => {i, }
+                {str, <<"version">>} => {i, 1}
             }}
         ]}
     ]},
@@ -401,84 +401,84 @@ v1_created_migration_test() ->
 
 -spec v2_created_migration_test() -> _.
 v2_created_migration_test() ->
-    Withdrawal = #{body => {100, <"RUB">>},
+    Withdrawal = #{body => {100, <<"RUB">>},
                      id => <<"ID">>,
                      metadata => #{<<"some key">> => <<"some val">>},
                      params =>
                       #{destination_account =>
-                         #{accounter_account_id => 123, urrency => <<"RUB">>,
+                         #{accounter_account_id => 123, currency => <<"RUB">>,
                            id => <<"destinationID">>,
                            identity => <<"identityID2">>},
                         destination_id => <<"destinationID">>,
                         wallet_account =>
-                         #{accounter_account_id => 123, urrency => <<"RUB">>,
-                           id => <<"walletID">>, dentity => <<"identityID">>},
+                         #{accounter_account_id => 123, currency => <<"RUB">>,
+                           id => <<"walletID">>, identity => <<"identityID">>},
                         wallet_cash_flow_plan =>
                          #{postings =>
-                            [#{receiver => {wallet, eceiver_destination},
-                               sender => {wallet, ender_settlement},
+                            [#{receiver => {wallet, receiver_destination},
+                               sender => {wallet, sender_settlement},
                                volume =>
-                                {share, {1, }, peration_amount, efault}}}]},
+                                {share, {{1, 1}, operation_amount, default}}}]},
                         wallet_id => <<"walletID">>},
-                     transfer_type => withdrawal, ersion => 3},
+                     transfer_type => withdrawal, version => 3},
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
-        {str, <"tup">>},
-        {str, <"created">>},
+        {str, <<"tup">>},
+        {str, <<"created">>},
         {arr, [
-            {str, <"map">>},
+            {str, <<"map">>},
             {obj, #{
-                {str, <"body">>} => {arr, {str, <"tup">>}, i, 00}, bin, <"RUB">>}]},
-                {str, <"id">>} => {bin, <"ID">>},
-                {str, <"params">>} => {arr, [
-                    {str, <"map">>},
+                {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 100}, {bin, <<"RUB">>}]},
+                {str, <<"id">>} => {bin, <<"ID">>},
+                {str, <<"params">>} => {arr, [
+                    {str, <<"map">>},
                     {obj, #{
-                        {str, <"destination_account">>} => {arr, [
-                            {str, <"map">>},
+                        {str, <<"destination_account">>} => {arr, [
+                            {str, <<"map">>},
                             {obj, #{
-                                {str, <"accounter_account_id">>} => {i, 23},
-                                {str, <"currency">>} => {bin, <"RUB">>},
-                                {str, <"id">>} => {bin, <"destinationID">>},
-                                {str, <"identity">>} => {bin, <"identityID2">>}
+                                {str, <<"accounter_account_id">>} => {i, 123},
+                                {str, <<"currency">>} => {bin, <<"RUB">>},
+                                {str, <<"id">>} => {bin, <<"destinationID">>},
+                                {str, <<"identity">>} => {bin, <<"identityID2">>}
                             }}
                         ]},
-                    {str, <"destination_id">>} => {bin, <"destinationID">>},
-                    {str, <"wallet_account">>} => {arr, [
-                        {str, <"map">>},
+                    {str, <<"destination_id">>} => {bin, <<"destinationID">>},
+                    {str, <<"wallet_account">>} => {arr, [
+                        {str, <<"map">>},
                         {obj, #{
-                            {str, <"accounter_account_id">>} => {i, 23},
-                            {str, <"currency">>} => {bin, <"RUB">>},
-                            {str, <"id">>} => {bin, <"walletID">>},
-                            {str, <"identity">>} => {bin, <"identityID">>}
+                            {str, <<"accounter_account_id">>} => {i, 123},
+                            {str, <<"currency">>} => {bin, <<"RUB">>},
+                            {str, <<"id">>} => {bin, <<"walletID">>},
+                            {str, <<"identity">>} => {bin, <<"identityID">>}
                         }}
                     ]},
-                    {str, <"wallet_cash_flow_plan">>} => {arr, [
-                        {str, <"map">>},
+                    {str, <<"wallet_cash_flow_plan">>} => {arr, [
+                        {str, <<"map">>},
                         {obj, #{
-                            {str, <"postings">>} => {arr, [
-                                {str, <"lst">>},
+                            {str, <<"postings">>} => {arr, [
+                                {str, <<"lst">>},
                                 {arr, [
-                                    {str, <"map">>},
+                                    {str, <<"map">>},
                                     {obj, #{
-                                        {str, <"receiver">>} => {arr, [
-                                            {str, <"tup">>},
-                                            {str, <"wallet">>},
-                                            {str, <"receiver_destination">>}
+                                        {str, <<"receiver">>} => {arr, [
+                                            {str, <<"tup">>},
+                                            {str, <<"wallet">>},
+                                            {str, <<"receiver_destination">>}
                                         ]},
-                                        {str, <"sender">>} => {arr, [
-                                            {str, <"tup">>},
-                                            {str, <"wallet">>},
-                                            {str, <"sender_settlement">>}
+                                        {str, <<"sender">>} => {arr, [
+                                            {str, <<"tup">>},
+                                            {str, <<"wallet">>},
+                                            {str, <<"sender_settlement">>}
                                         ]},
-                                        {str, <"volume">>} => {arr, [
-                                            {str, <"tup">>},
-                                            {str, <"share">>},
+                                        {str, <<"volume">>} => {arr, [
+                                            {str, <<"tup">>},
+                                            {str, <<"share">>},
                                             {arr, [
-                                                {str, <"tup">>},
-                                                {arr, {str, <"tup">>}, i, }, i, }]},
-                                                {str, <"operation_amount">>},
-                                                {str, <"default">>}
+                                                {str, <<"tup">>},
+                                                {arr, [{str, <<"tup">>}, {i, 1}, {i, 1}]},
+                                                {str, <<"operation_amount">>},
+                                                {str, <<"default">>}
                                             ]}
                                         ]}
                                     }}
@@ -486,11 +486,11 @@ v2_created_migration_test() ->
                             ]}
                         }}
                     ]},
-                    {str, <"wallet_id">>} => {bin, <"walletID">>}}
+                    {str, <<"wallet_id">>} => {bin, <<"walletID">>}}
                     }]
                 },
-                {str, <"transfer_type">>} => {str, <"withdrawal">>},
-                {str, <"version">>} => {i, }
+                {str, <<"transfer_type">>} => {str, <<"withdrawal">>},
+                {str, <<"version">>} => {i, 2}
             }}
         ]}
     ]},
@@ -523,84 +523,84 @@ v2_created_migration_test() ->
 
 -spec v3_created_migration_test() -> _.
 v3_created_migration_test() ->
-    Withdrawal = #{body => {100, <"RUB">>},
+    Withdrawal = #{body => {100, <<"RUB">>},
                      id => <<"ID">>,
                      metadata => #{<<"some key">> => <<"some val">>},
                      params =>
                       #{destination_account =>
-                         #{accounter_account_id => 123, urrency => <<"RUB">>,
+                         #{accounter_account_id => 123, currency => <<"RUB">>,
                            id => <<"destinationID">>,
                            identity => <<"identity2">>},
                         destination_id => <<"destinationID">>,
                         wallet_account =>
-                         #{accounter_account_id => 123, urrency => <<"RUB">>,
-                           id => <<"walletID">>, dentity => <<"identity">>},
+                         #{accounter_account_id => 123, currency => <<"RUB">>,
+                           id => <<"walletID">>, identity => <<"identity">>},
                         wallet_cash_flow_plan =>
                          #{postings =>
-                            [#{receiver => {wallet, eceiver_destination},
-                               sender => {wallet, ender_settlement},
+                            [#{receiver => {wallet, receiver_destination},
+                               sender => {wallet, sender_settlement},
                                volume =>
-                                {share, {1, }, peration_amount, efault}}}]},
+                                {share, {{1, 1}, operation_amount, default}}}]},
                         wallet_id => <<"walletID">>},
-                     transfer_type => withdrawal, ersion => 3},
+                     transfer_type => withdrawal, version => 3},
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
-        {str, <"tup">>},
-        {str, <"created">>},
+        {str, <<"tup">>},
+        {str, <<"created">>},
         {arr, [
-            {str, <"map">>},
+            {str, <<"map">>},
             {obj, #{
-                {str, <"body">>} => {arr, {str, <"tup">>}, i, 00}, bin, <"RUB">>}]},
-                {str, <"id">>} => {bin, <"ID">>},
-                {str, <"params">>} => {arr, [
-                    {str, <"map">>},
+                {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 100}, {bin, <<"RUB">>}]},
+                {str, <<"id">>} => {bin, <<"ID">>},
+                {str, <<"params">>} => {arr, [
+                    {str, <<"map">>},
                     {obj, #{
-                        {str, <"destination_account">>} => {arr, [
-                            {str, <"map">>},
+                        {str, <<"destination_account">>} => {arr, [
+                            {str, <<"map">>},
                             {obj, #{
-                                {str, <"accounter_account_id">>} => {i, 23},
-                                {str, <"currency">>} => {bin, <"RUB">>},
-                                {str, <"id">>} => {bin, <"destinationID">>},
-                                {str, <"identity">>} => {bin, <"identity2">>}
+                                {str, <<"accounter_account_id">>} => {i, 123},
+                                {str, <<"currency">>} => {bin, <<"RUB">>},
+                                {str, <<"id">>} => {bin, <<"destinationID">>},
+                                {str, <<"identity">>} => {bin, <<"identity2">>}
                             }}
                         ]},
-                        {str, <"destination_id">>} => {bin, <"destinationID">>},
-                        {str, <"wallet_account">>} => {arr, [
-                            {str, <"map">>},
+                        {str, <<"destination_id">>} => {bin, <<"destinationID">>},
+                        {str, <<"wallet_account">>} => {arr, [
+                            {str, <<"map">>},
                             {obj, #{
-                                {str, <"accounter_account_id">>} => {i, 23},
-                                {str, <"currency">>} => {bin, <"RUB">>},
-                                {str, <"id">>} => {bin, <"walletID">>},
-                                {str, <"identity">>} => {bin, <"identity">>}
+                                {str, <<"accounter_account_id">>} => {i, 123},
+                                {str, <<"currency">>} => {bin, <<"RUB">>},
+                                {str, <<"id">>} => {bin, <<"walletID">>},
+                                {str, <<"identity">>} => {bin, <<"identity">>}
                             }}
                         ]},
-                        {str, <"wallet_cash_flow_plan">>} => {arr,  [
-                            {str, <"map">>},
+                        {str, <<"wallet_cash_flow_plan">>} => {arr,  [
+                            {str, <<"map">>},
                             {obj, #{
-                                {str, <"postings">>} => {arr, [
-                                    {str, <"lst">>},
+                                {str, <<"postings">>} => {arr, [
+                                    {str, <<"lst">>},
                                     {arr, [
-                                        {str, <"map">>},
+                                        {str, <<"map">>},
                                         {obj, #{
-                                            {str, <"receiver">>} => {arr, [
-                                                {str, <"tup">>},
-                                                {str, <"wallet">>},
-                                                {str, <"receiver_destination">>}
+                                            {str, <<"receiver">>} => {arr, [
+                                                {str, <<"tup">>},
+                                                {str, <<"wallet">>},
+                                                {str, <<"receiver_destination">>}
                                             ]},
-                                            {str, <"sender">>} => {arr, [
-                                                {str, <"tup">>},
-                                                {str, <"wallet">>},
-                                                {str, <"sender_settlement">>}
+                                            {str, <<"sender">>} => {arr, [
+                                                {str, <<"tup">>},
+                                                {str, <<"wallet">>},
+                                                {str, <<"sender_settlement">>}
                                             ]},
-                                            {str, <"volume">>} => {arr, [
-                                                {str, <"tup">>},
-                                                {str, <"share">>},
+                                            {str, <<"volume">>} => {arr, [
+                                                {str, <<"tup">>},
+                                                {str, <<"share">>},
                                                 {arr, [
-                                                    {str, <"tup">>},
-                                                    {arr, {str, <"tup">>}, i, }, i, }]},
-                                                    {str, <"operation_amount">>},
-                                                    {str, <"default">>}
+                                                    {str, <<"tup">>},
+                                                    {arr, [{str, <<"tup">>}, {i, 1}, {i, 1}]},
+                                                    {str, <<"operation_amount">>},
+                                                    {str, <<"default">>}
                                                 ]}
                                             ]}
                                         }}
@@ -608,11 +608,11 @@ v3_created_migration_test() ->
                                 ]}
                             }}
                         ]},
-                        {str, <"wallet_id">>} => {bin, <"walletID">>}
+                        {str, <<"wallet_id">>} => {bin, <<"walletID">>}
                     }}
                 ]},
-                {str, <"transfer_type">>} => {str, <"withdrawal">>},
-                {str, <"version">>} => {i, }
+                {str, <<"transfer_type">>} => {str, <<"withdrawal">>},
+                {str, <<"version">>} => {i, 2}
             }}
         ]}
     ]},

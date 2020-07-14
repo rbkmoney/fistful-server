@@ -72,7 +72,6 @@ unmarshal(T, V, C) when
     T =:= {args, init} orelse
     T =:= {args, call} orelse
     T =:= {args, repair} orelse
-    T =:= {aux_state, undefined} orelse
     T =:= {response, call} orelse
     T =:= {response, {repair, success}} orelse
     T =:= {response, {repair, failure}}
@@ -116,7 +115,7 @@ maybe_migrate({created, Identity = #{version := 1, id := ID}}, MigrateContext) -
     Ctx = maps:get(ctx, MigrateContext, undefined),
     Context = case Ctx of
         undefined ->
-            {ok, State} = ff_machine:get(ff_deposit, 'ff/deposit_v1', ID, {undefined, 0, forward}),
+            {ok, State} = ff_machine:get(ff_identity, 'ff/identity', ID, {undefined, 0, forward}),
             maps:get(ctx, State, undefined);
         Data ->
             Data

@@ -84,6 +84,12 @@ marshal_event({EventID, {ev, Timestamp, Change}}) ->
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+   #wthd_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Withdrawal}) ->
     {created, #wthd_CreatedChange{withdrawal = marshal(withdrawal, Withdrawal)}};
 marshal(change, {status_changed, Status}) ->
@@ -164,6 +170,11 @@ marshal(T, V) ->
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
 
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#wthd_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#wthd_TimestampedChange.change),
+    {ev, Timestamp, Change};
+
 unmarshal(repair_scenario, {add_events, #wthd_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
         events => unmarshal({list, change}, Events),
@@ -205,7 +216,8 @@ unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
         party_revision => maybe_unmarshal(party_revision, Withdrawal#wthd_Withdrawal.party_revision),
         created_at => maybe_unmarshal(timestamp_ms, Withdrawal#wthd_Withdrawal.created_at),
         transfer_type => withdrawal,
-        metadata => maybe_unmarshal(ctx, Withdrawal#wthd_Withdrawal.metadata)
+        metadata => maybe_unmarshal(ctx, Withdrawal#wthd_Withdrawal.metadata),
+        version => 3
     });
 
 unmarshal(route, Route) ->

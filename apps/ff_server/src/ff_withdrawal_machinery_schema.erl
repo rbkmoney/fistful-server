@@ -183,11 +183,9 @@ maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
 maybe_migrate({session_finished, {SessionID, Result}}, _MigrateParams) ->
     {session_finished, {SessionID, Result}};
 maybe_migrate({session_finished, SessionID}, MigrateParams) ->
-    ct:log("Session ID: ~p", [SessionID]),
     {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
     Session = ff_withdrawal_session_machine:session(SessionMachine),
     {finished, Result} = ff_withdrawal_session:status(Session),
-    ct:log("Result: ~p", [Result]),
     maybe_migrate({session_finished, {SessionID, Result}}, MigrateParams);
 % Other events
 maybe_migrate(Ev, _MigrateParams) ->

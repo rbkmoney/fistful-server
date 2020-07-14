@@ -66,12 +66,26 @@
     withdrawal_id := ff_withdrawal:id()
 }.
 
+
+-type callback_params() :: ff_withdrawal_callback:process_params().
+-type process_callback_response() :: ff_withdrawal_callback:response().
+-type process_callback_error() :: {session_already_finished, session_finished_params()}.
+
+-type session_finished_params() :: #{
+    withdrawal := withdrawal(),
+    state := ff_adapter:state(),
+    opts := ff_withdrawal_provider:adapter_opts()
+}.
+
 -export_type([data/0]).
 -export_type([event/0]).
 -export_type([params/0]).
 -export_type([status/0]).
 -export_type([session/0]).
 -export_type([session_result/0]).
+-export_type([callback_params/0]).
+-export_type([process_callback_response/0]).
+-export_type([process_callback_error/0]).
 
 %%
 %% Internal types

@@ -1,7 +1,7 @@
-%% P2P adapter host
-
 -module(ff_adapter_withdrawal_host).
 -behaviour(ff_woody_wrapper).
+
+-include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
 %% Exports
 

@@ -11,6 +11,11 @@
     tag := tag()
 }.
 
+-type process_params() :: #{
+    tag := tag(),
+    payload := payload()
+}.
+
 -opaque callback() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
     tag := tag(),
@@ -42,6 +47,7 @@
     tag/0,
     payload/0,
     params/0,
+    process_params/0,
     callback/0,
     response/0,
     status/0

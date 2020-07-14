@@ -13,14 +13,9 @@
 %%
 %% Internal types
 %%
-
--type id()          :: machinery:id().
--type identity_id() :: id().
-
 -type resource()    :: ff_destination:resource_full().
 -type identity()    :: ff_identity:identity_state().
 -type cash()        :: ff_transaction:body().
--type exp_date()    :: ff_destination:exp_date().
 
 -type withdrawal() :: #{
     id          => binary(),
@@ -147,7 +142,7 @@ decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = NextState}) -
     {ok, unmarshal(intent, Intent), unmarshal(adapter_state, NextState)};
 decode_result(#wthadpt_Quote{} = Quote) ->
     {ok, unmarshal(quote, Quote)};
-decode_result(#wthadpt_WithdrawalCallbackResult{} = CallbackResult) ->
+decode_result(#wthadpt_CallbackResult{} = CallbackResult) ->
     {ok, unmarshal(callback_result, CallbackResult)}.
 
 %%

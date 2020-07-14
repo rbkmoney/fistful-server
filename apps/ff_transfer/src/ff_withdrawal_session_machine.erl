@@ -21,6 +21,7 @@
 -export([get/1]).
 -export([events/2]).
 -export([repair/2]).
+-export([process_callback/1]).
 
 %% machinery
 
@@ -55,6 +56,10 @@
 -type st()        :: ff_machine:st(session()).
 -type session() :: ff_withdrawal_session:session().
 -type event() :: ff_withdrawal_session:event().
+
+-type callback_params() :: ff_withdrawal_session:callback_params().
+-type process_callback_response() :: ff_withdrawal_session:process_callback_response().
+-type process_callback_error() :: ff_withdrawal_session:process_callback_error().
 
 
 %% Pipeline

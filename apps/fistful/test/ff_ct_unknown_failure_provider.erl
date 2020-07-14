@@ -1,0 +1,80 @@
+-module(ff_ct_unknown_failure_provider).
+
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
+
+%% API
+-export([start/0]).
+-export([start/1]).
+
+%% Processing callbacks
+-export([process_withdrawal/3]).
+-export([get_quote/2]).
+
+%%
+%% Internal types
+%%
+
+-type destination() :: dmsl_withdrawals_domain_thrift:'Destination'().
+-type identity() :: dmsl_withdrawals_domain_thrift:'Identity'().
+-type cash() :: dmsl_domain_thrift:'Cash'().
+-type currency() :: dmsl_domain_thrift:'Currency'().
+-type failure() :: dmsl_domain_thrift:'Failure'().
+-type domain_quote() :: dmsl_withdrawals_provider_adapter_thrift:'Quote'().
+
+-type withdrawal() :: #{
+    id => binary(),
+    body => cash(),
+    destination => destination(),
+    sender => identity(),
+    receiver => identity(),
+    quote => domain_quote()
+}.
+
+-type quote_params() :: #{
+    idempotency_id => binary(),
+    currency_from := currency(),
+    currency_to := currency(),
+    exchange_cash := cash()
+}.
+
+-type quote() :: #{
+    cash_from := cash(),
+    cash_to := cash(),
+    created_at := binary(),
+    expires_on := binary(),
+    quote_data := any()
+}.
+
+-record(state, {}).
+-type state() :: #state{}.
+
+%%
+%% API
+%%
+
+-spec start() -> {ok, pid()}.
+start() ->
+    start([]).
+
+-spec start(list()) -> {ok, pid()}.
+start(Opts) ->
+    {ok, Pid} = supervisor:start_link(ff_ct_provider_sup, Opts),
+    _ = erlang:unlink(Pid),
+    {ok, Pid}.
+
+%%
+%% Processing callbacks
+%%
+
+-spec process_withdrawal(withdrawal(), state(), map()) -> {finish, Status} | {sleep, Timer} when
+    Status :: {success, TrxInfo} | {failure, failure()},
+    Timer :: {deadline, binary()} | {timeout, integer()},
+    TrxInfo :: #{id => binary()}.
+process_withdrawal(_Withdrawal, State, _Options) ->
+    {ok, {finish, {failure, <<"not_expected_error">>}}, State}.
+
+-spec get_quote(quote_params(), map()) ->
+    {ok, quote()}.
+get_quote(_Quote, _Options) ->
+    erlang:error(not_implemented).

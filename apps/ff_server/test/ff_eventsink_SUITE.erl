@@ -255,7 +255,7 @@ get_shifted_create_identity_events_ok(C) ->
         ns          => <<"ff/identity">>,
         publisher   => ff_identity_eventsink_publisher,
         start_event => StartEventNum,
-        schema      => machinery_mg_schema_generic
+        schema      => ff_identity_machinery_schema
     }}),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,

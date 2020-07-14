@@ -86,6 +86,7 @@
     {resource_owner(), {bin_data, not_found}}.
 
 -type route() :: #{
+    version := 1,
     provider_id := provider_id()
 }.
 
@@ -635,7 +636,10 @@ process_routing(P2PTransfer) ->
     case do_process_routing(P2PTransfer) of
         {ok, ProviderID} ->
             {continue, [
-                {route_changed, #{provider_id => ProviderID}}
+                {route_changed, #{
+                    version => 1,
+                    provider_id => ProviderID
+                }}
             ]};
         {error, route_not_found} ->
             process_transfer_fail(route_not_found, P2PTransfer)
@@ -674,7 +678,7 @@ choose_provider(Providers, VS) ->
 -spec validate_p2p_transfers_terms(provider_id(), party_varset()) ->
     boolean().
 validate_p2p_transfers_terms(ID, VS) ->
-    Provider = unwrap(ff_p2p_provider:get(ID)),
+    {ok, Provider} = ff_p2p_provider:get(ID),
     case ff_p2p_provider:validate_terms(Provider, VS) of
         {ok, valid} ->
             true;
@@ -706,7 +710,9 @@ process_session_creation(P2PTransfer) ->
     }),
     #{provider_id := ProviderID} = route(P2PTransfer),
     Params = #{
-        provider_id => ProviderID,
+        route => #{
+            provider_id => ProviderID
+        },
         domain_revision => domain_revision(P2PTransfer),
         party_revision => party_revision(P2PTransfer)
     },
@@ -735,8 +741,8 @@ get_fees(P2PTransfer) ->
     PartyVarset = create_varset(Identity, P2PTransfer),
     Body = body(P2PTransfer),
 
-    #{p2p_terms := P2PProviderTerms} = Provider,
-    ProviderFees = get_provider_fees(P2PProviderTerms, Body, PartyVarset),
+    #{terms := ProviderTerms} = Provider,
+    ProviderFees = get_provider_fees(ProviderTerms, Body, PartyVarset),
 
     PartyID = ff_identity:party(Identity),
     ContractID = ff_identity:contract(Identity),
@@ -754,13 +760,21 @@ get_fees(P2PTransfer) ->
     MerchantFees = get_merchant_fees(P2PMerchantTerms, Body),
     {ProviderFees, MerchantFees}.
 
--spec get_provider_fees(dmsl_domain_thrift:'P2PProvisionTerms'(), body(), p2p_party:varset()) ->
+-spec get_provider_fees(dmsl_domain_thrift:'ProvisionTermSet'(), body(), p2p_party:varset()) ->
     ff_fees:final() | undefined.
-get_provider_fees(#domain_P2PProvisionTerms{fees = undefined}, _Body, _PartyVarset) ->
-    undefined;
-get_provider_fees(#domain_P2PProvisionTerms{fees = FeeSelector}, Body, PartyVarset) ->
-    {value, ProviderFees} = hg_selector:reduce(FeeSelector, PartyVarset),
-    compute_fees(ProviderFees, Body).
+get_provider_fees(Terms, Body, PartyVarset) ->
+    #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            p2p = P2PTerms
+        }
+    } = Terms,
+    case P2PTerms of
+        #domain_P2PProvisionTerms{fees = FeeSelector} ->
+            {value, ProviderFees} = hg_selector:reduce(FeeSelector, PartyVarset),
+            compute_fees(ProviderFees, Body);
+        undefined ->
+            undefined
+    end.
 
 -spec get_merchant_fees(dmsl_domain_thrift:'P2PServiceTerms'(), body()) ->
     ff_fees:final() | undefined.

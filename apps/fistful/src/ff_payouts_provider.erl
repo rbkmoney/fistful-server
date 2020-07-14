@@ -2,32 +2,37 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--type withdrawal_provider() :: #{
+-type provider() :: #{
     id := id(),
-    identity := ff_identity:id(),
-    withdrawal_terms := dmsl_domain_thrift:'WithdrawalProvisionTerms'(),
+    identity => ff_identity:id(),
+    terms => dmsl_domain_thrift:'ProvisionTermSet'(),
     accounts := accounts(),
     adapter := ff_adapter:adapter(),
-    adapter_opts := map()
+    adapter_opts := map(),
+    terminal => dmsl_domain_thrift:'TerminalSelector'()
 }.
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
 -type accounts() :: #{ff_currency:id() => ff_account:account()}.
 
--type withdrawal_provider_ref() :: dmsl_domain_thrift:'WithdrawalProviderRef'().
+-type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
+-type term_set() :: dmsl_domain_thrift:'ProvisionTermSet'().
+-type provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
 
 -export_type([id/0]).
--export_type([withdrawal_provider/0]).
+-export_type([provider/0]).
 
 -export([id/1]).
 -export([accounts/1]).
 -export([adapter/1]).
 -export([adapter_opts/1]).
+-export([terms/1]).
+-export([provision_terms/1]).
 
 -export([ref/1]).
 -export([get/1]).
 -export([compute_fees/2]).
--export([validate_terms/2]).
+-export([compute_withdrawal_terminals_with_priority/2]).
 
 %% Pipeline
 
@@ -35,10 +40,10 @@
 
 %%
 
--spec id(withdrawal_provider()) -> id().
--spec accounts(withdrawal_provider()) -> accounts().
--spec adapter(withdrawal_provider()) -> ff_adapter:adapter().
--spec adapter_opts(withdrawal_provider()) -> map().
+-spec id(provider()) -> id().
+-spec accounts(provider()) -> accounts().
+-spec adapter(provider()) -> ff_adapter:adapter().
+-spec adapter_opts(provider()) -> map().
 
 id(#{id := ID}) ->
     ID.
@@ -52,88 +57,101 @@ adapter(#{adapter := Adapter}) ->
 adapter_opts(#{adapter_opts := AdapterOpts}) ->
     AdapterOpts.
 
+-spec terms(provider()) ->
+    term_set() | undefined.
+
+terms(Provider) ->
+    maps:get(terms, Provider, undefined).
+
+-spec provision_terms(provider()) ->
+    provision_terms() | undefined.
+
+provision_terms(Provider) ->
+    case terms(Provider) of
+        Terms when Terms =/= undefined ->
+            case Terms#domain_ProvisionTermSet.wallet of
+                WalletTerms when WalletTerms =/= undefined ->
+                    WalletTerms#domain_WalletProvisionTerms.withdrawals;
+                _ ->
+                    undefined
+            end;
+        _ ->
+            undefined
+    end.
+
 %%
 
--spec ref(id()) -> withdrawal_provider_ref().
+-spec ref(id()) -> provider_ref().
 
 ref(ID) ->
-    #domain_WithdrawalProviderRef{id = ID}.
+    #domain_ProviderRef{id = ID}.
 
 -spec get(id()) ->
-    {ok, withdrawal_provider()} |
+    {ok, provider()} |
     {error, notfound}.
 
 get(ID) ->
     do(fun () ->
-        WithdrawalProvider = unwrap(ff_domain_config:object({withdrawal_provider, ref(ID)})),
-        decode(ID, WithdrawalProvider)
+        Provider = unwrap(ff_domain_config:object({provider, ref(ID)})),
+        decode(ID, Provider)
     end).
 
--spec compute_fees(withdrawal_provider(), hg_selector:varset()) -> ff_cash_flow:cash_flow_fee().
+-spec compute_fees(provider(), hg_selector:varset()) ->
+    {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
 
-compute_fees(#{withdrawal_terms := WithdrawalTerms}, VS) ->
-    #domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector} = WithdrawalTerms,
+compute_fees(WithdrawalProvider, VS) ->
+    case provision_terms(WithdrawalProvider) of
+        Terms when Terms =/= undefined ->
+            {ok, compute_fees_(Terms, VS)};
+        _ ->
+            {error, {misconfiguration, {missing, withdrawal_terms}}}
+    end.
+
+compute_fees_(#domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector}, VS) ->
     CashFlow = unwrap(hg_selector:reduce_to_value(CashFlowSelector, VS)),
     #{
         postings => ff_cash_flow:decode_domain_postings(CashFlow)
     }.
 
--spec validate_terms(withdrawal_provider(), hg_selector:varset()) ->
-    {ok, valid} |
-    {error, Error :: term()}.
+-spec compute_withdrawal_terminals_with_priority(provider(), hg_selector:varset()) ->
+    {ok, [{ff_payouts_terminal:id(), ff_payouts_terminal:terminal_priority()}]} | {error, term()}.
 
-validate_terms(#{withdrawal_terms := WithdrawalTerms}, VS) ->
-    #domain_WithdrawalProvisionTerms{
-        currencies = CurrenciesSelector,
-        payout_methods = PayoutMethodsSelector,
-        cash_limit = CashLimitSelector
-    } = WithdrawalTerms,
-    do(fun () ->
-        valid = unwrap(validate_currencies(CurrenciesSelector, VS)),
-        valid = unwrap(validate_payout_methods(PayoutMethodsSelector, VS)),
-        valid = unwrap(validate_cash_limit(CashLimitSelector, VS))
-    end).
+compute_withdrawal_terminals_with_priority(Provider, VS) ->
+    case maps:get(terminal, Provider, undefined) of
+        Selector when Selector =/= undefined ->
+            compute_withdrawal_terminals_(Selector, VS);
+        _ ->
+            {error, {misconfiguration, {missing, terminal_selector}}}
+    end.
+
+compute_withdrawal_terminals_(TerminalSelector, VS) ->
+    case hg_selector:reduce_to_value(TerminalSelector, VS) of
+        {ok, Terminals} ->
+            {ok, [{TerminalID, Priority}
+                || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals]};
+        Error ->
+            Error
+    end.
 
 %%
 
-validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
-    Currencies = unwrap(hg_selector:reduce_to_value(CurrenciesSelector, VS)),
-    case ordsets:is_element(CurrencyRef, Currencies) of
-        true ->
-            {ok, valid};
-        false ->
-            {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
-    end.
-
-validate_payout_methods(_, _) ->
-    %% PayoutMethodsSelector is useless for withdrawals
-    %% so we can just ignore it
-    {ok, valid}.
-
-validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
-    CashRange = unwrap(hg_selector:reduce_to_value(CashLimitSelector, VS)),
-    case hg_cash_range:is_inside(Cash, CashRange) of
-        within ->
-            {ok, valid};
-        _NotInRange  ->
-            {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
-    end.
-
-decode(ID, #domain_WithdrawalProvider{
+decode(ID, #domain_Provider{
     proxy = Proxy,
     identity = Identity,
-    withdrawal_terms = WithdrawalTerms,
-    accounts = Accounts
+    terms = Terms,
+    accounts = Accounts,
+    terminal = TerminalSelector
 }) ->
-    maps:merge(
+    genlib_map:compact(maps:merge(
         #{
             id               => ID,
             identity         => Identity,
-            withdrawal_terms => WithdrawalTerms,
-            accounts         => decode_accounts(Identity, Accounts)
+            terms            => Terms,
+            accounts         => decode_accounts(Identity, Accounts),
+            terminal         => TerminalSelector
         },
         decode_adapter(Proxy)
-    ).
+    )).
 
 decode_accounts(Identity, Accounts) ->
     maps:fold(

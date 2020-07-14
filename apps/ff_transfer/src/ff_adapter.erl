@@ -37,8 +37,14 @@
     cavv => binary(),
     xid => binary(),
     cavv_algorithm => binary(),
-    three_ds_verification => binary()
+    three_ds_verification => three_ds_verification()
 }.
+
+-type three_ds_verification() ::
+    authentication_successful
+    | attempts_processing_performed
+    | authentication_failed
+    | authentication_could_not_be_performed.
 
 -type failure() :: ff_failure:failure().
 

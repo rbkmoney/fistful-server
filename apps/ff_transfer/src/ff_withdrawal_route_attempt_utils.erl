@@ -19,7 +19,7 @@
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type limit_check_details() :: ff_withdrawal:limit_check_details().
 -type account()  :: ff_account:account().
--type route() :: ff_withdrawal:route().
+-type route() :: ff_withdrawal_routing:route().
 -type session() :: ff_withdrawal:session().
 -type attempt_limit() :: ff_party:attempt_limit().
 

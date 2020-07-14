@@ -386,6 +386,7 @@ quote_encode_decode_test(C) ->
             <<"version">> => ?INTEGER,
             <<"quote_data">> => #{<<"test">> => <<"test">>},
             <<"provider_id">> => ?INTEGER,
+            <<"terminal_id">> => ?INTEGER,
             <<"resource_id">> => #{<<"bank_card">> => <<"test">>}
         }
     },

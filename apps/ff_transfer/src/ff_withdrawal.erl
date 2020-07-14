@@ -76,13 +76,7 @@
     {terms, ff_party:validate_withdrawal_creation_error()} |
     {destination_resource, {bin_data, not_found}}.
 
--type route() :: #{
-    version := 1,
-    provider_id := provider_id(),
-
-    % Deprecated. Remove after MSPF-560 finish
-    provider_id_legacy => binary()
-}.
+-type route() :: ff_withdrawal_routing:route().
 
 -type attempts() :: ff_withdrawal_route_attempt_utils:attempts().
 
@@ -253,6 +247,7 @@
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
 -type provider_id() :: ff_payouts_provider:id().
+-type terminal_id() :: ff_payouts_terminal:id().
 
 -type legacy_event() :: any().
 
@@ -291,7 +286,7 @@
 -type fail_type() ::
     limit_check |
     route_not_found |
-    {inconsistent_quote_route, provider_id()} |
+    {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}} |
     session.
 
 %% Accessors
@@ -679,21 +674,19 @@ do_process_transfer(stop, _Withdrawal) ->
     process_result().
 process_routing(Withdrawal) ->
     case do_process_routing(Withdrawal) of
-        {ok, [ProviderID | _]} ->
+        {ok, [Route | _]} ->
             {continue, [
-                {route_changed, #{
-                    version => 1,
-                    provider_id => ProviderID
-                }}
+                {route_changed, Route}
             ]};
         {error, route_not_found} ->
             process_transfer_fail(route_not_found, Withdrawal);
-        {error, {inconsistent_quote_route, _ProviderID} = Reason} ->
+        {error, {inconsistent_quote_route, _Data} = Reason} ->
             process_transfer_fail(Reason, Withdrawal)
     end.
 
--spec do_process_routing(withdrawal_state()) -> {ok, [provider_id()]} | {error, Reason} when
-    Reason :: route_not_found | {inconsistent_quote_route, provider_id()}.
+-spec do_process_routing(withdrawal_state()) -> {ok, [route()]} | {error, Reason} when
+    Reason :: route_not_found | InconsistentQuote,
+    InconsistentQuote :: {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}.
 do_process_routing(Withdrawal) ->
     WalletID = wallet_id(Withdrawal),
     {ok, Wallet} = get_wallet(WalletID),
@@ -712,61 +705,41 @@ do_process_routing(Withdrawal) ->
     }),
 
     do(fun() ->
-        Providers = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        Routes = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
         case quote(Withdrawal) of
             undefined ->
-                Providers;
+                Routes;
             Quote ->
-                ProviderID = hd(Providers),
-                valid = unwrap(validate_quote_provider(ProviderID, Quote)),
-                [ProviderID]
+                Route = hd(Routes),
+                valid = unwrap(validate_quote_route(Route, Quote)),
+                [Route]
         end
     end).
 
 -spec prepare_route(party_varset(), identity(), domain_revision()) ->
-    {ok, [provider_id()]} | {error, route_not_found}.
+    {ok, [route()]} | {error, route_not_found}.
 
 prepare_route(PartyVarset, Identity, DomainRevision) ->
-    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
-        {ok, Providers}  ->
-            filter_providers(Providers, PartyVarset);
-        {error, {misconfiguration, _Details} = Error} ->
-            %% TODO: Do not interpret such error as an empty route list.
-            %% The current implementation is made for compatibility reasons.
-            %% Try to remove and follow the tests.
-            _ = logger:warning("Route search failed: ~p", [Error]),
-            {error, route_not_found}
-    end.
+    ff_withdrawal_routing:prepare_routes(PartyVarset, Identity, DomainRevision).
 
--spec validate_quote_provider(provider_id(), quote()) ->
-    {ok, valid} | {error, {inconsistent_quote_route, provider_id()}}.
-validate_quote_provider(ProviderID, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
+-spec validate_quote_route(route(), quote()) -> {ok, valid} | {error, InconsistentQuote} when
+    InconsistentQuote :: {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}.
+
+validate_quote_route(Route, #{quote_data := QuoteData}) ->
+    do(fun() ->
+        valid = unwrap(validate_quote_provider(Route, QuoteData)),
+        valid = unwrap(validate_quote_terminal(Route, QuoteData))
+    end).
+
+validate_quote_provider(#{provider_id := ProviderID}, #{<<"provider_id">> := ProviderID}) ->
     {ok, valid};
-validate_quote_provider(ProviderID, _) ->
-    {error, {inconsistent_quote_route, ProviderID}}.
+validate_quote_provider(#{provider_id := ProviderID}, _) ->
+    {error, {inconsistent_quote_route, {provider_id, ProviderID}}}.
 
--spec filter_providers([provider_id()], party_varset()) ->
-    {ok, [provider_id()]} | {error, route_not_found}.
-filter_providers(Providers, VS) ->
-    case lists:filter(fun(P) -> validate_withdrawals_terms(P, VS) end, Providers) of
-        [] ->
-            {error, route_not_found};
-        Providers ->
-            {ok, Providers}
-    end.
-
--spec validate_withdrawals_terms(provider_id(), party_varset()) ->
-    boolean().
-validate_withdrawals_terms(ID, VS) ->
-    {ok, Provider} = ff_payouts_provider:get(ID),
-    case ff_payouts_provider:validate_terms(Provider, VS) of
-        {ok, valid} ->
-            true;
-        {error, _Error} ->
-            false
-    end.
+validate_quote_terminal(#{terminal_id := TerminalID}, #{<<"terminal_id">> := TerminalID}) ->
+    {ok, valid};
+validate_quote_terminal(#{terminal_id := TerminalID}, _) ->
+    {error, {inconsistent_quote_route, {terminal_id, TerminalID}}}.
 
 -spec process_limit_check(withdrawal_state()) ->
     process_result().
@@ -830,7 +803,7 @@ process_session_creation(Withdrawal) ->
     Destination = ff_destination:get(DestinationMachine),
     DestinationAccount = ff_destination:account(Destination),
 
-    #{provider_id := ProviderID} = route(Withdrawal),
+    Route = route(Withdrawal),
     {ok, SenderSt} = ff_identity_machine:get(ff_account:identity(WalletAccount)),
     {ok, ReceiverSt} = ff_identity_machine:get(ff_account:identity(DestinationAccount)),
 
@@ -844,9 +817,7 @@ process_session_creation(Withdrawal) ->
     SessionParams = #{
         withdrawal_id => id(Withdrawal),
         resource => destination_resource(Withdrawal),
-        route => #{
-            provider_id => ProviderID
-        }
+        route => Route
     },
     ok = create_session(ID, TransferData, SessionParams),
     {continue, [{session_started, ID}]}.
@@ -954,7 +925,7 @@ make_final_cash_flow(Withdrawal) ->
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-    ProviderFee = ff_payouts_provider:compute_fees(Provider, PartyVarset),
+    {ok, ProviderFee} = ff_payouts_provider:compute_fees(Provider, PartyVarset),
 
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
@@ -1092,8 +1063,8 @@ get_quote_(Params, Destination, Resource) ->
             destination => Destination,
             resource => Resource
         }),
-        [ProviderID | _] = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
-        {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
+        [Route | _] = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(Route),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),
             currency_from => CurrencyFrom,
@@ -1102,23 +1073,26 @@ get_quote_(Params, Destination, Resource) ->
         },
         {ok, Quote} = ff_adapter_withdrawal:get_quote(Adapter, GetQuoteParams, AdapterOpts),
         %% add provider id to quote_data
-        wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote)
+        wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, Route, Quote)
     end).
 
--spec wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote) -> quote() when
+-spec wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, Route, Quote) -> quote() when
     DomainRevision :: domain_revision(),
     PartyRevision :: party_revision(),
     Timestamp :: ff_time:timestamp_ms(),
-    ProviderID :: provider_id(),
+    Route :: route(),
     Resource :: destination_resource() | undefined,
     Quote :: ff_adapter_withdrawal:quote().
-wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote) ->
+wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, Route, Quote) ->
     #{quote_data := QuoteData} = Quote,
     ResourceID = ff_destination:full_bank_card_id(Resource),
+    ProviderID = ff_withdrawal_routing:get_provider(Route),
+    TerminalID = ff_withdrawal_routing:get_terminal(Route),
     Quote#{quote_data := genlib_map:compact(#{
         <<"version">> => 1,
         <<"quote_data">> => QuoteData,
         <<"provider_id">> => ProviderID,
+        <<"terminal_id">> => TerminalID,
         <<"resource_id">> => ResourceID,
         <<"timestamp">> => Timestamp,
         <<"domain_revision">> => DomainRevision,
@@ -1449,12 +1423,10 @@ process_adjustment(Withdrawal) ->
     Events1 = Events0 ++ handle_adjustment_changes(Changes),
     handle_child_result({Action, Events1}, Withdrawal).
 
--spec process_route_change([provider_id()], withdrawal_state(), fail_type()) ->
+-spec process_route_change([route()], withdrawal_state(), fail_type()) ->
     process_result().
-process_route_change(Providers, Withdrawal, Reason) ->
+process_route_change(Routes, Withdrawal, Reason) ->
     Attempts = attempts(Withdrawal),
-    %% TODO Remove line below after switch to [route()] from [provider_id()]
-    Routes = [#{version => 1, provider_id => ID} || ID <- Providers],
     AttemptLimit = get_attempt_limit(Withdrawal),
     case ff_withdrawal_route_attempt_utils:next_route(Routes, Attempts, AttemptLimit) of
         {ok, Route} ->
@@ -1515,11 +1487,10 @@ build_failure(route_not_found, _Withdrawal) ->
     #{
         code => <<"no_route_found">>
     };
-build_failure({inconsistent_quote_route, FoundProviderID}, Withdrawal) ->
-    #{quote_data := #{<<"provider_id">> := QuotaProviderID}} = quote(Withdrawal),
+build_failure({inconsistent_quote_route, {Type, FoundID}}, Withdrawal) ->
     Details = {inconsistent_quote_route, #{
-        expected => QuotaProviderID,
-        found => FoundProviderID
+        expected => {Type, FoundID},
+        found => get_quote_field(Type, quote(Withdrawal))
     }},
     #{
         code => <<"unknown">>,
@@ -1529,6 +1500,11 @@ build_failure(session, Withdrawal) ->
     Result = session_result(Withdrawal),
     {failed, Failure} = Result,
     Failure.
+
+get_quote_field(provider_id, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
+    ProviderID;
+get_quote_field(terminal_id, #{quote_data := QuoteData}) ->
+    maps:get(<<"terminal_id">>, QuoteData, undefined).
 
 %%
 

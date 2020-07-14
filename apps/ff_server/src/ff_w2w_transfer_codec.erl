@@ -20,6 +20,12 @@
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+    #w2w_transfer_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(event, {EventID, {ev, Timestamp, Change}}) ->
     #w2w_transfer_Event{
         event_id = ff_codec:marshal(event_id, EventID),
@@ -67,6 +73,11 @@ marshal(T, V) ->
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
 
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#w2w_transfer_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#w2w_transfer_TimestampedChange.change),
+    {ev, Timestamp, Change};
+
 unmarshal(repair_scenario, {add_events, #w2w_transfer_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
         events => unmarshal({list, change}, Events),
@@ -82,16 +93,17 @@ unmarshal(change, {transfer, #w2w_transfer_TransferChange{payload = TransferChan
 unmarshal(change, {limit_check, #w2w_transfer_LimitCheckChange{details = Details}}) ->
     {limit_check, ff_limit_check_codec:unmarshal(details, Details)};
 unmarshal(change, {adjustment, Change}) ->
-    {revert, #{
+    {adjustment, #{
         id => unmarshal(id, Change#w2w_transfer_AdjustmentChange.id),
-        payload => ff_w2w_transfer_adjustment_codec:unmarshal(id, Change#w2w_transfer_AdjustmentChange.payload)
+        payload => ff_w2w_transfer_adjustment_codec:unmarshal(change, Change#w2w_transfer_AdjustmentChange.payload)
     }};
 
 unmarshal(status, Status) ->
     ff_w2w_transfer_status_codec:unmarshal(status, Status);
 
 unmarshal(w2w_transfer, W2WTransfer) ->
-    #{
+    genlib_map:compact(#{
+        version => 1,
         id => unmarshal(id, W2WTransfer#w2w_transfer_W2WTransfer.id),
         body => unmarshal(cash, W2WTransfer#w2w_transfer_W2WTransfer.body),
         status => maybe_marshal(status, W2WTransfer#w2w_transfer_W2WTransfer.status),
@@ -101,7 +113,7 @@ unmarshal(w2w_transfer, W2WTransfer) ->
         party_revision => maybe_unmarshal(party_revision, W2WTransfer#w2w_transfer_W2WTransfer.party_revision),
         domain_revision => maybe_unmarshal(domain_revision, W2WTransfer#w2w_transfer_W2WTransfer.domain_revision),
         created_at => maybe_unmarshal(timestamp_ms, W2WTransfer#w2w_transfer_W2WTransfer.created_at)
-    };
+    });
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

@@ -37,6 +37,7 @@
 -export([adapter_unreachable_route_retryable_test/1]).
 -export([adapter_unreachable_quote_test/1]).
 -export([attempt_limit_test/1]).
+-export([termial_priority_test/1]).
 
 %% Internal types
 
@@ -71,7 +72,8 @@ groups() ->
             adapter_unreachable_route_test,
             adapter_unreachable_route_retryable_test,
             adapter_unreachable_quote_test,
-            attempt_limit_test
+            attempt_limit_test,
+            termial_priority_test
         ]}
     ].
 
@@ -182,7 +184,8 @@ adapter_unreachable_quote_test(C) ->
             quote_data  => #{
                 <<"version">> => 1,
                 <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 4
+                <<"provider_id">> => 4,
+                <<"terminal_id">> => 1
             }
         }
     },
@@ -211,6 +214,27 @@ attempt_limit_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(
         {failed, #{code => <<"authorization_error">>}},
+        await_final_withdrawal_status(WithdrawalID)).
+
+-spec termial_priority_test(config()) -> test_return().
+termial_priority_test(C) ->
+    Currency = <<"RUB">>,
+    Cash = {500500, Currency},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    ?assertEqual(
+        {failed, #{code => <<"not_expected_error">>}},
         await_final_withdrawal_status(WithdrawalID)).
 
 %% Utils

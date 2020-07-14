@@ -22,6 +22,7 @@
 -export([timed_term_set/1]).
 -export([globals/2]).
 -export([withdrawal_provider/4]).
+-export([withdrawal_terminal/1]).
 -export([p2p_provider/4]).
 
 %%
@@ -34,57 +35,62 @@
 -type object() ::
     dmsl_domain_thrift:'DomainObject'().
 
--spec p2p_provider(?dtp('P2PProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
+-spec p2p_provider(?dtp('ProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
     object().
 
 p2p_provider(Ref, ProxyRef, IdentityID, C) ->
     AccountID = account(<<"RUB">>, C),
-    {p2p_provider, #domain_P2PProviderObject{
+    {provider, #domain_ProviderObject{
         ref = Ref,
-        data = #domain_P2PProvider{
+        data = #domain_Provider{
             name = <<"P2PProvider">>,
+            description = <<"P2P provider">>,
             proxy = #domain_Proxy{ref = ProxyRef, additional = #{}},
             identity = IdentityID,
-            p2p_terms = #domain_P2PProvisionTerms{
-                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
-                cash_limit = {value, ?cashrng(
-                    {inclusive, ?cash(       0, <<"RUB">>)},
-                    {exclusive, ?cash(10000000, <<"RUB">>)}
-                )},
-                cash_flow = {decisions, [
-                    #domain_CashFlowDecision{
-                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, [
-                            ?cfpost(
-                                {system, settlement},
-                                {provider, settlement},
-                                {product, {min_of, ?ordset([
-                                    ?fixed(10, <<"RUB">>),
-                                    ?share(5, 100, operation_amount, round_half_towards_zero)
-                                ])}}
-                            )
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    p2p = #domain_P2PProvisionTerms{
+                        currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                        cash_limit = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10000000, <<"RUB">>)}
+                        )},
+                        cash_flow = {decisions, [
+                            #domain_CashFlowDecision{
+                                if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                                then_ = {value, [
+                                    ?cfpost(
+                                        {system, settlement},
+                                        {provider, settlement},
+                                        {product, {min_of, ?ordset([
+                                            ?fixed(10, <<"RUB">>),
+                                            ?share(5, 100, operation_amount, round_half_towards_zero)
+                                        ])}}
+                                    )
+                                ]}
+                            }
+                        ]},
+                        fees = {decisions, [
+                            #domain_FeeDecision{
+                                if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                                then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
+                            },
+                            #domain_FeeDecision{
+                                if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
+                                then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
+                            }#domain_FeeDecision{
+                                if_ = {condition, {currency_is, ?cur(<<"EUR">>)}},
+                                then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
+                            }
                         ]}
                     }
-                ]},
-                fees = {decisions, [
-                    #domain_FeeDecision{
-                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, #domain_Fees{
-                            fees = #{surplus => ?share(1, 1, operation_amount)}
-                        }}
-                    },
-                    #domain_FeeDecision{
-                        if_ = {condition, {currency_is, ?cur(<<"USD">>)}},
-                        then_ = {value, #domain_Fees{
-                            fees = #{surplus => ?share(1, 1, operation_amount)}
-                        }}
-                    }#domain_FeeDecision{
-                        if_ = {condition, {currency_is, ?cur(<<"EUR">>)}},
-                        then_ = {value, #domain_Fees{
-                            fees = #{surplus => ?share(1, 1, operation_amount)}
-                        }}
-                    }
-                ]}
+                }
             },
             accounts = #{
                 ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
@@ -92,42 +98,149 @@ p2p_provider(Ref, ProxyRef, IdentityID, C) ->
         }
     }}.
 
--spec withdrawal_provider(?dtp('WithdrawalProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
+-spec withdrawal_provider(?dtp('ProviderRef'), ?dtp('ProxyRef'), binary(), ct_helper:config()) ->
     object().
+
+withdrawal_provider(?prv(16) = Ref, ProxyRef, IdentityID, C) ->
+    AccountID = account(<<"RUB">>, C),
+    {provider, #domain_ProviderObject{
+        ref = Ref,
+        data = #domain_Provider{
+            name = <<"WithdrawalProvider">>,
+            description = <<"Withdrawal provider">>,
+            proxy = #domain_Proxy{ref = ProxyRef, additional = #{}},
+            identity = IdentityID,
+            terms = undefined,
+            accounts = #{
+                ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
+            },
+            terminal = {decisions, [
+                #domain_TerminalDecision{
+                    if_   = {constant, true},
+                    then_ = {value, [?prv_trm(6)]}
+                }
+            ]}
+        }
+    }};
 
 withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
     AccountID = account(<<"RUB">>, C),
-    {withdrawal_provider, #domain_WithdrawalProviderObject{
+    {provider, #domain_ProviderObject{
         ref = Ref,
-        data = #domain_WithdrawalProvider{
+        data = #domain_Provider{
             name = <<"WithdrawalProvider">>,
+            description = <<"Withdrawal provider">>,
             proxy = #domain_Proxy{ref = ProxyRef, additional = #{}},
             identity = IdentityID,
-            withdrawal_terms = #domain_WithdrawalProvisionTerms{
-                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
-                payout_methods = {value, ?ordset([])},
-                cash_limit = {value, ?cashrng(
-                    {inclusive, ?cash(       0, <<"RUB">>)},
-                    {exclusive, ?cash(10000000, <<"RUB">>)}
-                )},
-                cash_flow = {decisions, [
-                    #domain_CashFlowDecision{
-                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
-                        then_ = {value, [
-                            ?cfpost(
-                                {system, settlement},
-                                {provider, settlement},
-                                {product, {min_of, ?ordset([
-                                    ?fixed(10, <<"RUB">>),
-                                    ?share(5, 100, operation_amount, round_half_towards_zero)
-                                ])}}
-                            )
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    withdrawals = #domain_WithdrawalProvisionTerms{
+                        currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                        payout_methods = {value, ?ordset([])},
+                        cash_limit = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10000000, <<"RUB">>)}
+                        )},
+                        cash_flow = {decisions, [
+                            #domain_CashFlowDecision{
+                                if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                                then_ = {value, [
+                                    ?cfpost(
+                                        {system, settlement},
+                                        {provider, settlement},
+                                        {product, {min_of, ?ordset([
+                                            ?fixed(10, <<"RUB">>),
+                                            ?share(5, 100, operation_amount, round_half_towards_zero)
+                                        ])}}
+                                    )
+                                ]}
+                            }
                         ]}
                     }
-                ]}
+                }
             },
             accounts = #{
                 ?cur(<<"RUB">>) => #domain_ProviderAccount{settlement = AccountID}
+            },
+            terminal =
+                case Ref of
+                    ?prv(9) ->
+                        {decisions, [
+                            #domain_TerminalDecision{
+                                if_   = {constant, true},
+                                then_ = {value, [?prv_trm(1, 500)]}
+                            }
+                        ]};
+                    ?prv(10) ->
+                        {decisions, [
+                            #domain_TerminalDecision{
+                                if_   = {constant, true},
+                                then_ = {value, [?prv_trm(1)]}
+                            }
+                        ]};
+                    _ ->
+                        {decisions, [
+                            #domain_TerminalDecision{
+                                if_   = {condition, {cost_in, ?cashrng(
+                                    {inclusive, ?cash(      0, <<"RUB">>)},
+                                    {exclusive, ?cash(1000000, <<"RUB">>)}
+                                )}},
+                                then_ = {value, [?prv_trm(1)]}
+                            },
+                            #domain_TerminalDecision{
+                                if_   = {condition, {cost_in, ?cashrng(
+                                    {inclusive, ?cash( 3000000, <<"RUB">>)},
+                                    {exclusive, ?cash(10000000, <<"RUB">>)}
+                                )}},
+                                then_ = {value, [?prv_trm(7)]}
+                            }
+                        ]}
+                end
+        }
+    }}.
+
+-spec withdrawal_terminal(?dtp('TerminalRef')) ->
+    object().
+withdrawal_terminal(?trm(1) = Ref) ->
+    {terminal, #domain_TerminalObject{
+        ref = Ref,
+        data = #domain_Terminal{
+            name = <<"WithdrawalTerminal">>,
+            description = <<"Withdrawal terminal">>,
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    withdrawals = #domain_WithdrawalProvisionTerms{}
+                }
+            }
+        }
+    }};
+withdrawal_terminal(?trm(6) = Ref) ->
+    {terminal, #domain_TerminalObject{
+        ref = Ref,
+        data = #domain_Terminal{
+            name = <<"WithdrawalTerminal">>,
+            description = <<"Withdrawal terminal">>,
+            terms = undefined
+        }
+    }};
+withdrawal_terminal(?trm(7) = Ref) ->
+    {terminal, #domain_TerminalObject{
+        ref = Ref,
+        data = #domain_Terminal{
+            name = <<"Terminal7">>,
+            description = <<"Withdrawal terminal">>,
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    withdrawals = #domain_WithdrawalProvisionTerms{
+                        currencies = {value, ?ordset([?cur(<<"BTC">>)])},
+                        payout_methods = {value, ?ordset([])},
+                        cash_limit = {value, ?cashrng(
+                            {inclusive, ?cash( 1000000, <<"BTC">>)},
+                            {exclusive, ?cash(10000000, <<"BTC">>)}
+                        )},
+                        cash_flow = {value, ?ordset([])}
+                    }
+                }
             }
         }
     }}.

@@ -226,7 +226,9 @@ prepare_standard_environment(TokenPrefix, TransferCash, C) ->
     DomainRevision = ff_domain_config:head(),
     {ok, PartyRevision} = ff_party:get_revision(PartyID),
     SessionParams = #{
-        provider_id => 1,
+        route => #{
+            provider_id => 101
+        },
         domain_revision => DomainRevision,
         party_revision => PartyRevision
     },

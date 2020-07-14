@@ -121,8 +121,16 @@ marshal(withdrawal, Withdrawal) ->
         %% TODO add quote here
     };
 
-marshal(route, #{provider_id := ProviderID}) ->
-    #wthd_Route{provider_id = marshal(provider_id, ProviderID)};
+marshal(route, Route) ->
+    #{
+        version := 1,
+        provider_id := ProviderID
+    } = Route,
+    #wthd_Route{
+        provider_id = marshal(provider_id, ProviderID),
+        terminal_id = maybe_marshal(terminal_id, genlib_map:get(terminal_id, Route)),
+        provider_id_legacy = marshal(string, get_legacy_provider_id(Route))
+    };
 
 marshal(status, Status) ->
     ff_withdrawal_status_codec:marshal(status, Status);
@@ -146,9 +154,6 @@ marshal(session_state, Session) ->
 
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
-
-marshal(provider_id, ProviderID) ->
-    marshal(id, genlib:to_binary(ProviderID));
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -204,14 +209,16 @@ unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
         metadata => maybe_unmarshal(ctx, Withdrawal#wthd_Withdrawal.metadata)
     });
 
-unmarshal(route, #wthd_Route{provider_id = ProviderID}) ->
-    #{provider_id => unmarshal(provider_id, ProviderID)};
+unmarshal(route, Route) ->
+    genlib_map:compact(#{
+        version => 1,
+        provider_id => unmarshal(provider_id, Route#wthd_Route.provider_id),
+        terminal_id => maybe_unmarshal(terminal_id, Route#wthd_Route.terminal_id),
+        provider_id_legacy => maybe_unmarshal(string, Route#wthd_Route.provider_id_legacy)
+    });
 
 unmarshal(status, Status) ->
     ff_withdrawal_status_codec:unmarshal(status, Status);
-
-unmarshal(provider_id, ProviderID) ->
-    unmarshal(integer, erlang:binary_to_integer(ProviderID));
 
 unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {started, #wthd_SessionStarted{}}}) ->
     {session_started, unmarshal(id, ID)};
@@ -248,6 +255,11 @@ maybe_marshal(_Type, undefined) ->
 maybe_marshal(Type, Value) ->
     marshal(Type, Value).
 
+get_legacy_provider_id(#{provider_id_legacy := Provider}) when is_binary(Provider) ->
+    Provider;
+get_legacy_provider_id(#{provider_id := Provider}) when is_integer(Provider) ->
+    genlib:to_binary(Provider - 300).
+
 %% TESTS
 
 -ifdef(TEST).
@@ -266,7 +278,9 @@ withdrawal_symmetry_test() ->
         destination_id = genlib:unique(),
         external_id = genlib:unique(),
         route = #wthd_Route{
-            provider_id = <<"22">>
+            provider_id = 1,
+            terminal_id = 7,
+            provider_id_legacy = <<"mocketbank">>
         },
         domain_revision = 1,
         party_revision = 3,

@@ -1464,11 +1464,8 @@ binaries_to_error_tokens(Errors) ->
 
 -spec to_error_token_list(fail_type(), withdrawal_state()) ->
     list(binary()).
-to_error_token_list(session, Withdrawal) ->
-    {failed, Failure} = session_result(Withdrawal),
-    failure_to_error_token_list(Failure);
-to_error_token_list(_Reason, Withdrawal) ->
-    {failed, Failure} = status(Withdrawal),
+to_error_token_list(Reason, Withdrawal) ->
+    Failure = build_failure(Reason, Withdrawal),
     failure_to_error_token_list(Failure).
 
 -spec failure_to_error_token_list(ff_failure:failure()) ->

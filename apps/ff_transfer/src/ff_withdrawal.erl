@@ -1466,16 +1466,17 @@ binaries_to_error_tokens(Errors) ->
     list(binary()).
 to_error_token_list(session, Withdrawal) ->
     {failed, Failure} = session_result(Withdrawal),
-    to_session_error_token_list(Failure);
-to_error_token_list(Reason, _Withdrawal) ->
-    [genlib:to_binary(Reason)].
+    failure_to_error_token_list(Failure);
+to_error_token_list(_Reason, Withdrawal) ->
+    {failed, Failure} = status(Withdrawal),
+    failure_to_error_token_list(Failure).
 
--spec to_session_error_token_list(ff_adapter_withdrawal:failure()) ->
+-spec failure_to_error_token_list(ff_failure:failure()) ->
     list(binary()).
-to_session_error_token_list(#{code := Code, sub := SubFailure}) ->
-    SubFailureList = to_session_error_token_list(SubFailure),
+failure_to_error_token_list(#{code := Code, sub := SubFailure}) ->
+    SubFailureList = failure_to_error_token_list(SubFailure),
     [Code | SubFailureList];
-to_session_error_token_list(#{code := Code}) ->
+failure_to_error_token_list(#{code := Code}) ->
     [Code].
 
 -spec match_error_whitelist(list(binary()), list(list(binary()))) ->

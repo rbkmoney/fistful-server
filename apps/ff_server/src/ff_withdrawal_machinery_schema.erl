@@ -403,26 +403,36 @@ v1_created_migration_test() ->
 
 -spec v2_created_migration_test() -> _.
 v2_created_migration_test() ->
-    Withdrawal = #{body => {100, <<"RUB">>},
-                     id => <<"ID">>,
-                     metadata => #{<<"some key">> => <<"some val">>},
-                     params =>
-                      #{destination_account =>
-                         #{accounter_account_id => 123, currency => <<"RUB">>,
-                           id => <<"destinationID">>,
-                           identity => <<"identityID2">>},
-                        destination_id => <<"destinationID">>,
-                        wallet_account =>
-                         #{accounter_account_id => 123, currency => <<"RUB">>,
-                           id => <<"walletID">>, identity => <<"identityID">>},
-                        wallet_cash_flow_plan =>
-                         #{postings =>
-                            [#{receiver => {wallet, receiver_destination},
-                               sender => {wallet, sender_settlement},
-                               volume =>
-                                {share, {{1, 1}, operation_amount, default}}}]},
-                        wallet_id => <<"walletID">>},
-                     transfer_type => withdrawal, version => 3},
+    Withdrawal = #{
+        body => {100, <<"RUB">>},
+        id => <<"ID">>,
+        metadata => #{<<"some key">> => <<"some val">>},
+        params => #{
+            destination_account => #{
+                accounter_account_id => 123,
+                currency => <<"RUB">>,
+                id => <<"destinationID">>,
+                identity => <<"identity2">>
+            },
+            destination_id => <<"destinationID">>,
+            wallet_account => #{
+                accounter_account_id => 123,
+                currency => <<"RUB">>,
+                id => <<"walletID">>,
+                identity => <<"identity">>
+            },
+            wallet_cash_flow_plan => #{
+                postings => [#{
+                    receiver => {wallet, receiver_destination},
+                    sender => {wallet, sender_settlement},
+                    volume => {share, {{1, 1}, operation_amount, default}}
+                }]
+            },
+             wallet_id => <<"walletID">>
+        },
+        transfer_type => withdrawal,
+        version => 3
+    },
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [
@@ -442,7 +452,7 @@ v2_created_migration_test() ->
                                 {str, <<"accounter_account_id">>} => {i, 123},
                                 {str, <<"currency">>} => {bin, <<"RUB">>},
                                 {str, <<"id">>} => {bin, <<"destinationID">>},
-                                {str, <<"identity">>} => {bin, <<"identityID2">>}
+                                {str, <<"identity">>} => {bin, <<"identity2">>}
                             }}
                         ]},
                     {str, <<"destination_id">>} => {bin, <<"destinationID">>},
@@ -452,7 +462,7 @@ v2_created_migration_test() ->
                             {str, <<"accounter_account_id">>} => {i, 123},
                             {str, <<"currency">>} => {bin, <<"RUB">>},
                             {str, <<"id">>} => {bin, <<"walletID">>},
-                            {str, <<"identity">>} => {bin, <<"identityID">>}
+                            {str, <<"identity">>} => {bin, <<"identity">>}
                         }}
                     ]},
                     {str, <<"wallet_cash_flow_plan">>} => {arr, [
@@ -525,26 +535,36 @@ v2_created_migration_test() ->
 
 -spec v3_created_migration_test() -> _.
 v3_created_migration_test() ->
-    Withdrawal = #{body => {100, <<"RUB">>},
-                     id => <<"ID">>,
-                     metadata => #{<<"some key">> => <<"some val">>},
-                     params =>
-                      #{destination_account =>
-                         #{accounter_account_id => 123, currency => <<"RUB">>,
-                           id => <<"destinationID">>,
-                           identity => <<"identity2">>},
-                        destination_id => <<"destinationID">>,
-                        wallet_account =>
-                         #{accounter_account_id => 123, currency => <<"RUB">>,
-                           id => <<"walletID">>, identity => <<"identity">>},
-                        wallet_cash_flow_plan =>
-                         #{postings =>
-                            [#{receiver => {wallet, receiver_destination},
-                               sender => {wallet, sender_settlement},
-                               volume =>
-                                {share, {{1, 1}, operation_amount, default}}}]},
-                        wallet_id => <<"walletID">>},
-                     transfer_type => withdrawal, version => 3},
+    Withdrawal = #{
+        body => {100, <<"RUB">>},
+        id => <<"ID">>,
+        metadata => #{<<"some key">> => <<"some val">>},
+        params => #{
+            destination_account => #{
+                accounter_account_id => 123,
+                currency => <<"RUB">>,
+                id => <<"destinationID">>,
+                identity => <<"identity2">>
+            },
+            destination_id => <<"destinationID">>,
+            wallet_account => #{
+                accounter_account_id => 123,
+                currency => <<"RUB">>,
+                id => <<"walletID">>,
+                identity => <<"identity">>
+            },
+            wallet_cash_flow_plan => #{
+                postings => [#{
+                    receiver => {wallet, receiver_destination},
+                    sender => {wallet, sender_settlement},
+                    volume => {share, {{1, 1}, operation_amount, default}}
+                }]
+            },
+            wallet_id => <<"walletID">>
+        },
+        transfer_type => withdrawal,
+        version => 3
+    },
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyChange = {arr, [

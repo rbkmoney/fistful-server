@@ -221,7 +221,6 @@ unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
     });
 
 unmarshal(route, Route) ->
-    ct:log("Route: ~p", [Route]),
     genlib_map:compact(#{
         version => 1,
         provider_id => unmarshal(provider_id, Route#wthd_Route.provider_id),

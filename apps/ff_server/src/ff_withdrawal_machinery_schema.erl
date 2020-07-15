@@ -14,7 +14,7 @@
 
 % TODO: Replace version to 1 after p2p provider migration
 % see https://rbkmoney.atlassian.net/browse/MSPF-561 for details
--define(CURRENT_EVENT_FORMAT_VERSION, 1).
+-define(CURRENT_EVENT_FORMAT_VERSION, undefined).
 
 %% Internal types
 
@@ -692,8 +692,8 @@ created_v3_test() ->
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent = {bin, base64:decode(<<"CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAg",
-        "wAAQwAAQsABQAAAAJJRAsAAQAAAAh3YWxsZXRJRAsAAgAAAA1kZXN0aW5hdGlvbklEDAADCgABAAAAAAAAA","
-        GQMAAILAAEAAAADUlVCAAAAAAAA">>)},
+        "wAAQwAAQsABQAAAAJJRAsAAQAAAAh3YWxsZXRJRAsAAgAAAA1kZXN0aW5hdGlvbklEDAADCgABAAAAAAAAA",
+        "GQMAAILAAEAAAADUlVCAAAAAAAA">>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),

@@ -305,6 +305,8 @@ try_unmarshal_msgpack(V) ->
     %     blocking     => blocking()
     % }
 
+try_migrate_identity_state(undefined, _MigrateParams) ->
+    undefined;
 try_migrate_identity_state(Identity = #{id := ID}, _MigrateParams) ->
     {ok, Machine} = ff_identity_machine:get(ID),
     NewIdentity = ff_identity_machine:identity(Machine),
@@ -314,11 +316,13 @@ try_migrate_identity_state(Identity = #{id := ID}, _MigrateParams) ->
         metadata => ff_identity:metadata(NewIdentity)
     }.
 
-try_migrate_to_adapter_identity(Identity, _MigrateParams) ->
+try_migrate_to_adapter_identity(Identity = #{id := ID}, _MigrateParams) ->
     #{
-        id => maps:get(id, Identity, undefined),
+        id => ID,
         effective_challenge => try_get_identity_challenge(Identity)
-    }.
+    };
+try_migrate_to_adapter_identity(_, _MigrateParams) ->
+    undefined.
 
 try_get_identity_challenge(#{effective := ChallengeID, challenges := Challenges}) ->
     #{ChallengeID := Challenge} = Challenges,

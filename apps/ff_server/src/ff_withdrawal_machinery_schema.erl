@@ -175,7 +175,7 @@ maybe_migrate({created, T}, MigrateParams) ->
 maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
     maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
 maybe_migrate({status_changed, {failed, Failure}}, _MigrateParams) when is_map(Failure) ->
-    {failed, Failure};
+    {status_changed, {failed, Failure}};
 maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
     Failure = #{
         code => <<"unknown">>,
@@ -698,5 +698,17 @@ created_v3_test() ->
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
+
+-spec status_changed_marshaling_test() -> _.
+status_changed_marshaling_test() ->
+    Change = {status_changed, {failed, #{code => <<"unknown">>, reason => <<"failure reason">>}}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<"CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAgwAAQw",
+        "AAwwAAQsAAQAAAAd1bmtub3duCwACAAAADmZhaWx1cmUgcmVhc29uAAAAAAAA">>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
 
 -endif.

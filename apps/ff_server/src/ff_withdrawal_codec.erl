@@ -64,8 +64,8 @@ marshal_withdrawal_state(WithdrawalState, Context) ->
         effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
         adjustments = [ff_withdrawal_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments],
         context = marshal(ctx, Context),
-        metadata = marshal(ctx, ff_withdrawal:metadata(WithdrawalState))
-        %% TODO add quote here
+        metadata = marshal(ctx, ff_withdrawal:metadata(WithdrawalState)),
+        quote = maybe_marshal(quote, ff_withdrawal:quote(WithdrawalState))
     }.
 
 -spec marshal_event(ff_withdrawal_machine:event()) ->
@@ -123,8 +123,8 @@ marshal(withdrawal, Withdrawal) ->
         domain_revision = maybe_marshal(domain_revision, ff_withdrawal:domain_revision(Withdrawal)),
         party_revision = maybe_marshal(party_revision, ff_withdrawal:party_revision(Withdrawal)),
         created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(Withdrawal)),
-        metadata = maybe_marshal(ctx, ff_withdrawal:metadata(Withdrawal))
-        %% TODO add quote here
+        metadata = maybe_marshal(ctx, ff_withdrawal:metadata(Withdrawal)),
+        quote = maybe_marshal(quote, ff_withdrawal:quote(Withdrawal))
     };
 
 marshal(route, Route) ->
@@ -156,6 +156,15 @@ marshal(session_state, Session) ->
     #wthd_SessionState{
         id = marshal(id, maps:get(id, Session)),
         result = maybe_marshal(session_result, maps:get(result, Session, undefined))
+    };
+
+marshal(quote, Quote) ->
+    #wthd_WithdrawalQuote{
+        cash_from  = marshal(cash,         maps:get(cash_from,  Quote)),
+        cash_to    = marshal(cash,         maps:get(cash_to,    Quote)),
+        created_at = maps:get(created_at, Quote), % already formatted
+        expires_on = maps:get(expires_on, Quote),
+        quote_data = marshal(ctx,          maps:get(quote_data, Quote))
     };
 
 marshal(ctx, Ctx) ->
@@ -208,8 +217,8 @@ unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
         body => unmarshal(cash, Withdrawal#wthd_Withdrawal.body),
         params => genlib_map:compact(#{
             wallet_id => unmarshal(id, Withdrawal#wthd_Withdrawal.wallet_id),
-            destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id)
-            %% TODO add quote here
+            destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id),
+            quote => maybe_unmarshal(quote, Withdrawal#wthd_Withdrawal.quote)
         }),
         route => maybe_unmarshal(route, Withdrawal#wthd_Withdrawal.route),
         external_id => maybe_unmarshal(id, Withdrawal#wthd_Withdrawal.external_id),
@@ -247,6 +256,15 @@ unmarshal(session_state, Session) ->
         id => unmarshal(id, Session#wthd_SessionState.id),
         result => maybe_unmarshal(session_result, Session#wthd_SessionState.result)
     });
+
+unmarshal(quote, Quote) ->
+    #{
+        cash_from => unmarshal(cash, Quote#wthd_WithdrawalQuote.cash_from),
+        cash_to   => unmarshal(cash, Quote#wthd_WithdrawalQuote.cash_to),
+        created_at => Quote#wthd_WithdrawalQuote.created_at,
+        expires_on => Quote#wthd_WithdrawalQuote.expires_on,
+        quote_data => unmarshal(ctx, Quote#wthd_WithdrawalQuote.quote_data)
+    };
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);

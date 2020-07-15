@@ -12,9 +12,9 @@
 
 %% Constants
 
-% TODO: Replace version to 3 after p2p provider migration
+% TODO: Replace version to 1 after p2p provider migration
 % see https://rbkmoney.atlassian.net/browse/MSPF-561 for details
--define(CURRENT_EVENT_FORMAT_VERSION, undefined).
+-define(CURRENT_EVENT_FORMAT_VERSION, 1).
 
 %% Internal types
 

@@ -116,7 +116,7 @@ maybe_migrate({created, Identity = #{version := 1, id := ID}}, MigrateContext) -
     Ctx = maps:get(ctx, MigrateContext, undefined),
     Context = case Ctx of
         undefined ->
-            {ok, State} = ff_machine:get(ff_deposit, 'ff/deposit_v1', ID, {undefined, 0, forward}),
+            {ok, State} = ff_machine:get(ff_identity, 'ff/identity', ID, {undefined, 0, forward}),
             maps:get(ctx, State, undefined);
         Data ->
             Data
@@ -161,66 +161,8 @@ unmarshal(Type, Value) ->
     {Result, _Context} = unmarshal(Type, Value, #{}),
     Result.
 
--spec created_v0_2_decoding_test() -> _.
-created_v0_2_decoding_test() ->
-    Identity = #{
-        class => <<"class">>,
-        contract => <<"ContractID">>,
-        created_at => 1592576943762,
-        id => <<"ID">>,
-        party => <<"PartyID">>,
-        provider => <<"good-one">>,
-        metadata => #{<<"some key">> => <<"some val">>},
-        version => 2
-    },
-    Change = {created, Identity},
-    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
-
-    LegacyChange = {arr, [
-        {str, <<"tup">>},
-        {str, <<"created">>},
-        {arr, [
-            {str, <<"map">>},
-            {obj, #{
-                {str, <<"class">>} => {bin, <<"class">>},
-                {str, <<"contract">>} => {bin, <<"ContractID">>},
-                {str, <<"created_at">>} => {i, 1592576943762},
-                {str, <<"id">>} => {bin, <<"ID">>},
-                {str, <<"party">>} => {bin, <<"PartyID">>},
-                {str, <<"provider">>} => {bin, <<"good-one">>}
-            }}
-        ]}
-    ]},
-    LegacyEvent = {arr, [
-        {str, <<"tup">>},
-        {str, <<"ev">>},
-        {arr, [
-            {str, <<"tup">>},
-            {arr, [
-                {str, <<"tup">>},
-                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
-                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
-            ]},
-            {i, 293305}
-        ]},
-        LegacyChange
-    ]},
-
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
-    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
-    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
-    ?assertEqual(Event, Decoded).
-
--spec created_v1_2_decoding_test() -> _.
-created_v1_2_decoding_test() ->
+-spec created_v0_decoding_test() -> _.
+created_v0_decoding_test() ->
     Identity = #{
         class => <<"class">>,
         contract => <<"ContractID">>,
@@ -246,7 +188,13 @@ created_v1_2_decoding_test() ->
                 {str, <<"id">>} => {bin, <<"ID">>},
                 {str, <<"party">>} => {bin, <<"PartyID">>},
                 {str, <<"provider">>} => {bin, <<"good-one">>},
-                {str, <<"version">>} => {i, 1}
+                {str, <<"version">>} => {i, 2},
+                {str, <<"metadata">>} => {arr, [
+                    {str, <<"map">>},
+                    {obj, #{
+                        {bin, <<"some key">>} => {bin, <<"some val">>}
+                    }}
+                ]}
             }}
         ]}
     ]},
@@ -265,15 +213,255 @@ created_v1_2_decoding_test() ->
         LegacyChange
     ]},
 
-    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec level_changed_v0_decoding_test() -> _.
+level_changed_v0_decoding_test() ->
+    Change = {level_changed, <<"level_changed">>},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"level_changed">>},
+        {bin, <<"level_changed">>}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec effective_challenge_changed_v0_decoding_test() -> _.
+effective_challenge_changed_v0_decoding_test() ->
+    Change = {effective_challenge_changed, <<"effective_challenge_changed">>},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"effective_challenge_changed">>},
+        {bin, <<"effective_challenge_changed">>}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec challenge_created_v0_decoding_test() -> _.
+challenge_created_v0_decoding_test() ->
+    Change = {{challenge, <<"challengeID">>}, {created, #{
+        id => <<"id">>,
+        claimant => <<"claimant">>,
+        provider => <<"provider">>,
+        identity_class => <<"identity_class">>,
+        challenge_class => <<"challenge_class">>,
+        proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
+        master_id => <<"master_id">>,
+        claim_id => <<"claim_id">>
+    }}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"challenge">>},
+            {bin, <<"challengeID">>}
+        ]},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"created">>},
+            {arr, [
+                {str, <<"map">>},
+                {obj, #{
+                    {str, <<"id">>} => {bin, <<"id">>},
+                    {str, <<"claimant">>} => {bin, <<"claimant">>},
+                    {str, <<"provider">>} => {bin, <<"provider">>},
+                    {str, <<"identity_class">>} => {bin, <<"identity_class">>},
+                    {str, <<"challenge_class">>} => {bin, <<"challenge_class">>},
+                    {str, <<"master_id">>} => {bin, <<"master_id">>},
+                    {str, <<"claim_id">>} => {bin, <<"claim_id">>},
+                    {str, <<"proofs">>} => {arr, [
+                        {str, <<"lst">>},
+                        {arr, [
+                            {str, <<"tup">>},
+                            {str, <<"rus_domestic_passport">>},
+                            {bin, <<"identdoc_token">>}
+                        ]}
+                    ]}
+                }}
+            ]}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec challenge_status_changed_v0_decoding_test() -> _.
+challenge_status_changed_v0_decoding_test() ->
+    Change = {{challenge, <<"challengeID">>}, {status_changed, pending}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"challenge">>},
+            {bin, <<"challengeID">>}
+        ]},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"status_changed">>},
+            {str, <<"pending">>}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec created_v1_decoding_test() -> _.
+created_v1_decoding_test() ->
+    Identity = #{
+        class => <<"class">>,
+        contract => <<"ContractID">>,
+        created_at => 1592576943762,
+        id => <<"ID">>,
+        party => <<"PartyID">>,
+        provider => <<"good-one">>,
+        metadata => #{<<"some key">> => <<"some val">>},
+        version => 2
+    },
+    Change = {created, Identity},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQsABgAAAAJJRAsAAQAAAAd"
+        "QYXJ0eUlECwACAAAACGdvb2Qtb25lCwADAAAABWNsYXNzCwAEAAAACkNvbnRyYWN0SUQLAAoAAA"
+        "AYMjAyMC0wNi0xOVQxNDoyOTowMy43NjJaDQALCwwAAAABAAAACHNvbWUga2V5CwAFAAAACHNvbWUgdmFsAAAAAA=="
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec level_changed_v1_decoding_test() -> _.
+level_changed_v1_decoding_test() ->
+    Change = {level_changed, <<"level_changed">>},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgsAAgAAAA1sZXZlbF9jaGFuZ2VkAAA="
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec effective_challenge_changed_v1_decoding_test() -> _.
+effective_challenge_changed_v1_decoding_test() ->
+    Change = {effective_challenge_changed, <<"effective_challenge_changed">>},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgsABAAAABtlZmZlY3RpdmVfY2hhbGxlbmdlX2NoYW5nZWQAAA=="
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec challenge_created_v1_decoding_test() -> _.
+challenge_created_v1_decoding_test() ->
+    Change = {{challenge, <<"challengeID">>}, {created, #{
+        id => <<"id">>,
+        claimant => <<"claimant">>,
+        provider => <<"provider">>,
+        identity_class => <<"identity_class">>,
+        challenge_class => <<"challenge_class">>,
+        proofs => [{rus_domestic_passport, <<"identdoc_token">>}],
+        master_id => <<"master_id">>,
+        claim_id => <<"claim_id">>
+    }}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAwsAAQAAAAtjaGFsbGVuZ2VJRA"
+        "wAAgwAAQsAAwAAAAJpZAsAAQAAAA9jaGFsbGVuZ2VfY2xhc3MPAAIMAAAAAQgAAQAAAAALAAIAAAAO"
+        "aWRlbnRkb2NfdG9rZW4ACwAFAAAACHByb3ZpZGVyCwAGAAAADmlkZW50aXR5X2NsYXNzCwAHAAAACG"
+        "NsYWltX2lkCwAIAAAACW1hc3Rlcl9pZAsACQAAAAhjbGFpbWFudAAAAAAA"
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec challenge_status_changed_v1_decoding_test() -> _.
+challenge_status_changed_v1_decoding_test() ->
+    Change = {{challenge, <<"challengeID">>}, {status_changed, pending}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAwsAAQAAAAtjaGFsbGVuZ2VJRAwAAgwAAgwAAQAAAAAAAA=="
+    >>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).

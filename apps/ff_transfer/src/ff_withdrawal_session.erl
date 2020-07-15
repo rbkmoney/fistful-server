@@ -316,13 +316,13 @@ try_migrate_identity_state(Identity = #{id := ID}, _MigrateParams) ->
         metadata => ff_identity:metadata(NewIdentity)
     }.
 
-try_migrate_to_adapter_identity(Identity = #{id := ID}, _MigrateParams) ->
+try_migrate_to_adapter_identity(undefined, _MigrateParams) ->
+    undefined;
+try_migrate_to_adapter_identity(Identity, _MigrateParams) ->
     #{
-        id => ID,
+        id => maps:get(id, Identity),
         effective_challenge => try_get_identity_challenge(Identity)
-    };
-try_migrate_to_adapter_identity(_, _MigrateParams) ->
-    undefined.
+    }.
 
 try_get_identity_challenge(#{effective := ChallengeID, challenges := Challenges}) ->
     #{ChallengeID := Challenge} = Challenges,

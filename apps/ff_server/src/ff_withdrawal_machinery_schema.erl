@@ -84,7 +84,7 @@ marshal_event(undefined = Version, TimestampedChange, Context) ->
     machinery_mg_schema_generic:marshal({event, Version}, TimestampedChange, Context);
 marshal_event(1, TimestampedChange, Context) ->
     ThriftChange = ff_withdrawal_codec:marshal(timestamped_change, TimestampedChange),
-    Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'TimestampedChange'}},
+    Type = {struct, struct, {ff_proto_withdrawal_thrift, 'TimestampedChange'}},
     {{bin, ff_proto_utils:serialize(Type, ThriftChange)}, Context}.
 
 -spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) ->
@@ -174,6 +174,8 @@ maybe_migrate({created, T}, MigrateParams) ->
     }}, MigrateParams);
 maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
     maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
+maybe_migrate({status_changed, {failed, Failure}}, _MigrateParams) when is_map(Failure) ->
+    {failed, Failure};
 maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
     Failure = #{
         code => <<"unknown">>,
@@ -538,7 +540,6 @@ v3_created_migration_test() ->
     Withdrawal = #{
         body => {100, <<"RUB">>},
         id => <<"ID">>,
-        metadata => #{<<"some key">> => <<"some val">>},
         params => #{
             destination_account => #{
                 accounter_account_id => 123,
@@ -634,7 +635,7 @@ v3_created_migration_test() ->
                     }}
                 ]},
                 {str, <<"transfer_type">>} => {str, <<"withdrawal">>},
-                {str, <<"version">>} => {i, 2}
+                {str, <<"version">>} => {i, 3}
             }}
         ]}
     ]},
@@ -675,5 +676,27 @@ v0_route_changed_migration_test() ->
         provider_id_legacy => <<"5">>
     }},
     ?assertEqual(ModernEvent, maybe_migrate(LegacyEvent, #{})).
+
+-spec created_v3_test() -> _.
+created_v3_test() ->
+    Withdrawal = #{
+        body => {100, <<"RUB">>},
+        id => <<"ID">>,
+        params => #{
+            destination_id => <<"destinationID">>,
+            wallet_id => <<"walletID">>
+        },
+        transfer_type => withdrawal,
+        version => 3
+    },
+    Change = {created, Withdrawal},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {bin, base64:decode(<<"CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAg",
+        "wAAQwAAQsABQAAAAJJRAsAAQAAAAh3YWxsZXRJRAsAAgAAAA1kZXN0aW5hdGlvbklEDAADCgABAAAAAAAAA","
+        GQMAAILAAEAAAADUlVCAAAAAAAA">>)},
+    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
 
 -endif.

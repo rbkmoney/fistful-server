@@ -13,12 +13,15 @@
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
 
+marshal({list, T}, V) ->
+    [marshal(T, E) || E <- V];
+
 marshal(timestamped_change, {ev, Timestamp, Change}) ->
     #wthd_session_TimestampedChange{
         change = marshal(change, Change),
         occured_at = ff_codec:marshal(timestamp, Timestamp)
     };
-
+    
 marshal(change, {created, Session}) ->
     {created, marshal(session, Session)};
 marshal(change, {next_state, AdapterState}) ->
@@ -66,15 +69,34 @@ marshal(withdrawal, Params = #{
         id = marshal(id, WithdrawalID),
         destination_resource = marshal(resource, Resource),
         cash = marshal(cash, Cash),
-        sender   = ff_identity_codec:marshal(identity, SenderIdentity),
-        receiver = ff_identity_codec:marshal(identity, ReceiverIdentity),
+        sender   = marshal(identity, SenderIdentity),
+        receiver = marshal(identity, ReceiverIdentity),
         session_id = maybe_marshal(id, SessionID),
         quote = maybe_marshal(quote, Quote)
     };
 
+marshal(identity, Identity = #{id := ID}) ->
+    #wthd_session_Identity{
+        identity_id = marshal(id, ID),
+        effective_challenge = maybe_marshal(challenge, maps:get(effective_challenge, Identity, undefined))
+    };
+
+marshal(challenge, #{id := ID, proofs := Proofs}) ->
+    #wthd_session_Challenge{
+        id = maybe_marshal(id, ID),
+        proofs = maybe_marshal({list, proof}, Proofs)
+    };
+
+marshal(proof, {Type, Token}) ->
+    #wthd_session_ChallengeProof{
+        type = Type,
+        token = Token
+    };
+
 marshal(route, Route) ->
     #wthd_session_Route{
-        provider_id = marshal(provider_id, maps:get(provider_id, Route))
+        provider_id = marshal(provider_id, maps:get(provider_id, Route)),
+        terminal_id = maybe_marshal(terminal_id, genlib_map:get(terminal_id, Route))
     };
 
 marshal(quote, #{
@@ -185,15 +207,40 @@ unmarshal(withdrawal, #wthd_session_Withdrawal{
         id => unmarshal(id, WithdrawalID),
         resource => unmarshal(resource, Resource),
         cash => unmarshal(cash, Cash),
-        sender => ff_identity_codec:unmarshal(identity, SenderIdentity),
-        receiver => ff_identity_codec:unmarshal(identity, ReceiverIdentity),
+        sender => unmarshal(identity, SenderIdentity),
+        receiver => unmarshal(identity, ReceiverIdentity),
         session_id => maybe_unmarshal(id, SessionID),
         quote => maybe_unmarshal(quote, Quote)
     });
 
+unmarshal(identity, #wthd_session_Identity{
+    identity_id = ID,
+    effective_challenge = EffectiveChallenge
+}) ->
+    genlib_map:compact(#{
+        id => unmarshal(id, ID),
+        effective_challenge => maybe_unmarshal(challenge, EffectiveChallenge)
+    });
+
+unmarshal(challenge, #wthd_session_Challenge{
+    id = ID,
+    proofs = Proofs
+}) ->
+    #{
+        id => maybe_unmarshal(id, ID),
+        proofs => maybe_unmarshal({list, proof}, Proofs)
+    };
+
+unmarshal(proof, #wthd_session_ChallengeProof{
+    type = Type,
+    token = Token
+}) ->
+    {Type, Token};
+
 unmarshal(route, Route) ->
     #{
-        provider_id => unmarshal(provider_id, Route#wthd_session_Route.provider_id)
+        provider_id => unmarshal(provider_id, Route#wthd_session_Route.provider_id),
+        terminal_id => maybe_unmarshal(terminal_id, Route#wthd_session_Route.terminal_id)
     };
 
 unmarshal(quote, #wthd_session_Quote{
@@ -245,6 +292,11 @@ maybe_unmarshal(_Type, undefined) ->
     undefined;
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
 
 get_legacy_provider_id(#{provider_legacy := Provider}) when is_binary(Provider) ->
     Provider;

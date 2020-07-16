@@ -14,6 +14,7 @@
 -export([process_session/1]).
 
 -export([get_adapter_with_opts/1]).
+-export([get_adapter_with_opts/2]).
 
 %% ff_machine
 -export([apply_event/2]).
@@ -25,7 +26,7 @@
 %% Types
 %%
 
--define(ACTUAL_FORMAT_VERSION, 3).
+-define(ACTUAL_FORMAT_VERSION, 4).
 -type session() :: #{
     version       := ?ACTUAL_FORMAT_VERSION,
     id            := id(),
@@ -56,9 +57,7 @@
     quote_data => ff_adapter_withdrawal:quote_data()
 }.
 
--type route() :: #{
-    provider_id := ff_payouts_provider:id()
-}.
+-type route() :: ff_withdrawal_routing:route().
 
 -type params() :: #{
     resource := ff_destination:resource_full(),
@@ -166,13 +165,58 @@ create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, route := Ro
         status     => active
     }.
 
--spec get_adapter_with_opts(ff_payouts_provider:id()) -> adapter_with_opts().
-get_adapter_with_opts(ProviderID) when is_integer(ProviderID) ->
-    {ok, Provider} =  ff_payouts_provider:get(ProviderID),
-    {ff_payouts_provider:adapter(Provider), ff_payouts_provider:adapter_opts(Provider)}.
+-spec convert_identity_state_to_adapter_identity(ff_identity:identity_state()) ->
+    ff_adapter_withdrawal:identity().
 
-create_adapter_withdrawal(#{id := SesID} = Data, Resource, WdthID) ->
-    Data#{resource => Resource, id => WdthID, session_id => SesID}.
+convert_identity_state_to_adapter_identity(IdentityState) ->
+    Identity = #{
+        id => ff_identity:id(IdentityState)
+    },
+    case ff_identity:effective_challenge(IdentityState) of
+        {ok, ChallengeID} ->
+            case ff_identity:challenge(ChallengeID, IdentityState) of
+                {ok, Challenge} ->
+                    Identity#{effective_challenge => #{
+                        id => ChallengeID,
+                        proofs => ff_identity_challenge:proofs(Challenge)
+                    }};
+                _ ->
+                    Identity
+            end;
+        _ ->
+            Identity
+    end.
+
+-spec get_adapter_with_opts(ff_withdrawal_routing:route()) ->
+    adapter_with_opts().
+get_adapter_with_opts(Route) ->
+    ProviderID = ff_withdrawal_routing:get_provider(Route),
+    TerminalID = ff_withdrawal_routing:get_terminal(Route),
+    get_adapter_with_opts(ProviderID, TerminalID).
+
+-spec get_adapter_with_opts(ProviderID, TerminalID) -> adapter_with_opts() when
+    ProviderID :: ff_payouts_provider:id(),
+    TerminalID :: ff_payouts_terminal:id() | undefined.
+get_adapter_with_opts(ProviderID, TerminalID) when is_integer(ProviderID) ->
+    {ok, Provider} = ff_payouts_provider:get(ProviderID),
+    ProviderOpts = ff_payouts_provider:adapter_opts(Provider),
+    TerminalOpts = get_adapter_terminal_opts(TerminalID),
+    {ff_payouts_provider:adapter(Provider), maps:merge(TerminalOpts, ProviderOpts)}.
+
+get_adapter_terminal_opts(undefined) ->
+    #{};
+get_adapter_terminal_opts(TerminalID) ->
+    {ok, Terminal} = ff_payouts_terminal:get(TerminalID),
+    ff_payouts_terminal:adapter_opts(Terminal).
+
+create_adapter_withdrawal(#{id := SesID, sender := Sender, receiver := Receiver} = Data, Resource, WdthID) ->
+    Data#{
+        sender => convert_identity_state_to_adapter_identity(Sender),
+        receiver => convert_identity_state_to_adapter_identity(Receiver),
+        resource => Resource,
+        id => WdthID,
+        session_id => SesID
+    }.
 
 -spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->

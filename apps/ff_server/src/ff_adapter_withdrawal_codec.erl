@@ -62,7 +62,7 @@ marshal(currency, #{
     };
 
 marshal(challenge_documents, Challenge) ->
-    lists:foldl(fun try_encode_proof_document/2, [], ff_identity_challenge:proofs(Challenge));
+    lists:foldl(fun try_encode_proof_document/2, [], maps:get(proofs, Challenge, []));
 
 marshal(exp_date, {Month, Year}) ->
     #domain_BankCardExpDate{
@@ -73,18 +73,17 @@ marshal(exp_date, {Month, Year}) ->
 marshal(identity, Identity) ->
     % TODO: Add real contact fields
     #wthdm_Identity{
-        id        = ff_identity:id(Identity),
+        id        = maps:get(id, Identity),
         documents = marshal(identity_documents, Identity),
         contact   = [{phone_number, <<"9876543210">>}]
     };
 
 marshal(identity_documents, Identity) ->
-    case ff_identity:effective_challenge(Identity) of
-        {ok, ChallengeID} ->
-            {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
-            marshal(challenge_documents, Challenge);
-        {error, notfound} ->
-            []
+    case maps:get(effective_challenge, Identity, undefined) of
+        undefined ->
+            [];
+        Challenge ->
+            marshal(challenge_documents, Challenge)
     end;
 
 marshal(intent, {finish, {success, TrxInfo}}) ->

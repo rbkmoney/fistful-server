@@ -136,7 +136,8 @@ process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
 handle_callback(Adapter, Callback, Withdrawal, ASt, AOpt) ->
     DWithdrawal = marshal(withdrawal, Withdrawal),
     DCallback= marshal(callback, Callback),
-    {ok, Result} = call(Adapter, 'HandleCallback', [DCallback, DWithdrawal, marshal(adapter_state, ASt), AOpt]),
+    DASt = marshal(adapter_state, ASt),
+    {ok, Result} = call(Adapter, 'HandleCallback', [DCallback, DWithdrawal, DASt, AOpt]),
     decode_result(Result).
 
 -spec get_quote(adapter(), quote_params(), map()) ->

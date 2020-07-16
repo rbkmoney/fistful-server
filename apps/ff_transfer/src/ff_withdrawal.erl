@@ -1663,3 +1663,43 @@ get_attempt_limit_(undefined) ->
     1;
 get_attempt_limit_({value, Limit}) ->
     ff_dmsl_codec:unmarshal(attempt_limit, Limit).
+
+%% Tests
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec match_error_whitelist_test() -> _.
+match_error_whitelist_test() ->
+    ErrorWhitelist = binaries_to_error_tokens([
+        <<"some:test:error">>,
+        <<"another:test:error">>,
+        <<"wide">>
+    ]),
+    ?assertEqual(false, match_error_whitelist(
+        [<<>>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(false, match_error_whitelist(
+        [<<"some">>, <<"completely">>, <<"different">>, <<"error">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(false, match_error_whitelist(
+        [<<"some">>, <<"test">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(false, match_error_whitelist(
+        [<<"wider">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(true,  match_error_whitelist(
+        [<<"some">>, <<"test">>, <<"error">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(true,  match_error_whitelist(
+        [<<"another">>, <<"test">>, <<"error">>, <<"that">>, <<"is">>, <<"more">>, <<"specific">>],
+        ErrorWhitelist
+    )).
+
+-endif.

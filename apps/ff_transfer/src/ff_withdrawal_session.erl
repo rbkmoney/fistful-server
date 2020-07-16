@@ -439,7 +439,7 @@ do_process_callback(CallbackParams, Callback, Session) ->
         intent := Intent,
         response := Response
     } = Result} = ff_adapter_withdrawal:handle_callback(Adapter, CallbackParams, Withdrawal, AdapterState, AdapterOpts),
-    Events0 = process_next_state(Result),
+    Events0 = process_next_state(genlib_map:get(next_state, Result)),
     Events1 = ff_withdrawal_callback_utils:process_response(Response, Callback),
     {ok, {Response, process_intent(Intent, Session, Events0 ++ Events1)}}.
 
@@ -451,10 +451,10 @@ make_session_finish_params(Session) ->
         opts => AdapterOpts
     }.
 
-process_next_state(#{next_state := NextASt}) ->
-    [{next_state, NextASt}];
-process_next_state(_) ->
-    [].
+process_next_state(undefined) ->
+    [];
+process_next_state(NextASt) ->
+    [{next_state, NextASt}].
 
 process_intent(Intent, Session, AdditionalEvents) ->
     #{events := Events0} = Result = process_intent(Intent, Session),

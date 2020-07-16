@@ -29,7 +29,7 @@
 %% Types
 %%
 
--define(ACTUAL_FORMAT_VERSION, 3).
+-define(ACTUAL_FORMAT_VERSION, 4).
 -type session() :: #{
     version       := ?ACTUAL_FORMAT_VERSION,
     id            := id(),
@@ -169,6 +169,16 @@ apply_event({callback, _Ev} = WrappedEvent, Session) ->
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
+maybe_migrate({created, Session = #{version := 3, withdrawal := Withdrawal = #{
+    sender := Sender,
+    receiver := Receiver
+}}}, MigrateParams) ->
+    maybe_migrate({created, Session#{
+        version => 4,
+        withdrawal => Withdrawal#{
+            sender => try_migrate_to_adapter_identity(Sender, MigrateParams),
+            receiver => try_migrate_to_adapter_identity(Receiver, MigrateParams)
+    }}}, MigrateParams);
 maybe_migrate({created, #{version := 2} = Session}, MigrateParams) ->
     KnowndLegacyIDs = #{
         <<"mocketbank">> => 1,
@@ -344,6 +354,8 @@ try_unmarshal_msgpack(V) ->
     %     blocking     => blocking()
     % }
 
+try_migrate_identity_state(undefined, _MigrateParams) ->
+    undefined;
 try_migrate_identity_state(Identity = #{id := ID}, _MigrateParams) ->
     {ok, Machine} = ff_identity_machine:get(ID),
     NewIdentity = ff_identity_machine:identity(Machine),
@@ -352,6 +364,23 @@ try_migrate_identity_state(Identity = #{id := ID}, _MigrateParams) ->
         created_at => ff_identity:created_at(NewIdentity),
         metadata => ff_identity:metadata(NewIdentity)
     }.
+
+try_migrate_to_adapter_identity(undefined, _MigrateParams) ->
+    undefined;
+try_migrate_to_adapter_identity(Identity, _MigrateParams) ->
+    #{
+        id => maps:get(id, Identity),
+        effective_challenge => try_get_identity_challenge(Identity)
+    }.
+
+try_get_identity_challenge(#{effective := ChallengeID, challenges := Challenges}) ->
+    #{ChallengeID := Challenge} = Challenges,
+    #{
+        id => ChallengeID,
+        proofs => maps:get(proofs, Challenge)
+    };
+try_get_identity_challenge(_) ->
+    undefined.
 
 -spec process_session(session()) -> result().
 process_session(#{status := active} = Session) ->
@@ -468,6 +497,28 @@ create_callback(#{tag := Tag}, Session) ->
 create_callback(_, _) ->
     [].
 
+-spec convert_identity_state_to_adapter_identity(ff_identity:identity_state()) ->
+    ff_adapter_withdrawal:identity().
+
+convert_identity_state_to_adapter_identity(IdentityState) ->
+    Identity = #{
+        id => ff_identity:id(IdentityState)
+    },
+    case ff_identity:effective_challenge(IdentityState) of
+        {ok, ChallengeID} ->
+            case ff_identity:challenge(ChallengeID, IdentityState) of
+                {ok, Challenge} ->
+                    Identity#{effective_challenge => #{
+                        id => ChallengeID,
+                        proofs => ff_identity_challenge:proofs(Challenge)
+                    }};
+                _ ->
+                    Identity
+            end;
+        _ ->
+            Identity
+    end.
+
 -spec get_adapter_with_opts(ff_withdrawal_routing:route()) ->
     adapter_with_opts().
 get_adapter_with_opts(Route) ->
@@ -490,8 +541,14 @@ get_adapter_terminal_opts(TerminalID) ->
     {ok, Terminal} = ff_payouts_terminal:get(TerminalID),
     ff_payouts_terminal:adapter_opts(Terminal).
 
-create_adapter_withdrawal(#{id := SesID} = Data, Resource, WdthID) ->
-    Data#{resource => Resource, id => WdthID, session_id => SesID}.
+create_adapter_withdrawal(#{id := SesID, sender := Sender, receiver := Receiver} = Data, Resource, WdthID) ->
+    Data#{
+        sender => convert_identity_state_to_adapter_identity(Sender),
+        receiver => convert_identity_state_to_adapter_identity(Receiver),
+        resource => Resource,
+        id => WdthID,
+        session_id => SesID
+    }.
 
 -spec set_session_status(status(), session()) -> session().
 set_session_status(SessionState, Session) ->

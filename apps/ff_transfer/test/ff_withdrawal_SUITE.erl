@@ -169,7 +169,7 @@ migrate_session_test(C) ->
 
     {created, Session} = ff_withdrawal_session:maybe_migrate(LegacyEvent, #{}),
     ?assertEqual(ID, maps:get(id, Session)),
-    ?assertEqual(3, maps:get(version, Session)).
+    ?assertEqual(4, maps:get(version, Session)).
 
 -spec session_fail_test(config()) -> test_return().
 session_fail_test(C) ->

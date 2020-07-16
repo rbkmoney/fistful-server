@@ -551,7 +551,7 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_provider(?prv(7), ?prx(6), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(8), ?prx(2), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(9), ?prx(7), provider_identity_id(Options), C),
-        ct_domain:withdrawal_provider(?prv(10), ?prx(2), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(10), ?prx(6), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(11), ?prx(8), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(16), ?prx(2), provider_identity_id(Options), C),
         ct_domain:p2p_provider(?prv(101), ?prx(5), dummy_provider_identity_id(Options), C),

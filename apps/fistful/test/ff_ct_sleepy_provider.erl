@@ -49,8 +49,7 @@
 
 -type callback() :: ff_withdrawal_callback:callback().
 
--record(state, {}).
--type state() :: #state{}.
+-type state() :: any().
 
 %%
 %% API
@@ -71,7 +70,9 @@ start(Opts) ->
 %%
 
 -spec process_withdrawal(withdrawal(), state(), map()) ->
-    {finish, Status} | {sleep, Timer} | {sleep, Timer, CallbackTag} when
+    {ok, Intent, NewState} when
+        Intent :: {finish, Status} | {sleep, Timer} | {sleep, Timer, CallbackTag},
+        NewState :: state(),
         Status :: {success, TrxInfo} | {failure, failure()},
         Timer :: {deadline, binary()} | {timeout, integer()},
         CallbackTag :: binary(),
@@ -86,7 +87,10 @@ get_quote(_Quote, _Options) ->
     erlang:error(not_implemented).
 
 -spec handle_callback(callback(), withdrawal(), state(), map()) ->
-    {finish, Status} | {sleep, Timer} | {sleep, Timer, CallbackTag} when
+    {ok, Intent, NewState, Response} when
+        Intent :: {finish, Status} | {sleep, Timer} | {sleep, Timer, CallbackTag},
+        NewState :: state(),
+        Response :: any(),
         Status :: {success, TrxInfo} | {failure, failure()},
         Timer :: {deadline, binary()} | {timeout, integer()},
         CallbackTag :: binary(),

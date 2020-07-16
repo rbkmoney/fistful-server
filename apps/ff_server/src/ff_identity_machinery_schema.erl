@@ -72,7 +72,6 @@ unmarshal(T, V, C) when
     T =:= {args, init} orelse
     T =:= {args, call} orelse
     T =:= {args, repair} orelse
-    T =:= {aux_state, undefined} orelse
     T =:= {response, call} orelse
     T =:= {response, {repair, success}} orelse
     T =:= {response, {repair, failure}}

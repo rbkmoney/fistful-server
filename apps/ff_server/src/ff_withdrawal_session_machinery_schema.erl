@@ -100,8 +100,18 @@ unmarshal_event(undefined = Version, EncodedChange, Context0) ->
 -spec maybe_migrate(any()) ->
     withdrawal_session:event().
 
-maybe_migrate(Event = {created, #{version := 3}}) ->
+maybe_migrate(Event = {created, #{version := 4}}) ->
     Event;
+maybe_migrate({created, Session = #{version := 3, withdrawal := Withdrawal = #{
+    sender := Sender,
+    receiver := Receiver
+}}}) ->
+    maybe_migrate({created, Session#{
+        version => 4,
+        withdrawal => Withdrawal#{
+            sender => try_migrate_to_adapter_identity(Sender),
+            receiver => try_migrate_to_adapter_identity(Receiver)
+    }}});
 maybe_migrate({created, #{version := 2} = Session}) ->
     KnowndLegacyIDs = #{
         <<"mocketbank">> => 1,
@@ -277,6 +287,8 @@ try_unmarshal_msgpack(V) ->
     %     blocking     => blocking()
     % }
 
+try_migrate_identity_state(undefined) ->
+    undefined;
 try_migrate_identity_state(Identity = #{id := ID}) ->
     {ok, Machine} = ff_identity_machine:get(ID),
     NewIdentity = ff_identity_machine:identity(Machine),
@@ -285,6 +297,23 @@ try_migrate_identity_state(Identity = #{id := ID}) ->
         created_at => ff_identity:created_at(NewIdentity),
         metadata => ff_identity:metadata(NewIdentity)
     }.
+
+try_migrate_to_adapter_identity(undefined) ->
+    undefined;
+try_migrate_to_adapter_identity(Identity) ->
+    genlib_map:compact(#{
+        id => maps:get(id, Identity),
+        effective_challenge => try_get_identity_challenge(Identity)
+    }).
+
+try_get_identity_challenge(#{effective := ChallengeID, challenges := Challenges}) ->
+    #{ChallengeID := Challenge} = Challenges,
+    #{
+        id => ChallengeID,
+        proofs => maps:get(proofs, Challenge)
+    };
+try_get_identity_challenge(_) ->
+    undefined.
 
 %% Tests
 
@@ -321,14 +350,7 @@ created_v0_decoding_test() ->
         quote_data => #{}
     },
     Identity = #{
-        class => <<"class">>,
-        contract => <<"ContractID">>,
-        created_at => 1592576943762,
-        id => <<"ID">>,
-        party => <<"PartyID">>,
-        provider => <<"good-one">>,
-        metadata => #{<<"some key">> => <<"some val">>},
-        version => 2
+        id => <<"ID">>
     },
     Withdrawal = #{
         id          => <<"id">>,
@@ -340,7 +362,7 @@ created_v0_decoding_test() ->
         quote       => Quote
     },
     Session = #{
-        version       => 3,
+        version       => 4,
         id            => <<"id">>,
         status        => active,
         withdrawal    => Withdrawal,
@@ -517,14 +539,7 @@ created_v1_decoding_test() ->
         quote_data => #{}
     },
     Identity = #{
-        class => <<"class">>,
-        contract => <<"ContractID">>,
-        created_at => 1592576943762,
-        id => <<"ID">>,
-        party => <<"PartyID">>,
-        provider => <<"good-one">>,
-        metadata => #{<<"some key">> => <<"some val">>},
-        version => 2
+        id => <<"ID">>
     },
     Withdrawal = #{
         id          => <<"id">>,
@@ -536,7 +551,7 @@ created_v1_decoding_test() ->
         quote       => Quote
     },
     Session = #{
-        version       => 3,
+        version       => 4,
         id            => <<"id">>,
         status        => active,
         withdrawal    => Withdrawal,
@@ -548,14 +563,12 @@ created_v1_decoding_test() ->
     Change = {created, Session},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent = {bin, base64:decode(<<
-        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQsAAQAAAAJpZAwAAwsAAQAAAAJpZAwAAgwAAQw"
-        "AAQsAAQAAAAV0b2tlbggAAgAAAAAMABULAAYAAAADYmluAAAAAAwAAwoAAQAAAAAAAAB7DAACCwABAAAAA1JVQgAADAAECw"
-        "AGAAAAAklECwABAAAAB1BhcnR5SUQLAAIAAAAIZ29vZC1vbmULAAMAAAAFY2xhc3MLAAQAAAAKQ29udHJhY3RJRAsACgAAABgyM"
-        "DIwLTA2LTE5VDE0OjI5OjAzLjc2MloNAAsLDAAAAAEAAAAIc29tZSBrZXkLAAUAAAAIc29tZSB2YWwAAAwABQsABgAAAAJJRAsA"
-        "AQAAAAdQYXJ0eUlECwACAAAACGdvb2Qtb25lCwADAAAABWNsYXNzCwAEAAAACkNvbnRyYWN0SUQLAAoAAAAYMjAyMC0wNi0xOVQ"
-        "xNDoyOTowMy43NjJaDQALCwwAAAABAAAACHNvbWUga2V5CwAFAAAACHNvbWUgdmFsAAALAAYAAAAKc2Vzc2lvbl9pZAwABwwAAQ"
-        "oAAQAAAAAAAAB7DAACCwABAAAAA1JVQgAADAACCgABAAAAAAAAAHsMAAILAAEAAAADUlVCAAALAAMAAAAOc29tZSB0aW1lc3Rhb"
-        "XALAAQAAAAOc29tZSB0aW1lc3RhbXANAAULDAAAAAAAAAwABggAAQAAAAEADAACDAABAAALAAQAAAAPcHJvdmlkZXJfbGVnYWN5AAAA"
+        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQsAAQAAAAJpZAwAAwsAAQAAAAJp"
+        "ZAwAAgwAAQwAAQsAAQAAAAV0b2tlbggAAgAAAAAMABULAAYAAAADYmluAAAAAAwAAwoAAQAAAAAAAAB7"
+        "DAACCwABAAAAA1JVQgAADAAICwABAAAAAklEAAwACQsAAQAAAAJJRAALAAYAAAAKc2Vzc2lvbl9pZAwA"
+        "BwwAAQoAAQAAAAAAAAB7DAACCwABAAAAA1JVQgAADAACCgABAAAAAAAAAHsMAAILAAEAAAADUlVCAAAL"
+        "AAMAAAAOc29tZSB0aW1lc3RhbXALAAQAAAAOc29tZSB0aW1lc3RhbXANAAULDAAAAAAAAAwABggAAQAA"
+        "AAEADAACDAABAAALAAQAAAAPcHJvdmlkZXJfbGVnYWN5AAAA"
     >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),

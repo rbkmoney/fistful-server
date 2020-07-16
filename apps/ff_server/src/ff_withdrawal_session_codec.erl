@@ -238,10 +238,10 @@ unmarshal(proof, #wthd_session_ChallengeProof{
     {Type, Token};
 
 unmarshal(route, Route) ->
-    #{
+    genlib_map:compact(#{
         provider_id => unmarshal(provider_id, Route#wthd_session_Route.provider_id),
         terminal_id => maybe_unmarshal(terminal_id, Route#wthd_session_Route.terminal_id)
-    };
+    });
 
 unmarshal(quote, #wthd_session_Quote{
     cash_from = CashFrom,
@@ -292,11 +292,6 @@ maybe_unmarshal(_Type, undefined) ->
     undefined;
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
-
-maybe_marshal(_Type, undefined) ->
-    undefined;
-maybe_marshal(Type, Value) ->
-    marshal(Type, Value).
 
 get_legacy_provider_id(#{provider_legacy := Provider}) when is_binary(Provider) ->
     Provider;

@@ -23,7 +23,7 @@
 -type value_type() :: machinery_mg_schema:vt().
 -type context() :: machinery_mg_schema:context().
 
--type event()   :: ff_machine:timestamped_event(withdrawal_session:event()).
+-type event()   :: ff_machine:timestamped_event(ff_withdrawal_session:event()).
 -type aux_state() :: ff_machine:auxst().
 -type call_args() :: term().
 -type call_response() :: term().

@@ -13,11 +13,28 @@
 %% Internal types
 %%
 
--type id()          :: machinery:id().
--type identity_id() :: id().
-
 -type resource()    :: ff_destination:resource_full().
--type identity()    :: ff_identity:identity_state().
+
+-type identity()    :: #{
+    id := binary(),
+    effective_challenge => challenge()
+}.
+
+-type challenge()    :: #{
+    id => binary(),
+    proofs => [proof()]
+}.
+
+-type proof() ::
+    {proof_type(), identdoc_token()}.
+
+-type proof_type() ::
+    rus_domestic_passport |
+    rus_retiree_insurance_cert.
+
+-type identdoc_token() ::
+    binary().
+
 -type cash()        :: ff_transaction:body().
 -type exp_date()    :: ff_destination:exp_date().
 
@@ -87,6 +104,7 @@
 -export_type([quote/1]).
 -export_type([quote_params/0]).
 -export_type([quote_data/0]).
+-export_type([identity/0]).
 
 %%
 %% API
@@ -243,29 +261,28 @@ encode_exp_date({Month, Year}) ->
     }.
 
 -spec encode_identity
-    (identity_id()) -> domain_identity();
+    (identity()) -> domain_identity();
     (undefined) -> undefined.
 encode_identity(undefined) ->
     undefined;
 encode_identity(Identity) ->
     % TODO: Add real contact fields
     #wthdm_Identity{
-        id        = ff_identity:id(Identity),
+        id        = maps:get(id, Identity),
         documents = encode_identity_documents(Identity),
         contact   = [{phone_number, <<"9876543210">>}]
     }.
 
 encode_identity_documents(Identity) ->
-    case ff_identity:effective_challenge(Identity) of
-        {ok, ChallengeID} ->
-            {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
-            encode_challenge_documents(Challenge);
-        {error, notfound} ->
-            []
+    case maps:get(effective_challenge, Identity, undefined) of
+        undefined ->
+            [];
+        Challenge ->
+            encode_challenge_documents(Challenge)
     end.
 
 encode_challenge_documents(Challenge) ->
-    lists:foldl(fun try_encode_proof_document/2, [], ff_identity_challenge:proofs(Challenge)).
+    lists:foldl(fun try_encode_proof_document/2, [], maps:get(proofs, Challenge, [])).
 
 try_encode_proof_document({rus_domestic_passport, Token}, Acc) ->
     [{rus_domestic_passport, #wthdm_RUSDomesticPassport{token = Token}} | Acc];

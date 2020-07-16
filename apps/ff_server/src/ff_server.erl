@@ -213,7 +213,7 @@ get_namespace_schema('ff/destination_v2') ->
 get_namespace_schema('ff/deposit_v1') ->
     ff_deposit_machinery_schema;
 get_namespace_schema('ff/withdrawal_v2') ->
-    machinery_mg_schema_generic;
+    ff_withdrawal_machinery_schema;
 get_namespace_schema('ff/withdrawal/session_v2') ->
     machinery_mg_schema_generic;
 get_namespace_schema('ff/p2p_transfer_v1') ->

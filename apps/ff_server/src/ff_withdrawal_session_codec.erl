@@ -12,6 +12,10 @@
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
+
+marshal({list, T}, V) ->
+    [marshal(T, E) || E <- V];
+
 marshal(change, {created, Session}) ->
     {created, marshal(session, Session)};
 marshal(change, {next_state, AdapterState}) ->
@@ -57,8 +61,26 @@ marshal(withdrawal, Params = #{
         id = marshal(id, WithdrawalID),
         destination_resource = marshal(resource, Resource),
         cash = marshal(cash, Cash),
-        sender   = ff_identity_codec:marshal(identity, SenderIdentity),
-        receiver = ff_identity_codec:marshal(identity, ReceiverIdentity)
+        sender   = marshal(identity, SenderIdentity),
+        receiver = marshal(identity, ReceiverIdentity)
+    };
+
+marshal(identity, Identity = #{id := ID}) ->
+    #wthd_session_Identity{
+        identity_id = marshal(id, ID),
+        effective_challenge = maybe_marshal(challenge, maps:get(effective_challenge, Identity, undefined))
+    };
+
+marshal(challenge, #{id := ID, proofs := Proofs}) ->
+    #wthd_session_Challenge{
+        id = maybe_marshal(id, ID),
+        proofs = maybe_marshal({list, proof}, Proofs)
+    };
+
+marshal(proof, {Type, Token}) ->
+    #wthd_session_ChallengeProof{
+        type = Type,
+        token = Token
     };
 
 marshal(route, Route) ->
@@ -153,9 +175,33 @@ unmarshal(withdrawal, #wthd_session_Withdrawal{
         id => unmarshal(id, WithdrawalID),
         resource => unmarshal(resource, Resource),
         cash => unmarshal(cash, Cash),
-        sender => ff_identity_codec:unmarshal(identity, SenderIdentity),
-        receiver => ff_identity_codec:unmarshal(identity, ReceiverIdentity)
+        sender => unmarshal(identity, SenderIdentity),
+        receiver => unmarshal(identity, ReceiverIdentity)
     });
+
+unmarshal(identity, #wthd_session_Identity{
+    identity_id = ID,
+    effective_challenge = EffectiveChallenge
+}) ->
+    genlib_map:compact(#{
+        id => unmarshal(id, ID),
+        effective_challenge => maybe_unmarshal(challenge, EffectiveChallenge)
+    });
+
+unmarshal(challenge, #wthd_session_Challenge{
+    id = ID,
+    proofs = Proofs
+}) ->
+    #{
+        id => maybe_unmarshal(id, ID),
+        proofs => maybe_unmarshal({list, proof}, Proofs)
+    };
+
+unmarshal(proof, #wthd_session_ChallengeProof{
+    type = Type,
+    token = Token
+}) ->
+    {Type, Token};
 
 unmarshal(route, Route) ->
     #{

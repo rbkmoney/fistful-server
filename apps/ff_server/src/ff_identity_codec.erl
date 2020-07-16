@@ -147,11 +147,14 @@ marshal(challenge_payload_created, Challenge = #{
 }) ->
     Proofs = maps:get(proofs, Challenge, []),
     #idnt_Challenge{
-        cls    = marshal(id, ID),
-        provider_id = marshal(id, maps:get(provider, Challenge, undefined)),
-        class_id = marshal(id, maps:get(challenge_class, Challenge, undefined)),
+        id = marshal(id, ID),
+        cls = marshal(id, maps:get(challenge_class, Challenge)),
+        provider_id = marshal(id, maps:get(provider, Challenge)),
+        class_id = marshal(id, maps:get(identity_class, Challenge)),
         proofs = marshal({list, challenge_proofs}, Proofs),
-        claim_id =  marshal(id, maps:get(claim_id, Challenge, undefined))
+        claim_id =  marshal(id, maps:get(claim_id, Challenge)),
+        claimant =  marshal(id, maps:get(claimant, Challenge)),
+        master_id =  marshal(id, maps:get(master_id, Challenge))
     };
 
 marshal(challenge_proofs, {Type, Token}) ->
@@ -244,16 +247,24 @@ unmarshal(challenge_payload, {created, Challenge}) ->
 unmarshal(challenge_payload, {status_changed, ChallengeStatus}) ->
     {status_changed, unmarshal(challenge_payload_status_changed, ChallengeStatus)};
 unmarshal(challenge_payload_created, #idnt_Challenge{
-    cls    = ID,
+    id = ID,
+    cls = ChallengeClass,
+    provider_id = ProviderID,
+    class_id = IdentityClass,
     proofs = Proofs,
     claim_id = ClaimID,
-    class_id = ChallengeClassID
+    claimant = Claimant,
+    master_id = MasterID
 }) ->
     #{
-        id     => unmarshal(id, ID),
+        id => unmarshal(id, ID),
+        provider => unmarshal(id, ProviderID),
+        identity_class => unmarshal(id, IdentityClass),
+        challenge_class => unmarshal(id, ChallengeClass),
+        proofs => unmarshal({list, challenge_proofs}, Proofs),
         claim_id => unmarshal(id, ClaimID),
-        challenge_class => unmarshal(id, ChallengeClassID),
-        proofs => unmarshal({list, challenge_proofs}, Proofs)
+        master_id => unmarshal(id, MasterID),
+        claimant => unmarshal(id, Claimant)
     };
 
 unmarshal(challenge_proofs, Proof) -> {
@@ -338,8 +349,12 @@ challenge_test() ->
     ChallengeIn = #{
         id     => genlib:unique(),
         proofs => [{rus_retiree_insurance_cert, <<"Bananazzzz">>}],
-        challenge_class => <<"ChallengeClass">>,
-        claim_id => <<"ClaimID">>
+        challenge_class => <<"challenge_class">>,
+        claim_id => <<"claim_id">>,
+        provider => <<"provider">>,
+        identity_class => <<"identity_class">>,
+        master_id => <<"master_id">>,
+        claimant => <<"claimant">>
     },
     ChallengeOut = unmarshal(challenge_payload_created, marshal(challenge_payload_created, ChallengeIn)),
     ?assertEqual(ChallengeIn, ChallengeOut).

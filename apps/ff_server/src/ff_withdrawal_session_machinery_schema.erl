@@ -98,7 +98,7 @@ unmarshal_event(undefined = Version, EncodedChange, Context0) ->
     {{ev, Timestamp, maybe_migrate(Change)}, Context1}.
 
 -spec maybe_migrate(any()) ->
-    withdrawal_session:event().
+    ff_withdrawal_session:event().
 
 maybe_migrate(Event = {created, #{version := 4}}) ->
     Event;

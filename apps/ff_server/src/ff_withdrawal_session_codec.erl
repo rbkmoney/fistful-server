@@ -21,7 +21,7 @@ marshal(timestamped_change, {ev, Timestamp, Change}) ->
         change = marshal(change, Change),
         occured_at = ff_codec:marshal(timestamp, Timestamp)
     };
-    
+
 marshal(change, {created, Session}) ->
     {created, marshal(session, Session)};
 marshal(change, {next_state, AdapterState}) ->

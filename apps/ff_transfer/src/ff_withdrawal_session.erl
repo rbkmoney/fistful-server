@@ -420,8 +420,7 @@ process_callback(#{tag := CallbackTag} = Params, Session) ->
                 active ->
                     do_process_callback(Params, Callback, Session);
                 {finished, _} ->
-                    FinishParams = make_adapter_params(Session),
-                    {error, {{session_already_finished, FinishParams}, #{}}}
+                    {error, {{session_already_finished, make_session_finish_params(Session)}, #{}}}
             end
     end.
 
@@ -433,19 +432,18 @@ find_callback(CallbackTag, Session) ->
     ff_withdrawal_callback_utils:get_by_tag(CallbackTag, callbacks_index(Session)).
 
 do_process_callback(CallbackParams, Callback, Session) ->
-    {Adapter, _AdapterOpts} = adapter(Session),
-    #{
-        withdrawal := Withdrawal,
-        state := ASt,
-        opts := AOpt
-    } = make_adapter_params(Session),
-    {ok, HandleCallbackResult} = ff_adapter_withdrawal:handle_callback(Adapter, CallbackParams, Withdrawal, ASt, AOpt),
-    #{intent := Intent, response := Response, next_state := NextASt} = HandleCallbackResult, %% TODO Check next_state
-    Events0 = process_next_state(NextASt),
+    {Adapter, AdapterOpts} = adapter(Session),
+    Withdrawal = withdrawal(Session),
+    AdapterState = adapter_state(Session),
+    {ok, #{
+        intent := Intent,
+        response := Response
+    } = Result} = ff_adapter_withdrawal:handle_callback(Adapter, CallbackParams, Withdrawal, AdapterState, AdapterOpts),
+    Events0 = process_next_state(Result),
     Events1 = ff_withdrawal_callback_utils:process_response(Response, Callback),
     {ok, {Response, process_intent(Intent, Session, Events0 ++ Events1)}}.
 
-make_adapter_params(Session) ->
+make_session_finish_params(Session) ->
     {_Adapter, AdapterOpts} = adapter(Session),
     #{
         withdrawal => withdrawal(Session),
@@ -453,8 +451,10 @@ make_adapter_params(Session) ->
         opts => AdapterOpts
     }.
 
-process_next_state(NextASt) ->
-    [{next_state, NextASt}].
+process_next_state(#{next_state := NextASt}) ->
+    [{next_state, NextASt}];
+process_next_state(_) ->
+    [].
 
 process_intent(Intent, Session, AdditionalEvents) ->
     #{events := Events0} = Result = process_intent(Intent, Session),

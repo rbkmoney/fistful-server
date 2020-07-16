@@ -36,13 +36,12 @@ marshal(callback, #{
 
 marshal(callback_result, #{
     intent     := Intent,
-    response   := Response,
-    next_state := NextState
-})->
+    response   := Response
+} = Params)->
     #wthadpt_CallbackResult{
         intent     = marshal(intent, Intent),
         response   = marshal(callback_response, Response),
-        next_state = marshal(adapter_state, NextState)
+        next_state = maybe_marshal(adapter_state, genlib_map:get(next_state, Params))
     };
 
 marshal(callback_response, #{payload := Payload}) ->
@@ -230,7 +229,7 @@ unmarshal(callback_result, #wthadpt_CallbackResult{
     genlib_map:compact(#{
         intent           => unmarshal(intent, Intent),
         response         => unmarshal(callback_response, Response),
-        next_state       => unmarshal(adapter_state, NextState)
+        next_state       => maybe_unmarshal(adapter_state, NextState)
     });
 
 unmarshal(callback_response, #wthadpt_CallbackResponse{payload = Payload}) ->
@@ -308,6 +307,11 @@ maybe_marshal(_Type, undefined) ->
     undefined;
 maybe_marshal(Type, Value) ->
     marshal(Type, Value).
+
+maybe_unmarshal(_Type, undefined) ->
+    undefined;
+maybe_unmarshal(Type, Value) ->
+    unmarshal(Type, Value).
 
 marshal_msgpack(nil)                  -> {nl, #msgpack_Nil{}};
 marshal_msgpack(V) when is_boolean(V) -> {b, V};

@@ -2,6 +2,7 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
@@ -36,6 +37,7 @@
 -export([preserve_revisions_test/1]).
 -export([use_quota_revisions_test/1]).
 -export([unknown_test/1]).
+-export([provider_callback_test/1]).
 
 %% Internal types
 
@@ -54,6 +56,12 @@
     element(2, Cash)
 }).
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
+
+-define(PROCESS_CALLBACK_SUCCESS(Payload), {succeeded, #wthadpt_ProcessCallbackSucceeded{
+    response = #wthadpt_CallbackResponse{
+        payload = Payload
+    }
+}}).
 
 %% API
 
@@ -86,7 +94,8 @@ groups() ->
             quota_ok_test,
             crypto_quota_ok_test,
             preserve_revisions_test,
-            unknown_test
+            unknown_test,
+            provider_callback_test
         ]},
         {non_parallel, [sequence], [
             use_quota_revisions_test
@@ -574,6 +583,36 @@ unknown_test(_C) ->
     Result = ff_withdrawal_machine:get(WithdrawalID),
     ?assertMatch({error, {unknown_withdrawal, WithdrawalID}}, Result).
 
+-spec provider_callback_test(config()) -> test_return().
+provider_callback_test(C) ->
+    Currency = <<"RUB">>,
+    Cash = {700700, Currency},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    CallbackTag = <<"cb_", WithdrawalID/binary>>,
+    Callback = #wthadpt_Callback{
+        tag = CallbackTag,
+        payload = <<"super_secret">>
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
+    Withdrawal = get_withdrawal(WithdrawalID),
+    SessionID = ff_withdrawal:session_id(Withdrawal),
+    ?assertEqual(<<"processing_callback">>, await_session_adapter_state(SessionID, <<"processing_callback">>)),
+    ?assertEqual({ok, ?PROCESS_CALLBACK_SUCCESS(<<"super_secret">>)}, call_host(Callback)),
+    ?assertEqual(<<"callback_finished">>, await_session_adapter_state(SessionID, <<"callback_finished">>)),
+    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
+
 %% Utils
 
 prepare_standard_environment(WithdrawalCash, C) ->
@@ -599,6 +638,30 @@ get_withdrawal(WithdrawalID) ->
 
 get_withdrawal_status(WithdrawalID) ->
     ff_withdrawal:status(get_withdrawal(WithdrawalID)).
+
+await_session_processing_status(WithdrawalID, Status) ->
+    Poller = fun() -> get_session_processing_status(WithdrawalID) end,
+    Retry = genlib_retry:linear(20, 1000),
+    ct_helper:await(Status, Poller, Retry).
+
+get_session_processing_status(WithdrawalID) ->
+    Withdrawal = get_withdrawal(WithdrawalID),
+    ff_withdrawal:session_processing_status(Withdrawal).
+
+get_session(SessionID) ->
+    {ok, Machine} = ff_withdrawal_session_machine:get(SessionID),
+    ff_withdrawal_session_machine:session(Machine).
+
+await_session_adapter_state(SessionID, State) ->
+    Poller = fun() -> get_session_adapter_state(SessionID) end,
+    Retry = genlib_retry:linear(20, 1000),
+    ct_helper:await(State, Poller, Retry).
+
+get_session_adapter_state(SessionID) ->
+    Session = get_session(SessionID),
+    State = ff_withdrawal_session:adapter_state(Session),
+    ct:pal("~p", [State]),
+    State.
 
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(
@@ -749,3 +812,10 @@ make_dummy_party_change(PartyID) ->
         contractor_level  => full
     }),
     ok.
+
+call_host(Callback) ->
+    Service  = {dmsl_withdrawals_provider_adapter_thrift, 'AdapterHost'},
+    Function = 'ProcessCallback',
+    Args     = [Callback],
+    Request  = {Service, Function, Args},
+    ff_woody_client:call(ff_adapter_withdrawal_host, Request).

@@ -25,11 +25,25 @@ marshal(body, {Amount, CurrencyID}) ->
     DomainCurrency = marshal(currency, Currency),
     #wthadpt_Cash{amount = Amount, currency = DomainCurrency};
 
-marshal(callback, _NotImplemented) ->
-    erlang:error(not_implemented); %@TODO
+marshal(callback, #{
+    tag := Tag,
+    payload := Payload
+}) ->
+    #wthadpt_Callback{
+        tag     = Tag,
+        payload = Payload
+    };
 
-marshal(callback_result, _NotImplemented) ->
-    erlang:error(not_implemented); %@TODO
+marshal(callback_result, #{
+    intent     := Intent,
+    response   := Response,
+    next_state := NextState
+})->
+    #wthadpt_CallbackResult{
+        intent     = marshal(intent, Intent),
+        response   = marshal(callback_response, Response),
+        next_state = marshal(adapter_state, NextState)
+    };
 
 marshal(callback_response, #{payload := Payload}) ->
     #wthadpt_CallbackResponse{payload = Payload};
@@ -73,8 +87,18 @@ marshal(identity_documents, Identity) ->
             []
     end;
 
-marshal(intent, _NotImplemented) ->
-    erlang:error(not_implemented); %@TODO
+marshal(intent, {finish, {success, TrxInfo}}) ->
+    {finish, #wthadpt_FinishIntent{
+        status = {success, #wthadpt_Success{
+            trx_info = ff_dmsl_codec:marshal(transaction_info, TrxInfo)
+        }}
+    }};
+marshal(intent, {finish, {failed, Failure}}) ->
+    {finish, #wthadpt_FinishIntent{
+        status = {failure, ff_dmsl_codec:marshal(failure, Failure)}
+    }};
+marshal(intent, {sleep, #{timer := Timer, tag := Tag}}) ->
+    {sleep, #wthadpt_SleepIntent{timer = Timer, callback_tag = Tag}};
 
 marshal(process_callback_result, {succeeded, CallbackResponse}) ->
     {succeeded, #wthadpt_ProcessCallbackSucceeded{
@@ -230,8 +254,11 @@ unmarshal(currency, #domain_Currency{
 unmarshal(challenge_documents, _NotImplemented) ->
     erlang:error(not_implemented); %@TODO
 
-unmarshal(exp_date, _NotImplemented) ->
-    erlang:error(not_implemented); %@TODO
+unmarshal(exp_date, #domain_BankCardExpDate{
+    month = Month,
+    year = Year
+}) ->
+    {Month, Year};
 
 unmarshal(identity, _NotImplemented) ->
     erlang:error(not_implemented); %@TODO

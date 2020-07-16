@@ -9,6 +9,7 @@
 %% API
 
 -export([status/1]).
+-export([adapter_state/1]).
 
 -export([create/3]).
 -export([process_session/1]).
@@ -439,7 +440,7 @@ process_intent({sleep, #{timer := Timer} = Params}, Session) ->
     CallbackEvents = create_callback(Params, Session),
     #{
         events => CallbackEvents,
-        action => timer_action(Timer)
+        action => maybe_add_tag_action(Params, [timer_action(Timer)])
     }.
 
 %%
@@ -503,3 +504,9 @@ set_callbacks_index(Callbacks, Session) ->
 -spec timer_action({deadline, binary()} | {timeout, non_neg_integer()}) -> machinery:action().
 timer_action(Timer) ->
     {set_timer, Timer}.
+
+-spec maybe_add_tag_action(SleepIntentParams :: map(), [machinery:action()]) -> [machinery:action()].
+maybe_add_tag_action(#{tag := Tag}, Actions) ->
+    [{tag, Tag} | Actions];
+maybe_add_tag_action(_, Actions) ->
+    Actions.

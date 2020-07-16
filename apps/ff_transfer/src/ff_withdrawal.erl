@@ -186,6 +186,8 @@
 -export([status/1]).
 -export([route/1]).
 -export([attempts/1]).
+-export([session_id/1]).
+-export([session_processing_status/1]).
 -export([external_id/1]).
 -export([created_at/1]).
 -export([party_revision/1]).

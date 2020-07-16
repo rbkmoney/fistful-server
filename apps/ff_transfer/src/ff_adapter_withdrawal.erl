@@ -112,8 +112,9 @@ process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
         AOpt :: map().
 
 handle_callback(Adapter, Callback, Withdrawal, ASt, AOpt) ->
-    DomainWithdrawal = marshal(withdrawal, Withdrawal),
-    {ok, Result} = call(Adapter, 'HandleWithdrawalCallback', [Callback, DomainWithdrawal, marshal(adapter_state, ASt), AOpt]),
+    DWithdrawal = marshal(withdrawal, Withdrawal),
+    DCallback= marshal(callback, Callback),
+    {ok, Result} = call(Adapter, 'HandleCallback', [DCallback, DWithdrawal, marshal(adapter_state, ASt), AOpt]),
     decode_result(Result).
 
 -spec get_quote(adapter(), quote_params(), map()) ->

@@ -600,16 +600,17 @@ provider_callback_test(C) ->
         external_id => WithdrawalID
     },
     CallbackTag = <<"cb_", WithdrawalID/binary>>,
+    CallbackPayload = <<"super_secret">>,
     Callback = #wthadpt_Callback{
         tag = CallbackTag,
-        payload = <<"super_secret">>
+        payload = CallbackPayload
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
     Withdrawal = get_withdrawal(WithdrawalID),
     SessionID = ff_withdrawal:session_id(Withdrawal),
     ?assertEqual(<<"processing_callback">>, await_session_adapter_state(SessionID, <<"processing_callback">>)),
-    ?assertEqual({ok, ?PROCESS_CALLBACK_SUCCESS(<<"super_secret">>)}, call_host(Callback)),
+    ?assertEqual({ok, ?PROCESS_CALLBACK_SUCCESS(CallbackPayload)}, call_host(Callback)),
     ?assertEqual(<<"callback_finished">>, await_session_adapter_state(SessionID, <<"callback_finished">>)),
     ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
 

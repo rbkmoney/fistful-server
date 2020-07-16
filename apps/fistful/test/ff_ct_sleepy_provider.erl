@@ -91,9 +91,9 @@ get_quote(_Quote, _Options) ->
         Timer :: {deadline, binary()} | {timeout, integer()},
         CallbackTag :: binary(),
         TrxInfo :: #{id => binary()}.
-handle_callback(_Callback, _Withdrawal, _State, _Options) ->
+handle_callback(#{payload := Payload}, _Withdrawal, _State, _Options) ->
     {ok,
         {finish, {success, #{id => <<"test">>}}},
         {str, <<"callback_finished">>},
-        #{payload => <<"super_secret">>}
+        #{payload => Payload}
     }.

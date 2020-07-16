@@ -660,9 +660,7 @@ await_session_adapter_state(SessionID, State) ->
 
 get_session_adapter_state(SessionID) ->
     Session = get_session(SessionID),
-    State = ff_withdrawal_session:adapter_state(Session),
-    ct:pal("~p", [State]),
-    State.
+    ff_withdrawal_session:adapter_state(Session).
 
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(

@@ -366,10 +366,7 @@ created_v0_decoding_test() ->
         id            => <<"id">>,
         status        => active,
         withdrawal    => Withdrawal,
-        route         => #{provider_id => 1},
-
-        % Deprecated. Remove after MSPF-560 finish
-        provider_legacy => <<"provider_legacy">>
+        route         => #{provider_id => 1}
     },
     Change = {created, Session},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
@@ -439,9 +436,7 @@ created_v0_decoding_test() ->
                 {str, <<"id">>} => {bin, <<"id">>},
                 {str, <<"status">>} => {str, <<"active">>},
                 {str, <<"withdrawal">>} => LegacyWithdrawal,
-                {str, <<"route">>} => {arr, [{str, <<"map">>}, {obj, #{{str, <<"provider_id">>} => {i, 1}}}]},
-                % Deprecated. Remove after MSPF-560 finish
-                {str, <<"provider_legacy">>} => {bin, <<"provider_legacy">>}
+                {str, <<"route">>} => {arr, [{str, <<"map">>}, {obj, #{{str, <<"provider_id">>} => {i, 1}}}]}
             }}
         ]}
     ]},
@@ -558,7 +553,7 @@ created_v1_decoding_test() ->
         route         => #{provider_id => 1},
 
         % Deprecated. Remove after MSPF-560 finish
-        provider_legacy => <<"provider_legacy">>
+        provider_legacy => <<"-299">>
     },
     Change = {created, Session},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
@@ -568,7 +563,7 @@ created_v1_decoding_test() ->
         "DAACCwABAAAAA1JVQgAADAAICwABAAAAAklEAAwACQsAAQAAAAJJRAALAAYAAAAKc2Vzc2lvbl9pZAwA"
         "BwwAAQoAAQAAAAAAAAB7DAACCwABAAAAA1JVQgAADAACCgABAAAAAAAAAHsMAAILAAEAAAADUlVCAAAL"
         "AAMAAAAOc29tZSB0aW1lc3RhbXALAAQAAAAOc29tZSB0aW1lc3RhbXANAAULDAAAAAAAAAwABggAAQAA"
-        "AAEADAACDAABAAALAAQAAAAPcHJvdmlkZXJfbGVnYWN5AAAA"
+        "AAEADAACDAABAAALAAQAAAAELTI5OQAAAA=="
     >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),

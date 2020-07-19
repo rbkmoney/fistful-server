@@ -114,7 +114,7 @@ apply_event({finished, Result}, Session) ->
 
 -spec process_session(session()) -> result().
 process_session(#{status := active, withdrawal := Withdrawal, route := Route} = Session) ->
-    {Adapter, AdapterOpts} = get_adapter_with_opts(maps:get(provider_id, Route)),
+    {Adapter, AdapterOpts} = get_adapter_with_opts(Route),
     ASt = maps:get(adapter_state, Session, undefined),
     case ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
         {ok, Intent, ASt} ->

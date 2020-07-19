@@ -111,8 +111,11 @@ marshal(quote, #{
         cash_to = marshal(cash, CashTo),
         created_at = CreatedAt,
         expires_on = ExpiresOn,
-        quote_data = Data
+        quote_data = marshal(ctx, Data)
     };
+
+marshal(ctx, Ctx) ->
+    maybe_marshal(context, Ctx);
 
 marshal(msgpack_value, V) ->
     marshal_msgpack(V);
@@ -255,7 +258,7 @@ unmarshal(quote, #wthd_session_Quote{
         cash_to => unmarshal(cash, CashTo),
         created_at => CreatedAt,
         expires_on => ExpiresOn,
-        quote_data => Data
+        quote_data => unmarshal(ctx, Data)
     });
 
 unmarshal(msgpack_value, V) ->
@@ -265,6 +268,9 @@ unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info 
     {success, unmarshal(transaction_info, Trx)};
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
+
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

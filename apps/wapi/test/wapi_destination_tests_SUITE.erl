@@ -295,16 +295,16 @@ build_resource_spec({crypto_wallet, R}) ->
 build_crypto_cyrrency_spec({bitcoin, #'CryptoDataBitcoin'{}}) ->
     #{<<"currency">> => <<"Bitcoin">>};
 build_crypto_cyrrency_spec({litecoin, #'CryptoDataLitecoin'{}}) ->
-    #{<<"currency">> => <<"Bitcoin">>};
+    #{<<"currency">> => <<"Litecoin">>};
 build_crypto_cyrrency_spec({bitcoin_cash, #'CryptoDataBitcoinCash'{}}) ->
     #{<<"currency">> => <<"BitcoinCash">>};
 build_crypto_cyrrency_spec({ripple, #'CryptoDataRipple'{tag = Tag}}) ->
     #{
-        <<"currency">> => <<"Bitcoin">>,
+        <<"currency">> => <<"Ripple">>,
         <<"tag">> => Tag
     };
 build_crypto_cyrrency_spec({ethereum, #'CryptoDataEthereum'{}}) ->
-    #{<<"currency">> => <<"Bitcoin">>};
+    #{<<"currency">> => <<"Ethereum">>};
 build_crypto_cyrrency_spec({usdt, #'CryptoDataUSDT'{}}) ->
     #{<<"currency">> => <<"USDT">>};
 build_crypto_cyrrency_spec({zcash, #'CryptoDataZcash'{}}) ->

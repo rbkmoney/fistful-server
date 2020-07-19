@@ -16,7 +16,6 @@
 -export([end_per_testcase/2]).
 
 %% Tests
--export([migrate_session_test/1]).
 -export([session_fail_test/1]).
 -export([quote_fail_test/1]).
 -export([route_not_found_fail_test/1]).
@@ -68,7 +67,6 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            migrate_session_test,
             session_fail_test,
             quote_fail_test,
             route_not_found_fail_test,
@@ -126,41 +124,6 @@ end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
 %% Tests
-
--spec migrate_session_test(config()) -> test_return().
-migrate_session_test(C) ->
-    ID = genlib:unique(),
-    ProviderID = <<"mocketbank">>,
-    Body = {100, <<"RUB">>},
-    Resource = {bank_card, #{
-        token => <<"some token">>
-    }},
-    Destination = #{
-        resource => Resource
-    },
-    Party = create_party(C),
-    IdentityID = create_person_identity(Party, C),
-    {ok, Machine} = ff_identity_machine:get(IdentityID),
-    Identity = ff_identity_machine:identity(Machine),
-    Withdrawal = #{
-        id => genlib:unique(),
-        destination => Destination,
-        cash => Body,
-        sender => Identity,
-        receiver => Identity,
-        quote => #{}
-    },
-    LegacyEvent = {created, #{
-        id => ID,
-        status => active,
-        withdrawal => Withdrawal,
-        provider => ProviderID,
-        adapter => {#{}, #{}}
-    }},
-
-    {created, Session} = ff_withdrawal_session:maybe_migrate(LegacyEvent, #{}),
-    ?assertEqual(ID, maps:get(id, Session)),
-    ?assertEqual(4, maps:get(version, Session)).
 
 -spec session_fail_test(config()) -> test_return().
 session_fail_test(C) ->

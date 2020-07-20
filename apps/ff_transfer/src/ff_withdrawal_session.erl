@@ -115,11 +115,6 @@
 status(#{status := V}) ->
     V.
 
--spec adapter(session()) -> adapter_with_opts().
-
-adapter(#{adapter := V}) ->
-    V.
-
 -spec adapter_state(session()) -> ff_adapter:state().
 
 adapter_state(Session) ->
@@ -128,6 +123,10 @@ adapter_state(Session) ->
 -spec withdrawal(session()) -> withdrawal().
 
 withdrawal(#{withdrawal := V}) ->
+    V.
+
+-spec route(session()) -> route().
+route(#{route := V}) ->
     V.
 
 -spec callbacks_index(session()) -> callbacks_index().
@@ -208,7 +207,7 @@ find_callback(CallbackTag, Session) ->
     ff_withdrawal_callback_utils:get_by_tag(CallbackTag, callbacks_index(Session)).
 
 do_process_callback(CallbackParams, Callback, Session) ->
-    {Adapter, AdapterOpts} = adapter(Session),
+    {Adapter, AdapterOpts} = get_adapter_with_opts(route(Session)),
     Withdrawal = withdrawal(Session),
     AdapterState = adapter_state(Session),
     {ok, #{
@@ -220,7 +219,7 @@ do_process_callback(CallbackParams, Callback, Session) ->
     {ok, {Response, process_intent(Intent, Session, Events0 ++ Events1)}}.
 
 make_session_finish_params(Session) ->
-    {_Adapter, AdapterOpts} = adapter(Session),
+    {_Adapter, AdapterOpts} = get_adapter_with_opts(route(Session)),
     #{
         withdrawal => withdrawal(Session),
         state => adapter_state(Session),

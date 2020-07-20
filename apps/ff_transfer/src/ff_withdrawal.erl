@@ -186,8 +186,6 @@
 -export([status/1]).
 -export([route/1]).
 -export([attempts/1]).
--export([session_id/1]).
--export([session_processing_status/1]).
 -export([external_id/1]).
 -export([created_at/1]).
 -export([party_revision/1]).
@@ -207,6 +205,8 @@
 -export([adjustments/1]).
 -export([effective_final_cash_flow/1]).
 -export([sessions/1]).
+-export([get_current_session/1]).
+-export([get_current_session_status/1]).
 
 %% Event source
 
@@ -289,6 +289,8 @@
     route_not_found |
     {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}} |
     session.
+
+-type session_processing_status() :: undefined | pending | succeeded | failed.
 
 %% Accessors
 
@@ -475,6 +477,16 @@ is_finished(#{status := {failed, _}}) ->
     true;
 is_finished(#{status := pending}) ->
     false.
+
+
+-spec get_current_session(withdrawal_state()) -> session().
+get_current_session(Withdrawal) ->
+    session(Withdrawal).
+
+-spec get_current_session_status(withdrawal_state()) ->
+    session_processing_status().
+get_current_session_status(Withdrawal) ->
+    session_processing_status(Withdrawal).
 
 %% Transfer callbacks
 
@@ -1160,7 +1172,7 @@ session_result(Withdrawal) ->
     end.
 
 -spec session_processing_status(withdrawal_state()) ->
-    undefined | pending | succeeded | failed.
+    session_processing_status().
 session_processing_status(Withdrawal) ->
     case attempts(Withdrawal) of
         undefined ->

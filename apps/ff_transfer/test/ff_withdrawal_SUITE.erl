@@ -570,8 +570,7 @@ provider_callback_test(C) ->
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
-    Withdrawal = get_withdrawal(WithdrawalID),
-    SessionID = ff_withdrawal:session_id(Withdrawal),
+    SessionID = get_session_id(WithdrawalID),
     ?assertEqual(<<"processing_callback">>, await_session_adapter_state(SessionID, <<"processing_callback">>)),
     ?assertEqual({ok, ?PROCESS_CALLBACK_SUCCESS(CallbackPayload)}, call_host(Callback)),
     ?assertEqual(<<"callback_finished">>, await_session_adapter_state(SessionID, <<"callback_finished">>)),
@@ -601,7 +600,8 @@ get_withdrawal(WithdrawalID) ->
     ff_withdrawal_machine:withdrawal(Machine).
 
 get_withdrawal_status(WithdrawalID) ->
-    ff_withdrawal:status(get_withdrawal(WithdrawalID)).
+    Withdrawal = get_withdrawal(WithdrawalID),
+    maps:get(status, Withdrawal).
 
 await_session_processing_status(WithdrawalID, Status) ->
     Poller = fun() -> get_session_processing_status(WithdrawalID) end,
@@ -610,7 +610,7 @@ await_session_processing_status(WithdrawalID, Status) ->
 
 get_session_processing_status(WithdrawalID) ->
     Withdrawal = get_withdrawal(WithdrawalID),
-    ff_withdrawal:session_processing_status(Withdrawal).
+    ff_withdrawal:get_current_session_status(Withdrawal).
 
 get_session(SessionID) ->
     {ok, Machine} = ff_withdrawal_session_machine:get(SessionID),
@@ -624,6 +624,11 @@ await_session_adapter_state(SessionID, State) ->
 get_session_adapter_state(SessionID) ->
     Session = get_session(SessionID),
     ff_withdrawal_session:adapter_state(Session).
+
+get_session_id(WithdrawalID) ->
+    Withdrawal = get_withdrawal(WithdrawalID),
+    Session = ff_withdrawal:get_current_session(Withdrawal),
+    ff_withdrawal_session:id(Session).
 
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(

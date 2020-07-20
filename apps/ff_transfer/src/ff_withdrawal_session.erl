@@ -8,6 +8,7 @@
 
 %% Accessors
 
+-export([id/1]).
 -export([status/1]).
 -export([adapter_state/1]).
 
@@ -110,6 +111,12 @@
 %%
 %% Accessors
 %%
+
+-spec id(session()) ->
+    id().
+
+id(#{id := V}) ->
+    V.
 
 -spec status(session()) ->
     status().

@@ -1,4 +1,4 @@
--module(ff_adapter_withdrawal_host).
+-module(ff_withdrawal_adapter_host).
 -behaviour(ff_woody_wrapper).
 
 -include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
@@ -16,7 +16,7 @@
 -spec handle_function(woody:func(), woody:args(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(ff_adapter_withdrawal_host, #{}, fun() -> handle_function_(Func, Args, Opts) end).
+    scoper:scope(ff_withdrawal_adapter_host, #{}, fun() -> handle_function_(Func, Args, Opts) end).
 
 %% Implementation
 

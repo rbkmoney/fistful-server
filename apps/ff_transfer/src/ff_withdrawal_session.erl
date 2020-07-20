@@ -6,10 +6,12 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
-%% API
+%% Accessors
 
 -export([status/1]).
 -export([adapter_state/1]).
+
+%% API
 
 -export([create/3]).
 -export([process_session/1]).
@@ -106,7 +108,7 @@
 -type adapter_with_opts() :: {ff_withdrawal_provider:adapter(), ff_withdrawal_provider:adapter_opts()}.
 
 %%
-%% API
+%% Accessors
 %%
 
 -spec status(session()) ->
@@ -138,6 +140,8 @@ callbacks_index(Session) ->
             ff_withdrawal_callback_utils:new_index()
     end.
 
+%%
+%% API
 %%
 
 -spec create(id(), data(), params()) ->

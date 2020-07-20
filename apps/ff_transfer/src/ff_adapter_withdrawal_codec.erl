@@ -3,17 +3,29 @@
 -include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--behaviour(ff_codec).
-
 -export([marshal/2]).
 -export([unmarshal/2]).
 
-%% @TODO: Not symmetrical right now
+-type type_name() :: atom() | {list, atom()}.
+-type codec()     :: module().
 
-%%
+-type encoded_value()  :: encoded_value(any()).
+-type encoded_value(T) :: T.
 
--spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
-    ff_codec:encoded_value().
+-type decoded_value()  :: decoded_value(any()).
+-type decoded_value(T) :: T.
+
+-export_type([codec/0]).
+-export_type([type_name/0]).
+-export_type([encoded_value/0]).
+-export_type([encoded_value/1]).
+-export_type([decoded_value/0]).
+-export_type([decoded_value/1]).
+
+%% @TODO: Make supported types for marshall and unmarshall symmetrical
+
+-spec marshal(type_name(), decoded_value()) ->
+    encoded_value().
 
 marshal(adapter_state, undefined) ->
     {nl, #msgpack_Nil{}};
@@ -190,10 +202,7 @@ marshal(withdrawal, #{
         sender = maybe_marshal(identity, Sender),
         receiver = maybe_marshal(identity, Receiver),
         quote = maybe_marshal(quote, maps:get(quote, Withdrawal, undefined))
-    };
-
-marshal(T, V) ->
-    ff_codec:marshal(T, V).
+    }.
 
 try_encode_proof_document({rus_domestic_passport, Token}, Acc) ->
     [{rus_domestic_passport, #wthdm_RUSDomesticPassport{token = Token}} | Acc];
@@ -296,10 +305,7 @@ unmarshal(resource, _NotImplemented) ->
     erlang:error(not_implemented); %@TODO
 
 unmarshal(withdrawal, _NotImplemented) ->
-    erlang:error(not_implemented); %@TODO
-
-unmarshal(T, V) ->
-    ff_codec:unmarshal(T, V).
+    erlang:error(not_implemented). %@TODO
 
 %%
 

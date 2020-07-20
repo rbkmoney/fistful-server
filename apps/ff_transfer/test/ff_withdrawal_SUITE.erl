@@ -780,4 +780,4 @@ call_host(Callback) ->
     Function = 'ProcessCallback',
     Args     = [Callback],
     Request  = {Service, Function, Args},
-    ff_woody_client:call(ff_adapter_withdrawal_host, Request).
+    ff_woody_client:call(ff_withdrawal_adapter_host, Request).

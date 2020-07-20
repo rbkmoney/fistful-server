@@ -335,7 +335,7 @@ identity_provider_config(Options) ->
 services(Options) ->
     Default = #{
         ff_p2p_adapter_host => "http://fistful-server:8022/v1/ff_p2p_adapter_host",
-        ff_adapter_withdrawal_host => "http://fistful-server:8022/v1/ff_adapter_withdrawal_host",
+        ff_withdrawal_adapter_host => "http://fistful-server:8022/v1/ff_withdrawal_adapter_host",
         eventsink        => "http://machinegun:8022/v1/event_sink",
         automaton        => "http://machinegun:8022/v1/automaton",
         accounter        => "http://shumway:8022/shumpune",

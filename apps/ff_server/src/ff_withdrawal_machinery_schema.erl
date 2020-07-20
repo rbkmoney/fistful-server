@@ -165,7 +165,7 @@ maybe_migrate({created, T}, MigrateParams) ->
     Route = case maps:get(provider, T) of
         TRoute when is_map(TRoute) ->
             TRoute;
-        ProviderID when is_integer(ProviderID) orelse is_binary(ProviderID) ->
+        ProviderID when is_binary(ProviderID) ->
             #{provider_id => ProviderID}
     end,
     maybe_migrate({created, T#{

@@ -477,7 +477,7 @@ created_v0_unknown_with_binary_provider_decoding_test() ->
         provider_legacy => <<"royalpay">>,
         status => active,
         withdrawal => #{
-            cash => {1500000,<<"RUB">>},
+            cash => {1500000, <<"RUB">>},
             id => <<"1274">>,
             receiver => #{id => <<"receiver_id">>},
             sender => #{
@@ -501,10 +501,10 @@ created_v0_unknown_with_binary_provider_decoding_test() ->
             {arr, [
                 {str, <<"tup">>},
                 {arr, [
-                    {str, <<"tup">>},{i, 2020},{i, 5},{i, 25}
+                    {str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}
                 ]},
                 {arr, [
-                    {str, <<"tup">>},{i, 19},{i, 19},{i, 19}
+                    {str, <<"tup">>}, {i, 19}, {i, 19}, {i, 19}
                 ]}
             ]},
             {i, 293305}
@@ -535,7 +535,7 @@ created_v0_unknown_with_binary_provider_decoding_test() ->
                         {str, <<"map">>},
                         {obj, #{
                             {str, <<"cash">>} => {arr, [
-                                {str, <<"tup">>},{i, 1500000},{bin, <<"RUB">>}
+                                {str, <<"tup">>}, {i, 1500000}, {bin, <<"RUB">>}
                             ]},
                             {str, <<"destination">>} => {arr, [
                                 {str, <<"map">>},

@@ -2,7 +2,6 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
--include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
@@ -56,11 +55,9 @@
 }).
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
 
--define(PROCESS_CALLBACK_SUCCESS(Payload), {succeeded, #wthadpt_ProcessCallbackSucceeded{
-    response = #wthadpt_CallbackResponse{
-        payload = Payload
-    }
-}}).
+-define(PROCESS_CALLBACK_SUCCESS(Payload), #{
+    payload => Payload
+}).
 
 %% API
 
@@ -564,15 +561,15 @@ provider_callback_test(C) ->
     },
     CallbackTag = <<"cb_", WithdrawalID/binary>>,
     CallbackPayload = <<"super_secret">>,
-    Callback = #wthadpt_Callback{
-        tag = CallbackTag,
-        payload = CallbackPayload
+    Callback = #{
+        tag => CallbackTag,
+        payload => CallbackPayload
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
     SessionID = get_session_id(WithdrawalID),
     ?assertEqual(<<"processing_callback">>, await_session_adapter_state(SessionID, <<"processing_callback">>)),
-    ?assertEqual({ok, ?PROCESS_CALLBACK_SUCCESS(CallbackPayload)}, call_host(Callback)),
+    ?assertEqual({ok, ?PROCESS_CALLBACK_SUCCESS(CallbackPayload)}, call_process_callback(Callback)),
     ?assertEqual(<<"callback_finished">>, await_session_adapter_state(SessionID, <<"callback_finished">>)),
     ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
 
@@ -780,9 +777,5 @@ make_dummy_party_change(PartyID) ->
     }),
     ok.
 
-call_host(Callback) ->
-    Service  = {dmsl_withdrawals_provider_adapter_thrift, 'AdapterHost'},
-    Function = 'ProcessCallback',
-    Args     = [Callback],
-    Request  = {Service, Function, Args},
-    ff_woody_client:call(ff_withdrawal_adapter_host, Request).
+call_process_callback(Callback) ->
+    ff_withdrawal_session_machine:process_callback(Callback).

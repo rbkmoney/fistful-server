@@ -162,11 +162,16 @@ maybe_migrate({created, Withdrawal = #{version := 2, id := ID}}, MigrateParams) 
 maybe_migrate({created, T}, MigrateParams) ->
     DestinationID = maps:get(destination, T),
     SourceID = maps:get(source, T),
-    ProviderID = maps:get(provider, T),
+    Route = case maps:get(provider, T) of
+        TRoute when is_map(TRoute) ->
+            TRoute;
+        ProviderID when is_binary(ProviderID) ->
+            #{provider_id => ProviderID}
+    end,
     maybe_migrate({created, T#{
         version     => 1,
         handler     => ff_withdrawal,
-        route       => #{provider_id => ProviderID},
+        route       => Route,
         params => #{
             destination => DestinationID,
             source      => SourceID
@@ -197,13 +202,14 @@ maybe_migrate_route(undefined = Route) ->
     Route;
 maybe_migrate_route(#{version := 1} = Route) ->
     Route;
-maybe_migrate_route(Route) when not is_map_key(version, Route) ->
+maybe_migrate_route(Route) when is_map_key(provider_id, Route) andalso not is_map_key(version, Route) ->
     LegacyIDs = #{
         <<"mocketbank">> => 1,
+        <<"royalpay">> => 2,
         <<"royalpay-payout">> => 2,
         <<"accentpay">> => 3
     },
-    case maps:get(provider_id, Route) of
+    NewRoute = case maps:get(provider_id, Route) of
         ProviderID when is_integer(ProviderID) ->
             Route#{
                 version => 1,
@@ -223,7 +229,20 @@ maybe_migrate_route(Route) when not is_map_key(version, Route) ->
                 provider_id => erlang:binary_to_integer(ProviderID) + 300,
                 provider_id_legacy => ProviderID
             }
-    end.
+    end,
+    maybe_migrate_route(NewRoute);
+maybe_migrate_route(Route) when is_map_key(adapter, Route) ->
+    #{
+        adapter := #{
+            url := Url,
+            event_handler := scoper_woody_event_handler
+        },
+        adapter_opts := #{}
+    } = Route,
+    LegacyUrls = #{
+        <<"http://proxy-mocketbank:8022/proxy/mocketbank/p2p-credit">> => <<"mocketbank">>
+    },
+    maybe_migrate_route(#{provider_id => maps:get(Url, LegacyUrls)}).
 
 get_aux_state_ctx(AuxState) when is_map(AuxState) ->
     maps:get(ctx, AuxState, undefined);
@@ -250,8 +269,90 @@ unmarshal(Type, Value) ->
     {Result, _Context} = unmarshal(Type, Value, #{}),
     Result.
 
--spec v0_created_migration_test() -> _.
-v0_created_migration_test() ->
+-spec created_v0_0_without_provider_migration_test() -> _.
+created_v0_0_without_provider_migration_test() ->
+    Withdrawal = #{
+        body => {1000, <<"RUB">>},
+        id => <<"ID">>,
+        metadata => #{<<"some key">> => <<"some val">>},
+        params => #{
+            destination_account => [],
+            destination_id => <<"destinationID">>,
+            wallet_account => [],
+            wallet_cash_flow_plan => [],
+            wallet_id => <<"sourceID">>
+        },
+        route => #{
+            provider_id => 301,
+            provider_id_legacy => <<"mocketbank">>,
+            version => 1
+        },
+        transfer_type => withdrawal,
+        version => 3
+    },
+    Change = {created, Withdrawal},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"created">>},
+            {arr, [
+                {str, <<"map">>},
+                {obj, #{
+                    {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 1000}, {bin, <<"RUB">>}]},
+                    {str, <<"destination">>} => {bin, <<"destinationID">>},
+                    {str, <<"id">>} => {bin, <<"ID">>},
+                    {str, <<"provider">>} => {arr, [
+                        {str, <<"map">>},
+                        {obj, #{
+                            {str, <<"adapter">>} => {arr, [
+                                {str, <<"map">>},
+                                {obj, #{
+                                    {str, <<"event_handler">>} => {str, <<"scoper_woody_event_handler">>},
+                                    {str, <<"url">>} =>
+                                        {bin, <<"http://proxy-mocketbank:8022/proxy/mocketbank/p2p-credit">>}
+                                }}
+                            ]},
+                            {str, <<"adapter_opts">>} => {arr, [
+                                {str, <<"map">>},
+                                {obj, #{
+                                    {bin, <<"term_id">>} => {bin, <<"30001018">>},
+                                    {bin, <<"version">>} => {bin, <<"109">>}
+                                }}
+                            ]}
+                        }}
+                    ]},
+                    {str, <<"source">>} => {bin, <<"sourceID">>}
+                }}
+            ]}
+        ]}
+    ]},
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{
+        ctx => #{
+            <<"com.rbkmoney.wapi">> => #{
+                <<"metadata">> => #{
+                    <<"some key">> => <<"some val">>
+                }
+            }
+        }
+    }),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec created_v0_0_migration_test() -> _.
+created_v0_0_migration_test() ->
     Withdrawal = #{
         body => {100, <<"RUB">>},
         id => <<"ID">>,
@@ -315,8 +416,8 @@ v0_created_migration_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec v1_created_migration_test() -> _.
-v1_created_migration_test() ->
+-spec created_v0_1_migration_test() -> _.
+created_v0_1_migration_test() ->
     Withdrawal = #{
         body => {100, <<"RUB">>},
         id => <<"ID">>,
@@ -403,8 +504,8 @@ v1_created_migration_test() ->
     ?assertEqual(Event, Decoded).
 
 
--spec v2_created_migration_test() -> _.
-v2_created_migration_test() ->
+-spec created_v0_2_migration_test() -> _.
+created_v0_2_migration_test() ->
     Withdrawal = #{
         body => {100, <<"RUB">>},
         id => <<"ID">>,
@@ -535,8 +636,8 @@ v2_created_migration_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec v3_created_migration_test() -> _.
-v3_created_migration_test() ->
+-spec created_v0_3_migration_test() -> _.
+created_v0_3_migration_test() ->
     Withdrawal = #{
         body => {100, <<"RUB">>},
         id => <<"ID">>,
@@ -667,8 +768,8 @@ v3_created_migration_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec v0_route_changed_migration_test() -> _.
-v0_route_changed_migration_test() ->
+-spec route_changed_v0_0_migration_test() -> _.
+route_changed_v0_0_migration_test() ->
     LegacyEvent = {route_changed, #{provider_id => 5}},
     ModernEvent = {route_changed, #{
         version => 1,
@@ -677,8 +778,8 @@ v0_route_changed_migration_test() ->
     }},
     ?assertEqual(ModernEvent, maybe_migrate(LegacyEvent, #{})).
 
--spec created_v3_test() -> _.
-created_v3_test() ->
+-spec created_v1_marshaling_test() -> _.
+created_v1_marshaling_test() ->
     Withdrawal = #{
         body => {100, <<"RUB">>},
         id => <<"ID">>,
@@ -699,8 +800,8 @@ created_v3_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
--spec status_changed_marshaling_test() -> _.
-status_changed_marshaling_test() ->
+-spec status_changed_v1_marshaling_test() -> _.
+status_changed_v1_marshaling_test() ->
     Change = {status_changed, {failed, #{code => <<"unknown">>, reason => <<"failure reason">>}}},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
     LegacyEvent = {bin, base64:decode(<<"CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAgwAAQw",

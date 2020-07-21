@@ -157,6 +157,7 @@ maybe_migrate({created, Session = #{
     }
 }}, Context) ->
     NewResource = ff_instrument:maybe_migrate_resource(OldResource),
+    % `bindata_fun` is a helper for test purposes. You shouldn't use in production code.
     FullResource = case maps:find(bindata_fun, Context) of
         {ok, Fun} ->
             Fun(NewResource);

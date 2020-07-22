@@ -28,6 +28,8 @@ marshal(change, {next_state, AdapterState}) ->
     {next_state, marshal(msgpack_value, AdapterState)};
 marshal(change, {finished, SessionResult}) ->
     {finished, marshal(session_result, SessionResult)};
+marshal(change, {callback, CallbackChange}) ->
+    {callback, marshal(callback_change, CallbackChange)};
 
 marshal(session, Session) ->
     #{
@@ -129,6 +131,27 @@ marshal(session_result, {failed, Failure}) ->
         failure = ff_codec:marshal(failure, Failure)
     }};
 
+marshal(callback_change, #{tag := Tag, payload := Payload}) ->
+    #wthd_session_CallbackChange{
+        tag = marshal(string, Tag),
+        payload = marshal(callback_event, Payload)
+    };
+
+marshal(callback_event, {created, Callback}) ->
+    {created, #wthd_session_CallbackCreatedChange{callback = marshal(callback, Callback)}};
+marshal(callback_event, {status_changed, Status}) ->
+    {status_changed, #wthd_session_CallbackStatusChange{status = marshal(callback_status, Status)}};
+marshal(callback_event, {finished, #{payload := Response}}) ->
+    {finished, #wthd_session_CallbackResultChange{payload = Response}};
+
+marshal(callback, #{tag := Tag}) ->
+    #wthd_session_Callback{tag = marshal(string, Tag)};
+
+marshal(callback_status, pending) ->
+    {pending, #wthd_session_CallbackStatusPending{}};
+marshal(callback_status, succeeded) ->
+    {succeeded, #wthd_session_CallbackStatusSucceeded{}};
+
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -171,6 +194,11 @@ unmarshal(change, {next_state, AdapterState}) ->
     {next_state, unmarshal(msgpack_value, AdapterState)};
 unmarshal(change, {finished, SessionResult}) ->
     {finished, unmarshal(session_result, SessionResult)};
+unmarshal(change, {callback, #wthd_session_CallbackChange{tag = Tag, payload = Payload}}) ->
+    {callback, #{
+        tag => unmarshal(string, Tag),
+        payload => unmarshal(callback_event, Payload)
+    }};
 
 unmarshal(session, #wthd_session_Session{
     id = SessionID,
@@ -268,6 +296,21 @@ unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info 
     {success, unmarshal(transaction_info, Trx)};
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
+
+unmarshal(callback_event, {created, #wthd_session_CallbackCreatedChange{callback = Callback}}) ->
+    {created, unmarshal(callback, Callback)};
+unmarshal(callback_event, {finished, #wthd_session_CallbackResultChange{payload = Response}}) ->
+    {finished, #{payload => Response}};
+unmarshal(callback_event, {status_changed, #wthd_session_CallbackStatusChange{status = Status}}) ->
+    {status_changed, unmarshal(callback_status, Status)};
+
+unmarshal(callback, #wthd_session_Callback{tag = Tag}) ->
+    #{tag => unmarshal(string, Tag)};
+
+unmarshal(callback_status, {pending, #wthd_session_CallbackStatusPending{}}) ->
+    pending;
+unmarshal(callback_status, {succeeded, #wthd_session_CallbackStatusSucceeded{}}) ->
+    succeeded;
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);

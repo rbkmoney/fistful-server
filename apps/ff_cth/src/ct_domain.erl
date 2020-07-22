@@ -178,6 +178,13 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
                                 then_ = {value, [?prv_trm(1)]}
                             }
                         ]};
+                    ?prv(11) ->
+                        {decisions, [
+                            #domain_TerminalDecision{
+                                if_   = {constant, true},
+                                then_ = {value, [?prv_trm(1)]}
+                            }
+                        ]};
                     _ ->
                         {decisions, [
                             #domain_TerminalDecision{

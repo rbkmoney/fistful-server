@@ -205,6 +205,8 @@
 -export([adjustments/1]).
 -export([effective_final_cash_flow/1]).
 -export([sessions/1]).
+-export([get_current_session/1]).
+-export([get_current_session_status/1]).
 
 %% Event source
 
@@ -287,6 +289,8 @@
     route_not_found |
     {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}} |
     session.
+
+-type session_processing_status() :: undefined | pending | succeeded | failed.
 
 %% Accessors
 
@@ -585,7 +589,7 @@ deduce_activity(Withdrawal) ->
     Params = #{
         route => route_selection_status(Withdrawal),
         p_transfer => p_transfer_status(Withdrawal),
-        session => session_processing_status(Withdrawal),
+        session => get_current_session_status(Withdrawal),
         status => status(Withdrawal),
         limit_check => limit_check_processing_status(Withdrawal),
         active_adjustment => ff_adjustment_utils:is_active(adjustments_index(Withdrawal))
@@ -1133,13 +1137,13 @@ quote_domain_revision(#{quote_data := QuoteData}) ->
 
 %% Session management
 
--spec session(withdrawal_state()) -> session() | undefined.
-session(Withdrawal) ->
+-spec get_current_session(withdrawal_state()) -> session() | undefined.
+get_current_session(Withdrawal) ->
     ff_withdrawal_route_attempt_utils:get_current_session(attempts(Withdrawal)).
 
 -spec session_id(withdrawal_state()) -> session_id() | undefined.
 session_id(T) ->
-    case session(T) of
+    case get_current_session(T) of
         undefined ->
             undefined;
         #{id := SessionID} ->
@@ -1148,7 +1152,7 @@ session_id(T) ->
 
 -spec session_result(withdrawal_state()) -> session_result() | unknown | undefined.
 session_result(Withdrawal) ->
-    case session(Withdrawal) of
+    case get_current_session(Withdrawal) of
         undefined ->
             undefined;
         #{result := Result} ->
@@ -1157,18 +1161,18 @@ session_result(Withdrawal) ->
             unknown
     end.
 
--spec session_processing_status(withdrawal_state()) ->
-    undefined | pending | succeeded | failed.
-session_processing_status(Withdrawal) ->
+-spec get_current_session_status(withdrawal_state()) ->
+    session_processing_status().
+get_current_session_status(Withdrawal) ->
     case attempts(Withdrawal) of
         undefined ->
             undefined;
         _ ->
-            session_processing_status_(Withdrawal)
+            get_current_session_status_(Withdrawal)
     end.
 
-session_processing_status_(Withdrawal) ->
-    Session = session(Withdrawal),
+get_current_session_status_(Withdrawal) ->
+    Session = get_current_session(Withdrawal),
     case Session of
         undefined ->
             undefined;

@@ -1628,9 +1628,7 @@ decode_withdrawal_stat_status({succeeded, #fistfulstat_WithdrawalSucceeded{}}) -
 decode_withdrawal_stat_status({failed, #fistfulstat_WithdrawalFailed{failure = Failure}}) ->
     #{
         <<"status">> => <<"Failed">>,
-        <<"failure">> => #{
-            <<"code">> => to_swag(stat_status_failure, Failure)
-        }
+        <<"failure">> => to_swag(stat_status_failure, Failure)
     }.
 
 decode_deposit_stat_status({pending, #fistfulstat_DepositPending{}}) ->
@@ -1640,9 +1638,7 @@ decode_deposit_stat_status({succeeded, #fistfulstat_DepositSucceeded{}}) ->
 decode_deposit_stat_status({failed, #fistfulstat_DepositFailed{failure = Failure}}) ->
     #{
         <<"status">> => <<"Failed">>,
-        <<"failure">> => #{
-            <<"code">> => to_swag(stat_status_failure, Failure)
-        }
+        <<"failure">> => to_swag(stat_status_failure, Failure)
     }.
 
 %% Marshalling
@@ -2207,16 +2203,14 @@ to_swag(withdrawal_status, succeeded) ->
 to_swag(withdrawal_status, {failed, Failure}) ->
     #{
         <<"status">> => <<"Failed">>,
-        <<"failure">> => #{
-            <<"code">> => to_swag(withdrawal_status_failure, Failure)
-        }
+        <<"failure">> => to_swag(withdrawal_status_failure, Failure)
     };
 to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
-    to_swag(domain_failure, Failure);
+    to_swag(failure, Failure);
 to_swag(withdrawal_status_failure, Failure) ->
-    to_swag(domain_failure, map_internal_error(Failure));
+    to_swag(failure, map_internal_error(Failure));
 to_swag(stat_status_failure, Failure) ->
-    to_swag(domain_failure, map_fistful_stat_error(Failure));
+    to_swag(failure, map_fistful_stat_error(Failure));
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{
         <<"eventID">> => EventId,
@@ -2245,6 +2239,16 @@ to_swag(currency_object, V) ->
     });
 to_swag(domain_failure, Failure = #domain_Failure{}) ->
     erlang:list_to_binary(payproc_errors:format_raw(Failure));
+to_swag(failure, Failure = #domain_Failure{}) ->
+    #{
+        <<"code">> => Failure#domain_Failure.code,
+        <<"subError">> => to_swag(failure, Failure#domain_Failure.sub)
+    };
+to_swag(failure, Failure = #domain_SubFailure{}) ->
+    #{
+        <<"code">> => Failure#domain_SubFailure.code,
+        <<"subError">> => to_swag(failure, Failure#domain_SubFailure.sub)
+    };
 to_swag(is_blocked, {ok, accessible}) ->
     false;
 to_swag(is_blocked, _) ->
@@ -2511,9 +2515,15 @@ map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
             code = <<"cash_range">>
         }
     };
-map_internal_error(#{code := <<"account_limit_exceeded">>}) ->
+map_internal_error(#{code := Code} = Err) when
+    Code == <<"account_limit_exceeded">> orelse
+    Code == <<"provider_limit_exceeded">> orelse
+    Code == <<"no_route_found">> orelse
+    Code == <<"quote_expired">>
+->
     #domain_Failure{
-        code = <<"account_limit_exceeded">>
+        code = Code,
+        sub = map_subfailure(maps:get(sub, Err, undefined))
     };
 map_internal_error(_Reason) ->
     #domain_Failure{
@@ -2523,6 +2533,15 @@ map_internal_error(_Reason) ->
 map_fistful_stat_error(_Reason) ->
     #domain_Failure{
         code = <<"failed">>
+    }.
+
+map_subfailure(undefined) ->
+    undefined;
+
+map_subfailure(#{code := Code} = Subfailure) ->
+    #domain_SubFailure{
+        code = Code,
+        sub = map_subfailure(maps:get(sub, Subfailure, undefined))
     }.
 
 authorize_withdrawal(Params, Context) ->

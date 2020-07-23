@@ -2240,15 +2240,15 @@ to_swag(currency_object, V) ->
 to_swag(domain_failure, Failure = #domain_Failure{}) ->
     erlang:list_to_binary(payproc_errors:format_raw(Failure));
 to_swag(failure, Failure = #domain_Failure{}) ->
-    #{
+    to_swag(map, #{
         <<"code">> => Failure#domain_Failure.code,
         <<"subError">> => to_swag(failure, Failure#domain_Failure.sub)
-    };
+    });
 to_swag(failure, Failure = #domain_SubFailure{}) ->
-    #{
+    to_swag(map, #{
         <<"code">> => Failure#domain_SubFailure.code,
         <<"subError">> => to_swag(failure, Failure#domain_SubFailure.sub)
-    };
+    });
 to_swag(is_blocked, {ok, accessible}) ->
     false;
 to_swag(is_blocked, _) ->

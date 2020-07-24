@@ -160,11 +160,11 @@ marshal(session_state, Session) ->
 
 marshal(quote, Quote) ->
     #wthd_QuoteState{
-        cash_from  = marshal(cash,         maps:get(cash_from,  Quote)),
-        cash_to    = marshal(cash,         maps:get(cash_to,    Quote)),
+        cash_from  = marshal(cash, maps:get(cash_from,  Quote)),
+        cash_to    = marshal(cash, maps:get(cash_to,    Quote)),
         created_at = maps:get(created_at, Quote), % already formatted
         expires_on = maps:get(expires_on, Quote),
-        quote_data = marshal(ctx,          maps:get(quote_data, Quote))
+        quote_data = marshal(msgpack_value, maps:get(quote_data, Quote))
     };
 
 marshal(ctx, Ctx) ->
@@ -263,7 +263,7 @@ unmarshal(quote, Quote) ->
         cash_to   => unmarshal(cash, Quote#wthd_QuoteState.cash_to),
         created_at => Quote#wthd_QuoteState.created_at,
         expires_on => Quote#wthd_QuoteState.expires_on,
-        quote_data => unmarshal(ctx, Quote#wthd_QuoteState.quote_data)
+        quote_data => unmarshal(msgpack_value, Quote#wthd_QuoteState.quote_data)
     };
 
 unmarshal(ctx, Ctx) ->

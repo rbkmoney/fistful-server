@@ -530,8 +530,8 @@ created_v1_decoding_test() ->
         cash_from => {123, <<"RUB">>},
         cash_to => {123, <<"RUB">>},
         created_at => <<"some timestamp">>,
-        expires_on => <<"some timestamp">>,
-        quote_data => #{}
+        expires_on => <<"some timestamp">>
+        % quote_data => #{}
     },
     Identity = #{
         id => <<"ID">>

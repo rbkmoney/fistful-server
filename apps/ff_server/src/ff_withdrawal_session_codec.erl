@@ -111,14 +111,11 @@ marshal(quote, #{
         cash_to = marshal(cash, CashTo),
         created_at = CreatedAt,
         expires_on = ExpiresOn,
-        quote_data = marshal(ctx, Data)
+        quote_data = marshal(msgpack_value, Data)
     };
 
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
-
-marshal(msgpack_value, V) ->
-    marshal_msgpack(V);
 
 marshal(session_result, {success, TransactionInfo}) ->
     {success, #wthd_session_SessionResultSuccess{
@@ -131,20 +128,6 @@ marshal(session_result, {failed, Failure}) ->
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
-
-marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};
-marshal_msgpack(V) when is_boolean(V) -> {b, V};
-marshal_msgpack(V) when is_integer(V) -> {i, V};
-marshal_msgpack(V) when is_float(V)   -> V;
-marshal_msgpack(V) when is_binary(V)  -> {str, V}; % Assuming well-formed UTF-8 bytestring.
-marshal_msgpack({binary, V}) when is_binary(V) ->
-    {bin, V};
-marshal_msgpack(V) when is_list(V) ->
-    {arr, [marshal_msgpack(ListItem) || ListItem <- V]};
-marshal_msgpack(V) when is_map(V) ->
-    {obj, maps:fold(fun(Key, Value, Map) -> Map#{marshal_msgpack(Key) => marshal_msgpack(Value)} end, #{}, V)};
-marshal_msgpack(undefined) ->
-    undefined.
 
 -spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
     ff_codec:decoded_value().
@@ -258,11 +241,8 @@ unmarshal(quote, #wthd_session_Quote{
         cash_to => unmarshal(cash, CashTo),
         created_at => CreatedAt,
         expires_on => ExpiresOn,
-        quote_data => unmarshal(ctx, Data)
+        quote_data => unmarshal(msgpack_value, Data)
     });
-
-unmarshal(msgpack_value, V) ->
-    unmarshal_msgpack(V);
 
 unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = Trx}}) ->
     {success, unmarshal(transaction_info, Trx)};
@@ -274,18 +254,6 @@ unmarshal(ctx, Ctx) ->
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
-
-unmarshal_msgpack({nl,  #msgp_Nil{}})        -> nil;
-unmarshal_msgpack({b,   V}) when is_boolean(V) -> V;
-unmarshal_msgpack({i,   V}) when is_integer(V) -> V;
-unmarshal_msgpack({flt, V}) when is_float(V)   -> V;
-unmarshal_msgpack({str, V}) when is_binary(V)  -> V; % Assuming well-formed UTF-8 bytestring.
-unmarshal_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
-unmarshal_msgpack({arr, V}) when is_list(V)    -> [unmarshal_msgpack(ListItem) || ListItem <- V];
-unmarshal_msgpack({obj, V}) when is_map(V)     ->
-    maps:fold(fun(Key, Value, Map) -> Map#{unmarshal_msgpack(Key) => unmarshal_msgpack(Value)} end, #{}, V);
-unmarshal_msgpack(undefined) ->
-    undefined.
 
 %% Internals
 

@@ -10,8 +10,7 @@
 
 -define(ACTUAL_FORMAT_VERSION, 2).
 
--opaque p2p_transfer() :: #{
-    version := ?ACTUAL_FORMAT_VERSION,
+-opaque p2p_transfer_state() :: #{
     id := id(),
     body := body(),
     owner := identity_id(),
@@ -32,6 +31,26 @@
     risk_score => risk_score(),
     p_transfer => p_transfer(),
     adjustments => adjustments_index(),
+    deadline => deadline(),
+    external_id => id(),
+    metadata => metadata()
+}.
+
+-opaque p2p_transfer() :: #{
+    version := ?ACTUAL_FORMAT_VERSION,
+    id := id(),
+    body := body(),
+    owner := identity_id(),
+    created_at := ff_time:timestamp_ms(),
+    operation_timestamp := ff_time:timestamp_ms(),
+    sender := participant(),
+    receiver := participant(),
+    domain_revision := party_revision(),
+    party_revision := domain_revision(),
+    status := status(),
+
+    client_info => client_info(),
+    quote => quote(),
     deadline => deadline(),
     external_id => id(),
     metadata => metadata()
@@ -116,6 +135,7 @@
 
 -type action() :: poll | continue | undefined.
 
+-export_type([p2p_transfer_state/0]).
 -export_type([p2p_transfer/0]).
 -export_type([id/0]).
 -export_type([params/0]).

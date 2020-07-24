@@ -37,8 +37,7 @@
 %%
 -define(ACTUAL_FORMAT_VERSION, 3).
 
--opaque session() :: #{
-    version := ?ACTUAL_FORMAT_VERSION,
+-opaque session_state() :: #{
     id := id(),
     status := status(),
     transfer_params := transfer_params(),
@@ -52,6 +51,16 @@
 
     % Deprecated. Remove after MSPF-560 finish
     provider_id_legacy := ff_p2p_provider:id()
+}.
+
+-opaque session() :: #{
+    version := ?ACTUAL_FORMAT_VERSION,
+    id := id(),
+    status := status(),
+    transfer_params := transfer_params(),
+    route := route(),
+    domain_revision := domain_revision(),
+    party_revision := party_revision()
 }.
 
 -type status() ::
@@ -108,6 +117,7 @@
 -export_type([transfer_params/0]).
 -export_type([params/0]).
 -export_type([status/0]).
+-export_type([session_state/0]).
 -export_type([session/0]).
 -export_type([session_result/0]).
 -export_type([deadline/0]).

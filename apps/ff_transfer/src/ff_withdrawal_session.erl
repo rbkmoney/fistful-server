@@ -27,8 +27,7 @@
 %%
 
 -define(ACTUAL_FORMAT_VERSION, 4).
--type session() :: #{
-    version       := ?ACTUAL_FORMAT_VERSION,
+-type session_state() :: #{
     id            := id(),
     status        := status(),
     withdrawal    := withdrawal(),
@@ -37,6 +36,14 @@
 
     % Deprecated. Remove after MSPF-560 finish
     provider_legacy => binary() | ff_payouts_provider:id()
+}.
+
+-type session() :: #{
+    version := ?ACTUAL_FORMAT_VERSION,
+    id := id(),
+    status := status(),
+    withdrawal := withdrawal(),
+    route := route()
 }.
 
 -type session_result() :: {success, ff_adapter_withdrawal:transaction_info()}
@@ -70,6 +77,7 @@
 -export_type([route/0]).
 -export_type([params/0]).
 -export_type([status/0]).
+-export_type([session_state/0]).
 -export_type([session/0]).
 -export_type([session_result/0]).
 

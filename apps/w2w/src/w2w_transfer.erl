@@ -7,8 +7,7 @@
 -type id() :: binary().
 
 -define(ACTUAL_FORMAT_VERSION, 1).
--opaque w2w_transfer() :: #{
-    version := ?ACTUAL_FORMAT_VERSION,
+-opaque w2w_transfer_state() :: #{
     id := id(),
     body := body(),
     wallet_from_id := wallet_id(),
@@ -22,6 +21,20 @@
     limit_checks => [limit_check_details()],
     adjustments => adjustments_index()
 }.
+
+-opaque w2w_transfer() :: #{
+    version := ?ACTUAL_FORMAT_VERSION,
+    id := id(),
+    body := body(),
+    wallet_from_id := wallet_id(),
+    wallet_to_id := wallet_id(),
+    party_revision := party_revision(),
+    domain_revision := domain_revision(),
+    created_at := ff_time:timestamp_ms(),
+    status => status(),
+    external_id => id()
+}.
+
 -type params() :: #{
     id := id(),
     body := ff_transaction:body(),
@@ -86,6 +99,7 @@
     {invalid_status_change, {unavailable_status, status()}} |
     {invalid_status_change, {already_has_status, status()}}.
 
+-export_type([w2w_transfer_state/0]).
 -export_type([w2w_transfer/0]).
 -export_type([id/0]).
 -export_type([params/0]).

@@ -43,7 +43,10 @@
     id := id(),
     status := status(),
     withdrawal := withdrawal(),
-    route := route()
+    route := route(),
+
+    % Deprecated. Remove after MSPF-560 finish
+    provider_legacy => binary() | ff_payouts_provider:id()
 }.
 
 -type session_result() :: {success, ff_adapter_withdrawal:transaction_info()}
@@ -96,7 +99,7 @@
 %% API
 %%
 
--spec status(session()) ->
+-spec status(session_state()) ->
     status().
 
 status(#{status := V}) ->
@@ -107,23 +110,23 @@ status(#{status := V}) ->
 -spec create(id(), data(), params()) ->
     {ok, [event()]}.
 create(ID, Data, Params) ->
-    Session = create_session(ID, Data, Params),
-    {ok, [{created, Session}]}.
+    SessionState = create_session(ID, Data, Params),
+    {ok, [{created, SessionState}]}.
 
--spec apply_event(event(), undefined | session()) ->
-    session().
+-spec apply_event(event(), undefined | session_state()) ->
+    session_state().
 
-apply_event({created, Session}, undefined) ->
-    Session;
-apply_event({next_state, AdapterState}, Session) ->
-    Session#{adapter_state => AdapterState};
-apply_event({finished, Result}, Session) ->
-    set_session_status({finished, Result}, Session).
+apply_event({created, SessionState}, undefined) ->
+    SessionState;
+apply_event({next_state, AdapterState}, SessionState) ->
+    SessionState#{adapter_state => AdapterState};
+apply_event({finished, Result}, SessionState) ->
+    set_session_status({finished, Result}, SessionState).
 
--spec process_session(session()) -> result().
-process_session(#{status := active, withdrawal := Withdrawal, route := Route} = Session) ->
+-spec process_session(session_state()) -> result().
+process_session(#{status := active, withdrawal := Withdrawal, route := Route} = SessionState) ->
     {Adapter, AdapterOpts} = get_adapter_with_opts(Route),
-    ASt = maps:get(adapter_state, Session, undefined),
+    ASt = maps:get(adapter_state, SessionState, undefined),
     case ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
         {ok, Intent, ASt} ->
             process_intent(Intent);
@@ -133,7 +136,7 @@ process_session(#{status := active, withdrawal := Withdrawal, route := Route} = 
             process_intent(Intent)
     end.
 
--spec set_session_result(session_result(), session()) ->
+-spec set_session_result(session_result(), session_state()) ->
     result().
 set_session_result(Result, #{status := active}) ->
     #{
@@ -226,9 +229,9 @@ create_adapter_withdrawal(#{id := SesID, sender := Sender, receiver := Receiver}
         session_id => SesID
     }.
 
--spec set_session_status(status(), session()) -> session().
-set_session_status(SessionState, Session) ->
-    Session#{status => SessionState}.
+-spec set_session_status(status(), session_state()) -> session_state().
+set_session_status(Status, SessionState) ->
+    SessionState#{status => Status}.
 
 -spec timer_action({deadline, binary()} | {timeout, non_neg_integer()}) -> machinery:action().
 timer_action(Timer) ->

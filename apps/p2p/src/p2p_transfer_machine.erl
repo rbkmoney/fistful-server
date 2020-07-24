@@ -14,7 +14,7 @@
 -type event_id() :: integer().
 -type events() :: [{event_id(), ff_machine:timestamped_event(event())}].
 -type st() :: ff_machine:st(p2p_transfer()).
--type p2p_transfer() :: p2p_transfer:p2p_transfer().
+-type p2p_transfer() :: p2p_transfer:p2p_transfer_state().
 -type external_id() :: id().
 -type action() :: p2p_transfer:action().
 

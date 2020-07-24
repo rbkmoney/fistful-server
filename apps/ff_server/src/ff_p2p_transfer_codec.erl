@@ -76,7 +76,7 @@ marshal(transfer, Transfer = #{
     };
 
 marshal(quote, #{}) ->
-    #p2p_transfer_P2PQuote{};
+    #p2p_transfer_QuoteState{};
 
 marshal(status, Status) ->
     ff_p2p_transfer_status_codec:marshal(status, Status);
@@ -218,7 +218,7 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
         deadline => maybe_unmarshal(timestamp_ms, Deadline)
     });
 
-unmarshal(quote, #p2p_transfer_P2PQuote{}) ->
+unmarshal(quote, #p2p_transfer_QuoteState{}) ->
     #{};
 
 unmarshal(status, Status) ->

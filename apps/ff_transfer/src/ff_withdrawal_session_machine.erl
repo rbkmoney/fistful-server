@@ -53,7 +53,7 @@
 -type handler_args() :: machinery:handler_args(_).
 
 -type st()        :: ff_machine:st(session()).
--type session() :: ff_withdrawal_session:session().
+-type session() :: ff_withdrawal_session:session_state().
 -type event() :: ff_withdrawal_session:event().
 
 

@@ -61,7 +61,7 @@
 -type handler_args() :: machinery:handler_args(_).
 
 -type st() :: ff_machine:st(session()).
--type session() :: p2p_session:session().
+-type session() :: p2p_session:session_state().
 -type event() :: p2p_session:event().
 -type event_id() :: integer().
 -type events() :: [{event_id(), ff_machine:timestamped_event(event())}].

@@ -92,7 +92,7 @@ marshal(deadline, Deadline) ->
     ff_time:to_rfc3339(Deadline);
 
 marshal(fees, #{fees := Fees}) ->
-    #p2p_session_Fees{
+    #'Fees'{
         fees = maps:fold(
             fun(Key, Value, Map) ->
                 Map#{marshal(cash_flow_constant, Key) => marshal(cash, Value)}
@@ -263,7 +263,7 @@ unmarshal(route, Route) ->
 unmarshal(deadline, Deadline) ->
     ff_time:from_rfc3339(Deadline);
 
-unmarshal(fees, #p2p_session_Fees{fees = Fees}) ->
+unmarshal(fees, #'Fees'{fees = Fees}) ->
     #{fees => maps:fold(
         fun(Key, Value, Map) ->
             Map#{unmarshal(cash_flow_constant, Key) => unmarshal(cash, Value)}

@@ -159,7 +159,7 @@ marshal(bank_card, BankCard = #{token := Token}) ->
         card_type = maybe_marshal(card_type, CardType),
         exp_date = maybe_marshal(exp_date, ExpDate),
         cardholder_name = maybe_marshal(string, CardholderName),
-        bin_data_id = marshal_msgpack(BinDataID)
+        bin_data_id = maybe_marshal(msgpack, BinDataID)
     };
 
 marshal(bank_card_auth_data, {session, #{session_id := ID}}) ->
@@ -269,6 +269,9 @@ marshal(bool, V) when is_boolean(V) ->
     V;
 marshal(context, V) when is_map(V) ->
     ff_entity_context_codec:marshal(V);
+
+marshal(msgpack, V) ->
+    marshal_msgpack(V);
 
 % Catch this up in thrift validation
 marshal(_, Other) ->
@@ -426,7 +429,7 @@ unmarshal(bank_card, #'BankCard'{
         card_type => maybe_unmarshal(card_type, CardType),
         exp_date => maybe_unmarshal(exp_date, ExpDate),
         cardholder_name => maybe_unmarshal(string, CardholderName),
-        bin_data_id => unmarshal_msgpack(BinDataID)
+        bin_data_id => maybe_unmarshal(msgpack, BinDataID)
     });
 
 unmarshal(exp_date, #'BankCardExpDate'{
@@ -524,6 +527,9 @@ unmarshal(range, #'EventRange'{
     limit   = Limit
 }) ->
     {Cursor, Limit, forward};
+
+unmarshal(msgpack, V) ->
+    unmarshal_msgpack(V);
 
 unmarshal(bool, V) when is_boolean(V) ->
     V.

@@ -160,8 +160,11 @@ maybe_migrate({created, Withdrawal = #{version := 2, id := ID}}, MigrateParams) 
         metadata => ff_entity_context:try_get_legacy_metadata(Context)
     })}, MigrateParams);
 maybe_migrate({created, Withdrawal = #{version := 3}}, MigrateParams) ->
+    Params = maps:get(params, Withdrawal),
+    Quote = maps:get(quote, Params, undefined),
     maybe_migrate({created, genlib_map:compact(Withdrawal#{
-        version => 4
+        version => 4,
+        params => genlib_map:compact(Params#{quote => maybe_migrate_quote(Quote)})
     })}, MigrateParams);
 maybe_migrate({created, T}, MigrateParams) ->
     DestinationID = maps:get(destination, T),
@@ -247,6 +250,57 @@ maybe_migrate_route(Route) when is_map_key(adapter, Route) ->
         <<"http://proxy-mocketbank:8022/proxy/mocketbank/p2p-credit">> => <<"mocketbank">>
     },
     maybe_migrate_route(#{provider_id => maps:get(Url, LegacyUrls)}).
+
+maybe_migrate_quote(undefined) ->
+    undefined;
+maybe_migrate_quote(#{quote_data := #{<<"version">> := 1, <<"quote_data">> := _}} = Quote) when not is_map_key(route, Quote) ->
+    #{
+        cash_from := CashFrom,
+        cash_to := CashTo,
+        created_at := CreatedAt,
+        expires_on := ExpiresOn,
+        quote_data := WQuoteData
+    } = Quote,
+    #{
+        <<"version">> := 1,
+        <<"quote_data">> := QuoteData
+    } = WQuoteData,
+    TerminalID = maps:get(<<"terminal_id">>, WQuoteData, undefined),
+    Timestamp = maps:get(<<"timestamp">>, WQuoteData, undefined),
+    ResourceID = maps:get(<<"resource_id">>, WQuoteData, undefined),
+    LegacyIDs = #{
+        <<"mocketbank">> => 1,
+        <<"royalpay">> => 2,
+        <<"royalpay-payout">> => 2,
+        <<"accentpay">> => 3
+    },
+    ModernProviderID = case maps:get(<<"provider_id">>, WQuoteData) of
+        ProviderID when is_integer(ProviderID) andalso ProviderID > 300 ->
+            ProviderID;
+        ProviderID when is_integer(ProviderID) andalso ProviderID =< 300 ->
+            ProviderID + 300;
+        ProviderID when is_binary(ProviderID) andalso is_map_key(ProviderID, LegacyIDs) ->
+            maps:get(ProviderID, LegacyIDs) + 300;
+        ProviderID when is_binary(ProviderID) ->
+            erlang:binary_to_integer(ProviderID) + 300
+    end,
+    genlib_map:compact(#{
+        cash_from => CashFrom,
+        cash_to => CashTo,
+        created_at => CreatedAt,
+        expires_on => ExpiresOn,
+        quote_data => QuoteData,
+        route => ff_withdrawal_routing:make_route(ModernProviderID, TerminalID),
+        operation_timestamp => Timestamp,
+        resource_id => decode_legacy_resource_id(ResourceID)
+    });
+maybe_migrate_quote(Quote) when is_map_key(route, Quote) ->
+    Quote.
+
+decode_legacy_resource_id(undefined) ->
+    undefined;
+decode_legacy_resource_id(#{<<"bank_card">> := ID}) ->
+    {bank_card, ID}.
 
 get_aux_state_ctx(AuxState) when is_map(AuxState) ->
     maps:get(ctx, AuxState, undefined);
@@ -535,7 +589,18 @@ created_v0_2_migration_test() ->
                     volume => {share, {{1, 1}, operation_amount, default}}
                 }]
             },
-            wallet_id => <<"walletID">>
+            wallet_id => <<"walletID">>,
+            quote => #{
+                cash_from => {100, <<"RUB">>},
+                cash_to => {100, <<"USD">>},
+                created_at => <<"2020-01-01T01:00:00Z">>,
+                expires_on => <<"2020-01-01T01:00:00Z">>,
+                quote_data => nil,
+                route => #{
+                    version => 1,
+                    provider_id => 301
+                }
+            }
         },
         transfer_type => withdrawal,
         version => 4
@@ -562,52 +627,69 @@ created_v0_2_migration_test() ->
                                 {str, <<"identity">>} => {bin, <<"identity2">>}
                             }}
                         ]},
-                    {str, <<"destination_id">>} => {bin, <<"destinationID">>},
-                    {str, <<"wallet_account">>} => {arr, [
-                        {str, <<"map">>},
-                        {obj, #{
-                            {str, <<"accounter_account_id">>} => {i, 123},
-                            {str, <<"currency">>} => {bin, <<"RUB">>},
-                            {str, <<"id">>} => {bin, <<"walletID">>},
-                            {str, <<"identity">>} => {bin, <<"identity">>}
-                        }}
-                    ]},
-                    {str, <<"wallet_cash_flow_plan">>} => {arr, [
-                        {str, <<"map">>},
-                        {obj, #{
-                            {str, <<"postings">>} => {arr, [
-                                {str, <<"lst">>},
-                                {arr, [
+                        {str, <<"destination_id">>} => {bin, <<"destinationID">>},
+                        {str, <<"wallet_account">>} => {arr, [
+                            {str, <<"map">>},
+                            {obj, #{
+                                {str, <<"accounter_account_id">>} => {i, 123},
+                                {str, <<"currency">>} => {bin, <<"RUB">>},
+                                {str, <<"id">>} => {bin, <<"walletID">>},
+                                {str, <<"identity">>} => {bin, <<"identity">>}
+                            }}
+                        ]},
+                        {str, <<"wallet_cash_flow_plan">>} => {arr, [
+                            {str, <<"map">>},
+                            {obj, #{
+                                {str, <<"postings">>} => {arr, [
+                                    {str, <<"lst">>},
+                                    {arr, [
+                                        {str, <<"map">>},
+                                        {obj, #{
+                                            {str, <<"receiver">>} => {arr, [
+                                                {str, <<"tup">>},
+                                                {str, <<"wallet">>},
+                                                {str, <<"receiver_destination">>}
+                                            ]},
+                                            {str, <<"sender">>} => {arr, [
+                                                {str, <<"tup">>},
+                                                {str, <<"wallet">>},
+                                                {str, <<"sender_settlement">>}
+                                            ]},
+                                            {str, <<"volume">>} => {arr, [
+                                                {str, <<"tup">>},
+                                                {str, <<"share">>},
+                                                {arr, [
+                                                    {str, <<"tup">>},
+                                                    {arr, [{str, <<"tup">>}, {i, 1}, {i, 1}]},
+                                                    {str, <<"operation_amount">>},
+                                                    {str, <<"default">>}
+                                                ]}
+                                            ]}
+                                        }}
+                                    ]}
+                                ]}
+                            }}
+                        ]},
+                        {str, <<"wallet_id">>} => {bin, <<"walletID">>},
+                        {str, <<"quote">>} => {arr, [
+                            {str, <<"map">>},
+                            {obj, #{
+                                {str, <<"cash_from">>} => {arr, [{str, <<"tup">>}, {i, 100}, {bin, <<"RUB">>}]},
+                                {str, <<"cash_to">>} => {arr, [{str, <<"tup">>}, {i, 100}, {bin, <<"USD">>}]},
+                                {str, <<"created_at">>} => {bin, <<"2020-01-01T01:00:00Z">>},
+                                {str, <<"expires_on">>} => {bin, <<"2020-01-01T01:00:00Z">>},
+                                {str, <<"quote_data">>} => {arr, [
                                     {str, <<"map">>},
                                     {obj, #{
-                                        {str, <<"receiver">>} => {arr, [
-                                            {str, <<"tup">>},
-                                            {str, <<"wallet">>},
-                                            {str, <<"receiver_destination">>}
-                                        ]},
-                                        {str, <<"sender">>} => {arr, [
-                                            {str, <<"tup">>},
-                                            {str, <<"wallet">>},
-                                            {str, <<"sender_settlement">>}
-                                        ]},
-                                        {str, <<"volume">>} => {arr, [
-                                            {str, <<"tup">>},
-                                            {str, <<"share">>},
-                                            {arr, [
-                                                {str, <<"tup">>},
-                                                {arr, [{str, <<"tup">>}, {i, 1}, {i, 1}]},
-                                                {str, <<"operation_amount">>},
-                                                {str, <<"default">>}
-                                            ]}
-                                        ]}
+                                        {bin, <<"version">>} => {i, 1},
+                                        {bin, <<"provider_id">>} => {bin, <<"mocketbank">>},
+                                        {bin, <<"quote_data">>} => {str, <<"nil">>}
                                     }}
                                 ]}
-                            ]}
-                        }}
-                    ]},
-                    {str, <<"wallet_id">>} => {bin, <<"walletID">>}}
-                    }]
-                },
+                            }}
+                        ]}
+                    }}
+                ]},
                 {str, <<"transfer_type">>} => {str, <<"withdrawal">>},
                 {str, <<"version">>} => {i, 2}
             }}
@@ -768,6 +850,201 @@ created_v0_3_migration_test() ->
             }
         }
     }),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec created_v0_3_migration_with_quote_test() -> _.
+created_v0_3_migration_with_quote_test() ->
+    Withdrawal = #{
+        body => {100, <<"RUB">>},
+        id => <<"ID">>,
+        domain_revision => 1,
+        party_revision => 2,
+        created_at => 123,
+        params => #{
+            destination_id => <<"destinationID">>,
+            wallet_id => <<"walletID">>,
+            quote => #{
+                cash_from => {100, <<"RUB">>},
+                cash_to => {100, <<"USD">>},
+                created_at => <<"2020-01-01T01:00:00Z">>,
+                expires_on => <<"2020-01-01T01:00:00Z">>,
+                quote_data => nil,
+                route => #{
+                    version => 1,
+                    provider_id => 302,
+                    terminal_id => 1
+                },
+                resource_id => {bank_card, nil}
+            }
+        },
+        transfer_type => withdrawal,
+        version => 4
+    },
+    Change = {created, Withdrawal},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"created">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 100}, {bin, <<"RUB">>}]},
+                {str, <<"id">>} => {bin, <<"ID">>},
+                {str, <<"domain_revision">>} => {i, 1},
+                {str, <<"party_revision">>} => {i, 2},
+                {str, <<"created_at">>} => {i, 123},
+                {str, <<"params">>} => {arr, [
+                    {str, <<"map">>},
+                    {obj, #{
+                        {str, <<"destination_id">>} => {bin, <<"destinationID">>},
+                        {str, <<"wallet_id">>} => {bin, <<"walletID">>},
+                        {str, <<"quote">>} => {arr, [
+                            {str, <<"map">>},
+                            {obj, #{
+                                {str, <<"cash_from">>} => {arr, [{str, <<"tup">>}, {i, 100}, {bin, <<"RUB">>}]},
+                                {str, <<"cash_to">>} => {arr, [{str, <<"tup">>}, {i, 100}, {bin, <<"USD">>}]},
+                                {str, <<"created_at">>} => {bin, <<"2020-01-01T01:00:00Z">>},
+                                {str, <<"expires_on">>} => {bin, <<"2020-01-01T01:00:00Z">>},
+                                {str, <<"quote_data">>} => {arr, [
+                                    {str, <<"map">>},
+                                    {obj, #{
+                                        {bin, <<"version">>} => {i, 1},
+                                        {bin, <<"provider_id">>} => {i, 2},
+                                        {bin, <<"terminal_id">>} => {i, 1},
+                                        {bin, <<"domain_revision">>} => {i, 1},
+                                        {bin, <<"party_revision">>} => {i, 2},
+                                        {bin, <<"resource_id">>} => {arr, [
+                                            {str, <<"map">>},
+                                            {obj, #{
+                                                {bin, <<"bank_card">>} => {str, <<"nil">>}
+                                            }}
+                                        ]},
+                                        {bin, <<"quote_data">>} => {str, <<"nil">>}
+                                    }}
+                                ]}
+                            }}
+                        ]}
+                    }}
+                ]},
+                {str, <<"transfer_type">>} => {str, <<"withdrawal">>},
+                {str, <<"version">>} => {i, 3}
+            }}
+        ]}
+    ]},
+
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec created_v0_4_migration_with_quote_test() -> _.
+created_v0_4_migration_with_quote_test() ->
+    Withdrawal = #{
+        body => {100, <<"RUB">>},
+        id => <<"ID">>,
+        domain_revision => 1,
+        party_revision => 2,
+        created_at => 123,
+        params => #{
+            destination_id => <<"destinationID">>,
+            wallet_id => <<"walletID">>,
+            quote => #{
+                cash_from => {100, <<"RUB">>},
+                cash_to => {100, <<"USD">>},
+                created_at => <<"2020-01-01T01:00:00Z">>,
+                expires_on => <<"2020-01-01T01:00:00Z">>,
+                quote_data => nil,
+                route => #{
+                    version => 1,
+                    provider_id => 2,
+                    terminal_id => 1
+                },
+                resource_id => {bank_card, nil}
+            }
+        },
+        transfer_type => withdrawal,
+        version => 4
+    },
+    Change = {created, Withdrawal},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"created">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 100}, {bin, <<"RUB">>}]},
+                {str, <<"id">>} => {bin, <<"ID">>},
+                {str, <<"domain_revision">>} => {i, 1},
+                {str, <<"party_revision">>} => {i, 2},
+                {str, <<"created_at">>} => {i, 123},
+                {str, <<"params">>} => {arr, [
+                    {str, <<"map">>},
+                    {obj, #{
+                        {str, <<"destination_id">>} => {bin, <<"destinationID">>},
+                        {str, <<"wallet_id">>} => {bin, <<"walletID">>},
+                        {str, <<"quote">>} => {arr, [
+                            {str, <<"map">>},
+                            {obj, #{
+                                {str, <<"cash_from">>} => {arr, [{str, <<"tup">>}, {i, 100}, {bin, <<"RUB">>}]},
+                                {str, <<"cash_to">>} => {arr, [{str, <<"tup">>}, {i, 100}, {bin, <<"USD">>}]},
+                                {str, <<"created_at">>} => {bin, <<"2020-01-01T01:00:00Z">>},
+                                {str, <<"expires_on">>} => {bin, <<"2020-01-01T01:00:00Z">>},
+                                {str, <<"route">>} => {arr, [
+                                    {str, <<"map">>},
+                                    {obj, #{
+                                        {str, <<"provider_id">>} => {i, 2},
+                                        {str, <<"terminal_id">>} => {i, 1},
+                                        {str, <<"version">>} => {i, 1}
+                                    }}
+                                ]},
+                                {str, <<"quote_data">>} => {str, <<"nil">>},
+                                {str, <<"resource_id">>} => {arr, [
+                                    {str, <<"tup">>},
+                                    {str, <<"bank_card">>},
+                                    {str, <<"nil">>}
+                                ]}
+                            }}
+                        ]}
+                    }}
+                ]},
+                {str, <<"transfer_type">>} => {str, <<"withdrawal">>},
+                {str, <<"version">>} => {i, 4}
+            }}
+        ]}
+    ]},
+
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).

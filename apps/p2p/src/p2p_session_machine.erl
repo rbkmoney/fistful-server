@@ -13,6 +13,7 @@
 
 -export([create/3]).
 -export([get/1]).
+-export([get/2]).
 -export([events/2]).
 -export([process_callback/1]).
 -export([repair/2]).
@@ -65,6 +66,7 @@
 -type event() :: p2p_session:event().
 -type event_id() :: integer().
 -type events() :: [{event_id(), ff_machine:timestamped_event(event())}].
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type callback_params() :: p2p_session:p2p_callback_params().
 -type process_callback_response() :: p2p_session:process_callback_response().
@@ -85,6 +87,18 @@
 
 get(Ref) ->
     case ff_machine:get(p2p_session, ?NS, Ref) of
+        {ok, _Machine} = Result ->
+            Result;
+        {error, notfound} ->
+            {error, {unknown_p2p_session, Ref}}
+    end.
+
+-spec get(id(), event_range()) ->
+    {ok, st()} |
+    {error, notfound}.
+
+get(Ref, {After, Limit}) ->
+    case ff_machine:get(p2p_session, ?NS, Ref, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
             Result;
         {error, notfound} ->

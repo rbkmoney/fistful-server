@@ -395,7 +395,7 @@ quote_state_symmetry_test() ->
 
 -spec quote_symmetry_test() -> _.
 quote_symmetry_test() ->
-    In = #wthd_State{
+    In = #wthd_Quote{
         cash_from  = #'Cash'{
             amount = 10101,
             currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
@@ -410,12 +410,12 @@ quote_symmetry_test() ->
         route = #wthd_Route{
             provider_id = 1,
             terminal_id = 2,
-            provider_id_legacy = <<>>
+            provider_id_legacy = <<"drovider">>
         },
         resource_id = {bank_card, {arr, [{bin, genlib:unique()}]}},
         domain_revision = 1,
-        domain_revision = 2,
-        operation_timestamp = 3,
+        party_revision = 2,
+        operation_timestamp = <<"2020-01-01T01:00:00Z">>
     },
     ?assertEqual(In, marshal(quote, unmarshal(quote, In))).
 

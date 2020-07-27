@@ -81,6 +81,22 @@ marshal(quote_state, Quote) ->
         created_at = marshal(timestamp_ms, maps:get(created_at, Quote)),
         expires_on = marshal(timestamp_ms, maps:get(expires_on, Quote))
     };
+marshal(quote, Quote) ->
+    #p2p_transfer_Quote{
+        fees = maybe_marshal(fees, genlib_map:get(fees, Quote)),
+        created_at = marshal(timestamp_ms, maps:get(created_at, Quote)),
+        expires_on = marshal(timestamp_ms, maps:get(expires_on, Quote)),
+        identity_id = marshal(id, maps:get(identity_id, Quote)),
+        sender = marshal(compact_resource, maps:get(sender, Quote)),
+        receiver = marshal(compact_resource, maps:get(receiver, Quote))
+    };
+
+marshal(compact_resource, {bank_card, BankCardResource}) ->
+    #{
+        token := Token,
+        bin_data_id := BinDataId
+    } = BankCardResource,
+    marshal(resource, {bank_card, #{bank_card => #{token => Token, bin_data_id => BinDataId}}});
 
 marshal(status, Status) ->
     ff_p2p_transfer_status_codec:marshal(status, Status);
@@ -228,6 +244,22 @@ unmarshal(quote_state, Quote) ->
         created_at => unmarshal(timestamp_ms, Quote#p2p_transfer_QuoteState.created_at),
         expires_on => unmarshal(timestamp_ms, Quote#p2p_transfer_QuoteState.expires_on)
     });
+unmarshal(quote, Quote) ->
+    genlib_map:compact(#{
+        fees => maybe_unmarshal(fees, Quote#p2p_transfer_Quote.fees),
+        created_at => unmarshal(timestamp_ms, Quote#p2p_transfer_Quote.created_at),
+        expires_on => unmarshal(timestamp_ms, Quote#p2p_transfer_Quote.expires_on),
+        identity_id => unmarshal(id, Quote#p2p_transfer_Quote.identity_id),
+        sender => unmarshal(compact_resource, Quote#p2p_transfer_Quote.sender),
+        receiver => unmarshal(compact_resource, Quote#p2p_transfer_Quote.receiver)
+    });
+
+unmarshal(compact_resource, Resource) ->
+    {bank_card, #{bank_card := BankCard}} = marshal(resource, Resource),
+    {bank_card, #{
+        token => maps:get(token, BankCard),
+        bin_data_id => maps:get(bin_data_id, BankCard)
+    }};
 
 unmarshal(status, Status) ->
     ff_p2p_transfer_status_codec:unmarshal(status, Status);

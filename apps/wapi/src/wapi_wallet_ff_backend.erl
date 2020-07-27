@@ -2241,7 +2241,7 @@ to_swag(p2p_transfer_quote, {Cash, Token, ExpiresOn}) ->
 
 to_swag(p2p_transfer, P2PTransferState) ->
     #{
-        version := 2,
+        version := 3,
         id := Id,
         owner := IdentityID,
         body := Cash,

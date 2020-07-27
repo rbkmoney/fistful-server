@@ -51,4 +51,14 @@ handle_function_('Get', [ID], _Opts) ->
             {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_WalletNotFound{})
+    end;
+
+handle_function_('GetContext', [ID], _Opts) ->
+    case ff_wallet_machine:get(ID) of
+        {ok, Machine} ->
+            Ctx       = ff_machine:ctx(Machine),
+            Response  = ff_wallet_codec:marshal(ctx, Ctx),
+            {ok, Response};
+        {error, notfound} ->
+            woody_error:raise(business, #fistful_WalletNotFound{})
     end.

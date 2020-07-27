@@ -9,6 +9,8 @@
 %% API
 
 -export([status/1]).
+-export([route/1]).
+-export([withdrawal/1]).
 
 -export([create/3]).
 -export([process_session/1]).
@@ -103,6 +105,18 @@
     status().
 
 status(#{status := V}) ->
+    V.
+
+-spec route(session_state()) ->
+    route().
+
+route(#{route := V}) ->
+    V.
+
+-spec withdrawal(session_state()) ->
+    withdrawal().
+
+withdrawal(#{withdrawal := V}) ->
     V.
 
 %%

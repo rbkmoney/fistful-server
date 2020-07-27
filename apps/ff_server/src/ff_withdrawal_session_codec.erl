@@ -5,10 +5,23 @@
 -include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 
+-export([marshal_state/3]).
+
 -export([marshal/2]).
 -export([unmarshal/2]).
 
 %% API
+-spec marshal_state(ff_withdrawal_session:session_state(), ff_withdrawal_session:id(), ff_entity_context:context()) ->
+    ff_proto_withdrawal_session_thrift:'SessionState'().
+
+marshal_state(State, ID, Context) ->
+    #wthd_session_SessionState{
+        id = marshal(id, ID),
+        status = marshal(session_status, ff_withdrawal_session:status(State)),
+        withdrawal = marshal(withdrawal, ff_withdrawal_session:withdrawal(State)),
+        route = marshal(route, ff_withdrawal_session:route(State)),
+        context = marshal(ctx, Context)
+    }.
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
@@ -51,9 +64,9 @@ marshal(session_status, {finished, Result}) ->
         finished,
         #wthd_session_SessionFinished{status = marshal(session_finished_status, Result)}
     };
-marshal(session_finished_status, success) ->
+marshal(session_finished_status, {success, _}) ->
     {success, #wthd_session_SessionFinishedSuccess{}};
-marshal(session_finished_status, failed) ->
+marshal(session_finished_status, {failed, _}) ->
     {failed, #wthd_session_SessionFinishedFailed{}};
 
 marshal(withdrawal, Params = #{

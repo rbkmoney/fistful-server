@@ -71,7 +71,11 @@
     {wallet_from, notfound} |
     {wallet_to, notfound} |
     {terms, ff_party:validate_w2w_transfer_creation_error()} |
-    {inconsistent_currency, {W2WTransferState :: currency_id(), WalletFrom :: currency_id(), WalletTo :: currency_id()}}.
+    {inconsistent_currency, {
+        W2WTransferState :: currency_id(),
+        WalletFrom :: currency_id(),
+        WalletTo :: currency_id()
+    }}.
 
 -type invalid_w2w_transfer_status_error() ::
     {invalid_w2w_transfer_status, status()}.

@@ -253,7 +253,7 @@ maybe_migrate_route(Route) when is_map_key(adapter, Route) ->
 
 maybe_migrate_quote(undefined) ->
     undefined;
-maybe_migrate_quote(#{quote_data := #{<<"version">> := 1, <<"quote_data">> := _}} = Quote) when not is_map_key(route, Quote) ->
+maybe_migrate_quote(#{quote_data := #{<<"version">> := 1}} = Quote) when not is_map_key(route, Quote) ->
     #{
         cash_from := CashFrom,
         cash_to := CashTo,

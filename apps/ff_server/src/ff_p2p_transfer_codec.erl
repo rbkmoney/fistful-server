@@ -88,6 +88,8 @@ marshal(quote, Quote) ->
         created_at = marshal(timestamp_ms, maps:get(created_at, Quote)),
         expires_on = marshal(timestamp_ms, maps:get(expires_on, Quote)),
         identity_id = marshal(id, maps:get(identity_id, Quote)),
+        party_revision = marshal(party_revision, maps:get(party_revision, Quote)),
+        domain_revision = marshal(domain_revision, maps:get(domain_revision, Quote)),
         sender = marshal(compact_resource, maps:get(sender, Quote)),
         receiver = marshal(compact_resource, maps:get(receiver, Quote))
     };
@@ -252,6 +254,8 @@ unmarshal(quote, Quote) ->
         created_at => unmarshal(timestamp_ms, Quote#p2p_transfer_Quote.created_at),
         expires_on => unmarshal(timestamp_ms, Quote#p2p_transfer_Quote.expires_on),
         identity_id => unmarshal(id, Quote#p2p_transfer_Quote.identity_id),
+        party_revision => unmarshal(party_revision, Quote#p2p_transfer_Quote.party_revision),
+        domain_revision => unmarshal(domain_revision, Quote#p2p_transfer_Quote.domain_revision),
         sender => unmarshal(compact_resource, Quote#p2p_transfer_Quote.sender),
         receiver => unmarshal(compact_resource, Quote#p2p_transfer_Quote.receiver)
     });

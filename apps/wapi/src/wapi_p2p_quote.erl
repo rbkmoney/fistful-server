@@ -70,7 +70,7 @@ decode_token_payload(#{<<"version">> := 1} = Payload) ->
     token_payload().
 encode_quote(Quote) ->
     Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'Quote'}},
-    Bin = ff_proto_utils:serialize(Type, ff_withdrawal_codec:marshal(quote, Quote)),
+    Bin = ff_proto_utils:serialize(Type, ff_p2p_transfer_codec:marshal(quote, Quote)),
     base64:encode(Bin).
 
 -spec decode_quote(token_payload()) ->
@@ -79,7 +79,7 @@ decode_quote(Encoded) ->
     Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'Quote'}},
     Bin = base64:decode(Encoded),
     Thrift = ff_proto_utils:deserialize(Type, Bin),
-    ff_withdrawal_codec:unmarshal(quote, Thrift).
+    ff_p2p_transfer_codec:unmarshal(quote, Thrift).
 
 decode_legacy_cash(Body) ->
     {genlib:to_int(maps:get(<<"amount">>, Body)), maps:get(<<"currency">>, Body)}.

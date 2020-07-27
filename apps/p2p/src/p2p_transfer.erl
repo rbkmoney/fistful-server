@@ -891,8 +891,10 @@ get_identity(IdentityID) ->
         ff_identity_machine:identity(IdentityMachine)
     end).
 
--spec build_quote_state(quote()) ->
-    quote_state().
+-spec build_quote_state(quote() | undefined) ->
+    quote_state() | undefined.
+build_quote_state(undefined) ->
+    undefined;
 build_quote_state(Quote) ->
     #{
         fees => p2p_quote:fees(Quote),

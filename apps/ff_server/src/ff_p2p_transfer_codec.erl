@@ -83,6 +83,7 @@ marshal(quote_state, Quote) ->
     };
 marshal(quote, Quote) ->
     #p2p_transfer_Quote{
+        body = marshal(cash, maps:get(amount, Quote)),
         fees = maybe_marshal(fees, genlib_map:get(fees, Quote)),
         created_at = marshal(timestamp_ms, maps:get(created_at, Quote)),
         expires_on = marshal(timestamp_ms, maps:get(expires_on, Quote)),
@@ -246,6 +247,7 @@ unmarshal(quote_state, Quote) ->
     });
 unmarshal(quote, Quote) ->
     genlib_map:compact(#{
+        amount => unmarshal(cash, Quote#p2p_transfer_Quote.body),
         fees => maybe_unmarshal(fees, Quote#p2p_transfer_Quote.fees),
         created_at => unmarshal(timestamp_ms, Quote#p2p_transfer_Quote.created_at),
         expires_on => unmarshal(timestamp_ms, Quote#p2p_transfer_Quote.expires_on),

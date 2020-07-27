@@ -11,27 +11,24 @@
 -type identity()                  :: ff_identity:identity_state().
 -type identity_id()               :: ff_identity:id().
 -type compact_resource()          :: compact_bank_card_resource().
--type surplus_cash_volume()       :: ff_cash_flow:plan_volume().
 -type get_contract_terms_error()  :: ff_party:get_contract_terms_error().
 -type validate_p2p_error()        :: ff_party:validate_p2p_error().
 -type volume_finalize_error()     :: ff_cash_flow:volume_finalize_error().
 
 -type get_quote_error() ::
-    {identity,                      not_found} |
-    {party,                         get_contract_terms_error()} |
-    {cash_flow,                     volume_finalize_error()} |
+    {identity, not_found} |
+    {party, get_contract_terms_error()} |
+    {fees, ff_fees:computation_error()} |
     {p2p_transfer:resource_owner(), {bin_data, not_found}} |
-    {terms,                         validate_p2p_error()}.
-
--type get_quote_answer() ::
-    {cash() | undefined, surplus_cash_volume() | undefined, quote()}.
+    {terms, validate_p2p_error()}.
 
 -type compact_bank_card_resource() :: {bank_card, #{
     token := binary(),
     bin_data_id := ff_bin_data:bin_data_id()
 }}.
 
--opaque quote() :: #{
+-type quote() :: #{
+    fees              := ff_fees:final(),
     amount            := cash(),
     party_revision    := ff_party:revision(),
     domain_revision   := ff_domain_config:revision(),
@@ -47,10 +44,10 @@
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
 -export_type([get_quote_error/0]).
--export_type([get_quote_answer/0]).
 
 %% Accessors
 
+-export([fees/1]).
 -export([amount/1]).
 -export([created_at/1]).
 -export([expires_on/1]).
@@ -68,6 +65,11 @@
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
+
+-spec fees(quote()) ->
+    ff_fees:final().
+fees(#{fees := Fees}) ->
+    Fees.
 
 -spec amount(quote()) ->
     cash().
@@ -130,7 +132,7 @@ compact({bank_card, #{bank_card := BankCard}}) ->
 %%
 
 -spec get_quote(cash(), identity_id(), sender(), receiver()) ->
-    {ok, get_quote_answer()} |
+    {ok, quote()} |
     {error, get_quote_error()}.
 get_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
@@ -152,10 +154,9 @@ get_quote(Cash, IdentityID, Sender, Receiver) ->
 
         ExpiresOn = get_expire_time(Terms, CreatedAt),
         Fees = get_fees_from_terms(Terms),
-        SurplusCashVolume = ff_fees:surplus(Fees),
-        SurplusCash = unwrap(cash_flow, compute_surplus_volume(SurplusCashVolume, Cash)),
-
-        Quote = #{
+        ComputedFees = unwrap(fees, ff_fees:compute(Fees, Cash)),
+        genlib_map:compact(#{
+            fees => ComputedFees,
             amount => Cash,
             party_revision => PartyRevision,
             domain_revision => DomainRevision,
@@ -164,15 +165,8 @@ get_quote(Cash, IdentityID, Sender, Receiver) ->
             identity_id => IdentityID,
             sender => compact(SenderResource),
             receiver => compact(ReceiverResource)
-        },
-        {SurplusCash, SurplusCashVolume, Quote}
+        })
     end).
-
-compute_surplus_volume(undefined, _Cash) ->
-    {ok, undefined};
-compute_surplus_volume(CashVolume, Cash) ->
-    Constants = #{operation_amount => Cash},
-    ff_cash_flow:compute_volume(CashVolume, Constants).
 
 %%
 

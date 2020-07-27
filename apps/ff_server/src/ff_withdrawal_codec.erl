@@ -65,7 +65,7 @@ marshal_withdrawal_state(WithdrawalState, Context) ->
         adjustments = [ff_withdrawal_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments],
         context = marshal(ctx, Context),
         metadata = marshal(ctx, ff_withdrawal:metadata(WithdrawalState)),
-        quote = maybe_marshal(quote, ff_withdrawal:quote(WithdrawalState))
+        quote = maybe_marshal(quote_state, ff_withdrawal:quote(WithdrawalState))
     }.
 
 -spec marshal_event(ff_withdrawal_machine:event()) ->
@@ -124,7 +124,7 @@ marshal(withdrawal, Withdrawal) ->
         party_revision = maybe_marshal(party_revision, ff_withdrawal:party_revision(Withdrawal)),
         created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(Withdrawal)),
         metadata = maybe_marshal(ctx, ff_withdrawal:metadata(Withdrawal)),
-        quote = maybe_marshal(quote, ff_withdrawal:quote(Withdrawal))
+        quote = maybe_marshal(quote_state, ff_withdrawal:quote(Withdrawal))
     };
 
 marshal(route, Route) ->
@@ -158,14 +158,20 @@ marshal(session_state, Session) ->
         result = maybe_marshal(session_result, maps:get(result, Session, undefined))
     };
 
-marshal(quote, Quote) ->
-    #wthd_WithdrawalQuote{
-        cash_from  = marshal(cash,         maps:get(cash_from,  Quote)),
-        cash_to    = marshal(cash,         maps:get(cash_to,    Quote)),
+marshal(quote_state, Quote) ->
+    #wthd_QuoteState{
+        cash_from  = marshal(cash, maps:get(cash_from, Quote)),
+        cash_to    = marshal(cash, maps:get(cash_to, Quote)),
         created_at = maps:get(created_at, Quote), % already formatted
         expires_on = maps:get(expires_on, Quote),
-        quote_data = marshal(ctx,          maps:get(quote_data, Quote))
+        quote_data = maybe_marshal(msgpack, maps:get(quote_data, Quote, undefined)),
+        route = maybe_marshal(route, maps:get(route, Quote, undefined)),
+        resource_id = maybe_marshal(resource_id, maps:get(resource_id, Quote, undefined)),
+        quote_data_legacy = marshal(ctx, #{})
     };
+
+marshal(resource_id, {bank_card, BinDataID}) ->
+    {bank_card, marshal(msgpack, BinDataID)};
 
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
@@ -218,7 +224,7 @@ unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
         params => genlib_map:compact(#{
             wallet_id => unmarshal(id, Withdrawal#wthd_Withdrawal.wallet_id),
             destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id),
-            quote => maybe_unmarshal(quote, Withdrawal#wthd_Withdrawal.quote)
+            quote => maybe_unmarshal(quote_state, Withdrawal#wthd_Withdrawal.quote)
         }),
         route => maybe_unmarshal(route, Withdrawal#wthd_Withdrawal.route),
         external_id => maybe_unmarshal(id, Withdrawal#wthd_Withdrawal.external_id),
@@ -257,14 +263,19 @@ unmarshal(session_state, Session) ->
         result => maybe_unmarshal(session_result, Session#wthd_SessionState.result)
     });
 
-unmarshal(quote, Quote) ->
+unmarshal(quote_state, Quote) ->
     #{
-        cash_from => unmarshal(cash, Quote#wthd_WithdrawalQuote.cash_from),
-        cash_to   => unmarshal(cash, Quote#wthd_WithdrawalQuote.cash_to),
-        created_at => Quote#wthd_WithdrawalQuote.created_at,
-        expires_on => Quote#wthd_WithdrawalQuote.expires_on,
-        quote_data => unmarshal(ctx, Quote#wthd_WithdrawalQuote.quote_data)
+        cash_from => unmarshal(cash, Quote#wthd_QuoteState.cash_from),
+        cash_to   => unmarshal(cash, Quote#wthd_QuoteState.cash_to),
+        created_at => Quote#wthd_QuoteState.created_at,
+        expires_on => Quote#wthd_QuoteState.expires_on,
+        route => maybe_unmarshal(route, Quote#wthd_QuoteState.route),
+        resource_id => maybe_unmarshal(resource_id, Quote#wthd_QuoteState.resource_id),
+        quote_data => maybe_unmarshal(msgpack, Quote#wthd_QuoteState.quote_data)
     };
+
+unmarshal(resource_id, {bank_card, BinDataID}) ->
+    {bank_card, unmarshal(msgpack, BinDataID)};
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);
@@ -330,5 +341,29 @@ withdrawal_params_symmetry_test() ->
         external_id = undefined
     },
     ?assertEqual(In, marshal_withdrawal_params(unmarshal_withdrawal_params(In))).
+
+-spec quote_state_symmetry_test() -> _.
+quote_state_symmetry_test() ->
+    In = #wthd_QuoteState{
+        cash_from  = #'Cash'{
+            amount = 10101,
+            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+        },
+        cash_to    = #'Cash'{
+            amount = 20202,
+            currency = #'CurrencyRef'{ symbolic_code = <<"Pineapple Empire">> }
+        },
+        created_at = genlib:unique(),
+        expires_on = genlib:unique(),
+        quote_data = {arr, [{bin, genlib:unique()}, {i, 5}, {nl, #msgp_Nil{}}]},
+        route = #wthd_Route{
+            provider_id = 1,
+            terminal_id = 2,
+            provider_id_legacy = <<>>
+        },
+        resource_id = {bank_card, {arr, [{bin, genlib:unique()}]}},
+        quote_data_legacy = #{}
+    },
+    ?assertEqual(In, marshal(quote_state, unmarshal(quote_state, In))).
 
 -endif.

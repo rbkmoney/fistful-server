@@ -124,6 +124,7 @@ maybe_migrate({created, #{version := 2} = Transfer}) ->
         receiver := Receiver
     } = Transfer,
     {created, genlib_map:compact(Transfer#{
+        version => 3,
         sender => maybe_migrate_participant(Sender),
         receiver => maybe_migrate_participant(Receiver)
     })};
@@ -185,7 +186,7 @@ created_v0_1_decoding_test() ->
         contact_info => #{}
     }},
     P2PTransfer = #{
-        version => 2,
+        version => 3,
         id => <<"transfer">>,
         status => pending,
         owner => <<"owner">>,
@@ -306,7 +307,7 @@ created_v0_2_decoding_test() ->
         contact_info => #{}
     }},
     P2PTransfer = #{
-        version => 2,
+        version => 3,
         id => <<"transfer">>,
         status => pending,
         owner => <<"owner">>,
@@ -643,7 +644,7 @@ created_v1_decoding_test() ->
         contact_info => #{}
     }},
     P2PTransfer = #{
-        version => 2,
+        version => 3,
         id => <<"transfer">>,
         status => pending,
         owner => <<"owner">>,
@@ -651,7 +652,15 @@ created_v1_decoding_test() ->
         created_at => 1590426777985,
         sender => Participant,
         receiver => Participant,
-        quote => #{},
+        quote => #{
+            fees => #{
+                fees => #{
+                    surplus => {200, <<"RUB">>}
+                }
+            },
+            created_at => 1590426777986,
+            expires_on => 1590426787986
+        },
         domain_revision => 123,
         party_revision => 321,
         operation_timestamp => 1590426777986,
@@ -665,8 +674,9 @@ created_v1_decoding_test() ->
         "5lcgwAAgwAAQwAAQwAAQwAAQsAAQAAAAV0b2tlbgwAFQsABgAAAANiaW4AAAAADAACAAAADAADDAABDAABDAABDAAB"
         "CwABAAAABXRva2VuDAAVCwAGAAAAA2JpbgAAAAAMAAIAAAAMAAQKAAEAAAAAAAAAewwAAgsAAQAAAANSVUIAAAwABQ"
         "wAAQAACwAGAAAAGDIwMjAtMDUtMjVUMTc6MTI6NTcuOTg1WgoABwAAAAAAAAB7CgAIAAAAAAAAAUELAAkAAAAYMjAy"
-        "MC0wNS0yNVQxNzoxMjo1Ny45ODZaDAAKAAsACwAAAAtleHRlcm5hbF9pZAsADAAAABgyMDIwLTA1LTI1VDE3OjEyOj"
-        "U3Ljk4N1oAAAAA"
+        "MC0wNS0yNVQxNzoxMjo1Ny45ODZaDAAKCwABAAAAGDIwMjAtMDUtMjVUMTc6MTI6NTcuOTg2WgsAAgAAABgyMDIwLT"
+        "A1LTI1VDE3OjEzOjA3Ljk4NloMAAMNAAEIDAAAAAEAAAABCgABAAAAAAAAAMgMAAILAAEAAAADUlVCAAAAAAsACwAA"
+        "AAtleHRlcm5hbF9pZAsADAAAABgyMDIwLTA1LTI1VDE3OjEyOjU3Ljk4N1oAAAAA"
     >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),

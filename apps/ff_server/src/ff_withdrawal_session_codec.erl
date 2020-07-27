@@ -113,7 +113,8 @@ marshal(quote, #{
         cash_to = marshal(cash, CashTo),
         created_at = CreatedAt,
         expires_on = ExpiresOn,
-        quote_data = marshal(ctx, Data)
+        quote_data = maybe_marshal(msgpack, Data),
+        quote_data_legacy = marshal(ctx, #{})
     };
 
 marshal(ctx, Ctx) ->
@@ -286,7 +287,7 @@ unmarshal(quote, #wthd_session_Quote{
         cash_to => unmarshal(cash, CashTo),
         created_at => CreatedAt,
         expires_on => ExpiresOn,
-        quote_data => unmarshal(ctx, Data)
+        quote_data => maybe_unmarshal(msgpack, Data)
     });
 
 unmarshal(msgpack_value, V) ->

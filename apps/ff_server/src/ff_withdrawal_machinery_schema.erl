@@ -102,7 +102,7 @@ unmarshal_event(undefined = Version, EncodedChange, Context) ->
     ),
     {{ev, Timestamp, maybe_migrate(Change, Context1)}, Context1}.
 
-maybe_migrate(Ev = {created, #{version := 3}}, _MigrateParams) ->
+maybe_migrate(Ev = {created, #{version := 4}}, _MigrateParams) ->
     Ev;
 maybe_migrate({route_changed, Route}, _MigrateParams) ->
     {route_changed, maybe_migrate_route(Route)};
@@ -158,6 +158,10 @@ maybe_migrate({created, Withdrawal = #{version := 2, id := ID}}, MigrateParams) 
     maybe_migrate({created, genlib_map:compact(Withdrawal#{
         version => 3,
         metadata => ff_entity_context:try_get_legacy_metadata(Context)
+    })}, MigrateParams);
+maybe_migrate({created, Withdrawal = #{version := 3}}, MigrateParams) ->
+    maybe_migrate({created, genlib_map:compact(Withdrawal#{
+        version => 4
     })}, MigrateParams);
 maybe_migrate({created, T}, MigrateParams) ->
     DestinationID = maps:get(destination, T),
@@ -288,7 +292,7 @@ created_v0_0_without_provider_migration_test() ->
             version => 1
         },
         transfer_type => withdrawal,
-        version => 3
+        version => 4
     },
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
@@ -370,7 +374,7 @@ created_v0_0_migration_test() ->
             version => 1
         },
         transfer_type => withdrawal,
-        version => 3
+        version => 4
     },
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
@@ -430,7 +434,7 @@ created_v0_1_migration_test() ->
             wallet_id => <<"walletID">>
         },
         transfer_type => withdrawal,
-        version => 3
+        version => 4
     },
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
@@ -531,10 +535,10 @@ created_v0_2_migration_test() ->
                     volume => {share, {{1, 1}, operation_amount, default}}
                 }]
             },
-             wallet_id => <<"walletID">>
+            wallet_id => <<"walletID">>
         },
         transfer_type => withdrawal,
-        version => 3
+        version => 4
     },
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
@@ -665,7 +669,7 @@ created_v0_3_migration_test() ->
             wallet_id => <<"walletID">>
         },
         transfer_type => withdrawal,
-        version => 3
+        version => 4
     },
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
@@ -788,7 +792,7 @@ created_v1_marshaling_test() ->
             wallet_id => <<"walletID">>
         },
         transfer_type => withdrawal,
-        version => 3
+        version => 4
     },
     Change = {created, Withdrawal},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},

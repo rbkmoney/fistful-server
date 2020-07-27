@@ -8,6 +8,7 @@
 
 -export_type([plan/0]).
 -export_type([final/0]).
+-export_type([computation_error/0]).
 
 -type plan() :: fees(cash_volume()).
 -type final() :: fees(cash()).
@@ -17,6 +18,10 @@
 -type cash_flow_constant() :: ff_cash_flow:plan_constant().
 -type cash_volume() :: ff_cash_flow:plan_volume().
 -type cash() :: ff_cash:cash().
+
+-type computation_error() :: {cash_flow_constant(), ff_cash_flow:volume_finalize_error()}.
+
+-import(ff_pipeline, [do/1, unwrap/2]).
 
 -spec surplus(plan()) ->
     cash_volume() | undefined.
@@ -35,13 +40,15 @@ unmarshal(#domain_Fees{fees = Fees}) ->
     #{fees => DecodedFees}.
 
 -spec compute(plan(), cash()) ->
-    final().
+    {ok, final()} | {error, computation_error()}.
 compute(#{fees := Fees}, Cash) ->
     Constants = #{operation_amount => Cash},
-    ComputedFees = maps:map(
-        fun(_CashFlowConstant, CashVolume) ->
-            ff_pipeline:unwrap(ff_cash_flow:compute_volume(CashVolume, Constants))
-        end,
-        Fees
-    ),
-    #{fees => ComputedFees}.
+    do(fun() ->
+        ComputedFees = maps:map(
+            fun(CashFlowConstant, CashVolume) ->
+                unwrap(CashFlowConstant, ff_cash_flow:compute_volume(CashVolume, Constants))
+            end,
+            Fees
+        ),
+        #{fees => ComputedFees}
+    end).

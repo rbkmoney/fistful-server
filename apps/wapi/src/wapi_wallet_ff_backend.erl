@@ -707,10 +707,10 @@ quote_p2p_transfer(Params, Context) ->
         PartyID = wapi_handler_utils:get_owner(Context),
         SenderResource = unwrap(construct_resource(Sender)),
         ReceiverResource = unwrap(construct_resource(Receiver)),
-        {SurplusCash, _SurplusCashVolume, Quote}
-            = unwrap(p2p_quote:get_quote(Body, IdentityID, SenderResource, ReceiverResource)),
+        Quote = unwrap(p2p_quote:get_quote(Body, IdentityID, SenderResource, ReceiverResource)),
         Token = create_p2p_quote_token(Quote, PartyID),
         ExpiresOn = p2p_quote:expires_on(Quote),
+        SurplusCash = ff_fees:surplus(p2p_quote:fees(Quote)),  % FIXME: Что делать, если surplus нет?
         to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn})
     end).
 
@@ -928,14 +928,14 @@ quote_p2p_transfer_with_template(ID, Params, Context) ->
         PartyID = wapi_handler_utils:get_owner(Context),
         SenderResource = unwrap(construct_resource(Sender)),
         ReceiverResource = unwrap(construct_resource(Receiver)),
-        {SurplusCash, _SurplusCashVolume, Quote}
-            = unwrap(p2p_template_machine:get_quote(ID, #{
-                body => Body,
-                sender => SenderResource,
-                receiver => ReceiverResource
-            })),
+        Quote = unwrap(p2p_template_machine:get_quote(ID, #{
+            body => Body,
+            sender => SenderResource,
+            receiver => ReceiverResource
+        })),
         Token = create_p2p_quote_token(Quote, PartyID),
         ExpiresOn = p2p_quote:expires_on(Quote),
+        SurplusCash = ff_fees:surplus(p2p_quote:fees(Quote)),  % FIXME: Что делать, если surplus нет?
         to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn})
     end).
 
@@ -1058,28 +1058,23 @@ encode_webhook_id(WebhookID) ->
 
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
+    {ok, Quote, WalletID, DestinationID, PartyID} = wapi_withdrawal_quote:decode_token_payload(Data),
     unwrap(quote_invalid_party,
         valid(
-            maps:get(<<"partyID">>, Data),
+            PartyID,
             wapi_handler_utils:get_owner(Context)
     )),
     unwrap(quote_invalid_wallet,
         valid(
-            maps:get(<<"walletID">>, Data),
+            WalletID,
             maps:get(<<"wallet">>, Params)
     )),
     check_quote_destination(
-        maps:get(<<"destinationID">>, Data, undefined),
+        DestinationID,
         maps:get(<<"destination">>, Params)
     ),
     check_quote_body(maps:get(<<"cashFrom">>, Data), maps:get(<<"body">>, Params)),
-    {ok, #{
-        cash_from   => from_swag(body, maps:get(<<"cashFrom">>, Data)),
-        cash_to     => from_swag(body, maps:get(<<"cashTo">>, Data)),
-        created_at  => maps:get(<<"createdAt">>, Data),
-        expires_on  => maps:get(<<"expiresOn">>, Data),
-        quote_data  => maps:get(<<"quoteData">>, Data)
-    }};
+    {ok, Quote};
 maybe_check_quote_token(_Params, _Context) ->
     {ok, undefined}.
 
@@ -1095,41 +1090,14 @@ check_quote_destination(DestinationID, DestinationID) ->
 check_quote_destination(_, DestinationID) ->
     throw({quote, {invalid_destination, DestinationID}}).
 
-create_quote_token(#{
-    cash_from   := CashFrom,
-    cash_to     := CashTo,
-    created_at  := CreatedAt,
-    expires_on  := ExpiresOn,
-    quote_data  := QuoteData
-}, WalletID, DestinationID, PartyID) ->
-    Data = genlib_map:compact(#{
-        <<"version">>       => 1,
-        <<"walletID">>      => WalletID,
-        <<"destinationID">> => DestinationID,
-        <<"partyID">>       => PartyID,
-        <<"cashFrom">>      => to_swag(body, CashFrom),
-        <<"cashTo">>        => to_swag(body, CashTo),
-        <<"createdAt">>     => to_swag(timestamp, CreatedAt),
-        <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
-        <<"quoteData">>     => QuoteData
-    }),
-    {ok, Token} = issue_quote_token(PartyID, Data),
+create_quote_token(Quote, WalletID, DestinationID, PartyID) ->
+    Payload = wapi_withdrawal_quote:create_token_payload(Quote, WalletID, DestinationID, PartyID),
+    {ok, Token} = issue_quote_token(PartyID, Payload),
     Token.
 
 create_p2p_quote_token(Quote, PartyID) ->
-    Data = #{
-        <<"version">>        => 1,
-        <<"amount">>         => to_swag(body, p2p_quote:amount(Quote)),
-        <<"partyRevision">>  => p2p_quote:party_revision(Quote),
-        <<"domainRevision">> => p2p_quote:domain_revision(Quote),
-        <<"createdAt">>      => to_swag(timestamp_ms, p2p_quote:created_at(Quote)),
-        <<"expiresOn">>      => to_swag(timestamp_ms, p2p_quote:expires_on(Quote)),
-        <<"partyID">>        => PartyID,
-        <<"identityID">>     => p2p_quote:identity_id(Quote),
-        <<"sender">>         => to_swag(compact_resource, p2p_quote:sender(Quote)),
-        <<"receiver">>       => to_swag(compact_resource, p2p_quote:receiver(Quote))
-    },
-    {ok, Token} = issue_quote_token(PartyID, Data),
+    Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
+    {ok, Token} = issue_quote_token(PartyID, Payload),
     Token.
 
 verify_p2p_quote_token(Token) ->
@@ -1140,26 +1108,11 @@ verify_p2p_quote_token(Token) ->
             {error, {token, {not_verified, Error}}}
     end.
 
-decode_p2p_quote_token(#{<<"version">> := 1} = Token) ->
-            DecodedToken = #{
-                amount          => from_swag(body, maps:get(<<"amount">>, Token)),
-                party_revision  => maps:get(<<"partyRevision">>, Token),
-                domain_revision => maps:get(<<"domainRevision">>, Token),
-                created_at      => ff_time:from_rfc3339(maps:get(<<"createdAt">>, Token)),
-                expires_on      => ff_time:from_rfc3339(maps:get(<<"expiresOn">>, Token)),
-                identity_id     => maps:get(<<"identityID">>, Token),
-                sender          => from_swag(compact_resource, maps:get(<<"sender">>, Token)),
-                receiver        => from_swag(compact_resource, maps:get(<<"receiver">>, Token))
-            },
-            {ok, DecodedToken};
-decode_p2p_quote_token(#{<<"version">> := UnsupportedVersion}) when is_integer(UnsupportedVersion) ->
-    {error, {token, {unsupported_version, UnsupportedVersion}}}.
-
-authorize_p2p_quote_token(Token, IdentityID) ->
-    case Token of
-        #{identity_id := IdentityID} ->
+authorize_p2p_quote_token(Quote, IdentityID) ->
+    case p2p_quote:identity_id(Quote) of
+        QuoteIdentityID when QuoteIdentityID =:= IdentityID ->
             ok;
-        _OtherToken ->
+        _OtherQuoteIdentityID ->
             {error, {token, {not_verified, identity_mismatch}}}
     end.
 
@@ -1168,11 +1121,11 @@ maybe_add_p2p_template_quote_token(_ID, #{quote_token := undefined} = Params) ->
 maybe_add_p2p_template_quote_token(ID, #{quote_token := QuoteToken} = Params) ->
     do(fun() ->
         VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
-        DecodedToken = unwrap(decode_p2p_quote_token(VerifiedToken)),
+        Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template_machine:p2p_template(Machine),
-        ok = unwrap(authorize_p2p_quote_token(DecodedToken, p2p_template:identity_id(State))),
-        Params#{quote => DecodedToken}
+        ok = unwrap(authorize_p2p_quote_token(Quote, p2p_template:identity_id(State))),
+        Params#{quote => Quote}
     end).
 
 maybe_add_p2p_quote_token(#{quote_token := undefined} = Params) ->
@@ -1180,9 +1133,9 @@ maybe_add_p2p_quote_token(#{quote_token := undefined} = Params) ->
 maybe_add_p2p_quote_token(#{quote_token := QuoteToken, identity_id := IdentityID} = Params) ->
     do(fun() ->
         VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
-        DecodedToken = unwrap(decode_p2p_quote_token(VerifiedToken)),
-        ok = unwrap(authorize_p2p_quote_token(DecodedToken, IdentityID)),
-        Params#{quote => DecodedToken}
+        Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
+        ok = unwrap(authorize_p2p_quote_token(Quote, IdentityID)),
+        Params#{quote => Quote}
     end).
 
 max_event_id(NewEventID, OldEventID) when is_integer(NewEventID) andalso is_integer(OldEventID) ->
@@ -1750,15 +1703,6 @@ from_swag(quote_p2p_with_template_params, Params) ->
         body        => from_swag(body, maps:get(<<"body">>, Params))
     }, Params);
 
-from_swag(compact_resource, #{
-    <<"type">> := <<"bank_card">>,
-    <<"token">> := Token,
-    <<"binDataID">> := BinDataID
-}) ->
-    {bank_card, #{
-        token => Token,
-        bin_data_id => BinDataID
-    }};
 from_swag(create_p2p_params, Params) ->
     add_external_id(#{
         sender => maps:get(<<"sender">>, Params),
@@ -2158,15 +2102,6 @@ to_swag(receiver_resource, {bank_card, #{bank_card := BankCard}}) ->
         <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
         <<"bin">>           => genlib_map:get(bin, BankCard),
         <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
-    });
-to_swag(compact_resource, {bank_card, #{
-    token := Token,
-    bin_data_id := BinDataID
-}}) ->
-    to_swag(map, #{
-        <<"type">> => <<"bank_card">>,
-        <<"token">> => Token,
-        <<"binDataID">> => BinDataID
     });
 
 to_swag(pan_last_digits, MaskedPan) ->

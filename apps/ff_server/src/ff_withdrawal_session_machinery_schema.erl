@@ -663,7 +663,7 @@ created_v1_decoding_test() ->
         cash_to => {123, <<"RUB">>},
         created_at => <<"some timestamp">>,
         expires_on => <<"some timestamp">>,
-        quote_data => #{}
+        quote_data => [1, nil, #{}]
     },
     Identity = #{
         id => <<"ID">>
@@ -694,8 +694,9 @@ created_v1_decoding_test() ->
         "ZAwAAgwAAQwAAQsAAQAAAAV0b2tlbggAAgAAAAAMABULAAYAAAADYmluAAAAAAwAAwoAAQAAAAAAAAB7"
         "DAACCwABAAAAA1JVQgAADAAICwABAAAAAklEAAwACQsAAQAAAAJJRAALAAYAAAAKc2Vzc2lvbl9pZAwA"
         "BwwAAQoAAQAAAAAAAAB7DAACCwABAAAAA1JVQgAADAACCgABAAAAAAAAAHsMAAILAAEAAAADUlVCAAAL"
-        "AAMAAAAOc29tZSB0aW1lc3RhbXALAAQAAAAOc29tZSB0aW1lc3RhbXANAAULDAAAAAAAAAwABggAAQAA"
-        "AAEADAACDAABAAALAAQAAAAELTI5OQAAAA=="
+        "AAMAAAAOc29tZSB0aW1lc3RhbXALAAQAAAAOc29tZSB0aW1lc3RhbXAMAAYPAAgMAAAAAwoAAwAAAAAA"
+        "AAABAAwAAQAADQAHDAwAAAAAAAANAAULDAAAAAAAAAwABggAAQAAAAEADAACDAABAAALAAQAAAAELTI5"
+        "OQAAAA=="
     >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),

@@ -8,7 +8,7 @@
 
 -type id() :: binary().
 
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 
 -opaque p2p_transfer() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
@@ -26,7 +26,7 @@
     sender_resource => resource(),
     receiver_resource => resource(),
     client_info => client_info(),
-    quote => quote(),
+    quote => quote_state(),
     session => session(),
     route => route(),
     risk_score => risk_score(),
@@ -51,6 +51,12 @@
 }.
 
 -type quote() :: p2p_quote:quote().
+
+-type quote_state() :: #{
+    created_at := ff_time:timestamp_ms(),
+    expires_on := ff_time:timestamp_ms(),
+    fees => ff_fees:final()
+}.
 
 -type client_info() :: #{
     ip_address => binary(),
@@ -119,6 +125,8 @@
 -export_type([p2p_transfer/0]).
 -export_type([id/0]).
 -export_type([params/0]).
+-export_type([quote/0]).
+-export_type([quote_state/0]).
 -export_type([event/0]).
 -export_type([route/0]).
 -export_type([create_error/0]).
@@ -249,7 +257,7 @@ receiver_resource(T) ->
 
 %%
 
--spec quote(p2p_transfer()) -> quote() | undefined.
+-spec quote(p2p_transfer()) -> quote_state() | undefined.
 quote(T) ->
     maps:get(quote, T, undefined).
 
@@ -386,7 +394,7 @@ create(TransferParams) ->
                 receiver => Receiver,
                 domain_revision => DomainRevision,
                 party_revision => PartyRevision,
-                quote => Quote,
+                quote => build_quote_state(Quote),
                 client_info => ClientInfo,
                 status => pending,
                 deadline => Deadline,
@@ -787,7 +795,8 @@ get_merchant_fees(#domain_P2PServiceTerms{fees = {value, MerchantFees}}, Body) -
     ff_fees:final().
 compute_fees(Fees, Body) ->
     DecodedFees = ff_fees:unmarshal(Fees),
-    ff_fees:compute(DecodedFees, Body).
+    {ok, ComputedFees} = ff_fees:compute(DecodedFees, Body),
+    ComputedFees.
 
 -spec process_session_poll(p2p_transfer()) ->
     process_result().
@@ -881,6 +890,15 @@ get_identity(IdentityID) ->
         IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
         ff_identity_machine:identity(IdentityMachine)
     end).
+
+-spec build_quote_state(quote()) ->
+    quote_state().
+build_quote_state(Quote) ->
+    #{
+        fees => p2p_quote:fees(Quote),
+        created_at => p2p_quote:created_at(Quote),
+        expires_on => p2p_quote:expires_on(Quote)
+    }.
 
 %% Session management
 

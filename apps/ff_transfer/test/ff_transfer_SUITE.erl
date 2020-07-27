@@ -323,21 +323,21 @@ deposit_quote_withdrawal_ok(C) ->
 
     pass_identification(ICID, IID, C),
 
+    DomainRevision = ff_domain_config:head(),
+    {ok, PartyRevision} = ff_party:get_revision(Party),
     WdrID = process_withdrawal(WalID, DestID, #{
         wallet_id => WalID,
         destination_id => DestID,
         body => {4240, <<"RUB">>},
         quote => #{
-            cash_from   => {4240, <<"RUB">>},
-            cash_to     => {2120, <<"USD">>},
-            created_at  => <<"2016-03-22T06:12:27Z">>,
-            expires_on  => <<"2016-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 3,
-                <<"terminal_id">> => 1
-            }
+            cash_from => {4240, <<"RUB">>},
+            cash_to => {2120, <<"USD">>},
+            created_at => <<"2016-03-22T06:12:27Z">>,
+            expires_on => <<"2016-03-22T06:12:27Z">>,
+            quote_data => #{<<"test">> => <<"test">>},
+            route => ff_withdrawal_routing:make_route(3, 1),
+            domain_revision => DomainRevision,
+            party_revision => PartyRevision
         }
     }),
 

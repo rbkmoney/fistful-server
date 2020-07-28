@@ -261,7 +261,7 @@ unmarshal(quote, Quote) ->
     });
 
 unmarshal(compact_resource, Resource) ->
-    {bank_card, #{bank_card := BankCard}} = marshal(resource, Resource),
+    {bank_card, #{bank_card := BankCard}} = unmarshal(resource, Resource),
     {bank_card, #{
         token => maps:get(token, BankCard),
         bin_data_id => maps:get(bin_data_id, BankCard)

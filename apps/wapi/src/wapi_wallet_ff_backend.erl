@@ -710,7 +710,7 @@ quote_p2p_transfer(Params, Context) ->
         Quote = unwrap(p2p_quote:get_quote(Body, IdentityID, SenderResource, ReceiverResource)),
         Token = create_p2p_quote_token(Quote, PartyID),
         ExpiresOn = p2p_quote:expires_on(Quote),
-        SurplusCash = ff_fees:surplus(p2p_quote:fees(Quote)),  % FIXME: Что делать, если surplus нет?
+        SurplusCash = get_p2p_quote_surplus(Quote),
         to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn})
     end).
 
@@ -935,7 +935,7 @@ quote_p2p_transfer_with_template(ID, Params, Context) ->
         })),
         Token = create_p2p_quote_token(Quote, PartyID),
         ExpiresOn = p2p_quote:expires_on(Quote),
-        SurplusCash = ff_fees:surplus(p2p_quote:fees(Quote)),  % FIXME: Что делать, если surplus нет?
+        SurplusCash = get_p2p_quote_surplus(Quote),
         to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn})
     end).
 
@@ -2533,6 +2533,17 @@ verify_claims(_, _, _) ->
 
 issue_quote_token(PartyID, Data) ->
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).
+
+-spec get_p2p_quote_surplus(p2p_quote:quote()) ->
+    ff_cash:cash().
+get_p2p_quote_surplus(Quote) ->
+    Fees = p2p_quote:fees(Quote),
+    case ff_fees:surplus(Fees) of
+        undefined ->
+            erlang:error({no_surplus, Fees}, [Quote]);
+        Cash ->
+            Cash
+    end.
 
 -ifdef(TEST).
 

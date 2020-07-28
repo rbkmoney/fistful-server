@@ -49,7 +49,7 @@
     currency := crypto_currency()
 }.
 
--type resource_id() :: {bank_card, bin_data_id()}.
+-type resource_descriptor() :: {bank_card, bin_data_id()}.
 -type resource_params() :: {bank_card,  resource_bank_card_params()} |
                            {crypto_wallet, resource_crypto_wallet_params()}.
 -type resource() :: {bank_card, resource_bank_card()} |
@@ -89,7 +89,7 @@
 -type category() :: binary().
 
 -export_type([resource/0]).
--export_type([resource_id/0]).
+-export_type([resource_descriptor/0]).
 -export_type([resource_params/0]).
 -export_type([bank_card/0]).
 -export_type([crypto_wallet/0]).
@@ -178,7 +178,7 @@ cardholder_name(BankCard) ->
 create_resource(Resource) ->
     create_resource(Resource, undefined).
 
--spec create_resource(resource_params(), resource_id() | undefined) ->
+-spec create_resource(resource_params(), resource_descriptor() | undefined) ->
     {ok, resource()} |
     {error, {bin_data, not_found}}.
 

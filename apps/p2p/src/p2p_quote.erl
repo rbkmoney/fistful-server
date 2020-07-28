@@ -56,8 +56,8 @@
 -export([identity_id/1]).
 -export([sender/1]).
 -export([receiver/1]).
--export([sender_id/1]).
--export([receiver_id/1]).
+-export([sender_descriptor/1]).
+-export([receiver_descriptor/1]).
 
 %% API
 
@@ -111,14 +111,14 @@ sender(#{sender := Sender}) ->
 receiver(#{receiver := Receiver}) ->
     Receiver.
 
--spec sender_id(quote()) ->
-    ff_resource:resource_id().
-sender_id(#{sender := {bank_card, #{bin_data_id := BinDataID}}}) ->
+-spec sender_descriptor(quote()) ->
+    ff_resource:resource_descriptor().
+sender_descriptor(#{sender := {bank_card, #{bin_data_id := BinDataID}}}) ->
     {bank_card, BinDataID}.
 
--spec receiver_id(quote()) ->
-    ff_resource:resource_id().
-receiver_id(#{receiver := {bank_card, #{bin_data_id := BinDataID}}}) ->
+-spec receiver_descriptor(quote()) ->
+    ff_resource:resource_descriptor().
+receiver_descriptor(#{receiver := {bank_card, #{bin_data_id := BinDataID}}}) ->
     {bank_card, BinDataID}.
 
 -spec compact(ff_resource:resource()) ->

@@ -55,6 +55,9 @@
 -type quote_state() :: #{
     created_at := ff_time:timestamp_ms(),
     expires_on := ff_time:timestamp_ms(),
+    sender := ff_resource:resource_descriptor(),
+    receiver := ff_resource:resource_descriptor(),
+    expires_on := ff_time:timestamp_ms(),
     fees => ff_fees:final()
 }.
 
@@ -475,11 +478,11 @@ do_start_adjustment(Params, P2PTransfer) ->
 prepare_resource(sender, Params, undefined) ->
     p2p_participant:get_resource(Params);
 prepare_resource(sender, Params, Quote) ->
-    p2p_participant:get_resource(Params, p2p_quote:sender_id(Quote));
+    p2p_participant:get_resource(Params, p2p_quote:sender_descriptor(Quote));
 prepare_resource(receiver, Params, undefined) ->
     p2p_participant:get_resource(Params);
 prepare_resource(receiver, Params, Quote) ->
-    p2p_participant:get_resource(Params, p2p_quote:receiver_id(Quote)).
+    p2p_participant:get_resource(Params, p2p_quote:receiver_descriptor(Quote)).
 
 -spec p_transfer(p2p_transfer()) -> p_transfer() | undefined.
 p_transfer(P2PTransfer) ->
@@ -899,7 +902,9 @@ build_quote_state(Quote) ->
     #{
         fees => p2p_quote:fees(Quote),
         created_at => p2p_quote:created_at(Quote),
-        expires_on => p2p_quote:expires_on(Quote)
+        expires_on => p2p_quote:expires_on(Quote),
+        sender => p2p_quote:sender_descriptor(Quote),
+        receiver => p2p_quote:receiver_descriptor(Quote)
     }.
 
 %% Session management

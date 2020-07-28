@@ -79,7 +79,9 @@ marshal(quote_state, Quote) ->
     #p2p_transfer_QuoteState{
         fees = maybe_marshal(fees, genlib_map:get(fees, Quote)),
         created_at = marshal(timestamp_ms, maps:get(created_at, Quote)),
-        expires_on = marshal(timestamp_ms, maps:get(expires_on, Quote))
+        expires_on = marshal(timestamp_ms, maps:get(expires_on, Quote)),
+        sender = marshal(resource_descriptor, maps:get(sender, Quote)),
+        receiver = marshal(resource_descriptor, maps:get(receiver, Quote))
     };
 marshal(quote, Quote) ->
     #p2p_transfer_Quote{
@@ -245,7 +247,9 @@ unmarshal(quote_state, Quote) ->
     genlib_map:compact(#{
         fees => maybe_unmarshal(fees, Quote#p2p_transfer_QuoteState.fees),
         created_at => unmarshal(timestamp_ms, Quote#p2p_transfer_QuoteState.created_at),
-        expires_on => unmarshal(timestamp_ms, Quote#p2p_transfer_QuoteState.expires_on)
+        expires_on => unmarshal(timestamp_ms, Quote#p2p_transfer_QuoteState.expires_on),
+        sender => unmarshal(resource_descriptor, Quote#p2p_transfer_QuoteState.sender),
+        receiver => unmarshal(resource_descriptor, Quote#p2p_transfer_QuoteState.receiver)
     });
 unmarshal(quote, Quote) ->
     genlib_map:compact(#{
@@ -390,7 +394,9 @@ p2p_transfer_codec_test() ->
             }
         },
         created_at => ff_time:now(),
-        expires_on => ff_time:now() + 1000
+        expires_on => ff_time:now() + 1000,
+        sender => {bank_card, nil},
+        receiver => {bank_card, []}
     },
 
     P2PTransfer = #{
@@ -454,7 +460,9 @@ p2p_timestamped_change_codec_test() ->
         receiver => Participant,
         quote => #{
             created_at => ff_time:now(),
-            expires_on => ff_time:now() + 1000
+            expires_on => ff_time:now() + 1000,
+            sender => {bank_card, nil},
+            receiver => {bank_card, []}
         },
         domain_revision => 123,
         party_revision => 321,

@@ -404,6 +404,7 @@ get_quote_test(C) ->
     Name          = <<"Keyn Fawkes">>,
     Provider      = <<"quote-owner">>,
     Class         = ?ID_CLASS,
+    PartyID       = ct_helper:cfg(party, C),
     IdentityID    = create_identity(Name, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),
     CardToken     = store_bank_card(C),
@@ -430,12 +431,17 @@ get_quote_test(C) ->
         }},
         ct_helper:cfg(context, C)
     ),
-    CashFrom = maps:get(<<"cashFrom">>, Quote),
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(maps:get(<<"quoteToken">>, Quote), #{}),
-    #{
-        <<"version">>       := 1,
-        <<"cashFrom">>     := CashFrom
-    } = Data.
+    ?assertMatch(
+        #{
+            <<"version">> := 2,
+            <<"partyID">> := PartyID,
+            <<"walletID">> := WalletID,
+            <<"destinationID">> := DestID,
+            <<"quote">> := _
+        },
+        Data
+    ).
 
 -spec get_quote_without_destination_test(config()) -> test_return().
 

@@ -292,7 +292,7 @@ maybe_migrate_quote(#{quote_data := #{<<"version">> := 1}} = Quote) when not is_
         quote_data => QuoteData,
         route => ff_withdrawal_routing:make_route(ModernProviderID, TerminalID),
         operation_timestamp => Timestamp,
-        resource_id => decode_legacy_resource_id(ResourceID)
+        resource_descriptor => decode_legacy_resource_id(ResourceID)
     });
 maybe_migrate_quote(Quote) when is_map_key(route, Quote) ->
     Quote.
@@ -876,7 +876,7 @@ created_v0_3_migration_with_quote_test() ->
                     provider_id => 302,
                     terminal_id => 1
                 },
-                resource_id => {bank_card, nil}
+                resource_descriptor => {bank_card, nil}
             }
         },
         transfer_type => withdrawal,
@@ -975,7 +975,7 @@ created_v0_4_migration_with_quote_test() ->
                     provider_id => 2,
                     terminal_id => 1
                 },
-                resource_id => {bank_card, nil}
+                resource_descriptor => {bank_card, nil}
             }
         },
         transfer_type => withdrawal,
@@ -1015,7 +1015,7 @@ created_v0_4_migration_with_quote_test() ->
                                     }}
                                 ]},
                                 {str, <<"quote_data">>} => {str, <<"nil">>},
-                                {str, <<"resource_id">>} => {arr, [
+                                {str, <<"resource_descriptor">>} => {arr, [
                                     {str, <<"tup">>},
                                     {str, <<"bank_card">>},
                                     {str, <<"nil">>}

@@ -139,6 +139,11 @@ marshal(resource, {crypto_wallet, #{crypto_wallet := CryptoWallet}}) ->
         crypto_wallet = marshal(crypto_wallet, CryptoWallet)
     }};
 
+marshal(resource_descriptor, {bank_card, BinDataID}) ->
+    {bank_card, #'ResourceDescriptorBankCard'{
+        bin_data_id = marshal(msgpack, BinDataID)
+    }};
+
 marshal(bank_card, BankCard = #{token := Token}) ->
     Bin = maps:get(bin, BankCard, undefined),
     PaymentSystem = maps:get(payment_system, BankCard, undefined),
@@ -404,6 +409,9 @@ unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = Cryp
     {crypto_wallet, #{
         crypto_wallet => unmarshal(crypto_wallet, CryptoWallet)
     }};
+
+unmarshal(resource_descriptor, {bank_card, BankCard}) ->
+    {bank_card, unmarshal(msgpack, BankCard#'ResourceDescriptorBankCard'.bin_data_id)};
 
 unmarshal(bank_card_auth_data, {session_data, #'SessionAuthData'{id = ID}}) ->
     {session, #{

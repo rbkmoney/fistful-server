@@ -166,7 +166,7 @@ marshal(quote_state, Quote) ->
         expires_on = maps:get(expires_on, Quote),
         quote_data = maybe_marshal(msgpack, maps:get(quote_data, Quote, undefined)),
         route = maybe_marshal(route, maps:get(route, Quote, undefined)),
-        resource_id = maybe_marshal(resource_id, maps:get(resource_id, Quote, undefined)),
+        resource = maybe_marshal(resource_descriptor, maps:get(resource_descriptor, Quote, undefined)),
         quote_data_legacy = marshal(ctx, #{})
     };
 marshal(quote, Quote) ->
@@ -177,14 +177,11 @@ marshal(quote, Quote) ->
         expires_on = maps:get(expires_on, Quote),
         quote_data = maybe_marshal(msgpack, genlib_map:get(quote_data, Quote)),
         route = maybe_marshal(route, genlib_map:get(route, Quote)),
-        resource_id = maybe_marshal(resource_id, genlib_map:get(resource_id, Quote)),
+        resource = maybe_marshal(resource_descriptor, genlib_map:get(resource_descriptor, Quote)),
         party_revision = maybe_marshal(party_revision, genlib_map:get(party_revision, Quote)),
         domain_revision = maybe_marshal(domain_revision, genlib_map:get(domain_revision, Quote)),
         operation_timestamp = maybe_marshal(timestamp_ms, genlib_map:get(operation_timestamp, Quote))
     };
-
-marshal(resource_id, {bank_card, BinDataID}) ->
-    {bank_card, marshal(msgpack, BinDataID)};
 
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
@@ -283,7 +280,7 @@ unmarshal(quote_state, Quote) ->
         created_at => Quote#wthd_QuoteState.created_at,
         expires_on => Quote#wthd_QuoteState.expires_on,
         route => maybe_unmarshal(route, Quote#wthd_QuoteState.route),
-        resource_id => maybe_unmarshal(resource_id, Quote#wthd_QuoteState.resource_id),
+        resource_descriptor => maybe_unmarshal(resource_descriptor, Quote#wthd_QuoteState.resource),
         quote_data => maybe_unmarshal(msgpack, Quote#wthd_QuoteState.quote_data)
     };
 
@@ -294,15 +291,12 @@ unmarshal(quote, Quote) ->
         created_at => Quote#wthd_Quote.created_at,
         expires_on => Quote#wthd_Quote.expires_on,
         route => maybe_unmarshal(route, Quote#wthd_Quote.route),
-        resource_id => maybe_unmarshal(resource_id, Quote#wthd_Quote.resource_id),
+        resource_descriptor => maybe_unmarshal(resource_descriptor, Quote#wthd_Quote.resource),
         quote_data => maybe_unmarshal(msgpack, Quote#wthd_Quote.quote_data),
         domain_revision => maybe_unmarshal(domain_revision, Quote#wthd_Quote.domain_revision),
         party_revision => maybe_unmarshal(party_revision, Quote#wthd_Quote.party_revision),
         operation_timestamp => maybe_unmarshal(timestamp_ms, Quote#wthd_Quote.operation_timestamp)
     };
-
-unmarshal(resource_id, {bank_card, BinDataID}) ->
-    {bank_card, unmarshal(msgpack, BinDataID)};
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);
@@ -388,7 +382,7 @@ quote_state_symmetry_test() ->
             terminal_id = 2,
             provider_id_legacy = <<>>
         },
-        resource_id = {bank_card, {arr, [{bin, genlib:unique()}]}},
+        resource = {bank_card, #'ResourceDescriptorBankCard'{bin_data_id = {arr, [{bin, genlib:unique()}]}}},
         quote_data_legacy = #{}
     },
     ?assertEqual(In, marshal(quote_state, unmarshal(quote_state, In))).
@@ -412,7 +406,7 @@ quote_symmetry_test() ->
             terminal_id = 2,
             provider_id_legacy = <<"drovider">>
         },
-        resource_id = {bank_card, {arr, [{bin, genlib:unique()}]}},
+        resource = {bank_card, #'ResourceDescriptorBankCard'{bin_data_id = {arr, [{bin, genlib:unique()}]}}},
         domain_revision = 1,
         party_revision = 2,
         operation_timestamp = <<"2020-01-01T01:00:00Z">>

@@ -103,7 +103,7 @@
     quote_data := ff_adapter_withdrawal:quote(),
     route := route(),
     operation_timestamp := ff_time:timestamp_ms(),
-    resource_id => resource_id(),
+    resource_descriptor => resource_descriptor(),
     domain_revision => party_revision(),
     party_revision => domain_revision()
 }.
@@ -115,7 +115,7 @@
     expires_on := binary(),
     quote_data := ff_adapter_withdrawal:quote(),
     route := route(),
-    resource_id => resource_id()
+    resource_descriptor => resource_descriptor()
 }.
 
 -type session() :: #{
@@ -265,7 +265,7 @@
 -type terms()                 :: ff_party:terms().
 -type party_varset()          :: hg_selector:varset().
 -type metadata()              :: ff_entity_context:md().
--type resource_id()           :: ff_destination:resource_id().
+-type resource_descriptor()   :: ff_destination:resource_id().
 
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
@@ -397,12 +397,12 @@ create(Params) ->
         #{id := ID, wallet_id := WalletID, destination_id := DestinationID, body := Body} = Params,
         CreatedAt = ff_time:now(),
         Quote = maps:get(quote, Params, undefined),
-        ResourceID = quote_resource_id(Quote),
+        ResourceDescriptor = quote_resource_descriptor(Quote),
         Timestamp = ff_maybe:get_defined(quote_timestamp(Quote), CreatedAt),
         DomainRevision = ensure_domain_revision_defined(quote_domain_revision(Quote)),
         Wallet = unwrap(wallet, get_wallet(WalletID)),
         Destination = unwrap(destination, get_destination(DestinationID)),
-        Resource = unwrap(destination_resource, ff_destination:resource_full(Destination, ResourceID)),
+        Resource = unwrap(destination_resource, ff_destination:resource_full(Destination, ResourceDescriptor)),
 
         Identity = get_wallet_identity(Wallet),
         PartyID = ff_identity:party(get_wallet_identity(Wallet)),
@@ -1102,7 +1102,7 @@ get_quote_(Params, Destination, Resource) ->
             quote_data => maps:get(quote_data, Quote),
             route => Route,
             operation_timestamp => Timestamp,
-            resource_id => ff_destination:resource_id(Resource),
+            resource_descriptor => ff_destination:resource_id(Resource),
             domain_revision => DomainRevision,
             party_revision => PartyRevision
         })
@@ -1115,12 +1115,12 @@ build_session_quote(undefined) ->
 build_session_quote(Quote) ->
     maps:with([cash_from, cash_to, created_at, expires_on, quote_data], Quote).
 
--spec quote_resource_id(quote() | undefined) ->
-    resource_id().
-quote_resource_id(undefined) ->
+-spec quote_resource_descriptor(quote() | undefined) ->
+    resource_descriptor().
+quote_resource_descriptor(undefined) ->
     undefined;
-quote_resource_id(Quote) ->
-    maps:get(resource_id, Quote, undefined).
+quote_resource_descriptor(Quote) ->
+    maps:get(resource_descriptor, Quote, undefined).
 
 -spec quote_timestamp(quote() | undefined) ->
     ff_time:timestamp_ms() | undefined.

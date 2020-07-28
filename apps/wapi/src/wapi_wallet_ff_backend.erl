@@ -1073,7 +1073,7 @@ maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
         DestinationID,
         maps:get(<<"destination">>, Params)
     ),
-    check_quote_body(maps:get(<<"cashFrom">>, Data), maps:get(<<"body">>, Params)),
+    check_quote_body(maps:get(cash_from, Quote), maps:get(<<"body">>, Params)),
     {ok, Quote};
 maybe_check_quote_token(_Params, _Context) ->
     {ok, undefined}.

@@ -24,7 +24,7 @@ bank_card(PAN, {MM, YYYY} = ExpDate, C) ->
     WoodyCtx = ct_helper:get_woody_ctx(C),
     Request = {{cds_proto_storage_thrift, 'Storage'}, 'PutCard', [CardData]},
     case woody_client:call(Request, Client, WoodyCtx) of
-        {ok, #cds_PutCardDataResult{bank_card = #cds_BankCard{
+        {ok, #cds_PutCardResult{bank_card = #cds_BankCard{
             token          = Token,
             bin            = BIN,
             last_digits    = Masked

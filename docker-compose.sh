@@ -31,7 +31,7 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:a1bf7d5f2f7e536d3ce4c2d8e5f84e5f94621d76
+    image: dr2.rbkmoney.com/rbkmoney/wapi:7be8e9a8870e79689903205b60065f5600bfadc8
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config
@@ -48,7 +48,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:3f3c8e18cd59551dd739682539136fc541b60738
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:01c5dd2f373f92c97e5962222078506b836755b7
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -88,7 +88,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr2.rbkmoney.com/rbkmoney/dominant:035868ba0ab4dd6ea3a6ac57157be2ca4b8a3361
+    image: dr2.rbkmoney.com/rbkmoney/dominant:6896d15357e87eb3de47d3e1aabcb1444e9c4f90
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -137,7 +137,7 @@ services:
       retries: 10
 
   cds:
-    image: dr2.rbkmoney.com/rbkmoney/cds:7aeee60277aab0e6ebb6e6b1334752d3091082f4
+    image: dr2.rbkmoney.com/rbkmoney/cds:7d970e3de3bfc02431b64d17157dca887fbedfce
     command: /opt/cds/bin/cds foreground
     volumes:
       - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config
@@ -154,7 +154,7 @@ services:
         condition: service_healthy
 
   kds:
-    image: dr2.rbkmoney.com/rbkmoney/kds:bbbf99db9636f9554f8bf092b268a2e479481943
+    image: dr2.rbkmoney.com/rbkmoney/kds:0045e9875723c9e6c06d392311b9e6bab5d564d4
     command: /opt/kds/bin/kds foreground
     volumes:
       - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro
@@ -168,13 +168,13 @@ services:
       retries: 20
 
   holmes:
-    image: dr2.rbkmoney.com/rbkmoney/holmes:7a430d6ec97518a0ffe6e6c24ce267390de18b40
+    image: dr2.rbkmoney.com/rbkmoney/holmes:bfa6fc0428a75c9f179b89b9278ed1aedbb8b649
     command: /opt/holmes/scripts/cds/keyring.py init
     depends_on:
       - cds
 
   machinegun:
-    image: dr2.rbkmoney.com/rbkmoney/machinegun:9b160a5f39fa54b1a20ca9cc8a9a881cbcc9ed4f
+    image: dr2.rbkmoney.com/rbkmoney/machinegun:b366973cec80a4d326840660405e50a3cac6cded
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml
@@ -187,7 +187,7 @@ services:
       retries: 10
 
   bender:
-    image: dr2.rbkmoney.com/rbkmoney/bender:2a9a0f556033f33f4d79e5f53280a415780318d6
+    image: dr2.rbkmoney.com/rbkmoney/bender:b707359c2083b6d81948d9e67566a3f72fa0c5b1
     command: /opt/bender/bin/bender foreground
     volumes:
       - ./test/log/bender:/var/log/bender

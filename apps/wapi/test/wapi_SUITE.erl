@@ -20,7 +20,6 @@
 -export([withdrawal_to_ripple_wallet_test/1]).
 -export([withdrawal_to_ripple_wallet_with_tag_test/1]).
 -export([woody_retry_test/1]).
--export([quote_encode_decode_test/1]).
 -export([get_quote_test/1]).
 -export([get_quote_without_destination_test/1]).
 -export([get_quote_without_destination_fail_test/1]).
@@ -60,7 +59,6 @@ groups() ->
         {default, [sequence, {repeat, 2}], group_default()},
         {wallet_api_token, [sequence, {repeat, 2}], group_default()},
         {quote, [], [
-            quote_encode_decode_test,
             get_quote_test,
             get_quote_without_destination_test,
             get_quote_without_destination_fail_test,
@@ -350,54 +348,6 @@ check_withdrawal_limit_exceeded_test(C) ->
 unknown_withdrawal_test(C) ->
     ?assertEqual({error, {404, #{}}}, get_withdrawal(<<"unexist withdrawal">>, C)).
 
--spec quote_encode_decode_test(config()) -> test_return().
-
-quote_encode_decode_test(C) ->
-    PartyID       = cfg(party, C),
-    Name          = <<"Keyn Fawkes">>,
-    Provider      = <<"quote-owner">>,
-    Class         = ?ID_CLASS,
-    IdentityID    = create_identity(Name, Provider, Class, C),
-    WalletID      = create_wallet(IdentityID, C),
-    CardToken     = store_bank_card(C),
-    Resource      = make_bank_card_resource(CardToken),
-    {ok, Dest}    = create_destination(IdentityID, Resource, C),
-    DestID        = destination_id(Dest),
-    % ожидаем авторизации назначения вывода
-    await_destination(DestID),
-
-
-    Data = #{
-        <<"version">>       => 1,
-        <<"walletID">>      => WalletID,
-        <<"destinationID">> => DestID,
-        <<"partyID">>       => PartyID,
-        <<"cashFrom">>      => #{
-            <<"amount">>   => 100,
-            <<"currency">> => <<"RUB">>
-        },
-        <<"cashTo">>        => #{
-            <<"amount">>   => 100,
-            <<"currency">> => <<"USD">>
-        },
-        <<"createdAt">>     => ?TIMESTAMP,
-        <<"expiresOn">>     => ?TIMESTAMP,
-        <<"quoteData">>     => #{
-            <<"version">> => ?INTEGER,
-            <<"quote_data">> => #{<<"test">> => <<"test">>},
-            <<"provider_id">> => ?INTEGER,
-            <<"terminal_id">> => ?INTEGER,
-            <<"resource_id">> => #{<<"bank_card">> => <<"test">>}
-        }
-    },
-    {ok, Token} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()),
-    _WithdrawalID = create_withdrawal(
-        WalletID,
-        DestID,
-        C,
-        Token
-    ).
-
 -spec get_quote_test(config()) -> test_return().
 
 get_quote_test(C) ->
@@ -449,6 +399,7 @@ get_quote_without_destination_test(C) ->
     Name          = <<"Keyn Fawkes">>,
     Provider      = <<"quote-owner">>,
     Class         = ?ID_CLASS,
+    PartyID       = ct_helper:cfg(party, C),
     IdentityID    = create_identity(Name, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),
 
@@ -468,12 +419,16 @@ get_quote_without_destination_test(C) ->
         }},
         ct_helper:cfg(context, C)
     ),
-    CashFrom = maps:get(<<"cashFrom">>, Quote),
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(maps:get(<<"quoteToken">>, Quote), #{}),
-    #{
-        <<"version">>       := 1,
-        <<"cashFrom">>     := CashFrom
-    } = Data.
+    ?assertMatch(
+        #{
+            <<"version">> := 2,
+            <<"partyID">> := PartyID,
+            <<"walletID">> := WalletID,
+            <<"quote">> := _
+        },
+        Data
+    ).
 
 -spec get_quote_without_destination_fail_test(config()) -> test_return().
 

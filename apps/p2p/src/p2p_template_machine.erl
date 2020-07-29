@@ -96,7 +96,7 @@ p2p_template(St) ->
     ff_machine:model(St).
 
 -spec get_quote(id(), p2p_template:quote_params()) ->
-    {ok, p2p_quote:get_quote_answer()} |
+    {ok, p2p_quote:quote()} |
     {error, p2p_quote:get_quote_error() | unknown_p2p_template_error()}.
 get_quote(ID, #{
     body := Body,

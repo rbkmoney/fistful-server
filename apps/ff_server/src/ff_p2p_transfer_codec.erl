@@ -69,14 +69,39 @@ marshal(transfer, Transfer = #{
         domain_revision = marshal(domain_revision, DomainRevision),
         party_revision = marshal(party_revision, PartyRevision),
         operation_timestamp = marshal(timestamp_ms, OperationTimestamp),
-        quote = maybe_marshal(quote, Quote),
+        quote = maybe_marshal(quote_state, Quote),
         external_id = maybe_marshal(id, ExternalID),
         client_info = maybe_marshal(client_info, ClientInfo),
         deadline = maybe_marshal(timestamp_ms, Deadline)
     };
 
-marshal(quote, #{}) ->
-    #p2p_transfer_P2PQuote{};
+marshal(quote_state, Quote) ->
+    #p2p_transfer_QuoteState{
+        fees = maybe_marshal(fees, genlib_map:get(fees, Quote)),
+        created_at = marshal(timestamp_ms, maps:get(created_at, Quote)),
+        expires_on = marshal(timestamp_ms, maps:get(expires_on, Quote)),
+        sender = marshal(resource_descriptor, maps:get(sender, Quote)),
+        receiver = marshal(resource_descriptor, maps:get(receiver, Quote))
+    };
+marshal(quote, Quote) ->
+    #p2p_transfer_Quote{
+        body = marshal(cash, maps:get(amount, Quote)),
+        fees = maybe_marshal(fees, genlib_map:get(fees, Quote)),
+        created_at = marshal(timestamp_ms, maps:get(created_at, Quote)),
+        expires_on = marshal(timestamp_ms, maps:get(expires_on, Quote)),
+        identity_id = marshal(id, maps:get(identity_id, Quote)),
+        party_revision = marshal(party_revision, maps:get(party_revision, Quote)),
+        domain_revision = marshal(domain_revision, maps:get(domain_revision, Quote)),
+        sender = marshal(compact_resource, maps:get(sender, Quote)),
+        receiver = marshal(compact_resource, maps:get(receiver, Quote))
+    };
+
+marshal(compact_resource, {bank_card, BankCardResource}) ->
+    #{
+        token := Token,
+        bin_data_id := BinDataId
+    } = BankCardResource,
+    marshal(resource, {bank_card, #{bank_card => #{token => Token, bin_data_id => BinDataId}}});
 
 marshal(status, Status) ->
     ff_p2p_transfer_status_codec:marshal(status, Status);
@@ -201,7 +226,7 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
     deadline = Deadline
 }) ->
     genlib_map:compact(#{
-        version => 2,
+        version => 3,
         id => unmarshal(id, ID),
         status => unmarshal(status, Status),
         owner => unmarshal(id, Owner),
@@ -212,14 +237,39 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
         party_revision => unmarshal(domain_revision, PartyRevision),
         operation_timestamp => unmarshal(timestamp_ms, OperationTimestamp),
         created_at => unmarshal(timestamp_ms, CreatedAt),
-        quote => maybe_unmarshal(quote, Quote),
+        quote => maybe_unmarshal(quote_state, Quote),
         client_info => maybe_unmarshal(client_info, ClientInfo),
         external_id => maybe_unmarshal(id, ExternalID),
         deadline => maybe_unmarshal(timestamp_ms, Deadline)
     });
 
-unmarshal(quote, #p2p_transfer_P2PQuote{}) ->
-    #{};
+unmarshal(quote_state, Quote) ->
+    genlib_map:compact(#{
+        fees => maybe_unmarshal(fees, Quote#p2p_transfer_QuoteState.fees),
+        created_at => unmarshal(timestamp_ms, Quote#p2p_transfer_QuoteState.created_at),
+        expires_on => unmarshal(timestamp_ms, Quote#p2p_transfer_QuoteState.expires_on),
+        sender => unmarshal(resource_descriptor, Quote#p2p_transfer_QuoteState.sender),
+        receiver => unmarshal(resource_descriptor, Quote#p2p_transfer_QuoteState.receiver)
+    });
+unmarshal(quote, Quote) ->
+    genlib_map:compact(#{
+        amount => unmarshal(cash, Quote#p2p_transfer_Quote.body),
+        fees => maybe_unmarshal(fees, Quote#p2p_transfer_Quote.fees),
+        created_at => unmarshal(timestamp_ms, Quote#p2p_transfer_Quote.created_at),
+        expires_on => unmarshal(timestamp_ms, Quote#p2p_transfer_Quote.expires_on),
+        identity_id => unmarshal(id, Quote#p2p_transfer_Quote.identity_id),
+        party_revision => unmarshal(party_revision, Quote#p2p_transfer_Quote.party_revision),
+        domain_revision => unmarshal(domain_revision, Quote#p2p_transfer_Quote.domain_revision),
+        sender => unmarshal(compact_resource, Quote#p2p_transfer_Quote.sender),
+        receiver => unmarshal(compact_resource, Quote#p2p_transfer_Quote.receiver)
+    });
+
+unmarshal(compact_resource, Resource) ->
+    {bank_card, #{bank_card := BankCard}} = unmarshal(resource, Resource),
+    {bank_card, #{
+        token => maps:get(token, BankCard),
+        bin_data_id => maps:get(bin_data_id, BankCard)
+    }};
 
 unmarshal(status, Status) ->
     ff_p2p_transfer_status_codec:unmarshal(status, Status);
@@ -337,8 +387,20 @@ p2p_transfer_codec_test() ->
         contact_info => #{}
     }},
 
+    Quote = #{
+        fees => #{
+            fees => #{
+                surplus => {200, <<"RUB">>}
+            }
+        },
+        created_at => ff_time:now(),
+        expires_on => ff_time:now() + 1000,
+        sender => {bank_card, nil},
+        receiver => {bank_card, []}
+    },
+
     P2PTransfer = #{
-        version => 2,
+        version => 3,
         id => genlib:unique(),
         status => pending,
         owner => genlib:unique(),
@@ -346,7 +408,7 @@ p2p_transfer_codec_test() ->
         created_at => ff_time:now(),
         sender => Participant,
         receiver => Participant,
-        quote => #{},
+        quote => Quote,
         domain_revision => 123,
         party_revision => 321,
         operation_timestamp => ff_time:now(),
@@ -388,7 +450,7 @@ p2p_timestamped_change_codec_test() ->
     }},
 
     P2PTransfer = #{
-        version => 2,
+        version => 3,
         id => genlib:unique(),
         status => pending,
         owner => genlib:unique(),
@@ -396,7 +458,12 @@ p2p_timestamped_change_codec_test() ->
         created_at => ff_time:now(),
         sender => Participant,
         receiver => Participant,
-        quote => #{},
+        quote => #{
+            created_at => ff_time:now(),
+            expires_on => ff_time:now() + 1000,
+            sender => {bank_card, nil},
+            receiver => {bank_card, []}
+        },
         domain_revision => 123,
         party_revision => 321,
         operation_timestamp => ff_time:now(),

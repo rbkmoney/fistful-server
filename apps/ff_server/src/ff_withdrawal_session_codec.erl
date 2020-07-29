@@ -105,14 +105,16 @@ marshal(quote, #{
     cash_from := CashFrom,
     cash_to := CashTo,
     created_at := CreatedAt,
-    expires_on := ExpiresOn
+    expires_on := ExpiresOn,
+    quote_data := Data
 }) ->
     #wthd_session_Quote{
         cash_from = marshal(cash, CashFrom),
         cash_to = marshal(cash, CashTo),
         created_at = CreatedAt,
         expires_on = ExpiresOn,
-        quote_data = #{}
+        quote_data = maybe_marshal(msgpack, Data),
+        quote_data_legacy = marshal(ctx, #{})
     };
 
 marshal(ctx, Ctx) ->
@@ -277,14 +279,15 @@ unmarshal(quote, #wthd_session_Quote{
     cash_from = CashFrom,
     cash_to = CashTo,
     created_at = CreatedAt,
-    expires_on = ExpiresOn
+    expires_on = ExpiresOn,
+    quote_data = Data
 }) ->
     genlib_map:compact(#{
         cash_from => unmarshal(cash, CashFrom),
         cash_to => unmarshal(cash, CashTo),
         created_at => CreatedAt,
         expires_on => ExpiresOn,
-        quote_data => #{}
+        quote_data => maybe_unmarshal(msgpack, Data)
     });
 
 unmarshal(msgpack_value, V) ->

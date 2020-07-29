@@ -33,7 +33,7 @@
 -export([quota_ok_test/1]).
 -export([crypto_quota_ok_test/1]).
 -export([preserve_revisions_test/1]).
--export([use_quota_revisions_test/1]).
+-export([use_quote_revisions_test/1]).
 -export([unknown_test/1]).
 -export([provider_callback_test/1]).
 
@@ -93,7 +93,7 @@ groups() ->
             provider_callback_test
         ]},
         {non_parallel, [sequence], [
-            use_quota_revisions_test
+            use_quote_revisions_test
         ]}
     ].
 
@@ -152,12 +152,8 @@ session_fail_test(C) ->
             cash_to     => {2120, <<"USD">>},
             created_at  => <<"2016-03-22T06:12:27Z">>,
             expires_on  => <<"2016-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"error">>},
-                <<"provider_id">> => 3,
-                <<"terminal_id">> => 1
-            }
+            route       => ff_withdrawal_routing:make_route(3, 1),
+            quote_data  => #{<<"test">> => <<"error">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -183,12 +179,8 @@ quote_fail_test(C) ->
             cash_to     => {2120, <<"USD">>},
             created_at  => <<"2016-03-22T06:12:27Z">>,
             expires_on  => <<"2016-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 10,
-                <<"terminal_id">> => 10
-            }
+            route       => ff_withdrawal_routing:make_route(10, 10),
+            quote_data  => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -444,12 +436,8 @@ quota_ok_test(C) ->
             cash_to     => {2120, <<"USD">>},
             created_at  => <<"2016-03-22T06:12:27Z">>,
             expires_on  => <<"2016-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 1,
-                <<"terminal_id">> => 1
-            }
+            route       => ff_withdrawal_routing:make_route(1, 1),
+            quote_data  => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -494,8 +482,8 @@ preserve_revisions_test(C) ->
     ?assertNotEqual(undefined, ff_withdrawal:party_revision(Withdrawal)),
     ?assertNotEqual(undefined, ff_withdrawal:created_at(Withdrawal)).
 
--spec use_quota_revisions_test(config()) -> test_return().
-use_quota_revisions_test(C) ->
+-spec use_quote_revisions_test(config()) -> test_return().
+use_quote_revisions_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         party_id := PartyID,
@@ -516,19 +504,15 @@ use_quota_revisions_test(C) ->
         wallet_id => WalletID,
         body => Cash,
         quote => #{
-            cash_from   => Cash,
-            cash_to     => {2120, <<"USD">>},
-            created_at  => <<"2016-03-22T06:12:27Z">>,
-            expires_on  => <<"2016-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 1,
-                <<"terminal_id">> => 1,
-                <<"timestamp">> => Time,
-                <<"domain_revision">> => DomainRevision,
-                <<"party_revision">> => PartyRevision
-            }
+            cash_from => Cash,
+            cash_to => {2120, <<"USD">>},
+            created_at => <<"2016-03-22T06:12:27Z">>,
+            expires_on => <<"2016-03-22T06:12:27Z">>,
+            domain_revision => DomainRevision,
+            party_revision => PartyRevision,
+            operation_timestamp => Time,
+            route => ff_withdrawal_routing:make_route(1, 1),
+            quote_data => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),

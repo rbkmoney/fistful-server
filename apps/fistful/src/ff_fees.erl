@@ -23,8 +23,8 @@
 
 -import(ff_pipeline, [do/1, unwrap/2]).
 
--spec surplus(plan() | final()) ->
-    cash_volume() | cash() | undefined.
+-spec surplus(fees(T)) -> T | undefined when
+    T :: cash_volume() | cash().
 surplus(#{fees := Fees}) ->
     maps:get(surplus, Fees, undefined).
 

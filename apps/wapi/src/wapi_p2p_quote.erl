@@ -95,3 +95,117 @@ decode_legacy_compact_resource(Resource) ->
         token => Token,
         bin_data_id => BinDataID
     }}.
+
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec payload_symmetry_test() -> _.
+payload_symmetry_test() ->
+    Quote = #{
+        fees => #{
+            fees => #{
+                surplus => {1000, <<"RUB">>}
+            }
+        },
+        amount => {1000000, <<"RUB">>},
+        party_revision => 1,
+        domain_revision => 2,
+        created_at => 123,
+        expires_on => 321,
+        identity_id => <<"identity">>,
+        sender => {bank_card, #{
+            token => <<"very long token">>,
+            bin_data_id => nil
+        }},
+        receiver => {bank_card, #{
+            token => <<"another very long token">>,
+            bin_data_id => #{[nil] => [nil]}
+        }}
+    },
+    Payload = create_token_payload(Quote, <<"party">>),
+    {ok, Decoded} = decode_token_payload(Payload),
+    ?assertEqual(Quote, Decoded).
+
+-spec payload_v2_decoding_test() -> _.
+payload_v2_decoding_test() ->
+    ExpectedQuote = #{
+        fees => #{
+            fees => #{
+                surplus => {1000, <<"RUB">>}
+            }
+        },
+        amount => {1000000, <<"RUB">>},
+        party_revision => 1,
+        domain_revision => 2,
+        created_at => 123,
+        expires_on => 321,
+        identity_id => <<"identity">>,
+        sender => {bank_card, #{
+            token => <<"very long token">>,
+            bin_data_id => nil
+        }},
+        receiver => {bank_card, #{
+            token => <<"another very long token">>,
+            bin_data_id => #{[nil] => [nil]}
+        }}
+    },
+    Payload = #{
+        <<"partyID">> => <<"party">>,
+        <<"quote">> => <<
+            "DAABCgABAAAAAAAPQkAMAAILAAEAAAADUlVCAAALAAIAAAAYMTk3MC0wMS0wMVQwMDowMDowMC4xM"
+            "jNaCwADAAAAGDE5NzAtMDEtMDFUMDA6MDA6MDAuMzIxWgoABAAAAAAAAAACCgAFAAAAAAAAAAELAA"
+            "YAAAAIaWRlbnRpdHkMAAcMAAEMAAELAAEAAAAPdmVyeSBsb25nIHRva2VuDAAVDAABAAAAAAAMAAg"
+            "MAAEMAAELAAEAAAAXYW5vdGhlciB2ZXJ5IGxvbmcgdG9rZW4MABUNAAcMDAAAAAEPAAgMAAAAAQwA"
+            "AQAAAA8ACAwAAAABDAABAAAAAAAAAAwACQ0AAQgMAAAAAQAAAAEKAAEAAAAAAAAD6AwAAgsAAQAAA"
+            "ANSVUIAAAAA"
+        >>,
+        <<"version">> => 2
+    },
+    ?assertEqual({ok, ExpectedQuote}, decode_token_payload(Payload)).
+
+-spec payload_v1_decoding_test() -> _.
+payload_v1_decoding_test() ->
+    ExpectedQuote = #{
+        fees => #{
+            fees => #{}
+        },
+        amount => {1000000, <<"RUB">>},
+        party_revision => 1,
+        domain_revision => 2,
+        created_at => 123,
+        expires_on => 321,
+        identity_id => <<"identity">>,
+        sender => {bank_card, #{
+            token => <<"very long token">>,
+            bin_data_id => 1
+        }},
+        receiver => {bank_card, #{
+            token => <<"another very long token">>,
+            bin_data_id => 2
+        }}
+    },
+    Payload = #{
+        <<"partyRevision">> => 1,
+        <<"domainRevision">> => 2,
+        <<"amount">> => #{<<"amount">> => 1000000, <<"currency">> => <<"RUB">>},
+        <<"createdAt">> => <<"1970-01-01T00:00:00.123Z">>,
+        <<"expiresOn">> => <<"1970-01-01T00:00:00.321Z">>,
+        <<"partyID">> => <<"party">>,
+        <<"identityID">> => <<"identity">>,
+        <<"sender">> => #{
+            <<"type">> => <<"bank_card">>,
+            <<"token">> => <<"very long token">>,
+            <<"binDataID">> => 1
+        },
+        <<"receiver">> => #{
+            <<"type">> => <<"bank_card">>,
+            <<"token">> => <<"another very long token">>,
+            <<"binDataID">> => 2
+        },
+        <<"version">> => 1
+    },
+    ?assertEqual({ok, ExpectedQuote}, decode_token_payload(Payload)).
+
+-endif.

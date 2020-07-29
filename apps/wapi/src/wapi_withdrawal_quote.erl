@@ -74,7 +74,7 @@ decode_token_payload(#{<<"version">> := 1} = Payload) ->
         quote_data => QuoteData,
         route => ff_withdrawal_routing:make_route(ProviderID, TerminalID),
         operation_timestamp => Timestamp,
-        resource_id => decode_legacy_resource_id(ResourceID),
+        resource_descriptor => decode_legacy_resource_id(ResourceID),
         domain_revision => DomainRevision,
         party_revision => PartyRevision
     }),
@@ -102,3 +102,119 @@ decode_legacy_cash(Body) ->
 
 decode_legacy_resource_id(#{<<"bank_card">> := ID}) ->
     {bank_card, ID}.
+
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+-spec test() -> _.
+
+-spec payload_symmetry_test() -> _.
+payload_symmetry_test() ->
+    PartyID = <<"party">>,
+    WalletID = <<"wallet">>,
+    DestinationID = <<"destination">>,
+    Quote = #{
+        cash_from => {1000000, <<"RUB">>},
+        cash_to => {1, <<"USD">>},
+        created_at => <<"1970-01-01T00:00:00.123Z">>,
+        expires_on => <<"1970-01-01T00:00:00.321Z">>,
+        quote_data => #{[nil] => [nil]},
+        route => #{
+            provider_id => 1000,
+            terminal_id => 2,
+            provider_id_legacy => <<"700">>,
+            version => 1
+        },
+        operation_timestamp => 234,
+        resource_descriptor => {bank_card, #{[nil] => [nil]}},
+        domain_revision => 1,
+        party_revision => 2
+    },
+    Payload = create_token_payload(Quote, WalletID, DestinationID, PartyID),
+    {ok, Decoded, WalletID, DestinationID, PartyID} = decode_token_payload(Payload),
+    ?assertEqual(Quote, Decoded).
+
+-spec payload_v2_decoding_test() -> _.
+payload_v2_decoding_test() ->
+    PartyID = <<"party">>,
+    WalletID = <<"wallet">>,
+    DestinationID = <<"destination">>,
+    ExpectedQuote = #{
+        cash_from => {1000000, <<"RUB">>},
+        cash_to => {1, <<"USD">>},
+        created_at => <<"1970-01-01T00:00:00.123Z">>,
+        expires_on => <<"1970-01-01T00:00:00.321Z">>,
+        quote_data => #{[nil] => [nil]},
+        route => #{
+            provider_id => 1000,
+            terminal_id => 2,
+            provider_id_legacy => <<"700">>,
+            version => 1
+        },
+        operation_timestamp => 234,
+        resource_descriptor => {bank_card, #{[nil] => [nil]}},
+        domain_revision => 1,
+        party_revision => 2
+    },
+    Payload = #{
+        <<"version">> => 2,
+        <<"walletID">> => WalletID,
+        <<"destinationID">> => DestinationID,
+        <<"partyID">> => PartyID,
+        <<"quote">> => <<
+            "DAABCgABAAAAAAAPQkAMAAILAAEAAAADUlVCAAAMAAIKAAEAAAAAAAAAAQwAAgsAAQAAAANVU"
+            "0QAAAsAAwAAABgxOTcwLTAxLTAxVDAwOjAwOjAwLjEyM1oLAAQAAAAYMTk3MC0wMS0wMVQwMD"
+            "owMDowMC4zMjFaDAAFDQAHDAwAAAABDwAIDAAAAAEMAAEAAAAPAAgMAAAAAQwAAQAAAAAMAAY"
+            "IAAMAAAPoCAAEAAAAAgsAAQAAAAM3MDAADAAHDAABDAABDQAHDAwAAAABDwAIDAAAAAEMAAEA"
+            "AAAPAAgMAAAAAQwAAQAAAAAAAAsACAAAABgxOTcwLTAxLTAxVDAwOjAwOjAwLjIzNFoKAAkAA"
+            "AAAAAAAAQoACgAAAAAAAAACAA=="
+        >>
+    },
+    ?assertEqual(
+        {ok, ExpectedQuote, WalletID, DestinationID, PartyID},
+        decode_token_payload(Payload)
+    ).
+
+-spec payload_v1_decoding_test() -> _.
+payload_v1_decoding_test() ->
+    PartyID = <<"party">>,
+    WalletID = <<"wallet">>,
+    DestinationID = <<"destination">>,
+    ExpectedQuote = #{
+        cash_from => {1000000, <<"RUB">>},
+        cash_to => {1, <<"USD">>},
+        created_at => <<"1970-01-01T00:00:00.123Z">>,
+        expires_on => <<"1970-01-01T00:00:00.321Z">>,
+        quote_data => 6,
+        route => ff_withdrawal_routing:make_route(1000, 2),
+        operation_timestamp => 234,
+        resource_descriptor => {bank_card, 5},
+        domain_revision => 1,
+        party_revision => 2
+    },
+    Payload = #{
+        <<"version">> => 1,
+        <<"walletID">> => WalletID,
+        <<"destinationID">> => DestinationID,
+        <<"partyID">> => PartyID,
+        <<"cashFrom">> => #{<<"amount">> => 1000000, <<"currency">> => <<"RUB">>},
+        <<"cashTo">> => #{<<"amount">> => 1, <<"currency">> => <<"USD">>},
+        <<"createdAt">> => <<"1970-01-01T00:00:00.123Z">>,
+        <<"expiresOn">> => <<"1970-01-01T00:00:00.321Z">>,
+        <<"quoteData">> => #{
+            <<"version">> => 1,
+            <<"quote_data">> => 6,
+            <<"provider_id">> => 1000,
+            <<"terminal_id">> => 2,
+            <<"resource_id">> => #{<<"bank_card">> => 5},
+            <<"timestamp">> => 234,
+            <<"domain_revision">> => 1,
+            <<"party_revision">> => 2
+        }
+    },
+    ?assertEqual(
+        {ok, ExpectedQuote, WalletID, DestinationID, PartyID},
+        decode_token_payload(Payload)
+    ).
+
+-endif.

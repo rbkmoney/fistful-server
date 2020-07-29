@@ -2208,9 +2208,9 @@ to_swag(withdrawal_status, {failed, Failure}) ->
 to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
     to_swag(failure, Failure);
 to_swag(withdrawal_status_failure, Failure) ->
-    to_swag(failure, map_internal_error(Failure));
+    map_internal_error(Failure);
 to_swag(stat_status_failure, Failure) ->
-    to_swag(failure, map_fistful_stat_error(Failure));
+    map_fistful_stat_error(Failure);
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{
         <<"eventID">> => EventId,
@@ -2509,10 +2509,10 @@ maybe_to_swag(T, V) ->
     to_swag(T, V).
 
 map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
-    #domain_Failure{
-        code = <<"terms_violation">>,
-        sub = #domain_SubFailure{
-            code = <<"cash_range">>
+    #{
+        <<"code">> => <<"terms_violation">>,
+        <<"subError">> => #{
+            <<"code">> => <<"cash_range">>
         }
     };
 map_internal_error(#{code := Code} = Err) when
@@ -2521,28 +2521,28 @@ map_internal_error(#{code := Code} = Err) when
     Code == <<"no_route_found">> orelse
     Code == <<"quote_expired">>
 ->
-    #domain_Failure{
-        code = Code,
-        sub = map_subfailure(maps:get(sub, Err, undefined))
-    };
+    to_swag(map, #{
+        <<"code">> => Code,
+        <<"subError">> => map_subfailure(maps:get(sub, Err, undefined))
+    });
 map_internal_error(_Reason) ->
-    #domain_Failure{
-        code = <<"failed">>
+    #{
+      <<"code">> => <<"failed">>
     }.
 
 map_fistful_stat_error(_Reason) ->
-    #domain_Failure{
-        code = <<"failed">>
+    #{
+        <<"code">> => <<"failed">>
     }.
 
 map_subfailure(undefined) ->
     undefined;
 
 map_subfailure(#{code := Code} = Subfailure) ->
-    #domain_SubFailure{
-        code = Code,
-        sub = map_subfailure(maps:get(sub, Subfailure, undefined))
-    }.
+    genlib_map:compact(#{
+        <<"code">> => Code,
+        <<"subError">> => map_subfailure(maps:get(sub, Subfailure, undefined))
+    }).
 
 authorize_withdrawal(Params, Context) ->
     _ = authorize_resource(wallet, Params, Context),

@@ -3,6 +3,7 @@
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([prepare_routes/3]).
+-export([make_route/2]).
 -export([get_provider/1]).
 -export([get_terminal/1]).
 
@@ -50,6 +51,16 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
             _ = logger:warning("Route search failed: ~p", [Error]),
             {error, route_not_found}
     end.
+
+-spec make_route(provider_id(), terminal_id() | undefined) ->
+    route().
+
+make_route(ProviderID, TerminalID) ->
+    genlib_map:compact(#{
+        version => 1,
+        provider_id => ProviderID,
+        terminal_id => TerminalID
+    }).
 
 -spec get_provider(route()) ->
     provider_id().
@@ -198,16 +209,6 @@ validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
         _NotInRange  ->
             {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
     end.
-
--spec make_route(provider_id(), terminal_id()) ->
-    route().
-
-make_route(ProviderID, TerminalID) ->
-    #{
-        version => 1,
-        provider_id => ProviderID,
-        terminal_id => TerminalID
-    }.
 
 merge_withdrawal_terms(
     #domain_WithdrawalProvisionTerms{

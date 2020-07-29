@@ -181,12 +181,8 @@ adapter_unreachable_quote_test(C) ->
             cash_to     => {2120, <<"USD">>},
             created_at  => <<"2020-03-22T06:12:27Z">>,
             expires_on  => <<"2020-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 4,
-                <<"terminal_id">> => 1
-            }
+            route       => ff_withdrawal_routing:make_route(4, 1),
+            quote_data  => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),

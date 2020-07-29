@@ -2538,7 +2538,7 @@ issue_quote_token(PartyID, Data) ->
     ff_cash:cash().
 get_p2p_quote_surplus(Quote) ->
     Fees = p2p_quote:fees(Quote),
-    case ff_fees:surplus(Fees) of
+    case ff_fees_final:surplus(Fees) of
         undefined ->
             erlang:error({no_surplus, Fees}, [Quote]);
         Cash ->

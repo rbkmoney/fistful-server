@@ -78,7 +78,7 @@ get_fee_ok_test(C) ->
     Sender = {bank_card, #{bank_card => CardSender}},
     {ok, Quote} = p2p_quote:get_quote(Cash, Identity, Sender, Sender),
     Fees = p2p_quote:fees(Quote),
-    Fee = ff_fees:surplus(Fees),
+    Fee = ff_fees_final:surplus(Fees),
     ?assertEqual({146, <<"RUB">>}, Fee).
 
 -spec visa_to_nspkmir_not_allow_test(config()) -> test_return().

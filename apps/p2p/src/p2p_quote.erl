@@ -18,7 +18,7 @@
 -type get_quote_error() ::
     {identity, not_found} |
     {party, get_contract_terms_error()} |
-    {fees, ff_fees:computation_error()} |
+    {fees, ff_fees_plan:computation_error()} |
     {p2p_transfer:resource_owner(), {bin_data, not_found}} |
     {terms, validate_p2p_error()}.
 
@@ -28,7 +28,7 @@
 }}.
 
 -type quote() :: #{
-    fees              := ff_fees:final(),
+    fees              := ff_fees_final:fees(),
     amount            := cash(),
     party_revision    := ff_party:revision(),
     domain_revision   := ff_domain_config:revision(),
@@ -67,7 +67,7 @@
 %% Accessors
 
 -spec fees(quote()) ->
-    ff_fees:final().
+    ff_fees_final:fees().
 fees(#{fees := Fees}) ->
     Fees.
 
@@ -154,7 +154,7 @@ get_quote(Cash, IdentityID, Sender, Receiver) ->
 
         ExpiresOn = get_expire_time(Terms, CreatedAt),
         Fees = get_fees_from_terms(Terms),
-        ComputedFees = unwrap(fees, ff_fees:compute(Fees, Cash)),
+        ComputedFees = unwrap(fees, ff_fees_plan:compute(Fees, Cash)),
         genlib_map:compact(#{
             fees => ComputedFees,
             amount => Cash,
@@ -179,7 +179,7 @@ get_identity(IdentityID) ->
     end).
 
 -spec get_fees_from_terms(terms()) ->
-    ff_fees:plan().
+    ff_fees_plan:fees().
 get_fees_from_terms(Terms) ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
@@ -191,11 +191,11 @@ get_fees_from_terms(Terms) ->
     decode_domain_fees(FeeTerm).
 
 -spec decode_domain_fees(dmsl_domain_thrift:'FeeSelector'() | undefined) ->
-    ff_fees:plan().
+    ff_fees_plan:fees().
 decode_domain_fees(undefined) ->
     #{fees => #{}};
 decode_domain_fees({value, Fees}) -> % must be reduced before
-    ff_fees:unmarshal(Fees).
+    ff_fees_plan:unmarshal(Fees).
 
 -spec get_expire_time(terms(), ff_time:timestamp_ms()) ->
     ff_time:timestamp_ms().

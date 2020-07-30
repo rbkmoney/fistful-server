@@ -766,8 +766,8 @@ construct_p_transfer_id(ID) ->
 
 -spec get_fees(p2p_transfer_state()) ->
     {ff_fees_final:fees() | undefined, ff_fees_final:fees() | undefined}.
-get_fees(P2PTransfer) ->
-    Route = route(P2PTransfer),
+get_fees(P2PTransferState) ->
+    Route = route(P2PTransferState),
     #{provider_id := ProviderID} = Route,
     DomainRevision = domain_revision(P2PTransferState),
     {ok, Provider} = ff_p2p_provider:get(DomainRevision, ProviderID),

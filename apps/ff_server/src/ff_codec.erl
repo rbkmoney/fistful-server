@@ -281,9 +281,6 @@ marshal(context, V) when is_map(V) ->
 marshal(msgpack, V) ->
     ff_msgpack_codec:marshal(msgpack, V);
 
-marshal(msgpack_value, Value) ->
-    marshal_msgpack(Value);
-
 % Catch this up in thrift validation
 marshal(_, Other) ->
     Other.
@@ -549,9 +546,6 @@ unmarshal(range, #'EventRange'{
     limit   = Limit
 }) ->
     {Cursor, Limit, forward};
-
-unmarshal(msgpack_value, V) ->
-    unmarshal_msgpack(V);
 
 unmarshal(bool, V) when is_boolean(V) ->
     V.

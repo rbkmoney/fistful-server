@@ -97,6 +97,7 @@
     opts := ff_withdrawal_provider:adapter_opts()
 }.
 
+-export_type([id/0]).
 -export_type([data/0]).
 -export_type([event/0]).
 -export_type([route/0]).
@@ -125,13 +126,13 @@
 %% Accessors
 %%
 
--spec id(session()) ->
+-spec id(session_state()) ->
     id().
 
 id(#{id := V}) ->
     V.
 
--spec status(session()) ->
+-spec status(session_state()) ->
     status().
 
 status(#{status := V}) ->
@@ -154,7 +155,7 @@ withdrawal(#{withdrawal := V}) ->
 adapter_state(Session) ->
     maps:get(adapter_state, Session, undefined).
 
--spec callbacks_index(session()) -> callbacks_index().
+-spec callbacks_index(session_state()) -> callbacks_index().
 callbacks_index(Session) ->
     case maps:find(callbacks, Session) of
         {ok, Callbacks} ->
@@ -173,8 +174,8 @@ create(ID, Data, Params) ->
     SessionState = create_session(ID, Data, Params),
     {ok, [{created, SessionState}]}.
 
--spec apply_event(event(), undefined | session()) ->
-    session().
+-spec apply_event(event(), undefined | session_state()) ->
+    session_state().
 
 apply_event({created, Session}, undefined) ->
     Session;
@@ -193,12 +194,12 @@ process_session(#{status := active, withdrawal := Withdrawal, route := Route} = 
     ASt = maps:get(adapter_state, SessionState, undefined),
     case ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
         {ok, Intent, ASt} ->
-            process_intent(Intent, Session);
+            process_intent(Intent, SessionState);
         {ok, Intent, NextASt} ->
             Events = process_next_state(NextASt),
-            process_intent(Intent, Session, Events);
+            process_intent(Intent, SessionState, Events);
         {ok, Intent} ->
-            process_intent(Intent, Session)
+            process_intent(Intent, SessionState)
     end.
 
 -spec set_session_result(session_result(), session_state()) ->
@@ -209,7 +210,7 @@ set_session_result(Result, #{status := active}) ->
         action => unset_timer
     }.
 
--spec process_callback(callback_params(), session()) ->
+-spec process_callback(callback_params(), session_state()) ->
     {ok, {process_callback_response(), result()}} |
     {error, {process_callback_error(), result()}}.
 process_callback(#{tag := CallbackTag} = Params, Session) ->
@@ -355,7 +356,7 @@ create_adapter_withdrawal(#{id := SesID, sender := Sender, receiver := Receiver}
 set_session_status(Status, SessionState) ->
     SessionState#{status => Status}.
 
--spec set_callbacks_index(callbacks_index(), session()) -> session().
+-spec set_callbacks_index(callbacks_index(), session_state()) -> session_state().
 set_callbacks_index(Callbacks, Session) ->
     Session#{callbacks => Callbacks}.
 

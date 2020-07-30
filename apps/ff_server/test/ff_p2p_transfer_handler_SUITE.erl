@@ -15,6 +15,8 @@
 -export([end_per_testcase/2]).
 
 %% Tests
+-export([get_p2p_session_context_ok_test/1]).
+-export([get_p2p_session_ok_test/1]).
 -export([create_adjustment_ok_test/1]).
 -export([get_p2p_transfer_events_ok_test/1]).
 -export([get_p2p_transfer_context_ok_test/1]).
@@ -38,6 +40,8 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
+            get_p2p_session_context_ok_test,
+            get_p2p_session_ok_test,
             create_adjustment_ok_test,
             get_p2p_transfer_events_ok_test,
             get_p2p_transfer_context_ok_test,
@@ -87,6 +91,21 @@ end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
 %% Tests
+
+-spec get_p2p_session_context_ok_test(config()) -> test_return().
+get_p2p_session_context_ok_test(C) ->
+    #{
+        session_id := ID
+    } = prepare_standard_environment(C),
+    {ok, _Context} = call_p2p_session('GetContext', [ID]).
+
+-spec get_p2p_session_ok_test(config()) -> test_return().
+get_p2p_session_ok_test(C) ->
+    #{
+        session_id := ID
+    } = prepare_standard_environment(C),
+    {ok, P2PSessionState} = call_p2p_session('Get', [ID, #'EventRange'{}]),
+    ?assertEqual(ID, P2PSessionState#p2p_session_SessionState.id).
 
 -spec create_adjustment_ok_test(config()) -> test_return().
 create_adjustment_ok_test(C) ->
@@ -278,12 +297,15 @@ prepare_standard_environment(C) ->
         client_info = #'ClientInfo'{ip_address = <<"some ip_address">>, fingerprint = <<"some fingerprint">>},
         external_id = ExternalID
     },
-    {ok, _P2PTransferState} = call_p2p('Create', [Params, Ctx]),
+    {ok, _State} = call_p2p('Create', [Params, Ctx]),
     succeeded = await_final_p2p_transfer_status(P2PTransferID),
+    {ok, P2PTransferState} = call_p2p('Get', [P2PTransferID, #'EventRange'{}]),
+    [#p2p_transfer_SessionState{id = SessionID} | _Rest] = P2PTransferState#p2p_transfer_P2PTransferState.sessions,
     #{
         identity_id => IdentityID,
         party_id => Party,
         p2p_transfer_id => P2PTransferID,
+        session_id => SessionID,
         context => Ctx
     }.
 

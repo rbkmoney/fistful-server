@@ -95,10 +95,9 @@ block_p2p_template_ok_test(C) ->
         id = P2PTemplateID,
         identity_id = IdentityID,
         external_id = ExternalID,
-        template_details = Details,
-        context = Ctx
+        template_details = Details
     },
-    {ok, _P2PTemplateState} = call_p2p_template('Create', [Params]),
+    {ok, _P2PTemplateState} = call_p2p_template('Create', [Params, Ctx]),
     Expected0 = get_p2p_template(P2PTemplateID),
     ?assertEqual(unblocked, p2p_template:blocking(Expected0)),
     {ok, ok} = call_p2p_template('SetBlocking', [P2PTemplateID, blocked]),
@@ -118,10 +117,9 @@ get_context_test(C) ->
         id = P2PTemplateID,
         identity_id = IdentityID,
         external_id = ExternalID,
-        template_details = Details,
-        context = Ctx
+        template_details = Details
     },
-    {ok, _P2PTemplateState} = call_p2p_template('Create', [Params]),
+    {ok, _P2PTemplateState} = call_p2p_template('Create', [Params, Ctx]),
     {ok, EncodedContext} = call_p2p_template('GetContext', [P2PTemplateID]),
     ?assertEqual(Ctx, ff_entity_context_codec:unmarshal(EncodedContext)).
 
@@ -138,10 +136,9 @@ create_p2p_template_ok_test(C) ->
         id = P2PTemplateID,
         identity_id = IdentityID,
         external_id = ExternalID,
-        template_details = Details,
-        context = Ctx
+        template_details = Details
     },
-    {ok, P2PTemplateState} = call_p2p_template('Create', [Params]),
+    {ok, P2PTemplateState} = call_p2p_template('Create', [Params, Ctx]),
 
     Expected = get_p2p_template(P2PTemplateID),
     ?assertEqual(P2PTemplateID, P2PTemplateState#p2p_template_P2PTemplateState.id),

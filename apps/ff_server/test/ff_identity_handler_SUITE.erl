@@ -223,10 +223,9 @@ create_identity(EID, PartyID, ProvID, ClassID, Ctx, Metadata) ->
         provider    = ProvID,
         cls         = ClassID,
         external_id = EID,
-        metadata    = Metadata,
-        context     = Ctx
+        metadata    = Metadata
     },
-    {ok, IdentityState} = call_api('Create', [Params]),
+    {ok, IdentityState} = call_api('Create', [Params, Ctx]),
     IdentityState.
 
 gen_challenge_param(ClgClassID, ChallengeID, C) ->

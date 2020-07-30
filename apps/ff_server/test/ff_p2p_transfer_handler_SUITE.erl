@@ -17,6 +17,7 @@
 
 %% Tests
 -export([unknown_test/1]).
+-export([unknown_session_test/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -33,7 +34,8 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            unknown_test
+            unknown_test,
+            unknown_session_test
         ]}
     ].
 
@@ -145,6 +147,13 @@ end_per_testcase(_Name, _C) ->
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
+    ID = <<"unknown_id">>,
+    Result = call_p2p('Get', [ID, #'EventRange'{}]),
+    ExpectedError = #fistful_P2PNotFound{},
+    ?assertEqual({exception, ExpectedError}, Result).
+
+-spec unknown_session_test(config()) -> test_return().
+unknown_session_test(_C) ->
     P2PSessionID = <<"unknown_p2p_session">>,
     Result = call_p2p_session('Get', [P2PSessionID, #'EventRange'{}]),
     ExpectedError = #fistful_P2PSessionNotFound{},
@@ -160,6 +169,16 @@ call_p2p_session(Fun, Args) ->
         url => "http://localhost:8022" ++ ff_services:get_service_path(ServiceName)
     }),
     ff_woody_client:call(Client, Request).
+
+call_p2p(Fun, Args) ->
+    ServiceName = p2p_transfer_management,
+    Service = ff_services:get_service(ServiceName),
+    Request = {Service, Fun, Args},
+    Client  = ff_woody_client:new(#{
+        url => "http://localhost:8022" ++ ff_services:get_service_path(ServiceName)
+    }),
+    ff_woody_client:call(Client, Request).
+
 
 % prepare_standard_environment(C) ->
 %     Party = create_party(C),

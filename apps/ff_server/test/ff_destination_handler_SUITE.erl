@@ -122,10 +122,9 @@ create_destination_ok(Resource, C) ->
         currency    = Currency,
         resource    = Resource,
         external_id = ExternalId,
-        metadata    = Metadata,
-        context     = Ctx
+        metadata    = Metadata
     },
-    {ok, Dst}  = call_service('Create', [Params]),
+    {ok, Dst}  = call_service('Create', [Params, Ctx]),
     DstName     = Dst#dst_DestinationState.name,
     ID          = Dst#dst_DestinationState.id,
     Resource    = Dst#dst_DestinationState.resource,

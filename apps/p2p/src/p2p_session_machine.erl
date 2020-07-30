@@ -93,9 +93,9 @@ get(Ref) ->
             {error, {unknown_p2p_session, Ref}}
     end.
 
--spec get(id(), event_range()) ->
+-spec get(ref(), event_range()) ->
     {ok, st()} |
-    {error, notfound}.
+    {error,  unknown_p2p_session_error()}.
 
 get(Ref, {After, Limit}) ->
     case ff_machine:get(p2p_session, ?NS, Ref, {After, Limit, forward}) of

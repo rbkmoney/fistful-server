@@ -117,6 +117,7 @@
 
 -type timeout_error() :: {deadline_reached, deadline()}.
 
+-export_type([id/0]).
 -export_type([event/0]).
 -export_type([transfer_params/0]).
 -export_type([params/0]).

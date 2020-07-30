@@ -172,9 +172,12 @@
 -export([receiver/1]).
 -export([sender_resource/1]).
 -export([receiver_resource/1]).
+-export([deadline/1]).
 -export([metadata/1]).
+-export([effective_final_cash_flow/1]).
 
 -export([session_id/1]).
+-export([sessions/1]).
 
 %% API
 
@@ -903,6 +906,15 @@ get_identity(IdentityID) ->
     end).
 
 %% Session management
+
+-spec sessions(p2p_transfer_state()) -> [session()].
+sessions(P2PTransferState) ->
+    case session(P2PTransferState) of
+        undefined ->
+            [];
+        Session ->
+            [Session]
+    end.
 
 -spec session(p2p_transfer_state()) -> session() | undefined.
 session(P2PTransferState) ->

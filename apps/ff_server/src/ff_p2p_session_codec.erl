@@ -13,7 +13,7 @@
 
 %% API
 -spec marshal_state(p2p_session:session_state(), p2p_session:id(), ff_entity_context:context()) ->
-    ff_proto_withdrawal_session_thrift:'SessionState'().
+    ff_proto_p2p_session_thrift:'SessionState'().
 
 marshal_state(State, ID, Context) ->
     #p2p_session_SessionState{

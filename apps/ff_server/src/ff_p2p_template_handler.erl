@@ -23,13 +23,13 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [MarshaledParams], Opts) ->
+handle_function_('Create', [MarshaledParams, Context], Opts) ->
     P2PTemplateID = MarshaledParams#p2p_template_P2PTemplateParams.id,
     Params = ff_p2p_template_codec:unmarshal_p2p_template_params(MarshaledParams),
     ok = scoper:add_meta(maps:with([id, identity_id, external_id], Params)),
     case p2p_template_machine:create(
         Params,
-        ff_p2p_template_codec:unmarshal(ctx, MarshaledParams#p2p_template_P2PTemplateParams.context))
+        ff_p2p_template_codec:unmarshal(ctx, Context))
     of
         ok ->
             handle_function_('Get', [P2PTemplateID, #'EventRange'{}], Opts);
@@ -51,6 +51,16 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
             P2PTemplate = p2p_template_machine:p2p_template(Machine),
             Ctx = ff_machine:ctx(Machine),
             Response = ff_p2p_template_codec:marshal_p2p_template_state(P2PTemplate, Ctx),
+            {ok, Response};
+        {error, {unknown_p2p_template, _Ref}} ->
+            woody_error:raise(business, #fistful_P2PTemplateNotFound{})
+    end;
+
+handle_function_('GetContext', [ID], _Opts) ->
+    case p2p_template_machine:get(ID) of
+        {ok, Machine} ->
+            Ctx = ff_machine:ctx(Machine),
+            Response = ff_p2p_template_codec:marshal(ctx, Ctx),
             {ok, Response};
         {error, {unknown_p2p_template, _Ref}} ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{})

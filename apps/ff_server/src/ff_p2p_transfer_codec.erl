@@ -102,7 +102,7 @@ marshal(change, {resource_got, Sender, Receiver}) ->
 marshal(change, {risk_score_changed, RiskScore}) ->
     {risk_score, #p2p_transfer_RiskScoreChange{score = marshal(risk_score, RiskScore)}};
 marshal(change, {route_changed, Route}) ->
-    {route, marshal(route, Route)};
+    {route, #p2p_transfer_RouteChange{route = marshal(route, Route)}};
 marshal(change, {p_transfer, TransferChange}) ->
     {transfer, #p2p_transfer_TransferChange{payload = ff_p_transfer_codec:marshal(change, TransferChange)}};
 marshal(change, {session, Session}) ->
@@ -215,9 +215,9 @@ marshal(risk_score, fatal) ->
     fatal;
 
 marshal(route, #{provider_id := ProviderID}) ->
-    #p2p_transfer_RouteChange{route = #p2p_transfer_Route{
+    #p2p_transfer_Route{
         provider_id =  marshal(integer, ProviderID)
-    }};
+    };
 
 marshal(session, {SessionID, started}) ->
     #p2p_transfer_SessionChange{

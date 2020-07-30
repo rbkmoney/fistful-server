@@ -1,7 +1,6 @@
 -module(ff_p2p_transfer_handler_SUITE).
 
 -include_lib("stdlib/include/assert.hrl").
--include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_p2p_session_thrift.hrl").
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
@@ -16,8 +15,13 @@
 -export([end_per_testcase/2]).
 
 %% Tests
--export([unknown_test/1]).
+-export([create_adjustment_ok_test/1]).
+-export([get_p2p_transfer_events_ok_test/1]).
+-export([get_p2p_transfer_context_ok_test/1]).
+-export([get_p2p_transfer_ok_test/1]).
+-export([create_p2p_transfer_ok_test/1]).
 -export([unknown_session_test/1]).
+-export([unknown_test/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -34,8 +38,13 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            unknown_test,
-            unknown_session_test
+            create_adjustment_ok_test,
+            get_p2p_transfer_events_ok_test,
+            get_p2p_transfer_context_ok_test,
+            get_p2p_transfer_ok_test,
+            create_p2p_transfer_ok_test,
+            unknown_session_test,
+            unknown_test
         ]}
     ].
 
@@ -79,78 +88,101 @@ end_per_testcase(_Name, _C) ->
 
 %% Tests
 
-% -spec block_p2p_template_ok_test(config()) -> test_return().
-% block_p2p_template_ok_test(C) ->
-%     #{
-%         identity_id := IdentityID
-%     } = prepare_standard_environment(C),
-%     P2PTemplateID = generate_id(),
-%     ExternalID = generate_id(),
-%     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-%     Details = make_template_details({1000, <<"RUB">>}),
-%     Params = #p2p_template_P2PTemplateParams{
-%         id = P2PTemplateID,
-%         identity_id = IdentityID,
-%         external_id = ExternalID,
-%         template_details = Details,
-%         context = Ctx
-%     },
-%     {ok, _P2PTemplateState} = call_p2p_session('Create', [Params]),
-%     Expected0 = get_p2p_template(P2PTemplateID),
-%     ?assertEqual(unblocked, p2p_template:blocking(Expected0)),
-%     {ok, ok} = call_p2p_session('SetBlocking', [P2PTemplateID, blocked]),
-%     Expected1 = get_p2p_template(P2PTemplateID),
-%     ?assertEqual(blocked, p2p_template:blocking(Expected1)).
+-spec create_adjustment_ok_test(config()) -> test_return().
+create_adjustment_ok_test(C) ->
+    #{
+        p2p_transfer_id := ID
+    } = prepare_standard_environment(C),
+    AdjustmentID = generate_id(),
+    ExternalID = generate_id(),
+    Params = #p2p_adj_AdjustmentParams{
+        id = AdjustmentID,
+        change = {change_status, #p2p_adj_ChangeStatusRequest{
+            new_status = {failed, #p2p_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+        }},
+        external_id = ExternalID
+    },
+    {ok, AdjustmentState} = call_p2p('CreateAdjustment', [ID, Params]),
+    ExpectedAdjustment = get_adjustment(ID, AdjustmentID),
 
+    ?assertEqual(AdjustmentID, AdjustmentState#p2p_adj_AdjustmentState.id),
+    ?assertEqual(ExternalID, AdjustmentState#p2p_adj_AdjustmentState.external_id),
+    ?assertEqual(
+        ff_adjustment:created_at(ExpectedAdjustment),
+        ff_codec:unmarshal(timestamp_ms, AdjustmentState#p2p_adj_AdjustmentState.created_at)
+    ),
+    ?assertEqual(
+        ff_adjustment:domain_revision(ExpectedAdjustment),
+        AdjustmentState#p2p_adj_AdjustmentState.domain_revision
+    ),
+    ?assertEqual(
+        ff_adjustment:party_revision(ExpectedAdjustment),
+        AdjustmentState#p2p_adj_AdjustmentState.party_revision
+    ),
+    ?assertEqual(
+        ff_p2p_transfer_adjustment_codec:marshal(changes_plan, ff_adjustment:changes_plan(ExpectedAdjustment)),
+        AdjustmentState#p2p_adj_AdjustmentState.changes_plan
+    ).
 
-% -spec create_p2p_template_ok_test(config()) -> test_return().
-% create_p2p_template_ok_test(C) ->
-%     #{
-%         identity_id := IdentityID
-%     } = prepare_standard_environment(C),
-%     P2PTemplateID = generate_id(),
-%     ExternalID = generate_id(),
-%     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-%     Details = make_template_details({1000, <<"RUB">>}),
-%     Params = #p2p_template_P2PTemplateParams{
-%         id = P2PTemplateID,
-%         identity_id = IdentityID,
-%         external_id = ExternalID,
-%         template_details = Details,
-%         context = Ctx
-%     },
-%     {ok, P2PTemplateState} = call_p2p_session('Create', [Params]),
+-spec get_p2p_transfer_events_ok_test(config()) -> test_return().
+get_p2p_transfer_events_ok_test(C) ->
+    #{
+        p2p_transfer_id := ID
+    } = prepare_standard_environment(C),
+    {ok, [#p2p_transfer_Event{change = {created, _}} | _Rest]} = call_p2p('GetEvents', [ID, #'EventRange'{}]).
 
-%     Expected = get_p2p_template(P2PTemplateID),
-%     ?assertEqual(P2PTemplateID, P2PTemplateState#p2p_template_P2PTemplateState.id),
-%     ?assertEqual(ExternalID, P2PTemplateState#p2p_template_P2PTemplateState.external_id),
-%     ?assertEqual(IdentityID, P2PTemplateState#p2p_template_P2PTemplateState.identity_id),
-%     ?assertEqual(Details, P2PTemplateState#p2p_template_P2PTemplateState.template_details),
-%     ?assertEqual(
-%         p2p_template:domain_revision(Expected),
-%         P2PTemplateState#p2p_template_P2PTemplateState.domain_revision
-%     ),
-%     ?assertEqual(
-%         p2p_template:party_revision(Expected),
-%         P2PTemplateState#p2p_template_P2PTemplateState.party_revision
-%     ),
-%     ?assertEqual(
-%         p2p_template:created_at(Expected),
-%         ff_codec:unmarshal(timestamp_ms, P2PTemplateState#p2p_template_P2PTemplateState.created_at)
-%     ),
+-spec get_p2p_transfer_context_ok_test(config()) -> test_return().
+get_p2p_transfer_context_ok_test(C) ->
+    #{
+        p2p_transfer_id := ID,
+        context := Ctx
+    } = prepare_standard_environment(C),
+    {ok, Context} = call_p2p('GetContext', [ID]),
+    ?assertEqual(Ctx, Context).
 
-%     {ok, FinalP2PTemplateState} = call_p2p_session('Get', [P2PTemplateID, #'EventRange'{}]),
-%     ?assertMatch(
-%         unblocked,
-%         FinalP2PTemplateState#p2p_template_P2PTemplateState.blocking
-%     ).
+-spec get_p2p_transfer_ok_test(config()) -> test_return().
+get_p2p_transfer_ok_test(C) ->
+    #{
+        p2p_transfer_id := ID
+    } = prepare_standard_environment(C),
+    {ok, P2PTransferState} = call_p2p('Get', [ID, #'EventRange'{}]),
+    ?assertEqual(ID, P2PTransferState#p2p_transfer_P2PTransferState.id).
 
--spec unknown_test(config()) -> test_return().
-unknown_test(_C) ->
-    ID = <<"unknown_id">>,
-    Result = call_p2p('Get', [ID, #'EventRange'{}]),
-    ExpectedError = #fistful_P2PNotFound{},
-    ?assertEqual({exception, ExpectedError}, Result).
+-spec create_p2p_transfer_ok_test(config()) -> test_return().
+create_p2p_transfer_ok_test(C) ->
+    #{
+        identity_id := IdentityID
+    } = prepare_standard_environment(C),
+    P2PTransferID = generate_id(),
+    ExternalID = generate_id(),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Params = #p2p_transfer_P2PTransferParams{
+        id = P2PTransferID,
+        identity_id = IdentityID,
+        sender = create_resource_raw(C),
+        receiver = create_resource_raw(C),
+        body = make_cash({100, <<"RUB">>}),
+        client_info = #'ClientInfo'{ip_address = <<"some ip_address">>, fingerprint = <<"some fingerprint">>},
+        external_id = ExternalID
+    },
+    {ok, P2PTransferState} = call_p2p('Create', [Params, Ctx]),
+
+    Expected = get_p2p_transfer(P2PTransferID),
+    ?assertEqual(P2PTransferID, P2PTransferState#p2p_transfer_P2PTransferState.id),
+    ?assertEqual(ExternalID, P2PTransferState#p2p_transfer_P2PTransferState.external_id),
+    ?assertEqual(IdentityID, P2PTransferState#p2p_transfer_P2PTransferState.owner),
+    ?assertEqual(
+        p2p_template:domain_revision(Expected),
+        P2PTransferState#p2p_transfer_P2PTransferState.domain_revision
+    ),
+    ?assertEqual(
+        p2p_template:party_revision(Expected),
+        P2PTransferState#p2p_transfer_P2PTransferState.party_revision
+    ),
+    ?assertEqual(
+        p2p_template:created_at(Expected),
+        ff_codec:unmarshal(timestamp_ms, P2PTransferState#p2p_transfer_P2PTransferState.created_at)
+    ).
 
 -spec unknown_session_test(config()) -> test_return().
 unknown_session_test(_C) ->
@@ -159,7 +191,58 @@ unknown_session_test(_C) ->
     ExpectedError = #fistful_P2PSessionNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
+-spec unknown_test(config()) -> test_return().
+unknown_test(_C) ->
+    ID = <<"unknown_id">>,
+    Result = call_p2p('Get', [ID, #'EventRange'{}]),
+    ExpectedError = #fistful_P2PNotFound{},
+    ?assertEqual({exception, ExpectedError}, Result).
+
 %%  Internals
+
+await_final_p2p_transfer_status(P2PTransferID) ->
+    finished = ct_helper:await(
+        finished,
+        fun () ->
+            {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
+            P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
+            case p2p_transfer:is_finished(P2PTransfer) of
+                false ->
+                    {not_finished, P2PTransfer};
+                true ->
+                    finished
+            end
+        end,
+        genlib_retry:linear(10, 1000)
+    ),
+    get_p2p_status(P2PTransferID).
+
+get_p2p(ID) ->
+    {ok, Machine} = p2p_transfer_machine:get(ID),
+    p2p_transfer_machine:p2p_transfer(Machine).
+
+get_p2p_status(ID) ->
+    p2p_transfer:status(get_p2p(ID)).
+
+get_adjustment(ID, AdjustmentID) ->
+    {ok, Adjustment} = p2p_transfer:find_adjustment(AdjustmentID, get_p2p(ID)),
+    Adjustment.
+
+make_cash({Amount, Currency}) ->
+    #'Cash'{
+        amount = Amount,
+        currency = #'CurrencyRef'{symbolic_code = Currency}
+    }.
+
+create_resource_raw(C) ->
+    StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
+    Resource = {bank_card, #{
+        bank_card => StoreSource,
+        auth_data => {session, #{
+            session_id => <<"ID">>
+        }}
+    }},
+    ff_p2p_transfer_codec:marshal(participant, p2p_participant:create(raw, Resource, #{})).
 
 call_p2p_session(Fun, Args) ->
     ServiceName = p2p_session_management,
@@ -180,36 +263,52 @@ call_p2p(Fun, Args) ->
     ff_woody_client:call(Client, Request).
 
 
-% prepare_standard_environment(C) ->
-%     Party = create_party(C),
-%     IdentityID = create_person_identity(Party, C),
-%     #{
-%         identity_id => IdentityID,
-%         party_id => Party
-%     }.
+prepare_standard_environment(C) ->
+    Party = create_party(C),
+    IdentityID = create_person_identity(Party, C),
+    P2PTransferID = generate_id(),
+    ExternalID = generate_id(),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Params = #p2p_transfer_P2PTransferParams{
+        id = P2PTransferID,
+        identity_id = IdentityID,
+        sender = create_resource_raw(C),
+        receiver = create_resource_raw(C),
+        body = make_cash({100, <<"RUB">>}),
+        client_info = #'ClientInfo'{ip_address = <<"some ip_address">>, fingerprint = <<"some fingerprint">>},
+        external_id = ExternalID
+    },
+    {ok, _P2PTransferState} = call_p2p('Create', [Params, Ctx]),
+    succeeded = await_final_p2p_transfer_status(P2PTransferID),
+    #{
+        identity_id => IdentityID,
+        party_id => Party,
+        p2p_transfer_id => P2PTransferID,
+        context => Ctx
+    }.
 
-% get_p2p_template(P2PTemplateID) ->
-%     {ok, Machine} = p2p_template_machine:get(P2PTemplateID),
-%     p2p_template_machine:p2p_template(Machine).
+get_p2p_transfer(P2PTransferID) ->
+    {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
+    p2p_transfer_machine:p2p_transfer(Machine).
 
-% create_party(_C) ->
-%     ID = genlib:bsuuid(),
-%     _ = ff_party:create(ID),
-%     ID.
+create_party(_C) ->
+    ID = genlib:bsuuid(),
+    _ = ff_party:create(ID),
+    ID.
 
-% create_person_identity(Party, C) ->
-%     create_person_identity(Party, C, <<"good-one">>).
+create_person_identity(Party, C) ->
+    create_person_identity(Party, C, <<"quote-owner">>).
 
-% create_person_identity(Party, C, ProviderID) ->
-%     create_identity(Party, ProviderID, <<"person">>, C).
+create_person_identity(Party, C, ProviderID) ->
+    create_identity(Party, ProviderID, <<"person">>, C).
 
-% create_identity(Party, ProviderID, ClassID, _C) ->
-%     ID = genlib:unique(),
-%     ok = ff_identity_machine:create(
-%         #{id => ID, party => Party, provider => ProviderID, class => ClassID},
-%         ff_entity_context:new()
-%     ),
-%     ID.
+create_identity(Party, ProviderID, ClassID, _C) ->
+    ID = genlib:unique(),
+    ok = ff_identity_machine:create(
+        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
+        ff_entity_context:new()
+    ),
+    ID.
 
-% generate_id() ->
-%     ff_id:generate_snowflake_id().
+generate_id() ->
+    ff_id:generate_snowflake_id().

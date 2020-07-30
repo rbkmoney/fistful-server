@@ -123,12 +123,12 @@ get(Ref, {After, Limit}) ->
             {error, {unknown_p2p_transfer, Ref}}
     end.
 
--spec events(id(), machinery:range()) ->
+-spec events(id(), event_range()) ->
     {ok, events()} |
     {error, unknown_p2p_transfer_error()}.
 
-events(ID, Range) ->
-    case ff_machine:history(p2p_transfer, ?NS, ID, Range) of
+events(ID, {After, Limit}) ->
+    case ff_machine:history(p2p_transfer, ?NS, ID, {After, Limit, forward}) of
         {ok, History} ->
             {ok, [{EventID, TsEv} || {EventID, _, TsEv} <- History]};
         {error, notfound} ->

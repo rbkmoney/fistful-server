@@ -95,27 +95,29 @@ unmarshal_event(1, EncodedChange, Context) ->
 unmarshal_event(undefined = Version, EncodedChange, Context0) ->
     {Event, Context1} = machinery_mg_schema_generic:unmarshal({event, Version}, EncodedChange, Context0),
     {ev, Timestamp, Change} = Event,
-    {{ev, Timestamp, maybe_migrate(Change)}, Context1}.
+    {{ev, Timestamp, maybe_migrate(Change, Context0)}, Context1}.
 
--spec maybe_migrate(any()) ->
+-spec maybe_migrate(any(), context()) ->
     ff_withdrawal_session:event().
 
-maybe_migrate(Event = {created, #{version := 4}}) ->
+maybe_migrate(Event = {created, #{version := 4}}, _Context) ->
     Event;
 maybe_migrate({created, Session = #{version := 3, withdrawal := Withdrawal = #{
     sender := Sender,
     receiver := Receiver
-}}}) ->
-    maybe_migrate({created, Session#{
+}}}, Context) ->
+    NewSession = maps:without([adapter], Session#{
         version => 4,
         withdrawal => Withdrawal#{
             sender => try_migrate_to_adapter_identity(Sender),
             receiver => try_migrate_to_adapter_identity(Receiver)
-    }}});
-maybe_migrate({created, #{version := 2} = Session}) ->
+    }}),
+    maybe_migrate({created, NewSession}, Context);
+maybe_migrate({created, #{version := 2} = Session}, Context) ->
     KnowndLegacyIDs = #{
         <<"mocketbank">> => 1,
         <<"royalpay-payout">> => 2,
+        <<"royalpay">> => 2,
         <<"accentpay">> => 3
     },
     {LegacyProviderID, Route} = case maps:get(provider, Session) of
@@ -138,60 +140,68 @@ maybe_migrate({created, #{version := 2} = Session}) ->
         route => Route,
         provider_legacy => LegacyProviderID
     },
-    maybe_migrate({created, NewSession});
+    maybe_migrate({created, NewSession}, Context);
 maybe_migrate({created, Session = #{version := 1, withdrawal := Withdrawal = #{
     sender := Sender,
     receiver := Receiver
-}}}) ->
+}}}, Context) ->
     maybe_migrate({created, Session#{
         version => 2,
         withdrawal => Withdrawal#{
-            sender => try_migrate_identity_state(Sender),
-            receiver => try_migrate_identity_state(Receiver)
-    }}});
+            sender => try_migrate_identity_state(Sender, Context),
+            receiver => try_migrate_identity_state(Receiver, Context)
+    }}}, Context);
 maybe_migrate({created, Session = #{
     withdrawal := Withdrawal = #{
         destination := #{resource := OldResource}
     }
-}}) ->
-    {ok, Resource} = ff_destination:process_resource_full(ff_instrument:maybe_migrate_resource(OldResource), undefined),
+}}, Context) ->
+    NewResource = ff_instrument:maybe_migrate_resource(OldResource),
+    % `bindata_fun` is a helper for test purposes. You shouldn't use in production code.
+    FullResource = case maps:find(bindata_fun, Context) of
+        {ok, Fun} ->
+            Fun(NewResource);
+        error ->
+            {ok, Resource} = ff_destination:process_resource_full(NewResource, undefined),
+            Resource
+    end,
     NewWithdrawal0 = maps:without([destination], Withdrawal),
-    NewWithdrawal1 = NewWithdrawal0#{resource => Resource},
-    maybe_migrate({created, Session#{withdrawal => NewWithdrawal1}});
+    NewWithdrawal1 = NewWithdrawal0#{resource => FullResource},
+    maybe_migrate({created, Session#{withdrawal => NewWithdrawal1}}, Context);
 maybe_migrate({created, Session = #{
     withdrawal := Withdrawal = #{
         resource := Resource
     }
-}}) ->
+}}, Context) ->
     NewResource = ff_instrument:maybe_migrate_resource(Resource),
     maybe_migrate({created, Session#{
         version => 1,
         withdrawal => Withdrawal#{
             resource => NewResource
-    }}});
-maybe_migrate({next_state, Value}) when Value =/= undefined ->
+    }}}, Context);
+maybe_migrate({next_state, Value}, _Context) when Value =/= undefined ->
     {next_state, try_unmarshal_msgpack(Value)};
-maybe_migrate({finished, {failed, {'domain_Failure', Code, Reason, SubFailure}}}) ->
+maybe_migrate({finished, {failed, {'domain_Failure', Code, Reason, SubFailure}}}, _Context) ->
     {finished, {failed, genlib_map:compact(#{
         code => migrate_unmarshal(string, Code),
         reason => maybe_migrate_unmarshal(string, Reason),
         sub => maybe_migrate_unmarshal(sub_failure, SubFailure)
     })}};
-maybe_migrate({finished, {success, {'domain_TransactionInfo', ID, Timestamp, Extra, AddInfo}}}) ->
+maybe_migrate({finished, {success, {'domain_TransactionInfo', ID, Timestamp, Extra, AddInfo}}}, _Context) ->
     {finished, {success, genlib_map:compact(#{
         id => ID,
         timestamp => Timestamp,
         extra => Extra,
         additional_info => maybe_migrate_unmarshal(additional_transaction_info, AddInfo)
     })}};
-maybe_migrate({finished, {success, {'domain_TransactionInfo', ID, Timestamp, Extra}}}) ->
+maybe_migrate({finished, {success, {'domain_TransactionInfo', ID, Timestamp, Extra}}}, _Context) ->
     {finished, {success, genlib_map:compact(#{
         id => ID,
         timestamp => Timestamp,
         extra => Extra
     })}};
 % Other events
-maybe_migrate(Ev) ->
+maybe_migrate(Ev, _Context) ->
     Ev.
 
 migrate_unmarshal(sub_failure, {'domain_SubFailure', Code, SubFailure}) ->
@@ -287,15 +297,13 @@ try_unmarshal_msgpack(V) ->
     %     blocking     => blocking()
     % }
 
-try_migrate_identity_state(undefined) ->
+try_migrate_identity_state(undefined, _Context) ->
     undefined;
-try_migrate_identity_state(Identity = #{id := ID}) ->
-    {ok, Machine} = ff_identity_machine:get(ID),
-    NewIdentity = ff_identity_machine:identity(Machine),
+try_migrate_identity_state(Identity, _Context) ->
     Identity#{
         version => 1,
-        created_at => ff_identity:created_at(NewIdentity),
-        metadata => ff_identity:metadata(NewIdentity)
+        created_at => 0,  % Dummy time, we will dump it on one of the next steps
+        metadata => #{}  % Dummy metadata, we will dump it on one of the next steps
     }.
 
 try_migrate_to_adapter_identity(undefined) ->
@@ -335,8 +343,8 @@ unmarshal(Type, Value) ->
     {Result, _Context} = unmarshal(Type, Value, #{}),
     Result.
 
--spec created_v0_decoding_test() -> _.
-created_v0_decoding_test() ->
+-spec created_v0_3_decoding_test() -> _.
+created_v0_3_decoding_test() ->
     Resource = {bank_card, #{bank_card => #{
         token => <<"token">>,
         bin_data_id => {binary, <<"bin">>},
@@ -459,6 +467,130 @@ created_v0_decoding_test() ->
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).
 
+-spec created_v0_unknown_with_binary_provider_decoding_test() -> _.
+created_v0_unknown_with_binary_provider_decoding_test() ->
+    Session = #{
+        version => 4,
+        id => <<"1274">>,
+        route => #{
+            provider_id => 302
+        },
+        provider_legacy => <<"royalpay">>,
+        status => active,
+        withdrawal => #{
+            cash => {1500000, <<"RUB">>},
+            id => <<"1274">>,
+            receiver => #{id => <<"receiver_id">>},
+            sender => #{
+                id => <<"sender_id">>
+            },
+            resource => {bank_card, #{bank_card => #{
+                bin => <<"123456">>,
+                masked_pan => <<"1234">>,
+                payment_system => visa,
+                token => <<"token">>
+            }}}
+        }
+    },
+    Change = {created, Session},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 19}}, 293305}, Change},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [
+                    {str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}
+                ]},
+                {arr, [
+                    {str, <<"tup">>}, {i, 19}, {i, 19}, {i, 19}
+                ]}
+            ]},
+            {i, 293305}
+        ]},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"created">>},
+            {arr, [
+                {str, <<"map">>},
+                {obj, #{
+                    {str, <<"adapter">>} => {arr, [
+                        {str, <<"tup">>},
+                        {arr, [
+                            {str, <<"map">>},
+                            {obj, #{{str, <<"event_handler">>} => {str, <<"scoper_woody_event_handler">>},
+                            {str, <<"url">>} => {bin, <<"http://adapter-royalpay:8022/adapter/royalpay/p2p-credit">>}}}
+                        ]},
+                        {arr, [
+                            {str, <<"map">>},
+                            {obj, #{{bin, <<"payment_system">>} => {bin, <<"Card">>},
+                            {bin, <<"timer_timeout">>} => {bin, <<"10">>}}}
+                        ]}
+                    ]},
+                    {str, <<"id">>} => {bin, <<"1274">>},
+                    {str, <<"provider">>} => {bin, <<"royalpay">>},
+                    {str, <<"status">>} => {str, <<"active">>},
+                    {str, <<"withdrawal">>} => {arr, [
+                        {str, <<"map">>},
+                        {obj, #{
+                            {str, <<"cash">>} => {arr, [
+                                {str, <<"tup">>}, {i, 1500000}, {bin, <<"RUB">>}
+                            ]},
+                            {str, <<"destination">>} => {arr, [
+                                {str, <<"map">>},
+                                {obj, #{{str, <<"account">>} => {arr, [
+                                    {str, <<"map">>},
+                                    {obj, #{{str, <<"accounter_account_id">>} => {i, 15052},
+                                    {str, <<"currency">>} => {bin, <<"RUB">>},
+                                    {str, <<"id">>} => {bin, <<"destination_id">>},
+                                    {str, <<"identity">>} => {bin, <<"identity_id">>}}}
+                                ]},
+                                {str, <<"name">>} => {bin, <<"Customer #75">>},
+                                {str, <<"resource">>} => {arr, [
+                                    {str, <<"tup">>},
+                                    {str, <<"bank_card">>},
+                                    {arr, [
+                                        {str, <<"map">>},
+                                        {obj, #{{str, <<"bin">>} => {bin, <<"123456">>},
+                                        {str, <<"masked_pan">>} => {bin, <<"1234">>},
+                                        {str, <<"payment_system">>} => {str, <<"visa">>},
+                                        {str, <<"token">>} => {bin, <<"token">>}}}
+                                    ]}
+                                ]},
+                                {str, <<"status">>} => {str, <<"authorized">>}}}
+                            ]},
+                            {str, <<"id">>} => {bin, <<"1274">>},
+                            {str, <<"receiver">>} => {arr, [
+                                {str, <<"map">>},
+                                {obj, #{{str, <<"class">>} => {bin, <<"company">>},
+                                {str, <<"contract">>} => {bin, <<"receiver_contract">>},
+                                {str, <<"id">>} => {bin, <<"receiver_id">>},
+                                {str, <<"level">>} => {bin, <<"identified">>},
+                                {str, <<"party">>} => {bin, <<"party">>},
+                                {str, <<"provider">>} => {bin, <<"provider">>}}}
+                            ]},
+                            {str, <<"sender">>} => {arr, [
+                                {str, <<"map">>},
+                                {obj, #{{str, <<"class">>} => {bin, <<"company">>},
+                                {str, <<"contract">>} => {bin, <<"sender_contract">>},
+                                {str, <<"id">>} => {bin, <<"sender_id">>},
+                                {str, <<"level">>} => {bin, <<"identified">>},
+                                {str, <<"party">>} => {bin, <<"party">>},
+                                {str, <<"provider">>} => {bin, <<"provider">>}}}
+                            ]}
+                        }}
+                    ]}
+                }}
+            ]}
+        ]}
+    ]},
+    {DecodedLegacy, _Context} = unmarshal({event, undefined}, LegacyEvent, #{bindata_fun => fun(R) -> R end}),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
 -spec next_state_v0_decoding_test() -> _.
 next_state_v0_decoding_test() ->
     Change = {next_state, <<"next_state">>},
@@ -530,8 +662,8 @@ created_v1_decoding_test() ->
         cash_from => {123, <<"RUB">>},
         cash_to => {123, <<"RUB">>},
         created_at => <<"some timestamp">>,
-        expires_on => <<"some timestamp">>
-        % quote_data => #{}
+        expires_on => <<"some timestamp">>,
+        quote_data => [1, nil, #{}]
     },
     Identity = #{
         id => <<"ID">>
@@ -562,8 +694,9 @@ created_v1_decoding_test() ->
         "ZAwAAgwAAQwAAQsAAQAAAAV0b2tlbggAAgAAAAAMABULAAYAAAADYmluAAAAAAwAAwoAAQAAAAAAAAB7"
         "DAACCwABAAAAA1JVQgAADAAICwABAAAAAklEAAwACQsAAQAAAAJJRAALAAYAAAAKc2Vzc2lvbl9pZAwA"
         "BwwAAQoAAQAAAAAAAAB7DAACCwABAAAAA1JVQgAADAACCgABAAAAAAAAAHsMAAILAAEAAAADUlVCAAAL"
-        "AAMAAAAOc29tZSB0aW1lc3RhbXALAAQAAAAOc29tZSB0aW1lc3RhbXANAAULDAAAAAAAAAwABggAAQAA"
-        "AAEADAACDAABAAALAAQAAAAELTI5OQAAAA=="
+        "AAMAAAAOc29tZSB0aW1lc3RhbXALAAQAAAAOc29tZSB0aW1lc3RhbXAMAAYPAAgMAAAAAwoAAwAAAAAA"
+        "AAABAAwAAQAADQAHDAwAAAAAAAANAAULDAAAAAAAAAwABggAAQAAAAEADAACDAABAAALAAQAAAAELTI5"
+        "OQAAAA=="
     >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),

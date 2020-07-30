@@ -22,9 +22,6 @@
     {bank_card, resource_bank_card()} |
     {crypto_wallet, resource_crypto_wallet()}.
 
--type full_bank_card_id() ::
-    #{binary() => ff_bin_data:bin_data_id()}.
-
 -type resource_full() ::
     {bank_card, resource_full_bank_card()} |
     {crypto_wallet, resource_crypto_wallet()}.
@@ -60,6 +57,9 @@
     cardholder_name => binary(),
     exp_date        => exp_date()
 }.
+
+-type resource_id() ::
+    {bank_card, ff_bin_data:bin_data_id()}.
 
 -type bank_card_auth_data() ::
     {session, session_auth_data()}.
@@ -103,9 +103,9 @@
 -export_type([destination_state/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
+-export_type([resource_id/0]).
 -export_type([resource_type/0]).
 -export_type([resource_full/0]).
--export_type([full_bank_card_id/0]).
 -export_type([event/0]).
 -export_type([params/0]).
 -export_type([exp_date/0]).
@@ -125,7 +125,7 @@
 -export([resource_full/1]).
 -export([resource_full/2]).
 -export([process_resource_full/2]).
--export([full_bank_card_id/1]).
+-export([resource_id/1]).
 
 %% API
 
@@ -183,7 +183,7 @@ metadata(T)           -> ff_instrument:metadata(T).
 resource_full(Destination) ->
     resource_full(Destination, undefined).
 
--spec resource_full(destination_state(), full_bank_card_id() | undefined) ->
+-spec resource_full(destination_state(), resource_id() | undefined) ->
     {ok, resource_full()} |
     {error,
         {bin_data, not_found}
@@ -192,7 +192,7 @@ resource_full(Destination) ->
 resource_full(Destination, ResourceID) ->
     process_resource_full(resource(Destination), ResourceID).
 
--spec process_resource_full(resource(), full_bank_card_id() | undefined) ->
+-spec process_resource_full(resource(), resource_id() | undefined) ->
     {ok, resource_full()} |
     {error,
         {bin_data, not_found}
@@ -211,17 +211,17 @@ process_resource_full({bank_card, #{bank_card := #{token := Token} = BankCard} =
         }}
     end).
 
--spec full_bank_card_id(resource_full() | undefined) ->
-    full_bank_card_id() | undefined.
+-spec resource_id(resource_full() | undefined) ->
+    resource_id() | undefined.
 
-full_bank_card_id({bank_card, #{bank_card := #{bin_data_id := ID}}}) ->
-    #{<<"bank_card">> => ID};
-full_bank_card_id(_) ->
+resource_id({bank_card, #{bank_card := #{bin_data_id := ID}}}) ->
+    {bank_card, ID};
+resource_id(_) ->
     undefined.
 
 unwrap_resource_id(undefined) ->
     undefined;
-unwrap_resource_id(#{<<"bank_card">> := ID}) ->
+unwrap_resource_id({bank_card, ID}) ->
     ID.
 
 %% API

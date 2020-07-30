@@ -33,8 +33,9 @@
 -export([quota_ok_test/1]).
 -export([crypto_quota_ok_test/1]).
 -export([preserve_revisions_test/1]).
--export([use_quota_revisions_test/1]).
+-export([use_quote_revisions_test/1]).
 -export([unknown_test/1]).
+-export([provider_callback_test/1]).
 
 %% Internal types
 
@@ -53,6 +54,10 @@
     element(2, Cash)
 }).
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
+
+-define(PROCESS_CALLBACK_SUCCESS(Payload), #{
+    payload => Payload
+}).
 
 %% API
 
@@ -84,10 +89,11 @@ groups() ->
             quota_ok_test,
             crypto_quota_ok_test,
             preserve_revisions_test,
-            unknown_test
+            unknown_test,
+            provider_callback_test
         ]},
         {non_parallel, [sequence], [
-            use_quota_revisions_test
+            use_quote_revisions_test
         ]}
     ].
 
@@ -146,12 +152,8 @@ session_fail_test(C) ->
             cash_to     => {2120, <<"USD">>},
             created_at  => <<"2016-03-22T06:12:27Z">>,
             expires_on  => <<"2016-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"error">>},
-                <<"provider_id">> => 3,
-                <<"terminal_id">> => 1
-            }
+            route       => ff_withdrawal_routing:make_route(3, 1),
+            quote_data  => #{<<"test">> => <<"error">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -177,12 +179,8 @@ quote_fail_test(C) ->
             cash_to     => {2120, <<"USD">>},
             created_at  => <<"2016-03-22T06:12:27Z">>,
             expires_on  => <<"2016-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 10,
-                <<"terminal_id">> => 10
-            }
+            route       => ff_withdrawal_routing:make_route(10, 10),
+            quote_data  => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -438,12 +436,8 @@ quota_ok_test(C) ->
             cash_to     => {2120, <<"USD">>},
             created_at  => <<"2016-03-22T06:12:27Z">>,
             expires_on  => <<"2016-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 1,
-                <<"terminal_id">> => 1
-            }
+            route       => ff_withdrawal_routing:make_route(1, 1),
+            quote_data  => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -488,8 +482,8 @@ preserve_revisions_test(C) ->
     ?assertNotEqual(undefined, ff_withdrawal:party_revision(Withdrawal)),
     ?assertNotEqual(undefined, ff_withdrawal:created_at(Withdrawal)).
 
--spec use_quota_revisions_test(config()) -> test_return().
-use_quota_revisions_test(C) ->
+-spec use_quote_revisions_test(config()) -> test_return().
+use_quote_revisions_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         party_id := PartyID,
@@ -510,19 +504,15 @@ use_quota_revisions_test(C) ->
         wallet_id => WalletID,
         body => Cash,
         quote => #{
-            cash_from   => Cash,
-            cash_to     => {2120, <<"USD">>},
-            created_at  => <<"2016-03-22T06:12:27Z">>,
-            expires_on  => <<"2016-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 1,
-                <<"terminal_id">> => 1,
-                <<"timestamp">> => Time,
-                <<"domain_revision">> => DomainRevision,
-                <<"party_revision">> => PartyRevision
-            }
+            cash_from => Cash,
+            cash_to => {2120, <<"USD">>},
+            created_at => <<"2016-03-22T06:12:27Z">>,
+            expires_on => <<"2016-03-22T06:12:27Z">>,
+            domain_revision => DomainRevision,
+            party_revision => PartyRevision,
+            operation_timestamp => Time,
+            route => ff_withdrawal_routing:make_route(1, 1),
+            quote_data => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -536,6 +526,36 @@ unknown_test(_C) ->
     WithdrawalID = <<"unknown_withdrawal">>,
     Result = ff_withdrawal_machine:get(WithdrawalID),
     ?assertMatch({error, {unknown_withdrawal, WithdrawalID}}, Result).
+
+-spec provider_callback_test(config()) -> test_return().
+provider_callback_test(C) ->
+    Currency = <<"RUB">>,
+    Cash = {700700, Currency},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    CallbackTag = <<"cb_", WithdrawalID/binary>>,
+    CallbackPayload = <<"super_secret">>,
+    Callback = #{
+        tag => CallbackTag,
+        payload => CallbackPayload
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
+    SessionID = get_session_id(WithdrawalID),
+    ?assertEqual(<<"processing_callback">>, await_session_adapter_state(SessionID, <<"processing_callback">>)),
+    ?assertEqual({ok, ?PROCESS_CALLBACK_SUCCESS(CallbackPayload)}, call_process_callback(Callback)),
+    ?assertEqual(<<"callback_finished">>, await_session_adapter_state(SessionID, <<"callback_finished">>)),
+    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
 
 %% Utils
 
@@ -561,7 +581,35 @@ get_withdrawal(WithdrawalID) ->
     ff_withdrawal_machine:withdrawal(Machine).
 
 get_withdrawal_status(WithdrawalID) ->
-    ff_withdrawal:status(get_withdrawal(WithdrawalID)).
+    Withdrawal = get_withdrawal(WithdrawalID),
+    maps:get(status, Withdrawal).
+
+await_session_processing_status(WithdrawalID, Status) ->
+    Poller = fun() -> get_session_processing_status(WithdrawalID) end,
+    Retry = genlib_retry:linear(20, 1000),
+    ct_helper:await(Status, Poller, Retry).
+
+get_session_processing_status(WithdrawalID) ->
+    Withdrawal = get_withdrawal(WithdrawalID),
+    ff_withdrawal:get_current_session_status(Withdrawal).
+
+get_session(SessionID) ->
+    {ok, Machine} = ff_withdrawal_session_machine:get(SessionID),
+    ff_withdrawal_session_machine:session(Machine).
+
+await_session_adapter_state(SessionID, State) ->
+    Poller = fun() -> get_session_adapter_state(SessionID) end,
+    Retry = genlib_retry:linear(20, 1000),
+    ct_helper:await(State, Poller, Retry).
+
+get_session_adapter_state(SessionID) ->
+    Session = get_session(SessionID),
+    ff_withdrawal_session:adapter_state(Session).
+
+get_session_id(WithdrawalID) ->
+    Withdrawal = get_withdrawal(WithdrawalID),
+    Session = ff_withdrawal:get_current_session(Withdrawal),
+    ff_withdrawal_session:id(Session).
 
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(
@@ -712,3 +760,6 @@ make_dummy_party_change(PartyID) ->
         contractor_level  => full
     }),
     ok.
+
+call_process_callback(Callback) ->
+    ff_withdrawal_session_machine:process_callback(Callback).

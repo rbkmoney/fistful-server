@@ -1,4 +1,4 @@
--module(ff_ct_fail_provider).
+-module(ff_ct_sleepy_provider).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
@@ -49,8 +49,7 @@
 
 -type callback() :: ff_withdrawal_callback:callback().
 
--record(state, {}).
--type state() :: #state{}.
+-type state() :: any().
 
 %%
 %% API
@@ -72,13 +71,15 @@ start(Opts) ->
 
 -spec process_withdrawal(withdrawal(), state(), map()) ->
     {ok, Intent, NewState} when
-        Intent :: {finish, Status} | {sleep, Timer},
+        Intent :: {finish, Status} | {sleep, Timer} | {sleep, Timer, CallbackTag},
         NewState :: state(),
         Status :: {success, TrxInfo} | {failure, failure()},
         Timer :: {deadline, binary()} | {timeout, integer()},
+        CallbackTag :: binary(),
         TrxInfo :: #{id => binary()}.
-process_withdrawal(_Withdrawal, State, _Options) ->
-    {ok, {finish, {failure, <<"authorization_error">>}}, State}.
+process_withdrawal(#{id := WithdrawalID}, _State, _Options) ->
+    CallbackTag = <<"cb_", WithdrawalID/binary>>,
+    {ok, {sleep, {timeout, 5000}, CallbackTag}, {str, <<"processing_callback">>}}.
 
 -spec get_quote(quote_params(), map()) ->
     {ok, quote()}.
@@ -94,5 +95,9 @@ get_quote(_Quote, _Options) ->
         Timer :: {deadline, binary()} | {timeout, integer()},
         CallbackTag :: binary(),
         TrxInfo :: #{id => binary()}.
-handle_callback(_Callback, _Withdrawal, _State, _Options) ->
-    erlang:error(not_implemented).
+handle_callback(#{payload := Payload}, _Withdrawal, _State, _Options) ->
+    {ok,
+        {finish, {success, #{id => <<"test">>}}},
+        {str, <<"callback_finished">>},
+        #{payload => Payload}
+    }.

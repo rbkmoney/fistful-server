@@ -300,14 +300,19 @@ get_create_p2p_transfer_events_ok(C) ->
     }},
 
     Quote = #{
-        amount            => Cash,
-        party_revision    => 1,
-        domain_revision   => 1,
-        created_at        => ff_time:now(),
-        expires_on        => ff_time:now(),
-        identity_id       => ID,
-        sender            => CompactResource,
-        receiver          => CompactResource
+        fees => #{
+            fees => #{
+                surplus => {123, <<"RUB">>}
+            }
+        },
+        amount => Cash,
+        party_revision => 1,
+        domain_revision => 1,
+        created_at => ff_time:now(),
+        expires_on => ff_time:now(),
+        identity_id => ID,
+        sender => CompactResource,
+        receiver => CompactResource
     },
 
     ok = p2p_transfer_machine:create(

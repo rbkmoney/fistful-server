@@ -9,8 +9,8 @@
 -export_type([contact_info/0]).
 
 -type resource() :: ff_resource:resource().
--type resource_id() :: ff_resource:resource_id().
 -type resource_params() :: ff_resource:resource_params().
+-type resource_descriptor() :: ff_resource:resource_descriptor().
 
 -type contact_info() :: #{
     phone_number => binary(),
@@ -48,7 +48,7 @@ create(raw, ResourceParams, ContactInfo) ->
 get_resource(Participant) ->
     get_resource(Participant, undefined).
 
--spec get_resource(participant(), resource_id() | undefined) ->
+-spec get_resource(participant(), resource_descriptor() | undefined) ->
     {ok, resource()} |
     {error, {bin_data, not_found}}.
 get_resource({raw, #{resource_params := ResourceParams}}, ResourceID) ->

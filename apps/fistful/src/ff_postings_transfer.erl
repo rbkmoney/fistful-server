@@ -240,8 +240,11 @@ maybe_migrate({created, #{postings := Postings} = Transfer}, EvType) ->
         postings := Postings
     } = Transfer,
     CashFlowPostings = [
-        #{sender => #{account => S}, receiver => #{account => D}, volume => B}
-        || {S, D, B} <- Postings
+        #{
+            sender => #{account => maybe_migrate_account(S)},
+            receiver => #{account => maybe_migrate_account(D)},
+            volume => B
+        } || {S, D, B} <- Postings
     ],
     maybe_migrate({created, #{
         id              => ID,
@@ -283,6 +286,15 @@ maybe_migrate_posting(#{receiver := Receiver, sender := Sender} = Posting, EvTyp
         sender := maybe_migrate_final_account(Sender, sender, EvType)
     }.
 
+maybe_migrate_account({wallet, WalletID}) ->
+    {ok, Machine} = ff_wallet_machine:get(WalletID),
+    ff_wallet:account(ff_wallet_machine:wallet(Machine));
+maybe_migrate_account({destination, DestinationID}) ->
+    {ok, Machine} = ff_destination:get_machine(DestinationID),
+    ff_destination:account(ff_destination:get(Machine));
+maybe_migrate_account(Account) when is_map(Account) ->
+    Account.
+
 maybe_migrate_final_account(Account = #{type := _Type}, _, _) ->
     Account;
 maybe_migrate_final_account(Account, receiver, withdrawal) ->
@@ -293,4 +305,3 @@ maybe_migrate_final_account(Account, sender, withdrawal) ->
     Account#{type => {wallet, sender_settlement}};
 maybe_migrate_final_account(Account, sender, deposit) ->
     Account#{type => {wallet, sender_source}}.
-

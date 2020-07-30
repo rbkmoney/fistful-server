@@ -19,6 +19,8 @@ get_service(fistful_admin) ->
     {ff_proto_fistful_admin_thrift, 'FistfulAdmin'};
 get_service(ff_p2p_adapter_host) ->
     {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'};
+get_service(ff_withdrawal_adapter_host) ->
+    {dmsl_withdrawals_provider_adapter_thrift, 'AdapterHost'};
 get_service(deposit_event_sink) ->
     {ff_proto_deposit_thrift, 'EventSink'};
 get_service(source_event_sink) ->
@@ -81,6 +83,8 @@ get_service_path(fistful_admin) ->
     "/v1/admin";
 get_service_path(ff_p2p_adapter_host) ->
     "/v1/ff_p2p_adapter_host";
+get_service_path(ff_withdrawal_adapter_host) ->
+    "/v1/ff_withdrawal_adapter_host";
 get_service_path(deposit_event_sink) ->
     "/v1/eventsink/deposit";
 get_service_path(source_event_sink) ->

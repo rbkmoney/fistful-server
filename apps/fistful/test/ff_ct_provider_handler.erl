@@ -27,7 +27,19 @@ handle_function('GetQuote', [QuoteParams, Options], _Context, Opts) ->
     Params = decode_quote_params(QuoteParams),
     DOptions = decode_options(Options),
     {ok, Quote} = Handler:get_quote(Params, DOptions),
-    {ok, encode_quote(Quote)}.
+    {ok, encode_quote(Quote)};
+handle_function('HandleCallback', [Callback, Withdrawal, InternalState, Options], _Context, Opts) ->
+    Handler = get_handler(Opts),
+    DCallback = decode_callback(Callback),
+    DWithdrawal = decode_withdrawal(Withdrawal),
+    DState = decode_state(InternalState),
+    DOptions = decode_options(Options),
+    {ok, Intent, NewState, Response} = Handler:handle_callback(DCallback, DWithdrawal, DState, DOptions),
+    {ok, #wthadpt_CallbackResult{
+        intent = encode_intent(Intent),
+        next_state = encode_state(NewState),
+        response = encode_callback_response(Response)
+    }}.
 
 %%
 %% Internals
@@ -69,6 +81,9 @@ decode_options(Options) ->
 decode_state(State) ->
     State.
 
+decode_callback(#wthadpt_Callback{tag = Tag, payload = Payload}) ->
+    #{tag => Tag, payload => Payload}.
+
 %%
 
 encode_state(State) ->
@@ -78,6 +93,8 @@ encode_intent({finish, {success, TrxInfo}}) ->
     {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = encode_trx(TrxInfo)}}}};
 encode_intent({finish, {failure, Failure}}) ->
     {finish, #wthadpt_FinishIntent{status = {failure, encode_failure(Failure)}}};
+encode_intent({sleep, Timer, CallbackTag}) ->
+    {sleep, #wthadpt_SleepIntent{timer = encode_timer(Timer), callback_tag = encode_tag(CallbackTag)}};
 encode_intent({sleep, Timer}) ->
     {sleep, #wthadpt_SleepIntent{timer = encode_timer(Timer)}}.
 
@@ -91,6 +108,9 @@ encode_failure(Failure) ->
 
 encode_timer(Timer) ->
     Timer.
+
+encode_tag(Tag) ->
+    Tag.
 
 encode_quote(#{
     cash_from := CashFrom,
@@ -107,6 +127,8 @@ encode_quote(#{
         quote_data = QuoteData
     }.
 
+encode_callback_response(#{payload := Payload}) ->
+    #wthadpt_CallbackResponse{payload = Payload}.
 
 get_handler(Opts) ->
     proplists:get_value(handler, Opts, ff_ct_provider).

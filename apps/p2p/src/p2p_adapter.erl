@@ -201,7 +201,7 @@ build_operation_info_body(#{transfer_params := TransferParams, domain_revision :
     Cash = maps:get(body, TransferParams),
     convert_cash(Cash, DomainRevision).
 
--spec convert_fees(ff_fees:final() | undefined, ff_domain_config:revision()) ->
+-spec convert_fees(ff_fees_final:fees() | undefined, ff_domain_config:revision()) ->
     fees() | undefined.
 convert_fees(undefined, _DomainRevision) ->
     undefined;

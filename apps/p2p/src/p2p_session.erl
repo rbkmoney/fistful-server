@@ -88,8 +88,8 @@
     sender        := ff_resource:resource(),
     receiver      := ff_resource:resource(),
     deadline      => deadline(),
-    merchant_fees => ff_fees:final(),
-    provider_fees => ff_fees:final()
+    merchant_fees => ff_fees_final:fees(),
+    provider_fees => ff_fees_final:fees()
 }.
 
 -type route() :: #{

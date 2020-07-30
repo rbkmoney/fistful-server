@@ -2177,12 +2177,12 @@ to_swag(domain_failure, Failure = #domain_Failure{}) ->
 to_swag(failure, Failure = #domain_Failure{}) ->
     to_swag(map, #{
         <<"code">> => Failure#domain_Failure.code,
-        <<"subError">> => to_swag(failure, Failure#domain_Failure.sub)
+        <<"subError">> => to_swag(sub_failure, Failure#domain_Failure.sub)
     });
-to_swag(failure, Failure = #domain_SubFailure{}) ->
+to_swag(sub_failure, Failure = #domain_SubFailure{}) ->
     to_swag(map, #{
         <<"code">> => Failure#domain_SubFailure.code,
-        <<"subError">> => to_swag(failure, Failure#domain_SubFailure.sub)
+        <<"subError">> => to_swag(sub_failure, Failure#domain_SubFailure.sub)
     });
 to_swag(is_blocked, {ok, accessible}) ->
     false;
@@ -2278,10 +2278,7 @@ to_swag(p2p_transfer_status, succeeded) ->
         <<"status">> => <<"Succeeded">>
     };
 to_swag(p2p_transfer_status, {failed, P2PTransferFailure}) ->
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => to_swag(sub_failure, P2PTransferFailure)
-    };
+    map_p2p_transfer_error(P2PTransferFailure);
 
 to_swag(contact_info, ContactInfo) ->
     genlib_map:compact(#{
@@ -2350,10 +2347,7 @@ to_swag(w2w_transfer_status, succeeded) ->
         <<"status">> => <<"Succeeded">>
     };
 to_swag(w2w_transfer_status, {failed, W2WTransferFailure}) ->
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => to_swag(sub_failure, W2WTransferFailure)
-    };
+    map_w2w_transfer_error(W2WTransferFailure);
 
 to_swag(sub_failure, #{
     code := Code
@@ -2443,6 +2437,33 @@ maybe_to_swag(_T, undefined) ->
 maybe_to_swag(T, V) ->
     to_swag(T, V).
 
+map_p2p_transfer_error(#{code := Code} = Err) when
+    Code == <<"authorization_failed">> orelse
+    Code == <<"no_route_found">>
+->
+    to_swag(map, #{
+        <<"code">> => Code,
+        <<"subError">> => map_subfailure(maps:get(sub, Err, undefined))
+    });
+
+map_p2p_transfer_error(_Error) ->
+    #{
+      <<"code">> => <<"failed">>
+    }.
+
+map_w2w_transfer_error(#{code := Code} = Err) when
+    Code == <<"account_limit_exceeded">>
+->
+    to_swag(map, #{
+        <<"code">> => Code,
+        <<"subError">> => map_subfailure(maps:get(sub, Err, undefined))
+    });
+
+map_w2w_transfer_error(_Error) ->
+    #{
+      <<"code">> => <<"failed">>
+    }.
+
 map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
     #{
         <<"code">> => <<"terms_violation">>,
@@ -2474,7 +2495,7 @@ map_subfailure(undefined) ->
     undefined;
 
 map_subfailure(#{code := Code} = Subfailure) ->
-    genlib_map:compact(#{
+    to_swag(map, #{
         <<"code">> => Code,
         <<"subError">> => map_subfailure(maps:get(sub, Subfailure, undefined))
     }).

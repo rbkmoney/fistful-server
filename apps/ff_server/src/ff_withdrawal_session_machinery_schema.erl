@@ -62,11 +62,12 @@ marshal(T, V, C) when
     {data(), context()}.
 unmarshal({event, FormatVersion}, EncodedChange, Context) ->
     unmarshal_event(FormatVersion, EncodedChange, Context);
+unmarshal({aux_state, FormatVersion}, EncodedChange, Context) ->
+    unmarshal_aux_state(FormatVersion, EncodedChange, Context);
 unmarshal(T, V, C) when
     T =:= {args, init} orelse
     T =:= {args, call} orelse
     T =:= {args, repair} orelse
-    T =:= {aux_state, undefined} orelse
     T =:= {response, call} orelse
     T =:= {response, {repair, success}} orelse
     T =:= {response, {repair, failure}}
@@ -96,6 +97,12 @@ unmarshal_event(undefined = Version, EncodedChange, Context0) ->
     {Event, Context1} = machinery_mg_schema_generic:unmarshal({event, Version}, EncodedChange, Context0),
     {ev, Timestamp, Change} = Event,
     {{ev, Timestamp, maybe_migrate(Change, Context0)}, Context1}.
+
+-spec unmarshal_aux_state(machinery_mg_schema:version(), machinery_msgpack:t(), context()) ->
+    {aux_state(), context()}.
+unmarshal_aux_state(undefined = Version, EncodedAuxState, Context0) ->
+    {AuxState, Context1} = machinery_mg_schema_generic:unmarshal({aux_state, Version}, EncodedAuxState, Context0),
+    {maybe_migrate_aux_state(AuxState, Context0), Context1}.
 
 -spec maybe_migrate(any(), context()) ->
     ff_withdrawal_session:event().
@@ -335,6 +342,13 @@ try_get_identity_challenge(#{effective := ChallengeID, challenges := Challenges}
     };
 try_get_identity_challenge(_) ->
     undefined.
+
+-spec maybe_migrate_aux_state(aux_state() | term(), context()) ->
+    aux_state().
+maybe_migrate_aux_state(<<>>, _Context) ->
+    #{ctx => #{}};
+maybe_migrate_aux_state(AuxState, _Context) ->
+    AuxState.
 
 %% Tests
 

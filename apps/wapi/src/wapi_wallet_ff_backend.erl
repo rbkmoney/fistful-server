@@ -1932,7 +1932,7 @@ to_swag(challenge_status, {failed, Reason}) ->
         <<"failureReason">> => to_swag(challenge_failure_reason, Reason)
     };
 to_swag(challenge_failure_reason, Failure = #domain_Failure{}) ->
-    to_swag(domain_failure, Failure);
+    to_swag(failure, Failure);
 to_swag(challenge_failure_reason, Reason) ->
     genlib:to_binary(Reason);
 to_swag(identity_challenge_event, {ID, Ts, V}) ->

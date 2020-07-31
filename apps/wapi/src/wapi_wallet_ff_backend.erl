@@ -2143,7 +2143,7 @@ to_swag(withdrawal_status, {failed, Failure}) ->
 to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
     to_swag(failure, Failure);
 to_swag(withdrawal_status_failure, Failure) ->
-    map_internal_error(Failure);
+    map_withdrawal_error(Failure);
 to_swag(stat_status_failure, Failure) ->
     map_fistful_stat_error(Failure);
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
@@ -2470,14 +2470,14 @@ map_w2w_transfer_error(_Error) ->
       <<"code">> => <<"failed">>
     }.
 
-map_internal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
+map_withdrawal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
     #{
         <<"code">> => <<"terms_violation">>,
         <<"subError">> => #{
             <<"code">> => <<"cash_range">>
         }
     };
-map_internal_error(#{code := Code} = Err) when
+map_withdrawal_error(#{code := Code} = Err) when
     Code == <<"account_limit_exceeded">> orelse
     Code == <<"provider_limit_exceeded">> orelse
     Code == <<"no_route_found">> orelse
@@ -2487,7 +2487,7 @@ map_internal_error(#{code := Code} = Err) when
         <<"code">> => Code,
         <<"subError">> => map_subfailure(maps:get(sub, Err, undefined))
     });
-map_internal_error(_Reason) ->
+map_withdrawal_error(_Reason) ->
     #{
       <<"code">> => <<"failed">>
     }.

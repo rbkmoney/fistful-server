@@ -2278,7 +2278,10 @@ to_swag(p2p_transfer_status, succeeded) ->
         <<"status">> => <<"Succeeded">>
     };
 to_swag(p2p_transfer_status, {failed, P2PTransferFailure}) ->
-    map_p2p_transfer_error(P2PTransferFailure);
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => map_p2p_transfer_error(P2PTransferFailure)
+    };
 
 to_swag(contact_info, ContactInfo) ->
     genlib_map:compact(#{
@@ -2347,7 +2350,10 @@ to_swag(w2w_transfer_status, succeeded) ->
         <<"status">> => <<"Succeeded">>
     };
 to_swag(w2w_transfer_status, {failed, W2WTransferFailure}) ->
-    map_w2w_transfer_error(W2WTransferFailure);
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => map_w2w_transfer_error(W2WTransferFailure)
+    };
 
 to_swag(sub_failure, #{
     code := Code

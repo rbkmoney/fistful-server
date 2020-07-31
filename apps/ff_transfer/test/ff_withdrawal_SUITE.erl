@@ -55,10 +55,6 @@
 }).
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
 
--define(PROCESS_CALLBACK_SUCCESS(Payload), #{
-    payload => Payload
-}).
-
 %% API
 
 -spec all() -> [test_case_name() | {group, group_name()}].
@@ -553,9 +549,14 @@ provider_callback_test(C) ->
     ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
     SessionID = get_session_id(WithdrawalID),
     ?assertEqual(<<"processing_callback">>, await_session_adapter_state(SessionID, <<"processing_callback">>)),
-    ?assertEqual({ok, ?PROCESS_CALLBACK_SUCCESS(CallbackPayload)}, call_process_callback(Callback)),
+    ?assertEqual({ok, #{payload => CallbackPayload}}, call_process_callback(Callback)),
     ?assertEqual(<<"callback_finished">>, await_session_adapter_state(SessionID, <<"callback_finished">>)),
-    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
+    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),
+    ?assertEqual({ok, #{payload => CallbackPayload}}, call_process_callback(Callback)),
+    % Wait ff_ct_sleepy_provider timeout
+    timer:sleep(5000),
+    % Check that session is still alive
+    ?assertEqual({ok, #{payload => CallbackPayload}}, call_process_callback(Callback)).
 
 %% Utils
 

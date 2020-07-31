@@ -23,9 +23,10 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [MarshaledParams, Context], Opts) ->
+handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
     P2PTransferID = MarshaledParams#p2p_transfer_P2PTransferParams.id,
     Params = ff_p2p_transfer_codec:unmarshal_p2p_transfer_params(MarshaledParams),
+    Context = ff_p2p_transfer_codec:unmarshal(ctx, MarshaledContext),
     ok = scoper:add_meta(maps:with([id, identity_id, external_id], Params)),
     case p2p_transfer_machine:create(Params, Context) of
         ok ->

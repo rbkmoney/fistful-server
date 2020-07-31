@@ -191,15 +191,15 @@ create_p2p_transfer_ok_test(C) ->
     ?assertEqual(ExternalID, P2PTransferState#p2p_transfer_P2PTransferState.external_id),
     ?assertEqual(IdentityID, P2PTransferState#p2p_transfer_P2PTransferState.owner),
     ?assertEqual(
-        p2p_template:domain_revision(Expected),
+        p2p_transfer:domain_revision(Expected),
         P2PTransferState#p2p_transfer_P2PTransferState.domain_revision
     ),
     ?assertEqual(
-        p2p_template:party_revision(Expected),
+        p2p_transfer:party_revision(Expected),
         P2PTransferState#p2p_transfer_P2PTransferState.party_revision
     ),
     ?assertEqual(
-        p2p_template:created_at(Expected),
+        p2p_transfer:created_at(Expected),
         ff_codec:unmarshal(timestamp_ms, P2PTransferState#p2p_transfer_P2PTransferState.created_at)
     ).
 

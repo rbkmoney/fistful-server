@@ -18,6 +18,7 @@
     p_transfer => p_transfer(),
     status => status(),
     external_id => id(),
+    metadata => metadata(),
     limit_checks => [limit_check_details()],
     adjustments => adjustments_index()
 }.
@@ -32,7 +33,8 @@
     domain_revision := domain_revision(),
     created_at := ff_time:timestamp_ms(),
     status => status(),
-    external_id => id()
+    external_id => id(),
+    metadata => metadata()
 }.
 
 -type params() :: #{
@@ -40,7 +42,8 @@
     body := ff_transaction:body(),
     wallet_from_id := wallet_id(),
     wallet_to_id := wallet_id(),
-    external_id => external_id()
+    external_id => external_id(),
+    metadata => metadata()
 }.
 
 -type status() ::
@@ -125,6 +128,7 @@
 -export([party_revision/1]).
 -export([domain_revision/1]).
 -export([created_at/1]).
+-export([metadata/1]).
 
 %% API
 -export([create/1]).
@@ -170,6 +174,7 @@
 -type identity()              :: ff_identity:identity_state().
 -type terms()                 :: ff_party:terms().
 -type clock()                 :: ff_transaction:clock().
+-type metadata()              :: ff_entity_context:md().
 
 -type activity() ::
     p_transfer_start |
@@ -226,6 +231,10 @@ domain_revision(T) ->
 created_at(T) ->
     maps:get(created_at, T, undefined).
 
+-spec metadata(w2w_transfer_state()) -> metadata() | undefined.
+metadata(T) ->
+    maps:get(metadata, T, undefined).
+
 %% API
 
 -spec create(params()) ->
@@ -253,8 +262,9 @@ create(Params) ->
         ),
         valid =  unwrap(terms, validate_w2w_transfer_creation(Terms, Params, WalletFrom, WalletTo)),
         ExternalID = maps:get(external_id, Params, undefined),
+        Metadata = maps:get(metadata, Params, undefined),
         [
-            {created, add_external_id(ExternalID, #{
+            {created, genlib_map:compact(#{
                 version => ?ACTUAL_FORMAT_VERSION,
                 id => ID,
                 body => Body,
@@ -262,7 +272,9 @@ create(Params) ->
                 wallet_to_id => WalletToID,
                 party_revision => PartyRevision,
                 domain_revision => DomainRevision,
-                created_at => CreatedAt
+                created_at => CreatedAt,
+                external_id => ExternalID,
+                metadata => Metadata
             })},
             {status_changed, pending}
         ]
@@ -358,11 +370,6 @@ do_start_adjustment(Params, W2WTransferState) ->
         {Action, Events} = unwrap(ff_adjustment:create(AdjustmentParams)),
         {Action, ff_adjustment_utils:wrap_events(AdjustmentID, Events)}
     end).
-
-add_external_id(undefined, Event) ->
-    Event;
-add_external_id(ExternalID, Event) ->
-    Event#{external_id => ExternalID}.
 
 -spec deduce_activity(w2w_transfer_state()) ->
     activity().

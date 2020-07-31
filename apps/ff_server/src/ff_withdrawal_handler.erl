@@ -23,7 +23,7 @@ handle_function(Func, Args, Opts) ->
 %%
 handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
     Params = ff_withdrawal_codec:unmarshal_withdrawal_params(MarshaledParams),
-    Context = ff_withdrawal_codec:unmarshal(context, MarshaledContext),
+    Context = ff_withdrawal_codec:unmarshal(ctx, MarshaledContext),
     ok = scoper:add_meta(maps:with([id, wallet_id, destination_id, external_id], Params)),
     case ff_withdrawal_machine:create(Params, Context) of
         ok ->

@@ -243,6 +243,9 @@ marshal(session_result, success) ->
 marshal(session_result, {failure, Failure}) ->
     {failed, #p2p_transfer_SessionFailed{failure = marshal(failure, Failure)}};
 
+marshal(ctx, Ctx) ->
+    maybe_marshal(context, Ctx);
+
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -410,6 +413,9 @@ unmarshal(session_result, {succeeded, #p2p_transfer_SessionSucceeded{}}) ->
     success;
 unmarshal(session_result, {failed, #p2p_transfer_SessionFailed{failure = Failure}}) ->
     {failure, unmarshal(failure, Failure)};
+
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

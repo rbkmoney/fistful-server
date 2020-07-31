@@ -62,11 +62,12 @@ marshal(T, V, C) when
     {data(), context()}.
 unmarshal({event, FormatVersion}, EncodedChange, Context) ->
     unmarshal_event(FormatVersion, EncodedChange, Context);
+unmarshal({aux_state, FormatVersion}, EncodedChange, Context) ->
+    unmarshal_aux_state(FormatVersion, EncodedChange, Context);
 unmarshal(T, V, C) when
     T =:= {args, init} orelse
     T =:= {args, call} orelse
     T =:= {args, repair} orelse
-    T =:= {aux_state, undefined} orelse
     T =:= {response, call} orelse
     T =:= {response, {repair, success}} orelse
     T =:= {response, {repair, failure}}
@@ -97,6 +98,12 @@ unmarshal_event(undefined = Version, EncodedChange, Context0) ->
     {ev, Timestamp, Change} = Event,
     {{ev, Timestamp, maybe_migrate(Change, Context0)}, Context1}.
 
+-spec unmarshal_aux_state(machinery_mg_schema:version(), machinery_msgpack:t(), context()) ->
+    {aux_state(), context()}.
+unmarshal_aux_state(undefined = Version, EncodedAuxState, Context0) ->
+    {AuxState, Context1} = machinery_mg_schema_generic:unmarshal({aux_state, Version}, EncodedAuxState, Context0),
+    {maybe_migrate_aux_state(AuxState, Context0), Context1}.
+
 -spec maybe_migrate(any(), context()) ->
     ff_withdrawal_session:event().
 
@@ -113,7 +120,7 @@ maybe_migrate({created, Session = #{version := 3, withdrawal := Withdrawal = #{
             receiver => try_migrate_to_adapter_identity(Receiver)
     }}),
     maybe_migrate({created, NewSession}, Context);
-maybe_migrate({created, #{version := 2} = Session}, Context) ->
+maybe_migrate({created, #{version := 2} = Session}, Context) when is_map_key(provider, Session) ->
     KnowndLegacyIDs = #{
         <<"mocketbank">> => 1,
         <<"royalpay-payout">> => 2,
@@ -141,6 +148,19 @@ maybe_migrate({created, #{version := 2} = Session}, Context) ->
         provider_legacy => LegacyProviderID
     },
     maybe_migrate({created, NewSession}, Context);
+maybe_migrate({created, #{version := 2} = Session}, Context) when not is_map_key(provider, Session) ->
+    #{
+        adapter := {Client, _Opts}
+    } = Session,
+    #{
+        url := Url,
+        event_handler := scoper_woody_event_handler
+    } = Client,
+    LegacyUrls = #{
+        <<"http://adapter-royalpay:8022/adapter/royalpay/p2p-credit">> => <<"royalpay">>,
+        <<"http://proxy-mocketbank:8022/proxy/mocketbank/p2p-credit">> => <<"mocketbank">>
+    },
+    maybe_migrate({created, Session#{provider => maps:get(Url, LegacyUrls)}}, Context);
 maybe_migrate({created, Session = #{version := 1, withdrawal := Withdrawal = #{
     sender := Sender,
     receiver := Receiver
@@ -322,6 +342,13 @@ try_get_identity_challenge(#{effective := ChallengeID, challenges := Challenges}
     };
 try_get_identity_challenge(_) ->
     undefined.
+
+-spec maybe_migrate_aux_state(aux_state() | term(), context()) ->
+    aux_state().
+maybe_migrate_aux_state(<<>>, _Context) ->
+    #{ctx => #{}};
+maybe_migrate_aux_state(AuxState, _Context) ->
+    AuxState.
 
 %% Tests
 
@@ -579,6 +606,134 @@ created_v0_unknown_with_binary_provider_decoding_test() ->
                                 {str, <<"level">>} => {bin, <<"identified">>},
                                 {str, <<"party">>} => {bin, <<"party">>},
                                 {str, <<"provider">>} => {bin, <<"provider">>}}}
+                            ]}
+                        }}
+                    ]}
+                }}
+            ]}
+        ]}
+    ]},
+    {DecodedLegacy, _Context} = unmarshal({event, undefined}, LegacyEvent, #{bindata_fun => fun(R) -> R end}),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
+-spec created_v0_unknown_without_provider_decoding_test() -> _.
+created_v0_unknown_without_provider_decoding_test() ->
+    Session = #{
+        version => 4,
+        id => <<"294">>,
+        route => #{
+            provider_id => 301
+        },
+        provider_legacy => <<"mocketbank">>,
+        status => active,
+        withdrawal => #{
+            cash => {10000000, <<"RUB">>},
+            id => <<"294">>,
+            receiver => #{id => <<"receiver_id">>},
+            sender => #{id => <<"sender_id">>},
+            resource => {bank_card, #{bank_card => #{
+                bin => <<"123456">>,
+                masked_pan => <<"1234">>,
+                payment_system => visa,
+                token => <<"token">>
+            }}}
+        }
+    },
+    Change = {created, Session},
+    Event = {ev, {{{2018, 9, 5}, {11, 21, 57}}, 119792}, Change},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2018}, {i, 9}, {i, 5}]},
+                {arr, [{str, <<"tup">>}, {i, 11}, {i, 21}, {i, 57}]}
+            ]},
+            {i, 119792}
+        ]},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"created">>},
+            {arr, [
+                {str, <<"map">>},
+                {obj, #{
+                    {str, <<"adapter">>} => {arr, [
+                        {str, <<"tup">>},
+                        {arr, [
+                            {str, <<"map">>},
+                            {obj, #{
+                                {str, <<"event_handler">>} => {str, <<"scoper_woody_event_handler">>},
+                                {str, <<"url">>} => {bin,
+                                    <<"http://proxy-mocketbank:8022/proxy/mocketbank/p2p-credit">>
+                                }
+                            }}
+                        ]},
+                        {arr, [
+                            {str, <<"map">>},
+                            {obj, #{}}
+                        ]}
+                    ]},
+                    {str, <<"id">>} => {bin, <<"294">>},
+                    {str, <<"status">>} => {str, <<"active">>},
+                    {str, <<"withdrawal">>} => {arr, [
+                        {str, <<"map">>},
+                        {obj, #{
+                            {str, <<"cash">>} => {arr, [{str, <<"tup">>}, {i, 10000000}, {bin, <<"RUB">>}]},
+                            {str, <<"destination">>} => {arr, [
+                                {str, <<"map">>},
+                                {obj, #{
+                                    {str, <<"account">>} => {arr, [
+                                        {str, <<"map">>},
+                                        {obj, #{
+                                            {str, <<"accounter_account_id">>} => {i, 11895},
+                                            {str, <<"currency">>} => {bin, <<"RUB">>},
+                                            {str, <<"id">>} => {bin, <<"destination">>},
+                                            {str, <<"identity">>} => {bin, <<"destination_identity">>}
+                                        }}
+                                    ]},
+                                    {str, <<"name">>} => {bin, <<"Customer">>},
+                                    {str, <<"resource">>} => {arr, [
+                                        {str, <<"tup">>},
+                                        {str, <<"bank_card">>},
+                                        {arr, [
+                                            {str, <<"map">>},
+                                            {obj, #{
+                                                {str, <<"bin">>} => {bin, <<"123456">>},
+                                                {str, <<"masked_pan">>} => {bin, <<"1234">>},
+                                                {str, <<"payment_system">>} => {str, <<"visa">>},
+                                                {str, <<"token">>} => {bin, <<"token">>}
+                                            }}
+                                        ]}
+                                    ]},
+                                    {str, <<"status">>} => {str, <<"authorized">>}
+                                }}
+                            ]},
+                            {str, <<"id">>} => {bin, <<"294">>},
+                            {str, <<"receiver">>} => {arr, [
+                                {str, <<"map">>},
+                                {obj, #{
+                                    {str, <<"class">>} => {bin, <<"person">>},
+                                    {str, <<"contract">>} => {bin, <<"123">>},
+                                    {str, <<"id">>} => {bin, <<"receiver_id">>},
+                                    {str, <<"level">>} => {bin, <<"anonymous">>},
+                                    {str, <<"party">>} => {bin, <<"123">>},
+                                    {str, <<"provider">>} => {bin, <<"test">>}
+                                }}
+                            ]},
+                            {str, <<"sender">>} => {arr, [
+                                {str, <<"map">>},
+                                {obj, #{
+                                    {str, <<"class">>} => {bin, <<"person">>},
+                                    {str, <<"contract">>} => {bin, <<"123">>},
+                                    {str, <<"id">>} => {bin, <<"sender_id">>},
+                                    {str, <<"level">>} => {bin, <<"anonymous">>},
+                                    {str, <<"party">>} => {bin, <<"321">>},
+                                    {str, <<"provider">>} => {bin, <<"test">>}
+                                }}
                             ]}
                         }}
                     ]}

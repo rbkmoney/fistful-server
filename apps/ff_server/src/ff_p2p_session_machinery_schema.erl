@@ -113,6 +113,18 @@ maybe_migrate({created, #{version := 1} = Session}) ->
             receiver => maybe_migrate_resource(Receiver)
         }
     })});
+maybe_migrate({created, #{version := 2} = Session}) ->
+    #{
+        version := 2,
+        provider_id := ProviderID
+    } = Session,
+    maybe_migrate({created, genlib_map:compact(maps:without([provider_id], Session#{
+        version => 3,
+        route => #{
+            provider_id => ProviderID + 400
+        },
+        provider_id_legacy => ProviderID
+    }))});
 % Other events
 maybe_migrate({callback, _Ev} = Event) ->
     p2p_callback_utils:maybe_migrate(Event);
@@ -148,6 +160,162 @@ unmarshal(Type, Value) ->
     {Result, _Context} = unmarshal(Type, Value, #{}),
     Result.
 
+-spec created_v0_1_decoding_test() -> _.
+created_v0_1_decoding_test() ->
+    Fees = #{fees => #{operation_amount => {100, <<"RUB">>}}},
+    TransferParams = #{
+        id => <<"2">>,
+        body => {10000, <<"RUB">>},
+        sender => {bank_card, #{bank_card => #{
+            bin => <<"555555">>,
+            bin_data_id => 279896,
+            card_type => credit,
+            cardholder_name => <<"sender">>,
+            exp_date => {10, 2022},
+            iso_country_code => bra,
+            masked_pan => <<"4444">>,
+            payment_system => mastercard,
+            token => <<"token">>
+        }}},
+        receiver => {bank_card, #{bank_card => #{
+            bin => <<"424242">>,
+            bin_data_id => 279896,
+            card_type => credit,
+            cardholder_name => <<"receiver">>,
+            exp_date => {10, 2022},
+            iso_country_code => gbr,
+            masked_pan => <<"4242">>,
+            payment_system => visa,
+            token => <<"token">>
+        }}},
+        provider_fees => Fees
+    },
+
+    P2PSession = #{
+        version => 3,
+        id => <<"2">>,
+        status => active,
+        transfer_params => TransferParams,
+        route => #{provider_id => 401},
+        provider_id_legacy => 1,
+        domain_revision => 123,
+        party_revision => 321
+    },
+    Change = {created, P2PSession},
+    Event = {ev, {{{2020, 3, 4}, {13, 27, 20}}, 136850}, Change},
+
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 3}, {i, 4}]},
+                {arr, [{str, <<"tup">>}, {i, 13}, {i, 27}, {i, 20}]}
+            ]},
+            {i, 136850}
+        ]},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"created">>},
+            {arr, [
+                {str, <<"map">>},
+                {obj, #{
+                    {str, <<"adapter">>} => {arr, [
+                        {str, <<"tup">>},
+                        {arr, [
+                            {str, <<"map">>},
+                            {obj, #{
+                                {str, <<"event_handler">>} => {arr, [
+                                    {str, <<"tup">>},
+                                    {str, <<"scoper_woody_event_handler">>},
+                                    {arr, [
+                                        {str, <<"map">>}, {obj, #{}}
+                                    ]}
+                                ]},
+                                {str, <<"url">>} => {bin, <<"http://adapter-mockapter:8022/adapter/mockapter/p2p">>}
+                            }}
+                        ]},
+                        {arr, [{str, <<"map">>}, {obj, #{{bin, <<"k">>} => {bin, <<"v">>}}}]}
+                    ]},
+                    {str, <<"domain_revision">>} => {i, 123},
+                    {str, <<"id">>} => {bin, <<"2">>},
+                    {str, <<"party_revision">>} => {i, 321},
+                    {str, <<"provider_id">>} => {i, 1},
+                    {str, <<"status">>} => {str, <<"active">>},
+                    {str, <<"transfer_params">>} => {arr, [
+                        {str, <<"map">>},
+                        {obj, #{
+                            {str, <<"body">>} => {arr, [{str, <<"tup">>}, {i, 10000}, {bin, <<"RUB">>}]},
+                            {str, <<"id">>} => {bin, <<"2">>},
+                            {str, <<"provider_fees">>} => {arr, [
+                                {str, <<"map">>},
+                                {obj, #{
+                                    {str, <<"fees">>} => {arr, [
+                                        {str, <<"map">>},
+                                        {obj, #{
+                                            {str, <<"operation_amount">>} => {arr, [
+                                                {str, <<"tup">>},
+                                                {i, 100},
+                                                {bin, <<"RUB">>}
+                                            ]}
+                                        }}
+                                    ]}
+                                }}
+                            ]},
+                            {str, <<"receiver">>} => {arr, [
+                                {str, <<"tup">>},
+                                {str, <<"bank_card">>},
+                                {arr, [
+                                    {str, <<"map">>},
+                                    {obj, #{
+                                        {str, <<"bin">>} => {bin, <<"424242">>},
+                                        {str, <<"bin_data_id">>} => {i, 279896},
+                                        {str, <<"card_type">>} => {str, <<"credit">>},
+                                        {str, <<"cardholder_name">>} => {bin, <<"receiver">>},
+                                        {str, <<"exp_date">>} => {arr, [
+                                            {str, <<"tup">>}, {i, 10}, {i, 2022}
+                                        ]},
+                                        {str, <<"iso_country_code">>} => {str, <<"gbr">>},
+                                        {str, <<"masked_pan">>} => {bin, <<"4242">>},
+                                        {str, <<"payment_system">>} => {str, <<"visa">>},
+                                        {str, <<"token">>} => {bin, <<"token">>}
+                                    }}
+                                ]}
+                            ]},
+                            {str, <<"sender">>} => {arr, [
+                                {str, <<"tup">>},
+                                {str, <<"bank_card">>},
+                                {arr, [
+                                    {str, <<"map">>},
+                                    {obj, #{
+                                        {str, <<"bin">>} => {bin, <<"555555">>},
+                                        {str, <<"bin_data_id">>} => {i, 279896},
+                                        {str, <<"card_type">>} => {str, <<"credit">>},
+                                        {str, <<"cardholder_name">>} => {bin, <<"sender">>},
+                                        {str, <<"exp_date">>} => {arr, [
+                                            {str, <<"tup">>}, {i, 10}, {i, 2022}
+                                        ]},
+                                        {str, <<"iso_country_code">>} => {str, <<"bra">>},
+                                        {str, <<"masked_pan">>} => {bin, <<"4444">>},
+                                        {str, <<"payment_system">>} => {str, <<"mastercard">>},
+                                        {str, <<"token">>} => {bin, <<"token">>}
+                                    }}
+                                ]}
+                            ]}
+                        }}
+                    ]},
+                    {str, <<"version">>} => {i, 1}
+                }}
+            ]}
+        ]}
+    ]},
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, 1}, DecodedLegacy),
+    Decoded = unmarshal({event, 1}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
 -spec created_v0_2_decoding_test() -> _.
 created_v0_2_decoding_test() ->
     Resource = {bank_card, #{bank_card => #{
@@ -168,11 +336,12 @@ created_v0_2_decoding_test() ->
     },
 
     P2PSession = #{
-        version => 2,
+        version => 3,
         id => <<"session">>,
         status => active,
         transfer_params => TransferParams,
-        provider_id => 1,
+        route => #{provider_id => 401},
+        provider_id_legacy => 1,
         domain_revision => 123,
         party_revision => 321
     },

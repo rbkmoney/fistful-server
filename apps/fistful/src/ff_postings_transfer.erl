@@ -265,19 +265,23 @@ maybe_migrate_cash_flow(#{postings := CashFlowPostings} = CashFlow, EvType) ->
 
 % Some cashflow in early withdrawals has been created with binary accounter_account_id
 maybe_migrate_posting(#{
-    sender := #{accounter_account_id := SenderAcc} = Sender
+    sender := #{account := #{accounter_account_id := SenderAcc} = Account} = Sender
 } = Posting, EvType) when is_binary(SenderAcc) ->
     maybe_migrate_posting(Posting#{
         sender := Sender#{
-            accounter_account_id := erlang:binary_to_integer(SenderAcc)
+            account := Account#{
+                accounter_account_id := erlang:binary_to_integer(SenderAcc)
+            }
         }
     }, EvType);
 maybe_migrate_posting(#{
-    receiver := #{accounter_account_id := ReceiverAcc} = Receiver
+    receiver := #{account := #{accounter_account_id := ReceiverAcc} = Account} = Receiver
 } = Posting, EvType) when is_binary(ReceiverAcc) ->
     maybe_migrate_posting(Posting#{
         receiver := Receiver#{
-            accounter_account_id := erlang:binary_to_integer(ReceiverAcc)
+            account := Account#{
+                accounter_account_id := erlang:binary_to_integer(ReceiverAcc)
+            }
         }
     }, EvType);
 maybe_migrate_posting(#{receiver := Receiver, sender := Sender} = Posting, EvType) ->

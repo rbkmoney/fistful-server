@@ -266,7 +266,8 @@ process_intent(Intent, Session, AdditionalEvents) ->
 
 process_intent({finish, Result}, _Session) ->
     #{
-        events => [{finished, Result}]
+        events => [{finished, Result}],
+        action => unset_timer
     };
 process_intent({sleep, #{timer := Timer} = Params}, Session) ->
     CallbackEvents = create_callback(Params, Session),

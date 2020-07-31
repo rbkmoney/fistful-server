@@ -79,7 +79,7 @@ start(Opts) ->
         TrxInfo :: #{id => binary()}.
 process_withdrawal(#{id := WithdrawalID}, _State, _Options) ->
     CallbackTag = <<"cb_", WithdrawalID/binary>>,
-    {ok, {sleep, {timeout, 5000}, CallbackTag}, {str, <<"processing_callback">>}}.
+    {ok, {sleep, {timeout, 5}, CallbackTag}, {str, <<"processing_callback">>}}.
 
 -spec get_quote(quote_params(), map()) ->
     {ok, quote()}.

@@ -25,7 +25,7 @@ handle_function(Func, Args, Opts) ->
 
 handle_function_('Create', [IdentityParams, Context], Opts) ->
     Params = #{id := IdentityID} = ff_identity_codec:unmarshal_identity_params(IdentityParams),
-    case ff_identity_machine:create(Params, Context) of
+    case ff_identity_machine:create(Params, ff_identity_codec:unmarshal(ctx, Context)) of
         ok ->
             handle_function_('Get', [IdentityID], Opts);
         {error, {provider, notfound}} ->

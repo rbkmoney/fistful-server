@@ -121,7 +121,7 @@ get_context_test(C) ->
     },
     {ok, _P2PTemplateState} = call_p2p_template('Create', [Params, Ctx]),
     {ok, EncodedContext} = call_p2p_template('GetContext', [P2PTemplateID]),
-    ?assertEqual(Ctx, ff_entity_context_codec:unmarshal(EncodedContext)).
+    ?assertEqual(Ctx, EncodedContext).
 
 -spec create_p2p_template_ok_test(config()) -> test_return().
 create_p2p_template_ok_test(C) ->

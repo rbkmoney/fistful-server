@@ -26,7 +26,7 @@ handle_function_('Create', [Params, Context], Opts) ->
     WalletID = Params#wlt_WalletParams.id,
     case ff_wallet_machine:create(
         ff_wallet_codec:unmarshal_wallet_params(Params),
-        Context)
+        ff_wallet_codec:unmarshal(ctx, Context))
     of
         ok ->
             handle_function_('Get', [WalletID], Opts);

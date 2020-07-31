@@ -38,7 +38,7 @@ marshal(timestamped_change, {ev, Timestamp, Change}) ->
 marshal(change, {created, Session}) ->
     {created, marshal(session, Session)};
 marshal(change, {next_state, AdapterState}) ->
-    {next_state, marshal(msgpack_value, AdapterState)};
+    {next_state, marshal(msgpack, AdapterState)};
 marshal(change, {finished, SessionResult}) ->
     {finished, marshal(session_result, SessionResult)};
 marshal(change, {callback, CallbackChange}) ->
@@ -188,7 +188,7 @@ unmarshal(repair_scenario, {set_session_result, #wthd_session_SetResultRepair{re
 unmarshal(change, {created, Session}) ->
     {created, unmarshal(session, Session)};
 unmarshal(change, {next_state, AdapterState}) ->
-    {next_state, unmarshal(msgpack_value, AdapterState)};
+    {next_state, unmarshal(msgpack, AdapterState)};
 unmarshal(change, {finished, SessionResult}) ->
     {finished, unmarshal(session_result, SessionResult)};
 unmarshal(change, {callback, #wthd_session_CallbackChange{tag = Tag, payload = Payload}}) ->

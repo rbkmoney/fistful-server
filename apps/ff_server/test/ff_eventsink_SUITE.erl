@@ -332,7 +332,7 @@ get_create_p2p_transfer_events_ok(C) ->
         ff_entity_context:new()
     ),
 
-    {ok, RawEvents} = p2p_transfer_machine:events(ID, {undefined, 1000, forward}),
+    {ok, RawEvents} = p2p_transfer_machine:events(ID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 

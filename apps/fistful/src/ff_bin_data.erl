@@ -113,6 +113,7 @@ decode_payment_system(<<"AMERICAN EXPRESS">>)          -> amex;
 decode_payment_system(<<"DINERS CLUB INTERNATIONAL">>) -> dinersclub;
 decode_payment_system(<<"DISCOVER">>)                  -> discover;
 decode_payment_system(<<"UNIONPAY">>)                  -> unionpay;
+decode_payment_system(<<"CHINA UNION PAY">>)           -> unionpay;
 decode_payment_system(<<"JCB">>)                       -> jcb;
 decode_payment_system(<<"NSPK MIR">>)                  -> nspkmir;
 decode_payment_system(<<"ELO">>)                       -> elo;

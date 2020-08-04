@@ -59,7 +59,7 @@ get(Token, undefined) ->
 get(Token, ID) ->
     case call_binbase('GetByBinDataId', [encode_msgpack(ID)]) of
         {ok, Result} ->
-            {ok, decode_result(Token, Result)};
+            decode_result(Token, Result);
         {exception, #binbase_BinNotFound{}} ->
             {error, not_found}
     end.

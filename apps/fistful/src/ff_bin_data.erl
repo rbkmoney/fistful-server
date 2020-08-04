@@ -118,6 +118,7 @@ decode_payment_system(<<"JCB">>)                       -> jcb;
 decode_payment_system(<<"NSPK MIR">>)                  -> nspkmir;
 decode_payment_system(<<"ELO">>)                       -> elo;
 decode_payment_system(<<"RUPAY">>)                     -> rupay;
+decode_payment_system(<<"EBT">>)                       -> ebt;
 decode_payment_system(_) ->
     erlang:error({decode_payment_system, invalid_payment_system}).
 

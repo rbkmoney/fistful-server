@@ -365,6 +365,14 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {destination_resource, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Unknown card issuer">>)
+            );
+        {error, {destination_resource, {bin_data, {unknown_payment_system, _PaymentSystem}}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Unknown card payment system">>)
+            );
+        {error, {destination_resource, {bin_data, {unknown_residence, _Residence}}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Unknown card issuer residence">>)
             )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
@@ -586,10 +594,10 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters' := Params}, Context, _Op
         {error, {party, _PartyContractError}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such party">>));
-        {error, {sender, {bin_data, not_found}}} ->
+        {error, {sender, {bin_data, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
-        {error, {receiver, {bin_data, not_found}}} ->
+        {error, {receiver, {bin_data, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
         {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
@@ -620,10 +628,10 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {identity, unauthorized}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
-        {error, {sender, {bin_data, not_found}}} ->
+        {error, {sender, {bin_data, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
-        {error, {receiver, {bin_data, not_found}}} ->
+        {error, {receiver, {bin_data, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
         {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
@@ -750,10 +758,10 @@ process_request('CreateP2PTransferWithTemplate', #{
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
-        {error, {sender, {bin_data, not_found}}} ->
+        {error, {sender, {bin_data, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
-        {error, {receiver, {bin_data, not_found}}} ->
+        {error, {receiver, {bin_data, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
         {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
@@ -790,10 +798,10 @@ process_request('QuoteP2PTransferWithTemplate', #{
         {error, {party, _PartyContractError}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such party">>));
-        {error, {sender, {bin_data, not_found}}} ->
+        {error, {sender, {bin_data, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
-        {error, {receiver, {bin_data, not_found}}} ->
+        {error, {receiver, {bin_data, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
         {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->

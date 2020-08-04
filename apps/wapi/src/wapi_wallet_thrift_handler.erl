@@ -175,7 +175,7 @@ process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) 
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, {currency, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
-        {error, {inaccessible, _}} ->
+        {error, inaccessible} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
         {error, {external_id_conflict, {ID, ExternalID}}} ->
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});

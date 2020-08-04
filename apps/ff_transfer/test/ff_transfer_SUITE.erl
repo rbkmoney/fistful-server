@@ -292,7 +292,7 @@ deposit_withdrawal_ok(C) ->
 
     WdrID     = process_withdrawal(WalID, DestID),
     Events    = get_withdrawal_events(WdrID),
-    [<<"1">>] = route_changes(Events).
+    [1] = route_changes(Events).
 
 deposit_withdrawal_to_crypto_wallet(C) ->
     Party  = create_party(C),
@@ -304,9 +304,9 @@ deposit_withdrawal_to_crypto_wallet(C) ->
     ok     = process_deposit(SrcID, WalID),
     DestID = create_crypto_destination(IID, C),
     pass_identification(ICID, IID, C),
-    WdrID     = process_withdrawal(WalID, DestID),
-    Events    = get_withdrawal_events(WdrID),
-    [<<"2">>] = route_changes(Events).
+    WdrID = process_withdrawal(WalID, DestID),
+    Events = get_withdrawal_events(WdrID),
+    [2] = route_changes(Events).
 
 deposit_quote_withdrawal_ok(C) ->
     Party  = create_party(C),
@@ -323,25 +323,26 @@ deposit_quote_withdrawal_ok(C) ->
 
     pass_identification(ICID, IID, C),
 
+    DomainRevision = ff_domain_config:head(),
+    {ok, PartyRevision} = ff_party:get_revision(Party),
     WdrID = process_withdrawal(WalID, DestID, #{
         wallet_id => WalID,
         destination_id => DestID,
         body => {4240, <<"RUB">>},
         quote => #{
-            cash_from   => {4240, <<"RUB">>},
-            cash_to     => {2120, <<"USD">>},
-            created_at  => <<"2016-03-22T06:12:27Z">>,
-            expires_on  => <<"2016-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 3
-            }
+            cash_from => {4240, <<"RUB">>},
+            cash_to => {2120, <<"USD">>},
+            created_at => <<"2016-03-22T06:12:27Z">>,
+            expires_on => <<"2016-03-22T06:12:27Z">>,
+            quote_data => #{<<"test">> => <<"test">>},
+            route => ff_withdrawal_routing:make_route(3, 1),
+            domain_revision => DomainRevision,
+            party_revision => PartyRevision
         }
     }),
 
-    Events    = get_withdrawal_events(WdrID),
-    [<<"3">>] = route_changes(Events).
+    Events = get_withdrawal_events(WdrID),
+    [3] = route_changes(Events).
 
 create_party(_C) ->
     ID = genlib:bsuuid(),

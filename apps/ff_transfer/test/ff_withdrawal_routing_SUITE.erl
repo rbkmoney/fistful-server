@@ -34,8 +34,10 @@
 %% Tests
 
 -export([adapter_unreachable_route_test/1]).
+-export([adapter_unreachable_route_retryable_test/1]).
 -export([adapter_unreachable_quote_test/1]).
 -export([attempt_limit_test/1]).
+-export([termial_priority_test/1]).
 
 %% Internal types
 
@@ -66,10 +68,12 @@ all() ->
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
-        {default, [parallel], [
+        {default, [
             adapter_unreachable_route_test,
+            adapter_unreachable_route_retryable_test,
             adapter_unreachable_quote_test,
-            attempt_limit_test
+            attempt_limit_test,
+            termial_priority_test
         ]}
     ].
 
@@ -124,13 +128,38 @@ adapter_unreachable_route_test(C) ->
         external_id => WithdrawalID
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    ?assertEqual(
+        {failed, #{code => <<"authorization_error">>}},
+        await_final_withdrawal_status(WithdrawalID)
+    ).
+
+-spec adapter_unreachable_route_retryable_test(config()) -> test_return().
+adapter_unreachable_route_retryable_test(C) ->
+    Currency = <<"RUB">>,
+    Cash = {100500, Currency},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID,
+        party_id := PartyID
+    } = prepare_standard_environment(Cash, C),
+    _ = set_retryable_errors(PartyID, [<<"authorization_error">>]),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),
     ?assertEqual(?final_balance(0, Currency), get_wallet_balance(WalletID)),
     Withdrawal = get_withdrawal(WithdrawalID),
     ?assertEqual(WalletID, ff_withdrawal:wallet_id(Withdrawal)),
     ?assertEqual(DestinationID, ff_withdrawal:destination_id(Withdrawal)),
     ?assertEqual(Cash, ff_withdrawal:body(Withdrawal)),
-    ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)).
+    ?assertEqual(WithdrawalID, ff_withdrawal:external_id(Withdrawal)),
+    _ = set_retryable_errors(PartyID, []).
 
 -spec adapter_unreachable_quote_test(config()) -> test_return().
 adapter_unreachable_quote_test(C) ->
@@ -152,11 +181,8 @@ adapter_unreachable_quote_test(C) ->
             cash_to     => {2120, <<"USD">>},
             created_at  => <<"2020-03-22T06:12:27Z">>,
             expires_on  => <<"2020-03-22T06:12:27Z">>,
-            quote_data  => #{
-                <<"version">> => 1,
-                <<"quote_data">> => #{<<"test">> => <<"test">>},
-                <<"provider_id">> => 4
-            }
+            route       => ff_withdrawal_routing:make_route(4, 1),
+            quote_data  => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -186,7 +212,37 @@ attempt_limit_test(C) ->
         {failed, #{code => <<"authorization_error">>}},
         await_final_withdrawal_status(WithdrawalID)).
 
+-spec termial_priority_test(config()) -> test_return().
+termial_priority_test(C) ->
+    Currency = <<"RUB">>,
+    Cash = {500500, Currency},
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID,
+        party_id := PartyID
+    } = prepare_standard_environment(Cash, C),
+    _ = set_retryable_errors(PartyID, [<<"authorization_error">>]),
+    WithdrawalID = generate_id(),
+    WithdrawalParams = #{
+        id => WithdrawalID,
+        destination_id => DestinationID,
+        wallet_id => WalletID,
+        body => Cash,
+        external_id => WithdrawalID
+    },
+    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+    ?assertEqual(
+        {failed, #{code => <<"not_expected_error">>}},
+        await_final_withdrawal_status(WithdrawalID)),
+    _ = set_retryable_errors(PartyID, []).
+
 %% Utils
+set_retryable_errors(PartyID, ErrorList) ->
+    application:set_env(ff_transfer, withdrawal, #{
+        party_transient_errors => #{
+            PartyID => ErrorList
+        }
+    }).
 
 get_withdrawal(WithdrawalID) ->
     {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),

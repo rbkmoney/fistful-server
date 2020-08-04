@@ -10,6 +10,7 @@
 %% Processing callbacks
 -export([process_withdrawal/3]).
 -export([get_quote/2]).
+-export([handle_callback/4]).
 
 %%
 %% Internal types
@@ -46,6 +47,8 @@
     quote_data := any()
 }.
 
+-type callback() :: ff_withdrawal_callback:callback().
+
 -record(state, {}).
 -type state() :: #state{}.
 
@@ -67,14 +70,29 @@ start(Opts) ->
 %% Processing callbacks
 %%
 
--spec process_withdrawal(withdrawal(), state(), map()) -> {finish, Status} | {sleep, Timer} when
-    Status :: {success, TrxInfo} | {failure, failure()},
-    Timer :: {deadline, binary()} | {timeout, integer()},
-    TrxInfo :: #{id => binary()}.
+-spec process_withdrawal(withdrawal(), state(), map()) ->
+    {ok, Intent, NewState} when
+        Intent :: {finish, Status} | {sleep, Timer},
+        NewState :: state(),
+        Status :: {success, TrxInfo} | {failure, failure()},
+        Timer :: {deadline, binary()} | {timeout, integer()},
+        TrxInfo :: #{id => binary()}.
 process_withdrawal(_Withdrawal, State, _Options) ->
     {ok, {finish, {failure, <<"authorization_error">>}}, State}.
 
 -spec get_quote(quote_params(), map()) ->
     {ok, quote()}.
 get_quote(_Quote, _Options) ->
+    erlang:error(not_implemented).
+
+-spec handle_callback(callback(), withdrawal(), state(), map()) ->
+    {ok, Intent, NewState, Response} when
+        Intent :: {finish, Status} | {sleep, Timer} | {sleep, Timer, CallbackTag},
+        NewState :: state(),
+        Response :: any(),
+        Status :: {success, TrxInfo} | {failure, failure()},
+        Timer :: {deadline, binary()} | {timeout, integer()},
+        CallbackTag :: binary(),
+        TrxInfo :: #{id => binary()}.
+handle_callback(_Callback, _Withdrawal, _State, _Options) ->
     erlang:error(not_implemented).

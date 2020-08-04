@@ -63,6 +63,12 @@ marshal(id, V) ->
 marshal(event_id, V) ->
     marshal(integer, V);
 
+marshal(provider_id, V) ->
+    marshal(integer, V);
+
+marshal(terminal_id, V) ->
+    marshal(integer, V);
+
 marshal(blocking, blocked) ->
     blocked;
 marshal(blocking, unblocked) ->
@@ -133,6 +139,11 @@ marshal(resource, {crypto_wallet, #{crypto_wallet := CryptoWallet}}) ->
         crypto_wallet = marshal(crypto_wallet, CryptoWallet)
     }};
 
+marshal(resource_descriptor, {bank_card, BinDataID}) ->
+    {bank_card, #'ResourceDescriptorBankCard'{
+        bin_data_id = marshal(msgpack, BinDataID)
+    }};
+
 marshal(bank_card, BankCard = #{token := Token}) ->
     Bin = maps:get(bin, BankCard, undefined),
     PaymentSystem = maps:get(payment_system, BankCard, undefined),
@@ -153,7 +164,7 @@ marshal(bank_card, BankCard = #{token := Token}) ->
         card_type = maybe_marshal(card_type, CardType),
         exp_date = maybe_marshal(exp_date, ExpDate),
         cardholder_name = maybe_marshal(string, CardholderName),
-        bin_data_id = marshal_msgpack(BinDataID)
+        bin_data_id = maybe_marshal(msgpack, BinDataID)
     };
 
 marshal(bank_card_auth_data, {session, #{session_id := ID}}) ->
@@ -237,6 +248,10 @@ marshal(sub_failure, Failure) ->
         code = marshal(string, ff_failure:code(Failure)),
         sub = maybe_marshal(sub_failure, ff_failure:sub_failure(Failure))
     };
+marshal(fees, Fees) ->
+    #'Fees'{
+        fees = maps:map(fun(_Constant, Value) -> marshal(cash, Value) end, maps:get(fees, Fees))
+    };
 
 marshal(timestamp, {DateTime, USec}) ->
     DateTimeinSeconds = genlib_time:daytime_to_unixtime(DateTime),
@@ -263,6 +278,8 @@ marshal(bool, V) when is_boolean(V) ->
     V;
 marshal(context, V) when is_map(V) ->
     ff_entity_context_codec:marshal(V);
+marshal(msgpack, V) ->
+    ff_msgpack_codec:marshal(msgpack, V);
 
 % Catch this up in thrift validation
 marshal(_, Other) ->
@@ -279,6 +296,12 @@ unmarshal({set, T}, V) ->
 unmarshal(id, V) ->
     unmarshal(string, V);
 unmarshal(event_id, V) ->
+    unmarshal(integer, V);
+
+unmarshal(provider_id, V) ->
+    unmarshal(integer, V);
+
+unmarshal(terminal_id, V) ->
     unmarshal(integer, V);
 
 unmarshal(blocking, blocked) ->
@@ -387,6 +410,9 @@ unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = Cryp
         crypto_wallet => unmarshal(crypto_wallet, CryptoWallet)
     }};
 
+unmarshal(resource_descriptor, {bank_card, BankCard}) ->
+    {bank_card, unmarshal(msgpack, BankCard#'ResourceDescriptorBankCard'.bin_data_id)};
+
 unmarshal(bank_card_auth_data, {session_data, #'SessionAuthData'{id = ID}}) ->
     {session, #{
         session_id => unmarshal(string, ID)
@@ -414,7 +440,7 @@ unmarshal(bank_card, #'BankCard'{
         card_type => maybe_unmarshal(card_type, CardType),
         exp_date => maybe_unmarshal(exp_date, ExpDate),
         cardholder_name => maybe_unmarshal(string, CardholderName),
-        bin_data_id => unmarshal_msgpack(BinDataID)
+        bin_data_id => maybe_unmarshal(msgpack, BinDataID)
     });
 
 unmarshal(exp_date, #'BankCardExpDate'{
@@ -494,6 +520,11 @@ unmarshal(range, #evsink_EventRange{
 }) ->
     {Cursor, Limit, forward};
 
+unmarshal(fees, Fees) ->
+    #{
+        fees => maps:map(fun(_Constant, Value) -> unmarshal(cash, Value) end, Fees#'Fees'.fees)
+    };
+
 unmarshal(timestamp, Timestamp) when is_binary(Timestamp) ->
     parse_timestamp(Timestamp);
 unmarshal(timestamp_ms, V) ->
@@ -506,6 +537,9 @@ unmarshal(string, V) when is_binary(V) ->
     V;
 unmarshal(integer, V) when is_integer(V) ->
     V;
+
+unmarshal(msgpack, V) ->
+    ff_msgpack_codec:unmarshal(msgpack, V);
 
 unmarshal(range, #'EventRange'{
     'after' = Cursor,
@@ -544,32 +578,6 @@ parse_timestamp(Bin) ->
             erlang:raise(error, {bad_timestamp, Bin, Error}, St)
     end.
 
-marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};
-marshal_msgpack(V) when is_boolean(V) -> {b, V};
-marshal_msgpack(V) when is_integer(V) -> {i, V};
-marshal_msgpack(V) when is_float(V)   -> V;
-marshal_msgpack(V) when is_binary(V)  -> {str, V}; % Assuming well-formed UTF-8 bytestring.
-marshal_msgpack({binary, V}) when is_binary(V) ->
-    {bin, V};
-marshal_msgpack(V) when is_list(V) ->
-    {arr, [marshal_msgpack(ListItem) || ListItem <- V]};
-marshal_msgpack(V) when is_map(V) ->
-    {obj, maps:fold(fun(Key, Value, Map) -> Map#{marshal_msgpack(Key) => marshal_msgpack(Value)} end, #{}, V)};
-marshal_msgpack(undefined) ->
-    undefined.
-
-unmarshal_msgpack({nl,  #msgp_Nil{}})        -> nil;
-unmarshal_msgpack({b,   V}) when is_boolean(V) -> V;
-unmarshal_msgpack({i,   V}) when is_integer(V) -> V;
-unmarshal_msgpack({flt, V}) when is_float(V)   -> V;
-unmarshal_msgpack({str, V}) when is_binary(V)  -> V; % Assuming well-formed UTF-8 bytestring.
-unmarshal_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
-unmarshal_msgpack({arr, V}) when is_list(V)    -> [unmarshal_msgpack(ListItem) || ListItem <- V];
-unmarshal_msgpack({obj, V}) when is_map(V)     ->
-    maps:fold(fun(Key, Value, Map) -> Map#{unmarshal_msgpack(Key) => unmarshal_msgpack(Value)} end, #{}, V);
-unmarshal_msgpack(undefined) ->
-    undefined.
-
 %% TESTS
 
 -ifdef(TEST).
@@ -594,5 +602,18 @@ bank_card_codec_test() ->
     Binary = ff_proto_utils:serialize(Type, marshal(bank_card, BankCard)),
     Decoded = ff_proto_utils:deserialize(Type, Binary),
     ?assertEqual(BankCard, unmarshal(bank_card, Decoded)).
+
+-spec fees_codec_test() -> _.
+fees_codec_test() ->
+    Expected = #{
+        fees => #{
+            operation_amount => {100, <<"RUB">>},
+            surplus => {200, <<"RUB">>}
+        }
+    },
+    Type = {struct, struct, {ff_proto_base_thrift, 'Fees'}},
+    Binary = ff_proto_utils:serialize(Type, marshal(fees, Expected)),
+    Decoded = ff_proto_utils:deserialize(Type, Binary),
+    ?assertEqual(Expected, unmarshal(fees, Decoded)).
 
 -endif.

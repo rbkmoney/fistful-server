@@ -276,7 +276,7 @@ create_party(_C) ->
     ID.
 
 create_person_identity(Party, C) ->
-    create_person_identity(Party, C, <<"good-one">>).
+    create_person_identity(Party, C, <<"quote-owner">>).
 
 create_person_identity(Party, C, ProviderID) ->
     create_identity(Party, ProviderID, <<"person">>, C).

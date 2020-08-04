@@ -20,7 +20,6 @@
 -export([withdrawal_to_ripple_wallet_test/1]).
 -export([withdrawal_to_ripple_wallet_with_tag_test/1]).
 -export([woody_retry_test/1]).
--export([quote_encode_decode_test/1]).
 -export([get_quote_test/1]).
 -export([get_quote_without_destination_test/1]).
 -export([get_quote_without_destination_fail_test/1]).
@@ -60,7 +59,6 @@ groups() ->
         {default, [sequence, {repeat, 2}], group_default()},
         {wallet_api_token, [sequence, {repeat, 2}], group_default()},
         {quote, [], [
-            quote_encode_decode_test,
             get_quote_test,
             get_quote_without_destination_test,
             get_quote_without_destination_fail_test,
@@ -314,7 +312,7 @@ check_withdrawal_limit_test(C) ->
             },
             <<"quoteToken">> => undefined
         })},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ).
 
 -spec check_withdrawal_limit_exceeded_test(config()) -> test_return().
@@ -350,59 +348,13 @@ check_withdrawal_limit_exceeded_test(C) ->
 unknown_withdrawal_test(C) ->
     ?assertEqual({error, {404, #{}}}, get_withdrawal(<<"unexist withdrawal">>, C)).
 
--spec quote_encode_decode_test(config()) -> test_return().
-
-quote_encode_decode_test(C) ->
-    PartyID       = cfg(party, C),
-    Name          = <<"Keyn Fawkes">>,
-    Provider      = <<"quote-owner">>,
-    Class         = ?ID_CLASS,
-    IdentityID    = create_identity(Name, Provider, Class, C),
-    WalletID      = create_wallet(IdentityID, C),
-    CardToken     = store_bank_card(C),
-    Resource      = make_bank_card_resource(CardToken),
-    {ok, Dest}    = create_destination(IdentityID, Resource, C),
-    DestID        = destination_id(Dest),
-    % ожидаем авторизации назначения вывода
-    await_destination(DestID),
-
-
-    Data = #{
-        <<"version">>       => 1,
-        <<"walletID">>      => WalletID,
-        <<"destinationID">> => DestID,
-        <<"partyID">>       => PartyID,
-        <<"cashFrom">>      => #{
-            <<"amount">>   => 100,
-            <<"currency">> => <<"RUB">>
-        },
-        <<"cashTo">>        => #{
-            <<"amount">>   => 100,
-            <<"currency">> => <<"USD">>
-        },
-        <<"createdAt">>     => ?TIMESTAMP,
-        <<"expiresOn">>     => ?TIMESTAMP,
-        <<"quoteData">>     => #{
-            <<"version">> => ?INTEGER,
-            <<"quote_data">> => #{<<"test">> => <<"test">>},
-            <<"provider_id">> => ?INTEGER,
-            <<"resource_id">> => #{<<"bank_card">> => <<"test">>}
-        }
-    },
-    {ok, Token} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()),
-    _WithdrawalID = create_withdrawal(
-        WalletID,
-        DestID,
-        C,
-        Token
-    ).
-
 -spec get_quote_test(config()) -> test_return().
 
 get_quote_test(C) ->
     Name          = <<"Keyn Fawkes">>,
     Provider      = <<"quote-owner">>,
     Class         = ?ID_CLASS,
+    PartyID       = cfg(party, C),
     IdentityID    = create_identity(Name, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),
     CardToken     = store_bank_card(C),
@@ -427,14 +379,19 @@ get_quote_test(C) ->
                 <<"currencyTo">> => <<"USD">>,
                 <<"cash">> => CashFrom
         }},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ),
-    CashFrom = maps:get(<<"cashFrom">>, Quote),
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(maps:get(<<"quoteToken">>, Quote), #{}),
-    #{
-        <<"version">>       := 1,
-        <<"cashFrom">>     := CashFrom
-    } = Data.
+    ?assertMatch(
+        #{
+            <<"version">> := 2,
+            <<"partyID">> := PartyID,
+            <<"walletID">> := WalletID,
+            <<"destinationID">> := DestID,
+            <<"quote">> := _
+        },
+        Data
+    ).
 
 -spec get_quote_without_destination_test(config()) -> test_return().
 
@@ -442,6 +399,7 @@ get_quote_without_destination_test(C) ->
     Name          = <<"Keyn Fawkes">>,
     Provider      = <<"quote-owner">>,
     Class         = ?ID_CLASS,
+    PartyID       = cfg(party, C),
     IdentityID    = create_identity(Name, Provider, Class, C),
     WalletID      = create_wallet(IdentityID, C),
 
@@ -459,14 +417,18 @@ get_quote_without_destination_test(C) ->
                 <<"currencyTo">> => <<"USD">>,
                 <<"cash">> => CashFrom
         }},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ),
-    CashFrom = maps:get(<<"cashFrom">>, Quote),
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(maps:get(<<"quoteToken">>, Quote), #{}),
-    #{
-        <<"version">>       := 1,
-        <<"cashFrom">>     := CashFrom
-    } = Data.
+    ?assertMatch(
+        #{
+            <<"version">> := 2,
+            <<"partyID">> := PartyID,
+            <<"walletID">> := WalletID,
+            <<"quote">> := _
+        },
+        Data
+    ).
 
 -spec get_quote_without_destination_fail_test(config()) -> test_return().
 
@@ -491,7 +453,7 @@ get_quote_without_destination_fail_test(C) ->
                 <<"currencyTo">> => <<"USD">>,
                 <<"cash">> => CashFrom
         }},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ).
 
 -spec quote_withdrawal_test(config()) -> test_return().
@@ -524,7 +486,7 @@ quote_withdrawal_test(C) ->
                 <<"currencyTo">> => <<"USD">>,
                 <<"cash">> => CashFrom
         }},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ),
     WithdrawalID = create_withdrawal(
         WalletID,
@@ -574,7 +536,7 @@ get_wallet_by_external_id(C) ->
     {ok, Wallet} = call_api(
         fun swag_client_wallet_wallets_api:get_wallet_by_external_id/3,
         #{qs_val => #{<<"externalID">> => ExternalID}},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ),
     WalletID = maps:get(<<"id">>, Wallet).
 
@@ -610,7 +572,7 @@ create_identity(Name, Provider, Class, C) ->
                 ?STRING => ?STRING
             }
         }},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ),
     maps:get(<<"id">>, Identity).
 
@@ -618,7 +580,7 @@ check_identity(Name, IdentityID, Provider, Class, C) ->
     {ok, Identity} = call_api(
         fun swag_client_wallet_identities_api:get_identity/3,
         #{binding => #{<<"identityID">> => IdentityID}},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ),
     #{
         <<"name">>     := Name,
@@ -648,7 +610,7 @@ create_wallet(IdentityID, Params, C) ->
     {ok, Wallet} = call_api(
         fun swag_client_wallet_wallets_api:create_wallet/3,
         #{body => maps:merge(DefaultParams, Params)},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ),
     maps:get(<<"id">>, Wallet).
 
@@ -667,7 +629,7 @@ get_wallet(WalletID, C) ->
     call_api(
         fun swag_client_wallet_wallets_api:get_wallet/3,
         #{binding => #{<<"walletID">> => WalletID}},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ).
 
 store_bank_card(C) ->
@@ -679,7 +641,7 @@ store_bank_card(C) ->
             <<"expDate">>    => <<"12/25">>,
             <<"cardHolder">> => <<"LEXA SVOTIN">>
         }},
-        ct_helper:cfg(context_pcidss, C)
+        cfg(context_pcidss, C)
     ),
     maps:get(<<"token">>, Res).
 
@@ -687,7 +649,7 @@ get_bank_card(CardToken, C) ->
     call_api(
         fun swag_client_payres_payment_resources_api:get_bank_card/3,
         #{binding => #{<<"token">> => CardToken}},
-        ct_helper:cfg(context_pcidss, C)
+        cfg(context_pcidss, C)
     ).
 
 make_bank_card_resource(CardToken) ->
@@ -726,7 +688,7 @@ create_destination(Name, IdentityID, Resource, C) ->
                 ?STRING => ?STRING
              }
         }},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ).
 
 check_destination(IdentityID, DestID, Resource0, C) ->
@@ -778,7 +740,7 @@ get_destination(DestID, C) ->
     call_api(
         fun swag_client_wallet_withdrawals_api:get_destination/3,
         #{binding => #{<<"destinationID">> => DestID}},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ).
 
 issue_destination_grants(DestID, C) ->
@@ -792,7 +754,7 @@ issue_destination_grants(DestID, C) ->
                 <<"validUntil">> => <<"2800-12-12T00:00:00.0Z">>
             }
         },
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ).
 
 create_withdrawal(WalletID, DestID, C) ->
@@ -818,7 +780,7 @@ create_withdrawal(WalletID, DestID, C, QuoteToken, Amount, WalletGrant, Destinat
             <<"walletGrant">> => WalletGrant,
             <<"destinationGrant">> => DestinationGrant
         })},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ),
     maps:get(<<"id">>, Withdrawal).
 
@@ -832,7 +794,7 @@ create_withdrawal(WalletID, DestID, C, QuoteToken, Amount, WalletGrant, Destinat
 %                              <<"withdrawalID">> => WithdrawalID,
 %                              <<"limit">> => 100
 %                             }},
-%                          ct_helper:cfg(context, C)),
+%                          cfg(context, C)),
 %             case R of
 %                 {ok, #{<<"result">> := []}} ->
 %                     R;
@@ -882,7 +844,7 @@ get_withdrawal(WithdrawalID, C) ->
     call_api(
         fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
         #{binding => #{<<"withdrawalID">> => WithdrawalID}},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ).
 
 create_w2w_transfer(WalletFromID, WalletToID, C) ->
@@ -896,7 +858,7 @@ create_w2w_transfer(WalletFromID, WalletToID, C) ->
             <<"sender">> => WalletFromID,
             <<"receiver">> => WalletToID
         })},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ),
     maps:get(<<"id">>, W2WTransfer).
 
@@ -904,7 +866,7 @@ get_w2w_transfer(ID, C) ->
     call_api(
         fun swag_client_wallet_w2_w_api:get_w2_w_transfer/3,
         #{binding => #{<<"w2wTransferID">> => ID}},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ).
 
 check_w2w_transfer(WalletFromID, WalletToID, W2WTransferID, C) ->
@@ -1078,7 +1040,7 @@ not_allowed_currency_test(C) ->
                 ?STRING => ?STRING
             }
         }},
-        ct_helper:cfg(context, C)
+        cfg(context, C)
     ).
 
 -spec consume_eventsinks(config()) -> test_return().

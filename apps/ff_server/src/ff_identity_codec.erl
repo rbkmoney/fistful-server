@@ -100,6 +100,12 @@ marshal_identity_state(IdentityState, Context) ->
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+   #idnt_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
+
 marshal(change, {created, Identity}) ->
     {created, marshal(identity, Identity)};
 marshal(change, {level_changed, LevelID}) ->
@@ -141,8 +147,14 @@ marshal(challenge_payload_created, Challenge = #{
 }) ->
     Proofs = maps:get(proofs, Challenge, []),
     #idnt_Challenge{
-        cls    = marshal(id, ID),
-        proofs = marshal({list, challenge_proofs}, Proofs)
+        id = marshal(id, ID),
+        cls = marshal(id, maps:get(challenge_class, Challenge)),
+        provider_id = marshal(id, maps:get(provider, Challenge)),
+        class_id = marshal(id, maps:get(identity_class, Challenge)),
+        proofs = marshal({list, challenge_proofs}, Proofs),
+        claim_id =  marshal(id, maps:get(claim_id, Challenge)),
+        claimant =  marshal(id, maps:get(claimant, Challenge)),
+        master_id =  marshal(id, maps:get(master_id, Challenge))
     };
 
 marshal(challenge_proofs, {Type, Token}) ->
@@ -188,6 +200,11 @@ marshal(T, V) ->
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
 
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#idnt_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#idnt_TimestampedChange.change),
+    {ev, Timestamp, Change};
+
 unmarshal(repair_scenario, {add_events, #idnt_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
         events => unmarshal({list, change}, Events),
@@ -221,7 +238,8 @@ unmarshal(identity, #idnt_Identity{
         contract    => unmarshal(id, ContractID),
         external_id => maybe_unmarshal(id, ExternalID),
         created_at  => maybe_unmarshal(created_at, CreatedAt),
-        metadata    => maybe_unmarshal(ctx, Metadata)
+        metadata    => maybe_unmarshal(ctx, Metadata),
+        version     => 2
     });
 
 unmarshal(challenge_payload, {created, Challenge}) ->
@@ -229,12 +247,24 @@ unmarshal(challenge_payload, {created, Challenge}) ->
 unmarshal(challenge_payload, {status_changed, ChallengeStatus}) ->
     {status_changed, unmarshal(challenge_payload_status_changed, ChallengeStatus)};
 unmarshal(challenge_payload_created, #idnt_Challenge{
-    cls    = ID,
-    proofs = Proofs
+    id = ID,
+    cls = ChallengeClass,
+    provider_id = ProviderID,
+    class_id = IdentityClass,
+    proofs = Proofs,
+    claim_id = ClaimID,
+    claimant = Claimant,
+    master_id = MasterID
 }) ->
     #{
-        id     => unmarshal(id, ID),
-        proofs => unmarshal({list, challenge_proofs}, Proofs)
+        id => unmarshal(id, ID),
+        provider => unmarshal(id, ProviderID),
+        identity_class => unmarshal(id, IdentityClass),
+        challenge_class => unmarshal(id, ChallengeClass),
+        proofs => unmarshal({list, challenge_proofs}, Proofs),
+        claim_id => unmarshal(id, ClaimID),
+        master_id => unmarshal(id, MasterID),
+        claimant => unmarshal(id, Claimant)
     };
 
 unmarshal(challenge_proofs, Proof) -> {
@@ -257,7 +287,7 @@ unmarshal(challenge_payload_status_changed, {completed, #idnt_ChallengeCompleted
 }}) ->
     {completed, genlib_map:compact(#{
         resolution => unmarshal(resolution, Resolution),
-        valid_until => unmarshal(timestamp, ValidUntil)
+        valid_until => maybe_unmarshal(timestamp, ValidUntil)
     })};
 unmarshal(challenge_payload_status_changed, {failed, #idnt_ChallengeFailed{}}) ->
     % FIXME: Describe failures in protocol
@@ -308,7 +338,8 @@ identity_test() ->
         provider    => genlib:unique(),
         class       => genlib:unique(),
         contract    => genlib:unique(),
-        external_id => genlib:unique()
+        external_id => genlib:unique(),
+        version     => 2
     },
     IdentityOut = unmarshal(identity, marshal(identity, IdentityIn)),
     ?assertEqual(IdentityOut, IdentityIn).
@@ -317,7 +348,13 @@ identity_test() ->
 challenge_test() ->
     ChallengeIn = #{
         id     => genlib:unique(),
-        proofs => [{rus_retiree_insurance_cert, <<"Bananazzzz">>}]
+        proofs => [{rus_retiree_insurance_cert, <<"Bananazzzz">>}],
+        challenge_class => <<"challenge_class">>,
+        claim_id => <<"claim_id">>,
+        provider => <<"provider">>,
+        identity_class => <<"identity_class">>,
+        master_id => <<"master_id">>,
+        claimant => <<"claimant">>
     },
     ChallengeOut = unmarshal(challenge_payload_created, marshal(challenge_payload_created, ChallengeIn)),
     ?assertEqual(ChallengeIn, ChallengeOut).

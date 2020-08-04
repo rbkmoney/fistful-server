@@ -8,7 +8,7 @@
 
 -type id() :: binary().
 
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 
 -opaque p2p_transfer() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
@@ -26,7 +26,7 @@
     sender_resource => resource(),
     receiver_resource => resource(),
     client_info => client_info(),
-    quote => quote(),
+    quote => quote_state(),
     session => session(),
     route => route(),
     risk_score => risk_score(),
@@ -51,6 +51,15 @@
 }.
 
 -type quote() :: p2p_quote:quote().
+
+-type quote_state() :: #{
+    created_at := ff_time:timestamp_ms(),
+    expires_on := ff_time:timestamp_ms(),
+    sender := ff_resource:resource_descriptor(),
+    receiver := ff_resource:resource_descriptor(),
+    expires_on := ff_time:timestamp_ms(),
+    fees => ff_fees_final:fees()
+}.
 
 -type client_info() :: #{
     ip_address => binary(),
@@ -86,6 +95,7 @@
     {resource_owner(), {bin_data, not_found}}.
 
 -type route() :: #{
+    version := 1,
     provider_id := provider_id()
 }.
 
@@ -118,6 +128,8 @@
 -export_type([p2p_transfer/0]).
 -export_type([id/0]).
 -export_type([params/0]).
+-export_type([quote/0]).
+-export_type([quote_state/0]).
 -export_type([event/0]).
 -export_type([route/0]).
 -export_type([create_error/0]).
@@ -248,7 +260,7 @@ receiver_resource(T) ->
 
 %%
 
--spec quote(p2p_transfer()) -> quote() | undefined.
+-spec quote(p2p_transfer()) -> quote_state() | undefined.
 quote(T) ->
     maps:get(quote, T, undefined).
 
@@ -385,7 +397,7 @@ create(TransferParams) ->
                 receiver => Receiver,
                 domain_revision => DomainRevision,
                 party_revision => PartyRevision,
-                quote => Quote,
+                quote => build_quote_state(Quote),
                 client_info => ClientInfo,
                 status => pending,
                 deadline => Deadline,
@@ -466,11 +478,11 @@ do_start_adjustment(Params, P2PTransfer) ->
 prepare_resource(sender, Params, undefined) ->
     p2p_participant:get_resource(Params);
 prepare_resource(sender, Params, Quote) ->
-    p2p_participant:get_resource(Params, p2p_quote:sender_id(Quote));
+    p2p_participant:get_resource(Params, p2p_quote:sender_descriptor(Quote));
 prepare_resource(receiver, Params, undefined) ->
     p2p_participant:get_resource(Params);
 prepare_resource(receiver, Params, Quote) ->
-    p2p_participant:get_resource(Params, p2p_quote:receiver_id(Quote)).
+    p2p_participant:get_resource(Params, p2p_quote:receiver_descriptor(Quote)).
 
 -spec p_transfer(p2p_transfer()) -> p_transfer() | undefined.
 p_transfer(P2PTransfer) ->
@@ -635,7 +647,10 @@ process_routing(P2PTransfer) ->
     case do_process_routing(P2PTransfer) of
         {ok, ProviderID} ->
             {continue, [
-                {route_changed, #{provider_id => ProviderID}}
+                {route_changed, #{
+                    version => 1,
+                    provider_id => ProviderID
+                }}
             ]};
         {error, route_not_found} ->
             process_transfer_fail(route_not_found, P2PTransfer)
@@ -674,7 +689,7 @@ choose_provider(Providers, VS) ->
 -spec validate_p2p_transfers_terms(provider_id(), party_varset()) ->
     boolean().
 validate_p2p_transfers_terms(ID, VS) ->
-    Provider = unwrap(ff_p2p_provider:get(ID)),
+    {ok, Provider} = ff_p2p_provider:get(ID),
     case ff_p2p_provider:validate_terms(Provider, VS) of
         {ok, valid} ->
             true;
@@ -706,7 +721,9 @@ process_session_creation(P2PTransfer) ->
     }),
     #{provider_id := ProviderID} = route(P2PTransfer),
     Params = #{
-        provider_id => ProviderID,
+        route => #{
+            provider_id => ProviderID
+        },
         domain_revision => domain_revision(P2PTransfer),
         party_revision => party_revision(P2PTransfer)
     },
@@ -725,7 +742,7 @@ construct_p_transfer_id(ID) ->
     <<"ff/p2p_transfer/", ID/binary>>.
 
 -spec get_fees(p2p_transfer()) ->
-    {ff_fees:final() | undefined, ff_fees:final() | undefined}.
+    {ff_fees_final:fees() | undefined, ff_fees_final:fees() | undefined}.
 get_fees(P2PTransfer) ->
     Route = route(P2PTransfer),
     #{provider_id := ProviderID} = Route,
@@ -735,8 +752,8 @@ get_fees(P2PTransfer) ->
     PartyVarset = create_varset(Identity, P2PTransfer),
     Body = body(P2PTransfer),
 
-    #{p2p_terms := P2PProviderTerms} = Provider,
-    ProviderFees = get_provider_fees(P2PProviderTerms, Body, PartyVarset),
+    #{terms := ProviderTerms} = Provider,
+    ProviderFees = get_provider_fees(ProviderTerms, Body, PartyVarset),
 
     PartyID = ff_identity:party(Identity),
     ContractID = ff_identity:contract(Identity),
@@ -754,26 +771,35 @@ get_fees(P2PTransfer) ->
     MerchantFees = get_merchant_fees(P2PMerchantTerms, Body),
     {ProviderFees, MerchantFees}.
 
--spec get_provider_fees(dmsl_domain_thrift:'P2PProvisionTerms'(), body(), p2p_party:varset()) ->
-    ff_fees:final() | undefined.
-get_provider_fees(#domain_P2PProvisionTerms{fees = undefined}, _Body, _PartyVarset) ->
-    undefined;
-get_provider_fees(#domain_P2PProvisionTerms{fees = FeeSelector}, Body, PartyVarset) ->
-    {value, ProviderFees} = hg_selector:reduce(FeeSelector, PartyVarset),
-    compute_fees(ProviderFees, Body).
+-spec get_provider_fees(dmsl_domain_thrift:'ProvisionTermSet'(), body(), p2p_party:varset()) ->
+    ff_fees_final:fees() | undefined.
+get_provider_fees(Terms, Body, PartyVarset) ->
+    #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            p2p = P2PTerms
+        }
+    } = Terms,
+    case P2PTerms of
+        #domain_P2PProvisionTerms{fees = FeeSelector} ->
+            {value, ProviderFees} = hg_selector:reduce(FeeSelector, PartyVarset),
+            compute_fees(ProviderFees, Body);
+        undefined ->
+            undefined
+    end.
 
 -spec get_merchant_fees(dmsl_domain_thrift:'P2PServiceTerms'(), body()) ->
-    ff_fees:final() | undefined.
+    ff_fees_final:fees() | undefined.
 get_merchant_fees(#domain_P2PServiceTerms{fees = undefined}, _Body) ->
     undefined;
 get_merchant_fees(#domain_P2PServiceTerms{fees = {value, MerchantFees}}, Body) ->
     compute_fees(MerchantFees, Body).
 
 -spec compute_fees(dmsl_domain_thrift:'Fees'(), body()) ->
-    ff_fees:final().
+    ff_fees_final:fees().
 compute_fees(Fees, Body) ->
-    DecodedFees = ff_fees:unmarshal(Fees),
-    ff_fees:compute(DecodedFees, Body).
+    DecodedFees = ff_fees_plan:unmarshal(Fees),
+    {ok, ComputedFees} = ff_fees_plan:compute(DecodedFees, Body),
+    ComputedFees.
 
 -spec process_session_poll(p2p_transfer()) ->
     process_result().
@@ -867,6 +893,19 @@ get_identity(IdentityID) ->
         IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
         ff_identity_machine:identity(IdentityMachine)
     end).
+
+-spec build_quote_state(quote() | undefined) ->
+    quote_state() | undefined.
+build_quote_state(undefined) ->
+    undefined;
+build_quote_state(Quote) ->
+    #{
+        fees => p2p_quote:fees(Quote),
+        created_at => p2p_quote:created_at(Quote),
+        expires_on => p2p_quote:expires_on(Quote),
+        sender => p2p_quote:sender_descriptor(Quote),
+        receiver => p2p_quote:receiver_descriptor(Quote)
+    }.
 
 %% Session management
 

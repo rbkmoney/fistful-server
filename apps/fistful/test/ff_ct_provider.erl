@@ -10,6 +10,7 @@
 %% Processing callbacks
 -export([process_withdrawal/3]).
 -export([get_quote/2]).
+-export([handle_callback/4]).
 
 -define(DUMMY_QUOTE, {obj, #{{str, <<"test">>} => {str, <<"test">>}}}).
 -define(DUMMY_QUOTE_ERROR, {obj, #{{str, <<"test">>} => {str, <<"error">>}}}).
@@ -49,6 +50,8 @@
     quote_data := any()
 }.
 
+-type callback() :: ff_withdrawal_callback:callback().
+
 -record(state, {}).
 -type state() :: #state{}.
 
@@ -70,10 +73,13 @@ start(Opts) ->
 %% Processing callbacks
 %%
 
--spec process_withdrawal(withdrawal(), state(), map()) -> {finish, Status} | {sleep, Timer} when
-    Status :: {success, TrxInfo} | {failure, failure()},
-    Timer :: {deadline, binary()} | {timeout, integer()},
-    TrxInfo :: #{id => binary()}.
+-spec process_withdrawal(withdrawal(), state(), map()) ->
+    {ok, Intent, NewState} when
+        Intent :: {finish, Status} | {sleep, Timer},
+        NewState :: state(),
+        Status :: {success, TrxInfo} | {failure, failure()},
+        Timer :: {deadline, binary()} | {timeout, integer()},
+        TrxInfo :: #{id => binary()}.
 process_withdrawal(#{quote := #wthadpt_Quote{quote_data = QuoteData}}, State, _Options) when
     QuoteData =:= ?DUMMY_QUOTE_ERROR
 ->
@@ -99,6 +105,18 @@ get_quote(#{
         expires_on => ff_time:to_rfc3339(ff_time:now() + 15*3600*1000),
         quote_data => ?DUMMY_QUOTE
     }}.
+
+-spec handle_callback(callback(), withdrawal(), state(), map()) ->
+    {ok, Intent, NewState, Response} when
+        Intent :: {finish, Status} | {sleep, Timer} | {sleep, Timer, CallbackTag},
+        NewState :: state(),
+        Response :: any(),
+        Status :: {success, TrxInfo} | {failure, failure()},
+        Timer :: {deadline, binary()} | {timeout, integer()},
+        CallbackTag :: binary(),
+        TrxInfo :: #{id => binary()}.
+handle_callback(_Callback, _Withdrawal, _State, _Options) ->
+    erlang:error(not_implemented).
 
 calc_cash(Currency, Currency, Amount) ->
     #wthadpt_Cash{amount = Amount, currency = Currency};

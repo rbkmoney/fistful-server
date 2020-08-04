@@ -64,8 +64,8 @@ marshal_withdrawal_state(WithdrawalState, Context) ->
         effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
         adjustments = [ff_withdrawal_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments],
         context = marshal(ctx, Context),
-        metadata = marshal(ctx, ff_withdrawal:metadata(WithdrawalState))
-        %% TODO add quote here
+        metadata = marshal(ctx, ff_withdrawal:metadata(WithdrawalState)),
+        quote = maybe_marshal(quote_state, ff_withdrawal:quote(WithdrawalState))
     }.
 
 -spec marshal_event(ff_withdrawal_machine:event()) ->
@@ -83,6 +83,12 @@ marshal_event({EventID, {ev, Timestamp, Change}}) ->
 
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
+
+marshal(timestamped_change, {ev, Timestamp, Change}) ->
+   #wthd_TimestampedChange{
+        change = marshal(change, Change),
+        occured_at = ff_codec:marshal(timestamp, Timestamp)
+    };
 
 marshal(change, {created, Withdrawal}) ->
     {created, #wthd_CreatedChange{withdrawal = marshal(withdrawal, Withdrawal)}};
@@ -117,12 +123,20 @@ marshal(withdrawal, Withdrawal) ->
         domain_revision = maybe_marshal(domain_revision, ff_withdrawal:domain_revision(Withdrawal)),
         party_revision = maybe_marshal(party_revision, ff_withdrawal:party_revision(Withdrawal)),
         created_at = maybe_marshal(timestamp_ms, ff_withdrawal:created_at(Withdrawal)),
-        metadata = maybe_marshal(ctx, ff_withdrawal:metadata(Withdrawal))
-        %% TODO add quote here
+        metadata = maybe_marshal(ctx, ff_withdrawal:metadata(Withdrawal)),
+        quote = maybe_marshal(quote_state, ff_withdrawal:quote(Withdrawal))
     };
 
-marshal(route, #{provider_id := ProviderID}) ->
-    #wthd_Route{provider_id = marshal(provider_id, ProviderID)};
+marshal(route, Route) ->
+    #{
+        version := 1,
+        provider_id := ProviderID
+    } = Route,
+    #wthd_Route{
+        provider_id = marshal(provider_id, ProviderID),
+        terminal_id = maybe_marshal(terminal_id, genlib_map:get(terminal_id, Route)),
+        provider_id_legacy = marshal(string, get_legacy_provider_id(Route))
+    };
 
 marshal(status, Status) ->
     ff_withdrawal_status_codec:marshal(status, Status);
@@ -144,11 +158,33 @@ marshal(session_state, Session) ->
         result = maybe_marshal(session_result, maps:get(result, Session, undefined))
     };
 
+marshal(quote_state, Quote) ->
+    #wthd_QuoteState{
+        cash_from  = marshal(cash, maps:get(cash_from, Quote)),
+        cash_to    = marshal(cash, maps:get(cash_to, Quote)),
+        created_at = maps:get(created_at, Quote), % already formatted
+        expires_on = maps:get(expires_on, Quote),
+        quote_data = maybe_marshal(msgpack, maps:get(quote_data, Quote, undefined)),
+        route = maybe_marshal(route, maps:get(route, Quote, undefined)),
+        resource = maybe_marshal(resource_descriptor, maps:get(resource_descriptor, Quote, undefined)),
+        quote_data_legacy = marshal(ctx, #{})
+    };
+marshal(quote, Quote) ->
+    #wthd_Quote{
+        cash_from  = marshal(cash, maps:get(cash_from, Quote)),
+        cash_to    = marshal(cash, maps:get(cash_to, Quote)),
+        created_at = maps:get(created_at, Quote), % already formatted
+        expires_on = maps:get(expires_on, Quote),
+        quote_data = maybe_marshal(msgpack, genlib_map:get(quote_data, Quote)),
+        route = maybe_marshal(route, genlib_map:get(route, Quote)),
+        resource = maybe_marshal(resource_descriptor, genlib_map:get(resource_descriptor, Quote)),
+        party_revision = maybe_marshal(party_revision, genlib_map:get(party_revision, Quote)),
+        domain_revision = maybe_marshal(domain_revision, genlib_map:get(domain_revision, Quote)),
+        operation_timestamp = maybe_marshal(timestamp_ms, genlib_map:get(operation_timestamp, Quote))
+    };
+
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
-
-marshal(provider_id, ProviderID) ->
-    marshal(id, genlib:to_binary(ProviderID));
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -159,6 +195,11 @@ marshal(T, V) ->
 
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
+
+unmarshal(timestamped_change, TimestampedChange) ->
+    Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#wthd_TimestampedChange.occured_at),
+    Change = unmarshal(change, TimestampedChange#wthd_TimestampedChange.change),
+    {ev, Timestamp, Change};
 
 unmarshal(repair_scenario, {add_events, #wthd_AddEventsRepair{events = Events, action = Action}}) ->
     {add_events, genlib_map:compact(#{
@@ -174,7 +215,7 @@ unmarshal(change, {transfer, #wthd_TransferChange{payload = TransferChange}}) ->
     {p_transfer, ff_p_transfer_codec:unmarshal(change, TransferChange)};
 unmarshal(change, {session, SessionChange}) ->
     unmarshal(session_event, SessionChange);
-unmarshal(change, {route, Route}) ->
+unmarshal(change, {route, #wthd_RouteChange{route = Route}}) ->
     {route_changed, unmarshal(route, Route)};
 unmarshal(change, {limit_check, #wthd_LimitCheckChange{details = Details}}) ->
     {limit_check, ff_limit_check_codec:unmarshal(details, Details)};
@@ -192,8 +233,8 @@ unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
         body => unmarshal(cash, Withdrawal#wthd_Withdrawal.body),
         params => genlib_map:compact(#{
             wallet_id => unmarshal(id, Withdrawal#wthd_Withdrawal.wallet_id),
-            destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id)
-            %% TODO add quote here
+            destination_id => unmarshal(id, Withdrawal#wthd_Withdrawal.destination_id),
+            quote => maybe_unmarshal(quote_state, Withdrawal#wthd_Withdrawal.quote)
         }),
         route => maybe_unmarshal(route, Withdrawal#wthd_Withdrawal.route),
         external_id => maybe_unmarshal(id, Withdrawal#wthd_Withdrawal.external_id),
@@ -204,14 +245,16 @@ unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
         metadata => maybe_unmarshal(ctx, Withdrawal#wthd_Withdrawal.metadata)
     });
 
-unmarshal(route, #wthd_Route{provider_id = ProviderID}) ->
-    #{provider_id => unmarshal(provider_id, ProviderID)};
+unmarshal(route, Route) ->
+    genlib_map:compact(#{
+        version => 1,
+        provider_id => unmarshal(provider_id, Route#wthd_Route.provider_id),
+        terminal_id => maybe_unmarshal(terminal_id, Route#wthd_Route.terminal_id),
+        provider_id_legacy => maybe_unmarshal(string, Route#wthd_Route.provider_id_legacy)
+    });
 
 unmarshal(status, Status) ->
     ff_withdrawal_status_codec:unmarshal(status, Status);
-
-unmarshal(provider_id, ProviderID) ->
-    unmarshal(integer, erlang:binary_to_integer(ProviderID));
 
 unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {started, #wthd_SessionStarted{}}}) ->
     {session_started, unmarshal(id, ID)};
@@ -229,6 +272,31 @@ unmarshal(session_state, Session) ->
         id => unmarshal(id, Session#wthd_SessionState.id),
         result => maybe_unmarshal(session_result, Session#wthd_SessionState.result)
     });
+
+unmarshal(quote_state, Quote) ->
+    #{
+        cash_from => unmarshal(cash, Quote#wthd_QuoteState.cash_from),
+        cash_to   => unmarshal(cash, Quote#wthd_QuoteState.cash_to),
+        created_at => Quote#wthd_QuoteState.created_at,
+        expires_on => Quote#wthd_QuoteState.expires_on,
+        route => maybe_unmarshal(route, Quote#wthd_QuoteState.route),
+        resource_descriptor => maybe_unmarshal(resource_descriptor, Quote#wthd_QuoteState.resource),
+        quote_data => maybe_unmarshal(msgpack, Quote#wthd_QuoteState.quote_data)
+    };
+
+unmarshal(quote, Quote) ->
+    #{
+        cash_from => unmarshal(cash, Quote#wthd_Quote.cash_from),
+        cash_to   => unmarshal(cash, Quote#wthd_Quote.cash_to),
+        created_at => Quote#wthd_Quote.created_at,
+        expires_on => Quote#wthd_Quote.expires_on,
+        route => maybe_unmarshal(route, Quote#wthd_Quote.route),
+        resource_descriptor => maybe_unmarshal(resource_descriptor, Quote#wthd_Quote.resource),
+        quote_data => maybe_unmarshal(msgpack, Quote#wthd_Quote.quote_data),
+        domain_revision => maybe_unmarshal(domain_revision, Quote#wthd_Quote.domain_revision),
+        party_revision => maybe_unmarshal(party_revision, Quote#wthd_Quote.party_revision),
+        operation_timestamp => maybe_unmarshal(timestamp_ms, Quote#wthd_Quote.operation_timestamp)
+    };
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);
@@ -248,6 +316,11 @@ maybe_marshal(_Type, undefined) ->
 maybe_marshal(Type, Value) ->
     marshal(Type, Value).
 
+get_legacy_provider_id(#{provider_id_legacy := Provider}) when is_binary(Provider) ->
+    Provider;
+get_legacy_provider_id(#{provider_id := Provider}) when is_integer(Provider) ->
+    genlib:to_binary(Provider - 300).
+
 %% TESTS
 
 -ifdef(TEST).
@@ -266,7 +339,9 @@ withdrawal_symmetry_test() ->
         destination_id = genlib:unique(),
         external_id = genlib:unique(),
         route = #wthd_Route{
-            provider_id = <<"22">>
+            provider_id = 1,
+            terminal_id = 7,
+            provider_id_legacy = <<"mocketbank">>
         },
         domain_revision = 1,
         party_revision = 3,
@@ -287,5 +362,55 @@ withdrawal_params_symmetry_test() ->
         external_id = undefined
     },
     ?assertEqual(In, marshal_withdrawal_params(unmarshal_withdrawal_params(In))).
+
+-spec quote_state_symmetry_test() -> _.
+quote_state_symmetry_test() ->
+    In = #wthd_QuoteState{
+        cash_from  = #'Cash'{
+            amount = 10101,
+            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+        },
+        cash_to    = #'Cash'{
+            amount = 20202,
+            currency = #'CurrencyRef'{ symbolic_code = <<"Pineapple Empire">> }
+        },
+        created_at = genlib:unique(),
+        expires_on = genlib:unique(),
+        quote_data = {arr, [{bin, genlib:unique()}, {i, 5}, {nl, #msgp_Nil{}}]},
+        route = #wthd_Route{
+            provider_id = 1,
+            terminal_id = 2,
+            provider_id_legacy = <<>>
+        },
+        resource = {bank_card, #'ResourceDescriptorBankCard'{bin_data_id = {arr, [{bin, genlib:unique()}]}}},
+        quote_data_legacy = #{}
+    },
+    ?assertEqual(In, marshal(quote_state, unmarshal(quote_state, In))).
+
+-spec quote_symmetry_test() -> _.
+quote_symmetry_test() ->
+    In = #wthd_Quote{
+        cash_from  = #'Cash'{
+            amount = 10101,
+            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+        },
+        cash_to    = #'Cash'{
+            amount = 20202,
+            currency = #'CurrencyRef'{ symbolic_code = <<"Pineapple Empire">> }
+        },
+        created_at = genlib:unique(),
+        expires_on = genlib:unique(),
+        quote_data = {arr, [{bin, genlib:unique()}, {i, 5}, {nl, #msgp_Nil{}}]},
+        route = #wthd_Route{
+            provider_id = 1,
+            terminal_id = 2,
+            provider_id_legacy = <<"drovider">>
+        },
+        resource = {bank_card, #'ResourceDescriptorBankCard'{bin_data_id = {arr, [{bin, genlib:unique()}]}}},
+        domain_revision = 1,
+        party_revision = 2,
+        operation_timestamp = <<"2020-01-01T01:00:00Z">>
+    },
+    ?assertEqual(In, marshal(quote, unmarshal(quote, In))).
 
 -endif.

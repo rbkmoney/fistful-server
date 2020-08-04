@@ -255,7 +255,7 @@ get_shifted_create_identity_events_ok(C) ->
         ns          => <<"ff/identity">>,
         publisher   => ff_identity_eventsink_publisher,
         start_event => StartEventNum,
-        schema      => machinery_mg_schema_generic
+        schema      => ff_identity_machinery_schema
     }}),
     {ok, _} = supervisor:start_child(SuiteSup, woody_server:child_spec(
         ?MODULE,
@@ -300,14 +300,19 @@ get_create_p2p_transfer_events_ok(C) ->
     }},
 
     Quote = #{
-        amount            => Cash,
-        party_revision    => 1,
-        domain_revision   => 1,
-        created_at        => ff_time:now(),
-        expires_on        => ff_time:now(),
-        identity_id       => ID,
-        sender            => CompactResource,
-        receiver          => CompactResource
+        fees => #{
+            fees => #{
+                surplus => {123, <<"RUB">>}
+            }
+        },
+        amount => Cash,
+        party_revision => 1,
+        domain_revision => 1,
+        created_at => ff_time:now(),
+        expires_on => ff_time:now(),
+        identity_id => ID,
+        sender => CompactResource,
+        receiver => CompactResource
     },
 
     ok = p2p_transfer_machine:create(

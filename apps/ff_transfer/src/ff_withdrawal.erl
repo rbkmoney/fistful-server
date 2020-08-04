@@ -10,7 +10,7 @@
 -type id() :: binary().
 -type clock() :: ff_transaction:clock().
 
--define(ACTUAL_FORMAT_VERSION, 3).
+-define(ACTUAL_FORMAT_VERSION, 4).
 -opaque withdrawal_state() :: #{
     id              := id(),
     transfer_type   := withdrawal,
@@ -76,9 +76,7 @@
     {terms, ff_party:validate_withdrawal_creation_error()} |
     {destination_resource, {bin_data, not_found}}.
 
--type route() :: #{
-    provider_id := provider_id()
-}.
+-type route() :: ff_withdrawal_routing:route().
 
 -type attempts() :: ff_withdrawal_route_attempt_utils:attempts().
 
@@ -97,7 +95,28 @@
     external_id    => id()
 }.
 
--type quote() :: ff_adapter_withdrawal:quote(quote_validation_data()).
+-type quote() :: #{
+    cash_from := cash(),
+    cash_to := cash(),
+    created_at := binary(),
+    expires_on := binary(),
+    quote_data := ff_adapter_withdrawal:quote(),
+    route := route(),
+    operation_timestamp := ff_time:timestamp_ms(),
+    resource_descriptor => resource_descriptor(),
+    domain_revision => party_revision(),
+    party_revision => domain_revision()
+}.
+
+-type quote_state() :: #{
+    cash_from := cash(),
+    cash_to := cash(),
+    created_at := binary(),
+    expires_on := binary(),
+    quote_data := ff_adapter_withdrawal:quote(),
+    route := route(),
+    resource_descriptor => resource_descriptor()
+}.
 
 -type session() :: #{
     id     := session_id(),
@@ -207,11 +226,12 @@
 -export([adjustments/1]).
 -export([effective_final_cash_flow/1]).
 -export([sessions/1]).
+-export([get_current_session/1]).
+-export([get_current_session_status/1]).
 
 %% Event source
 
 -export([apply_event/2]).
--export([maybe_migrate/2]).
 
 %% Pipeline
 
@@ -245,22 +265,19 @@
 -type terms()                 :: ff_party:terms().
 -type party_varset()          :: hg_selector:varset().
 -type metadata()              :: ff_entity_context:md().
+-type resource_descriptor()   :: ff_destination:resource_id().
 
 -type wrapped_adjustment_event()  :: ff_adjustment_utils:wrapped_event().
 
-% TODO I'm now sure about this change, it may crash old events. Or not. ))
--type provider_id() :: pos_integer() | id().
+-type provider_id() :: ff_payouts_provider:id().
+-type terminal_id() :: ff_payouts_terminal:id().
 
 -type legacy_event() :: any().
 
 -type transfer_params() :: #{
     wallet_id      := wallet_id(),
     destination_id := destination_id(),
-    quote          => quote()
-}.
-
--type quote_validation_data() :: #{
-    binary() => any()
+    quote          => quote_state()
 }.
 
 -type party_varset_params() :: #{
@@ -288,8 +305,10 @@
 -type fail_type() ::
     limit_check |
     route_not_found |
-    {inconsistent_quote_route, provider_id()} |
+    {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}} |
     session.
+
+-type session_processing_status() :: undefined | pending | succeeded | failed.
 
 %% Accessors
 
@@ -314,7 +333,7 @@ destination_resource(Withdrawal) ->
 
 %%
 
--spec quote(withdrawal_state()) -> quote() | undefined.
+-spec quote(withdrawal_state()) -> quote_state() | undefined.
 quote(T) ->
     maps:get(quote, params(T), undefined).
 
@@ -367,7 +386,8 @@ gen(Args) ->
         id, transfer_type, body, params, external_id,
         domain_revision, party_revision, created_at, route, metadata
     ],
-    genlib_map:compact(maps:with(TypeKeys, Args)).
+    Withdrawal = genlib_map:compact(maps:with(TypeKeys, Args)),
+    Withdrawal#{version => 4}.
 
 -spec create(params()) ->
     {ok, [event()]} |
@@ -377,12 +397,12 @@ create(Params) ->
         #{id := ID, wallet_id := WalletID, destination_id := DestinationID, body := Body} = Params,
         CreatedAt = ff_time:now(),
         Quote = maps:get(quote, Params, undefined),
-        ResourceID = quote_resource_id(Quote),
+        ResourceDescriptor = quote_resource_descriptor(Quote),
         Timestamp = ff_maybe:get_defined(quote_timestamp(Quote), CreatedAt),
         DomainRevision = ensure_domain_revision_defined(quote_domain_revision(Quote)),
         Wallet = unwrap(wallet, get_wallet(WalletID)),
         Destination = unwrap(destination, get_destination(DestinationID)),
-        Resource = unwrap(destination_resource, ff_destination:resource_full(Destination, ResourceID)),
+        Resource = unwrap(destination_resource, ff_destination:resource_full(Destination, ResourceDescriptor)),
 
         Identity = get_wallet_identity(Wallet),
         PartyID = ff_identity:party(get_wallet_identity(Wallet)),
@@ -587,7 +607,7 @@ deduce_activity(Withdrawal) ->
     Params = #{
         route => route_selection_status(Withdrawal),
         p_transfer => p_transfer_status(Withdrawal),
-        session => session_processing_status(Withdrawal),
+        session => get_current_session_status(Withdrawal),
         status => status(Withdrawal),
         limit_check => limit_check_processing_status(Withdrawal),
         active_adjustment => ff_adjustment_utils:is_active(adjustments_index(Withdrawal))
@@ -676,18 +696,19 @@ do_process_transfer(stop, _Withdrawal) ->
     process_result().
 process_routing(Withdrawal) ->
     case do_process_routing(Withdrawal) of
-        {ok, [ProviderID | _]} ->
+        {ok, [Route | _]} ->
             {continue, [
-                {route_changed, #{provider_id => ProviderID}}
+                {route_changed, Route}
             ]};
         {error, route_not_found} ->
             process_transfer_fail(route_not_found, Withdrawal);
-        {error, {inconsistent_quote_route, _ProviderID} = Reason} ->
+        {error, {inconsistent_quote_route, _Data} = Reason} ->
             process_transfer_fail(Reason, Withdrawal)
     end.
 
--spec do_process_routing(withdrawal_state()) -> {ok, [provider_id()]} | {error, Reason} when
-    Reason :: route_not_found | {inconsistent_quote_route, provider_id()}.
+-spec do_process_routing(withdrawal_state()) -> {ok, [route()]} | {error, Reason} when
+    Reason :: route_not_found | InconsistentQuote,
+    InconsistentQuote :: {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}.
 do_process_routing(Withdrawal) ->
     WalletID = wallet_id(Withdrawal),
     {ok, Wallet} = get_wallet(WalletID),
@@ -706,61 +727,41 @@ do_process_routing(Withdrawal) ->
     }),
 
     do(fun() ->
-        Providers = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        Routes = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
         case quote(Withdrawal) of
             undefined ->
-                Providers;
+                Routes;
             Quote ->
-                ProviderID = hd(Providers),
-                valid = unwrap(validate_quote_provider(ProviderID, Quote)),
-                [ProviderID]
+                Route = hd(Routes),
+                valid = unwrap(validate_quote_route(Route, Quote)),
+                [Route]
         end
     end).
 
 -spec prepare_route(party_varset(), identity(), domain_revision()) ->
-    {ok, [provider_id()]} | {error, route_not_found}.
+    {ok, [route()]} | {error, route_not_found}.
 
 prepare_route(PartyVarset, Identity, DomainRevision) ->
-    {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
-    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
-        {ok, Providers}  ->
-            filter_providers(Providers, PartyVarset);
-        {error, {misconfiguration, _Details} = Error} ->
-            %% TODO: Do not interpret such error as an empty route list.
-            %% The current implementation is made for compatibility reasons.
-            %% Try to remove and follow the tests.
-            _ = logger:warning("Route search failed: ~p", [Error]),
-            {error, route_not_found}
-    end.
+    ff_withdrawal_routing:prepare_routes(PartyVarset, Identity, DomainRevision).
 
--spec validate_quote_provider(provider_id(), quote()) ->
-    {ok, valid} | {error, {inconsistent_quote_route, provider_id()}}.
-validate_quote_provider(ProviderID, #{quote_data := #{<<"provider_id">> := ProviderID}}) ->
+-spec validate_quote_route(route(), quote_state()) -> {ok, valid} | {error, InconsistentQuote} when
+    InconsistentQuote :: {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}.
+
+validate_quote_route(Route, #{route := QuoteRoute}) ->
+    do(fun() ->
+        valid = unwrap(validate_quote_provider(Route, QuoteRoute)),
+        valid = unwrap(validate_quote_terminal(Route, QuoteRoute))
+    end).
+
+validate_quote_provider(#{provider_id := ProviderID}, #{provider_id := ProviderID}) ->
     {ok, valid};
-validate_quote_provider(ProviderID, _) ->
-    {error, {inconsistent_quote_route, ProviderID}}.
+validate_quote_provider(#{provider_id := ProviderID}, _) ->
+    {error, {inconsistent_quote_route, {provider_id, ProviderID}}}.
 
--spec filter_providers([provider_id()], party_varset()) ->
-    {ok, [provider_id()]} | {error, route_not_found}.
-filter_providers(Providers, VS) ->
-    case lists:filter(fun(P) -> validate_withdrawals_terms(P, VS) end, Providers) of
-        [] ->
-            {error, route_not_found};
-        Providers ->
-            {ok, Providers}
-    end.
-
--spec validate_withdrawals_terms(provider_id(), party_varset()) ->
-    boolean().
-validate_withdrawals_terms(ID, VS) ->
-    Provider = unwrap(ff_payouts_provider:get(ID)),
-    case ff_payouts_provider:validate_terms(Provider, VS) of
-        {ok, valid} ->
-            true;
-        {error, _Error} ->
-            false
-    end.
+validate_quote_terminal(#{terminal_id := TerminalID}, #{terminal_id := TerminalID}) ->
+    {ok, valid};
+validate_quote_terminal(#{terminal_id := TerminalID}, _) ->
+    {error, {inconsistent_quote_route, {terminal_id, TerminalID}}}.
 
 -spec process_limit_check(withdrawal_state()) ->
     process_result().
@@ -824,7 +825,7 @@ process_session_creation(Withdrawal) ->
     Destination = ff_destination:get(DestinationMachine),
     DestinationAccount = ff_destination:account(Destination),
 
-    #{provider_id := ProviderID} = route(Withdrawal),
+    Route = route(Withdrawal),
     {ok, SenderSt} = ff_identity_machine:get(ff_account:identity(WalletAccount)),
     {ok, ReceiverSt} = ff_identity_machine:get(ff_account:identity(DestinationAccount)),
 
@@ -833,12 +834,12 @@ process_session_creation(Withdrawal) ->
         cash        => body(Withdrawal),
         sender      => ff_identity_machine:identity(SenderSt),
         receiver    => ff_identity_machine:identity(ReceiverSt),
-        quote       => unwrap_quote(quote(Withdrawal))
+        quote       => build_session_quote(quote(Withdrawal))
     }),
     SessionParams = #{
         withdrawal_id => id(Withdrawal),
         resource => destination_resource(Withdrawal),
-        provider_id => ProviderID
+        route => Route
     },
     ok = create_session(ID, TransferData, SessionParams),
     {continue, [{session_started, ID}]}.
@@ -946,7 +947,7 @@ make_final_cash_flow(Withdrawal) ->
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-    ProviderFee = ff_payouts_provider:compute_fees(Provider, PartyVarset),
+    {ok, ProviderFee} = ff_payouts_provider:compute_fees(Provider, PartyVarset),
 
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
@@ -1084,8 +1085,8 @@ get_quote_(Params, Destination, Resource) ->
             destination => Destination,
             resource => Resource
         }),
-        [ProviderID | _] = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
-        {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(ProviderID),
+        [Route | _] = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(Route),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),
             currency_from => CurrencyFrom,
@@ -1093,71 +1094,64 @@ get_quote_(Params, Destination, Resource) ->
             body => Body
         },
         {ok, Quote} = ff_adapter_withdrawal:get_quote(Adapter, GetQuoteParams, AdapterOpts),
-        %% add provider id to quote_data
-        wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote)
+        genlib_map:compact(#{
+            cash_from => maps:get(cash_from, Quote),
+            cash_to => maps:get(cash_to, Quote),
+            created_at => maps:get(created_at, Quote),
+            expires_on => maps:get(expires_on, Quote),
+            quote_data => maps:get(quote_data, Quote),
+            route => Route,
+            operation_timestamp => Timestamp,
+            resource_descriptor => ff_destination:resource_id(Resource),
+            domain_revision => DomainRevision,
+            party_revision => PartyRevision
+        })
     end).
 
--spec wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote) -> quote() when
-    DomainRevision :: domain_revision(),
-    PartyRevision :: party_revision(),
-    Timestamp :: ff_time:timestamp_ms(),
-    ProviderID :: provider_id(),
-    Resource :: destination_resource() | undefined,
-    Quote :: ff_adapter_withdrawal:quote().
-wrap_quote(DomainRevision, PartyRevision, Timestamp, Resource, ProviderID, Quote) ->
-    #{quote_data := QuoteData} = Quote,
-    ResourceID = ff_destination:full_bank_card_id(Resource),
-    Quote#{quote_data := genlib_map:compact(#{
-        <<"version">> => 1,
-        <<"quote_data">> => QuoteData,
-        <<"provider_id">> => ProviderID,
-        <<"resource_id">> => ResourceID,
-        <<"timestamp">> => Timestamp,
-        <<"domain_revision">> => DomainRevision,
-        <<"party_revision">> => PartyRevision
-    })}.
-
-unwrap_quote(undefined) ->
+-spec build_session_quote(quote_state() | undefined) ->
+    ff_adapter_withdrawal:quote_data() | undefined.
+build_session_quote(undefined) ->
     undefined;
-unwrap_quote(Quote = #{quote_data := QuoteData}) ->
-    WrappedData = maps:get(<<"quote_data">>, QuoteData),
-    Quote#{quote_data := WrappedData}.
+build_session_quote(Quote) ->
+    maps:with([cash_from, cash_to, created_at, expires_on, quote_data], Quote).
 
-quote_resource_id(undefined) ->
+-spec quote_resource_descriptor(quote() | undefined) ->
+    resource_descriptor().
+quote_resource_descriptor(undefined) ->
     undefined;
-quote_resource_id(#{quote_data := QuoteData}) ->
-    maps:get(<<"resource_id">>, QuoteData, undefined).
+quote_resource_descriptor(Quote) ->
+    maps:get(resource_descriptor, Quote, undefined).
 
 -spec quote_timestamp(quote() | undefined) ->
     ff_time:timestamp_ms() | undefined.
 quote_timestamp(undefined) ->
     undefined;
-quote_timestamp(#{quote_data := QuoteData}) ->
-    maps:get(<<"timestamp">>, QuoteData, undefined).
+quote_timestamp(Quote) ->
+    maps:get(operation_timestamp, Quote, undefined).
 
 -spec quote_party_revision(quote() | undefined) ->
     party_revision() | undefined.
 quote_party_revision(undefined) ->
     undefined;
-quote_party_revision(#{quote_data := QuoteData}) ->
-    maps:get(<<"party_revision">>, QuoteData, undefined).
+quote_party_revision(Quote) ->
+    maps:get(party_revision, Quote, undefined).
 
 -spec quote_domain_revision(quote() | undefined) ->
     domain_revision() | undefined.
 quote_domain_revision(undefined) ->
     undefined;
-quote_domain_revision(#{quote_data := QuoteData}) ->
-    maps:get(<<"domain_revision">>, QuoteData, undefined).
+quote_domain_revision(Quote) ->
+    maps:get(domain_revision, Quote, undefined).
 
 %% Session management
 
--spec session(withdrawal_state()) -> session() | undefined.
-session(Withdrawal) ->
+-spec get_current_session(withdrawal_state()) -> session() | undefined.
+get_current_session(Withdrawal) ->
     ff_withdrawal_route_attempt_utils:get_current_session(attempts(Withdrawal)).
 
 -spec session_id(withdrawal_state()) -> session_id() | undefined.
 session_id(T) ->
-    case session(T) of
+    case get_current_session(T) of
         undefined ->
             undefined;
         #{id := SessionID} ->
@@ -1166,7 +1160,7 @@ session_id(T) ->
 
 -spec session_result(withdrawal_state()) -> session_result() | unknown | undefined.
 session_result(Withdrawal) ->
-    case session(Withdrawal) of
+    case get_current_session(Withdrawal) of
         undefined ->
             undefined;
         #{result := Result} ->
@@ -1175,18 +1169,18 @@ session_result(Withdrawal) ->
             unknown
     end.
 
--spec session_processing_status(withdrawal_state()) ->
-    undefined | pending | succeeded | failed.
-session_processing_status(Withdrawal) ->
+-spec get_current_session_status(withdrawal_state()) ->
+    session_processing_status().
+get_current_session_status(Withdrawal) ->
     case attempts(Withdrawal) of
         undefined ->
             undefined;
         _ ->
-            session_processing_status_(Withdrawal)
+            get_current_session_status_(Withdrawal)
     end.
 
-session_processing_status_(Withdrawal) ->
-    Session = session(Withdrawal),
+get_current_session_status_(Withdrawal) ->
+    Session = get_current_session(Withdrawal),
     case Session of
         undefined ->
             undefined;
@@ -1441,12 +1435,81 @@ process_adjustment(Withdrawal) ->
     Events1 = Events0 ++ handle_adjustment_changes(Changes),
     handle_child_result({Action, Events1}, Withdrawal).
 
--spec process_route_change([provider_id()], withdrawal_state(), fail_type()) ->
+-spec process_route_change([route()], withdrawal_state(), fail_type()) ->
     process_result().
 process_route_change(Providers, Withdrawal, Reason) ->
+    case is_failure_transient(Reason, Withdrawal) of
+        true ->
+            do_process_route_change(Providers, Withdrawal, Reason);
+        false ->
+            process_transfer_fail(Reason, Withdrawal)
+    end.
+
+-spec is_failure_transient(fail_type(), withdrawal_state()) ->
+    boolean().
+is_failure_transient(Reason, Withdrawal) ->
+    {ok, Wallet} = get_wallet(wallet_id(Withdrawal)),
+    PartyID = ff_identity:party(get_wallet_identity(Wallet)),
+    RetryableErrors = get_retryable_error_list(PartyID),
+    ErrorTokens = to_error_token_list(Reason, Withdrawal),
+    match_error_whitelist(ErrorTokens, RetryableErrors).
+
+-spec get_retryable_error_list(party_id()) ->
+    list(list(binary())).
+get_retryable_error_list(PartyID) ->
+    WithdrawalConfig = genlib_app:env(ff_transfer, withdrawal, #{}),
+    PartyRetryableErrors = maps:get(party_transient_errors, WithdrawalConfig, #{}),
+    Errors = case maps:get(PartyID, PartyRetryableErrors, undefined) of
+        undefined ->
+            maps:get(default_transient_errors, WithdrawalConfig, []);
+        ErrorList ->
+            ErrorList
+    end,
+    binaries_to_error_tokens(Errors).
+
+-spec binaries_to_error_tokens(list(binary())) ->
+    list(list(binary())).
+binaries_to_error_tokens(Errors) ->
+    lists:map(fun(Error) ->
+        binary:split(Error, <<":">>, [global])
+    end, Errors).
+
+-spec to_error_token_list(fail_type(), withdrawal_state()) ->
+    list(binary()).
+to_error_token_list(Reason, Withdrawal) ->
+    Failure = build_failure(Reason, Withdrawal),
+    failure_to_error_token_list(Failure).
+
+-spec failure_to_error_token_list(ff_failure:failure()) ->
+    list(binary()).
+failure_to_error_token_list(#{code := Code, sub := SubFailure}) ->
+    SubFailureList = failure_to_error_token_list(SubFailure),
+    [Code | SubFailureList];
+failure_to_error_token_list(#{code := Code}) ->
+    [Code].
+
+-spec match_error_whitelist(list(binary()), list(list(binary()))) ->
+    boolean().
+match_error_whitelist(ErrorTokens, RetryableErrors) ->
+    lists:any(fun(RetryableError) ->
+        error_tokens_match(ErrorTokens, RetryableError)
+    end, RetryableErrors).
+
+-spec error_tokens_match(list(binary()), list(binary())) ->
+    boolean().
+error_tokens_match(_, []) ->
+    true;
+error_tokens_match([], [_|_]) ->
+    false;
+error_tokens_match([Token0 | Rest0], [Token1 | Rest1]) when Token0 =:= Token1 ->
+    error_tokens_match(Rest0, Rest1);
+error_tokens_match([Token0 | _], [Token1 | _]) when Token0 =/= Token1 ->
+    false.
+
+-spec do_process_route_change([route()], withdrawal_state(), fail_type()) ->
+    process_result().
+do_process_route_change(Routes, Withdrawal, Reason) ->
     Attempts = attempts(Withdrawal),
-    %% TODO Remove line below after switch to [route()] from [provider_id()]
-    Routes = [#{provider_id => ID} || ID <- Providers],
     AttemptLimit = get_attempt_limit(Withdrawal),
     case ff_withdrawal_route_attempt_utils:next_route(Routes, Attempts, AttemptLimit) of
         {ok, Route} ->
@@ -1507,11 +1570,10 @@ build_failure(route_not_found, _Withdrawal) ->
     #{
         code => <<"no_route_found">>
     };
-build_failure({inconsistent_quote_route, FoundProviderID}, Withdrawal) ->
-    #{quote_data := #{<<"provider_id">> := QuotaProviderID}} = quote(Withdrawal),
+build_failure({inconsistent_quote_route, {Type, FoundID}}, Withdrawal) ->
     Details = {inconsistent_quote_route, #{
-        expected => QuotaProviderID,
-        found => FoundProviderID
+        expected => {Type, FoundID},
+        found => get_quote_field(Type, quote(Withdrawal))
     }},
     #{
         code => <<"unknown">>,
@@ -1521,6 +1583,11 @@ build_failure(session, Withdrawal) ->
     Result = session_result(Withdrawal),
     {failed, Failure} = Result,
     Failure.
+
+get_quote_field(provider_id, #{route := Route}) ->
+    ff_withdrawal_routing:get_provider(Route);
+get_quote_field(terminal_id, #{route := Route}) ->
+    ff_withdrawal_routing:get_terminal(Route).
 
 %%
 
@@ -1567,100 +1634,6 @@ apply_event_({route_changed, Route}, T) ->
     };
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
-
--spec maybe_migrate(event() | legacy_event(), ff_machine:migrate_params()) ->
-    event().
-% Actual events
-maybe_migrate(Ev = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
-    Ev;
-maybe_migrate(Ev = {status_changed, {failed, #{code := _}}}, _MigrateParams) ->
-    Ev;
-maybe_migrate(Ev = {session_finished, {_SessionID, _Status}}, _MigrateParams) ->
-    Ev;
-maybe_migrate(Ev = {limit_check, {wallet_sender, _Details}}, _MigrateParams) ->
-    Ev;
-maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
-    {p_transfer, ff_postings_transfer:maybe_migrate(PEvent, withdrawal)};
-maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
-    ff_adjustment_utils:maybe_migrate(Event);
-maybe_migrate({resource_got, Resource}, _MigrateParams) ->
-    {resource_got, ff_instrument:maybe_migrate_resource(Resource)};
-
-% Old events
-maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->
-    maybe_migrate({limit_check, {wallet_sender, Details}}, MigrateParams);
-maybe_migrate({created, #{version := 1, handler := ff_withdrawal} = T}, MigrateParams) ->
-    #{
-        version     := 1,
-        id          := ID,
-        handler     := ff_withdrawal,
-        body        := Body,
-        params      := #{
-            destination := DestinationID,
-            source      := SourceID
-        }
-    } = T,
-    Route = maps:get(route, T, undefined),
-    maybe_migrate({created, genlib_map:compact(#{
-        version       => 2,
-        id            => ID,
-        transfer_type => withdrawal,
-        body          => Body,
-        route         => Route,
-        params        => #{
-            wallet_id             => SourceID,
-            destination_id        => DestinationID,
-            % Fields below are required to correctly decode legacy events.
-            % When decoding legacy events, the `erlang:binary_to_existing_atom/2` function is used,
-            % so the code must contain atoms from the event.
-            % They are not used now, so their value does not matter.
-            wallet_account        => [],
-            destination_account   => [],
-            wallet_cash_flow_plan => []
-        }
-    })}, MigrateParams);
-maybe_migrate({created, Withdrawal = #{version := 2, id := ID}}, MigrateParams) ->
-    Ctx = maps:get(ctx, MigrateParams, undefined),
-    Context = case Ctx of
-        undefined ->
-            {ok, State} = ff_machine:get(ff_withdrawal, 'ff/withdrawal_v2', ID, {undefined, 0, forward}),
-            maps:get(ctx, State, undefined);
-        Data ->
-            Data
-    end,
-    maybe_migrate({created, genlib_map:compact(Withdrawal#{
-        version => 3,
-        metadata => ff_entity_context:try_get_legacy_metadata(Context)
-    })}, MigrateParams);
-maybe_migrate({created, T}, MigrateParams) ->
-    DestinationID = maps:get(destination, T),
-    SourceID = maps:get(source, T),
-    ProviderID = maps:get(provider, T),
-    maybe_migrate({created, T#{
-        version     => 1,
-        handler     => ff_withdrawal,
-        route       => #{provider_id => ProviderID},
-        params => #{
-            destination => DestinationID,
-            source      => SourceID
-        }
-    }}, MigrateParams);
-maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
-    maybe_migrate({p_transfer, PTransferEv}, MigrateParams);
-maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
-    Failure = #{
-        code => <<"unknown">>,
-        reason => genlib:format(LegacyFailure)
-    },
-    maybe_migrate({status_changed, {failed, Failure}}, MigrateParams);
-maybe_migrate({session_finished, SessionID}, MigrateParams) ->
-    {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
-    Session = ff_withdrawal_session_machine:session(SessionMachine),
-    {finished, Result} = ff_withdrawal_session:status(Session),
-    maybe_migrate({session_finished, {SessionID, Result}}, MigrateParams);
-% Other events
-maybe_migrate(Ev, _MigrateParams) ->
-    Ev.
 
 get_attempt_limit(Withdrawal) ->
     #{
@@ -1709,181 +1682,36 @@ get_attempt_limit_({value, Limit}) ->
 -include_lib("eunit/include/eunit.hrl").
 -spec test() -> _.
 
--spec v0_created_migration_test() -> _.
-v0_created_migration_test() ->
-    ID = genlib:unique(),
-    WalletID = genlib:unique(),
-    DestinationID = genlib:unique(),
-    ProviderID = genlib:unique(),
-    Body = {100, <<"RUB">>},
-    LegacyEvent = {created, #{
-        id          => ID,
-        source      => WalletID,
-        destination => DestinationID,
-        body        => Body,
-        provider    => ProviderID
-    }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
-    ?assertEqual(ID, id(Withdrawal)),
-    ?assertEqual(WalletID, wallet_id(Withdrawal)),
-    ?assertEqual(DestinationID, destination_id(Withdrawal)),
-    ?assertEqual(Body, body(Withdrawal)),
-    ?assertEqual(#{provider_id => ProviderID}, route(Withdrawal)).
-
--spec v1_created_migration_test() -> _.
-v1_created_migration_test() ->
-    ID = genlib:unique(),
-    WalletID = genlib:unique(),
-    WalletAccount = #{
-        id => WalletID,
-        identity => genlib:unique(),
-        currency => <<"RUB">>,
-        accounter_account_id => 123
-    },
-    DestinationID = genlib:unique(),
-    DestinationAccount = #{
-        id => DestinationID,
-        identity => genlib:unique(),
-        currency => <<"RUB">>,
-        accounter_account_id => 123
-    },
-    Body = {100, <<"RUB">>},
-    LegacyEvent = {created, #{
-        version     => 1,
-        id          => ID,
-        handler     => ff_withdrawal,
-        source      => WalletAccount,
-        destination => DestinationAccount,
-        body        => Body,
-        params      => #{
-            source => WalletID,
-            destination => DestinationID
-        }
-    }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
-    ?assertEqual(ID, id(Withdrawal)),
-    ?assertEqual(WalletID, wallet_id(Withdrawal)),
-    ?assertEqual(DestinationID, destination_id(Withdrawal)),
-    ?assertEqual(Body, body(Withdrawal)).
-
--spec v2_created_migration_test() -> _.
-v2_created_migration_test() ->
-    ID = genlib:unique(),
-    WalletID = genlib:unique(),
-    WalletAccount = #{
-        id => WalletID,
-        identity => genlib:unique(),
-        currency => <<"RUB">>,
-        accounter_account_id => 123
-    },
-    DestinationID = genlib:unique(),
-    DestinationAccount = #{
-        id => DestinationID,
-        identity => genlib:unique(),
-        currency => <<"RUB">>,
-        accounter_account_id => 123
-    },
-    Body = {100, <<"RUB">>},
-    LegacyEvent = {created, #{
-        version       => 2,
-        id            => ID,
-        transfer_type => withdrawal,
-        body          => Body,
-        params        => #{
-            wallet_id             => WalletID,
-            destination_id        => DestinationID,
-            wallet_account        => WalletAccount,
-            destination_account   => DestinationAccount,
-            wallet_cash_flow_plan => #{
-                postings => [
-                    #{
-                        sender   => {wallet, sender_settlement},
-                        receiver => {wallet, receiver_destination},
-                        volume   => {share, {{1, 1}, operation_amount, default}}
-                    }
-                ]
-            }
-        }
-    }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
-    ?assertEqual(ID, id(Withdrawal)),
-    ?assertEqual(WalletID, wallet_id(Withdrawal)),
-    ?assertEqual(DestinationID, destination_id(Withdrawal)),
-    ?assertEqual(Body, body(Withdrawal)).
-
--spec v3_created_migration_test() -> _.
-v3_created_migration_test() ->
-    ID = genlib:unique(),
-    WalletID = genlib:unique(),
-    WalletAccount = #{
-        id => WalletID,
-        identity => genlib:unique(),
-        currency => <<"RUB">>,
-        accounter_account_id => 123
-    },
-    DestinationID = genlib:unique(),
-    DestinationAccount = #{
-        id => DestinationID,
-        identity => genlib:unique(),
-        currency => <<"RUB">>,
-        accounter_account_id => 123
-    },
-    Body = {100, <<"RUB">>},
-    LegacyEvent = {created, #{
-        version       => 2,
-        id            => ID,
-        transfer_type => withdrawal,
-        body          => Body,
-        params        => #{
-            wallet_id             => WalletID,
-            destination_id        => DestinationID,
-            wallet_account        => WalletAccount,
-            destination_account   => DestinationAccount,
-            wallet_cash_flow_plan => #{
-                postings => [
-                    #{
-                        sender   => {wallet, sender_settlement},
-                        receiver => {wallet, receiver_destination},
-                        volume   => {share, {{1, 1}, operation_amount, default}}
-                    }
-                ]
-            }
-        }
-    }},
-    {created, Withdrawal} = maybe_migrate(LegacyEvent, #{
-        ctx => #{
-            <<"com.rbkmoney.wapi">> => #{
-                <<"metadata">> => #{
-                    <<"some key">> => <<"some val">>
-                }
-            }
-        }
-    }),
-    ?assertEqual(ID, id(Withdrawal)),
-    ?assertEqual(#{<<"some key">> => <<"some val">>}, metadata(Withdrawal)).
+-spec match_error_whitelist_test() -> _.
+match_error_whitelist_test() ->
+    ErrorWhitelist = binaries_to_error_tokens([
+        <<"some:test:error">>,
+        <<"another:test:error">>,
+        <<"wide">>
+    ]),
+    ?assertEqual(false, match_error_whitelist(
+        [<<>>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(false, match_error_whitelist(
+        [<<"some">>, <<"completely">>, <<"different">>, <<"error">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(false, match_error_whitelist(
+        [<<"some">>, <<"test">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(false, match_error_whitelist(
+        [<<"wider">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(true,  match_error_whitelist(
+        [<<"some">>, <<"test">>, <<"error">>],
+        ErrorWhitelist
+    )),
+    ?assertEqual(true,  match_error_whitelist(
+        [<<"another">>, <<"test">>, <<"error">>, <<"that">>, <<"is">>, <<"more">>, <<"specific">>],
+        ErrorWhitelist
+    )).
 
 -endif.

@@ -21,7 +21,7 @@
         {identity, unauthorized}    |
         {identity, notfound}        |
         {currency, notfound}        |
-        {inaccessible, _}           |
+        inaccessible                |
         {external_id_conflict, {id(), external_id()}}.
 
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->

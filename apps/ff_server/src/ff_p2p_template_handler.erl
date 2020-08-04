@@ -34,7 +34,7 @@ handle_function_('Create', [MarshaledParams, Context], Opts) ->
         ok ->
             handle_function_('Get', [P2PTemplateID, #'EventRange'{}], Opts);
         {error, exists} ->
-            woody_error:raise(business, #fistful_IDExists{});
+            handle_function_('Get', [P2PTemplateID, #'EventRange'{}], Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {terms, {bad_p2p_template_amount, Cash}}} ->

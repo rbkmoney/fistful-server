@@ -4,6 +4,8 @@
 
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
+-export([unmarshal_quote_params/1]).
+
 -export([unmarshal_withdrawal_params/1]).
 -export([marshal_withdrawal_params/1]).
 
@@ -14,6 +16,18 @@
 -export([unmarshal/2]).
 
 %% API
+
+-spec unmarshal_quote_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
+    ff_withdrawal:params().
+
+unmarshal_quote_params(Params) ->
+    genlib_map:compact(#{
+        id             => unmarshal(id, Params#wthd_QuoteParams.id),
+        wallet_id      => unmarshal(id, Params#wthd_QuoteParams.wallet_id),
+        destination_id => unmarshal(id, Params#wthd_QuoteParams.destination_id),
+        body           => unmarshal(cash, Params#wthd_QuoteParams.body)
+        % external_id    => maybe_unmarshal(id, Params#wthd_QuoteParams.external_id)
+    }).
 
 -spec marshal_withdrawal_params(ff_withdrawal:params()) ->
     ff_proto_withdrawal_thrift:'WithdrawalParams'().

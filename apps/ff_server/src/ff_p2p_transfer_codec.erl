@@ -4,6 +4,7 @@
 
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 
+-export([unmarshal_p2p_quote_params/1]).
 -export([marshal_p2p_transfer_state/2]).
 -export([unmarshal_p2p_transfer_params/1]).
 
@@ -12,6 +13,22 @@
 -export([unmarshal/2]).
 
 %% API
+
+-spec unmarshal_p2p_quote_params(ff_proto_p2p_transfer_thrift:'QuoteParams'()) ->
+    p2p_quote:params().
+
+unmarshal_p2p_quote_params(#p2p_transfer_QuoteParams{
+    identity_id = IdentityID,
+    sender = Sender,
+    receiver = Receiver,
+    body = Body
+}) ->
+    genlib_map:compact(#{
+        identity_id => unmarshal(id, IdentityID),
+        body => unmarshal(cash, Body),
+        sender => unmarshal(participant, Sender),
+        receiver => unmarshal(participant, Receiver)
+    }).
 
 -spec marshal_p2p_transfer_state(p2p_transfer:p2p_transfer_state(), ff_entity_context:context()) ->
     ff_proto_p2p_transfer_thrift:'P2PTransferState'().

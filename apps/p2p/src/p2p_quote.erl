@@ -39,7 +39,15 @@
     receiver          := compact_resource()
 }.
 
+-type params() :: #{
+    body := cash(),
+    identity_id := identity_id(),
+    sender := sender(),
+    receiver := receiver()
+}.
+
 -export_type([quote/0]).
+-export_type([params/0]).
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).

@@ -49,4 +49,21 @@ handle_function_('Get', [ID], _Opts) ->
             {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DestinationNotFound{})
+    end;
+handle_function_('GetContext', [ID], _Opts) ->
+    ok = scoper:add_meta(#{id => ID}),
+    case ff_destination:get_machine(ID, {undefined, 0}) of
+        {ok, Machine} ->
+            Context = ff_destination_machine:ctx(Machine),
+            {ok, ff_codec:marshal(context, Context)};
+        {error, notfound} ->
+            woody_error:raise(business, #fistful_DestinationNotFound{})
+    end;
+handle_function_('GetEvents', [ID, EventRange], _Opts) ->
+    ok = scoper:add_meta(#{id => ID}),
+    case ff_destination_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
+        {ok, Events} ->
+            {ok, lists:map(fun ff_destination_codec:marshal_event/1, Events)};
+        {error, notfound} ->
+            woody_error:raise(business, #fistful_DestinationNotFound{})
     end.

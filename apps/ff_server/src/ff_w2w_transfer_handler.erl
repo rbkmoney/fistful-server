@@ -32,7 +32,7 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
         ok ->
             handle_function_('Get', [W2WTransferID, #'EventRange'{}], Opts);
         {error, exists} ->
-            woody_error:raise(business, #fistful_IDExists{});
+            handle_function_('Get', [W2WTransferID, #'EventRange'{}], Opts);
         {error, {wallet_from, notfound}} ->
             woody_error:raise(business, #fistful_WalletNotFound{
                 id = MarshaledParams#w2w_transfer_W2WTransferParams.wallet_from_id

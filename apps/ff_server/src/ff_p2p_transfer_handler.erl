@@ -23,6 +23,33 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
+handle_function_('GetQuote', [MarshaledParams], _Opts) ->
+    Params = ff_p2p_transfer_codec:unmarshal_p2p_quote_params(MarshaledParams),
+    ok = scoper:add_meta(maps:with([id, identity_id, external_id], Params)),
+    case p2p_quote:get(Params) of
+        {ok, Quote} ->
+            Quote;
+        {error, {identity, notfound}} ->
+            woody_error:raise(business, #fistful_IdentityNotFound{});
+        % {error, {sender, {bin_data, notfound}}} ->
+        %     woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = sender});
+        % {error, {receiver, {bin_data, notfound}}} ->
+        %     woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = receiver});
+        {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
+            Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
+            Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],
+            woody_error:raise(business, #fistful_ForbiddenOperationCurrency{
+                currency = ff_codec:marshal(currency_ref, Currency),
+                allowed_currencies = ff_codec:marshal({set, currency_ref}, Allowed)
+            });
+        {error, {terms, {terms_violation, {cash_range, {Cash, Range}}}}} ->
+            woody_error:raise(business, #fistful_ForbiddenOperationAmount{
+                amount = ff_codec:marshal(cash, Cash),
+                allowed_range = ff_codec:marshal(cash_range, Range)
+            });
+        {error, Error} ->
+            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
+    end;
 handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
     P2PTransferID = MarshaledParams#p2p_transfer_P2PTransferParams.id,
     Params = ff_p2p_transfer_codec:unmarshal_p2p_transfer_params(MarshaledParams),
@@ -32,7 +59,7 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
         ok ->
             handle_function_('Get', [P2PTransferID, #'EventRange'{}], Opts);
         {error, exists} ->
-            woody_error:raise(business, #fistful_IDExists{});
+            handle_function_('Get', [P2PTransferID, #'EventRange'{}], Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->

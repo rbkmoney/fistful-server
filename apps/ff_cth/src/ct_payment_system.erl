@@ -572,14 +572,8 @@ domain_config(Options, C) ->
 
         ct_domain:category(?cat(1), <<"Generic Store">>, live),
 
-        ct_domain:payment_method(?pmt(bank_card, #domain_BankCardPaymentMethod{
-            payment_system = visa,
-            is_cvv_empty = false
-        })),
-        ct_domain:payment_method(?pmt(bank_card, #domain_BankCardPaymentMethod{
-            payment_system = mastercard,
-            is_cvv_empty = false
-        }))
+        ct_domain:payment_method(?pmt(bank_card_deprecated, visa)),
+        ct_domain:payment_method(?pmt(bank_card_deprecated, mastercard))
     ],
     maps:get(domain_config, Options, Default).
 

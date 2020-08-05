@@ -224,8 +224,8 @@ try_get_full_resource(Resource, Context) ->
             Fun(Resource);
         error ->
             case ff_destination:process_resource_full(Resource, undefined) of
-                {ok, Resource} ->
-                    Resource;
+                {ok, NewResource} ->
+                    NewResource;
                 {error, _Reason} ->
                     % it looks like we have met unsupported card
                     % let's construct some dummy resource

@@ -1931,8 +1931,6 @@ to_swag(challenge_status, {failed, Reason}) ->
         <<"status">>        => <<"Failed">>,
         <<"failureReason">> => to_swag(challenge_failure_reason, Reason)
     };
-to_swag(challenge_failure_reason, Failure = #domain_Failure{}) ->
-    to_swag(failure, Failure);
 to_swag(challenge_failure_reason, Reason) ->
     genlib:to_binary(Reason);
 to_swag(identity_challenge_event, {ID, Ts, V}) ->
@@ -2140,8 +2138,6 @@ to_swag(withdrawal_status, {failed, Failure}) ->
         <<"status">> => <<"Failed">>,
         <<"failure">> => to_swag(withdrawal_status_failure, Failure)
     };
-to_swag(withdrawal_status_failure, Failure = #domain_Failure{}) ->
-    to_swag(failure, Failure);
 to_swag(withdrawal_status_failure, Failure) ->
     map_withdrawal_error(Failure);
 to_swag(stat_status_failure, Failure) ->
@@ -2171,18 +2167,6 @@ to_swag(currency_object, V) ->
         <<"numericCode">> => genlib:to_binary(maps:get(numcode, V)),
         <<"exponent">>    => maps:get(exponent, V),
         <<"sign">>        => maps:get(sign, V, undefined)
-    });
-to_swag(domain_failure, Failure = #domain_Failure{}) ->
-    erlang:list_to_binary(payproc_errors:format_raw(Failure));
-to_swag(failure, Failure = #domain_Failure{}) ->
-    to_swag(map, #{
-        <<"code">> => Failure#domain_Failure.code,
-        <<"subError">> => to_swag(sub_failure, Failure#domain_Failure.sub)
-    });
-to_swag(sub_failure, Failure = #domain_SubFailure{}) ->
-    to_swag(map, #{
-        <<"code">> => Failure#domain_SubFailure.code,
-        <<"subError">> => to_swag(sub_failure, Failure#domain_SubFailure.sub)
     });
 to_swag(is_blocked, {ok, accessible}) ->
     false;
@@ -2447,6 +2431,7 @@ map_p2p_transfer_error(#{code := Code} = Err) when
     Code == <<"authorization_failed">> orelse
     Code == <<"no_route_found">>
 ->
+    ff_p2p_transfer_codec:marshal(a, b),
     to_swag(map, #{
         <<"code">> => Code,
         <<"subError">> => map_subfailure(maps:get(sub, Err, undefined))

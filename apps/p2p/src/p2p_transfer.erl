@@ -92,7 +92,7 @@
 -type create_error() ::
     {identity, notfound} |
     {terms, ff_party:validate_p2p_error()} |
-    {resource_owner(), {bin_data, not_found}}.
+    {resource_owner(), {bin_data, ff_bin_data:bin_data_error()}}.
 
 -type route() :: #{
     version := 1,
@@ -473,7 +473,7 @@ do_start_adjustment(Params, P2PTransfer) ->
 
 -spec prepare_resource(sender | receiver, p2p_participant:participant(), p2p_quote:quote() | undefined) ->
     {ok, resource()} |
-    {error, {bin_data, not_found}}.
+    {error, {bin_data, ff_bin_data:bin_data_error()}}.
 
 prepare_resource(sender, Params, undefined) ->
     p2p_participant:get_resource(Params);

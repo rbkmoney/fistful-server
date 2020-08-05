@@ -74,7 +74,7 @@
     {destination, notfound | unauthorized} |
     {inconsistent_currency, {Withdrawal :: currency_id(), Wallet :: currency_id(), Destination :: currency_id()}} |
     {terms, ff_party:validate_withdrawal_creation_error()} |
-    {destination_resource, {bin_data, not_found}}.
+    {destination_resource, {bin_data, ff_bin_data:bin_data_error()}}.
 
 -type route() :: ff_withdrawal_routing:route().
 
@@ -1051,7 +1051,7 @@ construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currenc
         {destination, unauthorized}   |
         {route, route_not_found}      |
         {wallet, notfound}            |
-        {destination_resource, {bin_data, not_found}}
+        {destination_resource, {bin_data, ff_bin_data:bin_data_error()}}
     }.
 get_quote(Params = #{destination_id := DestinationID}) ->
     do(fun() ->

@@ -19,7 +19,7 @@
     {identity, not_found} |
     {party, get_contract_terms_error()} |
     {fees, ff_fees_plan:computation_error()} |
-    {p2p_transfer:resource_owner(), {bin_data, not_found}} |
+    {p2p_transfer:resource_owner(), {bin_data, ff_bin_data:bin_data_error()}} |
     {terms, validate_p2p_error()}.
 
 -type compact_bank_card_resource() :: {bank_card, #{

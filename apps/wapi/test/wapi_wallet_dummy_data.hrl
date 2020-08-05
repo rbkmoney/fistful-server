@@ -233,25 +233,25 @@
 
 -define(PAYMENTS_SERVICE_TERMS, #domain_PaymentsServiceTerms{
     payment_methods = {value,
-        [
+        ordsets:from_list([
             #domain_PaymentMethodRef{
-                id = {bank_card, mastercard}
+                id = {bank_card_deprecated, mastercard}
             },
             #domain_PaymentMethodRef{
-                id = {bank_card, visa}
+                id = {bank_card_deprecated, visa}
             },
             #domain_PaymentMethodRef{
-                id = {tokenized_bank_card, #domain_TokenizedBankCard{
+                id = {tokenized_bank_card_deprecated, #domain_TokenizedBankCard{
                     payment_system = mastercard,
                     token_provider = applepay
                 }}
             },
             #domain_PaymentMethodRef{
-                id = {tokenized_bank_card, #domain_TokenizedBankCard{
+                id = {tokenized_bank_card_deprecated, #domain_TokenizedBankCard{
                     payment_system = visa,
                     token_provider = applepay
                 }}
             }
-        ]
+        ])
     }
 }).

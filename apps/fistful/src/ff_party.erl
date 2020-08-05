@@ -906,7 +906,7 @@ encode_payment_method(undefined) ->
     undefined;
 encode_payment_method({bank_card, #domain_BankCard{payment_system = PaymentSystem}}) ->
     #domain_PaymentMethodRef{
-        id = {bank_card, PaymentSystem}
+        id = {bank_card_deprecated, PaymentSystem}
     };
 encode_payment_method({crypto_currency, CryptoCurrency}) ->
     #domain_PaymentMethodRef{

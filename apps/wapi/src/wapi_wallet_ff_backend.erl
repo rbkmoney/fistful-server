@@ -2134,12 +2134,7 @@ to_swag(withdrawal_status, pending) ->
 to_swag(withdrawal_status, succeeded) ->
     #{<<"status">> => <<"Succeeded">>};
 to_swag(withdrawal_status, {failed, Failure}) ->
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => to_swag(withdrawal_status_failure, Failure)
-    };
-to_swag(withdrawal_status_failure, Failure) ->
-    map_withdrawal_error(Failure);
+    map_failure(Failure);
 to_swag(stat_status_failure, Failure) ->
     map_fistful_stat_error(Failure);
 to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
@@ -2262,10 +2257,7 @@ to_swag(p2p_transfer_status, succeeded) ->
         <<"status">> => <<"Succeeded">>
     };
 to_swag(p2p_transfer_status, {failed, P2PTransferFailure}) ->
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => map_p2p_transfer_error(P2PTransferFailure)
-    };
+    map_failure(P2PTransferFailure);
 
 to_swag(contact_info, ContactInfo) ->
     genlib_map:compact(#{
@@ -2334,11 +2326,7 @@ to_swag(w2w_transfer_status, succeeded) ->
         <<"status">> => <<"Succeeded">>
     };
 to_swag(w2w_transfer_status, {failed, W2WTransferFailure}) ->
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => map_w2w_transfer_error(W2WTransferFailure)
-    };
-
+    map_failure(W2WTransferFailure);
 to_swag(sub_failure, #{
     code := Code
 } = SubError) ->
@@ -2427,54 +2415,13 @@ maybe_to_swag(_T, undefined) ->
 maybe_to_swag(T, V) ->
     to_swag(T, V).
 
-map_p2p_transfer_error(#{code := Code} = Err) when
-    Code == <<"authorization_failed">> orelse
-    Code == <<"no_route_found">>
-->
-    ff_p2p_transfer_codec:marshal(a, b),
-    to_swag(map, #{
-        <<"code">> => Code,
-        <<"subError">> => map_subfailure(maps:get(sub, Err, undefined))
-    });
-
-map_p2p_transfer_error(_Error) ->
+map_failure(#{code := Code} = Err) ->
     #{
-      <<"code">> => <<"failed">>
-    }.
-
-map_w2w_transfer_error(#{code := Code} = Err) when
-    Code == <<"account_limit_exceeded">>
-->
-    to_swag(map, #{
-        <<"code">> => Code,
-        <<"subError">> => map_subfailure(maps:get(sub, Err, undefined))
-    });
-
-map_w2w_transfer_error(_Error) ->
-    #{
-      <<"code">> => <<"failed">>
-    }.
-
-map_withdrawal_error({wallet_limit, {terms_violation, {cash_range, _Details}}}) ->
-    #{
-        <<"code">> => <<"terms_violation">>,
-        <<"subError">> => #{
-            <<"code">> => <<"cash_range">>
-        }
-    };
-map_withdrawal_error(#{code := Code} = Err) when
-    Code == <<"account_limit_exceeded">> orelse
-    Code == <<"provider_limit_exceeded">> orelse
-    Code == <<"no_route_found">> orelse
-    Code == <<"quote_expired">>
-->
-    to_swag(map, #{
-        <<"code">> => Code,
-        <<"subError">> => map_subfailure(maps:get(sub, Err, undefined))
-    });
-map_withdrawal_error(_Reason) ->
-    #{
-      <<"code">> => <<"failed">>
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => to_swag(map, #{
+            <<"code">> => Code,
+            <<"subError">> => map_subfailure(maps:get(sub, Err, undefined))
+        })
     }.
 
 map_fistful_stat_error(_Reason) ->

@@ -12,8 +12,7 @@
 
 %% Constants
 
-% @TODO: Set to one after migration
--define(CURRENT_EVENT_FORMAT_VERSION, undefined).
+-define(CURRENT_EVENT_FORMAT_VERSION, 1).
 
 %% Internal types
 

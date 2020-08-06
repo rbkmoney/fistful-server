@@ -222,9 +222,9 @@ unmarshal(change, {limit_check, #wthd_LimitCheckChange{details = Details}}) ->
 unmarshal(change, {resource, {got, #wthd_ResourceGot{resource = Resource}}}) ->
     {resource_got, unmarshal(resource, Resource)};
 unmarshal(change, {adjustment, Change}) ->
-    {revert, #{
+    {adjustment, #{
         id => unmarshal(id, Change#wthd_AdjustmentChange.id),
-        payload => ff_withdrawal_adjustment_codec:unmarshal(id, Change#wthd_AdjustmentChange.payload)
+        payload => ff_withdrawal_adjustment_codec:unmarshal(change, Change#wthd_AdjustmentChange.payload)
     }};
 
 unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
@@ -274,7 +274,7 @@ unmarshal(session_state, Session) ->
     });
 
 unmarshal(quote_state, Quote) ->
-    #{
+    genlib_map:compact(#{
         cash_from => unmarshal(cash, Quote#wthd_QuoteState.cash_from),
         cash_to   => unmarshal(cash, Quote#wthd_QuoteState.cash_to),
         created_at => Quote#wthd_QuoteState.created_at,
@@ -282,10 +282,10 @@ unmarshal(quote_state, Quote) ->
         route => maybe_unmarshal(route, Quote#wthd_QuoteState.route),
         resource_descriptor => maybe_unmarshal(resource_descriptor, Quote#wthd_QuoteState.resource),
         quote_data => maybe_unmarshal(msgpack, Quote#wthd_QuoteState.quote_data)
-    };
+    });
 
 unmarshal(quote, Quote) ->
-    #{
+    genlib_map:compact(#{
         cash_from => unmarshal(cash, Quote#wthd_Quote.cash_from),
         cash_to   => unmarshal(cash, Quote#wthd_Quote.cash_to),
         created_at => Quote#wthd_Quote.created_at,
@@ -296,7 +296,7 @@ unmarshal(quote, Quote) ->
         domain_revision => maybe_unmarshal(domain_revision, Quote#wthd_Quote.domain_revision),
         party_revision => maybe_unmarshal(party_revision, Quote#wthd_Quote.party_revision),
         operation_timestamp => maybe_unmarshal(timestamp_ms, Quote#wthd_Quote.operation_timestamp)
-    };
+    });
 
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);

@@ -205,16 +205,17 @@ unmarshal(session, #wthd_session_Session{
     id = SessionID,
     status = SessionStatus,
     withdrawal = Withdrawal,
-    route = Route0
+    route = Route0,
+    provider_legacy = ProviderLegacy
 }) ->
     Route1 = unmarshal(route, Route0),
     genlib_map:compact(#{
-        version => 3,
+        version => 4,
         id => unmarshal(id, SessionID),
         status => unmarshal(session_status, SessionStatus),
         withdrawal => unmarshal(withdrawal, Withdrawal),
         route => Route1,
-        provider_legacy => get_legacy_provider_id(#{route => Route1})
+        provider_legacy => ProviderLegacy
     });
 
 unmarshal(session_status, {active, #wthd_session_SessionActive{}}) ->

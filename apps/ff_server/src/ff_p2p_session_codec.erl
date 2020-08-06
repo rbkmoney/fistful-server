@@ -223,7 +223,7 @@ unmarshal(session, #p2p_session_Session{
         route => unmarshal(route, Route),
         party_revision => unmarshal(party_revision, PartyRevision),
         domain_revision => unmarshal(domain_revision, DomainRevision),
-        provider_id_legacy => unmarshal(integer, ProviderID)
+        provider_id_legacy => maybe_unmarshal(integer, ProviderID)
     });
 
 unmarshal(status, {active, #p2p_session_SessionActive{}}) ->

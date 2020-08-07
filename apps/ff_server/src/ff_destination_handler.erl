@@ -40,8 +40,8 @@ handle_function_('Create', [Params, Ctx], Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Get', [ID], _Opts) ->
-    case ff_destination:get_machine(ID) of
+handle_function_('Get', [ID, EventRange], _Opts) ->
+    case ff_destination:get_machine(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             Destination = ff_destination:get(Machine),
             Context = ff_destination:ctx(Machine),
@@ -54,14 +54,14 @@ handle_function_('GetContext', [ID], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_destination:get_machine(ID, {undefined, 0}) of
         {ok, Machine} ->
-            Context = ff_destination_machine:ctx(Machine),
+            Context = ff_destination:ctx(Machine),
             {ok, ff_codec:marshal(context, Context)};
         {error, notfound} ->
             woody_error:raise(business, #fistful_DestinationNotFound{})
     end;
 handle_function_('GetEvents', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
-    case ff_destination_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
+    case ff_destination:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Events} ->
             {ok, lists:map(fun ff_destination_codec:marshal_event/1, Events)};
         {error, notfound} ->

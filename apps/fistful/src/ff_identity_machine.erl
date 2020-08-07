@@ -18,9 +18,10 @@
 
 %% API
 
--type id()        :: machinery:id().
--type identity()  :: ff_identity:identity_state().
--type ctx()       :: ff_entity_context:context().
+-type id() :: machinery:id().
+-type identity() :: ff_identity:identity_state().
+-type ctx() :: ff_entity_context:context().
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type st() :: ff_machine:st(identity()).
 
@@ -42,6 +43,7 @@
 
 -export([create/2]).
 -export([get/1]).
+-export([get/2]).
 -export([events/2]).
 
 -export([start_challenge/2]).
@@ -86,6 +88,13 @@ create(Params = #{id := ID}, Ctx) ->
 
 get(ID) ->
     ff_machine:get(ff_identity, ?NS, ID).
+
+-spec get(id(), event_range()) ->
+    {ok, st()}        |
+    {error, notfound}.
+
+get(ID, {After, Limit}) ->
+    ff_machine:get(ff_identity, ?NS, ID, {After, Limit, forward}).
 
 -spec events(id(), machinery:range()) ->
     {ok, [{integer(), ff_machine:timestamped_event(event())}]} |

@@ -39,8 +39,8 @@ handle_function_('Create', [IdentityParams, Context], Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Get', [ID], _Opts) ->
-    case ff_identity_machine:get(ID) of
+handle_function_('Get', [ID, EventRange], _Opts) ->
+    case ff_identity_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             Identity = ff_identity:set_blocking(ff_identity_machine:identity(Machine)),
             Context  = ff_identity_machine:ctx(Machine),

@@ -9,9 +9,10 @@
 
 -module(ff_wallet_machine).
 
--type id()        :: machinery:id().
--type wallet()    :: ff_wallet:wallet_state().
--type ctx()       :: ff_entity_context:context().
+-type id() :: machinery:id().
+-type wallet() :: ff_wallet:wallet_state().
+-type ctx() :: ff_entity_context:context().
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type st()        :: ff_machine:st(wallet()).
 
@@ -27,6 +28,7 @@
 
 -export([create/2]).
 -export([get/1]).
+-export([get/2]).
 -export([events/2]).
 
 %% Accessors
@@ -78,6 +80,13 @@ create(Params = #{id := ID}, Ctx) ->
 
 get(ID) ->
     ff_machine:get(ff_wallet, ?NS, ID).
+
+-spec get(id(), event_range()) ->
+    {ok, st()}        |
+    {error, notfound} .
+
+get(ID, {After, Limit}) ->
+    ff_machine:get(ff_wallet, ?NS, ID, {After, Limit, forward}).
 
 -spec events(id(), machinery:range()) ->
     {ok, [{integer(), ff_machine:timestamped_event(event())}]} |

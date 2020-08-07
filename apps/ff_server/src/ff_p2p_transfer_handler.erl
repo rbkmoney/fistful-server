@@ -28,13 +28,13 @@ handle_function_('GetQuote', [MarshaledParams], _Opts) ->
     ok = scoper:add_meta(maps:with([id, identity_id, external_id], Params)),
     case p2p_quote:get(Params) of
         {ok, Quote} ->
-            Quote;
-        {error, {identity, notfound}} ->
+            {ok, ff_p2p_transfer_codec:marshal(quote, Quote)};
+        {error, {identity, not_found}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
-        % {error, {sender, {bin_data, notfound}}} ->
-        %     woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = sender});
-        % {error, {receiver, {bin_data, notfound}}} ->
-        %     woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = receiver});
+        {error, {sender, {bin_data, not_found}}} ->
+            woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = sender});
+        {error, {receiver, {bin_data, not_found}}} ->
+            woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = receiver});
         {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
             Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
             Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],

@@ -24,6 +24,7 @@
 -type source_state() :: ff_instrument:instrument_state(resource()).
 -type params() :: ff_instrument_machine:params(resource()).
 -type machine() :: ff_instrument_machine:st(resource()).
+-type event_range() :: ff_instrument_machine:event_range().
 
 -type event() :: ff_instrument:event(resource()).
 -type events() :: ff_instrument_machine:events(resource()).
@@ -50,6 +51,7 @@
 
 -export([create/2]).
 -export([get_machine/1]).
+-export([get_machine/2]).
 -export([get/1]).
 -export([is_accessible/1]).
 -export([events/2]).
@@ -100,6 +102,13 @@ get_machine(ID) ->
     source_state().
 get(Machine) ->
     ff_instrument_machine:instrument(Machine).
+
+-spec get_machine(id(), event_range()) ->
+    {ok, machine()}       |
+    {error, notfound} .
+
+get_machine(ID, EventRange) ->
+    ff_instrument_machine:get(?NS, ID, EventRange).
 
 -spec is_accessible(source_state()) ->
     {ok, accessible} |

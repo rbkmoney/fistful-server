@@ -17,16 +17,17 @@
 
 %% API
 
--spec unmarshal_quote_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
-    ff_withdrawal:params().
+-spec unmarshal_quote_params(ff_proto_withdrawal_thrift:'QuoteParams'()) ->
+    ff_withdrawal:quote_params().
 
 unmarshal_quote_params(Params) ->
     genlib_map:compact(#{
-        id             => unmarshal(id, Params#wthd_QuoteParams.id),
         wallet_id      => unmarshal(id, Params#wthd_QuoteParams.wallet_id),
+        currency_from  => unmarshal(currency_ref, Params#wthd_QuoteParams.currency_from),
+        currency_to    => unmarshal(currency_ref, Params#wthd_QuoteParams.currency_to),
+        body           => unmarshal(cash, Params#wthd_QuoteParams.body),
         destination_id => unmarshal(id, Params#wthd_QuoteParams.destination_id),
-        body           => unmarshal(cash, Params#wthd_QuoteParams.body)
-        % external_id    => maybe_unmarshal(id, Params#wthd_QuoteParams.external_id)
+        external_id    => maybe_unmarshal(id, Params#wthd_QuoteParams.external_id)
     }).
 
 -spec marshal_withdrawal_params(ff_withdrawal:params()) ->

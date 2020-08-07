@@ -83,7 +83,7 @@ unmarshal_p2p_transfer_params(#p2p_transfer_P2PTransferParams{
         receiver => unmarshal(participant, Receiver),
         quote => maybe_unmarshal(quote, Quote),
         client_info => maybe_unmarshal(client_info, ClientInfo),
-        deadline => maybe_unmarshal(id, Deadline),
+        deadline => maybe_unmarshal(timestamp_ms, Deadline),
         external_id => maybe_unmarshal(id, ExternalID),
         metadata => maybe_unmarshal(ctx, Metadata)
     }).

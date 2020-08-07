@@ -7,6 +7,8 @@
 -export([unmarshal_destination_params/1]).
 -export([marshal_destination_state/3]).
 
+-export([marshal_event/1]).
+
 -export([marshal/2]).
 -export([unmarshal/2]).
 
@@ -47,6 +49,16 @@ marshal_destination_state(DestinationState, ID, Context) ->
         blocking = Blocking,
         metadata = marshal(ctx, ff_destination:metadata(DestinationState)),
         context = marshal(ctx, Context)
+    }.
+
+-spec marshal_event(ff_destination:timestamped_event()) ->
+    ff_proto_destination_thrift:'Event'().
+
+marshal_event({EventID, {ev, Timestamp, Change}}) ->
+    #dst_Event{
+        event_id = ff_codec:marshal(event_id, EventID),
+        occured_at = ff_codec:marshal(timestamp, Timestamp),
+        change = marshal(change, Change)
     }.
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->

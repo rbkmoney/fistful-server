@@ -69,6 +69,7 @@
 
 %% API
 
+-export([get/1]).
 -export([get_quote/4]).
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
@@ -138,6 +139,17 @@ compact({bank_card, #{bank_card := BankCard}}) ->
     }}.
 
 %%
+
+-spec get(params()) ->
+    {ok, quote()} |
+    {error, get_quote_error()}.
+get(#{
+    body := Cash,
+    identity_id := IdentityID,
+    sender := Sender,
+    receiver := Receiver
+}) ->
+    get_quote(Cash, IdentityID, Sender, Receiver).
 
 -spec get_quote(cash(), identity_id(), sender(), receiver()) ->
     {ok, quote()} |

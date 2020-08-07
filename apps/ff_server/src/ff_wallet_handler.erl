@@ -42,8 +42,8 @@ handle_function_('Create', [Params, Context], Opts) ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 
-handle_function_('Get', [ID], _Opts) ->
-    case ff_wallet_machine:get(ID) of
+handle_function_('Get', [ID, EventRange], _Opts) ->
+    case ff_wallet_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             Wallet    = ff_wallet_machine:wallet(Machine),
             Ctx       = ff_machine:ctx(Machine),

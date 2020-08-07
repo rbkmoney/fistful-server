@@ -93,9 +93,11 @@
 -type destination_state() :: ff_instrument:instrument_state(resource()).
 -type params() :: ff_instrument_machine:params(resource()).
 -type machine() :: ff_instrument_machine:st(resource()).
+-type event_range() :: ff_instrument_machine:event_range().
 -type event() :: ff_instrument:event(resource()).
 
 -type events() :: ff_instrument_machine:events(resource()).
+-type timestamped_event() :: ff_instrument_machine:timestamped_event(resource()).
 
 -export_type([id/0]).
 -export_type([machine/0]).
@@ -107,6 +109,7 @@
 -export_type([resource_type/0]).
 -export_type([resource_full/0]).
 -export_type([event/0]).
+-export_type([timestamped_event/0]).
 -export_type([params/0]).
 -export_type([exp_date/0]).
 
@@ -131,6 +134,7 @@
 
 -export([create/2]).
 -export([get_machine/1]).
+-export([get_machine/2]).
 -export([get/1]).
 -export([ctx/1]).
 -export([is_accessible/1]).
@@ -244,6 +248,13 @@ create(Params, Ctx) ->
 
 get_machine(ID) ->
     ff_instrument_machine:get(?NS, ID).
+
+-spec get_machine(id(), event_range()) ->
+    {ok, machine()}       |
+    {error, notfound} .
+
+get_machine(ID, EventRange) ->
+    ff_instrument_machine:get(?NS, ID, EventRange).
 
 -spec get(machine()) ->
     destination_state().

@@ -1047,17 +1047,19 @@ construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currenc
 -spec get_quote(quote_params()) ->
     {ok, quote()} |
     {error,
-        {destination, notfound}       |
-        {destination, unauthorized}   |
-        {route, route_not_found}      |
-        {wallet, notfound}            |
-        {destination_resource, {bin_data, not_found}}
+        {destination, notfound | unauthorized} |
+        {route, route_not_found} |
+        {wallet, notfound} |
+        {destination_resource, {bin_data, not_found}} |
+        {inconsistent_currency, {Withdrawal :: currency_id(), Wallet :: currency_id(), Destination :: currency_id()}}
     }.
-get_quote(Params = #{destination_id := DestinationID}) ->
+get_quote(Params = #{destination_id := DestinationID, body := Body, wallet_id := WalletID}) ->
     do(fun() ->
         Destination = unwrap(destination, get_destination(DestinationID)),
         ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
         Resource = unwrap(destination_resource, ff_destination:resource_full(Destination)),
+        Wallet = unwrap(wallet, get_wallet(WalletID)),
+        valid = unwrap(validate_withdrawal_currency(Body, Wallet, Destination)),
         unwrap(get_quote_(Params, Destination, Resource))
     end);
 get_quote(Params) ->

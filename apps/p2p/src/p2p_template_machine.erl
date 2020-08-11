@@ -10,6 +10,7 @@
 %% API
 
 -export([p2p_template/1]).
+-export([ctx/1]).
 -export([create_transfer/2]).
 -export([get_quote/2]).
 
@@ -94,6 +95,12 @@ get(Ref, Range) ->
 
 p2p_template(St) ->
     ff_machine:model(St).
+
+-spec ctx(st()) ->
+    ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
 
 -spec get_quote(id(), p2p_template:quote_params()) ->
     {ok, p2p_quote:quote()} |

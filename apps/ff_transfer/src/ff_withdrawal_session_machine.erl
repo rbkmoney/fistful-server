@@ -16,6 +16,7 @@
 %% API
 
 -export([session/1]).
+-export([ctx/1]).
 
 -export([create/3]).
 -export([get/1]).
@@ -65,6 +66,7 @@
     {unknown_session, {tag, id()}} |
     ff_withdrawal_session:process_callback_error().
 
+-type ctx() :: ff_entity_context:context().
 
 %% Pipeline
 
@@ -78,6 +80,12 @@
 
 session(St) ->
     ff_machine:model(St).
+
+-spec ctx(st()) ->
+    ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
 
 %%
 

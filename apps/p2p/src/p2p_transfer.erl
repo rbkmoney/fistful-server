@@ -1,5 +1,5 @@
 %%%
-%%% P2PTransferState
+%%% P2PTransfer
 %%%
 
 -module(p2p_transfer).

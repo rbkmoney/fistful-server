@@ -171,8 +171,8 @@ callbacks_index(Session) ->
 -spec create(id(), data(), params()) ->
     {ok, [event()]}.
 create(ID, Data, Params) ->
-    SessionState = create_session(ID, Data, Params),
-    {ok, [{created, SessionState}]}.
+    Session = create_session(ID, Data, Params),
+    {ok, [{created, Session}]}.
 
 -spec apply_event(event(), undefined | session_state()) ->
     session_state().

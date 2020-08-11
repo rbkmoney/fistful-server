@@ -6,18 +6,18 @@
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--export([marshal_state/3]).
+-export([marshal_state/2]).
 
 -export([marshal/2]).
 -export([unmarshal/2]).
 
 %% API
--spec marshal_state(p2p_session:session_state(), p2p_session:id(), ff_entity_context:context()) ->
+-spec marshal_state(p2p_session:session_state(), ff_entity_context:context()) ->
     ff_proto_p2p_session_thrift:'SessionState'().
 
-marshal_state(State, ID, Context) ->
+marshal_state(State, Context) ->
     #p2p_session_SessionState{
-        id = marshal(id, ID),
+        id = marshal(id, p2p_session:id(State)),
         status = marshal(status, p2p_session:status(State)),
         p2p_transfer = marshal(p2p_transfer, p2p_session:transfer_params(State)),
         route = marshal(route, p2p_session:route(State)),

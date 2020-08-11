@@ -54,9 +54,9 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     end;
 
 handle_function_('GetContext', [ID], _Opts) ->
-    case ff_wallet_machine:get(ID) of
+    case ff_wallet_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
-            Ctx       = ff_machine:ctx(Machine),
+            Ctx       = ff_wallet_machine:ctx(Machine),
             Response  = ff_wallet_codec:marshal(ctx, Ctx),
             {ok, Response};
         {error, notfound} ->

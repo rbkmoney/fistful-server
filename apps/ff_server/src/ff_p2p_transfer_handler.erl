@@ -25,15 +25,15 @@ handle_function(Func, Args, Opts) ->
 %%
 handle_function_('GetQuote', [MarshaledParams], _Opts) ->
     Params = ff_p2p_transfer_codec:unmarshal_p2p_quote_params(MarshaledParams),
-    ok = scoper:add_meta(maps:with([id, identity_id, external_id], Params)),
+    ok = scoper:add_meta(maps:with([identity_id], Params)),
     case p2p_quote:get(Params) of
         {ok, Quote} ->
             {ok, ff_p2p_transfer_codec:marshal(quote, Quote)};
         {error, {identity, not_found}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
-        {error, {sender, {bin_data, not_found}}} ->
+        {error, {sender, {bin_data, _}}} ->
             woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = sender});
-        {error, {receiver, {bin_data, not_found}}} ->
+        {error, {receiver, {bin_data, _}}} ->
             woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = receiver});
         {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
             Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
@@ -62,6 +62,10 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
             handle_function_('Get', [P2PTransferID, #'EventRange'{}], Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
+        {error, {sender, {bin_data, _}}} ->
+            woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = sender});
+        {error, {receiver, {bin_data, _}}} ->
+            woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = receiver});
         {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
             Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
             Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],
@@ -92,9 +96,9 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     end;
 
 handle_function_('GetContext', [ID], _Opts) ->
-    case p2p_transfer_machine:get(ID) of
+    case p2p_transfer_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
-            Ctx = ff_machine:ctx(Machine),
+            Ctx = p2p_transfer_machine:ctx(Machine),
             Response = ff_p2p_transfer_codec:marshal(ctx, Ctx),
             {ok, Response};
         {error, {unknown_p2p_transfer, _Ref}} ->

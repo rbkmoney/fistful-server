@@ -13,7 +13,7 @@
     {ok, woody:result()} | no_return().
 
 handle_function(Func, Args, Opts) ->
-    scoper:scope(wallet, #{},
+    scoper:scope(p2p_session, #{},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -28,16 +28,16 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
         {ok, Machine} ->
             State = p2p_session_machine:session(Machine),
             Ctx = ff_machine:ctx(Machine),
-            Response = ff_p2p_session_codec:marshal_state(State, ID, Ctx),
+            Response = ff_p2p_session_codec:marshal_state(State, Ctx),
             {ok, Response};
         {error, {unknown_p2p_session, _Ref}} ->
             woody_error:raise(business, #fistful_P2PSessionNotFound{})
     end;
 
 handle_function_('GetContext', [ID], _Opts) ->
-    case p2p_session_machine:get(ID) of
+    case p2p_session_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
-            Ctx = ff_machine:ctx(Machine),
+            Ctx = p2p_session_machine:ctx(Machine),
             Response = ff_p2p_session_codec:marshal(ctx, Ctx),
             {ok, Response};
         {error, {unknown_p2p_session, _Ref}} ->

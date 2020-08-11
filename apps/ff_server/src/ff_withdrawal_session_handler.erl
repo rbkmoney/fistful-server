@@ -13,7 +13,7 @@
     {ok, woody:result()} | no_return().
 
 handle_function(Func, Args, Opts) ->
-    scoper:scope(wallet, #{},
+    scoper:scope(withdrawal_session, #{},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -35,9 +35,9 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     end;
 
 handle_function_('GetContext', [ID], _Opts) ->
-    case ff_withdrawal_session_machine:get(ID) of
+    case ff_withdrawal_session_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
-            Ctx = ff_machine:ctx(Machine),
+            Ctx = ff_withdrawal_session_machine:ctx(Machine),
             Response = ff_withdrawal_session_codec:marshal(ctx, Ctx),
             {ok, Response};
         {error, notfound} ->

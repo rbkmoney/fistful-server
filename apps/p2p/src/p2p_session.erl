@@ -38,7 +38,6 @@
 -define(ACTUAL_FORMAT_VERSION, 3).
 
 -opaque session_state() :: #{
-    version := ?ACTUAL_FORMAT_VERSION,
     id := id(),
     status := status(),
     transfer_params := transfer_params(),

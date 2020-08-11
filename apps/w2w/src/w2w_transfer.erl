@@ -1,5 +1,5 @@
 %%%
-%%% W2WTransferState
+%%% W2WTransfer
 %%%
 
 -module(w2w_transfer).
@@ -75,7 +75,7 @@
     {wallet_to, notfound} |
     {terms, ff_party:validate_w2w_transfer_creation_error()} |
     {inconsistent_currency, {
-        W2WTransferState :: currency_id(),
+        W2WTransfer :: currency_id(),
         WalletFrom :: currency_id(),
         WalletTo :: currency_id()
     }}.
@@ -569,7 +569,7 @@ operation_domain_revision(W2WTransferState) ->
             Revision
     end.
 
-%% W2WTransferState validators
+%% Validators
 
 -spec validate_w2w_transfer_creation(terms(), params(), wallet(), wallet()) ->
     {ok, valid} |

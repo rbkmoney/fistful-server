@@ -76,9 +76,9 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     end;
 
 handle_function_('GetContext', [ID], _Opts) ->
-    case w2w_transfer_machine:get(ID) of
+    case w2w_transfer_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
-            Ctx = ff_machine:ctx(Machine),
+            Ctx = w2w_transfer_machine:ctx(Machine),
             Response = ff_w2w_transfer_codec:marshal(ctx, Ctx),
             {ok, Response};
         {error, {unknown_w2w_transfer, _Ref}} ->

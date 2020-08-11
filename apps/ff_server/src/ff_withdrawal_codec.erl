@@ -26,7 +26,7 @@ unmarshal_quote_params(Params) ->
         currency_from  => unmarshal(currency_ref, Params#wthd_QuoteParams.currency_from),
         currency_to    => unmarshal(currency_ref, Params#wthd_QuoteParams.currency_to),
         body           => unmarshal(cash, Params#wthd_QuoteParams.body),
-        destination_id => unmarshal(id, Params#wthd_QuoteParams.destination_id),
+        destination_id => maybe_unmarshal(id, Params#wthd_QuoteParams.destination_id),
         external_id    => maybe_unmarshal(id, Params#wthd_QuoteParams.external_id)
     }).
 

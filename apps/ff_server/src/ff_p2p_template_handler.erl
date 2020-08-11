@@ -57,9 +57,9 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     end;
 
 handle_function_('GetContext', [ID], _Opts) ->
-    case p2p_template_machine:get(ID) of
+    case p2p_template_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
-            Ctx = ff_machine:ctx(Machine),
+            Ctx = p2p_template_machine:ctx(Machine),
             Response = ff_p2p_template_codec:marshal(ctx, Ctx),
             {ok, Response};
         {error, {unknown_p2p_template, _Ref}} ->

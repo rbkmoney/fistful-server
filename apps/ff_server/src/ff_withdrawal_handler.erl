@@ -52,7 +52,7 @@ handle_function_('GetQuote', [MarshaledParams], _Opts) ->
                 destination_currency = ff_codec:marshal(currency_ref, Destination),
                 wallet_currency = ff_codec:marshal(currency_ref, Wallet)
             });
-        {error, {destination_resource, {bin_data, not_found}}} ->
+        {error, {destination_resource, {bin_data, _}}} ->
             woody_error:raise(business, #wthd_NoDestinationResourceInfo{})
     end;
 handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->

@@ -10,6 +10,7 @@
 %% API
 
 -export([session/1]).
+-export([ctx/1]).
 
 -export([create/3]).
 -export([get/1]).
@@ -71,6 +72,8 @@
 -type callback_params() :: p2p_session:p2p_callback_params().
 -type process_callback_response() :: p2p_session:process_callback_response().
 
+-type ctx() :: ff_entity_context:context().
+
 -export_type([events/0]).
 
 %% Pipeline
@@ -109,6 +112,12 @@ get(Ref, {After, Limit}) ->
 
 session(St) ->
     ff_machine:model(St).
+
+-spec ctx(st()) ->
+    ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
 
 %%
 

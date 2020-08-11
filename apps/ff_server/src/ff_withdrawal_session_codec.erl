@@ -68,8 +68,8 @@ marshal(session_status, {finished, Result}) ->
     };
 marshal(session_finished_status, {success, _}) ->
     {success, #wthd_session_SessionFinishedSuccess{}};
-marshal(session_finished_status, {failed, _}) ->
-    {failed, #wthd_session_SessionFinishedFailed{}};
+marshal(session_finished_status, {failed, Failure}) ->
+    {failed, #wthd_session_SessionFinishedFailed{failure = marshal(failure, Failure)}};
 
 marshal(withdrawal, Params = #{
     id := WithdrawalID,
@@ -218,9 +218,10 @@ unmarshal(session_status, {active, #wthd_session_SessionActive{}}) ->
 unmarshal(session_status, {finished, #wthd_session_SessionFinished{status = Result}}) ->
     {finished, unmarshal(session_finished_status, Result)};
 unmarshal(session_finished_status, {success, #wthd_session_SessionFinishedSuccess{}}) ->
-    success;
-unmarshal(session_finished_status, {failed, #wthd_session_SessionFinishedFailed{}}) ->
-    failed;
+    %% need to fix proto to fill this with trx info mb?
+    {success, #{id => <<"default id">>, extra => <<"default extra">>}};
+unmarshal(session_finished_status, {failed, #wthd_session_SessionFinishedFailed{failure = Failure}}) ->
+    {failed, unmarshal(failure, Failure)};
 
 unmarshal(withdrawal, #wthd_session_Withdrawal{
     id = WithdrawalID,

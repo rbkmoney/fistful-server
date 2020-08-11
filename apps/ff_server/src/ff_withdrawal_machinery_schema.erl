@@ -12,9 +12,7 @@
 
 %% Constants
 
-% TODO: Replace version to 1 after p2p provider migration
-% see https://rbkmoney.atlassian.net/browse/MSPF-561 for details
--define(CURRENT_EVENT_FORMAT_VERSION, undefined).
+-define(CURRENT_EVENT_FORMAT_VERSION, 1).
 
 %% Internal types
 
@@ -337,10 +335,7 @@ created_v0_0_without_provider_migration_test() ->
         id => <<"ID">>,
         metadata => #{<<"some key">> => <<"some val">>},
         params => #{
-            destination_account => [],
             destination_id => <<"destinationID">>,
-            wallet_account => [],
-            wallet_cash_flow_plan => [],
             wallet_id => <<"sourceID">>
         },
         route => #{
@@ -419,10 +414,7 @@ created_v0_0_migration_test() ->
         id => <<"ID">>,
         metadata => #{<<"some key">> => <<"some val">>},
         params => #{
-            destination_account => [],
             destination_id => <<"destinationID">>,
-            wallet_account => [],
-            wallet_cash_flow_plan => [],
             wallet_id => <<"sourceID">>
         },
         route => #{
@@ -484,10 +476,7 @@ created_v0_1_migration_test() ->
         id => <<"ID">>,
         metadata => #{<<"some key">> => <<"some val">>},
         params => #{
-            destination_account => [],
             destination_id => <<"destinationID">>,
-            wallet_account => [],
-            wallet_cash_flow_plan => [],
             wallet_id => <<"walletID">>
         },
         transfer_type => withdrawal,
@@ -572,26 +561,7 @@ created_v0_2_migration_test() ->
         id => <<"ID">>,
         metadata => #{<<"some key">> => <<"some val">>},
         params => #{
-            destination_account => #{
-                accounter_account_id => 123,
-                currency => <<"RUB">>,
-                id => <<"destinationID">>,
-                identity => <<"identity2">>
-            },
             destination_id => <<"destinationID">>,
-            wallet_account => #{
-                accounter_account_id => 123,
-                currency => <<"RUB">>,
-                id => <<"walletID">>,
-                identity => <<"identity">>
-            },
-            wallet_cash_flow_plan => #{
-                postings => [#{
-                    receiver => {wallet, receiver_destination},
-                    sender => {wallet, sender_settlement},
-                    volume => {share, {{1, 1}, operation_amount, default}}
-                }]
-            },
             wallet_id => <<"walletID">>,
             quote => #{
                 cash_from => {100, <<"RUB">>},
@@ -601,7 +571,8 @@ created_v0_2_migration_test() ->
                 quote_data => nil,
                 route => #{
                     version => 1,
-                    provider_id => 301
+                    provider_id => 301,
+                    provider_id_legacy => <<"1">>
                 }
             }
         },
@@ -731,26 +702,7 @@ created_v0_3_migration_test() ->
         body => {100, <<"RUB">>},
         id => <<"ID">>,
         params => #{
-            destination_account => #{
-                accounter_account_id => 123,
-                currency => <<"RUB">>,
-                id => <<"destinationID">>,
-                identity => <<"identity2">>
-            },
             destination_id => <<"destinationID">>,
-            wallet_account => #{
-                accounter_account_id => 123,
-                currency => <<"RUB">>,
-                id => <<"walletID">>,
-                identity => <<"identity">>
-            },
-            wallet_cash_flow_plan => #{
-                postings => [#{
-                    receiver => {wallet, receiver_destination},
-                    sender => {wallet, sender_settlement},
-                    volume => {share, {{1, 1}, operation_amount, default}}
-                }]
-            },
             wallet_id => <<"walletID">>
         },
         transfer_type => withdrawal,
@@ -877,7 +829,8 @@ created_v0_3_migration_with_quote_test() ->
                 route => #{
                     version => 1,
                     provider_id => 302,
-                    terminal_id => 1
+                    terminal_id => 1,
+                    provider_id_legacy => <<"2">>
                 },
                 resource_descriptor => {bank_card, nil}
             }
@@ -976,7 +929,8 @@ created_v0_4_migration_with_quote_test() ->
                 route => #{
                     version => 1,
                     provider_id => 2,
-                    terminal_id => 1
+                    terminal_id => 1,
+                    provider_id_legacy => <<"-298">>
                 },
                 resource_descriptor => {bank_card, nil}
             }

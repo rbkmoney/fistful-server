@@ -12,9 +12,7 @@
 
 %% Constants
 
-% TODO: Replace version to 1 after p2p provider migration
-% see https://rbkmoney.atlassian.net/browse/MSPF-561 for details
--define(CURRENT_EVENT_FORMAT_VERSION, undefined).
+-define(CURRENT_EVENT_FORMAT_VERSION, 1).
 
 %% Internal types
 
@@ -407,11 +405,12 @@ created_v0_3_decoding_test() ->
         quote       => Quote
     },
     Session = #{
-        version       => 4,
-        id            => <<"id">>,
-        status        => active,
-        withdrawal    => Withdrawal,
-        route         => #{provider_id => 1}
+        version => 4,
+        id => <<"id">>,
+        status => active,
+        withdrawal => Withdrawal,
+        route => #{provider_id => 1},
+        provider_legacy => <<"-299">>
     },
     Change = {created, Session},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},

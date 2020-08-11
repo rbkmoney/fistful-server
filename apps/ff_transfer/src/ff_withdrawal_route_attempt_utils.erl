@@ -16,29 +16,6 @@
 
 -module(ff_withdrawal_route_attempt_utils).
 
--type p_transfer() :: ff_postings_transfer:transfer().
--type limit_check_details() :: ff_withdrawal:limit_check_details().
--type account()  :: ff_account:account().
--type route() :: ff_withdrawal_routing:route().
--type session() :: ff_withdrawal:session().
--type attempt_limit() :: ff_party:attempt_limit().
-
--type attempt() :: #{
-    session => session(),
-    p_transfer => p_transfer(),
-    limit_checks => [limit_check_details()]
-}.
-
--opaque attempts() :: #{
-    attempts := #{route() => attempt()},
-    inversed_routes := [route()],
-    attempt := non_neg_integer(),
-    current => route()
-}.
-
--export_type([attempts/0]).
-
-%% API
 -export([new_route/2]).
 -export([next_route/3]).
 -export([get_current_session/1]).
@@ -51,6 +28,33 @@
 -export([get_sessions/1]).
 -export([get_attempt/1]).
 
+-opaque attempts() :: #{
+    attempts := #{route_key() => attempt()},
+    inversed_routes := [route_key()],
+    attempt := non_neg_integer(),
+    current => route_key()
+}.
+
+-export_type([attempts/0]).
+
+%% Iternal types
+
+-type p_transfer() :: ff_postings_transfer:transfer().
+-type limit_check_details() :: ff_withdrawal:limit_check_details().
+-type account()  :: ff_account:account().
+-type route() :: ff_withdrawal_routing:route().
+-type route_key() :: {ff_payouts_provider:id(), ff_payouts_terminal:id()}.
+-type session() :: ff_withdrawal:session().
+-type attempt_limit() :: ff_party:attempt_limit().
+
+-type attempt() :: #{
+    session => session(),
+    p_transfer => p_transfer(),
+    limit_checks => [limit_check_details()]
+}.
+
+%% API
+
 -spec new_route(route(), attempts()) ->
     attempts().
 new_route(Route, undefined) ->
@@ -61,11 +65,12 @@ new_route(Route, Existing) ->
         inversed_routes := InvRoutes,
         attempt := Attempt
     } = Existing,
+    RouteKey = route_key(Route),
     Existing#{
-        current => Route,
+        current => RouteKey,
         attempt => Attempt + 1,
-        inversed_routes => [Route | InvRoutes],
-        attempts => Attempts#{Route => #{}}
+        inversed_routes => [RouteKey | InvRoutes],
+        attempts => Attempts#{RouteKey => #{}}
     }.
 
 -spec next_route([route()], attempts(), attempt_limit()) ->
@@ -77,7 +82,7 @@ next_route(Routes, #{attempts := Existing}, _AttemptLimit) ->
     PendingRoutes =
         lists:filter(
             fun(R) ->
-                not maps:is_key(R, Existing)
+                not maps:is_key(route_key(R), Existing)
             end,
             Routes
         ),
@@ -158,6 +163,10 @@ init() ->
         inversed_routes => [],
         attempt => 0
     }.
+
+-spec route_key(route()) -> route_key().
+route_key(Route) ->
+    {ff_withdrawal_routing:get_provider(Route), ff_withdrawal_routing:get_terminal(Route)}.
 
 %% @private
 current(#{current := Route, attempts := Attempts}) ->

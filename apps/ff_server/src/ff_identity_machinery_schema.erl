@@ -11,9 +11,8 @@
 -export([unmarshal/3]).
 
 %% Constants
-% TODO: Replace version to 1 after migration
-% see https://rbkmoney.atlassian.net/browse/MSPF-561 for details
--define(CURRENT_EVENT_FORMAT_VERSION, undefined).
+
+-define(CURRENT_EVENT_FORMAT_VERSION, 1).
 
 %% Internal types
 

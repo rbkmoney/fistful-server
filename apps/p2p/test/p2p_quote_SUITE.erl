@@ -76,7 +76,12 @@ get_fee_ok_test(C) ->
         sender := CardSender
     } = prepare_standard_environment(C),
     Sender = {bank_card, #{bank_card => CardSender}},
-    {ok, Quote} = p2p_quote:get_quote(Cash, Identity, Sender, Sender),
+    {ok, Quote} = p2p_quote:get(#{
+        body => Cash,
+        identity_id => Identity,
+        sender => Sender,
+        receiver => Sender
+    }),
     Fees = p2p_quote:fees(Quote),
     Fee = ff_fees_final:surplus(Fees),
     ?assertEqual({146, <<"RUB">>}, Fee).
@@ -95,7 +100,12 @@ visa_to_nspkmir_not_allow_test(C) ->
         masked_pan => Pan,
         token => <<"NSPK MIR">>
     }}},
-    Result = p2p_quote:get_quote(Cash, Identity, Sender, Receiver),
+    Result = p2p_quote:get(#{
+        body => Cash,
+        identity_id => Identity,
+        sender => Sender,
+        receiver => Receiver
+    }),
     ?assertEqual({error, {terms, {terms_violation, p2p_forbidden}}}, Result).
 
 %% Utils

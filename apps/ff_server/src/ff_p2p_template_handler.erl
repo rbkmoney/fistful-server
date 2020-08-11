@@ -44,9 +44,8 @@ handle_function_('Create', [MarshaledParams, Context], Opts) ->
     end;
 
 handle_function_('Get', [ID, EventRange], _Opts) ->
-    {After, Limit} = ff_codec:unmarshal(event_range, EventRange),
     ok = scoper:add_meta(#{id => ID}),
-    case p2p_template_machine:get(ID, {After, Limit, forward}) of
+    case p2p_template_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             P2PTemplate = p2p_template_machine:p2p_template(Machine),
             Ctx = ff_machine:ctx(Machine),

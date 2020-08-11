@@ -70,7 +70,6 @@
 %% API
 
 -export([get/1]).
--export([get_quote/4]).
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
@@ -149,12 +148,6 @@ get(#{
     sender := Sender,
     receiver := Receiver
 }) ->
-    get_quote(Cash, IdentityID, Sender, Receiver).
-
--spec get_quote(cash(), identity_id(), sender(), receiver()) ->
-    {ok, quote()} |
-    {error, get_quote_error()}.
-get_quote(Cash, IdentityID, Sender, Receiver) ->
     do(fun() ->
         SenderResource = unwrap(sender, ff_resource:create_resource(Sender)),
         ReceiverResource = unwrap(receiver, ff_resource:create_resource(Receiver)),

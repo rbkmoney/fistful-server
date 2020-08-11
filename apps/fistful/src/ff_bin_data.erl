@@ -26,28 +26,40 @@
     [bin_data_id()]     |
     #{bin_data_id() => bin_data_id()}.
 
+-type bin_data_error() ::
+    not_found |
+    {unknown_payment_system, binary()} |
+    {unknown_residence, binary()}.
+
 -export_type([bin_data/0]).
 -export_type([bin_data_id/0]).
+-export_type([bin_data_error/0]).
 -export_type([iso_country_code/0]).
 -export_type([payment_system/0]).
 
 -export([get/2]).
 -export([id/1]).
 
+%% Pipeline
+
+-import(ff_pipeline, [do/1, unwrap/1]).
+
+%% API
+
 -spec get(token(), bin_data_id() | undefined) ->
-    {ok, bin_data()} | {error, not_found}.
+    {ok, bin_data()} | {error, bin_data_error()}.
 
 get(Token, undefined) ->
     case call_binbase('GetByCardToken', [Token]) of
         {ok, Result} ->
-            {ok, decode_result(Token, Result)};
+            decode_result(Token, Result);
         {exception, #binbase_BinNotFound{}} ->
             {error, not_found}
     end;
 get(Token, ID) ->
     case call_binbase('GetByBinDataId', [encode_msgpack(ID)]) of
         {ok, Result} ->
-            {ok, decode_result(Token, Result)};
+            decode_result(Token, Result);
         {exception, #binbase_BinNotFound{}} ->
             {error, not_found}
     end.
@@ -83,16 +95,18 @@ decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Versi
         category = Category,
         bin_data_id = BinDataID
     } = Bindata,
-    genlib_map:compact(#{
-        token               => Token,
-        id                  => decode_msgpack(BinDataID),
-        payment_system      => decode_payment_system(PaymentSystem),
-        bank_name           => BankName,
-        iso_country_code    => decode_residence(IsoCountryCode),
-        card_type           => decode_card_type(CardType),
-        category            => Category,
-        version             => Version
-    }).
+    do(fun() ->
+        genlib_map:compact(#{
+            token               => Token,
+            id                  => decode_msgpack(BinDataID),
+            payment_system      => unwrap(decode_payment_system(PaymentSystem)),
+            bank_name           => BankName,
+            iso_country_code    => unwrap(decode_residence(IsoCountryCode)),
+            card_type           => decode_card_type(CardType),
+            category            => Category,
+            version             => Version
+        })
+    end).
 
 decode_msgpack({nl, #'binbase_Nil'{}})      -> nil;
 decode_msgpack({b,   V}) when is_boolean(V) -> V;
@@ -104,19 +118,23 @@ decode_msgpack({arr, V}) when is_list(V)    -> [decode_msgpack(ListItem) || List
 decode_msgpack({obj, V}) when is_map(V)     ->
     maps:fold(fun(Key, Value, Map) -> Map#{decode_msgpack(Key) => decode_msgpack(Value)} end, #{}, V).
 
-decode_payment_system(<<"VISA">>)                      -> visa;
-decode_payment_system(<<"VISA/DANKORT">>)              -> visa;
-decode_payment_system(<<"MASTERCARD">>)                -> mastercard;
-decode_payment_system(<<"MAESTRO">>)                   -> maestro;
-decode_payment_system(<<"DANKORT">>)                   -> dankort;
-decode_payment_system(<<"AMERICAN EXPRESS">>)          -> amex;
-decode_payment_system(<<"DINERS CLUB INTERNATIONAL">>) -> dinersclub;
-decode_payment_system(<<"DISCOVER">>)                  -> discover;
-decode_payment_system(<<"UNIONPAY">>)                  -> unionpay;
-decode_payment_system(<<"JCB">>)                       -> jcb;
-decode_payment_system(<<"NSPK MIR">>)                  -> nspkmir;
-decode_payment_system(_) ->
-    erlang:error({decode_payment_system, invalid_payment_system}).
+decode_payment_system(<<"VISA">>)                      -> {ok, visa};
+decode_payment_system(<<"VISA/DANKORT">>)              -> {ok, visa};
+decode_payment_system(<<"MASTERCARD">>)                -> {ok, mastercard};
+decode_payment_system(<<"MAESTRO">>)                   -> {ok, maestro};
+decode_payment_system(<<"DANKORT">>)                   -> {ok, dankort};
+decode_payment_system(<<"AMERICAN EXPRESS">>)          -> {ok, amex};
+decode_payment_system(<<"DINERS CLUB INTERNATIONAL">>) -> {ok, dinersclub};
+decode_payment_system(<<"DISCOVER">>)                  -> {ok, discover};
+decode_payment_system(<<"UNIONPAY">>)                  -> {ok, unionpay};
+decode_payment_system(<<"CHINA UNION PAY">>)           -> {ok, unionpay};
+decode_payment_system(<<"JCB">>)                       -> {ok, jcb};
+decode_payment_system(<<"NSPK MIR">>)                  -> {ok, nspkmir};
+decode_payment_system(<<"ELO">>)                       -> {ok, elo};
+decode_payment_system(<<"RUPAY">>)                     -> {ok, rupay};
+decode_payment_system(<<"EBT">>)                       -> {ok, ebt};
+decode_payment_system(PaymentSystem) ->
+    {error, {unknown_payment_system, PaymentSystem}}.
 
 decode_card_type(undefined) ->
     undefined;
@@ -127,10 +145,10 @@ decode_residence(undefined) ->
     undefined;
 decode_residence(Residence) when is_binary(Residence) ->
     try
-        list_to_existing_atom(string:to_lower(binary_to_list(Residence)))
+        {ok, list_to_existing_atom(string:to_lower(binary_to_list(Residence)))}
     catch
         error:badarg ->
-            erlang:error({decode_residence, invalid_residence})
+            {error, {unknown_residence, Residence}}
     end.
 
 call_binbase(Function, Args) ->

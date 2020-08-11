@@ -34,7 +34,7 @@
 -type full_bank_card() :: #{
     token               := binary(),
     bin                 => binary(),
-    payment_system      := atom(), % TODO
+    payment_system      := ff_bin_data:payment_system(),
     masked_pan          => binary(),
     bank_name           => binary(),
     iso_country_code    => atom(),
@@ -181,7 +181,7 @@ metadata(T)           -> ff_instrument:metadata(T).
 -spec resource_full(destination_state()) ->
     {ok, resource_full()} |
     {error,
-        {bin_data, not_found}
+        {bin_data, ff_bin_data:bin_data_error()}
     }.
 
 resource_full(Destination) ->
@@ -190,7 +190,7 @@ resource_full(Destination) ->
 -spec resource_full(destination_state(), resource_id() | undefined) ->
     {ok, resource_full()} |
     {error,
-        {bin_data, not_found}
+        {bin_data, ff_bin_data:bin_data_error()}
     }.
 
 resource_full(Destination, ResourceID) ->
@@ -199,7 +199,7 @@ resource_full(Destination, ResourceID) ->
 -spec process_resource_full(resource(), resource_id() | undefined) ->
     {ok, resource_full()} |
     {error,
-        {bin_data, not_found}
+        {bin_data, ff_bin_data:bin_data_error()}
     }.
 
 process_resource_full({crypto_wallet, _CryptoWallet} = Resource, _ResourceID) ->

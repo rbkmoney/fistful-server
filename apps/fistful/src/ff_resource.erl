@@ -180,7 +180,7 @@ create_resource(Resource) ->
 
 -spec create_resource(resource_params(), resource_descriptor() | undefined) ->
     {ok, resource()} |
-    {error, {bin_data, not_found}}.
+    {error, {bin_data, ff_bin_data:bin_data_error()}}.
 
 create_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, ResourceID) ->
     do(fun() ->

@@ -313,7 +313,9 @@ category(Ref, Name, Type) ->
     object().
 
 payment_method(?pmt(_Type, Name) = Ref) when is_atom(Name) ->
-    payment_method(Name, Ref).
+    payment_method(Name, Ref);
+payment_method(?pmt(_Type, #domain_BankCardPaymentMethod{} = PM) = Ref) ->
+    payment_method(PM#domain_BankCardPaymentMethod.payment_system, Ref).
 
 payment_method(Name, Ref) ->
     {payment_method, #domain_PaymentMethodObject{

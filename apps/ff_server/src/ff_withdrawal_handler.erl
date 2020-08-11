@@ -23,7 +23,7 @@ handle_function(Func, Args, Opts) ->
 %%
 handle_function_('GetQuote', [MarshaledParams], _Opts) ->
     Params = ff_withdrawal_codec:unmarshal_quote_params(MarshaledParams),
-    ok = scoper:add_meta(maps:with([id, wallet_id, destination_id, external_id], Params)),
+    ok = scoper:add_meta(maps:with([wallet_id, destination_id, external_id], Params)),
     case ff_withdrawal:get_quote(Params) of
         {ok, Quote} ->
             Response = ff_withdrawal_codec:marshal(quote, Quote),
@@ -34,6 +34,18 @@ handle_function_('GetQuote', [MarshaledParams], _Opts) ->
             woody_error:raise(business, #fistful_DestinationNotFound{});
         {error, {destination, unauthorized}} ->
             woody_error:raise(business, #fistful_DestinationUnauthorized{});
+        {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
+            Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
+            Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],
+            woody_error:raise(business, #fistful_ForbiddenOperationCurrency{
+                currency = ff_codec:marshal(currency_ref, Currency),
+                allowed_currencies = ff_codec:marshal({set, currency_ref}, Allowed)
+            });
+        {error, {terms, {terms_violation, {cash_range, {Cash, Range}}}}} ->
+            woody_error:raise(business, #fistful_ForbiddenOperationAmount{
+                amount = ff_codec:marshal(cash, Cash),
+                allowed_range = ff_codec:marshal(cash_range, Range)
+            });
         {error, {inconsistent_currency, {Withdrawal, Wallet, Destination}}} ->
             woody_error:raise(business, #wthd_InconsistentWithdrawalCurrency{
                 withdrawal_currency = ff_codec:marshal(currency_ref, Withdrawal),

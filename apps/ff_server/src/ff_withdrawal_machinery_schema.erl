@@ -189,8 +189,11 @@ maybe_migrate({transfer, PTransferEv}, MigrateParams) ->
 maybe_migrate({status_changed, {failed, Failure}}, _MigrateParams) when is_map(Failure) ->
     {status_changed, {failed, Failure}};
 maybe_migrate({status_changed, {failed, LegacyFailure}}, MigrateParams) ->
+    KnownFailures = #{
+        {quote, inconsistent_data} => <<"unknown">>
+    },
     Failure = #{
-        code => <<"unknown">>,
+        code => maps:get(LegacyFailure, KnownFailures, <<"unknown">>),
         reason => genlib:format(LegacyFailure)
     },
     maybe_migrate({status_changed, {failed, Failure}}, MigrateParams);
@@ -1058,6 +1061,45 @@ route_changed_v0_0_migration_test() ->
         provider_id_legacy => <<"5">>
     }},
     ?assertEqual(ModernEvent, maybe_migrate(LegacyEvent, #{})).
+
+-spec status_changed_v0_0_migration_test() -> _.
+status_changed_v0_0_migration_test() ->
+    Change = {status_changed, {failed, #{
+        code => <<"unknown">>,
+        reason => <<"{quote,inconsistent_data}">>
+    }}},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"status_changed">>},
+        {arr, [
+            {str, <<"tup">>},
+            {str, <<"failed">>},
+            {arr, [
+                {str, <<"tup">>},
+                {str, <<"quote">>},
+                {str, <<"inconsistent_data">>}
+            ]}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    {DecodedLegacy, _} = unmarshal({event, undefined}, LegacyEvent, #{}),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
 
 -spec created_v1_marshaling_test() -> _.
 created_v1_marshaling_test() ->

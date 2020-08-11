@@ -340,8 +340,11 @@ check_withdrawal_limit_exceeded_test(C) ->
     ok            = check_withdrawal(WalletID, DestID, WithdrawalID, C, 100000),
     ?assertMatch({ok, #{
         <<"status">> := <<"Failed">>,
-        <<"failure">> := #{<<"code">> := <<"account_limit_exceeded">>}}
-    }, get_withdrawal(WithdrawalID, C)).
+        <<"failure">> := #{
+            <<"code">> := <<"account_limit_exceeded">>,
+            <<"subError">> := #{<<"code">> := <<"amount">>}
+        }
+    }}, get_withdrawal(WithdrawalID, C)).
 
 -spec unknown_withdrawal_test(config()) -> test_return().
 
@@ -513,14 +516,15 @@ woody_retry_test(C) ->
     try
         wapi_wallet_ff_backend:list_wallets(Params, Ctx#{woody_context => ct_helper:get_woody_ctx(C)})
     catch
-        error:{woody_error, {_Source, Class, _Details}} = _Error
-        when Class =:= resource_unavailable orelse Class =:= result_unknown
+        error:{woody_error, {_Source, Class, _Details}} = _Error when
+            Class =:= resource_unavailable orelse
+            Class =:= result_unknown
         ->
             ok
     end,
     T2 = erlang:monotonic_time(),
     Time = erlang:convert_time_unit(T2 - T1, native, micro_seconds),
-    true = (Time > 3000000) and (Time < 6000000),
+    ?assert(Time > 3000000),
     ok = application:set_env(wapi_woody_client, service_urls, Urls).
 
 -spec get_wallet_by_external_id(config()) ->

@@ -27,7 +27,7 @@
     {error, {identity, unauthorized}} .
 
 get_identity(IdentityID, HandlerContext) ->
-    Request = {fistful_identity, 'Get', [IdentityID]},
+    Request = {fistful_identity, 'Get', [IdentityID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
         {ok, IdentityThrift} ->
             case wapi_access_backend:check_resource(identity, IdentityThrift, HandlerContext) of

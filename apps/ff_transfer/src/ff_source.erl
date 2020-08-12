@@ -117,7 +117,7 @@ get_machine(ID, EventRange) ->
 is_accessible(Source) ->
     ff_instrument:is_accessible(Source).
 
--spec events(id(), machinery:range()) ->
+-spec events(id(), event_range()) ->
     {ok, events()} |
     {error, notfound}.
 

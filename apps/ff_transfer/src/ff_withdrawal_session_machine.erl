@@ -110,13 +110,13 @@ get(ID) ->
 get(ID, {After, Limit}) ->
     ff_machine:get(ff_withdrawal_session, ?NS, ID, {After, Limit, forward}).
 
--spec events(id(), machinery:range()) ->
+-spec events(id(), event_range()) ->
     {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
     {error, notfound}.
 
-events(ID, Range) ->
+events(ID, {After, Limit}) ->
     do(fun () ->
-        History = unwrap(ff_machine:history(ff_withdrawal_session, ?NS, ID, Range)),
+        History = unwrap(ff_machine:history(ff_withdrawal_session, ?NS, ID, {After, Limit, forward})),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 

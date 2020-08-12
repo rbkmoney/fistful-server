@@ -275,7 +275,7 @@ ctx(St) ->
 is_accessible(Destination) ->
     ff_instrument:is_accessible(Destination).
 
--spec events(id(), machinery:range()) ->
+-spec events(id(), event_range()) ->
     {ok, events()} |
     {error, notfound}.
 

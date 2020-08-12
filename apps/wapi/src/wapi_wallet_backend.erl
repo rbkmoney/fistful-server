@@ -55,7 +55,7 @@ create(WalletID, Params, Context, HandlerContext) ->
     {error, {wallet, unauthorized}}.
 
 get(WalletID, HandlerContext) ->
-    Request = {fistful_wallet, 'Get', [WalletID]},
+    Request = {fistful_wallet, 'Get', [WalletID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
         {ok, WalletThrift} ->
             case wapi_access_backend:check_resource(wallet, WalletThrift, HandlerContext) of

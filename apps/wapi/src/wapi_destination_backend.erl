@@ -69,7 +69,7 @@ create(DestinationID, Params = #{<<"resource">> := Resource}, Context, HandlerCo
     {error, {destination, unauthorized}}.
 
 get(DestinationID, HandlerContext) ->
-    Request = {fistful_destination, 'Get', [DestinationID]},
+    Request = {fistful_destination, 'Get', [DestinationID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
         {ok, DestinationThrift} ->
             case wapi_access_backend:check_resource(destination, DestinationThrift, HandlerContext) of

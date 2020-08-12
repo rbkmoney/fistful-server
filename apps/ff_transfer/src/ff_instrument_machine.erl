@@ -155,12 +155,12 @@ process_call(_CallArgs, #{}, _, _Opts) ->
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_instrument, Machine, Scenario).
 
--spec events(ns(), id(), machinery:range()) ->
+-spec events(ns(), id(), event_range()) ->
     {ok, events(_)} |
     {error, notfound}.
 
-events(NS, ID, Range) ->
+events(NS, ID, {After, Limit}) ->
     do(fun () ->
-        History = unwrap(ff_machine:history(ff_instrument, NS, ID, Range)),
+        History = unwrap(ff_machine:history(ff_instrument, NS, ID, {After, Limit, forward})),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).

@@ -88,13 +88,13 @@ get(ID) ->
 get(ID, {After, Limit}) ->
     ff_machine:get(ff_wallet, ?NS, ID, {After, Limit, forward}).
 
--spec events(id(), machinery:range()) ->
+-spec events(id(), event_range()) ->
     {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
     {error, notfound}.
 
-events(ID, Range) ->
+events(ID, {After, Limit}) ->
     do(fun () ->
-        #{history := History} = unwrap(machinery:get(?NS, ID, Range, backend())),
+        #{history := History} = unwrap(machinery:get(?NS, ID, {After, Limit, forward}, backend())),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 

@@ -142,13 +142,13 @@ create_destination_ok(Resource, C) ->
         {authorized, #dst_Authorized{}},
         fun () ->
             {ok, #dst_DestinationState{status = Status}}
-                = call_service('Get', [ID]),
+                = call_service('Get', [ID, #'EventRange'{}]),
             Status
         end,
         genlib_retry:linear(15, 1000)
     ),
 
-    {ok, #dst_DestinationState{}} = call_service('Get', [ID]).
+    {ok, #dst_DestinationState{}} = call_service('Get', [ID, #'EventRange'{}]).
 
 call_service(Fun, Args) ->
     Service = {ff_proto_destination_thrift, 'Management'},

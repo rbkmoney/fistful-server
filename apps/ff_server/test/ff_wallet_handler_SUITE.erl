@@ -96,7 +96,7 @@ create_ok(C) ->
     Metadata     = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params       = construct_wallet_params(ID, IdentityID, Currency, ExternalID, Metadata),
     CreateResult = call_service('Create', [Params, Ctx]),
-    GetResult    = call_service('Get', [ID]),
+    GetResult    = call_service('Get', [ID, #'EventRange'{}]),
     {ok, Wallet} = GetResult,
     Account      = Wallet#wlt_WalletState.account,
     CurrencyRef  = Account#account_Account.currency,

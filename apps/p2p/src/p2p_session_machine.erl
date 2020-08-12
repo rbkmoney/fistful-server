@@ -129,12 +129,12 @@ create(ID, TransferParams, Params) ->
         unwrap(machinery:start(?NS, ID, Events, backend()))
     end).
 
--spec events(id(), machinery:range()) ->
+-spec events(id(), event_range()) ->
     {ok, events()} |
     {error, unknown_p2p_session_error()}.
 
-events(Ref, Range) ->
-    case ff_machine:history(p2p_session, ?NS, Ref, Range) of
+events(Ref, {After, Limit}) ->
+    case ff_machine:history(p2p_session, ?NS, Ref, {After, Limit, forward}) of
         {ok, History} ->
             Events = [{EventID, TsEv} || {EventID, _, TsEv} <- History],
             {ok, Events};

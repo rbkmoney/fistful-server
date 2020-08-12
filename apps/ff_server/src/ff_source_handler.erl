@@ -50,7 +50,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
             Response = ff_source_codec:marshal_source_state(Source, Context),
             {ok, Response};
         {error, notfound} ->
-            woody_error:raise(business, #fistful_DestinationNotFound{})
+            woody_error:raise(business, #fistful_SourceNotFound{})
     end;
 handle_function_('GetContext', [ID], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
@@ -59,7 +59,7 @@ handle_function_('GetContext', [ID], _Opts) ->
             Context = ff_source:ctx(Machine),
             {ok, ff_codec:marshal(context, Context)};
         {error, notfound} ->
-            woody_error:raise(business, #fistful_DestinationNotFound{})
+            woody_error:raise(business, #fistful_SourceNotFound{})
     end;
 handle_function_('GetEvents', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
@@ -67,5 +67,5 @@ handle_function_('GetEvents', [ID, EventRange], _Opts) ->
         {ok, Events} ->
             {ok, lists:map(fun ff_source_codec:marshal_event/1, Events)};
         {error, notfound} ->
-            woody_error:raise(business, #fistful_DestinationNotFound{})
+            woody_error:raise(business, #fistful_SourceNotFound{})
     end.

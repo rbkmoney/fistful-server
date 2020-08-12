@@ -47,6 +47,8 @@ get_service(identity_management) ->
     {ff_proto_identity_thrift, 'Management'};
 get_service(destination_management) ->
     {ff_proto_destination_thrift, 'Management'};
+get_service(source_management) ->
+    {ff_proto_source_thrift, 'Management'};
 get_service(withdrawal_management) ->
     {ff_proto_withdrawal_thrift, 'Management'};
 get_service(withdrawal_session_management) ->
@@ -115,6 +117,8 @@ get_service_path(identity_management) ->
     "/v1/identity";
 get_service_path(destination_management) ->
     "/v1/destination";
+get_service_path(source_management) ->
+    "/v1/source";
 get_service_path(withdrawal_management) ->
     "/v1/withdrawal";
 get_service_path(withdrawal_session_management) ->

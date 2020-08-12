@@ -102,6 +102,9 @@ marshal(status, unauthorized) ->
 marshal(status, authorized) ->
     {authorized, #src_Authorized{}};
 
+marshal(ctx, Ctx) ->
+    marshal(context, Ctx);
+
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -155,6 +158,9 @@ unmarshal(status, {unauthorized, #src_Unauthorized{}}) ->
     unauthorized;
 unmarshal(status, {authorized, #src_Authorized{}}) ->
     authorized;
+
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

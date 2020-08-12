@@ -97,6 +97,7 @@ init([]) ->
         {wallet_management, ff_wallet_handler},
         {identity_management, ff_identity_handler},
         {destination_management, ff_destination_handler},
+        {source_management, ff_source_handler},
         {withdrawal_management, ff_withdrawal_handler},
         {withdrawal_session_management, ff_withdrawal_session_handler},
         {deposit_management, ff_deposit_handler},

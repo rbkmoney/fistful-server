@@ -66,7 +66,7 @@ marshal(session_status, {finished, Result}) ->
         finished,
         #wthd_session_SessionFinished{status = marshal(session_finished_status, Result)}
     };
-marshal(session_finished_status, {success, _}) ->
+marshal(session_finished_status, success) ->
     {success, #wthd_session_SessionFinishedSuccess{}};
 marshal(session_finished_status, {failed, Failure}) ->
     {failed, #wthd_session_SessionFinishedFailed{failure = marshal(failure, Failure)}};
@@ -218,8 +218,7 @@ unmarshal(session_status, {active, #wthd_session_SessionActive{}}) ->
 unmarshal(session_status, {finished, #wthd_session_SessionFinished{status = Result}}) ->
     {finished, unmarshal(session_finished_status, Result)};
 unmarshal(session_finished_status, {success, #wthd_session_SessionFinishedSuccess{}}) ->
-    %% need to fix proto to fill this with trx info mb?
-    {success, #{id => <<"default id">>, extra => <<"default extra">>}};
+    success;
 unmarshal(session_finished_status, {failed, #wthd_session_SessionFinishedFailed{failure = Failure}}) ->
     {failed, unmarshal(failure, Failure)};
 

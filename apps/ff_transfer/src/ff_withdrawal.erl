@@ -875,7 +875,8 @@ process_session_poll(Withdrawal) ->
     case ff_withdrawal_session:status(Session) of
         active ->
             {poll, []};
-        {finished, Result} ->
+        {finished, _} ->
+            Result = ff_withdrawal_session:result(Session),
             {continue, [{session_finished, {SessionID, Result}}]}
     end.
 

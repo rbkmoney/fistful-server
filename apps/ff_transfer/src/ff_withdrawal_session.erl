@@ -13,6 +13,7 @@
 -export([adapter_state/1]).
 -export([route/1]).
 -export([withdrawal/1]).
+-export([result/1]).
 
 %% API
 
@@ -41,6 +42,7 @@
     route         := route(),
     adapter_state => ff_adapter:state(),
     callbacks     => callbacks_index(),
+    result        => session_result(),
 
     % Deprecated. Remove after MSPF-560 finish
     provider_legacy => binary() | ff_payouts_provider:id()
@@ -61,7 +63,7 @@
                         | {failed, ff_adapter_withdrawal:failure()}.
 
 -type status() :: active
-    | {finished, session_result()}.
+    | {finished, success | {failed, ff_adapter_withdrawal:failure()}}.
 
 -type event() :: {created, session()}
     | {next_state, ff_adapter:state()}
@@ -164,6 +166,12 @@ callbacks_index(Session) ->
             ff_withdrawal_callback_utils:new_index()
     end.
 
+-spec result(session_state()) ->
+    session_result() | undefined.
+
+result(Session) ->
+    maps:get(result, Session, undefined).
+
 %%
 %% API
 %%
@@ -181,8 +189,9 @@ apply_event({created, Session}, undefined) ->
     Session;
 apply_event({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
-apply_event({finished, Result}, Session) ->
-    set_session_status({finished, Result}, Session);
+apply_event({finished, Result}, Session0) ->
+    Session1 = Session0#{result => Result},
+    set_session_status({finished, Result}, Session1);
 apply_event({callback, _Ev} = WrappedEvent, Session) ->
     Callbacks0 = callbacks_index(Session),
     Callbacks1 = ff_withdrawal_callback_utils:apply_event(WrappedEvent, Callbacks0),
@@ -353,8 +362,10 @@ create_adapter_withdrawal(#{id := SesID, sender := Sender, receiver := Receiver}
         session_id => SesID
     }.
 
--spec set_session_status(status(), session_state()) -> session_state().
-set_session_status(Status, SessionState) ->
+-spec set_session_status({finished, session_result()}, session_state()) -> session_state().
+set_session_status({finished, {success, _}}, SessionState) ->
+    SessionState#{status => {finished, success}};
+set_session_status(Status = {finished, {failed, _}}, SessionState) ->
     SessionState#{status => Status}.
 
 -spec set_callbacks_index(callbacks_index(), session_state()) -> session_state().

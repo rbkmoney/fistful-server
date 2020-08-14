@@ -48,7 +48,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     case p2p_template_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             P2PTemplate = p2p_template_machine:p2p_template(Machine),
-            Ctx = ff_machine:ctx(Machine),
+            Ctx = p2p_template_machine:ctx(Machine),
             Response = ff_p2p_template_codec:marshal_p2p_template_state(P2PTemplate, Ctx),
             {ok, Response};
         {error, {unknown_p2p_template, _Ref}} ->

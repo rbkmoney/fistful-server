@@ -46,7 +46,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     case ff_wallet_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             Wallet    = ff_wallet_machine:wallet(Machine),
-            Ctx       = ff_machine:ctx(Machine),
+            Ctx       = ff_wallet_machine:ctx(Machine),
             Response  = ff_wallet_codec:marshal_wallet_state(Wallet, ID, Ctx),
             {ok, Response};
         {error, notfound} ->

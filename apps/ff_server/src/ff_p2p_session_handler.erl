@@ -27,7 +27,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     case p2p_session_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             State = p2p_session_machine:session(Machine),
-            Ctx = ff_machine:ctx(Machine),
+            Ctx = p2p_session_machine:ctx(Machine),
             Response = ff_p2p_session_codec:marshal_state(State, Ctx),
             {ok, Response};
         {error, {unknown_p2p_session, _Ref}} ->

@@ -68,7 +68,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     case w2w_transfer_machine:get(ID, {After, Limit}) of
         {ok, Machine} ->
             W2WTransfer = w2w_transfer_machine:w2w_transfer(Machine),
-            Ctx = ff_machine:ctx(Machine),
+            Ctx = w2w_transfer_machine:ctx(Machine),
             Response = ff_w2w_transfer_codec:marshal_w2w_transfer_state(W2WTransfer, Ctx),
             {ok, Response};
         {error, {unknown_w2w_transfer, _Ref}} ->

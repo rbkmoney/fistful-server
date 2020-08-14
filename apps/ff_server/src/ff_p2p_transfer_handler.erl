@@ -88,7 +88,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     case p2p_transfer_machine:get(ID, {After, Limit}) of
         {ok, Machine} ->
             P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
-            Ctx = ff_machine:ctx(Machine),
+            Ctx = p2p_transfer_machine:ctx(Machine),
             Response = ff_p2p_transfer_codec:marshal_p2p_transfer_state(P2PTransfer, Ctx),
             {ok, Response};
         {error, {unknown_p2p_transfer, _Ref}} ->

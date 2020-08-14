@@ -27,7 +27,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     case ff_withdrawal_session_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             State = ff_withdrawal_session_machine:session(Machine),
-            Ctx = ff_machine:ctx(Machine),
+            Ctx = ff_withdrawal_session_machine:ctx(Machine),
             Response = ff_withdrawal_session_codec:marshal_state(State, ID, Ctx),
             {ok, Response};
         {error, notfound} ->

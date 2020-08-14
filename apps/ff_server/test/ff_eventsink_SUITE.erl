@@ -281,8 +281,10 @@ get_create_p2p_transfer_events_ok(C) ->
     Sink = p2p_transfer_event_sink,
     LastEvent = ct_eventsink:last_id(Sink),
 
+    Token = genlib:unique(),
+
     Resource = {bank_card, #{bank_card => #{
-        token => genlib:unique(),
+        token => Token,
         bin => <<"some bin">>,
         masked_pan => <<"some masked_pan">>
     }}},
@@ -295,7 +297,7 @@ get_create_p2p_transfer_events_ok(C) ->
     Cash = {123, <<"RUB">>},
 
     CompactResource = {bank_card, #{
-        token => genlib:unique(),
+        token => Token,
         bin_data_id => {binary, genlib:unique()}
     }},
 

@@ -8,14 +8,7 @@
 
 %% Constants
 
-%%@TODO remove post migration
-%%======
--define(CURRENT_EVENT_FORMAT_VERSION, undefined).
-%%======
-%%@TODO uncomment post migration
-%%======
-%% -define(CURRENT_EVENT_FORMAT_VERSION, 1).
-%%======
+-define(CURRENT_EVENT_FORMAT_VERSION, 1).
 
 -export([get_version/1]).
 -export([marshal/3]).

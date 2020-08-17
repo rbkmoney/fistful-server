@@ -84,6 +84,7 @@
 -type result(T)     :: result(T, notfound).
 -type result(T, E)  :: {ok, T} | {error, E}.
 -type result_stat() :: {200 | 400, list(), map()}.
+-type generated_id() :: bender_client:generated_id().
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 -define(PARAMS_HASH, <<"params_hash">>).
@@ -156,7 +157,7 @@ get_identity(IdentityId, Context) ->
     {provider, notfound}       |
     {identity_class, notfound} |
     {email, notfound}          |
-    {external_id_conflict, id(), external_id()}
+    {external_id_conflict, generated_id(), external_id()}
 ).
 create_identity(Params, Context) ->
     IdentityParams = from_swag(identity_params, Params),
@@ -202,7 +203,7 @@ get_identity_challenges(IdentityId, Statuses, Context) ->
 create_identity_challenge(IdentityId, Params, Context) ->
     Type          = identity_challenge,
     Hash          = erlang:phash2(Params),
-    {ok, ChallengeID} = gen_id(Type, undefined, Hash, Context),
+    {ok, {ChallengeID, _}} = gen_id(Type, undefined, Hash, Context),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
         ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
@@ -279,15 +280,15 @@ get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context
     PartyID = uac_authorizer_jwt:get_subject_id(AuthContext),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(wallet, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
-        {ok, WalletID, _} -> get_wallet(WalletID, Context);
+        {ok, {WalletID, _}, _} -> get_wallet(WalletID, Context);
         {error, internal_id_not_found} -> {error, {wallet, notfound}}
     end.
 
 -spec create_wallet(params(), ctx()) -> result(map(),
-    invalid                  |
-    {identity, unauthorized} |
-    {external_id_conflict, id(), external_id()} |
-    {inaccessible, _}        |
+    invalid                                               |
+    {identity, unauthorized}                              |
+    {external_id_conflict, generated_id(), external_id()} |
+    {inaccessible, _}                                     |
     ff_wallet:create_error()
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
@@ -347,20 +348,20 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
     PartyID = wapi_handler_utils:get_owner(Context),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(destination, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
-        {ok, DestinationID, _CtxData} ->
+        {ok, {DestinationID, _}, _CtxData} ->
             get_destination(DestinationID, Context);
         {error, internal_id_not_found} ->
             {error, {external_id, {unknown_external_id, ExternalID}}}
     end.
 
 -spec create_destination(params(), ctx()) -> result(map(),
-    invalid                     |
-    {invalid_resource_token, _} |
-    {identity, unauthorized}    |
-    {identity, notfound}        |
-    {currency, notfound}        |
-    {inaccessible, _}           |
-    {external_id_conflict, id(), external_id()} |
+    invalid                                               |
+    {invalid_resource_token, _}                           |
+    {identity, unauthorized}                              |
+    {identity, notfound}                                  |
+    {currency, notfound}                                  |
+    {inaccessible, _}                                     |
+    {external_id_conflict, generated_id(), external_id()} |
     {illegal_pattern, _}
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
@@ -379,7 +380,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {source, notfound}            |
     {destination, notfound}       |
     {destination, unauthorized}   |
-    {external_id_conflict, id(), external_id()} |
+    {external_id_conflict, generated_id(), external_id()} |
     {provider, notfound}          |
     {wallet, {inaccessible, _}}   |
     {wallet, {currency, invalid}} |
@@ -420,7 +421,7 @@ get_withdrawal_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}
     PartyID = wapi_handler_utils:get_owner(Context),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(withdrawal, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyCtx) of
-        {ok, WithdrawalId, _CtxData} ->
+        {ok, {WithdrawalId, _}, _CtxData} ->
             get_withdrawal(WithdrawalId, Context);
         {error, internal_id_not_found} ->
             {error, {external_id, {unknown_external_id, ExternalID}}}
@@ -717,7 +718,7 @@ quote_p2p_transfer(Params, Context) ->
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     p2p_transfer:create_error() |
     {identity, unauthorized} |
-    {external_id_conflict, id(), external_id()} |
+    {external_id_conflict, generated_id(), external_id()} |
     {invalid_resource_token, _} |
     {token,
         {unsupported_version, integer() | undefined} |
@@ -793,7 +794,7 @@ get_p2p_transfer_events({ID, CT}, Context) ->
 
 -spec create_p2p_template(params(), ctx()) -> result(map(),
     p2p_template:create_error() |
-    {external_id_conflict, id(), external_id()} |
+    {external_id_conflict, generated_id(), external_id()} |
     {identity, unauthorized}
 ).
 create_p2p_template(Params = #{<<"identityID">> := IdentityId}, Context) ->
@@ -859,7 +860,7 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
         AccessExpiration = maps:get(<<"expiration">>, AccessData),
         PartyID = wapi_handler_utils:get_owner(Context),
         Key  = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID, undefined),
-        {ok, TransferID} = bender_client:gen_snowflake(Key, 0, WoodyCtx),
+        {ok, {TransferID, _}} = bender_client:gen_snowflake(Key, 0, WoodyCtx),
         Data = #{<<"transferID">> => TransferID},
         Expiration1 = choose_token_expiration(Expiration0, AccessExpiration),
         case wapi_backend_utils:issue_grant_token({p2p_template_transfers, ID, Data}, Expiration1, Context) of
@@ -873,7 +874,7 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
 -spec create_p2p_transfer_with_template(id(), params(), ctx()) -> result(map(),
     p2p_template_machine:unknown_p2p_template_error() |
     p2p_transfer:create_error() |
-    {external_id_conflict, id(), external_id()} |
+    {external_id_conflict, generated_id(), external_id()} |
     {invalid_resource_token, _} |
     {token,
         {unsupported_version, integer() | undefined} |
@@ -890,7 +891,7 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
         Hash = erlang:phash2(Params),
         IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
         case bender_client:gen_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
-            {ok, TransferID} ->
+            {ok, {TransferID, _}} ->
                 ParsedParams = unwrap(maybe_add_p2p_template_quote_token(
                     ID, from_swag(create_p2p_with_template_params, Params)
                 )),
@@ -1349,7 +1350,7 @@ create_entity(Type, Params, CreateFun, Context) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     Hash       = erlang:phash2(Params),
     case gen_id(Type, ExternalID, Hash, Context) of
-        {ok, ID} ->
+        {ok, {ID, _}} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
             handle_create_entity_result(Result, Type, ID, Context);
         {error, {external_id_conflict, ID}} ->

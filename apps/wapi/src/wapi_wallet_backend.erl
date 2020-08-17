@@ -19,13 +19,13 @@
         {identity, notfound} |
         {currency, notfound} |
         inaccessible |
-        {external_id_conflict, id()}.
+        {external_id_conflict, bender_client:generated_id()}.
 
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             case wapi_backend_utils:gen_id(wallet, Params, HandlerContext) of
-                {ok, ID} ->
+                {ok, {ID, _}} ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
                     PreparedParams = genlib_map:compact(Params#{
                         <<"id">> => ID,

@@ -3,6 +3,7 @@
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
+-type generated_id() :: bender_client:generated_id().
 -type id() :: binary().
 -type external_id() :: binary().
 
@@ -22,13 +23,13 @@
         {identity, notfound}        |
         {currency, notfound}        |
         inaccessible                |
-        {external_id_conflict, {id(), external_id()}}.
+        {external_id_conflict, {generated_id(), external_id()}}.
 
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
-                {ok, ID} ->
+                {ok, {ID, _}} ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
                     PreparedParams = genlib_map:compact(Params#{
                         <<"id">> => ID,
@@ -96,7 +97,7 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(destination, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
-        {ok, DestinationID, _CtxData} ->
+        {ok, {DestinationID, _}, _CtxData} ->
             get(DestinationID, HandlerContext);
         {error, internal_id_not_found} ->
             {error, {external_id, {unknown_external_id, ExternalID}}}

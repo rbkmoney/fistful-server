@@ -29,7 +29,7 @@
 -type error_message() :: binary() | io_lib:chars().
 
 -type error_type() :: external_id_conflict.
--type error_params() :: {ID :: binary(), ExternalID :: binary()}.
+-type error_params() :: {ID :: bender_client:generated_id(), ExternalID :: binary()}.
 
 -type status_code()   :: wapi_handler:status_code().
 -type headers()       :: wapi_handler:headers().
@@ -59,7 +59,7 @@ get_error_msg(Message) ->
 
 -spec logic_error(error_type(), error_params()) ->
     {error, {status_code(), #{}, response_data()}}.
-logic_error(external_id_conflict, {ID, ExternalID}) ->
+logic_error(external_id_conflict, {{ID, _}, ExternalID}) ->
     Data = #{
         <<"externalID">> => ExternalID,
         <<"id">> => ID,

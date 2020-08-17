@@ -2,6 +2,7 @@
 
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
+-type generated_id() :: bender_client:generated_id().
 -type params() :: map().
 -type id() :: binary().
 -type status() :: binary().
@@ -41,15 +42,15 @@ get_identity(IdentityID, HandlerContext) ->
     end.
 
 -spec create_identity(params(), handler_context()) -> result(map(),
-    {provider, notfound}       |
-    {identity_class, notfound} |
-    {external_id_conflict, id()}           |
-    inaccessible               |
+    {provider, notfound}                   |
+    {identity_class, notfound}             |
+    {external_id_conflict, generated_id()} |
+    inaccessible                           |
     _Unexpected
 ).
 create_identity(Params, HandlerContext) ->
     case create_id(identity, Params, HandlerContext) of
-        {ok, ID} ->
+        {ok, {ID, _}} ->
             create_identity(ID, Params, HandlerContext);
         {error, {external_id_conflict, _}} = Error ->
             Error
@@ -89,11 +90,11 @@ get_identities(_Params, _Context) ->
     {challenge, {proof, insufficient}} |
     {challenge, level}                 |
     {challenge, conflict}              |
-    {external_id_conflict, id()}
+    {external_id_conflict, generated_id()}
 ).
 create_identity_challenge(IdentityID, Params, HandlerContext) ->
     case create_id(identity_challenge, Params, HandlerContext) of
-        {ok, ID} ->
+        {ok, {ID, _}} ->
             create_identity_challenge(ID, IdentityID, Params, HandlerContext);
         {error, {external_id_conflict, _}} = Error ->
             Error

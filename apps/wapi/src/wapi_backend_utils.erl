@@ -9,6 +9,7 @@
 -type md() :: ff_entity_context:md().
 -type context() :: ff_entity_context:context().
 -type handler_context() :: wapi_handler:context().
+-type generated_id() :: bender_client:generated_id().
 -type id() :: binary().
 -type hash() :: integer().
 -type params() :: map().
@@ -41,7 +42,7 @@ get_idempotent_key(Type, PartyID, ExternalID) ->
     bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID).
 
 -spec gen_id(gen_type(), params(), handler_context()) ->
-    {ok, id()} | {error, {external_id_conflict, id()}}.
+    {ok, generated_id()} | {error, {external_id_conflict, generated_id()}}.
 
 gen_id(Type, Params, Context) ->
     ExternalID = maps:get(?EXTERNAL_ID, Params, undefined),
@@ -49,7 +50,7 @@ gen_id(Type, Params, Context) ->
     gen_id(Type, ExternalID, Hash, Context).
 
 -spec gen_id(gen_type(), id() | undefined, hash(), handler_context()) ->
-    {ok, id()} | {error, {external_id_conflict, id()}}.
+    {ok, generated_id()} | {error, {external_id_conflict, generated_id()}}.
 
 gen_id(Type, ExternalID, Hash, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),

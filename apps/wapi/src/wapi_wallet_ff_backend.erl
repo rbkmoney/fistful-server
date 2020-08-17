@@ -891,7 +891,11 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
         Hash = erlang:phash2(Params),
         IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
         case bender_client:gen_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
+<<<<<<< HEAD
             {ok, {TransferID, _}} ->
+=======
+            {ok, TransferID} ->
+>>>>>>> 2392619276b7f99554f62120a196f05fdd132877
                 ParsedParams = unwrap(maybe_add_p2p_template_quote_token(
                     ID, from_swag(create_p2p_with_template_params, Params)
                 )),

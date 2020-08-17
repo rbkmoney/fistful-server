@@ -859,7 +859,7 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
         AccessExpiration = maps:get(<<"expiration">>, AccessData),
         PartyID = wapi_handler_utils:get_owner(Context),
         Key  = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID, undefined),
-        {ok, TransferID} = bender_client:gen_by_snowflake(Key, 0, WoodyCtx),
+        {ok, TransferID} = bender_client:gen_snowflake(Key, 0, WoodyCtx),
         Data = #{<<"transferID">> => TransferID},
         Expiration1 = choose_token_expiration(Expiration0, AccessExpiration),
         case wapi_backend_utils:issue_grant_token({p2p_template_transfers, ID, Data}, Expiration1, Context) of
@@ -889,7 +889,7 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
         PartyID = wapi_handler_utils:get_owner(Context),
         Hash = erlang:phash2(Params),
         IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
-        case bender_client:gen_by_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
+        case bender_client:gen_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
             {ok, TransferID} ->
                 ParsedParams = unwrap(maybe_add_p2p_template_quote_token(
                     ID, from_swag(create_p2p_with_template_params, Params)
@@ -1421,11 +1421,11 @@ gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
 
 %@TODO: Bring back later
 %gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
-%    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx).
+%    bender_client:gen_snowflake(IdempotentKey, Hash, WoodyCtx).
 
 gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
-    bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
+    bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
 
 create_report_request(#{
     party_id     := PartyID,

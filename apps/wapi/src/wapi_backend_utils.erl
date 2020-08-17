@@ -64,10 +64,10 @@ gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
 
 %@TODO: Bring back later
 %gen_snowflake_id(_Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
-%    bender_client:gen_by_snowflake(IdempotentKey, Hash, WoodyCtx).
+%    bender_client:gen_snowflake(IdempotentKey, Hash, WoodyCtx).
 gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
-    bender_client:gen_by_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
+    bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
 
 -spec make_ctx(params(), handler_context()) ->
     context().

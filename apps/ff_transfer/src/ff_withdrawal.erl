@@ -1003,6 +1003,15 @@ get_destination(DestinationID) ->
     identity().
 get_wallet_identity(Wallet) ->
     IdentityID = ff_wallet:identity(Wallet),
+    get_identity(IdentityID).
+
+-spec get_destination_identity(destination()) ->
+    identity().
+get_destination_identity(Destination) ->
+    IdentityID = ff_destination:identity(Destination),
+    get_identity(IdentityID).
+
+get_identity(IdentityID) ->
     {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     ff_identity_machine:identity(IdentityMachine).
 
@@ -1245,8 +1254,19 @@ validate_withdrawal_creation(Terms, Body, Wallet, Destination) ->
     do(fun() ->
         valid = unwrap(terms, validate_withdrawal_creation_terms(Terms, Body)),
         valid = unwrap(validate_withdrawal_currency(Body, Wallet, Destination)),
-        valid = unwrap(validate_destination_status(Destination))
+        valid = unwrap(validate_destination_status(Destination)),
+        valid = unwrap(validate_withdrawal_providers(Wallet, Destination))
     end).
+
+validate_withdrawal_providers(Wallet, Destination) ->
+    WalletIdentity = get_wallet_identity(Wallet),
+    DestinationIdentity = get_destination_identity(Destination),
+    WalletProvider = maps:get(provider, WalletIdentity),
+    DestinationProvider = maps:get(provider, DestinationIdentity),
+    case WalletProvider == DestinationProvider of
+        true  -> {ok, valid};
+        false -> {error, {provider_mismatch, {WalletProvider, DestinationProvider}}}
+    end.
 
 -spec validate_withdrawal_creation_terms(terms(), body()) ->
     {ok, valid} |

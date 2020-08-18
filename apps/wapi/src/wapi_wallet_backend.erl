@@ -27,11 +27,7 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
             case wapi_backend_utils:gen_id(wallet, Params, HandlerContext) of
                 {ok, {ID, _}} ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-                    PreparedParams = genlib_map:compact(Params#{
-                        <<"id">> => ID,
-                        <<"context">> => Context
-                    }),
-                    create(ID, PreparedParams, HandlerContext);
+                    create(ID, Params, Context, HandlerContext);
                 {error, {external_id_conflict, _}} = Error ->
                     Error
             end;
@@ -39,9 +35,9 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
             {error, {identity, unauthorized}}
     end.
 
-create(WalletID, Params, HandlerContext) ->
+create(WalletID, Params, Context, HandlerContext) ->
     WalletParams = marshal(wallet_params, Params#{<<"id">> => WalletID}),
-    Request = {fistful_wallet, 'Create', [WalletParams]},
+    Request = {fistful_wallet, 'Create', [WalletParams, marshal(context, Context)]},
     case service_call(Request, HandlerContext) of
         {ok, Wallet} ->
             {ok, unmarshal(wallet, Wallet)};
@@ -59,7 +55,7 @@ create(WalletID, Params, HandlerContext) ->
     {error, {wallet, unauthorized}}.
 
 get(WalletID, HandlerContext) ->
-    Request = {fistful_wallet, 'Get', [WalletID]},
+    Request = {fistful_wallet, 'Get', [WalletID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
         {ok, WalletThrift} ->
             case wapi_access_backend:check_resource(wallet, WalletThrift, HandlerContext) of
@@ -85,16 +81,14 @@ marshal(wallet_params, Params = #{
     <<"id">> := ID,
     <<"name">> := Name,
     <<"identity">> := IdentityID,
-    <<"currency">> := CurrencyID,
-    <<"context">> := Ctx
+    <<"currency">> := CurrencyID
 }) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #wlt_WalletParams{
         id = marshal(id, ID),
         name = marshal(string, Name),
         account_params = marshal(account_params, {IdentityID, CurrencyID}),
-        external_id = marshal(id, ExternalID),
-        context = marshal(context, Ctx)
+        external_id = marshal(id, ExternalID)
     };
 
 marshal(account_params, {IdentityID, CurrencyID}) ->

@@ -31,11 +31,7 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
             case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
                 {ok, {ID, _}} ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-                    PreparedParams = genlib_map:compact(Params#{
-                        <<"id">> => ID,
-                        <<"context">> => Context
-                    }),
-                    create(ID, PreparedParams, HandlerContext);
+                    create(ID, Params, Context, HandlerContext);
                 {error, {external_id_conflict, ID}} ->
                     ExternalID = maps:get(<<"externalID">>, Params, undefined),
                     {error, {external_id_conflict, {ID, ExternalID}}}
@@ -44,14 +40,14 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
             {error, {identity, unauthorized}}
     end.
 
-create(DestinationID, Params = #{<<"resource">> := Resource}, HandlerContext) ->
+create(DestinationID, Params = #{<<"resource">> := Resource}, Context, HandlerContext) ->
     case construct_resource(Resource) of
         {ok, ConstructedResource} ->
             DestinationParams = marshal(destination_params, Params#{
                 <<"id">> => DestinationID,
                 <<"resource">> => ConstructedResource
             }),
-            Request = {fistful_destination, 'Create', [DestinationParams]},
+            Request = {fistful_destination, 'Create', [DestinationParams, marshal(context, Context)]},
             case service_call(Request, HandlerContext) of
                 {ok, Destination} ->
                     {ok, unmarshal(destination, Destination)};
@@ -74,7 +70,7 @@ create(DestinationID, Params = #{<<"resource">> := Resource}, HandlerContext) ->
     {error, {destination, unauthorized}}.
 
 get(DestinationID, HandlerContext) ->
-    Request = {fistful_destination, 'Get', [DestinationID]},
+    Request = {fistful_destination, 'Get', [DestinationID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
         {ok, DestinationThrift} ->
             case wapi_access_backend:check_resource(destination, DestinationThrift, HandlerContext) of
@@ -150,8 +146,7 @@ marshal(destination_params, Params = #{
     <<"identity">> := IdentityID,
     <<"currency">> := CurrencyID,
     <<"name">> := Name,
-    <<"resource">> := Resource,
-    <<"context">> := Context
+    <<"resource">> := Resource
 }) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #dst_DestinationParams{
@@ -160,8 +155,7 @@ marshal(destination_params, Params = #{
         name = marshal(string, Name),
         currency = marshal(string, CurrencyID),
         resource = Resource,
-        external_id = maybe_marshal(id, ExternalID),
-        context = marshal(context, Context)
+        external_id = maybe_marshal(id, ExternalID)
     };
 
 marshal(resource, #{

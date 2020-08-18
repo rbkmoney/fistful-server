@@ -82,7 +82,7 @@ create_identity_ok(_C) ->
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Identity = create_identity(EID, PartyID, ProvID, ClassID, Context, Metadata),
     IID = Identity#idnt_IdentityState.id,
-    {ok, Identity_} = call_api('Get', [IID]),
+    {ok, Identity_} = call_api('Get', [IID, #'EventRange'{}]),
 
     ProvID = Identity_#idnt_IdentityState.provider_id,
     IID = Identity_#idnt_IdentityState.id,
@@ -149,7 +149,7 @@ get_challenge_event_ok(C) ->
         end,
         genlib_retry:linear(10, 1000)
     ),
-    {ok, Identity2} = call_api('Get', [IID]),
+    {ok, Identity2} = call_api('Get', [IID, #'EventRange'{}]),
     ?assertNotEqual(undefined, Identity2#idnt_IdentityState.effective_challenge_id),
     ?assertNotEqual(undefined, Identity2#idnt_IdentityState.level_id).
 
@@ -223,10 +223,9 @@ create_identity(EID, PartyID, ProvID, ClassID, Ctx, Metadata) ->
         provider    = ProvID,
         cls         = ClassID,
         external_id = EID,
-        metadata    = Metadata,
-        context     = Ctx
+        metadata    = Metadata
     },
-    {ok, IdentityState} = call_api('Create', [Params]),
+    {ok, IdentityState} = call_api('Create', [Params, Ctx]),
     IdentityState.
 
 gen_challenge_param(ClgClassID, ChallengeID, C) ->

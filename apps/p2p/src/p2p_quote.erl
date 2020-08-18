@@ -39,7 +39,15 @@
     receiver          := compact_resource()
 }.
 
+-type params() :: #{
+    body := cash(),
+    identity_id := identity_id(),
+    sender := sender(),
+    receiver := receiver()
+}.
+
 -export_type([quote/0]).
+-export_type([params/0]).
 -export_type([get_contract_terms_error/0]).
 -export_type([validate_p2p_error/0]).
 -export_type([volume_finalize_error/0]).
@@ -61,7 +69,7 @@
 
 %% API
 
--export([get_quote/4]).
+-export([get/1]).
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
@@ -131,10 +139,15 @@ compact({bank_card, #{bank_card := BankCard}}) ->
 
 %%
 
--spec get_quote(cash(), identity_id(), sender(), receiver()) ->
+-spec get(params()) ->
     {ok, quote()} |
     {error, get_quote_error()}.
-get_quote(Cash, IdentityID, Sender, Receiver) ->
+get(#{
+    body := Cash,
+    identity_id := IdentityID,
+    sender := Sender,
+    receiver := Receiver
+}) ->
     do(fun() ->
         SenderResource = unwrap(sender, ff_resource:create_resource(Sender)),
         ReceiverResource = unwrap(receiver, ff_resource:create_resource(Receiver)),

@@ -93,11 +93,7 @@ repair_failed_session_with_success(C) ->
             }
         }}
     }}]),
-    Expected = {success, #{
-        id => SessionID,
-        extra => #{}
-    }},
-    ?assertMatch({finished, Expected}, get_session_status(SessionID)).
+    ?assertMatch({finished, success}, get_session_status(SessionID)).
 
 -spec repair_failed_session_with_failure(config()) -> test_return().
 repair_failed_session_with_failure(C) ->

@@ -37,15 +37,15 @@ check_resource_by_id(Resource, ID, Context) ->
 %%
 
 get_context_by_id(Resource = identity, IdentityID, WoodyCtx) ->
-    Request = {fistful_identity, 'Get', [IdentityID]},
+    Request = {fistful_identity, 'Get', [IdentityID, #'EventRange'{}]},
     {ok, Identity} = wapi_handler_utils:service_call(Request, WoodyCtx),
     get_context(Resource, Identity);
 get_context_by_id(Resource = wallet, WalletID, WoodyCtx) ->
-    Request = {fistful_wallet, 'Get', [WalletID]},
+    Request = {fistful_wallet, 'Get', [WalletID, #'EventRange'{}]},
     {ok, Wallet} = wapi_handler_utils:service_call(Request, WoodyCtx),
     get_context(Resource, Wallet);
 get_context_by_id(Resource = destination, DestinationID, WoodyCtx) ->
-    Request = {fistful_destination, 'Get', [DestinationID]},
+    Request = {fistful_destination, 'Get', [DestinationID, #'EventRange'{}]},
     {ok, Destination} = wapi_handler_utils:service_call(Request, WoodyCtx),
     get_context(Resource, Destination).
 

@@ -11,6 +11,7 @@
 -type ctx()         :: ff_entity_context:context().
 -type instrument(T) :: ff_instrument:instrument_state(T).
 -type metadata()    :: ff_instrument:metadata().
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type st(T) ::
     ff_machine:st(instrument(T)).
@@ -23,10 +24,13 @@
 -export_type([repair_error/0]).
 -export_type([repair_response/0]).
 -export_type([events/1]).
+-export_type([timestamped_event/1]).
 -export_type([params/1]).
+-export_type([event_range/0]).
 
 -export([create/3]).
 -export([get/2]).
+-export([get/3]).
 -export([events/3]).
 
 %% Accessors
@@ -78,6 +82,13 @@ create(NS, Params = #{id := ID}, Ctx) ->
 get(NS, ID) ->
     ff_machine:get(ff_instrument, NS, ID).
 
+-spec get(ns(), id(), event_range()) ->
+    {ok, st(_)}       |
+    {error, notfound} .
+
+get(NS, ID, {After, Limit}) ->
+    ff_machine:get(ff_instrument, NS, ID, {After, Limit, forward}).
+
 %% Accessors
 
 -spec instrument(st(T)) ->
@@ -88,8 +99,9 @@ instrument(St) ->
 
 %% Machinery
 
--type event(T)       :: ff_instrument:event(T).
--type events(T)      :: [{integer(), ff_machine:timestamped_event(event(T))}].
+-type event(T) :: ff_instrument:event(T).
+-type events(T) :: [{integer(), ff_machine:timestamped_event(event(T))}].
+-type timestamped_event(T) :: {integer(), ff_machine:timestamped_event(event(T))}.
 
 -type machine()      :: ff_machine:machine(event(_)).
 -type result()       :: ff_machine:result(event(_)).
@@ -143,12 +155,12 @@ process_call(_CallArgs, #{}, _, _Opts) ->
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_instrument, Machine, Scenario).
 
--spec events(ns(), id(), machinery:range()) ->
+-spec events(ns(), id(), event_range()) ->
     {ok, events(_)} |
     {error, notfound}.
 
-events(NS, ID, Range) ->
+events(NS, ID, {After, Limit}) ->
     do(fun () ->
-        History = unwrap(ff_machine:history(ff_instrument, NS, ID, Range)),
+        History = unwrap(ff_machine:history(ff_instrument, NS, ID, {After, Limit, forward})),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).

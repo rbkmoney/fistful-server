@@ -4,10 +4,61 @@
 
 -include_lib("fistful_proto/include/ff_proto_source_thrift.hrl").
 
+-export([unmarshal_source_params/1]).
+-export([marshal_source_state/2]).
+-export([marshal_event/1]).
+
 -export([marshal/2]).
 -export([unmarshal/2]).
 
 %% API
+
+-spec unmarshal_source_params(ff_proto_source_thrift:'SourceParams'()) ->
+    ff_source:params().
+
+unmarshal_source_params(Params) ->
+    genlib_map:compact(#{
+        id          => unmarshal(id, Params#src_SourceParams.id),
+        identity    => unmarshal(id, Params#src_SourceParams.identity_id),
+        name        => unmarshal(string, Params#src_SourceParams.name),
+        currency    => unmarshal(currency_ref, Params#src_SourceParams.currency),
+        resource    => unmarshal(resource, Params#src_SourceParams.resource),
+        external_id => maybe_unmarshal(id, Params#src_SourceParams.external_id),
+        metadata    => maybe_unmarshal(ctx, Params#src_SourceParams.metadata)
+    }).
+
+-spec marshal_source_state(ff_source:source_state(), ff_entity_context:context()) ->
+    ff_proto_source_thrift:'SourceState'().
+
+marshal_source_state(SourceState, Context) ->
+    Blocking = case ff_source:is_accessible(SourceState) of
+        {ok, accessible} ->
+            unblocked;
+        _ ->
+            blocked
+    end,
+    #src_SourceState{
+        id = marshal(id, ff_source:id(SourceState)),
+        name = marshal(string, ff_source:name(SourceState)),
+        resource = marshal(resource, ff_source:resource(SourceState)),
+        external_id = marshal(id, ff_source:external_id(SourceState)),
+        account = marshal(account, ff_source:account(SourceState)),
+        status = marshal(status, ff_source:status(SourceState)),
+        created_at = marshal(timestamp_ms, ff_source:created_at(SourceState)),
+        blocking = Blocking,
+        metadata = marshal(ctx, ff_source:metadata(SourceState)),
+        context = marshal(ctx, Context)
+    }.
+
+-spec marshal_event(ff_source:timestamped_event()) ->
+    ff_proto_source_thrift:'Event'().
+
+marshal_event({EventID, {ev, Timestamp, Change}}) ->
+    #src_Event{
+        event_id = ff_codec:marshal(event_id, EventID),
+        occured_at = ff_codec:marshal(timestamp, Timestamp),
+        change = marshal(change, Change)
+    }.
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
@@ -50,6 +101,9 @@ marshal(status, unauthorized) ->
     {unauthorized, #src_Unauthorized{}};
 marshal(status, authorized) ->
     {authorized, #src_Authorized{}};
+
+marshal(ctx, Ctx) ->
+    marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -104,6 +158,9 @@ unmarshal(status, {unauthorized, #src_Unauthorized{}}) ->
     unauthorized;
 unmarshal(status, {authorized, #src_Authorized{}}) ->
     authorized;
+
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

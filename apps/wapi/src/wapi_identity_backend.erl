@@ -28,7 +28,7 @@
     {error, {identity, unauthorized}} .
 
 get_identity(IdentityID, HandlerContext) ->
-    Request = {fistful_identity, 'Get', [IdentityID]},
+    Request = {fistful_identity, 'Get', [IdentityID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
         {ok, IdentityThrift} ->
             case wapi_access_backend:check_resource(identity, IdentityThrift, HandlerContext) of
@@ -59,10 +59,9 @@ create_identity(Params, HandlerContext) ->
 create_identity(ID, Params, HandlerContext) ->
     IdentityParams = marshal(identity_params, {
         Params#{<<"id">> => ID},
-        wapi_handler_utils:get_owner(HandlerContext),
-        create_context(Params, HandlerContext)
+        wapi_handler_utils:get_owner(HandlerContext)
     }),
-    Request = {fistful_identity, 'Create', [IdentityParams]},
+    Request = {fistful_identity, 'Create', [IdentityParams, marshal(context, create_context(Params, HandlerContext))]},
 
     case service_call(Request, HandlerContext) of
         {ok, Identity} ->
@@ -315,15 +314,14 @@ marshal(identity_params, {Params = #{
     <<"id">>        := ID,
     <<"provider">>  := Provider,
     <<"class">>     := Class
-}, Owner, Context}) ->
+}, Owner}) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #idnt_IdentityParams{
         id = marshal(id, ID),
         party = marshal(id, Owner),
         provider = marshal(string, Provider),
         cls = marshal(string, Class),
-        external_id = marshal(id, ExternalID),
-        context = marshal(context, Context)
+        external_id = marshal(id, ExternalID)
     };
 
 marshal(challenge_params, {ID, #{

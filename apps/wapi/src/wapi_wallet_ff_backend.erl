@@ -708,7 +708,12 @@ quote_p2p_transfer(Params, Context) ->
         PartyID = wapi_handler_utils:get_owner(Context),
         SenderResource = unwrap(construct_resource(Sender)),
         ReceiverResource = unwrap(construct_resource(Receiver)),
-        Quote = unwrap(p2p_quote:get_quote(Body, IdentityID, SenderResource, ReceiverResource)),
+        Quote = unwrap(p2p_quote:get(#{
+            body => Body,
+            identity_id => IdentityID,
+            sender => SenderResource,
+            receiver => ReceiverResource
+        })),
         Token = create_p2p_quote_token(Quote, PartyID),
         ExpiresOn = p2p_quote:expires_on(Quote),
         SurplusCash = get_p2p_quote_surplus(Quote),
@@ -1261,13 +1266,13 @@ get_event_type({identity, challenge_event}) -> identity_challenge_event;
 get_event_type({withdrawal, event})         -> withdrawal_event.
 
 get_collector({identity, challenge_event}, Id) ->
-    fun(C, L) -> unwrap(ff_identity_machine:events(Id, {C, L, forward})) end;
+    fun(C, L) -> unwrap(ff_identity_machine:events(Id, {C, L})) end;
 get_collector({withdrawal, event}, Id) ->
     fun(C, L) -> unwrap(ff_withdrawal_machine:events(Id, {C, L})) end;
 get_collector({p2p_transfer, event}, Id) ->
-    fun(C, L) -> unwrap(p2p_transfer_machine:events(Id, {C, L, forward})) end;
+    fun(C, L) -> unwrap(p2p_transfer_machine:events(Id, {C, L})) end;
 get_collector({p2p_session, event}, Id) ->
-    fun(C, L) -> unwrap(p2p_session_machine:events(Id, {C, L, forward})) end.
+    fun(C, L) -> unwrap(p2p_session_machine:events(Id, {C, L})) end.
 
 collect_events(Collector, Filter, Cursor, Limit) ->
     collect_events(Collector, Filter, Cursor, Limit, {[], undefined}).

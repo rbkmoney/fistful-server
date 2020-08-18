@@ -23,12 +23,11 @@ handle_function(Func, Args, Opts) ->
 %% Internals
 %%
 
-handle_function_('Create', [IdentityParams], Opts) ->
+handle_function_('Create', [IdentityParams, Context], Opts) ->
     Params = #{id := IdentityID} = ff_identity_codec:unmarshal_identity_params(IdentityParams),
-    Context = ff_identity_codec:unmarshal(ctx, IdentityParams#idnt_IdentityParams.context),
-    case ff_identity_machine:create(Params, Context) of
+    case ff_identity_machine:create(Params, ff_identity_codec:unmarshal(ctx, Context)) of
         ok ->
-            handle_function_('Get', [IdentityID], Opts);
+            handle_function_('Get', [IdentityID, #'EventRange'{}], Opts);
         {error, {provider, notfound}} ->
             woody_error:raise(business, #fistful_ProviderNotFound{});
         {error, {identity_class, notfound}} ->
@@ -36,16 +35,25 @@ handle_function_('Create', [IdentityParams], Opts) ->
         {error, {inaccessible, _}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
         {error, exists} ->
-            handle_function_('Get', [IdentityID], Opts);
+            handle_function_('Get', [IdentityID, #'EventRange'{}], Opts);
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Get', [ID], _Opts) ->
-    case ff_identity_machine:get(ID) of
+handle_function_('Get', [ID, EventRange], _Opts) ->
+    case ff_identity_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             Identity = ff_identity:set_blocking(ff_identity_machine:identity(Machine)),
             Context  = ff_identity_machine:ctx(Machine),
             Response = ff_identity_codec:marshal_identity_state(Identity, Context),
+            {ok, Response};
+        {error, notfound} ->
+            woody_error:raise(business, #fistful_IdentityNotFound{})
+    end;
+handle_function_('GetContext', [ID], _Opts) ->
+    case ff_identity_machine:get(ID, {undefined, 0}) of
+        {ok, Machine} ->
+            Ctx = ff_identity_machine:ctx(Machine),
+            Response = ff_p2p_session_codec:marshal(ctx, Ctx),
             {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
@@ -87,9 +95,8 @@ handle_function_('GetChallenges', [ID], _Opts) ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;
 
-handle_function_('GetEvents', [IdentityID, RangeParams], _Opts) ->
-    Range = ff_identity_codec:unmarshal(range, RangeParams),
-    case ff_identity_machine:events(IdentityID, Range) of
+handle_function_('GetEvents', [IdentityID, EventRange], _Opts) ->
+    case ff_identity_machine:events(IdentityID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, EventList} ->
             Events = [ff_identity_codec:marshal_identity_event(Event) || Event <- EventList],
             {ok, Events};

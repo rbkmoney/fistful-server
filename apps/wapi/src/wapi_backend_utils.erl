@@ -9,7 +9,6 @@
 -type md() :: ff_entity_context:md().
 -type context() :: ff_entity_context:context().
 -type handler_context() :: wapi_handler:context().
--type generated_id() :: bender_client:generated_id().
 -type id() :: binary().
 -type hash() :: integer().
 -type params() :: map().
@@ -42,7 +41,7 @@ get_idempotent_key(Type, PartyID, ExternalID) ->
     bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID).
 
 -spec gen_id(gen_type(), params(), handler_context()) ->
-    {ok, generated_id()} | {error, {external_id_conflict, generated_id()}}.
+    {ok, id()} | {error, {external_id_conflict, id()}}.
 
 gen_id(Type, Params, Context) ->
     ExternalID = maps:get(?EXTERNAL_ID, Params, undefined),
@@ -50,7 +49,7 @@ gen_id(Type, Params, Context) ->
     gen_id(Type, ExternalID, Hash, Context).
 
 -spec gen_id(gen_type(), id() | undefined, hash(), handler_context()) ->
-    {ok, generated_id()} | {error, {external_id_conflict, generated_id()}}.
+    {ok, id()} | {error, {external_id_conflict, id()}}.
 
 gen_id(Type, ExternalID, Hash, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),
@@ -68,7 +67,10 @@ gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
 %    bender_client:gen_snowflake(IdempotentKey, Hash, WoodyCtx).
 gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
-    bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
+    case bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx) of
+        {ok, {ID, _IntegerID}} -> {ok, ID}; % No need for IntegerID at this project so far
+        {error, {external_id_conflict, {ID, _IntegerID}}} -> {error, {external_id_conflict, ID}}
+    end.
 
 -spec make_ctx(params(), handler_context()) ->
     context().

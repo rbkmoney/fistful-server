@@ -3,7 +3,6 @@
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
--type generated_id() :: bender_client:generated_id().
 -type id() :: binary().
 -type external_id() :: binary().
 
@@ -23,13 +22,13 @@
         {identity, notfound}        |
         {currency, notfound}        |
         inaccessible                |
-        {external_id_conflict, {generated_id(), external_id()}}.
+        {external_id_conflict, {id(), external_id()}}.
 
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
-                {ok, {ID, _}} ->
+                {ok, ID} ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
                     create(ID, Params, Context, HandlerContext);
                 {error, {external_id_conflict, ID}} ->

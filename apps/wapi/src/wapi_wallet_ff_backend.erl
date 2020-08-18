@@ -84,7 +84,6 @@
 -type result(T)     :: result(T, notfound).
 -type result(T, E)  :: {ok, T} | {error, E}.
 -type result_stat() :: {200 | 400, list(), map()}.
--type generated_id() :: bender_client:generated_id().
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 -define(PARAMS_HASH, <<"params_hash">>).
@@ -157,7 +156,7 @@ get_identity(IdentityId, Context) ->
     {provider, notfound}       |
     {identity_class, notfound} |
     {email, notfound}          |
-    {external_id_conflict, generated_id(), external_id()}
+    {external_id_conflict, id(), external_id()}
 ).
 create_identity(Params, Context) ->
     IdentityParams = from_swag(identity_params, Params),
@@ -203,7 +202,7 @@ get_identity_challenges(IdentityId, Statuses, Context) ->
 create_identity_challenge(IdentityId, Params, Context) ->
     Type          = identity_challenge,
     Hash          = erlang:phash2(Params),
-    {ok, {ChallengeID, _}} = gen_id(Type, undefined, Hash, Context),
+    {ok, ChallengeID} = gen_id(Type, undefined, Hash, Context),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
         ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
@@ -285,10 +284,10 @@ get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context
     end.
 
 -spec create_wallet(params(), ctx()) -> result(map(),
-    invalid                                               |
-    {identity, unauthorized}                              |
-    {external_id_conflict, generated_id(), external_id()} |
-    {inaccessible, _}                                     |
+    invalid                                     |
+    {identity, unauthorized}                    |
+    {external_id_conflict, id(), external_id()} |
+    {inaccessible, _}                           |
     ff_wallet:create_error()
 ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
@@ -355,13 +354,13 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
     end.
 
 -spec create_destination(params(), ctx()) -> result(map(),
-    invalid                                               |
-    {invalid_resource_token, _}                           |
-    {identity, unauthorized}                              |
-    {identity, notfound}                                  |
-    {currency, notfound}                                  |
-    {inaccessible, _}                                     |
-    {external_id_conflict, generated_id(), external_id()} |
+    invalid                                     |
+    {invalid_resource_token, _}                 |
+    {identity, unauthorized}                    |
+    {identity, notfound}                        |
+    {currency, notfound}                        |
+    {inaccessible, _}                           |
+    {external_id_conflict, id(), external_id()} |
     {illegal_pattern, _}
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
@@ -380,7 +379,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {source, notfound}            |
     {destination, notfound}       |
     {destination, unauthorized}   |
-    {external_id_conflict, generated_id(), external_id()} |
+    {external_id_conflict, id(), external_id()} |
     {provider, notfound}          |
     {wallet, {inaccessible, _}}   |
     {wallet, {currency, invalid}} |
@@ -723,7 +722,7 @@ quote_p2p_transfer(Params, Context) ->
 -spec create_p2p_transfer(params(), ctx()) -> result(map(),
     p2p_transfer:create_error() |
     {identity, unauthorized} |
-    {external_id_conflict, generated_id(), external_id()} |
+    {external_id_conflict, id(), external_id()} |
     {invalid_resource_token, _} |
     {token,
         {unsupported_version, integer() | undefined} |
@@ -799,7 +798,7 @@ get_p2p_transfer_events({ID, CT}, Context) ->
 
 -spec create_p2p_template(params(), ctx()) -> result(map(),
     p2p_template:create_error() |
-    {external_id_conflict, generated_id(), external_id()} |
+    {external_id_conflict, id(), external_id()} |
     {identity, unauthorized}
 ).
 create_p2p_template(Params = #{<<"identityID">> := IdentityId}, Context) ->
@@ -879,7 +878,7 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
 -spec create_p2p_transfer_with_template(id(), params(), ctx()) -> result(map(),
     p2p_template_machine:unknown_p2p_template_error() |
     p2p_transfer:create_error() |
-    {external_id_conflict, generated_id(), external_id()} |
+    {external_id_conflict, id(), external_id()} |
     {invalid_resource_token, _} |
     {token,
         {unsupported_version, integer() | undefined} |
@@ -1355,7 +1354,7 @@ create_entity(Type, Params, CreateFun, Context) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     Hash       = erlang:phash2(Params),
     case gen_id(Type, ExternalID, Hash, Context) of
-        {ok, {ID, _}} ->
+        {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
             handle_create_entity_result(Result, Type, ID, Context);
         {error, {external_id_conflict, ID}} ->
@@ -1431,7 +1430,10 @@ gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
 
 gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
-    bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx).
+    case bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx) of
+        {ok, {ID, _IntegerID}} -> {ok, ID}; % No need for IntegerID at this project so far
+        {error, {external_id_conflict, {ID, _IntegerID}}} -> {error, {external_id_conflict, ID}}
+    end.
 
 create_report_request(#{
     party_id     := PartyID,

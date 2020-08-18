@@ -10,6 +10,7 @@
 %% API
 
 -export([p2p_template/1]).
+-export([ctx/1]).
 -export([create_transfer/2]).
 -export([get_quote/2]).
 
@@ -39,7 +40,7 @@
 %%
 
 -type ref() :: machinery:ref().
--type range() :: machinery:range().
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 -type id() :: machinery:id().
 -type repair_error() :: ff_repair:repair_error().
 -type repair_response() :: ff_repair:repair_response().
@@ -76,14 +77,14 @@
     {error, unknown_p2p_template_error()}.
 
 get(Ref) ->
-    get(Ref, {undefined, undefined, forward}).
+    get(Ref, {undefined, undefined}).
 
--spec get(ref(), range()) ->
+-spec get(ref(), event_range()) ->
     {ok, st()}        |
     {error, unknown_p2p_template_error()}.
 
-get(Ref, Range) ->
-    case ff_machine:get(p2p_template, ?NS, Ref, Range) of
+get(Ref, {After, Limit}) ->
+    case ff_machine:get(p2p_template, ?NS, Ref, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
             Result;
         {error, notfound} ->
@@ -94,6 +95,12 @@ get(Ref, Range) ->
 
 p2p_template(St) ->
     ff_machine:model(St).
+
+-spec ctx(st()) ->
+    ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
 
 -spec get_quote(id(), p2p_template:quote_params()) ->
     {ok, p2p_quote:quote()} |
@@ -106,7 +113,12 @@ get_quote(ID, #{
     do(fun() ->
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template(Machine),
-        unwrap(p2p_quote:get_quote(Body, p2p_template:identity_id(State), Sender, Receiver))
+        unwrap(p2p_quote:get(#{
+            body => Body,
+            identity_id => p2p_template:identity_id(State),
+            sender => Sender,
+            receiver => Receiver
+        }))
     end).
 
 -spec create_transfer(id(), p2p_template:transfer_params()) ->
@@ -133,12 +145,12 @@ create(Params = #{id := ID}, Ctx) ->
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
--spec events(id(), machinery:range()) ->
+-spec events(id(), event_range()) ->
     {ok, events()} |
     {error, unknown_p2p_template_error()}.
 
-events(Ref, Range) ->
-    case ff_machine:history(p2p_template, ?NS, Ref, Range) of
+events(Ref, {After, Limit}) ->
+    case ff_machine:history(p2p_template, ?NS, Ref, {After, Limit, forward}) of
         {ok, History} ->
             Events = [{EventID, TsEv} || {EventID, _, TsEv} <- History],
             {ok, Events};

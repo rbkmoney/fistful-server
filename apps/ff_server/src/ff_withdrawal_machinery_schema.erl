@@ -200,7 +200,7 @@ maybe_migrate({session_finished, {SessionID, Result}}, _MigrateParams) ->
 maybe_migrate({session_finished, SessionID}, MigrateParams) ->
     {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
     Session = ff_withdrawal_session_machine:session(SessionMachine),
-    {finished, Result} = ff_withdrawal_session:status(Session),
+    Result = ff_withdrawal_session:result(Session),
     maybe_migrate({session_finished, {SessionID, Result}}, MigrateParams);
 % Other events
 maybe_migrate(Ev, _MigrateParams) ->

@@ -1,6 +1,7 @@
--module(ff_destination_handler_SUITE).
+-module(ff_source_handler_SUITE).
 
--include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+-include_lib("stdlib/include/assert.hrl").
+-include_lib("fistful_proto/include/ff_proto_source_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -11,9 +12,10 @@
 -export([init_per_testcase/2]).
 -export([end_per_testcase/2]).
 
--export([create_bank_card_destination_ok/1]).
--export([create_crypto_wallet_destination_ok/1]).
--export([create_ripple_wallet_destination_ok/1]).
+-export([get_source_events_ok_test/1]).
+-export([get_source_context_ok_test/1]).
+-export([create_source_ok_test/1]).
+-export([unknown_test/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -30,9 +32,10 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            create_bank_card_destination_ok,
-            create_crypto_wallet_destination_ok,
-            create_ripple_wallet_destination_ok
+            get_source_events_ok_test,
+            get_source_context_ok_test,
+            create_source_ok_test,
+            unknown_test
         ]}
     ].
 
@@ -74,87 +77,95 @@ init_per_testcase(Name, C) ->
 end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
--spec create_bank_card_destination_ok(config()) -> test_return().
+-spec get_source_events_ok_test(config()) -> test_return().
 
-create_bank_card_destination_ok(C) ->
-    Resource = {bank_card, #'ResourceBankCard'{bank_card = #'BankCard'{
-        token = <<"TOKEN shmOKEN">>
-    }}},
-    create_destination_ok(Resource, C).
+get_source_events_ok_test(C) ->
+    Resource = {internal, #src_Internal{
+        details = <<"details">>
+    }},
+    State = create_source_ok(Resource, C),
+    ID = State#src_SourceState.id,
+    {ok, [_Event | _Rest]} = call_service('GetEvents', [ID, #'EventRange'{}]).
 
--spec create_crypto_wallet_destination_ok(config()) -> test_return().
+-spec get_source_context_ok_test(config()) -> test_return().
 
-create_crypto_wallet_destination_ok(C) ->
-    Resource = {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
-        id = <<"f195298af836f41d072cb390ee62bee8">>,
-        currency = bitcoin_cash,
-        data = {bitcoin_cash, #'CryptoDataBitcoinCash'{}}
-    }}},
-    create_destination_ok(Resource, C).
+get_source_context_ok_test(C) ->
+    Resource = {internal, #src_Internal{
+        details = <<"details">>
+    }},
+    State = create_source_ok(Resource, C),
+    ID = State#src_SourceState.id,
+    {ok, _Context} = call_service('GetContext', [ID]).
 
--spec create_ripple_wallet_destination_ok(config()) -> test_return().
+-spec create_source_ok_test(config()) -> test_return().
 
-create_ripple_wallet_destination_ok(C) ->
-    Resource = {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
-        id = <<"ab843336bf7738dc697522fbb90508de">>,
-        currency = ripple,
-        data = {ripple, #'CryptoDataRipple'{tag = undefined}}
-    }}},
-    create_destination_ok(Resource, C).
+create_source_ok_test(C) ->
+    Resource = {internal, #src_Internal{
+        details = <<"details">>
+    }},
+    create_source_ok(Resource, C).
+
+-spec unknown_test(config()) -> test_return().
+unknown_test(_C) ->
+    ID = <<"unknown_id">>,
+    Result = call_service('Get', [ID, #'EventRange'{}]),
+    ExpectedError = #fistful_SourceNotFound{},
+    ?assertEqual({exception, ExpectedError}, Result).
 
 %%----------------------------------------------------------------------
 %%  Internal functions
 %%----------------------------------------------------------------------
 
-create_destination_ok(Resource, C) ->
+create_source_ok(Resource, C) ->
     Party = create_party(C),
     Currency = <<"RUB">>,
-    DstName = <<"loSHara card">>,
+    Name = <<"name">>,
     ID = genlib:unique(),
     ExternalId = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
-    Params = #dst_DestinationParams{
-        id          = ID,
-        identity    = IdentityID,
-        name        = DstName,
-        currency    = Currency,
-        resource    = Resource,
+    Params = #src_SourceParams{
+        id = ID,
+        identity_id = IdentityID,
+        name = Name,
+        currency = #'CurrencyRef'{symbolic_code = Currency},
+        resource = Resource,
         external_id = ExternalId,
-        metadata    = Metadata
+        metadata = Metadata
     },
-    {ok, Dst}  = call_service('Create', [Params, Ctx]),
-    DstName     = Dst#dst_DestinationState.name,
-    ID          = Dst#dst_DestinationState.id,
-    Resource    = Dst#dst_DestinationState.resource,
-    ExternalId  = Dst#dst_DestinationState.external_id,
-    Metadata    = Dst#dst_DestinationState.metadata,
-    Ctx         = Dst#dst_DestinationState.context,
+    {ok, Src} = call_service('Create', [Params, Ctx]),
+    Name = Src#src_SourceState.name,
+    ID = Src#src_SourceState.id,
+    Resource = Src#src_SourceState.resource,
+    ExternalId = Src#src_SourceState.external_id,
+    Metadata = Src#src_SourceState.metadata,
+    Ctx = Src#src_SourceState.context,
 
-    Account = Dst#dst_DestinationState.account,
+    Account = Src#src_SourceState.account,
     IdentityID = Account#account_Account.identity,
     #'CurrencyRef'{symbolic_code = Currency} = Account#account_Account.currency,
 
-    {unauthorized, #dst_Unauthorized{}} = Dst#dst_DestinationState.status,
+    {unauthorized, #src_Unauthorized{}} = Src#src_SourceState.status,
 
-    {authorized, #dst_Authorized{}} = ct_helper:await(
-        {authorized, #dst_Authorized{}},
+    {authorized, #src_Authorized{}} = ct_helper:await(
+        {authorized, #src_Authorized{}},
         fun () ->
-            {ok, #dst_DestinationState{status = Status}}
+            {ok, #src_SourceState{status = Status}}
                 = call_service('Get', [ID, #'EventRange'{}]),
             Status
         end,
         genlib_retry:linear(15, 1000)
     ),
 
-    {ok, #dst_DestinationState{}} = call_service('Get', [ID, #'EventRange'{}]).
+    {ok, #src_SourceState{} = State} = call_service('Get', [ID, #'EventRange'{}]),
+    State.
 
 call_service(Fun, Args) ->
-    Service = {ff_proto_destination_thrift, 'Management'},
+    Service = {ff_proto_source_thrift, 'Management'},
     Request = {Service, Fun, Args},
     Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022/v1/destination">>,
+        url           => <<"http://localhost:8022/v1/source">>,
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).

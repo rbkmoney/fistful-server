@@ -47,22 +47,32 @@ get_service(identity_management) ->
     {ff_proto_identity_thrift, 'Management'};
 get_service(destination_management) ->
     {ff_proto_destination_thrift, 'Management'};
+get_service(source_management) ->
+    {ff_proto_source_thrift, 'Management'};
 get_service(withdrawal_management) ->
     {ff_proto_withdrawal_thrift, 'Management'};
+get_service(withdrawal_session_management) ->
+    {ff_proto_withdrawal_session_thrift, 'Management'};
 get_service(deposit_management) ->
     {ff_proto_deposit_thrift, 'Management'};
 get_service(p2p_transfer_event_sink) ->
     {ff_proto_p2p_transfer_thrift, 'EventSink'};
-get_service(p2p_session_event_sink) ->
-    {ff_proto_p2p_session_thrift, 'EventSink'};
+get_service(p2p_transfer_management) ->
+    {ff_proto_p2p_transfer_thrift, 'Management'};
 get_service(p2p_transfer_repairer) ->
     {ff_proto_p2p_transfer_thrift, 'Repairer'};
+get_service(p2p_session_event_sink) ->
+    {ff_proto_p2p_session_thrift, 'EventSink'};
+get_service(p2p_session_management) ->
+    {ff_proto_p2p_session_thrift, 'Management'};
 get_service(p2p_session_repairer) ->
     {ff_proto_p2p_session_thrift, 'Repairer'};
 get_service(w2w_transfer_event_sink) ->
     {ff_proto_w2w_transfer_thrift, 'EventSink'};
 get_service(w2w_transfer_repairer) ->
     {ff_proto_w2w_transfer_thrift, 'Repairer'};
+get_service(w2w_transfer_management) ->
+    {ff_proto_w2w_transfer_thrift, 'Management'};
 get_service(p2p_template_event_sink) ->
     {ff_proto_p2p_template_thrift, 'EventSink'};
 get_service(p2p_template_repairer) ->
@@ -107,22 +117,32 @@ get_service_path(identity_management) ->
     "/v1/identity";
 get_service_path(destination_management) ->
     "/v1/destination";
+get_service_path(source_management) ->
+    "/v1/source";
 get_service_path(withdrawal_management) ->
     "/v1/withdrawal";
+get_service_path(withdrawal_session_management) ->
+    "/v2/withdrawal_session";
 get_service_path(deposit_management) ->
     "/v1/deposit";
 get_service_path(p2p_transfer_event_sink) ->
     "/v1/eventsink/p2p_transfer";
-get_service_path(p2p_session_event_sink) ->
-    "/v1/eventsink/p2p_transfer/session";
+get_service_path(p2p_transfer_management) ->
+    "/v1/p2p_transfer";
 get_service_path(p2p_transfer_repairer) ->
     "/v1/repair/p2p_transfer";
+get_service_path(p2p_session_event_sink) ->
+    "/v1/eventsink/p2p_transfer/session";
+get_service_path(p2p_session_management) ->
+    "/v1/p2p_transfer/session";
 get_service_path(p2p_session_repairer) ->
     "/v1/repair/p2p_transfer/session";
 get_service_path(w2w_transfer_event_sink) ->
     "/v1/eventsink/w2w_transfer";
 get_service_path(w2w_transfer_repairer) ->
     "/v1/repair/w2w_transfer";
+get_service_path(w2w_transfer_management) ->
+    "/v1/w2w_transfer";
 get_service_path(p2p_template_event_sink) ->
     "/v1/eventsink/p2p_template";
 get_service_path(p2p_template_repairer) ->

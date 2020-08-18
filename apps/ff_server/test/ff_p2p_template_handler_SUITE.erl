@@ -16,6 +16,7 @@
 
 %% Tests
 -export([block_p2p_template_ok_test/1]).
+-export([get_context_test/1]).
 -export([create_p2p_template_ok_test/1]).
 -export([unknown_test/1]).
 
@@ -35,6 +36,7 @@ groups() ->
     [
         {default, [parallel], [
             block_p2p_template_ok_test,
+            get_context_test,
             create_p2p_template_ok_test,
             unknown_test
         ]}
@@ -93,16 +95,33 @@ block_p2p_template_ok_test(C) ->
         id = P2PTemplateID,
         identity_id = IdentityID,
         external_id = ExternalID,
-        template_details = Details,
-        context = Ctx
+        template_details = Details
     },
-    {ok, _P2PTemplateState} = call_p2p_template('Create', [Params]),
+    {ok, _P2PTemplateState} = call_p2p_template('Create', [Params, Ctx]),
     Expected0 = get_p2p_template(P2PTemplateID),
     ?assertEqual(unblocked, p2p_template:blocking(Expected0)),
     {ok, ok} = call_p2p_template('SetBlocking', [P2PTemplateID, blocked]),
     Expected1 = get_p2p_template(P2PTemplateID),
     ?assertEqual(blocked, p2p_template:blocking(Expected1)).
 
+-spec get_context_test(config()) -> test_return().
+get_context_test(C) ->
+    #{
+        identity_id := IdentityID
+    } = prepare_standard_environment(C),
+    P2PTemplateID = generate_id(),
+    ExternalID = generate_id(),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Details = make_template_details({1000, <<"RUB">>}),
+    Params = #p2p_template_P2PTemplateParams{
+        id = P2PTemplateID,
+        identity_id = IdentityID,
+        external_id = ExternalID,
+        template_details = Details
+    },
+    {ok, _P2PTemplateState} = call_p2p_template('Create', [Params, Ctx]),
+    {ok, EncodedContext} = call_p2p_template('GetContext', [P2PTemplateID]),
+    ?assertEqual(Ctx, EncodedContext).
 
 -spec create_p2p_template_ok_test(config()) -> test_return().
 create_p2p_template_ok_test(C) ->
@@ -117,10 +136,9 @@ create_p2p_template_ok_test(C) ->
         id = P2PTemplateID,
         identity_id = IdentityID,
         external_id = ExternalID,
-        template_details = Details,
-        context = Ctx
+        template_details = Details
     },
-    {ok, P2PTemplateState} = call_p2p_template('Create', [Params]),
+    {ok, P2PTemplateState} = call_p2p_template('Create', [Params, Ctx]),
 
     Expected = get_p2p_template(P2PTemplateID),
     ?assertEqual(P2PTemplateID, P2PTemplateState#p2p_template_P2PTemplateState.id),

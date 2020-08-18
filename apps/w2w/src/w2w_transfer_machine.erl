@@ -12,7 +12,7 @@
 -type change() :: w2w_transfer:event().
 -type event() :: {integer(), ff_machine:timestamped_event(change())}.
 -type st() :: ff_machine:st(w2w_transfer()).
--type w2w_transfer() :: w2w_transfer:w2w_transfer().
+-type w2w_transfer() :: w2w_transfer:w2w_transfer_state().
 -type external_id() :: id().
 -type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 

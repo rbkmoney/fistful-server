@@ -5,7 +5,7 @@
 -type score_id()        :: binary().
 -type scores()          :: #{score_id() => risk_score()}.
 -type inspector()       :: dmsl_domain_thrift:'P2PInspector'().
--type transfer()        :: p2p_transfer:p2p_transfer().
+-type transfer()        :: p2p_transfer:p2p_transfer_state().
 -type domain_revision() :: ff_domain_config:revision().
 -type payment_resource_payer() :: #{
     resource := ff_resource:resource(),

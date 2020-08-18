@@ -10,9 +10,11 @@
 %% API
 
 -export([session/1]).
+-export([ctx/1]).
 
 -export([create/3]).
 -export([get/1]).
+-export([get/2]).
 -export([events/2]).
 -export([process_callback/1]).
 -export([repair/2]).
@@ -61,13 +63,16 @@
 -type handler_args() :: machinery:handler_args(_).
 
 -type st() :: ff_machine:st(session()).
--type session() :: p2p_session:session().
+-type session() :: p2p_session:session_state().
 -type event() :: p2p_session:event().
 -type event_id() :: integer().
 -type events() :: [{event_id(), ff_machine:timestamped_event(event())}].
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type callback_params() :: p2p_session:p2p_callback_params().
 -type process_callback_response() :: p2p_session:process_callback_response().
+
+-type ctx() :: ff_entity_context:context().
 
 -export_type([events/0]).
 
@@ -91,10 +96,28 @@ get(Ref) ->
             {error, {unknown_p2p_session, Ref}}
     end.
 
+-spec get(ref(), event_range()) ->
+    {ok, st()} |
+    {error,  unknown_p2p_session_error()}.
+
+get(Ref, {After, Limit}) ->
+    case ff_machine:get(p2p_session, ?NS, Ref, {After, Limit, forward}) of
+        {ok, _Machine} = Result ->
+            Result;
+        {error, notfound} ->
+            {error, {unknown_p2p_session, Ref}}
+    end.
+
 -spec session(st()) -> session().
 
 session(St) ->
     ff_machine:model(St).
+
+-spec ctx(st()) ->
+    ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
 
 %%
 
@@ -106,12 +129,12 @@ create(ID, TransferParams, Params) ->
         unwrap(machinery:start(?NS, ID, Events, backend()))
     end).
 
--spec events(id(), machinery:range()) ->
+-spec events(id(), event_range()) ->
     {ok, events()} |
     {error, unknown_p2p_session_error()}.
 
-events(Ref, Range) ->
-    case ff_machine:history(p2p_session, ?NS, Ref, Range) of
+events(Ref, {After, Limit}) ->
+    case ff_machine:history(p2p_session, ?NS, Ref, {After, Limit, forward}) of
         {ok, History} ->
             Events = [{EventID, TsEv} || {EventID, _, TsEv} <- History],
             {ok, Events};

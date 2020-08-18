@@ -15,6 +15,10 @@
 -export([end_per_testcase/2]).
 
 %% Tests
+-export([session_unknown_test/1]).
+-export([session_get_context_test/1]).
+-export([create_withdrawal_and_get_session_ok_test/1]).
+
 -export([create_withdrawal_ok_test/1]).
 -export([create_cashlimit_validation_error_test/1]).
 -export([create_inconsistent_currency_validation_error_test/1]).
@@ -45,6 +49,10 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
+            session_unknown_test,
+            session_get_context_test,
+            create_withdrawal_and_get_session_ok_test,
+
             create_withdrawal_ok_test,
             create_cashlimit_validation_error_test,
             create_currency_validation_error_test,
@@ -101,6 +109,65 @@ end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
 %% Tests
+
+-spec create_withdrawal_and_get_session_ok_test(config()) -> test_return().
+create_withdrawal_and_get_session_ok_test(C) ->
+    Cash = make_cash({1000, <<"RUB">>}),
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    ExternalID = generate_id(),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
+    Params = #wthd_WithdrawalParams{
+        id = WithdrawalID,
+        wallet_id = WalletID,
+        destination_id = DestinationID,
+        body = Cash,
+        metadata = Metadata,
+        external_id = ExternalID
+    },
+    {ok, _WithdrawalState} = call_withdrawal('Create', [Params, Ctx]),
+
+    succeeded = await_final_withdrawal_status(WithdrawalID),
+    {ok, FinalWithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
+    [#wthd_SessionState{id = SessionID} | _Rest] = FinalWithdrawalState#wthd_WithdrawalState.sessions,
+    {ok, _Session} = call_withdrawal_session('Get', [SessionID, #'EventRange'{}]).
+
+-spec session_get_context_test(config()) -> test_return().
+session_get_context_test(C) ->
+    Cash = make_cash({1000, <<"RUB">>}),
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment(Cash, C),
+    WithdrawalID = generate_id(),
+    ExternalID = generate_id(),
+    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
+    Params = #wthd_WithdrawalParams{
+        id = WithdrawalID,
+        wallet_id = WalletID,
+        destination_id = DestinationID,
+        body = Cash,
+        metadata = Metadata,
+        external_id = ExternalID
+    },
+    {ok, _WithdrawalState} = call_withdrawal('Create', [Params, Ctx]),
+
+    succeeded = await_final_withdrawal_status(WithdrawalID),
+    {ok, FinalWithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
+    [#wthd_SessionState{id = SessionID} | _Rest] = FinalWithdrawalState#wthd_WithdrawalState.sessions,
+    {ok, _Session} = call_withdrawal_session('GetContext', [SessionID]).
+
+-spec session_unknown_test(config()) -> test_return().
+session_unknown_test(_C) ->
+    WithdrawalSessionID = <<"unknown_withdrawal_session">>,
+    Result = call_withdrawal_session('Get', [WithdrawalSessionID, #'EventRange'{}]),
+    ExpectedError = #fistful_WithdrawalSessionNotFound{},
+    ?assertEqual({exception, ExpectedError}, Result).
 
 -spec create_withdrawal_ok_test(config()) -> test_return().
 create_withdrawal_ok_test(C) ->
@@ -386,6 +453,15 @@ withdrawal_state_content_test(C) ->
     ).
 
 %%  Internals
+
+call_withdrawal_session(Fun, Args) ->
+    ServiceName = withdrawal_session_management,
+    Service = ff_services:get_service(ServiceName),
+    Request = {Service, Fun, Args},
+    Client  = ff_woody_client:new(#{
+        url => "http://localhost:8022" ++ ff_services:get_service_path(ServiceName)
+    }),
+    ff_woody_client:call(Client, Request).
 
 call_withdrawal(Fun, Args) ->
     ServiceName = withdrawal_management,

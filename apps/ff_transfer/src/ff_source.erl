@@ -24,16 +24,20 @@
 -type source_state() :: ff_instrument:instrument_state(resource()).
 -type params() :: ff_instrument_machine:params(resource()).
 -type machine() :: ff_instrument_machine:st(resource()).
+-type event_range() :: ff_instrument_machine:event_range().
 
 -type event() :: ff_instrument:event(resource()).
 -type events() :: ff_instrument_machine:events(resource()).
+-type timestamped_event() :: ff_instrument_machine:timestamped_event(resource()).
 
 -export_type([id/0]).
 -export_type([source/0]).
 -export_type([source_state/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
+-export_type([params/0]).
 -export_type([event/0]).
+-export_type([timestamped_event/0]).
 
 %% Accessors
 
@@ -45,11 +49,15 @@
 -export([resource/1]).
 -export([status/1]).
 -export([external_id/1]).
+-export([created_at/1]).
+-export([metadata/1]).
 
 %% API
 
 -export([create/2]).
 -export([get_machine/1]).
+-export([get_machine/2]).
+-export([ctx/1]).
 -export([get/1]).
 -export([is_accessible/1]).
 -export([events/2]).
@@ -74,7 +82,17 @@ account(Source)  -> ff_instrument:account(Source).
 
 -spec external_id(source_state()) ->
     id() | undefined.
-external_id(T)   -> ff_instrument:external_id(T).
+external_id(T) -> ff_instrument:external_id(T).
+
+-spec created_at(source_state()) ->
+    ff_time:timestamp_ms().
+
+created_at(T) -> ff_instrument:created_at(T).
+
+-spec metadata(source_state()) ->
+    ff_entity_context:context().
+
+metadata(T) -> ff_instrument:metadata(T).
 
 %% API
 
@@ -101,6 +119,19 @@ get_machine(ID) ->
 get(Machine) ->
     ff_instrument_machine:instrument(Machine).
 
+-spec get_machine(id(), event_range()) ->
+    {ok, machine()}       |
+    {error, notfound} .
+
+get_machine(ID, EventRange) ->
+    ff_instrument_machine:get(?NS, ID, EventRange).
+
+-spec ctx(machine()) ->
+    ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
+
 -spec is_accessible(source_state()) ->
     {ok, accessible} |
     {error, ff_party:inaccessibility()}.
@@ -108,7 +139,7 @@ get(Machine) ->
 is_accessible(Source) ->
     ff_instrument:is_accessible(Source).
 
--spec events(id(), machinery:range()) ->
+-spec events(id(), event_range()) ->
     {ok, events()} |
     {error, notfound}.
 

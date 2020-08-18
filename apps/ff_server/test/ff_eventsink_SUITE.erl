@@ -127,7 +127,7 @@ get_identity_events_ok(C) ->
         end
     ),
 
-    {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_identity_machine:events(ID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
@@ -150,7 +150,7 @@ get_create_wallet_events_ok(C) ->
         },
         ff_entity_context:new()
     ),
-    {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_wallet_machine:events(ID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
@@ -196,7 +196,7 @@ get_withdrawal_session_events_ok(C) ->
 
     {ok, RawEvents} = ff_withdrawal_session_machine:events(
         SessID,
-        {undefined, 1000, forward}
+        {undefined, 1000}
     ),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
@@ -211,7 +211,7 @@ get_create_destination_events_ok(C) ->
     IID     = create_person_identity(Party, C),
     DestID = create_destination(IID, C),
 
-    {ok, RawEvents} = ff_destination:events(DestID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_destination:events(DestID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
@@ -225,7 +225,7 @@ get_create_source_events_ok(C) ->
     IID     = create_person_identity(Party, C),
     SrcID   = create_source(IID, C),
 
-    {ok, RawEvents} = ff_source:events(SrcID, {undefined, 1000, forward}),
+    {ok, RawEvents} = ff_source:events(SrcID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
@@ -334,7 +334,7 @@ get_create_p2p_transfer_events_ok(C) ->
         ff_entity_context:new()
     ),
 
-    {ok, RawEvents} = p2p_transfer_machine:events(ID, {undefined, 1000, forward}),
+    {ok, RawEvents} = p2p_transfer_machine:events(ID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 
@@ -376,7 +376,7 @@ get_create_p2p_template_events_ok(C) ->
     },
     ok = p2p_template_machine:create(P2PTemplateParams, ff_entity_context:new()),
 
-    {ok, RawEvents} = p2p_template_machine:events(P2PTemplateID, {undefined, 1000, forward}),
+    {ok, RawEvents} = p2p_template_machine:events(P2PTemplateID, {undefined, 1000}),
     {_Events, MaxID} = ct_eventsink:events(LastEvent, 1000, Sink),
     MaxID = LastEvent + length(RawEvents).
 

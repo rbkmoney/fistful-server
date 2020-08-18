@@ -913,7 +913,7 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
                     context => make_ctx(Context)
                 }),
                 unwrap(handle_create_entity_result(Result, p2p_transfer, TransferID, Context));
-            {error, {external_id_conflict, ConflictID}} ->
+            {error, {external_id_conflict, {ConflictID, _}}} ->
                 throw({external_id_conflict, ConflictID, TransferID})
         end
     end).

@@ -5,10 +5,23 @@
 -include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 
+-export([marshal_state/3]).
+
 -export([marshal/2]).
 -export([unmarshal/2]).
 
 %% API
+-spec marshal_state(ff_withdrawal_session:session_state(), ff_withdrawal_session:id(), ff_entity_context:context()) ->
+    ff_proto_withdrawal_session_thrift:'SessionState'().
+
+marshal_state(State, ID, Context) ->
+    #wthd_session_SessionState{
+        id = marshal(id, ID),
+        status = marshal(session_status, ff_withdrawal_session:status(State)),
+        withdrawal = marshal(withdrawal, ff_withdrawal_session:withdrawal(State)),
+        route = marshal(route, ff_withdrawal_session:route(State)),
+        context = marshal(ctx, Context)
+    }.
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
@@ -25,7 +38,7 @@ marshal(timestamped_change, {ev, Timestamp, Change}) ->
 marshal(change, {created, Session}) ->
     {created, marshal(session, Session)};
 marshal(change, {next_state, AdapterState}) ->
-    {next_state, marshal(msgpack_value, AdapterState)};
+    {next_state, marshal(msgpack, AdapterState)};
 marshal(change, {finished, SessionResult}) ->
     {finished, marshal(session_result, SessionResult)};
 marshal(change, {callback, CallbackChange}) ->
@@ -55,8 +68,8 @@ marshal(session_status, {finished, Result}) ->
     };
 marshal(session_finished_status, success) ->
     {success, #wthd_session_SessionFinishedSuccess{}};
-marshal(session_finished_status, failed) ->
-    {failed, #wthd_session_SessionFinishedFailed{}};
+marshal(session_finished_status, {failed, Failure}) ->
+    {failed, #wthd_session_SessionFinishedFailed{failure = marshal(failure, Failure)}};
 
 marshal(withdrawal, Params = #{
     id := WithdrawalID,
@@ -120,9 +133,6 @@ marshal(quote, #{
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
 
-marshal(msgpack_value, V) ->
-    marshal_msgpack(V);
-
 marshal(session_result, {success, TransactionInfo}) ->
     {success, #wthd_session_SessionResultSuccess{
         trx_info = marshal(transaction_info, TransactionInfo)
@@ -156,20 +166,6 @@ marshal(callback_status, succeeded) ->
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-marshal_msgpack(nil)                  -> {nl, #msgp_Nil{}};
-marshal_msgpack(V) when is_boolean(V) -> {b, V};
-marshal_msgpack(V) when is_integer(V) -> {i, V};
-marshal_msgpack(V) when is_float(V)   -> V;
-marshal_msgpack(V) when is_binary(V)  -> {str, V}; % Assuming well-formed UTF-8 bytestring.
-marshal_msgpack({binary, V}) when is_binary(V) ->
-    {bin, V};
-marshal_msgpack(V) when is_list(V) ->
-    {arr, [marshal_msgpack(ListItem) || ListItem <- V]};
-marshal_msgpack(V) when is_map(V) ->
-    {obj, maps:fold(fun(Key, Value, Map) -> Map#{marshal_msgpack(Key) => marshal_msgpack(Value)} end, #{}, V)};
-marshal_msgpack(undefined) ->
-    undefined.
-
 -spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
     ff_codec:decoded_value().
 
@@ -192,7 +188,7 @@ unmarshal(repair_scenario, {set_session_result, #wthd_session_SetResultRepair{re
 unmarshal(change, {created, Session}) ->
     {created, unmarshal(session, Session)};
 unmarshal(change, {next_state, AdapterState}) ->
-    {next_state, unmarshal(msgpack_value, AdapterState)};
+    {next_state, unmarshal(msgpack, AdapterState)};
 unmarshal(change, {finished, SessionResult}) ->
     {finished, unmarshal(session_result, SessionResult)};
 unmarshal(change, {callback, #wthd_session_CallbackChange{tag = Tag, payload = Payload}}) ->
@@ -224,8 +220,8 @@ unmarshal(session_status, {finished, #wthd_session_SessionFinished{status = Resu
     {finished, unmarshal(session_finished_status, Result)};
 unmarshal(session_finished_status, {success, #wthd_session_SessionFinishedSuccess{}}) ->
     success;
-unmarshal(session_finished_status, {failed, #wthd_session_SessionFinishedFailed{}}) ->
-    failed;
+unmarshal(session_finished_status, {failed, #wthd_session_SessionFinishedFailed{failure = Failure}}) ->
+    {failed, unmarshal(failure, Failure)};
 
 unmarshal(withdrawal, #wthd_session_Withdrawal{
     id = WithdrawalID,
@@ -291,9 +287,6 @@ unmarshal(quote, #wthd_session_Quote{
         quote_data => maybe_unmarshal(msgpack, Data)
     });
 
-unmarshal(msgpack_value, V) ->
-    unmarshal_msgpack(V);
-
 unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = Trx}}) ->
     {success, unmarshal(transaction_info, Trx)};
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
@@ -319,18 +312,6 @@ unmarshal(ctx, Ctx) ->
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
-
-unmarshal_msgpack({nl,  #msgp_Nil{}})        -> nil;
-unmarshal_msgpack({b,   V}) when is_boolean(V) -> V;
-unmarshal_msgpack({i,   V}) when is_integer(V) -> V;
-unmarshal_msgpack({flt, V}) when is_float(V)   -> V;
-unmarshal_msgpack({str, V}) when is_binary(V)  -> V; % Assuming well-formed UTF-8 bytestring.
-unmarshal_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
-unmarshal_msgpack({arr, V}) when is_list(V)    -> [unmarshal_msgpack(ListItem) || ListItem <- V];
-unmarshal_msgpack({obj, V}) when is_map(V)     ->
-    maps:fold(fun(Key, Value, Map) -> Map#{unmarshal_msgpack(Key) => unmarshal_msgpack(Value)} end, #{}, V);
-unmarshal_msgpack(undefined) ->
-    undefined.
 
 %% Internals
 

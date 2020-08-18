@@ -1,7 +1,7 @@
--module(ff_destination_handler).
+-module(ff_source_handler).
 -behaviour(ff_woody_wrapper).
 
--include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_source_thrift.hrl").
 
 %% ff_woody_wrapper callbacks
 -export([handle_function/3]).
@@ -12,7 +12,7 @@
 -spec handle_function(woody:func(), woody:args(), woody:options()) ->
     {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(destination, #{},
+    scoper:scope(source, #{},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -22,10 +22,11 @@ handle_function(Func, Args, Opts) ->
 %% Internals
 %%
 handle_function_('Create', [Params, Ctx], Opts) ->
-    ID = Params#dst_DestinationParams.id,
-    case ff_destination:create(
-        ff_destination_codec:unmarshal_destination_params(Params),
-        ff_destination_codec:unmarshal(ctx, Ctx))
+    ID = Params#src_SourceParams.id,
+    ok = scoper:add_meta(#{id => ID}),
+    case ff_source:create(
+        ff_source_codec:unmarshal_source_params(Params),
+        ff_source_codec:unmarshal(ctx, Ctx))
     of
         ok ->
             handle_function_('Get', [ID, #'EventRange'{}], Opts);
@@ -41,29 +42,30 @@ handle_function_('Create', [Params, Ctx], Opts) ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 handle_function_('Get', [ID, EventRange], _Opts) ->
-    case ff_destination:get_machine(ID, ff_codec:unmarshal(event_range, EventRange)) of
+    ok = scoper:add_meta(#{id => ID}),
+    case ff_source:get_machine(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
-            Destination = ff_destination:get(Machine),
-            Context = ff_destination:ctx(Machine),
-            Response = ff_destination_codec:marshal_destination_state(Destination, Context),
+            Source = ff_source:get(Machine),
+            Context = ff_source:ctx(Machine),
+            Response = ff_source_codec:marshal_source_state(Source, Context),
             {ok, Response};
         {error, notfound} ->
-            woody_error:raise(business, #fistful_DestinationNotFound{})
+            woody_error:raise(business, #fistful_SourceNotFound{})
     end;
 handle_function_('GetContext', [ID], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
-    case ff_destination:get_machine(ID, {undefined, 0}) of
+    case ff_source:get_machine(ID, {undefined, 0}) of
         {ok, Machine} ->
-            Context = ff_destination:ctx(Machine),
+            Context = ff_source:ctx(Machine),
             {ok, ff_codec:marshal(context, Context)};
         {error, notfound} ->
-            woody_error:raise(business, #fistful_DestinationNotFound{})
+            woody_error:raise(business, #fistful_SourceNotFound{})
     end;
 handle_function_('GetEvents', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
-    case ff_destination:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
+    case ff_source:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Events} ->
-            {ok, lists:map(fun ff_destination_codec:marshal_event/1, Events)};
+            {ok, lists:map(fun ff_source_codec:marshal_event/1, Events)};
         {error, notfound} ->
-            woody_error:raise(business, #fistful_DestinationNotFound{})
+            woody_error:raise(business, #fistful_SourceNotFound{})
     end.

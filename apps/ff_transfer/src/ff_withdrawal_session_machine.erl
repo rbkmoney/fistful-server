@@ -16,9 +16,11 @@
 %% API
 
 -export([session/1]).
+-export([ctx/1]).
 
 -export([create/3]).
 -export([get/1]).
+-export([get/2]).
 -export([events/2]).
 -export([repair/2]).
 -export([process_callback/1]).
@@ -54,8 +56,9 @@
 -type handler_args() :: machinery:handler_args(_).
 
 -type st()        :: ff_machine:st(session()).
--type session() :: ff_withdrawal_session:session().
+-type session() :: ff_withdrawal_session:session_state().
 -type event() :: ff_withdrawal_session:event().
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type callback_params() :: ff_withdrawal_session:callback_params().
 -type process_callback_response() :: ff_withdrawal_session:process_callback_response().
@@ -63,6 +66,7 @@
     {unknown_session, {tag, id()}} |
     ff_withdrawal_session:process_callback_error().
 
+-type ctx() :: ff_entity_context:context().
 
 %% Pipeline
 
@@ -76,6 +80,12 @@
 
 session(St) ->
     ff_machine:model(St).
+
+-spec ctx(st()) ->
+    ctx().
+
+ctx(St) ->
+    ff_machine:ctx(St).
 
 %%
 
@@ -93,13 +103,20 @@ create(ID, Data, Params) ->
 get(ID) ->
     ff_machine:get(ff_withdrawal_session, ?NS, ID).
 
--spec events(id(), machinery:range()) ->
+-spec get(id(), event_range()) ->
+    {ok, st()} |
+    {error, notfound}.
+
+get(ID, {After, Limit}) ->
+    ff_machine:get(ff_withdrawal_session, ?NS, ID, {After, Limit, forward}).
+
+-spec events(id(), event_range()) ->
     {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
     {error, notfound}.
 
-events(ID, Range) ->
+events(ID, {After, Limit}) ->
     do(fun () ->
-        History = unwrap(ff_machine:history(ff_withdrawal_session, ?NS, ID, Range)),
+        History = unwrap(ff_machine:history(ff_withdrawal_session, ?NS, ID, {After, Limit, forward})),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 

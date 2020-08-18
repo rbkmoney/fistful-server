@@ -11,6 +11,9 @@
 -export([id/1]).
 -export([status/1]).
 -export([adapter_state/1]).
+-export([route/1]).
+-export([withdrawal/1]).
+-export([result/1]).
 
 %% API
 
@@ -32,14 +35,25 @@
 %%
 
 -define(ACTUAL_FORMAT_VERSION, 4).
--type session() :: #{
-    version       := ?ACTUAL_FORMAT_VERSION,
+-type session_state() :: #{
     id            := id(),
     status        := status(),
     withdrawal    := withdrawal(),
     route         := route(),
     adapter_state => ff_adapter:state(),
     callbacks     => callbacks_index(),
+    result        => session_result(),
+
+    % Deprecated. Remove after MSPF-560 finish
+    provider_legacy => binary() | ff_payouts_provider:id()
+}.
+
+-type session() :: #{
+    version := ?ACTUAL_FORMAT_VERSION,
+    id := id(),
+    status := status(),
+    withdrawal := withdrawal(),
+    route := route(),
 
     % Deprecated. Remove after MSPF-560 finish
     provider_legacy => binary() | ff_payouts_provider:id()
@@ -49,7 +63,7 @@
                         | {failed, ff_adapter_withdrawal:failure()}.
 
 -type status() :: active
-    | {finished, session_result()}.
+    | {finished, success | {failed, ff_adapter_withdrawal:failure()}}.
 
 -type event() :: {created, session()}
     | {next_state, ff_adapter:state()}
@@ -85,11 +99,13 @@
     opts := ff_withdrawal_provider:adapter_opts()
 }.
 
+-export_type([id/0]).
 -export_type([data/0]).
 -export_type([event/0]).
 -export_type([route/0]).
 -export_type([params/0]).
 -export_type([status/0]).
+-export_type([session_state/0]).
 -export_type([session/0]).
 -export_type([session_result/0]).
 -export_type([callback_params/0]).
@@ -112,33 +128,36 @@
 %% Accessors
 %%
 
--spec id(session()) ->
+-spec id(session_state()) ->
     id().
 
 id(#{id := V}) ->
     V.
 
--spec status(session()) ->
+-spec status(session_state()) ->
     status().
 
 status(#{status := V}) ->
     V.
 
--spec adapter_state(session()) -> ff_adapter:state().
+-spec route(session_state()) ->
+    route().
 
-adapter_state(Session) ->
-    maps:get(adapter_state, Session, undefined).
+route(#{route := V}) ->
+    V.
 
--spec withdrawal(session()) -> withdrawal().
+-spec withdrawal(session_state()) ->
+    withdrawal().
 
 withdrawal(#{withdrawal := V}) ->
     V.
 
--spec route(session()) -> route().
-route(#{route := V}) ->
-    V.
+-spec adapter_state(session_state()) -> ff_adapter:state().
 
--spec callbacks_index(session()) -> callbacks_index().
+adapter_state(Session) ->
+    maps:get(adapter_state, Session, undefined).
+
+-spec callbacks_index(session_state()) -> callbacks_index().
 callbacks_index(Session) ->
     case maps:find(callbacks, Session) of
         {ok, Callbacks} ->
@@ -146,6 +165,12 @@ callbacks_index(Session) ->
         error ->
             ff_withdrawal_callback_utils:new_index()
     end.
+
+-spec result(session_state()) ->
+    session_result() | undefined.
+
+result(Session) ->
+    maps:get(result, Session, undefined).
 
 %%
 %% API
@@ -157,35 +182,36 @@ create(ID, Data, Params) ->
     Session = create_session(ID, Data, Params),
     {ok, [{created, Session}]}.
 
--spec apply_event(event(), undefined | session()) ->
-    session().
+-spec apply_event(event(), undefined | session_state()) ->
+    session_state().
 
 apply_event({created, Session}, undefined) ->
     Session;
 apply_event({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
-apply_event({finished, Result}, Session) ->
-    set_session_status({finished, Result}, Session);
+apply_event({finished, Result}, Session0) ->
+    Session1 = Session0#{result => Result},
+    set_session_status({finished, Result}, Session1);
 apply_event({callback, _Ev} = WrappedEvent, Session) ->
     Callbacks0 = callbacks_index(Session),
     Callbacks1 = ff_withdrawal_callback_utils:apply_event(WrappedEvent, Callbacks0),
     set_callbacks_index(Callbacks1, Session).
 
--spec process_session(session()) -> result().
-process_session(#{status := active, withdrawal := Withdrawal, route := Route} = Session) ->
+-spec process_session(session_state()) -> result().
+process_session(#{status := active, withdrawal := Withdrawal, route := Route} = SessionState) ->
     {Adapter, AdapterOpts} = get_adapter_with_opts(Route),
-    ASt = maps:get(adapter_state, Session, undefined),
+    ASt = maps:get(adapter_state, SessionState, undefined),
     case ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
         {ok, Intent, ASt} ->
-            process_intent(Intent, Session);
+            process_intent(Intent, SessionState);
         {ok, Intent, NextASt} ->
             Events = process_next_state(NextASt),
-            process_intent(Intent, Session, Events);
+            process_intent(Intent, SessionState, Events);
         {ok, Intent} ->
-            process_intent(Intent, Session)
+            process_intent(Intent, SessionState)
     end.
 
--spec set_session_result(session_result(), session()) ->
+-spec set_session_result(session_result(), session_state()) ->
     result().
 set_session_result(Result, #{status := active}) ->
     #{
@@ -193,7 +219,7 @@ set_session_result(Result, #{status := active}) ->
         action => unset_timer
     }.
 
--spec process_callback(callback_params(), session()) ->
+-spec process_callback(callback_params(), session_state()) ->
     {ok, {process_callback_response(), result()}} |
     {error, {process_callback_error(), result()}}.
 process_callback(#{tag := CallbackTag} = Params, Session) ->
@@ -336,11 +362,13 @@ create_adapter_withdrawal(#{id := SesID, sender := Sender, receiver := Receiver}
         session_id => SesID
     }.
 
--spec set_session_status(status(), session()) -> session().
-set_session_status(SessionState, Session) ->
-    Session#{status => SessionState}.
+-spec set_session_status({finished, session_result()}, session_state()) -> session_state().
+set_session_status({finished, {success, _}}, SessionState) ->
+    SessionState#{status => {finished, success}};
+set_session_status(Status = {finished, {failed, _}}, SessionState) ->
+    SessionState#{status => Status}.
 
--spec set_callbacks_index(callbacks_index(), session()) -> session().
+-spec set_callbacks_index(callbacks_index(), session_state()) -> session_state().
 set_callbacks_index(Callbacks, Session) ->
     Session#{callbacks => Callbacks}.
 

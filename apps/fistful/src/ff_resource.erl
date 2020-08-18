@@ -173,7 +173,7 @@ cardholder_name(BankCard) ->
 
 -spec create_resource(resource_params()) ->
     {ok, resource()} |
-    {error, {bin_data, not_found}}.
+    {error, {bin_data, ff_bin_data:bin_data_error()}}.
 
 create_resource(Resource) ->
     create_resource(Resource, undefined).

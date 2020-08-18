@@ -235,7 +235,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2, valid/2]).
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Internal types
 
@@ -875,7 +875,8 @@ process_session_poll(Withdrawal) ->
     case ff_withdrawal_session:status(Session) of
         active ->
             {poll, []};
-        {finished, Result} ->
+        {finished, _} ->
+            Result = ff_withdrawal_session:result(Session),
             {continue, [{session_finished, {SessionID, Result}}]}
     end.
 
@@ -1047,35 +1048,18 @@ construct_payment_tool({crypto_wallet, #{crypto_wallet := #{currency := {Currenc
 -spec get_quote(quote_params()) ->
     {ok, quote()} |
     {error,
-        {destination, notfound}       |
-        {destination, unauthorized}   |
-        {route, route_not_found}      |
-        {wallet, notfound}            |
-        {destination_resource, {bin_data, ff_bin_data:bin_data_error()}}
+        create_error() |
+        {route, route_not_found}
     }.
-get_quote(Params = #{destination_id := DestinationID}) ->
+get_quote(Params = #{destination_id := DestinationID, body := Body, wallet_id := WalletID}) ->
     do(fun() ->
         Destination = unwrap(destination, get_destination(DestinationID)),
-        ok = unwrap(destination, valid(authorized, ff_destination:status(Destination))),
         Resource = unwrap(destination_resource, ff_destination:resource_full(Destination)),
-        unwrap(get_quote_(Params, Destination, Resource))
-    end);
-get_quote(Params) ->
-    get_quote_(Params, undefined, undefined).
-
-get_quote_(Params, Destination, Resource) ->
-    do(fun() ->
-        #{
-            wallet_id := WalletID,
-            body := Body,
-            currency_from := CurrencyFrom,
-            currency_to := CurrencyTo
-        } = Params,
-        Timestamp = ff_time:now(),
         Wallet = unwrap(wallet, get_wallet(WalletID)),
-        DomainRevision = ff_domain_config:head(),
         Identity = get_wallet_identity(Wallet),
+        ContractID = ff_identity:contract(Identity),
         PartyID = ff_identity:party(Identity),
+        DomainRevision = ff_domain_config:head(),
         {ok, PartyRevision} = ff_party:get_revision(PartyID),
         VarsetParams = genlib_map:compact(#{
             body => Body,
@@ -1085,7 +1069,67 @@ get_quote_(Params, Destination, Resource) ->
             destination => Destination,
             resource => Resource
         }),
-        [Route | _] = unwrap(route, prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        PartyVarset = build_party_varset(VarsetParams),
+        Timestamp = ff_time:now(),
+        {ok, Terms} = ff_party:get_contract_terms(
+            PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
+        ),
+        valid = unwrap(validate_withdrawal_creation(Terms, Body, Wallet, Destination)),
+        GetQuoteParams = #{
+            base_params => Params,
+            identity => Identity,
+            party_varset => build_party_varset(VarsetParams),
+            timestamp => Timestamp,
+            domain_revision => DomainRevision,
+            party_revision => PartyRevision,
+            resource => Resource
+        },
+        unwrap(get_quote_(GetQuoteParams))
+    end);
+get_quote(Params) ->
+    #{
+        wallet_id := WalletID,
+        body := Body
+    } = Params,
+    Wallet = unwrap(wallet, get_wallet(WalletID)),
+    Identity = get_wallet_identity(Wallet),
+    PartyID = ff_identity:party(Identity),
+    Timestamp = ff_time:now(),
+    DomainRevision = ff_domain_config:head(),
+    {ok, PartyRevision} = ff_party:get_revision(PartyID),
+    VarsetParams = genlib_map:compact(#{
+        body => Body,
+        wallet_id => WalletID,
+        wallet => Wallet,
+        party_id => PartyID
+    }),
+    GetQuoteParams = #{
+        base_params => Params,
+        identity => Identity,
+        party_varset => build_party_varset(VarsetParams),
+        timestamp => Timestamp,
+        domain_revision => DomainRevision,
+        party_revision => PartyRevision
+    },
+    get_quote_(GetQuoteParams).
+
+get_quote_(Params) ->
+    do(fun() ->
+        #{
+            base_params := #{
+                body := Body,
+                currency_from := CurrencyFrom,
+                currency_to := CurrencyTo
+            },
+            identity := Identity,
+            party_varset := Varset,
+            timestamp := Timestamp,
+            domain_revision := DomainRevision,
+            party_revision := PartyRevision
+        } = Params,
+        Resource = maps:get(resource, Params, undefined),
+
+        [Route | _] = unwrap(route, prepare_route(Varset, Identity, DomainRevision)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(Route),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),

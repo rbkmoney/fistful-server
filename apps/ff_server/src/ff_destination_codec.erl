@@ -5,7 +5,9 @@
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
 -export([unmarshal_destination_params/1]).
--export([marshal_destination_state/3]).
+-export([marshal_destination_state/2]).
+
+-export([marshal_event/1]).
 
 -export([marshal/2]).
 -export([unmarshal/2]).
@@ -26,10 +28,10 @@ unmarshal_destination_params(Params) ->
         metadata    => maybe_unmarshal(ctx, Params#dst_DestinationParams.metadata)
     }).
 
--spec marshal_destination_state(ff_destination:destination_state(), ff_destination:id(), ff_entity_context:context()) ->
+-spec marshal_destination_state(ff_destination:destination_state(), ff_entity_context:context()) ->
     ff_proto_destination_thrift:'DestinationState'().
 
-marshal_destination_state(DestinationState, ID, Context) ->
+marshal_destination_state(DestinationState, Context) ->
     Blocking = case ff_destination:is_accessible(DestinationState) of
         {ok, accessible} ->
             unblocked;
@@ -37,7 +39,7 @@ marshal_destination_state(DestinationState, ID, Context) ->
             blocked
     end,
     #dst_DestinationState{
-        id = marshal(id, ID),
+        id = marshal(id, ff_destination:id(DestinationState)),
         name = marshal(string, ff_destination:name(DestinationState)),
         resource = marshal(resource, ff_destination:resource(DestinationState)),
         external_id = marshal(id, ff_destination:external_id(DestinationState)),
@@ -47,6 +49,16 @@ marshal_destination_state(DestinationState, ID, Context) ->
         blocking = Blocking,
         metadata = marshal(ctx, ff_destination:metadata(DestinationState)),
         context = marshal(ctx, Context)
+    }.
+
+-spec marshal_event(ff_destination:timestamped_event()) ->
+    ff_proto_destination_thrift:'Event'().
+
+marshal_event({EventID, {ev, Timestamp, Change}}) ->
+    #dst_Event{
+        event_id = ff_codec:marshal(event_id, EventID),
+        occured_at = ff_codec:marshal(timestamp, Timestamp),
+        change = marshal(change, Change)
     }.
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->

@@ -97,14 +97,20 @@ init([]) ->
         {wallet_management, ff_wallet_handler},
         {identity_management, ff_identity_handler},
         {destination_management, ff_destination_handler},
+        {source_management, ff_source_handler},
         {withdrawal_management, ff_withdrawal_handler},
+        {withdrawal_session_management, ff_withdrawal_session_handler},
         {deposit_management, ff_deposit_handler},
         {withdrawal_session_repairer, ff_withdrawal_session_repair},
         {withdrawal_repairer, ff_withdrawal_repair},
         {deposit_repairer, ff_deposit_repair},
+        {p2p_transfer_management, ff_p2p_transfer_handler},
         {p2p_transfer_repairer, ff_p2p_transfer_repair},
+        {p2p_session_management, ff_p2p_session_handler},
         {p2p_session_repairer, ff_p2p_session_repair},
-        {p2p_template_management, ff_p2p_template_handler}
+        {p2p_template_management, ff_p2p_template_handler},
+        {w2w_transfer_management, ff_w2w_transfer_handler},
+        {w2w_transfer_repairer, ff_w2w_transfer_repair}
     ] ++ get_eventsink_handlers(),
     WoodyHandlers = [get_handler(Service, Handler, WrapperOpts) || {Service, Handler} <- Services],
 

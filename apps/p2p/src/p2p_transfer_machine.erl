@@ -10,11 +10,13 @@
 
 -type ref() :: machinery:ref().
 -type id() :: machinery:id().
--type event() :: p2p_transfer:event().
+-type change() :: p2p_transfer:event().
+-type event() :: {integer(), ff_machine:timestamped_event(change())}.
 -type event_id() :: integer().
--type events() :: [{event_id(), ff_machine:timestamped_event(event())}].
+-type events() :: [{event_id(), ff_machine:timestamped_event(change())}].
+-type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 -type st() :: ff_machine:st(p2p_transfer()).
--type p2p_transfer() :: p2p_transfer:p2p_transfer().
+-type p2p_transfer() :: p2p_transfer:p2p_transfer_state().
 -type external_id() :: id().
 -type action() :: p2p_transfer:action().
 
@@ -36,6 +38,7 @@
 -export_type([id/0]).
 -export_type([st/0]).
 -export_type([action/0]).
+-export_type([change/0]).
 -export_type([event/0]).
 -export_type([events/0]).
 -export_type([params/0]).
@@ -50,6 +53,7 @@
 
 -export([create/2]).
 -export([get/1]).
+-export([get/2]).
 -export([events/2]).
 
 -export([start_adjustment/2]).
@@ -107,12 +111,24 @@ get(ID) ->
             {error, {unknown_p2p_transfer, ID}}
     end.
 
--spec events(id(), machinery:range()) ->
+-spec get(id(), event_range()) ->
+    {ok, st()} |
+    {error, unknown_p2p_transfer_error()}.
+
+get(Ref, {After, Limit}) ->
+    case ff_machine:get(p2p_transfer, ?NS, Ref, {After, Limit, forward}) of
+        {ok, _Machine} = Result ->
+            Result;
+        {error, notfound} ->
+            {error, {unknown_p2p_transfer, Ref}}
+    end.
+
+-spec events(id(), event_range()) ->
     {ok, events()} |
     {error, unknown_p2p_transfer_error()}.
 
-events(ID, Range) ->
-    case ff_machine:history(p2p_transfer, ?NS, ID, Range) of
+events(ID, {After, Limit}) ->
+    case ff_machine:history(p2p_transfer, ?NS, ID, {After, Limit, forward}) of
         {ok, History} ->
             {ok, [{EventID, TsEv} || {EventID, _, TsEv} <- History]};
         {error, notfound} ->
@@ -147,8 +163,8 @@ ctx(St) ->
 
 %% Machinery
 
--type machine() :: ff_machine:machine(event()).
--type result() :: ff_machine:result(event()).
+-type machine() :: ff_machine:machine(change()).
+-type result() :: ff_machine:result(change()).
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
@@ -157,7 +173,7 @@ ctx(St) ->
 backend() ->
     fistful:backend(?NS).
 
--spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) ->
+-spec init({[change()], ctx()}, machine(), handler_args(), handler_opts()) ->
     result().
 
 init({Events, Ctx}, #{}, _, _Opts) ->

@@ -4,10 +4,99 @@
 
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 
+-export([unmarshal_p2p_quote_params/1]).
+-export([marshal_p2p_transfer_state/2]).
+-export([unmarshal_p2p_transfer_params/1]).
+
+-export([marshal_event/1]).
 -export([marshal/2]).
 -export([unmarshal/2]).
 
 %% API
+
+-spec unmarshal_p2p_quote_params(ff_proto_p2p_transfer_thrift:'QuoteParams'()) ->
+    p2p_quote:params().
+
+unmarshal_p2p_quote_params(#p2p_transfer_QuoteParams{
+    identity_id = IdentityID,
+    sender = Sender,
+    receiver = Receiver,
+    body = Body
+}) ->
+    #{
+        identity_id => unmarshal(id, IdentityID),
+        body => unmarshal(cash, Body),
+        sender => unmarshal(participant, Sender),
+        receiver => unmarshal(participant, Receiver)
+    }.
+
+-spec marshal_p2p_transfer_state(p2p_transfer:p2p_transfer_state(), ff_entity_context:context()) ->
+    ff_proto_p2p_transfer_thrift:'P2PTransferState'().
+
+marshal_p2p_transfer_state(P2PTransferState, Ctx) ->
+    CashFlow = p2p_transfer:effective_final_cash_flow(P2PTransferState),
+    Adjustments = p2p_transfer:adjustments(P2PTransferState),
+    Sessions = p2p_transfer:sessions(P2PTransferState),
+    #p2p_transfer_P2PTransferState{
+        id = marshal(id, p2p_transfer:id(P2PTransferState)),
+        owner = marshal(id, p2p_transfer:owner(P2PTransferState)),
+        sender = marshal(participant, p2p_transfer:sender(P2PTransferState)),
+        receiver = marshal(participant, p2p_transfer:receiver(P2PTransferState)),
+        body = marshal(cash, p2p_transfer:body(P2PTransferState)),
+        status = marshal(status, p2p_transfer:status(P2PTransferState)),
+        domain_revision = marshal(domain_revision, p2p_transfer:domain_revision(P2PTransferState)),
+        party_revision = marshal(party_revision, p2p_transfer:party_revision(P2PTransferState)),
+        operation_timestamp = marshal(timestamp_ms, p2p_transfer:operation_timestamp(P2PTransferState)),
+        created_at = marshal(timestamp_ms, p2p_transfer:created_at(P2PTransferState)),
+        deadline = maybe_marshal(timestamp_ms, p2p_transfer:deadline(P2PTransferState)),
+        quote = maybe_marshal(quote, p2p_transfer:quote(P2PTransferState)),
+        client_info = maybe_marshal(client_info, p2p_transfer:client_info(P2PTransferState)),
+        external_id = maybe_marshal(id, p2p_transfer:external_id(P2PTransferState)),
+        metadata = marshal(ctx, p2p_transfer:metadata(P2PTransferState)),
+        sessions = [marshal(session_state, S) || S <- Sessions],
+        effective_route = maybe_marshal(route, p2p_transfer:route(P2PTransferState)),
+        effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
+        adjustments = [ff_p2p_transfer_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments],
+        context = marshal(ctx, Ctx)
+    }.
+
+-spec unmarshal_p2p_transfer_params(ff_proto_p2p_transfer_thrift:'P2PTransferParams'()) ->
+    p2p_transfer_machine:params().
+
+unmarshal_p2p_transfer_params(#p2p_transfer_P2PTransferParams{
+    id = ID,
+    identity_id = IdentityID,
+    sender = Sender,
+    receiver = Receiver,
+    body = Body,
+    quote = Quote,
+    deadline = Deadline,
+    client_info = ClientInfo,
+    external_id = ExternalID,
+    metadata = Metadata
+}) ->
+    genlib_map:compact(#{
+        id => unmarshal(id, ID),
+        identity_id => unmarshal(id, IdentityID),
+        body => unmarshal(cash, Body),
+        sender => unmarshal(participant, Sender),
+        receiver => unmarshal(participant, Receiver),
+        quote => maybe_unmarshal(quote, Quote),
+        client_info => maybe_unmarshal(client_info, ClientInfo),
+        deadline => maybe_unmarshal(timestamp_ms, Deadline),
+        external_id => maybe_unmarshal(id, ExternalID),
+        metadata => maybe_unmarshal(ctx, Metadata)
+    }).
+
+-spec marshal_event(p2p_transfer_machine:event()) ->
+    ff_proto_p2p_transfer_thrift:'Event'().
+
+marshal_event({EventID, {ev, Timestamp, Change}}) ->
+    #p2p_transfer_Event{
+        event = ff_codec:marshal(event_id, EventID),
+        occured_at = ff_codec:marshal(timestamp, Timestamp),
+        change = marshal(change, Change)
+    }.
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
     ff_codec:encoded_value().
@@ -30,7 +119,7 @@ marshal(change, {resource_got, Sender, Receiver}) ->
 marshal(change, {risk_score_changed, RiskScore}) ->
     {risk_score, #p2p_transfer_RiskScoreChange{score = marshal(risk_score, RiskScore)}};
 marshal(change, {route_changed, Route}) ->
-    {route, marshal(route, Route)};
+    {route, #p2p_transfer_RouteChange{route = marshal(route, Route)}};
 marshal(change, {p_transfer, TransferChange}) ->
     {transfer, #p2p_transfer_TransferChange{payload = ff_p_transfer_codec:marshal(change, TransferChange)}};
 marshal(change, {session, Session}) ->
@@ -143,9 +232,9 @@ marshal(risk_score, fatal) ->
     fatal;
 
 marshal(route, #{provider_id := ProviderID}) ->
-    #p2p_transfer_RouteChange{route = #p2p_transfer_Route{
+    #p2p_transfer_Route{
         provider_id =  marshal(integer, ProviderID)
-    }};
+    };
 
 marshal(session, {SessionID, started}) ->
     #p2p_transfer_SessionChange{
@@ -160,10 +249,19 @@ marshal(session, {SessionID, {finished, SessionResult}}) ->
         }}
     };
 
+marshal(session_state, Session) ->
+    #p2p_transfer_SessionState{
+        id = marshal(id, maps:get(id, Session)),
+        result = maybe_marshal(session_result, maps:get(result, Session, undefined))
+    };
+
 marshal(session_result, success) ->
     {succeeded, #p2p_transfer_SessionSucceeded{}};
 marshal(session_result, {failure, Failure}) ->
     {failed, #p2p_transfer_SessionFailed{failure = marshal(failure, Failure)}};
+
+marshal(ctx, Ctx) ->
+    maybe_marshal(context, Ctx);
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
@@ -322,10 +420,19 @@ unmarshal(session, {SessionID, {started, #p2p_transfer_SessionStarted{}}}) ->
 unmarshal(session, {SessionID, {finished, #p2p_transfer_SessionFinished{result = SessionResult}}}) ->
     {SessionID, {finished, unmarshal(session_result, SessionResult)}};
 
+unmarshal(session_state, Session) ->
+    genlib_map:compact(#{
+        id => unmarshal(id, Session#p2p_transfer_SessionState.id),
+        result => maybe_unmarshal(session_result, Session#p2p_transfer_SessionState.result)
+    });
+
 unmarshal(session_result, {succeeded, #p2p_transfer_SessionSucceeded{}}) ->
     success;
 unmarshal(session_result, {failed, #p2p_transfer_SessionFailed{failure = Failure}}) ->
     {failure, unmarshal(failure, Failure)};
+
+unmarshal(ctx, Ctx) ->
+    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

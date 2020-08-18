@@ -120,7 +120,7 @@ idempotency_identity_conflict(C) ->
     {ok, #{<<"id">> := ID}} =
         wapi_wallet_ff_backend:create_identity(Params, create_context(Party, C)),
     NewParams = Params#{<<"provider">> => <<"good-two">>},
-    {error, {external_id_conflict, ID, ExternalID}} =
+    {error, {external_id_conflict, {ID, _}, ExternalID}} =
         wapi_wallet_ff_backend:create_identity(NewParams, create_context(Party, C)).
 
 -spec idempotency_wallet_ok(config()) ->
@@ -157,7 +157,7 @@ idempotency_wallet_conflict(C) ->
     {ok, #{<<"id">> := ID}} =
         wapi_wallet_ff_backend:create_wallet(Params, create_context(Party, C)),
     NewParams = Params#{<<"currency">> => <<"USD">>},
-    {error, {external_id_conflict, ID, ExternalID}} =
+    {error, {external_id_conflict, {ID, _}, ExternalID}} =
         wapi_wallet_ff_backend:create_wallet(NewParams, create_context(Party, C)).
 
 -spec idempotency_destination_ok(config()) ->
@@ -211,7 +211,7 @@ idempotency_destination_conflict(C) ->
     {ok, #{<<"id">> := ID}} =
         wapi_wallet_ff_backend:create_destination(Params, create_context(Party, C)),
     NewParams = Params#{<<"currency">> => <<"USD">>},
-    {error, {external_id_conflict, ID, ExternalID}} =
+    {error, {external_id_conflict, {ID, _}, ExternalID}} =
         wapi_wallet_ff_backend:create_destination(NewParams, create_context(Party, C)).
 
 -spec idempotency_withdrawal_ok(config()) ->
@@ -266,7 +266,7 @@ idempotency_withdrawal_conflict(C) ->
     {ok, #{<<"id">> := ID}} =
         wapi_wallet_ff_backend:create_withdrawal(Params, create_context(Party, C)),
     NewParams = Params#{<<"body">> => Body#{<<"amount">> => <<"100">>}},
-    {error, {external_id_conflict, ID, ExternalID}} =
+    {error, {external_id_conflict, {ID, _}, ExternalID}} =
         wapi_wallet_ff_backend:create_withdrawal(NewParams, create_context(Party, C)).
 
 %%

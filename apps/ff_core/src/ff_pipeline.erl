@@ -32,6 +32,8 @@ do(Fun) ->
     try Fun() of
         ok ->
             ok;
+        {error, _} = Error ->
+            Error;
         R ->
             {ok, R}
     catch

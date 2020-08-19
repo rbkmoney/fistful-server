@@ -111,7 +111,8 @@
 -type create_error() ::
     {identity, notfound} |
     {terms, ff_party:validate_p2p_error()} |
-    {resource_owner(), {bin_data, ff_bin_data:bin_data_error()}}.
+    {resource_owner(), {bin_data, ff_bin_data:bin_data_error()}} |
+    {resource_owner(), different_resource}.
 
 -type route() :: #{
     version := 1,

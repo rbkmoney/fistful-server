@@ -13,6 +13,7 @@
 -export([get_keysource/2]).
 -export([start_mocked_service_sup/1]).
 -export([stop_mocked_service_sup/1]).
+-export([mock_another_client_services/4]).
 -export([mock_services/2]).
 -export([mock_services_/2]).
 -export([get_lifetime/0]).
@@ -150,13 +151,47 @@ start_mocked_service_sup(Module) ->
 stop_mocked_service_sup(SupPid) ->
     exit(SupPid, shutdown).
 
+-spec mock_another_client_services(_, _, _, _) ->
+    _.
+
+mock_another_client_services(App, Key, Service, SupOrConfig) ->
+    start_woody_client(App, Key, mock_another_service_(Service, SupOrConfig)).
+
+start_woody_client(App, Key, ServiceURL) ->
+    ok = application:set_env(
+        App,
+        Key,
+        ServiceURL
+    ),
+    start_app(App, []).
+
+% TODO need a better name
+mock_another_service_(Service, Config) when is_list(Config) ->
+    mock_another_service_(Service, ?config(test_sup, Config));
+
+mock_another_service_(Service, SupPid) when is_pid(SupPid) ->
+    Name = get_service_name(Service),
+    Port = get_random_port(),
+    {ok, IP} = inet:parse_address(?WAPI_IP),
+    ChildSpec = woody_server:child_spec(
+        {dummy, Name},
+        #{
+            ip => IP,
+            port => Port,
+            event_handler => scoper_woody_event_handler,
+            handlers => [mock_service_handler(Service)]
+        }
+    ),
+    {ok, _} = supervisor:start_child(SupPid, ChildSpec),
+    make_url(Name, Port).
+
 -spec mock_services(_, _) ->
     _.
 
 mock_services(Services, SupOrConfig) ->
-    start_woody_client(mock_services_(Services, SupOrConfig)).
+    start_wapi_woody_client(mock_services_(Services, SupOrConfig)).
 
-start_woody_client(ServiceURLs) ->
+start_wapi_woody_client(ServiceURLs) ->
     ok = application:set_env(
         wapi_woody_client,
         service_urls,

@@ -21,8 +21,10 @@
 -export([init/1]).
 
 -export([
-    create_wallet/1,
-    get_wallet/1
+    create/1,
+    get/1,
+    get_by_external_id/1,
+    get_account/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -55,8 +57,10 @@ groups() ->
     [
         {base, [],
             [
-                create_wallet,
-                get_wallet
+                create,
+                get,
+                get_by_external_id,
+                get_account
             ]
         }
     ].
@@ -126,12 +130,12 @@ end_per_testcase(_Name, C) ->
 
 %%% Tests
 
--spec create_wallet(config()) ->
+-spec create(config()) ->
     _.
-create_wallet(C) ->
+create(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
-        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end},
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
         {fistful_wallet, fun('Create', _) -> {ok, ?WALLET(PartyID)} end}
     ], C),
     {ok, _} = call_api(
@@ -149,15 +153,60 @@ create_wallet(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec get_wallet(config()) ->
+-spec get(config()) ->
     _.
-get_wallet(C) ->
+get(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_wallet, fun('Get', _) -> {ok, ?WALLET(PartyID)} end}
     ], C),
     {ok, _} = call_api(
         fun swag_client_wallet_wallets_api:get_wallet/3,
+        #{
+            binding => #{
+                <<"walletID">> => ?STRING
+            }
+        },
+    ct_helper:cfg(context, C)
+).
+
+-spec get_by_external_id(config()) ->
+    _.
+get_by_external_id(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_another_client_services(
+        bender_client,
+        service_url,
+        {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
+        C
+    ),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('Get', _) -> {ok, ?WALLET(PartyID)} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_wallets_api:get_wallet_by_external_id/3,
+        #{
+            qs_val => #{
+                <<"externalID">> => ?STRING
+            }
+        },
+    ct_helper:cfg(context, C)
+).
+
+-spec get_account(config()) ->
+    _.
+get_account(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet,
+            fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('GetAccountBalance', _) -> {ok, ?ACCOUNT_BALANCE}
+            end
+        }
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_wallets_api:get_wallet_account/3,
         #{
             binding => #{
                 <<"walletID">> => ?STRING

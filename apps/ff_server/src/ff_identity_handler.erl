@@ -53,7 +53,7 @@ handle_function_('GetContext', [ID], _Opts) ->
     case ff_identity_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
             Ctx = ff_identity_machine:ctx(Machine),
-            Response = ff_p2p_session_codec:marshal(ctx, Ctx),
+            Response = ff_identity_codec:marshal(ctx, Ctx),
             {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})

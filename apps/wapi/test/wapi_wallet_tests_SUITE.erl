@@ -177,7 +177,7 @@ get_by_external_id(C) ->
     wapi_ct_helper:mock_another_client_services(
         bender_client,
         service_url,
-        {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
+        {bender_thrift, {bender_thrift, 'Bender'}, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
         C
     ),
     wapi_ct_helper:mock_services([

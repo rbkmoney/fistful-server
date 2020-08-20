@@ -745,14 +745,14 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                     contact_info => maps:get(contact_info, ParsedParams)
                 }},
                 RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
-                p2p_transfer_machine:create(
+                unwrap(p2p_transfer_machine:create(
                     genlib_map:compact(ParsedParams#{
                         id => ID,
                         sender => RawSenderResource,
                         receiver => RawReceiverResource
                     }),
                     add_meta_to_ctx([], Params, EntityCtx)
-                )
+                ))
             end)
         end,
     do(fun () -> unwrap(create_entity(p2p_transfer, Params, CreateFun, Context)) end).
@@ -807,12 +807,12 @@ create_p2p_template(Params = #{<<"identityID">> := IdentityId}, Context) ->
             do(fun() ->
                 _ = check_resource(identity, IdentityId, Context),
                 ParsedParams = from_swag(p2p_template_create_params, Params),
-                p2p_template_machine:create(
+                unwrap(p2p_template_machine:create(
                     genlib_map:compact(ParsedParams#{
                         id => ID
                     }),
                     add_meta_to_ctx([], Params, EntityCtx)
-                )
+                ))
             end)
         end,
     do(fun () -> unwrap(create_entity(p2p_template, Params, CreateFun, Context)) end).

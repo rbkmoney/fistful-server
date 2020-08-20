@@ -96,7 +96,7 @@ process_result({ok, #fistfulstat_StatResponse{
     data = {QueryType, Data},
     continuation_token = ContinuationToken
 }}) ->
-    DecodedData = [unmarshal_responce(QueryType, S) || S <- Data],
+    DecodedData = [unmarshal_response(QueryType, S) || S <- Data],
     Responce = genlib_map:compact(#{
         <<"result">> => DecodedData,
         <<"continuationToken">> => ContinuationToken
@@ -122,12 +122,12 @@ merge_and_compact(M1, M2) ->
 format_request_errors([]    ) -> <<>>;
 format_request_errors(Errors) -> genlib_string:join(<<"\n">>, Errors).
 
--spec unmarshal_responce
+-spec unmarshal_response
     (withdrawals, ff_proto_fistful_stat_thrift:'StatWithdrawal'()) -> map();
     (deposits, ff_proto_fistful_stat_thrift:'StatDeposit'()) -> map();
     (wallets, ff_proto_fistful_stat_thrift:'StatWallet'()) -> map().
 
-unmarshal_responce(withdrawals, Response) ->
+unmarshal_response(withdrawals, Response) ->
     merge_and_compact(#{
         <<"id"          >> => Response#fistfulstat_StatWithdrawal.id,
         <<"createdAt"   >> => Response#fistfulstat_StatWithdrawal.created_at,
@@ -143,7 +143,7 @@ unmarshal_responce(withdrawals, Response) ->
             Response#fistfulstat_StatWithdrawal.currency_symbolic_code
         )
     }, unmarshal_withdrawal_stat_status(Response#fistfulstat_StatWithdrawal.status));
-unmarshal_responce(deposits, Response) ->
+unmarshal_response(deposits, Response) ->
     merge_and_compact(#{
         <<"id"          >> => Response#fistfulstat_StatDeposit.id,
         <<"createdAt"   >> => Response#fistfulstat_StatDeposit.created_at,
@@ -158,7 +158,7 @@ unmarshal_responce(deposits, Response) ->
             Response#fistfulstat_StatDeposit.currency_symbolic_code
         )
     }, unmarshal_deposit_stat_status(Response#fistfulstat_StatDeposit.status));
-unmarshal_responce(wallets, Response) ->
+unmarshal_response(wallets, Response) ->
     genlib_map:compact(#{
         <<"id"          >> => Response#fistfulstat_StatWallet.id,
         <<"name"        >> => Response#fistfulstat_StatWallet.name,

@@ -109,6 +109,41 @@
     payload = {status_changed, ?IDENTITY_CHALLENGE_STATUS_COMPLETED}
 }}).
 
+-define(STAT_RESPONCE(Data), #fistfulstat_StatResponse{data = Data}).
+
+-define(STAT_WALLETS, {wallets, [#fistfulstat_StatWallet{
+    id = ?STRING,
+    identity_id = ?STRING,
+    name = ?STRING,
+    created_at = ?TIMESTAMP,
+    currency_symbolic_code = ?RUB
+}]}).
+
+-define(STAT_WITHDRAWALS, {withdrawals, [#fistfulstat_StatWithdrawal{
+    id = ?STRING,
+    created_at = ?TIMESTAMP,
+    identity_id = ?STRING,
+    source_id = ?STRING,
+    destination_id = ?STRING,
+    external_id = ?STRING,
+    amount = ?INTEGER,
+    fee = ?INTEGER,
+    currency_symbolic_code = ?RUB,
+    status = {pending, #fistfulstat_WithdrawalPending{}}
+}]}).
+
+-define(STAT_DEPOSITS, {deposits, [#fistfulstat_StatDeposit{
+    id = ?STRING,
+    created_at = ?TIMESTAMP,
+    identity_id = ?STRING,
+    source_id = ?STRING,
+    destination_id = ?STRING,
+    amount = ?INTEGER,
+    fee = ?INTEGER,
+    currency_symbolic_code = ?RUB,
+    status = {pending, #fistfulstat_DepositPending{}}
+}]}).
+
 -define(IDENT_DOC, {russian_domestic_passport, #'identdocstore_RussianDomesticPassport'{
     issuer = ?STRING,
     issuer_code = ?STRING,

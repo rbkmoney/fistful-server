@@ -124,6 +124,11 @@ process_request('GetIdentityChallengeEvent', Params, Context, _Opts) ->
 
 %% Wallets
 
+process_request('ListWallets', Params, Context, _Opts) ->
+    case wapi_stat_backend:list_wallets(Params, Context) of
+        {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
+        {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
+    end;
 process_request('GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
     case wapi_wallet_backend:get(WalletId, Context) of
         {ok, Wallet}                    -> wapi_handler_utils:reply_ok(200, Wallet);
@@ -207,6 +212,22 @@ process_request('IssueDestinationGrant', #{
             wapi_handler_utils:reply_ok(404);
         {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(404)
+    end;
+
+%% Withdrawals
+
+process_request('ListWithdrawals', Params, Context, _Opts) ->
+    case wapi_stat_backend:list_withdrawals(Params, Context) of
+        {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
+        {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
+    end;
+
+%% Deposits
+
+process_request('ListDeposits', Params, Context, _Opts) ->
+    case wapi_stat_backend:list_deposits(Params, Context) of
+        {ok, {200, _, List}}       -> wapi_handler_utils:reply_ok(200, List);
+        {error, {Code, _, Error}}  -> wapi_handler_utils:reply_error(Code, Error)
     end;
 
 process_request(OperationID, Params, Context, Opts) ->

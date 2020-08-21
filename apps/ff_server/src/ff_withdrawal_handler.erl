@@ -52,11 +52,11 @@ handle_function_('GetQuote', [MarshaledParams], _Opts) ->
                 destination_currency = ff_codec:marshal(currency_ref, Destination),
                 wallet_currency = ff_codec:marshal(currency_ref, Wallet)
             });
-        % {error, {provider_mismatch, {WalletProvider, DestinationProvider}}} ->
-        %     woody_error:raise(business, #wthd_ProviderMismath{
-        %         wallet_provider = ff_codec:marshal(provider, WalletProvider),
-        %         destination_provider = ff_codec:marshal(provider, DestinationProvider)
-        %     });
+        {error, {provider_mismatch, {WalletProvider, DestinationProvider}}} ->
+            woody_error:raise(business, #wthd_IdentityProvidersMismatch{
+                wallet_provider = ff_codec:marshal(identity_provider, WalletProvider),
+                destination_provider = ff_codec:marshal(identity_provider, DestinationProvider)
+            });
         {error, {destination_resource, {bin_data, _}}} ->
             woody_error:raise(business, #wthd_NoDestinationResourceInfo{})
     end;
@@ -93,11 +93,11 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
                 destination_currency = ff_codec:marshal(currency_ref, Destination),
                 wallet_currency = ff_codec:marshal(currency_ref, Wallet)
             });
-        % {error, {provider_mismatch, {WalletProvider, DestinationProvider}}} ->
-        %     woody_error:raise(business, #wthd_ProviderMismath{
-        %         wallet_provider = ff_codec:marshal(provider, WalletProvider),
-        %         destination_provider = ff_codec:marshal(provider, DestinationProvider)
-        %     });
+        {error, {provider_mismatch, {WalletProvider, DestinationProvider}}} ->
+            woody_error:raise(business, #wthd_IdentityProvidersMismatch{
+                wallet_provider = ff_codec:marshal(identity_provider, WalletProvider),
+                destination_provider = ff_codec:marshal(identity_provider, DestinationProvider)
+            });
         {error, {destination_resource, {bin_data, not_found}}} ->
             woody_error:raise(business, #wthd_NoDestinationResourceInfo{})
     end;

@@ -109,6 +109,9 @@
     payload = {status_changed, ?IDENTITY_CHALLENGE_STATUS_COMPLETED}
 }}).
 
+-define(STAT_INVALID_EXCEPTION(Errors), #fistfulstat_InvalidRequest{errors = Errors}).
+-define(STAT_BADTOKEN_EXCEPTION, #fistfulstat_BadToken{reason = ?STRING}).
+
 -define(STAT_RESPONCE(Data), #fistfulstat_StatResponse{data = Data}).
 
 -define(STAT_WALLETS, {wallets, [#fistfulstat_StatWallet{

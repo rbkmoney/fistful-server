@@ -97,11 +97,11 @@ process_result({ok, #fistfulstat_StatResponse{
     continuation_token = ContinuationToken
 }}) ->
     DecodedData = [unmarshal_response(QueryType, S) || S <- Data],
-    Responce = genlib_map:compact(#{
+    Response = genlib_map:compact(#{
         <<"result">> => DecodedData,
         <<"continuationToken">> => ContinuationToken
     }),
-    {ok, Responce};
+    {ok, Response};
 process_result({exception, #fistfulstat_InvalidRequest{errors = Errors}}) ->
     FormattedErrors = format_request_errors(Errors),
     {error, {invalid, FormattedErrors}};

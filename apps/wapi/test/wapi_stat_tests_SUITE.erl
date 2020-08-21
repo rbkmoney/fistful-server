@@ -164,7 +164,6 @@ list_wallets_invalid_error(C) ->
 -spec list_wallets_bad_token_error(config()) ->
     _.
 list_wallets_bad_token_error(C) ->
-
     MockFunc = fun('GetWallets', _) ->
             woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION) end,
     SwagFunc = fun swag_client_wallet_wallets_api:list_wallets/3,
@@ -197,7 +196,6 @@ list_withdrawals_invalid_error(C) ->
 -spec list_withdrawals_bad_token_error(config()) ->
     _.
 list_withdrawals_bad_token_error(C) ->
-
     MockFunc = fun('GetWithdrawals', _) ->
             woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION) end,
     SwagFunc = fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
@@ -230,7 +228,6 @@ list_deposits_invalid_error(C) ->
 -spec list_deposits_bad_token_error(config()) ->
     _.
 list_deposits_bad_token_error(C) ->
-
     MockFunc = fun('GetDeposits', _) ->
             woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION) end,
     SwagFunc = fun swag_client_wallet_deposits_api:list_deposits/3,

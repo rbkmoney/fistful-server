@@ -174,13 +174,8 @@ get(C) ->
     _.
 get_by_external_id(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_another_client_services(
-        bender_client,
-        service_url,
-        {bender_thrift, {bender_thrift, 'Bender'}, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
-        C
-    ),
     wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
         {fistful_wallet, fun('Get', _) -> {ok, ?WALLET(PartyID)} end}
     ], C),
     {ok, _} = call_api(

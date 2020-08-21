@@ -92,7 +92,7 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(destination, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
-        {ok, DestinationID, _CtxData} ->
+        {ok, {DestinationID, _}, _CtxData} ->
             get(DestinationID, HandlerContext);
         {error, internal_id_not_found} ->
             {error, {external_id, {unknown_external_id, ExternalID}}}

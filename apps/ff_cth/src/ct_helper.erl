@@ -187,7 +187,10 @@ start_app(ff_server = AppName) ->
 
 start_app(bender_client = AppName) ->
     {start_app_with(AppName, [
-        {service_url, <<"http://bender:8022/v1/bender">>},
+        {services, #{
+            'Bender' => <<"http://bender:8022/v1/bender">>,
+            'Generator' => <<"http://bender:8022/v1/generator">>
+        }},
         {deadline, 60000}
     ]), #{}};
 

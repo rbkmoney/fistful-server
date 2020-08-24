@@ -41,10 +41,10 @@ get_identity(IdentityID, HandlerContext) ->
     end.
 
 -spec create_identity(params(), handler_context()) -> result(map(),
-    {provider, notfound}       |
-    {identity_class, notfound} |
-    {external_id_conflict, id()}           |
-    inaccessible               |
+    {provider, notfound}         |
+    {identity_class, notfound}   |
+    {external_id_conflict, id()} |
+    inaccessible                 |
     _Unexpected
 ).
 create_identity(Params, HandlerContext) ->

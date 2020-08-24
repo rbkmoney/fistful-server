@@ -64,7 +64,8 @@ get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext
     PartyID = uac_authorizer_jwt:get_subject_id(AuthContext),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(wallet, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
-        {ok, WalletID, _} -> get(WalletID, HandlerContext);
+        {ok, {WalletID, _}, _} ->
+            get(WalletID, HandlerContext);
         {error, internal_id_not_found} ->
             {error, {wallet, notfound}}
     end.

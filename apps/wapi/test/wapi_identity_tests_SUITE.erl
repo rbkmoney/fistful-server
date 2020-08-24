@@ -177,7 +177,7 @@ create_identity_challenge(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun
-            ('Get', _) -> {ok, ?IDENTITY(PartyID)};
+            ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
             ('StartChallenge', _) -> {ok, ?IDENTITY_CHALLENGE(?IDENTITY_CHALLENGE_STATUS_COMPLETED)}
         end},
         {identdoc_storage, fun('Get', _) -> {ok, ?IDENT_DOC} end}
@@ -215,7 +215,7 @@ get_identity_challenge(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun
-            ('Get', _) -> {ok, ?IDENTITY(PartyID)};
+            ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
             ('GetChallenges', _) -> {ok, [?IDENTITY_CHALLENGE(?IDENTITY_CHALLENGE_STATUS_COMPLETED)]}
         end},
         {identdoc_storage, fun('Get', _) -> {ok, ?IDENT_DOC} end}
@@ -237,7 +237,7 @@ list_identity_challenges(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun
-            ('Get', _) -> {ok, ?IDENTITY(PartyID)};
+            ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
             ('GetChallenges', _) -> {ok, [?IDENTITY_CHALLENGE(?IDENTITY_CHALLENGE_STATUS_COMPLETED)]}
         end},
         {identdoc_storage, fun('Get', _) -> {ok, ?IDENT_DOC} end}
@@ -261,7 +261,7 @@ get_identity_challenge_event(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun
-            ('Get', _) -> {ok, ?IDENTITY(PartyID)};
+            ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
             ('GetEvents', _) -> {ok, [?IDENTITY_CHALLENGE_EVENT(?CHALLENGE_STATUS_CHANGE)]}
         end}
     ], C),
@@ -283,7 +283,7 @@ poll_identity_challenge_events(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun
-            ('Get', _) -> {ok, ?IDENTITY(PartyID)};
+            ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
             ('GetEvents', _) -> {ok, [?IDENTITY_CHALLENGE_EVENT(?CHALLENGE_STATUS_CHANGE)]}
         end}
     ], C),

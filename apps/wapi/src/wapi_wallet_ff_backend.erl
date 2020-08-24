@@ -293,13 +293,11 @@ get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     WalletParams = from_swag(wallet_params, Params),
     CreateFun = fun(ID, EntityCtx) ->
-        do(fun() ->
             _ = check_resource(identity, IdenityId, Context),
-            unwrap(ff_wallet_machine:create(
+            ff_wallet_machine:create(
                 WalletParams#{id => ID},
                 add_meta_to_ctx([], Params, EntityCtx)
-            ))
-        end)
+            )
     end,
     do(fun() -> unwrap(create_entity(wallet, Params, CreateFun, Context)) end).
 

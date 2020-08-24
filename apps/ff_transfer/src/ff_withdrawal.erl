@@ -74,6 +74,7 @@
     {destination, notfound | unauthorized} |
     {inconsistent_currency, {Withdrawal :: currency_id(), Wallet :: currency_id(), Destination :: currency_id()}} |
     {terms, ff_party:validate_withdrawal_creation_error()} |
+    {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}} |
     {destination_resource, {bin_data, ff_bin_data:bin_data_error()}}.
 
 -type route() :: ff_withdrawal_routing:route().

@@ -389,6 +389,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {quote, {invalid_body, _}}    |
     {quote, {invalid_destination, _}} |
     {terms, {terms_violation, _}} |
+    {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}} |
     {destination_resource, {bin_data, ff_bin_data:bin_data_error()}} |
     {Resource, {unauthorized, _}}
 ) when Resource :: wallet | destination.
@@ -468,6 +469,7 @@ list_withdrawals(Params, Context) ->
     {destination, notfound}       |
     {destination, unauthorized}   |
     {route, _Reason}              |
+    {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}} |
     {wallet, notfound}
 ).
 create_quote(#{'WithdrawalQuoteParams' := Params}, Context) ->

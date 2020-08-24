@@ -376,7 +376,9 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             );
         {error, {identity_providers_mismatch, _}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Withdrawal wallet identity provider differs from destination`s one">>)
+                wapi_handler_utils:get_error_msg(
+                    <<"Withdrawal wallet identity provider differs from destination`s one">>
+                )
             )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
@@ -448,7 +450,9 @@ process_request('CreateQuote', Params, Context, _Opts) ->
             );
         {error, {identity_providers_mismatch, _}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Withdrawal wallet identity provider differs from destination`s one">>)
+                wapi_handler_utils:get_error_msg(
+                    <<"Withdrawal wallet identity provider differs from destination`s one">>
+                )
             )
     end;
 

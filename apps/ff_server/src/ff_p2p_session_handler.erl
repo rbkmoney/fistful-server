@@ -37,9 +37,8 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
 handle_function_('GetContext', [ID], _Opts) ->
     case p2p_session_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
-            Ctx = p2p_session_machine:ctx(Machine),
-            Response = ff_p2p_session_codec:marshal(ctx, Ctx),
-            {ok, Response};
+            Context = p2p_session_machine:ctx(Machine),
+            {ok, ff_codec:marshal(context, Context)};
         {error, {unknown_p2p_session, _Ref}} ->
             woody_error:raise(business, #fistful_P2PSessionNotFound{})
     end.

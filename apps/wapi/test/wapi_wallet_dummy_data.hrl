@@ -27,7 +27,12 @@
     }
 }).
 
--define(GET_INTERNAL_ID_RESULT, {'bender_GetInternalIDResult', ?STRING, {obj, #{{str, <<"context_data">>} => {str, ?STRING}}}}).
+-define(GET_INTERNAL_ID_RESULT, {
+    'bender_GetInternalIDResult',
+    ?STRING,
+    {obj, #{{str, <<"context_data">>} => {str, ?STRING}}},
+    undefined
+}).
 
 -define(BLOCKING, unblocked).
 

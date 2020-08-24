@@ -57,7 +57,8 @@ create(WalletID, Params, Context, HandlerContext) ->
 -spec get_by_external_id(external_id(), handler_context()) ->
     {ok, response_data()} |
     {error, {wallet, notfound}} |
-    {error, {wallet, unauthorized}}.
+    {error, {wallet, unauthorized}} |
+    {error, {external_id, {unknown_external_id, external_id()}}}.
 
 get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext) ->
     AuthContext = wapi_handler_utils:get_auth_context(HandlerContext),
@@ -67,7 +68,7 @@ get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext
         {ok, {WalletID, _}, _} ->
             get(WalletID, HandlerContext);
         {error, internal_id_not_found} ->
-            {error, {wallet, notfound}}
+            {error, {external_id, {unknown_external_id, ExternalID}}}
     end.
 
 -spec get(id(), handler_context()) ->

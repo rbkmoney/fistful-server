@@ -156,11 +156,11 @@ stop_mocked_service_sup(SupPid) ->
 mock_services(Services, SupOrConfig) ->
     maps:map(fun start_woody_client/2, mock_services_(Services, SupOrConfig)).
 
-start_woody_client(bender_thrift, Url) ->
+start_woody_client(bender_thrift, Urls) ->
     ok = application:set_env(
         bender_client,
-        service_url,
-        Url
+        services,
+        Urls
     ),
     start_app(bender_client, []);
 start_woody_client(wapi, Urls) ->
@@ -199,7 +199,7 @@ mock_services_(Services, SupPid) when is_pid(SupPid) ->
             ServiceName = get_service_name(Service),
             case ServiceName of
                 bender_thrift ->
-                    Acc#{ServiceName => make_url(ServiceName, Port)};
+                    Acc#{ServiceName => #{'Bender' => make_url(ServiceName, Port)}};
                 _ ->
                     WapiWoodyClient = maps:get(wapi, Acc, #{}),
                     Acc#{wapi => WapiWoodyClient#{ServiceName => make_url(ServiceName, Port)}}

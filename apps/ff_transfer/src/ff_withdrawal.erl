@@ -1262,9 +1262,9 @@ validate_withdrawal_creation(Terms, Body, Wallet, Destination) ->
 validate_withdrawal_providers(Wallet, Destination) ->
     WalletIdentity = get_wallet_identity(Wallet),
     DestinationIdentity = get_destination_identity(Destination),
-    WalletProvider = maps:get(provider, WalletIdentity),
-    DestinationProvider = maps:get(provider, DestinationIdentity),
-    case WalletProvider == DestinationProvider of
+    WalletProvider = ff_identity:provider(WalletIdentity),
+    DestinationProvider = ff_identity:provider(DestinationIdentity),
+    case WalletProvider =:= DestinationProvider of
         true  -> {ok, valid};
         false -> {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}}
     end.

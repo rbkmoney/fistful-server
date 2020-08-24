@@ -370,7 +370,7 @@ identity_providers_mismatch_test(C) ->
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
     await_destination(DestID),
 
-    {error, {422, #{<<"message">> := <<"Withrawal participants providers mismatch">>}}} = call_api(
+    {error, {422, #{<<"message">> := <<"Withdrawal participants identity providers mismatch">>}}} = call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
         #{body => genlib_map:compact(#{
             <<"wallet">> => WalletID,

@@ -1265,7 +1265,7 @@ validate_withdrawal_providers(Wallet, Destination) ->
     DestinationProvider = maps:get(provider, DestinationIdentity),
     case WalletProvider == DestinationProvider of
         true  -> {ok, valid};
-        false -> {error, {provider_mismatch, {WalletProvider, DestinationProvider}}}
+        false -> {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}}
     end.
 
 -spec validate_withdrawal_creation_terms(terms(), body()) ->

@@ -374,9 +374,9 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Unknown card issuer residence">>)
             );
-        {error, {provider_mismatch, _}} ->
+        {error, {identity_providers_mismatch, _}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Withrawal participants providers mismatch">>)
+                wapi_handler_utils:get_error_msg(<<"Withdrawal participants identity providers mismatch">>)
             )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
@@ -446,9 +446,9 @@ process_request('CreateQuote', Params, Context, _Opts) ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Wallet not found">>)
             );
-        {error, {provider_mismatch, _}} ->
+        {error, {identity_providers_mismatch, _}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Withrawal participants providers mismatch">>)
+                wapi_handler_utils:get_error_msg(<<"Withdrawal participants identity providers mismatch">>)
             )
     end;
 

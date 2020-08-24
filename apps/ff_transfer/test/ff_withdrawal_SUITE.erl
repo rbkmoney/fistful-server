@@ -24,7 +24,7 @@
 -export([limit_check_fail_test/1]).
 -export([create_cashlimit_validation_error_test/1]).
 -export([create_wallet_currency_validation_error_test/1]).
--export([create_provider_mismatch_error_test/1]).
+-export([create_identity_providers_mismatch_error_test/1]).
 -export([create_destination_currency_validation_error_test/1]).
 -export([create_currency_validation_error_test/1]).
 -export([create_destination_resource_notfound_test/1]).
@@ -79,7 +79,7 @@ groups() ->
             create_wallet_currency_validation_error_test,
             create_destination_currency_validation_error_test,
             create_currency_validation_error_test,
-            create_provider_mismatch_error_test,
+            create_identity_providers_mismatch_error_test,
             create_destination_resource_notfound_test,
             create_destination_notfound_test,
             create_wallet_notfound_test,
@@ -343,9 +343,9 @@ create_currency_validation_error_test(C) ->
     },
     ?assertMatch({error, {terms, {terms_violation, {not_allowed_currency, Details}}}}, Result).
 
--spec create_provider_mismatch_error_test(config()) -> test_return().
+-spec create_identity_providers_mismatch_error_test(config()) -> test_return().
 
-create_provider_mismatch_error_test(C) ->
+create_identity_providers_mismatch_error_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
         destination_id := DestinationID
@@ -361,7 +361,7 @@ create_provider_mismatch_error_test(C) ->
         body => {100, <<"RUB">>}
     },
     Result = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-    ?assertMatch({error, {provider_mismatch, {<<"good-two">>, <<"good-one">>}}}, Result).
+    ?assertMatch({error, {identity_providers_mismatch, {<<"good-two">>, <<"good-one">>}}}, Result).
 
 -spec create_destination_resource_notfound_test(config()) -> test_return().
 create_destination_resource_notfound_test(C) ->

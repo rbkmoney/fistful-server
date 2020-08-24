@@ -211,7 +211,7 @@ do_destination_lifecycle(ResourceType, C) ->
     Context = generate_context(PartyID),
     Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
     wapi_ct_helper:mock_services([
-        {fistful_identity, fun('Get', _) -> {ok, Identity} end},
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
         {fistful_destination,
             fun
                 ('Create', _) -> {ok, Destination};

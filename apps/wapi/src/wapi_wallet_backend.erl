@@ -4,9 +4,12 @@
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
 -type id() :: binary().
+-type external_id() :: binary().
 
 -export([create/2]).
 -export([get/2]).
+-export([get_by_external_id/2]).
+-export([get_account/2]).
 
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
@@ -32,7 +35,9 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
                     Error
             end;
         {error, unauthorized} ->
-            {error, {identity, unauthorized}}
+            {error, {identity, unauthorized}};
+        {error, notfound} ->
+            {error, {identity, notfound}}
     end.
 
 create(WalletID, Params, Context, HandlerContext) ->
@@ -47,6 +52,23 @@ create(WalletID, Params, Context, HandlerContext) ->
             {error, inaccessible};
         {exception, Details} ->
             {error, Details}
+    end.
+
+-spec get_by_external_id(external_id(), handler_context()) ->
+    {ok, response_data()} |
+    {error, {wallet, notfound}} |
+    {error, {wallet, unauthorized}} |
+    {error, {external_id, {unknown_external_id, external_id()}}}.
+
+get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext) ->
+    AuthContext = wapi_handler_utils:get_auth_context(HandlerContext),
+    PartyID = uac_authorizer_jwt:get_subject_id(AuthContext),
+    IdempotentKey = wapi_backend_utils:get_idempotent_key(wallet, PartyID, ExternalID),
+    case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
+        {ok, {WalletID, _}, _} ->
+            get(WalletID, HandlerContext);
+        {error, internal_id_not_found} ->
+            {error, {external_id, {unknown_external_id, ExternalID}}}
     end.
 
 -spec get(id(), handler_context()) ->
@@ -65,6 +87,27 @@ get(WalletID, HandlerContext) ->
                     {error, {wallet, unauthorized}}
             end;
         {exception, #fistful_WalletNotFound{}} ->
+            {error, {wallet, notfound}}
+    end.
+
+-spec get_account(id(), handler_context()) ->
+    {ok, response_data()} |
+    {error, {wallet, notfound}} |
+    {error, {wallet, unauthorized}}.
+
+get_account(WalletID, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext) of
+        ok ->
+            Request = {fistful_wallet, 'GetAccountBalance', [WalletID]},
+            case service_call(Request, HandlerContext) of
+                {ok, AccountBalanceThrift} ->
+                    {ok, unmarshal(wallet_account_balance, AccountBalanceThrift)};
+                {exception, #fistful_WalletNotFound{}} ->
+                    {error, {wallet, notfound}}
+            end;
+        {error, unauthorized} ->
+            {error, {wallet, unauthorized}};
+        {error, notfound} ->
             {error, {wallet, notfound}}
     end.
 
@@ -103,6 +146,8 @@ marshal(context, Ctx) ->
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
+%%
+
 unmarshal(wallet, #wlt_WalletState{
     id = WalletID,
     name = Name,
@@ -132,6 +177,24 @@ unmarshal(blocking, unblocked) ->
     false;
 unmarshal(blocking, blocked) ->
     true;
+
+
+unmarshal(wallet_account_balance, #account_AccountBalance{
+    current = OwnAmount,
+    expected_min = AvailableAmount,
+    currency = Currency
+}) ->
+    EncodedCurrency = unmarshal(currency_ref, Currency),
+    #{
+        <<"own">> => #{
+            <<"amount">>   => OwnAmount,
+            <<"currency">> => EncodedCurrency
+        },
+        <<"available">> => #{
+            <<"amount">>   => AvailableAmount,
+            <<"currency">> => EncodedCurrency
+        }
+    };
 
 unmarshal(context, Ctx) ->
     ff_codec:unmarshal(context, Ctx);

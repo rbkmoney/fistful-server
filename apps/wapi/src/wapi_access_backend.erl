@@ -3,12 +3,13 @@
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+d-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 -export([check_resource/3]).
 -export([check_resource_by_id/3]).
 
 -type id() :: binary().
--type resource_type() :: identity | wallet | destination.
+-type resource_type() :: identity | wallet | destination | withdrawal.
 -type handler_context() :: wapi_handler:context().
 -type data() ::
     ff_proto_identity_thrift:'IdentityState'() |

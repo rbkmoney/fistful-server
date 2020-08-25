@@ -129,7 +129,7 @@ check_withdrawal_params(Params, HandlerContext) ->
 authorize_withdrawal(Params, HandlerContext) ->
     case authorize_resource(wallet, Params, HandlerContext) of
         ok ->
-            case authorize_resource(withdrawal, Params, HandlerContext) of
+            case authorize_resource(destination, Params, HandlerContext) of
                 ok ->
                     ok;
                 {error, _} = Error ->
@@ -155,9 +155,9 @@ authorize_resource_by_bearer(Resource, ResourceID, HandlerContext) ->
             {error, {Resource, unauthorized}}
     end.
 
-authorize_resource_by_grant(R = withdrawal, #{
-    <<"withdrawal">>      := ID,
-    <<"withdrawalGrant">> := Grant
+authorize_resource_by_grant(R = destination, #{
+    <<"destination">>      := ID,
+    <<"destinationGrant">> := Grant
 }) ->
     authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), undefined);
 authorize_resource_by_grant(R = wallet, #{
@@ -173,9 +173,9 @@ authorize_resource_by_grant(Resource, Grant, Access, Params) ->
     case uac_authorizer_jwt:verify(Grant, #{}) of
         {ok, {_, _, Claims}} ->
             case verify_access(Access, Claims) of
-                {ok, _} ->
+                ok ->
                     case verify_claims(Resource, Claims, Params) of
-                        {ok, _} ->
+                        ok ->
                             ok;
                         {error, Error} ->
                             {error, {Resource, Error}}
@@ -229,9 +229,12 @@ maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
         ok ->
             case valid(WalletID, maps:get(<<"wallet">>, Params)) of
                 ok ->
-                    case check_quote_withdrawal(DestinationID,maps:get(<<"withdrawal">>, Params)) of
+                    case check_quote_withdrawal(DestinationID, maps:get(<<"withdrawal">>, Params)) of
                         ok ->
-                            case check_quote_body(maps:get(cash_from, Quote), marshal_quote_body(maps:get(<<"body">>, Params))) of
+                            case check_quote_body(
+                                maps:get(cash_from, Quote),
+                                marshal_quote_body(maps:get(<<"body">>, Params))
+                            ) of
                                 ok ->
                                     {ok, Quote};
                                 {error, _} = Error ->
@@ -310,27 +313,64 @@ marshal_body(Body) ->
     }.
 
 unmarshal(withdrawal, #wthd_WithdrawalState{
-    id = WithdrawalID,
+    id = ID,
+    wallet_id = WalletID,
+    destination_id = DestinationID,
+    body = Body,
     external_id = ExternalID,
-    created_at = CreatedAt,
     status = Status,
-    context = Context
+    created_at = CreatedAt,
+    metadata = Metadata
 }) ->
-    UnmarshaledContext = unmarshal(context, Context),
+    UnmarshaledMetadata = maybe_unmarshal(context, Metadata),
     genlib_map:compact(#{
-        <<"id">> => unmarshal(id, WithdrawalID),
-        <<"status">> => unmarshal(status, Status),
+        <<"id">> => ID,
+        <<"wallet">> => WalletID,
+        <<"destination">> => DestinationID,
+        <<"body">> => unmarshal_body(Body),
+        <<"status">> => unmarshal_status(Status),
         <<"createdAt">> => CreatedAt,
-        <<"externalID">> => maybe_unmarshal(id, ExternalID),
-        <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, UnmarshaledContext)
+        <<"externalID">> => ExternalID,
+        <<"metadata">> => UnmarshaledMetadata
     });
 
-unmarshal(blocking, unblocked) ->
-    false;
-unmarshal(blocking, blocked) ->
-    true.
+unmarshal(T, V) ->
+    ff_codec:unmarshal(T, V).
 
 maybe_unmarshal(_, undefined) ->
     undefined;
 maybe_unmarshal(T, V) ->
     unmarshal(T, V).
+
+unmarshal_body(#'Cash'{
+    amount   = Amount,
+    currency = #'CurrencyRef'{
+        symbolic_code = Currency
+    }
+}) ->
+    #{
+        <<"amount">> => Amount,
+        <<"currency">> => Currency
+    }.
+
+unmarshal_status({pending, _}) ->
+    #{<<"status">> => <<"Pending">>};
+unmarshal_status({succeeded, _}) ->
+    #{<<"status">> => <<"Succeeded">>};
+unmarshal_status({failed, #wthd_status_Failed{failure = #'Failure'{code = Code, sub = Sub}}}) ->
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => genlib_map:compact(#{
+            <<"code">> => Code,
+            <<"subError">> => unmarshal_subfailure(Sub)
+        })
+    }.
+
+unmarshal_subfailure(undefined) ->
+    undefined;
+
+unmarshal_subfailure(#'SubFailure'{code = Code, sub = Sub}) ->
+    genlib_map:compact(#{
+        <<"code">> => Code,
+        <<"subError">> => unmarshal_subfailure(Sub)
+    }).

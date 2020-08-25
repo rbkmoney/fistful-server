@@ -5,6 +5,8 @@
 -export([list_wallets/2]).
 -export([list_withdrawals/2]).
 -export([list_deposits/2]).
+-export([list_destinations/2]).
+-export([list_identities/2]).
 
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
@@ -41,6 +43,28 @@ list_deposits(Params, Context) ->
     Dsl = create_dsl(deposits, Params, Context),
     Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
     Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', [Req]}, Context),
+    process_result(Result).
+
+-spec list_destinations(req_data(), handler_context()) ->
+    {ok, response_data()} | {error, StatError}
+    when StatError ::
+        {invalid | bad_token, binary()}.
+
+list_destinations(Params, Context) ->
+    Dsl = create_dsl(destinations, Params, Context),
+    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDestinations', [Req]}, Context),
+    process_result(Result).
+
+-spec list_identities(req_data(), handler_context()) ->
+    {ok, response_data()} | {error, StatError}
+    when StatError ::
+        {invalid | bad_token, binary()}.
+
+list_identities(Params, Context) ->
+    Dsl = create_dsl(identities, Params, Context),
+    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetIdentites', [Req]}, Context),
     process_result(Result).
 
 create_dsl(StatTag, Req, Context) ->
@@ -84,6 +108,17 @@ create_query(wallets, Req, Context) ->
         <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
         <<"identity_id"     >> => genlib_map:get(identityID, Req),
         <<"currency_code"   >> => genlib_map:get(currencyID, Req)
+    };
+create_query(destinations, Req, _Context) ->
+    #{
+        <<"identity_id"     >> => genlib_map:get(identityID, Req),
+        <<"currency_code"   >> => genlib_map:get(currencyID, Req)
+    };
+create_query(identities, Req, _Context) ->
+    #{
+        <<"provider_id"     >> => genlib_map:get(providerID, Req),
+        <<"class"           >> => genlib_map:get(class, Req),
+        <<"level"           >> => genlib_map:get(level, Req)
     }.
 
 create_request(Dsl, Token) ->
@@ -125,7 +160,9 @@ format_request_errors(Errors) -> genlib_string:join(<<"\n">>, Errors).
 -spec unmarshal_response
     (withdrawals, ff_proto_fistful_stat_thrift:'StatWithdrawal'()) -> map();
     (deposits, ff_proto_fistful_stat_thrift:'StatDeposit'()) -> map();
-    (wallets, ff_proto_fistful_stat_thrift:'StatWallet'()) -> map().
+    (wallets, ff_proto_fistful_stat_thrift:'StatWallet'()) -> map();
+    (destinations, ff_proto_fistful_stat_thrift:'StatDestination'()) -> map();
+    (identities, ff_proto_fistful_stat_thrift:'StatIdentity'()) -> map().
 
 unmarshal_response(withdrawals, Response) ->
     merge_and_compact(#{
@@ -165,7 +202,38 @@ unmarshal_response(wallets, Response) ->
         <<"identity"    >> => Response#fistfulstat_StatWallet.identity_id,
         <<"createdAt"   >> => Response#fistfulstat_StatWallet.created_at,
         <<"currency"    >> => Response#fistfulstat_StatWallet.currency_symbolic_code
+    });
+unmarshal_response(destinations, Response) ->
+    genlib_map:merge_and_compact(
+        #{
+            <<"id">> => Response#fistfulstat_StatDestination.id,
+            <<"name">> => Response#fistfulstat_StatDestination.name,
+            <<"createdAt">> => Response#fistfulstat_StatDestination.created_at,
+            <<"isBlocked">> => Response#fistfulstat_StatDestination.is_blocked,
+            <<"identity">> => Response#fistfulstat_StatDestination.identity,
+            <<"currency">> => Response#fistfulstat_StatDestination.currency_symbolic_code,
+            <<"resource">> => Response#fistfulstat_StatDestination.resource,
+            <<"externalID">> => Response#fistfulstat_StatDestination.external_id
+        },
+        unmarshal_destination_stat_status(Response#fistfulstat_StatDestination.status)
+    );
+unmarshal_response(identities, Response) ->
+    genlib_map:compact(#{
+        <<"id">> => Response#fistfulstat_StatIdentity.id,
+        <<"name">> => Response#fistfulstat_StatIdentity.name,
+        <<"createdAt">> => Response#fistfulstat_StatIdentity.created_at,
+        <<"provider">> => Response#fistfulstat_StatIdentity.provider,
+        <<"class">> => Response#fistfulstat_StatIdentity.identity_class,
+        <<"level">> => Response#fistfulstat_StatIdentity.identity_level,
+        <<"effectiveChallenge">> => Response#fistfulstat_StatIdentity.effective_challenge,
+        <<"isBlocked">> => Response#fistfulstat_StatIdentity.is_blocked,
+        <<"externalID">> => Response#fistfulstat_StatIdentity.external_id
     }).
+
+unmarshal_destination_stat_status({unauthorized, _}) ->
+    #{<<"status">> => <<"Unauthorized">>};
+unmarshal_destination_stat_status({authorized, _}) ->
+    #{<<"status">> => <<"Authorized">>}.
 
 unmarshal_cash(Amount, Currency) ->
     #{<<"amount">> => Amount, <<"currency">> => Currency}.

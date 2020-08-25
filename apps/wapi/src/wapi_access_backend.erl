@@ -3,7 +3,7 @@
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
-d-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 -export([check_resource/3]).
 -export([check_resource_by_id/3]).
@@ -65,6 +65,14 @@ get_context_by_id(destination, DestinationID, WoodyCtx) ->
             Context;
         {exception, #fistful_DestinationNotFound{}} ->
             {error, notfound}
+    end;
+get_context_by_id(withdrawal, WithdrawalID, WoodyCtx) ->
+    Request = {fistful_withdrawal, 'GetContext', [WithdrawalID]},
+    case wapi_handler_utils:service_call(Request, WoodyCtx) of
+        {ok, Context} ->
+            Context;
+        {exception, #fistful_WithdrawalNotFound{}} ->
+            {error, notfound}
     end.
 
 get_context_from_state(identity, #idnt_IdentityState{context = Context} ) ->
@@ -72,6 +80,8 @@ get_context_from_state(identity, #idnt_IdentityState{context = Context} ) ->
 get_context_from_state(wallet, #wlt_WalletState{context = Context}) ->
     Context;
 get_context_from_state(destination, #dst_DestinationState{context = Context}) ->
+    Context;
+get_context_from_state(withdrawal, #wthd_WithdrawalState{context = Context}) ->
     Context.
 
 get_owner(ContextThrift) ->

@@ -323,16 +323,15 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
     metadata = Metadata
 }) ->
     UnmarshaledMetadata = maybe_unmarshal(context, Metadata),
-    genlib_map:compact(#{
+    genlib_map:compact(maps:merge(#{
         <<"id">> => ID,
         <<"wallet">> => WalletID,
         <<"destination">> => DestinationID,
         <<"body">> => unmarshal_body(Body),
-        <<"status">> => unmarshal_status(Status),
         <<"createdAt">> => CreatedAt,
         <<"externalID">> => ExternalID,
         <<"metadata">> => UnmarshaledMetadata
-    });
+    }, unmarshal_status(Status)));
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

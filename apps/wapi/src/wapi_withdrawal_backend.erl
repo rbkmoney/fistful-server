@@ -39,7 +39,7 @@
 
 create(Params, HandlerContext) ->
     case check_withdrawal_params(Params, HandlerContext) of
-        {ok, ID, Quote} ->
+        {ok, {ID, Quote}} ->
             Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
             WithdrawalContext = marshal(context, Context),
             WithdrawalParams = marshal(withdrawal_params, Params#{
@@ -111,22 +111,12 @@ service_call(Params, Context) ->
 %% Validators
 
 check_withdrawal_params(Params, HandlerContext) ->
-    case authorize_withdrawal(Params, HandlerContext) of
-        ok ->
-            case maybe_check_quote_token(Params, HandlerContext) of
-                {ok, Quote} ->
-                    case wapi_backend_utils:gen_id(withdrawal, Params, HandlerContext) of
-                        {ok, ID} ->
-                            {ok, ID, Quote};
-                        {error, {external_id_conflict, _}} = Error ->
-                            Error
-                    end;
-                {error, _} = Error ->
-                    Error
-            end;
-        {error, _} = Error ->
-            Error
-    end.
+    do(fun() ->
+        unwrap(authorize_withdrawal(Params, HandlerContext)),
+        Quote = unwrap(maybe_check_quote_token(Params, HandlerContext)),
+        ID = unwrap(wapi_backend_utils:gen_id(withdrawal, Params, HandlerContext)),
+        {ID, Quote}
+    end).
 
 authorize_withdrawal(Params, HandlerContext) ->
     case authorize_resource(wallet, Params, HandlerContext) of

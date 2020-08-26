@@ -114,6 +114,30 @@
     context     = ?DEFAULT_CONTEXT(PartyID)
 }).
 
+-define(P2PTEMPLATE(PartyID), #p2p_template_P2PTemplateState{
+    id = ?STRING,
+    identity_id = ?STRING,
+    created_at = ?TIMESTAMP,
+    domain_revision = 1,
+    party_revision = 1,
+    template_details = #p2p_template_P2PTemplateDetails{
+        body = #p2p_template_P2PTemplateBody{
+            value = #p2p_template_Cash{
+                amount = ?INTEGER,
+                currency = #'CurrencyRef'{
+                    symbolic_code = ?RUB
+                }
+            }
+        },
+        metadata = #p2p_template_P2PTemplateMetadata{
+            value = ?DEFAULT_METADATA()
+        }
+    },
+    blocking = ?BLOCKING,
+    external_id = ?STRING,
+    context = ?DEFAULT_CONTEXT(PartyID)
+}).
+
 -define(IDENTITY(PartyID), #idnt_IdentityState{
     id = ?STRING,
     party_id = ?STRING,

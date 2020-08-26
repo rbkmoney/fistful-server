@@ -370,8 +370,7 @@ identity_providers_mismatch_test(C) ->
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
     await_destination(DestID),
 
-    Message = <<"Withdrawal wallet identity provider differs from destination`s one">>,
-    {error, {422, #{<<"message">> := Message}}} = call_api(
+    {error, {422, #{<<"message">> := <<"This wallet and destination cannot be used together">>}}} = call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
         #{body => genlib_map:compact(#{
             <<"wallet">> => WalletID,

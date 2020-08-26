@@ -373,6 +373,10 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {destination_resource, {bin_data, {unknown_residence, _Residence}}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Unknown card issuer residence">>)
+            );
+        {error, {identity_providers_mismatch, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"This wallet and destination cannot be used together">>)
             )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
@@ -441,6 +445,12 @@ process_request('CreateQuote', Params, Context, _Opts) ->
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Wallet not found">>)
+            );
+        {error, {identity_providers_mismatch, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(
+                    <<"This wallet and destination cannot be used together">>
+                )
             )
     end;
 

@@ -293,11 +293,11 @@ get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     WalletParams = from_swag(wallet_params, Params),
     CreateFun = fun(ID, EntityCtx) ->
-        _ = check_resource(identity, IdenityId, Context),
-        ff_wallet_machine:create(
-            WalletParams#{id => ID},
-            add_meta_to_ctx([], Params, EntityCtx)
-        )
+            _ = check_resource(identity, IdenityId, Context),
+            ff_wallet_machine:create(
+                WalletParams#{id => ID},
+                add_meta_to_ctx([], Params, EntityCtx)
+            )
     end,
     do(fun() -> unwrap(create_entity(wallet, Params, CreateFun, Context)) end).
 
@@ -365,13 +365,15 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
 ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
-        _ = check_resource(identity, IdenityId, Context),
-        DestinationParams = from_swag(destination_params, Params),
-        Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
-        ff_destination:create(
-            DestinationParams#{id => ID, resource => Resource},
-            add_meta_to_ctx([], Params, EntityCtx)
-        )
+        do(fun() ->
+            _ = check_resource(identity, IdenityId, Context),
+            DestinationParams = from_swag(destination_params, Params),
+            Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
+            unwrap(ff_destination:create(
+                DestinationParams#{id => ID, resource => Resource},
+                add_meta_to_ctx([], Params, EntityCtx)
+            ))
+        end)
     end,
     do(fun() -> unwrap(create_entity(destination, Params, CreateFun, Context)) end).
 
@@ -395,13 +397,15 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
 ) when Resource :: wallet | destination.
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
-        _ = authorize_withdrawal(Params, Context),
-        Quote = unwrap(maybe_check_quote_token(Params, Context)),
-        WithdrawalParams = from_swag(withdrawal_params, Params),
-        ff_withdrawal_machine:create(
-            genlib_map:compact(WithdrawalParams#{id => ID, quote => Quote}),
-            add_meta_to_ctx([], Params, EntityCtx)
-        )
+        do(fun() ->
+            _ = authorize_withdrawal(Params, Context),
+            Quote = unwrap(maybe_check_quote_token(Params, Context)),
+            WithdrawalParams = from_swag(withdrawal_params, Params),
+            unwrap(ff_withdrawal_machine:create(
+                genlib_map:compact(WithdrawalParams#{id => ID, quote => Quote}),
+                add_meta_to_ctx([], Params, EntityCtx)
+            ))
+        end)
     end,
     do(fun() -> unwrap(create_entity(withdrawal, Params, CreateFun, Context)) end).
 
@@ -747,14 +751,14 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                     contact_info => maps:get(contact_info, ParsedParams)
                 }},
                 RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
-                p2p_transfer_machine:create(
+                unwrap(p2p_transfer_machine:create(
                     genlib_map:compact(ParsedParams#{
                         id => ID,
                         sender => RawSenderResource,
                         receiver => RawReceiverResource
                     }),
                     add_meta_to_ctx([], Params, EntityCtx)
-                )
+                ))
             end)
         end,
     do(fun () -> unwrap(create_entity(p2p_transfer, Params, CreateFun, Context)) end).
@@ -809,12 +813,12 @@ create_p2p_template(Params = #{<<"identityID">> := IdentityId}, Context) ->
             do(fun() ->
                 _ = check_resource(identity, IdentityId, Context),
                 ParsedParams = from_swag(p2p_template_create_params, Params),
-                p2p_template_machine:create(
+                unwrap(p2p_template_machine:create(
                     genlib_map:compact(ParsedParams#{
                         id => ID
                     }),
                     add_meta_to_ctx([], Params, EntityCtx)
-                )
+                ))
             end)
         end,
     do(fun () -> unwrap(create_entity(p2p_template, Params, CreateFun, Context)) end).
@@ -953,13 +957,11 @@ create_w2w_transfer(Params = #{<<"sender">> := WalletFromID}, Context) ->
     _ = check_resource(wallet, WalletFromID, Context),
     CreateFun =
         fun(ID, EntityCtx) ->
-            do(fun() ->
-                ParsedParams = from_swag(create_w2w_params, Params),
-                w2w_transfer_machine:create(
-                    genlib_map:compact(ParsedParams#{id => ID}),
-                    EntityCtx
-                )
-            end)
+            ParsedParams = from_swag(create_w2w_params, Params),
+            w2w_transfer_machine:create(
+                genlib_map:compact(ParsedParams#{id => ID}),
+                EntityCtx
+            )
         end,
     do(fun () -> unwrap(create_entity(w2w_transfer, Params, CreateFun, Context)) end).
 

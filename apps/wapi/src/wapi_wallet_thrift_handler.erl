@@ -270,6 +270,25 @@ process_request('ListDeposits', Params, Context, _Opts) ->
             })
     end;
 
+%% P2P Templates
+process_request('CreateP2PTransferTemplate', #{'P2PTransferTemplateParameters' := Params}, Context, Opts) ->
+    case wapi_p2p_template_backend:create(Params, Context) of
+        {ok, P2PTemplate  = #{<<"id">> := TemplateID} } ->
+            wapi_handler_utils:reply_ok(201, P2PTemplate, get_location('GetP2PTransferTemplateByID', [TemplateID], Opts));
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {currency, notfound}} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
+        {error, invalid_operation_amount} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Invalid operation amount">>));
+        {error, inaccessible} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
+        {error, {external_id_conflict, {ID, ExternalID}}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID})
+    end;
+
 process_request(OperationID, Params, Context, Opts) ->
     wapi_wallet_handler:process_request(OperationID, Params, Context, Opts).
 

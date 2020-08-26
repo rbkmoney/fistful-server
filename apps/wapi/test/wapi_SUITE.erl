@@ -29,6 +29,7 @@
 -export([get_wallet_by_external_id/1]).
 -export([check_withdrawal_limit_test/1]).
 -export([check_withdrawal_limit_exceeded_test/1]).
+-export([identity_providers_mismatch_test/1]).
 
 -export([consume_eventsinks/1]).
 
@@ -70,7 +71,8 @@ groups() ->
         {errors, [], [
             not_allowed_currency_test,
             check_withdrawal_limit_test,
-            check_withdrawal_limit_exceeded_test
+            check_withdrawal_limit_exceeded_test,
+            identity_providers_mismatch_test
         ]},
         {eventsink, [], [
             consume_eventsinks
@@ -345,6 +347,42 @@ check_withdrawal_limit_exceeded_test(C) ->
             <<"subError">> := #{<<"code">> := <<"amount">>}
         }
     }}, get_withdrawal(WithdrawalID, C)).
+
+-spec identity_providers_mismatch_test(config()) -> test_return().
+
+identity_providers_mismatch_test(C) ->
+    Name                  = <<"Tony Dacota">>,
+    WalletProvider        = ?ID_PROVIDER,
+    Class                 = ?ID_CLASS,
+    WalletIdentityID      = create_identity(Name, WalletProvider, Class, C),
+    ok                    = check_identity(Name, WalletIdentityID, WalletProvider, Class, C),
+    WalletID              = create_wallet(WalletIdentityID, C),
+    ok                    = check_wallet(WalletID, C),
+    CardToken             = store_bank_card(C),
+    {ok, _Card}           = get_bank_card(CardToken, C),
+    Resource              = make_bank_card_resource(CardToken),
+    DestinationProvider   = ?ID_PROVIDER2,
+    DestinationIdentityID = create_identity(Name, DestinationProvider, Class, C),
+    {ok, Dest}            = create_destination(DestinationIdentityID, Resource, C),
+    DestID                = destination_id(Dest),
+    ok                    = check_destination(DestinationIdentityID, DestID, Resource, C),
+    {ok, _Grants}         = issue_destination_grants(DestID, C),
+    % ожидаем выполнения асинхронного вызова выдачи прав на вывод
+    await_destination(DestID),
+
+    {error, {422, #{<<"message">> := <<"This wallet and destination cannot be used together">>}}} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+        #{body => genlib_map:compact(#{
+            <<"wallet">> => WalletID,
+            <<"destination">> => DestID,
+            <<"body">> => #{
+                <<"amount">> => 100000,
+                <<"currency">> => <<"RUB">>
+            },
+            <<"quoteToken">> => undefined
+        })},
+        cfg(context, C)
+    ).
 
 -spec unknown_withdrawal_test(config()) -> test_return().
 

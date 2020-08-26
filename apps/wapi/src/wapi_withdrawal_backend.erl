@@ -16,6 +16,8 @@
 
 %% Pipeline
 
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+
 -spec create(req_data(), handler_context()) ->
     {ok, response_data()} | {error, WithdrawalError}
     when WithdrawalError ::
@@ -170,22 +172,11 @@ authorize_resource_by_grant(_, _) ->
     {error, missing}.
 
 authorize_resource_by_grant(Resource, Grant, Access, Params) ->
-    case uac_authorizer_jwt:verify(Grant, #{}) of
-        {ok, {_, _, Claims}} ->
-            case verify_access(Access, Claims) of
-                ok ->
-                    case verify_claims(Resource, Claims, Params) of
-                        ok ->
-                            ok;
-                        {error, Error} ->
-                            {error, {Resource, Error}}
-                    end;
-                {error, Error} ->
-                    {error, {Resource, Error}}
-            end;
-        {error, Error} ->
-            {error, {Resource, Error}}
-    end.
+    do(fun() ->
+        {_, _, Claims} = unwrap(Resource, uac_authorizer_jwt:verify(Grant, #{})),
+        unwrap(Resource, verify_access(Access, Claims)),
+        unwrap(Resource, verify_claims(Resource, Claims, Params))
+    end).
 
 get_resource_accesses(Resource, ID, Permission) ->
     [{get_resource_accesses(Resource, ID), Permission}].
@@ -222,33 +213,14 @@ verify_claims(_, _, _) ->
     {error, {unauthorized, {grant, insufficient_claims}}}.
 
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
-    {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
-    {ok, Quote, WalletID, DestinationID, PartyID} = wapi_withdrawal_quote:decode_token_payload(Data),
-
-    case valid(PartyID, wapi_handler_utils:get_owner(Context)) of
-        ok ->
-            case valid(WalletID, maps:get(<<"wallet">>, Params)) of
-                ok ->
-                    case check_quote_withdrawal(DestinationID, maps:get(<<"withdrawal">>, Params)) of
-                        ok ->
-                            case check_quote_body(
-                                maps:get(cash_from, Quote),
-                                marshal_quote_body(maps:get(<<"body">>, Params))
-                            ) of
-                                ok ->
-                                    {ok, Quote};
-                                {error, _} = Error ->
-                                    Error
-                            end;
-                        {error, _} = Error ->
-                            Error
-                    end;
-                {error, Error} ->
-                    {error, {quote_invalid_wallet, Error}}
-            end;
-        {error, Error} ->
-            {error, {quote_invalid_party, Error}}
-    end;
+    do(fun() ->
+        {_, _, Data} = unwrap(uac_authorizer_jwt:verify(QuoteToken, #{})),
+        {ok, Quote, WalletID, DestinationID, PartyID} = wapi_withdrawal_quote:decode_token_payload(Data),
+        unwrap(quote_invalid_party, valid(PartyID, wapi_handler_utils:get_owner(Context))),
+        unwrap(quote_invalid_wallet, valid(WalletID, maps:get(<<"wallet">>, Params))),
+        unwrap(check_quote_withdrawal(DestinationID, maps:get(<<"withdrawal">>, Params))),
+        unwrap(check_quote_body(maps:get(cash_from, Quote), marshal_quote_body(maps:get(<<"body">>, Params))))
+    end);
 maybe_check_quote_token(_Params, _Context) ->
     {ok, undefined}.
 

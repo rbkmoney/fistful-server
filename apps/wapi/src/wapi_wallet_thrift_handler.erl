@@ -242,8 +242,6 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
     case wapi_withdrawal_backend:create(Params, Context) of
         {ok, Withdrawal = #{<<"id">> := WithdrawalId}} ->
             wapi_handler_utils:reply_ok(202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Opts));
-        {error, {source, notfound}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
         {error, {destination, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
         {error, {destination, {unauthorized, _}}} ->

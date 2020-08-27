@@ -61,4 +61,23 @@ handle_function_('GetContext', [ID], _Opts) ->
             {ok, Response};
         {error, notfound} ->
             woody_error:raise(business, #fistful_WalletNotFound{})
+    end;
+
+handle_function_('GetAccountBalance', [ID], _Opts) ->
+    case ff_wallet_machine:get(ID, {undefined, 0}) of
+        {ok, Machine} ->
+            Wallet = ff_wallet_machine:wallet(Machine),
+            Account = ff_wallet:account(Wallet),
+            {ok, {Amounts, Currency}} = ff_transaction:balance(Account, ff_clock:latest_clock()),
+            AccountBalance = #{
+                id => ff_account:id(Account),
+                currency => Currency,
+                expected_min => ff_indef:expmin(Amounts),
+                current => ff_indef:current(Amounts),
+                expected_max => ff_indef:expmax(Amounts)
+            },
+            Response = ff_wallet_codec:marshal(wallet_account_balance, AccountBalance),
+            {ok, Response};
+        {error, notfound} ->
+            woody_error:raise(business, #fistful_WalletNotFound{})
     end.

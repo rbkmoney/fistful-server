@@ -69,6 +69,15 @@ marshal(wallet, Wallet) ->
         metadata = maybe_marshal(ctx, maps:get(metadata, Wallet, undefined))
     };
 
+marshal(wallet_account_balance, AccountBalance) ->
+    #account_AccountBalance{
+        id = marshal(id, maps:get(id, AccountBalance)),
+        currency = marshal(currency, maps:get(currency, AccountBalance)),
+        expected_min = marshal(amount, maps:get(expected_min, AccountBalance)),
+        current = marshal(amount, maps:get(current, AccountBalance)),
+        expected_max = marshal(amount, maps:get(expected_max, AccountBalance))
+    };
+
 marshal(ctx, Ctx) ->
     marshal(context, Ctx);
 

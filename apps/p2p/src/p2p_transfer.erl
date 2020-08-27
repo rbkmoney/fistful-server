@@ -111,7 +111,8 @@
 -type create_error() ::
     {identity, notfound} |
     {terms, ff_party:validate_p2p_error()} |
-    {resource_owner(), {bin_data, ff_bin_data:bin_data_error()}}.
+    {resource_owner(), {bin_data, ff_bin_data:bin_data_error()}} |
+    {resource_owner(), different_resource}.
 
 -type route() :: #{
     version := 1,
@@ -390,6 +391,7 @@ create(TransferParams) ->
         Deadline = maps:get(deadline, TransferParams, undefined),
         Metadata = maps:get(metadata, TransferParams, undefined),
         CreatedAt = ff_time:now(),
+        valid = unwrap(validate_transfer_participants(Sender, Receiver, Quote)),
         SenderResource = unwrap(sender, prepare_resource(sender, Sender, Quote)),
         ReceiverResource = unwrap(receiver, prepare_resource(receiver, Receiver, Quote)),
         Identity = unwrap(identity, get_identity(IdentityID)),
@@ -429,6 +431,26 @@ create(TransferParams) ->
             {resource_got, SenderResource, ReceiverResource}
         ]
     end).
+
+validate_transfer_participants(_Sender, _Receiver, undefined) ->
+    {ok, valid};
+
+validate_transfer_participants(Sender, Receiver, Quote) ->
+    do(fun() ->
+        valid = unwrap(sender,   validate_transfer_participant(Sender,   maps:get(sender, Quote))),
+        valid = unwrap(receiver, validate_transfer_participant(Receiver, maps:get(receiver, Quote)))
+    end).
+
+validate_transfer_participant(Participant, {bank_card, QuotedParticipant}) ->
+    Params = get_participant_resource_params(Participant),
+    Token  = maps:get(token, maps:get(bank_card, Params)),
+    case maps:get(token, QuotedParticipant) of
+        Token -> {ok, valid};
+        _     -> {error, different_resource}
+    end.
+
+get_participant_resource_params({raw, #{resource_params := {bank_card, Params}}}) ->
+    Params.
 
 -spec start_adjustment(adjustment_params(), p2p_transfer_state()) ->
     {ok, process_result()} |

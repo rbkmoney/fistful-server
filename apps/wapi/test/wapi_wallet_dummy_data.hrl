@@ -28,6 +28,13 @@
     }
 }).
 
+-define(GET_INTERNAL_ID_RESULT, {
+    'bender_GetInternalIDResult',
+    ?STRING,
+    {obj, #{{str, <<"context_data">>} => {str, ?STRING}}},
+    undefined
+}).
+
 -define(BLOCKING, unblocked).
 
 -define(ACCOUNT, #account_Account{
@@ -37,6 +44,16 @@
         symbolic_code = ?RUB
     },
     accounter_account_id = ?INTEGER
+}).
+
+-define(ACCOUNT_BALANCE, #account_AccountBalance{
+    id = ?STRING,
+    currency = #'CurrencyRef'{
+        symbolic_code = ?RUB
+    },
+    expected_min = ?INTEGER,
+    current = ?INTEGER,
+    expected_max = ?INTEGER
 }).
 
 -define(RESOURCE, {bank_card, #'BankCard'{

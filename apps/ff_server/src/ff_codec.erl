@@ -74,6 +74,9 @@ marshal(blocking, blocked) ->
 marshal(blocking, unblocked) ->
     unblocked;
 
+marshal(identity_provider, Provider) when is_binary(Provider) ->
+    Provider;
+
 marshal(transaction_info, TransactionInfo = #{
     id := TransactionID,
     extra := Extra

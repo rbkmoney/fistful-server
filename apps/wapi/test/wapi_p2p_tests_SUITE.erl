@@ -22,6 +22,7 @@
     create_p2p_transfer_fail_test/1,
     create_p2p_transfer_conflict_test/1,
     create_p2p_transfer_with_token_ok_test/1,
+    create_p2p_transfer_with_token_fail_test/1,
     get_p2p_transfer_ok_test/1,
     get_p2p_transfer_not_found_test/1,
     get_p2p_transfer_events_ok_test/1,
@@ -74,6 +75,7 @@ groups() ->
             create_p2p_transfer_fail_test,
             create_p2p_transfer_conflict_test,
             create_p2p_transfer_with_token_ok_test,
+            create_p2p_transfer_with_token_fail_test,
             get_p2p_transfer_ok_test,
             get_p2p_transfer_not_found_test,
             get_p2p_transfer_events_ok_test,
@@ -373,6 +375,64 @@ create_p2p_transfer_with_token_ok_test(C) ->
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
+                },
+                <<"quoteToken">> => Token,
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec create_p2p_transfer_with_token_fail_test(config()) ->
+    _.
+
+create_p2p_transfer_with_token_fail_test(C) ->
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>),
+    IdentityID = create_identity(C),
+    {ok, _} = ff_identity_machine:get(IdentityID),
+    {ok, #{<<"token">> := Token}} = call_api(
+        fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResource">>,
+                    <<"token">> => SenderToken
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    DifferentReceiverToken = store_bank_card(C, <<"4242424242424242">>),
+    {error, {422, _}}  = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => DifferentReceiverToken
                 },
                 <<"quoteToken">> => Token,
                 <<"contactInfo">> => #{

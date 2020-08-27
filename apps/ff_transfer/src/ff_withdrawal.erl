@@ -74,6 +74,7 @@
     {destination, notfound | unauthorized} |
     {inconsistent_currency, {Withdrawal :: currency_id(), Wallet :: currency_id(), Destination :: currency_id()}} |
     {terms, ff_party:validate_withdrawal_creation_error()} |
+    {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}} |
     {destination_resource, {bin_data, ff_bin_data:bin_data_error()}}.
 
 -type route() :: ff_withdrawal_routing:route().
@@ -1003,6 +1004,15 @@ get_destination(DestinationID) ->
     identity().
 get_wallet_identity(Wallet) ->
     IdentityID = ff_wallet:identity(Wallet),
+    get_identity(IdentityID).
+
+-spec get_destination_identity(destination()) ->
+    identity().
+get_destination_identity(Destination) ->
+    IdentityID = ff_destination:identity(Destination),
+    get_identity(IdentityID).
+
+get_identity(IdentityID) ->
     {ok, IdentityMachine} = ff_identity_machine:get(IdentityID),
     ff_identity_machine:identity(IdentityMachine).
 
@@ -1245,8 +1255,19 @@ validate_withdrawal_creation(Terms, Body, Wallet, Destination) ->
     do(fun() ->
         valid = unwrap(terms, validate_withdrawal_creation_terms(Terms, Body)),
         valid = unwrap(validate_withdrawal_currency(Body, Wallet, Destination)),
-        valid = unwrap(validate_destination_status(Destination))
+        valid = unwrap(validate_destination_status(Destination)),
+        valid = unwrap(validate_withdrawal_providers(Wallet, Destination))
     end).
+
+validate_withdrawal_providers(Wallet, Destination) ->
+    WalletIdentity = get_wallet_identity(Wallet),
+    DestinationIdentity = get_destination_identity(Destination),
+    WalletProvider = ff_identity:provider(WalletIdentity),
+    DestinationProvider = ff_identity:provider(DestinationIdentity),
+    case WalletProvider =:= DestinationProvider of
+        true  -> {ok, valid};
+        false -> {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}}
+    end.
 
 -spec validate_withdrawal_creation_terms(terms(), body()) ->
     {ok, valid} |

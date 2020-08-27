@@ -66,6 +66,10 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
             woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = sender});
         {error, {receiver, {bin_data, _}}} ->
             woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = receiver});
+        {error, {sender, different_resource}} ->
+            woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = sender});
+        {error, {receiver, different_resource}} ->
+            woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = receiver});
         {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
             Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
             Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],

@@ -64,7 +64,7 @@ handle_function_('GetContext', [ID], _Opts) ->
     end;
 
 handle_function_('GetAccountBalance', [ID], _Opts) ->
-    case ff_wallet_machine:get(ID, {undefined, 0}) of
+    case ff_wallet_machine:get(ID) of
         {ok, Machine} ->
             Wallet = ff_wallet_machine:wallet(Machine),
             Account = ff_wallet:account(Wallet),

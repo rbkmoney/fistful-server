@@ -8,6 +8,19 @@
 -type id() :: binary().
 -type external_id() :: binary().
 
+-type create_error() ::
+    {destination, notfound | unauthorized} |
+    {wallet, notfound | unauthorized} |
+    {external_id_conflict, id()} |
+    {quote_invalid_party, _}      |
+    {quote_invalid_wallet, _}     |
+    {quote, {invalid_body, _}}    |
+    {quote, {invalid_destination, _}} |
+    {forbidden_currency, _} |
+    {forbidden_amount, _} |
+    {inconsistent_currency, _} |
+    {destination_resource, {bin_data, not_found}}.
+
 -export([create/2]).
 -export([get/2]).
 -export([get_by_external_id/2]).
@@ -19,33 +32,14 @@
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 -spec create(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, WithdrawalError}
-    when WithdrawalError ::
-        {destination, notfound}       |
-        {destination, unauthorized}   |
-        {withdrawal, unauthorized}    |
-        {external_id_conflict, id(), external_id()} |
-        {provider, notfound}          |
-        {wallet, {inaccessible, _}}   |
-        {wallet, {currency, invalid}} |
-        {wallet, {provider, invalid}} |
-        {quote_invalid_party, _}      |
-        {quote_invalid_wallet, _}     |
-        {quote, {invalid_body, _}}    |
-        {quote, {invalid_destination, _}} |
-        {terms, {terms_violation, _}} |
-        {destination_resource, {bin_data, ff_bin_data:bin_data_error()}} |
-        {wallet | destination, {unauthorized, _}}.
+    {ok, response_data()} | {error, create_error()}.
 
-create(Params, HandlerContext) ->
-    case check_withdrawal_params(Params, HandlerContext) of
-        {ok, {ID, Quote}} ->
-            Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
+create(Params0, HandlerContext) ->
+    case check_withdrawal_params(Params0, HandlerContext) of
+        {ok, Params1} ->
+            Context = wapi_backend_utils:make_ctx(Params1, HandlerContext),
             WithdrawalContext = marshal(context, Context),
-            WithdrawalParams = marshal(withdrawal_params, Params#{
-                <<"id">> => ID,
-                <<"quote">> => Quote
-            }),
+            WithdrawalParams = marshal(withdrawal_params, Params1),
             create(WithdrawalParams, WithdrawalContext, HandlerContext);
         {error, _} = Error ->
             Error
@@ -56,12 +50,33 @@ create(Params, Context, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Withdrawal} ->
             {ok, unmarshal(withdrawal, Withdrawal)};
-        {exception, #fistful_IdentityNotFound{}} ->
-            {error, {identity, notfound}};
-        {exception, #fistful_CurrencyNotFound{}} ->
-            {error, {currency, notfound}};
-        {exception, #fistful_PartyInaccessible{}} ->
-            {error, inaccessible};
+        {exception, #fistful_WalletNotFound{}} ->
+            {error, {wallet, notfound}};
+        {exception, #fistful_DestinationNotFound{}} ->
+            {error, {destination, notfound}};
+        {exception, #fistful_DestinationUnauthorized{}} ->
+            {error, {destination, unauthorized}};
+        {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
+            {error, {forbidden_currency, unmarshal_currency_ref(Currency)}};
+        {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
+            {error, {forbidden_amount, unmarshal_body(Amount)}};
+        {exception, #wthd_InconsistentWithdrawalCurrency{
+            withdrawal_currency = WithdrawalCurrency,
+            destination_currency = DestinationCurrency,
+            wallet_currency = WalletCurrency
+        }} ->
+            {error, {inconsistent_currency, {
+                unmarshal_currency_ref(WithdrawalCurrency),
+                unmarshal_currency_ref(DestinationCurrency),
+                unmarshal_currency_ref(WalletCurrency)
+            }}};
+        {exception, #wthd_IdentityProvidersMismatch{
+            wallet_provider = WalletProvider,
+            destination_provider = DestinationProvider
+        }} ->
+            {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}};
+        {exception, #wthd_NoDestinationResourceInfo{}} ->
+            {error, {destination_resource, {bin_data, not_found}}};
         {exception, Details} ->
             {error, Details}
     end.
@@ -110,13 +125,28 @@ service_call(Params, Context) ->
 
 %% Validators
 
-check_withdrawal_params(Params, HandlerContext) ->
+check_withdrawal_params(Params0, HandlerContext) ->
     do(fun() ->
-        unwrap(authorize_withdrawal(Params, HandlerContext)),
-        Quote = unwrap(maybe_check_quote_token(Params, HandlerContext)),
-        ID = unwrap(wapi_backend_utils:gen_id(withdrawal, Params, HandlerContext)),
-        {ID, Quote}
+        Params1 = unwrap(try_decode_quote_token(Params0)),
+        unwrap(authorize_withdrawal(Params1, HandlerContext)),
+        Params2 = unwrap(maybe_check_quote_token(Params1, HandlerContext)),
+        ID = unwrap(wapi_backend_utils:gen_id(withdrawal, Params2, HandlerContext)),
+        Params2#{<<"id">> => ID}
     end).
+
+try_decode_quote_token(Params = #{<<"quoteToken">> := QuoteToken}) ->
+    do(fun() ->
+        {_, _, Data} = unwrap(uac_authorizer_jwt:verify(QuoteToken, #{})),
+        {ok, Quote, WalletID, DestinationID, PartyID} = wapi_withdrawal_quote:decode_token_payload(Data),
+        Params#{<<"quoteToken">> => #{
+            quote => Quote,
+            wallet_id => WalletID,
+            destination_id => DestinationID,
+            party_id => PartyID
+        }}
+    end);
+try_decode_quote_token(Params) ->
+    {ok, Params}.
 
 authorize_withdrawal(Params, HandlerContext) ->
     case authorize_resource(wallet, Params, HandlerContext) of
@@ -144,7 +174,9 @@ authorize_resource_by_bearer(Resource, ResourceID, HandlerContext) ->
         ok ->
             ok;
         {error, unauthorized} ->
-            {error, {Resource, unauthorized}}
+            {error, {Resource, unauthorized}};
+        {error, notfound} ->
+            {error, {Resource, notfound}}
     end.
 
 authorize_resource_by_grant(R = destination, #{
@@ -202,17 +234,21 @@ verify_claims(wallet,
 verify_claims(_, _, _) ->
     {error, {unauthorized, {grant, insufficient_claims}}}.
 
-maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
+maybe_check_quote_token(Params = #{<<"quoteToken">> := #{
+    quote := Quote,
+    wallet_id := WalletID,
+    destination_id := DestinationID,
+    party_id := PartyID
+}}, Context) ->
     do(fun() ->
-        {_, _, Data} = unwrap(uac_authorizer_jwt:verify(QuoteToken, #{})),
-        {ok, Quote, WalletID, DestinationID, PartyID} = wapi_withdrawal_quote:decode_token_payload(Data),
         unwrap(quote_invalid_party, valid(PartyID, wapi_handler_utils:get_owner(Context))),
         unwrap(quote_invalid_wallet, valid(WalletID, maps:get(<<"wallet">>, Params))),
         unwrap(check_quote_withdrawal(DestinationID, maps:get(<<"withdrawal">>, Params))),
-        unwrap(check_quote_body(maps:get(cash_from, Quote), marshal_quote_body(maps:get(<<"body">>, Params))))
+        unwrap(check_quote_body(maps:get(cash_from, Quote), marshal_quote_body(maps:get(<<"body">>, Params)))),
+        Params#{<<"quote">> => Quote}
     end);
-maybe_check_quote_token(_Params, _Context) ->
-    {ok, undefined}.
+maybe_check_quote_token(Params, _Context) ->
+    {ok, Params}.
 
 valid(V, V) ->
     ok;
@@ -229,7 +265,7 @@ check_quote_withdrawal(undefined, _DestinationID) ->
 check_quote_withdrawal(DestinationID, DestinationID) ->
     ok;
 check_quote_withdrawal(_, DestinationID) ->
-    {error, {quote, {invalid_withdrawal, DestinationID}}}.
+    {error, {quote, {invalid_destination, DestinationID}}}.
 
 marshal_quote_body(Body) ->
     {genlib:to_int(maps:get(<<"amount">>, Body)), maps:get(<<"currency">>, Body)}.
@@ -305,14 +341,17 @@ maybe_unmarshal(T, V) ->
 
 unmarshal_body(#'Cash'{
     amount   = Amount,
-    currency = #'CurrencyRef'{
-        symbolic_code = Currency
-    }
+    currency = Currency
 }) ->
     #{
         <<"amount">> => Amount,
-        <<"currency">> => Currency
+        <<"currency">> => unmarshal_currency_ref(Currency)
     }.
+
+unmarshal_currency_ref(#'CurrencyRef'{
+    symbolic_code = Currency
+}) ->
+    Currency.
 
 unmarshal_status({pending, _}) ->
     #{<<"status">> => <<"Pending">>};

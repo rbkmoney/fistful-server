@@ -244,32 +244,15 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Opts));
         {error, {destination, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
-        {error, {destination, {unauthorized, _}}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>)
-            );
         {error, {destination, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
-        {error, {provider, notfound}} ->
-            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
-        {error, {external_id_conflict, ID, ExternalID}} ->
+        {error, {external_id_conflict, ID}} ->
+            ExternalID = maps:get(<<"externalID">>, Params, undefined),
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
-        {error, {wallet, {unauthorized, _}}} ->
+        {error, {wallet, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet unauthorized">>));
-        {error, {wallet, {inaccessible, _}}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Inaccessible source or destination">>)
-            );
-        {error, {wallet, {currency, invalid}}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Invalid currency for source or destination">>)
-            );
-        {error, {wallet, {provider, invalid}}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Invalid provider for source or destination">>)
-            );
         {error, {quote_invalid_party, _}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Withdrawal owner differs from quote`s one">>)
@@ -286,21 +269,21 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Withdrawal body differs from quote`s one">>)
             );
-        {error, {terms, {terms_violation, {cash_range, _}}}} ->
+        {error, {forbidden_currency, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Forbidden currency">>)
+            );
+        {error, {forbidden_amount, _}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
+        {error, {inconsistent_currency, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid currency">>)
             );
         {error, {destination_resource, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Unknown card issuer">>)
-            );
-        {error, {destination_resource, {bin_data, {unknown_payment_system, _PaymentSystem}}}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Unknown card payment system">>)
-            );
-        {error, {destination_resource, {bin_data, {unknown_residence, _Residence}}}} ->
-            wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Unknown card issuer residence">>)
             )
     end;
 process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->

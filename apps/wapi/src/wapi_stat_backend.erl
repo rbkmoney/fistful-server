@@ -64,7 +64,7 @@ list_destinations(Params, Context) ->
 list_identities(Params, Context) ->
     Dsl = create_dsl(identities, Params, Context),
     Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetIdentites', [Req]}, Context),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetIdentities', [Req]}, Context),
     process_result(Result).
 
 create_dsl(StatTag, Req, Context) ->
@@ -204,7 +204,7 @@ unmarshal_response(wallets, Response) ->
         <<"currency"    >> => Response#fistfulstat_StatWallet.currency_symbolic_code
     });
 unmarshal_response(destinations, Response) ->
-    genlib_map:merge_and_compact(
+    merge_and_compact(
         #{
             <<"id">> => Response#fistfulstat_StatDestination.id,
             <<"name">> => Response#fistfulstat_StatDestination.name,
@@ -212,7 +212,7 @@ unmarshal_response(destinations, Response) ->
             <<"isBlocked">> => Response#fistfulstat_StatDestination.is_blocked,
             <<"identity">> => Response#fistfulstat_StatDestination.identity,
             <<"currency">> => Response#fistfulstat_StatDestination.currency_symbolic_code,
-            <<"resource">> => Response#fistfulstat_StatDestination.resource,
+            <<"resource">> => unmarshal_resource(Response#fistfulstat_StatDestination.resource),
             <<"externalID">> => Response#fistfulstat_StatDestination.external_id
         },
         unmarshal_destination_stat_status(Response#fistfulstat_StatDestination.status)
@@ -222,7 +222,7 @@ unmarshal_response(identities, Response) ->
         <<"id">> => Response#fistfulstat_StatIdentity.id,
         <<"name">> => Response#fistfulstat_StatIdentity.name,
         <<"createdAt">> => Response#fistfulstat_StatIdentity.created_at,
-        <<"provider">> => Response#fistfulstat_StatIdentity.provider,
+        <<"provider">> => unmarshal_identity_stat_provider(Response#fistfulstat_StatIdentity.provider),
         <<"class">> => Response#fistfulstat_StatIdentity.identity_class,
         <<"level">> => Response#fistfulstat_StatIdentity.identity_level,
         <<"effectiveChallenge">> => Response#fistfulstat_StatIdentity.effective_challenge,
@@ -257,3 +257,41 @@ unmarshal_deposit_stat_status({failed, #fistfulstat_DepositFailed{failure = _Fai
         <<"status">> => <<"Failed">>,
         <<"failure">> => #{<<"code">> => <<"failed">>}
     }.
+
+unmarshal_resource({bank_card, BankCard}) ->
+    unmarshal_bank_card(BankCard);
+unmarshal_resource({crypto_wallet, CryptoWallet}) ->
+    unmarshal_crypto_wallet(CryptoWallet).
+
+unmarshal_bank_card(#'BankCard'{
+    token = Token,
+    bin = Bin,
+    masked_pan = MaskedPan
+}) ->
+    #{
+        <<"type">> => <<"BankCardDestinationResource">>,
+        <<"token">> => Token,
+        <<"bin">> => Bin,
+        <<"lastDigits">> => wapi_utils:get_last_pan_digits(MaskedPan)
+    }.
+
+unmarshal_crypto_wallet(#'CryptoWallet'{
+    id = CryptoWalletID,
+    data = Data
+}) ->
+    #{
+        <<"type">> => <<"CryptoWalletDestinationResource">>,
+        <<"id">> => CryptoWalletID,
+        <<"currency">> => unmarshal_crypto_currency_name(Data)
+    }.
+
+unmarshal_crypto_currency_name({bitcoin, _}) -> <<"Bitcoin">>;
+unmarshal_crypto_currency_name({litecoin, _}) -> <<"Litecoin">>;
+unmarshal_crypto_currency_name({bitcoin_cash, _}) -> <<"BitcoinCash">>;
+unmarshal_crypto_currency_name({ripple, _}) -> <<"Ripple">>;
+unmarshal_crypto_currency_name({ethereum, _}) -> <<"Ethereum">>;
+unmarshal_crypto_currency_name({usdt, _}) -> <<"USDT">>;
+unmarshal_crypto_currency_name({zcash, _}) -> <<"Zcash">>.
+
+unmarshal_identity_stat_provider(Provider) ->
+    genlib:to_binary(Provider).

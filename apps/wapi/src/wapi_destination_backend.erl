@@ -219,21 +219,28 @@ unmarshal(status, {authorized, #dst_Authorized{}}) ->
 unmarshal(status, {unauthorized, #dst_Unauthorized{}}) ->
     <<"Unauthorized">>;
 
-unmarshal(resource, {bank_card, #'ResourceBankCard'{bank_card = #'BankCard'{
+unmarshal(resource, {bank_card, #'ResourceBankCard'{bank_card = BankCard}}) ->
+    unmarshal(bank_card, BankCard);
+
+unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = CryptoWallet}}) ->
+    unmarshal(crypto_wallet, CryptoWallet);
+
+unmarshal(bank_card, #'BankCard'{
     token = Token,
     bin = Bin,
     masked_pan = MaskedPan
-}}}) ->
+}) ->
     genlib_map:compact(#{
         <<"type">> => <<"BankCardDestinationResource">>,
         <<"token">> => unmarshal(string, Token),
         <<"bin">> => unmarshal(string, Bin),
         <<"lastDigits">> => wapi_utils:get_last_pan_digits(MaskedPan)
     });
-unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
+
+unmarshal(crypto_wallet, #'CryptoWallet'{
     id = CryptoWalletID,
     data = Data
-}}}) ->
+}) ->
     {Currency, Params} = unmarshal_crypto_currency_data(Data),
     genlib_map:compact(#{
         <<"type">> => <<"CryptoWalletDestinationResource">>,

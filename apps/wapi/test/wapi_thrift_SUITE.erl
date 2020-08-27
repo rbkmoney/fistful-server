@@ -17,6 +17,7 @@
 -export([identity_check_test/1]).
 -export([identity_challenge_check_test/1]).
 -export([destination_check_test/1]).
+-export([w2w_transfer_check_test/1]).
 
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
@@ -44,7 +45,8 @@ groups() ->
             identity_check_test,
             identity_challenge_check_test,
             wallet_check_test,
-            destination_check_test
+            destination_check_test,
+            w2w_transfer_check_test
         ]}
     ].
 
@@ -166,6 +168,24 @@ destination_check_test(C) ->
     IdentityID2 = create_identity(Name, Provider, Class, C),
     DestinationID2 = create_destination(IdentityID2, C),
     ?assertEqual(Keys, maps:keys(get_destination(DestinationID2, C))).
+
+-spec w2w_transfer_check_test(config()) -> test_return().
+
+w2w_transfer_check_test(C) ->
+    Name = <<"Keyn Fawkes">>,
+    Provider = ?ID_PROVIDER,
+    Class = ?ID_CLASS,
+    IdentityID1 = create_identity(Name, Provider, Class, C),
+    WalletID11 = create_wallet(IdentityID1, C),
+    WalletID12 = create_wallet(IdentityID1, C),
+    W2WTransferID1 = create_w2w_transfer(WalletID11, WalletID12, C),
+    Keys = maps:keys(get_w2w_transfer(W2WTransferID1, C)),
+    ok = application:set_env(wapi, transport, thrift),
+    IdentityID2 = create_identity(Name, Provider, Class, C),
+    WalletID21 = create_wallet(IdentityID2, C),
+    WalletID22 = create_wallet(IdentityID2, C),
+    W2WTransferID2 = create_w2w_transfer(WalletID21, WalletID22, C),
+    ?assertEqual(Keys, maps:keys(get_w2w_transfer(W2WTransferID2, C))).
 
 %%
 
@@ -335,6 +355,30 @@ get_destination(DestinationID, C) ->
     ),
     Destination.
 
+create_w2w_transfer(WalletID1, WalletID2, C) ->
+    DefaultParams = #{
+        <<"sender">> => WalletID1,
+        <<"receiver">> => WalletID2,
+        <<"body">> => #{
+            <<"amount">> => 1000,
+            <<"currency">> => ?RUB
+        }
+    },
+    {ok, W2WTransfer} = call_api(
+        fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
+        #{body => DefaultParams},
+        ct_helper:cfg(context, C)
+    ),
+    maps:get(<<"id">>, W2WTransfer).
+
+get_w2w_transfer(W2WTransferID2, C) ->
+    {ok, W2WTransfer} = call_api(
+        fun swag_client_wallet_w2_w_api:get_w2_w_transfer/3,
+        #{binding => #{<<"w2wTransferID">> => W2WTransferID2}},
+        ct_helper:cfg(context, C)
+    ),
+    W2WTransfer.
+
 %%
 
 -include_lib("ff_cth/include/ct_domain.hrl").
@@ -378,6 +422,39 @@ get_default_termset() ->
                                 ?share(10, 100, operation_amount)
                             )
                         ]}
+                    }
+                ]}
+            },
+            w2w = #domain_W2WServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
+                allow = {constant, true},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10001, <<"RUB">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_settlement},
+                                ?share(1, 1, operation_amount)
+                            )
+                        ]}
+                    }
+                ]},
+                fees = {decisions, [
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
                     }
                 ]}
             }

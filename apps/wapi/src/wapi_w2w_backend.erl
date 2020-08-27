@@ -135,15 +135,15 @@ unmarshal(transfer, #w2w_transfer_W2WTransferState{
     status = Status,
     external_id = ExternalID
 }) ->
-    #{
+    genlib_map:compact(#{
         <<"id">> => unmarshal(id, ID),
-        <<"createdAt">> => unmarshal(timestamp, CreatedAt),
+        <<"createdAt">> => CreatedAt,
         <<"body">> => unmarshal(body, Body),
         <<"sender">> => unmarshal(id, SenderID),
         <<"receiver">> => unmarshal(id, ReceiverID),
         <<"status">> => unmarshal(transfer_status, Status),
-        <<"externalID">> => unmarshal(id, ExternalID)
-    };
+        <<"externalID">> => maybe_unmarshal(id, ExternalID)
+    });
 
 unmarshal(body, #'Cash'{
     amount   = Amount,
@@ -166,3 +166,8 @@ unmarshal(transfer_status, {failed, #w2w_status_Failed{failure = Failure}}) ->
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
+
+maybe_unmarshal(_T, undefined) ->
+    undefined;
+maybe_unmarshal(T, V) ->
+    unmarshal(T, V).

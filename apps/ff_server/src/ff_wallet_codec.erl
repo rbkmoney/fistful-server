@@ -72,7 +72,7 @@ marshal(wallet, Wallet) ->
 marshal(wallet_account_balance, AccountBalance) ->
     #account_AccountBalance{
         id = marshal(id, maps:get(id, AccountBalance)),
-        currency = marshal(currency, maps:get(currency, AccountBalance)),
+        currency = marshal(currency_ref, maps:get(currency, AccountBalance)),
         expected_min = marshal(amount, maps:get(expected_min, AccountBalance)),
         current = marshal(amount, maps:get(current, AccountBalance)),
         expected_max = marshal(amount, maps:get(expected_max, AccountBalance))

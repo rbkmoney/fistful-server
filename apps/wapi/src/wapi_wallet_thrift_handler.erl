@@ -144,6 +144,13 @@ process_request('GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
         {error, {wallet, notfound}}     -> wapi_handler_utils:reply_ok(404);
         {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
+process_request('GetWalletByExternalID', #{externalID := ExternalID}, Context, _Opts) ->
+    case wapi_wallet_backend:get_by_external_id(ExternalID, Context) of
+        {ok, Wallet}                    -> wapi_handler_utils:reply_ok(200, Wallet);
+        {error, {wallet, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404);
+        {error, {external_id, {unknown_external_id, ExternalID}}} -> wapi_handler_utils:reply_ok(404)
+    end;
 process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
     case wapi_wallet_backend:create(Params, Context) of
         {ok, Wallet = #{<<"id">> := WalletId}} ->
@@ -158,6 +165,12 @@ process_request('CreateWallet', #{'Wallet' := Params}, Context, Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
         {error, {external_id_conflict, ID}} ->
             wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
+    end;
+process_request('GetWalletAccount', #{'walletID' := WalletId}, Context, _Opts) ->
+    case wapi_wallet_backend:get_account(WalletId, Context) of
+        {ok, WalletAccount}             -> wapi_handler_utils:reply_ok(200, WalletAccount);
+        {error, {wallet, notfound}}     -> wapi_handler_utils:reply_ok(404);
+        {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 
 %% Destinations

@@ -207,7 +207,7 @@ check_accessible(Wallet) ->
     end.
 
 -spec get_account_balance(wallet_state()) ->
-    {ok, ff_account:account_balance()} | {error, notfound}.
+    {ok, ff_account:account_balance()}.
 
 get_account_balance(Wallet) ->
     Account = ff_wallet:account(Wallet),

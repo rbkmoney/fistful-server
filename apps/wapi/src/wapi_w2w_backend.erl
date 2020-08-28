@@ -45,18 +45,20 @@ create_transfer(ID, Params, Context, HandlerContext) ->
         }} ->
             Currency = ff_codec:unmarshal(currency_ref, Currency0),
             AllowedCurrencies = ff_codec:unmarshal({set, currency_ref}, AllowedCurrencies0),
-            DomainCurrency = ff_dmsl_codec:marshal(currency_ref, Currency),
-            DomainAllowed = [ff_dmsl_codec:marshal(currency_ref, C) || C <- AllowedCurrencies],
-            {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}};
+            {error, {terms, {terms_violation, {not_allowed_currency, {
+                ff_dmsl_codec:marshal(currency_ref, Currency),
+                [ff_dmsl_codec:marshal(currency_ref, C) || C <- AllowedCurrencies]
+            }}}}};
         {exception, #w2w_transfer_InconsistentW2WTransferCurrency{
-            w2w_transfer_currency = Transfer0,
-            wallet_from_currency = From0,
-            wallet_to_currency = To0
+            w2w_transfer_currency = Transfer,
+            wallet_from_currency = From,
+            wallet_to_currency = To
         }} ->
-            Transfer = ff_codec:unmarshal(currency_ref, Transfer0),
-            From = ff_codec:unmarshal(currency_ref, From0),
-            To = ff_codec:unmarshal(currency_ref, To0),
-            {error, {inconsistent_currency, {Transfer, From, To}}};
+            {error, {inconsistent_currency, {
+                ff_codec:unmarshal(currency_ref, Transfer),
+                ff_codec:unmarshal(currency_ref, From),
+                ff_codec:unmarshal(currency_ref, To)
+            }}};
         {exception, #fistful_InvalidOperationAmount{amount = Amount}} ->
             {error, {terms, {bad_w2w_transfer_amount, ff_codec:unmarshal(cash, Amount)}}}
     end.

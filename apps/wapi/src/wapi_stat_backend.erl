@@ -109,13 +109,15 @@ create_query(wallets, Req, Context) ->
         <<"identity_id"     >> => genlib_map:get(identityID, Req),
         <<"currency_code"   >> => genlib_map:get(currencyID, Req)
     };
-create_query(destinations, Req, _Context) ->
+create_query(destinations, Req, Context) ->
     #{
+        <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
         <<"identity_id"     >> => genlib_map:get(identityID, Req),
         <<"currency_code"   >> => genlib_map:get(currencyID, Req)
     };
-create_query(identities, Req, _Context) ->
+create_query(identities, Req, Context) ->
     #{
+        <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
         <<"provider_id"     >> => genlib_map:get(providerID, Req),
         <<"class"           >> => genlib_map:get(class, Req),
         <<"level"           >> => genlib_map:get(level, Req)
@@ -204,19 +206,17 @@ unmarshal_response(wallets, Response) ->
         <<"currency"    >> => Response#fistfulstat_StatWallet.currency_symbolic_code
     });
 unmarshal_response(destinations, Response) ->
-    merge_and_compact(
-        #{
-            <<"id">> => Response#fistfulstat_StatDestination.id,
-            <<"name">> => Response#fistfulstat_StatDestination.name,
-            <<"createdAt">> => Response#fistfulstat_StatDestination.created_at,
-            <<"isBlocked">> => Response#fistfulstat_StatDestination.is_blocked,
-            <<"identity">> => Response#fistfulstat_StatDestination.identity,
-            <<"currency">> => Response#fistfulstat_StatDestination.currency_symbolic_code,
-            <<"resource">> => unmarshal_resource(Response#fistfulstat_StatDestination.resource),
-            <<"externalID">> => Response#fistfulstat_StatDestination.external_id
-        },
-        unmarshal_destination_stat_status(Response#fistfulstat_StatDestination.status)
-    );
+    genlib_map:compact(#{
+        <<"id">> => Response#fistfulstat_StatDestination.id,
+        <<"name">> => Response#fistfulstat_StatDestination.name,
+        <<"createdAt">> => Response#fistfulstat_StatDestination.created_at,
+        <<"isBlocked">> => Response#fistfulstat_StatDestination.is_blocked,
+        <<"identity">> => Response#fistfulstat_StatDestination.identity,
+        <<"currency">> => Response#fistfulstat_StatDestination.currency_symbolic_code,
+        <<"resource">> => unmarshal_resource(Response#fistfulstat_StatDestination.resource),
+        <<"status">> => unmarshal_destination_stat_status(Response#fistfulstat_StatDestination.status),
+        <<"externalID">> => Response#fistfulstat_StatDestination.external_id
+    });
 unmarshal_response(identities, Response) ->
     genlib_map:compact(#{
         <<"id">> => Response#fistfulstat_StatIdentity.id,
@@ -230,10 +230,12 @@ unmarshal_response(identities, Response) ->
         <<"externalID">> => Response#fistfulstat_StatIdentity.external_id
     }).
 
+unmarshal_destination_stat_status(undefined) ->
+    undefined;
 unmarshal_destination_stat_status({unauthorized, _}) ->
-    #{<<"status">> => <<"Unauthorized">>};
+    <<"Unauthorized">>;
 unmarshal_destination_stat_status({authorized, _}) ->
-    #{<<"status">> => <<"Authorized">>}.
+    <<"Authorized">>.
 
 unmarshal_cash(Amount, Currency) ->
     #{<<"amount">> => Amount, <<"currency">> => Currency}.

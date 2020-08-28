@@ -70,6 +70,7 @@
 -export([create/1]).
 -export([is_accessible/1]).
 -export([close/1]).
+-export([get_account_balance/1]).
 
 -export([apply_event/2]).
 
@@ -204,3 +205,18 @@ check_accessible(Wallet) ->
         blocked ->
             {error, blocked}
     end.
+
+-spec get_account_balance(wallet_state()) ->
+    {ok, ff_account:account_balance()}.
+
+get_account_balance(Wallet) ->
+    Account = ff_wallet:account(Wallet),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(Account, ff_clock:latest_clock()),
+    AccountBalance = #{
+        id => ff_account:id(Account),
+        currency => Currency,
+        expected_min => ff_indef:expmin(Amounts),
+        current => ff_indef:current(Amounts),
+        expected_max => ff_indef:expmax(Amounts)
+    },
+    {ok, AccountBalance}.

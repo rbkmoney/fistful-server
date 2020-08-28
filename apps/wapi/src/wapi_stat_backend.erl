@@ -270,12 +270,12 @@ unmarshal_bank_card(#'BankCard'{
     bin = Bin,
     masked_pan = MaskedPan
 }) ->
-    #{
+    genlib_map:compact(#{
         <<"type">> => <<"BankCardDestinationResource">>,
         <<"token">> => Token,
         <<"bin">> => Bin,
         <<"lastDigits">> => wapi_utils:get_last_pan_digits(MaskedPan)
-    }.
+    }).
 
 unmarshal_crypto_wallet(#'CryptoWallet'{
     id = CryptoWalletID,

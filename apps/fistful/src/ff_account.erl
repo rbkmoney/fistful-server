@@ -20,6 +20,16 @@
     accounter_account_id := accounter_account_id()
 }.
 
+-type amount()   :: dmsl_domain_thrift:'Amount'().
+
+-type account_balance() :: #{
+    id           := id(),
+    currency     := ff_currency:id(),
+    expected_min := amount(),
+    current      := amount(),
+    expected_max := amount()
+}.
+
 -type event() ::
     {created, account()}.
 
@@ -32,6 +42,7 @@
 -export_type([account/0]).
 -export_type([event/0]).
 -export_type([create_error/0]).
+-export_type([account_balance/0]).
 
 -export([id/1]).
 -export([identity/1]).

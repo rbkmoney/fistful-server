@@ -206,23 +206,17 @@ check_accessible(Wallet) ->
             {error, blocked}
     end.
 
--spec get_account_balance(id()) ->
+-spec get_account_balance(wallet_state()) ->
     {ok, ff_account:account_balance()} | {error, notfound}.
 
-get_account_balance(ID) ->
-    case ff_wallet_machine:get(ID) of
-        {ok, Machine} ->
-            Wallet  = ff_wallet_machine:wallet(Machine),
-            Account = ff_wallet:account(Wallet),
-            {ok, {Amounts, Currency}} = ff_transaction:balance(Account, ff_clock:latest_clock()),
-            AccountBalance = #{
-                id => ff_account:id(Account),
-                currency => Currency,
-                expected_min => ff_indef:expmin(Amounts),
-                current => ff_indef:current(Amounts),
-                expected_max => ff_indef:expmax(Amounts)
-            },
-            {ok, AccountBalance};
-        {error, notfound} = Error ->
-            Error
-    end.
+get_account_balance(Wallet) ->
+    Account = ff_wallet:account(Wallet),
+    {ok, {Amounts, Currency}} = ff_transaction:balance(Account, ff_clock:latest_clock()),
+    AccountBalance = #{
+        id => ff_account:id(Account),
+        currency => Currency,
+        expected_min => ff_indef:expmin(Amounts),
+        current => ff_indef:current(Amounts),
+        expected_max => ff_indef:expmax(Amounts)
+    },
+    {ok, AccountBalance}.

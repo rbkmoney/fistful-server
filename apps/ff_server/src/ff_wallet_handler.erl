@@ -64,8 +64,10 @@ handle_function_('GetContext', [ID], _Opts) ->
     end;
 
 handle_function_('GetAccountBalance', [ID], _Opts) ->
-    case ff_wallet:get_account_balance(ID) of
-        {ok, AccountBalance} ->
+    case ff_wallet_machine:get(ID) of
+        {ok, Machine} ->
+            Wallet = ff_wallet_machine:wallet(Machine),
+            {ok, AccountBalance} = ff_wallet:get_account_balance(Wallet),
             Response = ff_wallet_codec:marshal(wallet_account_balance, AccountBalance),
             {ok, Response};
         {error, notfound} ->

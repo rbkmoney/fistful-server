@@ -18,6 +18,7 @@
 -export([create_error_currency_not_found/1]).
 -export([create_error_party_blocked/1]).
 -export([create_error_party_suspended/1]).
+-export([get_account_balance/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
@@ -38,7 +39,8 @@ groups() ->
             create_error_identity_not_found,
             create_error_currency_not_found,
             create_error_party_blocked,
-            create_error_party_suspended
+            create_error_party_suspended,
+            get_account_balance
         ]}
     ].
 
@@ -85,6 +87,7 @@ end_per_testcase(_Name, _C) ->
 -spec create_error_currency_not_found(config()) -> test_return().
 -spec create_error_party_blocked(config())      -> test_return().
 -spec create_error_party_suspended(config())    -> test_return().
+-spec get_account_balance(config())             -> test_return().
 
 create_ok(C) ->
     Party        = create_party(C),
@@ -146,6 +149,27 @@ create_error_party_suspended(C) ->
     Params     = construct_wallet_params(ID, IdentityID, Currency),
     Result     = call_service('Create', [Params, #{}]),
     ?assertMatch({exception, #fistful_PartyInaccessible{}}, Result).
+
+get_account_balance(C) ->
+    Party        = create_party(C),
+    Currency     = <<"RUB">>,
+    ID           = genlib:unique(),
+    ExternalID   = genlib:unique(),
+    IdentityID   = create_person_identity(Party, C),
+    Ctx          = #{<<"TEST_NS">> => {obj, #{ {str, <<"KEY">>} => {b, true}}}},
+    Metadata     = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
+    Params       = construct_wallet_params(ID, IdentityID, Currency, ExternalID, Metadata),
+    {ok, Wallet}  = call_service('Create', [Params, Ctx]),
+    WalletID = Wallet#wlt_WalletState.id,
+    {ok, AccountBalance} = call_service('GetAccountBalance', [WalletID]),
+    CurrencyRef = AccountBalance#account_AccountBalance.currency,
+    Account   = Wallet#wlt_WalletState.account,
+    AccountID = Account#account_Account.id,
+    ?assertMatch(AccountID, AccountBalance#account_AccountBalance.id),
+    ?assertMatch(Currency,  CurrencyRef#'CurrencyRef'.symbolic_code),
+    ?assertMatch(0, AccountBalance#account_AccountBalance.expected_min),
+    ?assertMatch(0, AccountBalance#account_AccountBalance.current),
+    ?assertMatch(0, AccountBalance#account_AccountBalance.expected_max).
 
 %%-----------
 %%  Internal

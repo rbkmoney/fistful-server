@@ -34,6 +34,13 @@
     undefined
 }).
 
+-define(GENERATE_ID_RESULT, {
+    'bender_GenerationResult',
+    ?STRING,
+    undefined,
+    undefined
+}).
+
 -define(BLOCKING, unblocked).
 
 -define(ACCOUNT, #account_Account{

@@ -102,6 +102,8 @@ process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
     case wapi_wallet_ff_backend:create_identity(Params, Context) of
         {ok, Identity = #{<<"id">> := IdentityId}} ->
             wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Opts));
+         {error, {inaccessible, _}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Party inaccessible">>));
         {error, {provider, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {identity_class, notfound}} ->

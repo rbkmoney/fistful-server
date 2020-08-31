@@ -848,6 +848,12 @@ process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Conte
         {error, {wallet_to, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet receiver">>));
+        {error, {wallet_from, {inaccessible, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Sender wallet is unaccessible">>));
+        {error, {wallet_to, {inaccessible, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Receiver wallet is unaccessible">>));
         {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));

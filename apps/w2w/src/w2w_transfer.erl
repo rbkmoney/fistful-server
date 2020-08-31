@@ -70,9 +70,11 @@
     balance := cash()
 }.
 
+-type transfer_wallet() :: wallet_from | wallet_to.
+
 -type create_error() ::
-    {wallet_from, notfound} |
-    {wallet_to, notfound} |
+    {transfer_wallet(), notfound} |
+    {transfer_wallet(), ff_wallet:inaccessibility()} |
     {terms, ff_party:validate_w2w_transfer_creation_error()} |
     {inconsistent_currency, {
         W2WTransfer :: currency_id(),
@@ -247,6 +249,8 @@ create(Params) ->
         DomainRevision = ff_domain_config:head(),
         WalletFrom = unwrap(wallet_from, get_wallet(WalletFromID)),
         WalletTo = unwrap(wallet_to, get_wallet(WalletToID)),
+        accessible = unwrap(wallet_from, ff_wallet:is_accessible(WalletFrom)),
+        accessible = unwrap(wallet_to,   ff_wallet:is_accessible(WalletTo)),
         Identity = get_wallet_identity(WalletFrom),
         PartyID = ff_identity:party(Identity),
         {ok, PartyRevision} = ff_party:get_revision(PartyID),

@@ -142,7 +142,7 @@ decode_card_type(Type) ->
     Type.
 
 decode_residence(undefined) ->
-    undefined;
+    {ok, undefined};
 decode_residence(Residence) when is_binary(Residence) ->
     try
         {ok, list_to_existing_atom(string:to_lower(binary_to_list(Residence)))}

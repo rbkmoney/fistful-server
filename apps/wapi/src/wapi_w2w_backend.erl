@@ -17,18 +17,24 @@
 when
     CreateError ::
         {external_id_conflict, external_id()} |
+        {wallet_from, unauthorized} |
         {wallet_from | wallet_to, notfound} |
-        {terms, {bad_w2w_transfer_amount, _}} |
-        {terms, {terms_violation, {not_allowed_currency, _}}} |
-        {inconsistent_currency, _}.
+        bad_w2w_transfer_amount |
+        not_allowed_currency |
+        inconsistent_currency.
 
-create_transfer(Params, HandlerContext) ->
-    case wapi_backend_utils:gen_id(w2w_transfer, Params, HandlerContext) of
-        {ok, ID} ->
-            Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-            create_transfer(ID, Params, Context, HandlerContext);
-        {error, {external_id_conflict, _}} = Error ->
-            Error
+create_transfer(Params = #{<<"sender">> := SenderID}, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(wallet, SenderID, HandlerContext) of
+        ok ->
+            case wapi_backend_utils:gen_id(w2w_transfer, Params, HandlerContext) of
+                {ok, ID} ->
+                    Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
+                    create_transfer(ID, Params, Context, HandlerContext);
+                {error, {external_id_conflict, _}} = Error ->
+                    Error
+            end;
+        {error, unauthorized} ->
+            {error, {wallet_from, unauthorized}}
     end.
 
 create_transfer(ID, Params, Context, HandlerContext) ->
@@ -39,28 +45,12 @@ create_transfer(ID, Params, Context, HandlerContext) ->
             {ok, unmarshal(transfer, Transfer)};
         {exception, #fistful_WalletNotFound{id = ID}} ->
             {error, wallet_not_found_error(unmarshal(id, ID), Params)};
-        {exception, #fistful_ForbiddenOperationCurrency{
-            currency = Currency0,
-            allowed_currencies = AllowedCurrencies0
-        }} ->
-            Currency = ff_codec:unmarshal(currency_ref, Currency0),
-            AllowedCurrencies = ff_codec:unmarshal({set, currency_ref}, AllowedCurrencies0),
-            {error, {terms, {terms_violation, {not_allowed_currency, {
-                ff_dmsl_codec:marshal(currency_ref, Currency),
-                [ff_dmsl_codec:marshal(currency_ref, C) || C <- AllowedCurrencies]
-            }}}}};
-        {exception, #w2w_transfer_InconsistentW2WTransferCurrency{
-            w2w_transfer_currency = Transfer,
-            wallet_from_currency = From,
-            wallet_to_currency = To
-        }} ->
-            {error, {inconsistent_currency, {
-                ff_codec:unmarshal(currency_ref, Transfer),
-                ff_codec:unmarshal(currency_ref, From),
-                ff_codec:unmarshal(currency_ref, To)
-            }}};
-        {exception, #fistful_InvalidOperationAmount{amount = Amount}} ->
-            {error, {terms, {bad_w2w_transfer_amount, ff_codec:unmarshal(cash, Amount)}}}
+        {exception, #fistful_ForbiddenOperationCurrency{}} ->
+            {error, not_allowed_currency};
+        {exception, #w2w_transfer_InconsistentW2WTransferCurrency{}} ->
+            {error, inconsistent_currency};
+        {exception, #fistful_InvalidOperationAmount{}} ->
+            {error, bad_w2w_transfer_amount}
     end.
 
 -spec get_transfer(req_data(), handler_context()) ->

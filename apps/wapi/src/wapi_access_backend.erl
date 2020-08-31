@@ -65,6 +65,14 @@ get_context_by_id(destination, DestinationID, WoodyCtx) ->
             Context;
         {exception, #fistful_DestinationNotFound{}} ->
             {error, notfound}
+    end;
+get_context_by_id(w2w_transfer, W2WTransferID, WoodyCtx) ->
+    Request = {w2w_transfer, 'GetContext', [W2WTransferID]},
+    case wapi_handler_utils:service_call(Request, WoodyCtx) of
+        {ok, Context} ->
+            Context;
+        {exception, #fistful_W2WNotFound{}} ->
+            {error, notfound}
     end.
 
 get_context_from_state(identity, #idnt_IdentityState{context = Context} ) ->

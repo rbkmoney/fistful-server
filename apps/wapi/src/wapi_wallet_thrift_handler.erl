@@ -279,16 +279,19 @@ process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Conte
         {error, {wallet_from, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet sender">>));
+        {error, {wallet_from, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such wallet sender">>));
         {error, {wallet_to, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet receiver">>));
-        {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
+        {error, not_allowed_currency} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
-        {error, {terms, {bad_w2w_transfer_amount, _Amount}}} ->
+        {error, bad_w2w_transfer_amount} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Bad transfer amount">>));
-        {error, {inconsistent_currency, {_Transfer, _From, _To}}} ->
+        {error, inconsistent_currency} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Inconsistent currency">>))
     end;

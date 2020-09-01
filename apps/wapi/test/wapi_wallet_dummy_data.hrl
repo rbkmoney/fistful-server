@@ -41,6 +41,23 @@
     undefined
 }).
 
+-define(WITHDRAWAL_STATUS, {pending, #wthd_status_Pending{}}).
+
+-define(WITHDRAWAL(PartyID), #wthd_WithdrawalState{
+    id = ?STRING,
+    wallet_id = ?STRING,
+    destination_id = ?STRING,
+    body = ?CASH,
+    external_id = ?STRING,
+    status = ?WITHDRAWAL_STATUS,
+    created_at = ?TIMESTAMP,
+    effective_final_cash_flow = #cashflow_FinalCashFlow{postings = []},
+    sessions = [],
+    adjustments = [],
+    metadata = ?DEFAULT_METADATA(),
+    context = ?DEFAULT_CONTEXT(PartyID)
+}).
+
 -define(BLOCKING, unblocked).
 
 -define(ACCOUNT, #account_Account{

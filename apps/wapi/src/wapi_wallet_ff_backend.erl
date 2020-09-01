@@ -158,6 +158,7 @@ get_identity(IdentityId, Context) ->
 -spec create_identity(params(), ctx()) -> result(map(),
     {provider, notfound}       |
     {identity_class, notfound} |
+    {inaccessible, ff_party:inaccessibility()} |
     {email, notfound}          |
     {external_id_conflict, id(), external_id()}
 ).

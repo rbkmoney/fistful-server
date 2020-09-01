@@ -222,6 +222,7 @@ set_blocking(Identity) ->
 
 create(Params = #{id := ID, party := Party, provider := ProviderID, class := ClassID}) ->
     do(fun () ->
+        accessible = unwrap(party, ff_party:is_accessible(Party)),
         Provider = unwrap(provider, ff_provider:get(ProviderID)),
         Class = unwrap(identity_class, ff_provider:get_identity_class(ClassID, Provider)),
         LevelID = ff_identity_class:initial_level(Class),

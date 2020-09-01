@@ -70,11 +70,11 @@
     balance := cash()
 }.
 
--type transfer_wallet() :: wallet_from | wallet_to.
+-type wallet_class() :: wallet_from | wallet_to.
 
 -type create_error() ::
-    {transfer_wallet(), notfound} |
-    {transfer_wallet(), ff_wallet:inaccessibility()} |
+    {wallet_class(), notfound} |
+    {wallet_class(), ff_wallet:inaccessibility()} |
     {terms, ff_party:validate_w2w_transfer_creation_error()} |
     {inconsistent_currency, {
         W2WTransfer :: currency_id(),

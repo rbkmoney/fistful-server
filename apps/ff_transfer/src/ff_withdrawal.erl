@@ -402,6 +402,7 @@ create(Params) ->
         Timestamp = ff_maybe:get_defined(quote_timestamp(Quote), CreatedAt),
         DomainRevision = ensure_domain_revision_defined(quote_domain_revision(Quote)),
         Wallet = unwrap(wallet, get_wallet(WalletID)),
+        accessible = unwrap(wallet, ff_wallet:is_accessible(Wallet)),
         Destination = unwrap(destination, get_destination(DestinationID)),
         Resource = unwrap(destination_resource, ff_destination:resource_full(Destination, ResourceDescriptor)),
 

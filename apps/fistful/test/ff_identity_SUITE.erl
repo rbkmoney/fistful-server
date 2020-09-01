@@ -69,12 +69,13 @@ get_missing_fails(_C) ->
     ID = genlib:unique(),
     {error, notfound} = ff_identity_machine:get(ID).
 
-create_missing_fails(_C) ->
+create_missing_fails(C) ->
     ID = genlib:unique(),
+    Party = create_party(C),
     {error, {provider, notfound}} = ff_identity_machine:create(
         #{
             id       => ID,
-            party    => <<"party">>,
+            party    => Party,
             provider => <<"who">>,
             class    => <<"person">>
         },
@@ -83,7 +84,7 @@ create_missing_fails(_C) ->
     {error, {identity_class, notfound}} = ff_identity_machine:create(
         #{
             id       => ID,
-            party    => <<"party">>,
+            party    => Party,
             provider => <<"good-one">>,
             class    => <<"nosrep">>
         },

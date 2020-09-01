@@ -21,9 +21,17 @@
     {inconsistent_currency, _} |
     {destination_resource, {bin_data, not_found}}.
 
+-type create_quote_error() ::
+    {destination, notfound}       |
+    {destination, unauthorized}   |
+    {route, _Reason}              |
+    {identity_providers_mismatch, {id(), id()}} |
+    {wallet, notfound}.
+
 -export([create/2]).
 -export([get/2]).
 -export([get_by_external_id/2]).
+-export([create_quote/2]).
 
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
@@ -76,9 +84,7 @@ create(Params, Context, HandlerContext) ->
         }} ->
             {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}};
         {exception, #wthd_NoDestinationResourceInfo{}} ->
-            {error, {destination_resource, {bin_data, not_found}}};
-        {exception, Details} ->
-            {error, Details}
+            {error, {destination_resource, {bin_data, not_found}}}
     end.
 
 -spec get(id(), handler_context()) ->
@@ -116,9 +122,62 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
             {error, {external_id, {unknown_external_id, ExternalID}}}
     end.
 
+-spec create_quote(req_data(), handler_context()) ->
+    {ok, response_data()} | {error, create_quote_error()}.
+
+create_quote(#{'WithdrawalQuoteParams' := Params}, HandlerContext) ->
+    CreateQuoteParams = marshal(create_quote_params, Params),
+    Request = {fistful_withdrawal, 'GetQuote', [CreateQuoteParams]},
+    case service_call(Request, HandlerContext) of
+        {ok, QuoteThrift} ->
+           Token = create_quote_token(
+                Quote,
+                maps:get(<<"walletID">>, Params),
+                maps:get(<<"destinationID">>, Params, undefined),
+                wapi_handler_utils:get_owner(HandlerContext)
+                ),
+            UnmarshaledQuote = unmarshal(quote, Quote),
+            UnmarshaledQuote#{<<"quoteToken">> => Token};
+        {exception, #fistful_WalletNotFound{}} ->
+            {error, {wallet, notfound}};
+        {exception, #fistful_DestinationNotFound{}} ->
+            {error, {destination, notfound}};
+        {exception, #fistful_DestinationUnauthorized{}} ->
+            {error, {destination, unauthorized}};
+        {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
+            {error, {forbidden_currency, unmarshal_currency_ref(Currency)}};
+        {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
+            {error, {forbidden_amount, unmarshal_body(Amount)}};
+        {exception, #wthd_InconsistentWithdrawalCurrency{
+            withdrawal_currency = WithdrawalCurrency,
+            destination_currency = DestinationCurrency,
+            wallet_currency = WalletCurrency
+        }} ->
+            {error, {inconsistent_currency, {
+                unmarshal_currency_ref(WithdrawalCurrency),
+                unmarshal_currency_ref(DestinationCurrency),
+                unmarshal_currency_ref(WalletCurrency)
+            }}};
+        {exception, #wthd_IdentityProvidersMismatch{
+            wallet_provider = WalletProvider,
+            destination_provider = DestinationProvider
+        }} ->
+            {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}};
+        {exception, #wthd_NoDestinationResourceInfo{}} ->
+            {error, {destination_resource, {bin_data, not_found}}}
+    end.
+
 %%
 %% Internal
 %%
+
+create_quote_token(Quote, WalletID, DestinationID, PartyID) ->
+    Payload = wapi_withdrawal_quote:create_token_payload(Quote, WalletID, DestinationID, PartyID),
+    {ok, Token} = issue_quote_token(PartyID, Payload),
+    Token.
+
+issue_quote_token(PartyID, Data) ->
+    uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).
 
 service_call(Params, Context) ->
     wapi_handler_utils:service_call(Params, Context).
@@ -291,6 +350,23 @@ marshal(withdrawal_params, Params = #{
         metadata = maybe_marshal(context, Metadata)
     };
 
+marshal(create_quote_params, Params = #{
+    <<"walletID">> := WalletID,
+    <<"currencyFrom">> := CurrencyFrom,
+    <<"currencyTo">> := CurrencyTo,
+    <<"cash">> := Body
+}) ->
+    ExternalID = maps:get(<<"externalID">>, Params, undefined),
+    DestinationID = maps:get(<<"destinationID">>, Params, undefined),
+    #wthd_QuoteParams{
+        wallet_id = marshal(id, WalletID),
+        body = marshal_body(Body),
+        currency_from = marshal_currency_ref(CurrencyFrom),
+        currency_to = marshal_currency_ref(CurrencyTo),
+        destination_id = maybe_marshal(id, DestinationID),
+        external_id = maybe_marshal(id, ExternalID)
+    };
+
 marshal(context, Context) ->
     ff_codec:marshal(context, Context);
 
@@ -305,9 +381,12 @@ maybe_marshal(T, V) ->
 marshal_body(Body) ->
     #'Cash'{
         amount   = genlib:to_int(maps:get(<<"amount">>, Body)),
-        currency = #'CurrencyRef'{
-            symbolic_code = maps:get(<<"currency">>, Body)
-        }
+        currency = marshal_currency_ref(maps:get(<<"currency">>, Body))
+    }.
+
+marshal_currency_ref(Currency) ->
+    #'CurrencyRef'{
+        symbolic_code = Currency
     }.
 
 marshal_quote(undefined) ->
@@ -335,6 +414,19 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
         <<"externalID">> => ExternalID,
         <<"metadata">> => UnmarshaledMetadata
     }, unmarshal_status(Status)));
+
+unmarshal(quote, #wthd_Quote{
+    cash_from = CashFrom,
+    cash_to = CashTo,
+    created_at = CreatedAt,
+    expires_on = ExpiresOn
+}) ->
+    #{
+        <<"cashFrom">>      => unmarshal_body(CashFrom),
+        <<"cashTo">>        => unmarshal_body(CashTo),
+        <<"createdAt">>     => CreatedAt,
+        <<"expiresOn">>     => ExpiresOn
+    };
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

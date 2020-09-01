@@ -165,6 +165,7 @@ create(Params = #{
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Events = unwrap(ff_account:create(ID, Identity, Currency)),
+        accessible = unwrap(identity, ff_identity:is_accessible(Identity)),
         CreatedAt = ff_time:now(),
         [{created, genlib_map:compact(#{
             version => ?ACTUAL_FORMAT_VERSION,

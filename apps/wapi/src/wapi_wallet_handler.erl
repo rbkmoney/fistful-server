@@ -110,6 +110,8 @@ process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
     case wapi_wallet_ff_backend:create_identity(Params, Context) of
         {ok, Identity = #{<<"id">> := IdentityId}} ->
             wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Opts));
+         {error, {inaccessible, _}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Party inaccessible">>));
         {error, {provider, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {identity_class, notfound}} ->
@@ -864,6 +866,12 @@ process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Conte
         {error, {wallet_to, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet receiver">>));
+        {error, {wallet_from, {inaccessible, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Sender wallet is unaccessible">>));
+        {error, {wallet_to, {inaccessible, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Receiver wallet is unaccessible">>));
         {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));

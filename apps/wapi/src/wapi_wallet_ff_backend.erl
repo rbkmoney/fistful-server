@@ -35,9 +35,11 @@
 -export([get_destination/2]).
 -export([get_destination_by_external_id/2]).
 -export([create_destination/2]).
+
 -export([create_withdrawal/2]).
 -export([get_withdrawal/2]).
 -export([get_withdrawal_by_external_id/2]).
+
 -export([get_withdrawal_events/2]).
 -export([get_withdrawal_event/3]).
 -export([list_withdrawals/2]).
@@ -68,6 +70,7 @@
 -export([block_p2p_template/2]).
 -export([issue_p2p_template_access_token/3]).
 -export([issue_p2p_transfer_ticket/3]).
+
 -export([create_p2p_transfer_with_template/3]).
 -export([quote_p2p_transfer_with_template/3]).
 
@@ -155,6 +158,7 @@ get_identity(IdentityId, Context) ->
 -spec create_identity(params(), ctx()) -> result(map(),
     {provider, notfound}       |
     {identity_class, notfound} |
+    {inaccessible, ff_party:inaccessibility()} |
     {email, notfound}          |
     {external_id_conflict, id(), external_id()}
 ).

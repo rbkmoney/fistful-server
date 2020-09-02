@@ -286,7 +286,7 @@ marshal(withdrawal_params, Params = #{
         wallet_id = marshal(id, WalletID),
         destination_id = marshal(id, DestinationID),
         body = marshal_body(Body),
-        quote = ff_withdrawal_codec:marshal(quote, Quote),
+        quote = marshal_quote(Quote),
         external_id = maybe_marshal(id, ExternalID),
         metadata = maybe_marshal(context, Metadata)
     };
@@ -309,6 +309,11 @@ marshal_body(Body) ->
             symbolic_code = maps:get(<<"currency">>, Body)
         }
     }.
+
+marshal_quote(undefined) ->
+    undefined;
+marshal_quote(Quote) ->
+    ff_withdrawal_codec:marshal(quote, Quote).
 
 unmarshal(withdrawal, #wthd_WithdrawalState{
     id = ID,

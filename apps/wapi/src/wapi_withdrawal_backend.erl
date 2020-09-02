@@ -243,7 +243,7 @@ maybe_check_quote_token(Params = #{<<"quoteToken">> := #{
     do(fun() ->
         unwrap(quote_invalid_party, valid(PartyID, wapi_handler_utils:get_owner(Context))),
         unwrap(quote_invalid_wallet, valid(WalletID, maps:get(<<"wallet">>, Params))),
-        unwrap(check_quote_withdrawal(DestinationID, maps:get(<<"withdrawal">>, Params))),
+        unwrap(check_quote_withdrawal(DestinationID, maps:get(<<"destination">>, Params))),
         unwrap(check_quote_body(maps:get(cash_from, Quote), marshal_quote_body(maps:get(<<"body">>, Params)))),
         Params#{<<"quote">> => Quote}
     end);
@@ -286,7 +286,7 @@ marshal(withdrawal_params, Params = #{
         wallet_id = marshal(id, WalletID),
         destination_id = marshal(id, DestinationID),
         body = marshal_body(Body),
-        quote = Quote,
+        quote = ff_withdrawal_codec:marshal(quote, Quote),
         external_id = maybe_marshal(id, ExternalID),
         metadata = maybe_marshal(context, Metadata)
     };

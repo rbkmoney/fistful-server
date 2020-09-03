@@ -75,6 +75,10 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
             woody_error:raise(business, #fistful_DestinationNotFound{});
         {error, {destination, unauthorized}} ->
             woody_error:raise(business, #fistful_DestinationUnauthorized{});
+        {error, {wallet, {inaccessible, _}}} ->
+            woody_error:raise(business, #fistful_WalletInaccessible{
+                id = MarshaledParams#wthd_WithdrawalParams.wallet_id
+            });
         {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
             Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
             Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],

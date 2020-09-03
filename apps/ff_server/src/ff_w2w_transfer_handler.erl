@@ -41,6 +41,14 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
             woody_error:raise(business, #fistful_WalletNotFound{
                 id = MarshaledParams#w2w_transfer_W2WTransferParams.wallet_to_id
             });
+        {error, {wallet_from, {inaccessible, _}}} ->
+            woody_error:raise(business, #fistful_WalletInaccessible{
+                id = MarshaledParams#w2w_transfer_W2WTransferParams.wallet_from_id
+            });
+        {error, {wallet_to, {inaccessible, _}}} ->
+            woody_error:raise(business, #fistful_WalletInaccessible{
+                id = MarshaledParams#w2w_transfer_W2WTransferParams.wallet_to_id
+            });
         {error, {inconsistent_currency, {Transfer, From, To}}} ->
             woody_error:raise(business, #w2w_transfer_InconsistentW2WTransferCurrency{
                 w2w_transfer_currency = ff_codec:marshal(currency_ref, Transfer),

@@ -129,7 +129,8 @@ start_app(wapi_woody_client = AppName) ->
             fistful_wallet      => "http://localhost:8022/v1/wallet",
             fistful_identity    => "http://localhost:8022/v1/identity",
             fistful_destination => "http://localhost:8022/v1/destination",
-            w2w_transfer        => "http://localhost:8022/v1/w2w_transfer"
+            w2w_transfer        => "http://localhost:8022/v1/w2w_transfer",
+            fistful_withdrawal  => "http://localhost:8022/v1/withdrawal"
         }},
         {service_retries, #{
             fistful_stat    => #{

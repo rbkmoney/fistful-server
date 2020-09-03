@@ -52,6 +52,7 @@ unmarshal_withdrawal_params(Params) ->
         wallet_id      => unmarshal(id, Params#wthd_WithdrawalParams.wallet_id),
         destination_id => unmarshal(id, Params#wthd_WithdrawalParams.destination_id),
         body           => unmarshal(cash, Params#wthd_WithdrawalParams.body),
+        quote          => maybe_unmarshal(quote, Params#wthd_WithdrawalParams.quote),
         external_id    => maybe_unmarshal(id, Params#wthd_WithdrawalParams.external_id),
         metadata       => maybe_unmarshal(ctx, Params#wthd_WithdrawalParams.metadata)
     }).

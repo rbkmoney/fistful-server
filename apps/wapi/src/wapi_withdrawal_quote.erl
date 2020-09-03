@@ -90,7 +90,7 @@ encode_quote(Quote) ->
     base64:encode(Bin).
 
 -spec decode_quote(token_payload()) ->
-    quote.
+    quote().
 decode_quote(Encoded) ->
     Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
     Bin = base64:decode(Encoded),

@@ -122,7 +122,7 @@ get_service_path(source_management) ->
 get_service_path(withdrawal_management) ->
     "/v1/withdrawal";
 get_service_path(withdrawal_session_management) ->
-    "/v2/withdrawal_session";
+    "/v1/withdrawal_session";
 get_service_path(deposit_management) ->
     "/v1/deposit";
 get_service_path(p2p_transfer_event_sink) ->

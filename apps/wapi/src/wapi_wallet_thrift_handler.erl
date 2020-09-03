@@ -238,6 +238,74 @@ process_request('IssueDestinationGrant', #{
 
 %% Withdrawals
 
+process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context, Opts) ->
+    case wapi_withdrawal_backend:create(Params, Context) of
+        {ok, Withdrawal = #{<<"id">> := WithdrawalId}} ->
+            wapi_handler_utils:reply_ok(202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Opts));
+        {error, {destination, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
+        {error, {destination, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
+        {error, {external_id_conflict, ID}} ->
+            ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
+        {error, {wallet, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
+        {error, {wallet, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet unauthorized">>));
+        {error, {quote_invalid_party, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal owner differs from quote`s one">>)
+            );
+        {error, {quote_invalid_wallet, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal wallet differs from quote`s one">>)
+            );
+        {error, {quote, {invalid_destination, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal destination differs from quote`s one">>)
+            );
+        {error, {quote, {invalid_body, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Withdrawal body differs from quote`s one">>)
+            );
+        {error, {forbidden_currency, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Forbidden currency">>)
+            );
+        {error, {forbidden_amount, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
+        {error, {inconsistent_currency, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid currency">>)
+            );
+        {error, {destination_resource, {bin_data, not_found}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Unknown card issuer">>)
+            )
+    end;
+process_request('GetWithdrawal', #{'withdrawalID' := WithdrawalId}, Context, _Opts) ->
+    case wapi_withdrawal_backend:get(WithdrawalId, Context) of
+        {ok, Withdrawal} ->
+            wapi_handler_utils:reply_ok(200, Withdrawal);
+        {error, {withdrawal, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+process_request('GetWithdrawalByExternalID', #{'externalID' := ExternalID}, Context, _Opts) ->
+    case wapi_withdrawal_backend:get_by_external_id(ExternalID, Context) of
+        {ok, Withdrawal} ->
+            wapi_handler_utils:reply_ok(200, Withdrawal);
+        {error, {external_id, {unknown_external_id, ExternalID}}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
 process_request('ListWithdrawals', Params, Context, _Opts) ->
     case wapi_stat_backend:list_withdrawals(Params, Context) of
         {ok, List} -> wapi_handler_utils:reply_ok(200, List);

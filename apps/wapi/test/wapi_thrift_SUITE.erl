@@ -17,6 +17,7 @@
 -export([identity_check_test/1]).
 -export([identity_challenge_check_test/1]).
 -export([destination_check_test/1]).
+-export([withdrawal_check_test/1]).
 
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
@@ -44,7 +45,8 @@ groups() ->
             identity_check_test,
             identity_challenge_check_test,
             wallet_check_test,
-            destination_check_test
+            destination_check_test,
+            withdrawal_check_test
         ]}
     ].
 
@@ -166,6 +168,24 @@ destination_check_test(C) ->
     IdentityID2 = create_identity(Name, Provider, Class, C),
     DestinationID2 = create_destination(IdentityID2, C),
     ?assertEqual(Keys, maps:keys(get_destination(DestinationID2, C))).
+
+-spec withdrawal_check_test(config()) -> test_return().
+
+withdrawal_check_test(C) ->
+    Name = <<"Keyn Fawkes">>,
+    Provider = <<"quote-owner">>,
+    Class = ?ID_CLASS,
+    IdentityID1 = create_identity(Name, Provider, Class, C),
+    WalletID1 = create_wallet(IdentityID1, C),
+    DestinationID1 = create_destination(IdentityID1, C),
+    WithdrawalID1 = create_withdrawal(WalletID1, DestinationID1, C),
+    Keys = maps:keys(get_withdrawal(WithdrawalID1, C)),
+    ok = application:set_env(wapi, transport, thrift),
+    IdentityID2 = create_identity(Name, Provider, Class, C),
+    WalletID2 = create_wallet(IdentityID2, C),
+    DestinationID2 = create_destination(IdentityID2, C),
+    WithdrawalID2 = create_withdrawal(WalletID2, DestinationID2, C),
+    ?assertEqual(Keys, maps:keys(get_withdrawal(WithdrawalID2, C))).
 
 %%
 
@@ -325,7 +345,9 @@ create_destination(IdentityID, Params, C) ->
         #{body => maps:merge(DefaultParams, Params)},
         ct_helper:cfg(context, C)
     ),
-    maps:get(<<"id">>, Destination).
+    DestinationID = maps:get(<<"id">>, Destination),
+    await_destination(DestinationID),
+    DestinationID.
 
 get_destination(DestinationID, C) ->
     {ok, Destination} = call_api(
@@ -334,6 +356,70 @@ get_destination(DestinationID, C) ->
         ct_helper:cfg(context, C)
     ),
     Destination.
+
+await_destination(DestID) ->
+    authorized = ct_helper:await(
+        authorized,
+        fun () ->
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
+        end
+    ).
+
+get_quote(CashFrom, WalletID, DestID, C) ->
+    {ok, Quote} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => #{
+                <<"walletID">> => WalletID,
+                <<"destinationID">> => DestID,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => CashFrom
+        }},
+        ct_helper:cfg(context, C)
+    ),
+    Quote.
+
+create_withdrawal(WalletID, DestID, C) ->
+    CashFrom = #{
+        <<"amount">> => 100,
+        <<"currency">> => <<"RUB">>
+    },
+    Quote = get_quote(CashFrom, WalletID, DestID, C),
+    create_withdrawal(WalletID, DestID, C, maps:get(<<"quoteToken">>, Quote)).
+
+create_withdrawal(WalletID, DestID, C, QuoteToken) ->
+    create_withdrawal(WalletID, DestID, C, QuoteToken, 100).
+
+create_withdrawal(WalletID, DestID, C, QuoteToken, Amount) ->
+    create_withdrawal(WalletID, DestID, C, QuoteToken, Amount, undefined, undefined).
+
+create_withdrawal(WalletID, DestID, C, QuoteToken, Amount, WalletGrant, DestinationGrant) ->
+    {ok, Withdrawal} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+        #{body => genlib_map:compact(#{
+            <<"wallet">> => WalletID,
+            <<"destination">> => DestID,
+            <<"body">> => #{
+                <<"amount">> => Amount,
+                <<"currency">> => <<"RUB">>
+            },
+            <<"quoteToken">> => QuoteToken,
+            <<"walletGrant">> => WalletGrant,
+            <<"destinationGrant">> => DestinationGrant
+        })},
+        ct_helper:cfg(context, C)
+    ),
+    maps:get(<<"id">>, Withdrawal).
+
+get_withdrawal(WithdrawalID, C) ->
+    {ok, Withdrawal} = call_api(
+        fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
+        #{binding => #{<<"withdrawalID">> => WithdrawalID}},
+        ct_helper:cfg(context, C)
+    ),
+    Withdrawal.
 
 %%
 

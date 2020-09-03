@@ -72,6 +72,7 @@
 -type create_error() ::
     {wallet, notfound} |
     {destination, notfound | unauthorized} |
+    {wallet, ff_wallet:inaccessibility()}  |
     {inconsistent_currency, {Withdrawal :: currency_id(), Wallet :: currency_id(), Destination :: currency_id()}} |
     {terms, ff_party:validate_withdrawal_creation_error()} |
     {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}} |

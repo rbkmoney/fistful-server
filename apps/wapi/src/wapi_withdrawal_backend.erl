@@ -1,6 +1,13 @@
 -module(wapi_withdrawal_backend).
 
 -define(DOMAIN, <<"wallet-api">>).
+-define(event(ID, Timestamp, Change), #wthd_Event{
+    event_id = ID,
+    occured_at = Timestamp,
+    change = Change
+}).
+-define(statusChange(Status), {status_changed, #wthd_StatusChange{status = Status}}).
+
 
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
@@ -35,6 +42,8 @@
 -export([get/2]).
 -export([get_by_external_id/2]).
 -export([create_quote/2]).
+-export([get_events/2]).
+-export([get_event/3]).
 
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
@@ -178,6 +187,44 @@ create_quote_(Params, HandlerContext) ->
             {error, {destination_resource, {bin_data, not_found}}}
     end.
 
+-spec get_events(req_data(), handler_context()) ->
+    {ok, response_data()} |
+    {error, {withdrawal, notfound}} |
+    {error, {withdrawal, unauthorized}}.
+
+get_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, HandlerContext) ->
+    Cursor = maps:get('eventCursor', Params, undefined),
+    case get_swag_events(WithdrawalId, Limit, Cursor, HandlerContext) of
+        {ok, [Event]} ->
+            {ok, Event};
+        {error, {withdrawal, unauthorized}} = Error ->
+            Error;
+        {error, {withdrawal, notfound}} = Error ->
+            Error;
+        {exception, #fistful_WithdrawalNotFound{}} ->
+            {error, {withdrawal, notfound}}
+    end.
+
+-spec get_event(id(), integer(), handler_context()) ->
+    {ok, response_data()} |
+    {error, {withdrawal, notfound}} |
+    {error, {withdrawal, unauthorized}} |
+    {error, {event, notfound}}.
+
+get_event(WithdrawalId, EventId, HandlerContext) ->
+    case get_swag_events(WithdrawalId, 1, EventId - 1, HandlerContext) of
+        {ok, [Event]} ->
+            {ok, Event};
+        {ok, []} ->
+            {error, {event, notfound}};
+        {error, {withdrawal, unauthorized}} = Error ->
+            Error;
+        {error, {withdrawal, notfound}} = Error ->
+            Error;
+        {exception, #fistful_WithdrawalNotFound{}} ->
+            {error, {withdrawal, notfound}}
+    end.
+
 %%
 %% Internal
 %%
@@ -190,8 +237,57 @@ create_quote_token(Quote, WalletID, DestinationID, PartyID) ->
 issue_quote_token(PartyID, Data) ->
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).
 
-service_call(Params, Context) ->
-    wapi_handler_utils:service_call(Params, Context).
+service_call(Params, HandlerContext) ->
+    wapi_handler_utils:service_call(Params, HandlerContext).
+
+get_swag_events(WithdrawalId, Limit, Cursor, HandlerContext) ->
+    case get_events(WithdrawalId, Limit, Cursor, HandlerContext) of
+        {ok, Events0} ->
+            Events1 = lists:filter(fun event_filter/1, Events0),
+            {ok, unmarshal({list, event}, Events1)};
+        {error, _} = Error ->
+            Error;
+        {exception, _} = Exception ->
+            Exception
+    end.
+
+get_events(WithdrawalId, Limit, Cursor, HandlerContext) ->
+    case authorize_resource_by_bearer(withdrawal, WithdrawalId, HandlerContext) of
+        ok ->
+            collect_events(WithdrawalId, Cursor, Limit, HandlerContext);
+        {error, _} = Error ->
+            Error
+    end.
+
+collect_events(WithdrawalId, Cursor, Limit, HandlerContext) ->
+    collect_events(WithdrawalId, Cursor, Limit, HandlerContext, []).
+
+collect_events(WithdrawalId, Cursor, Limit, HandlerContext, AccEvents) when Limit =:= undefined ->
+    Request = {fistful_withdrawal, 'GetEvents', [WithdrawalId, marshal_event_range(Cursor, Limit)]},
+    case service_call(Request, HandlerContext) of
+        {exception, _} = Exception ->
+            Exception;
+        {ok, []} ->
+            {ok, AccEvents};
+        {ok, Events} ->
+            {ok, AccEvents ++ Events}
+    end;
+collect_events(WithdrawalId, Cursor, Limit, HandlerContext, AccEvents) ->
+    Request = {fistful_withdrawal, 'GetEvents', [WithdrawalId, marshal_event_range(Cursor, Limit)]},
+    case service_call(Request, HandlerContext) of
+        {exception, _} = Exception ->
+            Exception;
+        {ok, []} ->
+            {ok, AccEvents};
+        {ok, Events} ->
+            ?event(NewCursor, _, _) = lists:last(Events),
+            collect_events(WithdrawalId, NewCursor, Limit - length(Events), HandlerContext, AccEvents ++ Events)
+    end.
+
+event_filter(?event(_, _, ?statusChange(_)))->
+    true;
+event_filter(_) ->
+    false.
 
 %% Validators
 
@@ -320,9 +416,9 @@ maybe_check_quote_token(Params = #{<<"quoteToken">> := #{
     wallet_id := WalletID,
     destination_id := DestinationID,
     party_id := PartyID
-}}, Context) ->
+}}, HandlerContext) ->
     do(fun() ->
-        unwrap(quote_invalid_party, valid(PartyID, wapi_handler_utils:get_owner(Context))),
+        unwrap(quote_invalid_party, valid(PartyID, wapi_handler_utils:get_owner(HandlerContext))),
         unwrap(quote_invalid_wallet, valid(WalletID, maps:get(<<"wallet">>, Params))),
         unwrap(check_quote_withdrawal(DestinationID, maps:get(<<"destination">>, Params))),
         unwrap(check_quote_body(maps:get(cash_from, Quote), marshal_quote_body(maps:get(<<"body">>, Params)))),
@@ -400,6 +496,15 @@ maybe_marshal(_, undefined) ->
 maybe_marshal(T, V) ->
     marshal(T, V).
 
+marshal_event_range(Cursor, Limit) when
+    is_integer(Cursor) andalso
+    (is_integer(Limit) orelse Limit =:= undefined)
+->
+    #'EventRange'{
+        'after' = Cursor,
+        'limit' = Limit
+    }.
+
 marshal_body(Body) ->
     #'Cash'{
         amount   = genlib:to_int(maps:get(<<"amount">>, Body)),
@@ -415,6 +520,9 @@ marshal_quote(undefined) ->
     undefined;
 marshal_quote(Quote) ->
     ff_withdrawal_codec:marshal(quote, Quote).
+
+unmarshal({list, Type}, List) ->
+    lists:map(fun(V) -> unmarshal(Type, V) end, List);
 
 unmarshal(withdrawal, #wthd_WithdrawalState{
     id = ID,
@@ -449,6 +557,16 @@ unmarshal(quote, #wthd_Quote{
         <<"createdAt">>     => CreatedAt,
         <<"expiresOn">>     => ExpiresOn
     };
+
+unmarshal(event, ?event(EventId, OccuredAt, ?statusChange(Status))) ->
+    genlib_map:compact(#{
+        <<"eventID">> => EventId,
+        <<"occuredAt">> => OccuredAt,
+        <<"changes">> => [maps:merge(
+            #{<<"type">> => <<"WithdrawalStatusChanged">>},
+            unmarshal_status(Status)
+        )]
+    });
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

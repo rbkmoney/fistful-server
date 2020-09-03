@@ -361,6 +361,29 @@ process_request('ListWithdrawals', Params, Context, _Opts) ->
                 <<"description">> => Reason
             })
     end;
+process_request('PollWithdrawalEvents', Params, Context, _Opts) ->
+    case wapi_withdrawal_backend:get_events(Params, Context) of
+        {ok, Events} ->
+            wapi_handler_utils:reply_ok(200, Events);
+        {error, {withdrawal, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+process_request('GetWithdrawalEvents', #{
+    'withdrawalID' := WithdrawalId,
+    'eventID'      := EventId
+}, Context, _Opts) ->
+    case wapi_withdrawal_backend:get_event(WithdrawalId, EventId, Context) of
+        {ok, Event} ->
+            wapi_handler_utils:reply_ok(200, Event);
+        {error, {withdrawal, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {withdrawal, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {event, notfound}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
 
 %% Deposits
 

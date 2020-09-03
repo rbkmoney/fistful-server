@@ -19,14 +19,17 @@
     {forbidden_currency, _} |
     {forbidden_amount, _} |
     {inconsistent_currency, _} |
+    {identity_providers_mismatch, {id(), id()}} |
     {destination_resource, {bin_data, not_found}}.
 
 -type create_quote_error() ::
-    {destination, notfound}       |
-    {destination, unauthorized}   |
-    {route, _Reason}              |
+    {destination, notfound | unauthorized} |
+    {wallet, notfound | unauthorized} |
+    {forbidden_currency, _} |
+    {forbidden_amount, _} |
+    {inconsistent_currency, _} |
     {identity_providers_mismatch, {id(), id()}} |
-    {wallet, notfound}.
+    {destination_resource, {bin_data, not_found}}.
 
 -export([create/2]).
 -export([get/2]).
@@ -126,18 +129,26 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
     {ok, response_data()} | {error, create_quote_error()}.
 
 create_quote(#{'WithdrawalQuoteParams' := Params}, HandlerContext) ->
+    case authorize_quote(Params, HandlerContext) of
+        ok ->
+            create_quote_(Params, HandlerContext);
+        {error, _} = Error ->
+            Error
+    end.
+
+create_quote_(Params, HandlerContext) ->
     CreateQuoteParams = marshal(create_quote_params, Params),
     Request = {fistful_withdrawal, 'GetQuote', [CreateQuoteParams]},
     case service_call(Request, HandlerContext) of
         {ok, QuoteThrift} ->
            Token = create_quote_token(
-                Quote,
+                QuoteThrift,
                 maps:get(<<"walletID">>, Params),
                 maps:get(<<"destinationID">>, Params, undefined),
                 wapi_handler_utils:get_owner(HandlerContext)
-                ),
-            UnmarshaledQuote = unmarshal(quote, Quote),
-            UnmarshaledQuote#{<<"quoteToken">> => Token};
+            ),
+            UnmarshaledQuote = unmarshal(quote, QuoteThrift),
+            {ok, UnmarshaledQuote#{<<"quoteToken">> => Token}};
         {exception, #fistful_WalletNotFound{}} ->
             {error, {wallet, notfound}};
         {exception, #fistful_DestinationNotFound{}} ->
@@ -172,7 +183,7 @@ create_quote(#{'WithdrawalQuoteParams' := Params}, HandlerContext) ->
 %%
 
 create_quote_token(Quote, WalletID, DestinationID, PartyID) ->
-    Payload = wapi_withdrawal_quote:create_token_payload(Quote, WalletID, DestinationID, PartyID),
+    Payload = wapi_withdrawal_quote:thrift_create_token_payload(Quote, WalletID, DestinationID, PartyID),
     {ok, Token} = issue_quote_token(PartyID, Payload),
     Token.
 
@@ -183,6 +194,17 @@ service_call(Params, Context) ->
     wapi_handler_utils:service_call(Params, Context).
 
 %% Validators
+
+authorize_quote(Params = #{<<"walletID">> := WalletID}, HandlerContext) ->
+    do(fun() ->
+        unwrap(wallet, wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext)),
+        case maps:get(<<"destinationID">>, Params, undefined) of
+            undefined ->
+                ok;
+            DestinationID ->
+                unwrap(destination, wapi_access_backend:check_resource_by_id(destination, DestinationID, HandlerContext))
+        end
+    end).
 
 check_withdrawal_params(Params0, HandlerContext) ->
     do(fun() ->

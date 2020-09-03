@@ -238,6 +238,41 @@ process_request('IssueDestinationGrant', #{
 
 %% Withdrawals
 
+process_request('CreateQuote', Params, Context, _Opts) ->
+    case wapi_withdrawal_backend:create_quote(Params, Context) of
+        {ok, Quote} ->
+            wapi_handler_utils:reply_ok(202, Quote);
+        {error, {destination, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
+        {error, {destination, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
+        {error, {wallet, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
+        {error, {wallet, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet unauthorized">>));
+        {error, {forbidden_currency, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Forbidden currency">>)
+            );
+        {error, {forbidden_amount, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
+        {error, {inconsistent_currency, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid currency">>)
+            );
+        {error, {identity_providers_mismatch, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(
+                    <<"This wallet and destination cannot be used together">>
+                )
+            );
+        {error, {destination_resource, {bin_data, not_found}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Unknown card issuer">>)
+            )
+    end;
 process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context, Opts) ->
     case wapi_withdrawal_backend:create(Params, Context) of
         {ok, Withdrawal = #{<<"id">> := WithdrawalId}} ->
@@ -280,6 +315,12 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
         {error, {inconsistent_currency, _}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid currency">>)
+            );
+        {error, {identity_providers_mismatch, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(
+                    <<"This wallet and destination cannot be used together">>
+                )
             );
         {error, {destination_resource, {bin_data, not_found}}} ->
             wapi_handler_utils:reply_ok(422,

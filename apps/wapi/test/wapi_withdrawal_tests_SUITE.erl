@@ -23,7 +23,8 @@
 -export([
     create/1,
     get/1,
-    get_by_external_id/1
+    get_by_external_id/1,
+    create_quote/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -58,7 +59,8 @@ groups() ->
             [
                 create,
                 get,
-                get_by_external_id
+                get_by_external_id,
+                create_quote
             ]
         }
     ].
@@ -185,6 +187,31 @@ get_by_external_id(C) ->
         },
     ct_helper:cfg(context, C)
 ).
+
+-spec create_quote(config()) ->
+    _.
+create_quote(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> {ok, ?WITHDRAWAL_QUOTE} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => genlib_map:compact(#{
+                <<"walletID">> => ?STRING,
+                <<"destinationID">> => ?STRING,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => #{
+                    <<"amount">> => 100,
+                    <<"currency">> => <<"RUB">>
+                }
+        })},
+        ct_helper:cfg(context, C)
+    ).
 
 %%
 

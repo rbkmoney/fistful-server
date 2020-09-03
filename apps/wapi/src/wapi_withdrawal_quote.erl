@@ -1,6 +1,9 @@
 -module(wapi_withdrawal_quote).
 
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+
 -export([create_token_payload/4]).
+-export([thrift_create_token_payload/4]).
 -export([decode_token_payload/1]).
 
 -type token_payload() ::
@@ -18,18 +21,27 @@
 -type destination_id() :: binary() | undefined.
 -type party_id() :: binary().
 -type quote() :: ff_withdrawal:quote().
+-type thrift_quote() :: ff_proto_withdrawal_thrift:'Quote'().
 
 %% API
 
 -spec create_token_payload(quote(), wallet_id(), destination_id(), party_id()) ->
     token_payload().
 create_token_payload(Quote, WalletID, DestinationID, PartyID) ->
+    do_create_token_payload(encode_quote(Quote), WalletID, DestinationID, PartyID).
+
+-spec thrift_create_token_payload(thrift_quote(), wallet_id(), destination_id(), party_id()) ->
+    token_payload().
+thrift_create_token_payload(Quote, WalletID, DestinationID, PartyID) ->
+    do_create_token_payload(encode_thrift_quote(Quote), WalletID, DestinationID, PartyID).
+
+do_create_token_payload(Quote, WalletID, DestinationID, PartyID) ->
     genlib_map:compact(#{
         <<"version">> => 2,
         <<"walletID">> => WalletID,
         <<"destinationID">> => DestinationID,
         <<"partyID">> => PartyID,
-        <<"quote">> => encode_quote(Quote)
+        <<"quote">> => Quote
     }).
 
 -spec decode_token_payload(token_payload()) ->
@@ -85,8 +97,13 @@ decode_token_payload(#{<<"version">> := 1} = Payload) ->
 -spec encode_quote(quote()) ->
     token_payload().
 encode_quote(Quote) ->
+    encode_thrift_quote(ff_withdrawal_codec:marshal(quote, Quote)).
+
+-spec encode_thrift_quote(thrift_quote()) ->
+    token_payload().
+encode_thrift_quote(Quote) ->
     Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
-    Bin = ff_proto_utils:serialize(Type, ff_withdrawal_codec:marshal(quote, Quote)),
+    Bin = ff_proto_utils:serialize(Type, Quote),
     base64:encode(Bin).
 
 -spec decode_quote(token_payload()) ->

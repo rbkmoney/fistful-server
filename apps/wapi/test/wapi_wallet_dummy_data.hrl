@@ -35,6 +35,13 @@
     undefined
 }).
 
+-define(GENERATE_ID_RESULT, {
+    'bender_GenerationResult',
+    ?STRING,
+    undefined,
+    undefined
+}).
+
 -define(WITHDRAWAL_STATUS, {pending, #wthd_status_Pending{}}).
 
 -define(WITHDRAWAL(PartyID), #wthd_WithdrawalState{
@@ -262,6 +269,24 @@
     url = ?STRING,
     pub_key = ?STRING,
     enabled = false
+}).
+
+-define(W2W_TRANSFER(PartyID), #w2w_transfer_W2WTransferState{
+    id = ?STRING,
+    wallet_from_id = ?STRING,
+    wallet_to_id = ?STRING,
+    body = ?CASH,
+    created_at = ?TIMESTAMP,
+    domain_revision = ?INTEGER,
+    party_revision = ?INTEGER,
+    status = {pending, #w2w_status_Pending{}},
+    external_id = ?STRING,
+    metadata    = ?DEFAULT_METADATA(),
+    context = ?DEFAULT_CONTEXT(PartyID),
+    effective_final_cash_flow = #cashflow_FinalCashFlow{
+        postings = []
+    },
+    adjustments = []
 }).
 
 -define(SNAPSHOT, #'Snapshot'{

@@ -366,6 +366,42 @@ process_request('ListDeposits', Params, Context, _Opts) ->
             })
     end;
 
+%% W2W
+
+process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Context, _Opts) ->
+    case wapi_w2w_backend:create_transfer(Params, Context) of
+        {ok, W2WTransfer} ->
+            wapi_handler_utils:reply_ok(202, W2WTransfer);
+        {error, {wallet_from, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such wallet sender">>));
+        {error, {wallet_from, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such wallet sender">>));
+        {error, {wallet_to, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such wallet receiver">>));
+        {error, not_allowed_currency} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, bad_w2w_transfer_amount} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Bad transfer amount">>));
+        {error, inconsistent_currency} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Inconsistent currency">>))
+    end;
+
+process_request('GetW2WTransfer', #{w2wTransferID := ID}, Context, _Opts) ->
+    case wapi_w2w_backend:get_transfer(ID, Context) of
+        {ok, W2WTransfer} ->
+            wapi_handler_utils:reply_ok(200, W2WTransfer);
+        {error, {w2w_transfer, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {w2w_transfer, {unknown_w2w_transfer, _ID}}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+
 process_request(OperationID, Params, Context, Opts) ->
     wapi_wallet_handler:process_request(OperationID, Params, Context, Opts).
 

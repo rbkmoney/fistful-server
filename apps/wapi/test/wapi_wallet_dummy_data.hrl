@@ -17,6 +17,7 @@
         {str, <<"metadata">>} => {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}
     }}
 }).
+-define(BOOLEAN, true).
 
 -define(DEFAULT_METADATA(), #{<<"somedata">> => {str, ?STRING}}).
 
@@ -186,6 +187,30 @@
     fee = ?INTEGER,
     currency_symbolic_code = ?RUB,
     status = {pending, #fistfulstat_DepositPending{}}
+}]}).
+
+-define(STAT_DESTINATIONS, {destinations, [#fistfulstat_StatDestination{
+    id = ?STRING,
+    name = ?STRING,
+    created_at = ?TIMESTAMP,
+    is_blocked = ?BOOLEAN,
+    identity = ?STRING,
+    currency_symbolic_code = ?RUB,
+    resource = ?RESOURCE,
+    external_id = ?STRING,
+    status = {unauthorized, #fistfulstat_Unauthorized{}}
+}]}).
+
+-define(STAT_IDENTITIES, {identities, [#fistfulstat_StatIdentity{
+    id = ?STRING,
+    name = ?STRING,
+    created_at = ?TIMESTAMP,
+    provider = ?INTEGER,
+    identity_class = ?STRING,
+    identity_level = ?STRING,
+    effective_challenge = ?STRING,
+    is_blocked = ?BOOLEAN,
+    external_id = ?STRING
 }]}).
 
 -define(IDENT_DOC, {russian_domestic_passport, #'identdocstore_RussianDomesticPassport'{

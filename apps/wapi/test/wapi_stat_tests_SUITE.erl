@@ -26,7 +26,13 @@
     list_withdrawals_bad_token_error/1,
     list_deposits/1,
     list_deposits_invalid_error/1,
-    list_deposits_bad_token_error/1
+    list_deposits_bad_token_error/1,
+    list_destinations/1,
+    list_destinations_invalid_error/1,
+    list_destinations_bad_token_error/1,
+    list_identities/1,
+    list_identities_invalid_error/1,
+    list_identities_bad_token_error/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -67,7 +73,13 @@ groups() ->
                 list_withdrawals_bad_token_error,
                 list_deposits,
                 list_deposits_invalid_error,
-                list_deposits_bad_token_error
+                list_deposits_bad_token_error,
+                list_destinations,
+                list_destinations_invalid_error,
+                list_destinations_bad_token_error,
+                list_identities,
+                list_identities_invalid_error,
+                list_identities_bad_token_error
             ]
         }
     ].
@@ -231,6 +243,70 @@ list_deposits_bad_token_error(C) ->
     MockFunc = fun('GetDeposits', _) ->
             woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION) end,
     SwagFunc = fun swag_client_wallet_deposits_api:list_deposits/3,
+    check_bad_token_error(MockFunc, SwagFunc, C).
+
+-spec list_destinations(config()) ->
+    _.
+list_destinations(C) ->
+    wapi_ct_helper:mock_services([
+        {fistful_stat, fun('GetDestinations', _) -> {ok, ?STAT_RESPONCE(?STAT_DESTINATIONS)} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_withdrawals_api:list_destinations/3,
+        #{
+            qs_val => #{
+                <<"limit">> => <<"123">>
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec list_destinations_invalid_error(config()) ->
+    _.
+list_destinations_invalid_error(C) ->
+    MockFunc = fun('GetDestinations', _) ->
+            woody_error:raise(business, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>])) end,
+    SwagFunc = fun swag_client_wallet_withdrawals_api:list_destinations/3,
+    check_invalid_error(MockFunc, SwagFunc, C).
+
+-spec list_destinations_bad_token_error(config()) ->
+    _.
+list_destinations_bad_token_error(C) ->
+    MockFunc = fun('GetDestinations', _) ->
+            woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION) end,
+    SwagFunc = fun swag_client_wallet_withdrawals_api:list_destinations/3,
+    check_bad_token_error(MockFunc, SwagFunc, C).
+
+-spec list_identities(config()) ->
+    _.
+list_identities(C) ->
+    wapi_ct_helper:mock_services([
+        {fistful_stat, fun('GetIdentities', _) -> {ok, ?STAT_RESPONCE(?STAT_IDENTITIES)} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_identities_api:list_identities/3,
+        #{
+            qs_val => #{
+                <<"limit">> => <<"123">>
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec list_identities_invalid_error(config()) ->
+    _.
+list_identities_invalid_error(C) ->
+    MockFunc = fun('GetIdentities', _) ->
+            woody_error:raise(business, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>])) end,
+    SwagFunc = fun swag_client_wallet_identities_api:list_identities/3,
+    check_invalid_error(MockFunc, SwagFunc, C).
+
+-spec list_identities_bad_token_error(config()) ->
+    _.
+list_identities_bad_token_error(C) ->
+    MockFunc = fun('GetIdentities', _) ->
+            woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION) end,
+    SwagFunc = fun swag_client_wallet_identities_api:list_identities/3,
     check_bad_token_error(MockFunc, SwagFunc, C).
 
 %%

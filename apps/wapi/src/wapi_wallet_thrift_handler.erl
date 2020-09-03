@@ -44,6 +44,20 @@ handle_request(OperationID, Req, SwagContext, Opts) ->
     request_result().
 
 %% Identities
+process_request('ListIdentities', Params, Context, _Opts) ->
+    case wapi_stat_backend:list_identities(Params, Context) of
+        {ok, Result} -> wapi_handler_utils:reply_ok(200, Result);
+        {error, {invalid, Errors}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"NoMatch">>,
+                <<"description">> => Errors
+            });
+        {error, {bad_token, Reason}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidToken">>,
+                <<"description">> => Reason
+            })
+    end;
 process_request('GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
     case wapi_identity_backend:get_identity(IdentityId, Context) of
         {ok, Identity}                    -> wapi_handler_utils:reply_ok(200, Identity);
@@ -175,6 +189,20 @@ process_request('GetWalletAccount', #{'walletID' := WalletId}, Context, _Opts) -
 
 %% Destinations
 
+process_request('ListDestinations', Params, Context, _Opts) ->
+    case wapi_stat_backend:list_destinations(Params, Context) of
+        {ok, Result} -> wapi_handler_utils:reply_ok(200, Result);
+        {error, {invalid, Errors}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"NoMatch">>,
+                <<"description">> => Errors
+            });
+        {error, {bad_token, Reason}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidToken">>,
+                <<"description">> => Reason
+            })
+    end;
 process_request('GetDestination', #{'destinationID' := DestinationId}, Context, _Opts) ->
     case wapi_destination_backend:get(DestinationId, Context) of
         {ok, Destination}                    -> wapi_handler_utils:reply_ok(200, Destination);

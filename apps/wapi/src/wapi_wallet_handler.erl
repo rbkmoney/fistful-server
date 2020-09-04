@@ -86,12 +86,20 @@ process_request('GetProviderIdentityLevel', #{
     not_implemented();
 
 %% Identities
-process_request('ListIdentities', _Req, _Context, _Opts) ->
-    %% case wapi_wallet_ff_backend:get_identities(maps:with(['provider', 'class', 'level'], Req), Context) of
-    %%     {ok, Identities}  -> wapi_handler_utils:reply_ok(200, Identities);
-    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
-    %% end;
-    not_implemented();
+process_request('ListIdentities', Params, Context, _Opts) ->
+    case wapi_stat_backend:list_identities(Params, Context) of
+        {ok, Result} -> wapi_handler_utils:reply_ok(200, Result);
+        {error, {invalid, Errors}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"NoMatch">>,
+                <<"description">> => Errors
+            });
+        {error, {bad_token, Reason}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidToken">>,
+                <<"description">> => Reason
+            })
+    end;
 process_request('GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_identity(IdentityId, Context) of
         {ok, Identity}                    -> wapi_handler_utils:reply_ok(200, Identity);
@@ -242,12 +250,20 @@ process_request('IssueWalletGrant', #{
     end;
 
 %% Withdrawals
-process_request('ListDestinations', _Req, _Context, _Opts) ->
-    %% case wapi_wallet_ff_backend:get_destinations(maps:with(['identity', 'currency'], Req), Context) of
-    %%     {ok, Destinations} -> wapi_handler_utils:reply_ok(200, Destinations);
-    %%     {error, notfound}  -> wapi_handler_utils:reply_ok(200, [])
-    %% end;
-    not_implemented();
+process_request('ListDestinations', Params, Context, _Opts) ->
+    case wapi_stat_backend:list_destinations(Params, Context) of
+        {ok, Result} -> wapi_handler_utils:reply_ok(200, Result);
+        {error, {invalid, Errors}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"NoMatch">>,
+                <<"description">> => Errors
+            });
+        {error, {bad_token, Reason}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidToken">>,
+                <<"description">> => Reason
+            })
+    end;
 process_request('GetDestination', #{'destinationID' := DestinationId}, Context, _Opts) ->
     case wapi_wallet_ff_backend:get_destination(DestinationId, Context) of
         {ok, Destination}                    -> wapi_handler_utils:reply_ok(200, Destination);

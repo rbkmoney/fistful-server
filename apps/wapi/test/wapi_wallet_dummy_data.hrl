@@ -17,6 +17,7 @@
         {str, <<"metadata">>} => {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}
     }}
 }).
+-define(BOOLEAN, true).
 
 -define(DEFAULT_CONTEXT_NO_NAME(PartyID), #{
     <<"com.rbkmoney.wapi">> => {obj, #{
@@ -38,6 +39,13 @@
     'bender_GetInternalIDResult',
     ?STRING,
     {obj, #{{str, <<"context_data">>} => {str, ?STRING}}},
+    undefined
+}).
+
+-define(GENERATE_ID_RESULT, {
+    'bender_GenerationResult',
+    ?STRING,
+    undefined,
     undefined
 }).
 
@@ -193,6 +201,30 @@
     status = {pending, #fistfulstat_DepositPending{}}
 }]}).
 
+-define(STAT_DESTINATIONS, {destinations, [#fistfulstat_StatDestination{
+    id = ?STRING,
+    name = ?STRING,
+    created_at = ?TIMESTAMP,
+    is_blocked = ?BOOLEAN,
+    identity = ?STRING,
+    currency_symbolic_code = ?RUB,
+    resource = ?RESOURCE,
+    external_id = ?STRING,
+    status = {unauthorized, #fistfulstat_Unauthorized{}}
+}]}).
+
+-define(STAT_IDENTITIES, {identities, [#fistfulstat_StatIdentity{
+    id = ?STRING,
+    name = ?STRING,
+    created_at = ?TIMESTAMP,
+    provider = ?INTEGER,
+    identity_class = ?STRING,
+    identity_level = ?STRING,
+    effective_challenge = ?STRING,
+    is_blocked = ?BOOLEAN,
+    external_id = ?STRING
+}]}).
+
 -define(IDENT_DOC, {russian_domestic_passport, #'identdocstore_RussianDomesticPassport'{
     issuer = ?STRING,
     issuer_code = ?STRING,
@@ -249,6 +281,24 @@
     url = ?STRING,
     pub_key = ?STRING,
     enabled = false
+}).
+
+-define(W2W_TRANSFER(PartyID), #w2w_transfer_W2WTransferState{
+    id = ?STRING,
+    wallet_from_id = ?STRING,
+    wallet_to_id = ?STRING,
+    body = ?CASH,
+    created_at = ?TIMESTAMP,
+    domain_revision = ?INTEGER,
+    party_revision = ?INTEGER,
+    status = {pending, #w2w_status_Pending{}},
+    external_id = ?STRING,
+    metadata    = ?DEFAULT_METADATA(),
+    context = ?DEFAULT_CONTEXT(PartyID),
+    effective_final_cash_flow = #cashflow_FinalCashFlow{
+        postings = []
+    },
+    adjustments = []
 }).
 
 -define(SNAPSHOT, #'Snapshot'{

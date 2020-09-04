@@ -66,6 +66,14 @@
     quote_data = {str, ?STRING}
 }).
 
+-define(WITHDRAWAL_EVENT(Change), #wthd_Event{
+    change = Change,
+    occured_at = ?TIMESTAMP,
+    event_id = ?INTEGER
+}).
+
+-define(WITHDRAWAL_STATUS_CHANGE, {status_changed, #wthd_StatusChange{status = {pending, #wthd_status_Pending{}}}}).
+
 -define(BLOCKING, unblocked).
 
 -define(ACCOUNT, #account_Account{

@@ -195,8 +195,8 @@ create_quote_(Params, HandlerContext) ->
 get_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, HandlerContext) ->
     Cursor = maps:get('eventCursor', Params, undefined),
     case get_swag_events(WithdrawalId, Limit, Cursor, HandlerContext) of
-        {ok, [Event]} ->
-            {ok, Event};
+        {ok, Events} ->
+            {ok, Events};
         {error, {withdrawal, unauthorized}} = Error ->
             Error;
         {error, {withdrawal, notfound}} = Error ->
@@ -262,16 +262,6 @@ get_events(WithdrawalId, Limit, Cursor, HandlerContext) ->
 collect_events(WithdrawalId, Cursor, Limit, HandlerContext) ->
     collect_events(WithdrawalId, Cursor, Limit, HandlerContext, []).
 
-collect_events(WithdrawalId, Cursor, Limit, HandlerContext, AccEvents) when Limit =:= undefined ->
-    Request = {fistful_withdrawal, 'GetEvents', [WithdrawalId, marshal_event_range(Cursor, Limit)]},
-    case service_call(Request, HandlerContext) of
-        {exception, _} = Exception ->
-            Exception;
-        {ok, []} ->
-            {ok, AccEvents};
-        {ok, Events} ->
-            {ok, AccEvents ++ Events}
-    end;
 collect_events(WithdrawalId, Cursor, Limit, HandlerContext, AccEvents) ->
     Request = {fistful_withdrawal, 'GetEvents', [WithdrawalId, marshal_event_range(Cursor, Limit)]},
     case service_call(Request, HandlerContext) of
@@ -298,7 +288,11 @@ authorize_quote(Params = #{<<"walletID">> := WalletID}, HandlerContext) ->
             undefined ->
                 ok;
             DestinationID ->
-                unwrap(destination, wapi_access_backend:check_resource_by_id(destination, DestinationID, HandlerContext))
+                unwrap(destination, wapi_access_backend:check_resource_by_id(
+                    destination,
+                    DestinationID,
+                    HandlerContext
+                ))
         end
     end).
 
@@ -497,7 +491,7 @@ maybe_marshal(T, V) ->
     marshal(T, V).
 
 marshal_event_range(Cursor, Limit) when
-    is_integer(Cursor) andalso
+    (is_integer(Cursor) orelse Cursor =:= undefined) andalso
     (is_integer(Limit) orelse Limit =:= undefined)
 ->
     #'EventRange'{

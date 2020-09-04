@@ -194,7 +194,7 @@ create_quote_(Params, HandlerContext) ->
 
 get_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, HandlerContext) ->
     Cursor = maps:get('eventCursor', Params, undefined),
-    case get_swag_events(WithdrawalId, Limit, Cursor, HandlerContext) of
+    case get_events(WithdrawalId, {Cursor, Limit}, HandlerContext) of
         {ok, Events} ->
             {ok, Events};
         {error, {withdrawal, unauthorized}} = Error ->
@@ -212,7 +212,7 @@ get_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, Handler
     {error, {event, notfound}}.
 
 get_event(WithdrawalId, EventId, HandlerContext) ->
-    case get_swag_events(WithdrawalId, 1, EventId - 1, HandlerContext) of
+    case get_events(WithdrawalId, {EventId - 1, 1}, HandlerContext) of
         {ok, [Event]} ->
             {ok, Event};
         {ok, []} ->
@@ -240,8 +240,8 @@ issue_quote_token(PartyID, Data) ->
 service_call(Params, HandlerContext) ->
     wapi_handler_utils:service_call(Params, HandlerContext).
 
-get_swag_events(WithdrawalId, Limit, Cursor, HandlerContext) ->
-    case get_events(WithdrawalId, Limit, Cursor, HandlerContext) of
+get_events(WithdrawalId, EventRange, HandlerContext) ->
+    case get_events_(WithdrawalId, EventRange, HandlerContext) of
         {ok, Events0} ->
             Events1 = lists:filter(fun event_filter/1, Events0),
             {ok, unmarshal({list, event}, Events1)};
@@ -251,18 +251,15 @@ get_swag_events(WithdrawalId, Limit, Cursor, HandlerContext) ->
             Exception
     end.
 
-get_events(WithdrawalId, Limit, Cursor, HandlerContext) ->
+get_events_(WithdrawalId, EventRange, HandlerContext) ->
     case authorize_resource_by_bearer(withdrawal, WithdrawalId, HandlerContext) of
         ok ->
-            collect_events(WithdrawalId, Cursor, Limit, HandlerContext);
+            collect_events(WithdrawalId, EventRange, HandlerContext, []);
         {error, _} = Error ->
             Error
     end.
 
-collect_events(WithdrawalId, Cursor, Limit, HandlerContext) ->
-    collect_events(WithdrawalId, Cursor, Limit, HandlerContext, []).
-
-collect_events(WithdrawalId, Cursor, Limit, HandlerContext, AccEvents) ->
+collect_events(WithdrawalId, {Cursor, Limit}, HandlerContext, AccEvents) ->
     Request = {fistful_withdrawal, 'GetEvents', [WithdrawalId, marshal_event_range(Cursor, Limit)]},
     case service_call(Request, HandlerContext) of
         {exception, _} = Exception ->
@@ -271,7 +268,7 @@ collect_events(WithdrawalId, Cursor, Limit, HandlerContext, AccEvents) ->
             {ok, AccEvents};
         {ok, Events} ->
             ?event(NewCursor, _, _) = lists:last(Events),
-            collect_events(WithdrawalId, NewCursor, Limit - length(Events), HandlerContext, AccEvents ++ Events)
+            collect_events(WithdrawalId, {NewCursor, Limit - length(Events)}, HandlerContext, AccEvents ++ Events)
     end.
 
 event_filter(?event(_, _, ?statusChange(_)))->

@@ -126,8 +126,8 @@ create_party(_C) ->
 create_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
-create_identity(Party, ProviderID, ClassID, _C) ->
-    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, _C).
+create_identity(Party, ProviderID, ClassID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
 
 create_identity(Party, Name, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),

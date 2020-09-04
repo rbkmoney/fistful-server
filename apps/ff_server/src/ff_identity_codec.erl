@@ -21,6 +21,7 @@
 
 unmarshal_identity_params(#idnt_IdentityParams{
     id          = ID,
+    name        = Name,
     party       = PartyID,
     provider    = ProviderID,
     cls         = ClassID,
@@ -29,6 +30,7 @@ unmarshal_identity_params(#idnt_IdentityParams{
 }) ->
     genlib_map:compact(#{
         id          => unmarshal(id, ID),
+        name        => unmarshal(string, Name),
         party       => unmarshal(id, PartyID),
         provider    => unmarshal(id, ProviderID),
         class       => unmarshal(id, ClassID),
@@ -80,8 +82,13 @@ marshal_identity_state(IdentityState, Context) ->
         {ok, ID} -> maybe_marshal(id, ID);
         {error, notfound} -> undefined
     end,
+    Name = case ff_identity:name(IdentityState) of
+        undefined -> get_from_context(<<"name">>, Context);
+        V -> V
+    end,
     #idnt_IdentityState{
         id = maybe_marshal(id, ff_identity:id(IdentityState)),
+        name = marshal(string, Name),
         party_id = marshal(id, ff_identity:party(IdentityState)),
         provider_id = marshal(id, ff_identity:provider(IdentityState)),
         class_id = marshal(id, ff_identity:class(IdentityState)),
@@ -94,6 +101,10 @@ marshal_identity_state(IdentityState, Context) ->
         effective_challenge_id = EffectiveChallengeID,
         context = maybe_marshal(ctx, Context)
     }.
+
+%@TODO Delete this after migration
+get_from_context(Key, #{<<"com.rbkmoney.wapi">> := Ctx}) ->
+    maps:get(Key, Ctx, undefined).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
 
@@ -121,6 +132,7 @@ marshal(change, {effective_challenge_changed, ChallengeID}) ->
 marshal(identity, Identity) ->
     #idnt_Identity{
         id = maybe_marshal(id, ff_identity:id(Identity)),
+        name = maybe_marshal(string, ff_identity:name(Identity)),
         party = marshal(id, ff_identity:party(Identity)),
         provider = marshal(id, ff_identity:provider(Identity)),
         cls = marshal(id, ff_identity:class(Identity)),
@@ -222,6 +234,7 @@ unmarshal(change, {effective_challenge_changed, ChallengeID}) ->
 
 unmarshal(identity, #idnt_Identity{
     id          = ID,
+    name        = Name,
     party       = PartyID,
     provider    = ProviderID,
     cls         = ClassID,
@@ -232,6 +245,7 @@ unmarshal(identity, #idnt_Identity{
 }) ->
     genlib_map:compact(#{
         id          => unmarshal(id, ID),
+        name        => maybe_unmarshal(string, Name),
         party       => unmarshal(id, PartyID),
         provider    => unmarshal(id, ProviderID),
         class       => unmarshal(id, ClassID),

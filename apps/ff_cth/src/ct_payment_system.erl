@@ -163,8 +163,8 @@ create_crunch_identity(Options) ->
     create_crunch_identity(PaymentInstIdentityID, ProviderIdentityID, <<"good-one">>).
 create_crunch_identity(PIIID, PRIID, ProviderID) ->
     PartyID = create_party(),
-    PIIID = create_identity(PIIID, PartyID, ProviderID, <<"church">>),
-    PRIID = create_identity(PRIID, PartyID, ProviderID, <<"church">>),
+    PIIID = create_identity(PIIID, <<"ChurchPI">>, PartyID, ProviderID, <<"church">>),
+    PRIID = create_identity(PRIID, <<"ChurchPR">>, PartyID, ProviderID, <<"church">>),
     ok.
 
 create_company_account() ->
@@ -188,11 +188,12 @@ create_party() ->
 
 create_identity(PartyID, ProviderID, ClassID) ->
     ID = genlib:unique(),
-    create_identity(ID, PartyID, ProviderID, ClassID).
+    Name = <<"Test Identity">>,
+    create_identity(ID, Name, PartyID, ProviderID, ClassID).
 
-create_identity(ID, PartyID, ProviderID, ClassID) ->
+create_identity(ID, Name, PartyID, ProviderID, ClassID) ->
     ok = ff_identity_machine:create(
-        #{id => ID, party => PartyID, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => PartyID, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
     ID.

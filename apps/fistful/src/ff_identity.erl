@@ -16,6 +16,7 @@
 %% API
 
 -type id()              :: binary().
+-type name()            :: binary().
 -type external_id()     :: id() | undefined.
 -type party_id()        :: ff_party:id().
 -type provider_id()     :: ff_provider:id().
@@ -32,6 +33,7 @@
 -define(ACTUAL_FORMAT_VERSION, 2).
 -type identity_state() :: #{
     id           := id(),
+    name         => name(), %will become required after migration
     party        := party_id(),
     provider     := provider_id(),
     class        := class_id(),
@@ -48,6 +50,7 @@
 -type identity() :: #{
     version      := ?ACTUAL_FORMAT_VERSION,
     id           := id(),
+    name         => name(), %will become required after migration
     party        := party_id(),
     provider     := provider_id(),
     class        := class_id(),
@@ -69,6 +72,7 @@
 
 -type params() :: #{
     id          := id(),
+    name        := name(),
     party       := ff_party:id(),
     provider    := ff_provider:id(),
     class       := ff_identity:class_id(),
@@ -100,6 +104,7 @@
 -export_type([params/0]).
 
 -export([id/1]).
+-export([name/1]).
 -export([provider/1]).
 -export([party/1]).
 -export([class/1]).
@@ -131,6 +136,8 @@
 
 -spec id(identity_state()) ->
     id().
+-spec name(identity_state()) ->
+    name() | undefined.
 -spec provider(identity_state()) ->
     provider_id().
 -spec class(identity_state()) ->
@@ -158,6 +165,9 @@
 
 id(#{id := V}) ->
     V.
+
+name(Identity) ->
+    maps:get(name, Identity, undefined).
 
 provider(#{provider := V}) ->
     V.
@@ -220,7 +230,7 @@ set_blocking(Identity) ->
     {ok, [event()]} |
     {error, create_error()}.
 
-create(Params = #{id := ID, party := Party, provider := ProviderID, class := ClassID}) ->
+create(Params = #{id := ID, name:= Name, party := Party, provider := ProviderID, class := ClassID}) ->
     do(fun () ->
         accessible = unwrap(party, ff_party:is_accessible(Party)),
         Provider = unwrap(provider, ff_provider:get(ProviderID)),
@@ -236,6 +246,7 @@ create(Params = #{id := ID, party := Party, provider := ProviderID, class := Cla
             {created, genlib_map:compact(#{
                 version => ?ACTUAL_FORMAT_VERSION,
                 id => ID,
+                name => Name,
                 party => Party,
                 provider => ProviderID,
                 class => ClassID,

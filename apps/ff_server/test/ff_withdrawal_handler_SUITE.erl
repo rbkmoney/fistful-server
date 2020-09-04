@@ -562,9 +562,12 @@ create_person_identity(Party, C, ProviderID) ->
     create_identity(Party, ProviderID, <<"person">>, C).
 
 create_identity(Party, ProviderID, ClassID, _C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, _C).
+
+create_identity(Party, Name, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
+        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
         ff_entity_context:new()
     ),
     ID.

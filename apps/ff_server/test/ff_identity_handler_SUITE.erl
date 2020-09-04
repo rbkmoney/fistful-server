@@ -75,17 +75,19 @@ end_per_testcase(_Name, _C) ->
 create_identity_ok(_C) ->
     PartyID = create_party(),
     EID     = genlib:unique(),
+    Name    = <<"Identity Name">>,
     ProvID  = <<"good-one">>,
     ClassID = <<"person">>,
     Ctx = #{<<"NS">> => #{<<"owner">> => PartyID}},
     Context = ff_entity_context_codec:marshal(Ctx),
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
-    Identity = create_identity(EID, PartyID, ProvID, ClassID, Context, Metadata),
+    Identity = create_identity(EID, Name, PartyID, ProvID, ClassID, Context, Metadata),
     IID = Identity#idnt_IdentityState.id,
     {ok, Identity_} = call_api('Get', [IID, #'EventRange'{}]),
 
     ProvID = Identity_#idnt_IdentityState.provider_id,
     IID = Identity_#idnt_IdentityState.id,
+    Name = Identity_#idnt_IdentityState.name,
     PartyID = Identity_#idnt_IdentityState.party_id,
     ClassID = Identity_#idnt_IdentityState.class_id,
     blocked = Identity_#idnt_IdentityState.blocking,
@@ -98,10 +100,11 @@ run_challenge_ok(C) ->
     EID = genlib:unique(),
     PartyID     = create_party(),
     ChallengeID = genlib:unique(),
+    Name        = <<"Identity Name">>,
     ProvID      = <<"good-one">>,
     ClassID     = <<"person">>,
     ChlClassID  = <<"sword-initiation">>,
-    IdentityState = create_identity(EID, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
+    IdentityState = create_identity(EID, Name, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
 
     IID = IdentityState#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
@@ -120,8 +123,9 @@ get_challenge_event_ok(C) ->
     ClassID    = <<"person">>,
     EID        = genlib:unique(),
     PartyID    = create_party(),
+    Name       = <<"Identity Name">>,
     ChlClassID = <<"sword-initiation">>,
-    Identity = create_identity(EID, PartyID, ProvID, ClassID, Context),
+    Identity = create_identity(EID, Name, PartyID, ProvID, ClassID, Context),
 
     IID = Identity#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, IID, C),
@@ -157,9 +161,10 @@ get_event_unknown_identity_ok(_C) ->
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     EID = genlib:unique(),
     PID     = create_party(),
+    Name    = <<"Identity Name">>,
     ProvID  = <<"good-one">>,
     ClassID = <<"person">>,
-    create_identity(EID, PID, ProvID, ClassID, Ctx),
+    create_identity(EID, Name, PID, ProvID, ClassID, Ctx),
     Range = #'EventRange'{
             limit = 1,
             'after' = undefined
@@ -170,10 +175,11 @@ start_challenge_token_fail(C) ->
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     EID = genlib:unique(),
     PID = create_party(),
+    Name       = <<"Identity Name">>,
     ProvID     = <<"good-one">>,
     CID        = <<"person">>,
     ChlClassID = <<"sword-initiation">>,
-    IdentityState = create_identity(EID, PID, ProvID, CID, Ctx),
+    IdentityState = create_identity(EID, Name, PID, ProvID, CID, Ctx),
     {Type1, Token1} = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
     {Type2, _Token2} = ct_identdocstore:rus_domestic_passport(C),
     IID = IdentityState#idnt_IdentityState.id,
@@ -194,10 +200,11 @@ get_challenges_ok(C) ->
     EID = genlib:unique(),
     PartyID     = create_party(),
     ChallengeID = genlib:unique(),
+    Name        = <<"Identity Name">>,
     ProvID      = <<"good-one">>,
     ClassID     = <<"person">>,
     ChlClassID  = <<"sword-initiation">>,
-    Identity    = create_identity(EID, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
+    Identity    = create_identity(EID, Name, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
 
     IID = Identity#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
@@ -213,12 +220,13 @@ get_challenges_ok(C) ->
 %%----------
 %% INTERNAL
 %%----------
-create_identity(EID, PartyID, ProvID, ClassID, Ctx) ->
-    create_identity(EID, PartyID, ProvID, ClassID, Ctx, #{}).
+create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx) ->
+    create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx, #{}).
 
-create_identity(EID, PartyID, ProvID, ClassID, Ctx, Metadata) ->
+create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx, Metadata) ->
     Params = #idnt_IdentityParams{
         id          = genlib:unique(),
+        name        = Name,
         party       = PartyID,
         provider    = ProvID,
         cls         = ClassID,

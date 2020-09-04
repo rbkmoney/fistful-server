@@ -3,13 +3,15 @@
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_w2w_transfer_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 -export([check_resource/3]).
 -export([check_resource_by_id/3]).
 
 -type id() :: binary().
--type resource_type() :: identity | wallet | destination | withdrawal.
+-type resource_type() :: identity | wallet | destination | w2w_transfer | withdrawal.
+
 -type handler_context() :: wapi_handler:context().
 -type data() ::
     ff_proto_identity_thrift:'IdentityState'() |
@@ -66,6 +68,14 @@ get_context_by_id(destination, DestinationID, WoodyCtx) ->
         {exception, #fistful_DestinationNotFound{}} ->
             {error, notfound}
     end;
+get_context_by_id(w2w_transfer, W2WTransferID, WoodyCtx) ->
+    Request = {w2w_transfer, 'GetContext', [W2WTransferID]},
+    case wapi_handler_utils:service_call(Request, WoodyCtx) of
+        {ok, Context} ->
+            Context;
+        {exception, #fistful_W2WNotFound{}} ->
+            {error, notfound}
+    end;
 get_context_by_id(withdrawal, WithdrawalID, WoodyCtx) ->
     Request = {fistful_withdrawal, 'GetContext', [WithdrawalID]},
     case wapi_handler_utils:service_call(Request, WoodyCtx) of
@@ -80,6 +90,8 @@ get_context_from_state(identity, #idnt_IdentityState{context = Context} ) ->
 get_context_from_state(wallet, #wlt_WalletState{context = Context}) ->
     Context;
 get_context_from_state(destination, #dst_DestinationState{context = Context}) ->
+    Context;
+get_context_from_state(w2w_transfer, #w2w_transfer_W2WTransferState{context = Context}) ->
     Context;
 get_context_from_state(withdrawal, #wthd_WithdrawalState{context = Context}) ->
     Context.

@@ -412,7 +412,7 @@ maybe_check_quote_token(Params = #{<<"quoteToken">> := #{
         unwrap(quote_invalid_party, valid(PartyID, wapi_handler_utils:get_owner(HandlerContext))),
         unwrap(quote_invalid_wallet, valid(WalletID, maps:get(<<"wallet">>, Params))),
         unwrap(check_quote_withdrawal(DestinationID, maps:get(<<"destination">>, Params))),
-        unwrap(check_quote_body(maps:get(cash_from, Quote), marshal_quote_body(maps:get(<<"body">>, Params)))),
+        unwrap(check_quote_body(Quote#wthd_Quote.cash_from, marshal_body(maps:get(<<"body">>, Params)))),
         Params#{<<"quote">> => Quote}
     end);
 maybe_check_quote_token(Params, _Context) ->
@@ -435,9 +435,6 @@ check_quote_withdrawal(DestinationID, DestinationID) ->
 check_quote_withdrawal(_, DestinationID) ->
     {error, {quote, {invalid_destination, DestinationID}}}.
 
-marshal_quote_body(Body) ->
-    {genlib:to_int(maps:get(<<"amount">>, Body)), maps:get(<<"currency">>, Body)}.
-
 %% Marshaling
 
 marshal(withdrawal_params, Params = #{
@@ -454,7 +451,7 @@ marshal(withdrawal_params, Params = #{
         wallet_id = marshal(id, WalletID),
         destination_id = marshal(id, DestinationID),
         body = marshal_body(Body),
-        quote = marshal_quote(Quote),
+        quote = Quote,
         external_id = maybe_marshal(id, ExternalID),
         metadata = maybe_marshal(context, Metadata)
     };
@@ -506,11 +503,6 @@ marshal_currency_ref(Currency) ->
     #'CurrencyRef'{
         symbolic_code = Currency
     }.
-
-marshal_quote(undefined) ->
-    undefined;
-marshal_quote(Quote) ->
-    ff_withdrawal_codec:marshal(quote, Quote).
 
 unmarshal({list, Type}, List) ->
     lists:map(fun(V) -> unmarshal(Type, V) end, List);

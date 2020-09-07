@@ -3,7 +3,6 @@
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 -export([create_token_payload/4]).
--export([thrift_create_token_payload/4]).
 -export([decode_token_payload/1]).
 
 -type token_payload() ::
@@ -20,8 +19,7 @@
 -type wallet_id() :: binary().
 -type destination_id() :: binary() | undefined.
 -type party_id() :: binary().
--type quote() :: ff_withdrawal:quote().
--type thrift_quote() :: ff_proto_withdrawal_thrift:'Quote'().
+-type quote() :: ff_proto_withdrawal_thrift:'Quote'().
 
 %% API
 
@@ -29,11 +27,6 @@
     token_payload().
 create_token_payload(Quote, WalletID, DestinationID, PartyID) ->
     do_create_token_payload(encode_quote(Quote), WalletID, DestinationID, PartyID).
-
--spec thrift_create_token_payload(thrift_quote(), wallet_id(), destination_id(), party_id()) ->
-    token_payload().
-thrift_create_token_payload(Quote, WalletID, DestinationID, PartyID) ->
-    do_create_token_payload(encode_thrift_quote(Quote), WalletID, DestinationID, PartyID).
 
 do_create_token_payload(Quote, WalletID, DestinationID, PartyID) ->
     genlib_map:compact(#{
@@ -90,18 +83,14 @@ decode_token_payload(#{<<"version">> := 1} = Payload) ->
         domain_revision => DomainRevision,
         party_revision => PartyRevision
     }),
-    {ok, Quote, WalletID, DestinationID, PartyID}.
+    ThriftQuote = ff_withdrawal_codec:marshal(quote, Quote),
+    {ok, ThriftQuote, WalletID, DestinationID, PartyID}.
 
 %% Internals
 
 -spec encode_quote(quote()) ->
     token_payload().
 encode_quote(Quote) ->
-    encode_thrift_quote(ff_withdrawal_codec:marshal(quote, Quote)).
-
--spec encode_thrift_quote(thrift_quote()) ->
-    token_payload().
-encode_thrift_quote(Quote) ->
     Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
     Bin = ff_proto_utils:serialize(Type, Quote),
     base64:encode(Bin).
@@ -111,8 +100,7 @@ encode_thrift_quote(Quote) ->
 decode_quote(Encoded) ->
     Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
     Bin = base64:decode(Encoded),
-    Thrift = ff_proto_utils:deserialize(Type, Bin),
-    ff_withdrawal_codec:unmarshal(quote, Thrift).
+    ff_proto_utils:deserialize(Type, Bin).
 
 decode_legacy_cash(Body) ->
     {genlib:to_int(maps:get(<<"amount">>, Body)), maps:get(<<"currency">>, Body)}.
@@ -147,9 +135,10 @@ payload_symmetry_test() ->
         domain_revision => 1,
         party_revision => 2
     },
-    Payload = create_token_payload(Quote, WalletID, DestinationID, PartyID),
+    ThriftQuote = ff_withdrawal_codec:marshal(quote, Quote),
+    Payload = create_token_payload(ThriftQuote, WalletID, DestinationID, PartyID),
     {ok, Decoded, WalletID, DestinationID, PartyID} = decode_token_payload(Payload),
-    ?assertEqual(Quote, Decoded).
+    ?assertEqual(ThriftQuote, Decoded).
 
 -spec payload_v2_decoding_test() -> _.
 payload_v2_decoding_test() ->
@@ -173,6 +162,7 @@ payload_v2_decoding_test() ->
         domain_revision => 1,
         party_revision => 2
     },
+    ExpectedThriftQuote = ff_withdrawal_codec:marshal(quote, ExpectedQuote),
     Payload = #{
         <<"version">> => 2,
         <<"walletID">> => WalletID,
@@ -188,7 +178,7 @@ payload_v2_decoding_test() ->
         >>
     },
     ?assertEqual(
-        {ok, ExpectedQuote, WalletID, DestinationID, PartyID},
+        {ok, ExpectedThriftQuote, WalletID, DestinationID, PartyID},
         decode_token_payload(Payload)
     ).
 
@@ -209,6 +199,7 @@ payload_v1_decoding_test() ->
         domain_revision => 1,
         party_revision => 2
     },
+    ExpectedThriftQuote = ff_withdrawal_codec:marshal(quote, ExpectedQuote),
     Payload = #{
         <<"version">> => 1,
         <<"walletID">> => WalletID,
@@ -230,7 +221,7 @@ payload_v1_decoding_test() ->
         }
     },
     ?assertEqual(
-        {ok, ExpectedQuote, WalletID, DestinationID, PartyID},
+        {ok, ExpectedThriftQuote, WalletID, DestinationID, PartyID},
         decode_token_payload(Payload)
     ).
 

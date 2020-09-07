@@ -230,7 +230,7 @@ get_event(WithdrawalId, EventId, HandlerContext) ->
 %%
 
 create_quote_token(Quote, WalletID, DestinationID, PartyID) ->
-    Payload = wapi_withdrawal_quote:thrift_create_token_payload(Quote, WalletID, DestinationID, PartyID),
+    Payload = wapi_withdrawal_quote:create_token_payload(Quote, WalletID, DestinationID, PartyID),
     {ok, Token} = issue_quote_token(PartyID, Payload),
     Token.
 

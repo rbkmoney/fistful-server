@@ -1071,7 +1071,8 @@ encode_webhook_id(WebhookID) ->
 
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
-    {ok, Quote, WalletID, DestinationID, PartyID} = wapi_withdrawal_quote:decode_token_payload(Data),
+    {ok, ThriftQuote, WalletID, DestinationID, PartyID} = wapi_withdrawal_quote:decode_token_payload(Data),
+    Quote = ff_withdrawal_codec:unmarshal(quote, ThriftQuote),
     unwrap(quote_invalid_party,
         valid(
             PartyID,
@@ -1104,7 +1105,8 @@ check_quote_destination(_, DestinationID) ->
     throw({quote, {invalid_destination, DestinationID}}).
 
 create_quote_token(Quote, WalletID, DestinationID, PartyID) ->
-    Payload = wapi_withdrawal_quote:create_token_payload(Quote, WalletID, DestinationID, PartyID),
+    ThriftQuote = ff_withdrawal_codec:marshal(quote, Quote),
+    Payload = wapi_withdrawal_quote:create_token_payload(ThriftQuote, WalletID, DestinationID, PartyID),
     {ok, Token} = issue_quote_token(PartyID, Payload),
     Token.
 

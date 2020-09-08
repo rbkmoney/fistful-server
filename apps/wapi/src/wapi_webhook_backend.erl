@@ -5,11 +5,22 @@
 -export([get_webhook/3]).
 -export([delete_webhook/3]).
 
+-type id()          :: binary() | undefined.
+-type ctx()         :: wapi_handler:context().
+-type params()      :: map(). % TODO: specify
+-type result(T, E)  :: {ok, T} | {error, E}.
+
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 
--spec create_webhook(_, _) -> _. % TODO
+-spec create_webhook(params(), ctx()) -> result(map(),
+    {identity, notfound} |
+    {identity, unauthorized} |
+    {wallet, notfound} |
+    {wallet, unauthorized}
+).
+
 create_webhook(Params, Context) ->
     NewParams = #{
         identity_id := IdentityID,
@@ -30,24 +41,33 @@ create_webhook(Params, Context) ->
             Call = {webhook_manager, 'Create', [WebhookParams]},
             Result = wapi_handler_utils:service_call(Call, Context),
             process_result(Result);
-        {{error, _}, _} ->
-            {error, error};
-        {ok, {error, _}} ->
-            {error, error}
+        {{error, Error}, _} ->
+            {error, {wallet, Error}};
+        {ok, {error, Error}} ->
+            {error, {identity, Error}}
     end.
 
--spec get_webhooks(_, _) -> _. % TODO
+-spec get_webhooks(id(), ctx()) -> result(list(map()),
+    {identity, notfound} |
+    {identity, unauthorized}
+).
+
 get_webhooks(IdentityID, Context) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, Context) of
         ok ->
             Call = {webhook_manager, 'GetList', [IdentityID]},
             Result = wapi_handler_utils:service_call(Call, Context),
             process_result(Result);
-        {error, _} ->
-            {error, error} % TODO
+        {error, Error} ->
+            {error, {identity, Error}} % TODO
     end.
 
--spec get_webhook(_, _, _) -> _. % TODO
+-spec get_webhook(id(), id(), ctx()) -> result(map(),
+    notfound |
+    {identity, notfound} |
+    {identity, unauthorized}
+).
+
 get_webhook(WebhookID, IdentityID, Context) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, Context) of
         ok ->
@@ -55,11 +75,18 @@ get_webhook(WebhookID, IdentityID, Context) ->
             Call = {webhook_manager, 'Get', [EncodedID]},
             Result = wapi_handler_utils:service_call(Call, Context),
             process_result(Result);
-        {error, _} ->
-            {error, error} % TODO
+        {error, Error} ->
+            {error, {identity, Error}}
     end.
 
--spec delete_webhook(_, _, _) -> _. % TODO
+-spec delete_webhook(id(), id(), ctx()) ->
+    ok |
+    {error,
+        notfound |
+        {identity, notfound} |
+        {identity, unauthorized}
+    }.
+
 delete_webhook(WebhookID, IdentityID, Context) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, Context) of
         ok ->
@@ -67,8 +94,8 @@ delete_webhook(WebhookID, IdentityID, Context) ->
             Call = {webhook_manager, 'Delete', [EncodedID]},
             Result = wapi_handler_utils:service_call(Call, Context),
             process_result(Result);
-        {error, _} ->
-            {error, error} % TODO
+        {error, Error} ->
+            {error, {identity, Error}}
     end.
 
 process_result({ok, #webhooker_Webhook{} = Webhook}) ->

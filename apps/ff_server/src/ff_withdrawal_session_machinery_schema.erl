@@ -20,6 +20,7 @@
 -type value(T) :: machinery_mg_schema:v(T).
 -type value_type() :: machinery_mg_schema:vt().
 -type context() :: machinery_mg_schema:context().
+-type id() :: machinery:id().
 
 -type event()   :: ff_machine:timestamped_event(ff_withdrawal_session:event()).
 -type aux_state() :: ff_machine:auxst().
@@ -105,8 +106,17 @@ unmarshal_aux_state(undefined = Version, EncodedAuxState, Context0) ->
 -spec maybe_migrate(any(), context()) ->
     ff_withdrawal_session:event().
 
-maybe_migrate(Event = {created, #{version := 4}}, _Context) ->
+maybe_migrate(Event = {created, #{version := 5}}, _Context) ->
     Event;
+maybe_migrate({created, Session = #{version := 4, withdrawal := Withdrawal = #{
+    id := ID
+}}}, Context) ->
+    NewSession = Session#{
+        version => 5,
+        withdrawal => Withdrawal#{
+            id => maybe_cut_withdrawal_id(ID)
+        }},
+    maybe_migrate({created, NewSession}, Context);
 maybe_migrate({created, Session = #{version := 3, withdrawal := Withdrawal = #{
     sender := Sender,
     receiver := Receiver
@@ -357,6 +367,12 @@ maybe_migrate_aux_state(<<>>, _Context) ->
     #{ctx => #{}};
 maybe_migrate_aux_state(AuxState, _Context) ->
     AuxState.
+
+-spec maybe_cut_withdrawal_id(id()) -> id().
+
+%% Fix leaked session_ids by converting'em back to withdrawal_id
+maybe_cut_withdrawal_id(ID) ->
+    hd(binary:split(ID, <<"/">>)).
 
 %% Tests
 

@@ -1820,54 +1820,6 @@ from_swag(residence, V) ->
             %  - Essentially this is incorrect, we should reply with 400 instead
             undefined
     end;
-from_swag(webhook_params, #{
-    <<"identityID">> := IdentityID,
-    <<"scope">> := Scope,
-    <<"url">> := URL
-}) ->
-    maps:merge(
-        #{
-            identity_id => IdentityID,
-            url => URL
-        },
-        from_swag(webhook_scope, Scope)
-    );
-from_swag(webhook_scope, Topic = #{
-    <<"topic">> := <<"WithdrawalsTopic">>,
-    <<"eventTypes">> := EventList
-}) ->
-    WalletID = maps:get(<<"walletID">>, Topic, undefined),
-    Scope = #webhooker_EventFilter{
-        types = from_swag({set, webhook_withdrawal_event_types}, EventList)
-    },
-    genlib_map:compact(#{
-        scope => Scope,
-        wallet_id => WalletID
-    });
-from_swag(webhook_scope, #{
-    <<"topic">> := <<"DestinationsTopic">>,
-    <<"eventTypes">> := EventList
-}) ->
-    Scope = #webhooker_EventFilter{
-        types = from_swag({set, webhook_destination_event_types}, EventList)
-    },
-    #{
-        scope => Scope
-    };
-from_swag(webhook_withdrawal_event_types, <<"WithdrawalStarted">>) ->
-    {withdrawal, {started, #webhooker_WithdrawalStarted{}}};
-from_swag(webhook_withdrawal_event_types, <<"WithdrawalSucceeded">>) ->
-    {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}};
-from_swag(webhook_withdrawal_event_types, <<"WithdrawalFailed">>) ->
-    {withdrawal, {failed, #webhooker_WithdrawalFailed{}}};
-
-from_swag(webhook_destination_event_types, <<"DestinationCreated">>) ->
-    {destination, {created, #webhooker_DestinationCreated{}}};
-from_swag(webhook_destination_event_types, <<"DestinationUnauthorized">>) ->
-    {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}};
-from_swag(webhook_destination_event_types, <<"DestinationAuthorized">>) ->
-    {destination, {authorized, #webhooker_DestinationAuthorized{}}};
-
 from_swag({list, Type}, List) ->
     lists:map(fun(V) -> from_swag(Type, V) end, List);
 from_swag({set, Type}, List) ->
@@ -2352,66 +2304,6 @@ to_swag(sub_failure, #{
     });
 to_swag(sub_failure, undefined) ->
     undefined;
-
-to_swag(webhook, #webhooker_Webhook{
-    id = ID,
-    identity_id = IdentityID,
-    wallet_id = WalletID,
-    event_filter = EventFilter,
-    url = URL,
-    pub_key = PubKey,
-    enabled = Enabled
-}) ->
-    to_swag(map, #{
-        <<"id">> => integer_to_binary(ID),
-        <<"identityID">> => IdentityID,
-        <<"walletID">> => WalletID,
-        <<"active">> => to_swag(boolean, Enabled),
-        <<"scope">> => to_swag(webhook_scope, EventFilter),
-        <<"url">> => URL,
-        <<"publicKey">> => PubKey
-    });
-
-to_swag(webhook_scope, #webhooker_EventFilter{types = EventTypes}) ->
-    List = to_swag({set, webhook_event_types}, EventTypes),
-    lists:foldl(fun({Topic, Type}, Acc) ->
-        case maps:get(<<"topic">>, Acc, undefined) of
-            undefined ->
-                Acc#{
-                    <<"topic">> => to_swag(webhook_topic, Topic),
-                    <<"eventTypes">> => [Type]
-                };
-            _ ->
-                #{<<"eventTypes">> := Types} = Acc,
-                Acc#{
-                    <<"eventTypes">> := [Type | Types]
-                }
-        end
-    end, #{}, List);
-
-to_swag(webhook_event_types, {withdrawal, EventType}) ->
-    {withdrawal, to_swag(webhook_withdrawal_event_types, EventType)};
-to_swag(webhook_event_types, {destination, EventType}) ->
-    {destination, to_swag(webhook_destination_event_types, EventType)};
-
-to_swag(webhook_topic, withdrawal) ->
-    <<"WithdrawalsTopic">>;
-to_swag(webhook_topic, destination) ->
-    <<"DestinationsTopic">>;
-
-to_swag(webhook_withdrawal_event_types, {started, _}) ->
-    <<"WithdrawalStarted">>;
-to_swag(webhook_withdrawal_event_types, {succeeded, _}) ->
-    <<"WithdrawalSucceeded">>;
-to_swag(webhook_withdrawal_event_types, {failed, _}) ->
-    <<"WithdrawalFailed">>;
-
-to_swag(webhook_destination_event_types, {created, _}) ->
-    <<"DestinationCreated">>;
-to_swag(webhook_destination_event_types, {unauthorized, _}) ->
-    <<"DestinationUnauthorized">>;
-to_swag(webhook_destination_event_types, {authorized, _}) ->
-    <<"DestinationAuthorized">>;
 
 to_swag(boolean, true) ->
     true;

@@ -7,85 +7,81 @@
 
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
-
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 
 -spec create_webhook(_, _) -> _. % TODO
 create_webhook(Params, Context) ->
-    do(fun () ->
-        NewParams = #{
-            identity_id := IdentityID,
-            scope := EventFilter,
-            url := URL
-        } = unmarshal(webhook_params, maps:get('Webhook', Params)),
-        WalletID = maps:get(wallet_id, NewParams, undefined),
-        _ = check_wallet(WalletID, Context),
-        _ = check_resource(identity, IdentityID, Context),
-        WebhookParams = #webhooker_WebhookParams{
-            identity_id = IdentityID,
-            wallet_id = WalletID,
-            event_filter = EventFilter,
-            url = URL
-        },
-        Call = {webhook_manager, 'Create', [WebhookParams]},
-        Result = wapi_handler_utils:service_call(Call, Context),
-        process_result(Result)
-    end).
+    NewParams = #{
+        identity_id := IdentityID,
+        scope := EventFilter,
+        url := URL
+    } = unmarshal(webhook_params, maps:get('Webhook', Params)),
+    WalletID = maps:get(wallet_id, NewParams, undefined),
+    WalletAccessible = wapi_access_backend:check_resource_by_id(wallet, WalletID, Context),
+    IdentityAccessible = wapi_access_backend:check_resource_by_id(identity, IdentityID, Context),
+    case {WalletAccessible, IdentityAccessible} of
+        {ok, ok} ->
+            WebhookParams = #webhooker_WebhookParams{
+                identity_id = IdentityID,
+                wallet_id = WalletID,
+                event_filter = EventFilter,
+                url = URL
+            },
+            Call = {webhook_manager, 'Create', [WebhookParams]},
+            Result = wapi_handler_utils:service_call(Call, Context),
+            process_result(Result);
+        {{error, _}, _} ->
+            {error, error};
+        {ok, {error, _}} ->
+            {error, error}
+    end.
 
 -spec get_webhooks(_, _) -> _. % TODO
 get_webhooks(IdentityID, Context) ->
-    do(fun () ->
-        _ = check_resource(identity, IdentityID, Context),
-        Call = {webhook_manager, 'GetList', [IdentityID]},
-        Result = wapi_handler_utils:service_call(Call, Context),
-        process_result(Result)
-    end).
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, Context) of
+        ok ->
+            Call = {webhook_manager, 'GetList', [IdentityID]},
+            Result = wapi_handler_utils:service_call(Call, Context),
+            process_result(Result);
+        {error, _} ->
+            {error, error} % TODO
+    end.
 
 -spec get_webhook(_, _, _) -> _. % TODO
 get_webhook(WebhookID, IdentityID, Context) ->
-    do(fun () ->
-        EncodedID = encode_webhook_id(WebhookID),
-        _ = check_resource(identity, IdentityID, Context),
-        Call = {webhook_manager, 'Get', [EncodedID]},
-        Result = wapi_handler_utils:service_call(Call, Context),
-        process_result(Result)
-    end).
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, Context) of
+        ok ->
+            EncodedID = encode_webhook_id(WebhookID),
+            Call = {webhook_manager, 'Get', [EncodedID]},
+            Result = wapi_handler_utils:service_call(Call, Context),
+            process_result(Result);
+        {error, _} ->
+            {error, error} % TODO
+    end.
 
 -spec delete_webhook(_, _, _) -> _. % TODO
 delete_webhook(WebhookID, IdentityID, Context) ->
-    do(fun () ->
-        EncodedID = encode_webhook_id(WebhookID),
-        _ = check_resource(identity, IdentityID, Context),
-        Call = {webhook_manager, 'Delete', [EncodedID]},
-        case wapi_handler_utils:service_call(Call, Context) of
-            {ok, _} ->
-                ok;
-            {exception, #webhooker_WebhookNotFound{}} ->
-                throw(notfound)
-        end
-    end).
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, Context) of
+        ok ->
+            EncodedID = encode_webhook_id(WebhookID),
+            Call = {webhook_manager, 'Delete', [EncodedID]},
+            Result = wapi_handler_utils:service_call(Call, Context),
+            process_result(Result);
+        {error, _} ->
+            {error, error} % TODO
+    end.
 
 process_result({ok, #webhooker_Webhook{} = Webhook}) ->
-    marshal(webhook, Webhook);
+    {ok, marshal(webhook, Webhook)};
 
 process_result({ok, Webhooks}) when is_list(Webhooks) ->
-    marshal({list, webhook}, Webhooks);
+    {ok, marshal({list, webhook}, Webhooks)};
 
 process_result({ok, _}) ->
     ok;
 
 process_result({exception, #webhooker_WebhookNotFound{}}) ->
-    throw(notfound).
-
-
-
-% TODO: check if such function already
-check_wallet(undefined, _) ->
-    ok;
-check_wallet(WalletID, Context) ->
-    check_resource(wallet, WalletID, Context).
-
+    {error, notfound}.
 
 encode_webhook_id(WebhookID) ->
     try
@@ -94,40 +90,6 @@ encode_webhook_id(WebhookID) ->
         error:badarg ->
             throw(notfound)
     end.
-
-%% TODO: move to utils module
-
-check_resource(Resource, Id, Context) ->
-    _ = get_state(Resource, Id, Context),
-    ok.
-
-get_state(Resource, Id, Context) ->
-    State = unwrap(Resource, do_get_state(Resource, Id)),
-    ok    = unwrap(Resource, check_resource_access(Context, State)),
-    State.
-
-do_get_state(identity,     Id) -> ff_identity_machine:get(Id);
-do_get_state(wallet,       Id) -> ff_wallet_machine:get(Id);
-do_get_state(destination,  Id) -> ff_destination:get_machine(Id);
-do_get_state(withdrawal,   Id) -> ff_withdrawal_machine:get(Id);
-do_get_state(p2p_transfer, Id) -> p2p_transfer_machine:get(Id);
-do_get_state(p2p_template, Id) -> p2p_template_machine:get(Id);
-do_get_state(w2w_transfer, Id) -> w2w_transfer_machine:get(Id).
-
-get_resource_owner(State) ->
-    maps:get(<<"owner">>, get_ctx(State)).
-
-is_resource_owner(HandlerCtx, State) ->
-    wapi_handler_utils:get_owner(HandlerCtx) =:= get_resource_owner(State).
-
-check_resource_access(HandlerCtx, State) ->
-    check_resource_access(is_resource_owner(HandlerCtx, State)).
-
-check_resource_access(true)  -> ok;
-check_resource_access(false) -> {error, unauthorized}.
-
-get_ctx(State) ->
-    unwrap(ff_entity_context:get(?CTX_NS, ff_machine:ctx(State))).
 
 %% marshaling
 unmarshal(webhook_params, #{

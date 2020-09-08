@@ -332,6 +332,9 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Withdrawal body differs from quote`s one">>)
             );
+        {error, {quote, token_expired}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Quote token expired">>));
         {error, {forbidden_currency, _}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Forbidden currency">>)

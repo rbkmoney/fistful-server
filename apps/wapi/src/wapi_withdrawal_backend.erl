@@ -26,7 +26,7 @@
     {forbidden_currency, _} |
     {forbidden_amount, _} |
     {inconsistent_currency, _} |
-    token_expired |
+    {quote, token_expired} |
     {identity_providers_mismatch, {id(), id()}} |
     {destination_resource, {bin_data, not_found}}.
 
@@ -306,7 +306,7 @@ check_withdrawal_params(Params0, HandlerContext) ->
 try_decode_quote_token(Params = #{<<"quoteToken">> := QuoteToken}) ->
     do(fun() ->
         {_, _, Data} = unwrap(uac_authorizer_jwt:verify(QuoteToken, #{})),
-        {Quote, WalletID, DestinationID, PartyID} = unwrap(wapi_withdrawal_quote:decode_token_payload(Data)),
+        {Quote, WalletID, DestinationID, PartyID} = unwrap(quote, wapi_withdrawal_quote:decode_token_payload(Data)),
         Params#{<<"quoteToken">> => #{
             quote => Quote,
             wallet_id => WalletID,

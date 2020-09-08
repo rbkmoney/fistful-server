@@ -96,7 +96,7 @@ payload_symmetry_test() ->
     },
     ThriftQuote = ff_withdrawal_codec:marshal(quote, Quote),
     Payload = create_token_payload(ThriftQuote, WalletID, DestinationID, PartyID),
-    {ok, Decoded, WalletID, DestinationID, PartyID} = decode_token_payload(Payload),
+    {ok, {Decoded, WalletID, DestinationID, PartyID}} = decode_token_payload(Payload),
     ?assertEqual(ThriftQuote, Decoded).
 
 -spec payload_v2_decoding_test() -> _.
@@ -137,7 +137,7 @@ payload_v2_decoding_test() ->
         >>
     },
     ?assertEqual(
-        {ok, ExpectedThriftQuote, WalletID, DestinationID, PartyID},
+        {ok, {ExpectedThriftQuote, WalletID, DestinationID, PartyID}},
         decode_token_payload(Payload)
     ).
 

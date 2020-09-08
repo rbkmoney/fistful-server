@@ -397,7 +397,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {terms, {terms_violation, _}} |
     {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}} |
     {destination_resource, {bin_data, ff_bin_data:bin_data_error()}} |
-    token_expired |
+    {quote, token_expired} |
     {Resource, {unauthorized, _}}
 ) when Resource :: wallet | destination.
 create_withdrawal(Params, Context) ->
@@ -1074,7 +1074,7 @@ encode_webhook_id(WebhookID) ->
 
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
-    {ThriftQuote, WalletID, DestinationID, PartyID} = unwrap(wapi_withdrawal_quote:decode_token_payload(Data)),
+    {ThriftQuote, WalletID, DestinationID, PartyID} = unwrap(quote, wapi_withdrawal_quote:decode_token_payload(Data)),
     Quote = ff_withdrawal_codec:unmarshal(quote, ThriftQuote),
     unwrap(quote_invalid_party,
         valid(
@@ -1411,9 +1411,17 @@ not_implemented() ->
 do(Fun) ->
     ff_pipeline:do(Fun).
 
+-spec unwrap
+    (ok)         -> ok;
+    ({ok, V})    -> V;
+    ({error, _E}) -> no_return().
 unwrap(Res) ->
     ff_pipeline:unwrap(Res).
 
+-spec unwrap
+    (_Tag, ok)         -> ok;
+    (_Tag, {ok, V})    -> V;
+    (_Tag, {error, _E}) -> no_return().
 unwrap(Tag, Res) ->
     ff_pipeline:unwrap(Tag, Res).
 

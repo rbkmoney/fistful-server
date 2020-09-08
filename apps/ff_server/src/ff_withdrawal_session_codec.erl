@@ -206,7 +206,7 @@ unmarshal(session, #wthd_session_Session{
 }) ->
     Route1 = unmarshal(route, Route0),
     genlib_map:compact(#{
-        version => 4,
+        version => 5,
         id => unmarshal(id, SessionID),
         status => unmarshal(session_status, SessionStatus),
         withdrawal => unmarshal(withdrawal, Withdrawal),

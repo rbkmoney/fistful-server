@@ -20,7 +20,7 @@
 -type value(T) :: machinery_mg_schema:v(T).
 -type value_type() :: machinery_mg_schema:vt().
 
--type event()   :: ff_machine:timestamped_event(p2p_transfer:event()).
+-type event()   :: ff_machine:timestamped_event(ff_identity:event()).
 -type aux_state() :: ff_machine:auxst().
 -type call_args() :: term().
 -type call_response() :: term().
@@ -95,7 +95,8 @@ unmarshal_event(1, EncodedChange, Context) ->
     {bin, EncodedThriftChange} = EncodedChange,
     Type = {struct, struct, {ff_proto_identity_thrift, 'TimestampedChange'}},
     ThriftChange = ff_proto_utils:deserialize(Type, EncodedThriftChange),
-    {ff_identity_codec:unmarshal(timestamped_change, ThriftChange), Context};
+    {ev, Timestamp, Change} = ff_identity_codec:unmarshal(timestamped_change, ThriftChange),
+    {{ev, Timestamp, maybe_migrate(Change, Context)}, Context};
 unmarshal_event(undefined = Version, EncodedChange, Context) ->
     {{ev, Timestamp, Change}, Context1} = machinery_mg_schema_generic:unmarshal(
         {event, Version},
@@ -108,17 +109,16 @@ unmarshal_event(undefined = Version, EncodedChange, Context) ->
 -spec maybe_migrate(event() | legacy_event(), context()) ->
     event().
 
-maybe_migrate(Event = {created, #{version := 2}}, _MigrateContext) ->
+maybe_migrate(Event = {created, #{version := 3}}, _MigrateContext) ->
     Event;
+maybe_migrate({created, Identity = #{version := 2, id := ID}}, MigrateContext) ->
+    Context = fetch_entity_context(ID, MigrateContext),
+    maybe_migrate({created, genlib_map:compact(Identity#{
+        version => 3,
+        name => get_legacy_name(Context)
+    })}, MigrateContext);
 maybe_migrate({created, Identity = #{version := 1, id := ID}}, MigrateContext) ->
-    Ctx = maps:get(ctx, MigrateContext, undefined),
-    Context = case Ctx of
-        undefined ->
-            {ok, State} = ff_machine:get(ff_identity, 'ff/identity', ID, {undefined, 0, forward}),
-            maps:get(ctx, State, undefined);
-        Data ->
-            Data
-    end,
+    Context = fetch_entity_context(ID, MigrateContext),
     maybe_migrate({created, genlib_map:compact(Identity#{
         version => 2,
         metadata => ff_entity_context:try_get_legacy_metadata(Context)
@@ -140,6 +140,19 @@ get_aux_state_ctx(AuxState) when is_map(AuxState) ->
     maps:get(ctx, AuxState, undefined);
 get_aux_state_ctx(_) ->
     undefined.
+
+fetch_entity_context(MachineID, MigrateContext) ->
+    Ctx = maps:get(ctx, MigrateContext, undefined),
+    case Ctx of
+        undefined ->
+            {ok, State} = ff_machine:get(ff_identity, 'ff/identity', MachineID, {undefined, 0, forward}),
+            maps:get(ctx, State, undefined);
+        Data ->
+            Data
+    end.
+
+get_legacy_name(#{<<"com.rbkmoney.wapi">> := #{<<"name">> := Name}}) ->
+    Name.
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -166,10 +179,11 @@ created_v0_decoding_test() ->
         contract => <<"ContractID">>,
         created_at => 1592576943762,
         id => <<"ID">>,
+        name => <<"Name">>,
         party => <<"PartyID">>,
         provider => <<"good-one">>,
         metadata => #{<<"some key">> => <<"some val">>},
-        version => 2
+        version => 3
     },
     Change = {created, Identity},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
@@ -184,9 +198,10 @@ created_v0_decoding_test() ->
                 {str, <<"contract">>} => {bin, <<"ContractID">>},
                 {str, <<"created_at">>} => {i, 1592576943762},
                 {str, <<"id">>} => {bin, <<"ID">>},
+                {str, <<"name">>} => {bin, <<"Name">>},
                 {str, <<"party">>} => {bin, <<"PartyID">>},
                 {str, <<"provider">>} => {bin, <<"good-one">>},
-                {str, <<"version">>} => {i, 2},
+                {str, <<"version">>} => {i, 3},
                 {str, <<"metadata">>} => {arr, [
                     {str, <<"map">>},
                     {obj, #{
@@ -387,10 +402,11 @@ created_v1_decoding_test() ->
         contract => <<"ContractID">>,
         created_at => 1592576943762,
         id => <<"ID">>,
+        name => <<"Name">>,
         party => <<"PartyID">>,
         provider => <<"good-one">>,
         metadata => #{<<"some key">> => <<"some val">>},
-        version => 2
+        version => 3
     },
     Change = {created, Identity},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
@@ -399,7 +415,9 @@ created_v1_decoding_test() ->
         "QYXJ0eUlECwACAAAACGdvb2Qtb25lCwADAAAABWNsYXNzCwAEAAAACkNvbnRyYWN0SUQLAAoAAA"
         "AYMjAyMC0wNi0xOVQxNDoyOTowMy43NjJaDQALCwwAAAABAAAACHNvbWUga2V5CwAFAAAACHNvbWUgdmFsAAAAAA=="
     >>)},
-    DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
+    {DecodedLegacy, _} = unmarshal({event, 1}, LegacyEvent, #{
+        ctx => #{<<"com.rbkmoney.wapi">> => #{<<"name">> => <<"Name">>}}
+    }),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
     ?assertEqual(Event, Decoded).

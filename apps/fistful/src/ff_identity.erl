@@ -30,10 +30,10 @@
 -type level_id()        :: ff_identity_class:level_id().
 -type metadata()        :: ff_entity_context:md().
 
--define(ACTUAL_FORMAT_VERSION, 2).
+-define(ACTUAL_FORMAT_VERSION, 3).
 -type identity_state() :: #{
     id           := id(),
-    name         => name(), %will become required after migration
+    name         := name(),
     party        := party_id(),
     provider     := provider_id(),
     class        := class_id(),
@@ -48,9 +48,9 @@
 }.
 
 -type identity() :: #{
-    version      := ?ACTUAL_FORMAT_VERSION,
+    version      := 2 | ?ACTUAL_FORMAT_VERSION,
     id           := id(),
-    name         => name(), %will become required after migration
+    name         => name(), % becomes required after migration
     party        := party_id(),
     provider     := provider_id(),
     class        := class_id(),
@@ -166,8 +166,8 @@
 id(#{id := V}) ->
     V.
 
-name(Identity) ->
-    maps:get(name, Identity, undefined).
+name(#{name := V}) ->
+    V.
 
 provider(#{provider := V}) ->
     V.

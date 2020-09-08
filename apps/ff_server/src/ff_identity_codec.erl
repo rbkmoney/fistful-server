@@ -82,13 +82,9 @@ marshal_identity_state(IdentityState, Context) ->
         {ok, ID} -> maybe_marshal(id, ID);
         {error, notfound} -> undefined
     end,
-    Name = case ff_identity:name(IdentityState) of
-        undefined -> get_from_context(<<"name">>, Context);
-        V -> V
-    end,
     #idnt_IdentityState{
         id = maybe_marshal(id, ff_identity:id(IdentityState)),
-        name = marshal(string, Name),
+        name = marshal(string, ff_identity:name(IdentityState)),
         party_id = marshal(id, ff_identity:party(IdentityState)),
         provider_id = marshal(id, ff_identity:provider(IdentityState)),
         class_id = marshal(id, ff_identity:class(IdentityState)),
@@ -101,10 +97,6 @@ marshal_identity_state(IdentityState, Context) ->
         effective_challenge_id = EffectiveChallengeID,
         context = maybe_marshal(ctx, Context)
     }.
-
-%@TODO Delete this after migration
-get_from_context(Key, #{<<"com.rbkmoney.wapi">> := Ctx}) ->
-    maps:get(Key, Ctx, undefined).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
 
@@ -242,7 +234,7 @@ unmarshal(identity, #idnt_Identity{
     external_id = ExternalID,
     created_at  = CreatedAt,
     metadata    = Metadata
-}) ->
+} = Identity) ->
     genlib_map:compact(#{
         id          => unmarshal(id, ID),
         name        => maybe_unmarshal(string, Name),
@@ -253,7 +245,7 @@ unmarshal(identity, #idnt_Identity{
         external_id => maybe_unmarshal(id, ExternalID),
         created_at  => maybe_unmarshal(created_at, CreatedAt),
         metadata    => maybe_unmarshal(ctx, Metadata),
-        version     => 2
+        version     => get_identity_version(Identity)
     });
 
 unmarshal(challenge_payload, {created, Challenge}) ->
@@ -337,6 +329,11 @@ maybe_unmarshal(_Type, undefined) ->
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
 
+get_identity_version(#idnt_Identity{name = undefined}) ->
+    2;
+get_identity_version(#idnt_Identity{name = Name}) when is_binary(Name) ->
+    3.
+
 %% TESTS
 
 -ifdef(TEST).
@@ -348,12 +345,13 @@ maybe_unmarshal(Type, Value) ->
 identity_test() ->
     IdentityIn = #{
         id          => genlib:unique(),
+        name        => genlib:unique(),
         party       => genlib:unique(),
         provider    => genlib:unique(),
         class       => genlib:unique(),
         contract    => genlib:unique(),
         external_id => genlib:unique(),
-        version     => 2
+        version     => 3
     },
     IdentityOut = unmarshal(identity, marshal(identity, IdentityIn)),
     ?assertEqual(IdentityOut, IdentityIn).

@@ -394,6 +394,134 @@ unmarshal(Type, Value) ->
     {Result, _Context} = unmarshal(Type, Value, #{}),
     Result.
 
+-spec created_with_broken_withdrawal_id_test() -> _.
+created_with_broken_withdrawal_id_test() ->
+    WithdrawalID = <<"withdrawal">>,
+    SessionID = << WithdrawalID/binary, "/1" >>,
+    Resource = {bank_card, #{bank_card => #{
+        token => <<"token">>,
+        bin_data_id => {binary, <<"bin">>},
+        payment_system => visa
+    }}},
+    Quote = #{
+        cash_from => {123, <<"RUB">>},
+        cash_to => {123, <<"RUB">>},
+        created_at => <<"some timestamp">>,
+        expires_on => <<"some timestamp">>,
+        quote_data => #{}
+    },
+    Identity = #{
+        id => <<"ID">>
+    },
+    Withdrawal = #{
+        id          => WithdrawalID,
+        session_id  => SessionID,
+        resource    => Resource,
+        cash        => {123, <<"RUB">>},
+        sender      => Identity,
+        receiver    => Identity,
+        quote       => Quote
+    },
+    Session = #{
+        version => 5,
+        id => SessionID,
+        status => active,
+        withdrawal => Withdrawal,
+        route => #{provider_id => 1},
+        provider_legacy => <<"-299">>
+    },
+    Change = {created, Session},
+    Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
+
+    LegacyResource = {arr, [
+        {str, <<"tup">>},
+        {str, <<"bank_card">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"bank_card">>} =>
+                {arr, [
+                    {str, <<"map">>},
+                    {obj, #{
+                        {str, <<"bin_data_id">>} => {arr, [
+                            {str, <<"tup">>},
+                            {str, <<"binary">>},
+                            {bin, <<"bin">>}
+                        ]},
+                        {str, <<"token">>} => {bin, <<"token">>},
+                        {str, <<"payment_system">>} => {str, <<"visa">>}
+                    }}
+                ]}
+            }}
+        ]}
+    ]},
+    LegacyQuote = {arr, [
+        {str, <<"map">>},
+        {obj, #{
+            {str, <<"cash_from">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
+            {str, <<"cash_to">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
+            {str, <<"created_at">>} => {bin, <<"some timestamp">>},
+            {str, <<"expires_on">>} => {bin, <<"some timestamp">>},
+            {str, <<"quote_data">>} => {arr, [{str, <<"map">>}, {obj, #{}}]}
+        }}
+    ]},
+    LegacyIdentity = {arr, [
+        {str, <<"map">>},
+        {obj, #{
+            {str, <<"class">>} => {bin, <<"class">>},
+            {str, <<"contract">>} => {bin, <<"ContractID">>},
+            {str, <<"created_at">>} => {i, 1592576943762},
+            {str, <<"id">>} => {bin, <<"ID">>},
+            {str, <<"party">>} => {bin, <<"PartyID">>},
+            {str, <<"provider">>} => {bin, <<"good-one">>},
+            {str, <<"metadata">>} => {arr, [{str, <<"map">>}, {obj, #{{bin, <<"some key">>} => {bin, <<"some val">>}}}]}
+        }}
+    ]},
+    LegacyWithdrawal = {arr, [
+        {str, <<"map">>},
+        {obj, #{
+            {str, <<"id">>} => {bin, SessionID},
+            {str, <<"session_id">>} => {bin, SessionID},
+            {str, <<"resource">>} => LegacyResource,
+            {str, <<"cash">>} => {arr, [{str, <<"tup">>}, {i, 123}, {bin, <<"RUB">>}]},
+            {str, <<"sender">>} => LegacyIdentity,
+            {str, <<"receiver">>} => LegacyIdentity,
+            {str, <<"quote">>} => LegacyQuote
+        }}
+    ]},
+    LegacyChange = {arr, [
+        {str, <<"tup">>},
+        {str, <<"created">>},
+        {arr, [
+            {str, <<"map">>},
+            {obj, #{
+                {str, <<"version">>} => {i, 4},
+                {str, <<"id">>} => {bin, SessionID},
+                {str, <<"status">>} => {str, <<"active">>},
+                {str, <<"withdrawal">>} => LegacyWithdrawal,
+                {str, <<"route">>} => {arr, [{str, <<"map">>}, {obj, #{{str, <<"provider_id">>} => {i, 1}}}]}
+            }}
+        ]}
+    ]},
+    LegacyEvent = {arr, [
+        {str, <<"tup">>},
+        {str, <<"ev">>},
+        {arr, [
+            {str, <<"tup">>},
+            {arr, [
+                {str, <<"tup">>},
+                {arr, [{str, <<"tup">>}, {i, 2020}, {i, 5}, {i, 25}]},
+                {arr, [{str, <<"tup">>}, {i, 19}, {i, 19}, {i, 10}]}
+            ]},
+            {i, 293305}
+        ]},
+        LegacyChange
+    ]},
+    DecodedLegacy = unmarshal({event, undefined}, LegacyEvent),
+    ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
+    Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
+    ?assertEqual(Event, Decoded).
+
 -spec created_v0_3_decoding_test() -> _.
 created_v0_3_decoding_test() ->
     Resource = {bank_card, #{bank_card => #{
@@ -421,7 +549,7 @@ created_v0_3_decoding_test() ->
         quote       => Quote
     },
     Session = #{
-        version => 4,
+        version => 5,
         id => <<"id">>,
         status => active,
         withdrawal => Withdrawal,
@@ -522,7 +650,7 @@ created_v0_3_decoding_test() ->
 -spec created_v0_unknown_with_binary_provider_decoding_test() -> _.
 created_v0_unknown_with_binary_provider_decoding_test() ->
     Session = #{
-        version => 4,
+        version => 5,
         id => <<"1274">>,
         route => #{
             provider_id => 302
@@ -646,7 +774,7 @@ created_v0_unknown_with_binary_provider_decoding_test() ->
 -spec created_v0_unknown_without_provider_decoding_test() -> _.
 created_v0_unknown_without_provider_decoding_test() ->
     Session = #{
-        version => 4,
+        version => 5,
         id => <<"294">>,
         route => #{
             provider_id => 301
@@ -858,7 +986,7 @@ created_v1_decoding_test() ->
         quote       => Quote
     },
     Session = #{
-        version       => 4,
+        version       => 5,
         id            => <<"id">>,
         status        => active,
         withdrawal    => Withdrawal,

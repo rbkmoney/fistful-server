@@ -18,7 +18,7 @@ create_webhook(Params, Context) ->
             identity_id := IdentityID,
             scope := EventFilter,
             url := URL
-        } = from_swag(webhook_params, maps:get('Webhook', Params)),
+        } = unmarshal(webhook_params, maps:get('Webhook', Params)),
         WalletID = maps:get(wallet_id, NewParams, undefined),
         _ = check_wallet(WalletID, Context),
         _ = check_resource(identity, IdentityID, Context),
@@ -67,10 +67,10 @@ delete_webhook(WebhookID, IdentityID, Context) ->
     end).
 
 process_result({ok, #webhooker_Webhook{} = Webhook}) ->
-    to_swag(webhook, Webhook);
+    marshal(webhook, Webhook);
 
 process_result({ok, Webhooks}) when is_list(Webhooks) ->
-    to_swag({list, webhook}, Webhooks);
+    marshal({list, webhook}, Webhooks);
 
 process_result({ok, _}) ->
     ok;
@@ -130,7 +130,7 @@ get_ctx(State) ->
     unwrap(ff_entity_context:get(?CTX_NS, ff_machine:ctx(State))).
 
 %% marshaling
-from_swag(webhook_params, #{
+unmarshal(webhook_params, #{
     <<"identityID">> := IdentityID,
     <<"scope">> := Scope,
     <<"url">> := URL
@@ -140,50 +140,50 @@ from_swag(webhook_params, #{
             identity_id => IdentityID,
             url => URL
         },
-        from_swag(webhook_scope, Scope)
+        unmarshal(webhook_scope, Scope)
     );
-from_swag(webhook_scope, Topic = #{
+unmarshal(webhook_scope, Topic = #{
     <<"topic">> := <<"WithdrawalsTopic">>,
     <<"eventTypes">> := EventList
 }) ->
     WalletID = maps:get(<<"walletID">>, Topic, undefined),
     Scope = #webhooker_EventFilter{
-        types = from_swag({set, webhook_withdrawal_event_types}, EventList)
+        types = unmarshal({set, webhook_withdrawal_event_types}, EventList)
     },
     genlib_map:compact(#{
         scope => Scope,
         wallet_id => WalletID
     });
-from_swag(webhook_scope, #{
+unmarshal(webhook_scope, #{
     <<"topic">> := <<"DestinationsTopic">>,
     <<"eventTypes">> := EventList
 }) ->
     Scope = #webhooker_EventFilter{
-        types = from_swag({set, webhook_destination_event_types}, EventList)
+        types = unmarshal({set, webhook_destination_event_types}, EventList)
     },
     #{
         scope => Scope
     };
-from_swag(webhook_withdrawal_event_types, <<"WithdrawalStarted">>) ->
+unmarshal(webhook_withdrawal_event_types, <<"WithdrawalStarted">>) ->
     {withdrawal, {started, #webhooker_WithdrawalStarted{}}};
-from_swag(webhook_withdrawal_event_types, <<"WithdrawalSucceeded">>) ->
+unmarshal(webhook_withdrawal_event_types, <<"WithdrawalSucceeded">>) ->
     {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}};
-from_swag(webhook_withdrawal_event_types, <<"WithdrawalFailed">>) ->
+unmarshal(webhook_withdrawal_event_types, <<"WithdrawalFailed">>) ->
     {withdrawal, {failed, #webhooker_WithdrawalFailed{}}};
 
-from_swag(webhook_destination_event_types, <<"DestinationCreated">>) ->
+unmarshal(webhook_destination_event_types, <<"DestinationCreated">>) ->
     {destination, {created, #webhooker_DestinationCreated{}}};
-from_swag(webhook_destination_event_types, <<"DestinationUnauthorized">>) ->
+unmarshal(webhook_destination_event_types, <<"DestinationUnauthorized">>) ->
     {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}};
-from_swag(webhook_destination_event_types, <<"DestinationAuthorized">>) ->
+unmarshal(webhook_destination_event_types, <<"DestinationAuthorized">>) ->
     {destination, {authorized, #webhooker_DestinationAuthorized{}}};
 
-from_swag({list, Type}, List) ->
-    lists:map(fun(V) -> from_swag(Type, V) end, List);
-from_swag({set, Type}, List) ->
-    ordsets:from_list(from_swag({list, Type}, List)).
+unmarshal({list, Type}, List) ->
+    lists:map(fun(V) -> unmarshal(Type, V) end, List);
+unmarshal({set, Type}, List) ->
+    ordsets:from_list(unmarshal({list, Type}, List)).
 
-to_swag(webhook, #webhooker_Webhook{
+marshal(webhook, #webhooker_Webhook{
     id = ID,
     identity_id = IdentityID,
     wallet_id = WalletID,
@@ -192,23 +192,23 @@ to_swag(webhook, #webhooker_Webhook{
     pub_key = PubKey,
     enabled = Enabled
 }) ->
-    to_swag(map, #{
+    marshal(map, #{
         <<"id">> => integer_to_binary(ID),
         <<"identityID">> => IdentityID,
         <<"walletID">> => WalletID,
-        <<"active">> => to_swag(boolean, Enabled),
-        <<"scope">> => to_swag(webhook_scope, EventFilter),
+        <<"active">> => marshal(boolean, Enabled),
+        <<"scope">> => marshal(webhook_scope, EventFilter),
         <<"url">> => URL,
         <<"publicKey">> => PubKey
     });
 
-to_swag(webhook_scope, #webhooker_EventFilter{types = EventTypes}) ->
-    List = to_swag({set, webhook_event_types}, EventTypes),
+marshal(webhook_scope, #webhooker_EventFilter{types = EventTypes}) ->
+    List = marshal({set, webhook_event_types}, EventTypes),
     lists:foldl(fun({Topic, Type}, Acc) ->
         case maps:get(<<"topic">>, Acc, undefined) of
             undefined ->
                 Acc#{
-                    <<"topic">> => to_swag(webhook_topic, Topic),
+                    <<"topic">> => marshal(webhook_topic, Topic),
                     <<"eventTypes">> => [Type]
                 };
             _ ->
@@ -219,39 +219,39 @@ to_swag(webhook_scope, #webhooker_EventFilter{types = EventTypes}) ->
         end
     end, #{}, List);
 
-to_swag(webhook_event_types, {withdrawal, EventType}) ->
-    {withdrawal, to_swag(webhook_withdrawal_event_types, EventType)};
-to_swag(webhook_event_types, {destination, EventType}) ->
-    {destination, to_swag(webhook_destination_event_types, EventType)};
+marshal(webhook_event_types, {withdrawal, EventType}) ->
+    {withdrawal, marshal(webhook_withdrawal_event_types, EventType)};
+marshal(webhook_event_types, {destination, EventType}) ->
+    {destination, marshal(webhook_destination_event_types, EventType)};
 
-to_swag(webhook_topic, withdrawal) ->
+marshal(webhook_topic, withdrawal) ->
     <<"WithdrawalsTopic">>;
-to_swag(webhook_topic, destination) ->
+marshal(webhook_topic, destination) ->
     <<"DestinationsTopic">>;
 
-to_swag(webhook_withdrawal_event_types, {started, _}) ->
+marshal(webhook_withdrawal_event_types, {started, _}) ->
     <<"WithdrawalStarted">>;
-to_swag(webhook_withdrawal_event_types, {succeeded, _}) ->
+marshal(webhook_withdrawal_event_types, {succeeded, _}) ->
     <<"WithdrawalSucceeded">>;
-to_swag(webhook_withdrawal_event_types, {failed, _}) ->
+marshal(webhook_withdrawal_event_types, {failed, _}) ->
     <<"WithdrawalFailed">>;
 
-to_swag(webhook_destination_event_types, {created, _}) ->
+marshal(webhook_destination_event_types, {created, _}) ->
     <<"DestinationCreated">>;
-to_swag(webhook_destination_event_types, {unauthorized, _}) ->
+marshal(webhook_destination_event_types, {unauthorized, _}) ->
     <<"DestinationUnauthorized">>;
-to_swag(webhook_destination_event_types, {authorized, _}) ->
+marshal(webhook_destination_event_types, {authorized, _}) ->
     <<"DestinationAuthorized">>;
 
-to_swag(boolean, true) ->
+marshal(boolean, true) ->
     true;
-to_swag(boolean, false) ->
+marshal(boolean, false) ->
     false;
-to_swag({list, Type}, List) ->
-    lists:map(fun(V) -> to_swag(Type, V) end, List);
-to_swag({set, Type}, Set) ->
-    to_swag({list, Type}, ordsets:to_list(Set));
-to_swag(map, Map) ->
+marshal({list, Type}, List) ->
+    lists:map(fun(V) -> marshal(Type, V) end, List);
+marshal({set, Type}, Set) ->
+    marshal({list, Type}, ordsets:to_list(Set));
+marshal(map, Map) ->
     genlib_map:compact(Map);
-to_swag(_, V) ->
+marshal(_, V) ->
     V.

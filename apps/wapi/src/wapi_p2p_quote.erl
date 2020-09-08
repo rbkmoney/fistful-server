@@ -29,7 +29,7 @@ create_token_payload(Quote, PartyID) ->
     }).
 
 -spec decode_token_payload(token_payload()) ->
-    {ok, quote()}.
+    {ok, quote()} | {error, token_expired}.
 decode_token_payload(#{<<"version">> := 2} = Payload) ->
     #{
         <<"version">> := 2,
@@ -38,31 +38,8 @@ decode_token_payload(#{<<"version">> := 2} = Payload) ->
     } = Payload,
     Quote = decode_quote(EncodedQuote),
     {ok, Quote};
-decode_token_payload(#{<<"version">> := 1} = Payload) ->
-    #{
-        <<"version">> := 1,
-        <<"amount">> := Amount,
-        <<"partyRevision">> := PartyRevision,
-        <<"domainRevision">> := DomainRevision,
-        <<"createdAt">> := CreatedAt,
-        <<"expiresOn">> := ExpiresOn,
-        <<"partyID">> := _PartyID,
-        <<"identityID">> := IdentityID,
-        <<"sender">> := Sender,
-        <<"receiver">> := Receiver
-    } = Payload,
-    Quote = genlib_map:compact(#{
-        fees => #{fees => #{}},
-        amount => decode_legacy_cash(Amount),
-        party_revision => PartyRevision,
-        domain_revision => DomainRevision,
-        created_at => ff_time:from_rfc3339(CreatedAt),
-        expires_on => ff_time:from_rfc3339(ExpiresOn),
-        identity_id => IdentityID,
-        sender => decode_legacy_compact_resource(Sender),
-        receiver => decode_legacy_compact_resource(Receiver)
-    }),
-    {ok, Quote}.
+decode_token_payload(#{<<"version">> := 1}) ->
+    {error, token_expired}.
 
 %% Internals
 
@@ -80,22 +57,6 @@ decode_quote(Encoded) ->
     Bin = base64:decode(Encoded),
     Thrift = ff_proto_utils:deserialize(Type, Bin),
     ff_p2p_transfer_codec:unmarshal(quote, Thrift).
-
-decode_legacy_cash(Body) ->
-    {genlib:to_int(maps:get(<<"amount">>, Body)), maps:get(<<"currency">>, Body)}.
-
-
-decode_legacy_compact_resource(Resource) ->
-    #{
-        <<"type">> := <<"bank_card">>,
-        <<"token">> := Token,
-        <<"binDataID">> := BinDataID
-    } = Resource,
-    {bank_card, #{
-        token => Token,
-        bin_data_id => BinDataID
-    }}.
-
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -167,25 +128,6 @@ payload_v2_decoding_test() ->
 
 -spec payload_v1_decoding_test() -> _.
 payload_v1_decoding_test() ->
-    ExpectedQuote = #{
-        fees => #{
-            fees => #{}
-        },
-        amount => {1000000, <<"RUB">>},
-        party_revision => 1,
-        domain_revision => 2,
-        created_at => 123,
-        expires_on => 321,
-        identity_id => <<"identity">>,
-        sender => {bank_card, #{
-            token => <<"very long token">>,
-            bin_data_id => 1
-        }},
-        receiver => {bank_card, #{
-            token => <<"another very long token">>,
-            bin_data_id => 2
-        }}
-    },
     Payload = #{
         <<"partyRevision">> => 1,
         <<"domainRevision">> => 2,
@@ -206,6 +148,6 @@ payload_v1_decoding_test() ->
         },
         <<"version">> => 1
     },
-    ?assertEqual({ok, ExpectedQuote}, decode_token_payload(Payload)).
+    ?assertEqual({error, token_expired}, decode_token_payload(Payload)).
 
 -endif.

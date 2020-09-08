@@ -38,7 +38,7 @@ do_create_token_payload(Quote, WalletID, DestinationID, PartyID) ->
     }).
 
 -spec decode_token_payload(token_payload()) ->
-    {ok, quote(), wallet_id(), destination_id(), party_id()}.
+    {ok, {quote(), wallet_id(), destination_id(), party_id()}} | {error, token_expired}.
 decode_token_payload(#{<<"version">> := 2} = Payload) ->
     #{
         <<"version">> := 2,
@@ -48,43 +48,9 @@ decode_token_payload(#{<<"version">> := 2} = Payload) ->
     } = Payload,
     Quote = decode_quote(EncodedQuote),
     DestinationID = maps:get(<<"destinationID">>, Payload, undefined),
-    {ok, Quote, WalletID, DestinationID, PartyID};
-decode_token_payload(#{<<"version">> := 1} = Payload) ->
-    #{
-        <<"version">> := 1,
-        <<"walletID">> := WalletID,
-        <<"partyID">> := PartyID,
-        <<"cashFrom">> := CashFrom,
-        <<"cashTo">> := CashTo,
-        <<"createdAt">> := CreatedAt,
-        <<"expiresOn">> := ExpiresOn,
-        <<"quoteData">> := LegacyQuote
-    } = Payload,
-    DestinationID = maps:get(<<"destinationID">>, Payload, undefined),
-    #{
-        <<"version">> := 1,
-        <<"quote_data">> := QuoteData,
-        <<"provider_id">> := ProviderID,
-        <<"resource_id">> := ResourceID,
-        <<"timestamp">> := Timestamp,
-        <<"domain_revision">> := DomainRevision,
-        <<"party_revision">> := PartyRevision
-    } = LegacyQuote,
-    TerminalID = maps:get(<<"terminal_id">>, LegacyQuote, undefined),
-    Quote = genlib_map:compact(#{
-        cash_from => decode_legacy_cash(CashFrom),
-        cash_to => decode_legacy_cash(CashTo),
-        created_at => CreatedAt,
-        expires_on => ExpiresOn,
-        quote_data => QuoteData,
-        route => ff_withdrawal_routing:make_route(ProviderID, TerminalID),
-        operation_timestamp => Timestamp,
-        resource_descriptor => decode_legacy_resource_id(ResourceID),
-        domain_revision => DomainRevision,
-        party_revision => PartyRevision
-    }),
-    ThriftQuote = ff_withdrawal_codec:marshal(quote, Quote),
-    {ok, ThriftQuote, WalletID, DestinationID, PartyID}.
+    {ok, {Quote, WalletID, DestinationID, PartyID}};
+decode_token_payload(#{<<"version">> := 1}) ->
+    {error, token_expired}.
 
 %% Internals
 
@@ -101,13 +67,6 @@ decode_quote(Encoded) ->
     Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
     Bin = base64:decode(Encoded),
     ff_proto_utils:deserialize(Type, Bin).
-
-decode_legacy_cash(Body) ->
-    {genlib:to_int(maps:get(<<"amount">>, Body)), maps:get(<<"currency">>, Body)}.
-
-decode_legacy_resource_id(#{<<"bank_card">> := ID}) ->
-    {bank_card, ID}.
-
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -187,19 +146,6 @@ payload_v1_decoding_test() ->
     PartyID = <<"party">>,
     WalletID = <<"wallet">>,
     DestinationID = <<"destination">>,
-    ExpectedQuote = #{
-        cash_from => {1000000, <<"RUB">>},
-        cash_to => {1, <<"USD">>},
-        created_at => <<"1970-01-01T00:00:00.123Z">>,
-        expires_on => <<"1970-01-01T00:00:00.321Z">>,
-        quote_data => 6,
-        route => ff_withdrawal_routing:make_route(1000, 2),
-        operation_timestamp => 234,
-        resource_descriptor => {bank_card, 5},
-        domain_revision => 1,
-        party_revision => 2
-    },
-    ExpectedThriftQuote = ff_withdrawal_codec:marshal(quote, ExpectedQuote),
     Payload = #{
         <<"version">> => 1,
         <<"walletID">> => WalletID,
@@ -221,7 +167,7 @@ payload_v1_decoding_test() ->
         }
     },
     ?assertEqual(
-        {ok, ExpectedThriftQuote, WalletID, DestinationID, PartyID},
+        {error, token_expired},
         decode_token_payload(Payload)
     ).
 

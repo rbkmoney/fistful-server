@@ -397,6 +397,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {terms, {terms_violation, _}} |
     {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}} |
     {destination_resource, {bin_data, ff_bin_data:bin_data_error()}} |
+    token_expired |
     {Resource, {unauthorized, _}}
 ) when Resource :: wallet | destination.
 create_withdrawal(Params, Context) ->
@@ -734,6 +735,7 @@ quote_p2p_transfer(Params, Context) ->
     {identity, unauthorized} |
     {external_id_conflict, id(), external_id()} |
     {invalid_resource_token, _} |
+    {quote, token_expired} |
     {token,
         {unsupported_version, integer() | undefined} |
         {not_verified, invalid_signature} |
@@ -890,6 +892,7 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
     p2p_transfer:create_error() |
     {external_id_conflict, id(), external_id()} |
     {invalid_resource_token, _} |
+    {quote, token_expired} |
     {token,
         {unsupported_version, integer() | undefined} |
         {not_verified, invalid_signature} |
@@ -1071,7 +1074,7 @@ encode_webhook_id(WebhookID) ->
 
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
-    {ok, ThriftQuote, WalletID, DestinationID, PartyID} = wapi_withdrawal_quote:decode_token_payload(Data),
+    {ThriftQuote, WalletID, DestinationID, PartyID} = unwrap(wapi_withdrawal_quote:decode_token_payload(Data)),
     Quote = ff_withdrawal_codec:unmarshal(quote, ThriftQuote),
     unwrap(quote_invalid_party,
         valid(
@@ -1136,7 +1139,7 @@ maybe_add_p2p_template_quote_token(_ID, #{quote_token := undefined} = Params) ->
 maybe_add_p2p_template_quote_token(ID, #{quote_token := QuoteToken} = Params) ->
     do(fun() ->
         VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
-        Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
+        Quote = unwrap(quote, wapi_p2p_quote:decode_token_payload(VerifiedToken)),
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template_machine:p2p_template(Machine),
         ok = unwrap(authorize_p2p_quote_token(Quote, p2p_template:identity_id(State))),
@@ -1148,7 +1151,7 @@ maybe_add_p2p_quote_token(#{quote_token := undefined} = Params) ->
 maybe_add_p2p_quote_token(#{quote_token := QuoteToken, identity_id := IdentityID} = Params) ->
     do(fun() ->
         VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
-        Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
+        Quote = unwrap(quote, wapi_p2p_quote:decode_token_payload(VerifiedToken)),
         ok = unwrap(authorize_p2p_quote_token(Quote, IdentityID)),
         Params#{quote => Quote}
     end).

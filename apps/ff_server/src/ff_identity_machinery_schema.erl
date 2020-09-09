@@ -106,8 +106,8 @@ unmarshal_event(undefined = Version, EncodedChange, Context) ->
     {{ev, Timestamp, maybe_migrate(Change, Context1)}, Context1}.
 
 
--spec maybe_migrate(event() | legacy_event(), context()) ->
-    event().
+-spec maybe_migrate(ff_identity:event() | legacy_event(), context()) ->
+    ff_identity:event().
 
 maybe_migrate(Event = {created, #{version := 3}}, _MigrateContext) ->
     Event;

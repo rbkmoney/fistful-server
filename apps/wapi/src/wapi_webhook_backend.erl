@@ -52,7 +52,7 @@ get_webhooks(IdentityID, Context) ->
             Result = wapi_handler_utils:service_call(Call, Context),
             process_result(Result);
         {error, Error} ->
-            {error, {identity, Error}} % TODO
+            {error, {identity, Error}}
     end.
 
 -spec get_webhook(id(), id(), ctx()) ->
@@ -65,10 +65,14 @@ when GetError ::
 get_webhook(WebhookID, IdentityID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            EncodedID = encode_webhook_id(WebhookID),
-            Call = {webhook_manager, 'Get', [EncodedID]},
-            Result = wapi_handler_utils:service_call(Call, HandlerContext),
-            process_result(Result);
+            case encode_webhook_id(WebhookID) of
+                {error, notfound} ->
+                    {error, {identity, notfound}};
+                EncodedID ->
+                    Call = {webhook_manager, 'Get', [EncodedID]},
+                    Result = wapi_handler_utils:service_call(Call, HandlerContext),
+                    process_result(Result)
+            end;
         {error, Error} ->
             {error, {identity, Error}}
     end.
@@ -105,7 +109,7 @@ encode_webhook_id(WebhookID) ->
         binary_to_integer(WebhookID)
     catch
         error:badarg ->
-            throw(notfound)
+            {error, notfound}
     end.
 
 %% marshaling

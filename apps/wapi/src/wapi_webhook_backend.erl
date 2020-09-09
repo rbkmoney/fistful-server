@@ -7,7 +7,7 @@
 
 -type id()          :: binary() | undefined.
 -type ctx()         :: wapi_handler:context().
--type params()      :: map(). % TODO: specify
+-type params()      :: map().
 -type result(T, E)  :: {ok, T} | {error, E}.
 
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").

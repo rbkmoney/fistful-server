@@ -184,7 +184,7 @@ get_webhook_ok_test(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {webhook_manager, fun('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
-        {fistful_identity, fun('GetContext', _) -> {ok,?DEFAULT_CONTEXT(PartyID)} end}
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
     ], C),
     {ok, _} = call_api(
         fun swag_client_wallet_webhooks_api:get_webhook_by_id/3,
@@ -206,7 +206,7 @@ delete_webhook_ok_test(C) ->
     IdentityID = maps:get(<<"id">>, Identity),
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
-        {webhook_manager, fun('Delete', _) -> {ok, ok}end},
+        {webhook_manager, fun('Delete', _) -> {ok, ok} end},
         {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
     ], C),
     {ok, _} = call_api(

@@ -55,11 +55,6 @@
 
 -export([list_deposits/2]).
 
--export([create_webhook/2]).
--export([get_webhooks/2]).
--export([get_webhook/3]).
--export([delete_webhook/3]).
-
 -export([quote_p2p_transfer/2]).
 -export([create_p2p_transfer/2]).
 -export([get_p2p_transfer/2]).
@@ -977,14 +972,6 @@ encode_exp_date(ExpDate) ->
     } = ExpDate,
     {Month, Year}.
 
-encode_webhook_id(WebhookID) ->
-    try
-        binary_to_integer(WebhookID)
-    catch
-        error:badarg ->
-            throw(notfound)
-    end.
-
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
     {ok, Quote, WalletID, DestinationID, PartyID} = wapi_withdrawal_quote:decode_token_payload(Data),
@@ -1737,9 +1724,7 @@ from_swag(residence, V) ->
             undefined
     end;
 from_swag({list, Type}, List) ->
-    lists:map(fun(V) -> from_swag(Type, V) end, List);
-from_swag({set, Type}, List) ->
-    ordsets:from_list(from_swag({list, Type}, List)).
+    lists:map(fun(V) -> from_swag(Type, V) end, List).
 
 maybe_from_swag(_T, undefined) ->
     undefined;
@@ -2227,8 +2212,6 @@ to_swag(boolean, false) ->
     false;
 to_swag({list, Type}, List) ->
     lists:map(fun(V) -> to_swag(Type, V) end, List);
-to_swag({set, Type}, Set) ->
-    to_swag({list, Type}, ordsets:to_list(Set));
 to_swag(map, Map) ->
     genlib_map:compact(Map);
 to_swag(_, V) ->

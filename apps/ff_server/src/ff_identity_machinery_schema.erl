@@ -142,8 +142,7 @@ get_aux_state_ctx(_) ->
     undefined.
 
 fetch_entity_context(MachineID, MigrateContext) ->
-    Ctx = maps:get(ctx, MigrateContext, undefined),
-    case Ctx of
+    case maps:get(ctx, MigrateContext, undefined) of
         undefined ->
             {ok, State} = ff_machine:get(ff_identity, 'ff/identity', MachineID, {undefined, 0, forward}),
             maps:get(ctx, State, undefined);

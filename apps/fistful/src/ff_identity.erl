@@ -137,7 +137,7 @@
 -spec id(identity_state()) ->
     id().
 -spec name(identity_state()) ->
-    name() | undefined.
+    name().
 -spec provider(identity_state()) ->
     provider_id().
 -spec class(identity_state()) ->

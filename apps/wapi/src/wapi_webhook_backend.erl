@@ -26,17 +26,18 @@ create_webhook(#{'Webhook' := Params}, Context) ->
     WebhookParams = marshal(webhook_params, Params),
     IdentityID = WebhookParams#webhooker_WebhookParams.identity_id,
     WalletID = WebhookParams#webhooker_WebhookParams.wallet_id,
-    WalletAccessible = wapi_access_backend:check_resource_by_id(wallet, WalletID, Context),
-    IdentityAccessible = wapi_access_backend:check_resource_by_id(identity, IdentityID, Context),
-    case {WalletAccessible, IdentityAccessible} of
-        {ok, ok} ->
-            Call = {webhook_manager, 'Create', [WebhookParams]},
-            Result = wapi_handler_utils:service_call(Call, Context),
-            process_result(Result);
-        {{error, Error}, _} ->
-            {error, {wallet, Error}};
-        {_, {error, Error}} ->
-            {error, {identity, Error}}
+    case wapi_access_backend:check_resource_by_id(wallet, WalletID, Context) of
+        ok ->
+            case wapi_access_backend:check_resource_by_id(identity, IdentityID, Context) of
+                ok ->
+                    Call = {webhook_manager, 'Create', [WebhookParams]},
+                    Result = wapi_handler_utils:service_call(Call, Context),
+                    process_result(Result);
+                {error, Error} ->
+                    {error, {identity, Error}}
+            end;
+        {error, Error} ->
+            {error, {wallet, Error}}
     end.
 
 -spec get_webhooks(id(), ctx()) ->

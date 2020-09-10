@@ -22,16 +22,16 @@ when CreateError ::
     {wallet, notfound} |
     {wallet, unauthorized}.
 
-create_webhook(#{'Webhook' := Params}, Context) ->
+create_webhook(#{'Webhook' := Params}, HandlerContext) ->
     WebhookParams = marshal_webhook_params(Params),
     IdentityID = WebhookParams#webhooker_WebhookParams.identity_id,
     WalletID = WebhookParams#webhooker_WebhookParams.wallet_id,
-    case wapi_access_backend:check_resource_by_id(wallet, WalletID, Context) of
+    case wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext) of
         ok ->
-            case wapi_access_backend:check_resource_by_id(identity, IdentityID, Context) of
+            case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
                 ok ->
                     Call = {webhook_manager, 'Create', [WebhookParams]},
-                    Result = wapi_handler_utils:service_call(Call, Context),
+                    Result = wapi_handler_utils:service_call(Call, HandlerContext),
                     process_result(Result);
                 {error, Error} ->
                     {error, {identity, Error}}
@@ -46,11 +46,11 @@ when GetError ::
     {identity, notfound} |
     {identity, unauthorized}.
 
-get_webhooks(IdentityID, Context) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, Context) of
+get_webhooks(IdentityID, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             Call = {webhook_manager, 'GetList', [IdentityID]},
-            Result = wapi_handler_utils:service_call(Call, Context),
+            Result = wapi_handler_utils:service_call(Call, HandlerContext),
             process_result(Result);
         {error, Error} ->
             {error, {identity, Error}}
@@ -85,12 +85,12 @@ when DeleteError ::
     {identity, notfound} |
     {identity, unauthorized}.
 
-delete_webhook(WebhookID, IdentityID, Context) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, Context) of
+delete_webhook(WebhookID, IdentityID, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             EncodedID = encode_webhook_id(WebhookID),
             Call = {webhook_manager, 'Delete', [EncodedID]},
-            Result = wapi_handler_utils:service_call(Call, Context),
+            Result = wapi_handler_utils:service_call(Call, HandlerContext),
             process_result(Result);
         {error, Error} ->
             {error, {identity, Error}}

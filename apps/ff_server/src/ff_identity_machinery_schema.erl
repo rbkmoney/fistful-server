@@ -29,6 +29,7 @@
 -type legacy_change() :: any().
 
 -type timestamped_change() :: ff_proto_identity_thrift:'TimestampedChange'().
+-type thrift_change() :: ff_proto_identity_thrift:'Change'().
 
 -type data() ::
     aux_state() |
@@ -121,8 +122,8 @@ unmashal_thrift_change(EncodedChange) ->
     Type = {struct, struct, {ff_proto_identity_thrift, 'TimestampedChange'}},
     ff_proto_utils:deserialize(Type, EncodedThriftChange).
 
--spec maybe_migrate_thrift_change(timestamped_change(), context()) ->
-    timestamped_change().
+-spec maybe_migrate_thrift_change(thrift_change(), context()) ->
+    thrift_change().
 
 maybe_migrate_thrift_change({created, Identity}, MigrateContext) ->
     Context = fetch_entity_context(Identity#idnt_Identity.id, MigrateContext),

@@ -406,7 +406,7 @@ process_request('GetW2WTransfer', #{w2wTransferID := ID}, Context, _Opts) ->
 
 process_request('CreateWebhook', #{'WebhookParams' := WebhookParams}, Context, _Opts) ->
     case wapi_webhook_backend:create_webhook(WebhookParams, Context) of
-        {ok, Webhook} -> 
+        {ok, Webhook} ->
             wapi_handler_utils:reply_ok(201, Webhook);
         {error, {identity, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));

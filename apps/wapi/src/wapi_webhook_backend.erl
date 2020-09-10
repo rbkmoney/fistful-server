@@ -23,7 +23,7 @@ when CreateError ::
     {wallet, unauthorized}.
 
 create_webhook(#{'Webhook' := Params}, Context) ->
-    WebhookParams = marshal(webhook_params, Params),
+    WebhookParams = marshal_webhook_params(Params),
     IdentityID = WebhookParams#webhooker_WebhookParams.identity_id,
     WalletID = WebhookParams#webhooker_WebhookParams.wallet_id,
     case wapi_access_backend:check_resource_by_id(wallet, WalletID, Context) of
@@ -97,9 +97,9 @@ delete_webhook(WebhookID, IdentityID, Context) ->
     end.
 
 process_result({ok, #webhooker_Webhook{} = Webhook}) ->
-    {ok, unmarshal(webhook, Webhook)};
+    {ok, unmarshal_webhook(Webhook)};
 process_result({ok, Webhooks}) when is_list(Webhooks) ->
-    {ok, unmarshal({list, webhook}, Webhooks)};
+    {ok, unmarshal_webhooks(Webhooks)};
 process_result({ok, _}) ->
     ok;
 process_result({exception, #webhooker_WebhookNotFound{}}) ->
@@ -115,7 +115,7 @@ encode_webhook_id(WebhookID) ->
 
 %% marshaling
 
-marshal(webhook_params, #{
+marshal_webhook_params(#{
     <<"identityID">> := IdentityID,
     <<"scope">> := Scope,
     <<"url">> := URL
@@ -124,24 +124,25 @@ marshal(webhook_params, #{
     #webhooker_WebhookParams{
         identity_id = IdentityID,
         wallet_id = WalletID,
-        event_filter = marshal(webhook_scope, Scope),
+        event_filter = marshal_webhook_scope(Scope),
         url = URL
-    };
+    }.
 
-marshal(webhook_scope, #{
+marshal_webhook_scope(#{
     <<"topic">> := <<"WithdrawalsTopic">>,
     <<"eventTypes">> := EventList
 }) ->
     #webhooker_EventFilter{
         types = marshal({set, webhook_withdrawal_event_types}, EventList)
     };
-marshal(webhook_scope, #{
+
+marshal_webhook_scope(#{
     <<"topic">> := <<"DestinationsTopic">>,
     <<"eventTypes">> := EventList
 }) ->
     #webhooker_EventFilter{
         types = marshal({set, webhook_destination_event_types}, EventList)
-    };
+    }.
 
 marshal(webhook_withdrawal_event_types, <<"WithdrawalStarted">>) ->
     {withdrawal, {started, #webhooker_WithdrawalStarted{}}};
@@ -162,7 +163,10 @@ marshal({set, Type}, List) ->
     ordsets:from_list(marshal({list, Type}, List)).
 
 
-unmarshal(webhook, #webhooker_Webhook{
+unmarshal_webhooks(Webhooks) when is_list(Webhooks) ->
+    lists:map(fun(Webhook) -> unmarshal_webhook(Webhook) end, Webhooks).
+
+unmarshal_webhook(#webhooker_Webhook{
     id = ID,
     identity_id = IdentityID,
     wallet_id = WalletID,
@@ -176,18 +180,18 @@ unmarshal(webhook, #webhooker_Webhook{
         <<"identityID">> => IdentityID,
         <<"walletID">> => WalletID,
         <<"active">> => unmarshal(boolean, Enabled),
-        <<"scope">> => unmarshal(webhook_scope, EventFilter),
+        <<"scope">> => unmarshal_webhook_scope(EventFilter),
         <<"url">> => URL,
         <<"publicKey">> => PubKey
-    });
+    }).
 
-unmarshal(webhook_scope, #webhooker_EventFilter{types = EventTypes}) ->
+unmarshal_webhook_scope(#webhooker_EventFilter{types = EventTypes}) ->
     List = unmarshal({set, webhook_event_types}, EventTypes),
     lists:foldl(fun({Topic, Type}, Acc) ->
         case maps:get(<<"topic">>, Acc, undefined) of
             undefined ->
                 Acc#{
-                    <<"topic">> => unmarshal(webhook_topic, Topic),
+                    <<"topic">> => unmarshal_webhook_topic(Topic),
                     <<"eventTypes">> => [Type]
                 };
             _ ->
@@ -196,17 +200,17 @@ unmarshal(webhook_scope, #webhooker_EventFilter{types = EventTypes}) ->
                     <<"eventTypes">> := [Type | Types]
                 }
         end
-    end, #{}, List);
+    end, #{}, List).
+
+unmarshal_webhook_topic(withdrawal) ->
+    <<"WithdrawalsTopic">>;
+unmarshal_webhook_topic(destination) ->
+    <<"DestinationsTopic">>.
 
 unmarshal(webhook_event_types, {withdrawal, EventType}) ->
     {withdrawal, unmarshal(webhook_withdrawal_event_types, EventType)};
 unmarshal(webhook_event_types, {destination, EventType}) ->
     {destination, unmarshal(webhook_destination_event_types, EventType)};
-
-unmarshal(webhook_topic, withdrawal) ->
-    <<"WithdrawalsTopic">>;
-unmarshal(webhook_topic, destination) ->
-    <<"DestinationsTopic">>;
 
 unmarshal(webhook_withdrawal_event_types, {started, _}) ->
     <<"WithdrawalStarted">>;

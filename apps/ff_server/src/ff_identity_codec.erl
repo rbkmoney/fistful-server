@@ -234,10 +234,10 @@ unmarshal(identity, #idnt_Identity{
     external_id = ExternalID,
     created_at  = CreatedAt,
     metadata    = Metadata
-} = Identity) ->
+}) ->
     genlib_map:compact(#{
         id          => unmarshal(id, ID),
-        name        => maybe_unmarshal(string, Name),
+        name        => unmarshal(string, Name),
         party       => unmarshal(id, PartyID),
         provider    => unmarshal(id, ProviderID),
         class       => unmarshal(id, ClassID),
@@ -245,7 +245,7 @@ unmarshal(identity, #idnt_Identity{
         external_id => maybe_unmarshal(id, ExternalID),
         created_at  => maybe_unmarshal(created_at, CreatedAt),
         metadata    => maybe_unmarshal(ctx, Metadata),
-        version     => get_identity_version(Identity)
+        version     => 2
     });
 
 unmarshal(challenge_payload, {created, Challenge}) ->
@@ -329,11 +329,6 @@ maybe_unmarshal(_Type, undefined) ->
 maybe_unmarshal(Type, Value) ->
     unmarshal(Type, Value).
 
-get_identity_version(#idnt_Identity{name = undefined}) ->
-    2;
-get_identity_version(#idnt_Identity{name = Name}) when is_binary(Name) ->
-    3.
-
 %% TESTS
 
 -ifdef(TEST).
@@ -351,7 +346,7 @@ identity_test() ->
         class       => genlib:unique(),
         contract    => genlib:unique(),
         external_id => genlib:unique(),
-        version     => 3
+        version     => 2
     },
     IdentityOut = unmarshal(identity, marshal(identity, IdentityIn)),
     ?assertEqual(IdentityOut, IdentityIn).

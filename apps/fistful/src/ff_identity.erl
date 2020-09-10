@@ -30,7 +30,7 @@
 -type level_id()        :: ff_identity_class:level_id().
 -type metadata()        :: ff_entity_context:md().
 
--define(ACTUAL_FORMAT_VERSION, 3).
+-define(ACTUAL_FORMAT_VERSION, 2).
 -type identity_state() :: #{
     id           := id(),
     name         := name(),
@@ -48,9 +48,9 @@
 }.
 
 -type identity() :: #{
-    version      := 2 | ?ACTUAL_FORMAT_VERSION,
+    version      := ?ACTUAL_FORMAT_VERSION,
     id           := id(),
-    name         => name(), % becomes required after migration
+    name         := name(),
     party        := party_id(),
     provider     := provider_id(),
     class        := class_id(),

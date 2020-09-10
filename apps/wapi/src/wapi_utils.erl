@@ -273,25 +273,25 @@ get_path_test() ->
 
 -spec mask_test() -> _.
 mask_test() ->
-    ?assertEqual(<<"Хуй">>, mask(leading, 0, $*, <<"Хуй">>)),
-    ?assertEqual(<<"*уй">>, mask(leading, 1, $*, <<"Хуй">>)),
-    ?assertEqual(<<"**й">>, mask(leading, 2, $*, <<"Хуй">>)),
-    ?assertEqual(<<"***">>, mask(leading, 3, $*, <<"Хуй">>)),
-    ?assertEqual(<<"Хуй">>, mask(trailing, 0, $*, <<"Хуй">>)),
-    ?assertEqual(<<"Ху*">>, mask(trailing, 1, $*, <<"Хуй">>)),
-    ?assertEqual(<<"Х**">>, mask(trailing, 2, $*, <<"Хуй">>)),
-    ?assertEqual(<<"***">>, mask(trailing, 3, $*, <<"Хуй">>)).
+    ?assertEqual(<<"Жур">>, mask(leading, 0, $*, <<"Жур">>)),
+    ?assertEqual(<<"*ур">>, mask(leading, 1, $*, <<"Жур">>)),
+    ?assertEqual(<<"**р">>, mask(leading, 2, $*, <<"Жур">>)),
+    ?assertEqual(<<"***">>, mask(leading, 3, $*, <<"Жур">>)),
+    ?assertEqual(<<"Жур">>, mask(trailing, 0, $*, <<"Жур">>)),
+    ?assertEqual(<<"Жу*">>, mask(trailing, 1, $*, <<"Жур">>)),
+    ?assertEqual(<<"Ж**">>, mask(trailing, 2, $*, <<"Жур">>)),
+    ?assertEqual(<<"***">>, mask(trailing, 3, $*, <<"Жур">>)).
 
 -spec mask_and_keep_test() -> _.
 mask_and_keep_test() ->
-    ?assertEqual(<<"***">>, mask_and_keep(leading, 0, $*, <<"Хуй">>)),
-    ?assertEqual(<<"Х**">>, mask_and_keep(leading, 1, $*, <<"Хуй">>)),
-    ?assertEqual(<<"Ху*">>, mask_and_keep(leading, 2, $*, <<"Хуй">>)),
-    ?assertEqual(<<"Хуй">>, mask_and_keep(leading, 3, $*, <<"Хуй">>)),
-    ?assertEqual(<<"***">>, mask_and_keep(trailing, 0, $*, <<"Хуй">>)),
-    ?assertEqual(<<"**й">>, mask_and_keep(trailing, 1, $*, <<"Хуй">>)),
-    ?assertEqual(<<"*уй">>, mask_and_keep(trailing, 2, $*, <<"Хуй">>)),
-    ?assertEqual(<<"Хуй">>, mask_and_keep(trailing, 3, $*, <<"Хуй">>)).
+    ?assertEqual(<<"***">>, mask_and_keep(leading, 0, $*, <<"Жур">>)),
+    ?assertEqual(<<"Ж**">>, mask_and_keep(leading, 1, $*, <<"Жур">>)),
+    ?assertEqual(<<"Жу*">>, mask_and_keep(leading, 2, $*, <<"Жур">>)),
+    ?assertEqual(<<"Жур">>, mask_and_keep(leading, 3, $*, <<"Жур">>)),
+    ?assertEqual(<<"***">>, mask_and_keep(trailing, 0, $*, <<"Жур">>)),
+    ?assertEqual(<<"**р">>, mask_and_keep(trailing, 1, $*, <<"Жур">>)),
+    ?assertEqual(<<"*ур">>, mask_and_keep(trailing, 2, $*, <<"Жур">>)),
+    ?assertEqual(<<"Жур">>, mask_and_keep(trailing, 3, $*, <<"Жур">>)).
 
 -spec parse_deadline_test() -> _.
 parse_deadline_test() ->

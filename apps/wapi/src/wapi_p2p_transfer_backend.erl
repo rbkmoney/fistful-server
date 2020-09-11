@@ -1,8 +1,23 @@
--module(wapi_p2p_transfer).
+-module(wapi_p2p_transfer_backend).
 
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
+
+-type error_create()
+    :: {external_id_conflict, external_id()}
+     | {identity, unauthorized}
+     | {identity, notfound}
+     | {terms,    {terms_violation, forbidden_currency}}
+     | {terms,    {terms_violation, cash_range}}
+     | {sender,   invalid_resource}
+     | {receiver, invalid_resource}
+     .
+
+-type error_get()
+    :: {p2p_transfer, unauthorized}
+     | {p2p_transfer, notfound}
+     .
 
 -type id() :: binary().
 -type external_id() :: id().
@@ -13,16 +28,8 @@
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 
 -spec create_transfer(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, CreateError}
-when CreateError :: {external_id_conflict, external_id()}
-                  | {identity, unauthorized}
-                  | {identity, notfound}
-                  | not_allowed_currency
-                  | bad_p2p_transfer_amount
-                  .
-
+    {ok, response_data()} | {error, error_create()}.
 create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
-    % FIXME: I might have missed some errors?
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             case wapi_backend_utils:gen_id(p2p_transfer, Params, HandlerContext) of
@@ -39,9 +46,7 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
     end.
 
 -spec get_transfer(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, GetError}
-when GetError :: {p2p_transfer, unauthorized}
-               | {p2p_transfer, {unknown_p2p_transfer, id()}} .
+    {ok, response_data()} | {error, error_get()}.
 get_transfer(ID, HandlerContext) ->
     Request = {p2p_transfer, 'Get', [ID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
@@ -64,14 +69,20 @@ do_create_transfer(ID, Params, Context, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Transfer} ->
             {ok, unmarshal(transfer, Transfer)};
+        {exception, #p2p_transfer_NoResourceInfo{type = sender}} ->
+            {error, {sender, invalid_resource}};
+        {exception, #p2p_transfer_NoResourceInfo{type = receiver}} ->
+            {error, {receiver, invalid_resource}};
         {exception, #fistful_ForbiddenOperationCurrency{}} ->
-            {error, not_allowed_currency};
-        {exception, #fistful_ForbiddenOperationAmount{}} ->
-            {error, bad_p2p_transfer_amount}
+            {error, {terms, {terms_violation, forbidden_currency}}};
+        {exception, #fistful_ForbiddenOperationAmount{ }} ->
+            {error, {terms, {terms_violation, cash_range}}};
+        {exception, #fistful_IdentityNotFound{ }} ->
+            {error, {identity, notfound}}
     end.
 
-service_call(Params, Ctx) ->
-    wapi_handler_utils:service_call(Params, Ctx).
+service_call(Params, HandlerContext) ->
+    wapi_handler_utils:service_call(Params, HandlerContext).
 
 %% Marshal
 

@@ -313,7 +313,7 @@
 -define(RAW_RESOURCE, {resource, #'p2p_transfer_RawResource'{
     resource = ?RESOURCE,
     contact_info = #'p2p_transfer_RawResource'{}
-}})
+}}).
 
 -define(SNAPSHOT, #'Snapshot'{
     version = ?INTEGER,

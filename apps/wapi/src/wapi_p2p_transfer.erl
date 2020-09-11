@@ -18,6 +18,7 @@ when CreateError :: {external_id_conflict, external_id()}
                   | not_allowed_currency
                   | inconsistent_currency.
 create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
+    % FIXME: I might have missed some errors?
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             case wapi_backend_utils:gen_id(p2p_transfer, Params, HandlerContext) of

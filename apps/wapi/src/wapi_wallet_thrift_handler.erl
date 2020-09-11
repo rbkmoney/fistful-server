@@ -402,6 +402,34 @@ process_request('GetW2WTransfer', #{w2wTransferID := ID}, Context, _Opts) ->
             wapi_handler_utils:reply_ok(404)
     end;
 
+%% P2P
+
+process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Context, _Opts) ->
+    case wapi_p2p_transfer:create_transfer(Params, Context) of
+        {ok, P2PTransfer} ->
+            wapi_handler_utils:reply_ok(202, P2PTransfer);
+        % TODO: I might have missed some errors?
+        {error, not_allowed_currency} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, bad_p2p_transfer_amount} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Bad transfer amount">>));
+        {error, inconsistent_currency} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Inconsistent currency">>))
+    end;
+
+process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
+    case wapi_p2p_transfer:get_transfer(ID, Context) of
+        {ok, P2PTransfer} ->
+            wapi_handler_utils:reply_ok(200, P2PTransfer);
+        {error, {w2w_transfer, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {w2w_transfer, {unknown_w2w_transfer, _ID}}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+
 process_request(OperationID, Params, Context, Opts) ->
     wapi_wallet_handler:process_request(OperationID, Params, Context, Opts).
 

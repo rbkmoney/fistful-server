@@ -18,6 +18,7 @@
 -export([identity_challenge_check_test/1]).
 -export([destination_check_test/1]).
 -export([w2w_transfer_check_test/1]).
+-export([p2p_transfer_check_test/1]).
 -export([withdrawal_check_test/1]).
 
 % common-api is used since it is the domain used in production RN
@@ -48,6 +49,7 @@ groups() ->
             wallet_check_test,
             destination_check_test,
             w2w_transfer_check_test,
+            p2p_transfer_check_test,
             withdrawal_check_test
         ]}
     ].
@@ -189,6 +191,23 @@ w2w_transfer_check_test(C) ->
     W2WTransferID2 = create_w2w_transfer(WalletID21, WalletID22, C),
     ?assertEqual(Keys, maps:keys(get_w2w_transfer(W2WTransferID2, C))).
 
+-spec p2p_transfer_check_test(config()) -> test_return().
+
+p2p_transfer_check_test(C) ->
+    Name = <<"Keyn Fawkes">>,
+    Provider = ?ID_PROVIDER,
+    Class = ?ID_CLASS,
+    IdentityID = create_identity(Name, Provider, Class, C),
+    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    P2PTransferID = create_p2p_transfer(Token, Token, IdentityID, C),
+    P2PTransfer = get_p2p_transfer(P2PTransferID, C),
+    ok = application:set_env(wapi, transport, thrift),
+    P2PTransferIDThrift = create_p2p_transfer(Token, Token, IdentityID, C),
+    P2PTransferThrift = get_p2p_transfer(P2PTransferIDThrift, C),
+    ?assertEqual(maps:keys(P2PTransfer), maps:keys(P2PTransferThrift)),
+    ?assertEqual(maps:without([<<"id">>, <<"createdAt">>], P2PTransfer),
+                 maps:without([<<"id">>, <<"createdAt">>], P2PTransferThrift)).
+
 -spec withdrawal_check_test(config()) -> test_return().
 
 withdrawal_check_test(C) ->
@@ -225,6 +244,21 @@ create_party(_C) ->
 
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).
+
+%%
+
+store_bank_card(C, Pan, ExpDate, CardHolder) ->
+    {ok, Res} = call_api(
+        fun swag_client_payres_payment_resources_api:store_bank_card/3,
+        #{body => genlib_map:compact(#{
+            <<"type">>       => <<"BankCard">>,
+            <<"cardNumber">> => Pan,
+            <<"expDate">>    => ExpDate,
+            <<"cardHolder">> => CardHolder
+        })},
+        ct_helper:cfg(context_pcidss, C)
+    ),
+    maps:get(<<"token">>, Res).
 
 %%
 
@@ -401,6 +435,42 @@ get_w2w_transfer(W2WTransferID2, C) ->
     ),
     W2WTransfer.
 
+create_p2p_transfer(SenderToken, ReceiverToken, IdentityID, C) ->
+    DefaultParams = #{
+        <<"sender">> => #{
+            <<"type">> => <<"BankCardSenderResourceParams">>,
+            <<"token">> => SenderToken,
+            <<"authData">> => <<"session id">>
+        },
+        <<"receiver">> => #{
+            <<"type">> => <<"BankCardReceiverResourceParams">>,
+            <<"token">> => ReceiverToken
+        },
+        <<"identityID">> => IdentityID,
+        <<"body">> => #{
+            <<"amount">> => 1000,
+            <<"currency">> => ?RUB
+        },
+        <<"contactInfo">> => #{
+            <<"email">> => <<"some@mail.com">>,
+            <<"phoneNumber">> => <<"+79990000101">>
+        }
+    },
+    {ok, P2PTransfer} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{body => DefaultParams},
+        ct_helper:cfg(context, C)
+    ),
+    maps:get(<<"id">>, P2PTransfer).
+
+get_p2p_transfer(P2PTransferID, C) ->
+    {ok, P2PTransfer} = call_api(
+        fun swag_client_wallet_p2_p_api:get_p2_p_transfer/3,
+        #{binding => #{<<"p2pTransferID">> => P2PTransferID}},
+        ct_helper:cfg(context, C)
+    ),
+    P2PTransfer.
+
 await_destination(DestID) ->
     authorized = ct_helper:await(
         authorized,
@@ -508,6 +578,39 @@ get_default_termset() ->
                                 ?share(10, 100, operation_amount)
                             )
                         ]}
+                    }
+                ]}
+            },
+            p2p = #domain_P2PServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
+                allow = {constant, true},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(    0, <<"RUB">>)},
+                            {exclusive, ?cash(10001, <<"RUB">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_settlement},
+                                ?share(1, 1, operation_amount)
+                            )
+                        ]}
+                    }
+                ]},
+                fees = {decisions, [
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
                     }
                 ]}
             },

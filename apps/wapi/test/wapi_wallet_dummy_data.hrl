@@ -289,32 +289,6 @@
     adjustments = []
 }).
 
--define(P2P_TRANSFER(PartyID), #p2p_transfer_P2PTransferState{
-    id = ?STRING,
-    owner = ?STRING,
-    sender = ?RAW_RESOURCE,
-    receiver = ?RAW_RESOURCE,
-    body = ?CASH,
-    status = {pending, #p2p_status_Pending{}},
-    created_at = ?TIMESTAMP,
-    domain_revision = ?INTEGER,
-    party_revision = ?INTEGER,
-    operation_timestamp = ?TIMESTAMP,
-    external_id = ?STRING,
-    metadata    = ?DEFAULT_METADATA(),
-    context = ?DEFAULT_CONTEXT(PartyID),
-    effective_final_cash_flow = #cashflow_FinalCashFlow{
-        postings = []
-    },
-    sessions = [],
-    adjustments = []
-}).
-
--define(RAW_RESOURCE, {resource, #'p2p_transfer_RawResource'{
-    resource = ?RESOURCE,
-    contact_info = #'ContactInfo'{}
-}}).
-
 -define(SNAPSHOT, #'Snapshot'{
     version = ?INTEGER,
     domain = #{
@@ -402,4 +376,30 @@
             }
         ])
     }
+}).
+
+-define(RAW_RESOURCE, {resource, #'p2p_transfer_RawResource'{
+    resource = ?RESOURCE,
+    contact_info = #'ContactInfo'{}
+}}).
+
+-define(P2P_TRANSFER(PartyID), #p2p_transfer_P2PTransferState{
+    id = ?STRING,
+    owner = ?STRING,
+    sender = ?RAW_RESOURCE,
+    receiver = ?RAW_RESOURCE,
+    body = ?CASH,
+    status = {pending, #p2p_status_Pending{}},
+    created_at = ?TIMESTAMP,
+    domain_revision = ?INTEGER,
+    party_revision = ?INTEGER,
+    operation_timestamp = ?TIMESTAMP,
+    external_id = ?STRING,
+    metadata    = ?DEFAULT_METADATA(),
+    context = ?DEFAULT_CONTEXT(PartyID),
+    effective_final_cash_flow = #cashflow_FinalCashFlow{
+        postings = []
+    },
+    sessions = [],
+    adjustments = []
 }).

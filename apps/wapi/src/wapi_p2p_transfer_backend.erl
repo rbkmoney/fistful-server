@@ -4,8 +4,11 @@
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
 
+-type id() :: binary().
+-type external_id() :: id().
+
 -type error_create()
-    :: {external_id_conflict, external_id()}
+    :: {external_id_conflict, id(), external_id()}
      | {identity, unauthorized}
      | {identity, notfound}
      | {terms,    {terms_violation, forbidden_currency}}
@@ -18,9 +21,6 @@
     :: {p2p_transfer, unauthorized}
      | {p2p_transfer, notfound}
      .
-
--type id() :: binary().
--type external_id() :: id().
 
 -export([create_transfer/2]).
 -export([get_transfer/2]).
@@ -36,8 +36,8 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
                 {ok, ID} ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
                     do_create_transfer(ID, Params, Context, HandlerContext);
-                {error, {external_id_conflict, _}} = Error ->
-                    Error
+                {error, {external_id_conflict, ID}} ->
+                    {error, {external_id_conflict, ID, maps:get(<<"externalID">>, Params, undefined)}}
             end;
         {error, unauthorized} ->
             {error, {identity, unauthorized}};
@@ -58,7 +58,7 @@ get_transfer(ID, HandlerContext) ->
                     {error, {p2p_transfer, unauthorized}}
             end;
         {exception, #fistful_P2PNotFound{}} ->
-            {error, {p2p_transfer, {unknown_p2p_transfer, ID}}}
+            {error, {p2p_transfer, notfound}}
     end.
 
 %% Internal

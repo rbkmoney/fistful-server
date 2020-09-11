@@ -177,7 +177,7 @@ create_identity(Party, ProviderID, ClassID, _C) ->
             provider => ProviderID,
             class    => ClassID
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.
 

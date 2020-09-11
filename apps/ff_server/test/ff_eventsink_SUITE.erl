@@ -108,7 +108,7 @@ get_identity_events_ok(C) ->
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ICID = genlib:unique(),
     D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
@@ -400,7 +400,7 @@ create_identity(Party, Name, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
         #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.
 

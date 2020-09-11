@@ -138,6 +138,6 @@ create_identity(Party, Name, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
         #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.

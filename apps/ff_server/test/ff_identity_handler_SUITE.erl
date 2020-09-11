@@ -79,9 +79,8 @@ create_identity_ok(_C) ->
     ProvID  = <<"good-one">>,
     ClassID = <<"person">>,
     Ctx = #{<<"NS">> => #{<<"owner">> => PartyID}},
-    Context = ff_entity_context_codec:marshal(Ctx),
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
-    Identity = create_identity(EID, Name, PartyID, ProvID, ClassID, Context, Metadata),
+    Identity = create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx, Metadata),
     IID = Identity#idnt_IdentityState.id,
     {ok, Identity_} = call_api('Get', [IID, #'EventRange'{}]),
 
@@ -92,7 +91,10 @@ create_identity_ok(_C) ->
     ClassID = Identity_#idnt_IdentityState.class_id,
     blocked = Identity_#idnt_IdentityState.blocking,
     Metadata = Identity_#idnt_IdentityState.metadata,
-    Ctx = ff_entity_context_codec:unmarshal(Identity_#idnt_IdentityState.context),
+    Ctx0 = Ctx#{
+        <<"com.rbkmoney.wapi">> => #{<<"name">> => Name}
+    },
+    Ctx0 = ff_entity_context_codec:unmarshal(Identity_#idnt_IdentityState.context),
     ok.
 
 run_challenge_ok(C) ->
@@ -104,7 +106,7 @@ run_challenge_ok(C) ->
     ProvID      = <<"good-one">>,
     ClassID     = <<"person">>,
     ChlClassID  = <<"sword-initiation">>,
-    IdentityState = create_identity(EID, Name, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
+    IdentityState = create_identity(EID, Name, PartyID, ProvID, ClassID, Context),
 
     IID = IdentityState#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
@@ -118,7 +120,7 @@ run_challenge_ok(C) ->
 
 
 get_challenge_event_ok(C) ->
-    Context = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Context    = #{<<"NS">> => #{}},
     ProvID     = <<"good-one">>,
     ClassID    = <<"person">>,
     EID        = genlib:unique(),
@@ -158,7 +160,7 @@ get_challenge_event_ok(C) ->
     ?assertNotEqual(undefined, Identity2#idnt_IdentityState.level_id).
 
 get_event_unknown_identity_ok(_C) ->
-    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Ctx = #{<<"NS">> => #{}},
     EID = genlib:unique(),
     PID     = create_party(),
     Name    = <<"Identity Name">>,
@@ -172,7 +174,7 @@ get_event_unknown_identity_ok(_C) ->
     {exception, {fistful_IdentityNotFound}} = call_api('GetEvents', [<<"bad id">>, Range]).
 
 start_challenge_token_fail(C) ->
-    Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
+    Ctx = #{<<"NS">> => #{}},
     EID = genlib:unique(),
     PID = create_party(),
     Name       = <<"Identity Name">>,
@@ -204,7 +206,7 @@ get_challenges_ok(C) ->
     ProvID      = <<"good-one">>,
     ClassID     = <<"person">>,
     ChlClassID  = <<"sword-initiation">>,
-    Identity    = create_identity(EID, Name, PartyID, ProvID, ClassID, ff_entity_context_codec:marshal(Context)),
+    Identity    = create_identity(EID, Name, PartyID, ProvID, ClassID, Context),
 
     IID = Identity#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
@@ -233,7 +235,10 @@ create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx, Metadata) ->
         external_id = EID,
         metadata    = Metadata
     },
-    {ok, IdentityState} = call_api('Create', [Params, Ctx]),
+    Context = ff_entity_context_codec:marshal(Ctx#{
+        <<"com.rbkmoney.wapi">> => #{<<"name">> => Name}
+    }),
+    {ok, IdentityState} = call_api('Create', [Params, Context]),
     IdentityState.
 
 gen_challenge_param(ClgClassID, ChallengeID, C) ->

@@ -81,7 +81,7 @@ create_missing_fails(C) ->
             provider => <<"who">>,
             class    => <<"person">>
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     {error, {identity_class, notfound}} = ff_identity_machine:create(
         #{
@@ -91,7 +91,7 @@ create_missing_fails(C) ->
             provider => <<"good-one">>,
             class    => <<"nosrep">>
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ).
 
 create_ok(C) ->
@@ -106,7 +106,7 @@ create_ok(C) ->
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
     {ok, accessible} = ff_identity:is_accessible(I1),
@@ -125,7 +125,7 @@ identify_ok(C) ->
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ICID = genlib:unique(),
     {ok, S1} = ff_identity_machine:get(ID),

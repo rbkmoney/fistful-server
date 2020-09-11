@@ -194,7 +194,7 @@ create_identity(PartyID, ProviderID, ClassID) ->
 create_identity(ID, Name, PartyID, ProviderID, ClassID) ->
     ok = ff_identity_machine:create(
         #{id => ID, name => Name, party => PartyID, provider => ProviderID, class => ClassID},
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.
 

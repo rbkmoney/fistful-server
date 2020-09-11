@@ -15,8 +15,12 @@
 -spec create_transfer(req_data(), handler_context()) ->
     {ok, response_data()} | {error, CreateError}
 when CreateError :: {external_id_conflict, external_id()}
+                  | {identity, unauthorized}
+                  | {identity, notfound}
                   | not_allowed_currency
-                  | inconsistent_currency.
+                  | bad_p2p_transfer_amount
+                  .
+
 create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
     % FIXME: I might have missed some errors?
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of

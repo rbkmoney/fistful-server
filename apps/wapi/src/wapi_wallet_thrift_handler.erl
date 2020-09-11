@@ -408,25 +408,53 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
     case wapi_p2p_transfer:create_transfer(Params, Context) of
         {ok, P2PTransfer} ->
             wapi_handler_utils:reply_ok(202, P2PTransfer);
-        % TODO: I might have missed some errors?
-        {error, not_allowed_currency} ->
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {sender, {bin_data, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
+        {error, {sender, different_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
+        {error, {receiver, {bin_data, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {receiver, different_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {terms, {terms_violation, {not_allowed_currency, _Details}}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
-        {error, bad_p2p_transfer_amount} ->
+        {error, {terms, {terms_violation, {cash_range, {_Cash, _CashRange}}}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Bad transfer amount">>));
-        {error, inconsistent_currency} ->
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
+        {error, {terms, {terms_violation, p2p_forbidden}}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Inconsistent currency">>))
+                wapi_handler_utils:get_error_msg(<<"P2P transfer not allowed">>));
+        {error, {token, {not_verified, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
+        {error, {invalid_resource_token, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
     end;
 
 process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
     case wapi_p2p_transfer:get_transfer(ID, Context) of
         {ok, P2PTransfer} ->
             wapi_handler_utils:reply_ok(200, P2PTransfer);
-        {error, {w2w_transfer, unauthorized}} ->
+        {error, {p2p_transfer, unauthorized}} ->
             wapi_handler_utils:reply_ok(404);
-        {error, {w2w_transfer, {unknown_w2w_transfer, _ID}}} ->
+        {error, {p2p_transfer, {unknown_p2p_transfer, _ID}}} ->
             wapi_handler_utils:reply_ok(404)
     end;
 

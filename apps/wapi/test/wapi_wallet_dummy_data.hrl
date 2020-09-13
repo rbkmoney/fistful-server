@@ -80,7 +80,7 @@
     expected_max = ?INTEGER
 }).
 
--define(RESOURCE, {bank_card, #'BankCard'{
+-define(BANK_CARD, #'BankCard'{
     token = ?STRING,
     bin = <<"424242">>,
     masked_pan = <<"4242">>,
@@ -88,7 +88,9 @@
     payment_system = visa,
     issuer_country = rus,
     card_type = debit
-}}).
+}).
+
+-define(RESOURCE, {bank_card, ?BANK_CARD}).
 
 -define(DESTINATION_STATUS, {authorized, #dst_Authorized{}}).
 
@@ -379,8 +381,10 @@
 }).
 
 -define(RAW_RESOURCE, {resource, #'p2p_transfer_RawResource'{
-    resource = ?RESOURCE,
-    contact_info = #'ContactInfo'{}
+    contact_info = #'ContactInfo'{},
+    resource = {bank_card, #'ResourceBankCard'{
+        bank_card = ?BANK_CARD
+    }}
 }}).
 
 -define(P2P_TRANSFER(PartyID), #p2p_transfer_P2PTransferState{

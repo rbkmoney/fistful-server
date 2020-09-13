@@ -137,13 +137,7 @@ end_per_testcase(_Name, C) ->
 -spec create(config()) ->
     _.
 create(C) ->
-    PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end},
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {p2p_transfer, fun('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)} end}
-    ], C),
+    mock_services(C),
     SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     {ok, _} = call_api(
@@ -193,13 +187,8 @@ get(C) ->
 -spec fail_unauthorized(config()) ->
     _.
 fail_unauthorized(C) ->
-    PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end},
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(<<"kek">>)} end},
-        {p2p_transfer, fun('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)} end}
-    ], C),
+    WrongPartyID = <<"kek">>,
+    mock_services(C, WrongPartyID),
     SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     {error, {422, #{
@@ -244,6 +233,18 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
+
+mock_services(C) ->
+    mock_services(C, ?config(party, C)).
+
+mock_services(C, ContextPartyID) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end},
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(ContextPartyID)} end},
+        {p2p_transfer, fun('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)} end}
+    ], C).
 
 store_bank_card(C, Pan, ExpDate, CardHolder) ->
     {ok, Res} = call_api(

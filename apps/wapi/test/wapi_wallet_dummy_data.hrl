@@ -207,7 +207,7 @@
     id = ?STRING,
     name = ?STRING,
     created_at = ?TIMESTAMP,
-    provider = ?INTEGER,
+    provider = ?STRING,
     identity_class = ?STRING,
     identity_level = ?STRING,
     effective_challenge = ?STRING,

@@ -133,39 +133,26 @@ marshal_webhook_params(#{
         url = URL
     }.
 
-marshal_webhook_scope(#{
-    <<"topic">> := <<"WithdrawalsTopic">>,
-    <<"eventTypes">> := EventList
-}) ->
+marshal_webhook_scope(#{<<"eventTypes">> := EventList}) ->
     #webhooker_EventFilter{
-        types = marshal({set, webhook_withdrawal_event_types}, EventList)
-    };
-
-marshal_webhook_scope(#{
-    <<"topic">> := <<"DestinationsTopic">>,
-    <<"eventTypes">> := EventList
-}) ->
-    #webhooker_EventFilter{
-        types = marshal({set, webhook_destination_event_types}, EventList)
+        types = marshal_webhook_event_types(EventList)
     }.
 
-marshal(webhook_withdrawal_event_types, <<"WithdrawalStarted">>) ->
-    {withdrawal, {started, #webhooker_WithdrawalStarted{}}};
-marshal(webhook_withdrawal_event_types, <<"WithdrawalSucceeded">>) ->
-    {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}};
-marshal(webhook_withdrawal_event_types, <<"WithdrawalFailed">>) ->
-    {withdrawal, {failed, #webhooker_WithdrawalFailed{}}};
-marshal(webhook_destination_event_types, <<"DestinationCreated">>) ->
-    {destination, {created, #webhooker_DestinationCreated{}}};
-marshal(webhook_destination_event_types, <<"DestinationUnauthorized">>) ->
-    {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}};
-marshal(webhook_destination_event_types, <<"DestinationAuthorized">>) ->
-    {destination, {authorized, #webhooker_DestinationAuthorized{}}};
+marshal_webhook_event_types(EventTypes) ->
+    ordsets:from_list(lists:map(fun marshal_webhook_event_type/1, EventTypes)).
 
-marshal({list, Type}, List) ->
-    lists:map(fun(V) -> marshal(Type, V) end, List);
-marshal({set, Type}, List) ->
-    ordsets:from_list(marshal({list, Type}, List)).
+marshal_webhook_event_type(<<"WithdrawalStarted">>) ->
+    {withdrawal, {started, #webhooker_WithdrawalStarted{}}};
+marshal_webhook_event_type(<<"WithdrawalSucceeded">>) ->
+    {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}};
+marshal_webhook_event_type(<<"WithdrawalFailed">>) ->
+    {withdrawal, {failed, #webhooker_WithdrawalFailed{}}};
+marshal_webhook_event_type(<<"DestinationCreated">>) ->
+    {destination, {created, #webhooker_DestinationCreated{}}};
+marshal_webhook_event_type(<<"DestinationUnauthorized">>) ->
+    {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}};
+marshal_webhook_event_type(<<"DestinationAuthorized">>) ->
+    {destination, {authorized, #webhooker_DestinationAuthorized{}}}.
 
 
 unmarshal_webhooks(Webhooks) when is_list(Webhooks) ->
@@ -180,18 +167,18 @@ unmarshal_webhook(#webhooker_Webhook{
     pub_key = PubKey,
     enabled = Enabled
 }) ->
-    unmarshal(map, #{
+   genlib_map:compact(#{
         <<"id">> => integer_to_binary(ID),
         <<"identityID">> => IdentityID,
         <<"walletID">> => WalletID,
-        <<"active">> => unmarshal(boolean, Enabled),
+        <<"active">> => ff_codec:unmarshal(bool, Enabled),
         <<"scope">> => unmarshal_webhook_scope(EventFilter),
         <<"url">> => URL,
         <<"publicKey">> => PubKey
     }).
 
 unmarshal_webhook_scope(#webhooker_EventFilter{types = EventTypes}) ->
-    List = unmarshal({set, webhook_event_types}, EventTypes),
+    List = unmarshal_webhook_event_types(EventTypes),
     lists:foldl(fun({Topic, Type}, Acc) ->
         case maps:get(<<"topic">>, Acc, undefined) of
             undefined ->
@@ -212,34 +199,19 @@ unmarshal_webhook_topic(withdrawal) ->
 unmarshal_webhook_topic(destination) ->
     <<"DestinationsTopic">>.
 
-unmarshal(webhook_event_types, {withdrawal, EventType}) ->
-    {withdrawal, unmarshal(webhook_withdrawal_event_types, EventType)};
-unmarshal(webhook_event_types, {destination, EventType}) ->
-    {destination, unmarshal(webhook_destination_event_types, EventType)};
 
-unmarshal(webhook_withdrawal_event_types, {started, _}) ->
-    <<"WithdrawalStarted">>;
-unmarshal(webhook_withdrawal_event_types, {succeeded, _}) ->
-    <<"WithdrawalSucceeded">>;
-unmarshal(webhook_withdrawal_event_types, {failed, _}) ->
-    <<"WithdrawalFailed">>;
+unmarshal_webhook_event_types(EventTypes) when is_list(EventTypes) ->
+    ordsets:to_list(lists:map(fun unmarshal_webhook_event_type/1, EventTypes)).
 
-unmarshal(webhook_destination_event_types, {created, _}) ->
-    <<"DestinationCreated">>;
-unmarshal(webhook_destination_event_types, {unauthorized, _}) ->
-    <<"DestinationUnauthorized">>;
-unmarshal(webhook_destination_event_types, {authorized, _}) ->
-    <<"DestinationAuthorized">>;
-
-unmarshal(boolean, true) ->
-    true;
-unmarshal(boolean, false) ->
-    false;
-unmarshal({list, Type}, List) ->
-    lists:map(fun(V) -> unmarshal(Type, V) end, List);
-unmarshal({set, Type}, Set) ->
-    unmarshal({list, Type}, ordsets:to_list(Set));
-unmarshal(map, Map) ->
-    genlib_map:compact(Map);
-unmarshal(_, V) ->
-    V.
+unmarshal_webhook_event_type({withdrawal, {started, _}}) ->
+    {withdrawal, <<"WithdrawalStarted">>};
+unmarshal_webhook_event_type({withdrawal, {succeeded, _}}) ->
+    {withdrawal, <<"WithdrawalSucceeded">>};
+unmarshal_webhook_event_type({withdrawal, {failed, _}}) ->
+    {withdrawal, <<"WithdrawalFailed">>};
+unmarshal_webhook_event_type({destination, {created, _}}) ->
+    {destination, <<"DestinationCreated">>};
+unmarshal_webhook_event_type({destination, {unauthorized, _}}) ->
+    {destination, <<"DestinationUnauthorized">>};
+unmarshal_webhook_event_type({destination, {authorized, _}}) ->
+    {destination, <<"DestinationAuthorized">>}.

@@ -53,7 +53,7 @@ get_transfer(ID, HandlerContext) ->
         {ok, TransferThrift} ->
             case wapi_access_backend:check_resource(p2p_transfer, TransferThrift, HandlerContext) of
                 ok ->
-                    {ok, unmarshal(transfer, TransferThrift)};
+                    {ok, unmarshal_transfer(TransferThrift)};
                 {error, unauthorized} ->
                     {error, {p2p_transfer, unauthorized}}
             end;
@@ -64,11 +64,11 @@ get_transfer(ID, HandlerContext) ->
 %% Internal
 
 do_create_transfer(ID, Params, Context, HandlerContext) ->
-    TransferParams = marshal(transfer_params, Params#{<<"id">> => ID}),
+    TransferParams = marshal_transfer_params(Params#{<<"id">> => ID}),
     Request = {p2p_transfer, 'Create', [TransferParams, marshal(context, Context)]},
     case service_call(Request, HandlerContext) of
         {ok, Transfer} ->
-            {ok, unmarshal(transfer, Transfer)};
+            {ok, unmarshal_transfer(Transfer)};
         {exception, #p2p_transfer_NoResourceInfo{type = sender}} ->
             {error, {sender, invalid_resource}};
         {exception, #p2p_transfer_NoResourceInfo{type = receiver}} ->
@@ -86,7 +86,7 @@ service_call(Params, HandlerContext) ->
 
 %% Marshal
 
-marshal(transfer_params, #{
+marshal_transfer_params(#{
     <<"id">> := ID,
     <<"identityID">> := IdentityID,
     <<"sender">> := Sender,
@@ -97,12 +97,12 @@ marshal(transfer_params, #{
     #p2p_transfer_P2PTransferParams{
         id = ID,
         identity_id = IdentityID,
-        sender = marshal(participant, Sender#{<<"contactInfo">> => ContactInfo}),
-        receiver = marshal(participant, Receiver),
-        body = marshal(body, Body)
-    };
+        sender = marshal_sender(Sender#{<<"contactInfo">> => ContactInfo}),
+        receiver = marshal_receiver(Receiver),
+        body = marshal_body(Body)
+    }.
 
-marshal(participant, #{
+marshal_sender(#{
     <<"token">> := Token,
     <<"contactInfo">> := ContactInfo
 }) ->
@@ -121,10 +121,10 @@ marshal(participant, #{
     end,
     {resource, #p2p_transfer_RawResource{
         resource = Resource,
-        contact_info = marshal(contact_info, ContactInfo)
-    }};
+        contact_info = marshal_contact_info(ContactInfo)
+    }}.
 
-marshal(participant, #{
+marshal_receiver(#{
     <<"token">> := Token
 }) ->
     Resource = case wapi_crypto:decrypt_bankcard_token(Token) of
@@ -143,32 +143,32 @@ marshal(participant, #{
     {resource, #p2p_transfer_RawResource{
         resource = Resource,
         contact_info = #'ContactInfo'{}
-    }};
+    }}.
 
-marshal(contact_info, ContactInfo) ->
+marshal_contact_info(ContactInfo) ->
     #'ContactInfo'{
         email = maps:get(<<"email">>, ContactInfo, undefined),
         phone_number = maps:get(<<"phoneNumber">>, ContactInfo, undefined)
-    };
+    }.
 
-marshal(body, #{
+marshal_body(#{
     <<"amount">> := Amount,
     <<"currency">> := Currency
 }) ->
     #'Cash'{
         amount = Amount,
-        currency = marshal(currency, Currency)
-    };
+        currency = marshal_currency(Currency)
+    }.
 
-marshal(currency, Currency) ->
-    #'CurrencyRef'{symbolic_code = Currency};
+marshal_currency(Currency) ->
+    #'CurrencyRef'{symbolic_code = Currency}.
 
-marshal(context, Ctx) ->
-    ff_codec:marshal(context, Ctx).
+marshal(T, V) ->
+    ff_codec:marshal(T, V).
 
 %% Unmarshal
 
-unmarshal(transfer, #p2p_transfer_P2PTransferState{
+unmarshal_transfer(#p2p_transfer_P2PTransferState{
     id = ID,
     owner = IdentityID,
     sender = SenderResource,
@@ -178,30 +178,30 @@ unmarshal(transfer, #p2p_transfer_P2PTransferState{
     status = Status,
     external_id = ExternalID
 }) ->
-    Sender = unmarshal(sender, SenderResource),
+    Sender = unmarshal_sender(SenderResource),
     ContactInfo = maps:get(<<"contactInfo">>, Sender),
     genlib_map:compact(#{
         <<"id">> => ID,
         <<"identityID">> => IdentityID,
         <<"contactInfo">> => ContactInfo,
         <<"createdAt">> => CreatedAt,
-        <<"body">> => unmarshal(body, Body),
+        <<"body">> => unmarshal_body(Body),
         <<"sender">> => maps:remove(<<"contactInfo">>, Sender),
-        <<"receiver">> => unmarshal(receiver, ReceiverResource),
-        <<"status">> => unmarshal(transfer_status, Status),
+        <<"receiver">> => unmarshal_receiver(ReceiverResource),
+        <<"status">> => unmarshal_transfer_status(Status),
         <<"externalID">> => maybe_unmarshal(id, ExternalID)
-    });
+    }).
 
-unmarshal(body, #'Cash'{
+unmarshal_body(#'Cash'{
     amount   = Amount,
     currency = Currency
 }) ->
     #{
         <<"amount">> => unmarshal(amount, Amount),
         <<"currency">> => unmarshal(currency_ref, Currency)
-    };
+    }.
 
-unmarshal(sender, {resource, #p2p_transfer_RawResource{
+unmarshal_sender({resource, #p2p_transfer_RawResource{
     contact_info = ContactInfo,
     resource = {bank_card, #'ResourceBankCard'{
         bank_card = BankCard
@@ -209,14 +209,14 @@ unmarshal(sender, {resource, #p2p_transfer_RawResource{
 }}) ->
     genlib_map:compact(#{
         <<"type">>          => <<"BankCardSenderResource">>,
-        <<"contactInfo">>   => unmarshal(contact_info, ContactInfo),
+        <<"contactInfo">>   => unmarshal_contact_info(ContactInfo),
         <<"token">>         => BankCard#'BankCard'.token,
         <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
         <<"bin">>           => BankCard#'BankCard'.bin,
         <<"lastDigits">>    => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
-    });
-unmarshal(receiver, {resource, #p2p_transfer_RawResource{
-    contact_info = _ContactInfo,
+    }).
+
+unmarshal_receiver({resource, #p2p_transfer_RawResource{
     resource = {bank_card, #'ResourceBankCard'{
         bank_card = BankCard
     }}
@@ -227,23 +227,23 @@ unmarshal(receiver, {resource, #p2p_transfer_RawResource{
         <<"bin">>           => BankCard#'BankCard'.bin,
         <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
         <<"lastDigits">>    => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
-    });
+    }).
 
-unmarshal(contact_info, ContactInfo) ->
+unmarshal_contact_info(ContactInfo) ->
     genlib_map:compact(#{
         <<"phoneNumber">> => ContactInfo#'ContactInfo'.phone_number,
         <<"email">> => ContactInfo#'ContactInfo'.email
-    });
+    }).
 
-unmarshal(transfer_status, {pending, _}) ->
+unmarshal_transfer_status({pending, _}) ->
     #{<<"status">> => <<"Pending">>};
-unmarshal(transfer_status, {succeeded, _}) ->
+unmarshal_transfer_status({succeeded, _}) ->
     #{<<"status">> => <<"Succeeded">>};
-unmarshal(transfer_status, {failed, #p2p_status_Failed{failure = Failure}}) ->
+unmarshal_transfer_status({failed, #p2p_status_Failed{failure = Failure}}) ->
     #{
         <<"status">> => <<"Failed">>,
         <<"failure">> => unmarshal(failure, Failure)
-    };
+    }.
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

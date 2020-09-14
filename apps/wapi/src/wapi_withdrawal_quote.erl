@@ -77,24 +77,33 @@ payload_symmetry_test() ->
     PartyID = <<"party">>,
     WalletID = <<"wallet">>,
     DestinationID = <<"destination">>,
-    Quote = #{
-        cash_from => {1000000, <<"RUB">>},
-        cash_to => {1, <<"USD">>},
-        created_at => <<"1970-01-01T00:00:00.123Z">>,
-        expires_on => <<"1970-01-01T00:00:00.321Z">>,
-        quote_data => #{[nil] => [nil]},
-        route => #{
-            provider_id => 1000,
-            terminal_id => 2,
-            provider_id_legacy => <<"700">>,
-            version => 1
+    ThriftQuote = #wthd_Quote{
+        cash_from = #'Cash'{
+            amount = 1000000,
+            currency = #'CurrencyRef'{
+                symbolic_code = <<"RUB">>
+            }
         },
-        operation_timestamp => 234,
-        resource_descriptor => {bank_card, #{[nil] => [nil]}},
-        domain_revision => 1,
-        party_revision => 2
+        cash_to = #'Cash'{
+            amount = 1,
+            currency = #'CurrencyRef'{
+                symbolic_code = <<"USD">>
+            }
+        },
+        created_at = <<"1970-01-01T00:00:00.123Z">>,
+        expires_on = <<"1970-01-01T00:00:00.321Z">>,
+        quote_data = {obj, #{{arr,[{nl,{msgp_Nil}}]} => {arr,[{nl,{msgp_Nil}}]}}},
+        route = #wthd_Route{
+            provider_id = 100,
+            terminal_id = 2
+        },
+        resource = {bank_card, #'ResourceDescriptorBankCard'{
+            bin_data_id = {obj, #{{arr, [{nl, {msgp_Nil}}]} => {arr, [{nl, {msgp_Nil}}]}}}
+        }},
+        operation_timestamp = <<"1970-01-01T00:00:00.234Z">>,
+        domain_revision = 1,
+        party_revision = 2
     },
-    ThriftQuote = ff_withdrawal_codec:marshal(quote, Quote),
     Payload = create_token_payload(ThriftQuote, WalletID, DestinationID, PartyID),
     {ok, {Decoded, WalletID, DestinationID, PartyID}} = decode_token_payload(Payload),
     ?assertEqual(ThriftQuote, Decoded).
@@ -104,24 +113,34 @@ payload_v2_decoding_test() ->
     PartyID = <<"party">>,
     WalletID = <<"wallet">>,
     DestinationID = <<"destination">>,
-    ExpectedQuote = #{
-        cash_from => {1000000, <<"RUB">>},
-        cash_to => {1, <<"USD">>},
-        created_at => <<"1970-01-01T00:00:00.123Z">>,
-        expires_on => <<"1970-01-01T00:00:00.321Z">>,
-        quote_data => #{[nil] => [nil]},
-        route => #{
-            provider_id => 1000,
-            terminal_id => 2,
-            provider_id_legacy => <<"700">>,
-            version => 1
+    ExpectedThriftQuote = #wthd_Quote{
+        cash_from = #'Cash'{
+            amount = 1000000,
+            currency = #'CurrencyRef'{
+                symbolic_code = <<"RUB">>
+            }
         },
-        operation_timestamp => 234,
-        resource_descriptor => {bank_card, #{[nil] => [nil]}},
-        domain_revision => 1,
-        party_revision => 2
+        cash_to = #'Cash'{
+            amount = 1,
+            currency = #'CurrencyRef'{
+                symbolic_code = <<"USD">>
+            }
+        },
+        created_at = <<"1970-01-01T00:00:00.123Z">>,
+        expires_on = <<"1970-01-01T00:00:00.321Z">>,
+        quote_data = {obj, #{{arr,[{nl,{msgp_Nil}}]} => {arr,[{nl,{msgp_Nil}}]}}},
+        route = #wthd_Route{
+            provider_id = 1000,
+            terminal_id = 2,
+            provider_id_legacy = <<"700">>
+        },
+        resource = {bank_card, #'ResourceDescriptorBankCard'{
+            bin_data_id = {obj, #{{arr, [{nl, {msgp_Nil}}]} => {arr, [{nl, {msgp_Nil}}]}}}
+        }},
+        operation_timestamp = <<"1970-01-01T00:00:00.234Z">>,
+        domain_revision = 1,
+        party_revision = 2
     },
-    ExpectedThriftQuote = ff_withdrawal_codec:marshal(quote, ExpectedQuote),
     Payload = #{
         <<"version">> => 2,
         <<"walletID">> => WalletID,

@@ -239,8 +239,8 @@ mock_services(C, ContextPartyID) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end},
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(ContextPartyID)} end},
+        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)};
+                              ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(ContextPartyID)} end},
         {p2p_transfer, fun('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)} end}
     ], C).
 

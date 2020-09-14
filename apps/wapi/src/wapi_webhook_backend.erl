@@ -32,7 +32,7 @@ create_webhook(#{'Webhook' := Params}, HandlerContext) ->
                 ok ->
                     Call = {webhook_manager, 'Create', [WebhookParams]},
                     Result = wapi_handler_utils:service_call(Call, HandlerContext),
-                    process_result(Result);
+                    process_create_webhook_result(Result);
                 {error, Error} ->
                     {error, {identity, Error}}
             end;
@@ -51,7 +51,7 @@ get_webhooks(IdentityID, HandlerContext) ->
         ok ->
             Call = {webhook_manager, 'GetList', [IdentityID]},
             Result = wapi_handler_utils:service_call(Call, HandlerContext),
-            process_result(Result);
+            process_get_webhooks_result(Result);
         {error, Error} ->
             {error, {identity, Error}}
     end.
@@ -73,7 +73,7 @@ get_webhook(WebhookID, IdentityID, HandlerContext) ->
                 EncodedID ->
                     Call = {webhook_manager, 'Get', [EncodedID]},
                     Result = wapi_handler_utils:service_call(Call, HandlerContext),
-                    process_result(Result)
+                    process_get_webhook_result(Result)
             end;
         {error, Error} ->
             {error, {identity, Error}}
@@ -95,19 +95,26 @@ delete_webhook(WebhookID, IdentityID, HandlerContext) ->
                 EncodedID ->
                     Call = {webhook_manager, 'Delete', [EncodedID]},
                     Result = wapi_handler_utils:service_call(Call, HandlerContext),
-                    process_result(Result)
+                    process_delete_webhook_result(Result)
             end;
         {error, Error} ->
             {error, {identity, Error}}
     end.
 
-process_result({ok, #webhooker_Webhook{} = Webhook}) ->
+process_create_webhook_result({ok, #webhooker_Webhook{} = Webhook}) ->
+    {ok, unmarshal_webhook(Webhook)}.
+
+process_get_webhooks_result({ok, Webhooks}) when is_list(Webhooks) ->
+    {ok, unmarshal_webhooks(Webhooks)}.
+
+process_get_webhook_result({ok, #webhooker_Webhook{} = Webhook}) ->
     {ok, unmarshal_webhook(Webhook)};
-process_result({ok, Webhooks}) when is_list(Webhooks) ->
-    {ok, unmarshal_webhooks(Webhooks)};
-process_result({ok, _}) ->
+process_get_webhook_result({exception, #webhooker_WebhookNotFound{}}) ->
+    {error, notfound}.
+
+process_delete_webhook_result({ok, _}) ->
     ok;
-process_result({exception, #webhooker_WebhookNotFound{}}) ->
+process_delete_webhook_result({exception, #webhooker_WebhookNotFound{}}) ->
     {error, notfound}.
 
 encode_webhook_id(WebhookID) ->

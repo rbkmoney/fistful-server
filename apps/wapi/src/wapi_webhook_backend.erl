@@ -60,6 +60,7 @@ get_webhooks(IdentityID, HandlerContext) ->
     {ok, response_data()} | {error, GetError}
 when GetError ::
     notfound |
+    {webhook, notfound} |
     {identity, notfound} |
     {identity, unauthorized}.
 
@@ -68,7 +69,7 @@ get_webhook(WebhookID, IdentityID, HandlerContext) ->
         ok ->
             case encode_webhook_id(WebhookID) of
                 {error, notfound} ->
-                    {error, {identity, notfound}};
+                    {error, {webhook, notfound}};
                 EncodedID ->
                     Call = {webhook_manager, 'Get', [EncodedID]},
                     Result = wapi_handler_utils:service_call(Call, HandlerContext),
@@ -88,10 +89,14 @@ when DeleteError ::
 delete_webhook(WebhookID, IdentityID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            EncodedID = encode_webhook_id(WebhookID),
-            Call = {webhook_manager, 'Delete', [EncodedID]},
-            Result = wapi_handler_utils:service_call(Call, HandlerContext),
-            process_result(Result);
+            case encode_webhook_id(WebhookID) of
+                {error, notfound} ->
+                    {error, {webhook, notfound}};
+                EncodedID ->
+                    Call = {webhook_manager, 'Delete', [EncodedID]},
+                    Result = wapi_handler_utils:service_call(Call, HandlerContext),
+                    process_result(Result)
+            end;
         {error, Error} ->
             {error, {identity, Error}}
     end.

@@ -125,7 +125,7 @@ unmashal_thrift_change(EncodedChange) ->
 -spec maybe_migrate_thrift_change(thrift_change(), context()) ->
     thrift_change().
 
-maybe_migrate_thrift_change({created, Identity}, MigrateContext) ->
+maybe_migrate_thrift_change({created, #idnt_Identity{name = undefined} = Identity}, MigrateContext) ->
     Context = fetch_entity_context(Identity#idnt_Identity.id, MigrateContext),
     {created, Identity#idnt_Identity{name = get_legacy_name(Context)}};
 maybe_migrate_thrift_change(Change, _MigrateContext) ->

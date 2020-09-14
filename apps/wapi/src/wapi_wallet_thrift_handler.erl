@@ -422,10 +422,10 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {receiver, invalid_resource}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
-        {error, {terms, {terms_violation, forbidden_currency}}} ->
+        {error, {p2p_transfer, forbidden_currency}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
-        {error, {terms, {terms_violation, cash_range}}} ->
+        {error, {p2p_transfer, cash_range_exceeded}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>))
         % note: thrift has less expressive errors

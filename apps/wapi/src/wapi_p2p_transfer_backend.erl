@@ -9,12 +9,12 @@
 
 -type error_create()
     :: {external_id_conflict, id(), external_id()}
-     | {identity, unauthorized}
-     | {identity, notfound}
-     | {terms,    {terms_violation, forbidden_currency}}
-     | {terms,    {terms_violation, cash_range}}
-     | {sender,   invalid_resource}
-     | {receiver, invalid_resource}
+     | {identity,     unauthorized}
+     | {identity,     notfound}
+     | {p2p_transfer, forbidden_currency}
+     | {p2p_transfer, cash_range_exceeded}
+     | {sender,       invalid_resource}
+     | {receiver,     invalid_resource}
      .
 
 -type error_get()
@@ -74,9 +74,9 @@ do_create_transfer(ID, Params, Context, HandlerContext) ->
         {exception, #p2p_transfer_NoResourceInfo{type = receiver}} ->
             {error, {receiver, invalid_resource}};
         {exception, #fistful_ForbiddenOperationCurrency{}} ->
-            {error, {terms, {terms_violation, forbidden_currency}}};
-        {exception, #fistful_ForbiddenOperationAmount{ }} ->
-            {error, {terms, {terms_violation, cash_range}}};
+            {error, {p2p_transfer, forbidden_currency}};
+        {exception, #fistful_ForbiddenOperationAmount{}} ->
+            {error, {p2p_transfer, cash_range_exceeded}};
         {exception, #fistful_IdentityNotFound{ }} ->
             {error, {identity, notfound}}
     end.

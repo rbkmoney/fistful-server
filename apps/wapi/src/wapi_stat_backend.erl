@@ -222,7 +222,7 @@ unmarshal_response(identities, Response) ->
         <<"id">> => Response#fistfulstat_StatIdentity.id,
         <<"name">> => Response#fistfulstat_StatIdentity.name,
         <<"createdAt">> => Response#fistfulstat_StatIdentity.created_at,
-        <<"provider">> => unmarshal_identity_stat_provider(Response#fistfulstat_StatIdentity.provider),
+        <<"provider">> => Response#fistfulstat_StatIdentity.provider,
         <<"class">> => Response#fistfulstat_StatIdentity.identity_class,
         <<"level">> => Response#fistfulstat_StatIdentity.identity_level,
         <<"effectiveChallenge">> => Response#fistfulstat_StatIdentity.effective_challenge,
@@ -294,6 +294,3 @@ unmarshal_crypto_currency_name({ripple, _}) -> <<"Ripple">>;
 unmarshal_crypto_currency_name({ethereum, _}) -> <<"Ethereum">>;
 unmarshal_crypto_currency_name({usdt, _}) -> <<"USDT">>;
 unmarshal_crypto_currency_name({zcash, _}) -> <<"Zcash">>.
-
-unmarshal_identity_stat_provider(Provider) ->
-    genlib:to_binary(Provider).

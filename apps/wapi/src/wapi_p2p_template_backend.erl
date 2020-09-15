@@ -46,7 +46,7 @@ create(ID, Params, Context, HandlerContext) ->
     Request = {fistful_p2p_template, 'Create', [TemplateParams, marshal(context, Context)]},
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, TemplateState} ->
-            {ok, unmarshal(p2p_template_state, TemplateState)};
+            {ok, unmarshal_template_state(TemplateState)};
         {exception, #fistful_IdentityNotFound{}} ->
             {error, {identity, notfound}};
         {exception, #fistful_CurrencyNotFound{}} ->

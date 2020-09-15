@@ -1637,6 +1637,7 @@ from_swag(create_quote_params, Params) ->
     }, Params));
 from_swag(identity_params, Params) ->
     genlib_map:compact(add_external_id(#{
+        name     => maps:get(<<"name">>, Params),
         provider => maps:get(<<"provider">>, Params),
         class    => maps:get(<<"class">>   , Params),
         metadata => maps:get(<<"metadata">>, Params, undefined)

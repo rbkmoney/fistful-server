@@ -316,6 +316,7 @@ uniq() ->
 generate_identity(PartyID) ->
     #idnt_IdentityState{
         id = uniq(),
+        name = uniq(),
         party_id = PartyID,
         provider_id = uniq(),
         class_id = uniq(),

@@ -311,12 +311,14 @@ marshal({list, Type}, List) ->
 
 marshal(identity_params, {Params = #{
     <<"id">>        := ID,
+    <<"name">>      := Name,
     <<"provider">>  := Provider,
     <<"class">>     := Class
 }, Owner}) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #idnt_IdentityParams{
         id = marshal(id, ID),
+        name = marshal(string, Name),
         party = marshal(id, Owner),
         provider = marshal(string, Provider),
         cls = marshal(string, Class),
@@ -372,6 +374,7 @@ unmarshal({list, Type}, List) ->
 
 unmarshal(identity, #idnt_IdentityState{
     id = IdentityID,
+    name = Name,
     blocking = Blocking,
     class_id = Class,
     provider_id = Provider,
@@ -384,7 +387,7 @@ unmarshal(identity, #idnt_IdentityState{
     Context = unmarshal(context, Ctx),
     genlib_map:compact(#{
         <<"id">>                    => unmarshal(id, IdentityID),
-        <<"name">>                  => wapi_backend_utils:get_from_ctx(<<"name">>, Context),
+        <<"name">>                  => unmarshal(string, Name),
         <<"createdAt">>             => maybe_unmarshal(string, CreatedAt),
         <<"isBlocked">>             => maybe_unmarshal(blocking, Blocking),
         <<"class">>                 => unmarshal(string, Class),

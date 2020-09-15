@@ -59,8 +59,7 @@ create(ID, Params, Context, HandlerContext) ->
 
 -spec get(id(), handler_context()) ->
     {ok, response_data()} |
-    {error, {p2p_template, notfound}} |
-    {error, {p2p_template, unauthorized}}.
+    {error, {p2p_template, notfound | unauthorized}}.
 
 get(ID, HandlerContext) ->
     Request = {fistful_p2p_template, 'Get', [ID, #'EventRange'{}]},
@@ -139,7 +138,7 @@ issue_transfer_ticket(ID, TicketExpiration, #{woody_context := WoodyContext} = H
                     TicketExpiration
             end,
 
-            % May be: Key = wapi_backend_utils:get_idempotent_key(ticket, PartyID, undefined),
+            %% TODO: Key = wapi_backend_utils:get_idempotent_key(ticket, PartyID, undefined),
             Key = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID, undefined),
 
             % May be: {ok, TransferID} = wapi_backend_utils:gen_id_by_type(ticket, Key, 0, HandlerContext),
@@ -147,7 +146,8 @@ issue_transfer_ticket(ID, TicketExpiration, #{woody_context := WoodyContext} = H
 
             case wapi_backend_utils:issue_grant_token(
                 {p2p_template_transfers, ID, #{<<"transferID">> => TransferID}},
-                NewTicketExpiration, HandlerContext
+                NewTicketExpiration,
+                HandlerContext
             ) of
                 {ok, Token} ->  {ok, {Token, NewTicketExpiration}};
                 Error ->        Error
@@ -214,7 +214,7 @@ maybe_marshal(_Type, undefined) ->
 maybe_marshal(Type, Value) ->
     marshal(Type, Value).
 
-%% Convert thrift errors to swag maps
+%% Convert thrift records to swag maps
 
 unmarshal(p2p_template_state, #p2p_template_P2PTemplateState{
     id = ID,

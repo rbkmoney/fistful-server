@@ -425,14 +425,18 @@ process_request('CreateP2PTransferTemplate', #{'P2PTransferTemplateParameters' :
 process_request('GetP2PTransferTemplateByID', #{'p2pTransferTemplateID' := P2PTemplateID}, Context, _Opts) ->
     case wapi_p2p_template_backend:get(P2PTemplateID, Context) of
         {ok, P2PTemplate} -> wapi_handler_utils:reply_ok(200, P2PTemplate);
-        {error, {p2p_template, notfound}} -> wapi_handler_utils:reply_error(404);
-        {error, {p2p_template, unauthorized}} -> wapi_handler_utils:reply_error(404)
+        {error, {p2p_template, notfound}} ->
+            wapi_handler_utils:reply_error(404);
+        {error, {p2p_template, unauthorized}} ->
+            wapi_handler_utils:reply_error(404)
     end;
 process_request('BlockP2PTransferTemplate', #{p2pTransferTemplateID := P2PTemplateID}, Context, _Opts) ->
     case wapi_p2p_template_backend:block(P2PTemplateID, Context) of
         ok -> wapi_handler_utils:reply_ok(204);
-        {error, {p2p_template, notfound}} -> wapi_handler_utils:reply_error(404);
-        {error, {p2p_template, unauthorized}} -> wapi_handler_utils:reply_error(404)
+        {error, {p2p_template, notfound}} ->
+            wapi_handler_utils:reply_error(404);
+        {error, {p2p_template, unauthorized}} ->
+            wapi_handler_utils:reply_error(404)
     end;
 process_request('IssueP2PTransferTemplateAccessToken', #{
     p2pTransferTemplateID := P2PTemplateID,

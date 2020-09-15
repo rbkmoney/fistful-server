@@ -13,6 +13,9 @@
      | {identity,     notfound}
      | {p2p_transfer, forbidden_currency}
      | {p2p_transfer, cash_range_exceeded}
+     | {p2p_transfer, operation_not_permitted}
+     | {token,        {not_verified, identity_mismatch}}
+     | {token,        {not_verified, _}}
      | {sender,       invalid_resource}
      | {receiver,     invalid_resource}
      .
@@ -63,9 +66,23 @@ get_transfer(ID, HandlerContext) ->
 
 %% Internal
 
+do_create_transfer(ID, Params = #{<<"quoteToken">> := QuoteToken}, Context, HandlerContext) ->
+    do(fun() ->
+        VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
+        Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
+        ok = unwrap(authorize_p2p_quote_token(Quote, maps:get(<<"identityID">>, Params))),
+        MarshaledQuote = ff_p2p_transfer_codec:marshal(quote, Quote),
+        TransferParams = marshal_transfer_params(Params#{<<"id">> => ID}),
+        TransferParamsWithQuote = TransferParams#p2p_transfer_P2PTransferParams{quote = MarshaledQuote},
+        Request = {p2p_transfer, 'Create', [TransferParamsWithQuote, marshal(context, Context)]},
+        unwrap(process_p2p_transfer_call(Request, HandlerContext))
+    end);
 do_create_transfer(ID, Params, Context, HandlerContext) ->
     TransferParams = marshal_transfer_params(Params#{<<"id">> => ID}),
     Request = {p2p_transfer, 'Create', [TransferParams, marshal(context, Context)]},
+    process_p2p_transfer_call(Request, HandlerContext).
+
+process_p2p_transfer_call(Request, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Transfer} ->
             {ok, unmarshal_transfer(Transfer)};
@@ -77,8 +94,26 @@ do_create_transfer(ID, Params, Context, HandlerContext) ->
             {error, {p2p_transfer, forbidden_currency}};
         {exception, #fistful_ForbiddenOperationAmount{}} ->
             {error, {p2p_transfer, cash_range_exceeded}};
+        {exception, #fistful_OperationNotPermitted{}} ->
+            {error, {p2p_transfer, operation_not_permitted}};
         {exception, #fistful_IdentityNotFound{ }} ->
             {error, {identity, notfound}}
+    end.
+
+verify_p2p_quote_token(Token) ->
+    case uac_authorizer_jwt:verify(Token, #{}) of
+        {ok, {_, _, VerifiedToken}} ->
+            {ok, VerifiedToken};
+        {error, Error} ->
+            {error, {token, {not_verified, Error}}}
+    end.
+
+authorize_p2p_quote_token(Quote, IdentityID) ->
+    case p2p_quote:identity_id(Quote) of
+        QuoteIdentityID when QuoteIdentityID =:= IdentityID ->
+            ok;
+        _OtherQuoteIdentityID ->
+            {error, {token, {not_verified, identity_mismatch}}}
     end.
 
 service_call(Params, HandlerContext) ->
@@ -252,3 +287,9 @@ maybe_unmarshal(_T, undefined) ->
     undefined;
 maybe_unmarshal(T, V) ->
     unmarshal(T, V).
+
+do(Fun) ->
+    ff_pipeline:do(Fun).
+
+unwrap(Res) ->
+    ff_pipeline:unwrap(Res).

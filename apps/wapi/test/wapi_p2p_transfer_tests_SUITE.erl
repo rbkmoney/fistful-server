@@ -22,6 +22,8 @@
 
 -export([
     create/1,
+    create_with_quote_token/1,
+    create_with_bad_quote_token/1,
     get/1,
     fail_unauthorized/1
 ]).
@@ -57,6 +59,8 @@ groups() ->
         {base, [],
             [
                 create,
+                create_with_quote_token,
+                create_with_bad_quote_token,
                 get,
                 fail_unauthorized
             ]
@@ -165,6 +169,77 @@ create(C) ->
         ct_helper:cfg(context, C)
     ).
 
+-spec create_with_quote_token(config()) ->
+    _.
+create_with_quote_token(C) ->
+    mock_services(C),
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    IdentityID = <<"id">>,
+    {ok, _} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"quoteToken">> => get_quote_token(IdentityID),
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec create_with_bad_quote_token(config()) ->
+    _.
+create_with_bad_quote_token(C) ->
+    mock_services(C),
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    {error, {422, #{
+        <<"message">> := <<"Token can't be verified">>
+    }}} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => <<"id">>,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"quoteToken">> => <<"bad_quote_token">>,
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
 -spec get(config()) ->
     _.
 get(C) ->
@@ -256,6 +331,23 @@ store_bank_card(C, Pan, ExpDate, CardHolder) ->
         ct_helper:cfg(context_pcidss, C)
     ),
     maps:get(<<"token">>, Res).
+
+get_quote_token(IdentityID) ->
+    Quote = #{
+        fees              => #{fees => #{}},
+        amount            => {?INTEGER, ?RUB},
+        party_revision    => 1,
+        domain_revision   => 1,
+        created_at        => 1600147637597,
+        expires_on        => 1600147637597,
+        identity_id       => IdentityID,
+        sender            => {bank_card, #{ token => ?STRING, bin_data_id => nil }},
+        receiver          => {bank_card, #{ token => ?STRING, bin_data_id => nil }}
+    },
+    PartyID = ?STRING,
+    Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
+    {ok, QuoteToken} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Payload, wapi_auth:get_signee()),
+    QuoteToken.
 
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).

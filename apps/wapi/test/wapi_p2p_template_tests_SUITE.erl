@@ -219,7 +219,6 @@ issue_access_token_ok_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
-
 -spec issue_transfer_ticket_ok_test(config()) ->
     _.
 issue_transfer_ticket_ok_test(C) ->

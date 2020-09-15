@@ -42,7 +42,7 @@ create(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
     end.
 
 create(ID, Params, Context, HandlerContext) ->
-    TemplateParams = marshal(p2p_template_params, Params#{<<"id">> => ID}),
+    TemplateParams = marshal_template_params(Params#{<<"id">> => ID}),
     Request = {fistful_p2p_template, 'Create', [TemplateParams, marshal(context, Context)]},
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, TemplateState} ->
@@ -67,7 +67,7 @@ get(ID, HandlerContext) ->
         {ok, TemplateState} ->
             case wapi_access_backend:check_resource(p2p_template, TemplateState, HandlerContext) of
                 ok ->
-                    {ok, unmarshal(p2p_template_state, TemplateState)};
+                    {ok, unmarshal_template_state(TemplateState)};
                 {error, unauthorized} ->
                     {error, {p2p_template, unauthorized}}
             end;
@@ -77,8 +77,7 @@ get(ID, HandlerContext) ->
 
 -spec block(id(), handler_context()) ->
     ok |
-    {error, {p2p_template, notfound}} |
-    {error, {p2p_template, unauthorized}}.
+    {error, {p2p_template, notfound | unauthorized}}.
 
 block(ID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
@@ -99,8 +98,8 @@ block(ID, HandlerContext) ->
 -spec issue_access_token(id(), binary(), handler_context()) ->
     {ok, binary()} |
     {error, expired} |
-    {error, {p2p_template, notfound}} |
-    {error, {p2p_template, unauthorized}}.
+    {error, {p2p_template, notfound | unauthorized}}.
+
 issue_access_token(ID, Expiration, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
         ok ->
@@ -117,8 +116,8 @@ issue_access_token(ID, Expiration, HandlerContext) ->
 -spec issue_transfer_ticket(id(), binary(), handler_context()) ->
     {ok, {binary(), binary()}} |
     {error, expired} |
-    {error, {p2p_template, notfound}} |
-    {error, {p2p_template, unauthorized}}.
+    {error, {p2p_template, notfound | unauthorized}}.
+
 issue_transfer_ticket(ID, TicketExpiration, #{woody_context := WoodyContext} = HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
         ok ->
@@ -141,7 +140,7 @@ issue_transfer_ticket(ID, TicketExpiration, #{woody_context := WoodyContext} = H
             %% TODO: Key = wapi_backend_utils:get_idempotent_key(ticket, PartyID, undefined),
             Key = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID, undefined),
 
-            % May be: {ok, TransferID} = wapi_backend_utils:gen_id_by_type(ticket, Key, 0, HandlerContext),
+            %% TODO: {ok, TransferID} = wapi_backend_utils:gen_id_by_type(ticket, Key, 0, HandlerContext),
             {ok, {TransferID, _}} =  bender_client:gen_snowflake(Key, 0, WoodyContext),
 
             case wapi_backend_utils:issue_grant_token(
@@ -160,7 +159,7 @@ issue_transfer_ticket(ID, TicketExpiration, #{woody_context := WoodyContext} = H
 
 %% Convert swag maps to thrift records
 
-marshal(p2p_template_params, Params = #{
+marshal_template_params(Params = #{
     <<"id">> := ID,
     <<"identityID">> := IdentityID,
     <<"details">> := Details
@@ -169,45 +168,44 @@ marshal(p2p_template_params, Params = #{
     #p2p_template_P2PTemplateParams{
         id = marshal(id, ID),
         identity_id  = marshal(id, IdentityID),
-        template_details = marshal(p2p_template_details, Details),
+        template_details = marshal_template_details(Details),
         external_id = maybe_marshal(id, ExternalID)
-    };
+    }.
 
-marshal(p2p_template_details, Details = #{
+marshal_template_details(Details = #{
     <<"body">> := Body
 }) ->
     Metadata = maps:get(<<"metadata">>, Details, undefined),
     #p2p_template_P2PTemplateDetails{
-        body = marshal(p2p_template_body, Body),
-        metadata = maybe_marshal(p2p_template_metadata, Metadata)
-    };
+        body = marshal_template_body(Body),
+        metadata = marshal_template_metadata(Metadata)
+    }.
 
-marshal(p2p_template_body, #{
+marshal_template_body(#{
     <<"value">> := Cash
 }) ->
-    #p2p_template_P2PTemplateBody{
-        value = marshal(p2p_template_cash, Cash)
-    };
-
-marshal(p2p_template_cash, Cash  = #{
-    <<"currency">> := Currency
-}) ->
+    Currency = maps:get(<<"currency">>, Cash),
     Amount = maps:get(<<"amount">>, Cash, undefined),
-    #p2p_template_Cash{
-        currency = marshal(currency_ref, Currency),
-        amount = maybe_marshal(amount, Amount)
-    };
+    #p2p_template_P2PTemplateBody{
+        value = #p2p_template_Cash{
+            currency = marshal(currency_ref, Currency),
+            amount = maybe_marshal(amount, Amount)
+        }
+    }.
 
-marshal(p2p_template_metadata, #{
+marshal_template_metadata(undefined) ->
+    undefined;
+marshal_template_metadata(#{
     <<"defaultMetadata">> := Metadata
 }) ->
     #p2p_template_P2PTemplateMetadata{
         value = marshal(context, Metadata)
-    };
+    }.
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
+%%
 
 maybe_marshal(_Type, undefined) ->
     undefined;
@@ -216,7 +214,7 @@ maybe_marshal(Type, Value) ->
 
 %% Convert thrift records to swag maps
 
-unmarshal(p2p_template_state, #p2p_template_P2PTemplateState{
+unmarshal_template_state(#p2p_template_P2PTemplateState{
     id = ID,
     identity_id = IdentityID,
     created_at = CreatedAt,
@@ -230,41 +228,41 @@ unmarshal(p2p_template_state, #p2p_template_P2PTemplateState{
         <<"identityID">>    => unmarshal(id, IdentityID),
         <<"createdAt">>     => unmarshal(string, CreatedAt),
         <<"isBlocked">>     => maybe_unmarshal(blocking, Blocking),
-        <<"details">>       => unmarshal(p2p_template_details, Details),
+        <<"details">>       => unmarshal_template_details(Details),
         <<"externalID">>    => maybe_unmarshal(id, ExternalID)
-    });
+    }).
 
-unmarshal(p2p_template_details, #p2p_template_P2PTemplateDetails{
+unmarshal_template_details(#p2p_template_P2PTemplateDetails{
     body = Body,
     metadata = Metadata
 }) ->
     genlib_map:compact(#{
-        <<"body">>      => unmarshal(p2p_template_body, Body),
-        <<"metadata">>  => maybe_unmarshal(p2p_template_metadata, Metadata)
-    });
+        <<"body">>      => unmarshal_template_body(Body),
+        <<"metadata">>  => unmarshal_template_metadata(Metadata)
+    }).
 
-unmarshal(p2p_template_body, #p2p_template_P2PTemplateBody{
+unmarshal_template_body(#p2p_template_P2PTemplateBody{
     value = Cash
 }) ->
+    #p2p_template_Cash{
+        currency = Currency,
+        amount = Amount
+    } = Cash,
     #{
-        <<"value">> => unmarshal(p2p_template_cash, Cash)
-    };
+        <<"value">> => genlib_map:compact(#{
+            <<"currency">> => unmarshal(currency_ref, Currency),
+            <<"amount">> => maybe_unmarshal(amount, Amount)
+        })
+    }.
 
-unmarshal(p2p_template_cash, #p2p_template_Cash{
-    currency = Currency,
-    amount = Amount
-}) ->
-    genlib_map:compact(#{
-        <<"currency">> => unmarshal(currency_ref, Currency),
-        <<"amount">> => maybe_unmarshal(amount, Amount)
-    });
-
-unmarshal(p2p_template_metadata, #p2p_template_P2PTemplateMetadata{
+unmarshal_template_metadata(undefined) ->
+    undefined;
+unmarshal_template_metadata(#p2p_template_P2PTemplateMetadata{
     value = Metadata
 }) ->
     genlib_map:compact(#{
         <<"defaultMetadata">> => maybe_unmarshal(context, Metadata)
-    });
+    }).
 
 unmarshal(blocking, unblocked) ->
     false;
@@ -274,6 +272,7 @@ unmarshal(blocking, blocked) ->
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
+%%
 
 maybe_unmarshal(_, undefined) ->
     undefined;

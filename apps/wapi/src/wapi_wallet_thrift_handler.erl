@@ -422,6 +422,12 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {receiver, invalid_resource}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {token, {not_verified, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
+        {error, {p2p_transfer, operation_not_permitted}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Operation not permitted">>));
         {error, {p2p_transfer, forbidden_currency}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));

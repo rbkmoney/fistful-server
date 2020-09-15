@@ -23,6 +23,7 @@
 
 -export([
     create_identity/1,
+    create_identity_thrift_name/1,
     get_identity/1,
     create_identity_challenge/1,
     get_identity_challenge/1,
@@ -62,6 +63,7 @@ groups() ->
         {base, [],
             [
                 create_identity,
+                create_identity_thrift_name,
                 get_identity,
                 create_identity_challenge,
                 get_identity_challenge,
@@ -140,6 +142,32 @@ create_identity(C) ->
         {fistful_identity, fun('Create', _) -> {ok, ?IDENTITY(PartyID)} end}
     ], C),
     {ok, _} = call_api(
+        fun swag_client_wallet_identities_api:create_identity/3,
+        #{
+            body => #{
+                <<"name">> => ?STRING,
+                <<"class">> => ?STRING,
+                <<"provider">> => ?STRING,
+                <<"metadata">> => #{
+                    <<"somedata">> => ?STRING
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec create_identity_thrift_name(config()) ->
+    _.
+create_identity_thrift_name(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun('Create', _) ->
+            {ok, ?IDENTITY(PartyID, ?DEFAULT_CONTEXT_NO_NAME(PartyID))}
+        end}
+    ], C),
+    {ok, #{
+        <<"name">> := ?STRING
+    }} = call_api(
         fun swag_client_wallet_identities_api:create_identity/3,
         #{
             body => #{

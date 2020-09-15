@@ -21,6 +21,7 @@
 
 unmarshal_identity_params(#idnt_IdentityParams{
     id          = ID,
+    name        = Name,
     party       = PartyID,
     provider    = ProviderID,
     cls         = ClassID,
@@ -29,6 +30,7 @@ unmarshal_identity_params(#idnt_IdentityParams{
 }) ->
     genlib_map:compact(#{
         id          => unmarshal(id, ID),
+        name        => unmarshal(string, Name),
         party       => unmarshal(id, PartyID),
         provider    => unmarshal(id, ProviderID),
         class       => unmarshal(id, ClassID),
@@ -82,6 +84,7 @@ marshal_identity_state(IdentityState, Context) ->
     end,
     #idnt_IdentityState{
         id = maybe_marshal(id, ff_identity:id(IdentityState)),
+        name = marshal(string, ff_identity:name(IdentityState)),
         party_id = marshal(id, ff_identity:party(IdentityState)),
         provider_id = marshal(id, ff_identity:provider(IdentityState)),
         class_id = marshal(id, ff_identity:class(IdentityState)),
@@ -121,6 +124,7 @@ marshal(change, {effective_challenge_changed, ChallengeID}) ->
 marshal(identity, Identity) ->
     #idnt_Identity{
         id = maybe_marshal(id, ff_identity:id(Identity)),
+        name = maybe_marshal(string, ff_identity:name(Identity)),
         party = marshal(id, ff_identity:party(Identity)),
         provider = marshal(id, ff_identity:provider(Identity)),
         cls = marshal(id, ff_identity:class(Identity)),
@@ -222,6 +226,7 @@ unmarshal(change, {effective_challenge_changed, ChallengeID}) ->
 
 unmarshal(identity, #idnt_Identity{
     id          = ID,
+    name        = Name,
     party       = PartyID,
     provider    = ProviderID,
     cls         = ClassID,
@@ -232,6 +237,7 @@ unmarshal(identity, #idnt_Identity{
 }) ->
     genlib_map:compact(#{
         id          => unmarshal(id, ID),
+        name        => unmarshal(string, Name),
         party       => unmarshal(id, PartyID),
         provider    => unmarshal(id, ProviderID),
         class       => unmarshal(id, ClassID),
@@ -334,6 +340,7 @@ maybe_unmarshal(Type, Value) ->
 identity_test() ->
     IdentityIn = #{
         id          => genlib:unique(),
+        name        => genlib:unique(),
         party       => genlib:unique(),
         provider    => genlib:unique(),
         class       => genlib:unique(),

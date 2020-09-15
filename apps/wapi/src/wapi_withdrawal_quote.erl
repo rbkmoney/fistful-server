@@ -92,7 +92,7 @@ payload_symmetry_test() ->
         },
         created_at = <<"1970-01-01T00:00:00.123Z">>,
         expires_on = <<"1970-01-01T00:00:00.321Z">>,
-        quote_data = {obj, #{{arr,[{nl,{msgp_Nil}}]} => {arr,[{nl,{msgp_Nil}}]}}},
+        quote_data = {obj, #{{arr, [{nl, {msgp_Nil}}]} => {arr, [{nl, {msgp_Nil}}]}}},
         route = #wthd_Route{
             provider_id = 100,
             terminal_id = 2
@@ -128,7 +128,7 @@ payload_v2_decoding_test() ->
         },
         created_at = <<"1970-01-01T00:00:00.123Z">>,
         expires_on = <<"1970-01-01T00:00:00.321Z">>,
-        quote_data = {obj, #{{arr,[{nl,{msgp_Nil}}]} => {arr,[{nl,{msgp_Nil}}]}}},
+        quote_data = {obj, #{{arr, [{nl, {msgp_Nil}}]} => {arr, [{nl, {msgp_Nil}}]}}},
         route = #wthd_Route{
             provider_id = 1000,
             terminal_id = 2,

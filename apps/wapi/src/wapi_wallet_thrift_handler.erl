@@ -447,8 +447,7 @@ process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
         {error, {p2p_transfer, notfound}} ->
             wapi_handler_utils:reply_ok(404)
     end;
-                          
-=======
+
 %% Webhooks
 
 process_request('CreateWebhook', #{'WebhookParams' := WebhookParams}, Context, _Opts) ->

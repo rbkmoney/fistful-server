@@ -92,7 +92,7 @@ create_destination(C) ->
 create_source(C) ->
     Party = create_party(C),
     IID = create_person_identity(Party, C),
-    _SourceID = create_source(IID,C),
+    _SourceID = create_source(IID, C),
     ok.
 
 -spec create_destination_identity_notfound(config()) -> test_return().
@@ -138,7 +138,7 @@ create_destination_currency_notfound(C) ->
                 currency => <<"BadUnknownMoney">>,
                 resource => DestResource},
     CreateResult = ff_destination:create(Params, ff_entity_context:new()),
-    ?assertMatch({error,{currency, notfound}}, CreateResult).
+    ?assertMatch({error, {currency, notfound}}, CreateResult).
 
 -spec create_source_currency_notfound(config()) -> test_return().
 create_source_currency_notfound(C) ->
@@ -151,7 +151,7 @@ create_source_currency_notfound(C) ->
                 currency => <<"BadUnknownMoney">>,
                 resource => SrcResource},
     CreateResult = ff_source:create(Params, ff_entity_context:new()),
-    ?assertMatch({error,{currency, notfound}}, CreateResult).
+    ?assertMatch({error, {currency, notfound}}, CreateResult).
 
 %% Common functions
 

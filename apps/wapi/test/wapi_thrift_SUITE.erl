@@ -437,6 +437,7 @@ get_w2w_transfer(W2WTransferID2, C) ->
 
 create_p2p_transfer(SenderToken, ReceiverToken, IdentityID, C) ->
     DefaultParams = #{
+        <<"identityID">> => IdentityID,
         <<"sender">> => #{
             <<"type">> => <<"BankCardSenderResourceParams">>,
             <<"token">> => SenderToken,
@@ -446,9 +447,9 @@ create_p2p_transfer(SenderToken, ReceiverToken, IdentityID, C) ->
             <<"type">> => <<"BankCardReceiverResourceParams">>,
             <<"token">> => ReceiverToken
         },
-        <<"identityID">> => IdentityID,
+        <<"quoteToken">> => get_quote_token(IdentityID, SenderToken, ReceiverToken),
         <<"body">> => #{
-            <<"amount">> => 1000,
+            <<"amount">> => ?INTEGER,
             <<"currency">> => ?RUB
         },
         <<"contactInfo">> => #{
@@ -462,6 +463,25 @@ create_p2p_transfer(SenderToken, ReceiverToken, IdentityID, C) ->
         ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, P2PTransfer).
+
+get_quote_token(IdentityID, SenderToken, ReceiverToken) ->
+    {ok, SenderBankCard} = wapi_crypto:decrypt_bankcard_token(SenderToken),
+    {ok, ReceiverBankCard} = wapi_crypto:decrypt_bankcard_token(ReceiverToken),
+    Quote = #{
+        fees              => #{fees => #{}},
+        amount            => {?INTEGER, ?RUB},
+        party_revision    => 1,
+        domain_revision   => 1,
+        created_at        => 1600147637597,
+        expires_on        => 1600147637597,
+        identity_id       => IdentityID,
+        sender            => {bank_card, #{ token => SenderBankCard#'BankCard'.token, bin_data_id => 123 }},
+        receiver          => {bank_card, #{ token => ReceiverBankCard#'BankCard'.token, bin_data_id => 123 }}
+    },
+    PartyID = ?STRING,
+    Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
+    {ok, QuoteToken} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Payload, wapi_auth:get_signee()),
+    QuoteToken.
 
 get_p2p_transfer(P2PTransferID, C) ->
     {ok, P2PTransfer} = call_api(

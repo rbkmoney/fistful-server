@@ -19,6 +19,13 @@
 }).
 -define(BOOLEAN, true).
 
+-define(DEFAULT_CONTEXT_NO_NAME(PartyID), #{
+    <<"com.rbkmoney.wapi">> => {obj, #{
+        {str, <<"owner">>} => {str, PartyID},
+        {str, <<"metadata">>} => {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}
+    }}
+}).
+
 -define(DEFAULT_METADATA(), #{<<"somedata">> => {str, ?STRING}}).
 
 -define(CASH, #'Cash'{
@@ -116,13 +123,18 @@
     context     = ?DEFAULT_CONTEXT(PartyID)
 }).
 
--define(IDENTITY(PartyID), #idnt_IdentityState{
+-define(IDENTITY(PartyID),
+    ?IDENTITY(PartyID, ?DEFAULT_CONTEXT(PartyID))
+).
+
+-define(IDENTITY(PartyID, Context), #idnt_IdentityState{
     id = ?STRING,
+    name = ?STRING,
     party_id = ?STRING,
     provider_id = ?STRING,
     class_id = ?STRING,
     metadata = ?DEFAULT_METADATA(),
-    context = ?DEFAULT_CONTEXT(PartyID)
+    context = Context
 }).
 
 -define(IDENTITY_CHALLENGE(Status), #idnt_ChallengeState{

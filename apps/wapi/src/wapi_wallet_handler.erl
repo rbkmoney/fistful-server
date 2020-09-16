@@ -571,7 +571,7 @@ process_request('ListDeposits', Params, Context, _Opts) ->
 
 %% Webhooks
 process_request('CreateWebhook', Params, Context, _Opts) ->
-    case wapi_wallet_ff_backend:create_webhook(Params, Context) of
+    case wapi_webhook_backend:create_webhook(Params, Context) of
         {ok, Webhook} -> wapi_handler_utils:reply_ok(201, Webhook);
         {error, {identity, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
@@ -583,7 +583,7 @@ process_request('CreateWebhook', Params, Context, _Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>))
     end;
 process_request('GetWebhooks', #{identityID := IdentityID}, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_webhooks(IdentityID, Context) of
+    case wapi_webhook_backend:get_webhooks(IdentityID, Context) of
         {ok, Webhooks} -> wapi_handler_utils:reply_ok(200, Webhooks);
         {error, {identity, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
@@ -591,7 +591,7 @@ process_request('GetWebhooks', #{identityID := IdentityID}, Context, _Opts) ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
     end;
 process_request('GetWebhookByID', #{identityID := IdentityID, webhookID := WebhookID}, Context, _Opts) ->
-    case wapi_wallet_ff_backend:get_webhook(WebhookID, IdentityID, Context) of
+    case wapi_webhook_backend:get_webhook(WebhookID, IdentityID, Context) of
         {ok, Webhook} -> wapi_handler_utils:reply_ok(200, Webhook);
         {error, notfound} ->
             wapi_handler_utils:reply_ok(404);
@@ -601,7 +601,7 @@ process_request('GetWebhookByID', #{identityID := IdentityID, webhookID := Webho
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
     end;
 process_request('DeleteWebhookByID', #{identityID := IdentityID, webhookID := WebhookID}, Context, _Opts) ->
-    case wapi_wallet_ff_backend:delete_webhook(WebhookID, IdentityID, Context) of
+    case wapi_webhook_backend:delete_webhook(WebhookID, IdentityID, Context) of
         ok -> wapi_handler_utils:reply_ok(204);
         {error, notfound} ->
             wapi_handler_utils:reply_ok(404);

@@ -28,6 +28,8 @@
 -export([create_transfer/2]).
 -export([get_transfer/2]).
 
+-import(ff_pipeline, [do/1, unwrap/1]).
+
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 
 -spec create_transfer(req_data(), handler_context()) ->
@@ -287,9 +289,3 @@ maybe_unmarshal(_T, undefined) ->
     undefined;
 maybe_unmarshal(T, V) ->
     unmarshal(T, V).
-
-do(Fun) ->
-    ff_pipeline:do(Fun).
-
-unwrap(Res) ->
-    ff_pipeline:unwrap(Res).

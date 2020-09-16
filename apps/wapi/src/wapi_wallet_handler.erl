@@ -376,6 +376,9 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Withdrawal body differs from quote`s one">>)
             );
+        {error, {quote, token_expired}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Quote token expired">>));
         {error, {terms, {terms_violation, {cash_range, _}}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
@@ -680,6 +683,9 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {token, {not_verified, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
+        {error, {quote, token_expired}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Quote token expired">>));
         {error, {invalid_resource_token, Type}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"InvalidResourceToken">>,
@@ -810,6 +816,9 @@ process_request('CreateP2PTransferWithTemplate', #{
         {error, {token, {not_verified, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
+        {error, {quote, token_expired}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Quote token expired">>));
         {error, {invalid_resource_token, Type}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"InvalidResourceToken">>,

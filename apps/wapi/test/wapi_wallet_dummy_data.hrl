@@ -66,6 +66,29 @@
     context = ?DEFAULT_CONTEXT(PartyID)
 }).
 
+-define(WITHDRAWAL_QUOTE, #wthd_Quote{
+    cash_from = ?CASH,
+    cash_to = ?CASH,
+    created_at = ?TIMESTAMP,
+    expires_on = ?TIMESTAMP,
+    operation_timestamp = ?TIMESTAMP,
+    domain_revision = 123,
+    party_revision = 123,
+    route = #wthd_Route{
+        provider_id = 123,
+        terminal_id = 123
+    },
+    quote_data = {str, ?STRING}
+}).
+
+-define(WITHDRAWAL_EVENT(Change), #wthd_Event{
+    change = Change,
+    occured_at = ?TIMESTAMP,
+    event_id = ?INTEGER
+}).
+
+-define(WITHDRAWAL_STATUS_CHANGE, {status_changed, #wthd_StatusChange{status = {pending, #wthd_status_Pending{}}}}).
+
 -define(BLOCKING, unblocked).
 
 -define(ACCOUNT, #account_Account{

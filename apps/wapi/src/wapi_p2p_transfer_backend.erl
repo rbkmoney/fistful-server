@@ -39,8 +39,7 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
         ok ->
             case wapi_backend_utils:gen_id(p2p_transfer, Params, HandlerContext) of
                 {ok, ID} ->
-                    Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-                    do_create_transfer(ID, Params, Context, HandlerContext);
+                    do_create_transfer(ID, Params, HandlerContext);
                 {error, {external_id_conflict, ID}} ->
                     {error, {external_id_conflict, ID, maps:get(<<"externalID">>, Params, undefined)}}
             end;
@@ -68,21 +67,13 @@ get_transfer(ID, HandlerContext) ->
 
 %% Internal
 
-do_create_transfer(ID, Params = #{<<"quoteToken">> := QuoteToken}, Context, HandlerContext) ->
+do_create_transfer(ID, Params, HandlerContext) ->
     do(fun() ->
-        VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
-        Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
-        ok = unwrap(authorize_p2p_quote_token(Quote, maps:get(<<"identityID">>, Params))),
-        MarshaledQuote = ff_p2p_transfer_codec:marshal(quote, Quote),
-        TransferParams = marshal_transfer_params(Params#{<<"id">> => ID}),
-        TransferParamsWithQuote = TransferParams#p2p_transfer_P2PTransferParams{quote = MarshaledQuote},
-        Request = {p2p_transfer, 'Create', [TransferParamsWithQuote, marshal(context, Context)]},
+        Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
+        TransferParams = build_transfer_params(Params#{<<"id">> => ID}),
+        Request = {p2p_transfer, 'Create', [TransferParams, marshal(context, Context)]},
         unwrap(process_p2p_transfer_call(Request, HandlerContext))
-    end);
-do_create_transfer(ID, Params, Context, HandlerContext) ->
-    TransferParams = marshal_transfer_params(Params#{<<"id">> => ID}),
-    Request = {p2p_transfer, 'Create', [TransferParams, marshal(context, Context)]},
-    process_p2p_transfer_call(Request, HandlerContext).
+    end).
 
 process_p2p_transfer_call(Request, HandlerContext) ->
     case service_call(Request, HandlerContext) of
@@ -101,6 +92,16 @@ process_p2p_transfer_call(Request, HandlerContext) ->
         {exception, #fistful_IdentityNotFound{ }} ->
             {error, {identity, notfound}}
     end.
+
+build_transfer_params(Params = #{<<"quoteToken">> := QuoteToken, <<"identityID">> := IdentityID}) ->
+    VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
+    Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
+    ok = unwrap(authorize_p2p_quote_token(Quote, IdentityID)),
+    TransferParams = marshal_transfer_params(Params),
+    MarshaledQuote = ff_p2p_transfer_codec:marshal(quote, Quote),
+    TransferParams#p2p_transfer_P2PTransferParams{quote = MarshaledQuote};
+build_transfer_params(Params) ->
+    marshal_transfer_params(Params).
 
 verify_p2p_quote_token(Token) ->
     case uac_authorizer_jwt:verify(Token, #{}) of

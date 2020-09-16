@@ -447,7 +447,7 @@ create_p2p_transfer(SenderToken, ReceiverToken, IdentityID, C) ->
             <<"type">> => <<"BankCardReceiverResourceParams">>,
             <<"token">> => ReceiverToken
         },
-        <<"quoteToken">> => get_quote_token(IdentityID, SenderToken, ReceiverToken),
+        <<"quoteToken">> => get_quote_token(SenderToken, ReceiverToken, IdentityID, C),
         <<"body">> => #{
             <<"amount">> => ?INTEGER,
             <<"currency">> => ?RUB
@@ -464,13 +464,15 @@ create_p2p_transfer(SenderToken, ReceiverToken, IdentityID, C) ->
     ),
     maps:get(<<"id">>, P2PTransfer).
 
-get_quote_token(IdentityID, SenderToken, ReceiverToken) ->
+get_quote_token(SenderToken, ReceiverToken, IdentityID, C) ->
+    PartyID = ct_helper:cfg(party, C),
     {ok, SenderBankCard} = wapi_crypto:decrypt_bankcard_token(SenderToken),
     {ok, ReceiverBankCard} = wapi_crypto:decrypt_bankcard_token(ReceiverToken),
+    {ok, PartyRevision} = ff_party:get_revision(PartyID),
     Quote = #{
         fees              => #{fees => #{}},
         amount            => {?INTEGER, ?RUB},
-        party_revision    => 1,
+        party_revision    => PartyRevision,
         domain_revision   => 1,
         created_at        => 1600147637597,
         expires_on        => 1600147637597,
@@ -478,7 +480,6 @@ get_quote_token(IdentityID, SenderToken, ReceiverToken) ->
         sender            => {bank_card, #{ token => SenderBankCard#'BankCard'.token, bin_data_id => 123 }},
         receiver          => {bank_card, #{ token => ReceiverBankCard#'BankCard'.token, bin_data_id => 123 }}
     },
-    PartyID = ?STRING,
     Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
     {ok, QuoteToken} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Payload, wapi_auth:get_signee()),
     QuoteToken.

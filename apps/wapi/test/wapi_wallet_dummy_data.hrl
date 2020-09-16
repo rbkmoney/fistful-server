@@ -19,6 +19,13 @@
 }).
 -define(BOOLEAN, true).
 
+-define(DEFAULT_CONTEXT_NO_NAME(PartyID), #{
+    <<"com.rbkmoney.wapi">> => {obj, #{
+        {str, <<"owner">>} => {str, PartyID},
+        {str, <<"metadata">>} => {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}
+    }}
+}).
+
 -define(DEFAULT_METADATA(), #{<<"somedata">> => {str, ?STRING}}).
 
 -define(CASH, #'Cash'{
@@ -58,6 +65,29 @@
     metadata = ?DEFAULT_METADATA(),
     context = ?DEFAULT_CONTEXT(PartyID)
 }).
+
+-define(WITHDRAWAL_QUOTE, #wthd_Quote{
+    cash_from = ?CASH,
+    cash_to = ?CASH,
+    created_at = ?TIMESTAMP,
+    expires_on = ?TIMESTAMP,
+    operation_timestamp = ?TIMESTAMP,
+    domain_revision = 123,
+    party_revision = 123,
+    route = #wthd_Route{
+        provider_id = 123,
+        terminal_id = 123
+    },
+    quote_data = {str, ?STRING}
+}).
+
+-define(WITHDRAWAL_EVENT(Change), #wthd_Event{
+    change = Change,
+    occured_at = ?TIMESTAMP,
+    event_id = ?INTEGER
+}).
+
+-define(WITHDRAWAL_STATUS_CHANGE, {status_changed, #wthd_StatusChange{status = {pending, #wthd_status_Pending{}}}}).
 
 -define(BLOCKING, unblocked).
 
@@ -138,13 +168,18 @@
     context = ?DEFAULT_CONTEXT(PartyID)
 }).
 
--define(IDENTITY(PartyID), #idnt_IdentityState{
+-define(IDENTITY(PartyID),
+    ?IDENTITY(PartyID, ?DEFAULT_CONTEXT(PartyID))
+).
+
+-define(IDENTITY(PartyID, Context), #idnt_IdentityState{
     id = ?STRING,
+    name = ?STRING,
     party_id = ?STRING,
     provider_id = ?STRING,
     class_id = ?STRING,
     metadata = ?DEFAULT_METADATA(),
-    context = ?DEFAULT_CONTEXT(PartyID)
+    context = Context
 }).
 
 -define(IDENTITY_CHALLENGE(Status), #idnt_ChallengeState{
@@ -229,7 +264,7 @@
     id = ?STRING,
     name = ?STRING,
     created_at = ?TIMESTAMP,
-    provider = ?INTEGER,
+    provider = ?STRING,
     identity_class = ?STRING,
     identity_level = ?STRING,
     effective_challenge = ?STRING,

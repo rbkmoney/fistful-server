@@ -152,7 +152,7 @@ metadata(_Instrument) ->
 
 -spec create(ff_instrument_machine:params(T)) ->
     {ok, [event(T)]} |
-    {error, _WalletError}.
+    {error, {identity, notfound} | _WalletError}.
 
 create(Params = #{
     id := ID,

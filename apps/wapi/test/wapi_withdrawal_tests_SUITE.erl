@@ -23,7 +23,10 @@
 -export([
     create/1,
     get/1,
-    get_by_external_id/1
+    get_by_external_id/1,
+    create_quote/1,
+    get_events/1,
+    get_event/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -58,7 +61,10 @@ groups() ->
             [
                 create,
                 get,
-                get_by_external_id
+                get_by_external_id,
+                create_quote,
+                get_events,
+                get_event
             ]
         }
     ].
@@ -181,6 +187,81 @@ get_by_external_id(C) ->
         #{
             binding => #{
                 <<"externalID">> => ?STRING
+            }
+        },
+    ct_helper:cfg(context, C)
+).
+
+-spec create_quote(config()) ->
+    _.
+create_quote(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> {ok, ?WITHDRAWAL_QUOTE} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => genlib_map:compact(#{
+                <<"walletID">> => ?STRING,
+                <<"destinationID">> => ?STRING,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => #{
+                    <<"amount">> => 100,
+                    <<"currency">> => <<"RUB">>
+                }
+        })},
+        ct_helper:cfg(context, C)
+    ).
+
+-spec get_events(config()) ->
+    _.
+get_events(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_withdrawal,
+            fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('GetEvents', [_, #'EventRange'{limit = 0}]) -> {ok, []};
+                ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
+            end
+        }
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_withdrawals_api:poll_withdrawal_events/3,
+        #{
+            binding => #{
+                <<"withdrawalID">> => ?STRING
+            },
+            qs_val => #{
+                <<"limit">> => 10
+            }
+        },
+    ct_helper:cfg(context, C)
+).
+
+-spec get_event(config()) ->
+    _.
+get_event(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_withdrawal,
+            fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('GetEvents', [_, #'EventRange'{limit = 0}]) -> {ok, []};
+                ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
+            end
+        }
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_withdrawals_api:get_withdrawal_events/3,
+        #{
+            binding => #{
+                <<"withdrawalID">> => ?STRING,
+                <<"eventID">> => ?INTEGER
             }
         },
     ct_helper:cfg(context, C)

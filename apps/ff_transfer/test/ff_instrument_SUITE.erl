@@ -96,18 +96,23 @@ create_source(C) ->
     ok.
 
 -spec create_destination_identity_notfound(config()) -> test_return().
-    create_destination_identity_notfound(C) ->
+create_destination_identity_notfound(C) ->
     IID = <<"BadIdentityID">>,
-    DestResource = {    bank_card,
-                        #{  bank_card => ct_cardstore:bank_card(<<"4150399999000900">>,
-                            {12, 2025},
-                            C)}
-                    },
-    Params = #{ id => genlib:unique(),
-                identity => IID,
-                name => <<"XDestination">>,
-                currency => <<"RUB">>,
-                resource => DestResource},
+    DestResource = {
+        bank_card,
+        #{bank_card => ct_cardstore:bank_card(
+            <<"4150399999000900">>,
+            {12, 2025},
+            C
+        )}
+    },
+    Params = #{
+        id => genlib:unique(),
+        identity => IID,
+        name => <<"XDestination">>,
+        currency => <<"RUB">>,
+        resource => DestResource
+    },
     CreateResult = ff_destination:create(Params, ff_entity_context:new()),
     ?assertMatch({error, {identity, notfound}}, CreateResult).
 
@@ -115,11 +120,13 @@ create_source(C) ->
 create_source_identity_notfound(_C) ->
     IID = <<"BadIdentityID">>,
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
-    Params = #{ id => genlib:unique(),
-                identity => IID,
-                name => <<"XSource">>,
-                currency => <<"RUB">>,
-                resource => SrcResource},
+    Params = #{
+        id => genlib:unique(),
+        identity => IID,
+        name => <<"XSource">>,
+        currency => <<"RUB">>,
+        resource => SrcResource
+    },
     CreateResult = ff_source:create(Params, ff_entity_context:new()),
     ?assertMatch({error, {identity, notfound}}, CreateResult).
 
@@ -127,16 +134,21 @@ create_source_identity_notfound(_C) ->
 create_destination_currency_notfound(C) ->
     Party = create_party(C),
     IID = create_person_identity(Party, C),
-    DestResource = {    bank_card,
-                        #{  bank_card => ct_cardstore:bank_card(<<"4150399999000900">>,
-                            {12, 2025},
-                            C)}
-                    },
-    Params = #{ id => genlib:unique(),
-                identity => IID,
-                name => <<"XDestination">>,
-                currency => <<"BadUnknownMoney">>,
-                resource => DestResource},
+    DestResource = {
+        bank_card,
+        #{bank_card => ct_cardstore:bank_card(
+            <<"4150399999000900">>,
+            {12, 2025},
+            C
+        )}
+    },
+    Params = #{
+        id => genlib:unique(),
+        identity => IID,
+        name => <<"XDestination">>,
+        currency => <<"BadUnknownCurrency">>,
+        resource => DestResource
+    },
     CreateResult = ff_destination:create(Params, ff_entity_context:new()),
     ?assertMatch({error, {currency, notfound}}, CreateResult).
 
@@ -145,11 +157,13 @@ create_source_currency_notfound(C) ->
     Party = create_party(C),
     IID = create_person_identity(Party, C),
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
-    Params = #{ id => genlib:unique(),
-                identity => IID,
-                name => <<"XDestination">>,
-                currency => <<"BadUnknownMoney">>,
-                resource => SrcResource},
+    Params = #{
+        id => genlib:unique(),
+        identity => IID,
+        name => <<"XDestination">>,
+        currency => <<"BadUnknownCurrency">>,
+        resource => SrcResource
+    },
     CreateResult = ff_source:create(Params, ff_entity_context:new()),
     ?assertMatch({error, {currency, notfound}}, CreateResult).
 

@@ -20,12 +20,22 @@
      | {receiver,     invalid_resource}
      .
 
+-type error_create_quote()
+    :: {identity,     unauthorized}
+     | {identity,     notfound}
+     | {p2p_transfer, forbidden_currency}
+     | {p2p_transfer, cash_range_exceeded}
+     | {sender,       invalid_resource}
+     | {receiver,     invalid_resource}
+     .
+
 -type error_get()
     :: {p2p_transfer, unauthorized}
      | {p2p_transfer, notfound}
      .
 
 -export([create_transfer/2]).
+-export([quote_transfer/2]).
 -export([get_transfer/2]).
 
 -import(ff_pipeline, [do/1, unwrap/1]).
@@ -65,7 +75,48 @@ get_transfer(ID, HandlerContext) ->
             {error, {p2p_transfer, notfound}}
     end.
 
+-spec quote_transfer(req_data(), handler_context()) ->
+    {ok, response_data()} | {error, error_create_quote()}.
+
+quote_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
+        ok ->
+            do_quote_transfer(Params, HandlerContext);
+        {error, unauthorized} ->
+            {error, {identity, unauthorized}};
+        {error, notfound} ->
+            {error, {identity, notfound}}
+    end.
+
 %% Internal
+
+do_quote_transfer(Params, HandlerContext) ->
+    Request = {p2p_transfer, 'GetQuote', [marshal_quote_params(Params)]},
+    case service_call(Request, HandlerContext) of
+        {ok, Quote} ->
+            PartyID = wapi_handler_utils:get_owner(HandlerContext),
+            Token = create_quote_token(Quote, PartyID),
+            UnmarshaledQuote = unmarshal_quote(Quote),
+            {ok, UnmarshaledQuote#{<<"token">> => Token}};
+        {exception, #p2p_transfer_NoResourceInfo{type = sender}} ->
+            {error, {sender, invalid_resource}};
+        {exception, #p2p_transfer_NoResourceInfo{type = receiver}} ->
+            {error, {receiver, invalid_resource}};
+        {exception, #fistful_ForbiddenOperationCurrency{}} ->
+            {error, {p2p_transfer, forbidden_currency}};
+        {exception, #fistful_ForbiddenOperationAmount{}} ->
+            {error, {p2p_transfer, cash_range_exceeded}};
+        {exception, #fistful_IdentityNotFound{ }} ->
+            {error, {identity, notfound}}
+    end.
+
+create_quote_token(Quote, PartyID) ->
+    Payload = wapi_p2p_quote:create_token_payload_from_thrift(Quote, PartyID),
+    {ok, Token} = issue_quote_token(PartyID, Payload),
+    Token.
+
+issue_quote_token(PartyID, Payload) ->
+    uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Payload, wapi_auth:get_signee()).
 
 do_create_transfer(ID, Params, HandlerContext) ->
     do(fun() ->
@@ -123,6 +174,36 @@ service_call(Params, HandlerContext) ->
     wapi_handler_utils:service_call(Params, HandlerContext).
 
 %% Marshal
+
+marshal_quote_params(#{
+    <<"body">> := Body,
+    <<"identityID">> := IdentityID,
+    <<"sender">> := Sender,
+    <<"receiver">> := Receiver
+}) ->
+    #p2p_transfer_QuoteParams{
+        body = marshal_body(Body),
+        identity_id = IdentityID,
+        sender = marshal_quote_participant(Sender),
+        receiver = marshal_quote_participant(Receiver)
+    }.
+
+marshal_quote_participant(#{
+    <<"token">> := Token
+}) ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        unrecognized ->
+            BankCard = wapi_utils:base64url_to_map(Token),
+            {bank_card, #'ResourceBankCard'{
+                bank_card = #'BankCard'{
+                    token      = maps:get(<<"token">>, BankCard),
+                    bin        = maps:get(<<"bin">>, BankCard),
+                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
+                }
+            }};
+        {ok, BankCard} ->
+            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
+    end.
 
 marshal_transfer_params(#{
     <<"id">> := ID,
@@ -205,6 +286,18 @@ marshal(T, V) ->
     ff_codec:marshal(T, V).
 
 %% Unmarshal
+
+unmarshal_quote(#p2p_transfer_Quote{
+    fees = Fees,
+    expires_on = ExpiresOn
+}) ->
+    genlib_map:compact(#{
+        <<"expiresOn">> => ExpiresOn,
+        <<"customerFee">> => unmarshal_fees(Fees)
+    }).
+
+unmarshal_fees(#'Fees'{fees = #{operation_amount := Cash}}) ->
+    unmarshal_body(Cash).
 
 unmarshal_transfer(#p2p_transfer_P2PTransferState{
     id = ID,

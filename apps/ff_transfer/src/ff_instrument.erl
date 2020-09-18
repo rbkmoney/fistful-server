@@ -22,7 +22,7 @@
     unauthorized |
     authorized.
 
--define(ACTUAL_FORMAT_VERSION, 3).
+-define(ACTUAL_FORMAT_VERSION, 4).
 -type instrument_state(T) :: #{
     account     := account() | undefined,
     resource    := resource(T),
@@ -216,6 +216,11 @@ apply_event({account, Ev}, Instrument) ->
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
+maybe_migrate({created, Instrument = #{version := 3, name := Name}}, MigrateParams) ->
+    maybe_migrate({created, Instrument#{
+        version => 4,
+        name => maybe_migrate_name(Name)
+    }}, MigrateParams);
 maybe_migrate({created, Instrument = #{version := 2}}, MigrateParams) ->
     Context = maps:get(ctx, MigrateParams, undefined),
     %% TODO add metada migration for eventsink after decouple instruments
@@ -263,6 +268,9 @@ maybe_migrate_resource({bank_card, #{token := _Token} = BankCard}) ->
 maybe_migrate_resource(Resource) ->
     Resource.
 
+maybe_migrate_name(Name) ->
+    re:replace(Name, "\\d{12,19}", <<"">>, [global, {return, binary}]).
+
 %% Tests
 
 -ifdef(TEST).
@@ -281,7 +289,7 @@ v1_created_migration_test() ->
     {created, #{version := Version}} = maybe_migrate(LegacyEvent, #{
         timestamp => ff_codec:unmarshal(timestamp, ff_codec:marshal(timestamp_ms, CreatedAt))
     }),
-    ?assertEqual(3, Version).
+    ?assertEqual(4, Version).
 
 -spec v2_created_migration_test() -> _.
 v2_created_migration_test() ->
@@ -302,7 +310,15 @@ v2_created_migration_test() ->
             }
         }
     }),
-    ?assertEqual(3, Version),
+    ?assertEqual(4, Version),
     ?assertEqual(#{<<"some key">> => <<"some val">>}, Metadata).
+
+-spec name_migration_test() -> _.
+name_migration_test() ->
+    ?assertEqual(<<"sd">>, maybe_migrate_name(<<"sd123123123123123">>)),
+    ?assertEqual(<<"sd1231231231sd23123">>, maybe_migrate_name(<<"sd1231231231sd23123">>)),
+    ?assertEqual(<<"sdds123sd">>, maybe_migrate_name(<<"sd123123123123ds123sd">>)),
+    ?assertEqual(<<"sdsd">>, maybe_migrate_name(<<"sd123123123123123sd">>)),
+    ?assertEqual(<<"sd">>, maybe_migrate_name(<<"123123123123123sd">>)).
 
 -endif.

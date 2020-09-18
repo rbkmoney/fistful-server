@@ -48,6 +48,7 @@ authorize_operation(OperationID, Req, #{swagger_context := #{auth_context := Aut
     {destinations, DestinationID :: binary()} |
     {wallets, WalletID :: binary(), Asset :: map()}.
 
+
 -spec issue_access_token(wapi_handler_utils:owner(), token_spec()) ->
     uac_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec) ->

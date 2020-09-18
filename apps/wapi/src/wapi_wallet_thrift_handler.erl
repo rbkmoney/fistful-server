@@ -565,6 +565,75 @@ process_request('DeleteWebhookByID', #{identityID := IdentityID, webhookID := We
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
     end;
 
+%% P2P Templates
+
+process_request('CreateP2PTransferTemplate', #{'P2PTransferTemplateParameters' := Params}, Context, Opts) ->
+    case wapi_p2p_template_backend:create(Params, Context) of
+        {ok, P2PTemplate  = #{<<"id">> := TemplateID} } ->
+            wapi_handler_utils:reply_ok(201, P2PTemplate,
+                get_location('GetP2PTransferTemplateByID', [TemplateID], Opts));
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {currency, notfound}} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
+        {error, invalid_operation_amount} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Invalid operation amount">>));
+        {error, inaccessible} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
+        {error, {external_id_conflict, ID}} ->
+                wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
+    end;
+process_request('GetP2PTransferTemplateByID', #{'p2pTransferTemplateID' := P2PTemplateID}, Context, _Opts) ->
+    case wapi_p2p_template_backend:get(P2PTemplateID, Context) of
+        {ok, P2PTemplate} -> wapi_handler_utils:reply_ok(200, P2PTemplate);
+        {error, {p2p_template, notfound}} ->
+            wapi_handler_utils:reply_error(404);
+        {error, {p2p_template, unauthorized}} ->
+            wapi_handler_utils:reply_error(404)
+    end;
+process_request('BlockP2PTransferTemplate', #{p2pTransferTemplateID := P2PTemplateID}, Context, _Opts) ->
+    case wapi_p2p_template_backend:block(P2PTemplateID, Context) of
+        ok -> wapi_handler_utils:reply_ok(204);
+        {error, {p2p_template, notfound}} ->
+            wapi_handler_utils:reply_error(404);
+        {error, {p2p_template, unauthorized}} ->
+            wapi_handler_utils:reply_error(404)
+    end;
+process_request('IssueP2PTransferTemplateAccessToken', #{
+    p2pTransferTemplateID := P2PTemplateID,
+    'P2PTransferTemplateTokenRequest' := #{<<"validUntil">> := Expiration}
+}, Context, _Opts) ->
+    case wapi_p2p_template_backend:issue_access_token(P2PTemplateID, Expiration, Context) of
+        {ok, Token} ->
+            wapi_handler_utils:reply_ok(201, #{ <<"token">> => Token, <<"validUntil">> => Expiration});
+        {error, expired} ->
+            wapi_handler_utils:reply_error(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>));
+        {error, {p2p_template, notfound}} ->
+            wapi_handler_utils:reply_error(404);
+        {error, {p2p_template, unauthorized}} ->
+            wapi_handler_utils:reply_error(404)
+    end;
+process_request('IssueP2PTransferTicket', #{
+    p2pTransferTemplateID := P2PTemplateID,
+    'P2PTransferTemplateTicketRequest' := #{<<"validUntil">> := Expiration}
+}, Context, _Opts) ->
+    case wapi_p2p_template_backend:issue_transfer_ticket(P2PTemplateID, Expiration, Context) of
+        {ok, {Token, ExpirationNew}} ->
+            wapi_handler_utils:reply_ok(201, #{ <<"token">> => Token, <<"validUntil">> => ExpirationNew});
+        {error, expired} ->
+            wapi_handler_utils:reply_error(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>));
+        {error, {p2p_template, notfound}} ->
+            wapi_handler_utils:reply_error(404);
+        {error, {p2p_template, unauthorized}} ->
+            wapi_handler_utils:reply_error(404)
+    end;
+
+%% Fallback to legacy handler
+
 process_request(OperationID, Params, Context, Opts) ->
     wapi_wallet_handler:process_request(OperationID, Params, Context, Opts).
 

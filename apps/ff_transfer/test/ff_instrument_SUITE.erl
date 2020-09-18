@@ -16,17 +16,27 @@
 -export([end_per_testcase/2]).
 
 % Tests
--export([create_destination/1]).
 -export([create_source/1]).
--export([create_destination_identity_notfound/1]).
+-export([create_destination/1]).
 -export([create_source_identity_notfound/1]).
--export([create_destination_currency_notfound/1]).
+-export([create_destination_identity_notfound/1]).
 -export([create_source_currency_notfound/1]).
+-export([create_destination_currency_notfound/1]).
+-export([get_source_not_authorized/1]).
+-export([get_destination_not_authorized/1]).
+-export([get_source_authorized/1]).
+-export([get_destination_authorized/1]).
+-export([get_source_notfound/1]).
+-export([get_destination_notfound/1]).
 
 -type config()         :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
 -type group_name()     :: ct_helper:group_name().
 -type test_return()    :: _ | no_return().
+
+%% Pipeline
+
+-import(ff_pipeline, [do/1]).
 
 -spec all() -> [test_case_name() | {group, group_name()}].
 all() ->
@@ -38,12 +48,18 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            create_destination,
             create_source,
-            create_destination_identity_notfound,
+            create_destination,
             create_source_identity_notfound,
+            create_destination_identity_notfound,
+            create_source_currency_notfound,
             create_destination_currency_notfound,
-            create_source_currency_notfound
+            get_source_not_authorized,
+            get_destination_not_authorized,
+            get_source_authorized,
+            get_destination_authorized,
+            get_source_notfound,
+            get_destination_notfound
         ]}
     ].
 
@@ -81,13 +97,6 @@ end_per_testcase(_Name, _C) ->
 
 %% Default group test cases
 
--spec create_destination(config()) -> test_return().
-create_destination(C) ->
-    Party  = create_party(C),
-    IID = create_person_identity(Party, C),
-    _DestinationID = create_destination(IID, C),
-    ok.
-
 -spec create_source(config()) -> test_return().
 create_source(C) ->
     Party = create_party(C),
@@ -95,26 +104,12 @@ create_source(C) ->
     _SourceID = create_source(IID, C),
     ok.
 
--spec create_destination_identity_notfound(config()) -> test_return().
-create_destination_identity_notfound(C) ->
-    IID = <<"BadIdentityID">>,
-    DestResource = {
-        bank_card,
-        #{bank_card => ct_cardstore:bank_card(
-            <<"4150399999000900">>,
-            {12, 2025},
-            C
-        )}
-    },
-    Params = #{
-        id => genlib:unique(),
-        identity => IID,
-        name => <<"XDestination">>,
-        currency => <<"RUB">>,
-        resource => DestResource
-    },
-    CreateResult = ff_destination:create(Params, ff_entity_context:new()),
-    ?assertMatch({error, {identity, notfound}}, CreateResult).
+-spec create_destination(config()) -> test_return().
+create_destination(C) ->
+    Party  = create_party(C),
+    IID = create_person_identity(Party, C),
+    _DestinationID = create_destination(IID, C),
+    ok.
 
 -spec create_source_identity_notfound(config()) -> test_return().
 create_source_identity_notfound(_C) ->
@@ -128,29 +123,29 @@ create_source_identity_notfound(_C) ->
         resource => SrcResource
     },
     CreateResult = ff_source:create(Params, ff_entity_context:new()),
-    ?assertMatch({error, {identity, notfound}}, CreateResult).
+    ?assertEqual({error, {identity, notfound}}, CreateResult).
 
--spec create_destination_currency_notfound(config()) -> test_return().
-create_destination_currency_notfound(C) ->
-    Party = create_party(C),
-    IID = create_person_identity(Party, C),
+-spec create_destination_identity_notfound(config()) -> test_return().
+create_destination_identity_notfound(C) ->
+    IID = <<"BadIdentityID">>,
     DestResource = {
         bank_card,
-        #{bank_card => ct_cardstore:bank_card(
-            <<"4150399999000900">>,
-            {12, 2025},
-            C
+        #{
+            bank_card => ct_cardstore:bank_card(
+                <<"4150399999000900">>,
+                {12, 2025},
+                C
         )}
     },
     Params = #{
         id => genlib:unique(),
         identity => IID,
         name => <<"XDestination">>,
-        currency => <<"BadUnknownCurrency">>,
+        currency => <<"RUB">>,
         resource => DestResource
     },
     CreateResult = ff_destination:create(Params, ff_entity_context:new()),
-    ?assertMatch({error, {currency, notfound}}, CreateResult).
+    ?assertEqual({error, {identity, notfound}}, CreateResult).
 
 -spec create_source_currency_notfound(config()) -> test_return().
 create_source_currency_notfound(C) ->
@@ -160,12 +155,173 @@ create_source_currency_notfound(C) ->
     Params = #{
         id => genlib:unique(),
         identity => IID,
-        name => <<"XDestination">>,
+        name => <<"XSource">>,
         currency => <<"BadUnknownCurrency">>,
         resource => SrcResource
     },
     CreateResult = ff_source:create(Params, ff_entity_context:new()),
-    ?assertMatch({error, {currency, notfound}}, CreateResult).
+    ?assertEqual({error, {currency, notfound}}, CreateResult).
+
+-spec create_destination_currency_notfound(config()) -> test_return().
+create_destination_currency_notfound(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    DestResource = {
+        bank_card,
+        #{
+            bank_card => ct_cardstore:bank_card(
+                <<"4150399999000900">>,
+                {12, 2025},
+                C
+            )
+        }
+    },
+    Params = #{
+        id => genlib:unique(),
+        identity => IID,
+        name => <<"XDestination">>,
+        currency => <<"BadUnknownCurrency">>,
+        resource => DestResource
+    },
+    CreateResult = ff_destination:create(Params, ff_entity_context:new()),
+    ?assertEqual({error, {currency, notfound}}, CreateResult).
+
+-spec get_source_not_authorized(config()) -> test_return().
+get_source_not_authorized(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
+    ID = genlib:unique(),
+    Params = #{
+        id => ID,
+        identity => IID,
+        name => <<"XSource">>,
+        currency => <<"RUB">>,
+        resource => SrcResource
+    },
+    ok = ff_source:create(Params, ff_entity_context:new()),
+    {ok, SourceMachine} = ff_source:get_machine(ID),
+    ?assertMatch(
+        {
+            ok,
+            #{
+                account := #{currency := <<"RUB">>},
+                name := <<"XSource">>,
+                resource := #{details := <<"Infinite source of cash">>, type := internal},
+                status := unauthorized
+            }
+        },
+        do(fun() ->
+            ff_destination:get(SourceMachine)
+        end)
+    ).
+
+-spec get_destination_not_authorized(config()) -> test_return().
+get_destination_not_authorized(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    DestResource = {
+        bank_card,
+        #{
+            bank_card => ct_cardstore:bank_card(
+                <<"4150399999000900">>,
+                {12, 2025},
+                C
+            )
+        }
+    },
+    ID = genlib:unique(),
+    Params = #{
+        id => ID,
+        identity => IID,
+        name => <<"XDestination">>,
+        currency => <<"RUB">>,
+        resource => DestResource
+    },
+    ok = ff_destination:create(Params, ff_entity_context:new()),
+    {ok, DestinationMachine} = ff_destination:get_machine(ID),
+    ?assertMatch(
+        {
+            ok,
+            #{
+                account := #{currency := <<"RUB">>},
+                name := <<"XDestination">>,
+                resource := {
+                    bank_card,
+                    #{
+                        bank_card := #{
+                            bin := <<"415039">>,
+                            exp_date := {12, 2025},
+                            masked_pan := <<"0900">>
+                        }
+                     }
+                },
+                status := unauthorized
+            }
+        },
+        do(fun() ->
+            ff_destination:get(DestinationMachine)
+        end)
+      ).
+
+-spec get_source_authorized(config()) -> test_return().
+get_source_authorized(C) ->
+    Party = create_party(C),
+    IID = create_person_identity(Party, C),
+    SourceID = create_source(IID, C),
+    {ok, SourceMachine} = ff_source:get_machine(SourceID),
+    ?assertMatch(
+    {
+        ok,
+        #{
+            account := #{currency := <<"RUB">>},
+            name := <<"XSource">>,
+            resource := #{details := <<"Infinite source of cash">>, type := internal},
+            status := authorized
+        }
+    },
+    do(fun() ->
+                ff_destination:get(SourceMachine)
+        end)
+    ).
+
+-spec get_destination_authorized(config()) -> test_return().
+get_destination_authorized(C) ->
+    Party  = create_party(C),
+    IID = create_person_identity(Party, C),
+    DestinationID = create_destination(IID, C),
+    {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
+    ?assertMatch(
+        {
+            ok,
+            #{
+                account := #{currency := <<"RUB">>},
+                name := <<"XDestination">>,
+                resource := {
+                    bank_card,
+                    #{
+                        bank_card := #{
+                            bin := <<"415039">>,
+                            exp_date := {12, 2025},
+                            masked_pan := <<"0900">>
+                        }
+                    }
+                },
+                status := authorized
+            }
+        },
+        do(fun() ->
+                ff_destination:get(DestinationMachine)
+        end)
+    ).
+
+-spec get_source_notfound(config()) -> test_return().
+get_source_notfound(_C) ->
+    ?assertEqual({error, notfound}, ff_source:get_machine(<<"BadID">>)).
+
+-spec get_destination_notfound(config()) -> test_return().
+get_destination_notfound(_C) ->
+    ?assertEqual({error, notfound}, ff_destination:get_machine(<<"BadID">>)).
 
 %% Common functions
 
@@ -214,7 +370,7 @@ create_source(IID, C) ->
 
 create_destination(IID, C) ->
     DestResource = {bank_card, #{bank_card => ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)}},
-    DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
+    DestID = create_instrument(destination, IID, <<"XDestination">>, <<"RUB">>, DestResource, C),
     authorized = ct_helper:await(
         authorized,
         fun () ->

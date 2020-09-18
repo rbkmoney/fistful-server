@@ -1,6 +1,9 @@
 -module(wapi_p2p_quote).
 
+-include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
+
 -export([create_token_payload/2]).
+-export([create_token_payload_from_thrift/2]).
 -export([decode_token_payload/1]).
 
 -type token_payload() ::
@@ -16,6 +19,7 @@
 
 -type party_id() :: binary().
 -type quote() :: p2p_quote:quote().
+-type quote_thrift() :: ff_proto_p2p_transfer_thrift:'Quote'().
 
 %% API
 
@@ -26,6 +30,18 @@ create_token_payload(Quote, PartyID) ->
         <<"version">> => 2,
         <<"partyID">> => PartyID,
         <<"quote">> => encode_quote(Quote)
+    }).
+
+-spec create_token_payload_from_thrift(quote_thrift(), party_id()) ->
+    token_payload().
+create_token_payload_from_thrift(QuoteThrift, PartyID) ->
+    Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'Quote'}},
+    Bin = ff_proto_utils:serialize(Type, QuoteThrift),
+    EncodedQuote = base64:encode(Bin),
+    genlib_map:compact(#{
+        <<"version">> => 2,
+        <<"partyID">> => PartyID,
+        <<"quote">> => EncodedQuote
     }).
 
 -spec decode_token_payload(token_payload()) ->

@@ -439,11 +439,13 @@
     }
 }).
 
+-define(RESOURCE_BANK_CARD, {bank_card, #'ResourceBankCard'{
+    bank_card = ?BANK_CARD
+}}).
+
 -define(RAW_RESOURCE, {resource, #'p2p_transfer_RawResource'{
     contact_info = #'ContactInfo'{},
-    resource = {bank_card, #'ResourceBankCard'{
-        bank_card = ?BANK_CARD
-    }}
+    resource = ?RESOURCE_BANK_CARD
 }}).
 
 -define(P2P_TRANSFER(PartyID), #p2p_transfer_P2PTransferState{
@@ -465,4 +467,18 @@
     },
     sessions = [],
     adjustments = []
+}).
+
+-define(FEES, #'Fees'{fees = #{operation_amount => ?CASH}}).
+
+-define(P2P_TRANSFER_QUOTE(PartyID), #p2p_transfer_Quote{
+    body = ?CASH,
+    created_at = ?TIMESTAMP,
+    expires_on = ?TIMESTAMP,
+    domain_revision = ?INTEGER,
+    party_revision = ?INTEGER,
+    identity_id = ?STRING,
+    sender = ?RESOURCE_BANK_CARD,
+    receiver = ?RESOURCE_BANK_CARD,
+    fees = ?FEES
 }).

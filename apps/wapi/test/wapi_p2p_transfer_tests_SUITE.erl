@@ -22,6 +22,7 @@
 
 -export([
     create/1,
+    create_quote/1,
     create_with_quote_token/1,
     create_with_bad_quote_token/1,
     get/1,
@@ -59,6 +60,7 @@ groups() ->
         {base, [],
             [
                 create,
+                create_quote,
                 create_with_quote_token,
                 create_with_bad_quote_token,
                 get,
@@ -169,13 +171,77 @@ create(C) ->
         ct_helper:cfg(context, C)
     ).
 
+-spec create_quote(config()) ->
+    _.
+create_quote(C) ->
+    IdentityID = <<"id">>,
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)};
+                              ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {p2p_transfer, fun('GetQuote', _) -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end}
+    ], C),
+    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    {ok, #{<<"token">> := Token}} = call_api(
+        fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResource">>,
+                    <<"token">> => SenderToken
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    {ok, {_, _, Payload}} = uac_authorizer_jwt:verify(Token, #{}),
+    {ok, #{identity_id := IdentityID}} = wapi_p2p_quote:decode_token_payload(Payload).
+
 -spec create_with_quote_token(config()) ->
     _.
 create_with_quote_token(C) ->
-    mock_services(C),
+    IdentityID = <<"id">>,
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)};
+                              ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {p2p_transfer, fun('GetQuote', _) -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)};
+                          ('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)} end}
+    ], C),
     SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    IdentityID = <<"id">>,
+    {ok, #{<<"token">> := QuoteToken}} = call_api(
+        fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResource">>,
+                    <<"token">> => SenderToken
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
@@ -190,7 +256,7 @@ create_with_quote_token(C) ->
                     <<"token">> => SenderToken,
                     <<"authData">> => <<"session id">>
                 },
-                <<"quoteToken">> => get_quote_token(IdentityID),
+                <<"quoteToken">> => QuoteToken,
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
                     <<"token">> => ReceiverToken
@@ -331,23 +397,6 @@ store_bank_card(C, Pan, ExpDate, CardHolder) ->
         ct_helper:cfg(context_pcidss, C)
     ),
     maps:get(<<"token">>, Res).
-
-get_quote_token(IdentityID) ->
-    Quote = #{
-        fees              => #{fees => #{}},
-        amount            => {?INTEGER, ?RUB},
-        party_revision    => 1,
-        domain_revision   => 1,
-        created_at        => 1600147637597,
-        expires_on        => 1600147637597,
-        identity_id       => IdentityID,
-        sender            => {bank_card, #{ token => ?STRING, bin_data_id => nil }},
-        receiver          => {bank_card, #{ token => ?STRING, bin_data_id => nil }}
-    },
-    PartyID = ?STRING,
-    Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
-    {ok, QuoteToken} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Payload, wapi_auth:get_signee()),
-    QuoteToken.
 
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).

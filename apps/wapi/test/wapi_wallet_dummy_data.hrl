@@ -111,6 +111,7 @@
 }).
 
 -define(BANK_CARD, #'BankCard'{
+    bin_data_id = {i, ?INTEGER},
     token = ?STRING,
     bin = <<"424242">>,
     masked_pan = <<"4242">>,
@@ -471,13 +472,13 @@
 
 -define(FEES, #'Fees'{fees = #{operation_amount => ?CASH}}).
 
--define(P2P_TRANSFER_QUOTE(PartyID), #p2p_transfer_Quote{
+-define(P2P_TRANSFER_QUOTE(IdentityID), #p2p_transfer_Quote{
     body = ?CASH,
     created_at = ?TIMESTAMP,
     expires_on = ?TIMESTAMP,
     domain_revision = ?INTEGER,
     party_revision = ?INTEGER,
-    identity_id = ?STRING,
+    identity_id = IdentityID,
     sender = ?RESOURCE_BANK_CARD,
     receiver = ?RESOURCE_BANK_CARD,
     fees = ?FEES

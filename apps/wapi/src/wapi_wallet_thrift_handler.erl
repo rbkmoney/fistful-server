@@ -471,6 +471,30 @@ process_request('GetW2WTransfer', #{w2wTransferID := ID}, Context, _Opts) ->
 
 %% P2P
 
+process_request('QuoteP2PTransfer', #{'QuoteParameters':= Params}, Context, _Opts) ->
+    case wapi_p2p_transfer_backend:quote_transfer(Params, Context) of
+        {ok, Quote} ->
+            wapi_handler_utils:reply_ok(201, Quote);
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {sender, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
+        {error, {receiver, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {p2p_transfer, forbidden_currency}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, {p2p_transfer, cash_range_exceeded}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>))
+    end;
+
 process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Context, _Opts) ->
     case wapi_p2p_transfer_backend:create_transfer(Params, Context) of
         {ok, P2PTransfer} ->

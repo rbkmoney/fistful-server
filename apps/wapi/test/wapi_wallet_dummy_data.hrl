@@ -66,6 +66,29 @@
     context = ?DEFAULT_CONTEXT(PartyID)
 }).
 
+-define(WITHDRAWAL_QUOTE, #wthd_Quote{
+    cash_from = ?CASH,
+    cash_to = ?CASH,
+    created_at = ?TIMESTAMP,
+    expires_on = ?TIMESTAMP,
+    operation_timestamp = ?TIMESTAMP,
+    domain_revision = 123,
+    party_revision = 123,
+    route = #wthd_Route{
+        provider_id = 123,
+        terminal_id = 123
+    },
+    quote_data = {str, ?STRING}
+}).
+
+-define(WITHDRAWAL_EVENT(Change), #wthd_Event{
+    change = Change,
+    occured_at = ?TIMESTAMP,
+    event_id = ?INTEGER
+}).
+
+-define(WITHDRAWAL_STATUS_CHANGE, {status_changed, #wthd_StatusChange{status = {pending, #wthd_status_Pending{}}}}).
+
 -define(BLOCKING, unblocked).
 
 -define(ACCOUNT, #account_Account{
@@ -121,6 +144,30 @@
     created_at  = ?TIMESTAMP,
     metadata    = ?DEFAULT_METADATA(),
     context     = ?DEFAULT_CONTEXT(PartyID)
+}).
+
+-define(P2PTEMPLATE(PartyID), #p2p_template_P2PTemplateState{
+    id = ?STRING,
+    identity_id = ?STRING,
+    created_at = ?TIMESTAMP,
+    domain_revision = 1,
+    party_revision = 1,
+    template_details = #p2p_template_P2PTemplateDetails{
+        body = #p2p_template_P2PTemplateBody{
+            value = #p2p_template_Cash{
+                amount = ?INTEGER,
+                currency = #'CurrencyRef'{
+                    symbolic_code = ?RUB
+                }
+            }
+        },
+        metadata = #p2p_template_P2PTemplateMetadata{
+            value = ?DEFAULT_METADATA()
+        }
+    },
+    blocking = ?BLOCKING,
+    external_id = ?STRING,
+    context = ?DEFAULT_CONTEXT(PartyID)
 }).
 
 -define(IDENTITY(PartyID),

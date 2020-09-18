@@ -402,7 +402,6 @@ process_request('GetW2WTransfer', #{w2wTransferID := ID}, Context, _Opts) ->
             wapi_handler_utils:reply_ok(404)
     end;
 
-
 %% P2P
 
 process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Context, _Opts) ->

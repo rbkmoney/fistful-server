@@ -3,7 +3,6 @@
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 
 -export([create_token_payload/2]).
--export([create_token_payload_from_thrift/2]).
 -export([decode_token_payload/1]).
 
 -type token_payload() ::
@@ -18,25 +17,15 @@
 %% Internal types
 
 -type party_id() :: binary().
--type quote() :: p2p_quote:quote().
--type quote_thrift() :: ff_proto_p2p_transfer_thrift:'Quote'().
+-type quote() :: ff_proto_p2p_transfer_thrift:'Quote'().
 
 %% API
 
 -spec create_token_payload(quote(), party_id()) ->
     token_payload().
 create_token_payload(Quote, PartyID) ->
-    genlib_map:compact(#{
-        <<"version">> => 2,
-        <<"partyID">> => PartyID,
-        <<"quote">> => encode_quote(Quote)
-    }).
-
--spec create_token_payload_from_thrift(quote_thrift(), party_id()) ->
-    token_payload().
-create_token_payload_from_thrift(QuoteThrift, PartyID) ->
     Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'Quote'}},
-    Bin = ff_proto_utils:serialize(Type, QuoteThrift),
+    Bin = ff_proto_utils:serialize(Type, Quote),
     EncodedQuote = base64:encode(Bin),
     genlib_map:compact(#{
         <<"version">> => 2,
@@ -52,27 +41,14 @@ decode_token_payload(#{<<"version">> := 2} = Payload) ->
         <<"partyID">> := _PartyID,
         <<"quote">> := EncodedQuote
     } = Payload,
-    Quote = decode_quote(EncodedQuote),
+    Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'Quote'}},
+    Bin = base64:decode(EncodedQuote),
+    Quote = ff_proto_utils:deserialize(Type, Bin),
     {ok, Quote};
 decode_token_payload(#{<<"version">> := 1}) ->
     {error, token_expired}.
 
 %% Internals
-
--spec encode_quote(quote()) ->
-    token_payload().
-encode_quote(Quote) ->
-    Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'Quote'}},
-    Bin = ff_proto_utils:serialize(Type, ff_p2p_transfer_codec:marshal(quote, Quote)),
-    base64:encode(Bin).
-
--spec decode_quote(token_payload()) ->
-    quote().
-decode_quote(Encoded) ->
-    Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'Quote'}},
-    Bin = base64:decode(Encoded),
-    Thrift = ff_proto_utils:deserialize(Type, Bin),
-    ff_p2p_transfer_codec:unmarshal(quote, Thrift).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -80,25 +56,31 @@ decode_quote(Encoded) ->
 
 -spec payload_symmetry_test() -> _.
 payload_symmetry_test() ->
-    Quote = #{
-        fees => #{
-            fees => #{
-                surplus => {1000, <<"RUB">>}
+    Quote = #p2p_transfer_Quote{
+        identity_id = <<"identity">>,
+        created_at = <<"1970-01-01T00:00:00.123Z">>,
+        expires_on = <<"1970-01-01T00:00:00.321Z">>,
+        party_revision = 1,
+        domain_revision = 2,
+        fees = #'Fees'{fees = #{surplus => #'Cash'{
+            amount = 1000000,
+            currency = #'CurrencyRef'{
+                symbolic_code = <<"RUB">>
+            }
+        }}},
+        body = #'Cash'{
+            amount = 1000000,
+            currency = #'CurrencyRef'{
+                symbolic_code = <<"RUB">>
             }
         },
-        amount => {1000000, <<"RUB">>},
-        party_revision => 1,
-        domain_revision => 2,
-        created_at => 123,
-        expires_on => 321,
-        identity_id => <<"identity">>,
-        sender => {bank_card, #{
-            token => <<"very long token">>,
-            bin_data_id => nil
+        sender = {bank_card, #'ResourceBankCard'{
+            bank_card = #'BankCard'{token = <<"very long token">>},
+            auth_data = {session_data, #'SessionAuthData'{id = <<"1">>}}
         }},
-        receiver => {bank_card, #{
-            token => <<"another very long token">>,
-            bin_data_id => #{[nil] => [nil]}
+        receiver = {bank_card, #'ResourceBankCard'{
+            bank_card = #'BankCard'{token = <<"another very long token">>},
+            auth_data = {session_data, #'SessionAuthData'{id = <<"2">>}}
         }}
     },
     Payload = create_token_payload(Quote, <<"party">>),
@@ -107,25 +89,35 @@ payload_symmetry_test() ->
 
 -spec payload_v2_decoding_test() -> _.
 payload_v2_decoding_test() ->
-    ExpectedQuote = #{
-        fees => #{
-            fees => #{
-                surplus => {1000, <<"RUB">>}
+    ExpectedQuote = #p2p_transfer_Quote{
+        identity_id = <<"identity">>,
+        created_at = <<"1970-01-01T00:00:00.123Z">>,
+        expires_on = <<"1970-01-01T00:00:00.321Z">>,
+        party_revision = 1,
+        domain_revision = 2,
+        fees = #'Fees'{fees = #{surplus => #'Cash'{
+            amount = 1000,
+            currency = #'CurrencyRef'{
+                symbolic_code = <<"RUB">>
+            }
+        }}},
+        body = #'Cash'{
+            amount = 1000000,
+            currency = #'CurrencyRef'{
+                symbolic_code = <<"RUB">>
             }
         },
-        amount => {1000000, <<"RUB">>},
-        party_revision => 1,
-        domain_revision => 2,
-        created_at => 123,
-        expires_on => 321,
-        identity_id => <<"identity">>,
-        sender => {bank_card, #{
-            token => <<"very long token">>,
-            bin_data_id => nil
+        sender = {bank_card, #'ResourceBankCard'{
+            bank_card = #'BankCard'{
+                token = <<"very long token">>,
+                bin_data_id = {nl, #msgp_Nil{}}
+            }
         }},
-        receiver => {bank_card, #{
-            token => <<"another very long token">>,
-            bin_data_id => #{[nil] => [nil]}
+        receiver = {bank_card, #'ResourceBankCard'{
+            bank_card = #'BankCard'{
+                token = <<"another very long token">>,
+                bin_data_id = {obj, #{{arr, [{nl, #msgp_Nil{}}]} => {arr, [{nl, #msgp_Nil{}}]}}}
+            }
         }}
     },
     Payload = #{

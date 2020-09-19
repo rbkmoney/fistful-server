@@ -2,6 +2,7 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 
 -export([all/0]).
@@ -469,16 +470,31 @@ get_quote_token(SenderToken, ReceiverToken, IdentityID, C) ->
     {ok, SenderBankCard} = wapi_crypto:decrypt_bankcard_token(SenderToken),
     {ok, ReceiverBankCard} = wapi_crypto:decrypt_bankcard_token(ReceiverToken),
     {ok, PartyRevision} = ff_party:get_revision(PartyID),
-    Quote = #{
-        fees              => #{fees => #{}},
-        amount            => {?INTEGER, ?RUB},
-        party_revision    => PartyRevision,
-        domain_revision   => 1,
-        created_at        => 1600147637597,
-        expires_on        => 1600147637597,
-        identity_id       => IdentityID,
-        sender            => {bank_card, #{ token => SenderBankCard#'BankCard'.token, bin_data_id => 123 }},
-        receiver          => {bank_card, #{ token => ReceiverBankCard#'BankCard'.token, bin_data_id => 123 }}
+    Quote = #p2p_transfer_Quote{
+        identity_id = IdentityID,
+        created_at = <<"1970-01-01T00:00:00.123Z">>,
+        expires_on = <<"1970-01-01T00:00:00.321Z">>,
+        party_revision = PartyRevision,
+        domain_revision = 1,
+        fees = #'Fees'{fees = #{}},
+        body = #'Cash'{
+            amount = ?INTEGER,
+            currency = #'CurrencyRef'{
+                symbolic_code = ?RUB
+            }
+        },
+        sender = {bank_card, #'ResourceBankCard'{
+            bank_card = #'BankCard'{
+                token = SenderBankCard#'BankCard'.token,
+                bin_data_id = {i, 123}
+            }
+        }},
+        receiver = {bank_card, #'ResourceBankCard'{
+            bank_card = #'BankCard'{
+                token = ReceiverBankCard#'BankCard'.token,
+                bin_data_id = {i, 123}
+            }
+        }}
     },
     Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
     {ok, QuoteToken} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Payload, wapi_auth:get_signee()),

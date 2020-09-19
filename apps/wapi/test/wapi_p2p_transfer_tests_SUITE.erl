@@ -205,7 +205,7 @@ create_quote(C) ->
         ct_helper:cfg(context, C)
     ),
     {ok, {_, _, Payload}} = uac_authorizer_jwt:verify(Token, #{}),
-    {ok, #{identity_id := IdentityID}} = wapi_p2p_quote:decode_token_payload(Payload).
+    {ok, #p2p_transfer_Quote{identity_id = IdentityID}} = wapi_p2p_quote:decode_token_payload(Payload).
 
 -spec create_with_quote_token(config()) ->
     _.

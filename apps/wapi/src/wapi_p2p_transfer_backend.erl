@@ -111,7 +111,7 @@ do_quote_transfer(Params, HandlerContext) ->
     end.
 
 create_quote_token(Quote, PartyID) ->
-    Payload = wapi_p2p_quote:create_token_payload_from_thrift(Quote, PartyID),
+    Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
     {ok, Token} = issue_quote_token(PartyID, Payload),
     Token.
 
@@ -149,8 +149,7 @@ build_transfer_params(Params = #{<<"quoteToken">> := QuoteToken, <<"identityID">
     Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
     ok = unwrap(authorize_p2p_quote_token(Quote, IdentityID)),
     TransferParams = marshal_transfer_params(Params),
-    MarshaledQuote = ff_p2p_transfer_codec:marshal(quote, Quote),
-    TransferParams#p2p_transfer_P2PTransferParams{quote = MarshaledQuote};
+    TransferParams#p2p_transfer_P2PTransferParams{quote = Quote};
 build_transfer_params(Params) ->
     marshal_transfer_params(Params).
 
@@ -162,13 +161,10 @@ verify_p2p_quote_token(Token) ->
             {error, {token, {not_verified, Error}}}
     end.
 
-authorize_p2p_quote_token(Quote, IdentityID) ->
-    case p2p_quote:identity_id(Quote) of
-        QuoteIdentityID when QuoteIdentityID =:= IdentityID ->
-            ok;
-        _OtherQuoteIdentityID ->
-            {error, {token, {not_verified, identity_mismatch}}}
-    end.
+authorize_p2p_quote_token(#p2p_transfer_Quote{identity_id = IdentityID}, IdentityID) ->
+    ok;
+authorize_p2p_quote_token(_Quote, _IdentityID) ->
+    {error, {token, {not_verified, identity_mismatch}}}.
 
 service_call(Params, HandlerContext) ->
     wapi_handler_utils:service_call(Params, HandlerContext).

@@ -6,6 +6,9 @@
 -type id() :: binary().
 -type status() :: binary().
 -type result(T, E) :: {ok, T} | {error, E}.
+-type identity_state() :: ff_proto_identity_thrift:'IdentityState'().
+
+-export_type([identity_state/0]).
 
 -export([create_identity/2]).
 -export([get_identity/2]).
@@ -15,6 +18,8 @@
 -export([get_identity_challenges/3]).
 -export([get_identity_challenge_events/2]).
 -export([get_identity_challenge_event/2]).
+
+-export([get_thrift_identity/2]).
 
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
@@ -27,17 +32,11 @@
     {error, {identity, unauthorized}} .
 
 get_identity(IdentityID, HandlerContext) ->
-    Request = {fistful_identity, 'Get', [IdentityID, #'EventRange'{}]},
-    case service_call(Request, HandlerContext) of
+    case get_thrift_identity(IdentityID, HandlerContext) of
         {ok, IdentityThrift} ->
-            case wapi_access_backend:check_resource(identity, IdentityThrift, HandlerContext) of
-                ok ->
-                    {ok, unmarshal(identity, IdentityThrift)};
-                {error, unauthorized} ->
-                    {error, {identity, unauthorized}}
-            end;
-        {exception, #fistful_IdentityNotFound{}} ->
-            {error, {identity, notfound}}
+            {ok, unmarshal(identity, IdentityThrift)};
+        {error, _} = Error ->
+            Error
     end.
 
 -spec create_identity(params(), handler_context()) -> result(map(),
@@ -233,6 +232,25 @@ get_identity_challenge_event_(#{
             {error, {identity, notfound}};
         {exception, Details} ->
             {error, Details}
+    end.
+
+-spec get_thrift_identity(id(), handler_context()) ->
+    {ok, identity_state()}             |
+    {error, {identity, notfound}}     |
+    {error, {identity, unauthorized}} .
+
+get_thrift_identity(IdentityID, HandlerContext) ->
+    Request = {fistful_identity, 'Get', [IdentityID, #'EventRange'{}]},
+    case service_call(Request, HandlerContext) of
+        {ok, IdentityThrift} ->
+            case wapi_access_backend:check_resource(identity, IdentityThrift, HandlerContext) of
+                ok ->
+                    {ok, IdentityThrift};
+                {error, unauthorized} ->
+                    {error, {identity, unauthorized}}
+            end;
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}}
     end.
 
 %%

@@ -14,7 +14,6 @@
 -export([marshal/2]).
 -export([unmarshal/2]).
 
-
 %% This special functions hasn't got opposite functions.
 -spec unmarshal_identity_params(ff_proto_identity_thrift:'IdentityParams'()) ->
     ff_identity_machine:params().

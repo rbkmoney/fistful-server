@@ -177,6 +177,7 @@
     name = ?STRING,
     party_id = ?STRING,
     provider_id = ?STRING,
+    contract_id = ?STRING,
     class_id = ?STRING,
     metadata = ?DEFAULT_METADATA(),
     context = Context

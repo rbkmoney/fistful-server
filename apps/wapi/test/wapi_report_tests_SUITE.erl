@@ -8,6 +8,7 @@
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("jose/include/jose_jwk.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
+-include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -130,17 +131,19 @@ end_per_testcase(_Name, C) ->
 -spec create_report_ok_test(config()) ->
     _.
 create_report_ok_test(C) ->
-    {ok, Identity} = create_identity(C),
-    IdentityID = maps:get(<<"id">>, Identity),
-    wapi_ct_helper:mock_services([{fistful_report, fun
-        ('GenerateReport', _) -> {ok, ?REPORT_ID};
-        ('GetReport', _) -> {ok, ?REPORT}
-    end}], C),
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_report, fun
+            ('GenerateReport', _) -> {ok, ?REPORT_ID};
+            ('GetReport', _) -> {ok, ?REPORT}
+        end},
+        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
+    ], C),
     {ok, _} = call_api(
         fun swag_client_wallet_reports_api:create_report/3,
         #{
             binding => #{
-                <<"identityID">> => IdentityID
+                <<"identityID">> => ?STRING
             },
             body => #{
                 <<"reportType">> => <<"withdrawalRegistry">>,
@@ -154,16 +157,18 @@ create_report_ok_test(C) ->
 -spec get_report_ok_test(config()) ->
     _.
 get_report_ok_test(C) ->
-    {ok, Identity} = create_identity(C),
-    IdentityID = maps:get(<<"id">>, Identity),
-    wapi_ct_helper:mock_services([{fistful_report, fun
-        ('GetReport', _) -> {ok, ?REPORT}
-    end}], C),
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_report, fun
+            ('GetReport', _) -> {ok, ?REPORT}
+        end},
+        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
+    ], C),
     {ok, _} = call_api(
         fun swag_client_wallet_reports_api:get_report/3,
         #{
             binding => #{
-                <<"identityID">> => IdentityID,
+                <<"identityID">> => ?STRING,
                 <<"reportID">> => ?INTEGER
             }
         },
@@ -173,19 +178,21 @@ get_report_ok_test(C) ->
 -spec get_reports_ok_test(config()) ->
     _.
 get_reports_ok_test(C) ->
-    {ok, Identity} = create_identity(C),
-    IdentityID = maps:get(<<"id">>, Identity),
-    wapi_ct_helper:mock_services([{fistful_report, fun
-        ('GetReports', _) -> {ok, [
-            ?REPORT_EXT(pending, []),
-            ?REPORT_EXT(created, undefined),
-            ?REPORT_WITH_STATUS(canceled)]}
-    end}], C),
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_report, fun
+            ('GetReports', _) -> {ok, [
+                ?REPORT_EXT(pending, []),
+                ?REPORT_EXT(created, undefined),
+                ?REPORT_WITH_STATUS(canceled)]}
+        end},
+        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
+    ], C),
     {ok, _} = call_api(
         fun swag_client_wallet_reports_api:get_reports/3,
         #{
             binding => #{
-                <<"identityID">> => IdentityID
+                <<"identityID">> => ?STRING
             },
             qs_val => #{
                 <<"fromTime">> => ?TIMESTAMP,
@@ -200,11 +207,14 @@ get_reports_ok_test(C) ->
     _.
 reports_with_wrong_identity_ok_test(C) ->
     IdentityID = <<"WrongIdentity">>,
-    wapi_ct_helper:mock_services([{fistful_report, fun
-        ('GenerateReport', _) -> {ok, ?REPORT_ID};
-        ('GetReport', _) -> {ok, ?REPORT};
-        ('GetReports', _) -> {ok, [?REPORT, ?REPORT, ?REPORT]}
-    end}], C),
+    wapi_ct_helper:mock_services([
+        {fistful_report, fun
+            ('GenerateReport', _) -> {ok, ?REPORT_ID};
+            ('GetReport', _) -> {ok, ?REPORT};
+            ('GetReports', _) -> {ok, [?REPORT, ?REPORT, ?REPORT]}
+        end},
+        {fistful_identity, fun('Get', _) -> throw(#fistful_IdentityNotFound{}) end}
+    ], C),
     ?emptyresp(400) = call_api(
         fun swag_client_wallet_reports_api:create_report/3,
         #{
@@ -276,21 +286,3 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
-
-create_identity(C) ->
-    PartyID = ?config(party, C),
-    Params = #{
-        <<"provider">> => <<"good-one">>,
-        <<"class">> => <<"person">>,
-        <<"name">> => <<"HAHA NO2">>
-    },
-    wapi_wallet_ff_backend:create_identity(Params, create_context(PartyID, C)).
-
-create_context(PartyID, C) ->
-    maps:merge(wapi_ct_helper:create_auth_ctx(PartyID), create_woody_ctx(C)).
-
-create_woody_ctx(C) ->
-    #{
-        woody_context => ct_helper:get_woody_ctx(C)
-    }.
-

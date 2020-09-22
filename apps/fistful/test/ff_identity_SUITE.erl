@@ -72,36 +72,41 @@ get_missing_fails(_C) ->
 create_missing_fails(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
+    Name = <<"Identity Name">>,
     {error, {provider, notfound}} = ff_identity_machine:create(
         #{
             id       => ID,
+            name     => Name,
             party    => Party,
             provider => <<"who">>,
             class    => <<"person">>
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     {error, {identity_class, notfound}} = ff_identity_machine:create(
         #{
             id       => ID,
+            name     => Name,
             party    => Party,
             provider => <<"good-one">>,
             class    => <<"nosrep">>
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ).
 
 create_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
+    Name = <<"Identity Name">>,
     ok = ff_identity_machine:create(
         #{
             id       => ID,
+            name     => Name,
             party    => Party,
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     I1 = ff_identity_machine:identity(unwrap(ff_identity_machine:get(ID))),
     {ok, accessible} = ff_identity:is_accessible(I1),
@@ -111,14 +116,16 @@ create_ok(C) ->
 identify_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
+    Name = <<"Identity Name">>,
     ok = ff_identity_machine:create(
         #{
             id       => ID,
+            name     => Name,
             party    => Party,
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ICID = genlib:unique(),
     {ok, S1} = ff_identity_machine:get(ID),

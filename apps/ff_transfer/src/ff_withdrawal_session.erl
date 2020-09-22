@@ -345,7 +345,7 @@ get_adapter_with_opts(ProviderID, TerminalID) when is_integer(ProviderID) ->
     {ok, Provider} = ff_payouts_provider:get(ProviderID),
     ProviderOpts = ff_payouts_provider:adapter_opts(Provider),
     TerminalOpts = get_adapter_terminal_opts(TerminalID),
-    {ff_payouts_provider:adapter(Provider), maps:merge(TerminalOpts, ProviderOpts)}.
+    {ff_payouts_provider:adapter(Provider), maps:merge(ProviderOpts, TerminalOpts)}.
 
 get_adapter_terminal_opts(undefined) ->
     #{};

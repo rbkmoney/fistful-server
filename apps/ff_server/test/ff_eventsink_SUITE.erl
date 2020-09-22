@@ -96,17 +96,19 @@ end_per_testcase(_Name, _C) ->
 get_identity_events_ok(C) ->
     ID = genlib:unique(),
     Party = create_party(C),
+    Name = <<"Identity Name">>,
     Sink = identity_event_sink,
     LastEvent = ct_eventsink:last_id(Sink),
 
     ok = ff_identity_machine:create(
         #{
             id       => ID,
+            name     => Name,
             party    => Party,
             provider => <<"good-one">>,
             class    => <<"person">>
         },
-        ff_entity_context:new()
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ICID = genlib:unique(),
     D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
@@ -391,11 +393,14 @@ create_party(_C) ->
 create_person_identity(Party, C) ->
     create_identity(Party, <<"good-one">>, <<"person">>, C).
 
-create_identity(Party, ProviderID, ClassID, _C) ->
+create_identity(Party, ProviderID, ClassID, C) ->
+    create_identity(Party, <<"Identity Name">>, ProviderID, ClassID, C).
+
+create_identity(Party, Name, ProviderID, ClassID, _C) ->
     ID = genlib:unique(),
     ok = ff_identity_machine:create(
-        #{id => ID, party => Party, provider => ProviderID, class => ClassID},
-        ff_entity_context:new()
+        #{id => ID, name => Name, party => Party, provider => ProviderID, class => ClassID},
+        #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     ID.
 

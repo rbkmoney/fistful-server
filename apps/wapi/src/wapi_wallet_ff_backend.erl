@@ -55,11 +55,6 @@
 
 -export([list_deposits/2]).
 
--export([create_webhook/2]).
--export([get_webhooks/2]).
--export([get_webhook/3]).
--export([delete_webhook/3]).
-
 -export([quote_p2p_transfer/2]).
 -export([create_p2p_transfer/2]).
 -export([get_p2p_transfer/2]).
@@ -397,6 +392,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     {terms, {terms_violation, _}} |
     {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}} |
     {destination_resource, {bin_data, ff_bin_data:bin_data_error()}} |
+    {quote, token_expired} |
     {Resource, {unauthorized, _}}
 ) when Resource :: wallet | destination.
 create_withdrawal(Params, Context) ->
@@ -616,90 +612,6 @@ list_deposits(Params, Context) ->
     Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', [Req]}, Context),
     process_stat_result(StatType, Result).
 
-%% Webhooks
-
--spec create_webhook(params(), ctx()) -> result(map(),
-    {identity, notfound} |
-    {identity, unauthorized} |
-    {wallet, notfound} |
-    {wallet, unauthorized}
-).
-create_webhook(Params, Context) ->
-    do(fun () ->
-        NewParams = #{
-            identity_id := IdentityID,
-            scope := EventFilter,
-            url := URL
-        } = from_swag(webhook_params, maps:get('Webhook', Params)),
-        WalletID = maps:get(wallet_id, NewParams, undefined),
-        case WalletID /= undefined of
-            true ->
-                _ = check_resource(wallet, WalletID, Context);
-            false ->
-                ok
-        end,
-        _ = check_resource(identity, IdentityID, Context),
-        WebhookParams = #webhooker_WebhookParams{
-            identity_id = IdentityID,
-            wallet_id = WalletID,
-            event_filter = EventFilter,
-            url = URL
-        },
-        Call = {webhook_manager, 'Create', [WebhookParams]},
-        {ok, NewWebhook} = wapi_handler_utils:service_call(Call, Context),
-        to_swag(webhook, NewWebhook)
-    end).
-
--spec get_webhooks(id(), ctx()) -> result(list(map()),
-    {identity, notfound} |
-    {identity, unauthorized}
-).
-get_webhooks(IdentityID, Context) ->
-    do(fun () ->
-        _ = check_resource(identity, IdentityID, Context),
-        Call = {webhook_manager, 'GetList', [IdentityID]},
-        {ok, Webhooks} = wapi_handler_utils:service_call(Call, Context),
-        to_swag({list, webhook}, Webhooks)
-    end).
-
--spec get_webhook(id(), id(), ctx()) -> result(map(),
-    notfound |
-    {identity, notfound} |
-    {identity, unauthorized}
-).
-get_webhook(WebhookID, IdentityID, Context) ->
-    do(fun () ->
-        EncodedID = encode_webhook_id(WebhookID),
-        _ = check_resource(identity, IdentityID, Context),
-        Call = {webhook_manager, 'Get', [EncodedID]},
-        case wapi_handler_utils:service_call(Call, Context) of
-            {ok, Webhook} ->
-                to_swag(webhook, Webhook);
-            {exception, #webhooker_WebhookNotFound{}} ->
-                throw(notfound)
-        end
-    end).
-
--spec delete_webhook(id(), id(), ctx()) ->
-    ok |
-    {error,
-        notfound |
-        {identity, notfound} |
-        {identity, unauthorized}
-    }.
-delete_webhook(WebhookID, IdentityID, Context) ->
-    do(fun () ->
-        EncodedID = encode_webhook_id(WebhookID),
-        _ = check_resource(identity, IdentityID, Context),
-        Call = {webhook_manager, 'Delete', [EncodedID]},
-        case wapi_handler_utils:service_call(Call, Context) of
-            {ok, _} ->
-                ok;
-            {exception, #webhooker_WebhookNotFound{}} ->
-                throw(notfound)
-        end
-    end).
-
 %% P2P
 
 -spec quote_p2p_transfer(params(), ctx()) -> result(map(),
@@ -734,6 +646,7 @@ quote_p2p_transfer(Params, Context) ->
     {identity, unauthorized} |
     {external_id_conflict, id(), external_id()} |
     {invalid_resource_token, _} |
+    {quote, token_expired} |
     {token,
         {unsupported_version, integer() | undefined} |
         {not_verified, invalid_signature} |
@@ -890,6 +803,7 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
     p2p_transfer:create_error() |
     {external_id_conflict, id(), external_id()} |
     {invalid_resource_token, _} |
+    {quote, token_expired} |
     {token,
         {unsupported_version, integer() | undefined} |
         {not_verified, invalid_signature} |
@@ -1061,17 +975,10 @@ encode_exp_date(ExpDate) ->
     } = ExpDate,
     {Month, Year}.
 
-encode_webhook_id(WebhookID) ->
-    try
-        binary_to_integer(WebhookID)
-    catch
-        error:badarg ->
-            throw(notfound)
-    end.
-
 maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
-    {ok, Quote, WalletID, DestinationID, PartyID} = wapi_withdrawal_quote:decode_token_payload(Data),
+    {ThriftQuote, WalletID, DestinationID, PartyID} = unwrap(quote, wapi_withdrawal_quote:decode_token_payload(Data)),
+    Quote = ff_withdrawal_codec:unmarshal(quote, ThriftQuote),
     unwrap(quote_invalid_party,
         valid(
             PartyID,
@@ -1104,7 +1011,8 @@ check_quote_destination(_, DestinationID) ->
     throw({quote, {invalid_destination, DestinationID}}).
 
 create_quote_token(Quote, WalletID, DestinationID, PartyID) ->
-    Payload = wapi_withdrawal_quote:create_token_payload(Quote, WalletID, DestinationID, PartyID),
+    ThriftQuote = ff_withdrawal_codec:marshal(quote, Quote),
+    Payload = wapi_withdrawal_quote:create_token_payload(ThriftQuote, WalletID, DestinationID, PartyID),
     {ok, Token} = issue_quote_token(PartyID, Payload),
     Token.
 
@@ -1134,7 +1042,7 @@ maybe_add_p2p_template_quote_token(_ID, #{quote_token := undefined} = Params) ->
 maybe_add_p2p_template_quote_token(ID, #{quote_token := QuoteToken} = Params) ->
     do(fun() ->
         VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
-        Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
+        Quote = unwrap(quote, wapi_p2p_quote:decode_token_payload(VerifiedToken)),
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template_machine:p2p_template(Machine),
         ok = unwrap(authorize_p2p_quote_token(Quote, p2p_template:identity_id(State))),
@@ -1146,7 +1054,7 @@ maybe_add_p2p_quote_token(#{quote_token := undefined} = Params) ->
 maybe_add_p2p_quote_token(#{quote_token := QuoteToken, identity_id := IdentityID} = Params) ->
     do(fun() ->
         VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
-        Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
+        Quote = unwrap(quote, wapi_p2p_quote:decode_token_payload(VerifiedToken)),
         ok = unwrap(authorize_p2p_quote_token(Quote, IdentityID)),
         Params#{quote => Quote}
     end).
@@ -1406,9 +1314,17 @@ not_implemented() ->
 do(Fun) ->
     ff_pipeline:do(Fun).
 
+-spec unwrap
+    (ok)         -> ok;
+    ({ok, V})    -> V;
+    ({error, _E}) -> no_return().
 unwrap(Res) ->
     ff_pipeline:unwrap(Res).
 
+-spec unwrap
+    (_Tag, ok)         -> ok;
+    (_Tag, {ok, V})    -> V;
+    (_Tag, {error, _E}) -> no_return().
 unwrap(Tag, Res) ->
     ff_pipeline:unwrap(Tag, Res).
 
@@ -1637,6 +1553,7 @@ from_swag(create_quote_params, Params) ->
     }, Params));
 from_swag(identity_params, Params) ->
     genlib_map:compact(add_external_id(#{
+        name     => maps:get(<<"name">>, Params),
         provider => maps:get(<<"provider">>, Params),
         class    => maps:get(<<"class">>   , Params),
         metadata => maps:get(<<"metadata">>, Params, undefined)
@@ -1820,58 +1737,8 @@ from_swag(residence, V) ->
             %  - Essentially this is incorrect, we should reply with 400 instead
             undefined
     end;
-from_swag(webhook_params, #{
-    <<"identityID">> := IdentityID,
-    <<"scope">> := Scope,
-    <<"url">> := URL
-}) ->
-    maps:merge(
-        #{
-            identity_id => IdentityID,
-            url => URL
-        },
-        from_swag(webhook_scope, Scope)
-    );
-from_swag(webhook_scope, Topic = #{
-    <<"topic">> := <<"WithdrawalsTopic">>,
-    <<"eventTypes">> := EventList
-}) ->
-    WalletID = maps:get(<<"walletID">>, Topic, undefined),
-    Scope = #webhooker_EventFilter{
-        types = from_swag({set, webhook_withdrawal_event_types}, EventList)
-    },
-    genlib_map:compact(#{
-        scope => Scope,
-        wallet_id => WalletID
-    });
-from_swag(webhook_scope, #{
-    <<"topic">> := <<"DestinationsTopic">>,
-    <<"eventTypes">> := EventList
-}) ->
-    Scope = #webhooker_EventFilter{
-        types = from_swag({set, webhook_destination_event_types}, EventList)
-    },
-    #{
-        scope => Scope
-    };
-from_swag(webhook_withdrawal_event_types, <<"WithdrawalStarted">>) ->
-    {withdrawal, {started, #webhooker_WithdrawalStarted{}}};
-from_swag(webhook_withdrawal_event_types, <<"WithdrawalSucceeded">>) ->
-    {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}};
-from_swag(webhook_withdrawal_event_types, <<"WithdrawalFailed">>) ->
-    {withdrawal, {failed, #webhooker_WithdrawalFailed{}}};
-
-from_swag(webhook_destination_event_types, <<"DestinationCreated">>) ->
-    {destination, {created, #webhooker_DestinationCreated{}}};
-from_swag(webhook_destination_event_types, <<"DestinationUnauthorized">>) ->
-    {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}};
-from_swag(webhook_destination_event_types, <<"DestinationAuthorized">>) ->
-    {destination, {authorized, #webhooker_DestinationAuthorized{}}};
-
 from_swag({list, Type}, List) ->
-    lists:map(fun(V) -> from_swag(Type, V) end, List);
-from_swag({set, Type}, List) ->
-    ordsets:from_list(from_swag({list, Type}, List)).
+    lists:map(fun(V) -> from_swag(Type, V) end, List).
 
 maybe_from_swag(_T, undefined) ->
     undefined;
@@ -2353,74 +2220,12 @@ to_swag(sub_failure, #{
 to_swag(sub_failure, undefined) ->
     undefined;
 
-to_swag(webhook, #webhooker_Webhook{
-    id = ID,
-    identity_id = IdentityID,
-    wallet_id = WalletID,
-    event_filter = EventFilter,
-    url = URL,
-    pub_key = PubKey,
-    enabled = Enabled
-}) ->
-    to_swag(map, #{
-        <<"id">> => integer_to_binary(ID),
-        <<"identityID">> => IdentityID,
-        <<"walletID">> => WalletID,
-        <<"active">> => to_swag(boolean, Enabled),
-        <<"scope">> => to_swag(webhook_scope, EventFilter),
-        <<"url">> => URL,
-        <<"publicKey">> => PubKey
-    });
-
-to_swag(webhook_scope, #webhooker_EventFilter{types = EventTypes}) ->
-    List = to_swag({set, webhook_event_types}, EventTypes),
-    lists:foldl(fun({Topic, Type}, Acc) ->
-        case maps:get(<<"topic">>, Acc, undefined) of
-            undefined ->
-                Acc#{
-                    <<"topic">> => to_swag(webhook_topic, Topic),
-                    <<"eventTypes">> => [Type]
-                };
-            _ ->
-                #{<<"eventTypes">> := Types} = Acc,
-                Acc#{
-                    <<"eventTypes">> := [Type | Types]
-                }
-        end
-    end, #{}, List);
-
-to_swag(webhook_event_types, {withdrawal, EventType}) ->
-    {withdrawal, to_swag(webhook_withdrawal_event_types, EventType)};
-to_swag(webhook_event_types, {destination, EventType}) ->
-    {destination, to_swag(webhook_destination_event_types, EventType)};
-
-to_swag(webhook_topic, withdrawal) ->
-    <<"WithdrawalsTopic">>;
-to_swag(webhook_topic, destination) ->
-    <<"DestinationsTopic">>;
-
-to_swag(webhook_withdrawal_event_types, {started, _}) ->
-    <<"WithdrawalStarted">>;
-to_swag(webhook_withdrawal_event_types, {succeeded, _}) ->
-    <<"WithdrawalSucceeded">>;
-to_swag(webhook_withdrawal_event_types, {failed, _}) ->
-    <<"WithdrawalFailed">>;
-
-to_swag(webhook_destination_event_types, {created, _}) ->
-    <<"DestinationCreated">>;
-to_swag(webhook_destination_event_types, {unauthorized, _}) ->
-    <<"DestinationUnauthorized">>;
-to_swag(webhook_destination_event_types, {authorized, _}) ->
-    <<"DestinationAuthorized">>;
-
 to_swag(boolean, true) ->
     true;
 to_swag(boolean, false) ->
     false;
 to_swag({list, Type}, List) ->
     lists:map(fun(V) -> to_swag(Type, V) end, List);
-to_swag({set, Type}, Set) ->
-    to_swag({list, Type}, ordsets:to_list(Set));
 to_swag(map, Map) ->
     genlib_map:compact(Map);
 to_swag(_, V) ->

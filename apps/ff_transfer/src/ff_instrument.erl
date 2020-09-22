@@ -18,9 +18,7 @@
 -type identity()    :: ff_identity:id().
 -type currency()    :: ff_currency:id().
 -type timestamp()   :: ff_time:timestamp_ms().
--type status()      ::
-    unauthorized |
-    authorized.
+-type status()      :: unauthorized | authorized.
 
 -define(ACTUAL_FORMAT_VERSION, 4).
 -type instrument_state(T) :: #{
@@ -48,6 +46,12 @@
     {status_changed, status()}.
 
 -type legacy_event() :: any().
+
+-type create_error() ::
+    {identity, notfound} |
+    {currecy, notfoud} |
+    ff_account:create_error() |
+    {identity, ff_party:inaccessibility()}.
 
 -export_type([id/0]).
 -export_type([instrument/1]).
@@ -152,7 +156,7 @@ metadata(_Instrument) ->
 
 -spec create(ff_instrument_machine:params(T)) ->
     {ok, [event(T)]} |
-    {error, {identity, notfound} | _WalletError}.
+    {error, create_error()}.
 
 create(Params = #{
     id := ID,
@@ -180,8 +184,7 @@ create(Params = #{
     end).
 
 -spec authorize(instrument_state(T)) ->
-    {ok, [event(T)]} |
-    {error, _TODO}.
+    {ok, [event(T)]}.
 
 authorize(#{status := unauthorized}) ->
     % TODO

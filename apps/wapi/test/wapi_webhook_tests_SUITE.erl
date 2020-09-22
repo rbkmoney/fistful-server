@@ -23,6 +23,7 @@
 
 -export([
     create_webhook_ok_test/1,
+    create_webhook_withdrawal_ok_test/1,
     get_webhooks_ok_test/1,
     get_webhook_ok_test/1,
     delete_webhook_ok_test/1
@@ -60,6 +61,7 @@ groups() ->
         {base, [],
             [
                 create_webhook_ok_test,
+                create_webhook_withdrawal_ok_test,
                 get_webhooks_ok_test,
                 get_webhook_ok_test,
                 delete_webhook_ok_test
@@ -148,6 +150,33 @@ create_webhook_ok_test(C) ->
                 <<"scope">> => #{
                     <<"topic">> => <<"DestinationsTopic">>,
                     <<"eventTypes">> => [<<"DestinationCreated">>]
+                }
+            }
+        },
+        ct_helper:cfg(context, C)
+    ).
+
+-spec create_webhook_withdrawal_ok_test(config()) ->
+    _.
+create_webhook_withdrawal_ok_test(C) ->
+    {ok, Identity} = create_identity(C),
+    IdentityID = maps:get(<<"id">>, Identity),
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?DESTINATION_EVENT_FILTER)} end},
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_webhooks_api:create_webhook/3,
+        #{
+            body => #{
+                <<"identityID">> => IdentityID,
+                <<"url">> => ?STRING,
+                <<"scope">> => #{
+                    <<"topic">> => <<"WithdrawalsTopic">>,
+                    <<"walletID">> => <<"1">>,
+                    <<"eventTypes">> => [<<"WithdrawalStarted">>]
                 }
             }
         },

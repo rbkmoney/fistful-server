@@ -131,8 +131,8 @@ marshal_webhook_params(#{
     <<"identityID">> := IdentityID,
     <<"scope">> := Scope,
     <<"url">> := URL
-} = WebhookParams) ->
-    WalletID = maps:get(<<"walletID">>, WebhookParams, undefined),
+}) ->
+    WalletID = maps:get(<<"walletID">>, Scope, undefined),
     #webhooker_WebhookParams{
         identity_id = IdentityID,
         wallet_id = WalletID,

@@ -26,7 +26,7 @@ create_webhook(#{'Webhook' := Params}, HandlerContext) ->
     WebhookParams = marshal_webhook_params(Params),
     IdentityID = WebhookParams#webhooker_WebhookParams.identity_id,
     WalletID = WebhookParams#webhooker_WebhookParams.wallet_id,
-    case wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext) of
+    case check_wallet(WalletID, HandlerContext) of
         ok ->
             case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
                 ok ->
@@ -124,6 +124,13 @@ encode_webhook_id(WebhookID) ->
         error:badarg ->
             {error, notfound}
     end.
+
+check_wallet(undefined, _) ->
+    ok;
+check_wallet(WalletID, HandlerContext) ->
+    wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext).
+
+
 
 %% marshaling
 

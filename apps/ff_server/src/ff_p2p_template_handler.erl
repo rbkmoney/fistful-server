@@ -23,18 +23,16 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [MarshaledParams, Context], Opts) ->
-    P2PTemplateID = MarshaledParams#p2p_template_P2PTemplateParams.id,
+handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
+    ID = MarshaledParams#p2p_template_P2PTemplateParams.id,
     Params = ff_p2p_template_codec:unmarshal_p2p_template_params(MarshaledParams),
+    Context = ff_p2p_template_codec:unmarshal(ctx, MarshaledContext),
     ok = scoper:add_meta(maps:with([id, identity_id, external_id], Params)),
-    case p2p_template_machine:create(
-        Params,
-        ff_p2p_template_codec:unmarshal(ctx, Context))
-    of
+    case p2p_template_machine:create(Params, Context) of
         ok ->
-            handle_function_('Get', [P2PTemplateID, #'EventRange'{}], Opts);
+            handle_function_('Get', [ID, #'EventRange'{}], Opts);
         {error, exists} ->
-            handle_function_('Get', [P2PTemplateID, #'EventRange'{}], Opts);
+            handle_function_('Get', [ID, #'EventRange'{}], Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {terms, {bad_p2p_template_amount, Cash}}} ->
@@ -43,9 +41,10 @@ handle_function_('Create', [MarshaledParams, Context], Opts) ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 
-handle_function_('Get', [ID, EventRange], _Opts) ->
+handle_function_('Get', [ID, MarshaledEventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
-    case p2p_template_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
+    EventRange = ff_codec:unmarshal(event_range, MarshaledEventRange),
+    case p2p_template_machine:get(ID, EventRange) of
         {ok, Machine} ->
             P2PTemplate = p2p_template_machine:p2p_template(Machine),
             Ctx = p2p_template_machine:ctx(Machine),
@@ -65,11 +64,93 @@ handle_function_('GetContext', [ID], _Opts) ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{})
     end;
 
-handle_function_('SetBlocking', [ID, Blocking], _Opts) ->
+handle_function_('SetBlocking', [ID, MarshaledBlocking], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
-    case p2p_template_machine:set_blocking(ID, ff_p2p_template_codec:unmarshal(blocking, Blocking)) of
+    Blocking = ff_p2p_template_codec:unmarshal(blocking, MarshaledBlocking),
+    case p2p_template_machine:set_blocking(ID, Blocking) of
         ok ->
             {ok, ok};
         {error, {unknown_p2p_template, _Ref}} ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{})
+    end;
+
+handle_function_('GetQuote', [ID, MarshaledParams], _Opts) ->
+    ok = scoper:add_meta(#{id => ID}),
+    Params = ff_p2p_template_codec:unmarshal_p2p_quote_params(MarshaledParams),
+    case p2p_template_machine:get_quote(ID, Params) of
+        {ok, Quote} ->
+            {ok, ff_p2p_template_codec:marshal(quote, Quote)};
+        {error, {unknown_p2p_template, _Ref}} ->
+            woody_error:raise(business, #fistful_P2PTemplateNotFound{});
+        {error, {identity, not_found}} ->
+            woody_error:raise(business, #fistful_IdentityNotFound{});
+        {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
+            Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
+            Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],
+            woody_error:raise(business, #fistful_ForbiddenOperationCurrency{
+                currency = ff_codec:marshal(currency_ref, Currency),
+                allowed_currencies = ff_codec:marshal({set, currency_ref}, Allowed)
+            });
+        {error, {terms, {terms_violation, {cash_range, {Cash, Range}}}}} ->
+            woody_error:raise(business, #fistful_ForbiddenOperationAmount{
+                amount = ff_codec:marshal(cash, Cash),
+                allowed_range = ff_codec:marshal(cash_range, Range)
+            });
+        {error, {Type, {bin_data, _}}} ->
+            woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = Type});
+        {error, Error} ->
+            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
+%        fistful.OperationNotPermitted ex
+    end;
+
+handle_function_('CreateTransfer', [ID, MarshaledParams, MarshaledContext], Opts) ->
+    ok = scoper:add_meta(#{id => ID}),
+    TransferID = MarshaledParams#p2p_template_P2PTemplateTransferParams.id,
+    Params = ff_p2p_template_codec:unmarshal_p2p_transfer_params(MarshaledParams),
+    Context = ff_p2p_template_codec:unmarshal(ctx, MarshaledContext),
+    case p2p_template_machine:create_transfer(ID, Params#{context => Context}) of
+        ok ->
+            % get_transfer(TransferID);
+            ff_p2p_transfer_handler:handle_function('Get', [TransferID, #'EventRange'{}], Opts);
+        {error, exists} ->
+            % get_transfer(TransferID);
+            ff_p2p_transfer_handler:handle_function('Get', [TransferID, #'EventRange'{}], Opts);
+        {error, {unknown_p2p_template, _Ref}} ->
+                woody_error:raise(business, #fistful_P2PTemplateNotFound{});
+        {error, {identity, notfound}} ->
+            woody_error:raise(business, #fistful_IdentityNotFound{});
+        {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
+            Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
+            Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],
+            woody_error:raise(business, #fistful_ForbiddenOperationCurrency{
+                currency = ff_codec:marshal(currency_ref, Currency),
+                allowed_currencies = ff_codec:marshal({set, currency_ref}, Allowed)
+            });
+        {error, {terms, {terms_violation, {cash_range, {Cash, Range}}}}} ->
+            woody_error:raise(business, #fistful_ForbiddenOperationAmount{
+                amount = ff_codec:marshal(cash, Cash),
+                allowed_range = ff_codec:marshal(cash_range, Range)
+            });
+        {error, {Type, {bin_data, _}}} ->
+            woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = Type});
+        {error, {Type, different_resource}} ->
+            woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = Type});
+        {error, Error} ->
+            woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end.
+
+%% Utility
+
+-if(0).
+get_transfer(TransferID) ->
+    case p2p_transfer_machine:get(TransferID, {undefined, 0}) of
+        {ok, Machine} ->
+            P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
+            Ctx = p2p_transfer_machine:ctx(Machine),
+            Response = ff_p2p_template_codec:marshal_p2p_transfer_state(P2PTransfer, Ctx),
+            {ok, Response};
+        {error, {unknown_p2p_transfer, _}}  = Error ->
+            Error
+    end.
+-endif.
+

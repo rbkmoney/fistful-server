@@ -215,8 +215,8 @@ p2p_template_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
     Provider = ?ID_PROVIDER,
     Class = ?ID_CLASS,
-
     ok = application:set_env(wapi, transport, thrift),
+
     IdentityID = create_identity(Name, Provider, Class, C),
     P2PTemplate = create_p2p_template(IdentityID, C),
     #{<<"id">> := P2PTemplateID} = P2PTemplate,
@@ -226,14 +226,20 @@ p2p_template_check_test(C) ->
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
     TemplateToken = get_p2p_template_token(P2PTemplateID, ValidUntil, C),
     TemplateTicket = get_p2p_template_ticket(P2PTemplateID, TemplateToken, ValidUntil, C),
-    QuoteToken = create_p2p_template_quote(P2PTemplateID, C),
-    P2PTransfer = create_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
+    {ok, #{<<"token">> := QuoteToken}} = call_p2p_template_quote(P2PTemplateID, C),
+    {ok, P2PTransfer} = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
     ?assertEqual(maps:get(<<"identityID">>, P2PTransfer), IdentityID),
 
     % TODO: #{<<"metadata">> := Metadata} = P2PTransfer,
     ok = block_p2p_template(P2PTemplateID, C),
     P2PTemplateBlocked = get_p2p_template(P2PTemplateID, C),
-    ?assertEqual(maps:get(<<"isBlocked">>, P2PTemplateBlocked), true).
+    ?assertEqual(maps:get(<<"isBlocked">>, P2PTemplateBlocked), true),
+
+    QuoteError = call_p2p_template_quote(P2PTemplateID, C),
+    ?assertMatch({error, {_, 404}}, QuoteError),
+
+    P2PTransferError = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
+    ?assertMatch({error, {404, _}}, P2PTransferError).
 
 %%
 
@@ -589,10 +595,10 @@ get_p2p_template_ticket(P2PTemplateID, TemplateToken, ValidUntil, C) ->
     ),
     Ticket.
 
-create_p2p_template_quote(P2PTemplateID, C) ->
+call_p2p_template_quote(P2PTemplateID, C) ->
     SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    {ok, #{<<"token">> := QuoteToken}} = call_api(
+    call_api(
     fun swag_client_wallet_p2_p_templates_api:quote_p2_p_transfer_with_template/3,
         #{
             binding => #{
@@ -614,15 +620,13 @@ create_p2p_template_quote(P2PTemplateID, C) ->
             }
         },
         ct_helper:cfg(context, C)
-    ),
-    QuoteToken.
+    ).
 
-
-create_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C) ->
+call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C) ->
     SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     Context = maps:merge(ct_helper:cfg(context, C), #{token => TemplateTicket}),
-    {ok, P2PTransfer} = call_api(
+    call_api(
         fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
         #{
             binding => #{
@@ -650,8 +654,7 @@ create_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C) ->
             }
         },
         Context
-    ),
-    P2PTransfer.
+    ).
 
 %%
 

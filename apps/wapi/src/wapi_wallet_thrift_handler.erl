@@ -603,19 +603,19 @@ process_request('QuoteP2PTransferWithTemplate', #{
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, {forbidden_currency, _}} ->
-            wapi_handler_utils:reply_ok(422,
+            wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
         {error, {forbidden_amount, _}} ->
-            wapi_handler_utils:reply_ok(422,
+            wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Amount forbidden">>));
         {error, {operation_not_permitted, _}} ->
-            wapi_handler_utils:reply_ok(422,
+            wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Operation not permitted">>));
         {error, {invalid_resource, sender}} ->
-            wapi_handler_utils:reply_ok(422,
+            wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
         {error, {invalid_resource, receiver}} ->
-            wapi_handler_utils:reply_ok(422,
+            wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>))
     end;
 process_request('CreateP2PTransferWithTemplate', #{
@@ -630,23 +630,23 @@ process_request('CreateP2PTransferWithTemplate', #{
         {error, {p2p_template, unauthorized}} ->
             wapi_handler_utils:reply_error(404);
         {error, {forbidden_currency, _}} ->
-            wapi_handler_utils:reply_ok(422,
+            wapi_handler_utils:reply_errork(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
         {error, {forbidden_amount, _}} ->
-            wapi_handler_utils:reply_ok(422,
+            wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Amount forbidden">>));
         {error, {operation_not_permitted, _}} ->
-            wapi_handler_utils:reply_ok(422,
+            wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Operation not permitted">>));
         {error, {invalid_resource, sender}} ->
-            wapi_handler_utils:reply_ok(422,
+            wapi_handler_utils:reply_errork(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
         {error, {invalid_resource, receiver}} ->
-            wapi_handler_utils:reply_ok(422,
+            wapi_handler_utils:reply_errork(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
         %% TODO {error, {token, _}} ->
         {error, {external_id_conflict, ID}} ->
-            wapi_handler_utils:reply_ok(409, #{<<"id">> => ID})
+            wapi_handler_utils:reply_errork(409, #{<<"id">> => ID})
     end;
 
 %% Reports

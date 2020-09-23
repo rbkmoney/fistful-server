@@ -113,6 +113,12 @@ get_quote(ID, #{
     do(fun() ->
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template(Machine),
+        unwrap(case p2p_template:blocking(State) of
+            unblocked ->
+                ok;
+            blocked ->
+                {error, {unknown_p2p_template, ID}}
+        end),
         unwrap(p2p_quote:get(#{
             body => Body,
             identity_id => p2p_template:identity_id(State),
@@ -127,6 +133,12 @@ create_transfer(ID, Params) ->
     do(fun() ->
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template(Machine),
+        unwrap(case p2p_template:blocking(State) of
+            unblocked ->
+                ok;
+            blocked ->
+                {error, {unknown_p2p_template, ID}}
+        end),
         unwrap(p2p_template:create_transfer(Params, State))
     end).
 

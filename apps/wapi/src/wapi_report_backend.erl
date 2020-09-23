@@ -70,7 +70,7 @@ get_report(contractID, ReportID, ContractID, HandlerContext) ->
     Call = {fistful_report, 'GetReport', [PartyID, ContractID, ReportID]},
     case wapi_handler_utils:service_call(Call, HandlerContext) of
         {ok, Report} ->
-            {ok, to_swag(report_object, Report)};
+            {ok, unmarshal_report(Report)};
         {exception, #ff_reports_ReportNotFound{}} ->
             {error, notfound}
     end.
@@ -95,7 +95,7 @@ get_reports(#{identityID := IdentityID} = Params, HandlerContext) ->
             Call = {fistful_report, 'GetReports', [Req, [genlib:to_binary(maps:get(type, Params))]]},
             case wapi_handler_utils:service_call(Call, HandlerContext) of
                 {ok, ReportList} ->
-                    {ok, to_swag({list, report_object}, ReportList)};
+                    {ok, unmarshal_reports(ReportList)};
                 {exception, #ff_reports_InvalidRequest{}} ->
                     {error, invalid_request};
                 {exception, #ff_reports_DatasetTooBig{limit = Limit}} ->
@@ -160,9 +160,10 @@ get_time(Key, Req) ->
 
 %% Marshaling
 
-to_swag({list, Type}, List) ->
-    lists:map(fun(V) -> to_swag(Type, V) end, List);
-to_swag(report_object, #ff_reports_Report{
+unmarshal_reports(List) ->
+    lists:map(fun(Report) -> unmarshal_report(Report) end, List).
+
+unmarshal_report(#ff_reports_Report{
     report_id = ReportID,
     time_range = TimeRange,
     created_at = CreatedAt,
@@ -175,19 +176,22 @@ to_swag(report_object, #ff_reports_Report{
         <<"fromTime">>  => TimeRange#ff_reports_ReportTimeRange.from_time,
         <<"toTime">>    => TimeRange#ff_reports_ReportTimeRange.to_time,
         <<"createdAt">> => CreatedAt,
-        <<"status">>    => to_swag(report_status, Status),
+        <<"status">>    => unmarshal_report_status(Status),
         <<"type">>      => Type,
-        <<"files">>     => to_swag(report_files, {files, Files})
-    });
-to_swag(report_status, pending) ->
+        <<"files">>     => unmarshal_report_files(Files)
+    }).
+
+unmarshal_report_status(pending) ->
     <<"pending">>;
-to_swag(report_status, created) ->
+unmarshal_report_status(created) ->
     <<"created">>;
-to_swag(report_status, canceled) ->
-    <<"canceled">>;
-to_swag(report_files, {files, undefined}) ->
+unmarshal_report_status(canceled) ->
+    <<"canceled">>.
+
+unmarshal_report_files({files, undefined}) ->
     [];
-to_swag(report_files, {files, Files}) ->
-    to_swag({list, report_file}, Files);
-to_swag(report_file, File) ->
+unmarshal_report_files({files, Files}) ->
+    lists:map(fun(File) -> unmarshal_report_file(File) end, Files).
+
+unmarshal_report_file(File) ->
     #{<<"id">> => File}.

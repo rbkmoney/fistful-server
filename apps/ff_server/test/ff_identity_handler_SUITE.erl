@@ -89,7 +89,7 @@ create_identity_ok(_C) ->
     Name = Identity_#idnt_IdentityState.name,
     PartyID = Identity_#idnt_IdentityState.party_id,
     ClassID = Identity_#idnt_IdentityState.class_id,
-    blocked = Identity_#idnt_IdentityState.blocking,
+    unblocked = Identity_#idnt_IdentityState.blocking,
     Metadata = Identity_#idnt_IdentityState.metadata,
     Ctx0 = Ctx#{
         <<"com.rbkmoney.wapi">> => #{<<"name">> => Name}

@@ -26,7 +26,7 @@ create_webhook(#{'Webhook' := Params}, HandlerContext) ->
     WebhookParams = marshal_webhook_params(Params),
     IdentityID = WebhookParams#webhooker_WebhookParams.identity_id,
     WalletID = WebhookParams#webhooker_WebhookParams.wallet_id,
-    case wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext) of
+    case check_wallet(WalletID, HandlerContext) of
         ok ->
             case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
                 ok ->
@@ -125,14 +125,21 @@ encode_webhook_id(WebhookID) ->
             {error, notfound}
     end.
 
+check_wallet(undefined, _) ->
+    ok;
+check_wallet(WalletID, HandlerContext) ->
+    wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext).
+
+
+
 %% marshaling
 
 marshal_webhook_params(#{
     <<"identityID">> := IdentityID,
     <<"scope">> := Scope,
     <<"url">> := URL
-} = WebhookParams) ->
-    WalletID = maps:get(<<"walletID">>, WebhookParams, undefined),
+}) ->
+    WalletID = maps:get(<<"walletID">>, Scope, undefined),
     #webhooker_WebhookParams{
         identity_id = IdentityID,
         wallet_id = WalletID,
@@ -177,22 +184,22 @@ unmarshal_webhook(#webhooker_Webhook{
    genlib_map:compact(#{
         <<"id">> => integer_to_binary(ID),
         <<"identityID">> => IdentityID,
-        <<"walletID">> => WalletID,
         <<"active">> => ff_codec:unmarshal(bool, Enabled),
-        <<"scope">> => unmarshal_webhook_scope(EventFilter),
+        <<"scope">> => unmarshal_webhook_scope(EventFilter, WalletID),
         <<"url">> => URL,
         <<"publicKey">> => PubKey
     }).
 
-unmarshal_webhook_scope(#webhooker_EventFilter{types = EventTypes}) ->
+unmarshal_webhook_scope(#webhooker_EventFilter{types = EventTypes}, WalletID) ->
     List = unmarshal_webhook_event_types(EventTypes),
     lists:foldl(fun({Topic, Type}, Acc) ->
         case maps:get(<<"topic">>, Acc, undefined) of
             undefined ->
-                Acc#{
+                genlib_map:compact(Acc#{
                     <<"topic">> => unmarshal_webhook_topic(Topic),
+                    <<"walletID">> => WalletID,
                     <<"eventTypes">> => [Type]
-                };
+                });
             _ ->
                 #{<<"eventTypes">> := Types} = Acc,
                 Acc#{

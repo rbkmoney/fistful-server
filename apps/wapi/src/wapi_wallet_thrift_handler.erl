@@ -596,9 +596,17 @@ process_request('QuoteP2PTransferWithTemplate', #{
         {ok, Quote} ->
             wapi_handler_utils:reply_ok(201, Quote);
         {error, {p2p_template, notfound}} ->
-            wapi_handler_utils:reply_error(404);
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => p2pTransferTemplateID,
+                <<"description">> => <<"No such P2PTransferTemplate">>
+            });
         {error, {p2p_template, unauthorized}} ->
-            wapi_handler_utils:reply_error(404);
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"NotFound">>,
+                <<"name">>        => p2pTransferTemplateID,
+                <<"description">> => <<"No such P2PTransferTemplate">>
+            });
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));
@@ -611,12 +619,12 @@ process_request('QuoteP2PTransferWithTemplate', #{
         {error, {operation_not_permitted, _}} ->
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Operation not permitted">>));
-        {error, {invalid_resource, sender}} ->
-            wapi_handler_utils:reply_error(422,
-                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
-        {error, {invalid_resource, receiver}} ->
-            wapi_handler_utils:reply_error(422,
-                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>))
+        {error, {invalid_resource, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
     end;
 process_request('CreateP2PTransferWithTemplate', #{
     p2pTransferTemplateID := P2PTemplateID,
@@ -630,7 +638,7 @@ process_request('CreateP2PTransferWithTemplate', #{
         {error, {p2p_template, unauthorized}} ->
             wapi_handler_utils:reply_error(404);
         {error, {forbidden_currency, _}} ->
-            wapi_handler_utils:reply_errork(422,
+            wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
         {error, {forbidden_amount, _}} ->
             wapi_handler_utils:reply_error(422,
@@ -638,15 +646,26 @@ process_request('CreateP2PTransferWithTemplate', #{
         {error, {operation_not_permitted, _}} ->
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Operation not permitted">>));
-        {error, {invalid_resource, sender}} ->
-            wapi_handler_utils:reply_errork(422,
-                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
-        {error, {invalid_resource, receiver}} ->
-            wapi_handler_utils:reply_errork(422,
-                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
-        %% TODO {error, {token, _}} ->
+        {error, {invalid_resource, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            });
+        {error, {token, expired}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidToken">>,
+                <<"name">>        => <<"quoteToken">>,
+                <<"description">> => <<"Token expired">>
+            });
+        {error, {token, {not_verified, Error}}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidToken">>,
+                <<"name">>        => <<"quoteToken">>,
+                <<"description">> => Error
+            });
         {error, {external_id_conflict, ID}} ->
-            wapi_handler_utils:reply_errork(409, #{<<"id">> => ID})
+            wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
     end;
 
 %% Reports

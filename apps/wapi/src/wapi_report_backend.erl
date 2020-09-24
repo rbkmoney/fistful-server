@@ -188,9 +188,9 @@ unmarshal_report_status(created) ->
 unmarshal_report_status(canceled) ->
     <<"canceled">>.
 
-unmarshal_report_files({files, undefined}) ->
+unmarshal_report_files(undefined) ->
     [];
-unmarshal_report_files({files, Files}) ->
+unmarshal_report_files(Files) ->
     lists:map(fun(File) -> unmarshal_report_file(File) end, Files).
 
 unmarshal_report_file(File) ->

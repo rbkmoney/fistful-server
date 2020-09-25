@@ -75,7 +75,7 @@ init([]) ->
 
     % TODO
     %  - Make it palatable
-    {Backends, MachineHandlers, ModernizerHandlers} = lists:unzip([
+    {Backends, MachineHandlers, ModernizerHandlers} = lists:unzip3([
         contruct_backend_childspec('ff/identity'                , ff_identity_machine           , PartyClient),
         contruct_backend_childspec('ff/wallet_v2'               , ff_wallet_machine             , PartyClient),
         contruct_backend_childspec('ff/source_v1'               , ff_instrument_machine         , PartyClient),

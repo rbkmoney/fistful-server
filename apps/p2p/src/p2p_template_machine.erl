@@ -104,7 +104,8 @@ ctx(St) ->
 
 -spec get_quote(id(), p2p_template:quote_params()) ->
     {ok, p2p_quote:quote()} |
-    {error, p2p_quote:get_quote_error() | unknown_p2p_template_error()}.
+    {error, p2p_quote:get_quote_error() | unknown_p2p_template_error()} |
+    {error, p2p_template_blocked}.
 get_quote(ID, #{
     body := Body,
     sender := Sender,
@@ -117,7 +118,7 @@ get_quote(ID, #{
             unblocked ->
                 ok;
             blocked ->
-                {error, {unknown_p2p_template, ID}}
+                {error, p2p_template_blocked}
         end),
         unwrap(p2p_quote:get(#{
             body => Body,
@@ -128,7 +129,8 @@ get_quote(ID, #{
     end).
 
 -spec create_transfer(id(), p2p_template:transfer_params()) ->
-    ok | {error, p2p_transfer:create_error() | exists | unknown_p2p_template_error()}.
+    ok | {error, p2p_transfer:create_error() | exists | unknown_p2p_template_error()} |
+    {error, p2p_template_blocked}.
 create_transfer(ID, Params) ->
     do(fun() ->
         Machine = unwrap(p2p_template_machine:get(ID)),
@@ -137,7 +139,7 @@ create_transfer(ID, Params) ->
             unblocked ->
                 ok;
             blocked ->
-                {error, {unknown_p2p_template, ID}}
+                {error, p2p_template_blocked}
         end),
         unwrap(p2p_template:create_transfer(Params, State))
     end).

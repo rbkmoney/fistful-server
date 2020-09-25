@@ -616,9 +616,9 @@ process_request('QuoteP2PTransferWithTemplate', #{
         {error, {forbidden_amount, _}} ->
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Amount forbidden">>));
-        {error, {operation_not_permitted, _}} ->
+        {error, {operation_not_permitted, Details}} ->
             wapi_handler_utils:reply_error(422,
-                wapi_handler_utils:get_error_msg(<<"Operation not permitted">>));
+                wapi_handler_utils:get_error_msg(Details));
         {error, {invalid_resource, Type}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"InvalidResourceToken">>,
@@ -643,9 +643,9 @@ process_request('CreateP2PTransferWithTemplate', #{
         {error, {forbidden_amount, _}} ->
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"Amount forbidden">>));
-        {error, {operation_not_permitted, _}} ->
+        {error, {operation_not_permitted, Details}} ->
             wapi_handler_utils:reply_error(422,
-                wapi_handler_utils:get_error_msg(<<"Operation not permitted">>));
+                wapi_handler_utils:get_error_msg(Details));
         {error, {invalid_resource, Type}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"InvalidResourceToken">>,

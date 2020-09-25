@@ -82,10 +82,16 @@ handle_function_('GetQuote', [ID, MarshaledParams], _Opts) ->
             {ok, ff_p2p_template_codec:marshal(quote, Quote)};
         {error, {unknown_p2p_template, _Ref}} ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{});
+        {error, p2p_template_blocked} ->
+            woody_error:raise(business, #fistful_OperationNotPermitted{
+                details = ff_codec:marshal(string, <<"P2PTransferTemplate inaccessible">>)
+            });
         {error, {identity, not_found}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {terms, {terms_violation, p2p_forbidden}}} ->
-            woody_error:raise(business, #fistful_OperationNotPermitted{});
+            woody_error:raise(business, #fistful_OperationNotPermitted{
+                details = ff_codec:marshal(string, <<"P2PTransferTemplate forbidden">>)
+            });
         {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
             Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
             Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],
@@ -115,12 +121,18 @@ handle_function_('CreateTransfer', [ID, MarshaledParams, MarshaledContext], Opts
             ff_p2p_transfer_handler:handle_function('Get', [TransferID, #'EventRange'{}], Opts);
         {error, exists} ->
             ff_p2p_transfer_handler:handle_function('Get', [TransferID, #'EventRange'{}], Opts);
+        {error, p2p_template_blocked} ->
+            woody_error:raise(business, #fistful_OperationNotPermitted{
+                details = ff_codec:marshal(string, <<"P2PTransferTemplate inaccessible">>)
+            });
         {error, {unknown_p2p_template, _Ref}} ->
-                woody_error:raise(business, #fistful_P2PTemplateNotFound{});
+            woody_error:raise(business, #fistful_P2PTemplateNotFound{});
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {terms, {terms_violation, p2p_forbidden}}} ->
-            woody_error:raise(business, #fistful_OperationNotPermitted{});
+            woody_error:raise(business, #fistful_OperationNotPermitted{
+                details = ff_codec:marshal(string, <<"P2PTransferTemplate forbidden">>)
+            });
         {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
             Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
             Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],

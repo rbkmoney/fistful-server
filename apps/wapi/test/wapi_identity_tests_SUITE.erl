@@ -190,7 +190,7 @@ create_identity_provider_notfound(C) ->
         {fistful_identity, fun('Create', _) -> throw(#fistful_ProviderNotFound{}) end}
     ], C),
     ?assertEqual(
-        {error,{422,#{<<"message">> => <<"No such provider">>}}},
+        {error, {422, #{<<"message">> => <<"No such provider">>}}},
         call_api(
             fun swag_client_wallet_identities_api:create_identity/3,
             #{
@@ -214,7 +214,7 @@ create_identity_class_notfound(C) ->
         {fistful_identity, fun('Create', _) -> throw(#fistful_IdentityClassNotFound{}) end}
     ], C),
     ?assertEqual(
-        {error,{422,#{<<"message">> => <<"No such identity class">>}}},
+        {error, {422 ,#{<<"message">> => <<"No such identity class">>}}},
         call_api(
             fun swag_client_wallet_identities_api:create_identity/3,
             #{

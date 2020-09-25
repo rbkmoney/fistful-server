@@ -242,159 +242,6 @@ create_transfer(ID, Params, HandlerContext) ->
             {error, {p2p_template, notfound}}
     end.
 
-%% Convert swag maps to thrift records
-
-marshal_template_params(Params = #{
-    <<"id">> := ID,
-    <<"identityID">> := IdentityID,
-    <<"details">> := Details
-}) ->
-    ExternalID = maps:get(<<"externalID">>, Params, undefined),
-    #p2p_template_P2PTemplateParams{
-        id = marshal(id, ID),
-        identity_id  = marshal(id, IdentityID),
-        template_details = marshal_template_details(Details),
-        external_id = marshal(id, ExternalID)
-    }.
-
-marshal_template_details(Details = #{
-    <<"body">> := Body
-}) ->
-    Metadata = maps:get(<<"metadata">>, Details, undefined),
-    #p2p_template_P2PTemplateDetails{
-        body = marshal_template_body(Body),
-        metadata = marshal_template_metadata(Metadata)
-    }.
-
-marshal_template_body(#{
-    <<"value">> := Cash
-}) ->
-    Currency = maps:get(<<"currency">>, Cash),
-    Amount = maps:get(<<"amount">>, Cash, undefined),
-    #p2p_template_P2PTemplateBody{
-        value = #p2p_template_Cash{
-            currency = marshal(currency_ref, Currency),
-            amount = marshal(amount, Amount)
-        }
-    }.
-
-marshal_template_metadata(undefined) ->
-    undefined;
-marshal_template_metadata(#{
-    <<"defaultMetadata">> := Metadata
-}) ->
-    #p2p_template_P2PTemplateMetadata{
-        value = marshal(context, Metadata)
-    }.
-
-marshal_body(#{
-    <<"amount">> := Amount,
-    <<"currency">> := Currency
-}) ->
-    marshal(cash, {Amount, Currency}).
-
-marshal_quote_params(#{
-    <<"sender">> := Sender,
-    <<"receiver">> := Receiver,
-    <<"body">> := Body
-}) ->
-    #p2p_template_P2PTemplateQuoteParams{
-        sender = marshal_quote_participant(Sender),
-        receiver = marshal_quote_participant(Receiver),
-        body = marshal_body(Body)
-    }.
-
-marshal_quote_participant(#{
-    <<"token">> := Token
-}) ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            {bank_card, #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            }};
-        {ok, BankCard} ->
-            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
-    end.
-
-marshal_transfer_params(#{
-    <<"id">> := TransferID,
-    <<"sender">> := Sender,
-    <<"receiver">> := Receiver,
-    <<"body">> := Body,
-    <<"contactInfo">> := ContactInfo
-} = Params) ->
-    Quote = maps:get(<<"quote">>, Params, undefined), %% decrypted from quoteToken
-    Metadata = maps:get(<<"metadata">>, Params, undefined),
-    #p2p_template_P2PTemplateTransferParams{
-        id = TransferID,
-        sender = marshal_sender(Sender#{<<"contactInfo">> => ContactInfo}),
-        receiver = marshal_receiver(Receiver),
-        body = marshal_body(Body),
-        % TODO: client_info
-        % TODO: deadline
-        quote = Quote,
-        metadata = marshal(context, Metadata)
-    }.
-
-marshal_sender(#{
-    <<"token">> := Token,
-    <<"contactInfo">> := ContactInfo
-}) ->
-    Resource = case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            {bank_card, #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            }};
-        {ok, BankCard} ->
-            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
-    end,
-    {resource, #p2p_transfer_RawResource{
-        resource = Resource,
-        contact_info = marshal_contact_info(ContactInfo)
-    }}.
-
-marshal_receiver(#{
-    <<"token">> := Token
-}) ->
-    Resource = case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            {bank_card, #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            }};
-        {ok, BankCard} ->
-            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
-    end,
-    {resource, #p2p_transfer_RawResource{
-        resource = Resource,
-        contact_info = #'ContactInfo'{}
-    }}.
-
-marshal_contact_info(ContactInfo) ->
-    Email = maps:get(<<"email">>, ContactInfo, undefined),
-    Phone = maps:get(<<"phoneNumber">>, ContactInfo, undefined),
-    #'ContactInfo'{
-        email = Email,
-        phone_number = Phone
-    }.
-
-marshal(T, V) ->
-    ff_codec:marshal(T, V).
-
 %% Convert thrift records to swag maps
 
 unmarshal_template(#p2p_template_P2PTemplateState{
@@ -556,7 +403,7 @@ maybe_unmarshal(_, undefined) ->
 maybe_unmarshal(T, V) ->
     unmarshal(T, V).
 
-%% From wapi_wallet_ff_backend copypast
+%% Create quoteToken from Quote
 
 create_quote_token(Quote, PartyID) ->
     Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
@@ -565,6 +412,8 @@ create_quote_token(Quote, PartyID) ->
 
 issue_quote_token(PartyID, Data) ->
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).
+
+%%
 
 choose_tiket_expiration(WishExpiration, AccessExpiration) ->
     WishMs = woody_deadline:to_unixtime_ms(woody_deadline:from_binary(WishExpiration)),
@@ -628,3 +477,162 @@ validate_identity_id(IdentityID, ID, HandlerContext) ->
         Error ->
             Error
     end.
+
+%% Convert swag maps to thrift records
+
+marshal_template_params(Params = #{
+    <<"id">> := ID,
+    <<"identityID">> := IdentityID,
+    <<"details">> := Details
+}) ->
+    ExternalID = maps:get(<<"externalID">>, Params, undefined),
+    #p2p_template_P2PTemplateParams{
+        id = marshal(id, ID),
+        identity_id  = marshal(id, IdentityID),
+        template_details = marshal_template_details(Details),
+        external_id = maybe_marshal(id, ExternalID)
+    }.
+
+marshal_template_details(Details = #{
+    <<"body">> := Body
+}) ->
+    Metadata = maps:get(<<"metadata">>, Details, undefined),
+    #p2p_template_P2PTemplateDetails{
+        body = marshal_template_body(Body),
+        metadata = marshal_template_metadata(Metadata)
+    }.
+
+marshal_template_body(#{
+    <<"value">> := Cash
+}) ->
+    Currency = maps:get(<<"currency">>, Cash),
+    Amount = maps:get(<<"amount">>, Cash, undefined),
+    #p2p_template_P2PTemplateBody{
+        value = #p2p_template_Cash{
+            currency = marshal(currency_ref, Currency),
+            amount = maybe_marshal(amount, Amount)
+        }
+    }.
+
+marshal_template_metadata(undefined) ->
+    undefined;
+marshal_template_metadata(#{
+    <<"defaultMetadata">> := Metadata
+}) ->
+    #p2p_template_P2PTemplateMetadata{
+        value = marshal(context, Metadata)
+    }.
+
+marshal_body(#{
+    <<"amount">> := Amount,
+    <<"currency">> := Currency
+}) ->
+    marshal(cash, {Amount, Currency}).
+
+marshal_quote_params(#{
+    <<"sender">> := Sender,
+    <<"receiver">> := Receiver,
+    <<"body">> := Body
+}) ->
+    #p2p_template_P2PTemplateQuoteParams{
+        sender = marshal_quote_participant(Sender),
+        receiver = marshal_quote_participant(Receiver),
+        body = marshal_body(Body)
+    }.
+
+marshal_quote_participant(#{
+    <<"token">> := Token
+}) ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        unrecognized ->
+            BankCard = wapi_utils:base64url_to_map(Token),
+            {bank_card, #'ResourceBankCard'{
+                bank_card = #'BankCard'{
+                    token      = maps:get(<<"token">>, BankCard),
+                    bin        = maps:get(<<"bin">>, BankCard),
+                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
+                }
+            }};
+        {ok, BankCard} ->
+            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
+    end.
+
+marshal_transfer_params(#{
+    <<"id">> := TransferID,
+    <<"sender">> := Sender,
+    <<"receiver">> := Receiver,
+    <<"body">> := Body,
+    <<"contactInfo">> := ContactInfo
+} = Params) ->
+    Quote = maps:get(<<"quote">>, Params, undefined), %% decrypted from quoteToken
+    Metadata = maps:get(<<"metadata">>, Params, undefined),
+    #p2p_template_P2PTemplateTransferParams{
+        id = TransferID,
+        sender = marshal_sender(Sender#{<<"contactInfo">> => ContactInfo}),
+        receiver = marshal_receiver(Receiver),
+        body = marshal_body(Body),
+        % TODO: client_info
+        % TODO: deadline
+        quote = Quote,
+        metadata = maybe_marshal(context, Metadata)
+    }.
+
+marshal_sender(#{
+    <<"token">> := Token,
+    <<"contactInfo">> := ContactInfo
+}) ->
+    Resource = case wapi_crypto:decrypt_bankcard_token(Token) of
+        unrecognized ->
+            BankCard = wapi_utils:base64url_to_map(Token),
+            {bank_card, #'ResourceBankCard'{
+                bank_card = #'BankCard'{
+                    token      = maps:get(<<"token">>, BankCard),
+                    bin        = maps:get(<<"bin">>, BankCard),
+                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
+                }
+            }};
+        {ok, BankCard} ->
+            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
+    end,
+    {resource, #p2p_transfer_RawResource{
+        resource = Resource,
+        contact_info = marshal_contact_info(ContactInfo)
+    }}.
+
+marshal_receiver(#{
+    <<"token">> := Token
+}) ->
+    Resource = case wapi_crypto:decrypt_bankcard_token(Token) of
+        unrecognized ->
+            BankCard = wapi_utils:base64url_to_map(Token),
+            {bank_card, #'ResourceBankCard'{
+                bank_card = #'BankCard'{
+                    token      = maps:get(<<"token">>, BankCard),
+                    bin        = maps:get(<<"bin">>, BankCard),
+                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
+                }
+            }};
+        {ok, BankCard} ->
+            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
+    end,
+    {resource, #p2p_transfer_RawResource{
+        resource = Resource,
+        contact_info = #'ContactInfo'{}
+    }}.
+
+marshal_contact_info(ContactInfo) ->
+    Email = maps:get(<<"email">>, ContactInfo, undefined),
+    Phone = maps:get(<<"phoneNumber">>, ContactInfo, undefined),
+    #'ContactInfo'{
+        email = Email,
+        phone_number = Phone
+    }.
+
+marshal(T, V) ->
+    ff_codec:marshal(T, V).
+
+maybe_marshal(_, undefined) ->
+    undefined;
+maybe_marshal(T, V) ->
+    marshal(T, V).
+

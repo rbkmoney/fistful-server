@@ -44,12 +44,12 @@ all() ->
 groups() ->
     [
         {default, [sequence], [
-            % identity_check_test,
-            % identity_challenge_check_test,
-            % wallet_check_test,
-            % destination_check_test,
-            % w2w_transfer_check_test,
-            % withdrawal_check_test,
+            identity_check_test,
+            identity_challenge_check_test,
+            wallet_check_test,
+            destination_check_test,
+            w2w_transfer_check_test,
+            withdrawal_check_test,
             p2p_template_check_test
         ]}
     ].

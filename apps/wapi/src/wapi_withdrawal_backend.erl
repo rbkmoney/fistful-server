@@ -8,7 +8,6 @@
 }).
 -define(statusChange(Status), {status_changed, #wthd_StatusChange{status = Status}}).
 
-
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().

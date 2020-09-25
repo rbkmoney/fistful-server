@@ -216,7 +216,7 @@ is_accessible(Identity) ->
 -spec set_blocking(identity_state()) -> identity_state().
 
 set_blocking(Identity) ->
-    Blocking =  case {ok, accessible} =/= is_accessible(Identity) of
+    Blocking =  case {ok, accessible} =:= is_accessible(Identity) of
         true ->
             unblocked;
         false ->

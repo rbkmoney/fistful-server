@@ -84,6 +84,8 @@ handle_function_('GetQuote', [ID, MarshaledParams], _Opts) ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{});
         {error, {identity, not_found}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
+        {error, {terms, {terms_violation, p2p_forbidden}}} ->
+            woody_error:raise(business, #fistful_OperationNotPermitted{});
         {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
             Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
             Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],
@@ -100,7 +102,7 @@ handle_function_('GetQuote', [ID, MarshaledParams], _Opts) ->
             woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = Type});
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
-%        fistful.OperationNotPermitted ex
+
     end;
 
 handle_function_('CreateTransfer', [ID, MarshaledParams, MarshaledContext], Opts) ->
@@ -110,15 +112,15 @@ handle_function_('CreateTransfer', [ID, MarshaledParams, MarshaledContext], Opts
     Context = ff_p2p_template_codec:unmarshal(ctx, MarshaledContext),
     case p2p_template_machine:create_transfer(ID, Params#{context => Context}) of
         ok ->
-            % get_transfer(TransferID);
             ff_p2p_transfer_handler:handle_function('Get', [TransferID, #'EventRange'{}], Opts);
         {error, exists} ->
-            % get_transfer(TransferID);
             ff_p2p_transfer_handler:handle_function('Get', [TransferID, #'EventRange'{}], Opts);
         {error, {unknown_p2p_template, _Ref}} ->
                 woody_error:raise(business, #fistful_P2PTemplateNotFound{});
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
+        {error, {terms, {terms_violation, p2p_forbidden}}} ->
+            woody_error:raise(business, #fistful_OperationNotPermitted{});
         {error, {terms, {terms_violation, {not_allowed_currency, {DomainCurrency, DomainAllowed}}}}} ->
             Currency = ff_dmsl_codec:unmarshal(currency_ref, DomainCurrency),
             Allowed = [ff_dmsl_codec:unmarshal(currency_ref, C) || C <- DomainAllowed],
@@ -138,19 +140,3 @@ handle_function_('CreateTransfer', [ID, MarshaledParams, MarshaledContext], Opts
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end.
-
-%% Utility
-
--if(0).
-get_transfer(TransferID) ->
-    case p2p_transfer_machine:get(TransferID, {undefined, 0}) of
-        {ok, Machine} ->
-            P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
-            Ctx = p2p_transfer_machine:ctx(Machine),
-            Response = ff_p2p_template_codec:marshal_p2p_transfer_state(P2PTransfer, Ctx),
-            {ok, Response};
-        {error, {unknown_p2p_transfer, _}}  = Error ->
-            Error
-    end.
--endif.
-

@@ -172,7 +172,7 @@ quote_transfer(ID, Params, HandlerContext) ->
             {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
                 {error, {forbidden_amount, unmarshal(cash, Amount)}};
             {exception, #fistful_OperationNotPermitted{details = Details}} ->
-                {error, {operation_not_permitted, unmarshal(string, Details)}};
+                {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
             {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
                 {error, {invalid_resource, Type}}
         end;
@@ -229,7 +229,7 @@ create_transfer(ID, Params, HandlerContext) ->
                         {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
                             {error, {forbidden_amount, unmarshal(cash, Amount)}};
                         {exception, #fistful_OperationNotPermitted{details = Details}} ->
-                            {error, {operation_not_permitted, unmarshal(string, Details)}};
+                            {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
                         {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
                             {error, {invalid_resource, Type}}
                     end;

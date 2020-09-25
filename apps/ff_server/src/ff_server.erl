@@ -75,7 +75,7 @@ init([]) ->
 
     % TODO
     %  - Make it palatable
-    {Backends, Handlers} = lists:unzip([
+    {Backends, MachineHandlers, ModernizerHandlers} = lists:unzip([
         contruct_backend_childspec('ff/identity'                , ff_identity_machine           , PartyClient),
         contruct_backend_childspec('ff/wallet_v2'               , ff_wallet_machine             , PartyClient),
         contruct_backend_childspec('ff/source_v1'               , ff_instrument_machine         , PartyClient),
@@ -124,7 +124,8 @@ init([]) ->
                 handlers          => WoodyHandlers,
                 event_handler     => scoper_woody_event_handler,
                 additional_routes =>
-                    machinery_mg_backend:get_routes(Handlers, RouteOpts) ++
+                    machinery_mg_backend:get_routes(MachineHandlers, RouteOpts) ++
+                    machinery_modernizer_mg_backend:get_routes(ModernizerHandlers, RouteOpts) ++
                     [erl_health_handle:get_route(enable_health_logging(HealthCheck))]
             }
         )
@@ -150,18 +151,30 @@ get_handler(Service, Handler, WrapperOpts) ->
 
 contruct_backend_childspec(NS, Handler, PartyClient) ->
     Schema = get_namespace_schema(NS),
-    Be = {machinery_mg_backend, #{
+    {
+        construct_machinery_backend_spec(NS, Schema),
+        construct_machinery_handler_spec(NS, Handler, Schema, PartyClient),
+        construct_machinery_modernizer_spec(NS, Schema)
+    }.
+
+construct_machinery_backend_spec(NS, Schema) ->
+    {NS, {machinery_mg_backend, #{
         schema => Schema,
         client => get_service_client(automaton)
-    }},
-    {
-        {NS, Be},
-        {{fistful, #{handler => Handler, party_client => PartyClient}},
-            #{
-                path           => ff_string:join(["/v1/stateproc/", NS]),
-                backend_config => #{schema => Schema}
-            }
+    }}}.
+
+construct_machinery_handler_spec(NS, Handler, Schema, PartyClient) ->
+    {{fistful, #{handler => Handler, party_client => PartyClient}},
+        #{
+            path           => ff_string:join(["/v1/stateproc/", NS]),
+            backend_config => #{schema => Schema}
         }
+    }.
+
+construct_machinery_modernizer_spec(NS, Schema) ->
+    #{
+        path           => ff_string:join(["/v1/modernizer/", NS]),
+        backend_config => #{schema => Schema}
     }.
 
 get_service_client(ServiceID) ->

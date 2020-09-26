@@ -26,8 +26,8 @@ unmarshal_p2p_quote_params(#p2p_transfer_QuoteParams{
     #{
         identity_id => unmarshal(id, IdentityID),
         body => unmarshal(cash, Body),
-        sender => unmarshal(participant, Sender),
-        receiver => unmarshal(participant, Receiver)
+        sender => unmarshal(resource, Sender),
+        receiver => unmarshal(resource, Receiver)
     }.
 
 -spec marshal_p2p_transfer_state(p2p_transfer:p2p_transfer_state(), ff_entity_context:context()) ->

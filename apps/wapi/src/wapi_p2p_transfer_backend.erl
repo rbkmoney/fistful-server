@@ -25,6 +25,7 @@
      | {identity,     notfound}
      | {p2p_transfer, forbidden_currency}
      | {p2p_transfer, cash_range_exceeded}
+     | {p2p_transfer, operation_not_permitted}
      | {sender,       invalid_resource}
      | {receiver,     invalid_resource}
      .
@@ -121,7 +122,7 @@ issue_quote_token(PartyID, Payload) ->
 do_create_transfer(ID, Params, HandlerContext) ->
     do(fun() ->
         Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-        TransferParams = build_transfer_params(Params#{<<"id">> => ID}),
+        TransferParams = unwrap(build_transfer_params(Params#{<<"id">> => ID})),
         Request = {p2p_transfer, 'Create', [TransferParams, marshal(context, Context)]},
         unwrap(process_p2p_transfer_call(Request, HandlerContext))
     end).
@@ -145,13 +146,15 @@ process_p2p_transfer_call(Request, HandlerContext) ->
     end.
 
 build_transfer_params(Params = #{<<"quoteToken">> := QuoteToken, <<"identityID">> := IdentityID}) ->
-    VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
-    Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
-    ok = unwrap(authorize_p2p_quote_token(Quote, IdentityID)),
-    TransferParams = marshal_transfer_params(Params),
-    TransferParams#p2p_transfer_P2PTransferParams{quote = Quote};
+    do(fun() ->
+        VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
+        Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
+        ok = unwrap(authorize_p2p_quote_token(Quote, IdentityID)),
+        TransferParams = marshal_transfer_params(Params),
+        TransferParams#p2p_transfer_P2PTransferParams{quote = Quote}
+    end);
 build_transfer_params(Params) ->
-    marshal_transfer_params(Params).
+    do(fun() -> marshal_transfer_params(Params) end).
 
 verify_p2p_quote_token(Token) ->
     case uac_authorizer_jwt:verify(Token, #{}) of

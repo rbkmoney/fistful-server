@@ -384,26 +384,6 @@ domain_config(Options, C) ->
                 realm                     = live,
                 wallet_system_account_set = {value, ?sas(1)},
                 identity                  = payment_inst_identity_id(Options),
-                p2p_inspector             = {value, ?p2p_insp(1)},
-                p2p_providers             = {decisions, [
-                    #domain_ProviderDecision{
-                        if_ = {condition, {p2p_tool,
-                            #domain_P2PToolCondition{
-                                sender_is = {bank_card, #domain_BankCardCondition{
-                                    definition = {issuer_country_is, 'rus'}
-                                }},
-                                receiver_is = {bank_card, #domain_BankCardCondition{
-                                    definition = {issuer_country_is, 'rus'}
-                                }}
-                            }
-                        }},
-                        then_ = {value, [?prv(101)]}
-                    },
-                    #domain_ProviderDecision{
-                        if_ = {constant, true},
-                        then_ = {value, []}
-                    }
-                ]},
                 withdrawal_providers      = {decisions, [
                     #domain_ProviderDecision{
                         if_   = {condition, {cost_in, ?cashrng(

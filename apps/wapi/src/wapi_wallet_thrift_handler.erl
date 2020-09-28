@@ -596,17 +596,9 @@ process_request('QuoteP2PTransferWithTemplate', #{
         {ok, Quote} ->
             wapi_handler_utils:reply_ok(201, Quote);
         {error, {p2p_template, notfound}} ->
-            wapi_handler_utils:reply_error(400, #{
-                <<"errorType">>   => <<"NotFound">>,
-                <<"name">>        => p2pTransferTemplateID,
-                <<"description">> => <<"No such P2PTransferTemplate">>
-            });
+            wapi_handler_utils:reply_error(404);
         {error, {p2p_template, unauthorized}} ->
-            wapi_handler_utils:reply_error(400, #{
-                <<"errorType">>   => <<"NotFound">>,
-                <<"name">>        => p2pTransferTemplateID,
-                <<"description">> => <<"No such P2PTransferTemplate">>
-            });
+            wapi_handler_utils:reply_error(404);
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>));

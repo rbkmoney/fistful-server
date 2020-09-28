@@ -235,11 +235,14 @@ p2p_template_check_test(C) ->
     P2PTemplateBlocked = get_p2p_template(P2PTemplateID, C),
     ?assertEqual(maps:get(<<"isBlocked">>, P2PTemplateBlocked), true),
 
-    QuoteError = call_p2p_template_quote(P2PTemplateID, C),
-    ?assertMatch({error, {422, _}}, QuoteError),
+    QuoteBlockedError = call_p2p_template_quote(P2PTemplateID, C),
+    ?assertMatch({error, {422, _}}, QuoteBlockedError),
 
-    P2PTransferError = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
-    ?assertMatch({error, {422, _}}, P2PTransferError).
+    P2PTransferBlockedError = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
+    ?assertMatch({error, {422, _}}, P2PTransferBlockedError),
+
+    Quote404Error = call_p2p_template_quote(<<"404">>, C),
+    ?assertMatch({error, {404, _}}, Quote404Error).
 
 %%
 

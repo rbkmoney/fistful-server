@@ -22,6 +22,10 @@
 -export([init/1]).
 
 -export([bank_card_resource_test/1]).
+-export([bank_card_create_identity_notfound_test/1]).
+-export([bank_card_create_currency_notfound_test/1]).
+-export([bank_card_create_party_inaccessible_test/1]).
+-export([bank_card_get_destination_notfound_test/1]).
 -export([bitcoin_resource_test/1]).
 -export([litecoin_resource_test/1]).
 -export([bitcoin_cash_resource_test/1]).
@@ -60,6 +64,10 @@ groups() ->
     [
         {default, [], [
             bank_card_resource_test,
+            bank_card_create_identity_notfound_test,
+            bank_card_create_currency_notfound_test,
+            bank_card_create_party_inaccessible_test,
+            bank_card_get_destination_notfound_test,
             bitcoin_resource_test,
             litecoin_resource_test,
             bitcoin_cash_resource_test,
@@ -139,6 +147,108 @@ bank_card_resource_test(C) ->
     ?assertEqual(R#'BankCard'.token, maps:get(<<"token">>, SwagResource)),
     ?assertEqual(R#'BankCard'.bin, maps:get(<<"bin">>, SwagResource)),
     ?assertEqual(R#'BankCard'.masked_pan, maps:get(<<"lastDigits">>, SwagResource)).
+
+-spec bank_card_create_identity_notfound_test(config()) -> _.
+bank_card_create_identity_notfound_test(C) ->
+    PartyID = ?config(party, C),
+    Identity = generate_identity(PartyID),
+    Resource = generate_resource(bank_card),
+    Context = generate_context(PartyID),
+    Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination,
+            fun
+                ('Create', _) -> throw(#fistful_IdentityNotFound{})
+            end
+        }
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"No such identity">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_destination/3,
+            #{
+                body => build_destination_spec(Destination)
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec bank_card_create_currency_notfound_test(config()) -> _.
+bank_card_create_currency_notfound_test(C) ->
+    PartyID = ?config(party, C),
+    Identity = generate_identity(PartyID),
+    Resource = generate_resource(bank_card),
+    Context = generate_context(PartyID),
+    Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination,
+            fun
+                ('Create', _) -> throw(#fistful_CurrencyNotFound{})
+            end
+        }
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Currency not supported">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_destination/3,
+            #{
+                body => build_destination_spec(Destination)
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec bank_card_create_party_inaccessible_test(config()) -> _.
+bank_card_create_party_inaccessible_test(C) ->
+    PartyID = ?config(party, C),
+    Identity = generate_identity(PartyID),
+    Resource = generate_resource(bank_card),
+    Context = generate_context(PartyID),
+    Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination,
+            fun
+                ('Create', _) -> throw(#fistful_PartyInaccessible{})
+            end
+        }
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Identity inaccessible">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_destination/3,
+            #{
+                body => build_destination_spec(Destination)
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec bank_card_get_destination_notfound_test(config()) -> _.
+bank_card_get_destination_notfound_test(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination,
+            fun
+                ('Get', _) -> throw(#fistful_DestinationNotFound{})
+            end
+        }
+    ], C),
+    ?assertEqual(
+        {error, {404, #{}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:get_destination/3,
+            #{
+                binding => #{
+                    <<"destinationID">> => ?STRING
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
 
 -spec bitcoin_resource_test(config()) -> _.
 bitcoin_resource_test(C) ->

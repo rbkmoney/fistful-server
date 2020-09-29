@@ -100,7 +100,7 @@ marshal(identity_documents, Identity) ->
 marshal(intent, {finish, {success, TrxInfo}}) ->
     {finish, #wthadpt_FinishIntent{
         status = {success, #wthadpt_Success{
-            trx_info = ff_dmsl_codec:marshal(transaction_info, TrxInfo)
+            trx_info = maybe_marshal(transaction_info, TrxInfo)
         }}
     }};
 marshal(intent, {finish, {failed, Failure}}) ->
@@ -202,7 +202,10 @@ marshal(withdrawal, #{
         sender = maybe_marshal(identity, Sender),
         receiver = maybe_marshal(identity, Receiver),
         quote = maybe_marshal(quote, maps:get(quote, Withdrawal, undefined))
-    }.
+    };
+
+marshal(transaction_info, TrxInfo) ->
+    ff_dmsl_codec:marshal(transaction_info, TrxInfo).
 
 try_encode_proof_document({rus_domestic_passport, Token}, Acc) ->
     [{rus_domestic_passport, #wthdm_RUSDomesticPassport{token = Token}} | Acc];
@@ -229,6 +232,17 @@ unmarshal(callback, #wthadpt_Callback{
     payload = Payload
 }) ->
     #{tag => Tag, payload => Payload};
+
+unmarshal(process_result, #wthadpt_ProcessResult{
+    intent     = Intent,
+    next_state = NextState,
+    trx        = TransactionInfo
+}) ->
+    genlib_map:compact(#{
+        intent           => unmarshal(intent, Intent),
+        next_state       => maybe_unmarshal(adapter_state, NextState),
+        transaction_info => maybe_unmarshal(transaction_info, TransactionInfo)
+    });
 
 unmarshal(callback_result, #wthadpt_CallbackResult{
     intent     = Intent,
@@ -274,7 +288,7 @@ unmarshal(identity_documents, _NotImplemented) ->
     erlang:error(not_implemented); %@TODO
 
 unmarshal(intent, {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = TrxInfo}}}}) ->
-    {finish, {success, ff_dmsl_codec:unmarshal(transaction_info, TrxInfo)}};
+    {finish, {success, maybe_unmarshal(transaction_info, TrxInfo)}};
 unmarshal(intent, {finish, #wthadpt_FinishIntent{status = {failure, Failure}}}) ->
     {finish, {failed, ff_dmsl_codec:unmarshal(failure, Failure)}};
 unmarshal(intent, {sleep, #wthadpt_SleepIntent{timer = Timer, callback_tag = Tag}}) ->
@@ -305,7 +319,10 @@ unmarshal(resource, _NotImplemented) ->
     erlang:error(not_implemented); %@TODO
 
 unmarshal(withdrawal, _NotImplemented) ->
-    erlang:error(not_implemented). %@TODO
+    erlang:error(not_implemented); %@TODO
+
+unmarshal(transaction_info, TransactionInfo) ->
+    ff_dmsl_codec:unmarshal(transaction_info, TransactionInfo).
 
 %%
 

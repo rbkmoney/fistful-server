@@ -17,10 +17,15 @@ handle_function('ProcessWithdrawal', [Withdrawal, InternalState, Options], _Cont
     DWithdrawal = decode_withdrawal(Withdrawal),
     DState = decode_state(InternalState),
     DOptions = decode_options(Options),
+    TransactionInfo = #{
+        id => <<"TransactionID">>, % Infogenlib:unique(),
+        extra => #{<<"Hello">> => <<"World">>}
+    },
     {ok, Intent, NewState} = Handler:process_withdrawal(DWithdrawal, DState, DOptions),
     {ok, #wthadpt_ProcessResult{
         intent = encode_intent(Intent),
-        next_state = encode_state(NewState)
+        next_state = encode_state(NewState),
+        trx = encode_trx(TransactionInfo)
     }};
 handle_function('GetQuote', [QuoteParams, Options], _Context, Opts) ->
     Handler = get_handler(Opts),

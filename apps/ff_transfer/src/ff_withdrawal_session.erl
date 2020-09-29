@@ -14,6 +14,7 @@
 -export([route/1]).
 -export([withdrawal/1]).
 -export([result/1]).
+-export([transaction_info/1]).
 
 %% API
 
@@ -35,6 +36,7 @@
 %%
 
 -define(ACTUAL_FORMAT_VERSION, 5).
+
 -type session_state() :: #{
     id            := id(),
     status        := status(),
@@ -42,7 +44,8 @@
     route         := route(),
     adapter_state => ff_adapter:state(),
     callbacks     => callbacks_index(),
-    result        => session_result(),
+    result        => session_result(), % TODO: remove?
+    transaction_info => transaction_info(), % TODO: why?
 
     % Deprecated. Remove after MSPF-560 finish
     provider_legacy => binary() | ff_payouts_provider:id()
@@ -59,7 +62,9 @@
     provider_legacy => binary() | ff_payouts_provider:id()
 }.
 
--type session_result() :: {success, ff_adapter_withdrawal:transaction_info()}
+-type transaction_info() :: ff_adapter_withdrawal:transaction_info().
+
+-type session_result() :: {success, transaction_info()}
                         | {failed, ff_adapter_withdrawal:failure()}.
 
 -type status() :: active
@@ -67,6 +72,7 @@
 
 -type event() :: {created, session()}
     | {next_state, ff_adapter:state()}
+    | {transaction_bound, transaction_info()}
     | {finished, session_result()}
     | wrapped_callback_event().
 
@@ -172,6 +178,12 @@ callbacks_index(Session) ->
 result(Session) ->
     maps:get(result, Session, undefined).
 
+-spec transaction_info(session_state()) ->
+    transaction_info() | undefined.
+
+transaction_info(Session = #{}) ->
+    maps:get(transaction_info, Session, undefined).
+
 %%
 %% API
 %%
@@ -189,6 +201,8 @@ apply_event({created, Session}, undefined) ->
     Session;
 apply_event({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
+apply_event({transaction_bound, TransactionInfo}, Session) ->
+    Session#{transaction_info => TransactionInfo};
 apply_event({finished, Result}, Session0) ->
     Session1 = Session0#{result => Result},
     set_session_status({finished, Result}, Session1);
@@ -201,15 +215,24 @@ apply_event({callback, _Ev} = WrappedEvent, Session) ->
 process_session(#{status := active, withdrawal := Withdrawal, route := Route} = SessionState) ->
     {Adapter, AdapterOpts} = get_adapter_with_opts(Route),
     ASt = maps:get(adapter_state, SessionState, undefined),
-    case ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
-        {ok, Intent, ASt} ->
-            process_intent(Intent, SessionState);
-        {ok, Intent, NextASt} ->
-            Events = process_next_state(NextASt),
-            process_intent(Intent, SessionState, Events);
-        {ok, Intent} ->
-            process_intent(Intent, SessionState)
-    end.
+    {ok, ProcessResult} = ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts),
+    #{intent := Intent} = ProcessResult,
+    Events0 = process_next_state(ProcessResult, []),
+    Events1 = process_transaction_info(ProcessResult, Events0, SessionState),
+    process_intent(Intent, SessionState, Events1).
+
+process_transaction_info(#{transaction_info := TrxInfo}, Events, SessionState) ->
+    ok = assert_transaction_info(TrxInfo, transaction_info(SessionState)),
+    Events ++ [{transaction_bound, TrxInfo}];
+process_transaction_info(_, Events, _Session) ->
+    Events.
+
+assert_transaction_info(_TrxInfo, undefined) ->
+    ok;
+assert_transaction_info(TrxInfo, TrxInfo) ->
+    ok;
+assert_transaction_info(TrxInfoNew, _TrxInfo) ->
+    erlang:error({transaction_info_is_different, TrxInfoNew}).
 
 -spec set_session_result(session_result(), session_state()) ->
     result().
@@ -251,7 +274,7 @@ do_process_callback(CallbackParams, Callback, Session) ->
         intent := Intent,
         response := Response
     } = Result} = ff_adapter_withdrawal:handle_callback(Adapter, CallbackParams, Withdrawal, AdapterState, AdapterOpts),
-    Events0 = process_next_state(genlib_map:get(next_state, Result)),
+    Events0 = process_next_state(Result, []),
     Events1 = ff_withdrawal_callback_utils:process_response(Response, Callback),
     {ok, {Response, process_intent(Intent, Session, Events0 ++ Events1)}}.
 
@@ -263,10 +286,10 @@ make_session_finish_params(Session) ->
         opts => AdapterOpts
     }.
 
-process_next_state(undefined) ->
-    [];
-process_next_state(NextASt) ->
-    [{next_state, NextASt}].
+process_next_state(#{next_state := NextState}, Events) ->
+    Events ++ [{next_state, NextState}];
+process_next_state(_, Events) ->
+    Events.
 
 process_intent(Intent, Session, AdditionalEvents) ->
     #{events := Events0} = Result = process_intent(Intent, Session),

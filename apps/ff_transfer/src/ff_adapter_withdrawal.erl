@@ -87,9 +87,11 @@
 -type failure()               :: ff_adapter:failure().
 
 -type adapter_state()         :: ff_adapter:state().
--type process_result()        ::
-    {ok, intent(), adapter_state()} |
-    {ok, intent()}.
+-type process_result()          :: #{
+    intent           := intent(),
+    next_state       => adapter_state(),
+    transaction_info => transaction_info()
+}.
 
 -type handle_callback_result()  :: #{
     intent           := intent(),
@@ -114,7 +116,7 @@
 %%
 
 -spec process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
-    process_result() when
+    {ok, process_result()} when
         Adapter :: adapter(),
         Withdrawal :: withdrawal(),
         ASt :: adapter_state(),
@@ -157,14 +159,12 @@ call(Adapter, Function, Args) ->
     ff_woody_client:call(Adapter, Request).
 
 -spec decode_result
-    (dmsl_withdrawals_provider_adapter_thrift:'ProcessResult'()) -> process_result();
+    (dmsl_withdrawals_provider_adapter_thrift:'ProcessResult'()) -> {ok, process_result()};
     (dmsl_withdrawals_provider_adapter_thrift:'Quote'()) -> {ok, quote()};
     (dmsl_withdrawals_provider_adapter_thrift:'CallbackResult'()) -> {ok, handle_callback_result()}.
 
-decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = undefined}) ->
-    {ok, unmarshal(intent, Intent)};
-decode_result(#wthadpt_ProcessResult{intent = Intent, next_state = NextState}) ->
-    {ok, unmarshal(intent, Intent), unmarshal(adapter_state, NextState)};
+decode_result(#wthadpt_ProcessResult{} = ProcessResult) ->
+    {ok, unmarshal(process_result, ProcessResult)};
 decode_result(#wthadpt_Quote{} = Quote) ->
     {ok, unmarshal(quote, Quote)};
 decode_result(#wthadpt_CallbackResult{} = CallbackResult) ->

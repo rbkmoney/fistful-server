@@ -39,6 +39,10 @@ marshal(change, {created, Session}) ->
     {created, marshal(session, Session)};
 marshal(change, {next_state, AdapterState}) ->
     {next_state, marshal(msgpack, AdapterState)};
+marshal(change, {transaction_bound, TransactionInfo}) ->
+    {transaction_bound, #wthd_session_TransactionBoundChange{
+        trx_info = marshal(transaction_info, TransactionInfo)
+    }};
 marshal(change, {finished, SessionResult}) ->
     {finished, marshal(session_result, SessionResult)};
 marshal(change, {callback, CallbackChange}) ->
@@ -135,7 +139,7 @@ marshal(ctx, Ctx) ->
 
 marshal(session_result, {success, TransactionInfo}) ->
     {success, #wthd_session_SessionResultSuccess{
-        trx_info = marshal(transaction_info, TransactionInfo)
+        trx_info = maybe_marshal(transaction_info, TransactionInfo)
     }};
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_session_SessionResultFailed{
@@ -189,6 +193,8 @@ unmarshal(change, {created, Session}) ->
     {created, unmarshal(session, Session)};
 unmarshal(change, {next_state, AdapterState}) ->
     {next_state, unmarshal(msgpack, AdapterState)};
+unmarshal(change, {transaction_bound, #wthd_session_TransactionBoundChange{trx_info = TransactionInfo}}) ->
+    {transaction_bound, unmarshal(transaction_info, TransactionInfo)};
 unmarshal(change, {finished, SessionResult}) ->
     {finished, unmarshal(session_result, SessionResult)};
 unmarshal(change, {callback, #wthd_session_CallbackChange{tag = Tag, payload = Payload}}) ->
@@ -288,7 +294,7 @@ unmarshal(quote, #wthd_session_Quote{
     });
 
 unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = Trx}}) ->
-    {success, unmarshal(transaction_info, Trx)};
+    {success, maybe_unmarshal(transaction_info, Trx)};
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
 
@@ -329,3 +335,32 @@ get_legacy_provider_id(#{provider_legacy := Provider}) when is_binary(Provider) 
     Provider;
 get_legacy_provider_id(#{route := #{provider_id := Provider}}) when is_integer(Provider) ->
     genlib:to_binary(Provider - 300).
+
+%% TESTS
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() ->
+    _.
+
+-spec transaction_bound_test_() ->
+    _.
+
+transaction_bound_test_() ->
+
+    TransactionInfo = #{
+        id => <<"ID">>,
+        extra => #{<<"Hello">> => <<"World">>}
+    },
+
+    Changes = [
+        {finished, {success, TransactionInfo}},
+        {finished, {success, undefined}},
+        {transaction_bound, TransactionInfo}
+    ],
+
+    Marshaled = marshal({list, change}, Changes),
+    ?_assertEqual(Changes, unmarshal({list, change}, Marshaled)).
+
+-endif.

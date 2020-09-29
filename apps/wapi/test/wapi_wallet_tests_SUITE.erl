@@ -1,5 +1,6 @@
 -module(wapi_wallet_tests_SUITE).
 
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
@@ -22,9 +23,15 @@
 
 -export([
     create/1,
+    create_identity_notfound/1,
+    create_currency_notfound/1,
+    create_party_inaccessible/1,
     get/1,
+    get_wallet_notfound/1,
     get_by_external_id/1,
-    get_account/1
+    get_account/1,
+    get_account_get_context_wallet_notfound/1,
+    get_account_get_accountbalance_wallet_notfound/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -58,9 +65,15 @@ groups() ->
         {base, [],
             [
                 create,
+                create_identity_notfound,
+                create_currency_notfound,
+                create_party_inaccessible,
                 get,
+                get_wallet_notfound,
                 get_by_external_id,
-                get_account
+                get_account,
+                get_account_get_context_wallet_notfound,
+                get_account_get_accountbalance_wallet_notfound
             ]
         }
     ].
@@ -153,6 +166,84 @@ create(C) ->
         ct_helper:cfg(context, C)
     ).
 
+-spec create_identity_notfound(config()) ->
+    _.
+create_identity_notfound(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_wallet, fun('Create', _) -> throw(#fistful_IdentityNotFound{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"No such identity">>}}},
+        call_api(
+            fun swag_client_wallet_wallets_api:create_wallet/3,
+            #{
+                body => #{
+                    <<"name">> => ?STRING,
+                    <<"identity">> => ?STRING,
+                    <<"currency">> => ?RUB,
+                    <<"metadata">> => #{
+                        <<"somedata">> => ?STRING
+                    }
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_currency_notfound(config()) ->
+    _.
+create_currency_notfound(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_wallet, fun('Create', _) -> throw(#fistful_CurrencyNotFound{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Currency not supported">>}}},
+        call_api(
+            fun swag_client_wallet_wallets_api:create_wallet/3,
+            #{
+                body => #{
+                    <<"name">> => ?STRING,
+                    <<"identity">> => ?STRING,
+                    <<"currency">> => ?RUB,
+                    <<"metadata">> => #{
+                        <<"somedata">> => ?STRING
+                    }
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_party_inaccessible(config()) ->
+    _.
+create_party_inaccessible(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_wallet, fun('Create', _) -> throw(#fistful_PartyInaccessible{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Identity inaccessible">>}}},
+        call_api(
+            fun swag_client_wallet_wallets_api:create_wallet/3,
+            #{
+                body => #{
+                    <<"name">> => ?STRING,
+                    <<"identity">> => ?STRING,
+                    <<"currency">> => ?RUB,
+                    <<"metadata">> => #{
+                        <<"somedata">> => ?STRING
+                    }
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
 -spec get(config()) ->
     _.
 get(C) ->
@@ -169,6 +260,25 @@ get(C) ->
         },
     ct_helper:cfg(context, C)
 ).
+
+-spec get_wallet_notfound(config()) ->
+    _.
+get_wallet_notfound(C) ->
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('Get', _) -> throw(#fistful_WalletNotFound{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {404, #{}}},
+        call_api(
+            fun swag_client_wallet_wallets_api:get_wallet/3,
+            #{
+                binding => #{
+                    <<"walletID">> => ?STRING
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
 
 -spec get_by_external_id(config()) ->
     _.
@@ -209,6 +319,55 @@ get_account(C) ->
         },
     ct_helper:cfg(context, C)
 ).
+
+-spec get_account_get_context_wallet_notfound(config()) ->
+    _.
+get_account_get_context_wallet_notfound(C) ->
+    wapi_ct_helper:mock_services([
+        {fistful_wallet,
+            fun
+                ('GetContext', _) -> throw(#fistful_WalletNotFound{});
+                ('GetAccountBalance', _) -> {ok, ?ACCOUNT_BALANCE}
+            end
+        }
+    ], C),
+    ?assertEqual(
+        {error, {404, #{}}},
+        call_api(
+            fun swag_client_wallet_wallets_api:get_wallet_account/3,
+            #{
+                binding => #{
+                    <<"walletID">> => ?STRING
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_account_get_accountbalance_wallet_notfound(config()) ->
+    _.
+get_account_get_accountbalance_wallet_notfound(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet,
+            fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('GetAccountBalance', _) -> throw(#fistful_WalletNotFound{})
+            end
+        }
+    ], C),
+    ?assertEqual(
+        {error, {404, #{}}},
+        call_api(
+            fun swag_client_wallet_wallets_api:get_wallet_account/3,
+            #{
+                binding => #{
+                    <<"walletID">> => ?STRING
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
 
 %%
 

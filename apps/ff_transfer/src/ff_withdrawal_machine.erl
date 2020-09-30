@@ -55,6 +55,7 @@
 -export([repair/2]).
 
 -export([start_adjustment/2]).
+-export([notify_session_finished/3]).
 
 %% Accessors
 
@@ -78,8 +79,12 @@
 
 -type adjustment_params() :: ff_withdrawal:adjustment_params().
 
+-type session_id() :: ff_withdrawal_session:id().
+-type session_result() :: ff_withdrawal_session:session_result().
+
 -type call() ::
-    {start_adjustment, adjustment_params()}.
+    {start_adjustment, adjustment_params()} |
+    {session_finished, session_id(), session_result()}.
 
 -define(NS, 'ff/withdrawal_v2').
 
@@ -139,6 +144,11 @@ repair(ID, Scenario) ->
 start_adjustment(WithdrawalID, Params) ->
     call(WithdrawalID, {start_adjustment, Params}).
 
+-spec notify_session_finished(id(), session_id(), session_result()) ->
+    ok | {error, invalid_session}.
+notify_session_finished(WithdrawalID, SessionID, SessionResult) ->
+    call(WithdrawalID, {session_finished, SessionID, SessionResult}).
+
 %% Accessors
 
 -spec withdrawal(st()) ->
@@ -188,6 +198,8 @@ process_timeout(Machine, _, _Opts) ->
 
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
     do_start_adjustment(Params, Machine);
+process_call({session_finished, SessionID, SessionResult}, Machine, _, _Opts) ->
+    do_process_session_finished(SessionID, SessionResult, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
@@ -209,6 +221,17 @@ do_start_adjustment(Params, Machine) ->
             {Error, #{}}
     end.
 
+-spec do_process_session_finished(session_id(), session_result(), machine()) -> {Response, result()} when
+    Response :: ok | {error, invalid_session}.
+do_process_session_finished(SessionID, SessionResult, Machine) ->
+    St = ff_machine:collapse(ff_withdrawal, Machine),
+    case ff_withdrawal:process_session_finished(SessionID, SessionResult, withdrawal(St)) of
+        {ok, Result} ->
+            {ok, process_result(Result, St)};
+        {error, _Reason} = Error ->
+            {Error, #{}}
+    end.
+
 process_result({Action, Events}, St) ->
     genlib_map:compact(#{
         events => set_events(Events),
@@ -224,14 +247,12 @@ set_action(continue, _St) ->
     continue;
 set_action(undefined, _St) ->
     undefined;
-set_action(poll, St) ->
-    Now = machinery_time:now(),
-    {set_timer, {timeout, compute_poll_timeout(Now, St)}}.
-
-compute_poll_timeout(Now, St) ->
-    MaxTimeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
-    Timeout0 = machinery_time:interval(Now, ff_machine:updated(St)) div 1000,
-    erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
+set_action(poll, _St) ->
+    % Should we still poll the session manually just in case (can we?)? Or just sleep indefinitely?
+    Timeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
+    {set_timer, {timeout, Timeout}};
+set_action(poll_interrupt, _St) ->
+    [unset_timer, continue].
 
 call(ID, Call) ->
     case machinery:call(?NS, ID, Call, backend()) of

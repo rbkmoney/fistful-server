@@ -176,7 +176,7 @@
 -type invalid_withdrawal_status_error() ::
     {invalid_withdrawal_status, status()}.
 
--type action() :: poll | continue | undefined.
+-type action() :: poll | continue | undefined | poll_interrupt.
 
 -export_type([withdrawal/0]).
 -export_type([withdrawal_state/0]).
@@ -198,6 +198,10 @@
 %% Transfer logic callbacks
 
 -export([process_transfer/1]).
+
+%%
+
+-export([process_session_finished/3]).
 
 %% Accessors
 
@@ -506,6 +510,32 @@ is_finished(#{status := pending}) ->
 process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
     do_process_transfer(Activity, Withdrawal).
+
+%%
+
+-spec process_session_finished(session_id(), session_result(), withdrawal_state()) ->
+    {ok, process_result()} | {error, invalid_session}.
+process_session_finished(SessionID, SessionResult, Withdrawal) ->
+    Activity = deduce_activity(Withdrawal),
+    #{id := CurrentSessionID} = get_current_session(Withdrawal),
+    case can_finish_session(Activity, CurrentSessionID, SessionID) of
+        true ->
+            {ok, do_finish_session(SessionID, SessionResult)};
+        false ->
+            {error, invalid_session}
+    end.
+
+-spec can_finish_session(activity(), session_id(), session_id()) ->
+    boolean().
+can_finish_session(session_polling, SessionID, SessionID) ->
+    true;
+can_finish_session(_, _, _) ->
+    false.
+
+-spec do_finish_session(session_id(), session_result()) ->
+    process_result().
+do_finish_session(SessionID, SessionResult) ->
+    {poll_interrupt, [{session_finished, {SessionID, SessionResult}}]}.
 
 %% Internals
 

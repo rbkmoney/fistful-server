@@ -198,6 +198,12 @@ apply_event({callback, _Ev} = WrappedEvent, Session) ->
     set_callbacks_index(Callbacks1, Session).
 
 -spec process_session(session_state()) -> result().
+process_session(#{status := {finished, _}, id := ID, result := Result, withdrawal := Withdrawal} = SessionState) ->
+    % Session has finished, it should notify the withdrawal machine about the fact
+    WithdrawalID = ff_adapter_withdrawal:id(Withdrawal),
+    % technically possible to get an error here, should it fail the machine?
+    ok = ff_withdrawal_machine:notify_session_finished(WithdrawalID, ID, Result),
+    process_intent(done, SessionState);
 process_session(#{status := active, withdrawal := Withdrawal, route := Route} = SessionState) ->
     {Adapter, AdapterOpts} = get_adapter_with_opts(Route),
     ASt = maps:get(adapter_state, SessionState, undefined),
@@ -213,11 +219,8 @@ process_session(#{status := active, withdrawal := Withdrawal, route := Route} = 
 
 -spec set_session_result(session_result(), session_state()) ->
     result().
-set_session_result(Result, #{status := active}) ->
-    #{
-        events => [{finished, Result}],
-        action => unset_timer
-    }.
+set_session_result(Result, Session = #{status := active}) ->
+    process_intent({finish, Result}, Session).
 
 -spec process_callback(callback_params(), session_state()) ->
     {ok, {process_callback_response(), result()}} |
@@ -276,15 +279,19 @@ process_intent(Intent, Session, AdditionalEvents) ->
 process_intent({finish, Result}, _Session) ->
     #{
         events => [{finished, Result}],
-        action => unset_timer
+        action => [unset_timer, continue]
     };
 process_intent({sleep, #{timer := Timer} = Params}, Session) ->
     CallbackEvents = create_callback(Params, Session),
     #{
         events => CallbackEvents,
         action => maybe_add_tag_action(Params, [timer_action(Timer)])
+    };
+process_intent(done, _Session) ->
+    #{
+        events => [],
+        action => unset_timer
     }.
-
 %%
 
 -spec create_session(id(), data(), params()) ->

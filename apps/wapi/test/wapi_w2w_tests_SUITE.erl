@@ -1,5 +1,6 @@
 -module(wapi_w2w_tests_SUITE).
 
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
@@ -22,8 +23,14 @@
 
 -export([
     create/1,
+    create_fail_unauthorized_wallet/1,
+    create_fail_wallet_notfound/1,
+    create_fail_invalid_operation_amount/1,
+    create_fail_forbidden_operation_currency/1,
+    create_fail_inconsistent_w2w_transfer_currency/1,
+    create_fail_wallet_inaccessible/1,
     get/1,
-    fail_unauthorized_wallet/1
+    get_fail_w2w_notfound/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -57,8 +64,14 @@ groups() ->
         {base, [],
             [
                 create,
+                create_fail_unauthorized_wallet,
+                % create_fail_wallet_notfound,
+                % create_fail_invalid_operation_amount,
+                % create_fail_forbidden_operation_currency,
+                % create_fail_inconsistent_w2w_transfer_currency,
+                % create_fail_wallet_inaccessible,
                 get,
-                fail_unauthorized_wallet
+                get_fail_w2w_notfound
             ]
         }
     ].
@@ -152,6 +165,168 @@ create(C) ->
         ct_helper:cfg(context, C)
     ).
 
+-spec create_fail_unauthorized_wallet(config()) ->
+    _.
+create_fail_unauthorized_wallet(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(<<"someotherparty">>)} end},
+        {w2w_transfer, fun('Create', _) -> {ok, ?W2W_TRANSFER(PartyID)} end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"No such wallet sender">>}}},
+        call_api(
+            fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
+            #{
+                body => #{
+                    <<"sender">> => ?STRING,
+                    <<"receiver">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => ?INTEGER,
+                        <<"currency">> => ?RUB
+                    }
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_wallet_notfound(config()) ->
+    _.
+create_fail_wallet_notfound(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {w2w_transfer, fun('Create', _) -> throw(#fistful_WalletNotFound{}) end}
+    ], C),
+    ?assertMatch(
+        {error, {422, #{}}},
+        call_api(
+            fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
+            #{
+                body => #{
+                    <<"sender">> => <<"SomeHuiInPalto">>,
+                    <<"receiver">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => ?INTEGER,
+                        <<"currency">> => ?RUB
+                    }
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_invalid_operation_amount(config()) ->
+    _.
+create_fail_invalid_operation_amount(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {w2w_transfer, fun('Create', _) -> throw(#fistful_InvalidOperationAmount{}) end}
+    ], C),
+    ?assertMatch(
+        {error, {422, #{}}},
+        call_api(
+            fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
+            #{
+                body => #{
+                    <<"sender">> => ?STRING,
+                    <<"receiver">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => ?INTEGER,
+                        <<"currency">> => ?RUB
+                    }
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_forbidden_operation_currency(config()) ->
+    _.
+create_fail_forbidden_operation_currency(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {w2w_transfer, fun('Create', _) -> throw(#fistful_ForbiddenOperationCurrency{}) end}
+    ], C),
+    ?assertMatch(
+        {error, {422, #{}}},
+        call_api(
+            fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
+            #{
+                body => #{
+                    <<"sender">> => ?STRING,
+                    <<"receiver">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => ?INTEGER,
+                        <<"currency">> => ?RUB
+                    }
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_inconsistent_w2w_transfer_currency(config()) ->
+    _.
+create_fail_inconsistent_w2w_transfer_currency(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {w2w_transfer, fun('Create', _) -> throw(#fistful_ForbiddenOperationCurrency{}) end}
+    ], C),
+    ?assertMatch(
+        {error, {422, #{}}},
+        call_api(
+            fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
+            #{
+                body => #{
+                    <<"sender">> => ?STRING,
+                    <<"receiver">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => ?INTEGER,
+                        <<"currency">> => ?RUB
+                    }
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_wallet_inaccessible(config()) ->
+    _.
+create_fail_wallet_inaccessible(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {w2w_transfer, fun('Create', _) -> throw(#fistful_ForbiddenOperationCurrency{}) end}
+    ], C),
+    ?assertMatch(
+        {error, {422, #{}}},
+        call_api(
+            fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
+            #{
+                body => #{
+                    <<"sender">> => ?STRING,
+                    <<"receiver">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => ?INTEGER,
+                        <<"currency">> => ?RUB
+                    }
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
 -spec get(config()) ->
     _.
 get(C) ->
@@ -169,30 +344,23 @@ get(C) ->
     ct_helper:cfg(context, C)
 ).
 
--spec fail_unauthorized_wallet(config()) ->
+-spec get_fail_w2w_notfound(config()) ->
     _.
-fail_unauthorized_wallet(C) ->
-    PartyID = ?config(party, C),
+get_fail_w2w_notfound(C) ->
     wapi_ct_helper:mock_services([
-        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(<<"someotherparty">>)} end},
-        {w2w_transfer, fun('Create', _) -> {ok, ?W2W_TRANSFER(PartyID)} end}
+        {w2w_transfer, fun('Get', _) -> throw(#fistful_W2WNotFound{}) end}
     ], C),
-    {error, {422, #{
-        <<"message">> := <<"No such wallet sender">>
-    }}} = call_api(
-        fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
-        #{
-            body => #{
-                <<"sender">> => ?STRING,
-                <<"receiver">> => ?STRING,
-                <<"body">> => #{
-                    <<"amount">> => ?INTEGER,
-                    <<"currency">> => ?RUB
+    ?assertMatch(
+        {error, {404, #{}}},
+        call_api(
+            fun swag_client_wallet_w2_w_api:get_w2_w_transfer/3,
+            #{
+                binding => #{
+                    <<"w2wTransferID">> => ?STRING
                 }
-            }
-        },
+            },
         ct_helper:cfg(context, C)
+        )
     ).
 
 %%

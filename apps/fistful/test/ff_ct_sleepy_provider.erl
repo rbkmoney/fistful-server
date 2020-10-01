@@ -52,6 +52,10 @@
 -type state() :: any().
 
 %%
+
+-define(DUMMY_QUOTE_ERROR_FATAL, {obj, #{{str, <<"test">>} => {str, <<"fatal">>}}}).
+
+%%
 %% API
 %%
 
@@ -95,9 +99,13 @@ get_quote(_Quote, _Options) ->
         Timer :: {deadline, binary()} | {timeout, integer()},
         CallbackTag :: binary(),
         TrxInfo :: #{id => binary()}.
+handle_callback(_Callback, #{quote := #wthadpt_Quote{quote_data = QuoteData}}, _State, _Options)  when
+    QuoteData =:= ?DUMMY_QUOTE_ERROR_FATAL
+->
+    erlang:error(spanish_inquisition);
 handle_callback(#{payload := Payload}, _Withdrawal, _State, _Options) ->
     {ok,
-        {finish, {success, #{id => <<"test">>}}},
+        {finish, {success, #{id => <<"sleepy_trx">>}}},
         {str, <<"callback_finished">>},
         #{payload => Payload}
     }.

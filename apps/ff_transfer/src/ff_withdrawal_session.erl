@@ -34,7 +34,7 @@
 %% Types
 %%
 
--define(ACTUAL_FORMAT_VERSION, 4).
+-define(ACTUAL_FORMAT_VERSION, 5).
 -type session_state() :: #{
     id            := id(),
     status        := status(),

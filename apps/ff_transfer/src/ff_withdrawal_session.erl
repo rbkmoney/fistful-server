@@ -271,10 +271,9 @@ process_next_state(undefined) ->
 process_next_state(NextASt) ->
     [{next_state, NextASt}].
 
-process_intent(Intent, Session, AdditionalEvents) ->
-    #{events := Events0} = Result = process_intent(Intent, Session),
-    Events1 = Events0 ++ AdditionalEvents,
-    Result#{events => Events1}.
+process_intent(Intent, Session, Events0) ->
+    #{events := Events1} = Result = process_intent(Intent, Session),
+    Result#{events => Events0 ++ Events1}.
 
 process_intent({finish, Result}, _Session) ->
     #{

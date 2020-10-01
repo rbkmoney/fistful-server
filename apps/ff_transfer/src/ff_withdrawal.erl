@@ -535,7 +535,7 @@ can_finish_session(_, _, _) ->
 -spec do_finish_session(session_id(), session_result()) ->
     process_result().
 do_finish_session(SessionID, SessionResult) ->
-    {poll_interrupt, [{session_finished, {SessionID, SessionResult}}]}.
+    {continue, [{session_finished, {SessionID, SessionResult}}]}.
 
 %% Internals
 

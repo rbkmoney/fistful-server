@@ -250,9 +250,7 @@ set_action(undefined, _St) ->
 set_action(poll, _St) ->
     % Should we still poll the session manually just in case (can we?)? Or just sleep indefinitely?
     Timeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
-    {set_timer, {timeout, Timeout}};
-set_action(poll_interrupt, _St) ->
-    [unset_timer, continue].
+    {set_timer, {timeout, Timeout}}.
 
 call(ID, Call) ->
     case machinery:call(?NS, ID, Call, backend()) of

@@ -163,10 +163,12 @@ marshal(session_event, {finished, Result}) ->
     {finished, #wthd_SessionFinished{result = marshal(session_result, Result)}};
 
 marshal(session_result, {success, TrxInfo}) ->
-    MarshaledTrxInfo = ff_withdrawal_session_codec:marshal(transaction_info, TrxInfo),
-    {succeeded, #wthd_SessionSucceeded{trx_info = MarshaledTrxInfo}};
+    {succeeded, #wthd_SessionSucceeded{trx_info = maybe_marshal(transaction_info, TrxInfo)}};
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_SessionFailed{failure = ff_codec:marshal(failure, Failure)}};
+
+marshal(transaction_info, TrxInfo) ->
+    ff_withdrawal_session_codec:marshal(transaction_info, TrxInfo);
 
 marshal(session_state, Session) ->
     #wthd_SessionState{
@@ -279,9 +281,12 @@ unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {finished, Finis
     {session_finished, {unmarshal(id, ID), unmarshal(session_result, Result)}};
 
 unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = TrxInfo}}) ->
-    {success, ff_withdrawal_session_codec:unmarshal(transaction_info, TrxInfo)};
+    {success, maybe_unmarshal(transaction_info, TrxInfo)};
 unmarshal(session_result, {failed, #wthd_SessionFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
+
+unmarshal(transaction_info, TrxInfo) ->
+    ff_withdrawal_session_codec:unmarshal(transaction_info, TrxInfo);
 
 unmarshal(session_state, Session) ->
     genlib_map:compact(#{
@@ -428,5 +433,22 @@ quote_symmetry_test() ->
         operation_timestamp = <<"2020-01-01T01:00:00Z">>
     },
     ?assertEqual(In, marshal(quote, unmarshal(quote, In))).
+
+
+-spec marshal_session_result_test() ->  _.
+marshal_session_result_test() ->
+
+    TransactionInfo = #{
+        id => <<"ID">>,
+        extra => #{<<"Hello">> => <<"World">>}
+    },
+
+    Results = [
+        {success, TransactionInfo},
+        {success, undefined}
+    ],
+
+    Marshaled = marshal({list, session_result}, Results),
+    ?_assertEqual(Results, unmarshal({list, session_result}, Marshaled)).
 
 -endif.

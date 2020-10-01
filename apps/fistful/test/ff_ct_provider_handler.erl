@@ -18,7 +18,7 @@ handle_function('ProcessWithdrawal', [Withdrawal, InternalState, Options], _Cont
     DState = decode_state(InternalState),
     DOptions = decode_options(Options),
     TransactionInfo = #{
-        id => <<"TransactionID">>, % Infogenlib:unique(),
+        id => <<"TransactionID">>,
         extra => #{<<"Hello">> => <<"World">>}
     },
     {ok, Intent, NewState} = Handler:process_withdrawal(DWithdrawal, DState, DOptions),
@@ -39,11 +39,16 @@ handle_function('HandleCallback', [Callback, Withdrawal, InternalState, Options]
     DWithdrawal = decode_withdrawal(Withdrawal),
     DState = decode_state(InternalState),
     DOptions = decode_options(Options),
+    TransactionInfo = #{
+        id => <<"TransactionID">>,
+        extra => #{<<"Hello">> => <<"World">>}
+    },
     {ok, Intent, NewState, Response} = Handler:handle_callback(DCallback, DWithdrawal, DState, DOptions),
     {ok, #wthadpt_CallbackResult{
         intent = encode_intent(Intent),
         next_state = encode_state(NewState),
-        response = encode_callback_response(Response)
+        response = encode_callback_response(Response),
+        trx = encode_trx(TransactionInfo)
     }}.
 
 %%

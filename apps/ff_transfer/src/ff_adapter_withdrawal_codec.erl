@@ -50,10 +50,13 @@ marshal(callback_result, #{
     intent     := Intent,
     response   := Response
 } = Params)->
+    NextState = genlib_map:get(next_state, Params),
+    TransactionInfo = genlib_map:get(transaction_info, Params),
     #wthadpt_CallbackResult{
         intent     = marshal(intent, Intent),
         response   = marshal(callback_response, Response),
-        next_state = maybe_marshal(adapter_state, genlib_map:get(next_state, Params))
+        next_state = maybe_marshal(adapter_state, NextState),
+        trx = maybe_marshal(transaction_info, TransactionInfo)
     };
 
 marshal(callback_response, #{payload := Payload}) ->
@@ -247,12 +250,14 @@ unmarshal(process_result, #wthadpt_ProcessResult{
 unmarshal(callback_result, #wthadpt_CallbackResult{
     intent     = Intent,
     next_state = NextState,
-    response   = Response
+    response   = Response,
+    trx        = TransactionInfo
 }) ->
     genlib_map:compact(#{
         intent           => unmarshal(intent, Intent),
         response         => unmarshal(callback_response, Response),
-        next_state       => maybe_unmarshal(adapter_state, NextState)
+        next_state       => maybe_unmarshal(adapter_state, NextState),
+        transaction_info => maybe_unmarshal(transaction_info, TransactionInfo)
     });
 
 unmarshal(callback_response, #wthadpt_CallbackResponse{payload = Payload}) ->

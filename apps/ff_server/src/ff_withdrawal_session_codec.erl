@@ -344,10 +344,10 @@ get_legacy_provider_id(#{route := #{provider_id := Provider}}) when is_integer(P
 -spec test() ->
     _.
 
--spec transaction_bound_test_() ->
+-spec marshal_change_test() ->
     _.
 
-transaction_bound_test_() ->
+marshal_change_test() ->
 
     TransactionInfo = #{
         id => <<"ID">>,
@@ -362,5 +362,23 @@ transaction_bound_test_() ->
 
     Marshaled = marshal({list, change}, Changes),
     ?_assertEqual(Changes, unmarshal({list, change}, Marshaled)).
+
+-spec marshal_session_result_test() ->
+    _.
+
+marshal_session_result_test() ->
+
+    TransactionInfo = #{
+        id => <<"ID">>,
+        extra => #{<<"Hello">> => <<"World">>}
+    },
+
+    Results = [
+        {success, TransactionInfo},
+        {success, undefined}
+    ],
+
+    Marshaled = marshal({list, session_result}, Results),
+    ?_assertEqual(Results, unmarshal({list, session_result}, Marshaled)).
 
 -endif.

@@ -96,7 +96,8 @@
 -type handle_callback_result()  :: #{
     intent           := intent(),
     response         := callback_response(),
-    next_state       => adapter_state()
+    next_state       => adapter_state(),
+    transaction_info => transaction_info()
 }.
 
 -type callback()          :: ff_withdrawal_callback:process_params().

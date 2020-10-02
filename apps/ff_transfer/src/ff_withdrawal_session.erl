@@ -201,7 +201,6 @@ apply_event({callback, _Ev} = WrappedEvent, Session) ->
 process_session(#{status := {finished, _}, id := ID, result := Result, withdrawal := Withdrawal} = SessionState) ->
     % Session has finished, it should notify the withdrawal machine about the fact
     WithdrawalID = ff_adapter_withdrawal:id(Withdrawal),
-    % technically possible to get an error here, should it fail the machine?
     ok = ff_withdrawal_machine:notify_session_finished(WithdrawalID, ID, Result),
     process_intent(done, SessionState);
 process_session(#{status := active, withdrawal := Withdrawal, route := Route} = SessionState) ->

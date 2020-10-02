@@ -170,8 +170,6 @@ ctx(St) ->
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
--define(MAX_SESSION_POLL_TIMEOUT, 4 * 60 * 60).
-
 backend() ->
     fistful:backend(?NS).
 
@@ -247,10 +245,9 @@ set_action(continue, _St) ->
     continue;
 set_action(undefined, _St) ->
     undefined;
-set_action(poll, _St) ->
-    % Should we still poll the session manually just in case (can we?)? Or just sleep indefinitely?
-    Timeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
-    {set_timer, {timeout, Timeout}}.
+set_action(sleep, _St) ->
+    % Should we (can we?) still poll the session with some big interval just in case?
+    unset_timer.
 
 call(ID, Call) ->
     case machinery:call(?NS, ID, Call, backend()) of

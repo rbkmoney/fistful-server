@@ -192,7 +192,7 @@ create_p2p_transfer_ok_test(C) ->
     ?assertEqual(P2PTransferID, P2PTransferState#p2p_transfer_P2PTransferState.id),
     ?assertEqual(ExternalID, P2PTransferState#p2p_transfer_P2PTransferState.external_id),
     ?assertEqual(IdentityID, P2PTransferState#p2p_transfer_P2PTransferState.owner),
-    % TODO: ?assertEqual(Metadata, P2PTransferState#p2p_transfer_P2PTransferState.metadata),
+    ?assertEqual(Metadata, P2PTransferState#p2p_transfer_P2PTransferState.metadata),
     ?assertEqual(
         p2p_transfer:domain_revision(Expected),
         P2PTransferState#p2p_transfer_P2PTransferState.domain_revision

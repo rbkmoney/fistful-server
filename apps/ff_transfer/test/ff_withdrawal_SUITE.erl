@@ -570,7 +570,7 @@ provider_callback_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
     SessionID = get_session_id(WithdrawalID),
-    ?assertEqual(<<"processing_callback">>, await_session_adapter_state(SessionID, <<"processing_callback">>)),
+    ?assertEqual(<<"callback_processing">>, await_session_adapter_state(SessionID, <<"callback_processing">>)),
     ?assertEqual({ok, #{payload => CallbackPayload}}, call_process_callback(Callback)),
     ?assertEqual(<<"callback_finished">>, await_session_adapter_state(SessionID, <<"callback_finished">>)),
     ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),

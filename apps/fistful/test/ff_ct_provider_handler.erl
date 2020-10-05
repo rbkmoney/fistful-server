@@ -17,11 +17,10 @@ handle_function('ProcessWithdrawal', [Withdrawal, InternalState, Options], _Cont
     DWithdrawal = decode_withdrawal(Withdrawal),
     DState = decode_state(InternalState),
     DOptions = decode_options(Options),
-    TransactionInfo = #{
-        id => <<"TransactionID">>,
-        extra => #{<<"Hello">> => <<"World">>}
-    },
-    {ok, Intent, NewState} = Handler:process_withdrawal(DWithdrawal, DState, DOptions),
+    {ok, ProcessResult} = Handler:process_withdrawal(DWithdrawal, DState, DOptions),
+    #{intent := Intent} = ProcessResult,
+    NewState = maps:get(next_state, ProcessResult, undefined),
+    TransactionInfo = maps:get(transaction_info, ProcessResult, undefined),
     {ok, #wthadpt_ProcessResult{
         intent = encode_intent(Intent),
         next_state = encode_state(NewState),
@@ -39,11 +38,10 @@ handle_function('HandleCallback', [Callback, Withdrawal, InternalState, Options]
     DWithdrawal = decode_withdrawal(Withdrawal),
     DState = decode_state(InternalState),
     DOptions = decode_options(Options),
-    TransactionInfo = #{
-        id => <<"TransactionID">>,
-        extra => #{<<"Hello">> => <<"World">>}
-    },
-    {ok, Intent, NewState, Response} = Handler:handle_callback(DCallback, DWithdrawal, DState, DOptions),
+    {ok, CallbackResult} = Handler:handle_callback(DCallback, DWithdrawal, DState, DOptions),
+    #{intent := Intent, response := Response} = CallbackResult,
+    NewState = maps:get(next_state, CallbackResult, undefined),
+    TransactionInfo = maps:get(transaction_info, CallbackResult, undefined),
     {ok, #wthadpt_CallbackResult{
         intent = encode_intent(Intent),
         next_state = encode_state(NewState),
@@ -108,6 +106,8 @@ encode_intent({sleep, Timer, CallbackTag}) ->
 encode_intent({sleep, Timer}) ->
     {sleep, #wthadpt_SleepIntent{timer = encode_timer(Timer)}}.
 
+encode_trx(undefined) ->
+    undefined;
 encode_trx(#{id := Id} = TrxInfo) ->
     Timestamp = maps:get(timestamp, TrxInfo, undefined),
     Extra = maps:get(extra, TrxInfo, #{}),

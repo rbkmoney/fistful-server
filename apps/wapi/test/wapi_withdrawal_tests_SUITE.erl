@@ -1,6 +1,7 @@
 -module(wapi_withdrawal_tests_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
@@ -21,12 +22,32 @@
 -export([init/1]).
 
 -export([
-    create/1,
-    get/1,
-    get_by_external_id/1,
-    create_quote/1,
-    get_events/1,
-    get_event/1
+    create_ok/1,
+    create_fail_wallet_notfound/1,
+    create_fail_destination_notfound/1,
+    create_fail_destination_notauthorized/1,
+    create_fail_forbidden_operation_currency/1,
+    create_fail_forbidden_operation_amount/1,
+    create_fail_invalid_operation_amount/1,
+    create_fail_inconsistent_withdrawal_currency/1,
+    create_fail_identity_providers_mismatch/1,
+    create_fail_no_destination_resource_info/1,
+    create_fail_wallet_inaccessible/1,
+    get_ok/1,
+    get_fail_withdrawal_notfound/1,
+    get_by_external_id_ok/1,
+    create_quote_ok/1,
+    get_quote_fail_wallet_notfound/1,
+    get_quote_fail_destination_notfound/1,
+    get_quote_fail_destination_unauthorized/1,
+    get_quote_fail_forbidden_operation_currency/1,
+    get_quote_fail_forbidden_operation_amount/1,
+    get_quote_fail_invalid_operation_amount/1,
+    get_quote_fail_inconsistent_withdrawal_currency/1,
+    get_quote_fail_identity_provider_mismatch/1,
+    get_events_ok/1,
+    get_events_fail_withdrawal_notfound/1,
+    get_event_ok/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -59,12 +80,32 @@ groups() ->
     [
         {base, [],
             [
-                create,
-                get,
-                get_by_external_id,
-                create_quote,
-                get_events,
-                get_event
+                create_ok,
+                create_fail_wallet_notfound,
+                create_fail_destination_notfound,
+                create_fail_destination_notauthorized,
+                create_fail_forbidden_operation_currency,
+                create_fail_forbidden_operation_amount,
+                % create_fail_invalid_operation_amount,
+                create_fail_inconsistent_withdrawal_currency,
+                create_fail_identity_providers_mismatch,
+                create_fail_no_destination_resource_info,
+                % create_fail_wallet_inaccessible,
+                get_ok,
+                get_fail_withdrawal_notfound,
+                get_by_external_id_ok,
+                create_quote_ok,
+                get_quote_fail_wallet_notfound,
+                get_quote_fail_destination_notfound,
+                get_quote_fail_destination_unauthorized,
+                get_quote_fail_forbidden_operation_currency,
+                get_quote_fail_forbidden_operation_amount,
+                % get_quote_fail_invalid_operation_amount,
+                get_quote_fail_inconsistent_withdrawal_currency,
+                get_quote_fail_identity_provider_mismatch,
+                get_events_ok,
+                get_events_fail_withdrawal_notfound,
+                get_event_ok
             ]
         }
     ].
@@ -134,9 +175,9 @@ end_per_testcase(_Name, C) ->
 
 %%% Tests
 
--spec create(config()) ->
+-spec create_ok(config()) ->
     _.
-create(C) ->
+create_ok(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
@@ -157,9 +198,304 @@ create(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec get(config()) ->
+-spec create_fail_wallet_notfound(config()) ->
     _.
-get(C) ->
+create_fail_wallet_notfound(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('Create', _) -> throw(#fistful_WalletNotFound{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"No such wallet">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"wallet">> => ?STRING,
+                    <<"destination">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+
+-spec create_fail_destination_notfound(config()) ->
+    _.
+create_fail_destination_notfound(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('Create', _) -> throw(#fistful_DestinationNotFound{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"No such destination">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"wallet">> => ?STRING,
+                    <<"destination">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_destination_notauthorized(config()) ->
+    _.
+create_fail_destination_notauthorized(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('Create', _) -> throw(#fistful_DestinationUnauthorized{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Destination unauthorized">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"wallet">> => ?STRING,
+                    <<"destination">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_forbidden_operation_currency(config()) ->
+    _.
+create_fail_forbidden_operation_currency(C) ->
+    PartyID = ?config(party, C),
+    ForbiddenOperationCurrencyException = #fistful_ForbiddenOperationCurrency{
+        currency = #'CurrencyRef'{symbolic_code = ?USD},
+        allowed_currencies = [
+            #'CurrencyRef'{symbolic_code = ?RUB}
+        ]
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('Create', _) -> throw(ForbiddenOperationCurrencyException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Forbidden currency">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"wallet">> => ?STRING,
+                    <<"destination">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_forbidden_operation_amount(config()) ->
+    _.
+create_fail_forbidden_operation_amount(C) ->
+    PartyID = ?config(party, C),
+    ForbiddenOperationAmountException = #fistful_ForbiddenOperationAmount{
+        amount = ?CASH,
+        allowed_range = #'CashRange'{
+            upper = {inclusive, ?CASH},
+            lower = {inclusive, ?CASH}
+        }
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('Create', _) -> throw(ForbiddenOperationAmountException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Invalid cash amount">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"wallet">> => ?STRING,
+                    <<"destination">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => 100500,
+                        <<"currency">> => ?RUB
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_invalid_operation_amount(config()) ->
+    _.
+create_fail_invalid_operation_amount(C) ->
+    PartyID = ?config(party, C),
+    InvalidOperationAmountException = #fistful_InvalidOperationAmount{
+        amount = ?INTEGER
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('Create', _) -> throw(InvalidOperationAmountException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"WOOLOLOLO ??????">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"wallet">> => ?STRING,
+                    <<"destination">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_inconsistent_withdrawal_currency(config()) ->
+    _.
+create_fail_inconsistent_withdrawal_currency(C) ->
+    PartyID = ?config(party, C),
+    InconsistentWithdrawalCurrencyException = #wthd_InconsistentWithdrawalCurrency{
+        withdrawal_currency = #'CurrencyRef'{
+            symbolic_code = ?USD
+        },
+        destination_currency = #'CurrencyRef'{
+            symbolic_code = ?RUB
+        },
+        wallet_currency = #'CurrencyRef'{
+            symbolic_code = ?RUB
+        }
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('Create', _) -> throw(InconsistentWithdrawalCurrencyException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Invalid currency">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"wallet">> => ?STRING,
+                    <<"destination">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_identity_providers_mismatch(config()) ->
+    _.
+create_fail_identity_providers_mismatch(C) ->
+    PartyID = ?config(party, C),
+    IdentityProviderMismatchException = #wthd_IdentityProvidersMismatch{
+        wallet_provider = ?INTEGER,
+        destination_provider = ?INTEGER
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('Create', _) -> throw(IdentityProviderMismatchException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"This wallet and destination cannot be used together">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"wallet">> => ?STRING,
+                    <<"destination">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_no_destination_resource_info(config()) ->
+    _.
+create_fail_no_destination_resource_info(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('Create', _) -> throw(#wthd_NoDestinationResourceInfo{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Unknown card issuer">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"wallet">> => ?STRING,
+                    <<"destination">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec create_fail_wallet_inaccessible(config()) ->
+    _.
+create_fail_wallet_inaccessible(C) ->
+    PartyID = ?config(party, C),
+    WalletInaccessibleException = #fistful_WalletInaccessible{
+        id = ?STRING
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('Create', _) -> throw(WalletInaccessibleException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"WOLOLO ????">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"wallet">> => ?STRING,
+                    <<"destination">> => ?STRING,
+                    <<"body">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_ok(config()) ->
+    _.
+get_ok(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_withdrawal, fun('Get', _) -> {ok, ?WITHDRAWAL(PartyID)} end}
@@ -174,9 +510,29 @@ get(C) ->
     ct_helper:cfg(context, C)
 ).
 
--spec get_by_external_id(config()) ->
+
+-spec get_fail_withdrawal_notfound(config()) ->
     _.
-get_by_external_id(C) ->
+get_fail_withdrawal_notfound(C) ->
+    wapi_ct_helper:mock_services([
+        {fistful_withdrawal, fun('Get', _) -> throw(#fistful_WithdrawalNotFound{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {404, #{}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
+            #{
+                binding => #{
+                    <<"withdrawalID">> => ?STRING
+                }
+            },
+        ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_by_external_id_ok(config()) ->
+    _.
+get_by_external_id_ok(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
@@ -192,9 +548,9 @@ get_by_external_id(C) ->
     ct_helper:cfg(context, C)
 ).
 
--spec create_quote(config()) ->
+-spec create_quote_ok(config()) ->
     _.
-create_quote(C) ->
+create_quote_ok(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
@@ -217,9 +573,265 @@ create_quote(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec get_events(config()) ->
+-spec get_quote_fail_wallet_notfound(config()) ->
     _.
-get_events(C) ->
+get_quote_fail_wallet_notfound(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> throw(#fistful_WalletNotFound{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"No such wallet">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_quote/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"walletID">> => ?STRING,
+                    <<"destinationID">> => ?STRING,
+                    <<"currencyFrom">> => <<"RUB">>,
+                    <<"currencyTo">> => <<"USD">>,
+                    <<"cash">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+
+-spec get_quote_fail_destination_notfound(config()) ->
+    _.
+get_quote_fail_destination_notfound(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> throw(#fistful_DestinationNotFound{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"No such destination">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_quote/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"walletID">> => ?STRING,
+                    <<"destinationID">> => ?STRING,
+                    <<"currencyFrom">> => <<"RUB">>,
+                    <<"currencyTo">> => <<"USD">>,
+                    <<"cash">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_quote_fail_destination_unauthorized(config()) ->
+    _.
+get_quote_fail_destination_unauthorized(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> throw(#fistful_DestinationUnauthorized{}) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Destination unauthorized">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_quote/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"walletID">> => ?STRING,
+                    <<"destinationID">> => ?STRING,
+                    <<"currencyFrom">> => <<"RUB">>,
+                    <<"currencyTo">> => <<"USD">>,
+                    <<"cash">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_quote_fail_forbidden_operation_currency(config()) ->
+    _.
+get_quote_fail_forbidden_operation_currency(C) ->
+    PartyID = ?config(party, C),
+    ForbiddenOperationCurrencyException = #fistful_ForbiddenOperationCurrency{
+        currency = #'CurrencyRef'{symbolic_code = <<"USD">>},
+        allowed_currencies = [
+            #'CurrencyRef'{symbolic_code = <<"RUB">>}
+        ]
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> throw(ForbiddenOperationCurrencyException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Forbidden currency">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_quote/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"walletID">> => ?STRING,
+                    <<"destinationID">> => ?STRING,
+                    <<"currencyFrom">> => <<"RUB">>,
+                    <<"currencyTo">> => <<"USD">>,
+                    <<"cash">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_quote_fail_forbidden_operation_amount(config()) ->
+    _.
+get_quote_fail_forbidden_operation_amount(C) ->
+    PartyID = ?config(party, C),
+    ForbiddenOperationAmountException = #fistful_ForbiddenOperationAmount{
+        amount = ?CASH,
+        allowed_range = #'CashRange'{
+            upper = {inclusive, ?CASH},
+            lower = {inclusive, ?CASH}
+        }
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> throw(ForbiddenOperationAmountException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Invalid cash amount">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_quote/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"walletID">> => ?STRING,
+                    <<"destinationID">> => ?STRING,
+                    <<"currencyFrom">> => <<"RUB">>,
+                    <<"currencyTo">> => <<"USD">>,
+                    <<"cash">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_quote_fail_invalid_operation_amount(config()) ->
+    _.
+get_quote_fail_invalid_operation_amount(C) ->
+    PartyID = ?config(party, C),
+    InvalidOperationAmountException = #fistful_InvalidOperationAmount{
+        amount = ?INTEGER
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> throw(InvalidOperationAmountException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Invalid currency">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_quote/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"walletID">> => ?STRING,
+                    <<"destinationID">> => ?STRING,
+                    <<"currencyFrom">> => <<"RUB">>,
+                    <<"currencyTo">> => <<"USD">>,
+                    <<"cash">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_quote_fail_inconsistent_withdrawal_currency(config()) ->
+    _.
+get_quote_fail_inconsistent_withdrawal_currency(C) ->
+    PartyID = ?config(party, C),
+    InconsistentWithdrawalCurrencyException = #wthd_InconsistentWithdrawalCurrency{
+        withdrawal_currency = #'CurrencyRef'{
+            symbolic_code = ?USD
+        },
+        destination_currency = #'CurrencyRef'{
+            symbolic_code = ?RUB
+        },
+        wallet_currency = #'CurrencyRef'{
+            symbolic_code = ?RUB
+        }
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> throw(InconsistentWithdrawalCurrencyException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Invalid currency">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_quote/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"walletID">> => ?STRING,
+                    <<"destinationID">> => ?STRING,
+                    <<"currencyFrom">> => <<"RUB">>,
+                    <<"currencyTo">> => <<"USD">>,
+                    <<"cash">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_quote_fail_identity_provider_mismatch(config()) ->
+    _.
+get_quote_fail_identity_provider_mismatch(C) ->
+    PartyID = ?config(party, C),
+    IdentityProviderMismatchException = #wthd_IdentityProvidersMismatch{
+        wallet_provider = ?INTEGER,
+        destination_provider = ?INTEGER
+    },
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> throw(IdentityProviderMismatchException) end}
+    ], C),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"This wallet and destination cannot be used together">>}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:create_quote/3,
+            #{
+                body => genlib_map:compact(#{
+                    <<"walletID">> => ?STRING,
+                    <<"destinationID">> => ?STRING,
+                    <<"currencyFrom">> => <<"RUB">>,
+                    <<"currencyTo">> => <<"USD">>,
+                    <<"cash">> => #{
+                        <<"amount">> => 100,
+                        <<"currency">> => <<"RUB">>
+                    }
+            })},
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_events_ok(config()) ->
+    _.
+get_events_ok(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_withdrawal,
@@ -240,12 +852,41 @@ get_events(C) ->
                 <<"limit">> => 10
             }
         },
-    ct_helper:cfg(context, C)
-).
+        ct_helper:cfg(context, C)
+    ).
 
--spec get_event(config()) ->
+-spec get_events_fail_withdrawal_notfound(config()) ->
     _.
-get_event(C) ->
+get_events_fail_withdrawal_notfound(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_withdrawal,
+            fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('GetEvents', [_, #'EventRange'{limit = 0}]) -> throw(#fistful_WithdrawalNotFound{});
+                ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
+            end
+        }
+    ], C),
+    ?assertEqual(
+        {error, {404, #{}}},
+        call_api(
+            fun swag_client_wallet_withdrawals_api:poll_withdrawal_events/3,
+            #{
+                binding => #{
+                    <<"withdrawalID">> => ?STRING
+                },
+                qs_val => #{
+                    <<"limit">> => 10
+                }
+            },
+            ct_helper:cfg(context, C)
+        )
+    ).
+
+-spec get_event_ok(config()) ->
+    _.
+get_event_ok(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_withdrawal,

@@ -228,19 +228,18 @@ process_transaction_info(_, Events, _Session) ->
     Events.
 
 assert_transaction_info(NewTrxInfo, TrxInfo) ->
-    NewValue = case erlang:is_map(NewTrxInfo) of
-        true -> maps:without([extra], NewTrxInfo); % TODO: timestamp?
-        _ -> NewTrxInfo
-    end,
-    OldValue = case erlang:is_map(TrxInfo) of
-        true -> maps:without([extra], TrxInfo); % TODO: timestamp?
-        _ -> TrxInfo
-    end,
+    NewValue = transaction_info_static_data(NewTrxInfo),
+    OldValue = transaction_info_static_data(TrxInfo),
     case {NewValue, OldValue} of
         {_, undefined} -> ok;
         {Value, Value} -> ok;
-        _ -> erlang:error({transaction_info_is_different, {NewTrxInfo, TrxInfo}})
+        _ -> erlang:error({transaction_info_is_different, NewTrxInfo})
     end.
+
+transaction_info_static_data(TrxInfo) when erlang:is_map(TrxInfo) ->
+    maps:without([extra], TrxInfo); % TODO: timestamp?
+transaction_info_static_data(TrxInfo) ->
+    TrxInfo.
 
 -spec set_session_result(session_result(), session_state()) ->
     result().
@@ -310,7 +309,7 @@ process_intent({finish, {success, TransactionInfo} = Result}, Session) ->
         events => [{finished, Result}],
         action => unset_timer
     };
-process_intent({finish, Result}, _Session) ->    
+process_intent({finish, Result}, _Session) ->
     #{
         events => [{finished, Result}],
         action => unset_timer

@@ -390,19 +390,18 @@ collect_build_context_params(SessionState) ->
     }.
 
 assert_transaction_info(NewTrxInfo, TrxInfo) ->
-    NewValue = case erlang:is_map(NewTrxInfo) of
-        true -> maps:without([extra], NewTrxInfo);
-        _ -> NewTrxInfo
-    end,
-    OldValue = case erlang:is_map(TrxInfo) of
-        true -> maps:without([extra], TrxInfo);
-        _ -> TrxInfo
-    end,
+    NewValue = transaction_info_static_data(NewTrxInfo),
+    OldValue = transaction_info_static_data(TrxInfo),
     case {NewValue, OldValue} of
         {_, undefined} -> ok;
         {Value, Value} -> ok;
         _ -> erlang:error({transaction_info_is_different, NewTrxInfo})
     end.
+
+transaction_info_static_data(TrxInfo) when erlang:is_map(TrxInfo) ->
+    maps:without([extra], TrxInfo);
+transaction_info_static_data(TrxInfo) ->
+    TrxInfo.
 
 %% Events apply
 

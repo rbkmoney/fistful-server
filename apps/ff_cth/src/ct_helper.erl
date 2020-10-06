@@ -130,6 +130,7 @@ start_app(wapi_woody_client = AppName) ->
             fistful_identity => "http://localhost:8022/v1/identity",
             fistful_destination => "http://localhost:8022/v1/destination",
             w2w_transfer => "http://localhost:8022/v1/w2w_transfer",
+            p2p_transfer => "http://localhost:8022/v1/p2p_transfer",
             fistful_withdrawal => "http://localhost:8022/v1/withdrawal",
             fistful_p2p_template => "http://localhost:8022/v1/p2p_template"
         }},

@@ -2,6 +2,7 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("fistful_proto/include/ff_proto_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 
 -export([all/0]).
@@ -18,6 +19,7 @@
 -export([identity_challenge_check_test/1]).
 -export([destination_check_test/1]).
 -export([w2w_transfer_check_test/1]).
+-export([p2p_transfer_check_test/1]).
 -export([withdrawal_check_test/1]).
 -export([p2p_template_check_test/1]).
 
@@ -49,6 +51,7 @@ groups() ->
             wallet_check_test,
             destination_check_test,
             w2w_transfer_check_test,
+            p2p_transfer_check_test,
             withdrawal_check_test,
             p2p_template_check_test
         ]}
@@ -191,6 +194,23 @@ w2w_transfer_check_test(C) ->
     W2WTransferID2 = create_w2w_transfer(WalletID21, WalletID22, C),
     ?assertEqual(Keys, maps:keys(get_w2w_transfer(W2WTransferID2, C))).
 
+-spec p2p_transfer_check_test(config()) -> test_return().
+
+p2p_transfer_check_test(C) ->
+    Name = <<"Keyn Fawkes">>,
+    Provider = ?ID_PROVIDER,
+    Class = ?ID_CLASS,
+    IdentityID = create_identity(Name, Provider, Class, C),
+    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    P2PTransferID = create_p2p_transfer(Token, Token, IdentityID, C),
+    P2PTransfer = get_p2p_transfer(P2PTransferID, C),
+    ok = application:set_env(wapi, transport, thrift),
+    P2PTransferIDThrift = create_p2p_transfer(Token, Token, IdentityID, C),
+    P2PTransferThrift = get_p2p_transfer(P2PTransferIDThrift, C),
+    ?assertEqual(maps:keys(P2PTransfer), maps:keys(P2PTransferThrift)),
+    ?assertEqual(maps:without([<<"id">>, <<"createdAt">>], P2PTransfer),
+                 maps:without([<<"id">>, <<"createdAt">>], P2PTransferThrift)).
+
 -spec withdrawal_check_test(config()) -> test_return().
 
 withdrawal_check_test(C) ->
@@ -277,6 +297,8 @@ store_bank_card(C, Pan, ExpDate, CardHolder) ->
         ct_helper:cfg(context_pcidss, C)
     ),
     maps:get(<<"token">>, Res).
+
+%%
 
 create_identity(Name, Provider, Class, C) ->
     {ok, Identity} = call_api(
@@ -450,6 +472,78 @@ get_w2w_transfer(W2WTransferID2, C) ->
         ct_helper:cfg(context, C)
     ),
     W2WTransfer.
+
+create_p2p_transfer(SenderToken, ReceiverToken, IdentityID, C) ->
+    DefaultParams = #{
+        <<"identityID">> => IdentityID,
+        <<"sender">> => #{
+            <<"type">> => <<"BankCardSenderResourceParams">>,
+            <<"token">> => SenderToken,
+            <<"authData">> => <<"session id">>
+        },
+        <<"receiver">> => #{
+            <<"type">> => <<"BankCardReceiverResourceParams">>,
+            <<"token">> => ReceiverToken
+        },
+        <<"quoteToken">> => get_quote_token(SenderToken, ReceiverToken, IdentityID, C),
+        <<"body">> => #{
+            <<"amount">> => ?INTEGER,
+            <<"currency">> => ?RUB
+        },
+        <<"contactInfo">> => #{
+            <<"email">> => <<"some@mail.com">>,
+            <<"phoneNumber">> => <<"+79990000101">>
+        }
+    },
+    {ok, P2PTransfer} = call_api(
+        fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
+        #{body => DefaultParams},
+        ct_helper:cfg(context, C)
+    ),
+    maps:get(<<"id">>, P2PTransfer).
+
+get_quote_token(SenderToken, ReceiverToken, IdentityID, C) ->
+    PartyID = ct_helper:cfg(party, C),
+    {ok, SenderBankCard} = wapi_crypto:decrypt_bankcard_token(SenderToken),
+    {ok, ReceiverBankCard} = wapi_crypto:decrypt_bankcard_token(ReceiverToken),
+    {ok, PartyRevision} = ff_party:get_revision(PartyID),
+    Quote = #p2p_transfer_Quote{
+        identity_id = IdentityID,
+        created_at = <<"1970-01-01T00:00:00.123Z">>,
+        expires_on = <<"1970-01-01T00:00:00.321Z">>,
+        party_revision = PartyRevision,
+        domain_revision = 1,
+        fees = #'Fees'{fees = #{}},
+        body = #'Cash'{
+            amount = ?INTEGER,
+            currency = #'CurrencyRef'{
+                symbolic_code = ?RUB
+            }
+        },
+        sender = {bank_card, #'ResourceBankCard'{
+            bank_card = #'BankCard'{
+                token = SenderBankCard#'BankCard'.token,
+                bin_data_id = {i, 123}
+            }
+        }},
+        receiver = {bank_card, #'ResourceBankCard'{
+            bank_card = #'BankCard'{
+                token = ReceiverBankCard#'BankCard'.token,
+                bin_data_id = {i, 123}
+            }
+        }}
+    },
+    Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
+    {ok, QuoteToken} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Payload, wapi_auth:get_signee()),
+    QuoteToken.
+
+get_p2p_transfer(P2PTransferID, C) ->
+    {ok, P2PTransfer} = call_api(
+        fun swag_client_wallet_p2_p_api:get_p2_p_transfer/3,
+        #{binding => #{<<"p2pTransferID">> => P2PTransferID}},
+        ct_helper:cfg(context, C)
+    ),
+    P2PTransfer.
 
 await_destination(DestID) ->
     authorized = ct_helper:await(

@@ -121,7 +121,8 @@
     expected_max = ?INTEGER
 }).
 
--define(RESOURCE, {bank_card, #'BankCard'{
+-define(BANK_CARD, #'BankCard'{
+    bin_data_id = {i, ?INTEGER},
     token = ?STRING,
     bin = <<"424242">>,
     masked_pan = <<"4242">>,
@@ -129,7 +130,9 @@
     payment_system = visa,
     issuer_country = rus,
     card_type = debit
-}}).
+}).
+
+-define(RESOURCE, {bank_card, ?BANK_CARD}).
 
 -define(DESTINATION_STATUS, {authorized, #dst_Authorized{}}).
 
@@ -472,6 +475,8 @@
 }).
 
 -define(P2P_TEMPLATE_TRANSFER(PartyID), #p2p_transfer_P2PTransferState{
+
+-define(P2P_TRANSFER(PartyID), #p2p_transfer_P2PTransferState{
     id = ?STRING,
     owner = ?STRING,
     sender = ?RAW_RESOURCE,
@@ -492,3 +497,16 @@
     adjustments = []
 }).
 
+-define(FEES, #'Fees'{fees = #{operation_amount => ?CASH}}).
+
+-define(P2P_TRANSFER_QUOTE(IdentityID), #p2p_transfer_Quote{
+    body = ?CASH,
+    created_at = ?TIMESTAMP,
+    expires_on = ?TIMESTAMP,
+    domain_revision = ?INTEGER,
+    party_revision = ?INTEGER,
+    identity_id = IdentityID,
+    sender = ?RESOURCE_BANK_CARD,
+    receiver = ?RESOURCE_BANK_CARD,
+    fees = ?FEES
+}).

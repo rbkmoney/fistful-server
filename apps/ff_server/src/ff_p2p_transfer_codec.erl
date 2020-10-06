@@ -26,8 +26,8 @@ unmarshal_p2p_quote_params(#p2p_transfer_QuoteParams{
     #{
         identity_id => unmarshal(id, IdentityID),
         body => unmarshal(cash, Body),
-        sender => unmarshal(participant, Sender),
-        receiver => unmarshal(participant, Receiver)
+        sender => unmarshal(resource, Sender),
+        receiver => unmarshal(resource, Receiver)
     }.
 
 -spec marshal_p2p_transfer_state(p2p_transfer:p2p_transfer_state(), ff_entity_context:context()) ->
@@ -49,7 +49,7 @@ marshal_p2p_transfer_state(P2PTransferState, Ctx) ->
         operation_timestamp = marshal(timestamp_ms, p2p_transfer:operation_timestamp(P2PTransferState)),
         created_at = marshal(timestamp_ms, p2p_transfer:created_at(P2PTransferState)),
         deadline = maybe_marshal(timestamp_ms, p2p_transfer:deadline(P2PTransferState)),
-        quote = maybe_marshal(quote, p2p_transfer:quote(P2PTransferState)),
+        quote = maybe_marshal(quote_state, p2p_transfer:quote(P2PTransferState)),
         client_info = maybe_marshal(client_info, p2p_transfer:client_info(P2PTransferState)),
         external_id = maybe_marshal(id, p2p_transfer:external_id(P2PTransferState)),
         metadata = marshal(ctx, p2p_transfer:metadata(P2PTransferState)),

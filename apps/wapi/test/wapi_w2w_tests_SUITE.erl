@@ -67,8 +67,8 @@ groups() ->
                 create_fail_unauthorized_wallet,
                 % create_fail_wallet_notfound,
                 % create_fail_invalid_operation_amount,
-                % create_fail_forbidden_operation_currency,
-                % create_fail_inconsistent_w2w_transfer_currency,
+                create_fail_forbidden_operation_currency,
+                create_fail_inconsistent_w2w_transfer_currency,
                 % create_fail_wallet_inaccessible,
                 get,
                 get_fail_w2w_notfound
@@ -201,7 +201,7 @@ create_fail_wallet_notfound(C) ->
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
         {w2w_transfer, fun('Create', _) -> throw(#fistful_WalletNotFound{}) end}
     ], C),
-    ?assertMatch(
+    ?assertEqual(
         {error, {422, #{}}},
         call_api(
             fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
@@ -223,13 +223,16 @@ create_fail_wallet_notfound(C) ->
     _.
 create_fail_invalid_operation_amount(C) ->
     PartyID = ?config(party, C),
+    InvalidOperationAmountException = #fistful_InvalidOperationAmount{
+        amount = ?INTEGER
+    },
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {w2w_transfer, fun('Create', _) -> throw(#fistful_InvalidOperationAmount{}) end}
+        {w2w_transfer, fun('Create', _) -> throw(InvalidOperationAmountException) end}
     ], C),
-    ?assertMatch(
-        {error, {422, #{}}},
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Bad transfer amount">>}}},
         call_api(
             fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
             #{
@@ -250,13 +253,19 @@ create_fail_invalid_operation_amount(C) ->
     _.
 create_fail_forbidden_operation_currency(C) ->
     PartyID = ?config(party, C),
+    ForbiddenOperationCurrencyException = #fistful_ForbiddenOperationCurrency{
+        currency = #'CurrencyRef'{symbolic_code = ?USD},
+        allowed_currencies = [
+            #'CurrencyRef'{symbolic_code = ?RUB}
+        ]
+    },
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {w2w_transfer, fun('Create', _) -> throw(#fistful_ForbiddenOperationCurrency{}) end}
+        {w2w_transfer, fun('Create', _) -> throw(ForbiddenOperationCurrencyException) end}
     ], C),
-    ?assertMatch(
-        {error, {422, #{}}},
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Currency not allowed">>}}},
         call_api(
             fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
             #{
@@ -277,13 +286,24 @@ create_fail_forbidden_operation_currency(C) ->
     _.
 create_fail_inconsistent_w2w_transfer_currency(C) ->
     PartyID = ?config(party, C),
+    InconsistentWithdrawalCurrencyException = #w2w_transfer_InconsistentW2WTransferCurrency{
+        w2w_transfer_currency = #'CurrencyRef'{
+            symbolic_code = ?USD
+        },
+        wallet_from_currency = #'CurrencyRef'{
+            symbolic_code = ?RUB
+        },
+        wallet_to_currency = #'CurrencyRef'{
+            symbolic_code = ?RUB
+        }
+    },
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {w2w_transfer, fun('Create', _) -> throw(#fistful_ForbiddenOperationCurrency{}) end}
+        {w2w_transfer, fun('Create', _) -> throw(InconsistentWithdrawalCurrencyException) end}
     ], C),
-    ?assertMatch(
-        {error, {422, #{}}},
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Inconsistent currency">>}}},
         call_api(
             fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
             #{
@@ -304,13 +324,16 @@ create_fail_inconsistent_w2w_transfer_currency(C) ->
     _.
 create_fail_wallet_inaccessible(C) ->
     PartyID = ?config(party, C),
+    WalletInaccessibleException = #fistful_WalletInaccessible{
+        id = ?STRING
+    },
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {w2w_transfer, fun('Create', _) -> throw(#fistful_ForbiddenOperationCurrency{}) end}
+        {w2w_transfer, fun('Create', _) -> throw(WalletInaccessibleException) end}
     ], C),
-    ?assertMatch(
-        {error, {422, #{}}},
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"??????????????????????">>}}},
         call_api(
             fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
             #{

@@ -46,7 +46,7 @@ create(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
 
 create(ID, Params, Context, HandlerContext) ->
     TemplateParams = marshal_template_params(Params#{<<"id">> => ID}),
-    Request = {fistful_p2p_template, 'Create', [TemplateParams, marshal(context, Context)]},
+    Request = {fistful_p2p_template, 'Create', [TemplateParams, marshal_context(Context)]},
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, Template} ->
             {ok, unmarshal_template(Template)};
@@ -195,15 +195,9 @@ quote_transfer(ID, Params, HandlerContext) ->
 create_transfer(ID, #{quote_token := Token} = Params, HandlerContext) ->
     case uac_authorizer_jwt:verify(Token, #{}) of
         {ok, {_, _, VerifiedToken}} ->
-            case wapi_p2p_quote:decode_token_payload(VerifiedToken) of
+            case decode_and_validate_token_payload(VerifiedToken, ID, HandlerContext) of
                 {ok, Quote} ->
-                    IdentityID = Quote#p2p_transfer_Quote.identity_id,
-                    case validate_identity_id(IdentityID, ID, HandlerContext) of
-                        ok ->
-                            create_transfer(ID, Params#{<<"quote">> => Quote}, HandlerContext);
-                        Error ->
-                            Error
-                    end;
+                    create_transfer(ID, Params#{<<"quote">> => Quote}, HandlerContext);
                 {error, token_expired} ->
                     {error, {token, expired}}
             end;
@@ -216,23 +210,9 @@ create_transfer(ID, Params, HandlerContext) ->
             TransferID = context_transfer_id(HandlerContext),
             case validate_transfer_id(TransferID, Params, HandlerContext) of
                 ok ->
-                    Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-                    TransferParams = marshal_transfer_params(Params#{<<"id">> => TransferID}),
-                    Request = {fistful_p2p_template, 'CreateTransfer', [ID, TransferParams, marshal(context, Context)]},
-                    case wapi_handler_utils:service_call(Request, HandlerContext) of
-                        {ok, Transfer} ->
-                            {ok, unmarshal_transfer(Transfer)};
-                        {exception, #fistful_P2PTemplateNotFound{}} ->
-                            {error, {p2p_template, notfound}};
-                        {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
-                            {error, {forbidden_currency, unmarshal(currency_ref, Currency)}};
-                        {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
-                            {error, {forbidden_amount, unmarshal(cash, Amount)}};
-                        {exception, #fistful_OperationNotPermitted{details = Details}} ->
-                            {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
-                        {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
-                            {error, {invalid_resource, Type}}
-                    end;
+                    MarshaledContext = marshal_context(wapi_backend_utils:make_ctx(Params, HandlerContext)),
+                    MarshaledParams = marshal_transfer_params(Params#{<<"id">> => TransferID}),
+                    create_transfer(ID, MarshaledParams, MarshaledContext, HandlerContext);
                 {error, {external_id_conflict, _}} = Error ->
                     Error
             end;
@@ -240,6 +220,22 @@ create_transfer(ID, Params, HandlerContext) ->
             {error, {p2p_template, unauthorized}};
         {error, notfound} ->
             {error, {p2p_template, notfound}}
+    end.
+create_transfer(ID, MarshaledParams, MarshaledContext, HandlerContext) ->
+    Request = {fistful_p2p_template, 'CreateTransfer', [ID, MarshaledParams, MarshaledContext]},
+    case wapi_handler_utils:service_call(Request, HandlerContext) of
+        {ok, Transfer} ->
+            {ok, unmarshal_transfer(Transfer)};
+        {exception, #fistful_P2PTemplateNotFound{}} ->
+            {error, {p2p_template, notfound}};
+        {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
+            {error, {forbidden_currency, unmarshal(currency_ref, Currency)}};
+        {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
+            {error, {forbidden_amount, unmarshal(cash, Amount)}};
+        {exception, #fistful_OperationNotPermitted{details = Details}} ->
+            {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
+        {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
+            {error, {invalid_resource, Type}}
     end.
 
 %% Convert thrift records to swag maps
@@ -468,12 +464,28 @@ validate_transfer_id(TransferID, Params, #{woody_context := WoodyContext} = Hand
 
 %% Validate Quote identity_id by template
 
-validate_identity_id(IdentityID, ID, HandlerContext) ->
-    case get(ID, HandlerContext) of
+validate_identity_id(IdentityID, TemplateID, HandlerContext) ->
+    case get(TemplateID, HandlerContext) of
         {ok, #{identity_id := IdentityID}} ->
             ok;
         {ok, _ } ->
             {error, {token, {not_verified, identity_mismatch}}};
+        Error ->
+            Error
+    end.
+
+%% Decode Quote fron token, when validate identity id from quote
+
+decode_and_validate_token_payload(Token, TemplateID, HandlerContext) ->
+    case wapi_p2p_quote:decode_token_payload(Token) of
+        {ok, Quote} ->
+            IdentityID = Quote#p2p_transfer_Quote.identity_id,
+            case validate_identity_id(IdentityID, TemplateID, HandlerContext) of
+                ok ->
+                    {ok, Quote};
+                Error ->
+                    Error
+            end;
         Error ->
             Error
     end.
@@ -520,7 +532,7 @@ marshal_template_metadata(#{
     <<"defaultMetadata">> := Metadata
 }) ->
     #p2p_template_P2PTemplateMetadata{
-        value = marshal(context, Metadata)
+        value = marshal_context(Metadata)
     }.
 
 marshal_body(#{
@@ -574,7 +586,7 @@ marshal_transfer_params(#{
         % TODO: client_info
         % TODO: deadline
         quote = Quote,
-        metadata = maybe_marshal(context, Metadata)
+        metadata = marshal_context(Metadata)
     }.
 
 marshal_sender(#{
@@ -627,6 +639,9 @@ marshal_contact_info(ContactInfo) ->
         email = Email,
         phone_number = Phone
     }.
+
+marshal_context(Context) ->
+    maybe_marshal(context, Context).
 
 marshal(T, V) ->
     ff_codec:marshal(T, V).

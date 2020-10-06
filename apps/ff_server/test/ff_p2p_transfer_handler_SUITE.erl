@@ -174,7 +174,7 @@ create_p2p_transfer_ok_test(C) ->
     } = prepare_standard_environment(C),
     P2PTransferID = generate_id(),
     ExternalID = generate_id(),
-    Metadata = ff_p2p_transfer_codec:marshal(ctx,#{<<"hello">> => <<"world">>}),
+    Metadata = ff_p2p_transfer_codec:marshal(ctx, #{<<"hello">> => <<"world">>}),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #p2p_transfer_P2PTransferParams{
         id = P2PTransferID,

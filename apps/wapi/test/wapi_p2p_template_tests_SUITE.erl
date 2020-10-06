@@ -406,8 +406,6 @@ create_transfer_ticket(TemplateToken) ->
     ),
     Ticket.
 
-%create_card_token(C, Pan) ->
-%    create_card_token(C, Pan, undefined, undefined).
 create_card_token(C, Pan, ExpDate, CardHolder) ->
     {ok, Res} = call_api(
         fun swag_client_payres_payment_resources_api:store_bank_card/3,

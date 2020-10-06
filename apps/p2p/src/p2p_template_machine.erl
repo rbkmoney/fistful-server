@@ -114,12 +114,8 @@ get_quote(ID, #{
     do(fun() ->
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template(Machine),
-        unwrap(case p2p_template:blocking(State) of
-            unblocked ->
-                ok;
-            blocked ->
-                {error, p2p_template_blocked}
-        end),
+        % throw error if P2PTemplate is blocked. See blockP2PTransferTemplate
+        unwrap(check_template_blocking(State)),
         unwrap(p2p_quote:get(#{
             body => Body,
             identity_id => p2p_template:identity_id(State),
@@ -135,12 +131,8 @@ create_transfer(ID, Params) ->
     do(fun() ->
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template(Machine),
-        unwrap(case p2p_template:blocking(State) of
-            unblocked ->
-                ok;
-            blocked ->
-                {error, p2p_template_blocked}
-        end),
+        % throw error if P2PTemplate is blocked. See blockP2PTransferTemplate
+        unwrap(check_template_blocking(State)),
         unwrap(p2p_template:create_transfer(Params, State))
     end).
 
@@ -233,3 +225,14 @@ call(ID, Call) ->
 
 backend() ->
     fistful:backend(?NS).
+
+-spec check_template_blocking(template()) ->
+    ok | {error, p2p_template_blocked}.
+
+check_template_blocking(State) ->
+    case p2p_template:blocking(State) of
+        unblocked ->
+            ok;
+        blocked ->
+            {error, p2p_template_blocked}
+    end.

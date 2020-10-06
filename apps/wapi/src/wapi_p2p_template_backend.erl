@@ -474,7 +474,7 @@ validate_identity_id(IdentityID, TemplateID, HandlerContext) ->
             Error
     end.
 
-%% Decode Quote fron token, when validate identity id from quote
+%% Decode QuoteToken, then validate identity id from the quote
 
 decode_and_validate_token_payload(Token, TemplateID, HandlerContext) ->
     case wapi_p2p_quote:decode_token_payload(Token) of

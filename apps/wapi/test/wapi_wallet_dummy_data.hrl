@@ -100,17 +100,6 @@
     accounter_account_id = ?INTEGER
 }).
 
--define(BANK_CARD, #'BankCard'{
-    bin_data_id = {i, ?INTEGER},
-    token = ?STRING,
-    bin = <<"424242">>,
-    masked_pan = <<"4242">>,
-    bank_name = ?STRING,
-    payment_system = visa,
-    issuer_country = rus,
-    card_type = debit
-}).
-
 -define(ACCOUNT_BALANCE, #account_AccountBalance{
     id = ?STRING,
     currency = #'CurrencyRef'{
@@ -475,6 +464,25 @@
 }).
 
 -define(P2P_TEMPLATE_TRANSFER(PartyID), #p2p_transfer_P2PTransferState{
+    id = ?STRING,
+    owner = ?STRING,
+    sender = ?RAW_RESOURCE,
+    receiver = ?RAW_RESOURCE,
+    body = ?CASH,
+    status = {pending, #p2p_status_Pending{}},
+    created_at = ?TIMESTAMP,
+    domain_revision = ?INTEGER,
+    party_revision = ?INTEGER,
+    operation_timestamp = ?TIMESTAMP,
+    external_id = ?STRING,
+    metadata    = ?DEFAULT_METADATA(),
+    context = ?DEFAULT_CONTEXT(PartyID),
+    effective_final_cash_flow = #cashflow_FinalCashFlow{
+        postings = []
+    },
+    sessions = [],
+    adjustments = []
+}).
 
 -define(P2P_TRANSFER(PartyID), #p2p_transfer_P2PTransferState{
     id = ?STRING,

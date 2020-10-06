@@ -44,8 +44,8 @@
     route         := route(),
     adapter_state => ff_adapter:state(),
     callbacks     => callbacks_index(),
-    result        => session_result(), % TODO: remove?
-    transaction_info => transaction_info(), % TODO: why?
+    result        => session_result(),
+    transaction_info => transaction_info(),
 
     % Deprecated. Remove after MSPF-560 finish
     provider_legacy => binary() | ff_payouts_provider:id()
@@ -227,12 +227,20 @@ process_transaction_info(#{transaction_info := TrxInfo}, Events, SessionState) -
 process_transaction_info(_, Events, _Session) ->
     Events.
 
-assert_transaction_info(_TrxInfo, undefined) ->
-    ok;
-assert_transaction_info(TrxInfo, TrxInfo) ->
-    ok;
-assert_transaction_info(TrxInfoNew, _TrxInfo) ->
-    erlang:error({transaction_info_is_different, TrxInfoNew}).
+assert_transaction_info(NewTrxInfo, TrxInfo) ->
+    NewValue = case erlang:is_map(NewTrxInfo) of
+        true -> maps:without([extra], NewTrxInfo); % TODO: timestamp?
+        _ -> NewTrxInfo
+    end,
+    OldValue = case erlang:is_map(TrxInfo) of
+        true -> maps:without([extra], TrxInfo); % TODO: timestamp?
+        _ -> TrxInfo
+    end,
+    case {NewValue, OldValue} of
+        {_, undefined} -> ok;
+        {Value, Value} -> ok;
+        _ -> erlang:error({transaction_info_is_different, {NewTrxInfo, TrxInfo}})
+    end.
 
 -spec set_session_result(session_result(), session_state()) ->
     result().
@@ -296,7 +304,13 @@ process_intent(Intent, Session, Events) ->
     #{events := Events0} = Result = process_intent(Intent, Session),
     Result#{events => Events ++ Events0}.
 
-process_intent({finish, Result}, _Session) ->
+process_intent({finish, {success, TransactionInfo} = Result}, Session) ->
+    ok = assert_transaction_info(TransactionInfo, transaction_info(Session)),
+    #{
+        events => [{finished, Result}],
+        action => unset_timer
+    };
+process_intent({finish, Result}, _Session) ->    
     #{
         events => [{finished, Result}],
         action => unset_timer
@@ -386,8 +400,10 @@ create_adapter_withdrawal(#{id := SesID, sender := Sender, receiver := Receiver}
     }.
 
 -spec set_session_status({finished, session_result()}, session_state()) -> session_state().
-set_session_status({finished, {success, _}}, SessionState) ->
+set_session_status({finished, {success, undefined}}, SessionState) ->
     SessionState#{status => {finished, success}};
+set_session_status({finished, {success, TransactionInfo}}, SessionState) ->
+    SessionState#{status => {finished, success}, transaction_info => TransactionInfo};
 set_session_status(Status = {finished, {failed, _}}, SessionState) ->
     SessionState#{status => Status}.
 

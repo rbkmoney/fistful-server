@@ -82,9 +82,12 @@ start(Opts) ->
         CallbackTag :: binary().
 process_withdrawal(#{id := WithdrawalID}, _State, _Options) ->
     CallbackTag = <<"cb_", WithdrawalID/binary>>,
+    NextStateStr = <<"callback_processing">>,
+    TransactionInfo = #{id => <<"SleepyID">>, extra => #{<<"str">> => NextStateStr}},
     {ok, #{
-        intent => {sleep, {timeout, 2}, CallbackTag},
-        next_state => {str, <<"callback_processing">>}
+        intent => {sleep, {timeout, 5}, CallbackTag},
+        next_state => {str, NextStateStr},
+        transaction_info => TransactionInfo
     }}.
 
 -spec get_quote(quote_params(), map()) ->
@@ -101,8 +104,11 @@ get_quote(_Quote, _Options) ->
     }} when
         CallbackTag :: binary().
 handle_callback(#{payload := Payload}, _Withdrawal, _State, _Options) ->
+    NextStateStr = <<"callback_finished">>,
+    TransactionInfo = #{id => <<"SleepyID">>, extra => #{<<"str">> => NextStateStr}},
     {ok, #{
-        intent => {finish, {success, #{id => <<"SleepyID">>}}},
-        next_state  => {str, <<"callback_finished">>},
-        response  => #{payload => Payload}
+        intent => {finish, {success, TransactionInfo}},
+        next_state  => {str, NextStateStr},
+        response  => #{payload => Payload},
+        transaction_info => TransactionInfo#{extra => #{<<"str">> => <<"ops">>}}
     }}.

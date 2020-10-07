@@ -80,6 +80,8 @@ create(Params, Context, HandlerContext) ->
             {error, {forbidden_currency, unmarshal_currency_ref(Currency)}};
         {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
             {error, {forbidden_amount, unmarshal_body(Amount)}};
+        {exception, #fistful_InvalidOperationAmount{amount = Amount}} ->
+            {error, {invalid_amount, unmarshal_body(Amount)}};
         {exception, #wthd_InconsistentWithdrawalCurrency{
             withdrawal_currency = WithdrawalCurrency,
             destination_currency = DestinationCurrency,
@@ -96,7 +98,9 @@ create(Params, Context, HandlerContext) ->
         }} ->
             {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}};
         {exception, #wthd_NoDestinationResourceInfo{}} ->
-            {error, {destination_resource, {bin_data, not_found}}}
+            {error, {destination_resource, {bin_data, not_found}}};
+        {exception,#fistful_WalletInaccessible{id = WalletID}} ->
+            {error, {wallet, {inaccessible, WalletID}}}
     end.
 
 -spec get(id(), handler_context()) ->

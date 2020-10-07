@@ -86,11 +86,11 @@ groups() ->
                 create_fail_destination_notauthorized,
                 create_fail_forbidden_operation_currency,
                 create_fail_forbidden_operation_amount,
-                % create_fail_invalid_operation_amount,
+                create_fail_invalid_operation_amount,
                 create_fail_inconsistent_withdrawal_currency,
                 create_fail_identity_providers_mismatch,
                 create_fail_no_destination_resource_info,
-                % create_fail_wallet_inaccessible,
+                create_fail_wallet_inaccessible,
                 get_ok,
                 get_fail_withdrawal_notfound,
                 get_by_external_id_ok,
@@ -100,7 +100,7 @@ groups() ->
                 get_quote_fail_destination_unauthorized,
                 get_quote_fail_forbidden_operation_currency,
                 get_quote_fail_forbidden_operation_amount,
-                % get_quote_fail_invalid_operation_amount,
+                get_quote_fail_invalid_operation_amount,
                 get_quote_fail_inconsistent_withdrawal_currency,
                 get_quote_fail_identity_provider_mismatch,
                 get_events_ok,
@@ -347,7 +347,7 @@ create_fail_forbidden_operation_amount(C) ->
 create_fail_invalid_operation_amount(C) ->
     PartyID = ?config(party, C),
     InvalidOperationAmountException = #fistful_InvalidOperationAmount{
-        amount = ?INTEGER
+        amount = ?CASH
     },
     wapi_ct_helper:mock_services([
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
@@ -355,7 +355,7 @@ create_fail_invalid_operation_amount(C) ->
         {fistful_withdrawal, fun('Create', _) -> throw(InvalidOperationAmountException) end}
     ], C),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"WOOLOLOLO ??????">>}}},
+        {error, {422, #{<<"message">> => <<"Invalid currency for source or destination">>}}},
         call_api(
             fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
             #{
@@ -477,7 +477,7 @@ create_fail_wallet_inaccessible(C) ->
         {fistful_withdrawal, fun('Create', _) -> throw(WalletInaccessibleException) end}
     ], C),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"WOLOLO ????">>}}},
+        {error, {422, #{<<"message">> => <<"Inaccessible source or destination">>}}},
         call_api(
             fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
             #{
@@ -732,7 +732,7 @@ get_quote_fail_forbidden_operation_amount(C) ->
 get_quote_fail_invalid_operation_amount(C) ->
     PartyID = ?config(party, C),
     InvalidOperationAmountException = #fistful_InvalidOperationAmount{
-        amount = ?INTEGER
+        amount = ?CASH
     },
     wapi_ct_helper:mock_services([
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},

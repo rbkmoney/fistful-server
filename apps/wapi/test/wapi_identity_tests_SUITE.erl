@@ -325,7 +325,7 @@ get_identity_challenge(C) ->
                 <<"challengeID">> => ?STRING
             }
         },
-        C
+        ct_helper:cfg(context, C)
     ).
 
 -spec list_identity_challenges(config()) ->
@@ -349,7 +349,7 @@ list_identity_challenges(C) ->
                 <<"status">> => <<"Completed">>
             }
         },
-        C
+        ct_helper:cfg(context, C)
     ).
 
 -spec list_identity_challenges_identity_notfound(config()) ->
@@ -375,7 +375,7 @@ list_identity_challenges_identity_notfound(C) ->
                     <<"status">> => <<"Completed">>
                 }
             },
-            C
+            ct_helper:cfg(context, C)
         )
     ).
 
@@ -398,7 +398,7 @@ get_identity_challenge_event(C) ->
                 <<"eventID">> => ?INTEGER
             }
         },
-        C
+        ct_helper:cfg(context, C)
     ).
 
 -spec poll_identity_challenge_events(config()) ->
@@ -434,10 +434,9 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
--spec call_api(function(), map(), config()) ->
+-spec call_api(function(), map(), wapi_client_lib:context()) ->
     {ok, term()} | {error, term()}.
-call_api(F, Params, C) ->
-    Context = ct_helper:cfg(context, C),
+call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
     wapi_client_lib:handle_response(Response).
@@ -465,7 +464,7 @@ create_identity_call_api(C) ->
                 }
             }
         },
-        C
+        ct_helper:cfg(context, C)
     ).
 
 get_identity_call_api(C) ->
@@ -476,7 +475,7 @@ get_identity_call_api(C) ->
                 <<"identityID">> => ?STRING
             }
         },
-        C
+        ct_helper:cfg(context, C)
     ).
 
 create_identity_challenge_call_api(C) ->
@@ -504,7 +503,7 @@ create_identity_challenge_call_api(C) ->
                 ]
             }
         },
-        C
+        ct_helper:cfg(context, C)
     ).
 
 poll_identity_challenge_events_call_api(C) ->
@@ -520,6 +519,6 @@ poll_identity_challenge_events_call_api(C) ->
                 <<"eventCursor">> => ?INTEGER
             }
         },
-        C
+        ct_helper:cfg(context, C)
     ).
 

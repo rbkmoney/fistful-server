@@ -389,19 +389,14 @@ collect_build_context_params(SessionState) ->
         party_revision  => party_revision(SessionState)
     }.
 
-assert_transaction_info(NewTrxInfo, TrxInfo) ->
-    NewValue = transaction_info_static_data(NewTrxInfo),
-    OldValue = transaction_info_static_data(TrxInfo),
-    case {NewValue, OldValue} of
-        {_, undefined} -> ok;
-        {Value, Value} -> ok;
-        _ -> erlang:error({transaction_info_is_different, NewTrxInfo})
-    end.
+%% Only one static TransactionInfo within one session
 
-transaction_info_static_data(TrxInfo) when erlang:is_map(TrxInfo) ->
-    maps:without([extra], TrxInfo);
-transaction_info_static_data(TrxInfo) ->
-    TrxInfo.
+assert_transaction_info(_NewTrxInfo, undefined) ->
+    ok;
+assert_transaction_info(TrxInfo, TrxInfo) ->
+    ok;
+assert_transaction_info(NewTrxInfo, _TrxInfo) ->
+    erlang:error({transaction_info_is_different, NewTrxInfo}).
 
 %% Events apply
 

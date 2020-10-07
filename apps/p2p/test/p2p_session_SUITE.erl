@@ -132,11 +132,10 @@ callback_ok_test(C) ->
     ok = p2p_session_machine:create(SessionID, TransferParams, SessionParams),
     Callback = ?CALLBACK(Token, <<"payload">>),
     ?assertMatch(<<"simple_sleep">>, await_p2p_session_adapter_state(SessionID, <<"simple_sleep">>)),
-    ?assertMatch(#{extra := #{<<"str">> := <<"simple_sleep">>}}, get_p2p_session_transaction_info(SessionID)),
     ?assertMatch({ok, ?PROCESS_CALLBACK_SUCCESS(<<"simple_payload">>)}, call_host(Callback)),
+    ?assertMatch(<<"simple_callback">>, get_p2p_session_adapter_state(SessionID)),
     ?assertMatch({finished, success}, await_final_p2p_session_status(SessionID)),
-    ?assertMatch(<<"sleep_finished">>, await_p2p_session_adapter_state(SessionID, <<"sleep_finished">>)),
-    ?assertMatch(#{extra := #{}}, get_p2p_session_transaction_info(SessionID)).
+    ?assertMatch(<<"sleep_finished">>, await_p2p_session_adapter_state(SessionID, <<"sleep_finished">>)).
 
 -spec wrong_callback_tag_test(config()) -> test_return().
 wrong_callback_tag_test(C) ->
@@ -266,10 +265,6 @@ await_p2p_session_adapter_state(SessionID, State) ->
 get_p2p_session_adapter_state(SessionID) ->
     Session = get_p2p_session(SessionID),
     p2p_session:adapter_state(Session).
-
-get_p2p_session_transaction_info(SessionID) ->
-    Session = get_p2p_session(SessionID),
-    p2p_session:transaction_info(Session).
 
 await_final_p2p_session_status(SessionID) ->
     finished = ct_helper:await(

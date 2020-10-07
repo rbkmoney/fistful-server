@@ -137,14 +137,12 @@ marshal(quote, #{
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
 
+marshal(session_result, success) ->
+    {success, #wthd_session_SessionResultSuccess{}};
 marshal(session_result, {success, TransactionInfo}) ->
-    {success, #wthd_session_SessionResultSuccess{
-        trx_info = maybe_marshal(transaction_info, TransactionInfo)
-    }};
+    {success, #wthd_session_SessionResultSuccess{trx_info = marshal(transaction_info, TransactionInfo)}};
 marshal(session_result, {failed, Failure}) ->
-    {failed, #wthd_session_SessionResultFailed{
-        failure = ff_codec:marshal(failure, Failure)
-    }};
+    {failed, #wthd_session_SessionResultFailed{failure = ff_codec:marshal(failure, Failure)}};
 
 marshal(callback_change, #{tag := Tag, payload := Payload}) ->
     #wthd_session_CallbackChange{
@@ -224,6 +222,7 @@ unmarshal(session_status, {active, #wthd_session_SessionActive{}}) ->
     active;
 unmarshal(session_status, {finished, #wthd_session_SessionFinished{status = Result}}) ->
     {finished, unmarshal(session_finished_status, Result)};
+
 unmarshal(session_finished_status, {success, #wthd_session_SessionFinishedSuccess{}}) ->
     success;
 unmarshal(session_finished_status, {failed, #wthd_session_SessionFinishedFailed{failure = Failure}}) ->
@@ -293,8 +292,10 @@ unmarshal(quote, #wthd_session_Quote{
         quote_data => maybe_unmarshal(msgpack, Data)
     });
 
+unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = undefined}}) ->
+    success;
 unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = Trx}}) ->
-    {success, maybe_unmarshal(transaction_info, Trx)};
+    {success, unmarshal(transaction_info, Trx)};
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
 
@@ -363,10 +364,10 @@ marshal_change_test() ->
     Marshaled = marshal({list, change}, Changes),
     ?_assertEqual(Changes, unmarshal({list, change}, Marshaled)).
 
--spec marshal_session_result_test() ->
+-spec marshal_session_result_test_() ->
     _.
 
-marshal_session_result_test() ->
+marshal_session_result_test_() ->
 
     TransactionInfo = #{
         id => <<"ID">>,
@@ -375,10 +376,19 @@ marshal_session_result_test() ->
 
     Results = [
         {success, TransactionInfo},
-        {success, undefined}
+        success
+    ],
+
+    Missed = [
+        {success, #wthd_session_SessionResultSuccess{trx_info = marshal(transaction_info, TransactionInfo)}},
+        {success, #wthd_session_SessionResultSuccess{}}
     ],
 
     Marshaled = marshal({list, session_result}, Results),
-    ?_assertEqual(Results, unmarshal({list, session_result}, Marshaled)).
+
+    [
+        ?_assertEqual(Missed, Marshaled),
+        ?_assertEqual(Results, unmarshal({list, session_result}, Missed))
+    ].
 
 -endif.

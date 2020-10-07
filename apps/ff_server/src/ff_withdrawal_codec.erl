@@ -101,7 +101,7 @@ marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
 marshal(timestamped_change, {ev, Timestamp, Change}) ->
-   #wthd_TimestampedChange{
+    #wthd_TimestampedChange{
         change = marshal(change, Change),
         occured_at = ff_codec:marshal(timestamp, Timestamp)
     };
@@ -162,8 +162,10 @@ marshal(session_event, started) ->
 marshal(session_event, {finished, Result}) ->
     {finished, #wthd_SessionFinished{result = marshal(session_result, Result)}};
 
+marshal(session_result, success) ->
+    {succeeded, #wthd_SessionSucceeded{}};
 marshal(session_result, {success, TrxInfo}) ->
-    {succeeded, #wthd_SessionSucceeded{trx_info = maybe_marshal(transaction_info, TrxInfo)}};
+    {succeeded, #wthd_SessionSucceeded{trx_info = marshal(transaction_info, TrxInfo)}};
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_SessionFailed{failure = ff_codec:marshal(failure, Failure)}};
 
@@ -280,8 +282,10 @@ unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {finished, Finis
     #wthd_SessionFinished{result = Result} = Finished,
     {session_finished, {unmarshal(id, ID), unmarshal(session_result, Result)}};
 
+unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = undefined}}) ->
+    success;
 unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = TrxInfo}}) ->
-    {success, maybe_unmarshal(transaction_info, TrxInfo)};
+    {success, unmarshal(transaction_info, TrxInfo)};
 unmarshal(session_result, {failed, #wthd_SessionFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
 
@@ -435,8 +439,8 @@ quote_symmetry_test() ->
     ?assertEqual(In, marshal(quote, unmarshal(quote, In))).
 
 
--spec marshal_session_result_test() ->  _.
-marshal_session_result_test() ->
+-spec marshal_session_result_test_() ->  _.
+marshal_session_result_test_() ->
 
     TransactionInfo = #{
         id => <<"ID">>,
@@ -445,10 +449,19 @@ marshal_session_result_test() ->
 
     Results = [
         {success, TransactionInfo},
-        {success, undefined}
+        success
+    ],
+
+    Missed = [
+        {succeeded, #wthd_SessionSucceeded{trx_info = marshal(transaction_info, TransactionInfo)}},
+        {succeeded, #wthd_SessionSucceeded{}}
     ],
 
     Marshaled = marshal({list, session_result}, Results),
-    ?_assertEqual(Results, unmarshal({list, session_result}, Marshaled)).
+
+    [
+        ?_assertEqual(Missed, Marshaled),
+        ?_assertEqual(Results, unmarshal({list, session_result}, Missed))
+    ].
 
 -endif.

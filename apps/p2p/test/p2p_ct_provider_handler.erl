@@ -41,16 +41,14 @@
     session = #p2p_adapter_Session{state = State}
 }).
 
--define(ADAPTER_PROCESS_RESULT_EXTRA(Intent, NextState, Extra), #p2p_adapter_ProcessResult{
+-define(ADAPTER_PROCESS_RESULT(Intent, NextState), #p2p_adapter_ProcessResult{
     intent = Intent,
     next_state = NextState,
     trx = #domain_TransactionInfo{
         id = <<"Trx_ID">>,
-        extra = Extra
+        extra = #{}
     }
 }).
-
--define(ADAPTER_PROCESS_RESULT(Intent, NextState), ?ADAPTER_PROCESS_RESULT_EXTRA(Intent, NextState, #{})).
 
 -define(ADAPTER_SLEEP_INTENT(Timeout, CallbackTag, UI), {sleep, #p2p_adapter_SleepIntent{
     timer = {timeout, Timeout},
@@ -205,10 +203,9 @@ handle_function_('Process', [?ADAPTER_CONTEXT(99, Token, State)], _Ctx, _Opts) -
 handle_function_('Process', [?ADAPTER_CONTEXT(999, Token, State)], _Ctx, _Opts) ->
     case State of
         undefined ->
-            {ok, ?ADAPTER_PROCESS_RESULT_EXTRA(
+            {ok, ?ADAPTER_PROCESS_RESULT(
                 ?ADAPTER_SLEEP_INTENT(2, Token, undefined),
-                <<"simple_sleep">>,
-                #{<<"str">> => <<"simple_sleep">>}
+                <<"simple_sleep">>
             )};
         <<"simple_sleep">> ->
             {ok, ?ADAPTER_PROCESS_RESULT(

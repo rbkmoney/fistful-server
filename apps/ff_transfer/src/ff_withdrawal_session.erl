@@ -63,12 +63,8 @@
 }.
 
 -type transaction_info() :: ff_adapter_withdrawal:transaction_info().
-
--type session_result() :: {success, transaction_info()}
-                        | {failed, ff_adapter_withdrawal:failure()}.
-
--type status() :: active
-    | {finished, success | {failed, ff_adapter_withdrawal:failure()}}.
+-type session_result() :: success | {success, transaction_info()} | {failed, ff_adapter_withdrawal:failure()}.
+-type status() :: active | {finished, success | {failed, ff_adapter_withdrawal:failure()}}.
 
 -type event() :: {created, session()}
     | {next_state, ff_adapter:state()}
@@ -175,8 +171,10 @@ callbacks_index(Session) ->
 -spec result(session_state()) ->
     session_result() | undefined.
 
-result(Session) ->
-    maps:get(result, Session, undefined).
+result(#{result := Result}) ->
+    Result;
+result(_) ->
+    undefined.
 
 -spec transaction_info(session_state()) ->
     transaction_info() | undefined.
@@ -203,9 +201,12 @@ apply_event({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
 apply_event({transaction_bound, TransactionInfo}, Session) ->
     Session#{transaction_info => TransactionInfo};
-apply_event({finished, Result}, Session0) ->
-    Session1 = Session0#{result => Result},
-    set_session_status({finished, Result}, Session1);
+apply_event({finished, success}, Session) ->
+    Session#{status => {finished, success}, result => success};
+apply_event({finished, {success, TransactionInfo}}, Session) ->
+    Session#{status => {finished, success}, result => success, transaction_info => TransactionInfo};
+apply_event({finished, {failed, _} = Result} = Status, Session) ->
+    Session#{status => Status, result => Result};
 apply_event({callback, _Ev} = WrappedEvent, Session) ->
     Callbacks0 = callbacks_index(Session),
     Callbacks1 = ff_withdrawal_callback_utils:apply_event(WrappedEvent, Callbacks0),
@@ -227,19 +228,14 @@ process_transaction_info(#{transaction_info := TrxInfo}, Events, SessionState) -
 process_transaction_info(_, Events, _Session) ->
     Events.
 
-assert_transaction_info(NewTrxInfo, TrxInfo) ->
-    NewValue = transaction_info_static_data(NewTrxInfo),
-    OldValue = transaction_info_static_data(TrxInfo),
-    case {NewValue, OldValue} of
-        {_, undefined} -> ok;
-        {Value, Value} -> ok;
-        _ -> erlang:error({transaction_info_is_different, NewTrxInfo})
-    end.
+%% Only one static TransactionInfo within one session
 
-transaction_info_static_data(TrxInfo) when erlang:is_map(TrxInfo) ->
-    maps:without([extra], TrxInfo); % TODO: timestamp?
-transaction_info_static_data(TrxInfo) ->
-    TrxInfo.
+assert_transaction_info(_NewTrxInfo, undefined) ->
+    ok;
+assert_transaction_info(TrxInfo, TrxInfo) ->
+    ok;
+assert_transaction_info(NewTrxInfo, _TrxInfo) ->
+    erlang:error({transaction_info_is_different, NewTrxInfo}).
 
 -spec set_session_result(session_result(), session_state()) ->
     result().
@@ -397,14 +393,6 @@ create_adapter_withdrawal(#{id := SesID, sender := Sender, receiver := Receiver}
         id => WdthID,
         session_id => SesID
     }.
-
--spec set_session_status({finished, session_result()}, session_state()) -> session_state().
-set_session_status({finished, {success, undefined}}, SessionState) ->
-    SessionState#{status => {finished, success}};
-set_session_status({finished, {success, TransactionInfo}}, SessionState) ->
-    SessionState#{status => {finished, success}, transaction_info => TransactionInfo};
-set_session_status(Status = {finished, {failed, _}}, SessionState) ->
-    SessionState#{status => Status}.
 
 -spec set_callbacks_index(callbacks_index(), session_state()) -> session_state().
 set_callbacks_index(Callbacks, Session) ->

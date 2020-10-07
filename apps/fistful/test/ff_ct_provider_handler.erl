@@ -97,6 +97,8 @@ decode_callback(#wthadpt_Callback{tag = Tag, payload = Payload}) ->
 encode_state(State) ->
     State.
 
+encode_intent({finish, success}) ->
+    {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = undefined}}}};
 encode_intent({finish, {success, TrxInfo}}) ->
     {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = encode_trx(TrxInfo)}}}};
 encode_intent({finish, {failure, Failure}}) ->

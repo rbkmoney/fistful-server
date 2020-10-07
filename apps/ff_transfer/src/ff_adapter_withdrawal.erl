@@ -76,12 +76,12 @@
     #{quote_data() => quote_data()}.
 
 -type adapter()               :: ff_adapter:adapter().
--type intent()                :: {finish, status()} | {sleep, sleep_intent()}.
+-type intent()                :: {finish, finish_status()} | {sleep, sleep_intent()}.
 -type sleep_intent()          :: #{
     timer := timer(),
     tag => ff_withdrawal_callback:tag()
 }.
--type status()                :: {success, transaction_info()} | {failure, failure()}.
+-type finish_status()         :: success | {success, transaction_info()} | {failure, failure()}.
 -type timer()                 :: dmsl_base_thrift:'Timer'().
 -type transaction_info()      :: ff_adapter:transaction_info().
 -type failure()               :: ff_adapter:failure().
@@ -106,6 +106,7 @@
 -export_type([withdrawal/0]).
 -export_type([failure/0]).
 -export_type([transaction_info/0]).
+-export_type([finish_status/0]).
 -export_type([quote/0]).
 -export_type([quote/1]).
 -export_type([quote_params/0]).

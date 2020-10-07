@@ -100,10 +100,14 @@ marshal(identity_documents, Identity) ->
             marshal(challenge_documents, Challenge)
     end;
 
+marshal(intent, {finish, success}) ->
+    {finish, #wthadpt_FinishIntent{
+        status = {success, #wthadpt_Success{}}
+    }};
 marshal(intent, {finish, {success, TrxInfo}}) ->
     {finish, #wthadpt_FinishIntent{
         status = {success, #wthadpt_Success{
-            trx_info = maybe_marshal(transaction_info, TrxInfo)
+            trx_info = marshal(transaction_info, TrxInfo)
         }}
     }};
 marshal(intent, {finish, {failed, Failure}}) ->
@@ -292,8 +296,10 @@ unmarshal(identity, _NotImplemented) ->
 unmarshal(identity_documents, _NotImplemented) ->
     erlang:error(not_implemented); %@TODO
 
+unmarshal(intent, {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = undefined}}}}) ->
+    {finish, success};
 unmarshal(intent, {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = TrxInfo}}}}) ->
-    {finish, {success, maybe_unmarshal(transaction_info, TrxInfo)}};
+    {finish, {success, unmarshal(transaction_info, TrxInfo)}};
 unmarshal(intent, {finish, #wthadpt_FinishIntent{status = {failure, Failure}}}) ->
     {finish, {failed, ff_dmsl_codec:unmarshal(failure, Failure)}};
 unmarshal(intent, {sleep, #wthadpt_SleepIntent{timer = Timer, callback_tag = Tag}}) ->

@@ -174,6 +174,7 @@ create_p2p_transfer_ok_test(C) ->
     } = prepare_standard_environment(C),
     P2PTransferID = generate_id(),
     ExternalID = generate_id(),
+    Metadata = ff_p2p_transfer_codec:marshal(ctx, #{<<"hello">> => <<"world">>}),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
     Params = #p2p_transfer_P2PTransferParams{
         id = P2PTransferID,
@@ -182,7 +183,8 @@ create_p2p_transfer_ok_test(C) ->
         receiver = create_resource_raw(C),
         body = make_cash({100, <<"RUB">>}),
         client_info = #'ClientInfo'{ip_address = <<"some ip_address">>, fingerprint = <<"some fingerprint">>},
-        external_id = ExternalID
+        external_id = ExternalID,
+        metadata = Metadata
     },
     {ok, P2PTransferState} = call_p2p('Create', [Params, Ctx]),
 
@@ -190,6 +192,7 @@ create_p2p_transfer_ok_test(C) ->
     ?assertEqual(P2PTransferID, P2PTransferState#p2p_transfer_P2PTransferState.id),
     ?assertEqual(ExternalID, P2PTransferState#p2p_transfer_P2PTransferState.external_id),
     ?assertEqual(IdentityID, P2PTransferState#p2p_transfer_P2PTransferState.owner),
+    ?assertEqual(Metadata, P2PTransferState#p2p_transfer_P2PTransferState.metadata),
     ?assertEqual(
         p2p_transfer:domain_revision(Expected),
         P2PTransferState#p2p_transfer_P2PTransferState.domain_revision

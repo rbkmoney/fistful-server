@@ -38,13 +38,14 @@
 -define(ACTUAL_FORMAT_VERSION, 5).
 
 -type session_state() :: #{
-    id            := id(),
-    status        := status(),
-    withdrawal    := withdrawal(),
-    route         := route(),
+    id := id(),
+    status := status(),
+    withdrawal := withdrawal(),
+    route := route(),
     adapter_state => ff_adapter:state(),
-    callbacks     => callbacks_index(),
-    result        => session_result(),
+    callbacks => callbacks_index(),
+    result => session_result(),
+    % For validate outstanding TransactionsInfo
     transaction_info => transaction_info(),
 
     % Deprecated. Remove after MSPF-560 finish

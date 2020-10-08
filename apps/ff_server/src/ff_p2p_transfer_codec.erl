@@ -146,6 +146,7 @@ marshal(transfer, Transfer = #{
     Quote = maps:get(quote, Transfer, undefined),
     Deadline = maps:get(deadline, Transfer, undefined),
     ClientInfo = maps:get(client_info, Transfer, undefined),
+    Metadata = maps:get(metadata, Transfer, undefined),
 
     #p2p_transfer_P2PTransfer{
         id = marshal(id, ID),
@@ -161,7 +162,8 @@ marshal(transfer, Transfer = #{
         quote = maybe_marshal(quote_state, Quote),
         external_id = maybe_marshal(id, ExternalID),
         client_info = maybe_marshal(client_info, ClientInfo),
-        deadline = maybe_marshal(timestamp_ms, Deadline)
+        deadline = maybe_marshal(timestamp_ms, Deadline),
+        metadata = maybe_marshal(ctx, Metadata)
     };
 
 marshal(quote_state, Quote) ->
@@ -321,7 +323,8 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
     quote = Quote,
     client_info = ClientInfo,
     external_id = ExternalID,
-    deadline = Deadline
+    deadline = Deadline,
+    metadata = Metadata
 }) ->
     genlib_map:compact(#{
         version => 3,
@@ -338,7 +341,8 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
         quote => maybe_unmarshal(quote_state, Quote),
         client_info => maybe_unmarshal(client_info, ClientInfo),
         external_id => maybe_unmarshal(id, ExternalID),
-        deadline => maybe_unmarshal(timestamp_ms, Deadline)
+        deadline => maybe_unmarshal(timestamp_ms, Deadline),
+        metadata => maybe_unmarshal(ctx, Metadata)
     });
 
 unmarshal(quote_state, Quote) ->
@@ -520,7 +524,8 @@ p2p_transfer_codec_test() ->
         party_revision => 321,
         operation_timestamp => ff_time:now(),
         external_id => genlib:unique(),
-        deadline => ff_time:now()
+        deadline => ff_time:now(),
+        metadata => #{<<"Hello">> => <<"World">>}
     },
 
     PTransfer = #{
@@ -574,7 +579,8 @@ p2p_timestamped_change_codec_test() ->
         domain_revision => 123,
         party_revision => 321,
         operation_timestamp => ff_time:now(),
-        external_id => genlib:unique()
+        external_id => genlib:unique(),
+        metadata => #{<<"Hello">> => <<"World">>}
     },
     Change = {created, P2PTransfer},
     TimestampedChange = {ev, machinery_time:now(), Change},

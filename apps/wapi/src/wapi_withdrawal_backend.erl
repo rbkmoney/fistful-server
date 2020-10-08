@@ -24,6 +24,7 @@
     {quote, {invalid_destination, _}} |
     {forbidden_currency, _} |
     {forbidden_amount, _} |
+    {invalid_amount, _} |
     {inconsistent_currency, _} |
     {quote, token_expired} |
     {identity_providers_mismatch, {id(), id()}} |
@@ -34,6 +35,7 @@
     {wallet, notfound | unauthorized} |
     {forbidden_currency, _} |
     {forbidden_amount, _} |
+    {invalid_amount, _} |
     {inconsistent_currency, _} |
     {identity_providers_mismatch, {id(), id()}} |
     {destination_resource, {bin_data, not_found}}.
@@ -99,7 +101,7 @@ create(Params, Context, HandlerContext) ->
             {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}};
         {exception, #wthd_NoDestinationResourceInfo{}} ->
             {error, {destination_resource, {bin_data, not_found}}};
-        {exception,#fistful_WalletInaccessible{id = WalletID}} ->
+        {exception, #fistful_WalletInaccessible{id = WalletID}} ->
             {error, {wallet, {inaccessible, WalletID}}}
     end.
 

@@ -37,7 +37,7 @@
     create_identity_challenge_level_incorrect/1,
     create_identity_challenge_conflict/1,
     create_identity_challenge_proof_notfound/1,
-    create_identity_challenge_insufficient/1,
+    create_identity_challenge_proof_insufficient/1,
     get_identity_challenge/1,
     list_identity_challenges/1,
     list_identity_challenges_identity_notfound/1,
@@ -90,7 +90,7 @@ groups() ->
                 create_identity_challenge_level_incorrect,
                 create_identity_challenge_conflict,
                 create_identity_challenge_proof_notfound,
-                create_identity_challenge_insufficient,
+                create_identity_challenge_proof_insufficient,
                 get_identity_challenge,
                 list_identity_challenges,
                 list_identity_challenges_identity_notfound,
@@ -297,9 +297,9 @@ create_identity_challenge_proof_notfound(C) ->
         create_identity_challenge_call_api(C)
     ).
 
--spec create_identity_challenge_insufficient(config()) ->
+-spec create_identity_challenge_proof_insufficient(config()) ->
     _.
-create_identity_challenge_insufficient(C) ->
+create_identity_challenge_proof_insufficient(C) ->
     create_identity_challenge_start_mocks(C, fun() -> throw(#fistful_ProofInsufficient{}) end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Insufficient proof">>}}},

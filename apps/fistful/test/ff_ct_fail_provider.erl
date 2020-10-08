@@ -52,7 +52,7 @@
 -record(state, {}).
 -type state() :: #state{}.
 
--type transaction_info()      :: ff_adapter:transaction_info().
+-type transaction_info() :: ff_adapter:transaction_info().
 -type status() :: {success, transaction_info()} | {failure, failure()}.
 -type timer() :: {deadline, binary()} | {timeout, integer()}.
 

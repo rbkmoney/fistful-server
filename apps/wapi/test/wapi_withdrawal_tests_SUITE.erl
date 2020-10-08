@@ -25,13 +25,13 @@
     create_ok/1,
     create_fail_wallet_notfound/1,
     create_fail_destination_notfound/1,
-    create_fail_destination_notauthorized/1,
+    create_fail_destination_unauthorized/1,
     create_fail_forbidden_operation_currency/1,
     create_fail_forbidden_operation_amount/1,
     create_fail_invalid_operation_amount/1,
     create_fail_inconsistent_withdrawal_currency/1,
-    create_fail_identity_providers_mismatch/1,
     create_fail_no_destination_resource_info/1,
+    create_fail_identity_providers_mismatch/1,
     create_fail_wallet_inaccessible/1,
     get_ok/1,
     get_fail_withdrawal_notfound/1,
@@ -45,9 +45,9 @@
     get_quote_fail_invalid_operation_amount/1,
     get_quote_fail_inconsistent_withdrawal_currency/1,
     get_quote_fail_identity_provider_mismatch/1,
+    get_event_ok/1,
     get_events_ok/1,
-    get_events_fail_withdrawal_notfound/1,
-    get_event_ok/1
+    get_events_fail_withdrawal_notfound/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -83,13 +83,13 @@ groups() ->
                 create_ok,
                 create_fail_wallet_notfound,
                 create_fail_destination_notfound,
-                create_fail_destination_notauthorized,
+                create_fail_destination_unauthorized,
                 create_fail_forbidden_operation_currency,
                 create_fail_forbidden_operation_amount,
                 create_fail_invalid_operation_amount,
                 create_fail_inconsistent_withdrawal_currency,
-                create_fail_identity_providers_mismatch,
                 create_fail_no_destination_resource_info,
+                create_fail_identity_providers_mismatch,
                 create_fail_wallet_inaccessible,
                 get_ok,
                 get_fail_withdrawal_notfound,
@@ -103,9 +103,9 @@ groups() ->
                 get_quote_fail_invalid_operation_amount,
                 get_quote_fail_inconsistent_withdrawal_currency,
                 get_quote_fail_identity_provider_mismatch,
+                get_event_ok,
                 get_events_ok,
-                get_events_fail_withdrawal_notfound,
-                get_event_ok
+                get_events_fail_withdrawal_notfound
             ]
         }
     ].
@@ -251,9 +251,9 @@ create_fail_destination_notfound(C) ->
         )
     ).
 
--spec create_fail_destination_notauthorized(config()) ->
+-spec create_fail_destination_unauthorized(config()) ->
     _.
-create_fail_destination_notauthorized(C) ->
+create_fail_destination_unauthorized(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
@@ -408,21 +408,17 @@ create_fail_inconsistent_withdrawal_currency(C) ->
         )
     ).
 
--spec create_fail_identity_providers_mismatch(config()) ->
+-spec create_fail_no_destination_resource_info(config()) ->
     _.
-create_fail_identity_providers_mismatch(C) ->
+create_fail_no_destination_resource_info(C) ->
     PartyID = ?config(party, C),
-    IdentityProviderMismatchException = #wthd_IdentityProvidersMismatch{
-        wallet_provider = ?INTEGER,
-        destination_provider = ?INTEGER
-    },
     wapi_ct_helper:mock_services([
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
         {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_withdrawal, fun('Create', _) -> throw(IdentityProviderMismatchException) end}
+        {fistful_withdrawal, fun('Create', _) -> throw(#wthd_NoDestinationResourceInfo{}) end}
     ], C),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"This wallet and destination cannot be used together">>}}},
+        {error, {422, #{<<"message">> => <<"Unknown card issuer">>}}},
         call_api(
             fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
             #{
@@ -438,17 +434,21 @@ create_fail_identity_providers_mismatch(C) ->
         )
     ).
 
--spec create_fail_no_destination_resource_info(config()) ->
+-spec create_fail_identity_providers_mismatch(config()) ->
     _.
-create_fail_no_destination_resource_info(C) ->
+create_fail_identity_providers_mismatch(C) ->
     PartyID = ?config(party, C),
+    IdentityProviderMismatchException = #wthd_IdentityProvidersMismatch{
+        wallet_provider = ?INTEGER,
+        destination_provider = ?INTEGER
+    },
     wapi_ct_helper:mock_services([
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
         {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_withdrawal, fun('Create', _) -> throw(#wthd_NoDestinationResourceInfo{}) end}
+        {fistful_withdrawal, fun('Create', _) -> throw(IdentityProviderMismatchException) end}
     ], C),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Unknown card issuer">>}}},
+        {error, {422, #{<<"message">> => <<"This wallet and destination cannot be used together">>}}},
         call_api(
             fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
             #{
@@ -829,6 +829,30 @@ get_quote_fail_identity_provider_mismatch(C) ->
         )
     ).
 
+-spec get_event_ok(config()) ->
+    _.
+get_event_ok(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_withdrawal,
+            fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('GetEvents', [_, #'EventRange'{limit = 0}]) -> {ok, []};
+                ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
+            end
+        }
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_withdrawals_api:get_withdrawal_events/3,
+        #{
+            binding => #{
+                <<"withdrawalID">> => ?STRING,
+                <<"eventID">> => ?INTEGER
+            }
+        },
+    ct_helper:cfg(context, C)
+).
+
 -spec get_events_ok(config()) ->
     _.
 get_events_ok(C) ->
@@ -883,30 +907,6 @@ get_events_fail_withdrawal_notfound(C) ->
             ct_helper:cfg(context, C)
         )
     ).
-
--spec get_event_ok(config()) ->
-    _.
-get_event_ok(C) ->
-    PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {fistful_withdrawal,
-            fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('GetEvents', [_, #'EventRange'{limit = 0}]) -> {ok, []};
-                ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
-            end
-        }
-    ], C),
-    {ok, _} = call_api(
-        fun swag_client_wallet_withdrawals_api:get_withdrawal_events/3,
-        #{
-            binding => #{
-                <<"withdrawalID">> => ?STRING,
-                <<"eventID">> => ?INTEGER
-            }
-        },
-    ct_helper:cfg(context, C)
-).
 
 %%
 

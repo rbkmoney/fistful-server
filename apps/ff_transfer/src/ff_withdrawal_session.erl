@@ -202,10 +202,10 @@ apply_event({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
 apply_event({transaction_bound, TransactionInfo}, Session) ->
     Session#{transaction_info => TransactionInfo};
-apply_event({finished, success}, Session) ->
-    Session#{status => {finished, success}, result => success};
-apply_event({finished, {success, TransactionInfo}}, Session) ->
-    Session#{status => {finished, success}, result => success, transaction_info => TransactionInfo};
+apply_event({finished, success = Result}, Session) ->
+    Session#{status => {finished, success}, result => Result};
+apply_event({finished, {success, TransactionInfo} = Result}, Session) ->
+    Session#{status => {finished, success}, result => Result, transaction_info => TransactionInfo};
 apply_event({finished, {failed, _} = Result} = Status, Session) ->
     Session#{status => Status, result => Result};
 apply_event({callback, _Ev} = WrappedEvent, Session) ->

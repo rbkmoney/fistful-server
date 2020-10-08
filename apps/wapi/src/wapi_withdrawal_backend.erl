@@ -172,6 +172,8 @@ create_quote_(Params, HandlerContext) ->
             {error, {forbidden_currency, unmarshal_currency_ref(Currency)}};
         {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
             {error, {forbidden_amount, unmarshal_body(Amount)}};
+        {exception, #fistful_InvalidOperationAmount{amount = Amount}} ->
+            {error, {invalid_amount, unmarshal_body(Amount)}};
         {exception, #wthd_InconsistentWithdrawalCurrency{
             withdrawal_currency = WithdrawalCurrency,
             destination_currency = DestinationCurrency,

@@ -355,7 +355,7 @@ create_fail_invalid_operation_amount(C) ->
         {fistful_withdrawal, fun('Create', _) -> throw(InvalidOperationAmountException) end}
     ], C),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Invalid currency for source or destination">>}}},
+        {error, {422, #{<<"message">> => <<"Invalid cash amount">>}}},
         call_api(
             fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
             #{
@@ -477,7 +477,7 @@ create_fail_wallet_inaccessible(C) ->
         {fistful_withdrawal, fun('Create', _) -> throw(WalletInaccessibleException) end}
     ], C),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Inaccessible source or destination">>}}},
+        {error, {422, #{<<"message">> => <<"Wallet inaccessible">>}}},
         call_api(
             fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
             #{
@@ -740,7 +740,7 @@ get_quote_fail_invalid_operation_amount(C) ->
         {fistful_withdrawal, fun('GetQuote', _) -> throw(InvalidOperationAmountException) end}
     ], C),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Invalid currency">>}}},
+        {error, {422, #{<<"message">> => <<"Invalid cash amount">>}}},
         call_api(
             fun swag_client_wallet_withdrawals_api:create_quote/3,
             #{

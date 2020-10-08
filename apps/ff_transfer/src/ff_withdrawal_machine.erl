@@ -145,7 +145,7 @@ start_adjustment(WithdrawalID, Params) ->
     call(WithdrawalID, {start_adjustment, Params}).
 
 -spec notify_session_finished(id(), session_id(), session_result()) ->
-    ok | {error, invalid_session}.
+    ok | {error, no_session | session_mismatch | result_mismatch}.
 notify_session_finished(WithdrawalID, SessionID, SessionResult) ->
     call(WithdrawalID, {session_finished, SessionID, SessionResult}).
 
@@ -220,7 +220,7 @@ do_start_adjustment(Params, Machine) ->
     end.
 
 -spec do_process_session_finished(session_id(), session_result(), machine()) -> {Response, result()} when
-    Response :: ok | {error, invalid_session}.
+    Response :: ok | {error, no_session | session_mismatch | result_mismatch}.
 do_process_session_finished(SessionID, SessionResult, Machine) ->
     St = ff_machine:collapse(ff_withdrawal, Machine),
     case ff_withdrawal:process_session_finished(SessionID, SessionResult, withdrawal(St)) of

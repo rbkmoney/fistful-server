@@ -514,28 +514,34 @@ process_transfer(Withdrawal) ->
 %%
 
 -spec process_session_finished(session_id(), session_result(), withdrawal_state()) ->
-    {ok, process_result()} | {error, invalid_session}.
+    {ok, process_result()} | {error, no_session | session_mismatch | result_mismatch}.
 process_session_finished(SessionID, SessionResult, Withdrawal) ->
-    Activity = deduce_activity(Withdrawal),
-    #{id := CurrentSessionID} = get_current_session(Withdrawal),
-    case can_finish_session(Activity, CurrentSessionID, SessionID) of
-        true ->
-            {ok, do_finish_session(SessionID, SessionResult)};
-        false ->
-            {error, invalid_session}
+    case check_session_exists_and_current(SessionID, Withdrawal) of
+        ok ->
+            do_finish_session(SessionID, SessionResult, Withdrawal);
+        {error, _} = Error ->
+            Error
     end.
 
--spec can_finish_session(activity(), session_id(), session_id()) ->
-    boolean().
-can_finish_session(session_sleeping, SessionID, SessionID) ->
-    true;
-can_finish_session(_, _, _) ->
-    false.
+check_session_exists_and_current(SessionID, Withdrawal) ->
+    case session_id(Withdrawal) of
+        SessionID ->
+            ok;
+        undefined ->
+            {error, no_session};
+        _ ->
+            {error, session_mismatch}
+    end.
 
--spec do_finish_session(session_id(), session_result()) ->
-    process_result().
-do_finish_session(SessionID, SessionResult) ->
-    {continue, [{session_finished, {SessionID, SessionResult}}]}.
+do_finish_session(SessionID, SessionResult, Withdrawal) ->
+    case session_result(Withdrawal) of
+        SessionResult ->
+            {ok, {undefined, []}};
+        unknown ->
+            {ok, {continue, [{session_finished, {SessionID, SessionResult}}]}};
+        _ ->
+            {error, result_mismatch}
+    end.
 
 %% Internals
 

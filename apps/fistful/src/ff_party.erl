@@ -280,7 +280,7 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, Domain
         {error, #payproc_PartyNotFound{}} ->
             {error, {party_not_found, PartyID}};
         {error, #payproc_ContractNotFound{}} ->
-            {error, {contract_not_found, PartyID}};
+            {error, {contract_not_found, ContractID}};
         {error, #payproc_PartyNotExistsYet{}} ->
             {error, {party_not_exists_yet, PartyID}};
         {error, Unexpected} ->

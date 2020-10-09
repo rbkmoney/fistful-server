@@ -35,13 +35,29 @@
      | {p2p_transfer, notfound}
      .
 
+-type error_get_events()
+    :: error_get()
+     | {token, {unsupported_version, _}}
+     | {token, {not_verified, _}}
+     .
+
 -export([create_transfer/2]).
--export([quote_transfer/2]).
 -export([get_transfer/2]).
+-export([quote_transfer/2]).
+-export([get_transfer_events/3]).
 
 -import(ff_pipeline, [do/1, unwrap/1]).
 
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_p2p_session_thrift.hrl").
+
+-type event() :: #p2p_transfer_Event{} | #p2p_session_Event{}.
+-type event_entity() :: p2p_transfer | p2p_session.
+-type event_range() :: #'EventRange'{}.
+-type event_cursor() :: id() | undefined.
+
+-define(DEFAULT_EVENTS_LIMIT, 50).
 
 -spec create_transfer(req_data(), handler_context()) ->
     {ok, response_data()} | {error, error_create()}.
@@ -87,6 +103,19 @@ quote_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
             {error, {identity, unauthorized}};
         {error, notfound} ->
             {error, {identity, notfound}}
+    end.
+
+-spec get_transfer_events(id(), binary() | undefined, handler_context()) ->
+    {ok, response_data()} | {error, error_get_events()}.
+
+get_transfer_events(ID, Token, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(p2p_transfer, ID, HandlerContext) of
+        ok ->
+            do_get_events(ID, Token, HandlerContext);
+        {error, unauthorized} ->
+            {error, {p2p_transfer, unauthorized}};
+        {error, notfound} ->
+            {error, {p2p_transfer, notfound}}
     end.
 
 %% Internal
@@ -171,6 +200,210 @@ authorize_p2p_quote_token(_Quote, _IdentityID) ->
 
 service_call(Params, HandlerContext) ->
     wapi_handler_utils:service_call(Params, HandlerContext).
+
+%% @doc
+%% The function returns the list of events for the specified Transfer.
+%%
+%% First get Transfer for extract the Session ID.
+%%
+%% Then, the Continuation Token is verified.  Latest EventIDs of Transfer and
+%% Session are stored in the token for possibility partial load of events.
+%%
+%% The events are retrieved no lesser ID than those stored in the token, and count
+%% is limited by wapi.events_fetch_limit option or ?DEFAULT_EVENTS_LIMIT
+%%
+%% The received events are then mixed and ordered by the time of occurrence.
+%% The resulting set is returned to the client.
+%%
+%% @todo Now there is always only zero or one session. But there may be more than one
+%% session in the future, so the code of polling sessions and mixing results
+%% will need to be rewrited.
+
+-spec do_get_events(id(), binary() | undefined, handler_context()) ->
+    {ok, response_data()} | {error, error_get_events()}.
+
+do_get_events(ID, Token, HandlerContext) ->
+    do(fun() ->
+        PartyID = wapi_handler_utils:get_owner(HandlerContext),
+        SessionID = unwrap(request_session_id(ID, HandlerContext)),
+
+        DecodedToken = unwrap(continuation_token_unpack(Token, PartyID)),
+        PrevTransferCursor = continuation_token_cursor(DecodedToken, p2p_transfer),
+        PrevSessionCursor = continuation_token_cursor(DecodedToken, p2p_session),
+
+        {TransferEvents, TransferCursor} = unwrap(events_collect(
+            p2p_transfer,
+            ID,
+            events_range(PrevTransferCursor),
+            HandlerContext,
+            []
+        )),
+
+        {SessionEvents, SessionCursor}  = unwrap(events_collect(
+            p2p_session,
+            SessionID,
+            events_range(PrevSessionCursor),
+            HandlerContext,
+            []
+        )),
+
+        NewTransferCursor = events_max(PrevTransferCursor, TransferCursor),
+        NewSessionCursor = events_max(PrevSessionCursor, SessionCursor),
+        NewToken = unwrap(continuation_token_pack(NewTransferCursor, NewSessionCursor, PartyID)),
+
+        Events = events_merge([TransferEvents, SessionEvents]),
+        {ok, unmarshal_events({NewToken, Events})}
+    end).
+
+%% get p2p_transfer from backend and return last sesssion ID
+
+-spec request_session_id(id(), handler_context()) ->
+    {ok, undefined | id ()} | {error, {p2p_transfer, notfound}}.
+
+request_session_id(ID, HandlerContext) ->
+    Request = {p2p_transfer, 'Get', [ID, #'EventRange'{}]},
+    case service_call(Request, HandlerContext) of
+        {ok, #p2p_transfer_P2PTransferState{sessions = []}} ->
+            {ok, undefined};
+        {ok, #p2p_transfer_P2PTransferState{sessions = Sessions}} ->
+            Session = lists:last(Sessions),
+            {ok, Session#p2p_transfer_SessionState.id};
+        {exception, #fistful_P2PNotFound{}} ->
+            {error, {p2p_transfer, notfound}}
+    end.
+
+%% collect events from Entity backend
+
+-spec events_collect(event_entity(), id() | undefined, event_range(), handler_context(), Acc0) ->
+    {ok, {Acc1, event_cursor()}} | {error, {p2p_transfer, notfound}} when
+        Acc0 :: [] | [event()],
+        Acc1 :: [] | [event()].
+
+events_collect(p2p_session, undefined, #'EventRange'{'after' = Cursor}, _HandlerContext, Acc) ->
+    {ok, {Acc, Cursor}};
+events_collect(_Entity, _EntityID, #'EventRange'{'after' = Cursor, 'limit' = Limit}, _HandlerContext, Acc)
+    when is_integer(Limit) andalso Limit =< 0 ->
+        {ok, {Acc, Cursor}};
+events_collect(Entity, EntityID, EventRange, HandlerContext, Acc) ->
+    #'EventRange'{'after' = Cursor, 'limit' = Limit} = EventRange,
+    Request = {Entity, 'GetEvents', [EntityID, EventRange]},
+    case events_request(Request, HandlerContext) of
+        {ok, [], _} ->
+            {ok, {Acc, Cursor}};
+        {ok, Events, NewCursor} when is_integer(Limit) ->
+            NewEventRange = events_range(NewCursor, Limit - length(Events)),
+            events_collect(Entity, EntityID, NewEventRange, HandlerContext, Acc ++ Events);
+        {ok, Events, NewCursor} ->
+            {ok, {Acc ++ Events, NewCursor}};
+        {error, _} = Error ->
+            Error
+    end.
+
+%% execute request to backend, filter and unmarshal events
+
+-spec events_request(Request, handler_context()) ->
+    {ok, [] | [event()], event_cursor()} | {error, {p2p_transfer, notfound}} when
+        Request :: {event_entity(), 'GetEvents', [id() | event_range()]}.
+
+events_request(Request, HandlerContext) ->
+    case service_call(Request, HandlerContext) of
+        {ok, []} ->
+            {ok, [], undefined};
+        {ok, EventsThrift} ->
+            Cursor = events_cursor(lists:last(EventsThrift)),
+            Events = lists:filter(fun events_filter/1, EventsThrift),
+            {ok, Events, Cursor};
+        {exception, #fistful_P2PNotFound{}} ->
+            {error, {p2p_transfer, notfound}};
+        {exception, #fistful_P2PSessionNotFound{}} ->
+            {ok, [], undefined}
+    end.
+
+%% filter events visible for client
+
+events_filter(#p2p_transfer_Event{change = {status_changed, _}}) ->
+    true;
+events_filter(#p2p_session_Event{change = {ui,  #p2p_session_UserInteractionChange{payload = Payload}}}) ->
+    case Payload of
+        {status_changed, #p2p_session_UserInteractionStatusChange{
+            status = {pending, _}
+        }} ->
+            false;
+        _Other ->
+            % {created ...}
+            % {status_changed, ... status = {finished, ...}}
+            % Take created & finished user interaction events
+            true
+    end;
+events_filter(_Event) ->
+    false.
+
+%% get event ID as events cursor
+
+events_cursor(#p2p_transfer_Event{event = ID}) ->
+    ID;
+events_cursor(#p2p_session_Event{event = ID}) ->
+    ID.
+
+%% get event rfc3339 timestamp
+
+events_timestamp(#p2p_transfer_Event{occured_at = OccuredAt}) ->
+    OccuredAt;
+events_timestamp(#p2p_session_Event{occured_at = OccuredAt}) ->
+    OccuredAt.
+
+%% merge lists of events lists to one events list sorted by 'occured_at'
+
+events_merge(EventsList) ->
+    lists:sort(fun(Ev1, Ev2) -> events_timestamp(Ev1) < events_timestamp(Ev2) end, lists:append(EventsList)).
+
+%% construct EventRange record
+
+events_range(CursorID)  ->
+    events_range(CursorID, genlib_app:env(wapi, events_fetch_limit, ?DEFAULT_EVENTS_LIMIT)).
+
+events_range(CursorID, Limit) ->
+    #'EventRange'{'after' = CursorID, 'limit' = Limit}.
+
+%% select lagest events id
+
+events_max(NewEventID, OldEventID) when is_integer(NewEventID) andalso is_integer(OldEventID) ->
+    erlang:max(NewEventID, OldEventID);
+events_max(NewEventID, OldEventID) ->
+    genlib:define(NewEventID, OldEventID).
+
+%% create and code a new continuation token
+
+continuation_token_pack(TransferCursor, SessionCursor, PartyID) ->
+    Token = genlib_map:compact(#{
+        <<"version">>               => 1,
+        <<"p2p_transfer_event_id">> => TransferCursor,
+        <<"p2p_session_event_id">>  => SessionCursor
+    }),
+    uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Token, wapi_auth:get_signee()).
+
+
+%% verify, decode and check version of continuation token
+
+continuation_token_unpack(undefined, _PartyID) ->
+    {ok, #{}};
+continuation_token_unpack(Token, PartyID) ->
+    case uac_authorizer_jwt:verify(Token, #{}) of
+        {ok, {_, PartyID, #{<<"version">> := 1} = VerifiedToken}} ->
+            {ok, VerifiedToken};
+        {ok, {_, PartyID, #{<<"version">> := Version}}} ->
+            {error, {token, {unsupported_version, Version}}};
+        {error, Error} ->
+            {error, {token, {not_verified, Error}}}
+    end.
+
+%% get cursor event id by entity
+
+continuation_token_cursor(DecodedToken, Entity) ->
+    case Entity of
+        p2p_transfer -> maps:get(<<"p2p_transfer_event_id">>, DecodedToken, undefined);
+        p2p_session -> maps:get(<<"p2p_session_event_id">>, DecodedToken, undefined)
+    end.
 
 %% Marshal
 
@@ -374,6 +607,94 @@ unmarshal_transfer_status({failed, #p2p_status_Failed{failure = Failure}}) ->
         <<"status">> => <<"Failed">>,
         <<"failure">> => unmarshal(failure, Failure)
     }.
+
+unmarshal_events({Token, Events}) ->
+    #{
+        <<"continuationToken">> => unmarshal(string, Token),
+        <<"result">> => [unmarshal_event(Ev) || Ev <- Events]
+    }.
+
+unmarshal_event(#p2p_transfer_Event{
+    occured_at = OccuredAt,
+    change = Change
+}) ->
+    #{
+        <<"occuredAt">> => unmarshal(string, OccuredAt),
+        <<"change">> => unmarshal_event_change(Change)
+    };
+unmarshal_event(#p2p_session_Event{
+    occured_at = OccuredAt,
+    change = Change
+}) ->
+    #{
+        <<"occuredAt">> => unmarshal(string, OccuredAt),
+        <<"changes">> => unmarshal_event_change(Change)
+    }.
+
+unmarshal_event_change({status_changed, #p2p_transfer_StatusChange{
+    status = Status
+}}) ->
+    ChangeType = #{ <<"changeType">> => <<"P2PTransferStatusChanged">>},
+    TransferChange = unmarshal_transfer_status(Status),
+    maps:merge(ChangeType, TransferChange);
+unmarshal_event_change({ui, #p2p_session_UserInteractionChange{
+    id = ID,
+    payload = Payload
+}}) ->
+    #{
+        <<"changeType">> => <<"P2PTransferInteractionChanged">>,
+        <<"userInteractionID">> => unmarshal(id, ID),
+        <<"userInteractionChange">> => unmarshal_user_interaction_change(Payload)
+    }.
+
+unmarshal_user_interaction_change({created, #p2p_session_UserInteractionCreatedChange{
+    ui = #p2p_session_UserInteraction{user_interaction = UserInteraction}
+}}) ->
+    #{
+        <<"changeType">> => <<"UserInteractionCreated">>,
+        <<"userInteraction">> => unmarshal_user_interaction(UserInteraction)
+    };
+unmarshal_user_interaction_change({status_changed, #p2p_session_UserInteractionStatusChange{
+    status = {finished, _} % other statuses are skipped
+}}) ->
+    #{
+        <<"changeType">> => <<"UserInteractionFinished">>
+    }.
+
+unmarshal_user_interaction({redirect, Redirect}) ->
+    #{
+        <<"interactionType">> => <<"Redirect">>,
+        <<"request">> => unmarshal_redirect(Redirect)
+    }.
+
+unmarshal_redirect({get_request, #ui_BrowserGetRequest{
+    uri = URI
+}}) ->
+    #{
+        <<"requestType">> => <<"BrowserGetRequest">>,
+        <<"uriTemplate">> => unmarshal(string, URI)
+    };
+unmarshal_redirect({post_request, #ui_BrowserPostRequest{
+    uri = URI,
+    form = Form
+}}) ->
+    #{
+        <<"requestType">> => <<"BrowserPostRequest">>,
+        <<"uriTemplate">> => unmarshal(string, URI),
+        <<"form">> => unmarshal_form(Form)
+    }.
+
+unmarshal_form(Form) ->
+    maps:fold(
+        fun (Key, Template, AccIn) ->
+            FormField = #{
+                <<"key">> => unmarshal(string, Key),
+                <<"template">> => unmarshal(string, Template)
+            },
+            [FormField | AccIn]
+        end,
+        [], Form
+    ).
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

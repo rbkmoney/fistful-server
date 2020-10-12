@@ -26,8 +26,8 @@ unmarshal_p2p_quote_params(#p2p_transfer_QuoteParams{
     #{
         identity_id => unmarshal(id, IdentityID),
         body => unmarshal(cash, Body),
-        sender => unmarshal(participant, Sender),
-        receiver => unmarshal(participant, Receiver)
+        sender => unmarshal(resource, Sender),
+        receiver => unmarshal(resource, Receiver)
     }.
 
 -spec marshal_p2p_transfer_state(p2p_transfer:p2p_transfer_state(), ff_entity_context:context()) ->
@@ -49,7 +49,7 @@ marshal_p2p_transfer_state(P2PTransferState, Ctx) ->
         operation_timestamp = marshal(timestamp_ms, p2p_transfer:operation_timestamp(P2PTransferState)),
         created_at = marshal(timestamp_ms, p2p_transfer:created_at(P2PTransferState)),
         deadline = maybe_marshal(timestamp_ms, p2p_transfer:deadline(P2PTransferState)),
-        quote = maybe_marshal(quote, p2p_transfer:quote(P2PTransferState)),
+        quote = maybe_marshal(quote_state, p2p_transfer:quote(P2PTransferState)),
         client_info = maybe_marshal(client_info, p2p_transfer:client_info(P2PTransferState)),
         external_id = maybe_marshal(id, p2p_transfer:external_id(P2PTransferState)),
         metadata = marshal(ctx, p2p_transfer:metadata(P2PTransferState)),
@@ -146,6 +146,7 @@ marshal(transfer, Transfer = #{
     Quote = maps:get(quote, Transfer, undefined),
     Deadline = maps:get(deadline, Transfer, undefined),
     ClientInfo = maps:get(client_info, Transfer, undefined),
+    Metadata = maps:get(metadata, Transfer, undefined),
 
     #p2p_transfer_P2PTransfer{
         id = marshal(id, ID),
@@ -161,7 +162,8 @@ marshal(transfer, Transfer = #{
         quote = maybe_marshal(quote_state, Quote),
         external_id = maybe_marshal(id, ExternalID),
         client_info = maybe_marshal(client_info, ClientInfo),
-        deadline = maybe_marshal(timestamp_ms, Deadline)
+        deadline = maybe_marshal(timestamp_ms, Deadline),
+        metadata = maybe_marshal(ctx, Metadata)
     };
 
 marshal(quote_state, Quote) ->
@@ -321,7 +323,8 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
     quote = Quote,
     client_info = ClientInfo,
     external_id = ExternalID,
-    deadline = Deadline
+    deadline = Deadline,
+    metadata = Metadata
 }) ->
     genlib_map:compact(#{
         version => 3,
@@ -338,7 +341,8 @@ unmarshal(transfer, #p2p_transfer_P2PTransfer{
         quote => maybe_unmarshal(quote_state, Quote),
         client_info => maybe_unmarshal(client_info, ClientInfo),
         external_id => maybe_unmarshal(id, ExternalID),
-        deadline => maybe_unmarshal(timestamp_ms, Deadline)
+        deadline => maybe_unmarshal(timestamp_ms, Deadline),
+        metadata => maybe_unmarshal(ctx, Metadata)
     });
 
 unmarshal(quote_state, Quote) ->
@@ -520,7 +524,8 @@ p2p_transfer_codec_test() ->
         party_revision => 321,
         operation_timestamp => ff_time:now(),
         external_id => genlib:unique(),
-        deadline => ff_time:now()
+        deadline => ff_time:now(),
+        metadata => #{<<"Hello">> => <<"World">>}
     },
 
     PTransfer = #{
@@ -574,7 +579,8 @@ p2p_timestamped_change_codec_test() ->
         domain_revision => 123,
         party_revision => 321,
         operation_timestamp => ff_time:now(),
-        external_id => genlib:unique()
+        external_id => genlib:unique(),
+        metadata => #{<<"Hello">> => <<"World">>}
     },
     Change = {created, P2PTransfer},
     TimestampedChange = {ev, machinery_time:now(), Change},

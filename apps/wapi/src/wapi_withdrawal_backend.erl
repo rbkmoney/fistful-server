@@ -8,7 +8,6 @@
 }).
 -define(statusChange(Status), {status_changed, #wthd_StatusChange{status = Status}}).
 
-
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
@@ -25,6 +24,7 @@
     {quote, {invalid_destination, _}} |
     {forbidden_currency, _} |
     {forbidden_amount, _} |
+    {invalid_amount, _} |
     {inconsistent_currency, _} |
     {quote, token_expired} |
     {identity_providers_mismatch, {id(), id()}} |
@@ -35,6 +35,7 @@
     {wallet, notfound | unauthorized} |
     {forbidden_currency, _} |
     {forbidden_amount, _} |
+    {invalid_amount, _} |
     {inconsistent_currency, _} |
     {identity_providers_mismatch, {id(), id()}} |
     {destination_resource, {bin_data, not_found}}.
@@ -81,6 +82,8 @@ create(Params, Context, HandlerContext) ->
             {error, {forbidden_currency, unmarshal_currency_ref(Currency)}};
         {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
             {error, {forbidden_amount, unmarshal_body(Amount)}};
+        {exception, #fistful_InvalidOperationAmount{amount = Amount}} ->
+            {error, {invalid_amount, unmarshal_body(Amount)}};
         {exception, #wthd_InconsistentWithdrawalCurrency{
             withdrawal_currency = WithdrawalCurrency,
             destination_currency = DestinationCurrency,
@@ -97,7 +100,9 @@ create(Params, Context, HandlerContext) ->
         }} ->
             {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}};
         {exception, #wthd_NoDestinationResourceInfo{}} ->
-            {error, {destination_resource, {bin_data, not_found}}}
+            {error, {destination_resource, {bin_data, not_found}}};
+        {exception, #fistful_WalletInaccessible{id = WalletID}} ->
+            {error, {wallet, {inaccessible, WalletID}}}
     end.
 
 -spec get(id(), handler_context()) ->
@@ -169,6 +174,8 @@ create_quote_(Params, HandlerContext) ->
             {error, {forbidden_currency, unmarshal_currency_ref(Currency)}};
         {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
             {error, {forbidden_amount, unmarshal_body(Amount)}};
+        {exception, #fistful_InvalidOperationAmount{amount = Amount}} ->
+            {error, {invalid_amount, unmarshal_body(Amount)}};
         {exception, #wthd_InconsistentWithdrawalCurrency{
             withdrawal_currency = WithdrawalCurrency,
             destination_currency = DestinationCurrency,

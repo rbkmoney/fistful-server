@@ -216,7 +216,7 @@ is_accessible(Identity) ->
 -spec set_blocking(identity_state()) -> identity_state().
 
 set_blocking(Identity) ->
-    Blocking =  case {ok, accessible} =/= is_accessible(Identity) of
+    Blocking =  case {ok, accessible} =:= is_accessible(Identity) of
         true ->
             unblocked;
         false ->
@@ -230,7 +230,7 @@ set_blocking(Identity) ->
     {ok, [event()]} |
     {error, create_error()}.
 
-create(Params = #{id := ID, name:= Name, party := Party, provider := ProviderID, class := ClassID}) ->
+create(Params = #{id := ID, name := Name, party := Party, provider := ProviderID, class := ClassID}) ->
     do(fun () ->
         accessible = unwrap(party, ff_party:is_accessible(Party)),
         Provider = unwrap(provider, ff_provider:get(ProviderID)),

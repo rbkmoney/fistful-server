@@ -1017,7 +1017,7 @@ create_quote_token(Quote, WalletID, DestinationID, PartyID) ->
     Token.
 
 create_p2p_quote_token(Quote, PartyID) ->
-    Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
+    Payload = wapi_p2p_quote:create_token_payload(ff_p2p_transfer_codec:marshal(quote, Quote), PartyID),
     {ok, Token} = issue_quote_token(PartyID, Payload),
     Token.
 
@@ -1043,10 +1043,11 @@ maybe_add_p2p_template_quote_token(ID, #{quote_token := QuoteToken} = Params) ->
     do(fun() ->
         VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
         Quote = unwrap(quote, wapi_p2p_quote:decode_token_payload(VerifiedToken)),
+        UnmarshaledQuote = ff_p2p_transfer_codec:unmarshal(quote, Quote),
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template_machine:p2p_template(Machine),
-        ok = unwrap(authorize_p2p_quote_token(Quote, p2p_template:identity_id(State))),
-        Params#{quote => Quote}
+        ok = unwrap(authorize_p2p_quote_token(UnmarshaledQuote, p2p_template:identity_id(State))),
+        Params#{quote => UnmarshaledQuote}
     end).
 
 maybe_add_p2p_quote_token(#{quote_token := undefined} = Params) ->
@@ -1055,8 +1056,9 @@ maybe_add_p2p_quote_token(#{quote_token := QuoteToken, identity_id := IdentityID
     do(fun() ->
         VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
         Quote = unwrap(quote, wapi_p2p_quote:decode_token_payload(VerifiedToken)),
-        ok = unwrap(authorize_p2p_quote_token(Quote, IdentityID)),
-        Params#{quote => Quote}
+        UnmarshaledQuote = ff_p2p_transfer_codec:unmarshal(quote, Quote),
+        ok = unwrap(authorize_p2p_quote_token(UnmarshaledQuote, IdentityID)),
+        Params#{quote => UnmarshaledQuote}
     end).
 
 max_event_id(NewEventID, OldEventID) when is_integer(NewEventID) andalso is_integer(OldEventID) ->

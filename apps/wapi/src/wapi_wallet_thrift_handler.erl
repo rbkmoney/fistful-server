@@ -286,6 +286,10 @@ process_request('CreateQuote', Params, Context, _Opts) ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
             );
+        {error, {invalid_amount, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
         {error, {inconsistent_currency, _}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid currency">>)
@@ -314,6 +318,8 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
+        {error, {wallet, {inaccessible, _}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>));
         {error, {wallet, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet unauthorized">>));
         {error, {quote_invalid_party, _}} ->
@@ -340,6 +346,10 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
                 wapi_handler_utils:get_error_msg(<<"Forbidden currency">>)
             );
         {error, {forbidden_amount, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
+        {error, {invalid_amount, _}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
             );
@@ -469,6 +479,75 @@ process_request('GetW2WTransfer', #{w2wTransferID := ID}, Context, _Opts) ->
             wapi_handler_utils:reply_ok(404)
     end;
 
+%% P2P
+
+process_request('QuoteP2PTransfer', #{'QuoteParameters':= Params}, Context, _Opts) ->
+    case wapi_p2p_transfer_backend:quote_transfer(Params, Context) of
+        {ok, Quote} ->
+            wapi_handler_utils:reply_ok(201, Quote);
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {sender, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
+        {error, {receiver, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {p2p_transfer, forbidden_currency}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, {p2p_transfer, cash_range_exceeded}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>))
+    end;
+
+process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Context, _Opts) ->
+    case wapi_p2p_transfer_backend:create_transfer(Params, Context) of
+        {ok, P2PTransfer} ->
+            wapi_handler_utils:reply_ok(202, P2PTransfer);
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {identity, unauthorized}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {sender, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
+        {error, {receiver, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {token, {not_verified, _}}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
+        {error, {p2p_transfer, operation_not_permitted}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Operation not permitted">>));
+        {error, {p2p_transfer, forbidden_currency}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, {p2p_transfer, cash_range_exceeded}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>))
+        % note: thrift has less expressive errors
+    end;
+
+process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
+    case wapi_p2p_transfer_backend:get_transfer(ID, Context) of
+        {ok, P2PTransfer} ->
+            wapi_handler_utils:reply_ok(200, P2PTransfer);
+        {error, {p2p_transfer, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {p2p_transfer, notfound}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+
 %% Webhooks
 
 process_request('CreateWebhook', #{'WebhookParams' := WebhookParams}, Context, _Opts) ->
@@ -530,18 +609,19 @@ process_request('CreateP2PTransferTemplate', #{'P2PTransferTemplateParameters' :
             wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, {identity, notfound}} ->
             wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
-        {error, {currency, notfound}} ->
-            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
-        {error, invalid_operation_amount} ->
-            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Invalid operation amount">>));
         {error, inaccessible} ->
             wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
         {error, {external_id_conflict, ID}} ->
-                wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
+            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
+        {error, {currency, notfound}} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
+        {error, invalid_operation_amount} ->
+            wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Invalid operation amount">>))
     end;
 process_request('GetP2PTransferTemplateByID', #{'p2pTransferTemplateID' := P2PTemplateID}, Context, _Opts) ->
     case wapi_p2p_template_backend:get(P2PTemplateID, Context) of
-        {ok, P2PTemplate} -> wapi_handler_utils:reply_ok(200, P2PTemplate);
+        {ok, P2PTemplate} ->
+            wapi_handler_utils:reply_ok(200, P2PTemplate);
         {error, {p2p_template, notfound}} ->
             wapi_handler_utils:reply_error(404);
         {error, {p2p_template, unauthorized}} ->
@@ -549,7 +629,8 @@ process_request('GetP2PTransferTemplateByID', #{'p2pTransferTemplateID' := P2PTe
     end;
 process_request('BlockP2PTransferTemplate', #{p2pTransferTemplateID := P2PTemplateID}, Context, _Opts) ->
     case wapi_p2p_template_backend:block(P2PTemplateID, Context) of
-        ok -> wapi_handler_utils:reply_ok(204);
+        ok ->
+            wapi_handler_utils:reply_ok(204);
         {error, {p2p_template, notfound}} ->
             wapi_handler_utils:reply_error(404);
         {error, {p2p_template, unauthorized}} ->
@@ -561,10 +642,11 @@ process_request('IssueP2PTransferTemplateAccessToken', #{
 }, Context, _Opts) ->
     case wapi_p2p_template_backend:issue_access_token(P2PTemplateID, Expiration, Context) of
         {ok, Token} ->
-            wapi_handler_utils:reply_ok(201, #{ <<"token">> => Token, <<"validUntil">> => Expiration});
+            wapi_handler_utils:reply_ok(201, #{<<"token">> => Token, <<"validUntil">> => Expiration});
         {error, expired} ->
             wapi_handler_utils:reply_error(422,
-                wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>));
+                wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)
+            );
         {error, {p2p_template, notfound}} ->
             wapi_handler_utils:reply_error(404);
         {error, {p2p_template, unauthorized}} ->
@@ -584,6 +666,154 @@ process_request('IssueP2PTransferTicket', #{
             wapi_handler_utils:reply_error(404);
         {error, {p2p_template, unauthorized}} ->
             wapi_handler_utils:reply_error(404)
+    end;
+process_request('QuoteP2PTransferWithTemplate', #{
+    p2pTransferTemplateID := P2PTemplateID,
+    'P2PTransferTemplateQuoteParameters' := Params
+}, Context, _Opts)  ->
+    case wapi_p2p_template_backend:quote_transfer(P2PTemplateID, Params, Context) of
+        {ok, Quote} ->
+            wapi_handler_utils:reply_ok(201, Quote);
+        {error, {p2p_template, notfound}} ->
+            wapi_handler_utils:reply_error(404);
+        {error, {p2p_template, unauthorized}} ->
+            wapi_handler_utils:reply_error(404);
+        {error, {identity, notfound}} ->
+            wapi_handler_utils:reply_error(422,
+                wapi_handler_utils:get_error_msg(<<"No such identity">>));
+        {error, {forbidden_currency, _}} ->
+            wapi_handler_utils:reply_error(422,
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, {forbidden_amount, _}} ->
+            wapi_handler_utils:reply_error(422,
+                wapi_handler_utils:get_error_msg(<<"Amount forbidden">>));
+        {error, {operation_not_permitted, Details}} ->
+            wapi_handler_utils:reply_error(422,
+                wapi_handler_utils:get_error_msg(Details));
+        {error, {invalid_resource, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            })
+    end;
+process_request('CreateP2PTransferWithTemplate', #{
+    p2pTransferTemplateID := P2PTemplateID,
+    'P2PTransferWithTemplateParameters' := Params
+}, Context, _Opts) ->
+    case wapi_p2p_template_backend:create_transfer(P2PTemplateID, Params, Context) of
+        {ok, P2PTransfer} ->
+            wapi_handler_utils:reply_ok(202, P2PTransfer);
+        {error, {p2p_template, notfound}} ->
+            wapi_handler_utils:reply_error(404);
+        {error, {p2p_template, unauthorized}} ->
+            wapi_handler_utils:reply_error(404);
+        {error, {forbidden_currency, _}} ->
+            wapi_handler_utils:reply_error(422,
+                wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
+        {error, {forbidden_amount, _}} ->
+            wapi_handler_utils:reply_error(422,
+                wapi_handler_utils:get_error_msg(<<"Amount forbidden">>));
+        {error, {operation_not_permitted, Details}} ->
+            wapi_handler_utils:reply_error(422,
+                wapi_handler_utils:get_error_msg(Details));
+        {error, {invalid_resource, Type}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            });
+        {error, {token, expired}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidToken">>,
+                <<"name">>        => <<"quoteToken">>,
+                <<"description">> => <<"Token expired">>
+            });
+        {error, {token, {not_verified, Error}}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidToken">>,
+                <<"name">>        => <<"quoteToken">>,
+                <<"description">> => Error
+            });
+        {error, {external_id_conflict, ID}} ->
+            wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
+    end;
+
+%% Reports
+
+process_request('CreateReport', Params, Context, _Opts) ->
+    case wapi_report_backend:create_report(Params, Context) of
+        {ok, Report} -> wapi_handler_utils:reply_ok(201, Report);
+        {error, {identity, notfound}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">> => <<"NotFound">>,
+                <<"name">> => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">> => <<"NotFound">>,
+                <<"name">> => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
+        {error, invalid_request} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">> => <<"NoMatch">>,
+                <<"name">> => <<"timestamps">>,
+                <<"description">> => <<"invalid time range">>
+            });
+        {error, invalid_contract} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">> => <<"NotFound">>,
+                <<"name">> => <<"contractID">>,
+                <<"description">> => <<"contract not found">>
+            })
+    end;
+process_request('GetReport', #{
+    identityID := IdentityID,
+    reportID   := ReportId
+}, Context, _Opts) ->
+    case wapi_report_backend:get_report(ReportId, IdentityID, Context) of
+        {ok, Report} -> wapi_handler_utils:reply_ok(200, Report);
+        {error, {identity, notfound}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">> => <<"NotFound">>,
+                <<"name">> => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">> => <<"NotFound">>,
+                <<"name">> => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('GetReports', Params, Context, _Opts) ->
+    case wapi_report_backend:get_reports(Params, Context) of
+        {ok, ReportList} -> wapi_handler_utils:reply_ok(200, ReportList);
+        {error, {identity, notfound}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">> => <<"NotFound">>,
+                <<"name">> => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
+        {error, {identity, unauthorized}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">> => <<"NotFound">>,
+                <<"name">> => <<"identity">>,
+                <<"description">> => <<"identity not found">>
+            });
+        {error, invalid_request} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">> => <<"NoMatch">>,
+                <<"name">> => <<"timestamps">>,
+                <<"description">> => <<"invalid time range">>
+            });
+        {error, {dataset_too_big, Limit}} -> wapi_handler_utils:reply_ok(400, #{
+                <<"errorType">> => <<"WrongLength">>,
+                <<"name">> => <<"limitExceeded">>,
+                <<"description">> => io_lib:format("Max limit: ~p", [Limit])
+            })
+    end;
+process_request('DownloadFile', #{fileID := FileId}, Context, _Opts) ->
+    ExpiresAt = get_default_url_lifetime(),
+    case wapi_report_backend:download_file(FileId, ExpiresAt, Context) of
+        {ok, URL}         ->
+            wapi_handler_utils:reply_ok(201, #{<<"url">> => URL, <<"expiresAt">> => ExpiresAt});
+        {error, notfound} ->
+            wapi_handler_utils:reply_ok(404)
     end;
 
 %% Fallback to legacy handler
@@ -614,3 +844,10 @@ get_expiration_deadline(Expiration) ->
         false ->
             {error, expired}
     end.
+
+-define(DEFAULT_URL_LIFETIME, 60). % seconds
+
+get_default_url_lifetime() ->
+    Now      = erlang:system_time(second),
+    Lifetime = application:get_env(wapi, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
+    genlib_rfc3339:format(Now + Lifetime, second).

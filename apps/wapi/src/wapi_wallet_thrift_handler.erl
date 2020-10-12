@@ -328,6 +328,10 @@ process_request('CreateQuote', Params, Context, _Opts) ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
             );
+        {error, {invalid_amount, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
         {error, {inconsistent_currency, _}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid currency">>)
@@ -356,6 +360,8 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
+        {error, {wallet, {inaccessible, _}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>));
         {error, {wallet, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet unauthorized">>));
         {error, {quote_invalid_party, _}} ->
@@ -382,6 +388,10 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
                 wapi_handler_utils:get_error_msg(<<"Forbidden currency">>)
             );
         {error, {forbidden_amount, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
+        {error, {invalid_amount, _}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
             );

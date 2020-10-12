@@ -4,6 +4,8 @@
 -define(BANKID_RU, <<"PUTIN">>).
 -define(BANKID_US, <<"TRAMP">>).
 -define(WALLET_TOOL, <<"TOOL">>).
+-define(RESIDENCE_RUS, <<"RUS">>).
+-define(RESIDENCE_DEU, <<"DEU">>).
 -define(JSON, <<"{}">>).
 -define(INTEGER, 10000).
 -define(INTEGER_BINARY, <<"10000">>).
@@ -33,6 +35,18 @@
     currency = #'CurrencyRef'{
         symbolic_code = ?RUB
     }
+}).
+
+-define(IDENTITY_CLASS, #'provider_IdentityClass'{
+    id = ?STRING,
+    name = ?STRING
+}).
+
+-define(PROVIDER, #provider_Provider{
+    id = ?STRING,
+    name = ?STRING,
+    residences = [?RESIDENCE_RUS, ?RESIDENCE_DEU],
+    identity_classes = #{?STRING => ?IDENTITY_CLASS}
 }).
 
 -define(GET_INTERNAL_ID_RESULT, {

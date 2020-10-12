@@ -204,10 +204,10 @@ apply_event({transaction_bound, TransactionInfo}, Session) ->
     Session#{transaction_info => TransactionInfo};
 apply_event({finished, success = Result}, Session) ->
     Session#{status => {finished, success}, result => Result};
-apply_event({finished, {success, TransactionInfo} = Result}, Session) ->
+apply_event({finished, {success, TransactionInfo}}, Session) ->
     %% for backward compatibility with events stored in DB - take TransactionInfo here.
     %% @see ff_adapter_withdrawal:rebind_transaction_info/1
-    Session#{status => {finished, success}, result => Result, transaction_info => TransactionInfo};
+    Session#{status => {finished, success}, result => success, transaction_info => TransactionInfo};
 apply_event({finished, {failed, _} = Result} = Status, Session) ->
     Session#{status => Status, result => Result};
 apply_event({callback, _Ev} = WrappedEvent, Session) ->

@@ -64,7 +64,7 @@
 }.
 
 -type transaction_info() :: ff_adapter_withdrawal:transaction_info().
--type session_result() :: success | {success, transaction_info()} | {failed, ff_adapter_withdrawal:failure()}.
+-type session_result() :: success | {failed, ff_adapter_withdrawal:failure()}.
 -type status() :: active | {finished, success | {failed, ff_adapter_withdrawal:failure()}}.
 
 -type event() :: {created, session()}
@@ -205,6 +205,8 @@ apply_event({transaction_bound, TransactionInfo}, Session) ->
 apply_event({finished, success = Result}, Session) ->
     Session#{status => {finished, success}, result => Result};
 apply_event({finished, {success, TransactionInfo} = Result}, Session) ->
+    %% for backward compatibility with events stored in DB - take TransactionInfo here.
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
     Session#{status => {finished, success}, result => Result, transaction_info => TransactionInfo};
 apply_event({finished, {failed, _} = Result} = Status, Session) ->
     Session#{status => Status, result => Result};
@@ -300,10 +302,11 @@ process_intent(Intent, Session, Events) ->
     #{events := Events0} = Result = process_intent(Intent, Session),
     Result#{events => Events ++ Events0}.
 
-process_intent({finish, {success, TransactionInfo} = Result}, Session) ->
-    ok = assert_transaction_info(TransactionInfo, transaction_info(Session)),
+process_intent({finish, {success, _TransactionInfo}}, _Session) ->
+    %% we ignore TransactionInfo here
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
     #{
-        events => [{finished, Result}],
+        events => [{finished, success}],
         action => unset_timer
     };
 process_intent({finish, Result}, _Session) ->

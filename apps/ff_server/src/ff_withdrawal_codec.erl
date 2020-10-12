@@ -164,8 +164,10 @@ marshal(session_event, {finished, Result}) ->
 
 marshal(session_result, success) ->
     {succeeded, #wthd_SessionSucceeded{}};
-marshal(session_result, {success, TrxInfo}) ->
-    {succeeded, #wthd_SessionSucceeded{trx_info = marshal(transaction_info, TrxInfo)}};
+marshal(session_result, {success, _TransactionInfo}) ->
+    %% ignore TransactionInfo - it's no longer needed here.
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+    {succeeded, #wthd_SessionSucceeded{}};
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_SessionFailed{failure = ff_codec:marshal(failure, Failure)}};
 
@@ -282,10 +284,10 @@ unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {finished, Finis
     #wthd_SessionFinished{result = Result} = Finished,
     {session_finished, {unmarshal(id, ID), unmarshal(session_result, Result)}};
 
-unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = undefined}}) ->
+unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = _TransactionInfo}}) ->
+    %% ignore TransactionInfo - it's no longer needed here.
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
     success;
-unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = TrxInfo}}) ->
-    {success, unmarshal(transaction_info, TrxInfo)};
 unmarshal(session_result, {failed, #wthd_SessionFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
 
@@ -453,15 +455,17 @@ marshal_session_result_test_() ->
     ],
 
     Missed = [
-        {succeeded, #wthd_SessionSucceeded{trx_info = marshal(transaction_info, TransactionInfo)}},
+        {succeeded, #wthd_SessionSucceeded{}},
         {succeeded, #wthd_SessionSucceeded{}}
     ],
 
     Marshaled = marshal({list, session_result}, Results),
 
+    MissedResults = [success, success],
+
     [
         ?_assertEqual(Missed, Marshaled),
-        ?_assertEqual(Results, unmarshal({list, session_result}, Missed))
+        ?_assertEqual(MissedResults, unmarshal({list, session_result}, Missed))
     ].
 
 -endif.

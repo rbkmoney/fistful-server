@@ -127,7 +127,9 @@
 process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
     DomainWithdrawal = marshal(withdrawal, Withdrawal),
     {ok, Result} = call(Adapter, 'ProcessWithdrawal', [DomainWithdrawal, marshal(adapter_state, ASt), AOpt]),
-    decode_result(Result).
+    % rebind trx field
+    RebindedResult = rebind_transaction_info(Result),
+    decode_result(RebindedResult).
 
 -spec handle_callback(Adapter, Callback, Withdrawal, ASt, AOpt) ->
     {ok, handle_callback_result()} when
@@ -142,7 +144,9 @@ handle_callback(Adapter, Callback, Withdrawal, ASt, AOpt) ->
     DCallback= marshal(callback, Callback),
     DASt = marshal(adapter_state, ASt),
     {ok, Result} = call(Adapter, 'HandleCallback', [DCallback, DWithdrawal, DASt, AOpt]),
-    decode_result(Result).
+    % rebind trx field
+    RebindedResult = rebind_transaction_info(Result),
+    decode_result(RebindedResult).
 
 -spec get_quote(adapter(), quote_params(), map()) ->
     {ok, quote()}.
@@ -171,6 +175,34 @@ decode_result(#wthadpt_Quote{} = Quote) ->
     {ok, unmarshal(quote, Quote)};
 decode_result(#wthadpt_CallbackResult{} = CallbackResult) ->
     {ok, unmarshal(callback_result, CallbackResult)}.
+
+%% @doc
+%% The field Intent.FinishIntent.FinishStatus.Success.trx_info is ignored further in the code (#FF-207).
+%% If TransactionInfo is set on this field, then rebind its value to the (ProcessResult|CallbackResult).trx field.
+%%
+%% @see ff_withdrawal_session:process_intent/2
+%% @see ff_withdrawal_session:apply_event/2
+%% @see ff_withdrawal_session_codec:marshal/2
+%% @see ff_withdrawal_session_codec:unmarshal/2
+%% @see ff_withdrawal_codec:marshal/2
+%% @see ff_withdrawal_codec:unmarshal/2
+%%
+%% @todo Remove this code when adapter stops set TransactionInfo to field Success.trx_info
+
+rebind_transaction_info(#wthadpt_ProcessResult{intent = Intent} = Result) ->
+    TransactionInfo = extract_transaction_info(Intent, Result#wthadpt_ProcessResult.trx),
+    Result#wthadpt_ProcessResult{trx = TransactionInfo};
+rebind_transaction_info(#wthadpt_CallbackResult{intent = Intent} = Result) ->
+    TransactionInfo = extract_transaction_info(Intent, Result#wthadpt_CallbackResult.trx),
+    Result#wthadpt_CallbackResult{trx = TransactionInfo}.
+
+extract_transaction_info({finish, #wthadpt_FinishIntent{status = {success, Success}}}, TransactionInfo) ->
+    case Success of
+        #wthadpt_Success{trx_info = undefined} -> TransactionInfo;
+        #wthadpt_Success{trx_info = LegacyTransactionInfo} -> LegacyTransactionInfo
+    end;
+extract_transaction_info(_Intent, TransactionInfo) ->
+    TransactionInfo.
 
 %%
 

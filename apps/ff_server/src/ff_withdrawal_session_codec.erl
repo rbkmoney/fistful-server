@@ -139,8 +139,10 @@ marshal(ctx, Ctx) ->
 
 marshal(session_result, success) ->
     {success, #wthd_session_SessionResultSuccess{}};
-marshal(session_result, {success, TransactionInfo}) ->
-    {success, #wthd_session_SessionResultSuccess{trx_info = marshal(transaction_info, TransactionInfo)}};
+marshal(session_result, {success, _TransactionInfo}) ->
+    %% ignore any TransactionInfo here
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+    {success, #wthd_session_SessionResultSuccess{}};
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_session_SessionResultFailed{failure = ff_codec:marshal(failure, Failure)}};
 
@@ -294,8 +296,11 @@ unmarshal(quote, #wthd_session_Quote{
 
 unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = undefined}}) ->
     success;
-unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = Trx}}) ->
-    {success, unmarshal(transaction_info, Trx)};
+unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = TransactionInfo}}) ->
+    %% for backward compatibility with events stored in DB - take TransactionInfo here.
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+    %% @see ff_withdrawal_session_machinery_schema:unmarshal_event/3
+    {success, TransactionInfo};
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
 
@@ -358,11 +363,20 @@ marshal_change_test() ->
     Changes = [
         {finished, {success, TransactionInfo}},
         {finished, {success, undefined}},
+        {finished, success},
         {transaction_bound, TransactionInfo}
     ],
 
+    Missed = [
+        {finished, {success, #wthd_session_SessionResultSuccess{}}},
+        {finished, {success, #wthd_session_SessionResultSuccess{}}},
+        {finished, {success, #wthd_session_SessionResultSuccess{}}},
+        {transaction_bound, #wthd_session_TransactionBoundChange{trx_info = marshal(transaction_info, TransactionInfo)}}
+    ],
+
     Marshaled = marshal({list, change}, Changes),
-    ?_assertEqual(Changes, unmarshal({list, change}, Marshaled)).
+
+    ?_assertEqual(Missed, Marshaled).
 
 -spec marshal_session_result_test_() ->
     _.
@@ -380,15 +394,24 @@ marshal_session_result_test_() ->
     ],
 
     Missed = [
-        {success, #wthd_session_SessionResultSuccess{trx_info = marshal(transaction_info, TransactionInfo)}},
+        %% ignore TransactionInfo here
+        %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+        {success, #wthd_session_SessionResultSuccess{}},
         {success, #wthd_session_SessionResultSuccess{}}
     ],
 
     Marshaled = marshal({list, session_result}, Results),
 
+    PreResults = [
+        %% backward compatibility with already stored events
+        %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+        {success, #wthd_session_SessionResultSuccess{trx_info = TransactionInfo}},
+        {success, #wthd_session_SessionResultSuccess{}}
+    ],
+
     [
         ?_assertEqual(Missed, Marshaled),
-        ?_assertEqual(Results, unmarshal({list, session_result}, Missed))
+        ?_assertEqual(Results, unmarshal({list, session_result}, PreResults))
     ].
 
 -endif.

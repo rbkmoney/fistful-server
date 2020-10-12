@@ -1242,8 +1242,6 @@ get_current_session_status_(Withdrawal) ->
             undefined;
         #{result := success} ->
             succeeded;
-        #{result := {success, _}} ->
-            succeeded;
         #{result := {failed, _}} ->
             failed;
         #{} ->

@@ -514,7 +514,7 @@ process_transfer(Withdrawal) ->
 %%
 
 -spec process_session_finished(session_id(), session_result(), withdrawal_state()) ->
-    {ok, process_result()} | {error, no_session | session_mismatch | result_mismatch}.
+    {ok, process_result()} | {error, session_not_found | old_session | result_mismatch}.
 process_session_finished(SessionID, SessionResult, Withdrawal) ->
     case check_session_exists_and_current(SessionID, Withdrawal) of
         ok ->
@@ -523,16 +523,34 @@ process_session_finished(SessionID, SessionResult, Withdrawal) ->
             Error
     end.
 
+-spec check_session_exists_and_current(session_id(), withdrawal_state()) ->
+    ok | {error, session_not_found | old_session}.
 check_session_exists_and_current(SessionID, Withdrawal) ->
     case session_id(Withdrawal) of
         SessionID ->
             ok;
         undefined ->
-            {error, no_session};
-        _ ->
-            {error, session_mismatch}
+            {error, session_not_found};
+        _OtherSessionID ->
+            case check_is_old_session(SessionID, Withdrawal) of
+                true ->
+                    {error, old_session};
+                false ->
+                    {error, session_not_found}
+            end
     end.
 
+-spec check_is_old_session(session_id(), withdrawal_state()) ->
+    boolean().
+check_is_old_session(SessionID, Withdrawal) ->
+    Sessions = ff_withdrawal_route_attempt_utils:get_sessions(attempts(Withdrawal)),
+    lists:any(
+        fun(#{id := SessionID0}) -> SessionID0 =:= SessionID end,
+        Sessions
+    ).
+
+-spec do_finish_session(session_id(), session_result(), withdrawal_state()) ->
+    {ok, process_result()} | {error, result_mismatch}.
 do_finish_session(SessionID, SessionResult, Withdrawal) ->
     case session_result(Withdrawal) of
         SessionResult ->

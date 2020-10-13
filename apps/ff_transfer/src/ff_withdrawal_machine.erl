@@ -145,7 +145,7 @@ start_adjustment(WithdrawalID, Params) ->
     call(WithdrawalID, {start_adjustment, Params}).
 
 -spec notify_session_finished(id(), session_id(), session_result()) ->
-    ok | {error, no_session | session_mismatch | result_mismatch}.
+    ok | {error, session_not_found | old_session | result_mismatch}.
 notify_session_finished(WithdrawalID, SessionID, SessionResult) ->
     call(WithdrawalID, {session_finished, SessionID, SessionResult}).
 
@@ -220,7 +220,7 @@ do_start_adjustment(Params, Machine) ->
     end.
 
 -spec do_process_session_finished(session_id(), session_result(), machine()) -> {Response, result()} when
-    Response :: ok | {error, no_session | session_mismatch | result_mismatch}.
+    Response :: ok | {error, session_not_found | old_session | result_mismatch}.
 do_process_session_finished(SessionID, SessionResult, Machine) ->
     St = ff_machine:collapse(ff_withdrawal, Machine),
     case ff_withdrawal:process_session_finished(SessionID, SessionResult, withdrawal(St)) of
@@ -246,8 +246,16 @@ set_action(continue, _St) ->
 set_action(undefined, _St) ->
     undefined;
 set_action(sleep, _St) ->
-    % Should we (can we?) still poll the session with some big interval just in case?
+    % @TODO remove polling from here after deployment of FF-226
+    % Now = machinery_time:now(),
+    % {set_timer, {timeout, compute_poll_timeout(Now, St)}}.
     unset_timer.
+
+%-define(MAX_SESSION_POLL_TIMEOUT, 4 * 60 * 60).
+%compute_poll_timeout(Now, St) ->
+%    MaxTimeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
+%    Timeout0 = machinery_time:interval(Now, ff_machine:updated(St)) div 1000,
+%    erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
 
 call(ID, Call) ->
     case machinery:call(?NS, ID, Call, backend()) of

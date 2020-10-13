@@ -79,7 +79,7 @@
 %% API
 %%
 
--define(MAX_SESSION_NOTIFICATION_TIMEOUT, 4 * 60 * 60).
+-define(MAX_SESSION_NOTIFICATION_RETRY_TIMEOUT, 4 * 60 * 60).
 
 -spec session(st()) -> session().
 
@@ -204,14 +204,17 @@ set_action({setup_callback, Tag, Timer}, _St) ->
     [tag_action(Tag), timer_action(Timer)];
 set_action({setup_timer, Timer}, _St) ->
     timer_action(Timer);
+set_action(retry_notification, St) ->
+    timer_action({timeout, compute_notification_retry_timeout(St)});
 set_action(finish, _St) ->
-    unset_timer;
-set_action(retry, St) ->
-    Now = machinery_time:now(),
-    timer_action({timeout, compute_retry_timeout(Now, St)}).
+    unset_timer.
 
-compute_retry_timeout(Now, St) ->
-    MaxTimeout = genlib_app:env(ff_transfer, max_session_notification_timeout, ?MAX_SESSION_NOTIFICATION_TIMEOUT),
+compute_notification_retry_timeout(St) ->
+    Now = machinery_time:now(),
+    MaxTimeout = genlib_app:env(ff_transfer, max_session_notification_retry_timeout, ?MAX_SESSION_NOTIFICATION_RETRY_TIMEOUT),
+    compute_timeout(MaxTimeout, Now, St).
+
+compute_timeout(MaxTimeout, Now, St) ->
     Timeout0 = machinery_time:interval(Now, ff_machine:updated(St)) div 1000,
     erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
 

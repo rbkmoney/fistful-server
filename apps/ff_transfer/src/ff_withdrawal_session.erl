@@ -106,8 +106,8 @@
     continue |
     {setup_callback, machinery:tag(), machinery:timer()} |
     {setup_timer, machinery:timer()} |
-    finish |
-    retry.
+    retry_notification |
+    finish.
 
 -type process_result() :: {action(), [event()]}.
 
@@ -213,8 +213,8 @@ process_session(#{status := {finished, _}, id := ID, result := Result, withdrawa
     case ff_withdrawal_machine:notify_session_finished(WithdrawalID, ID, Result) of
         ok ->
             {finish, []};
-        {error, no_session} ->
-            {retry, []};
+        {error, session_not_found} ->
+            {retry_notification, []};
         {error, _} = Error ->
             erlang:error({unable_to_finish_session, Error})
     end;

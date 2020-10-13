@@ -169,7 +169,6 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
         set_session_result => fun(Args, RMachine) ->
             State = ff_machine:collapse(ff_withdrawal_session, RMachine),
             {Action, Events} = ff_withdrawal_session:set_session_result(Args, session(State)),
-             %@todo repair events are emitted in ff_repair, while calls and timeouts are emitted per handler. Unify?
             {ok, {ok, #{action => set_action(Action, State), events => Events}}}
         end
     },

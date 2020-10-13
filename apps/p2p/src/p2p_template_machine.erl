@@ -104,7 +104,8 @@ ctx(St) ->
 
 -spec get_quote(id(), p2p_template:quote_params()) ->
     {ok, p2p_quote:quote()} |
-    {error, p2p_quote:get_quote_error() | unknown_p2p_template_error()}.
+    {error, p2p_quote:get_quote_error() | unknown_p2p_template_error()} |
+    {error, p2p_template_blocked}.
 get_quote(ID, #{
     body := Body,
     sender := Sender,
@@ -113,6 +114,8 @@ get_quote(ID, #{
     do(fun() ->
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template(Machine),
+        % throw error if P2PTemplate is blocked. See blockP2PTransferTemplate
+        unwrap(check_template_blocking(State)),
         unwrap(p2p_quote:get(#{
             body => Body,
             identity_id => p2p_template:identity_id(State),
@@ -122,11 +125,14 @@ get_quote(ID, #{
     end).
 
 -spec create_transfer(id(), p2p_template:transfer_params()) ->
-    ok | {error, p2p_transfer:create_error() | exists | unknown_p2p_template_error()}.
+    ok | {error, p2p_transfer:create_error() | exists | unknown_p2p_template_error()} |
+    {error, p2p_template_blocked}.
 create_transfer(ID, Params) ->
     do(fun() ->
         Machine = unwrap(p2p_template_machine:get(ID)),
         State = p2p_template(Machine),
+        % throw error if P2PTemplate is blocked. See blockP2PTransferTemplate
+        unwrap(check_template_blocking(State)),
         unwrap(p2p_template:create_transfer(Params, State))
     end).
 
@@ -219,3 +225,14 @@ call(ID, Call) ->
 
 backend() ->
     fistful:backend(?NS).
+
+-spec check_template_blocking(template()) ->
+    ok | {error, p2p_template_blocked}.
+
+check_template_blocking(State) ->
+    case p2p_template:blocking(State) of
+        unblocked ->
+            ok;
+        blocked ->
+            {error, p2p_template_blocked}
+    end.

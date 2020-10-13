@@ -5,7 +5,10 @@
 -include_lib("fistful_proto/include/ff_proto_p2p_template_thrift.hrl").
 
 -export([marshal_p2p_template_state/2]).
+-export([marshal_p2p_transfer_state/2]).
 -export([unmarshal_p2p_template_params/1]).
+-export([unmarshal_p2p_quote_params/1]).
+-export([unmarshal_p2p_transfer_params/1]).
 -export([marshal/2]).
 -export([unmarshal/2]).
 
@@ -27,6 +30,12 @@ marshal_p2p_template_state(P2PTemplate, Ctx) ->
         context = marshal(ctx, Ctx)
     }.
 
+-spec marshal_p2p_transfer_state(p2p_transfer:p2p_transfer_state(), ff_entity_context:context()) ->
+    ff_proto_p2p_transfer_thrift:'P2PTransferState'().
+
+marshal_p2p_transfer_state(P2PTransfer, Ctx) ->
+    ff_p2p_transfer_codec:marshal_p2p_transfer_state(P2PTransfer, Ctx).
+
 -spec unmarshal_p2p_template_params(ff_proto_p2p_template_thrift:'P2PTemplateParams'()) ->
     p2p_template_machine:params().
 
@@ -41,6 +50,45 @@ unmarshal_p2p_template_params(#p2p_template_P2PTemplateParams{
         identity_id => unmarshal(id, IdentityID),
         details => unmarshal(details, Details),
         external_id => maybe_unmarshal(id, ExternalID)
+    }).
+
+-spec unmarshal_p2p_quote_params(ff_proto_p2p_template_thrift:'P2PTemplateQuoteParams'()) ->
+    p2p_template:quote_params().
+
+unmarshal_p2p_quote_params(#p2p_template_P2PTemplateQuoteParams{
+    sender = Sender,
+    receiver = Receiver,
+    body = Body
+}) ->
+    #{
+        body => unmarshal(cash, Body),
+        sender => unmarshal(resource, Sender),
+        receiver => unmarshal(resource, Receiver)
+    }.
+
+-spec unmarshal_p2p_transfer_params(ff_proto_p2p_template_thrift:'P2PTemplateTransferParams'()) ->
+    p2p_template:transfer_params().
+
+unmarshal_p2p_transfer_params(#p2p_template_P2PTemplateTransferParams{
+    id = ID,
+    sender = Sender,
+    receiver = Receiver,
+    client_info = ClientInfo,
+    body = Body,
+    quote = Quote,
+    metadata = Metadata,
+    deadline = Deadline
+
+}) ->
+    genlib_map:compact(#{
+        id => unmarshal(id, ID),
+        sender => unmarshal(participant, Sender),
+        receiver => unmarshal(participant, Receiver),
+        client_info => maybe_unmarshal(client_info, ClientInfo),
+        body => unmarshal(cash, Body),
+        quote => maybe_unmarshal(quote, Quote),
+        metadata => maybe_unmarshal(ctx, Metadata),
+        deadline => maybe_unmarshal(timestamp_ms, Deadline)
     }).
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
@@ -75,8 +123,8 @@ marshal(template, Template = #{
         identity_id = marshal(id, IdentityID),
         template_details = marshal(details, Details),
         created_at = marshal(timestamp, CreatedAt),
-        domain_revision = marshal(integer, DomainRevision),
-        party_revision = marshal(integer, PartyRevision),
+        domain_revision = marshal(domain_revision, DomainRevision),
+        party_revision = marshal(party_revision, PartyRevision),
         external_id = maybe_marshal(id, ExternalID)
     };
 
@@ -102,20 +150,22 @@ marshal(template_metadata, #{value := Metadata}) ->
         value = marshal(ctx, Metadata)
     };
 
+marshal(quote, Quote) ->
+    ff_p2p_transfer_codec:marshal(quote, Quote);
+
 marshal(blocking, unblocked) ->
     unblocked;
 marshal(blocking, blocked) ->
     blocked;
 
-marshal(ctx, Ctx) ->
-    maybe_marshal(context, Ctx);
-
 marshal(timestamp, Timestamp) when is_integer(Timestamp) ->
     ff_time:to_rfc3339(Timestamp);
 
+marshal(ctx, Context) ->
+    maybe_marshal(context, Context);
+
 marshal(T, V) ->
     ff_codec:marshal(T, V).
-
 
 -spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
     ff_codec:decoded_value().
@@ -153,8 +203,8 @@ unmarshal(template, #p2p_template_P2PTemplate{
         id => unmarshal(id, ID),
         identity_id => unmarshal(id, IdentityID),
         details => unmarshal(details, Details),
-        domain_revision => unmarshal(integer, DomainRevision),
-        party_revision => unmarshal(integer, PartyRevision),
+        domain_revision => unmarshal(domain_revision, DomainRevision),
+        party_revision => unmarshal(party_revision, PartyRevision),
         created_at => ff_time:from_rfc3339(unmarshal(timestamp, CreatedAt)),
         external_id => maybe_unmarshal(id, ExternalID)
     });
@@ -184,7 +234,19 @@ unmarshal(template_body, #p2p_template_P2PTemplateBody{
 unmarshal(template_metadata, #p2p_template_P2PTemplateMetadata{
     value = Metadata
 }) ->
-    #{value => unmarshal(context, Metadata)};
+    #{value => unmarshal(ctx, Metadata)};
+
+unmarshal(quote, Quote) ->
+    ff_p2p_transfer_codec:unmarshal(quote, Quote);
+
+unmarshal(participant, Participant) ->
+    ff_p2p_transfer_codec:unmarshal(participant, Participant);
+
+unmarshal(client_info, ClientInfo) ->
+    ff_p2p_transfer_codec:unmarshal(client_info, ClientInfo);
+
+unmarshal(ctx, Context) ->
+    maybe_unmarshal(context, Context);
 
 unmarshal(blocking, unblocked) ->
     unblocked;
@@ -193,9 +255,6 @@ unmarshal(blocking, blocked) ->
 
 unmarshal(timestamp, Timestamp) ->
     unmarshal(string, Timestamp);
-
-unmarshal(ctx, Ctx) ->
-    maybe_unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).

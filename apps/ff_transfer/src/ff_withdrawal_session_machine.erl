@@ -211,7 +211,11 @@ set_action(finish, _St) ->
 
 compute_notification_retry_timeout(St) ->
     Now = machinery_time:now(),
-    MaxTimeout = genlib_app:env(ff_transfer, max_session_notification_retry_timeout, ?MAX_SESSION_NOTIFICATION_RETRY_TIMEOUT),
+    MaxTimeout = genlib_app:env(
+        ff_transfer,
+        max_session_notification_retry_timeout,
+        ?MAX_SESSION_NOTIFICATION_RETRY_TIMEOUT
+    ),
     compute_timeout(MaxTimeout, Now, St).
 
 compute_timeout(MaxTimeout, Now, St) ->

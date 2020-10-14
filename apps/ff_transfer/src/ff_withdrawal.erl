@@ -516,49 +516,44 @@ process_transfer(Withdrawal) ->
 -spec process_session_finished(session_id(), session_result(), withdrawal_state()) ->
     {ok, process_result()} | {error, session_not_found | old_session | result_mismatch}.
 process_session_finished(SessionID, SessionResult, Withdrawal) ->
-    case check_session_exists_and_current(SessionID, Withdrawal) of
-        ok ->
-            do_finish_session(SessionID, SessionResult, Withdrawal);
-        {error, _} = Error ->
-            Error
+    case get_session_by_id(SessionID, Withdrawal) of
+        #{id := SessionID, result := SessionResult} ->
+            {ok, {undefined, []}};
+        #{id := SessionID, result := _OtherSessionResult} ->
+            {error, result_mismatch};
+        #{id := SessionID} ->
+            try_finish_session(SessionID, SessionResult, Withdrawal);
+        undefined ->
+            {error, session_not_found}
     end.
 
--spec check_session_exists_and_current(session_id(), withdrawal_state()) ->
-    ok | {error, session_not_found | old_session}.
-check_session_exists_and_current(SessionID, Withdrawal) ->
+-spec get_session_by_id(session_id(), withdrawal_state()) ->
+    session() | undefined.
+get_session_by_id(SessionID, Withdrawal) ->
+    Sessions = ff_withdrawal_route_attempt_utils:get_sessions(attempts(Withdrawal)),
+    case lists:filter(fun(#{id := SessionID0}) -> SessionID0 =:= SessionID end, Sessions) of
+        [Session] -> Session;
+        [] -> undefined
+    end.
+
+-spec try_finish_session(session_id(), session_result(), withdrawal_state()) ->
+    {ok, process_result()} | {error, old_session}.
+try_finish_session(SessionID, SessionResult, Withdrawal) ->
+    case is_current_session(SessionID, Withdrawal) of
+        true ->
+            {ok, {continue, [{session_finished, {SessionID, SessionResult}}]}};
+        false ->
+            {error, old_session}
+    end.
+
+-spec is_current_session(session_id(), withdrawal_state()) ->
+    boolean().
+is_current_session(SessionID, Withdrawal) ->
     case session_id(Withdrawal) of
         SessionID ->
-            ok;
-        undefined ->
-            {error, session_not_found};
-        _OtherSessionID ->
-            case check_is_old_session(SessionID, Withdrawal) of
-                true ->
-                    {error, old_session};
-                false ->
-                    {error, session_not_found}
-            end
-    end.
-
--spec check_is_old_session(session_id(), withdrawal_state()) ->
-    boolean().
-check_is_old_session(SessionID, Withdrawal) ->
-    Sessions = ff_withdrawal_route_attempt_utils:get_sessions(attempts(Withdrawal)),
-    lists:any(
-        fun(#{id := SessionID0}) -> SessionID0 =:= SessionID end,
-        Sessions
-    ).
-
--spec do_finish_session(session_id(), session_result(), withdrawal_state()) ->
-    {ok, process_result()} | {error, result_mismatch}.
-do_finish_session(SessionID, SessionResult, Withdrawal) ->
-    case session_result(Withdrawal) of
-        SessionResult ->
-            {ok, {undefined, []}};
-        unknown ->
-            {ok, {continue, [{session_finished, {SessionID, SessionResult}}]}};
+            true;
         _ ->
-            {error, result_mismatch}
+            false
     end.
 
 %% Internals

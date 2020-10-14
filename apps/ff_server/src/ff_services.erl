@@ -17,6 +17,8 @@
 -spec get_service(service_name()) -> service().
 get_service(fistful_admin) ->
     {ff_proto_fistful_admin_thrift, 'FistfulAdmin'};
+get_service(fistful_provider) ->
+    {ff_proto_provider_thrift, 'Management'};
 get_service(ff_p2p_adapter_host) ->
     {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'};
 get_service(ff_withdrawal_adapter_host) ->
@@ -87,6 +89,8 @@ get_service_spec(Name) ->
 -spec get_service_path(service_name()) -> string().
 get_service_path(fistful_admin) ->
     "/v1/admin";
+get_service_path(fistful_provider) ->
+    "/v1/provider";
 get_service_path(ff_p2p_adapter_host) ->
     "/v1/ff_p2p_adapter_host";
 get_service_path(ff_withdrawal_adapter_host) ->

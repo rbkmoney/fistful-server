@@ -79,7 +79,7 @@
 %% API
 %%
 
--define(SESSION_RETRY_TIME_LIMIT, 4 * 60 * 60).
+-define(SESSION_RETRY_TIME_LIMIT, 24 * 60 * 60).
 -define(MAX_SESSION_RETRY_TIMEOUT, 4 * 60 * 60).
 
 -spec session(st()) -> session().

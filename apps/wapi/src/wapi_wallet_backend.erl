@@ -46,6 +46,8 @@ create(WalletID, Params, Context, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Wallet} ->
             {ok, unmarshal(wallet, Wallet)};
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}};
         {exception, #fistful_CurrencyNotFound{}} ->
             {error, {currency, notfound}};
         {exception, #fistful_PartyInaccessible{}} ->

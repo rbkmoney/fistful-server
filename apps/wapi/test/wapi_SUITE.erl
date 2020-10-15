@@ -562,8 +562,8 @@ woody_retry_test(C) ->
     end,
     T2 = erlang:monotonic_time(),
     Time = erlang:convert_time_unit(T2 - T1, native, micro_seconds),
-    ?assert(Time > 3000000),
-    ok = application:set_env(wapi_woody_client, service_urls, Urls).
+    ok = application:set_env(wapi_woody_client, service_urls, Urls),
+    ?assert(Time > 3000000).
 
 -spec get_wallet_by_external_id(config()) ->
     test_return().

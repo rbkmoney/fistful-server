@@ -1,5 +1,6 @@
 -module(wapi_p2p_transfer_tests_SUITE).
 
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("common_test/include/ct.hrl").
 
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
@@ -8,6 +9,8 @@
 -include_lib("wapi_wallet_dummy_data.hrl").
 
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_p2p_session_thrift.hrl").
+
 
 -export([all/0]).
 -export([groups/0]).
@@ -26,7 +29,9 @@
     create_with_quote_token/1,
     create_with_bad_quote_token/1,
     get/1,
-    fail_unauthorized/1
+    fail_unauthorized/1,
+    get_events_ok/1,
+    get_events_fail/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -64,7 +69,9 @@ groups() ->
                 create_with_quote_token,
                 create_with_bad_quote_token,
                 get,
-                fail_unauthorized
+                fail_unauthorized,
+                get_events_ok,
+                get_events_fail
             ]
         }
     ].
@@ -358,6 +365,60 @@ fail_unauthorized(C) ->
         },
         ct_helper:cfg(context, C)
     ).
+
+-spec get_events_ok(config()) ->
+    _.
+get_events_ok(C) ->
+    PartyID = ?config(party, C),
+
+    wapi_ct_helper:mock_services([
+        {p2p_transfer, fun
+            ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+            ('GetEvents', _) -> {ok, [?P2P_TRANSFER_EVENT(1)]};
+            ('Get', _) -> {ok, ?P2P_TRANSFER_SESSIONS(PartyID)}
+        end},
+        {p2p_session, fun('GetEvents', _) -> {ok, [?P2P_SESSION_EVENT(1)]} end}
+    ], C),
+
+    Limit = application:get_env(wapi, events_fetch_limit, 0),
+    application:set_env(wapi, events_fetch_limit, 2),
+    Response = call_api(
+        fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
+        #{
+            binding => #{
+                <<"p2pTransferID">> => ?STRING
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    application:set_env(wapi, events_fetch_limit, Limit),
+    ?assertMatch({ok, #{<<"continuationToken">> := _, <<"result">> := _}}, Response),
+    {ok, #{<<"result">> := Result}} =  Response,
+    ?assertMatch(
+        [#{<<"change">> := _}, #{<<"change">> := _}, #{<<"change">> := _}, #{<<"change">> := _}],
+        Result
+    ).
+
+-spec get_events_fail(config()) ->
+    _.
+get_events_fail(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {p2p_transfer, fun
+            ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+            ('Get', _) -> throw(#fistful_P2PNotFound{})
+        end}
+    ], C),
+    Response = call_api(
+        fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
+        #{
+            binding => #{
+                <<"p2pTransferID">> => ?STRING
+            }
+        },
+        ct_helper:cfg(context, C)
+    ),
+    ?assertMatch({error, {404, #{}}}, Response).
 
 %%
 

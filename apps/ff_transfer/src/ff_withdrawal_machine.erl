@@ -245,7 +245,7 @@ set_action(continue, _St) ->
     continue;
 set_action(undefined, _St) ->
     undefined;
-set_action(sleep, _St) ->
+set_action(sleep, St) ->
     % @TODO remove polling from here after deployment of FF-226 and replace with unset_timer
     Now = machinery_time:now(),
     {set_timer, {timeout, compute_poll_timeout(Now, St)}}.

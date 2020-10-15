@@ -134,12 +134,29 @@ end_per_group(_, _) ->
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
-    C1.
+    case Name of
+        woody_retry_test  ->
+            Save = application:get_env(wapi_woody_client, service_urls, #{}),
+            ok = application:set_env(
+                wapi_woody_client,
+                service_urls,
+                Save#{fistful_stat => "http://spanish.inquision/fistful_stat"}
+            ),
+            lists:keystore(service_urls, 1, C1, {service_urls, Save});
+        _Other ->
+            C1
+    end.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
-end_per_testcase(_Name, _C) ->
-    ok = ct_helper:unset_context().
+end_per_testcase(_Name, C) ->
+    ok = ct_helper:unset_context(),
+    case lists:keysearch(service_urls, 1, C) of
+        {value, {_, Save}} ->
+            application:set_env(wapi_woody_client, service_urls, Save);
+        _ ->
+            ok
+    end.
 
 -define(ID_PROVIDER, <<"good-one">>).
 -define(ID_PROVIDER2, <<"good-two">>).
@@ -538,12 +555,6 @@ quote_withdrawal_test(C) ->
     ok = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
 woody_retry_test(C) ->
-    Urls = application:get_env(wapi_woody_client, service_urls, #{}),
-    ok = application:set_env(
-        wapi_woody_client,
-        service_urls,
-        Urls#{fistful_stat => "http://spanish.inquision/fistful_stat"}
-    ),
     Params = #{
         identityID => <<"12332">>,
         currencyID => <<"RUB">>,
@@ -562,7 +573,6 @@ woody_retry_test(C) ->
     end,
     T2 = erlang:monotonic_time(),
     Time = erlang:convert_time_unit(T2 - T1, native, micro_seconds),
-    ok = application:set_env(wapi_woody_client, service_urls, Urls),
     ?assert(Time > 3000000).
 
 -spec get_wallet_by_external_id(config()) ->

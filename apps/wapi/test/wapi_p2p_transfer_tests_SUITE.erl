@@ -134,14 +134,28 @@ end_per_group(_Group, _C) ->
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
-    [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
+    C2 = [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1],
+    case Name of
+        get_events_ok ->
+            Limit = application:get_env(wapi, events_fetch_limit, undefined),
+            ok = application:set_env(wapi, events_fetch_limit, 2),
+            lists:keystore(events_fetch_limit, 1, C2, {events_fetch_limit, Limit});
+        _Other ->
+            C2
+    end.
 
 -spec end_per_testcase(test_case_name(), config()) ->
     config().
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
-    ok.
+    case lists:keysearch(events_fetch_limit, 1, C) of
+        {value, {_, Limit}} when Limit /=  undefined ->
+            application:set_env(wapi, events_fetch_limit, Limit);
+        _ ->
+            ok
+    end.
+
 
 %%% Tests
 
@@ -380,8 +394,6 @@ get_events_ok(C) ->
         {p2p_session, fun('GetEvents', _) -> {ok, [?P2P_SESSION_EVENT(1)]} end}
     ], C),
 
-    Limit = application:get_env(wapi, events_fetch_limit, 0),
-    application:set_env(wapi, events_fetch_limit, 2),
     Response = call_api(
         fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
         #{
@@ -391,8 +403,9 @@ get_events_ok(C) ->
         },
         ct_helper:cfg(context, C)
     ),
-    application:set_env(wapi, events_fetch_limit, Limit),
+
     ?assertMatch({ok, #{<<"continuationToken">> := _, <<"result">> := _}}, Response),
+
     {ok, #{<<"result">> := Result}} =  Response,
     ?assertMatch(
         [#{<<"change">> := _}, #{<<"change">> := _}, #{<<"change">> := _}, #{<<"change">> := _}],

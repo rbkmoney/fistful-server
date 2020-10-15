@@ -18,7 +18,7 @@ when
     CreateError ::
         {external_id_conflict, external_id()} |
         {wallet_from, unauthorized} |
-        {wallet_from | wallet_to, notfound} |
+        {wallet_from | wallet_to, notfound | inaccessible} |
         bad_w2w_transfer_amount |
         not_allowed_currency |
         inconsistent_currency.
@@ -45,6 +45,8 @@ create_transfer(ID, Params, Context, HandlerContext) ->
             {ok, unmarshal(transfer, Transfer)};
         {exception, #fistful_WalletNotFound{id = ID}} ->
             {error, wallet_not_found_error(unmarshal(id, ID), Params)};
+        {exception, #fistful_WalletInaccessible{id = ID}} ->
+            {error, wallet_inaccessible_error(unmarshal(id, ID), Params)};
         {exception, #fistful_ForbiddenOperationCurrency{}} ->
             {error, not_allowed_currency};
         {exception, #w2w_transfer_InconsistentW2WTransferCurrency{}} ->
@@ -86,6 +88,11 @@ wallet_not_found_error(WalletID, #{<<"sender">> := WalletID}) ->
     {wallet_from, notfound};
 wallet_not_found_error(WalletID, #{<<"receiver">> := WalletID}) ->
     {wallet_to, notfound}.
+
+wallet_inaccessible_error(WalletID, #{<<"sender">> := WalletID}) ->
+    {wallet_from, inaccessible};
+wallet_inaccessible_error(WalletID, #{<<"receiver">> := WalletID}) ->
+    {wallet_to, inaccessible}.
 
 %% Marshaling
 

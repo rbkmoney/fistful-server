@@ -65,11 +65,11 @@ groups() ->
             [
                 create,
                 create_fail_unauthorized_wallet,
-                % create_fail_wallet_notfound,
-                % create_fail_invalid_operation_amount,
+                create_fail_wallet_notfound,
+                create_fail_invalid_operation_amount,
                 create_fail_forbidden_operation_currency,
                 create_fail_inconsistent_w2w_transfer_currency,
-                % create_fail_wallet_inaccessible,
+                create_fail_wallet_inaccessible,
                 get,
                 get_fail_w2w_notfound
             ]
@@ -196,18 +196,21 @@ create_fail_unauthorized_wallet(C) ->
     _.
 create_fail_wallet_notfound(C) ->
     PartyID = ?config(party, C),
+    WalletNotFoundException = #fistful_WalletNotFound{
+        id = ?STRING
+    },
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {w2w_transfer, fun('Create', _) -> throw(#fistful_WalletNotFound{}) end}
+        {w2w_transfer, fun('Create', _) -> throw(WalletNotFoundException) end}
     ], C),
     ?assertEqual(
-        {error, {422, #{}}},
+        {error, {422, #{<<"message">> => <<"No such wallet sender">>}}},
         call_api(
             fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
             #{
                 body => #{
-                    <<"sender">> => <<"SomeHuiInPalto">>,
+                    <<"sender">> => ?STRING,
                     <<"receiver">> => ?STRING,
                     <<"body">> => #{
                         <<"amount">> => ?INTEGER,
@@ -224,7 +227,7 @@ create_fail_wallet_notfound(C) ->
 create_fail_invalid_operation_amount(C) ->
     PartyID = ?config(party, C),
     InvalidOperationAmountException = #fistful_InvalidOperationAmount{
-        amount = ?INTEGER
+        amount = ?CASH
     },
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
@@ -333,7 +336,7 @@ create_fail_wallet_inaccessible(C) ->
         {w2w_transfer, fun('Create', _) -> throw(WalletInaccessibleException) end}
     ], C),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"??????????????????????">>}}},
+        {error, {422, #{<<"message">> => <<"Wallet inaccessible">>}}},
         call_api(
             fun swag_client_wallet_w2_w_api:create_w2_w_transfer/3,
             #{

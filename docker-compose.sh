@@ -187,7 +187,7 @@ services:
       retries: 10
 
   bender:
-    image: dr2.rbkmoney.com/rbkmoney/bender:b392d600186e8de842db5f35ae2e53dda046ddd6
+    image: dr2.rbkmoney.com/rbkmoney/bender:112656937fe66c43229d18a070fa6c96cfede70b
     command: /opt/bender/bin/bender foreground
     volumes:
       - ./test/log/bender:/var/log/bender

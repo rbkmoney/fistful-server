@@ -4,6 +4,8 @@
 -define(BANKID_RU, <<"PUTIN">>).
 -define(BANKID_US, <<"TRAMP">>).
 -define(WALLET_TOOL, <<"TOOL">>).
+-define(RESIDENCE_RUS, <<"RUS">>).
+-define(RESIDENCE_DEU, <<"DEU">>).
 -define(JSON, <<"{}">>).
 -define(INTEGER, 10000).
 -define(INTEGER_BINARY, <<"10000">>).
@@ -33,6 +35,18 @@
     currency = #'CurrencyRef'{
         symbolic_code = ?RUB
     }
+}).
+
+-define(IDENTITY_CLASS, #'provider_IdentityClass'{
+    id = ?STRING,
+    name = ?STRING
+}).
+
+-define(PROVIDER, #provider_Provider{
+    id = ?STRING,
+    name = ?STRING,
+    residences = [?RESIDENCE_RUS, ?RESIDENCE_DEU],
+    identity_classes = #{?STRING => ?IDENTITY_CLASS}
 }).
 
 -define(GET_INTERNAL_ID_RESULT, {
@@ -110,7 +124,8 @@
     expected_max = ?INTEGER
 }).
 
--define(RESOURCE, {bank_card, #'BankCard'{
+-define(BANK_CARD, #'BankCard'{
+    bin_data_id = {i, ?INTEGER},
     token = ?STRING,
     bin = <<"424242">>,
     masked_pan = <<"4242">>,
@@ -118,7 +133,9 @@
     payment_system = visa,
     issuer_country = rus,
     card_type = debit
-}}).
+}).
+
+-define(RESOURCE, {bank_card, ?BANK_CARD}).
 
 -define(DESTINATION_STATUS, {authorized, #dst_Authorized{}}).
 
@@ -142,30 +159,6 @@
     created_at  = ?TIMESTAMP,
     metadata    = ?DEFAULT_METADATA(),
     context     = ?DEFAULT_CONTEXT(PartyID)
-}).
-
--define(P2PTEMPLATE(PartyID), #p2p_template_P2PTemplateState{
-    id = ?STRING,
-    identity_id = ?STRING,
-    created_at = ?TIMESTAMP,
-    domain_revision = 1,
-    party_revision = 1,
-    template_details = #p2p_template_P2PTemplateDetails{
-        body = #p2p_template_P2PTemplateBody{
-            value = #p2p_template_Cash{
-                amount = ?INTEGER,
-                currency = #'CurrencyRef'{
-                    symbolic_code = ?RUB
-                }
-            }
-        },
-        metadata = #p2p_template_P2PTemplateMetadata{
-            value = ?DEFAULT_METADATA()
-        }
-    },
-    blocking = ?BLOCKING,
-    external_id = ?STRING,
-    context = ?DEFAULT_CONTEXT(PartyID)
 }).
 
 -define(IDENTITY(PartyID),
@@ -436,4 +429,106 @@
             }
         ])
     }
+}).
+
+-define(RESOURCE_BANK_CARD, {bank_card, #'ResourceBankCard'{
+    bank_card = ?BANK_CARD
+}}).
+
+-define(RAW_RESOURCE, {resource, #'p2p_transfer_RawResource'{
+    contact_info = #'ContactInfo'{},
+    resource = ?RESOURCE_BANK_CARD
+}}).
+
+-define(P2P_TEMPLATE(PartyID), #p2p_template_P2PTemplateState{
+    id = ?STRING,
+    identity_id = ?STRING,
+    created_at = ?TIMESTAMP,
+    domain_revision = 1,
+    party_revision = 1,
+    template_details = #p2p_template_P2PTemplateDetails{
+        body = #p2p_template_P2PTemplateBody{
+            value = #p2p_template_Cash{
+                amount = ?INTEGER,
+                currency = #'CurrencyRef'{
+                    symbolic_code = ?RUB
+                }
+            }
+        },
+        metadata = #p2p_template_P2PTemplateMetadata{
+            value = ?DEFAULT_METADATA()
+        }
+    },
+    blocking = ?BLOCKING,
+    external_id = ?STRING,
+    context = ?DEFAULT_CONTEXT(PartyID)
+}).
+
+-define(P2P_TEMPLATE_QUOTE, #p2p_transfer_Quote{
+    body = ?CASH,
+    created_at = ?TIMESTAMP,
+    expires_on = ?TIMESTAMP,
+    domain_revision = 123,
+    party_revision = 123,
+    identity_id = ?STRING,
+    sender = ?RESOURCE_BANK_CARD,
+    receiver = ?RESOURCE_BANK_CARD,
+    %fees = #'Fees'{fees = #{operation_amount => ?CASH}}
+    fees = #'Fees'{fees = #{surplus => ?CASH}}
+}).
+
+-define(P2P_TEMPLATE_TRANSFER(PartyID), #p2p_transfer_P2PTransferState{
+    id = ?STRING,
+    owner = ?STRING,
+    sender = ?RAW_RESOURCE,
+    receiver = ?RAW_RESOURCE,
+    body = ?CASH,
+    status = {pending, #p2p_status_Pending{}},
+    created_at = ?TIMESTAMP,
+    domain_revision = ?INTEGER,
+    party_revision = ?INTEGER,
+    operation_timestamp = ?TIMESTAMP,
+    external_id = ?STRING,
+    metadata    = ?DEFAULT_METADATA(),
+    context = ?DEFAULT_CONTEXT(PartyID),
+    effective_final_cash_flow = #cashflow_FinalCashFlow{
+        postings = []
+    },
+    sessions = [],
+    adjustments = []
+}).
+
+-define(P2P_TRANSFER(PartyID), #p2p_transfer_P2PTransferState{
+    id = ?STRING,
+    owner = ?STRING,
+    sender = ?RAW_RESOURCE,
+    receiver = ?RAW_RESOURCE,
+    body = ?CASH,
+    status = {pending, #p2p_status_Pending{}},
+    created_at = ?TIMESTAMP,
+    domain_revision = ?INTEGER,
+    party_revision = ?INTEGER,
+    operation_timestamp = ?TIMESTAMP,
+    external_id = ?STRING,
+    metadata    = ?DEFAULT_METADATA(),
+    context = ?DEFAULT_CONTEXT(PartyID),
+    effective_final_cash_flow = #cashflow_FinalCashFlow{
+        postings = []
+    },
+    sessions = [],
+    adjustments = []
+}).
+
+-define(FEES, #'Fees'{fees = #{operation_amount => ?CASH}}).
+
+-define(P2P_TRANSFER_QUOTE(IdentityID), #p2p_transfer_Quote{
+    body = ?CASH,
+    created_at = ?TIMESTAMP,
+    expires_on = ?TIMESTAMP,
+    domain_revision = ?INTEGER,
+    party_revision = ?INTEGER,
+    identity_id = IdentityID,
+    sender = ?RESOURCE_BANK_CARD,
+    receiver = ?RESOURCE_BANK_CARD,
+    fees = ?FEES
 }).

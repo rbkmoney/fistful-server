@@ -39,6 +39,7 @@
 -define(DOMAIN, <<"common-api">>).
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
+-define(EVENTS_FETCH_LIMIT, 16).
 
 -type test_case_name()  :: atom().
 -type config()          :: [{atom(), any()}].
@@ -138,7 +139,7 @@ init_per_testcase(Name, C) ->
     case Name of
         get_events_ok ->
             Limit = application:get_env(wapi, events_fetch_limit, undefined),
-            ok = application:set_env(wapi, events_fetch_limit, 2),
+            ok = application:set_env(wapi, events_fetch_limit, ?EVENTS_FETCH_LIMIT),
             lists:keystore(events_fetch_limit, 1, C2, {events_fetch_limit, Limit});
         _Other ->
             C2
@@ -394,7 +395,7 @@ get_events_ok(C) ->
         {p2p_session, fun('GetEvents', _) -> {ok, [?P2P_SESSION_EVENT(1)]} end}
     ], C),
 
-    Response = call_api(
+    {ok, #{<<"result">> := Result}} = call_api(
         fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
         #{
             binding => #{
@@ -404,13 +405,9 @@ get_events_ok(C) ->
         ct_helper:cfg(context, C)
     ),
 
-    ?assertMatch({ok, #{<<"continuationToken">> := _, <<"result">> := _}}, Response),
-
-    {ok, #{<<"result">> := Result}} =  Response,
-    ?assertMatch(
-        [#{<<"change">> := _}, #{<<"change">> := _}, #{<<"change">> := _}, #{<<"change">> := _}],
-        Result
-    ).
+    % EVENTS_FETCH_LIMIT is multiplied by two because the selection occurs twice the session and transfer.
+    ?assertEqual(erlang:length(Result), ?EVENTS_FETCH_LIMIT * 2),
+    [?assertMatch(#{<<"change">> := _}, Ev) || Ev <-  Result].
 
 -spec get_events_fail(config()) ->
     _.

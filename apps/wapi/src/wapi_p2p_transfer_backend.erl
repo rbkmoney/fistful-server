@@ -52,14 +52,14 @@
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_p2p_session_thrift.hrl").
 
--type event() :: #p2p_transfer_Event{} | #p2p_session_Event{}.
--type event_entity() :: p2p_transfer | p2p_session.
--type event_range() :: #'EventRange'{}.
--type event_cursor() :: id() | undefined.
-
 -define(DEFAULT_EVENTS_LIMIT, 50).
 -define(CONTINUATION_TRANSFER, <<"p2p_transfer_event_id">>).
 -define(CONTINUATION_SESSION, <<"p2p_session_event_id">>).
+
+-type event() :: #p2p_transfer_Event{} | #p2p_session_Event{}.
+-type event_entity() :: p2p_transfer | p2p_session.
+-type event_range() :: #'EventRange'{}.
+-type event_id() :: ff_proto_base_thrift:'EventID'() | undefined.
 
 -spec create_transfer(req_data(), handler_context()) ->
     {ok, response_data()} | {error, error_create()}.
@@ -230,8 +230,8 @@ do_get_events(ID, Token, HandlerContext) ->
         SessionID = unwrap(request_session_id(ID, HandlerContext)),
 
         DecodedToken = unwrap(continuation_token_unpack(Token, PartyID)),
-        PrevTransferCursor = continuation_token_cursor(DecodedToken, p2p_transfer),
-        PrevSessionCursor = continuation_token_cursor(DecodedToken, p2p_session),
+        PrevTransferCursor = continuation_token_cursor(p2p_transfer, DecodedToken),
+        PrevSessionCursor = continuation_token_cursor(p2p_session, DecodedToken),
 
         {TransferEvents, TransferCursor} = unwrap(events_collect(
             p2p_transfer,
@@ -284,7 +284,6 @@ continuation_token_pack(TransferCursor, SessionCursor, PartyID) ->
     }),
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Token, wapi_auth:get_signee()).
 
-
 %% verify, decode and check version of continuation token
 
 continuation_token_unpack(undefined, _PartyID) ->
@@ -303,15 +302,15 @@ continuation_token_unpack(Token, PartyID) ->
 
 %% get cursor event id by entity
 
-continuation_token_cursor(DecodedToken, p2p_transfer) ->
+continuation_token_cursor(p2p_transfer, DecodedToken) ->
     maps:get(?CONTINUATION_TRANSFER, DecodedToken, undefined);
-continuation_token_cursor(DecodedToken, p2p_session) ->
+continuation_token_cursor(p2p_session, DecodedToken) ->
     maps:get(?CONTINUATION_SESSION, DecodedToken, undefined).
 
 %% collect events from Entity backend
 
 -spec events_collect(event_entity(), id() | undefined, event_range(), handler_context(), Acc0) ->
-    {ok, {Acc1, event_cursor()}} | {error, {p2p_transfer, notfound}} when
+    {ok, {Acc1, event_id()}} | {error, {p2p_transfer, notfound}} when
         Acc0 :: [] | [event()],
         Acc1 :: [] | [event()].
 
@@ -336,7 +335,7 @@ events_collect(Entity, EntityID, EventRange, HandlerContext, Acc) ->
     end.
 
 -spec events_request(Request, handler_context()) ->
-    {ok, {[] | [event()], event_cursor()}} | {error, {p2p_transfer, notfound}} when
+    {ok, {[] | [event()], event_id()}} | {error, {p2p_transfer, notfound}} when
         Request :: {event_entity(), 'GetEvents', [id() | event_range()]}.
 
 events_request(Request, HandlerContext) ->

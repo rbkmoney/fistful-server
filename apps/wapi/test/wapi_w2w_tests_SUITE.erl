@@ -204,7 +204,7 @@ create_fail_forbidden_operation_currency_test(C) ->
 -spec create_fail_inconsistent_w2w_transfer_currency_test(config()) ->
     _.
 create_fail_inconsistent_w2w_transfer_currency_test(C) ->
-    InconsistentWithdrawalCurrencyException = #w2w_transfer_InconsistentW2WTransferCurrency{
+    InconsistentW2WCurrencyException = #w2w_transfer_InconsistentW2WTransferCurrency{
         w2w_transfer_currency = #'CurrencyRef'{
             symbolic_code = ?USD
         },
@@ -215,7 +215,7 @@ create_fail_inconsistent_w2w_transfer_currency_test(C) ->
             symbolic_code = ?RUB
         }
     },
-    create_w2_w_transfer_start_mocks(C, fun() -> throw(InconsistentWithdrawalCurrencyException) end),
+    create_w2_w_transfer_start_mocks(C, fun() -> throw(InconsistentW2WCurrencyException) end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Inconsistent currency">>}}},
         create_w2_w_transfer_call_api(C)

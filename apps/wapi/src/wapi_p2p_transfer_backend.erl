@@ -58,6 +58,8 @@
 -type event_cursor() :: id() | undefined.
 
 -define(DEFAULT_EVENTS_LIMIT, 50).
+-define(CONTINUATION_TRANSFER, <<"p2p_transfer_event_id">>).
+-define(CONTINUATION_SESSION, <<"p2p_session_event_id">>).
 
 -spec create_transfer(req_data(), handler_context()) ->
     {ok, response_data()} | {error, error_create()}.
@@ -277,8 +279,8 @@ request_session_id(ID, HandlerContext) ->
 continuation_token_pack(TransferCursor, SessionCursor, PartyID) ->
     Token = genlib_map:compact(#{
         <<"version">>               => 1,
-        <<"p2p_transfer_event_id">> => TransferCursor,
-        <<"p2p_session_event_id">>  => SessionCursor
+        ?CONTINUATION_TRANSFER => TransferCursor,
+        ?CONTINUATION_SESSION => SessionCursor
     }),
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Token, wapi_auth:get_signee()).
 
@@ -301,11 +303,10 @@ continuation_token_unpack(Token, PartyID) ->
 
 %% get cursor event id by entity
 
-continuation_token_cursor(DecodedToken, Entity) ->
-    case Entity of
-        p2p_transfer -> maps:get(<<"p2p_transfer_event_id">>, DecodedToken, undefined);
-        p2p_session -> maps:get(<<"p2p_session_event_id">>, DecodedToken, undefined)
-    end.
+continuation_token_cursor(DecodedToken, p2p_transfer) ->
+    maps:get(?CONTINUATION_TRANSFER, DecodedToken, undefined);
+continuation_token_cursor(DecodedToken, p2p_session) ->
+    maps:get(?CONTINUATION_SESSION, DecodedToken, undefined).
 
 %% collect events from Entity backend
 
@@ -852,17 +853,15 @@ unmarshal_events_test_() ->
         }
     },
 
-    Case = fun(Tuple) ->
-        ?_assertEqual((element(1, Tuple))(element(2, Tuple)), element(3, Tuple))
-    end,
-
     [
-        Case(Form), Case(RequestPost), Case(RequestGet),
-        Case(UIRedirectPost), Case(UIRedirectGet),
-        Case(UIChangedPost), Case(UIChangedGet), Case(UIChangedFinished),
-        Case(EventChangeUIPost), Case(EventChangeUIGet), Case(EventChangeUIFinished), Case(EventChangeStatus),
-        Case(EventSessionUIPost), Case(EventTransferStatus),
-        Case(Events)
+        ?_assertEqual(ExpectedSwag, Unmarshal(Thrift)) || {Unmarshal, Thrift, ExpectedSwag} <- [
+            Form, RequestPost, RequestGet,
+            UIRedirectPost, UIRedirectGet,
+            UIChangedPost, UIChangedGet, UIChangedFinished,
+            EventChangeUIPost, EventChangeUIGet, EventChangeUIFinished, EventChangeStatus,
+            EventSessionUIPost, EventTransferStatus,
+            Events
+        ]
     ].
 
 -spec continuation_token_test_() ->
@@ -871,46 +870,48 @@ continuation_token_test_() ->
     {setup,
         fun() ->
             meck:new([wapi_utils, wapi_auth, uac_authorizer_jwt]),
-            meck:expect(wapi_utils, get_unique_id, 0, <<"mockid">>),
-            meck:expect(wapi_auth, get_signee, 0, <<"mocksign">>),
+            meck:expect(wapi_utils, get_unique_id, 0, <<>>),
+            meck:expect(wapi_auth, get_signee, 0, <<>>),
             meck:expect(uac_authorizer_jwt, issue, fun(ID, PartyID, Token, _Sign) ->
                 term_to_binary({ID, PartyID, Token})
             end),
             meck:expect(uac_authorizer_jwt, verify, fun(Token, _) ->
                 {ok, binary_to_term(Token)}
             end),
-            {<<"partyid">>, fun(MissedToken) ->
-                fun (_X, Token) -> ?_assertEqual({ok, MissedToken}, Token) end
-            end}
+            <<>>
         end,
         fun(_) ->
             meck:unload()
         end,
-        fun({PartyID, CaseMissed}) -> [
-            ?_assertEqual({ok, #{}}, continuation_token_unpack(undefined, PartyID)),
-            ?_assertMatch({error, _}, continuation_token_unpack(continuation_token_pack(1, 2, PartyID), <<"ops">>)),
-            {foreachx,
-                fun ({TransferCursor, SessionCursor}) ->
+        fun(PartyID) ->
+            [
+                ?_assertEqual({ok, #{}}, continuation_token_unpack(undefined, PartyID)),
+                ?_assertMatch({error, _}, continuation_token_unpack(continuation_token_pack(1, 2, PartyID), <<"ops">>))
+            ]
+            ++
+            [
+                begin
                     Coded = continuation_token_pack(TransferCursor, SessionCursor, PartyID),
-                    continuation_token_unpack(Coded, PartyID)
-                end,
-                [
-                    {{2, 3}, CaseMissed(#{
+                    Token = continuation_token_unpack(Coded, PartyID),
+                    ?_assertEqual({ok, ExpectedToken}, Token)
+                end ||
+                {TransferCursor, SessionCursor, ExpectedToken} <- [
+                    {2, 3, #{
                         <<"version">> => 1,
-                        <<"p2p_transfer_event_id">> => 2,
-                        <<"p2p_session_event_id">>  => 3
-                    })},
-                    {{2, undefined}, CaseMissed(#{
-                            <<"version">> => 1,
-                            <<"p2p_transfer_event_id">> => 2
-                    })},
-                    {{undefined, 3},  CaseMissed(#{
-                            <<"version">> => 1,
-                            <<"p2p_session_event_id">> => 3
-                    })}
+                        ?CONTINUATION_TRANSFER => 2,
+                        ?CONTINUATION_SESSION => 3
+                    }},
+                    {2, undefined, #{
+                        <<"version">> => 1,
+                        ?CONTINUATION_TRANSFER => 2
+                    }},
+                    {undefined, 3, #{
+                        <<"version">> => 1,
+                        ?CONTINUATION_SESSION => 3
+                    }}
                 ]
-            }
-        ] end
+            ]
+        end
     }.
 
 -spec events_collect_test_() ->
@@ -934,8 +935,8 @@ events_collect_test_() ->
                 ({case5, _, [_, #'EventRange'{'after' = After}]}, _) -> {ok, [Event(After+1)]}
             end),
             {
-                fun(Case, ID, EventRange, Acc, Missed) ->
-                    ?_assertEqual(Missed, events_collect(Case, ID, EventRange, #{}, Acc))
+                fun _Collect(Case, ID, EventRange, Acc, Expected) ->
+                    ?_assertEqual(Expected, events_collect(Case, ID, EventRange, #{}, Acc))
                 end,
                 Event
             }

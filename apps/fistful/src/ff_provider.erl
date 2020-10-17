@@ -26,19 +26,22 @@
     }
 }.
 
--type payinst()     :: dmsl_domain_thrift:'PaymentInstitution'().
+-type payinst() :: dmsl_domain_thrift:'PaymentInstitution'().
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
--type routes()      :: [ff_withdrawal_provider:id()].
+-type routes() :: [ff_withdrawal_provider:id()].
+-type identity_classes() :: #{ff_identity_class:id() => ff_identity_class:class()}.
 
 -export_type([id/0]).
 -export_type([provider/0]).
 -export_type([routes/0]).
+-export_type([identity_classes/0]).
 
 -export([id/1]).
 -export([name/1]).
 -export([residences/1]).
 -export([payinst/1]).
 -export([routes/1]).
+-export([identity_classes/1]).
 
 -export([list/0]).
 -export([get/1]).
@@ -61,6 +64,8 @@
     payinst_ref().
 -spec routes(provider()) ->
     routes().
+-spec identity_classes(provider()) ->
+    identity_classes().
 
 id(#{id := ID}) ->
     ID.
@@ -72,6 +77,8 @@ payinst(#{payinst_ref := V}) ->
     V.
 routes(#{routes := V}) ->
     V.
+identity_classes(#{identity_classes := ICs}) ->
+    ICs.
 
 %%
 
@@ -111,7 +118,7 @@ get(ID) ->
     end).
 
 -spec list_identity_classes(provider()) ->
-    [ff_identity_class:class()].
+    [ff_identity_class:id()].
 
 list_identity_classes(#{identity_classes := ICs}) ->
     maps:keys(ICs).

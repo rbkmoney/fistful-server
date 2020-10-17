@@ -190,19 +190,22 @@ decode_result(#wthadpt_CallbackResult{} = CallbackResult) ->
 %% @todo Remove this code when adapter stops set TransactionInfo to field Success.trx_info
 
 rebind_transaction_info(#wthadpt_ProcessResult{intent = Intent} = Result) ->
-    TransactionInfo = extract_transaction_info(Intent, Result#wthadpt_ProcessResult.trx),
-    Result#wthadpt_ProcessResult{trx = TransactionInfo};
+    {NewIntent, TransactionInfo} = extract_transaction_info(Intent, Result#wthadpt_ProcessResult.trx),
+    Result#wthadpt_ProcessResult{intent = NewIntent, trx = TransactionInfo};
 rebind_transaction_info(#wthadpt_CallbackResult{intent = Intent} = Result) ->
-    TransactionInfo = extract_transaction_info(Intent, Result#wthadpt_CallbackResult.trx),
-    Result#wthadpt_CallbackResult{trx = TransactionInfo}.
+    {NewIntent, TransactionInfo} = extract_transaction_info(Intent, Result#wthadpt_CallbackResult.trx),
+    Result#wthadpt_CallbackResult{intent = NewIntent, trx = TransactionInfo}.
 
 extract_transaction_info({finish, #wthadpt_FinishIntent{status = {success, Success}}}, TransactionInfo) ->
-    case Success of
-        #wthadpt_Success{trx_info = undefined} -> TransactionInfo;
-        #wthadpt_Success{trx_info = LegacyTransactionInfo} -> LegacyTransactionInfo
-    end;
-extract_transaction_info(_Intent, TransactionInfo) ->
-    TransactionInfo.
+    {
+        {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = undefined}}}},
+        case Success of
+            #wthadpt_Success{trx_info = undefined} -> TransactionInfo;
+            #wthadpt_Success{trx_info = LegacyTransactionInfo} -> LegacyTransactionInfo
+        end
+    };
+extract_transaction_info(Intent, TransactionInfo) ->
+    {Intent, TransactionInfo}.
 
 %%
 

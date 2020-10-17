@@ -64,7 +64,7 @@
 }.
 
 -type transaction_info() :: ff_adapter_withdrawal:transaction_info().
--type session_result() :: success | {failed, ff_adapter_withdrawal:failure()}.
+-type session_result() :: success | {success, transaction_info()} | {failed, ff_adapter_withdrawal:failure()}.
 -type status() :: active | {finished, success | {failed, ff_adapter_withdrawal:failure()}}.
 
 -type event() :: {created, session()}

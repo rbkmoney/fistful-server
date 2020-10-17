@@ -696,171 +696,142 @@ maybe_unmarshal(T, V) ->
 -spec unmarshal_events_test_() ->
     _.
 unmarshal_events_test_() ->
-    Form = {fun unmarshal_form/1,
-        #{ <<"uri">> => <<"ops://foo{?query,number}">> },
-        [#{ <<"key">> => <<"uri">>, <<"template">> => <<"ops://foo{?query,number}">>}]
-    },
 
-    RequestPost = {fun unmarshal_request/1,
-        {post_request, #ui_BrowserPostRequest{
-            uri = <<"https://post.request">>,
-            form = element(2, Form)
-        }},
-        #{
-            <<"requestType">> => <<"BrowserPostRequest">>,
-            <<"uriTemplate">> => <<"https://post.request">>,
-            <<"form">> => element(3, Form)
+    Form = fun() -> {fun unmarshal_form/1,
+        #{ <<"arg1">> => <<"value1">>, <<"arg2">> => <<"value2">> },
+        [
+            #{ <<"key">> => <<"arg2">>, <<"template">> => <<"value2">>},
+            #{ <<"key">> => <<"arg1">>, <<"template">> => <<"value1">>}
+        ]
+    } end,
+
+    Request = fun
+        ({_, Woody, Swag}) -> {fun unmarshal_request/1,
+            {post_request, #ui_BrowserPostRequest{
+                uri = <<"uri://post">>,
+                form = Woody
+            }},
+            #{
+                <<"requestType">> => <<"BrowserPostRequest">>,
+                <<"uriTemplate">> => <<"uri://post">>,
+                <<"form">> => Swag
+            }
+        };
+        (get_request) -> {fun unmarshal_request/1,
+            {get_request, #ui_BrowserGetRequest{
+                uri = <<"uri://get">>
+            }},
+            #{
+                <<"requestType">> => <<"BrowserGetRequest">>,
+                <<"uriTemplate">> => <<"uri://get">>
+            }
         }
-     },
+     end,
 
-    RequestGet = {fun unmarshal_request/1,
-        {get_request, #ui_BrowserGetRequest{
-            uri = <<"https://get.request">>
-        }},
-        #{
-            <<"requestType">> => <<"BrowserGetRequest">>,
-            <<"uriTemplate">> => <<"https://get.request">>
-        }
-    },
-
-    UIRedirectPost = {fun unmarshal_user_interaction/1,
-        {redirect, element(2, RequestPost)},
+    UIRedirect =  fun({_, Woody, Swag}) -> {fun unmarshal_user_interaction/1,
+        {redirect, Woody},
         #{
             <<"interactionType">> => <<"Redirect">>,
-            <<"request">> => element(3, RequestPost)
+            <<"request">> => Swag
         }
-    },
+    } end,
 
-    UIRedirectGet = {fun unmarshal_user_interaction/1,
-        {redirect, element(2, RequestGet)},
-        #{
-            <<"interactionType">> => <<"Redirect">>,
-            <<"request">> => element(3, RequestGet)
-        }
-    },
-
-    UIChangedPost = {fun unmarshal_user_interaction_change/1,
-        {created, #p2p_session_UserInteractionCreatedChange{
-            ui = #p2p_session_UserInteraction{
-                id = <<"uipost">>,
-                user_interaction = element(2, UIRedirectPost)
+    UIChangePayload =  fun
+        ({_, Woody, Swag}) -> {fun unmarshal_user_interaction_change/1,
+            {created, #p2p_session_UserInteractionCreatedChange{
+                    ui = #p2p_session_UserInteraction{
+                        id = <<"id://p2p_session/ui">>,
+                        user_interaction = Woody
+                    }
+            }},
+            #{
+                <<"changeType">> => <<"UserInteractionCreated">>,
+                <<"userInteraction">> => Swag
             }
-        }},
-        #{
-            <<"changeType">> => <<"UserInteractionCreated">>,
-            <<"userInteraction">> => element(3, UIRedirectPost)
-        }
-    },
-
-    UIChangedGet = {fun unmarshal_user_interaction_change/1,
-        {created, #p2p_session_UserInteractionCreatedChange{
-            ui = #p2p_session_UserInteraction{
-                'id' = <<"uiget">>,
-                'user_interaction' = element(2, UIRedirectGet)
+        };
+        (ui_finished) -> {fun unmarshal_user_interaction_change/1,
+            {status_changed, #p2p_session_UserInteractionStatusChange{
+                status = {finished, #p2p_session_UserInteractionStatusFinished{}}
+            }},
+            #{
+                <<"changeType">> => <<"UserInteractionFinished">>
             }
-        }},
-        #{
-            <<"changeType">> => <<"UserInteractionCreated">>,
-            <<"userInteraction">> => element(3, UIRedirectGet)
         }
-    },
+    end,
 
-    UIChangedFinished =  {fun unmarshal_user_interaction_change/1,
-        {status_changed, #p2p_session_UserInteractionStatusChange{
-            status = {finished, #p2p_session_UserInteractionStatusFinished{}}
-        }},
-        #{
-            <<"changeType">> => <<"UserInteractionFinished">>
+    EventChange = fun
+        ({_, Woody, Swag}) -> {fun unmarshal_event_change/1,
+            {ui, #p2p_session_UserInteractionChange{
+                id = <<"id://p2p_session/change">>, payload = Woody
+            }},
+            #{
+                <<"changeType">> => <<"P2PTransferInteractionChanged">>,
+                <<"userInteractionID">> => <<"id://p2p_session/change">>,
+                <<"userInteractionChange">> => Swag
+            }
+        };
+        (TransferStatus) -> {fun unmarshal_event_change/1,
+            {status_changed, #p2p_transfer_StatusChange{
+                status = case TransferStatus of
+                    pending -> {pending, #p2p_status_Pending{}};
+                    succeeded -> {succeeded, #p2p_status_Succeeded{}}
+                end
+            }},
+            #{
+                <<"changeType">> => <<"P2PTransferStatusChanged">>,
+                <<"status">> => case TransferStatus of
+                    pending -> <<"Pending">>;
+                    succeeded -> <<"Succeeded">>
+                end
+            }
         }
-    },
+    end,
 
-    EventChangeUIPost = {fun unmarshal_event_change/1,
-        {ui, #p2p_session_UserInteractionChange{
-            id = <<"ev1">>, payload = element(2, UIChangedPost)
-        }},
-        #{
-            <<"changeType">> => <<"P2PTransferInteractionChanged">>,
-            <<"userInteractionID">> => <<"ev1">>,
-            <<"userInteractionChange">> => element(3, UIChangedPost)
+    Event =  fun
+        ({_, {ui, _} = Woody, Swag}) -> {fun unmarshal_event/1,
+            #'p2p_session_Event'{
+                'event' = 1,
+                'occured_at' = <<"2020-05-25T12:34:56.123456Z">>,
+                'change' = Woody
+            },
+            #{
+                <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
+                <<"change">> => Swag
+            }
+        };
+        ({_,{status_changed, _} = Woody, Swag}) -> {fun unmarshal_event/1,
+            #'p2p_transfer_Event'{
+                'event' = 1,
+                'occured_at' = <<"2020-05-25T12:34:56.123456Z">>,
+                'change' = Woody
+            },
+            #{
+                <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
+                <<"change">> => Swag
+            }
         }
-    },
+    end,
 
-    EventChangeUIGet = {fun unmarshal_event_change/1,
-        {ui, #p2p_session_UserInteractionChange{
-            id = <<"ev2">>, payload = element(2, UIChangedGet)
-        }},
-        #{
-            <<"changeType">> => <<"P2PTransferInteractionChanged">>,
-            <<"userInteractionID">> => <<"ev2">>,
-            <<"userInteractionChange">> => element(3, UIChangedGet)
-        }
-    },
-
-    EventChangeUIFinished  = {fun unmarshal_event_change/1,
-        {ui, #p2p_session_UserInteractionChange{
-            id = <<"ev3">>, payload = element(2, UIChangedFinished)
-        }},
-        #{
-            <<"changeType">> => <<"P2PTransferInteractionChanged">>,
-            <<"userInteractionID">> => <<"ev3">>,
-            <<"userInteractionChange">> => element(3, UIChangedFinished)
-        }
-    },
-
-    EventChangeStatus = {fun unmarshal_event_change/1,
-        {'status_changed', #p2p_transfer_StatusChange{
-            status = {succeeded, #p2p_status_Succeeded{}}
-        }},
-        #{
-            <<"changeType">> => <<"P2PTransferStatusChanged">>,
-            <<"status">> => <<"Succeeded">>
-        }
-    },
-
-    EventSessionUIPost = {fun unmarshal_event/1,
-        #'p2p_session_Event'{
-            'event' = 1,
-            'occured_at' = <<"2020-05-25T12:34:56.123456Z">>,
-            'change' = element(2, EventChangeUIPost)
-        },
-        #{
-            <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
-            <<"change">> => element(3, EventChangeUIPost)
-        }
-    },
-
-    EventTransferStatus = {fun unmarshal_event/1,
-        #'p2p_transfer_Event'{
-            'event' = 2,
-            'occured_at' = <<"2020-05-25T12:34:56.123456Z">>,
-            'change' = element(2, EventChangeStatus)
-        },
-        #{
-            <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
-            <<"change">> => element(3, EventChangeStatus)
-        }
-    },
-
-    Events = {fun unmarshal_events/1,
+    Events = fun(List) -> {fun unmarshal_events/1,
         {
             <<"token">>,
-            [element(2, EventTransferStatus), element(2, EventSessionUIPost)]
+            [Woody || {_, Woody, _} <- List]
         },
         #{
             <<"continuationToken">> => <<"token">>,
-            <<"result">> => [element(3, EventTransferStatus), element(3, EventSessionUIPost)]
+            <<"eesult">> => [Swag || {_, _, Swag} <- List]
         }
-    },
+    } end,
+
+    EvList = [E ||
+        Type <- [Form(), get_request],
+        Change <- [UIChangePayload(UIRedirect(Request(Type))), pending, succeeded],
+        E <- [Event(EventChange(Change))]
+    ],
 
     [
-        ?_assertEqual(ExpectedSwag, Unmarshal(Thrift)) || {Unmarshal, Thrift, ExpectedSwag} <- [
-            Form, RequestPost, RequestGet,
-            UIRedirectPost, UIRedirectGet,
-            UIChangedPost, UIChangedGet, UIChangedFinished,
-            EventChangeUIPost, EventChangeUIGet, EventChangeUIFinished, EventChangeStatus,
-            EventSessionUIPost, EventTransferStatus,
-            Events
-        ]
+        ?_assertEqual(ExpectedSwag, Unmarshal(Woody)) ||
+        {Unmarshal, Woody, ExpectedSwag} <- [Events(EvList) | EvList]
     ].
 
 -spec continuation_token_test_() ->

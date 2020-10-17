@@ -819,7 +819,7 @@ unmarshal_events_test_() ->
         },
         #{
             <<"continuationToken">> => <<"token">>,
-            <<"eesult">> => [Swag || {_, _, Swag} <- List]
+            <<"result">> => [Swag || {_, _, Swag} <- List]
         }
     } end,
 

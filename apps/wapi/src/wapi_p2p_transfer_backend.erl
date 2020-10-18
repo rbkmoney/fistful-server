@@ -799,7 +799,7 @@ unmarshal_events_test_() ->
                 <<"change">> => Swag
             }
         };
-        ({_,{status_changed, _} = Woody, Swag}) -> {fun unmarshal_event/1,
+        ({_, {status_changed, _} = Woody, Swag}) -> {fun unmarshal_event/1,
             #'p2p_transfer_Event'{
                 'event' = 1,
                 'occured_at' = <<"2020-05-25T12:34:56.123456Z">>,

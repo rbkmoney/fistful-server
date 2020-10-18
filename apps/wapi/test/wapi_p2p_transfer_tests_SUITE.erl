@@ -151,7 +151,9 @@ end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     case lists:keysearch(events_fetch_limit, 1, C) of
-        {value, {_, Limit}} when Limit /=  undefined ->
+        {value, {_, undefined}} ->
+            application:unset_env(wapi, events_fetch_limit);
+        {value, {_, Limit}} ->
             application:set_env(wapi, events_fetch_limit, Limit);
         _ ->
             ok

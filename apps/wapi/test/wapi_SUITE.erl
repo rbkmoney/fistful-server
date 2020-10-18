@@ -136,7 +136,7 @@ init_per_testcase(Name, C) ->
     ok = ct_helper:set_context(C1),
     case Name of
         woody_retry_test  ->
-            Save = application:get_env(wapi_woody_client, service_urls, #{}),
+            Save = application:get_env(wapi_woody_client, service_urls, undefined),
             ok = application:set_env(
                 wapi_woody_client,
                 service_urls,
@@ -152,6 +152,8 @@ init_per_testcase(Name, C) ->
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
     case lists:keysearch(service_urls, 1, C) of
+        {value, {_, undefined}} ->
+            application:unset_env(wapi_woody_client, service_urls);
         {value, {_, Save}} ->
             application:set_env(wapi_woody_client, service_urls, Save);
         _ ->

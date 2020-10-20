@@ -52,6 +52,10 @@
 -record(state, {}).
 -type state() :: #state{}.
 
+-type transaction_info() :: ff_adapter:transaction_info().
+-type status() :: {success, transaction_info()} | {failure, failure()}.
+-type timer() :: {deadline, binary()} | {timeout, integer()}.
+
 %%
 %% API
 %%
@@ -71,14 +75,17 @@ start(Opts) ->
 %%
 
 -spec process_withdrawal(withdrawal(), state(), map()) ->
-    {ok, Intent, NewState} when
-        Intent :: {finish, Status} | {sleep, Timer},
-        NewState :: state(),
-        Status :: {success, TrxInfo} | {failure, failure()},
-        Timer :: {deadline, binary()} | {timeout, integer()},
-        TrxInfo :: #{id => binary()}.
+    {ok, #{
+        intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
+        next_state  => state(),
+        transaction_info => transaction_info()
+    }} when
+        CallbackTag :: binary().
 process_withdrawal(_Withdrawal, State, _Options) ->
-    {ok, {finish, {failure, <<"authorization_error">>}}, State}.
+    {ok, #{
+        intent => {finish, {failure, <<"authorization_error">>}},
+        next_state => State
+    }}.
 
 -spec get_quote(quote_params(), map()) ->
     {ok, quote()}.
@@ -86,13 +93,12 @@ get_quote(_Quote, _Options) ->
     erlang:error(not_implemented).
 
 -spec handle_callback(callback(), withdrawal(), state(), map()) ->
-    {ok, Intent, NewState, Response} when
-        Intent :: {finish, Status} | {sleep, Timer} | {sleep, Timer, CallbackTag},
-        NewState :: state(),
-        Response :: any(),
-        Status :: {success, TrxInfo} | {failure, failure()},
-        Timer :: {deadline, binary()} | {timeout, integer()},
-        CallbackTag :: binary(),
-        TrxInfo :: #{id => binary()}.
+    {ok, #{
+        intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
+        response := any(),
+        next_state  => state(),
+        transaction_info => transaction_info()
+    }} when
+        CallbackTag :: binary().
 handle_callback(_Callback, _Withdrawal, _State, _Options) ->
     erlang:error(not_implemented).

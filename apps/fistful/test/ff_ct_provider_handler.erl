@@ -17,10 +17,14 @@ handle_function('ProcessWithdrawal', [Withdrawal, InternalState, Options], _Cont
     DWithdrawal = decode_withdrawal(Withdrawal),
     DState = decode_state(InternalState),
     DOptions = decode_options(Options),
-    {ok, Intent, NewState} = Handler:process_withdrawal(DWithdrawal, DState, DOptions),
+    {ok, ProcessResult} = Handler:process_withdrawal(DWithdrawal, DState, DOptions),
+    #{intent := Intent} = ProcessResult,
+    NewState = maps:get(next_state, ProcessResult, undefined),
+    TransactionInfo = maps:get(transaction_info, ProcessResult, undefined),
     {ok, #wthadpt_ProcessResult{
         intent = encode_intent(Intent),
-        next_state = encode_state(NewState)
+        next_state = encode_state(NewState),
+        trx = encode_trx(TransactionInfo)
     }};
 handle_function('GetQuote', [QuoteParams, Options], _Context, Opts) ->
     Handler = get_handler(Opts),
@@ -34,11 +38,15 @@ handle_function('HandleCallback', [Callback, Withdrawal, InternalState, Options]
     DWithdrawal = decode_withdrawal(Withdrawal),
     DState = decode_state(InternalState),
     DOptions = decode_options(Options),
-    {ok, Intent, NewState, Response} = Handler:handle_callback(DCallback, DWithdrawal, DState, DOptions),
+    {ok, CallbackResult} = Handler:handle_callback(DCallback, DWithdrawal, DState, DOptions),
+    #{intent := Intent, response := Response} = CallbackResult,
+    NewState = maps:get(next_state, CallbackResult, undefined),
+    TransactionInfo = maps:get(transaction_info, CallbackResult, undefined),
     {ok, #wthadpt_CallbackResult{
         intent = encode_intent(Intent),
         next_state = encode_state(NewState),
-        response = encode_callback_response(Response)
+        response = encode_callback_response(Response),
+        trx = encode_trx(TransactionInfo)
     }}.
 
 %%
@@ -89,6 +97,8 @@ decode_callback(#wthadpt_Callback{tag = Tag, payload = Payload}) ->
 encode_state(State) ->
     State.
 
+encode_intent({finish, success}) ->
+    {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = undefined}}}};
 encode_intent({finish, {success, TrxInfo}}) ->
     {finish, #wthadpt_FinishIntent{status = {success, #wthadpt_Success{trx_info = encode_trx(TrxInfo)}}}};
 encode_intent({finish, {failure, Failure}}) ->
@@ -98,6 +108,8 @@ encode_intent({sleep, Timer, CallbackTag}) ->
 encode_intent({sleep, Timer}) ->
     {sleep, #wthadpt_SleepIntent{timer = encode_timer(Timer)}}.
 
+encode_trx(undefined) ->
+    undefined;
 encode_trx(#{id := Id} = TrxInfo) ->
     Timestamp = maps:get(timestamp, TrxInfo, undefined),
     Extra = maps:get(extra, TrxInfo, #{}),

@@ -399,7 +399,7 @@ p2p_session_codec_test() ->
 
     TransactionInfo = #{
         id => genlib:unique(),
-        extra => <<"Extra">>
+        extra => #{<<"key">> => <<"Extra">>}
     },
 
     Resource = {bank_card, #{bank_card => #{

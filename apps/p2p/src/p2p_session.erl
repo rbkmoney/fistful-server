@@ -21,6 +21,7 @@
 -export([id/1]).
 -export([transfer_params/1]).
 -export([adapter_state/1]).
+-export([transaction_info/1]).
 -export([party_revision/1]).
 -export([domain_revision/1]).
 -export([route/1]).
@@ -185,6 +186,7 @@ domain_revision(#{domain_revision := DomainRevision}) ->
 -spec route(session_state()) -> route().
 route(#{route := Route}) ->
     Route.
+
 
 %% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
 %% изменением дочерних сущностей, например запуском adjustment.
@@ -387,12 +389,14 @@ collect_build_context_params(SessionState) ->
         party_revision  => party_revision(SessionState)
     }.
 
-assert_transaction_info(_TrxInfo, undefined) ->
+%% Only one static TransactionInfo within one session
+
+assert_transaction_info(_NewTrxInfo, undefined) ->
     ok;
 assert_transaction_info(TrxInfo, TrxInfo) ->
     ok;
-assert_transaction_info(TrxInfoNew, _TrxInfo) ->
-    erlang:error({transaction_info_is_different, TrxInfoNew}).
+assert_transaction_info(NewTrxInfo, _TrxInfo) ->
+    erlang:error({transaction_info_is_different, NewTrxInfo}).
 
 %% Events apply
 

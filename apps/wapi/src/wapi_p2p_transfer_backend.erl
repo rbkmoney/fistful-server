@@ -138,8 +138,10 @@ do_quote_transfer(Params, HandlerContext) ->
             {error, {p2p_transfer, forbidden_currency}};
         {exception, #fistful_ForbiddenOperationAmount{}} ->
             {error, {p2p_transfer, cash_range_exceeded}};
-        {exception, #fistful_IdentityNotFound{ }} ->
-            {error, {identity, notfound}}
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}};
+        {exception, #fistful_OperationNotPermitted{}} ->
+            {error, {p2p_transfer, operation_not_permitted}}
     end.
 
 create_quote_token(Quote, PartyID) ->
@@ -172,7 +174,7 @@ process_p2p_transfer_call(Request, HandlerContext) ->
             {error, {p2p_transfer, cash_range_exceeded}};
         {exception, #fistful_OperationNotPermitted{}} ->
             {error, {p2p_transfer, operation_not_permitted}};
-        {exception, #fistful_IdentityNotFound{ }} ->
+        {exception, #fistful_IdentityNotFound{}} ->
             {error, {identity, notfound}}
     end.
 

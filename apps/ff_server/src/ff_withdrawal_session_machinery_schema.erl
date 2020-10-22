@@ -184,7 +184,7 @@ maybe_migrate({created, Session = #{
         destination := #{resource := OldResource}
     }
 }}, Context) ->
-    NewResource = ff_instrument:maybe_migrate_resource(OldResource),
+    NewResource = ff_destination:maybe_migrate_resource(OldResource),
     FullResource = try_get_full_resource(NewResource, Context),
     NewWithdrawal0 = maps:without([destination], Withdrawal),
     NewWithdrawal1 = NewWithdrawal0#{resource => FullResource},

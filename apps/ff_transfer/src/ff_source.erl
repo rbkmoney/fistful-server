@@ -107,13 +107,20 @@
 
 %% Accessors
 
--spec id(source_state())       -> id().
--spec name(source_state())     -> name().
--spec account(source_state())  -> account() | undefined.
--spec identity(source_state()) -> identity().
--spec currency(source_state()) -> currency().
--spec resource(source_state()) -> resource().
--spec status(source_state())   -> status() | undefined.
+-spec id(source_state()) ->
+    id().
+-spec name(source_state()) ->
+    name().
+-spec account(source_state()) ->
+    account() | undefined.
+-spec identity(source_state()) ->
+    identity().
+-spec currency(source_state()) ->
+    currency().
+-spec resource(source_state()) ->
+    resource().
+-spec status(source_state()) ->
+    status() | undefined.
 
 id(Source)       ->
     case account(Source) of
@@ -122,14 +129,22 @@ id(Source)       ->
         Account ->
             ff_account:id(Account)
     end.
-    name(#{name := V})     -> V.
-    account(#{account := V})  -> V;
-    account(_) -> undefined.
-    identity(Source) -> ff_account:identity(account(Source)).
-    currency(Source) -> ff_account:currency(account(Source)).
-    resource(#{resource := V}) -> V.
-    status(#{status := V})   -> V;
-    status(_) -> undefined.
+name(#{name := V}) ->
+    V.
+account(#{account := V}) ->
+    V;
+account(_) ->
+    undefined.
+identity(Source) ->
+    ff_account:identity(account(Source)).
+currency(Source) ->
+    ff_account:currency(account(Source)).
+resource(#{resource := V}) ->
+    V.
+status(#{status := V}) ->
+    V;
+status(_) ->
+    undefined.
 
 -spec external_id(source_state()) ->
     id() | undefined.

@@ -184,13 +184,20 @@
 
 %% Accessors
 
--spec id(destination_state())       -> id().
--spec name(destination_state())     -> name().
--spec account(destination_state())  -> account().
--spec identity(destination_state()) -> identity().
--spec currency(destination_state()) -> currency().
--spec resource(destination_state()) -> resource().
--spec status(destination_state())   -> status().
+-spec id(destination_state()) ->
+    id().
+-spec name(destination_state()) ->
+    name().
+-spec account(destination_state()) ->
+    account().
+-spec identity(destination_state()) ->
+    identity().
+-spec currency(destination_state()) ->
+    currency().
+-spec resource(destination_state()) ->
+    resource().
+-spec status(destination_state()) ->
+    status().
 
 id(Destination)       ->
     case account(Destination) of
@@ -199,14 +206,22 @@ id(Destination)       ->
         Account ->
             ff_account:id(Account)
     end.
-    name(#{name := V})     -> V.
-    account(#{account := V})  -> V;
-    account(_) -> undefined.
-    identity(Destination) -> ff_account:identity(account(Destination)).
-    currency(Destination) -> ff_account:currency(account(Destination)).
-    resource(#{resource := V}) -> V.
-    status(#{status := V}) -> V;
-    status(_)   -> indefined.
+name(#{name := V}) ->
+    V.
+account(#{account := V}) ->
+    V;
+account(_) ->
+    undefined.
+identity(Destination) ->
+    ff_account:identity(account(Destination)).
+currency(Destination) ->
+    ff_account:currency(account(Destination)).
+resource(#{resource := V}) ->
+    V.
+status(#{status := V}) ->
+    V;
+status(_) ->
+    undefined.
 
 -spec external_id(destination_state()) ->
     id() | undefined.

@@ -285,7 +285,7 @@ metadata(T) ->
 create(Params) ->
     do(fun() ->
         #{id := ID, source_id := SourceID, wallet_id := WalletID, body := Body} = Params,
-        Source = ff_source:get(unwrap(source, ff_source:get_machine(SourceID))),
+        Source = unwrap(source, ff_source_machine:get(SourceID)),
         CreatedAt = ff_time:now(),
         DomainRevision = ff_domain_config:head(),
         Wallet = unwrap(wallet, get_wallet(WalletID)),
@@ -593,8 +593,8 @@ process_transfer_fail(limit_check, Deposit) ->
 make_final_cash_flow(WalletID, SourceID, Body) ->
     {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
     WalletAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletMachine)),
-    {ok, SourceMachine} = ff_source:get_machine(SourceID),
-    SourceAccount = ff_source:account(ff_source:get(SourceMachine)),
+    {ok, SourceMachine} = ff_source_machine:get(SourceID),
+    SourceAccount = ff_source:account(SourceMachine),
     Constants = #{
         operation_amount => Body
     },

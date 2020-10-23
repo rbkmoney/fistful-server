@@ -194,7 +194,7 @@ maybe_migrate({created, Session = #{
         resource := Resource
     }
 }}, Context) ->
-    NewResource = ff_instrument:maybe_migrate_resource(Resource),
+    NewResource = ff_destination:maybe_migrate_resource(Resource),
     maybe_migrate({created, Session#{
         version => 1,
         withdrawal => Withdrawal#{

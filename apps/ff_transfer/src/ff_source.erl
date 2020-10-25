@@ -95,6 +95,7 @@
 %% API
 
 -export([create/1]).
+
 -export([is_accessible/1]).
 -export([authorize/1]).
 -export([apply_event/2]).
@@ -169,7 +170,13 @@ metadata(_Source) -> undefined.
     {error, create_error()}.
 create(Params) ->
     do(fun () ->
-        #{id := ID, identity := IdentityID, name := Name, currency := CurrencyID, resource := Resource} = Params,
+        #{
+            id := ID,
+            identity := IdentityID,
+            name := Name,
+            currency := CurrencyID,
+            resource := Resource
+        } = Params,
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Events = unwrap(ff_account:create(ID, Identity, Currency)),

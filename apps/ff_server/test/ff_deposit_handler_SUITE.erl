@@ -740,12 +740,12 @@ create_source(IID, _C) ->
         currency => <<"RUB">>,
         resource => SrcResource
     },
-    ok = ff_source:create(Params, ff_entity_context:new()),
+    ok = ff_source_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, SrcM} = ff_source:get_machine(ID),
-            ff_source:status(ff_source:get(SrcM))
+            {ok, SrcM} = ff_source_machine:get(ID),
+            ff_source:status(SrcM)
         end
     ),
     ID.

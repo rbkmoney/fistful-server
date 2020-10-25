@@ -720,12 +720,12 @@ create_destination(IID, Currency, Token, C) ->
         end,
     Resource = {bank_card, #{bank_card => NewStoreResource}},
     Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
-    ok = ff_destination:create(Params, ff_entity_context:new()),
+    ok = ff_destination_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, Machine} = ff_destination:get_machine(ID),
-            ff_destination:status(ff_destination:get(Machine))
+            {ok, Machine} = ff_destination_machine:get(ID),
+            ff_destination:status(Machine)
         end
     ),
     ID.
@@ -737,12 +737,12 @@ create_crypto_destination(IID, _C) ->
         currency => {litecoin, #{}}
     }}},
     Params = #{id => ID, identity => IID, name => <<"CryptoDestination">>, currency => <<"RUB">>, resource => Resource},
-    ok = ff_destination:create(Params, ff_entity_context:new()),
+    ok = ff_destination_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, DestM} = ff_destination:get_machine(ID),
-            ff_destination:status(ff_destination:get(DestM))
+            {ok, DestM} = ff_destination_machine:get(ID),
+            ff_destination:status(DestM)
         end
     ),
     ID.

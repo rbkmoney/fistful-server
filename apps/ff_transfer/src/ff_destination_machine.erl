@@ -8,7 +8,7 @@
 
 -type id() :: machinery:id().
 -type ctx() :: ff_entity_context:context().
--type destination() :: ff_destination:instrument_state().
+-type destination() :: ff_destination:destination_state().
 -type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type params() :: ff_destination:params().

@@ -139,30 +139,23 @@ create_identity(Party, Name, ProviderID, ClassID, _C) ->
 
 create_destination(IID, C) ->
     DestResource = {bank_card, #{bank_card => ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)}},
-    DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
+    DestID = create_destination(IID, <<"XDesination">>, <<"RUB">>, DestResource),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, DestM} = ff_destination:get_machine(DestID),
-            ff_destination:status(ff_destination:get(DestM))
+            {ok, DestM} = ff_destination_machine:get(DestID),
+            ff_destination:status(DestM)
         end
     ),
     DestID.
 
-create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
+create_destination(IdentityID, Name, Currency, Resource) ->
     ID = genlib:unique(),
-    ok = create_instrument(
-        Type,
+    ok = ff_destination_machine:create(
         #{id => ID, identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_entity_context:new(),
-        C
+        ff_entity_context:new()
     ),
     ID.
-
-create_instrument(destination, Params, Ctx, _C) ->
-    ff_destination:create(Params, Ctx);
-create_instrument(source, Params, Ctx, _C) ->
-    ff_source:create(Params, Ctx).
 
 create_failed_session(IdentityID, DestinationID, _C) ->
     ID = genlib:unique(),
@@ -173,8 +166,8 @@ create_failed_session(IdentityID, DestinationID, _C) ->
         sender      => ff_identity_machine:identity(IdentityMachine),
         receiver    => ff_identity_machine:identity(IdentityMachine)
     },
-    {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
-    Destination = ff_destination:get(DestinationMachine),
+    {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
+    Destination = ff_destination_machine:destination(DestinationMachine),
     {ok, DestinationResource} = ff_destination:resource_full(Destination),
     SessionParams = #{
         withdrawal_id => ID,

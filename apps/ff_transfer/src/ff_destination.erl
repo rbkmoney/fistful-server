@@ -145,10 +145,10 @@
 -export_type([resource_id/0]).
 -export_type([resource_type/0]).
 -export_type([resource_full/0]).
+-export_type([params/0]).
 -export_type([event/0]).
 -export_type([timestamped_event/0]).
 -export_type([create_error/0]).
--export_type([params/0]).
 -export_type([exp_date/0]).
 
 %% Accessors
@@ -160,9 +160,9 @@
 -export([currency/1]).
 -export([resource/1]).
 -export([status/1]).
+-export([external_id/1]).
 -export([created_at/1]).
 -export([metadata/1]).
--export([external_id/1]).
 -export([resource_full/1]).
 -export([resource_full/2]).
 -export([process_resource_full/2]).
@@ -189,7 +189,7 @@
 -spec name(destination_state()) ->
     name().
 -spec account(destination_state()) ->
-    account().
+    account() | undefined.
 -spec identity(destination_state()) ->
     identity().
 -spec currency(destination_state()) ->
@@ -197,7 +197,7 @@
 -spec resource(destination_state()) ->
     resource().
 -spec status(destination_state()) ->
-    status().
+    status() | undefined.
 
 id(Destination)       ->
     case account(Destination) of
@@ -296,7 +296,13 @@ unwrap_resource_id({bank_card, ID}) ->
     {error, create_error()}.
 create(Params) ->
     do(fun () ->
-        #{id := ID, identity := IdentityID, name := Name, currency := CurrencyID, resource := Resource} = Params,
+        #{
+            id := ID,
+            identity := IdentityID,
+            name := Name,
+            currency := CurrencyID,
+            resource := Resource
+        } = Params,
         Identity = ff_identity_machine:identity(unwrap(identity, ff_identity_machine:get(IdentityID))),
         Currency = unwrap(currency, ff_currency:get(CurrencyID)),
         Events = unwrap(ff_account:create(ID, Identity, Currency)),

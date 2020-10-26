@@ -523,23 +523,23 @@
     sessions = [#p2p_transfer_SessionState{id = ?STRING}]
 }).
 
--define(P2P_TRANSFER_EVENT(EventID), #'p2p_transfer_Event'{
-    'event' = EventID,
-    'occured_at' = ?TIMESTAMP,
-    'change' = {'status_changed', #p2p_transfer_StatusChange{
+-define(P2P_TRANSFER_EVENT(EventID), #p2p_transfer_Event{
+    event = EventID,
+    occured_at = ?TIMESTAMP,
+    change = {status_changed, #p2p_transfer_StatusChange{
         status = {succeeded, #p2p_status_Succeeded{}}
     }}
 }).
 
--define(P2P_SESSION_EVENT(EventID), #'p2p_session_Event'{
-    'event' = EventID,
-    'occured_at' = ?TIMESTAMP,
-    'change' = {ui, #p2p_session_UserInteractionChange{
+-define(P2P_SESSION_EVENT(EventID), #p2p_session_Event{
+    event = EventID,
+    occured_at = ?TIMESTAMP,
+    change = {ui, #p2p_session_UserInteractionChange{
         id = ?STRING,
         payload = {created, #p2p_session_UserInteractionCreatedChange{
             ui = #p2p_session_UserInteraction{
-                'id' = ?STRING,
-                'user_interaction' = {redirect, {get_request, #ui_BrowserGetRequest{
+                id = ?STRING,
+                user_interaction = {redirect, {get_request, #ui_BrowserGetRequest{
                     uri = ?STRING
                 }}}
             }

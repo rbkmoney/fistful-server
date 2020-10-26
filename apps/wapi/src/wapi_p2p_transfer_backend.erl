@@ -317,20 +317,23 @@ continuation_token_cursor(p2p_session, DecodedToken) ->
         Acc1 :: [] | [event()].
 
 events_collect(p2p_session, undefined, #'EventRange'{'after' = Cursor}, _HandlerContext, Acc) ->
+    % no session ID is not an error
     {ok, {Acc, Cursor}};
 events_collect(_Entity, _EntityID, #'EventRange'{'after' = Cursor, 'limit' = Limit}, _HandlerContext, Acc)
-    when is_integer(Limit) andalso Limit =< 0 ->
+    when Limit =< 0 ->
+        % 'Limit' not atom (undefined)
         {ok, {Acc, Cursor}};
 events_collect(Entity, EntityID, EventRange, HandlerContext, Acc) ->
-    #'EventRange'{'after' = Cursor, 'limit' = Limit} = EventRange,
+    #'EventRange'{'after' = Cursor} = EventRange,
     Request = {Entity, 'GetEvents', [EntityID, EventRange]},
     case events_request(Request, HandlerContext) of
         {ok, {[], _}} ->
             {ok, {Acc, Cursor}};
-        {ok, {Events, NewCursor}} when is_integer(Limit) ->
-            NewEventRange = events_range(NewCursor, Limit - length(Events)),
-            events_collect(Entity, EntityID, NewEventRange, HandlerContext, Acc ++ Events);
         {ok, {Events, NewCursor}} ->
+            % 'Limit' is atom (undefined), or
+            % if the service returned fewer events than the 'Limit', then it has no more events
+            %   fistful-server/pull/322#discussion_r510780329
+            %   NewEventRange = events_range(NewCursor, Limit - length(Events)),
             {ok, {Acc ++ Events, NewCursor}};
         {error, _} = Error ->
             Error
@@ -791,10 +794,10 @@ unmarshal_events_test_() ->
 
     Event =  fun
         ({_, {ui, _} = Woody, Swag}) -> {fun unmarshal_event/1,
-            #'p2p_session_Event'{
-                'event' = 1,
-                'occured_at' = <<"2020-05-25T12:34:56.123456Z">>,
-                'change' = Woody
+            #p2p_session_Event{
+                event = 1,
+                occured_at = <<"2020-05-25T12:34:56.123456Z">>,
+                change = Woody
             },
             #{
                 <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
@@ -802,10 +805,10 @@ unmarshal_events_test_() ->
             }
         };
         ({_, {status_changed, _} = Woody, Swag}) -> {fun unmarshal_event/1,
-            #'p2p_transfer_Event'{
-                'event' = 1,
-                'occured_at' = <<"2020-05-25T12:34:56.123456Z">>,
-                'change' = Woody
+            #p2p_transfer_Event{
+                event = 1,
+                occured_at = <<"2020-05-25T12:34:56.123456Z">>,
+                change = Woody
             },
             #{
                 <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
@@ -836,80 +839,38 @@ unmarshal_events_test_() ->
         {Unmarshal, Woody, ExpectedSwag} <- [Events(EvList) | EvList]
     ].
 
--spec continuation_token_test_() ->
-    _.
-continuation_token_test_() ->
-    {setup,
-        fun() ->
-            meck:new([wapi_utils, wapi_auth, uac_authorizer_jwt]),
-            meck:expect(wapi_utils, get_unique_id, 0, <<>>),
-            meck:expect(wapi_auth, get_signee, 0, <<>>),
-            meck:expect(uac_authorizer_jwt, issue, fun(ID, PartyID, Token, _Sign) ->
-                term_to_binary({ID, PartyID, Token})
-            end),
-            meck:expect(uac_authorizer_jwt, verify, fun(Token, _) ->
-                {ok, binary_to_term(Token)}
-            end),
-            <<>>
-        end,
-        fun(_) ->
-            meck:unload()
-        end,
-        fun(PartyID) ->
-            [
-                ?_assertEqual({ok, #{}}, continuation_token_unpack(undefined, PartyID)),
-                ?_assertMatch({error, _}, continuation_token_unpack(continuation_token_pack(1, 2, PartyID), <<"ops">>))
-            ]
-            ++
-            [
-                begin
-                    Coded = continuation_token_pack(TransferCursor, SessionCursor, PartyID),
-                    Token = continuation_token_unpack(Coded, PartyID),
-                    ?_assertEqual({ok, ExpectedToken}, Token)
-                end ||
-                {TransferCursor, SessionCursor, ExpectedToken} <- [
-                    {2, 3, #{
-                        <<"version">> => 1,
-                        ?CONTINUATION_TRANSFER => 2,
-                        ?CONTINUATION_SESSION => 3
-                    }},
-                    {2, undefined, #{
-                        <<"version">> => 1,
-                        ?CONTINUATION_TRANSFER => 2
-                    }},
-                    {undefined, 3, #{
-                        <<"version">> => 1,
-                        ?CONTINUATION_SESSION => 3
-                    }}
-                ]
-            ]
-        end
-    }.
-
 -spec events_collect_test_() ->
     _.
 events_collect_test_() ->
     {setup,
         fun() ->
-            Event = fun(ID) -> #p2p_transfer_Event{
-                'event' = ID,
-                'occured_at' = <<"2020-05-25T12:34:56.123456Z">>,
-                'change' = {'status_changed', #'p2p_transfer_StatusChange'{
-                    'status' = {'succeeded', #'p2p_status_Succeeded'{}}
+            % Simple event constructor
+            Event = fun(EventID) -> #p2p_transfer_Event{
+                event = EventID,
+                occured_at = <<"2020-05-25T12:34:56.123456Z">>,
+                change = {status_changed, #p2p_transfer_StatusChange{
+                    status = {succeeded, #p2p_status_Succeeded{}}
                 }}
             } end,
             meck:new([wapi_handler_utils], [passthrough]),
+            %
+            % mock  Request: {Entity, 'GetEvents', [EntityID, EventRange]},
+            % use Entity to select the desired 'GetEvents' result
+            %
             meck:expect(wapi_handler_utils, service_call, fun
-                ({case1, _, _}, _) -> {ok, []};
-                ({case2, _, _}, _) -> {ok, [Event(2)]};
-                ({case3, _, _}, _) -> {exception, #fistful_P2PNotFound{}};
-                ({case4, _, _}, _) -> {exception, #fistful_P2PSessionNotFound{}};
-                ({case5, _, [_, #'EventRange'{'after' = After}]}, _) -> {ok, [Event(After+1)]}
+                ({case_empty, _, _}, _) -> {ok, []};
+                ({case_one, _, _}, _) -> {ok, [Event(2)]};
+                ({case_one_after, _, [_, #'EventRange'{'after' = After}]}, _) -> {ok, [Event(After+1)]};
+                ({case_two, _, _}, _) -> {ok, [Event(2), Event(3)]};
+                ({case_transfer_not_found, _, _}, _) -> {exception, #fistful_P2PNotFound{}};
+                ({case_session_not_found, _, _}, _) -> {exception, #fistful_P2PSessionNotFound{}}
             end),
             {
-                fun _Collect(Case, ID, EventRange, Acc, Expected) ->
-                    ?_assertEqual(Expected, events_collect(Case, ID, EventRange, #{}, Acc))
+                % Test generator - call 'events_collect' function and compare with 'Expected' result
+                fun _Collect(Case, TransferID, EventRange, Acc, Expected) ->
+                    ?_assertEqual(Expected, events_collect(Case, TransferID, EventRange, #{}, Acc))
                 end,
+                % Pass event constructor to test cases
                 Event
             }
         end,
@@ -927,32 +888,36 @@ events_collect_test_() ->
                     {ok, {[Event(1)], 1}}
                 ),
                 % empty selection - keep the previous cursor
-                Collect(case1, <<>>, events_range(undefined),  [Event(1)],
+                Collect(case_empty, <<>>, events_range(undefined),  [Event(1)],
                     {ok, {[Event(1)], undefined}}
                 ),
                 % empty selection - keep the previous cursor
-                Collect(case1, <<>>, events_range(1),  [Event(1)],
+                Collect(case_empty, <<>>, events_range(1),  [Event(1)],
                     {ok, {[Event(1)], 1}}
                 ),
                 % non numeric range limit
-                Collect(case2, <<>>, events_range(0, undefined),  [Event(1)],
+                Collect(case_one, <<>>, events_range(0, undefined),  [Event(1)],
                     {ok, {[Event(1), Event(2)], 2}}
                 ),
                 % range limit: 2
-                Collect(case2, <<>>, events_range(undefined, 2),  [Event(1)],
-                    {ok, {[Event(1), Event(2), Event(2)], 2}}
+                Collect(case_one, <<>>, events_range(undefined, 2),  [Event(1)],
+                    {ok, {[Event(1), Event(2)], 2}}
+                ),
+                % range limit: 2
+                Collect(case_two, <<>>, events_range(undefined, 2),  [Event(1)],
+                    {ok, {[Event(1), Event(2), Event(3)], 3}}
+                ),
+                % range limit: 2, after: 3
+                Collect(case_one_after, <<>>, events_range(3, 2),  [Event(1)],
+                    {ok, {[Event(1), Event(4)], 4}}
                 ),
                 % transfer not found
-                Collect(case3, <<>>, events_range(2),  [Event(1)],
+                Collect(case_transfer_not_found, <<>>, events_range(2),  [Event(1)],
                     {error, {p2p_transfer, notfound}}
                 ),
                 % session not found - keep the previous cursor
-                Collect(case4, <<>>, events_range(2),  [Event(1)],
+                Collect(case_session_not_found, <<>>, events_range(2),  [Event(1)],
                     {ok, {[Event(1)], 2}}
-                ),
-                % range limit: 3, new id production
-                Collect(case5, <<>>, events_range(1, 2),  [Event(1)],
-                    {ok, {[Event(1), Event(2), Event(3)], 3}}
                 )
             ]
         end

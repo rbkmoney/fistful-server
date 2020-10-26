@@ -482,16 +482,18 @@ get_events_ok(C) ->
     wapi_ct_helper:mock_services([
         {p2p_transfer, fun
             ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-            ('GetEvents', _) -> {ok, [?P2P_TRANSFER_EVENT(1)]};
+            ('GetEvents', _) -> {ok, [?P2P_TRANSFER_EVENT(EventID) || EventID <- lists:seq(1, ?EVENTS_FETCH_LIMIT)]};
             ('Get', _) -> {ok, ?P2P_TRANSFER_SESSIONS(PartyID)}
         end},
-        {p2p_session, fun('GetEvents', _) -> {ok, [?P2P_SESSION_EVENT(1)]} end}
+        {p2p_session, fun('GetEvents', _) ->
+            {ok, [?P2P_SESSION_EVENT(EventID) || EventID <- lists:seq(1, ?EVENTS_FETCH_LIMIT)]}
+        end}
     ], C),
 
     {ok, #{<<"result">> := Result}} = get_events_call_api(C),
 
-    % EVENTS_FETCH_LIMIT is multiplied by two because the selection occurs twice the session and transfer.
-    ?assertEqual(erlang:length(Result), ?EVENTS_FETCH_LIMIT * 2),
+    % EVENTS_FETCH_LIMIT is multiplied by two because the selection occurs twice - from session and transfer.
+    ?assertEqual(?EVENTS_FETCH_LIMIT * 2, erlang:length(Result)),
     [?assertMatch(#{<<"change">> := _}, Ev) || Ev <-  Result].
 
 -spec get_events_fail(config()) ->

@@ -478,15 +478,15 @@ get_fail_p2p_notfound_test(C) ->
     _.
 get_events_ok(C) ->
     PartyID = ?config(party, C),
-
     wapi_ct_helper:mock_services([
         {p2p_transfer, fun
             ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-            ('GetEvents', _) -> {ok, [?P2P_TRANSFER_EVENT(EventID) || EventID <- lists:seq(1, ?EVENTS_FETCH_LIMIT)]};
-            ('Get', _) -> {ok, ?P2P_TRANSFER_SESSIONS(PartyID)}
+            ('Get', _) -> {ok, ?P2P_TRANSFER_SESSIONS(PartyID)};
+            ('GetEvents', [_ID, #'EventRange'{limit = Limit}]) ->
+                {ok, [?P2P_TRANSFER_EVENT(EventID) || EventID <- lists:seq(1, Limit)]}
         end},
-        {p2p_session, fun('GetEvents', _) ->
-            {ok, [?P2P_SESSION_EVENT(EventID) || EventID <- lists:seq(1, ?EVENTS_FETCH_LIMIT)]}
+        {p2p_session, fun('GetEvents', [_ID, #'EventRange'{limit = Limit}]) ->
+            {ok, [?P2P_SESSION_EVENT(EventID) || EventID <- lists:seq(1, Limit)]}
         end}
     ], C),
 

@@ -26,9 +26,9 @@ init([]) ->
     LechiffreSpec = lechiffre:child_spec(lechiffre, LechiffreOpts),
     {LogicHandlers, LogicHandlerSpecs} = get_logic_handler_info(),
     HealthCheck = enable_health_logging(genlib_app:env(wapi, health_check, #{})),
-    HealthRoutes = [{'_', [erl_health_handle:get_route(HealthCheck)]}],
+    AdditionalRoutes = [{'_', [erl_health_handle:get_route(HealthCheck), get_prometheus_route()]}],
     SwaggerHandlerOpts = genlib_app:env(wapi, swagger_handler_opts, #{}),
-    SwaggerSpec = wapi_swagger_server:child_spec(HealthRoutes, LogicHandlers, SwaggerHandlerOpts),
+    SwaggerSpec = wapi_swagger_server:child_spec(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts),
     UacConf = get_uac_config(),
     ok = uac:configure(UacConf),
     {ok, {
@@ -61,3 +61,7 @@ get_uac_config() ->
         genlib_app:env(wapi, access_conf),
         #{access => wapi_auth:get_access_config()}
     ).
+
+-spec get_prometheus_route() -> {iodata(), module(), _Opts :: any()}.
+get_prometheus_route() ->
+    {"/metrics/[:registry]", prometheus_cowboy2_handler, []}.

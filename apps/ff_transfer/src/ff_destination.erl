@@ -5,8 +5,6 @@
 %%%
 %%%  - We must consider withdrawal provider terms ensure that the provided
 %%%    Resource is ok to withdraw to.
-%%%  - We must consider withdrawal provider terms ensure that the provided
-%%%    resource is ok to withdraw to.
 
 -module(ff_destination).
 

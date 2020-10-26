@@ -191,7 +191,8 @@ create_destination(IID, C) ->
         authorized,
         fun () ->
             {ok, DestM} = ff_destination_machine:get(DestID),
-            ff_destination:status(DestM)
+            Destination = ff_destination_machine:destination(DestM),
+            ff_destination:status(Destination)
         end
     ),
     DestID.

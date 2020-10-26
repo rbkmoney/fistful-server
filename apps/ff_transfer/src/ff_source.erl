@@ -54,17 +54,17 @@
     metadata    => metadata()
 }.
 
--type machine() :: ff_source_machine:st(resource()).
+-type machine() :: ff_source_machine:st().
 -type event() ::
     {created, source_state()} |
     {account, ff_account:event()} |
     {status_changed, status()}.
+-type timestamped_event() :: {integer(), ff_machine:timestamped_event(event())}.
 -type legacy_event() :: any().
--type timestamped_event() :: ff_source_machine:timestamped_event(resource()).
 
 -type create_error() ::
     {identity, notfound} |
-    {currecy, notfoud} |
+    {currency, notfound} |
     ff_account:create_error() |
     {identity, ff_party:inaccessibility()}.
 

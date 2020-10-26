@@ -462,7 +462,8 @@ make_final_cash_flow(WalletID, SourceID, Body) ->
     {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
     WalletAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletMachine)),
     {ok, SourceMachine} = ff_source_machine:get(SourceID),
-    SourceAccount = ff_source:account(SourceMachine),
+    Source = ff_source_machine:source(SourceMachine),
+    SourceAccount = ff_source:account(Source),
     Constants = #{
         operation_amount => Body
     },

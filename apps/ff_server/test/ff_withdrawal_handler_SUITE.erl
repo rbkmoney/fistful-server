@@ -624,7 +624,8 @@ create_destination(IID, Currency, Token, C) ->
         authorized,
         fun () ->
             {ok, Machine} = ff_destination_machine:get(ID),
-            ff_destination:status(Machine)
+            Destination = ff_destination_machine:destination(Machine),
+            ff_destination:status(Destination)
         end
     ),
     ID.

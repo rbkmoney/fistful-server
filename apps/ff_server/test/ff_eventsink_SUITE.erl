@@ -438,7 +438,8 @@ create_source(IID, _C) ->
         authorized,
         fun () ->
             {ok, SrcM} = ff_source_machine:get(SrcID),
-            ff_source:status(SrcM)
+            Source = ff_source_machine:source(SrcM),
+            ff_source:status(Source)
         end
     ),
     SrcID.
@@ -459,7 +460,8 @@ create_destination(IID, C) ->
         authorized,
         fun () ->
             {ok, DestM} = ff_destination_machine:get(DestID),
-            ff_destination:status(DestM)
+            Destination = ff_destination_machine:destination(DestM),
+            ff_destination:status(Destination)
         end
     ),
     DestID.

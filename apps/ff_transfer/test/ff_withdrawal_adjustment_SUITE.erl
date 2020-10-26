@@ -429,7 +429,8 @@ get_wallet_balance(ID) ->
 
 get_destination_balance(ID) ->
     {ok, Machine} = ff_destination_machine:get(ID),
-    get_account_balance(ff_destination:account(Machine)).
+    Destination = ff_destination_machine:destination(Machine),
+    get_account_balance(ff_destination:account(Destination)).
 
 get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(
@@ -450,7 +451,8 @@ create_destination(IID, C) ->
         authorized,
         fun () ->
             {ok, Machine} = ff_destination_machine:get(ID),
-            ff_destination:status(Machine)
+            Destination = ff_destination_machine:destination(Machine),
+            ff_destination:status(Destination)
         end
     ),
     ID.

@@ -295,7 +295,8 @@ maybe_migrate_account({wallet, WalletID}) ->
     ff_wallet:account(ff_wallet_machine:wallet(Machine));
 maybe_migrate_account({destination, DestinationID}) ->
     {ok, Machine} = ff_destination_machine:get(DestinationID),
-    ff_destination:account(Machine);
+    Destination = ff_destination_machine:destination(Machine),
+    ff_destination:account(Destination);
 maybe_migrate_account(Account) when is_map(Account) ->
     Account.
 

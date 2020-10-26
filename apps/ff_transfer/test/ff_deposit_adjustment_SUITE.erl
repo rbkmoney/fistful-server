@@ -427,7 +427,8 @@ get_wallet_balance(ID) ->
 
 get_source_balance(ID) ->
     {ok, Machine} = ff_source_machine:get(ID),
-    get_account_balance(ff_source:account(Machine)).
+    Source = ff_source_machine:source(Machine),
+    get_account_balance(ff_source:account(Source)).
 
 get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(
@@ -448,7 +449,8 @@ create_source(IID, _C) ->
         authorized,
         fun () ->
             {ok, SrcM} = ff_source_machine:get(ID),
-            ff_source:status(SrcM)
+            Source = ff_source_machine:source(SrcM),
+            ff_source:status(Source)
         end
     ),
     ID.

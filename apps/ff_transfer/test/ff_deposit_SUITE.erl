@@ -346,7 +346,8 @@ create_source(IID, _C) ->
         authorized,
         fun () ->
             {ok, SrcM} = ff_source_machine:get(ID),
-            ff_source:status(SrcM)
+            Source = ff_source_machine:source(SrcM),
+            ff_source:status(Source)
         end
     ),
     ID.

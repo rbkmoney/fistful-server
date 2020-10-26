@@ -398,7 +398,8 @@ get_wallet_balance(ID) ->
 
 get_destination_balance(ID) ->
     {ok, Machine} = ff_destination_machine:get(ID),
-    get_account_balance(ff_destination:account(Machine)).
+    Destination = ff_destination_machine:destination(Machine),
+    get_account_balance(ff_destination:account(Destination)).
 
 get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(
@@ -442,7 +443,8 @@ create_source(IID, _C) ->
         authorized,
         fun () ->
             {ok, SrcM} = ff_source_machine:get(SrcID),
-            ff_source:status(SrcM)
+            Source = ff_source_machine:source(SrcM),
+            ff_source:status(Source)
         end
     ),
     SrcID.
@@ -470,7 +472,8 @@ create_destination(IID, C) ->
         authorized,
         fun () ->
             {ok, DestM} = ff_destination_machine:get(DestID),
-            ff_destination:status(DestM)
+            Destination = ff_destination_machine:destination(DestM),
+            ff_destination:status(Destination)
         end
     ),
     DestID.
@@ -485,7 +488,8 @@ create_crypto_destination(IID, _C) ->
         authorized,
         fun () ->
             {ok, DestM} = ff_destination_machine:get(DestID),
-            ff_destination:status(DestM)
+            Destination = ff_destination_machine:destination(DestM),
+            ff_destination:status(Destination)
         end
     ),
     DestID.

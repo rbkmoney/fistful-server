@@ -276,7 +276,8 @@ wait_for_destination_authorized(DestID) ->
         authorized,
         fun () ->
             {ok, DestM} = ff_destination_machine:get(DestID),
-            ff_destination:status(DestM)
+            Destination = ff_destination_machine:destination(DestM),
+            ff_destination:status(Destination)
         end
     ).
 

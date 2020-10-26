@@ -76,7 +76,7 @@ get(ID, {After, Limit}) ->
     ff_machine:get(ff_source, ?NS, ID, {After, Limit, forward}).
 
 -spec events(id(), event_range()) ->
-    {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
+    {ok, [ff_source:timestamped_event()]} |
     {error, notfound}.
 
 events(ID, {After, Limit}) ->
@@ -93,7 +93,7 @@ events(ID, {After, Limit}) ->
 source(St) ->
     ff_machine:model(St).
 
--spec ctx(machine()) ->
+-spec ctx(st()) ->
     ctx().
 
 ctx(St) ->
@@ -106,8 +106,8 @@ ctx(St) ->
 
 -type machine()      :: ff_machine:machine(event()).
 -type result()       :: ff_machine:result(event()).
--type handler_opts() :: machinery:handler_opts().
--type handler_args() :: machinery:handler_args().
+-type handler_opts() :: machinery:handler_opts(_).
+-type handler_args() :: machinery:handler_args(_).
 
 -spec init({[event()], ctx()}, machine(), _, handler_opts()) ->
     result().

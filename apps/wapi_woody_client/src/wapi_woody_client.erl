@@ -82,6 +82,8 @@ get_service_modname(fistful_report) ->
     {ff_reporter_reports_thrift, 'Reporting'};
 get_service_modname(file_storage) ->
     {fs_file_storage_thrift, 'FileStorage'};
+get_service_modname(fistful_provider) ->
+    {ff_proto_provider_thrift, 'Management'};
 get_service_modname(fistful_identity) ->
     {ff_proto_identity_thrift, 'Management'};
 get_service_modname(fistful_wallet) ->

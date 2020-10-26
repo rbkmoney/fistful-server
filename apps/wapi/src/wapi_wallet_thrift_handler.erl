@@ -43,6 +43,48 @@ handle_request(OperationID, Req, SwagContext, Opts) ->
 -spec process_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
     request_result().
 
+%% Providers
+process_request('ListProviders', #{'residence' := Residence}, Context, _Opts) ->
+    Providers = wapi_provider_backend:get_providers(ff_maybe:to_list(Residence), Context),
+    wapi_handler_utils:reply_ok(200, Providers);
+process_request('GetProvider', #{'providerID' := Id}, Context, _Opts) ->
+    case wapi_provider_backend:get_provider(Id, Context) of
+        {ok, Provider}    -> wapi_handler_utils:reply_ok(200, Provider);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('ListProviderIdentityClasses', #{'providerID' := Id}, Context, _Opts) ->
+    case wapi_provider_backend:get_provider_identity_classes(Id, Context) of
+        {ok, Classes}     -> wapi_handler_utils:reply_ok(200, Classes);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('GetProviderIdentityClass', #{
+    'providerID'      := ProviderId,
+    'identityClassID' := ClassId
+}, Context, _Opts) ->
+    case wapi_provider_backend:get_provider_identity_class(ProviderId, ClassId, Context) of
+        {ok, Class}       -> wapi_handler_utils:reply_ok(200, Class);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('ListProviderIdentityLevels', #{
+    'providerID'      := _ProviderId,
+    'identityClassID' := _ClassId
+}, _Context, _Opts) ->
+    %% case wapi_provider_backend:get_provider_identity_class_levels(ProviderId, ClassId, Context) of
+    %%     {ok, Levels}      -> wapi_handler_utils:reply_ok(200, Levels);
+    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    %% end;
+    not_implemented();
+process_request('GetProviderIdentityLevel', #{
+    'providerID'      := _ProviderId,
+    'identityClassID' := _ClassId,
+    'identityLevelID' := _LevelId
+}, _Context, _Opts) ->
+    %% case wapi_provider_backend:get_provider_identity_class_level(ProviderId, ClassId, LevelId, Context) of
+    %%     {ok, Level}       -> wapi_handler_utils:reply_ok(200, Level);
+    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    %% end;
+    not_implemented();
+
 %% Identities
 process_request('ListIdentities', Params, Context, _Opts) ->
     case wapi_stat_backend:list_identities(Params, Context) of
@@ -455,9 +497,15 @@ process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Conte
         {error, {wallet_from, unauthorized}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet sender">>));
+        {error, {wallet_from, inaccessible}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>));
         {error, {wallet_to, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet receiver">>));
+        {error, {wallet_to, inaccessible}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>));
         {error, not_allowed_currency} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
@@ -502,7 +550,10 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters':= Params}, Context, _Opt
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
         {error, {p2p_transfer, cash_range_exceeded}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>))
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
+        {error, {p2p_transfer, operation_not_permitted}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Operation not permitted">>))
     end;
 
 process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Context, _Opts) ->
@@ -844,6 +895,10 @@ get_expiration_deadline(Expiration) ->
         false ->
             {error, expired}
     end.
+
+-spec not_implemented() -> no_return().
+not_implemented() ->
+    wapi_handler_utils:throw_not_implemented().
 
 -define(DEFAULT_URL_LIFETIME, 60). % seconds
 

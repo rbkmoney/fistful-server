@@ -321,7 +321,7 @@ events_collect(p2p_session, undefined, #'EventRange'{'after' = Cursor}, _Handler
     {ok, {Acc, Cursor}};
 events_collect(_Entity, _EntityID, #'EventRange'{'after' = Cursor, 'limit' = Limit}, _HandlerContext, Acc)
     when Limit =< 0 ->
-        % 'Limit' not atom (undefined)
+        % Limit < 0 < undefined
         {ok, {Acc, Cursor}};
 events_collect(Entity, EntityID, EventRange, HandlerContext, Acc) ->
     #'EventRange'{'after' = Cursor} = EventRange,
@@ -330,9 +330,8 @@ events_collect(Entity, EntityID, EventRange, HandlerContext, Acc) ->
         {ok, {[], _}} ->
             {ok, {Acc, Cursor}};
         {ok, {Events, NewCursor}} ->
-            % 'Limit' is atom (undefined), or
-            % if the service returned fewer events than the 'Limit', then it has no more events
-            %   fistful-server/pull/322#discussion_r510780329
+            % ignore Limit here, because Limit is 'undefined' or if the service returned fewer events
+            % than the Limit, then it has no more events. pr:322#discussion_r510780329
             %   NewEventRange = events_range(NewCursor, Limit - length(Events)),
             {ok, {Acc ++ Events, NewCursor}};
         {error, _} = Error ->
@@ -368,7 +367,7 @@ events_filter(#p2p_session_Event{change = {ui,  #p2p_session_UserInteractionChan
         _Other ->
             % {created ...}
             % {status_changed, ... status = {finished, ...}}
-            % Take created & finished user interaction events
+            % take created & finished user interaction events
             true
     end;
 events_filter(_Event) ->

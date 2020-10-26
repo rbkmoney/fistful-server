@@ -95,7 +95,7 @@
 %% API
 
 -export([create/1]).
-
+-export([get/1]).
 -export([is_accessible/1]).
 -export([authorize/1]).
 -export([apply_event/2]).
@@ -193,6 +193,11 @@ create(Params) ->
         [{account, Ev} || Ev <- Events] ++
         [{status_changed, unauthorized}]
     end).
+
+-spec get(machine()) ->
+    source_state().
+get(Machine) ->
+    ff_source_machine:source(Machine).
 
 -spec is_accessible(source_state()) ->
     {ok, accessible} |

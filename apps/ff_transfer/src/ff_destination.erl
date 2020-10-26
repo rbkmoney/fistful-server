@@ -171,7 +171,7 @@
 %% API
 
 -export([create/1]).
-
+-export([get/1]).
 -export([is_accessible/1]).
 -export([authorize/1]).
 -export([apply_event/2]).
@@ -319,6 +319,11 @@ create(Params) ->
         [{account, Ev} || Ev <- Events] ++
         [{status_changed, unauthorized}]
     end).
+
+-spec get(machine()) ->
+    destination_state().
+get(Machine) ->
+    ff_destination_machine:destination(Machine).
 
 -spec is_accessible(destination_state()) ->
     {ok, accessible} |

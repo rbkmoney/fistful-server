@@ -238,6 +238,10 @@ maybe_migrate({created, Source = #{version := 1}}, MigrateParams) ->
         version => 2,
         created_at => CreatedAt
     }}, MigrateParams);
+maybe_migrate({created, Source = #{resource := _, name := _}}, MigrateParams) ->
+    maybe_migrate({created, genlib_map:compact(Source#{
+        version => 1
+    })}, MigrateParams);
 
 %% Other events
 maybe_migrate(Event, _MigrateParams) ->

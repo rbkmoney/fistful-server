@@ -104,7 +104,7 @@
     account     := account() | undefined,
     resource    := resource(),
     name        := name(),
-    status      := status() | undefined,
+    status      => status(),
     created_at  => timestamp(),
     external_id => id(),
     metadata    => metadata()
@@ -113,19 +113,17 @@
 -type params() :: #{
     id          := id(),
     identity    := ff_identity:id(),
-    name        := binary(),
+    name        := name(),
     currency    := ff_currency:id(),
     resource    := resource(),
     external_id => id(),
     metadata    => metadata()
 }.
 
--type machine() :: ff_destination_machine:st().
 -type event() ::
     {created, destination_state()} |
     {account, ff_account:event()} |
     {status_changed, status()}.
--type timestamped_event() :: {integer(), ff_machine:timestamped_event(event())}.
 -type legacy_event() :: any().
 
 -type create_error() ::
@@ -135,7 +133,6 @@
     {identity, ff_party:inaccessibility()}.
 
 -export_type([id/0]).
--export_type([machine/0]).
 -export_type([destination/0]).
 -export_type([destination_state/0]).
 -export_type([status/0]).
@@ -145,7 +142,6 @@
 -export_type([resource_full/0]).
 -export_type([params/0]).
 -export_type([event/0]).
--export_type([timestamped_event/0]).
 -export_type([create_error/0]).
 -export_type([exp_date/0]).
 
@@ -169,7 +165,6 @@
 %% API
 
 -export([create/1]).
--export([get/1]).
 -export([is_accessible/1]).
 -export([authorize/1]).
 -export([apply_event/2]).
@@ -183,7 +178,7 @@
 %% Accessors
 
 -spec id(destination_state()) ->
-    id().
+    id() | undefined.
 -spec name(destination_state()) ->
     name().
 -spec account(destination_state()) ->
@@ -317,11 +312,6 @@ create(Params) ->
         [{account, Ev} || Ev <- Events] ++
         [{status_changed, unauthorized}]
     end).
-
--spec get(machine()) ->
-    destination_state().
-get(Machine) ->
-    ff_destination_machine:destination(Machine).
 
 -spec is_accessible(destination_state()) ->
     {ok, accessible} |

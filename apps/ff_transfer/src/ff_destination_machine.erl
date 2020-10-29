@@ -9,6 +9,9 @@
 -type id() :: machinery:id().
 -type ctx() :: ff_entity_context:context().
 -type destination() :: ff_destination:destination_state().
+-type change() :: ff_destination:event().
+-type event() :: {integer(), ff_machine:timestamped_event(change())}.
+-type events() :: [event()].
 -type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type params() :: ff_destination:params().
@@ -19,6 +22,7 @@
 
 -export_type([id/0]).
 -export_type([st/0]).
+-export_type([event/0]).
 -export_type([repair_error/0]).
 -export_type([repair_response/0]).
 -export_type([params/0]).
@@ -56,9 +60,8 @@
     ok |
     {error, ff_destination:create_error() | exists}.
 
-create(Params, Ctx) ->
+create(#{id := ID} = Params, Ctx) ->
     do(fun () ->
-        #{id := ID} = Params,
         Events = unwrap(ff_destination:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
@@ -76,7 +79,7 @@ get(ID, {After, Limit}) ->
     ff_machine:get(ff_destination, ?NS, ID, {After, Limit, forward}).
 
 -spec events(id(), event_range()) ->
-    {ok, [ff_destination:timestamped_event()]} |
+    {ok, events()} |
     {error, notfound}.
 
 events(ID, {After, Limit}) ->
@@ -101,15 +104,12 @@ ctx(St) ->
 
 %% Machinery
 
--type event() ::
-    ff_destination:event().
-
--type machine()      :: ff_machine:machine(event()).
--type result()       :: ff_machine:result(event()).
+-type machine()      :: ff_machine:machine(change()).
+-type result()       :: ff_machine:result(change()).
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
--spec init({[event()], ctx()}, machine(), _, handler_opts()) ->
+-spec init({[change()], ctx()}, machine(), _, handler_opts()) ->
     result().
 
 init({Events, Ctx}, #{}, _, _Opts) ->

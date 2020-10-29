@@ -36,7 +36,7 @@
     account     := account() | undefined,
     resource    := resource(),
     name        := name(),
-    status      := status() | undefined,
+    status      => status(),
     created_at  => timestamp(),
     external_id => id(),
     metadata    => metadata()
@@ -45,19 +45,17 @@
 -type params() :: #{
     id          := id(),
     identity    := ff_identity:id(),
-    name        := binary(),
+    name        := name(),
     currency    := ff_currency:id(),
     resource    := resource(),
     external_id => id(),
     metadata    => metadata()
 }.
 
--type machine() :: ff_source_machine:st().
 -type event() ::
     {created, source_state()} |
     {account, ff_account:event()} |
     {status_changed, status()}.
--type timestamped_event() :: {integer(), ff_machine:timestamped_event(event())}.
 -type legacy_event() :: any().
 
 -type create_error() ::
@@ -67,14 +65,12 @@
     {identity, ff_party:inaccessibility()}.
 
 -export_type([id/0]).
--export_type([machine/0]).
 -export_type([source/0]).
 -export_type([source_state/0]).
 -export_type([status/0]).
 -export_type([resource/0]).
 -export_type([params/0]).
 -export_type([event/0]).
--export_type([timestamped_event/0]).
 -export_type([create_error/0]).
 
 %% Accessors
@@ -93,12 +89,10 @@
 %% API
 
 -export([create/1]).
--export([get/1]).
 -export([is_accessible/1]).
 -export([authorize/1]).
 -export([apply_event/2]).
 -export([maybe_migrate/2]).
--export([maybe_migrate_resource/1]).
 
 %% Pipeline
 
@@ -107,7 +101,7 @@
 %% Accessors
 
 -spec id(source_state()) ->
-    id().
+    id() | undefined.
 -spec name(source_state()) ->
     name().
 -spec account(source_state()) ->
@@ -192,11 +186,6 @@ create(Params) ->
         [{status_changed, unauthorized}]
     end).
 
--spec get(machine()) ->
-    source_state().
-get(Machine) ->
-    ff_source_machine:source(Machine).
-
 -spec is_accessible(source_state()) ->
     {ok, accessible} |
     {error, ff_party:inaccessibility()}.
@@ -230,10 +219,9 @@ apply_event({account, Ev}, Source) ->
 
 maybe_migrate(Event = {created, #{version := ?ACTUAL_FORMAT_VERSION}}, _MigrateParams) ->
     Event;
-maybe_migrate({created, Source = #{version := 3, name := Name}}, MigrateParams) ->
+maybe_migrate({created, Source = #{version := 3}}, MigrateParams) ->
     maybe_migrate({created, Source#{
-        version => 4,
-        name => maybe_migrate_name(Name)
+        version => 4
     }}, MigrateParams);
 maybe_migrate({created, Source = #{version := 2}}, MigrateParams) ->
     Context = maps:get(ctx, MigrateParams, undefined),
@@ -250,42 +238,7 @@ maybe_migrate({created, Source = #{version := 1}}, MigrateParams) ->
         version => 2,
         created_at => CreatedAt
     }}, MigrateParams);
-maybe_migrate({created, Source = #{
-        resource    := Resource,
-        name        := Name
-}}, MigrateParams) ->
-    NewSource = genlib_map:compact(#{
-        version     => 1,
-        resource    => maybe_migrate_resource(Resource),
-        name        => Name,
-        external_id => maps:get(external_id, Source, undefined)
-    }),
-    maybe_migrate({created, NewSource}, MigrateParams);
 
 %% Other events
 maybe_migrate(Event, _MigrateParams) ->
     Event.
-
--spec maybe_migrate_resource(any()) ->
-    any().
-maybe_migrate_resource(Resource) ->
-    Resource.
-
-maybe_migrate_name(Name) ->
-    re:replace(Name, "\\d{12,19}", <<"">>, [global, {return, binary}]).
-
-%% Tests
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
--spec test() -> _.
-
--spec name_migration_test() -> _.
-name_migration_test() ->
-    ?assertEqual(<<"sd">>, maybe_migrate_name(<<"sd123123123123123">>)),
-    ?assertEqual(<<"sd1231231231sd23123">>, maybe_migrate_name(<<"sd1231231231sd23123">>)),
-    ?assertEqual(<<"sdds123sd">>, maybe_migrate_name(<<"sd123123123123ds123sd">>)),
-    ?assertEqual(<<"sdsd">>, maybe_migrate_name(<<"sd123123123123123sd">>)),
-    ?assertEqual(<<"sd">>, maybe_migrate_name(<<"123123123123123sd">>)).
-
--endif.

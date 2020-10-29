@@ -57,7 +57,7 @@
 -define(CONTINUATION_SESSION, <<"p2p_session_event_id">>).
 
 -type event() :: #p2p_transfer_Event{} | #p2p_session_Event{}.
--type event_entity() :: p2p_transfer | p2p_session.
+-type event_service() :: p2p_transfer | p2p_session.
 -type event_range() :: #'EventRange'{}.
 -type event_id() :: ff_proto_base_thrift:'EventID'() | undefined.
 
@@ -309,9 +309,9 @@ continuation_token_cursor(p2p_transfer, DecodedToken) ->
 continuation_token_cursor(p2p_session, DecodedToken) ->
     maps:get(?CONTINUATION_SESSION, DecodedToken, undefined).
 
-%% collect events from Entity backend
+%% collect events from EventService backend
 
--spec events_collect(event_entity(), id() | undefined, event_range(), handler_context(), Acc0) ->
+-spec events_collect(event_service(), id() | undefined, event_range(), handler_context(), Acc0) ->
     {ok, {Acc1, event_id()}} | {error, {p2p_transfer, notfound}} when
         Acc0 :: [] | [event()],
         Acc1 :: [] | [event()].
@@ -319,41 +319,46 @@ continuation_token_cursor(p2p_session, DecodedToken) ->
 events_collect(p2p_session, undefined, #'EventRange'{'after' = Cursor}, _HandlerContext, Acc) ->
     % no session ID is not an error
     {ok, {Acc, Cursor}};
-events_collect(_Entity, _EntityID, #'EventRange'{'after' = Cursor, 'limit' = Limit}, _HandlerContext, Acc)
+events_collect(_EventService, _EntityID, #'EventRange'{'after' = Cursor, 'limit' = Limit}, _HandlerContext, Acc)
     when Limit =< 0 ->
         % Limit < 0 < undefined
         {ok, {Acc, Cursor}};
-events_collect(Entity, EntityID, EventRange, HandlerContext, Acc) ->
-    #'EventRange'{'after' = Cursor} = EventRange,
-    Request = {Entity, 'GetEvents', [EntityID, EventRange]},
+events_collect(EventService, EntityID, EventRange, HandlerContext, Acc) ->
+    #'EventRange'{'after' = Cursor, limit = Limit} = EventRange,
+    Request = {EventService, 'GetEvents', [EntityID, EventRange]},
     case events_request(Request, HandlerContext) of
-        {ok, {[], _}} ->
+        {ok, {_Received, [], undefined}} ->
+            % the service has not returned any events, the previous cursor must be kept
             {ok, {Acc, Cursor}};
-        {ok, {Events, NewCursor}} ->
-            % ignore Limit here, because Limit is 'undefined' or if the service returned fewer events
-            % than the Limit, then it has no more events. pr:322#discussion_r510780329
-            %   NewEventRange = events_range(NewCursor, Limit - length(Events)),
+        {ok, {Received, Events, NewCursor}} when Received < Limit ->
+            % service returned less events than requested
+            % or Limit is 'undefined' and service returned all events
             {ok, {Acc ++ Events, NewCursor}};
+        {ok, {_Received, Events, NewCursor}} ->
+            % Limit is reached but some events can be filtered out
+            NewEventRange = events_range(NewCursor, Limit - length(Events)),
+            events_collect(EventService, EntityID, NewEventRange, HandlerContext, Acc ++ Events);
         {error, _} = Error ->
             Error
     end.
 
 -spec events_request(Request, handler_context()) ->
-    {ok, {[] | [event()], event_id()}} | {error, {p2p_transfer, notfound}} when
-        Request :: {event_entity(), 'GetEvents', [id() | event_range()]}.
+    {ok, {integer(), [] | [event()], event_id()}} | {error, {p2p_transfer, notfound}} when
+        Request :: {event_service(), 'GetEvents', [id() | event_range()]}.
 
 events_request(Request, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, []} ->
-            {ok, {[], undefined}};
+            {ok, {0, [], undefined}};
         {ok, EventsThrift} ->
             Cursor = events_cursor(lists:last(EventsThrift)),
             Events = lists:filter(fun events_filter/1, EventsThrift),
-            {ok, {Events, Cursor}};
+            {ok, {length(EventsThrift), Events, Cursor}};
         {exception, #fistful_P2PNotFound{}} ->
             {error, {p2p_transfer, notfound}};
         {exception, #fistful_P2PSessionNotFound{}} ->
-            {ok, {[], undefined}}
+            % P2PSessionNotFound not found - not error
+            {ok, {0, [], undefined}}
     end.
 
 events_filter(#p2p_transfer_Event{change = {status_changed, _}}) ->
@@ -851,23 +856,44 @@ events_collect_test_() ->
                     status = {succeeded, #p2p_status_Succeeded{}}
                 }}
             } end,
+            Reject = fun(EventID) -> #p2p_transfer_Event{
+                event = EventID,
+                occured_at = <<"2020-05-25T12:34:56.123456Z">>,
+                change = {route, #p2p_transfer_RouteChange{}}
+            } end,
             meck:new([wapi_handler_utils], [passthrough]),
             %
-            % mock  Request: {Entity, 'GetEvents', [EntityID, EventRange]},
-            % use Entity to select the desired 'GetEvents' result
+            % mock  Request: {Service, 'GetEvents', [EntityID, EventRange]},
+            % use Service to select the desired 'GetEvents' result
             %
             meck:expect(wapi_handler_utils, service_call, fun
-                ({case_empty, _, _}, _) -> {ok, []};
-                ({case_one, _, _}, _) -> {ok, [Event(2)]};
-                ({case_one_after, _, [_, #'EventRange'{'after' = After}]}, _) -> {ok, [Event(After+1)]};
-                ({case_two, _, _}, _) -> {ok, [Event(2), Event(3)]};
-                ({case_transfer_not_found, _, _}, _) -> {exception, #fistful_P2PNotFound{}};
-                ({case_session_not_found, _, _}, _) -> {exception, #fistful_P2PSessionNotFound{}}
+                ({produce_empty, 'GetEvents', _Params}, _Context) ->
+                    {ok, []};
+                ({produce_triple, 'GetEvents', _Params}, _Context) ->
+                    {ok, [Event(N) || N <- lists:seq(1, 3)]};
+                ({produce_even, 'GetEvents', [_, EventRange]}, _Context) ->
+                    #'EventRange'{'after' = After, limit = Limit} = EventRange,
+                    {ok, [Event(N) || N <- lists:seq(After + 1, After + Limit), N rem 2 =:= 0]};
+                ({produce_reject, 'GetEvents', [_, EventRange]}, _Context) ->
+                    #'EventRange'{'after' = After, limit = Limit} = EventRange,
+                    {ok, [
+                        case N rem 2 of
+                            0 -> Reject(N);
+                            _ -> Event(N)
+                        end || N <- lists:seq(After + 1, After + Limit)
+                    ]};
+                ({produce_range, 'GetEvents', [_, EventRange]}, _Context) ->
+                    #'EventRange'{'after' = After, limit = Limit} = EventRange,
+                    {ok, [Event(N) || N <- lists:seq(After + 1, After + Limit)]};
+                ({transfer_not_found, 'GetEvents', _Params}, _Context) ->
+                    {exception, #fistful_P2PNotFound{}};
+                ({session_not_found, 'GetEvents', _Params}, _Context) ->
+                    {exception, #fistful_P2PSessionNotFound{}}
             end),
             {
                 % Test generator - call 'events_collect' function and compare with 'Expected' result
-                fun _Collect(Case, TransferID, EventRange, Acc, Expected) ->
-                    ?_assertEqual(Expected, events_collect(Case, TransferID, EventRange, #{}, Acc))
+                fun _Collect(Service, EntityID, EventRange, Acc, Expected) ->
+                    ?_assertEqual(Expected, events_collect(Service, EntityID, EventRange, #{}, Acc))
                 end,
                 % Pass event constructor to test cases
                 Event
@@ -878,45 +904,49 @@ events_collect_test_() ->
         end,
         fun({Collect, Event}) ->
             [
-                % no session
-                Collect(p2p_session, undefined, events_range(1),  [Event(1)],
-                    {ok, {[Event(1)], 1}}
+                % SessionID undefined is not an error
+                Collect(p2p_session, undefined, events_range(1),  [Event(0)],
+                    {ok, {[Event(0)], 1}}
                 ),
-                % zero range limit
-                Collect(any, <<>>, events_range(1, 0),  [Event(1)],
-                    {ok, {[Event(1)], 1}}
+                % Limit < 0 < undefined
+                Collect(any, <<>>, events_range(1, 0),  [],
+                    {ok, {[], 1}}
                 ),
-                % empty selection - keep the previous cursor
-                Collect(case_empty, <<>>, events_range(undefined),  [Event(1)],
-                    {ok, {[Event(1)], undefined}}
+                % Limit < 0 < undefined
+                Collect(any, <<>>, events_range(1, 0),  [Event(0)],
+                    {ok, {[Event(0)], 1}}
                 ),
-                % empty selection - keep the previous cursor
-                Collect(case_empty, <<>>, events_range(1),  [Event(1)],
-                    {ok, {[Event(1)], 1}}
+                % the service has not returned any events
+                Collect(produce_empty, <<>>, events_range(undefined),  [],
+                    {ok, {[], undefined}}
                 ),
-                % non numeric range limit
-                Collect(case_one, <<>>, events_range(0, undefined),  [Event(1)],
-                    {ok, {[Event(1), Event(2)], 2}}
+                % the service has not returned any events
+                Collect(produce_empty, <<>>, events_range(0, 1),  [],
+                    {ok, {[], 0}}
                 ),
-                % range limit: 2
-                Collect(case_one, <<>>, events_range(undefined, 2),  [Event(1)],
-                    {ok, {[Event(1), Event(2)], 2}}
+                % Limit is 'undefined' and service returned all events
+                Collect(produce_triple, <<>>, events_range(undefined),  [Event(0)],
+                    {ok, {[Event(0), Event(1), Event(2), Event(3)], 3}}
                 ),
-                % range limit: 2
-                Collect(case_two, <<>>, events_range(undefined, 2),  [Event(1)],
-                    {ok, {[Event(1), Event(2), Event(3)], 3}}
+                % or service returned less events than requested
+                Collect(produce_even, <<>>, events_range(0, 4),  [],
+                    {ok, {[Event(2), Event(4)], 4}}
                 ),
-                % range limit: 2, after: 3
-                Collect(case_one_after, <<>>, events_range(3, 2),  [Event(1)],
-                    {ok, {[Event(1), Event(4)], 4}}
+                % Limit is reached but some events can be filtered out
+                Collect(produce_reject, <<>>, events_range(0, 4),  [],
+                    {ok, {[Event(1), Event(3), Event(5), Event(7)], 7}}
+                ),
+                % Accumulate
+                Collect(produce_range, <<>>, events_range(1, 2),  [Event(0)],
+                    {ok, {[Event(0), Event(2), Event(3)], 3}}
                 ),
                 % transfer not found
-                Collect(case_transfer_not_found, <<>>, events_range(2),  [Event(1)],
+                Collect(transfer_not_found, <<>>, events_range(1),  [],
                     {error, {p2p_transfer, notfound}}
                 ),
-                % session not found - keep the previous cursor
-                Collect(case_session_not_found, <<>>, events_range(2),  [Event(1)],
-                    {ok, {[Event(1)], 2}}
+                % P2PSessionNotFound not found - not error
+                Collect(session_not_found, <<>>, events_range(1),  [],
+                    {ok, {[], 1}}
                 )
             ]
         end

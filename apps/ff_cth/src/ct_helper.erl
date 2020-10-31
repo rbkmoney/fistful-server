@@ -117,7 +117,8 @@ start_app(wapi = AppName) ->
             validation_opts => #{
                 custom_validator => wapi_swagger_validator
             }
-        }}
+        }},
+        {events_fetch_limit, 32}
     ]), #{}};
 
 start_app(wapi_woody_client = AppName) ->

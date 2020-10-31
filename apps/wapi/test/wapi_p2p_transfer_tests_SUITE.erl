@@ -51,7 +51,6 @@
 -define(DOMAIN, <<"common-api">>).
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
--define(EVENTS_FETCH_LIMIT, 16).
 
 -type test_case_name()  :: atom().
 -type config()          :: [{atom(), any()}].
@@ -158,29 +157,14 @@ end_per_group(_Group, _C) ->
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
-    C2 = [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1],
-    case Name of
-        get_events_ok ->
-            Limit = application:get_env(wapi, events_fetch_limit, undefined),
-            ok = application:set_env(wapi, events_fetch_limit, ?EVENTS_FETCH_LIMIT),
-            lists:keystore(events_fetch_limit, 1, C2, {events_fetch_limit, Limit});
-        _Other ->
-            C2
-    end.
+    [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
 -spec end_per_testcase(test_case_name(), config()) ->
     config().
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
-    case lists:keysearch(events_fetch_limit, 1, C) of
-        {value, {_, undefined}} ->
-            application:unset_env(wapi, events_fetch_limit);
-        {value, {_, Limit}} ->
-            application:set_env(wapi, events_fetch_limit, Limit);
-        _ ->
-            ok
-    end.
+    ok.
 
 
 %%% Tests
@@ -492,8 +476,9 @@ get_events_ok(C) ->
 
     {ok, #{<<"result">> := Result}} = get_events_call_api(C),
 
-    % EVENTS_FETCH_LIMIT is multiplied by two because the selection occurs twice - from session and transfer.
-    ?assertEqual(?EVENTS_FETCH_LIMIT * 2, erlang:length(Result)),
+    % Limit is multiplied by two because the selection occurs twice - from session and transfer.
+    {ok, Limit} = application:get_env(wapi, events_fetch_limit),
+    ?assertEqual(Limit * 2, erlang:length(Result)),
     [?assertMatch(#{<<"change">> := _}, Ev) || Ev <-  Result].
 
 -spec get_events_fail(config()) ->

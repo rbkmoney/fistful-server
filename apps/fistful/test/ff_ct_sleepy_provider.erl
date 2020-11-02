@@ -56,6 +56,10 @@
 -type timer() :: {deadline, binary()} | {timeout, integer()}.
 
 %%
+
+-define(DUMMY_QUOTE_ERROR_FATAL, {obj, #{{str, <<"test">>} => {str, <<"fatal">>}}}).
+
+%%
 %% API
 %%
 
@@ -102,6 +106,10 @@ get_quote(_Quote, _Options) ->
         transaction_info => transaction_info()
     }} when
         CallbackTag :: binary().
+handle_callback(_Callback, #{quote := #wthadpt_Quote{quote_data = QuoteData}}, _State, _Options) when
+    QuoteData =:= ?DUMMY_QUOTE_ERROR_FATAL
+->
+    erlang:error(spanish_inquisition);
 handle_callback(#{payload := Payload}, _Withdrawal, _State, _Options) ->
     {ok, #{
         intent => {finish, success},

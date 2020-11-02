@@ -4,6 +4,10 @@
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_withdrawals_provider_adapter_thrift.hrl").
 
+%% Accessors
+
+-export([id/1]).
+
 %% API
 
 -export([process_withdrawal/4]).
@@ -112,6 +116,15 @@
 -export_type([quote_params/0]).
 -export_type([quote_data/0]).
 -export_type([identity/0]).
+
+%%
+%% Accessors
+%%
+
+-spec id(withdrawal()) ->
+    binary().
+id(Withdrawal) ->
+    maps:get(id, Withdrawal).
 
 %%
 %% API

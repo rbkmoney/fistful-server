@@ -224,13 +224,18 @@ external_id(_Destination) ->
     undefined.
 
 -spec created_at(destination_state()) ->
-    ff_time:timestamp_ms().
-created_at(#{created_at := CreatedAt}) -> CreatedAt.
+    ff_time:timestamp_ms() | undefiend.
+created_at(#{created_at := CreatedAt}) ->
+    CreatedAt;
+created_at(_Destination) ->
+    undefined.
 
 -spec metadata(destination_state()) ->
     ff_entity_context:context() | undefined.
-metadata(#{metadata := Metadata}) -> Metadata;
-metadata(_Destination) -> undefined.
+metadata(#{metadata := Metadata}) ->
+    Metadata;
+metadata(_Destination) ->
+    undefined.
 
 -spec resource_full(destination_state()) ->
     {ok, resource_full()} |

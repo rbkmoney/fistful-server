@@ -147,13 +147,18 @@ external_id(_Source) ->
     undefined.
 
 -spec created_at(source_state()) ->
-    ff_time:timestamp_ms().
-created_at(#{created_at := CreatedAt}) -> CreatedAt.
+    ff_time:timestamp_ms() | undefiend.
+created_at(#{created_at := CreatedAt}) ->
+    CreatedAt;
+created_at(_Source) ->
+    undefined.
 
 -spec metadata(source_state()) ->
     ff_entity_context:context() | undefined.
-metadata(#{metadata := Metadata}) -> Metadata;
-metadata(_Source) -> undefined.
+metadata(#{metadata := Metadata}) ->
+    Metadata;
+metadata(_Source) ->
+    undefined.
 
 %% API
 
@@ -238,9 +243,15 @@ maybe_migrate({created, Source = #{version := 1}}, MigrateParams) ->
         version => 2,
         created_at => CreatedAt
     }}, MigrateParams);
-maybe_migrate({created, Source = #{resource := _, name := _}}, MigrateParams) ->
-    maybe_migrate({created, genlib_map:compact(Source#{
-        version => 1
+maybe_migrate({created, Source = #{
+        resource := Resource,
+        name := Name
+}}, MigrateParams) ->
+    maybe_migrate({created, genlib_map:compact(#{
+        version => 1,
+        resource => Resource,
+        name => Name,
+        external_id => maps:get(external_id, Source, undefined)
     })}, MigrateParams);
 
 %% Other events

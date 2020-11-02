@@ -615,7 +615,7 @@ session_repair_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
     SessionID = get_session_id(WithdrawalID),
-    ?assertEqual(<<"processing_callback">>, await_session_adapter_state(SessionID, <<"processing_callback">>)),
+    ?assertEqual(<<"callback_processing">>, await_session_adapter_state(SessionID, <<"callback_processing">>)),
     ?assertError({failed, _, _}, call_process_callback(Callback)),
     timer:sleep(3000),
     ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),

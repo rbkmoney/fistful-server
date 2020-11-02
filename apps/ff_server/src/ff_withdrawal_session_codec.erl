@@ -39,6 +39,8 @@ marshal(change, {created, Session}) ->
     {created, marshal(session, Session)};
 marshal(change, {next_state, AdapterState}) ->
     {next_state, marshal(msgpack, AdapterState)};
+marshal(change, {transaction_bound, TransactionInfo}) ->
+    {transaction_bound, #wthd_session_TransactionBoundChange{trx_info = marshal(transaction_info, TransactionInfo)}};
 marshal(change, {finished, SessionResult}) ->
     {finished, marshal(session_result, SessionResult)};
 marshal(change, {callback, CallbackChange}) ->
@@ -133,14 +135,14 @@ marshal(quote, #{
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
 
+marshal(session_result, success) ->
+    {success, #wthd_session_SessionResultSuccess{}};
 marshal(session_result, {success, TransactionInfo}) ->
-    {success, #wthd_session_SessionResultSuccess{
-        trx_info = marshal(transaction_info, TransactionInfo)
-    }};
+    %% for backward compatibility with events stored in DB - take TransactionInfo here.
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+    {success, #wthd_session_SessionResultSuccess{trx_info = marshal(transaction_info, TransactionInfo)}};
 marshal(session_result, {failed, Failure}) ->
-    {failed, #wthd_session_SessionResultFailed{
-        failure = ff_codec:marshal(failure, Failure)
-    }};
+    {failed, #wthd_session_SessionResultFailed{failure = ff_codec:marshal(failure, Failure)}};
 
 marshal(callback_change, #{tag := Tag, payload := Payload}) ->
     #wthd_session_CallbackChange{
@@ -189,6 +191,8 @@ unmarshal(change, {created, Session}) ->
     {created, unmarshal(session, Session)};
 unmarshal(change, {next_state, AdapterState}) ->
     {next_state, unmarshal(msgpack, AdapterState)};
+unmarshal(change, {transaction_bound, #wthd_session_TransactionBoundChange{trx_info = TransactionInfo}}) ->
+    {transaction_bound, unmarshal(transaction_info, TransactionInfo)};
 unmarshal(change, {finished, SessionResult}) ->
     {finished, unmarshal(session_result, SessionResult)};
 unmarshal(change, {callback, #wthd_session_CallbackChange{tag = Tag, payload = Payload}}) ->
@@ -218,6 +222,7 @@ unmarshal(session_status, {active, #wthd_session_SessionActive{}}) ->
     active;
 unmarshal(session_status, {finished, #wthd_session_SessionFinished{status = Result}}) ->
     {finished, unmarshal(session_finished_status, Result)};
+
 unmarshal(session_finished_status, {success, #wthd_session_SessionFinishedSuccess{}}) ->
     success;
 unmarshal(session_finished_status, {failed, #wthd_session_SessionFinishedFailed{failure = Failure}}) ->
@@ -287,8 +292,12 @@ unmarshal(quote, #wthd_session_Quote{
         quote_data => maybe_unmarshal(msgpack, Data)
     });
 
-unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = Trx}}) ->
-    {success, unmarshal(transaction_info, Trx)};
+unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = undefined}}) ->
+    success;
+unmarshal(session_result, {success, #wthd_session_SessionResultSuccess{trx_info = TransactionInfo}}) ->
+    %% for backward compatibility with events stored in DB - take TransactionInfo here.
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+    {success, unmarshal(transaction_info, TransactionInfo)};
 unmarshal(session_result, {failed, #wthd_session_SessionResultFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
 
@@ -329,3 +338,34 @@ get_legacy_provider_id(#{provider_legacy := Provider}) when is_binary(Provider) 
     Provider;
 get_legacy_provider_id(#{route := #{provider_id := Provider}}) when is_integer(Provider) ->
     genlib:to_binary(Provider - 300).
+
+%% TESTS
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() ->
+    _.
+
+-spec marshal_change_test_() ->
+    _.
+
+marshal_change_test_() ->
+    TransactionInfo = #{ id => <<"ID">>, extra => #{<<"Hello">> => <<"World">>} },
+    TransactionInfoThrift = marshal(transaction_info, TransactionInfo),
+    Changes = [
+        {finished, {success, TransactionInfo}},
+        {finished, success},
+        {transaction_bound, TransactionInfo}
+    ],
+    ChangesThrift = [
+        {finished, {success, #wthd_session_SessionResultSuccess{trx_info = TransactionInfoThrift}}},
+        {finished, {success, #wthd_session_SessionResultSuccess{}}},
+        {transaction_bound, #wthd_session_TransactionBoundChange{trx_info = TransactionInfoThrift}}
+    ],
+    [
+        ?_assertEqual(ChangesThrift, marshal({list, change}, Changes)),
+        ?_assertEqual(Changes, unmarshal({list, change}, ChangesThrift))
+    ].
+
+-endif.

@@ -1263,8 +1263,8 @@ session_id(T) ->
             SessionID
     end.
 
--spec session_result(withdrawal_state()) -> session_result() | unknown | undefined.
-session_result(Withdrawal) ->
+-spec get_session_result(withdrawal_state()) -> session_result() | unknown | undefined.
+get_session_result(Withdrawal) ->
     case get_current_session(Withdrawal) of
         undefined ->
             undefined;
@@ -1289,6 +1289,8 @@ get_current_session_status_(Withdrawal) ->
     case Session of
         undefined ->
             undefined;
+        #{result := success} ->
+            succeeded;
         #{result := {success, _}} ->
             succeeded;
         #{result := {failed, _}} ->
@@ -1696,7 +1698,7 @@ build_failure({inconsistent_quote_route, {Type, FoundID}}, Withdrawal) ->
         reason => genlib:format(Details)
     };
 build_failure(session, Withdrawal) ->
-    Result = session_result(Withdrawal),
+    Result = get_session_result(Withdrawal),
     {failed, Failure} = Result,
     Failure.
 

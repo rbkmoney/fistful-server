@@ -14,6 +14,7 @@
 -export([route/1]).
 -export([withdrawal/1]).
 -export([result/1]).
+-export([transaction_info/1]).
 
 %% API
 
@@ -35,14 +36,17 @@
 %%
 
 -define(ACTUAL_FORMAT_VERSION, 5).
+
 -type session_state() :: #{
-    id            := id(),
-    status        := status(),
-    withdrawal    := withdrawal(),
-    route         := route(),
+    id := id(),
+    status := status(),
+    withdrawal := withdrawal(),
+    route := route(),
     adapter_state => ff_adapter:state(),
-    callbacks     => callbacks_index(),
-    result        => session_result(),
+    callbacks => callbacks_index(),
+    result => session_result(),
+    % For validate outstanding TransactionsInfo
+    transaction_info => transaction_info(),
 
     % Deprecated. Remove after MSPF-560 finish
     provider_legacy => binary() | ff_payouts_provider:id()
@@ -59,14 +63,13 @@
     provider_legacy => binary() | ff_payouts_provider:id()
 }.
 
--type session_result() :: {success, ff_adapter_withdrawal:transaction_info()}
-                        | {failed, ff_adapter_withdrawal:failure()}.
-
--type status() :: active
-    | {finished, success | {failed, ff_adapter_withdrawal:failure()}}.
+-type transaction_info() :: ff_adapter_withdrawal:transaction_info().
+-type session_result() :: success | {success, transaction_info()} | {failed, ff_adapter_withdrawal:failure()}.
+-type status() :: active | {finished, success | {failed, ff_adapter_withdrawal:failure()}}.
 
 -type event() :: {created, session()}
     | {next_state, ff_adapter:state()}
+    | {transaction_bound, transaction_info()}
     | {finished, session_result()}
     | wrapped_callback_event().
 
@@ -178,8 +181,16 @@ callbacks_index(Session) ->
 -spec result(session_state()) ->
     session_result() | undefined.
 
-result(Session) ->
-    maps:get(result, Session, undefined).
+result(#{result := Result}) ->
+    Result;
+result(_) ->
+    undefined.
+
+-spec transaction_info(session_state()) ->
+    transaction_info() | undefined.
+
+transaction_info(Session = #{}) ->
+    maps:get(transaction_info, Session, undefined).
 
 %%
 %% API
@@ -198,9 +209,16 @@ apply_event({created, Session}, undefined) ->
     Session;
 apply_event({next_state, AdapterState}, Session) ->
     Session#{adapter_state => AdapterState};
-apply_event({finished, Result}, Session0) ->
-    Session1 = Session0#{result => Result},
-    set_session_status({finished, Result}, Session1);
+apply_event({transaction_bound, TransactionInfo}, Session) ->
+    Session#{transaction_info => TransactionInfo};
+apply_event({finished, success = Result}, Session) ->
+    Session#{status => {finished, success}, result => Result};
+apply_event({finished, {success, TransactionInfo} = Result}, Session) ->
+    %% for backward compatibility with events stored in DB - take TransactionInfo here.
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+    Session#{status => {finished, success}, result => Result, transaction_info => TransactionInfo};
+apply_event({finished, {failed, _} = Result} = Status, Session) ->
+    Session#{status => Status, result => Result};
 apply_event({callback, _Ev} = WrappedEvent, Session) ->
     Callbacks0 = callbacks_index(Session),
     Callbacks1 = ff_withdrawal_callback_utils:apply_event(WrappedEvent, Callbacks0),
@@ -221,15 +239,26 @@ process_session(#{status := {finished, _}, id := ID, result := Result, withdrawa
 process_session(#{status := active, withdrawal := Withdrawal, route := Route} = SessionState) ->
     {Adapter, AdapterOpts} = get_adapter_with_opts(Route),
     ASt = maps:get(adapter_state, SessionState, undefined),
-    case ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts) of
-        {ok, Intent, ASt} ->
-            process_adapter_intent(Intent, SessionState);
-        {ok, Intent, NextASt} ->
-            Events = process_next_state(NextASt),
-            process_adapter_intent(Intent, SessionState, Events);
-        {ok, Intent} ->
-            process_adapter_intent(Intent, SessionState)
-    end.
+    {ok, ProcessResult} = ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts),
+    #{intent := Intent} = ProcessResult,
+    Events0 = process_next_state(ProcessResult, []),
+    Events1 = process_transaction_info(ProcessResult, Events0, SessionState),
+    process_adapter_intent(Intent, SessionState, Events1).
+
+process_transaction_info(#{transaction_info := TrxInfo}, Events, SessionState) ->
+    ok = assert_transaction_info(TrxInfo, transaction_info(SessionState)),
+    Events ++ [{transaction_bound, TrxInfo}];
+process_transaction_info(_, Events, _Session) ->
+    Events.
+
+%% Only one static TransactionInfo within one session
+
+assert_transaction_info(_NewTrxInfo, undefined) ->
+    ok;
+assert_transaction_info(TrxInfo, TrxInfo) ->
+    ok;
+assert_transaction_info(NewTrxInfo, _TrxInfo) ->
+    erlang:error({transaction_info_is_different, NewTrxInfo}).
 
 -spec set_session_result(session_result(), session_state()) ->
     process_result().
@@ -264,13 +293,14 @@ do_process_callback(CallbackParams, Callback, Session) ->
     {Adapter, AdapterOpts} = get_adapter_with_opts(route(Session)),
     Withdrawal = withdrawal(Session),
     AdapterState = adapter_state(Session),
-    {ok, #{
-        intent := Intent,
-        response := Response
-    } = Result} = ff_adapter_withdrawal:handle_callback(Adapter, CallbackParams, Withdrawal, AdapterState, AdapterOpts),
-    Events0 = process_next_state(genlib_map:get(next_state, Result)),
-    Events1 = ff_withdrawal_callback_utils:process_response(Response, Callback),
-    {ok, {Response, process_adapter_intent(Intent, Session, Events0 ++ Events1)}}.
+    {ok, HandleCallbackResult} = ff_adapter_withdrawal:handle_callback(
+        Adapter, CallbackParams, Withdrawal, AdapterState, AdapterOpts
+    ),
+    #{intent := Intent, response := Response} = HandleCallbackResult,
+    Events0 = ff_withdrawal_callback_utils:process_response(Response, Callback),
+    Events1 = process_next_state(HandleCallbackResult, Events0),
+    Events2 = process_transaction_info(HandleCallbackResult, Events1, Session),
+    {ok, {Response, process_adapter_intent(Intent, Session, Events2)}}.
 
 make_session_finish_params(Session) ->
     {_Adapter, AdapterOpts} = get_adapter_with_opts(route(Session)),
@@ -280,15 +310,19 @@ make_session_finish_params(Session) ->
         opts => AdapterOpts
     }.
 
-process_next_state(undefined) ->
-    [];
-process_next_state(NextASt) ->
-    [{next_state, NextASt}].
+process_next_state(#{next_state := NextState}, Events) ->
+    Events ++ [{next_state, NextState}];
+process_next_state(_, Events) ->
+    Events.
 
 process_adapter_intent(Intent, Session, Events0) ->
     {Action, Events1} = process_adapter_intent(Intent, Session),
     {Action, Events0 ++ Events1}.
 
+process_adapter_intent({finish, {success, _TransactionInfo}}, _Session) ->
+    %% we ignore TransactionInfo here
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+    {continue, [{finished, success}]};
 process_adapter_intent({finish, Result}, _Session) ->
     {continue, [{finished, Result}]};
 process_adapter_intent({sleep, #{timer := Timer, tag := Tag}}, Session) ->
@@ -371,12 +405,6 @@ create_adapter_withdrawal(#{id := SesID, sender := Sender, receiver := Receiver}
         id => WdthID,
         session_id => SesID
     }.
-
--spec set_session_status({finished, session_result()}, session_state()) -> session_state().
-set_session_status({finished, {success, _}}, SessionState) ->
-    SessionState#{status => {finished, success}};
-set_session_status(Status = {finished, {failed, _}}, SessionState) ->
-    SessionState#{status => Status}.
 
 -spec set_callbacks_index(callbacks_index(), session_state()) -> session_state().
 set_callbacks_index(Callbacks, Session) ->

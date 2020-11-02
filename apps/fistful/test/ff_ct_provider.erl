@@ -55,6 +55,10 @@
 -record(state, {}).
 -type state() :: #state{}.
 
+-type transaction_info()      :: ff_adapter:transaction_info().
+-type status() :: {success, transaction_info()} | {failure, failure()}.
+-type timer() :: {deadline, binary()} | {timeout, integer()}.
+
 %%
 %% API
 %%
@@ -74,22 +78,31 @@ start(Opts) ->
 %%
 
 -spec process_withdrawal(withdrawal(), state(), map()) ->
-    {ok, Intent, NewState} when
-        Intent :: {finish, Status} | {sleep, Timer},
-        NewState :: state(),
-        Status :: {success, TrxInfo} | {failure, failure()},
-        Timer :: {deadline, binary()} | {timeout, integer()},
-        TrxInfo :: #{id => binary()}.
+    {ok, #{
+        intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
+        next_state  => state(),
+        transaction_info => transaction_info()
+    }} when
+        CallbackTag :: binary().
 process_withdrawal(#{quote := #wthadpt_Quote{quote_data = QuoteData}}, State, _Options) when
     QuoteData =:= ?DUMMY_QUOTE_ERROR
 ->
-    {ok, {finish, {failure, <<"test_error">>}}, State};
+    {ok, #{
+        intent => {finish, {failure, <<"test_error">>}},
+        next_state => State
+    }};
 process_withdrawal(#{quote := #wthadpt_Quote{quote_data = QuoteData}}, State, _Options) when
     QuoteData =:= ?DUMMY_QUOTE
 ->
-    {ok, {finish, {success, #{id => <<"test">>}}}, State};
+    {ok, #{
+        intent => {finish, {success, #{id => <<"test">>}}},
+        next_state => State
+    }};
 process_withdrawal(_Withdrawal, State, _Options) ->
-    {ok, {finish, {success, #{id => <<"test">>}}}, State}.
+    {ok, #{
+        intent => {finish, {success, #{id => <<"test">>}}},
+        next_state => State
+    }}.
 
 -spec get_quote(quote_params(), map()) ->
     {ok, quote()}.
@@ -107,14 +120,13 @@ get_quote(#{
     }}.
 
 -spec handle_callback(callback(), withdrawal(), state(), map()) ->
-    {ok, Intent, NewState, Response} when
-        Intent :: {finish, Status} | {sleep, Timer} | {sleep, Timer, CallbackTag},
-        NewState :: state(),
-        Response :: any(),
-        Status :: {success, TrxInfo} | {failure, failure()},
-        Timer :: {deadline, binary()} | {timeout, integer()},
-        CallbackTag :: binary(),
-        TrxInfo :: #{id => binary()}.
+    {ok, #{
+        intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
+        response := any(),
+        next_state  => state(),
+        transaction_info => transaction_info()
+    }} when
+        CallbackTag :: binary().
 handle_callback(_Callback, _Withdrawal, _State, _Options) ->
     erlang:error(not_implemented).
 

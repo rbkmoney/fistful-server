@@ -222,13 +222,8 @@ compute_retry_timer(St) ->
     Now = machinery_time:now(),
     Updated = ff_machine:updated(St),
     Deadline = compute_retry_deadline(Updated),
-    case check_deadline(Now, Deadline) of
-        ok ->
-            Timeout = compute_next_timeout(Now, Updated),
-            check_next_timeout(Timeout, Now, Deadline);
-        {error, _} = Error ->
-            Error
-    end.
+    Timeout = compute_next_timeout(Now, Updated),
+    check_next_timeout(Timeout, Now, Deadline).
 
 -spec compute_retry_deadline(machinery:timestamp()) ->
     machinery:timestamp().

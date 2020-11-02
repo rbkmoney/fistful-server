@@ -101,7 +101,7 @@ marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
 
 marshal(timestamped_change, {ev, Timestamp, Change}) ->
-   #wthd_TimestampedChange{
+    #wthd_TimestampedChange{
         change = marshal(change, Change),
         occured_at = ff_codec:marshal(timestamp, Timestamp)
     };
@@ -162,11 +162,17 @@ marshal(session_event, started) ->
 marshal(session_event, {finished, Result}) ->
     {finished, #wthd_SessionFinished{result = marshal(session_result, Result)}};
 
-marshal(session_result, {success, TrxInfo}) ->
-    MarshaledTrxInfo = ff_withdrawal_session_codec:marshal(transaction_info, TrxInfo),
-    {succeeded, #wthd_SessionSucceeded{trx_info = MarshaledTrxInfo}};
+marshal(session_result, success) ->
+    {succeeded, #wthd_SessionSucceeded{}};
+marshal(session_result, {success, TransactionInfo}) ->
+    %% for backward compatibility with events stored in DB - take TransactionInfo here.
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+    {succeeded, #wthd_SessionSucceeded{trx_info = marshal(transaction_info, TransactionInfo)}};
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_SessionFailed{failure = ff_codec:marshal(failure, Failure)}};
+
+marshal(transaction_info, TrxInfo) ->
+    ff_withdrawal_session_codec:marshal(transaction_info, TrxInfo);
 
 marshal(session_state, Session) ->
     #wthd_SessionState{
@@ -278,10 +284,18 @@ unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {finished, Finis
     #wthd_SessionFinished{result = Result} = Finished,
     {session_finished, {unmarshal(id, ID), unmarshal(session_result, Result)}};
 
-unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = TrxInfo}}) ->
-    {success, ff_withdrawal_session_codec:unmarshal(transaction_info, TrxInfo)};
+
+unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = undefined}}) ->
+    success;
+unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = TransactionInfo}}) ->
+    %% for backward compatibility with events stored in DB - take TransactionInfo here.
+    %% @see ff_adapter_withdrawal:rebind_transaction_info/1
+    {success, unmarshal(transaction_info, TransactionInfo)};
 unmarshal(session_result, {failed, #wthd_SessionFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
+
+unmarshal(transaction_info, TrxInfo) ->
+    ff_withdrawal_session_codec:unmarshal(transaction_info, TrxInfo);
 
 unmarshal(session_state, Session) ->
     genlib_map:compact(#{
@@ -428,5 +442,23 @@ quote_symmetry_test() ->
         operation_timestamp = <<"2020-01-01T01:00:00Z">>
     },
     ?assertEqual(In, marshal(quote, unmarshal(quote, In))).
+
+
+-spec marshal_session_result_test_() ->  _.
+marshal_session_result_test_() ->
+    TransactionInfo = #{ id => <<"ID">>, extra => #{<<"Hello">> => <<"World">>} },
+    TransactionInfoThrift = marshal(transaction_info, TransactionInfo),
+    Results = [
+        {success, TransactionInfo},
+        success
+    ],
+    ResultsThrift = [
+        {succeeded, #wthd_SessionSucceeded{trx_info = TransactionInfoThrift}},
+        {succeeded, #wthd_SessionSucceeded{}}
+    ],
+    [
+        ?_assertEqual(ResultsThrift, marshal({list, session_result}, Results)),
+        ?_assertEqual(Results, unmarshal({list, session_result}, ResultsThrift))
+    ].
 
 -endif.

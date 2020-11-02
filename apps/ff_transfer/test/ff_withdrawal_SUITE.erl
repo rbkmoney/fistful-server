@@ -573,9 +573,11 @@ provider_callback_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
     SessionID = get_session_id(WithdrawalID),
-    ?assertEqual(<<"processing_callback">>, await_session_adapter_state(SessionID, <<"processing_callback">>)),
+    ?assertEqual(<<"callback_processing">>, await_session_adapter_state(SessionID, <<"callback_processing">>)),
+    ?assertMatch(#{id := <<"SleepyID">>, extra := #{}}, get_session_transaction_info(SessionID)),
     ?assertEqual({ok, #{payload => CallbackPayload}}, call_process_callback(Callback)),
     ?assertEqual(<<"callback_finished">>, await_session_adapter_state(SessionID, <<"callback_finished">>)),
+    ?assertMatch(#{id := <<"SleepyID">>, extra := #{}}, get_session_transaction_info(SessionID)),
     ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),
     ?assertEqual({ok, #{payload => CallbackPayload}}, call_process_callback(Callback)),
     % Wait ff_ct_sleepy_provider timeout
@@ -690,6 +692,10 @@ await_final_withdrawal_status(WithdrawalID) ->
         genlib_retry:linear(20, 1000)
     ),
     get_withdrawal_status(WithdrawalID).
+
+get_session_transaction_info(SessionID) ->
+    Session = get_session(SessionID),
+    ff_withdrawal_session:transaction_info(Session).
 
 create_party(_C) ->
     ID = genlib:bsuuid(),

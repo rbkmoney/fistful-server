@@ -497,9 +497,15 @@ process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Conte
         {error, {wallet_from, unauthorized}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet sender">>));
+        {error, {wallet_from, inaccessible}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>));
         {error, {wallet_to, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet receiver">>));
+        {error, {wallet_to, inaccessible}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>));
         {error, not_allowed_currency} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
@@ -544,7 +550,10 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters':= Params}, Context, _Opt
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
         {error, {p2p_transfer, cash_range_exceeded}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>))
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
+        {error, {p2p_transfer, operation_not_permitted}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Operation not permitted">>))
     end;
 
 process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Context, _Opts) ->

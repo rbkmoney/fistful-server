@@ -58,7 +58,6 @@
 -type st()        :: ff_machine:st(session()).
 -type session() :: ff_withdrawal_session:session_state().
 -type event() :: ff_withdrawal_session:event().
--type action() :: ff_withdrawal_session:action().
 -type event_range() :: {After :: non_neg_integer() | undefined, Limit :: non_neg_integer() | undefined}.
 
 -type callback_params() :: ff_withdrawal_session:callback_params().
@@ -66,8 +65,6 @@
 -type process_callback_error() ::
     {unknown_session, {tag, id()}} |
     ff_withdrawal_session:process_callback_error().
-
--type process_result() :: ff_withdrawal_session:process_result().
 
 -type ctx() :: ff_entity_context:context().
 
@@ -78,9 +75,6 @@
 %%
 %% API
 %%
-
--define(SESSION_RETRY_TIME_LIMIT, 24 * 60 * 60).
--define(MAX_SESSION_RETRY_TIMEOUT, 4 * 60 * 60).
 
 -spec session(st()) -> session().
 
@@ -153,11 +147,14 @@ init(Events, #{}, _, _Opts) ->
     result().
 process_timeout(Machine, _, _Opts) ->
     State = ff_machine:collapse(ff_withdrawal_session, Machine),
-    Session = session(State),
-    process_result(ff_withdrawal_session:process_session(Session), State).
+    #{events := Events} = Result = ff_withdrawal_session:process_session(session(State)),
+    Result#{
+        events => ff_machine:emit_events(Events)
+    }.
 
 -spec process_call(any(), machine(), handler_args(), handler_opts()) ->
     {ok, result()}.
+
 process_call({process_callback, Params}, Machine, _, _Opts) ->
     do_process_callback(Params, Machine);
 process_call(_CallArgs, #{}, _, _Opts) ->
@@ -169,8 +166,7 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
     ScenarioProcessors = #{
         set_session_result => fun(Args, RMachine) ->
             State = ff_machine:collapse(ff_withdrawal_session, RMachine),
-            {Action, Events} = ff_withdrawal_session:set_session_result(Args, session(State)),
-            {ok, {ok, #{action => set_action(Action, State), events => Events}}}
+            {ok, {ok, ff_withdrawal_session:set_session_result(Args, session(State))}}
         end
     },
     ff_repair:apply_scenario(ff_withdrawal_session, Machine, Scenario, ScenarioProcessors).
@@ -178,102 +174,6 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
 %%
 %% Internals
 %%
-
--spec process_result(process_result(), st()) ->
-    result().
-process_result({Action, Events}, St) ->
-    genlib_map:compact(#{
-        events => set_events(Events),
-        action => set_action(Action, St)
-    }).
-
--spec set_events([event()]) ->
-    undefined | ff_machine:timestamped_event(event()).
-set_events([]) ->
-    undefined;
-set_events(Events) ->
-    ff_machine:emit_events(Events).
-
--spec set_action(action(), st()) ->
-    undefined | machinery:action() | [machinery:action()].
-set_action(continue, _St) ->
-    continue;
-set_action(undefined, _St) ->
-    undefined;
-set_action({setup_callback, Tag, Timer}, _St) ->
-    [tag_action(Tag), timer_action(Timer)];
-set_action({setup_timer, Timer}, _St) ->
-    timer_action(Timer);
-set_action(retry, St) ->
-    case compute_retry_timer(St) of
-        {ok, Timer} ->
-            timer_action(Timer);
-        {error, deadline_reached} = Error ->
-            erlang:error(Error)
-    end;
-set_action(finish, _St) ->
-    unset_timer.
-
-%%
-
--spec compute_retry_timer(st()) ->
-    {ok, machinery:timer()} | {error, deadline_reached}.
-compute_retry_timer(St) ->
-    Now = machinery_time:now(),
-    Updated = ff_machine:updated(St),
-    Deadline = compute_retry_deadline(Updated),
-    Timeout = compute_next_timeout(Now, Updated),
-    check_next_timeout(Timeout, Now, Deadline).
-
--spec compute_retry_deadline(machinery:timestamp()) ->
-    machinery:timestamp().
-compute_retry_deadline(Updated) ->
-    RetryTimeLimit = genlib_app:env(ff_transfer, session_retry_time_limit, ?SESSION_RETRY_TIME_LIMIT),
-    machinery_time:add_seconds(RetryTimeLimit, Updated).
-
--spec compute_next_timeout(machinery:timestamp(), machinery:timestamp()) ->
-    timeout().
-compute_next_timeout(Now, Updated) ->
-    MaxTimeout = genlib_app:env(ff_transfer, max_session_retry_timeout, ?MAX_SESSION_RETRY_TIMEOUT),
-    Timeout0 = machinery_time:interval(Now, Updated) div 1000,
-    erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
-
--spec check_next_timeout(timeout(), machinery:timestamp(), machinery:timestamp()) ->
-    {ok, machinery:timer()} | {error, deadline_reached}.
-check_next_timeout(Timeout, Now, Deadline) ->
-    case check_deadline(machinery_time:add_seconds(Timeout, Now), Deadline) of
-        ok ->
-            {ok, {timeout, Timeout}};
-        {error, _} = Error ->
-            Error
-    end.
-
--spec check_deadline(machinery:timestamp(), machinery:timestamp()) ->
-    ok | {error, deadline_reached}.
-check_deadline({Now, _}, {Deadline, _}) ->
-    check_deadline_(
-        calendar:datetime_to_gregorian_seconds(Now),
-        calendar:datetime_to_gregorian_seconds(Deadline)
-    ).
-
--spec check_deadline_(integer(), integer()) ->
-    ok | {error, deadline_reached}.
-check_deadline_(Now, Deadline) when Now < Deadline ->
-    ok;
-check_deadline_(Now, Deadline) when Now >= Deadline ->
-    {error, deadline_reached}.
-
-%%
-
--spec timer_action(machinery:timer()) ->
-    machinery:action().
-timer_action(Timer) ->
-    {set_timer, Timer}.
-
--spec tag_action(machinery:tag()) ->
-    machinery:action().
-tag_action(Tag) ->
-    {tag, Tag}.
 
 backend() ->
     fistful:backend(?NS).
@@ -292,10 +192,12 @@ call(Ref, Call) ->
         {error, ff_withdrawal_session:process_callback_error()}.
 
 do_process_callback(Params, Machine) ->
-    St= ff_machine:collapse(ff_withdrawal_session, Machine),
+    St = ff_machine:collapse(ff_withdrawal_session, Machine),
     case ff_withdrawal_session:process_callback(Params, session(St)) of
+        {ok, {Response, #{events := Events} = Result}} ->
+            {{ok, Response}, Result#{events => ff_machine:emit_events(Events)}};
         {ok, {Response, Result}} ->
-            {{ok, Response}, process_result(Result, St)};
-        {error, {Reason, _Result}} ->
-            {{error, Reason}, #{}}
+            {{ok, Response}, Result};
+        {error, {Reason, Result}} ->
+            {{error, Reason}, Result}
     end.

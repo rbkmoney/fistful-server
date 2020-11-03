@@ -2,7 +2,6 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_withdrawal_session_thrift.hrl").
 -include_lib("shumpune_proto/include/shumpune_shumpune_thrift.hrl").
 
 %% Common test API
@@ -18,7 +17,6 @@
 
 %% Tests
 -export([session_fail_test/1]).
--export([session_repair_test/1]).
 -export([quote_fail_test/1]).
 -export([route_not_found_fail_test/1]).
 -export([provider_operations_forbidden_fail_test/1]).
@@ -72,7 +70,6 @@ groups() ->
     [
         {default, [parallel], [
             session_fail_test,
-            session_repair_test,
             quote_fail_test,
             route_not_found_fail_test,
             provider_operations_forbidden_fail_test,
@@ -585,43 +582,6 @@ provider_callback_test(C) ->
     % Check that session is still alive
     ?assertEqual({ok, #{payload => CallbackPayload}}, call_process_callback(Callback)).
 
--spec session_repair_test(config()) -> test_return().
-session_repair_test(C) ->
-    Currency = <<"RUB">>,
-    Cash = {700700, Currency},
-    #{
-        wallet_id := WalletID,
-        destination_id := DestinationID
-    } = prepare_standard_environment(Cash, C),
-    WithdrawalID = generate_id(),
-    WithdrawalParams = #{
-        id => WithdrawalID,
-        destination_id => DestinationID,
-        wallet_id => WalletID,
-        body => Cash,
-        quote => #{
-            cash_from   => {700700, <<"RUB">>},
-            cash_to     => {700700, <<"RUB">>},
-            created_at  => <<"2016-03-22T06:12:27Z">>,
-            expires_on  => <<"2016-03-22T06:12:27Z">>,
-            route       => ff_withdrawal_routing:make_route(11, 1),
-            quote_data  => #{<<"test">> => <<"fatal">>}
-        }
-    },
-    Callback = #{
-        tag => <<"cb_", WithdrawalID/binary>>,
-        payload => <<"super_secret">>
-    },
-    ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
-    ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
-    SessionID = get_session_id(WithdrawalID),
-    ?assertEqual(<<"callback_processing">>, await_session_adapter_state(SessionID, <<"callback_processing">>)),
-    ?assertError({failed, _, _}, call_process_callback(Callback)),
-    timer:sleep(3000),
-    ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
-    ok = repair_withdrawal_session(WithdrawalID),
-    ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
-
 %% Utils
 
 prepare_standard_environment(WithdrawalCash, C) ->
@@ -837,24 +797,3 @@ make_dummy_party_change(PartyID) ->
 
 call_process_callback(Callback) ->
     ff_withdrawal_session_machine:process_callback(Callback).
-
-repair_withdrawal_session(WithdrawalID) ->
-   SessionID = get_session_id(WithdrawalID),
-   {ok, ok} = call_session_repair(SessionID, {set_session_result, #wthd_session_SetResultRepair{
-       result = {success, #wthd_session_SessionResultSuccess{
-           trx_info = #'TransactionInfo'{
-               id = SessionID,
-               extra = #{}
-           }
-       }}
-   }}),
-   ok.
-
-call_session_repair(SessionID, Scenario) ->
-   Service = {ff_proto_withdrawal_session_thrift, 'Repairer'},
-   Request = {Service, 'Repair', [SessionID, Scenario]},
-   Client  = ff_woody_client:new(#{
-       url           => <<"http://localhost:8022/v1/repair/withdrawal/session">>,
-       event_handler => scoper_woody_event_handler
-   }),
-   ff_woody_client:call(Client, Request).

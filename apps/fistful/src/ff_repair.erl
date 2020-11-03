@@ -129,10 +129,9 @@ validate_result(Mod, #{history := History} = Machine, #{events := NewEvents}) ->
         {ok, valid}
     catch
         error:Error:Stack ->
-            Stacktrace = genlib_format:format_stacktrace(Stack),
-            logger:warning("Invalid repair result: ~p, Stack: ~p", [Error, Stacktrace], #{
+            logger:warning("Invalid repair result: ~p", [Error], #{
                 error => genlib:format(Error),
-                stacktrace => Stacktrace
+                stacktrace => genlib_format:format_stacktrace(Stack)
             }),
             {error, unexpected_failure}
     end.

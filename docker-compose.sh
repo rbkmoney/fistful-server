@@ -48,7 +48,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:3bdc2a01f9b8664e08dca08c656fc4c88d6553fc
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:65df6b60d405b54097e3670dd68f6199d22be991
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -187,7 +187,7 @@ services:
       retries: 10
 
   bender:
-    image: dr2.rbkmoney.com/rbkmoney/bender:112656937fe66c43229d18a070fa6c96cfede70b
+    image: dr2.rbkmoney.com/rbkmoney/bender:00995c1432a89c6a24744bb3b1600abe01e7bb07
     command: /opt/bender/bin/bender foreground
     volumes:
       - ./test/log/bender:/var/log/bender

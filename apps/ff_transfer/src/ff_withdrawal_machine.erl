@@ -222,13 +222,15 @@ do_start_adjustment(Params, Machine) ->
 -spec do_process_session_finished(session_id(), session_result(), machine()) -> {Response, result()} when
     Response :: ok | {error, session_not_found | old_session | result_mismatch}.
 do_process_session_finished(SessionID, SessionResult, Machine) ->
-    St = ff_machine:collapse(ff_withdrawal, Machine),
-    case ff_withdrawal:process_session_finished(SessionID, SessionResult, withdrawal(St)) of
-        {ok, Result} ->
-            {ok, process_result(Result, St)};
-        {error, _Reason} = Error ->
-            {Error, #{}}
-    end.
+    {ok, #{}}. % @TODO remove after deployment of FF-226 (part 2)
+    % @TODO uncomment after deployment of FF-226 (part 2)
+    %St = ff_machine:collapse(ff_withdrawal, Machine),
+    %case ff_withdrawal:process_session_finished(SessionID, SessionResult, withdrawal(St)) of
+    %    {ok, Result} ->
+    %        {ok, process_result(Result, St)};
+    %    {error, _Reason} = Error ->
+    %        {Error, #{}}
+    %end.
 
 process_result({Action, Events}, St) ->
     genlib_map:compact(#{
@@ -246,7 +248,7 @@ set_action(continue, _St) ->
 set_action(undefined, _St) ->
     undefined;
 set_action(sleep, St) ->
-    % @TODO remove polling from here after deployment of FF-226 and replace with unset_timer
+    % @TODO remove polling from here after deployment of FF-226 (part 2) and replace with unset_timer
     Now = machinery_time:now(),
     {set_timer, {timeout, compute_poll_timeout(Now, St)}}.
 

@@ -221,16 +221,14 @@ do_start_adjustment(Params, Machine) ->
 
 -spec do_process_session_finished(session_id(), session_result(), machine()) -> {Response, result()} when
     Response :: ok | {error, session_not_found | old_session | result_mismatch}.
-do_process_session_finished(_SessionID, _SessionResult, _Machine) ->
-    {ok, #{}}. % @TODO remove after deployment of FF-226 (part 2)
-    % @TODO uncomment after deployment of FF-226 (part 2)
-    %St = ff_machine:collapse(ff_withdrawal, Machine),
-    %case ff_withdrawal:process_session_finished(SessionID, SessionResult, withdrawal(St)) of
-    %    {ok, Result} ->
-    %        {ok, process_result(Result, St)};
-    %    {error, _Reason} = Error ->
-    %        {Error, #{}}
-    %end.
+do_process_session_finished(SessionID, SessionResult, Machine) ->
+    St = ff_machine:collapse(ff_withdrawal, Machine),
+    case ff_withdrawal:process_session_finished(SessionID, SessionResult, withdrawal(St)) of
+        {ok, Result} ->
+            {ok, process_result(Result, St)};
+        {error, _Reason} = Error ->
+            {Error, #{}}
+    end.
 
 process_result({Action, Events}, St) ->
     genlib_map:compact(#{

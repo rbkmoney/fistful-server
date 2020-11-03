@@ -30,7 +30,9 @@
         woody_user_identity,
         payproc_errors,
         ff_server,
-        uac
+        uac,
+        prometheus,
+        prometheus_cowboy
     ]},
     {env, []}
 ]}.

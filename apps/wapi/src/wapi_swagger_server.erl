@@ -18,9 +18,9 @@
 
 -spec child_spec(cowboy_router:routes(), logic_handlers(), swagger_handler_opts()) ->
     supervisor:child_spec().
-child_spec(HealthRoutes, LogicHandlers, SwaggerHandlerOpts) ->
+child_spec(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts) ->
     {Transport, TransportOpts} = get_socket_transport(),
-    CowboyOpts = get_cowboy_config(HealthRoutes, LogicHandlers, SwaggerHandlerOpts),
+    CowboyOpts = get_cowboy_config(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts),
     GsTimeout = genlib_app:env(?APP, graceful_shutdown_timeout, 5000),
     Protocol = cowboy_clear,
     cowboy_draining_server:child_spec(
@@ -38,10 +38,10 @@ get_socket_transport() ->
     AcceptorsPool = genlib_app:env(?APP, acceptors_poolsize, ?DEFAULT_ACCEPTORS_POOLSIZE),
     {ranch_tcp, #{socket_opts => [{ip, IP}, {port, Port}], num_acceptors => AcceptorsPool}}.
 
-get_cowboy_config(HealthRoutes, LogicHandlers, SwaggerHandlerOpts) ->
+get_cowboy_config(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts) ->
     Dispatch =
         cowboy_router:compile(squash_routes(
-            HealthRoutes ++
+            AdditionalRoutes ++
             swag_server_wallet_router:get_paths(
                 maps:get(wallet, LogicHandlers),
                 SwaggerHandlerOpts

@@ -117,7 +117,8 @@ start_app(wapi = AppName) ->
             validation_opts => #{
                 custom_validator => wapi_swagger_validator
             }
-        }}
+        }},
+        {events_fetch_limit, 32}
     ]), #{}};
 
 start_app(wapi_woody_client = AppName) ->
@@ -131,6 +132,7 @@ start_app(wapi_woody_client = AppName) ->
             fistful_destination => "http://localhost:8022/v1/destination",
             w2w_transfer => "http://localhost:8022/v1/w2w_transfer",
             p2p_transfer => "http://localhost:8022/v1/p2p_transfer",
+            p2p_session => "http://localhost:8022/v1/p2p_session",
             fistful_withdrawal => "http://localhost:8022/v1/withdrawal",
             fistful_p2p_template => "http://localhost:8022/v1/p2p_template"
         }},

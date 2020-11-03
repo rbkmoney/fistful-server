@@ -204,9 +204,12 @@ p2p_transfer_check_test(C) ->
     Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     P2PTransferID = create_p2p_transfer(Token, Token, IdentityID, C),
     P2PTransfer = get_p2p_transfer(P2PTransferID, C),
+    P2PTransferEvents = get_p2p_transfer_events(P2PTransferID, C),
     ok = application:set_env(wapi, transport, thrift),
     P2PTransferIDThrift = create_p2p_transfer(Token, Token, IdentityID, C),
     P2PTransferThrift = get_p2p_transfer(P2PTransferIDThrift, C),
+    P2PTransferEventsThrift = get_p2p_transfer_events(P2PTransferIDThrift, C),
+    ?assertEqual(maps:keys(P2PTransferEvents), maps:keys(P2PTransferEventsThrift)),
     ?assertEqual(maps:keys(P2PTransfer), maps:keys(P2PTransferThrift)),
     ?assertEqual(maps:without([<<"id">>, <<"createdAt">>], P2PTransfer),
                  maps:without([<<"id">>, <<"createdAt">>], P2PTransferThrift)).
@@ -544,6 +547,14 @@ get_p2p_transfer(P2PTransferID, C) ->
         ct_helper:cfg(context, C)
     ),
     P2PTransfer.
+
+get_p2p_transfer_events(P2PTransferID, C) ->
+    {ok, P2PTransferEvents} = call_api(
+        fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
+        #{binding => #{<<"p2pTransferID">> => P2PTransferID}},
+        ct_helper:cfg(context, C)
+    ),
+    P2PTransferEvents.
 
 await_destination(DestID) ->
     authorized = ct_helper:await(

@@ -155,7 +155,8 @@ get_identity(IdentityId, Context) ->
     {identity_class, notfound} |
     {inaccessible, ff_party:inaccessibility()} |
     {email, notfound}          |
-    {external_id_conflict, id(), external_id()}
+    {external_id_conflict, id(), external_id()} |
+    {party, notfound}
 ).
 create_identity(Params, Context) ->
     IdentityParams = from_swag(identity_params, Params),

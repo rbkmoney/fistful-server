@@ -55,6 +55,7 @@
 -export([repair/2]).
 
 -export([start_adjustment/2]).
+-export([notify_session_finished/3]).
 
 %% Accessors
 
@@ -78,8 +79,12 @@
 
 -type adjustment_params() :: ff_withdrawal:adjustment_params().
 
+-type session_id() :: ff_withdrawal_session:id().
+-type session_result() :: ff_withdrawal_session:session_result().
+
 -type call() ::
-    {start_adjustment, adjustment_params()}.
+    {start_adjustment, adjustment_params()} |
+    {session_finished, session_id(), session_result()}.
 
 -define(NS, 'ff/withdrawal_v2').
 
@@ -139,6 +144,11 @@ repair(ID, Scenario) ->
 start_adjustment(WithdrawalID, Params) ->
     call(WithdrawalID, {start_adjustment, Params}).
 
+-spec notify_session_finished(id(), session_id(), session_result()) ->
+    ok | {error, session_not_found | old_session | result_mismatch}.
+notify_session_finished(WithdrawalID, SessionID, SessionResult) ->
+    call(WithdrawalID, {session_finished, SessionID, SessionResult}).
+
 %% Accessors
 
 -spec withdrawal(st()) ->
@@ -159,8 +169,6 @@ ctx(St) ->
 -type result()       :: ff_machine:result(event()).
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
-
--define(MAX_SESSION_POLL_TIMEOUT, 4 * 60 * 60).
 
 backend() ->
     fistful:backend(?NS).
@@ -188,6 +196,8 @@ process_timeout(Machine, _, _Opts) ->
 
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
     do_start_adjustment(Params, Machine);
+process_call({session_finished, SessionID, SessionResult}, Machine, _, _Opts) ->
+    do_process_session_finished(SessionID, SessionResult, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
     erlang:error({unexpected_call, CallArgs}).
 
@@ -209,6 +219,17 @@ do_start_adjustment(Params, Machine) ->
             {Error, #{}}
     end.
 
+-spec do_process_session_finished(session_id(), session_result(), machine()) -> {Response, result()} when
+    Response :: ok | {error, session_not_found | old_session | result_mismatch}.
+do_process_session_finished(SessionID, SessionResult, Machine) ->
+    St = ff_machine:collapse(ff_withdrawal, Machine),
+    case ff_withdrawal:process_session_finished(SessionID, SessionResult, withdrawal(St)) of
+        {ok, Result} ->
+            {ok, process_result(Result, St)};
+        {error, _Reason} = Error ->
+            {Error, #{}}
+    end.
+
 process_result({Action, Events}, St) ->
     genlib_map:compact(#{
         events => set_events(Events),
@@ -224,10 +245,12 @@ set_action(continue, _St) ->
     continue;
 set_action(undefined, _St) ->
     undefined;
-set_action(poll, St) ->
+set_action(sleep, St) ->
+    % @TODO remove polling from here after deployment of FF-226 (part 2) and replace with unset_timer
     Now = machinery_time:now(),
     {set_timer, {timeout, compute_poll_timeout(Now, St)}}.
 
+-define(MAX_SESSION_POLL_TIMEOUT, 4 * 60 * 60).
 compute_poll_timeout(Now, St) ->
     MaxTimeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
     Timeout0 = machinery_time:interval(Now, ff_machine:updated(St)) div 1000,

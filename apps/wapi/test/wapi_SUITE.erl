@@ -30,6 +30,7 @@
 -export([check_withdrawal_limit_test/1]).
 -export([check_withdrawal_limit_exceeded_test/1]).
 -export([identity_providers_mismatch_test/1]).
+-export([lazy_party_creation_forbidden_test/1]).
 
 -export([consume_eventsinks/1]).
 
@@ -69,10 +70,11 @@ groups() ->
             woody_retry_test
         ]},
         {errors, [], [
-            not_allowed_currency_test,
-            check_withdrawal_limit_test,
-            check_withdrawal_limit_exceeded_test,
-            identity_providers_mismatch_test
+            % not_allowed_currency_test,
+            % check_withdrawal_limit_test,
+            % check_withdrawal_limit_exceeded_test,
+            % identity_providers_mismatch_test,
+            lazy_party_creation_forbidden_test
         ]},
         {eventsink, [], [
             consume_eventsinks
@@ -400,6 +402,25 @@ identity_providers_mismatch_test(C) ->
             },
             <<"quoteToken">> => undefined
         })},
+        cfg(context, C)
+    ).
+-spec lazy_party_creation_forbidden_test(config()) -> test_return().
+lazy_party_creation_forbidden_test(C0) ->
+    Name = <<"Keyn Fawkes">>,
+    Provider = ?ID_PROVIDER,
+    Class = ?ID_CLASS,
+    {Context, _} = create_context_for_group(group_or_smth, <<"Nonexistent party">>),
+    C = [{context, Context} | C0],
+    {error, {422, #{<<"message">> := <<"Party does not exist">>}}} = call_api(
+        fun swag_client_wallet_identities_api:create_identity/3,
+        #{body => #{
+            <<"name">>     => Name,
+            <<"provider">> => Provider,
+            <<"class">>    => Class,
+            <<"metadata">> => #{
+                ?STRING => ?STRING
+            }
+        }},
         cfg(context, C)
     ).
 

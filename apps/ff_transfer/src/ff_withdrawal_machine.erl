@@ -245,16 +245,8 @@ set_action(continue, _St) ->
     continue;
 set_action(undefined, _St) ->
     undefined;
-set_action(sleep, St) ->
-    % @TODO remove polling from here after deployment of FF-226 (part 2) and replace with unset_timer
-    Now = machinery_time:now(),
-    {set_timer, {timeout, compute_poll_timeout(Now, St)}}.
-
--define(MAX_SESSION_POLL_TIMEOUT, 4 * 60 * 60).
-compute_poll_timeout(Now, St) ->
-    MaxTimeout = genlib_app:env(ff_transfer, max_session_poll_timeout, ?MAX_SESSION_POLL_TIMEOUT),
-    Timeout0 = machinery_time:interval(Now, ff_machine:updated(St)) div 1000,
-    erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
+set_action(sleep, _St) ->
+    unset_timer.
 
 call(ID, Call) ->
     case machinery:call(?NS, ID, Call, backend()) of

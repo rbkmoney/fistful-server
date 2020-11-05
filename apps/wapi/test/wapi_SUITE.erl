@@ -405,12 +405,11 @@ identity_providers_mismatch_test(C) ->
         cfg(context, C)
     ).
 -spec lazy_party_creation_forbidden_test(config()) -> test_return().
-lazy_party_creation_forbidden_test(C0) ->
+lazy_party_creation_forbidden_test(_) ->
     Name = <<"Keyn Fawkes">>,
     Provider = ?ID_PROVIDER,
     Class = ?ID_CLASS,
     {Context, _} = create_context_for_group(group_or_smth, <<"Nonexistent party">>),
-    C = [{context, Context} | C0],
     {error, {422, #{<<"message">> := <<"Party does not exist">>}}} = call_api(
         fun swag_client_wallet_identities_api:create_identity/3,
         #{body => #{
@@ -421,7 +420,7 @@ lazy_party_creation_forbidden_test(C0) ->
                 ?STRING => ?STRING
             }
         }},
-        cfg(context, C)
+        Context
     ).
 
 -spec unknown_withdrawal_test(config()) -> test_return().

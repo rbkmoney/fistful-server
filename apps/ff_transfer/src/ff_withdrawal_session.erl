@@ -225,7 +225,7 @@ apply_event({callback, _Ev} = WrappedEvent, Session) ->
     set_callbacks_index(Callbacks1, Session).
 
 -spec process_session(session_state()) -> process_result().
-process_session(#{status := {finished, _}, id := _ID, result := _Result, withdrawal := _Withdrawal}) ->
+process_session(#{status := {finished, _}, id := ID, result := Result, withdrawal := Withdrawal}) ->
     % Session has finished, it should notify the withdrawal machine about the fact
     WithdrawalID = ff_adapter_withdrawal:id(Withdrawal),
     case ff_withdrawal_machine:notify_session_finished(WithdrawalID, ID, Result) of

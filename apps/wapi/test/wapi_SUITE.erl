@@ -70,10 +70,10 @@ groups() ->
             woody_retry_test
         ]},
         {errors, [], [
-            % not_allowed_currency_test,
-            % check_withdrawal_limit_test,
-            % check_withdrawal_limit_exceeded_test,
-            % identity_providers_mismatch_test,
+            not_allowed_currency_test,
+            check_withdrawal_limit_test,
+            check_withdrawal_limit_exceeded_test,
+            identity_providers_mismatch_test,
             lazy_party_creation_forbidden_test
         ]},
         {eventsink, [], [

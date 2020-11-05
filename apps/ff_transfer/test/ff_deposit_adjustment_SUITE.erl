@@ -426,8 +426,9 @@ get_wallet_balance(ID) ->
     get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
 
 get_source_balance(ID) ->
-    {ok, Machine} = ff_source:get_machine(ID),
-    get_account_balance(ff_source:account(ff_source:get(Machine))).
+    {ok, Machine} = ff_source_machine:get(ID),
+    Source = ff_source_machine:source(Machine),
+    get_account_balance(ff_source:account(Source)).
 
 get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(
@@ -443,12 +444,13 @@ create_source(IID, _C) ->
     ID = generate_id(),
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
     Params = #{id => ID, identity => IID, name => <<"XSource">>, currency => <<"RUB">>, resource => SrcResource},
-    ok = ff_source:create(Params, ff_entity_context:new()),
+    ok = ff_source_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, SrcM} = ff_source:get_machine(ID),
-            ff_source:status(ff_source:get(SrcM))
+            {ok, SrcM} = ff_source_machine:get(ID),
+            Source = ff_source_machine:source(SrcM),
+            ff_source:status(Source)
         end
     ),
     ID.

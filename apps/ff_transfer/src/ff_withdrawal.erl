@@ -332,8 +332,8 @@ destination_resource(#{resource := Resource}) ->
     Resource;
 destination_resource(Withdrawal) ->
     DestinationID = destination_id(Withdrawal),
-    {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
-    Destination = ff_destination:get(DestinationMachine),
+    {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
+    Destination = ff_destination_machine:destination(DestinationMachine),
     {ok, Resource} = ff_destination:resource_full(Destination),
     Resource.
 
@@ -873,8 +873,8 @@ process_session_creation(Withdrawal) ->
     Wallet = ff_wallet_machine:wallet(WalletMachine),
     WalletAccount = ff_wallet:account(Wallet),
 
-    {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
-    Destination = ff_destination:get(DestinationMachine),
+    {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
+    Destination = ff_destination_machine:destination(DestinationMachine),
     DestinationAccount = ff_destination:account(Destination),
 
     Route = route(Withdrawal),
@@ -1047,8 +1047,8 @@ get_wallet(WalletID) ->
     {ok, destination()} | {error, notfound}.
 get_destination(DestinationID) ->
     do(fun() ->
-        DestinationMachine = unwrap(ff_destination:get_machine(DestinationID)),
-        ff_destination:get(DestinationMachine)
+        DestinationMachine = unwrap(ff_destination_machine:get(DestinationID)),
+        ff_destination_machine:destination(DestinationMachine)
     end).
 
 -spec get_wallet_identity(wallet()) ->

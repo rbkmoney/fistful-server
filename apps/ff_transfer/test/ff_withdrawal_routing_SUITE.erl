@@ -338,12 +338,13 @@ create_destination(IID, Currency, C) ->
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, Y + 1}, C),
     Resource = {bank_card, #{bank_card => StoreSource}},
     Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
-    ok = ff_destination:create(Params, ff_entity_context:new()),
+    ok = ff_destination_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, Machine} = ff_destination:get_machine(ID),
-            ff_destination:status(ff_destination:get(Machine))
+            {ok, Machine} = ff_destination_machine:get(ID),
+            Destination = ff_destination_machine:destination(Machine),
+            ff_destination:status(Destination)
         end
     ),
     ID.

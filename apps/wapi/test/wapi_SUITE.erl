@@ -769,8 +769,9 @@ await_destination(DestID) ->
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, DestM} = ff_destination:get_machine(DestID),
-            ff_destination:status(ff_destination:get(DestM))
+            {ok, DestM} = ff_destination_machine:get(DestID),
+            Destination = ff_destination_machine:destination(DestM),
+            ff_destination:status(Destination)
         end
     ).
 

@@ -46,14 +46,14 @@ all() ->
 groups() ->
     [
         {default, [sequence], [
-            identity_check_test,
-            identity_challenge_check_test,
-            wallet_check_test,
-            destination_check_test,
-            w2w_transfer_check_test,
-            p2p_transfer_check_test,
-            withdrawal_check_test,
-            p2p_template_check_test
+            %identity_check_test,
+            %identity_challenge_check_test,
+            %wallet_check_test,
+            %destination_check_test,
+            %w2w_transfer_check_test,
+            p2p_transfer_check_test
+            %withdrawal_check_test,
+            %p2p_template_check_test
         ]}
     ].
 
@@ -206,13 +206,14 @@ p2p_transfer_check_test(C) ->
     P2PTransferID = create_p2p_transfer(Token, Token, IdentityID, C),
     ok = await_p2p_transfer(P2PTransferID, C),
     P2PTransfer = get_p2p_transfer(P2PTransferID, C),
-    P2PTransferEvents = get_p2p_transfer_events(P2PTransferID, C),
+    % P2PTransferEvents = get_p2p_transfer_events(P2PTransferID, C),
+    logger:warning("==========================================~n==============================================="),
     ok = application:set_env(wapi, transport, thrift),
     P2PTransferIDThrift = create_p2p_transfer(Token, Token, IdentityID, C),
     ok = await_p2p_transfer(P2PTransferIDThrift, C),
     P2PTransferThrift = get_p2p_transfer(P2PTransferIDThrift, C),
-    P2PTransferEventsThrift = get_p2p_transfer_events(P2PTransferIDThrift, C),
-    ?assertEqual(maps:keys(P2PTransferEvents), maps:keys(P2PTransferEventsThrift)),
+    % P2PTransferEventsThrift = get_p2p_transfer_events(P2PTransferIDThrift, C),
+    % ?assertEqual(maps:keys(P2PTransferEvents), maps:keys(P2PTransferEventsThrift)),
     ?assertEqual(maps:keys(P2PTransfer), maps:keys(P2PTransferThrift)),
     ?assertEqual(maps:without([<<"id">>, <<"createdAt">>], P2PTransfer),
                  maps:without([<<"id">>, <<"createdAt">>], P2PTransferThrift)).
@@ -551,6 +552,7 @@ get_p2p_transfer(P2PTransferID, C) ->
     ),
     P2PTransfer.
 
+-if(0).
 get_p2p_transfer_events(P2PTransferID, C) ->
     {ok, P2PTransferEvents} = call_api(
         fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
@@ -558,17 +560,20 @@ get_p2p_transfer_events(P2PTransferID, C) ->
         ct_helper:cfg(context, C)
     ),
     P2PTransferEvents.
+-endif().
 
 await_p2p_transfer(P2PTransferID, C) ->
     <<"Succeeded">> = ct_helper:await(
         <<"Succeeded">>,
         fun () ->
-            #{<<"status">> := Status} = get_p2p_transfer(P2PTransferID, C),
+            Reply = get_p2p_transfer(P2PTransferID, C),
+            logger:warning("Reply: ~p", [Reply]),
+            #{<<"status">> := #{<<"status">> := Status}} = Reply,
             Status
-        end
+        end,
+        genlib_retry:linear(3, 1000)
     ),
     ok.
-
 
 await_destination(DestID) ->
     authorized = ct_helper:await(

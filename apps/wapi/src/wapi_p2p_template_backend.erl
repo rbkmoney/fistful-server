@@ -591,23 +591,27 @@ marshal_transfer_params(#{
 
 marshal_sender(#{
     <<"token">> := Token,
+    <<"authData">> := AuthData,
     <<"contactInfo">> := ContactInfo
 }) ->
-    Resource = case wapi_crypto:decrypt_bankcard_token(Token) of
+    ResourceBankCard = case wapi_crypto:decrypt_bankcard_token(Token) of
         unrecognized ->
             BankCard = wapi_utils:base64url_to_map(Token),
-            {bank_card, #'ResourceBankCard'{
+            #'ResourceBankCard'{
                 bank_card = #'BankCard'{
                     token      = maps:get(<<"token">>, BankCard),
                     bin        = maps:get(<<"bin">>, BankCard),
                     masked_pan = maps:get(<<"lastDigits">>, BankCard)
                 }
-            }};
+            };
         {ok, BankCard} ->
-            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
+            #'ResourceBankCard'{bank_card = BankCard}
     end,
+    ResourceBankCardAuth = ResourceBankCard#'ResourceBankCard'{
+        auth_data = {session_data, #'SessionAuthData'{id = AuthData}}
+    },
     {resource, #p2p_transfer_RawResource{
-        resource = Resource,
+        resource = {bank_card, ResourceBankCardAuth},
         contact_info = marshal_contact_info(ContactInfo)
     }}.
 

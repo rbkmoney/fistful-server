@@ -60,10 +60,11 @@ groups() ->
 -spec init_per_suite(config()) -> config().
 
 init_per_suite(C) ->
-     ct_helper:makeup_cfg([
+    _DeleteMeImUglyStube = get_default_termset(),
+    ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
-            default_termset => get_default_termset(),
+%         default_termset => get_default_termset(),
             optional_apps => [
                 bender_client,
                 wapi_woody_client,
@@ -198,15 +199,17 @@ w2w_transfer_check_test(C) ->
 
 p2p_transfer_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
-    Provider = ?ID_PROVIDER,
+    Provider = <<"quote-owner">>,
     Class = ?ID_CLASS,
     IdentityID = create_identity(Name, Provider, Class, C),
     Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     P2PTransferID = create_p2p_transfer(Token, Token, IdentityID, C),
+    ok = await_p2p_transfer(P2PTransferID, C),
     P2PTransfer = get_p2p_transfer(P2PTransferID, C),
     P2PTransferEvents = get_p2p_transfer_events(P2PTransferID, C),
     ok = application:set_env(wapi, transport, thrift),
     P2PTransferIDThrift = create_p2p_transfer(Token, Token, IdentityID, C),
+    ok = await_p2p_transfer(P2PTransferIDThrift, C),
     P2PTransferThrift = get_p2p_transfer(P2PTransferIDThrift, C),
     P2PTransferEventsThrift = get_p2p_transfer_events(P2PTransferIDThrift, C),
     ?assertEqual(maps:keys(P2PTransferEvents), maps:keys(P2PTransferEventsThrift)),
@@ -555,6 +558,17 @@ get_p2p_transfer_events(P2PTransferID, C) ->
         ct_helper:cfg(context, C)
     ),
     P2PTransferEvents.
+
+await_p2p_transfer(P2PTransferID, C) ->
+    <<"Succeeded">> = ct_helper:await(
+        <<"Succeeded">>,
+        fun () ->
+            #{<<"status">> := Status} = get_p2p_transfer(P2PTransferID, C),
+            Status
+        end
+    ),
+    ok.
+
 
 await_destination(DestID) ->
     authorized = ct_helper:await(

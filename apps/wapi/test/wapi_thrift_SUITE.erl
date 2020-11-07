@@ -239,36 +239,28 @@ p2p_template_check_test(C) ->
     Provider = <<"quote-owner">>,
     Class = ?ID_CLASS,
     Metadata = #{ <<"some key">> => <<"some value">> },
-
     ok = application:set_env(wapi, transport, thrift),
-
     IdentityID = create_identity(Name, Provider, Class, C),
     P2PTemplate = create_p2p_template(IdentityID, Metadata, C),
     #{<<"id">> := P2PTemplateID} = P2PTemplate,
     P2PTemplateCopy = get_p2p_template(P2PTemplateID, C),
     ?assertEqual(maps:keys(P2PTemplate), maps:keys(P2PTemplateCopy)),
-
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
     TemplateToken = get_p2p_template_token(P2PTemplateID, ValidUntil, C),
     TemplateTicket = get_p2p_template_ticket(P2PTemplateID, TemplateToken, ValidUntil, C),
     {ok, #{<<"token">> := QuoteToken}} = call_p2p_template_quote(P2PTemplateID, C),
     {ok, P2PTransfer} = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
     ?assertMatch(#{<<"identityID">> := IdentityID}, P2PTransfer),
-
     #{<<"id">> := P2PTransferID} = P2PTransfer,
     ok = await_p2p_transfer(P2PTransferID, C),
     ?assertMatch(#{<<"metadata">> := Metadata}, P2PTransfer),
-
     ok = block_p2p_template(P2PTemplateID, C),
     P2PTemplateBlocked = get_p2p_template(P2PTemplateID, C),
     ?assertMatch(#{<<"isBlocked">> := true}, P2PTemplateBlocked),
-
     QuoteBlockedError = call_p2p_template_quote(P2PTemplateID, C),
     ?assertMatch({error, {422, _}}, QuoteBlockedError),
-
     P2PTransferBlockedError = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
     ?assertMatch({error, {422, _}}, P2PTransferBlockedError),
-
     Quote404Error = call_p2p_template_quote(<<"404">>, C),
     ?assertMatch({error, {404, _}}, Quote404Error).
 

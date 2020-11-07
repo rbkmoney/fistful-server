@@ -238,10 +238,12 @@ p2p_template_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
     Provider = <<"quote-owner">>,
     Class = ?ID_CLASS,
+    Metadata = #{ <<"some key">> => <<"some value">> },
+
     ok = application:set_env(wapi, transport, thrift),
 
     IdentityID = create_identity(Name, Provider, Class, C),
-    P2PTemplate = create_p2p_template(IdentityID, C),
+    P2PTemplate = create_p2p_template(IdentityID, Metadata, C),
     #{<<"id">> := P2PTemplateID} = P2PTemplate,
     P2PTemplateCopy = get_p2p_template(P2PTemplateID, C),
     ?assertEqual(maps:keys(P2PTemplate), maps:keys(P2PTemplateCopy)),
@@ -253,11 +255,9 @@ p2p_template_check_test(C) ->
     {ok, P2PTransfer} = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
     ?assertMatch(#{<<"identityID">> := IdentityID}, P2PTransfer),
 
-    % TODO:
-    %   #{<<"id">> := P2PTransferID} = P2PTransfer,
-    %   ok = await_p2p_transfer(P2PTransferID, C),
-    %   #{<<"metadata">> := Metadata} = P2PTransfer,
-    %   ...
+    #{<<"id">> := P2PTransferID} = P2PTransfer,
+    ok = await_p2p_transfer(P2PTransferID, C),
+    ?assertMatch(#{<<"metadata">> := Metadata}, P2PTransfer),
 
     ok = block_p2p_template(P2PTemplateID, C),
     P2PTemplateBlocked = get_p2p_template(P2PTemplateID, C),
@@ -568,7 +568,8 @@ await_p2p_transfer(P2PTransferID, C) ->
             Reply = get_p2p_transfer(P2PTransferID, C),
             #{<<"status">> := #{<<"status">> := Status}} = Reply,
             Status
-        end
+        end,
+        genlib_retry:linear(6, 1000)
     ),
     ok.
 
@@ -639,7 +640,7 @@ get_withdrawal(WithdrawalID, C) ->
 
 %% P2PTemplate
 
-create_p2p_template(IdentityID, C) ->
+create_p2p_template(IdentityID, Metadata, C) ->
     {ok, P2PTemplate} = call_api(
         fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_template/3,
         #{
@@ -653,9 +654,7 @@ create_p2p_template(IdentityID, C) ->
                         }
                     },
                     <<"metadata">> => #{
-                        <<"defaultMetadata">> => #{
-                            <<"some key">> => <<"some value">>
-                        }
+                        <<"defaultMetadata">> => Metadata
                     }
                 }
             }
@@ -687,7 +686,6 @@ block_p2p_template(P2PTemplateID, C) ->
         ct_helper:cfg(context, C)
     ),
     ok.
-
 
 get_p2p_template_token(P2PTemplateID, ValidUntil, C) ->
     {ok, #{<<"token">> := Token}} = call_api(
@@ -721,8 +719,7 @@ get_p2p_template_ticket(P2PTemplateID, TemplateToken, ValidUntil, C) ->
     Ticket.
 
 call_p2p_template_quote(P2PTemplateID, C) ->
-    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     call_api(
     fun swag_client_wallet_p2_p_templates_api:quote_p2_p_transfer_with_template/3,
         #{
@@ -732,11 +729,11 @@ call_p2p_template_quote(P2PTemplateID, C) ->
             body => #{
                 <<"sender">> => #{
                     <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => SenderToken
+                    <<"token">> => Token
                 },
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResource">>,
-                    <<"token">> => ReceiverToken
+                    <<"token">> => Token
                 },
                 <<"body">> => #{
                     <<"amount">> => ?INTEGER,
@@ -748,8 +745,7 @@ call_p2p_template_quote(P2PTemplateID, C) ->
     ).
 
 call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C) ->
-    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     Context = maps:merge(ct_helper:cfg(context, C), #{token => TemplateTicket}),
     call_api(
         fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
@@ -760,12 +756,12 @@ call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C) ->
             body => #{
                 <<"sender">> => #{
                     <<"type">> => <<"BankCardSenderResourceParams">>,
-                    <<"token">> => SenderToken,
+                    <<"token">> => Token,
                     <<"authData">> => <<"session id">>
                 },
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
-                    <<"token">> => ReceiverToken
+                    <<"token">> => Token
                 },
                 <<"body">> => #{
                     <<"amount">> => 101,

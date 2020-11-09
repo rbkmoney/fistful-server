@@ -561,7 +561,7 @@ await_p2p_transfer(P2PTransferID, C) ->
             #{<<"status">> := #{<<"status">> := Status}} = Reply,
             Status
         end,
-        genlib_retry:linear(6, 1000)
+        genlib_retry:linear(3, 1000)
     ),
     ok.
 

@@ -57,7 +57,7 @@
 -define(CONTINUATION_SESSION, <<"p2p_session_event_id">>).
 
 -type event() :: #p2p_transfer_Event{} | #p2p_session_Event{}.
--type event_service() :: p2p_transfer | p2p_session.
+-type event_service() :: fistful_p2p_transfer | p2p_session.
 -type event_range() :: #'EventRange'{}.
 -type event_id() :: ff_proto_base_thrift:'EventID'() | undefined.
 
@@ -81,7 +81,7 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
 -spec get_transfer(req_data(), handler_context()) ->
     {ok, response_data()} | {error, error_get()}.
 get_transfer(ID, HandlerContext) ->
-    Request = {p2p_transfer, 'Get', [ID, #'EventRange'{}]},
+    Request = {fistful_p2p_transfer, 'Get', [ID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
         {ok, TransferThrift} ->
             case wapi_access_backend:check_resource(p2p_transfer, TransferThrift, HandlerContext) of
@@ -123,7 +123,7 @@ get_transfer_events(ID, Token, HandlerContext) ->
 %% Internal
 
 do_quote_transfer(Params, HandlerContext) ->
-    Request = {p2p_transfer, 'GetQuote', [marshal_quote_params(Params)]},
+    Request = {fistful_p2p_transfer, 'GetQuote', [marshal_quote_params(Params)]},
     case service_call(Request, HandlerContext) of
         {ok, Quote} ->
             PartyID = wapi_handler_utils:get_owner(HandlerContext),
@@ -156,7 +156,7 @@ do_create_transfer(ID, Params, HandlerContext) ->
     do(fun() ->
         Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
         TransferParams = unwrap(build_transfer_params(Params#{<<"id">> => ID})),
-        Request = {p2p_transfer, 'Create', [TransferParams, marshal(context, Context)]},
+        Request = {fistful_p2p_transfer, 'Create', [TransferParams, marshal(context, Context)]},
         unwrap(process_p2p_transfer_call(Request, HandlerContext))
     end).
 
@@ -236,7 +236,7 @@ do_get_events(ID, Token, HandlerContext) ->
         PrevSessionCursor = continuation_token_cursor(p2p_session, DecodedToken),
 
         {TransferEvents, TransferCursor} = unwrap(events_collect(
-            p2p_transfer,
+            fistful_p2p_transfer,
             ID,
             events_range(PrevTransferCursor),
             HandlerContext,
@@ -266,7 +266,7 @@ do_get_events(ID, Token, HandlerContext) ->
     {ok, undefined | id ()} | {error, {p2p_transfer, notfound}}.
 
 request_session_id(ID, HandlerContext) ->
-    Request = {p2p_transfer, 'Get', [ID, #'EventRange'{}]},
+    Request = {fistful_p2p_transfer, 'Get', [ID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
         {ok, #p2p_transfer_P2PTransferState{sessions = []}} ->
             {ok, undefined};
@@ -382,11 +382,15 @@ events_filter(_Event) ->
 events_merge(EventsList) ->
     lists:sort(fun(Ev1, Ev2) -> events_timestamp(Ev1) < events_timestamp(Ev2) end, lists:append(EventsList)).
 
-events_cursor(#p2p_transfer_Event{event = ID}) -> ID;
-events_cursor(#p2p_session_Event{event = ID}) -> ID.
+events_cursor(#p2p_transfer_Event{event = ID}) ->
+    ID;
+events_cursor(#p2p_session_Event{event = ID}) ->
+    ID.
 
-events_timestamp(#p2p_transfer_Event{occured_at = OccuredAt}) -> OccuredAt;
-events_timestamp(#p2p_session_Event{occured_at = OccuredAt}) -> OccuredAt.
+events_timestamp(#p2p_transfer_Event{occured_at = OccuredAt}) ->
+    OccuredAt;
+events_timestamp(#p2p_session_Event{occured_at = OccuredAt}) ->
+    OccuredAt.
 
 events_range(CursorID)  ->
     events_range(CursorID, genlib_app:env(wapi, events_fetch_limit, ?DEFAULT_EVENTS_LIMIT)).
@@ -853,7 +857,7 @@ unmarshal_events_test_() ->
 events_collect_test_() ->
     {setup,
         fun() ->
-            % Simple event constructor
+            % Construct acceptable event
             Event = fun(EventID) -> #p2p_transfer_Event{
                 event = EventID,
                 occured_at = <<"2020-05-25T12:34:56.123456Z">>,
@@ -861,6 +865,7 @@ events_collect_test_() ->
                     status = {succeeded, #p2p_status_Succeeded{}}
                 }}
             } end,
+            % Construct rejectable event
             Reject = fun(EventID) -> #p2p_transfer_Event{
                 event = EventID,
                 occured_at = <<"2020-05-25T12:34:56.123456Z">>,

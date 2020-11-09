@@ -96,7 +96,7 @@ get_service_modname(fistful_p2p_template) ->
     {ff_proto_p2p_template_thrift, 'Management'};
 get_service_modname(webhook_manager) ->
     {ff_proto_webhooker_thrift, 'WebhookManager'};
-get_service_modname(p2p_transfer) ->
+get_service_modname(fistful_p2p_transfer) ->
     {ff_proto_p2p_transfer_thrift, 'Management'};
 get_service_modname(p2p_session) ->
     {ff_proto_p2p_session_thrift, 'Management'};

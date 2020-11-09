@@ -286,8 +286,10 @@ create_with_quote_token_ok_test(C) ->
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)};
                               ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {p2p_transfer, fun('GetQuote', _) -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)};
-                          ('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)} end}
+        {fistful_p2p_transfer, fun
+            ('GetQuote', _) -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)};
+            ('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)}
+        end}
     ], C),
     SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
@@ -463,13 +465,13 @@ get_fail_p2p_notfound_test(C) ->
 get_events_ok(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
-        {p2p_transfer, fun
+        {fistful_p2p_transfer, fun
             ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
             ('Get', _) -> {ok, ?P2P_TRANSFER_SESSIONS(PartyID)};
             ('GetEvents', [_ID, #'EventRange'{limit = Limit}]) ->
                 {ok, [?P2P_TRANSFER_EVENT(EventID) || EventID <- lists:seq(1, Limit)]}
         end},
-        {p2p_session, fun('GetEvents', [_ID, #'EventRange'{limit = Limit}]) ->
+        {fistful_p2p_session, fun('GetEvents', [_ID, #'EventRange'{limit = Limit}]) ->
             {ok, [?P2P_SESSION_EVENT(EventID) || EventID <- lists:seq(1, Limit)]}
         end}
     ], C),
@@ -486,7 +488,7 @@ get_events_ok(C) ->
 get_events_fail(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
-        {p2p_transfer, fun
+        {fistful_p2p_transfer, fun
             ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
             ('Get', _) -> throw(#fistful_P2PNotFound{})
         end}
@@ -594,7 +596,7 @@ create_ok_start_mocks(C, ContextPartyID) ->
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)};
                               ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(ContextPartyID)} end},
-        {p2p_transfer, fun('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)} end}
+        {fistful_p2p_transfer, fun('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)} end}
     ], C).
 
 create_fail_start_mocks(C, CreateResultFun) ->
@@ -606,7 +608,7 @@ create_fail_start_mocks(C, ContextPartyID, CreateResultFun) ->
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)};
                               ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(ContextPartyID)} end},
-        {p2p_transfer, fun('Create', _) -> CreateResultFun() end}
+        {fistful_p2p_transfer, fun('Create', _) -> CreateResultFun() end}
     ], C).
 
 get_quote_start_mocks(C, GetQuoteResultFun) ->
@@ -614,12 +616,12 @@ get_quote_start_mocks(C, GetQuoteResultFun) ->
     wapi_ct_helper:mock_services([
         {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)};
                               ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {p2p_transfer, fun('GetQuote', _) -> GetQuoteResultFun() end}
+        {fistful_p2p_transfer, fun('GetQuote', _) -> GetQuoteResultFun() end}
     ], C).
 
 get_start_mocks(C, GetResultFun) ->
     wapi_ct_helper:mock_services([
-        {p2p_transfer, fun('Get', _) -> GetResultFun() end}
+        {fistful_p2p_transfer, fun('Get', _) -> GetResultFun() end}
     ], C).
 
 store_bank_card(C, Pan, ExpDate, CardHolder) ->

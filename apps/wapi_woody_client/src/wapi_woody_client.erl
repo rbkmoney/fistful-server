@@ -100,7 +100,7 @@ get_service_modname(p2p_transfer) ->
     {ff_proto_p2p_transfer_thrift, 'Management'};
 get_service_modname(p2p_session) ->
     {ff_proto_p2p_session_thrift, 'Management'};
-get_service_modname(w2w_transfer) ->
+get_service_modname(fistful_w2w_transfer) ->
     {ff_proto_w2w_transfer_thrift, 'Management'}.
 
 -spec get_service_deadline(service_name()) -> undefined | woody_deadline:deadline().

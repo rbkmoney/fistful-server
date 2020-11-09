@@ -251,7 +251,6 @@ do_get_events(ID, Token, HandlerContext) ->
             []
         )),
 
-
         NewTransferCursor = events_max(PrevTransferCursor, TransferCursor),
         NewSessionCursor = events_max(PrevSessionCursor, SessionCursor),
         NewToken = unwrap(continuation_token_pack(NewTransferCursor, NewSessionCursor, PartyID)),

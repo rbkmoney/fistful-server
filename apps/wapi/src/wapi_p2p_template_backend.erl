@@ -197,7 +197,7 @@ create_transfer(ID, #{<<"quoteToken">> := Token} = Params, HandlerContext) ->
         {ok, {_, _, VerifiedToken}} ->
             case decode_and_validate_token_payload(VerifiedToken, ID, HandlerContext) of
                 {ok, Quote} ->
-                    create_transfer_next(ID, Params#{<<"quote">> => Quote}, HandlerContext);
+                    do_create_transfer(ID, Params#{<<"quote">> => Quote}, HandlerContext);
                 {error, token_expired} ->
                     {error, {token, expired}};
                 {error, Error} ->
@@ -207,9 +207,9 @@ create_transfer(ID, #{<<"quoteToken">> := Token} = Params, HandlerContext) ->
             {error, {token, {not_verified, Error}}}
     end;
 create_transfer(ID, Params, HandlerContext) ->
-    create_transfer_next(ID, Params, HandlerContext).
+    do_create_transfer(ID, Params, HandlerContext).
 
-create_transfer_next(ID, Params, HandlerContext) ->
+do_create_transfer(ID, Params, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
         ok ->
             TransferID = context_transfer_id(HandlerContext),
@@ -217,7 +217,7 @@ create_transfer_next(ID, Params, HandlerContext) ->
                 ok ->
                     MarshaledContext = marshal_context(wapi_backend_utils:make_ctx(Params, HandlerContext)),
                     MarshaledParams = marshal_transfer_params(Params#{<<"id">> => TransferID}),
-                    create_transfer_next_next(ID, MarshaledParams, MarshaledContext, HandlerContext);
+                    call_create_transfer(ID, MarshaledParams, MarshaledContext, HandlerContext);
                 {error, {external_id_conflict, _}} = Error ->
                     Error
             end;
@@ -227,7 +227,7 @@ create_transfer_next(ID, Params, HandlerContext) ->
             {error, {p2p_template, notfound}}
     end.
 
-create_transfer_next_next(ID, MarshaledParams, MarshaledContext, HandlerContext) ->
+call_create_transfer(ID, MarshaledParams, MarshaledContext, HandlerContext) ->
     Request = {fistful_p2p_template, 'CreateTransfer', [ID, MarshaledParams, MarshaledContext]},
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, Transfer} ->

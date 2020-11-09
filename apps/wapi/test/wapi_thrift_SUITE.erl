@@ -756,7 +756,7 @@ call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C) ->
                     <<"token">> => Token
                 },
                 <<"body">> => #{
-                    <<"amount">> => 101,
+                    <<"amount">> => ?INTEGER,
                     <<"currency">> => ?RUB
                 },
                 <<"contactInfo">> => #{

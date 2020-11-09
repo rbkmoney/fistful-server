@@ -57,7 +57,7 @@
 -define(CONTINUATION_SESSION, <<"p2p_session_event_id">>).
 
 -type event() :: #p2p_transfer_Event{} | #p2p_session_Event{}.
--type event_service() :: fistful_p2p_transfer | p2p_session.
+-type event_service() :: fistful_p2p_transfer | fistful_p2p_session.
 -type event_range() :: #'EventRange'{}.
 -type event_id() :: ff_proto_base_thrift:'EventID'() | undefined.
 
@@ -244,7 +244,7 @@ do_get_events(ID, Token, HandlerContext) ->
         )),
 
         {SessionEvents, SessionCursor}  = unwrap(events_collect(
-            p2p_session,
+            fistful_p2p_session,
             SessionID,
             events_range(PrevSessionCursor),
             HandlerContext,
@@ -317,7 +317,7 @@ continuation_token_cursor(p2p_session, DecodedToken) ->
         Acc0 :: [] | [event()],
         Acc1 :: [] | [event()].
 
-events_collect(p2p_session, undefined, #'EventRange'{'after' = Cursor}, _HandlerContext, Acc) ->
+events_collect(fistful_p2p_session, undefined, #'EventRange'{'after' = Cursor}, _HandlerContext, Acc) ->
     % no session ID is not an error
     {ok, {Acc, Cursor}};
 events_collect(_EventService, _EntityID, #'EventRange'{'after' = Cursor, 'limit' = Limit}, _HandlerContext, Acc)
@@ -915,7 +915,7 @@ events_collect_test_() ->
         fun({Collect, Event}) ->
             [
                 % SessionID undefined is not an error
-                Collect(p2p_session, undefined, events_range(1),  [Event(0)],
+                Collect(fistful_p2p_session, undefined, events_range(1),  [Event(0)],
                     {ok, {[Event(0)], 1}}
                 ),
                 % Limit < 0 < undefined

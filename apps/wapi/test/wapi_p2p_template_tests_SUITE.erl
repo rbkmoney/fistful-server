@@ -27,8 +27,10 @@
 -export([issue_transfer_ticket_with_access_expiration_ok_test/1]).
 -export([quote_transfer_ok_test/1]).
 -export([quote_transfer_fail_resource_token_invalid_test/1]).
+-export([quote_transfer_fail_resource_token_expire_test/1]).
 -export([create_transfer_ok_test/1]).
 -export([create_transfer_fail_resource_token_invalid_test/1]).
+-export([create_transfer_fail_resource_token_expire_test/1]).
 
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
@@ -66,8 +68,10 @@ groups() ->
             issue_transfer_ticket_with_access_expiration_ok_test,
             quote_transfer_ok_test,
             quote_transfer_fail_resource_token_invalid_test,
+            quote_transfer_fail_resource_token_expire_test,
             create_transfer_ok_test,
-            create_transfer_fail_resource_token_invalid_test
+            create_transfer_fail_resource_token_invalid_test,
+            create_transfer_fail_resource_token_expire_test
         ]}
     ].
 
@@ -331,6 +335,34 @@ quote_transfer_fail_resource_token_invalid_test(C) ->
         quote_p2p_transfer_with_template_call_api(C, ValidResourceToken, InvalidResourceToken)
     ).
 
+-spec quote_transfer_fail_resource_token_expire_test(config()) -> _.
+quote_transfer_fail_resource_token_expire_test(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_p2p_template, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
+        ],
+        C
+    ),
+    InvalidResourceToken = create_card_token(wapi_utils:deadline_from_timeout(0)),
+    ValidResourceToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardSenderResource">>
+            }}},
+        quote_p2p_transfer_with_template_call_api(C, InvalidResourceToken, ValidResourceToken)
+    ),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardReceiverResource">>
+            }}},
+        quote_p2p_transfer_with_template_call_api(C, ValidResourceToken, InvalidResourceToken)
+    ).
+
 -spec create_transfer_ok_test(config()) -> _.
 create_transfer_ok_test(C) ->
     PartyID = ?config(party, C),
@@ -365,6 +397,40 @@ create_transfer_fail_resource_token_invalid_test(C) ->
     TemplateToken = create_template_token(PartyID, ValidUntil),
     Ticket = create_transfer_ticket(TemplateToken),
     InvalidResourceToken = <<"v1.InvalidResourceToken">>,
+    ValidResourceToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardSenderResourceParams">>
+            }}},
+        create_p2p_transfer_with_template_call_api(C, Ticket, InvalidResourceToken, ValidResourceToken)
+    ),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardReceiverResourceParams">>
+            }}},
+        create_p2p_transfer_with_template_call_api(C, Ticket, ValidResourceToken, InvalidResourceToken)
+    ).
+
+-spec create_transfer_fail_resource_token_expire_test(config()) -> _.
+create_transfer_fail_resource_token_expire_test(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_p2p_template, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?P2P_TEMPLATE(PartyID)}
+            end}
+        ],
+        C
+    ),
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    TemplateToken = create_template_token(PartyID, ValidUntil),
+    Ticket = create_transfer_ticket(TemplateToken),
+    InvalidResourceToken = create_card_token(wapi_utils:deadline_from_timeout(0)),
     ValidResourceToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ?assertMatch(
         {error,
@@ -483,6 +549,9 @@ create_transfer_ticket(TemplateToken) ->
         wapi_ct_helper:get_context(TemplateToken)
     ),
     Ticket.
+
+create_card_token(TokenDeadline) ->
+    wapi_crypto:create_resource_token(?RESOURCE, TokenDeadline).
 
 create_card_token(C, Pan, ExpDate, CardHolder) ->
     {ok, Res} = call_api(

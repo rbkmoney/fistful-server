@@ -545,6 +545,14 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters':= Params}, Context, _Opt
         {error, {receiver, invalid_resource}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {sender, invalid_resource_token}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => <<"BankCardSenderResource">>});
+        {error, {receiver, invalid_resource_token}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => <<"BankCardReceiverResource">>});
         {error, {p2p_transfer, forbidden_currency}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
@@ -574,6 +582,14 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
         {error, {receiver, invalid_resource}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {sender, invalid_resource_token}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => <<"BankCardSenderResourceParams">>});
+        {error, {receiver, invalid_resource_token}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => <<"BankCardReceiverResourceParams">>});
         {error, {token, {not_verified, _}}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Token can't be verified">>));
@@ -763,12 +779,20 @@ process_request('QuoteP2PTransferWithTemplate', #{
         {error, {operation_not_permitted, Details}} ->
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(Details));
-        {error, {invalid_resource, Type}} ->
+        {error, {sender, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
+        {error, {receiver, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {sender, invalid_resource_token}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"InvalidResourceToken">>,
-                <<"name">>        => Type,
-                <<"description">> => <<"Specified resource token is invalid">>
-            })
+                <<"name">>        => <<"BankCardSenderResource">>});
+        {error, {receiver, invalid_resource_token}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => <<"BankCardReceiverResource">>})
     end;
 process_request('CreateP2PTransferWithTemplate', #{
     p2pTransferTemplateID := P2PTemplateID,
@@ -790,12 +814,20 @@ process_request('CreateP2PTransferWithTemplate', #{
         {error, {operation_not_permitted, Details}} ->
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(Details));
-        {error, {invalid_resource, Type}} ->
+        {error, {sender, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>));
+        {error, {receiver, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>));
+        {error, {sender, invalid_resource_token}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"InvalidResourceToken">>,
-                <<"name">>        => Type,
-                <<"description">> => <<"Specified resource token is invalid">>
-            });
+                <<"name">>        => <<"BankCardSenderResourceParams">>});
+        {error, {receiver, invalid_resource_token}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidResourceToken">>,
+                <<"name">>        => <<"BankCardReceiverResourceParams">>});
         {error, {token, expired}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"InvalidToken">>,

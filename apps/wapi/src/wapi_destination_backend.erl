@@ -24,13 +24,27 @@
         inaccessible                |
         {external_id_conflict, {id(), external_id()}}.
 
-create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
+create(Params, HandlerContext) ->
+    case wapi_backend_utils:decrypt_resource(<<"resource">>, Params) of
+        {ok, Params0} ->
+            create_continue(Params0, HandlerContext);
+        {error, Error} ->
+            logger:warning("Resource token decryption failed: ~p", [Error]),
+            {error, invalid_resource_token}
+    end.
+
+create_continue(Params = #{<<"identity">> := IdentityID, <<"resource">> := Resource}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
                 {ok, ID} ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-                    create(ID, Params, Context, HandlerContext);
+                    DestinationParams = marshal(destination_params, Params#{
+                        <<"id">> => ID,
+                        <<"resource">> => construct_resource(Resource)
+                    }),
+                    Request = {fistful_destination, 'Create', [DestinationParams, marshal(context, Context)]},
+                    create_call(Request, HandlerContext);
                 {error, {external_id_conflict, ID}} ->
                     ExternalID = maps:get(<<"externalID">>, Params, undefined),
                     {error, {external_id_conflict, {ID, ExternalID}}}
@@ -39,28 +53,18 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
             {error, {identity, unauthorized}}
     end.
 
-create(DestinationID, Params = #{<<"resource">> := Resource}, Context, HandlerContext) ->
-    case construct_resource(Resource) of
-        {ok, ConstructedResource} ->
-            DestinationParams = marshal(destination_params, Params#{
-                <<"id">> => DestinationID,
-                <<"resource">> => ConstructedResource
-            }),
-            Request = {fistful_destination, 'Create', [DestinationParams, marshal(context, Context)]},
-            case service_call(Request, HandlerContext) of
-                {ok, Destination} ->
-                    {ok, unmarshal(destination, Destination)};
-                {exception, #fistful_IdentityNotFound{}} ->
-                    {error, {identity, notfound}};
-                {exception, #fistful_CurrencyNotFound{}} ->
-                    {error, {currency, notfound}};
-                {exception, #fistful_PartyInaccessible{}} ->
-                    {error, inaccessible};
-                {exception, Details} ->
-                    {error, Details}
-            end;
-        {error, invalid_resource_token} = Error ->
-            Error
+create_call(Request, HandlerContext) ->
+    case service_call(Request, HandlerContext) of
+        {ok, Destination} ->
+            {ok, unmarshal(destination, Destination)};
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}};
+        {exception, #fistful_CurrencyNotFound{}} ->
+            {error, {currency, notfound}};
+        {exception, #fistful_PartyInaccessible{}} ->
+            {error, inaccessible};
+        {exception, Details} ->
+            {error, Details}
     end.
 
 -spec get(id(), handler_context()) ->
@@ -102,28 +106,9 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
 %% Internal
 %%
 
-construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
+construct_resource(#{<<"type">> := Type, <<"decryptedResource">> := BankCard})
 when Type =:= <<"BankCardDestinationResource">> ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            {ok, marshal(resource, Resource)};
-        {ok, BankCard} ->
-            #'BankCardExpDate'{
-                month = Month,
-                year = Year
-            } = BankCard#'BankCard'.exp_date,
-            CostructedResource = {bank_card, #{bank_card => #{
-                token => BankCard#'BankCard'.token,
-                bin => BankCard#'BankCard'.bin,
-                masked_pan => BankCard#'BankCard'.masked_pan,
-                cardholder_name => BankCard#'BankCard'.cardholder_name,
-                exp_date => {Month, Year}
-            }}},
-            {ok, ff_codec:marshal(resource, CostructedResource)};
-        {error, {decryption_failed, _} = Error} ->
-            logger:warning("Resource token decryption failed: ~p", [Error]),
-            {error, invalid_resource_token}
-    end;
+    {bank_card, #'ResourceBankCard'{bank_card = BankCard}};
 construct_resource(#{<<"type">> := Type} = Resource)
 when Type =:= <<"CryptoWalletDestinationResource">> ->
     #{
@@ -133,7 +118,7 @@ when Type =:= <<"CryptoWalletDestinationResource">> ->
         id => CryptoWalletID,
         currency => marshal_crypto_currency_data(Resource)
     })}},
-    {ok, ff_codec:marshal(resource, CostructedResource)}.
+    ff_codec:marshal(resource, CostructedResource).
 
 service_call(Params, Context) ->
     wapi_handler_utils:service_call(Params, Context).
@@ -156,18 +141,6 @@ marshal(destination_params, Params = #{
         resource = Resource,
         external_id = maybe_marshal(id, ExternalID)
     };
-
-marshal(resource, #{
-    <<"type">> := <<"BankCardDestinationResource">>,
-    <<"token">> := Token
-}) ->
-    BankCard = wapi_utils:base64url_to_map(Token),
-    Resource = {bank_card, #{bank_card => #{
-        token => maps:get(<<"token">>, BankCard),
-        bin => maps:get(<<"bin">>, BankCard),
-        masked_pan => maps:get(<<"lastDigits">>, BankCard)
-    }}},
-    ff_codec:marshal(resource, Resource);
 
 marshal(context, Context) ->
     ff_codec:marshal(context, Context);

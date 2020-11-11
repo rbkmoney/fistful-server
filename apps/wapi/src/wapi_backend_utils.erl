@@ -1,5 +1,7 @@
 -module(wapi_backend_utils).
 
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
+
 -define(EXTERNAL_ID, <<"externalID">>).
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 -define(PARAMS_HASH, <<"params_hash">>).
@@ -31,6 +33,8 @@
 -export([get_from_ctx/2]).
 -export([get_idempotent_key/3]).
 -export([issue_grant_token/3]).
+-export([create_params_hash/1]).
+-export([decrypt_resource/2]).
 
 %% Pipeline
 
@@ -116,6 +120,47 @@ get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
 create_params_hash(Value) ->
     erlang:phash2(Value).
 
+%% @doc
+%%
+%% The new lechiffre encryption algorithm returns a non-deterministic pcidss token for the same data.
+%% The id generation is based on the fact that the params hash is the same.
+%% To do this, the token is replaced with its decrypted content.
+%%
+%% Resource token is contained in the methods createDestination, quoteP2PTransfer, createP2PTransfer,
+%% quoteP2PTransferWithTemplate, createP2PTransferWithTemplate - as attribute <<"token">> of parameters resource,
+%% sender and receiver
+%%
+
+-spec decrypt_resource(binary(), params()) ->
+    {ok, params()} | {error, lechiffre:decoding_error()}.
+
+decrypt_resource(Key, Params) ->
+    case maps:get(Key, Params, undefined) of
+        #{<<"token">> := Token} = Object ->
+            case wapi_crypto:decrypt_bankcard_token(Token) of
+                {ok, Resource} ->
+                    {ok, Params#{Key => Object#{
+                        <<"token">> => <<>>,
+                        <<"decryptedResource">> => Resource
+                    }}};
+                unrecognized ->
+                    BankCard = wapi_utils:base64url_to_map(Token),
+                    Resource = #'BankCard'{
+                        token      = maps:get(<<"token">>, BankCard),
+                        bin        = maps:get(<<"bin">>, BankCard),
+                        masked_pan = maps:get(<<"lastDigits">>, BankCard)
+                   },
+                   {ok, Params#{Key => Object#{
+                       <<"token">> => <<>>,
+                       <<"decryptedResource">> => Resource
+                   }}};
+                Error ->
+                    Error
+            end;
+        _ ->
+            {ok, Params}
+    end.
+
 -spec issue_grant_token(_, binary(), handler_context()) ->
     {ok, binary()} | {error, expired}.
 
@@ -135,3 +180,44 @@ get_expiration_deadline(Expiration) ->
         false ->
             {error, expired}
     end.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() -> _.
+
+-spec decrypt_resource_test_() ->
+    _.
+decrypt_resource_test_() ->
+    {setup,
+        fun() ->
+            Resource = {bank_card, #{bin => <<"424242">>, masked_pan => <<"4242">>}},
+            meck:new([wapi_crypto], [passthrough]),
+            meck:expect(wapi_crypto, decrypt_bankcard_token, 1, {ok, Resource}),
+            Resource
+        end,
+        fun(_) ->
+            meck:unload()
+        end,
+        fun(Resource) ->
+            Params = #{
+                <<"hello">> => world,
+                <<"sender">> => #{<<"key">> => value, <<"token">> => <<"v1.1A1A1A">>},
+                <<"receiver">> => #{<<"key">> => value, <<"token">> => <<"v1.1B1B1B">>},
+                <<"resource">> => #{<<"key">> => value, <<"token">> => <<"v1.1C1C1C">>}
+            },
+            Missed = #{
+                <<"hello">> => world,
+                <<"sender">> => #{<<"key">> => value, <<"token">> => <<>>, <<"decryptedResource">> => Resource},
+                <<"receiver">> => #{<<"key">> => value, <<"token">> => <<>>, <<"decryptedResource">> => Resource},
+                <<"resource">> => #{<<"key">> => value, <<"token">> => <<>>, <<"decryptedResource">> => Resource}
+            },
+            {ok, R1} = decrypt_resource(<<"sender">>, Params),
+            {ok, R2} = decrypt_resource(<<"receiver">>, R1),
+            {ok, R3} = decrypt_resource(<<"resource">>, R2),
+            {ok, Result} = decrypt_resource(<<"cococo">>, R3),
+            ?_assertEqual(Missed, Result)
+        end
+    }.
+
+-endif.

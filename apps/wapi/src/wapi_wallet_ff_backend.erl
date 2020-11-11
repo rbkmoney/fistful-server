@@ -200,7 +200,7 @@ get_identity_challenges(IdentityId, Statuses, Context) ->
 ).
 create_identity_challenge(IdentityId, Params, Context) ->
     Type          = identity_challenge,
-    Hash          = erlang:phash2(Params),
+    Hash          = wapi_backend_utils:create_params_hash(Params),
     {ok, ChallengeID} = gen_id(Type, undefined, Hash, Context),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
@@ -362,7 +362,14 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
     {external_id_conflict, id(), external_id()} |
     {illegal_pattern, _}
 ).
-create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
+create_destination(Params, Context) ->
+    case decrypt_resources(Params, [<<"resource">>]) of
+        {ok, Params0} ->
+            create_destination_continue(Params0, Context);
+        Error ->
+            Error
+    end.
+create_destination_continue(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         do(fun() ->
             _ = check_resource(identity, IdenityId, Context),
@@ -619,6 +626,13 @@ list_deposits(Params, Context) ->
     p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer(Params, Context) ->
+    case decrypt_resources(Params, [<<"sender">>, <<"receiver">>]) of
+        {ok, Params0} ->
+            quote_p2p_transfer_continue(Params0, Context);
+        Error ->
+            Error
+    end.
+quote_p2p_transfer_continue(Params, Context) ->
     do(fun () ->
         #{
             sender := Sender,
@@ -653,7 +667,14 @@ quote_p2p_transfer(Params, Context) ->
         {not_verified, identity_mismatch}
     }
 ).
-create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
+create_p2p_transfer(Params, Context) ->
+    case decrypt_resources(Params, [<<"sender">>, <<"receiver">>]) of
+        {ok, Params0} ->
+            create_p2p_transfer_continue(Params0, Context);
+        Error ->
+            Error
+    end.
+create_p2p_transfer_continue(Params = #{<<"identityID">> := IdentityId}, Context) ->
     CreateFun =
         fun(ID, EntityCtx) ->
             do(fun() ->
@@ -810,13 +831,20 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
         {not_verified, identity_mismatch}
     }
 ).
-create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := WoodyCtx}) ->
+create_p2p_transfer_with_template(ID, Params, Context) ->
+    case decrypt_resources(Params, [<<"sender">>, <<"receiver">>]) of
+        {ok, Params0} ->
+            create_p2p_transfer_with_template_continue(ID, Params0, Context);
+        Error ->
+            Error
+    end.
+create_p2p_transfer_with_template_continue(ID, Params, Context = #{woody_context := WoodyCtx}) ->
     do(fun () ->
         {_, _, Claims} = wapi_handler_utils:get_auth_context(Context),
         Data = maps:get(<<"data">>, Claims),
         TransferID = maps:get(<<"transferID">>, Data),
         PartyID = wapi_handler_utils:get_owner(Context),
-        Hash = erlang:phash2(Params),
+        Hash = wapi_backend_utils:create_params_hash(Params),
         IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
         case bender_client:gen_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
             {ok, {TransferID, _}} ->
@@ -848,6 +876,13 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
     p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer_with_template(ID, Params, Context) ->
+    case decrypt_resources(Params, [<<"sender">>, <<"receiver">>]) of
+        {ok, Params0} ->
+            quote_p2p_transfer_with_template_continue(ID, Params0, Context);
+        Error ->
+            Error
+    end.
+quote_p2p_transfer_with_template_continue(ID, Params, Context) ->
     do(fun () ->
         #{
             sender := Sender,
@@ -905,43 +940,17 @@ choose_token_expiration(TicketExpiration, AccessExpiration) ->
             TicketExpiration
     end.
 
-construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
+construct_resource(#{<<"type">> := Type, <<"decryptedResource">> := BankCard})
 when Type =:= <<"BankCardDestinationResource">> ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            {ok, from_swag(destination_resource, Resource)};
-        {ok, BankCard} ->
-            {ok, {bank_card, encode_bank_card(BankCard)}};
-        {error, {decryption_failed, _} = Error} ->
-            logger:warning("~s token decryption failed: ~p", [Type, Error]),
-            {error, {invalid_resource_token, Type}}
-    end;
-construct_resource(#{<<"type">> := Type, <<"token">> := Token, <<"authData">> := AuthData})
+    {ok, {bank_card, BankCard}};
+construct_resource(#{<<"type">> := Type, <<"decryptedResource">> := BankCard, <<"authData">> := AuthData})
 when   Type =:= <<"BankCardSenderResourceParams">>  ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        {ok, BankCard} ->
-            {ok, encode_resource_bank_card(BankCard, AuthData)};
-        unrecognized ->
-            logger:warning("~s token unrecognized", [Type]),
-            {error, {invalid_resource_token, Type}};
-        {error, {decryption_failed, _} = Error} ->
-            logger:warning("~s token decryption failed: ~p", [Type, Error]),
-            {error, {invalid_resource_token, Type}}
-    end;
-construct_resource(#{<<"type">> := Type, <<"token">> := Token})
+    {ok, {bank_card, BankCard#{auth_data => {session, #{session_id => AuthData}}}}};
+construct_resource(#{<<"type">> := Type, <<"decryptedResource">> := BankCard})
 when   Type =:= <<"BankCardSenderResource">>
 orelse Type =:= <<"BankCardReceiverResource">>
 orelse Type =:= <<"BankCardReceiverResourceParams">> ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        {ok, BankCard} ->
-            {ok, {bank_card, encode_bank_card(BankCard)}};
-        unrecognized ->
-            logger:warning("~s token unrecognized", [Type]),
-            {error, {invalid_resource_token, Type}};
-        {error, {decryption_failed, _} = Error} ->
-            logger:warning("~s token decryption failed: ~p", [Type, Error]),
-            {error, {invalid_resource_token, Type}}
-    end;
+    {ok, {bank_card, BankCard}};
 construct_resource(#{<<"type">> := Type, <<"id">> := CryptoWalletID} = Resource)
 when Type =:= <<"CryptoWalletDestinationResource">> ->
     {ok, {crypto_wallet, #{crypto_wallet => genlib_map:compact(#{
@@ -949,9 +958,37 @@ when Type =:= <<"CryptoWalletDestinationResource">> ->
         currency => from_swag(crypto_wallet_currency, Resource)
     })}}}.
 
-encode_resource_bank_card(BankCard, AuthData) ->
-    EncodedBankCard = encode_bank_card(BankCard),
-    {bank_card, EncodedBankCard#{auth_data => {session, #{session_id => AuthData}}}}.
+decrypt_resources(Params, List) ->
+    lists:foldl(fun
+        (Key, {ok, AccParams}) -> decrypt_resource(Key, AccParams);
+        (_Key, {error, Error}) -> {error, Error}
+    end, {ok, Params}, List).
+
+decrypt_resource(Key, AccParams) ->
+    case maps:get(Key, AccParams, undefined) of
+        #{<<"token">> := Token, <<"type">> := Type} = Object ->
+            case wapi_crypto:decrypt_bankcard_token(Token) of
+                {ok, Resource} ->
+                    {ok, AccParams#{Key => Object#{
+                        <<"token">> => <<>>,
+                        <<"decryptedResource">> => encode_bank_card(Resource)
+                    }}};
+                unrecognized when Type =:= <<"BankCardDestinationResource">> ->
+                    {bank_card, BankCard} = from_swag(destination_resource, Object),
+                    {ok, AccParams#{Key => Object#{
+                        <<"token">> => <<>>,
+                        <<"decryptedResource">> => BankCard
+                    }}};
+                 unrecognized  ->
+                    logger:warning("~s token unrecognized", [Type]),
+                    {error, {invalid_resource_token, Type}};
+                {error, Error} ->
+                    logger:warning("~s token decryption failed: ~p", [Type, Error]),
+                    {error, {invalid_resource_token, Type}}
+            end;
+        _ ->
+            {ok, AccParams}
+    end.
 
 encode_bank_card(BankCard) ->
     #{
@@ -1270,7 +1307,7 @@ check_resource_access(false) -> {error, unauthorized}.
 
 create_entity(Type, Params, CreateFun, Context) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
-    Hash       = erlang:phash2(Params),
+    Hash       = wapi_backend_utils:create_params_hash(Params),
     case gen_id(Type, ExternalID, Hash, Context) of
         {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),

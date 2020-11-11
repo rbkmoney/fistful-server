@@ -190,7 +190,7 @@ create_p2p_transfer_ok_test(C) ->
         identity_id = IdentityID,
         sender = create_resource_raw(C),
         receiver = create_resource_raw(C),
-        body = make_cash({100, <<"RUB">>}),
+        body = make_cash({256, <<"RUB">>}),
         client_info = #'ClientInfo'{ip_address = <<"some ip_address">>, fingerprint = <<"some fingerprint">>},
         external_id = ExternalID,
         metadata = Metadata
@@ -243,8 +243,7 @@ await_final_p2p_transfer_status(P2PTransferID) ->
                 true ->
                     finished
             end
-        end,
-        genlib_retry:linear(10, 1000)
+        end
     ),
     get_p2p_status(P2PTransferID).
 
@@ -305,7 +304,7 @@ prepare_standard_environment(C) ->
         identity_id = IdentityID,
         sender = create_resource_raw(C),
         receiver = create_resource_raw(C),
-        body = make_cash({100, <<"RUB">>}),
+        body = make_cash({256, <<"RUB">>}),
         client_info = #'ClientInfo'{ip_address = <<"some ip_address">>, fingerprint = <<"some fingerprint">>},
         external_id = ExternalID
     },

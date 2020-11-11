@@ -18,6 +18,8 @@
      | {token,        {not_verified, _}}
      | {sender,       invalid_resource}
      | {receiver,     invalid_resource}
+     | {sender,       invalid_resource_token}
+     | {receiver,     invalid_resource_token}
      .
 
 -type error_create_quote()
@@ -28,6 +30,8 @@
      | {p2p_transfer, operation_not_permitted}
      | {sender,       invalid_resource}
      | {receiver,     invalid_resource}
+     | {sender,       invalid_resource_token}
+     | {receiver,     invalid_resource_token}
      .
 
 -type error_get()
@@ -63,7 +67,20 @@
 
 -spec create_transfer(req_data(), handler_context()) ->
     {ok, response_data()} | {error, error_create()}.
-create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
+
+create_transfer(Params, HandlerContext) ->
+    logger:warning("Params: ~p", [Params]),
+    case decrypt_resources(Params) of
+        {ok, Params0} ->
+            R = create_transfer_continue(Params0, HandlerContext),
+            logger:warning("create_transfer_continue: ~p", [R]),
+            R;
+        Error ->
+            logger:warning("Error: ~p", [Error]),
+            Error
+    end.
+
+create_transfer_continue(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             case wapi_backend_utils:gen_id(p2p_transfer, Params, HandlerContext) of
@@ -97,7 +114,14 @@ get_transfer(ID, HandlerContext) ->
 -spec quote_transfer(req_data(), handler_context()) ->
     {ok, response_data()} | {error, error_create_quote()}.
 
-quote_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
+quote_transfer(Params, HandlerContext) ->
+    case decrypt_resources(Params) of
+        {ok, Params0} ->
+            quote_transfer_continue(Params0, HandlerContext);
+        Error ->
+            Error
+    end.
+quote_transfer_continue(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             do_quote_transfer(Params, HandlerContext);
@@ -201,6 +225,19 @@ authorize_p2p_quote_token(#p2p_transfer_Quote{identity_id = IdentityID}, Identit
     ok;
 authorize_p2p_quote_token(_Quote, _IdentityID) ->
     {error, {token, {not_verified, identity_mismatch}}}.
+
+decrypt_resources(Params) ->
+    case wapi_backend_utils:decrypt_resource(<<"sender">>, Params) of
+        {ok, Params0} ->
+            case wapi_backend_utils:decrypt_resource(<<"receiver">>, Params0) of
+                {ok, Params1} ->
+                    {ok, Params1};
+                {error, _Error} ->
+                    {error, {receiver, invalid_resource_token}}
+            end;
+        {error, _Error} ->
+            {error, {sender, invalid_resource_token}}
+    end.
 
 service_call(Params, HandlerContext) ->
     wapi_handler_utils:service_call(Params, HandlerContext).
@@ -417,21 +454,10 @@ marshal_quote_params(#{
     }.
 
 marshal_quote_participant(#{
-    <<"token">> := Token
+    <<"token">> := _Token,
+    <<"decryptedResource">> := Resource
 }) ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            {bank_card, #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            }};
-        {ok, BankCard} ->
-            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
-    end.
+    {bank_card, #'ResourceBankCard'{bank_card = Resource}}.
 
 marshal_transfer_params(#{
     <<"id">> := ID,
@@ -450,49 +476,26 @@ marshal_transfer_params(#{
     }.
 
 marshal_sender(#{
-    <<"token">> := Token,
+    <<"token">> := _Token,
     <<"authData">> := AuthData,
-    <<"contactInfo">> := ContactInfo
+    <<"contactInfo">> := ContactInfo,
+    <<"decryptedResource">> := Resource
 }) ->
-    ResourceBankCard = case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            };
-        {ok, BankCard} ->
-            #'ResourceBankCard'{bank_card = BankCard}
-    end,
-    ResourceBankCardAuth = ResourceBankCard#'ResourceBankCard'{
+    ResourceBankCard = #'ResourceBankCard'{
+        bank_card = Resource,
         auth_data = {session_data, #'SessionAuthData'{id = AuthData}}
     },
     {resource, #p2p_transfer_RawResource{
-        resource = {bank_card, ResourceBankCardAuth},
+        resource = {bank_card, ResourceBankCard},
         contact_info = marshal_contact_info(ContactInfo)
     }}.
 
 marshal_receiver(#{
-    <<"token">> := Token
+    <<"token">> := _Token,
+    <<"decryptedResource">> := Resource
 }) ->
-    Resource = case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            {bank_card, #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            }};
-        {ok, BankCard} ->
-            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
-    end,
     {resource, #p2p_transfer_RawResource{
-        resource = Resource,
+        resource = {bank_card, #'ResourceBankCard'{bank_card = Resource}},
         contact_info = #'ContactInfo'{}
     }}.
 

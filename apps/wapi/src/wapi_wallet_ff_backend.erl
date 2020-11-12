@@ -155,17 +155,17 @@ get_identity(IdentityId, Context) ->
     {identity_class, notfound} |
     {inaccessible, ff_party:inaccessibility()} |
     {email, notfound}          |
-    {external_id_conflict, id(), external_id()} |
-    {party, notfound}
+    {external_id_conflict, id(), external_id()}
 ).
 create_identity(Params, Context) ->
     IdentityParams = from_swag(identity_params, Params),
-    CreateFun = fun(ID, EntityCtx) ->
+    CreateIdentity = fun(ID, EntityCtx) ->
         ff_identity_machine:create(
             maps:merge(IdentityParams#{id => ID}, #{party => wapi_handler_utils:get_owner(Context)}),
             add_meta_to_ctx([<<"name">>], Params, EntityCtx)
         )
     end,
+    CreateFun = fun(ID, EntityCtx) -> with_party(Context, fun() -> CreateIdentity(ID, EntityCtx) end) end,
     do(fun() -> unwrap(create_entity(identity, Params, CreateFun, Context)) end).
 
 -spec get_identity_challenges(id(), [binary()], ctx()) -> result(map(),
@@ -368,7 +368,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
             _ = check_resource(identity, IdenityId, Context),
             DestinationParams = from_swag(destination_params, Params),
             Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
-            unwrap(ff_destination_machine:create(
+            unwrap(ff_destination:create(
                 DestinationParams#{id => ID, resource => Resource},
                 add_meta_to_ctx([], Params, EntityCtx)
             ))
@@ -1231,7 +1231,7 @@ get_state(Resource, Id, Context) ->
 
 do_get_state(identity,     Id) -> ff_identity_machine:get(Id);
 do_get_state(wallet,       Id) -> ff_wallet_machine:get(Id);
-do_get_state(destination,  Id) -> ff_destination_machine:get(Id);
+do_get_state(destination,  Id) -> ff_destination:get_machine(Id);
 do_get_state(withdrawal,   Id) -> ff_withdrawal_machine:get(Id);
 do_get_state(p2p_transfer, Id) -> p2p_transfer_machine:get(Id);
 do_get_state(p2p_template, Id) -> p2p_template_machine:get(Id);
@@ -1287,6 +1287,27 @@ handle_create_entity_result(Result, Type, ID, Context) when
     do(fun() -> to_swag(Type, St) end);
 handle_create_entity_result({error, E}, _Type, _ID, _Context) ->
     throw(E).
+
+with_party(Context, Fun) ->
+    try Fun()
+    catch
+        error:#'payproc_PartyNotFound'{} ->
+            ok = create_party(Context),
+            Fun()
+    end.
+
+create_party(Context) ->
+    _ = ff_party:create(
+        wapi_handler_utils:get_owner(Context),
+        #{email => unwrap(get_email(wapi_handler_utils:get_auth_context(Context)))}
+    ),
+    ok.
+
+get_email(AuthContext) ->
+    case uac_authorizer_jwt:get_claim(<<"email">>, AuthContext, undefined) of
+        undefined -> {error, {email, notfound}};
+        Email     -> {ok, Email}
+    end.
 
 -spec not_implemented() -> no_return().
 not_implemented() ->
@@ -1908,7 +1929,7 @@ to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
         }
     };
 to_swag(destination, State) ->
-    Destination = ff_destination_machine:destination(State),
+    Destination = ff_destination:get(State),
     to_swag(map, maps:merge(
         #{
             <<"id">>         => ff_destination:id(Destination),

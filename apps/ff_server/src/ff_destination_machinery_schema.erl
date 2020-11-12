@@ -99,7 +99,7 @@ unmarshal_event(undefined = Version, EncodedChange, Context0) ->
 -spec maybe_migrate(any()) ->
     event().
 maybe_migrate({ev, Timestamp, Change}) ->
-    {ev, Timestamp, ff_destination:maybe_migrate(Change, #{timestamp => Timestamp})}.
+    {ev, Timestamp, ff_instrument:maybe_migrate(Change, #{timestamp => Timestamp})}.
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

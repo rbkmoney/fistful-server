@@ -41,17 +41,17 @@ marshal_destination_state(DestinationState, Context) ->
     #dst_DestinationState{
         id = marshal(id, ff_destination:id(DestinationState)),
         name = marshal(string, ff_destination:name(DestinationState)),
-        resource = maybe_marshal(resource, ff_destination:resource(DestinationState)),
-        external_id = maybe_marshal(id, ff_destination:external_id(DestinationState)),
-        account = maybe_marshal(account, ff_destination:account(DestinationState)),
-        status = maybe_marshal(status, ff_destination:status(DestinationState)),
-        created_at = maybe_marshal(timestamp_ms, ff_destination:created_at(DestinationState)),
+        resource = marshal(resource, ff_destination:resource(DestinationState)),
+        external_id = marshal(id, ff_destination:external_id(DestinationState)),
+        account = marshal(account, ff_destination:account(DestinationState)),
+        status = marshal(status, ff_destination:status(DestinationState)),
+        created_at = marshal(timestamp_ms, ff_destination:created_at(DestinationState)),
         blocking = Blocking,
-        metadata = maybe_marshal(ctx, ff_destination:metadata(DestinationState)),
-        context = maybe_marshal(ctx, Context)
+        metadata = marshal(ctx, ff_destination:metadata(DestinationState)),
+        context = marshal(ctx, Context)
     }.
 
--spec marshal_event(ff_destination_machine:event()) ->
+-spec marshal_event(ff_destination:timestamped_event()) ->
     ff_proto_destination_thrift:'Event'().
 
 marshal_event({EventID, {ev, Timestamp, Change}}) ->

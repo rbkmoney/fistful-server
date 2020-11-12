@@ -38,19 +38,19 @@ marshal_source_state(SourceState, Context) ->
             blocked
     end,
     #src_SourceState{
-        id = maybe_marshal(id, ff_source:id(SourceState)),
+        id = marshal(id, ff_source:id(SourceState)),
         name = marshal(string, ff_source:name(SourceState)),
         resource = marshal(resource, ff_source:resource(SourceState)),
-        external_id = maybe_marshal(id, ff_source:external_id(SourceState)),
-        account = maybe_marshal(account, ff_source:account(SourceState)),
-        status = maybe_marshal(status, ff_source:status(SourceState)),
-        created_at = maybe_marshal(timestamp_ms, ff_source:created_at(SourceState)),
+        external_id = marshal(id, ff_source:external_id(SourceState)),
+        account = marshal(account, ff_source:account(SourceState)),
+        status = marshal(status, ff_source:status(SourceState)),
+        created_at = marshal(timestamp_ms, ff_source:created_at(SourceState)),
         blocking = Blocking,
-        metadata = maybe_marshal(ctx, ff_source:metadata(SourceState)),
-        context = maybe_marshal(ctx, Context)
+        metadata = marshal(ctx, ff_source:metadata(SourceState)),
+        context = marshal(ctx, Context)
     }.
 
--spec marshal_event(ff_source_machine:event()) ->
+-spec marshal_event(ff_source:timestamped_event()) ->
     ff_proto_source_thrift:'Event'().
 
 marshal_event({EventID, {ev, Timestamp, Change}}) ->

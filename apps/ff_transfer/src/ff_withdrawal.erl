@@ -176,7 +176,7 @@
 -type invalid_withdrawal_status_error() ::
     {invalid_withdrawal_status, status()}.
 
--type action() :: sleep | continue | undefined.
+-type action() :: poll | continue | undefined.
 
 -export_type([withdrawal/0]).
 -export_type([withdrawal_state/0]).
@@ -198,10 +198,6 @@
 %% Transfer logic callbacks
 
 -export([process_transfer/1]).
-
-%%
-
--export([process_session_finished/3]).
 
 %% Accessors
 
@@ -299,7 +295,7 @@
     p_transfer_start |
     p_transfer_prepare |
     session_starting |
-    session_sleeping |
+    session_polling |
     p_transfer_commit |
     p_transfer_cancel |
     limit_check |
@@ -332,8 +328,8 @@ destination_resource(#{resource := Resource}) ->
     Resource;
 destination_resource(Withdrawal) ->
     DestinationID = destination_id(Withdrawal),
-    {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
-    Destination = ff_destination_machine:destination(DestinationMachine),
+    {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
+    Destination = ff_destination:get(DestinationMachine),
     {ok, Resource} = ff_destination:resource_full(Destination),
     Resource.
 
@@ -511,51 +507,6 @@ process_transfer(Withdrawal) ->
     Activity = deduce_activity(Withdrawal),
     do_process_transfer(Activity, Withdrawal).
 
-%%
-
--spec process_session_finished(session_id(), session_result(), withdrawal_state()) ->
-    {ok, process_result()} | {error, session_not_found | old_session | result_mismatch}.
-process_session_finished(SessionID, SessionResult, Withdrawal) ->
-    case get_session_by_id(SessionID, Withdrawal) of
-        #{id := SessionID, result := SessionResult} ->
-            {ok, {undefined, []}};
-        #{id := SessionID, result := _OtherSessionResult} ->
-            {error, result_mismatch};
-        #{id := SessionID} ->
-            try_finish_session(SessionID, SessionResult, Withdrawal);
-        undefined ->
-            {error, session_not_found}
-    end.
-
--spec get_session_by_id(session_id(), withdrawal_state()) ->
-    session() | undefined.
-get_session_by_id(SessionID, Withdrawal) ->
-    Sessions = ff_withdrawal_route_attempt_utils:get_sessions(attempts(Withdrawal)),
-    case lists:filter(fun(#{id := SessionID0}) -> SessionID0 =:= SessionID end, Sessions) of
-        [Session] -> Session;
-        [] -> undefined
-    end.
-
--spec try_finish_session(session_id(), session_result(), withdrawal_state()) ->
-    {ok, process_result()} | {error, old_session}.
-try_finish_session(SessionID, SessionResult, Withdrawal) ->
-    case is_current_session(SessionID, Withdrawal) of
-        true ->
-            {ok, {continue, [{session_finished, {SessionID, SessionResult}}]}};
-        false ->
-            {error, old_session}
-    end.
-
--spec is_current_session(session_id(), withdrawal_state()) ->
-    boolean().
-is_current_session(SessionID, Withdrawal) ->
-    case session_id(Withdrawal) of
-        SessionID ->
-            true;
-        _ ->
-            false
-    end.
-
 %% Internals
 
 -spec do_start_adjustment(adjustment_params(), withdrawal_state()) ->
@@ -688,7 +639,7 @@ do_pending_activity(#{p_transfer := prepared, limit_check := failed}) ->
 do_pending_activity(#{p_transfer := cancelled, limit_check := failed}) ->
     {fail, limit_check};
 do_pending_activity(#{p_transfer := prepared, session := pending}) ->
-    session_sleeping;
+    session_polling;
 do_pending_activity(#{p_transfer := prepared, session := succeeded}) ->
     p_transfer_commit;
 do_pending_activity(#{p_transfer := committed, session := succeeded}) ->
@@ -732,8 +683,8 @@ do_process_transfer(limit_check, Withdrawal) ->
     process_limit_check(Withdrawal);
 do_process_transfer(session_starting, Withdrawal) ->
     process_session_creation(Withdrawal);
-do_process_transfer(session_sleeping, Withdrawal) ->
-    process_session_sleep(Withdrawal);
+do_process_transfer(session_polling, Withdrawal) ->
+    process_session_poll(Withdrawal);
 do_process_transfer({fail, Reason}, Withdrawal) ->
     {ok, Providers} = do_process_routing(Withdrawal),
     process_route_change(Providers, Withdrawal, Reason);
@@ -873,8 +824,8 @@ process_session_creation(Withdrawal) ->
     Wallet = ff_wallet_machine:wallet(WalletMachine),
     WalletAccount = ff_wallet:account(Wallet),
 
-    {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
-    Destination = ff_destination_machine:destination(DestinationMachine),
+    {ok, DestinationMachine} = ff_destination:get_machine(DestinationID),
+    Destination = ff_destination:get(DestinationMachine),
     DestinationAccount = ff_destination:account(Destination),
 
     Route = route(Withdrawal),
@@ -918,15 +869,15 @@ create_session(ID, TransferData, SessionParams) ->
             ok
     end.
 
--spec process_session_sleep(withdrawal_state()) ->
+-spec process_session_poll(withdrawal_state()) ->
     process_result().
-process_session_sleep(Withdrawal) ->
+process_session_poll(Withdrawal) ->
     SessionID = session_id(Withdrawal),
     {ok, SessionMachine} = ff_withdrawal_session_machine:get(SessionID),
     Session = ff_withdrawal_session_machine:session(SessionMachine),
     case ff_withdrawal_session:status(Session) of
         active ->
-            {sleep, []};
+            {poll, []};
         {finished, _} ->
             Result = ff_withdrawal_session:result(Session),
             {continue, [{session_finished, {SessionID, Result}}]}
@@ -1047,8 +998,8 @@ get_wallet(WalletID) ->
     {ok, destination()} | {error, notfound}.
 get_destination(DestinationID) ->
     do(fun() ->
-        DestinationMachine = unwrap(ff_destination_machine:get(DestinationID)),
-        ff_destination_machine:destination(DestinationMachine)
+        DestinationMachine = unwrap(ff_destination:get_machine(DestinationID)),
+        ff_destination:get(DestinationMachine)
     end).
 
 -spec get_wallet_identity(wallet()) ->

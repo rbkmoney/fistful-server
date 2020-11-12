@@ -109,7 +109,7 @@ maybe_migrate({p_transfer, PEvent}, _MigrateParams) ->
 maybe_migrate({adjustment, _Payload} = Event, _MigrateParams) ->
     ff_adjustment_utils:maybe_migrate(Event);
 maybe_migrate({resource_got, Resource}, _MigrateParams) ->
-    {resource_got, ff_destination:maybe_migrate_resource(Resource)};
+    {resource_got, ff_instrument:maybe_migrate_resource(Resource)};
 
 % Old events
 maybe_migrate({limit_check, {wallet, Details}}, MigrateParams) ->

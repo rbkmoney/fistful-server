@@ -30,7 +30,6 @@
 -export([check_withdrawal_limit_test/1]).
 -export([check_withdrawal_limit_exceeded_test/1]).
 -export([identity_providers_mismatch_test/1]).
--export([lazy_party_creation_forbidden_test/1]).
 
 -export([consume_eventsinks/1]).
 
@@ -73,8 +72,7 @@ groups() ->
             not_allowed_currency_test,
             check_withdrawal_limit_test,
             check_withdrawal_limit_exceeded_test,
-            identity_providers_mismatch_test,
-            lazy_party_creation_forbidden_test
+            identity_providers_mismatch_test
         ]},
         {eventsink, [], [
             consume_eventsinks
@@ -136,31 +134,12 @@ end_per_group(_, _) ->
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
-    case Name of
-        woody_retry_test  ->
-            Save = application:get_env(wapi_woody_client, service_urls, undefined),
-            ok = application:set_env(
-                wapi_woody_client,
-                service_urls,
-                Save#{fistful_stat => "http://spanish.inquision/fistful_stat"}
-            ),
-            lists:keystore(service_urls, 1, C1, {service_urls, Save});
-        _Other ->
-            C1
-    end.
+    C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
 
-end_per_testcase(_Name, C) ->
-    ok = ct_helper:unset_context(),
-    case lists:keysearch(service_urls, 1, C) of
-        {value, {_, undefined}} ->
-            application:unset_env(wapi_woody_client, service_urls);
-        {value, {_, Save}} ->
-            application:set_env(wapi_woody_client, service_urls, Save);
-        _ ->
-            ok
-    end.
+end_per_testcase(_Name, _C) ->
+    ok = ct_helper:unset_context().
 
 -define(ID_PROVIDER, <<"good-one">>).
 -define(ID_PROVIDER2, <<"good-two">>).
@@ -404,24 +383,6 @@ identity_providers_mismatch_test(C) ->
         })},
         cfg(context, C)
     ).
--spec lazy_party_creation_forbidden_test(config()) -> test_return().
-lazy_party_creation_forbidden_test(_) ->
-    Name = <<"Keyn Fawkes">>,
-    Provider = ?ID_PROVIDER,
-    Class = ?ID_CLASS,
-    {Context, _} = create_context_for_group(group_or_smth, <<"Nonexistent party">>),
-    {error, {422, #{<<"message">> := <<"Party does not exist">>}}} = call_api(
-        fun swag_client_wallet_identities_api:create_identity/3,
-        #{body => #{
-            <<"name">>     => Name,
-            <<"provider">> => Provider,
-            <<"class">>    => Class,
-            <<"metadata">> => #{
-                ?STRING => ?STRING
-            }
-        }},
-        Context
-    ).
 
 -spec unknown_withdrawal_test(config()) -> test_return().
 
@@ -577,6 +538,12 @@ quote_withdrawal_test(C) ->
     ok = check_withdrawal(WalletID, DestID, WithdrawalID, C).
 
 woody_retry_test(C) ->
+    Urls = application:get_env(wapi_woody_client, service_urls, #{}),
+    ok = application:set_env(
+        wapi_woody_client,
+        service_urls,
+        Urls#{fistful_stat => "http://spanish.inquision/fistful_stat"}
+    ),
     Params = #{
         identityID => <<"12332">>,
         currencyID => <<"RUB">>,
@@ -595,7 +562,8 @@ woody_retry_test(C) ->
     end,
     T2 = erlang:monotonic_time(),
     Time = erlang:convert_time_unit(T2 - T1, native, micro_seconds),
-    ?assert(Time > 3000000).
+    ?assert(Time > 3000000),
+    ok = application:set_env(wapi_woody_client, service_urls, Urls).
 
 -spec get_wallet_by_external_id(config()) ->
     test_return().
@@ -789,9 +757,8 @@ await_destination(DestID) ->
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, DestM} = ff_destination_machine:get(DestID),
-            Destination = ff_destination_machine:destination(DestM),
-            ff_destination:status(Destination)
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
         end
     ).
 

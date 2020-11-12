@@ -428,9 +428,8 @@ get_wallet_balance(ID) ->
     get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
 
 get_destination_balance(ID) ->
-    {ok, Machine} = ff_destination_machine:get(ID),
-    Destination = ff_destination_machine:destination(Machine),
-    get_account_balance(ff_destination:account(Destination)).
+    {ok, Machine} = ff_destination:get_machine(ID),
+    get_account_balance(ff_destination:account(ff_destination:get(Machine))).
 
 get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(
@@ -446,13 +445,12 @@ create_destination(IID, C) ->
     ID = generate_id(),
     Resource = {bank_card, #{bank_card => ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)}},
     Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => <<"RUB">>, resource => Resource},
-    ok = ff_destination_machine:create(Params, ff_entity_context:new()),
+    ok = ff_destination:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, Machine} = ff_destination_machine:get(ID),
-            Destination = ff_destination_machine:destination(Machine),
-            ff_destination:status(Destination)
+            {ok, Machine} = ff_destination:get_machine(ID),
+            ff_destination:status(ff_destination:get(Machine))
         end
     ),
     ID.

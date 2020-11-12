@@ -397,9 +397,8 @@ get_wallet_balance(ID) ->
     get_account_balance(ff_wallet:account(ff_wallet_machine:wallet(Machine))).
 
 get_destination_balance(ID) ->
-    {ok, Machine} = ff_destination_machine:get(ID),
-    Destination = ff_destination_machine:destination(Machine),
-    get_account_balance(ff_destination:account(Destination)).
+    {ok, Machine} = ff_destination:get_machine(ID),
+    get_account_balance(ff_destination:account(ff_destination:get(Machine))).
 
 get_account_balance(Account) ->
     {ok, {Amounts, Currency}} = ff_transaction:balance(
@@ -408,21 +407,20 @@ get_account_balance(Account) ->
     ),
     {ff_indef:current(Amounts), ff_indef:to_range(Amounts), Currency}.
 
-create_source(IdentityID, Name, Currency, Resource) ->
+create_instrument(Type, IdentityID, Name, Currency, Resource, C) ->
     ID = genlib:unique(),
-    ok = ff_source_machine:create(
+    ok = create_instrument(
+        Type,
         #{id => ID, identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_entity_context:new()
+        ff_entity_context:new(),
+        C
     ),
     ID.
 
-create_destination(IdentityID, Name, Currency, Resource) ->
-    ID = genlib:unique(),
-    ok = ff_destination_machine:create(
-        #{id => ID, identity => IdentityID, name => Name, currency => Currency, resource => Resource},
-        ff_entity_context:new()
-    ),
-    ID.
+create_instrument(destination, Params, Ctx, _C) ->
+    ff_destination:create(Params, Ctx);
+create_instrument(source, Params, Ctx, _C) ->
+    ff_source:create(Params, Ctx).
 
 generate_id() ->
     genlib:to_binary(genlib_time:ticks()).
@@ -436,15 +434,15 @@ call_admin(Fun, Args) ->
     }),
     ff_woody_client:call(Client, Request).
 
-create_source(IID, _C) ->
+create_source(IID, C) ->
+    % Create source
     SrcResource = #{type => internal, details => <<"Infinite source of cash">>},
-    SrcID = create_source(IID, <<"XSource">>, <<"RUB">>, SrcResource),
+    SrcID = create_instrument(source, IID, <<"XSource">>, <<"RUB">>, SrcResource, C),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, SrcM} = ff_source_machine:get(SrcID),
-            Source = ff_source_machine:source(SrcM),
-            ff_source:status(Source)
+            {ok, SrcM} = ff_source:get_machine(SrcID),
+            ff_source:status(ff_source:get(SrcM))
         end
     ),
     SrcID.
@@ -467,29 +465,27 @@ process_deposit(SrcID, WalID) ->
 
 create_destination(IID, C) ->
     DestResource = {bank_card, #{bank_card => ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C)}},
-    DestID = create_destination(IID, <<"XDesination">>, <<"RUB">>, DestResource),
+    DestID = create_instrument(destination, IID, <<"XDesination">>, <<"RUB">>, DestResource, C),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, DestM} = ff_destination_machine:get(DestID),
-            Destination = ff_destination_machine:destination(DestM),
-            ff_destination:status(Destination)
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
         end
     ),
     DestID.
 
-create_crypto_destination(IID, _C) ->
+create_crypto_destination(IID, C) ->
     Resource = {crypto_wallet, #{crypto_wallet => #{
         id => <<"a30e277c07400c9940628828949efd48">>,
         currency => {litecoin, #{}}
     }}},
-    DestID = create_destination(IID, <<"CryptoDestination">>, <<"RUB">>, Resource),
+    DestID = create_instrument(destination, IID, <<"CryptoDestination">>, <<"RUB">>, Resource, C),
     authorized = ct_helper:await(
         authorized,
         fun () ->
-            {ok, DestM} = ff_destination_machine:get(DestID),
-            Destination = ff_destination_machine:destination(DestM),
-            ff_destination:status(Destination)
+            {ok, DestM} = ff_destination:get_machine(DestID),
+            ff_destination:status(ff_destination:get(DestM))
         end
     ),
     DestID.

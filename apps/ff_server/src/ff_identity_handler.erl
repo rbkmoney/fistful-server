@@ -30,8 +30,6 @@ handle_function_('Create', [IdentityParams, Context], Opts) ->
             handle_function_('Get', [IdentityID, #'EventRange'{}], Opts);
         {error, {provider, notfound}} ->
             woody_error:raise(business, #fistful_ProviderNotFound{});
-        {error, {party, notfound}} ->
-            woody_error:raise(business, #fistful_PartyNotFound{});
         {error, {identity_class, notfound}} ->
             woody_error:raise(business, #fistful_IdentityClassNotFound{});
         {error, {inaccessible, _}} ->

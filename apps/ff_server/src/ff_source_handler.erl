@@ -24,7 +24,7 @@ handle_function(Func, Args, Opts) ->
 handle_function_('Create', [Params, Ctx], Opts) ->
     ID = Params#src_SourceParams.id,
     ok = scoper:add_meta(#{id => ID}),
-    case ff_source_machine:create(
+    case ff_source:create(
         ff_source_codec:unmarshal_source_params(Params),
         ff_source_codec:unmarshal(ctx, Ctx))
     of
@@ -43,10 +43,10 @@ handle_function_('Create', [Params, Ctx], Opts) ->
     end;
 handle_function_('Get', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
-    case ff_source_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
+    case ff_source:get_machine(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
-            Source = ff_source_machine:source(Machine),
-            Context = ff_source_machine:ctx(Machine),
+            Source = ff_source:get(Machine),
+            Context = ff_source:ctx(Machine),
             Response = ff_source_codec:marshal_source_state(Source, Context),
             {ok, Response};
         {error, notfound} ->
@@ -54,16 +54,16 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     end;
 handle_function_('GetContext', [ID], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
-    case ff_source_machine:get(ID, {undefined, 0}) of
+    case ff_source:get_machine(ID, {undefined, 0}) of
         {ok, Machine} ->
-            Context = ff_source_machine:ctx(Machine),
+            Context = ff_source:ctx(Machine),
             {ok, ff_codec:marshal(context, Context)};
         {error, notfound} ->
             woody_error:raise(business, #fistful_SourceNotFound{})
     end;
 handle_function_('GetEvents', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
-    case ff_source_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
+    case ff_source:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Events} ->
             {ok, lists:map(fun ff_source_codec:marshal_event/1, Events)};
         {error, notfound} ->

@@ -461,9 +461,8 @@ process_transfer_fail(limit_check, Revert) ->
 make_final_cash_flow(WalletID, SourceID, Body) ->
     {ok, WalletMachine} = ff_wallet_machine:get(WalletID),
     WalletAccount = ff_wallet:account(ff_wallet_machine:wallet(WalletMachine)),
-    {ok, SourceMachine} = ff_source_machine:get(SourceID),
-    Source = ff_source_machine:source(SourceMachine),
-    SourceAccount = ff_source:account(Source),
+    {ok, SourceMachine} = ff_source:get_machine(SourceID),
+    SourceAccount = ff_source:account(ff_source:get(SourceMachine)),
     Constants = #{
         operation_amount => Body
     },

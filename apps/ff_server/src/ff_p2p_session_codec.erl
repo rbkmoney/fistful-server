@@ -8,7 +8,6 @@
 
 -export([marshal_state/2]).
 
--export([marshal_event/1]).
 -export([marshal/2]).
 -export([unmarshal/2]).
 
@@ -25,16 +24,6 @@ marshal_state(State, Context) ->
         party_revision = marshal(party_revision, p2p_session:party_revision(State)),
         domain_revision = marshal(domain_revision, p2p_session:domain_revision(State)),
         context = marshal(ctx, Context)
-    }.
-
--spec marshal_event(p2p_transfer_machine:event()) ->
-    ff_proto_p2p_session_thrift:'Event'().
-
-marshal_event({EventID, {ev, Timestamp, Change}}) ->
-    #p2p_session_Event{
-        event = ff_codec:marshal(event_id, EventID),
-        occured_at = ff_codec:marshal(timestamp, Timestamp),
-        change = marshal(change, Change)
     }.
 
 -spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->

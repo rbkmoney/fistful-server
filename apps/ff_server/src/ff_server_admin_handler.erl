@@ -25,7 +25,7 @@ handle_function(Func, Args, Opts) ->
 
 handle_function_('CreateSource', [Params], Opts) ->
     SourceID = Params#ff_admin_SourceParams.id,
-    case ff_source_machine:create(#{
+    case ff_source:create(#{
             id       => SourceID,
             identity => Params#ff_admin_SourceParams.identity_id,
             name     => Params#ff_admin_SourceParams.name,
@@ -43,9 +43,9 @@ handle_function_('CreateSource', [Params], Opts) ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
 handle_function_('GetSource', [ID], _Opts) ->
-    case ff_source_machine:get(ID) of
+    case ff_source:get_machine(ID) of
         {ok, Machine} ->
-            Source = ff_source_machine:source(Machine),
+            Source = ff_source:get(Machine),
             {ok, ff_source_codec:marshal(source, Source)};
         {error, notfound} ->
             woody_error:raise(business, #fistful_SourceNotFound{})

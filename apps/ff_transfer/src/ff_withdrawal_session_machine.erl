@@ -196,8 +196,9 @@ set_events(Events) ->
 
 -spec set_action(action(), st()) ->
     undefined | machinery:action() | [machinery:action()].
-set_action(continue, _St) ->
-    continue;
+% @TODO uncomment after deployment of FF-226 (part 1)
+%set_action(continue, _St) ->
+%    continue;
 set_action(undefined, _St) ->
     undefined;
 set_action({setup_callback, Tag, Timer}, _St) ->
@@ -212,8 +213,8 @@ set_action({setup_timer, Timer}, _St) ->
 %        {error, deadline_reached} = Error ->
 %            erlang:error(Error)
 %    end;
-set_action(finish, _St) ->
-    unset_timer.
+%set_action(finish, _St) ->
+%    unset_timer.
 
 %%
 

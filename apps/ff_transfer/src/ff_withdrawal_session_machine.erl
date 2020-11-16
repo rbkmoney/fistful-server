@@ -204,7 +204,7 @@ set_action(undefined, _St) ->
 set_action({setup_callback, Tag, Timer}, _St) ->
     [tag_action(Tag), timer_action(Timer)];
 set_action({setup_timer, Timer}, _St) ->
-    timer_action(Timer).
+    timer_action(Timer);
 % @TODO uncomment after deployment of FF-226 (part 1)
 %set_action(retry, St) ->
 %    case compute_retry_timer(St) of
@@ -213,8 +213,8 @@ set_action({setup_timer, Timer}, _St) ->
 %        {error, deadline_reached} = Error ->
 %            erlang:error(Error)
 %    end;
-%set_action(finish, _St) ->
-%    unset_timer.
+set_action(finish, _St) ->
+    unset_timer.
 
 %%
 

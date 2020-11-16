@@ -224,8 +224,8 @@ apply_event({callback, _Ev} = WrappedEvent, Session) ->
     Callbacks1 = ff_withdrawal_callback_utils:apply_event(WrappedEvent, Callbacks0),
     set_callbacks_index(Callbacks1, Session).
 
+-spec process_session(session_state()) -> process_result().
 % @TODO uncomment after deployment of FF-226 (part 1)
-% -spec process_session(session_state()) -> process_result().
 % process_session(#{status := {finished, _}, id := _ID, result := _Result, withdrawal := _Withdrawal}) ->
 %     Session has finished, it should notify the withdrawal machine about the fact
 %     WithdrawalID = ff_adapter_withdrawal:id(Withdrawal),

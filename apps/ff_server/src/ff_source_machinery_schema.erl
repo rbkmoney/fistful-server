@@ -97,7 +97,7 @@ unmarshal_event(undefined = Version, EncodedChange, Context0) ->
 -spec maybe_migrate(any()) ->
     event().
 maybe_migrate({ev, Timestamp, Change0}) ->
-    Change = ff_instrument:maybe_migrate(Change0, #{timestamp => Timestamp}),
+    Change = ff_source:maybe_migrate(Change0, #{timestamp => Timestamp}),
     {ev, Timestamp, Change}.
 
 -ifdef(TEST).

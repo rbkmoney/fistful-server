@@ -225,18 +225,17 @@ apply_event({callback, _Ev} = WrappedEvent, Session) ->
     set_callbacks_index(Callbacks1, Session).
 
 -spec process_session(session_state()) -> process_result().
-% @TODO uncomment after deployment of FF-226 (part 1)
-% process_session(#{status := {finished, _}, id := _ID, result := _Result, withdrawal := _Withdrawal}) ->
-%     Session has finished, it should notify the withdrawal machine about the fact
-%     WithdrawalID = ff_adapter_withdrawal:id(Withdrawal),
-%     case ff_withdrawal_machine:notify_session_finished(WithdrawalID, ID, Result) of
-%        ok ->
-%            {finish, []};
-%        {error, session_not_found} ->
-%            {retry, []};
-%        {error, _} = Error ->
-%            erlang:error({unable_to_finish_session, Error})
-%     end;
+process_session(#{status := {finished, _}, id := ID, result := Result, withdrawal := Withdrawal}) ->
+    % Session has finished, it should notify the withdrawal machine about the fact
+    WithdrawalID = ff_adapter_withdrawal:id(Withdrawal),
+    case ff_withdrawal_machine:notify_session_finished(WithdrawalID, ID, Result) of
+       ok ->
+           {finish, []};
+       {error, session_not_found} ->
+           {retry, []};
+       {error, _} = Error ->
+           erlang:error({unable_to_finish_session, Error})
+    end;
 process_session(#{status := active, withdrawal := Withdrawal, route := Route} = SessionState) ->
     {Adapter, AdapterOpts} = get_adapter_with_opts(Route),
     ASt = maps:get(adapter_state, SessionState, undefined),

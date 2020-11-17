@@ -205,66 +205,64 @@ set_action({setup_callback, Tag, Timer}, _St) ->
     [tag_action(Tag), timer_action(Timer)];
 set_action({setup_timer, Timer}, _St) ->
     timer_action(Timer);
-% @TODO uncomment after deployment of FF-226 (part 1)
-%set_action(retry, St) ->
-%    case compute_retry_timer(St) of
-%        {ok, Timer} ->
-%            timer_action(Timer);
-%        {error, deadline_reached} = Error ->
-%            erlang:error(Error)
-%    end;
+set_action(retry, St) ->
+    case compute_retry_timer(St) of
+        {ok, Timer} ->
+            timer_action(Timer);
+        {error, deadline_reached} = Error ->
+            erlang:error(Error)
+    end;
 set_action(finish, _St) ->
     unset_timer.
 
 %%
 
-% @TODO uncomment after deployment of FF-226 (part 1)
-% -spec compute_retry_timer(st()) ->
-%     {ok, machinery:timer()} | {error, deadline_reached}.
-% compute_retry_timer(St) ->
-%     Now = machinery_time:now(),
-%     Updated = ff_machine:updated(St),
-%     Deadline = compute_retry_deadline(Updated),
-%     Timeout = compute_next_timeout(Now, Updated),
-%     check_next_timeout(Timeout, Now, Deadline).
+-spec compute_retry_timer(st()) ->
+    {ok, machinery:timer()} | {error, deadline_reached}.
+compute_retry_timer(St) ->
+    Now = machinery_time:now(),
+    Updated = ff_machine:updated(St),
+    Deadline = compute_retry_deadline(Updated),
+    Timeout = compute_next_timeout(Now, Updated),
+    check_next_timeout(Timeout, Now, Deadline).
 
-% -spec compute_retry_deadline(machinery:timestamp()) ->
-%     machinery:timestamp().
-% compute_retry_deadline(Updated) ->
-%     RetryTimeLimit = genlib_app:env(ff_transfer, session_retry_time_limit, ?SESSION_RETRY_TIME_LIMIT),
-%     machinery_time:add_seconds(RetryTimeLimit, Updated).
+-spec compute_retry_deadline(machinery:timestamp()) ->
+    machinery:timestamp().
+compute_retry_deadline(Updated) ->
+    RetryTimeLimit = genlib_app:env(ff_transfer, session_retry_time_limit, ?SESSION_RETRY_TIME_LIMIT),
+    machinery_time:add_seconds(RetryTimeLimit, Updated).
 
-% -spec compute_next_timeout(machinery:timestamp(), machinery:timestamp()) ->
-%     timeout().
-% compute_next_timeout(Now, Updated) ->
-%     MaxTimeout = genlib_app:env(ff_transfer, max_session_retry_timeout, ?MAX_SESSION_RETRY_TIMEOUT),
-%     Timeout0 = machinery_time:interval(Now, Updated) div 1000,
-%     erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
+-spec compute_next_timeout(machinery:timestamp(), machinery:timestamp()) ->
+    timeout().
+compute_next_timeout(Now, Updated) ->
+    MaxTimeout = genlib_app:env(ff_transfer, max_session_retry_timeout, ?MAX_SESSION_RETRY_TIMEOUT),
+    Timeout0 = machinery_time:interval(Now, Updated) div 1000,
+    erlang:min(MaxTimeout, erlang:max(1, Timeout0)).
 
-% -spec check_next_timeout(timeout(), machinery:timestamp(), machinery:timestamp()) ->
-%     {ok, machinery:timer()} | {error, deadline_reached}.
-% check_next_timeout(Timeout, Now, Deadline) ->
-%     case check_deadline(machinery_time:add_seconds(Timeout, Now), Deadline) of
-%         ok ->
-%             {ok, {timeout, Timeout}};
-%         {error, _} = Error ->
-%             Error
-%     end.
+-spec check_next_timeout(timeout(), machinery:timestamp(), machinery:timestamp()) ->
+    {ok, machinery:timer()} | {error, deadline_reached}.
+check_next_timeout(Timeout, Now, Deadline) ->
+    case check_deadline(machinery_time:add_seconds(Timeout, Now), Deadline) of
+        ok ->
+            {ok, {timeout, Timeout}};
+        {error, _} = Error ->
+            Error
+    end.
 
-% -spec check_deadline(machinery:timestamp(), machinery:timestamp()) ->
-%     ok | {error, deadline_reached}.
-% check_deadline({Now, _}, {Deadline, _}) ->
-%     check_deadline_(
-%         calendar:datetime_to_gregorian_seconds(Now),
-%         calendar:datetime_to_gregorian_seconds(Deadline)
-%     ).
+-spec check_deadline(machinery:timestamp(), machinery:timestamp()) ->
+    ok | {error, deadline_reached}.
+check_deadline({Now, _}, {Deadline, _}) ->
+    check_deadline_(
+        calendar:datetime_to_gregorian_seconds(Now),
+        calendar:datetime_to_gregorian_seconds(Deadline)
+    ).
 
-% -spec check_deadline_(integer(), integer()) ->
-%     ok | {error, deadline_reached}.
-% check_deadline_(Now, Deadline) when Now < Deadline ->
-%     ok;
-% check_deadline_(Now, Deadline) when Now >= Deadline ->
-%     {error, deadline_reached}.
+-spec check_deadline_(integer(), integer()) ->
+    ok | {error, deadline_reached}.
+check_deadline_(Now, Deadline) when Now < Deadline ->
+    ok;
+check_deadline_(Now, Deadline) when Now >= Deadline ->
+    {error, deadline_reached}.
 
 %%
 

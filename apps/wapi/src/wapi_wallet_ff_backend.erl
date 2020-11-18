@@ -155,17 +155,17 @@ get_identity(IdentityId, Context) ->
     {identity_class, notfound} |
     {inaccessible, ff_party:inaccessibility()} |
     {email, notfound}          |
-    {external_id_conflict, id(), external_id()} |
-    {party, notfound}
+    {external_id_conflict, id(), external_id()}
 ).
 create_identity(Params, Context) ->
     IdentityParams = from_swag(identity_params, Params),
-    CreateFun = fun(ID, EntityCtx) ->
+    CreateIdentity = fun(ID, EntityCtx) ->
         ff_identity_machine:create(
             maps:merge(IdentityParams#{id => ID}, #{party => wapi_handler_utils:get_owner(Context)}),
             add_meta_to_ctx([<<"name">>], Params, EntityCtx)
         )
     end,
+    CreateFun = fun(ID, EntityCtx) -> with_party(Context, fun() -> CreateIdentity(ID, EntityCtx) end) end,
     do(fun() -> unwrap(create_entity(identity, Params, CreateFun, Context)) end).
 
 -spec get_identity_challenges(id(), [binary()], ctx()) -> result(map(),
@@ -1287,6 +1287,27 @@ handle_create_entity_result(Result, Type, ID, Context) when
     do(fun() -> to_swag(Type, St) end);
 handle_create_entity_result({error, E}, _Type, _ID, _Context) ->
     throw(E).
+
+with_party(Context, Fun) ->
+    try Fun()
+    catch
+        error:#'payproc_PartyNotFound'{} ->
+            ok = create_party(Context),
+            Fun()
+    end.
+
+create_party(Context) ->
+    _ = ff_party:create(
+        wapi_handler_utils:get_owner(Context),
+        #{email => unwrap(get_email(wapi_handler_utils:get_auth_context(Context)))}
+    ),
+    ok.
+
+get_email(AuthContext) ->
+    case uac_authorizer_jwt:get_claim(<<"email">>, AuthContext, undefined) of
+        undefined -> {error, {email, notfound}};
+        Email     -> {ok, Email}
+    end.
 
 -spec not_implemented() -> no_return().
 not_implemented() ->

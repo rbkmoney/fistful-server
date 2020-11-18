@@ -180,9 +180,7 @@ is_accessible(ID) ->
         #domain_Party{suspension = {suspended, _}} ->
             {error, {inaccessible, suspended}};
         #domain_Party{} ->
-            {ok, accessible};
-        #payproc_PartyNotFound{} ->
-            {error, notfound}
+            {ok, accessible}
     end.
 
 -spec get_revision(id()) ->
@@ -442,10 +440,8 @@ do_get_party(ID) ->
     case Result of
         {ok, Party} ->
             Party;
-        {error, #payproc_PartyNotFound{} = Reason} ->
-            Reason;
-        {error, Unexpected} ->
-            error(Unexpected)
+        {error, Reason} ->
+            error(Reason)
     end.
 
 do_get_contract(ID, ContractID) ->

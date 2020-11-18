@@ -599,28 +599,6 @@ process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
             wapi_handler_utils:reply_ok(404)
     end;
 
-process_request('GetP2PTransferEvents', #{p2pTransferID := ID, continuationToken := CT}, Context, _Opts) ->
-    case wapi_p2p_transfer_backend:get_transfer_events(ID, CT, Context) of
-        {ok, P2PTransferEvents} ->
-            wapi_handler_utils:reply_ok(200, P2PTransferEvents);
-        {error, {p2p_transfer, unauthorized}} ->
-            wapi_handler_utils:reply_ok(404);
-        {error, {p2p_transfer, notfound}} ->
-            wapi_handler_utils:reply_ok(404);
-        {error, {token, {not_verified, _}}} ->
-            wapi_handler_utils:reply_error(400, #{
-                <<"errorType">>   => <<"InvalidToken">>,
-                <<"name">>        => <<"continuationToken">>,
-                <<"description">> => <<"Token can't be verified">>
-            });
-        {error, {token, {unsupported_version, _}}} ->
-            wapi_handler_utils:reply_error(400, #{
-                <<"errorType">>   => <<"InvalidToken">>,
-                <<"name">>        => <<"continuationToken">>,
-                <<"description">> => <<"Token unsupported version">>
-            })
-    end;
-
 %% Webhooks
 
 process_request('CreateWebhook', #{'WebhookParams' := WebhookParams}, Context, _Opts) ->

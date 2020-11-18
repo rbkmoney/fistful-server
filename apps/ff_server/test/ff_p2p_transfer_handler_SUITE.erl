@@ -15,7 +15,6 @@
 -export([end_per_testcase/2]).
 
 %% Tests
--export([get_p2p_session_events_ok_test/1]).
 -export([get_p2p_session_context_ok_test/1]).
 -export([get_p2p_session_ok_test/1]).
 -export([create_adjustment_ok_test/1]).
@@ -41,7 +40,6 @@ all() ->
 groups() ->
     [
         {default, [parallel], [
-            get_p2p_session_events_ok_test,
             get_p2p_session_context_ok_test,
             get_p2p_session_ok_test,
             create_adjustment_ok_test,
@@ -93,13 +91,6 @@ end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
 %% Tests
-
--spec get_p2p_session_events_ok_test(config()) -> test_return().
-get_p2p_session_events_ok_test(C) ->
-    #{
-        session_id := ID
-    } = prepare_standard_environment(C),
-    {ok, [#p2p_session_Event{change = {created, _}} | _Rest]} = call_p2p_session('GetEvents', [ID, #'EventRange'{}]).
 
 -spec get_p2p_session_context_ok_test(config()) -> test_return().
 get_p2p_session_context_ok_test(C) ->

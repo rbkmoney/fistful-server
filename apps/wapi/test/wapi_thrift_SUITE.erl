@@ -32,6 +32,8 @@
 -type group_name() :: ct_helper:group_name().
 -type test_return() :: _ | no_return().
 
+% -import(ct_helper, [cfg/2]).
+
 -spec all() -> [test_case_name() | {group, group_name()}].
 
 all() ->
@@ -58,9 +60,10 @@ groups() ->
 -spec init_per_suite(config()) -> config().
 
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
+     ct_helper:makeup_cfg([
         ct_helper:test_case_name(init),
         ct_payment_system:setup(#{
+            default_termset => get_default_termset(),
             optional_apps => [
                 bender_client,
                 wapi_woody_client,
@@ -195,21 +198,15 @@ w2w_transfer_check_test(C) ->
 
 p2p_transfer_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
-    Provider = <<"quote-owner">>,
+    Provider = ?ID_PROVIDER,
     Class = ?ID_CLASS,
     IdentityID = create_identity(Name, Provider, Class, C),
     Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     P2PTransferID = create_p2p_transfer(Token, Token, IdentityID, C),
-    ok = await_p2p_transfer(P2PTransferID, C),
     P2PTransfer = get_p2p_transfer(P2PTransferID, C),
-    P2PTransferEvents = get_p2p_transfer_events(P2PTransferID, C),
     ok = application:set_env(wapi, transport, thrift),
-    IdentityIDThrift = IdentityID,
-    P2PTransferIDThrift = create_p2p_transfer(Token, Token, IdentityIDThrift, C),
-    ok = await_p2p_transfer(P2PTransferIDThrift, C),
+    P2PTransferIDThrift = create_p2p_transfer(Token, Token, IdentityID, C),
     P2PTransferThrift = get_p2p_transfer(P2PTransferIDThrift, C),
-    P2PTransferEventsThrift = get_p2p_transfer_events(P2PTransferIDThrift, C),
-    ?assertEqual(maps:keys(P2PTransferEvents), maps:keys(P2PTransferEventsThrift)),
     ?assertEqual(maps:keys(P2PTransfer), maps:keys(P2PTransferThrift)),
     ?assertEqual(maps:without([<<"id">>, <<"createdAt">>], P2PTransfer),
                  maps:without([<<"id">>, <<"createdAt">>], P2PTransferThrift)).
@@ -236,31 +233,34 @@ withdrawal_check_test(C) ->
 
 p2p_template_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
-    Provider = <<"quote-owner">>,
+    Provider = ?ID_PROVIDER,
     Class = ?ID_CLASS,
-    Metadata = #{ <<"some key">> => <<"some value">> },
     ok = application:set_env(wapi, transport, thrift),
+
     IdentityID = create_identity(Name, Provider, Class, C),
-    P2PTemplate = create_p2p_template(IdentityID, Metadata, C),
+    P2PTemplate = create_p2p_template(IdentityID, C),
     #{<<"id">> := P2PTemplateID} = P2PTemplate,
     P2PTemplateCopy = get_p2p_template(P2PTemplateID, C),
     ?assertEqual(maps:keys(P2PTemplate), maps:keys(P2PTemplateCopy)),
+
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
     TemplateToken = get_p2p_template_token(P2PTemplateID, ValidUntil, C),
     TemplateTicket = get_p2p_template_ticket(P2PTemplateID, TemplateToken, ValidUntil, C),
     {ok, #{<<"token">> := QuoteToken}} = call_p2p_template_quote(P2PTemplateID, C),
     {ok, P2PTransfer} = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
-    ?assertMatch(#{<<"identityID">> := IdentityID}, P2PTransfer),
-    #{<<"id">> := P2PTransferID} = P2PTransfer,
-    ok = await_p2p_transfer(P2PTransferID, C),
-    ?assertMatch(#{<<"metadata">> := Metadata}, P2PTransfer),
+    ?assertEqual(maps:get(<<"identityID">>, P2PTransfer), IdentityID),
+
+    % TODO: #{<<"metadata">> := Metadata} = P2PTransfer,
     ok = block_p2p_template(P2PTemplateID, C),
     P2PTemplateBlocked = get_p2p_template(P2PTemplateID, C),
-    ?assertMatch(#{<<"isBlocked">> := true}, P2PTemplateBlocked),
+    ?assertEqual(maps:get(<<"isBlocked">>, P2PTemplateBlocked), true),
+
     QuoteBlockedError = call_p2p_template_quote(P2PTemplateID, C),
     ?assertMatch({error, {422, _}}, QuoteBlockedError),
+
     P2PTransferBlockedError = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
     ?assertMatch({error, {422, _}}, P2PTransferBlockedError),
+
     Quote404Error = call_p2p_template_quote(<<"404">>, C),
     ?assertMatch({error, {404, _}}, Quote404Error).
 
@@ -545,25 +545,6 @@ get_p2p_transfer(P2PTransferID, C) ->
     ),
     P2PTransfer.
 
-get_p2p_transfer_events(P2PTransferID, C) ->
-    {ok, P2PTransferEvents} = call_api(
-        fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
-        #{binding => #{<<"p2pTransferID">> => P2PTransferID}},
-        ct_helper:cfg(context, C)
-    ),
-    P2PTransferEvents.
-
-await_p2p_transfer(P2PTransferID, C) ->
-    <<"Succeeded">> = ct_helper:await(
-        <<"Succeeded">>,
-        fun () ->
-            Reply = get_p2p_transfer(P2PTransferID, C),
-            #{<<"status">> := #{<<"status">> := Status}} = Reply,
-            Status
-        end
-    ),
-    ok.
-
 await_destination(DestID) ->
     authorized = ct_helper:await(
         authorized,
@@ -631,7 +612,7 @@ get_withdrawal(WithdrawalID, C) ->
 
 %% P2PTemplate
 
-create_p2p_template(IdentityID, Metadata, C) ->
+create_p2p_template(IdentityID, C) ->
     {ok, P2PTemplate} = call_api(
         fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_template/3,
         #{
@@ -645,7 +626,9 @@ create_p2p_template(IdentityID, Metadata, C) ->
                         }
                     },
                     <<"metadata">> => #{
-                        <<"defaultMetadata">> => Metadata
+                        <<"defaultMetadata">> => #{
+                            <<"some key">> => <<"some value">>
+                        }
                     }
                 }
             }
@@ -677,6 +660,7 @@ block_p2p_template(P2PTemplateID, C) ->
         ct_helper:cfg(context, C)
     ),
     ok.
+
 
 get_p2p_template_token(P2PTemplateID, ValidUntil, C) ->
     {ok, #{<<"token">> := Token}} = call_api(
@@ -710,7 +694,8 @@ get_p2p_template_ticket(P2PTemplateID, TemplateToken, ValidUntil, C) ->
     Ticket.
 
 call_p2p_template_quote(P2PTemplateID, C) ->
-    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     call_api(
     fun swag_client_wallet_p2_p_templates_api:quote_p2_p_transfer_with_template/3,
         #{
@@ -720,11 +705,11 @@ call_p2p_template_quote(P2PTemplateID, C) ->
             body => #{
                 <<"sender">> => #{
                     <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => Token
+                    <<"token">> => SenderToken
                 },
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResource">>,
-                    <<"token">> => Token
+                    <<"token">> => ReceiverToken
                 },
                 <<"body">> => #{
                     <<"amount">> => ?INTEGER,
@@ -736,7 +721,8 @@ call_p2p_template_quote(P2PTemplateID, C) ->
     ).
 
 call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C) ->
-    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     Context = maps:merge(ct_helper:cfg(context, C), #{token => TemplateTicket}),
     call_api(
         fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
@@ -747,15 +733,15 @@ call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C) ->
             body => #{
                 <<"sender">> => #{
                     <<"type">> => <<"BankCardSenderResourceParams">>,
-                    <<"token">> => Token,
+                    <<"token">> => SenderToken,
                     <<"authData">> => <<"session id">>
                 },
                 <<"receiver">> => #{
                     <<"type">> => <<"BankCardReceiverResourceParams">>,
-                    <<"token">> => Token
+                    <<"token">> => ReceiverToken
                 },
                 <<"body">> => #{
-                    <<"amount">> => ?INTEGER,
+                    <<"amount">> => 101,
                     <<"currency">> => ?RUB
                 },
                 <<"contactInfo">> => #{
@@ -767,3 +753,124 @@ call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C) ->
         },
         Context
     ).
+
+%%
+
+-include_lib("ff_cth/include/ct_domain.hrl").
+
+get_default_termset() ->
+    #domain_TermSet{
+        wallets = #domain_WalletServiceTerms{
+            currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+            wallet_limit = {decisions, [
+                #domain_CashLimitDecision{
+                    if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                    then_ = {value, ?cashrng(
+                        {inclusive, ?cash(-10000000, <<"RUB">>)},
+                        {exclusive, ?cash( 10000001, <<"RUB">>)}
+                    )}
+                }
+            ]},
+            withdrawals = #domain_WithdrawalServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>)])},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(       0, <<"RUB">>)},
+                            {exclusive, ?cash(10000000, <<"RUB">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_destination},
+                                ?share(1, 1, operation_amount)
+                            ),
+                            ?cfpost(
+                                {wallet, receiver_destination},
+                                {system, settlement},
+                                ?share(10, 100, operation_amount)
+                            )
+                        ]}
+                    }
+                ]}
+            },
+            p2p = #domain_P2PServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
+                allow = {constant, true},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(    0, <<"RUB">>)},
+                            {exclusive, ?cash(10001, <<"RUB">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_settlement},
+                                ?share(1, 1, operation_amount)
+                            )
+                        ]}
+                    }
+                ]},
+                fees = {decisions, [
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, #domain_Fees{
+                            fees = #{surplus => ?share(1, 1, operation_amount)}
+                        }}
+                    }
+                ]},
+                quote_lifetime = {value, {interval, #domain_LifetimeInterval{
+                    days = 1, minutes = 1, seconds = 1
+                }}},
+                templates = #domain_P2PTemplateServiceTerms{
+                    allow = {condition, {currency_is, ?cur(<<"RUB">>)}}
+                }
+            },
+            w2w = #domain_W2WServiceTerms{
+                currencies = {value, ?ordset([?cur(<<"RUB">>), ?cur(<<"USD">>)])},
+                allow = {constant, true},
+                cash_limit = {decisions, [
+                    #domain_CashLimitDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, ?cashrng(
+                            {inclusive, ?cash(0, <<"RUB">>)},
+                            {exclusive, ?cash(10001, <<"RUB">>)}
+                        )}
+                    }
+                ]},
+                cash_flow = {decisions, [
+                    #domain_CashFlowDecision{
+                        if_   = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, [
+                            ?cfpost(
+                                {wallet, sender_settlement},
+                                {wallet, receiver_settlement},
+                                ?share(1, 1, operation_amount)
+                            )
+                        ]}
+                    }
+                ]},
+                fees = {decisions, [
+                    #domain_FeeDecision{
+                        if_ = {condition, {currency_is, ?cur(<<"RUB">>)}},
+                        then_ = {value, #domain_Fees{
+                                    fees = #{surplus => ?share(1, 1, operation_amount)}
+                                }}
+                    }
+                ]}
+            }
+        }
+    }.

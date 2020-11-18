@@ -196,9 +196,8 @@ set_events(Events) ->
 
 -spec set_action(action(), st()) ->
     undefined | machinery:action() | [machinery:action()].
-% @TODO uncomment after deployment of FF-226 (part 1)
-%set_action(continue, _St) ->
-%    continue;
+set_action(continue, _St) ->
+    continue;
 set_action(undefined, _St) ->
     undefined;
 set_action({setup_callback, Tag, Timer}, _St) ->

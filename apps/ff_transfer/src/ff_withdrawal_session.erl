@@ -322,9 +322,9 @@ process_adapter_intent(Intent, Session, Events0) ->
 process_adapter_intent({finish, {success, _TransactionInfo}}, _Session) ->
     %% we ignore TransactionInfo here
     %% @see ff_adapter_withdrawal:rebind_transaction_info/1
-    {finish, [{finished, success}]}; % @TODO `continue` after deployment of FF-226 (part 1)
+    {continue, [{finished, success}]};
 process_adapter_intent({finish, Result}, _Session) ->
-    {finish, [{finished, Result}]}; % @TODO `continue` after deployment of FF-226 (part 1)
+    {continue, [{finished, Result}]};
 process_adapter_intent({sleep, #{timer := Timer, tag := Tag}}, Session) ->
     Events = create_callback(Tag, Session),
     {{setup_callback, Tag, Timer}, Events};

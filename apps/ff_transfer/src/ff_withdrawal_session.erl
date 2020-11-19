@@ -229,12 +229,12 @@ process_session(#{status := {finished, _}, id := ID, result := Result, withdrawa
     % Session has finished, it should notify the withdrawal machine about the fact
     WithdrawalID = ff_adapter_withdrawal:id(Withdrawal),
     case ff_withdrawal_machine:notify_session_finished(WithdrawalID, ID, Result) of
-       ok ->
-           {finish, []};
-       {error, session_not_found} ->
-           {retry, []};
-       {error, _} = Error ->
-           erlang:error({unable_to_finish_session, Error})
+        ok ->
+            {finish, []};
+        {error, session_not_found} ->
+            {retry, []};
+        {error, _} = Error ->
+            erlang:error({unable_to_finish_session, Error})
     end;
 process_session(#{status := active, withdrawal := Withdrawal, route := Route} = SessionState) ->
     {Adapter, AdapterOpts} = get_adapter_with_opts(Route),
@@ -322,9 +322,9 @@ process_adapter_intent(Intent, Session, Events0) ->
 process_adapter_intent({finish, {success, _TransactionInfo}}, _Session) ->
     %% we ignore TransactionInfo here
     %% @see ff_adapter_withdrawal:rebind_transaction_info/1
-    {finish, [{finished, success}]}; % @TODO `continue` after deployment of FF-226 (part 1)
+    {continue, [{finished, success}]};
 process_adapter_intent({finish, Result}, _Session) ->
-    {finish, [{finished, Result}]}; % @TODO `continue` after deployment of FF-226 (part 1)
+    {continue, [{finished, Result}]};
 process_adapter_intent({sleep, #{timer := Timer, tag := Tag}}, Session) ->
     Events = create_callback(Tag, Session),
     {{setup_callback, Tag, Timer}, Events};

@@ -41,4 +41,13 @@ handle_function_('GetContext', [ID], _Opts) ->
             {ok, ff_codec:marshal(context, Context)};
         {error, {unknown_p2p_session, _Ref}} ->
             woody_error:raise(business, #fistful_P2PSessionNotFound{})
+    end;
+
+handle_function_('GetEvents', [ID, EventRange], _Opts) ->
+    ok = scoper:add_meta(#{id => ID}),
+    case p2p_session_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
+        {ok, Events} ->
+            {ok, lists:map(fun ff_p2p_session_codec:marshal_event/1, Events)};
+        {error, {unknown_p2p_session, _Ref}} ->
+            woody_error:raise(business, #fistful_P2PSessionNotFound{})
     end.

@@ -192,19 +192,24 @@ quote_transfer(ID, Params, HandlerContext) ->
     {error, {token, _}} |
     {error, {external_id_conflict, _}}.
 
-create_transfer(ID, #{quote_token := Token} = Params, HandlerContext) ->
+create_transfer(ID, #{<<"quoteToken">> := Token} = Params, HandlerContext) ->
     case uac_authorizer_jwt:verify(Token, #{}) of
         {ok, {_, _, VerifiedToken}} ->
             case decode_and_validate_token_payload(VerifiedToken, ID, HandlerContext) of
                 {ok, Quote} ->
-                    create_transfer(ID, Params#{<<"quote">> => Quote}, HandlerContext);
+                    do_create_transfer(ID, Params#{<<"quote">> => Quote}, HandlerContext);
                 {error, token_expired} ->
-                    {error, {token, expired}}
+                    {error, {token, expired}};
+                {error, Error} ->
+                    {error, {token, {not_verified, Error}}}
             end;
         {error, Error} ->
             {error, {token, {not_verified, Error}}}
     end;
 create_transfer(ID, Params, HandlerContext) ->
+    do_create_transfer(ID, Params, HandlerContext).
+
+do_create_transfer(ID, Params, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
         ok ->
             TransferID = context_transfer_id(HandlerContext),
@@ -212,7 +217,7 @@ create_transfer(ID, Params, HandlerContext) ->
                 ok ->
                     MarshaledContext = marshal_context(wapi_backend_utils:make_ctx(Params, HandlerContext)),
                     MarshaledParams = marshal_transfer_params(Params#{<<"id">> => TransferID}),
-                    create_transfer(ID, MarshaledParams, MarshaledContext, HandlerContext);
+                    call_create_transfer(ID, MarshaledParams, MarshaledContext, HandlerContext);
                 {error, {external_id_conflict, _}} = Error ->
                     Error
             end;
@@ -221,7 +226,8 @@ create_transfer(ID, Params, HandlerContext) ->
         {error, notfound} ->
             {error, {p2p_template, notfound}}
     end.
-create_transfer(ID, MarshaledParams, MarshaledContext, HandlerContext) ->
+
+call_create_transfer(ID, MarshaledParams, MarshaledContext, HandlerContext) ->
     Request = {fistful_p2p_template, 'CreateTransfer', [ID, MarshaledParams, MarshaledContext]},
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, Transfer} ->
@@ -466,10 +472,10 @@ validate_transfer_id(TransferID, Params, #{woody_context := WoodyContext} = Hand
 
 validate_identity_id(IdentityID, TemplateID, HandlerContext) ->
     case get(TemplateID, HandlerContext) of
-        {ok, #{identity_id := IdentityID}} ->
+        {ok, #{<<"identityID">> := IdentityID}} ->
             ok;
-        {ok, _ } ->
-            {error, {token, {not_verified, identity_mismatch}}};
+        {ok, _Template} ->
+            {error, identity_mismatch};
         Error ->
             Error
     end.
@@ -591,23 +597,27 @@ marshal_transfer_params(#{
 
 marshal_sender(#{
     <<"token">> := Token,
+    <<"authData">> := AuthData,
     <<"contactInfo">> := ContactInfo
 }) ->
-    Resource = case wapi_crypto:decrypt_bankcard_token(Token) of
+    ResourceBankCard = case wapi_crypto:decrypt_bankcard_token(Token) of
         unrecognized ->
             BankCard = wapi_utils:base64url_to_map(Token),
-            {bank_card, #'ResourceBankCard'{
+            #'ResourceBankCard'{
                 bank_card = #'BankCard'{
                     token      = maps:get(<<"token">>, BankCard),
                     bin        = maps:get(<<"bin">>, BankCard),
                     masked_pan = maps:get(<<"lastDigits">>, BankCard)
                 }
-            }};
+            };
         {ok, BankCard} ->
-            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
+            #'ResourceBankCard'{bank_card = BankCard}
     end,
+    ResourceBankCardAuth = ResourceBankCard#'ResourceBankCard'{
+        auth_data = {session_data, #'SessionAuthData'{id = AuthData}}
+    },
     {resource, #p2p_transfer_RawResource{
-        resource = Resource,
+        resource = {bank_card, ResourceBankCardAuth},
         contact_info = marshal_contact_info(ContactInfo)
     }}.
 

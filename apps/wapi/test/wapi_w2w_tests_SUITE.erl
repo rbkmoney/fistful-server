@@ -155,7 +155,7 @@ create_fail_unauthorized_wallet_test(C) ->
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(<<"someotherparty">>)} end},
-        {w2w_transfer, fun('Create', _) -> {ok, ?W2W_TRANSFER(PartyID)} end}
+        {fistful_w2w_transfer, fun('Create', _) -> {ok, ?W2W_TRANSFER(PartyID)} end}
     ], C),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such wallet sender">>}}},
@@ -295,11 +295,11 @@ create_w2_w_transfer_start_mocks(C, CreateResultFun) ->
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {w2w_transfer, fun('Create', _) -> CreateResultFun() end}
+        {fistful_w2w_transfer, fun('Create', _) -> CreateResultFun() end}
     ], C).
 
 get_w2_w_transfer_start_mocks(C, GetResultFun) ->
     wapi_ct_helper:mock_services([
-        {w2w_transfer, fun('Get', _) -> GetResultFun() end}
+        {fistful_w2w_transfer, fun('Get', _) -> GetResultFun() end}
     ], C).
 

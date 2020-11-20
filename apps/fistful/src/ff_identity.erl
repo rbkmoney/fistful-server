@@ -82,6 +82,7 @@
 
 -type create_error() ::
     {provider, notfound} |
+    {party, notfound} |
     {identity_class, notfound} |
     ff_party:inaccessibility() |
     invalid.

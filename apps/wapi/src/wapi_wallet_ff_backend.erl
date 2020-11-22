@@ -363,7 +363,7 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
     {illegal_pattern, _}
 ).
 create_destination(Params, Context) ->
-    case decrypt_resources(Params, [<<"resource">>]) of
+    case decrypt_and_prune_resource_tokens(Params, [<<"resource">>]) of
         {ok, Params0} ->
             create_destination_continue(Params0, Context);
         Error ->
@@ -626,7 +626,7 @@ list_deposits(Params, Context) ->
     p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer(Params, Context) ->
-    case decrypt_resources(Params, [<<"sender">>, <<"receiver">>]) of
+    case decrypt_and_prune_resource_tokens(Params, [<<"sender">>, <<"receiver">>]) of
         {ok, Params0} ->
             quote_p2p_transfer_continue(Params0, Context);
         Error ->
@@ -668,7 +668,7 @@ quote_p2p_transfer_continue(Params, Context) ->
     }
 ).
 create_p2p_transfer(Params, Context) ->
-    case decrypt_resources(Params, [<<"sender">>, <<"receiver">>]) of
+    case decrypt_and_prune_resource_tokens(Params, [<<"sender">>, <<"receiver">>]) of
         {ok, Params0} ->
             create_p2p_transfer_continue(Params0, Context);
         Error ->
@@ -832,7 +832,7 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
     }
 ).
 create_p2p_transfer_with_template(ID, Params, Context) ->
-    case decrypt_resources(Params, [<<"sender">>, <<"receiver">>]) of
+    case decrypt_and_prune_resource_tokens(Params, [<<"sender">>, <<"receiver">>]) of
         {ok, Params0} ->
             create_p2p_transfer_with_template_continue(ID, Params0, Context);
         Error ->
@@ -876,7 +876,7 @@ create_p2p_transfer_with_template_continue(ID, Params, Context = #{woody_context
     p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer_with_template(ID, Params, Context) ->
-    case decrypt_resources(Params, [<<"sender">>, <<"receiver">>]) of
+    case decrypt_and_prune_resource_tokens(Params, [<<"sender">>, <<"receiver">>]) of
         {ok, Params0} ->
             quote_p2p_transfer_with_template_continue(ID, Params0, Context);
         Error ->
@@ -958,13 +958,13 @@ when Type =:= <<"CryptoWalletDestinationResource">> ->
         currency => from_swag(crypto_wallet_currency, Resource)
     })}}}.
 
-decrypt_resources(Params, List) ->
+decrypt_and_prune_resource_tokens(Params, List) ->
     lists:foldl(fun
-        (Key, {ok, AccParams}) -> decrypt_resource(Key, AccParams);
+        (Key, {ok, AccParams}) -> decrypt_and_prune_resource_token(Key, AccParams);
         (_Key, {error, Error}) -> {error, Error}
     end, {ok, Params}, List).
 
-decrypt_resource(Key, AccParams) ->
+decrypt_and_prune_resource_token(Key, AccParams) ->
     case maps:get(Key, AccParams, undefined) of
         #{<<"token">> := Token, <<"type">> := Type} = Object ->
             case wapi_crypto:decrypt_bankcard_token(Token) of

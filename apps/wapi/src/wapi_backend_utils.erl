@@ -34,7 +34,7 @@
 -export([get_idempotent_key/3]).
 -export([issue_grant_token/3]).
 -export([create_params_hash/1]).
--export([decrypt_resource/2]).
+-export([decrypt_and_prune_resource_token/2]).
 
 %% Pipeline
 
@@ -131,29 +131,29 @@ create_params_hash(Value) ->
 %% sender and receiver
 %%
 
--spec decrypt_resource(binary(), params()) ->
+-spec decrypt_and_prune_resource_token(binary(), params()) ->
     {ok, params()} | {error, lechiffre:decoding_error()}.
 
-decrypt_resource(Key, Params) ->
-    case maps:get(Key, Params, undefined) of
+decrypt_and_prune_resource_token(Key, Params) ->
+    case maps:get(Key, Params) of
         #{<<"token">> := Token} = Object ->
             case wapi_crypto:decrypt_bankcard_token(Token) of
                 {ok, Resource} ->
-                    {ok, Params#{Key => Object#{
-                        <<"token">> => <<>>,
+                    {ok, Params#{Key => maps:remove(<<"token">>, Object#{
                         <<"decryptedResource">> => Resource
-                    }}};
+                    })}};
                 unrecognized ->
+                    % this code is obsolete.
+                    % it should be removed along with the map_to_base64url artifacts in the tests.
                     BankCard = wapi_utils:base64url_to_map(Token),
                     Resource = #'BankCard'{
                         token      = maps:get(<<"token">>, BankCard),
                         bin        = maps:get(<<"bin">>, BankCard),
                         masked_pan = maps:get(<<"lastDigits">>, BankCard)
                    },
-                   {ok, Params#{Key => Object#{
-                       <<"token">> => <<>>,
+                   {ok, Params#{Key => maps:remove(<<"token">>, Object#{
                        <<"decryptedResource">> => Resource
-                   }}};
+                   })}};
                 Error ->
                     Error
             end;
@@ -186,9 +186,9 @@ get_expiration_deadline(Expiration) ->
 
 -spec test() -> _.
 
--spec decrypt_resource_test_() ->
+-spec decrypt_and_prune_resource_token_test_() ->
     _.
-decrypt_resource_test_() ->
+decrypt_and_prune_resource_token_test_() ->
     {setup,
         fun() ->
             Resource = {bank_card, #{bin => <<"424242">>, masked_pan => <<"4242">>}},
@@ -208,15 +208,14 @@ decrypt_resource_test_() ->
             },
             Missed = #{
                 <<"hello">> => world,
-                <<"sender">> => #{<<"key">> => value, <<"token">> => <<>>, <<"decryptedResource">> => Resource},
-                <<"receiver">> => #{<<"key">> => value, <<"token">> => <<>>, <<"decryptedResource">> => Resource},
-                <<"resource">> => #{<<"key">> => value, <<"token">> => <<>>, <<"decryptedResource">> => Resource}
+                <<"sender">> => #{<<"key">> => value, <<"decryptedResource">> => Resource},
+                <<"receiver">> => #{<<"key">> => value, <<"decryptedResource">> => Resource},
+                <<"resource">> => #{<<"key">> => value, <<"decryptedResource">> => Resource}
             },
-            {ok, R1} = decrypt_resource(<<"sender">>, Params),
-            {ok, R2} = decrypt_resource(<<"receiver">>, R1),
-            {ok, R3} = decrypt_resource(<<"resource">>, R2),
-            {ok, Result} = decrypt_resource(<<"cococo">>, R3),
-            ?_assertEqual(Missed, Result)
+            {ok, R1} = decrypt_and_prune_resource_token(<<"sender">>, Params),
+            {ok, R2} = decrypt_and_prune_resource_token(<<"receiver">>, R1),
+            {ok, R3} = decrypt_and_prune_resource_token(<<"resource">>, R2),
+            ?_assertEqual(Missed, R3)
         end
     }.
 

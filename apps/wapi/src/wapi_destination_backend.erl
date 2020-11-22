@@ -25,7 +25,7 @@
         {external_id_conflict, {id(), external_id()}}.
 
 create(Params, HandlerContext) ->
-    case wapi_backend_utils:decrypt_resource(<<"resource">>, Params) of
+    case wapi_backend_utils:decrypt_and_prune_resource_token(<<"resource">>, Params) of
         {ok, Params0} ->
             create_continue(Params0, HandlerContext);
         {error, Error} ->

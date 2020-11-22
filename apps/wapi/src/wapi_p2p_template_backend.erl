@@ -154,7 +154,7 @@ issue_transfer_ticket(ID, WishExpiration, HandlerContext) ->
     {error, {sender | receiver, invalid_resource_token}}.
 
 quote_transfer(ID, Params, HandlerContext) ->
-    case decrypt_resources(Params) of
+    case decrypt_and_prune_resource_tokens(Params) of
         {ok, Params0} ->
             quote_transfer_continue(ID, Params0, HandlerContext);
         Error ->
@@ -202,7 +202,7 @@ quote_transfer_continue(ID, Params, HandlerContext) ->
     {error, {external_id_conflict, _}}.
 
 create_transfer(ID, Params, HandlerContext) ->
-    case decrypt_resources(Params) of
+    case decrypt_and_prune_resource_tokens(Params) of
         {ok, Params0} ->
             create_transfer_quote_decode(ID, Params0, HandlerContext);
         Error ->
@@ -354,10 +354,10 @@ decode_and_validate_token_payload(Token, TemplateID, HandlerContext) ->
 
 %% Decode resource tokens
 
-decrypt_resources(Params) ->
-    case wapi_backend_utils:decrypt_resource(<<"sender">>, Params) of
+decrypt_and_prune_resource_tokens(Params) ->
+    case wapi_backend_utils:decrypt_and_prune_resource_token(<<"sender">>, Params) of
         {ok, Params0} ->
-            case wapi_backend_utils:decrypt_resource(<<"receiver">>, Params0) of
+            case wapi_backend_utils:decrypt_and_prune_resource_token(<<"receiver">>, Params0) of
                 {ok, Params1} ->
                     {ok, Params1};
                 {error, _Error} ->
@@ -430,7 +430,6 @@ marshal_quote_params(#{
     }.
 
 marshal_quote_participant(#{
-    <<"token">> := _Token,
     <<"decryptedResource">> := Resource
 }) ->
     {bank_card, #'ResourceBankCard'{bank_card = Resource}}.
@@ -456,7 +455,6 @@ marshal_transfer_params(#{
     }.
 
 marshal_sender(#{
-    <<"token">> := _Token,
     <<"authData">> := AuthData,
     <<"contactInfo">> := ContactInfo,
     <<"decryptedResource">> := Resource
@@ -471,7 +469,6 @@ marshal_sender(#{
     }}.
 
 marshal_receiver(#{
-    <<"token">> := _Token,
     <<"decryptedResource">> := Resource
 }) ->
     {resource, #p2p_transfer_RawResource{

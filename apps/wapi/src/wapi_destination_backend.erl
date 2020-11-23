@@ -39,11 +39,13 @@ create_continue(Params = #{<<"identity">> := IdentityID, <<"resource">> := Resou
             case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
                 {ok, ID} ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-                    DestinationParams = marshal(destination_params, Params#{
-                        <<"id">> => ID,
-                        <<"resource">> => construct_resource(Resource)
-                    }),
-                    Request = {fistful_destination, 'Create', [DestinationParams, marshal(context, Context)]},
+                    MarshaledParams = marshal(destination_params, maps:remove(<<"resource">>, Params#{
+                        <<"id">> => ID
+                    })),
+                    MarshaledParamsWithRes = MarshaledParams#dst_DestinationParams{
+                        resource = construct_resource(Resource)
+                    },
+                    Request = {fistful_destination, 'Create', [MarshaledParamsWithRes, marshal(context, Context)]},
                     create_call(Request, HandlerContext);
                 {error, {external_id_conflict, ID}} ->
                     ExternalID = maps:get(<<"externalID">>, Params, undefined),
@@ -129,8 +131,7 @@ marshal(destination_params, Params = #{
     <<"id">> := ID,
     <<"identity">> := IdentityID,
     <<"currency">> := CurrencyID,
-    <<"name">> := Name,
-    <<"resource">> := Resource
+    <<"name">> := Name
 }) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #dst_DestinationParams{
@@ -138,7 +139,6 @@ marshal(destination_params, Params = #{
         identity = marshal(id, IdentityID),
         name = marshal(string, Name),
         currency = marshal(string, CurrencyID),
-        resource = Resource,
         external_id = maybe_marshal(id, ExternalID)
     };
 

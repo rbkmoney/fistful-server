@@ -4,7 +4,6 @@
 
 -define(EXTERNAL_ID, <<"externalID">>).
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
--define(PARAMS_HASH, <<"params_hash">>).
 -define(BENDER_DOMAIN, <<"wapi">>).
 
 %% Context
@@ -34,7 +33,8 @@
 -export([get_idempotent_key/3]).
 -export([issue_grant_token/3]).
 -export([create_params_hash/1]).
--export([decrypt_and_prune_resource_token/2]).
+-export([decrypt_params/2]).
+-export([decrypt_params/3]).
 
 %% Pipeline
 
@@ -82,8 +82,7 @@ gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
 make_ctx(Params, Context) ->
     #{?CTX_NS => genlib_map:compact(#{
         <<"owner">> => wapi_handler_utils:get_owner(Context),
-        <<"metadata">> => maps:get(<<"metadata">>, Params, undefined),
-        ?PARAMS_HASH => create_params_hash(Params)
+        <<"metadata">> => maps:get(<<"metadata">>, Params, undefined)
     })}.
 
 -spec add_to_ctx({md(), md() | undefined} | list() | map(), context()) ->
@@ -131,35 +130,53 @@ create_params_hash(Value) ->
 %% sender and receiver
 %%
 
--spec decrypt_and_prune_resource_token(binary(), params()) ->
-    {ok, params()} | {error, lechiffre:decoding_error()}.
+-spec decrypt_params([binary()], params()) ->
+    {ok, params()} | {error, {binary(), lechiffre:decoding_error()}}.
 
-decrypt_and_prune_resource_token(Key, Params) ->
-    case maps:get(Key, Params) of
-        #{<<"token">> := Token} = Object ->
-            case wapi_crypto:decrypt_bankcard_token(Token) of
-                {ok, Resource} ->
-                    {ok, Params#{Key => maps:remove(<<"token">>, Object#{
-                        <<"decryptedResource">> => Resource
-                    })}};
-                unrecognized ->
-                    % this code is obsolete.
-                    % it should be removed along with the map_to_base64url artifacts in the tests.
-                    BankCard = wapi_utils:base64url_to_map(Token),
-                    Resource = #'BankCard'{
-                        token      = maps:get(<<"token">>, BankCard),
-                        bin        = maps:get(<<"bin">>, BankCard),
-                        masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                   },
-                   {ok, Params#{Key => maps:remove(<<"token">>, Object#{
-                       <<"decryptedResource">> => Resource
-                   })}};
-                Error ->
-                    Error
-            end;
-        _ ->
-            {ok, Params}
-    end.
+decrypt_params(List, Params) ->
+    decrypt_params(List, Params, fun decrypt_object/1).
+
+-spec decrypt_params([binary()], params(), function()) ->
+    {ok, params()} | {error, {binary(), lechiffre:decoding_error()}}.
+
+decrypt_params(List, Params, ObjectDecoder) ->
+    lists:foldl(fun
+        (_Key, {error, Error}) ->
+            {error, Error};
+        (Key, {ok, AccParams}) ->
+            case ObjectDecoder(maps:get(Key, AccParams)) of
+                {ok, Object} ->
+                    {ok, AccParams#{Key => Object}};
+                {error, Error} ->
+                    {error, Error}
+            end
+    end, {ok, Params}, List).
+
+decrypt_object(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        {ok, Resource} ->
+            {ok, maps:remove(<<"token">>, Object#{
+                <<"type">> => Type,
+                <<"decryptedResource">> => Resource
+            })};
+        unrecognized ->
+            % this code is obsolete.
+            % it should be removed along with the map_to_base64url artifacts on the tests.
+            BankCard = wapi_utils:base64url_to_map(Token),
+            Resource = #'BankCard'{
+                token      = maps:get(<<"token">>, BankCard),
+                bin        = maps:get(<<"bin">>, BankCard),
+                masked_pan = maps:get(<<"lastDigits">>, BankCard)
+            },
+            {ok, maps:remove(<<"token">>, Object#{
+                <<"type">> => Type,
+                <<"decryptedResource">> => Resource
+            })};
+        {error, Error} ->
+            {error, {Type, Error}}
+    end;
+decrypt_object(Object) ->
+    {ok, Object}.
 
 -spec issue_grant_token(_, binary(), handler_context()) ->
     {ok, binary()} | {error, expired}.
@@ -186,9 +203,9 @@ get_expiration_deadline(Expiration) ->
 
 -spec test() -> _.
 
--spec decrypt_and_prune_resource_token_test_() ->
+-spec decrypt_params_test_() ->
     _.
-decrypt_and_prune_resource_token_test_() ->
+decrypt_params_test_() ->
     {setup,
         fun() ->
             Resource = {bank_card, #{bin => <<"424242">>, masked_pan => <<"4242">>}},
@@ -202,20 +219,20 @@ decrypt_and_prune_resource_token_test_() ->
         fun(Resource) ->
             Params = #{
                 <<"hello">> => world,
-                <<"sender">> => #{<<"key">> => value, <<"token">> => <<"v1.1A1A1A">>},
-                <<"receiver">> => #{<<"key">> => value, <<"token">> => <<"v1.1B1B1B">>},
-                <<"resource">> => #{<<"key">> => value, <<"token">> => <<"v1.1C1C1C">>}
+                <<"sender">> => #{<<"key1">> => value1, <<"type">> => <<"Type1">>, <<"token">> => <<"v1.1A1A1A">>},
+                <<"receiver">> => #{<<"key2">> => value2, <<"type">> => <<"Type2">>, <<"token">> => <<"v1.1B1B1B">>},
+                <<"resource">> => #{<<"key3">> => value3, <<"token">> => <<"v1.1C1C1C">>},
+                <<"resource0">> => #{<<"key4">> => value4, <<"type">> => <<"Type3">>}
             },
             Missed = #{
                 <<"hello">> => world,
-                <<"sender">> => #{<<"key">> => value, <<"decryptedResource">> => Resource},
-                <<"receiver">> => #{<<"key">> => value, <<"decryptedResource">> => Resource},
-                <<"resource">> => #{<<"key">> => value, <<"decryptedResource">> => Resource}
+                <<"sender">> => #{<<"key1">> => value1, <<"type">> => <<"Type1">>, <<"decryptedResource">> => Resource},
+                <<"receiver">> => #{<<"key2">> => value2, <<"type">> => <<"Type2">>, <<"decryptedResource">> => Resource},
+                <<"resource">> => #{<<"key3">> => value3, <<"token">> => <<"v1.1C1C1C">>},
+                <<"resource0">> => #{<<"key4">> => value4, <<"type">> => <<"Type3">>}
             },
-            {ok, R1} = decrypt_and_prune_resource_token(<<"sender">>, Params),
-            {ok, R2} = decrypt_and_prune_resource_token(<<"receiver">>, R1),
-            {ok, R3} = decrypt_and_prune_resource_token(<<"resource">>, R2),
-            ?_assertEqual(Missed, R3)
+            {ok, Result} = decrypt_params([<<"sender">>, <<"receiver">>, <<"resource">>, <<"resource0">>], Params),
+            ?_assertEqual(Missed, Result)
         end
     }.
 

@@ -363,7 +363,7 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
     {illegal_pattern, _}
 ).
 create_destination(Params, Context) ->
-    case decrypt_and_prune_resource_tokens(Params, [<<"resource">>]) of
+    case wapi_backend_utils:decrypt_params([<<"resource">>], Params, fun decrypt_token/1) of
         {ok, Params0} ->
             create_destination_continue(Params0, Context);
         Error ->
@@ -626,7 +626,7 @@ list_deposits(Params, Context) ->
     p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer(Params, Context) ->
-    case decrypt_and_prune_resource_tokens(Params, [<<"sender">>, <<"receiver">>]) of
+    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params, fun decrypt_token/1) of
         {ok, Params0} ->
             quote_p2p_transfer_continue(Params0, Context);
         Error ->
@@ -668,7 +668,7 @@ quote_p2p_transfer_continue(Params, Context) ->
     }
 ).
 create_p2p_transfer(Params, Context) ->
-    case decrypt_and_prune_resource_tokens(Params, [<<"sender">>, <<"receiver">>]) of
+    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params, fun decrypt_token/1) of
         {ok, Params0} ->
             create_p2p_transfer_continue(Params0, Context);
         Error ->
@@ -832,7 +832,7 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
     }
 ).
 create_p2p_transfer_with_template(ID, Params, Context) ->
-    case decrypt_and_prune_resource_tokens(Params, [<<"sender">>, <<"receiver">>]) of
+    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params, fun decrypt_token/1) of
         {ok, Params0} ->
             create_p2p_transfer_with_template_continue(ID, Params0, Context);
         Error ->
@@ -876,7 +876,7 @@ create_p2p_transfer_with_template_continue(ID, Params, Context = #{woody_context
     p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer_with_template(ID, Params, Context) ->
-    case decrypt_and_prune_resource_tokens(Params, [<<"sender">>, <<"receiver">>]) of
+    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params, fun decrypt_token/1) of
         {ok, Params0} ->
             quote_p2p_transfer_with_template_continue(ID, Params0, Context);
         Error ->
@@ -958,37 +958,28 @@ when Type =:= <<"CryptoWalletDestinationResource">> ->
         currency => from_swag(crypto_wallet_currency, Resource)
     })}}}.
 
-decrypt_and_prune_resource_tokens(Params, List) ->
-    lists:foldl(fun
-        (Key, {ok, AccParams}) -> decrypt_and_prune_resource_token(Key, AccParams);
-        (_Key, {error, Error}) -> {error, Error}
-    end, {ok, Params}, List).
-
-decrypt_and_prune_resource_token(Key, AccParams) ->
-    case maps:get(Key, AccParams, undefined) of
-        #{<<"token">> := Token, <<"type">> := Type} = Object ->
-            case wapi_crypto:decrypt_bankcard_token(Token) of
-                {ok, Resource} ->
-                    {ok, AccParams#{Key => Object#{
-                        <<"token">> => <<>>,
-                        <<"decryptedResource">> => encode_bank_card(Resource)
-                    }}};
-                unrecognized when Type =:= <<"BankCardDestinationResource">> ->
-                    {bank_card, BankCard} = from_swag(destination_resource, Object),
-                    {ok, AccParams#{Key => Object#{
-                        <<"token">> => <<>>,
-                        <<"decryptedResource">> => BankCard
-                    }}};
-                 unrecognized  ->
-                    logger:warning("~s token unrecognized", [Type]),
-                    {error, {invalid_resource_token, Type}};
-                {error, Error} ->
-                    logger:warning("~s token decryption failed: ~p", [Type, Error]),
-                    {error, {invalid_resource_token, Type}}
-            end;
-        _ ->
-            {ok, AccParams}
-    end.
+decrypt_token(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        {ok, Resource} ->
+            {ok, maps:remove(<<"token">>, Object#{
+                <<"type">> => Type,
+                <<"decryptedResource">> => encode_bank_card(Resource)
+            })};
+        unrecognized when Type =:= <<"BankCardDestinationResource">> ->
+            {bank_card, BankCard} = from_swag(destination_resource, Object),
+            {ok, maps:remove(<<"token">>, Object#{
+                <<"type">> => Type,
+                <<"decryptedResource">> => BankCard
+            })};
+         unrecognized  ->
+            logger:warning("~s token unrecognized", [Type]),
+            {error, {invalid_resource_token, Type}};
+        {error, Error} ->
+            logger:warning("~s token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end;
+decrypt_token(Object) ->
+    {ok, Object}.
 
 encode_bank_card(BankCard) ->
     #{

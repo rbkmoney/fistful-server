@@ -8,30 +8,26 @@
 -type external_id() :: id().
 
 -type error_create()
-    :: {external_id_conflict, id(), external_id()}
-     | {identity,     unauthorized}
-     | {identity,     notfound}
-     | {p2p_transfer, forbidden_currency}
-     | {p2p_transfer, cash_range_exceeded}
-     | {p2p_transfer, operation_not_permitted}
-     | {token,        {not_verified, identity_mismatch}}
-     | {token,        {not_verified, _}}
-     | {sender,       invalid_resource}
-     | {receiver,     invalid_resource}
-     | {sender,       invalid_resource_token}
-     | {receiver,     invalid_resource_token}
+    :: {external_id_conflict,   id(), external_id()}
+     | {identity,               unauthorized}
+     | {identity,               notfound}
+     | {p2p_transfer,           forbidden_currency}
+     | {p2p_transfer,           cash_range_exceeded}
+     | {p2p_transfer,           operation_not_permitted}
+     | {token,                  {not_verified, identity_mismatch}}
+     | {token,                  {not_verified, _}}
+     | {invalid_resource,       sender | receiver}
+     | {invalid_resource_token, binary()}
      .
 
 -type error_create_quote()
-    :: {identity,     unauthorized}
-     | {identity,     notfound}
-     | {p2p_transfer, forbidden_currency}
-     | {p2p_transfer, cash_range_exceeded}
-     | {p2p_transfer, operation_not_permitted}
-     | {sender,       invalid_resource}
-     | {receiver,     invalid_resource}
-     | {sender,       invalid_resource_token}
-     | {receiver,     invalid_resource_token}
+    :: {identity,               unauthorized}
+     | {identity,               notfound}
+     | {p2p_transfer,           forbidden_currency}
+     | {p2p_transfer,           cash_range_exceeded}
+     | {p2p_transfer,           operation_not_permitted}
+     | {invalid_resource,       sender | receiver}
+     | {invalid_resource_token, binary()}
      .
 
 -type error_get()
@@ -68,27 +64,45 @@
 -spec create_transfer(req_data(), handler_context()) ->
     {ok, response_data()} | {error, error_create()}.
 
-create_transfer(Params, HandlerContext) ->
-    case decrypt_and_prune_resource_tokens(Params) of
-        {ok, Params0} ->
-            create_transfer_continue(Params0, HandlerContext);
-        Error ->
-            Error
-    end.
-
-create_transfer_continue(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
+create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            case wapi_backend_utils:gen_id(p2p_transfer, Params, HandlerContext) of
-                {ok, ID} ->
-                    do_create_transfer(ID, Params, HandlerContext);
-                {error, {external_id_conflict, ID}} ->
-                    {error, {external_id_conflict, ID, maps:get(<<"externalID">>, Params, undefined)}}
-            end;
+            create_transfer_continue_decrypt(Params, HandlerContext);
         {error, unauthorized} ->
             {error, {identity, unauthorized}};
         {error, notfound} ->
             {error, {identity, notfound}}
+    end.
+
+create_transfer_continue_decrypt(Params, HandlerContext) ->
+    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params) of
+        {ok, NewParams} ->
+            % OldParams is need for create_transfer_continue_genid_old
+            % Remove the parameter & create_transfer_continue_genid_old after deploy
+            create_transfer_continue_genid(NewParams, Params, HandlerContext);
+        {error, {Type, Error}} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end.
+
+create_transfer_continue_genid(Params, OldParams, HandlerContext) ->
+    case wapi_backend_utils:gen_id(p2p_transfer, Params, HandlerContext) of
+        {ok, ID} ->
+            do_create_transfer(ID, Params, HandlerContext);
+        {error, {external_id_conflict, ID}} ->
+            % Replace this call by error report after deploy
+            ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            logger:warning("external_id_conflict: ~p. try old hashing", [{ID, ExternalID}]),
+            create_transfer_continue_genid_old(Params, OldParams, HandlerContext)
+    end.
+
+create_transfer_continue_genid_old(Params, OldParams, HandlerContext) ->
+    case wapi_backend_utils:gen_id(p2p_transfer, OldParams, HandlerContext) of
+        {ok, ID} ->
+            do_create_transfer(ID, Params, HandlerContext);
+        {error, {external_id_conflict, ID}} ->
+            ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            {error, {external_id_conflict, {ID, ExternalID}}}
     end.
 
 -spec get_transfer(req_data(), handler_context()) ->
@@ -110,21 +124,23 @@ get_transfer(ID, HandlerContext) ->
 -spec quote_transfer(req_data(), handler_context()) ->
     {ok, response_data()} | {error, error_create_quote()}.
 
-quote_transfer(Params, HandlerContext) ->
-    case decrypt_and_prune_resource_tokens(Params) of
-        {ok, Params0} ->
-            quote_transfer_continue(Params0, HandlerContext);
-        Error ->
-            Error
-    end.
-quote_transfer_continue(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
+quote_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            do_quote_transfer(Params, HandlerContext);
+            quote_transfer_continue_decrypt(Params, HandlerContext);
         {error, unauthorized} ->
             {error, {identity, unauthorized}};
         {error, notfound} ->
             {error, {identity, notfound}}
+    end.
+
+quote_transfer_continue_decrypt(Params, HandlerContext) ->
+    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params) of
+        {ok, NewParams} ->
+            do_quote_transfer(NewParams, HandlerContext);
+        {error, {Type, Error}} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
     end.
 
 -spec get_transfer_events(id(), binary() | undefined, handler_context()) ->
@@ -150,10 +166,8 @@ do_quote_transfer(Params, HandlerContext) ->
             Token = create_quote_token(Quote, PartyID),
             UnmarshaledQuote = unmarshal_quote(Quote),
             {ok, UnmarshaledQuote#{<<"token">> => Token}};
-        {exception, #p2p_transfer_NoResourceInfo{type = sender}} ->
-            {error, {sender, invalid_resource}};
-        {exception, #p2p_transfer_NoResourceInfo{type = receiver}} ->
-            {error, {receiver, invalid_resource}};
+        {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
+            {error, {invalid_resource, Type}};
         {exception, #fistful_ForbiddenOperationCurrency{}} ->
             {error, {p2p_transfer, forbidden_currency}};
         {exception, #fistful_ForbiddenOperationAmount{}} ->
@@ -184,10 +198,8 @@ process_p2p_transfer_call(Request, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Transfer} ->
             {ok, unmarshal_transfer(Transfer)};
-        {exception, #p2p_transfer_NoResourceInfo{type = sender}} ->
-            {error, {sender, invalid_resource}};
-        {exception, #p2p_transfer_NoResourceInfo{type = receiver}} ->
-            {error, {receiver, invalid_resource}};
+        {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
+            {error, {invalid_resource, Type}};
         {exception, #fistful_ForbiddenOperationCurrency{}} ->
             {error, {p2p_transfer, forbidden_currency}};
         {exception, #fistful_ForbiddenOperationAmount{}} ->
@@ -221,19 +233,6 @@ authorize_p2p_quote_token(#p2p_transfer_Quote{identity_id = IdentityID}, Identit
     ok;
 authorize_p2p_quote_token(_Quote, _IdentityID) ->
     {error, {token, {not_verified, identity_mismatch}}}.
-
-decrypt_and_prune_resource_tokens(Params) ->
-    case wapi_backend_utils:decrypt_and_prune_resource_token(<<"sender">>, Params) of
-        {ok, Params0} ->
-            case wapi_backend_utils:decrypt_and_prune_resource_token(<<"receiver">>, Params0) of
-                {ok, Params1} ->
-                    {ok, Params1};
-                {error, _Error} ->
-                    {error, {receiver, invalid_resource_token}}
-            end;
-        {error, _Error} ->
-            {error, {sender, invalid_resource_token}}
-    end.
 
 service_call(Params, HandlerContext) ->
     wapi_handler_utils:service_call(Params, HandlerContext).

@@ -16,12 +16,13 @@
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
 -type id() :: binary().
+-type external_id() :: binary().
 
 %% P2PTemplate interface
 
 -spec create(req_data(), handler_context()) ->
     {ok, response_data()} |
-    {error, {external_id_conflict, id()}} |
+    {error, {external_id_conflict, id(), external_id()}} |
     {error, {identity, unauthorized}} |
     {error, {identity, notfound}} |
     {error, {currency, notfound}} |
@@ -37,8 +38,9 @@ create(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
                     TemplateParams = marshal_template_params(Params#{<<"id">> => ID}),
                     Request = {fistful_p2p_template, 'Create', [TemplateParams, marshal_context(Context)]},
                     create_call(Request, HandlerContext);
-                {error, {external_id_conflict, _}} = Error ->
-                        Error
+                {error, {external_id_conflict, ID}} ->
+                    ExternalID = maps:get(<<"externalID">>, Params, undefined),
+                    {error, {external_id_conflict, ID, ExternalID}}
             end;
         {error, unauthorized} ->
             {error, {identity, unauthorized}};
@@ -150,44 +152,49 @@ issue_transfer_ticket(ID, WishExpiration, HandlerContext) ->
     {error, {forbidden_currency, _}} |
     {error, {forbidden_amount, _}} |
     {error, {operation_not_permitted, _}} |
-    {error, {sender | receiver, invalid_resource}} |
-    {error, {sender | receiver, invalid_resource_token}}.
+    {error, {invalid_resource, sender | receiver}} |
+    {error, {invalid_resource_token, binary()}}.
 
 quote_transfer(ID, Params, HandlerContext) ->
-    case decrypt_and_prune_resource_tokens(Params) of
-        {ok, Params0} ->
-            quote_transfer_continue(ID, Params0, HandlerContext);
-        Error ->
-            Error
-    end.
-quote_transfer_continue(ID, Params, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
-    ok ->
-        QuoteParams = marshal_quote_params(Params),
-        Request = {fistful_p2p_template, 'GetQuote', [ID, QuoteParams]},
-        case wapi_handler_utils:service_call(Request, HandlerContext) of
-            {ok, Quote} ->
-                PartyID = wapi_handler_utils:get_owner(HandlerContext),
-                Token = create_quote_token(Quote, PartyID),
-                QuoteWapi = unmarshal_quote(Quote),
-                {ok, QuoteWapi#{ <<"token">> => Token }};
-            {exception, #fistful_P2PTemplateNotFound{}} ->
-                {error, {p2p_template, notfound}};
-            {exception, #fistful_IdentityNotFound{}} ->
-                {error, {identity, notfound}};
-            {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
-                {error, {forbidden_currency, unmarshal(currency_ref, Currency)}};
-            {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
-                {error, {forbidden_amount, unmarshal(cash, Amount)}};
-            {exception, #fistful_OperationNotPermitted{details = Details}} ->
-                {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
-            {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
-                {error, {invalid_resource, Type}}
-        end;
-    {error, unauthorized} ->
-        {error, {p2p_template, unauthorized}};
-    {error, notfound} ->
-        {error, {p2p_template, notfound}}
+        ok ->
+            quote_transfer_continue_decrypt(ID, Params, HandlerContext);
+        {error, unauthorized} ->
+            {error, {p2p_template, unauthorized}};
+        {error, notfound} ->
+            {error, {p2p_template, notfound}}
+    end.
+
+quote_transfer_continue_decrypt(ID, Params, HandlerContext) ->
+    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params) of
+        {ok, NewParams} ->
+            quote_transfer_continue_request(ID, NewParams, HandlerContext);
+        {error, {Type, Error}} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end.
+
+quote_transfer_continue_request(ID, Params, HandlerContext) ->
+    QuoteParams = marshal_quote_params(Params),
+    Request = {fistful_p2p_template, 'GetQuote', [ID, QuoteParams]},
+    case wapi_handler_utils:service_call(Request, HandlerContext) of
+        {ok, Quote} ->
+            PartyID = wapi_handler_utils:get_owner(HandlerContext),
+            Token = create_quote_token(Quote, PartyID),
+            QuoteWapi = unmarshal_quote(Quote),
+            {ok, QuoteWapi#{ <<"token">> => Token }};
+        {exception, #fistful_P2PTemplateNotFound{}} ->
+            {error, {p2p_template, notfound}};
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}};
+        {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
+            {error, {forbidden_currency, unmarshal(currency_ref, Currency)}};
+        {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
+            {error, {forbidden_amount, unmarshal(cash, Amount)}};
+        {exception, #fistful_OperationNotPermitted{details = Details}} ->
+            {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
+        {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
+            {error, {invalid_resource, Type}}
     end.
 
 -spec create_transfer(id(), req_data(), handler_context()) ->
@@ -196,25 +203,28 @@ quote_transfer_continue(ID, Params, HandlerContext) ->
     {error, {forbidden_currency, _}} |
     {error, {forbidden_amount, _}} |
     {error, {operation_not_permitted, _}} |
-    {error, {sender | receiver, invalid_resource}} |
-    {error, {sender | receiver, invalid_resource_token}} |
+    {error, {invalid_resource, sender | receiver}} |
+    {error, {invalid_resource_token, binary()}} |
     {error, {token, _}} |
     {error, {external_id_conflict, _}}.
 
-create_transfer(ID, Params, HandlerContext) ->
-    case decrypt_and_prune_resource_tokens(Params) of
-        {ok, Params0} ->
-            create_transfer_quote_decode(ID, Params0, HandlerContext);
-        Error ->
-            Error
+create_transfer(TemplateID, Params, HandlerContext) ->
+    case wapi_access_backend:check_resource_by_id(p2p_template, TemplateID, HandlerContext) of
+        ok ->
+            TransferID = context_transfer_id(HandlerContext),
+            create_transfer_continue_quote(TemplateID, Params#{<<"id">> => TransferID}, HandlerContext);
+        {error, unauthorized} ->
+            {error, {p2p_template, unauthorized}};
+        {error, notfound} ->
+            {error, {p2p_template, notfound}}
     end.
 
-create_transfer_quote_decode(ID, #{quote_token := Token} = Params, HandlerContext) ->
+create_transfer_continue_quote(TemplateID, #{quote_token := Token} = Params, HandlerContext) ->
     case uac_authorizer_jwt:verify(Token, #{}) of
         {ok, {_, _, VerifiedToken}} ->
-            case decode_and_validate_token_payload(VerifiedToken, ID, HandlerContext) of
+            case decode_and_validate_token_payload(VerifiedToken, TemplateID, HandlerContext) of
                 {ok, Quote} ->
-                    create_transfer_continue(ID, Params#{<<"quote">> => Quote}, HandlerContext);
+                    create_transfer_continue_decrypt(TemplateID, Params#{<<"quote">> => Quote}, HandlerContext);
                 {error, token_expired} ->
                     {error, {token, expired}};
                 {error, Error} ->
@@ -223,29 +233,42 @@ create_transfer_quote_decode(ID, #{quote_token := Token} = Params, HandlerContex
         {error, Error} ->
             {error, {token, {not_verified, Error}}}
     end;
-create_transfer_quote_decode(ID, Params, HandlerContext) ->
-    create_transfer_continue(ID, Params, HandlerContext).
+create_transfer_continue_quote(TemplateID, Params, HandlerContext) ->
+    create_transfer_continue_decrypt(TemplateID, Params, HandlerContext).
 
-create_transfer_continue(ID, Params, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
-        ok ->
-            TransferID = context_transfer_id(HandlerContext),
-            case validate_transfer_id(TransferID, Params, HandlerContext) of
-                ok ->
-                    MarshaledContext = marshal_context(wapi_backend_utils:make_ctx(Params, HandlerContext)),
-                    MarshaledParams = marshal_transfer_params(Params#{<<"id">> => TransferID}),
-                    Request = {fistful_p2p_template, 'CreateTransfer', [ID, MarshaledParams, MarshaledContext]},
-                    create_transfer_call(Request, HandlerContext);
-                {error, {external_id_conflict, _}} = Error ->
-                    Error
-            end;
-        {error, unauthorized} ->
-            {error, {p2p_template, unauthorized}};
-        {error, notfound} ->
-            {error, {p2p_template, notfound}}
+create_transfer_continue_decrypt(TemplateID, Params, HandlerContext) ->
+    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params) of
+        {ok, NewParams} ->
+            % OldParams is need for create_transfer_continue_genid_old
+            % Remove the parameter & create_transfer_continue_genid_old after deploy
+            create_transfer_continue_genid(TemplateID, NewParams, Params, HandlerContext);
+        {error, {Type, Error}} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
     end.
 
-create_transfer_call(Request, HandlerContext) ->
+create_transfer_continue_genid(TemplateID, #{<<"id">> := TransferID} = Params, OldParams, HandlerContext) ->
+    case validate_transfer_id(TransferID, Params, HandlerContext) of
+        ok ->
+            create_transfer_continue_request(TemplateID, Params, HandlerContext);
+        {error, {external_id_conflict, ID}} ->
+            % Replace this call by error report after deploy
+            logger:warning("external_id_conflict: ~p. try old hashing", [ID]),
+            create_transfer_continue_genid_old(TemplateID, Params, OldParams, HandlerContext)
+    end.
+
+create_transfer_continue_genid_old(TemplateID, #{<<"id">> := TransferID} = Params, OldParams, HandlerContext) ->
+    case validate_transfer_id(TransferID, OldParams, HandlerContext) of
+        ok ->
+            create_transfer_continue_request(TemplateID, Params, HandlerContext);
+        {error, {external_id_conflict, ID}} ->
+            {error, {external_id_conflict, ID}}
+    end.
+
+create_transfer_continue_request(TemplateID, Params, HandlerContext) ->
+    MarshaledContext = marshal_context(wapi_backend_utils:make_ctx(Params, HandlerContext)),
+    MarshaledParams = marshal_transfer_params(Params),
+    Request = {fistful_p2p_template, 'CreateTransfer', [TemplateID, MarshaledParams, MarshaledContext]},
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, Transfer} ->
             {ok, unmarshal_transfer(Transfer)};
@@ -258,7 +281,7 @@ create_transfer_call(Request, HandlerContext) ->
         {exception, #fistful_OperationNotPermitted{details = Details}} ->
             {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
         {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
-            {error, {Type, invalid_resource}}
+            {error, {invalid_resource, Type}}
     end.
 
 %% Create quoteToken from Quote
@@ -320,7 +343,7 @@ validate_transfer_id(TransferID, Params, #{woody_context := WoodyContext} = Hand
     case bender_client:gen_constant(Key, TransferID, Hash, WoodyContext) of
         {ok, {TransferID, _}} ->
             ok;
-        {error, _} = Error ->
+        {error, {external_id_conflict, _ID}} = Error ->
             Error
     end.
 
@@ -350,21 +373,6 @@ decode_and_validate_token_payload(Token, TemplateID, HandlerContext) ->
             end;
         Error ->
             Error
-    end.
-
-%% Decode resource tokens
-
-decrypt_and_prune_resource_tokens(Params) ->
-    case wapi_backend_utils:decrypt_and_prune_resource_token(<<"sender">>, Params) of
-        {ok, Params0} ->
-            case wapi_backend_utils:decrypt_and_prune_resource_token(<<"receiver">>, Params0) of
-                {ok, Params1} ->
-                    {ok, Params1};
-                {error, _Error} ->
-                    {error, {receiver, invalid_resource_token}}
-            end;
-        {error, _Error} ->
-            {error, {sender, invalid_resource_token}}
     end.
 
 %% Convert swag maps to thrift records

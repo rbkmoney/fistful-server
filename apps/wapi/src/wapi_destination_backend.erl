@@ -17,45 +17,56 @@
 -spec create(req_data(), handler_context()) ->
     {ok, response_data()} | {error, DestinationError}
     when DestinationError ::
-        invalid_resource_token      |
+        {invalid_resource_token, binary()} |
         {identity, unauthorized}    |
         {identity, notfound}        |
         {currency, notfound}        |
         inaccessible                |
         {external_id_conflict, {id(), external_id()}}.
 
-create(Params, HandlerContext) ->
-    case wapi_backend_utils:decrypt_and_prune_resource_token(<<"resource">>, Params) of
-        {ok, Params0} ->
-            create_continue(Params0, HandlerContext);
-        {error, Error} ->
-            logger:warning("Resource token decryption failed: ~p", [Error]),
-            {error, invalid_resource_token}
-    end.
-
-create_continue(Params = #{<<"identity">> := IdentityID, <<"resource">> := Resource}, HandlerContext) ->
+create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
-                {ok, ID} ->
-                    Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-                    MarshaledParams = marshal(destination_params, maps:remove(<<"resource">>, Params#{
-                        <<"id">> => ID
-                    })),
-                    MarshaledParamsWithRes = MarshaledParams#dst_DestinationParams{
-                        resource = construct_resource(Resource)
-                    },
-                    Request = {fistful_destination, 'Create', [MarshaledParamsWithRes, marshal(context, Context)]},
-                    create_call(Request, HandlerContext);
-                {error, {external_id_conflict, ID}} ->
-                    ExternalID = maps:get(<<"externalID">>, Params, undefined),
-                    {error, {external_id_conflict, {ID, ExternalID}}}
-            end;
+            create_continue_decrypt(Params, HandlerContext);
         {error, unauthorized} ->
             {error, {identity, unauthorized}}
     end.
 
-create_call(Request, HandlerContext) ->
+create_continue_decrypt(Params, HandlerContext) ->
+    case wapi_backend_utils:decrypt_params([<<"resource">>], Params) of
+        {ok, NewParams} ->
+            % OldParams is need for create_continue_genid_old
+            % Remove the parameter & create_continue_genid_old after deploy
+            create_continue_genid(NewParams, Params, HandlerContext);
+        {error, {Type, Error}} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end.
+
+create_continue_genid(Params, OldParams, HandlerContext) ->
+    case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
+        {ok, ID} ->
+            create_continue_request(Params#{<<"id">> => ID}, HandlerContext);
+        {error, {external_id_conflict, ID}} ->
+            % Replace this call by error report after deploy
+            ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            logger:warning("external_id_conflict: ~p. try old hashing", [{ID, ExternalID}]),
+            create_continue_genid_old(Params, OldParams, HandlerContext)
+    end.
+
+create_continue_genid_old(Params, OldParams, HandlerContext) ->
+    case wapi_backend_utils:gen_id(destination, OldParams, HandlerContext) of
+        {ok, ID} ->
+            create_continue_request(Params#{<<"id">> => ID}, HandlerContext);
+        {error, {external_id_conflict, ID}} ->
+            ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            {error, {external_id_conflict, {ID, ExternalID}}}
+    end.
+
+create_continue_request(Params, HandlerContext) ->
+    Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
+    MarshaledParams = marshal(destination_params, Params),
+    Request = {fistful_destination, 'Create', [MarshaledParams, marshal(context, Context)]},
     case service_call(Request, HandlerContext) of
         {ok, Destination} ->
             {ok, unmarshal(destination, Destination)};
@@ -108,20 +119,6 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
 %% Internal
 %%
 
-construct_resource(#{<<"type">> := Type, <<"decryptedResource">> := BankCard})
-when Type =:= <<"BankCardDestinationResource">> ->
-    {bank_card, #'ResourceBankCard'{bank_card = BankCard}};
-construct_resource(#{<<"type">> := Type} = Resource)
-when Type =:= <<"CryptoWalletDestinationResource">> ->
-    #{
-        <<"id">> := CryptoWalletID
-    } = Resource,
-    CostructedResource = {crypto_wallet, #{crypto_wallet => genlib_map:compact(#{
-        id => CryptoWalletID,
-        currency => marshal_crypto_currency_data(Resource)
-    })}},
-    ff_codec:marshal(resource, CostructedResource).
-
 service_call(Params, Context) ->
     wapi_handler_utils:service_call(Params, Context).
 
@@ -131,7 +128,8 @@ marshal(destination_params, Params = #{
     <<"id">> := ID,
     <<"identity">> := IdentityID,
     <<"currency">> := CurrencyID,
-    <<"name">> := Name
+    <<"name">> := Name,
+    <<"resource">> := Resource
 }) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #dst_DestinationParams{
@@ -139,8 +137,24 @@ marshal(destination_params, Params = #{
         identity = marshal(id, IdentityID),
         name = marshal(string, Name),
         currency = marshal(string, CurrencyID),
-        external_id = maybe_marshal(id, ExternalID)
+        external_id = maybe_marshal(id, ExternalID),
+        resource = marshal(resource, Resource)
     };
+
+marshal(resource, #{
+    <<"type">> := Type,
+    <<"decryptedResource">> := BankCard
+}) when Type =:= <<"BankCardDestinationResource">> ->
+    {bank_card, #'ResourceBankCard'{bank_card = BankCard}};
+marshal(resource, #{
+    <<"type">> := Type,
+    <<"id">> := CryptoWalletID
+} = Resource) when Type =:= <<"CryptoWalletDestinationResource">> ->
+    CostructedResource = {crypto_wallet, #{crypto_wallet => genlib_map:compact(#{
+        id => CryptoWalletID,
+        currency => marshal_crypto_currency_data(Resource)
+    })}},
+    ff_codec:marshal(resource, CostructedResource);
 
 marshal(context, Context) ->
     ff_codec:marshal(context, Context);

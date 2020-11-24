@@ -208,7 +208,7 @@ get_expiration_deadline(Expiration) ->
 decrypt_params_test_() ->
     {setup,
         fun() ->
-            Resource = {bank_card, #{bin => <<"424242">>, masked_pan => <<"4242">>}},
+            Resource = #'BankCard'{bin = <<"424242">>, masked_pan = <<"4242">>},
             meck:new([wapi_crypto], [passthrough]),
             meck:expect(wapi_crypto, decrypt_bankcard_token, 1, {ok, Resource}),
             Resource
@@ -219,19 +219,25 @@ decrypt_params_test_() ->
         fun(Resource) ->
             Params = #{
                 <<"hello">> => world,
-                <<"sender">> => #{<<"key1">> => value1, <<"type">> => <<"Type1">>, <<"token">> => <<"v1.1A1A1A">>},
-                <<"receiver">> => #{<<"key2">> => value2, <<"type">> => <<"Type2">>, <<"token">> => <<"v1.1B1B1B">>},
-                <<"resource">> => #{<<"key3">> => value3, <<"token">> => <<"v1.1C1C1C">>},
-                <<"resource0">> => #{<<"key4">> => value4, <<"type">> => <<"Type3">>}
+                <<"any0">> => #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>, <<"token">> => <<"v1.000000">>},
+                <<"any1">> => #{<<"k">> => <<"v">>, <<"token">> => <<"v1.000000">>},
+                <<"any2">> => #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>},
+                <<"sender">> => #{<<"k1">> => v1, <<"type">> => <<"Type1">>, <<"token">> => <<"v1.AAAAAAA">>},
+                <<"receiver">> => #{<<"k2">> => v2, <<"type">> => <<"Type2">>, <<"token">> => <<"v1.BBBBBB">>},
+                <<"resource">> => #{<<"k3">> => v3, <<"type">> => <<"Type3">>, <<"token">> => <<"v1.CCCCCC">>}
             },
             Missed = #{
                 <<"hello">> => world,
-                <<"sender">> => #{<<"key1">> => value1, <<"type">> => <<"Type1">>, <<"decryptedResource">> => Resource},
-                <<"receiver">> => #{<<"key2">> => value2, <<"type">> => <<"Type2">>, <<"decryptedResource">> => Resource},
-                <<"resource">> => #{<<"key3">> => value3, <<"token">> => <<"v1.1C1C1C">>},
-                <<"resource0">> => #{<<"key4">> => value4, <<"type">> => <<"Type3">>}
+                <<"any0">> => #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>, <<"decryptedResource">> => Resource},
+                <<"any1">> => #{<<"k">> => <<"v">>, <<"token">> => <<"v1.000000">>},
+                <<"any2">> => #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>},
+                <<"sender">> => #{<<"k1">> => v1, <<"type">> => <<"Type1">>, <<"decryptedResource">> => Resource},
+                <<"receiver">> => #{<<"k2">> => v2, <<"type">> => <<"Type2">>, <<"decryptedResource">> => Resource},
+                <<"resource">> => #{<<"k3">> => v3, <<"type">> => <<"Type3">>, <<"decryptedResource">> => Resource}
             },
-            {ok, Result} = decrypt_params([<<"sender">>, <<"receiver">>, <<"resource">>, <<"resource0">>], Params),
+            {ok, Result} = decrypt_params([
+                <<"any0">>, <<"any1">>, <<"any2">>, <<"sender">>, <<"receiver">>, <<"resource">>
+            ], Params),
             ?_assertEqual(Missed, Result)
         end
     }.

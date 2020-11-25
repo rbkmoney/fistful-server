@@ -965,12 +965,6 @@ decrypt_token(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
                 <<"type">> => Type,
                 <<"decryptedResource">> => encode_bank_card(Resource)
             })};
-        unrecognized when Type =:= <<"BankCardDestinationResource">> ->
-            {bank_card, BankCard} = from_swag(destination_resource, Object),
-            {ok, maps:remove(<<"token">>, Object#{
-                <<"type">> => Type,
-                <<"decryptedResource">> => BankCard
-            })};
          unrecognized  ->
             logger:warning("~s token unrecognized", [Type]),
             {error, {invalid_resource_token, Type}};
@@ -1605,17 +1599,7 @@ from_swag(destination_params, Params) ->
         resource => maps:get(<<"resource">>, Params),
         metadata => maps:get(<<"metadata">>, Params, undefined)
     }, Params));
-%% TODO delete this code, after add encrypted token
-from_swag(destination_resource, #{
-    <<"type">> := <<"BankCardDestinationResource">>,
-    <<"token">> := WapiToken
-}) ->
-    BankCard = wapi_utils:base64url_to_map(WapiToken),
-    {bank_card, #{bank_card => #{
-        token          => maps:get(<<"token">>, BankCard),
-        bin            => maps:get(<<"bin">>, BankCard),
-        masked_pan     => maps:get(<<"lastDigits">>, BankCard)
-    }}};
+
 from_swag(destination_resource, Resource = #{
     <<"type">>     := <<"CryptoWalletDestinationResource">>,
     <<"id">>       := CryptoWalletID,
@@ -1627,6 +1611,15 @@ from_swag(destination_resource, Resource = #{
         currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
         tag      => Tag
     })}};
+from_swag(destination_resource, Resource = #{
+    <<"type">>     := <<"CryptoWalletDestinationResource">>,
+    <<"id">>       := CryptoWalletID
+}) ->
+    {crypto_wallet, genlib_map:compact(#{
+        id       => CryptoWalletID,
+        currency => from_swag(crypto_wallet_currency, Resource)
+    })};
+
 from_swag(quote_p2p_params, Params) ->
     add_external_id(#{
         sender      => maps:get(<<"sender">>, Params),
@@ -1690,15 +1683,6 @@ from_swag(create_w2w_params, Params) ->
         body => from_swag(body, maps:get(<<"body">>, Params)),
         metadata => maps:get(<<"metadata">>, Params, undefined)
     }, Params));
-
-from_swag(destination_resource, Resource = #{
-    <<"type">>     := <<"CryptoWalletDestinationResource">>,
-    <<"id">>       := CryptoWalletID
-}) ->
-    {crypto_wallet, genlib_map:compact(#{
-        id       => CryptoWalletID,
-        currency => from_swag(crypto_wallet_currency, Resource)
-    })};
 
 from_swag(crypto_wallet_currency, #{<<"currency">> := <<"Ripple">>} = Resource) ->
     Currency = from_swag(crypto_wallet_currency_name, <<"Ripple">>),

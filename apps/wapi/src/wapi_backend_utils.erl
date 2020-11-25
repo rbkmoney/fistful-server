@@ -160,18 +160,7 @@ decrypt_object(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
                 <<"decryptedResource">> => Resource
             })};
         unrecognized ->
-            % this code is obsolete.
-            % it should be removed along with the map_to_base64url artifacts on the tests.
-            BankCard = wapi_utils:base64url_to_map(Token),
-            Resource = #'BankCard'{
-                token      = maps:get(<<"token">>, BankCard),
-                bin        = maps:get(<<"bin">>, BankCard),
-                masked_pan = maps:get(<<"lastDigits">>, BankCard)
-            },
-            {ok, maps:remove(<<"token">>, Object#{
-                <<"type">> => Type,
-                <<"decryptedResource">> => Resource
-            })};
+            {error, {Type, unrecognized}};
         {error, Error} ->
             {error, {Type, Error}}
     end;

@@ -1,5 +1,8 @@
 -module(ff_external_id_SUITE).
 
+-include_lib("wapi_wallet_dummy_data.hrl").
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
+
 -export([all/0]).
 -export([groups/0]).
 -export([init_per_suite/1]).
@@ -164,9 +167,7 @@ idempotency_wallet_conflict(C) ->
     test_return().
 
 idempotency_destination_ok(C) ->
-    BankCard = #{masked_pan := MP} =
-        ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    NewBankCard = maps:without([exp_date, cardholder_name], BankCard),
+    BankCard = make_bank_card(<<"4150399999000900">>, {12, 2025}, <<"ct_cardholder_name">>),
     Party = create_party(C),
     ExternalID = genlib:unique(),
     Context = create_context(Party, C),
@@ -177,7 +178,7 @@ idempotency_destination_ok(C) ->
         <<"name">>      => <<"XDesination">>,
         <<"resource">>  => #{
             <<"type">>  => <<"BankCardDestinationResource">>,
-            <<"token">> => wapi_utils:map_to_base64url(NewBankCard#{lastDigits => MP})
+            <<"token">> => create_resource_token(BankCard)
         },
         <<"externalID">> => ExternalID
     },
@@ -192,9 +193,7 @@ idempotency_destination_ok(C) ->
     test_return().
 
 idempotency_destination_conflict(C) ->
-    BankCard = #{masked_pan := MP} =
-        ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    NewBankCard = maps:without([exp_date, cardholder_name], BankCard),
+    BankCard =  make_bank_card(<<"4150399999000900">>, {12, 2025}, <<"ct_cardholder_name">>),
     Party = create_party(C),
     ExternalID = genlib:unique(),
     {ok, #{<<"id">> := IdentityID}} = create_identity(Party, C),
@@ -204,7 +203,7 @@ idempotency_destination_conflict(C) ->
         <<"name">>      => <<"XDesination">>,
         <<"resource">>  => #{
             <<"type">>  => <<"BankCardDestinationResource">>,
-            <<"token">> => wapi_utils:map_to_base64url(NewBankCard#{lastDigits => MP})
+            <<"token">> => create_resource_token(BankCard)
         },
         <<"externalID">> => ExternalID
     },
@@ -282,16 +281,14 @@ wait_for_destination_authorized(DestID) ->
     ).
 
 create_destination_legacy(IdentityID, Party, C) ->
-    BankCard = #{masked_pan := MP} =
-        ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    NewBankCard = maps:without([exp_date, cardholder_name], BankCard),
+    BankCard = make_bank_card(<<"4150399999000900">>, {12, 2025}, <<"ct_cardholder_name">>),
     Params = #{
         <<"identity">>  => IdentityID,
         <<"currency">>  => <<"RUB">>,
         <<"name">>      => <<"XDesination">>,
         <<"resource">>  => #{
             <<"type">>  => <<"BankCardDestinationResource">>,
-            <<"token">> => wapi_utils:map_to_base64url(NewBankCard#{lastDigits => MP})
+            <<"token">> => create_resource_token(BankCard)
         }
     },
     wapi_wallet_ff_backend:create_destination(Params, create_context(Party, C)).
@@ -324,3 +321,16 @@ create_party(_C) ->
     ID = genlib:bsuuid(),
     _ = ff_party:create(ID),
     ID.
+
+make_bank_card(Pan, {MM, YYYY} = _ExpDate, CardHolder) ->
+    ?BANK_CARD#'BankCard'{
+        bin = ?BIN(Pan),
+        masked_pan = ?LAST_DIGITS(Pan),
+        cardholder_name = CardHolder,
+        exp_date = #'BankCardExpDate'{
+            month = MM,
+            year = YYYY
+        }
+    }.
+create_resource_token(Resource) ->
+    wapi_crypto:encrypt_bankcard_token(Resource).

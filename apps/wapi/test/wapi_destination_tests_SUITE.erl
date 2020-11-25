@@ -487,14 +487,14 @@ make_destination(C, ResourceType) ->
     Context = generate_context(PartyID),
     generate_destination(Identity#idnt_IdentityState.id, Resource, Context).
 
- create_destination_start_mocks(C, CreateDestinationResultFun) ->
+create_destination_start_mocks(C, CreateDestinationResultFun) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
         {fistful_destination, fun('Create', _) -> CreateDestinationResultFun() end}
     ], C).
 
- get_destination_start_mocks(C, GetDestinationResultFun) ->
+get_destination_start_mocks(C, GetDestinationResultFun) ->
     wapi_ct_helper:mock_services([
         {fistful_destination, fun('Get', _) -> GetDestinationResultFun() end}
     ], C).

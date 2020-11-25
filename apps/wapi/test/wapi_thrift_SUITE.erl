@@ -419,17 +419,14 @@ create_destination(IdentityID, C) ->
     create_destination(IdentityID, #{}, C).
 
 create_destination(IdentityID, Params, C) ->
+    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     DefaultParams = #{
         <<"name">> => ?STRING,
         <<"identity">> => IdentityID,
         <<"currency">> => ?RUB,
         <<"resource">> => #{
             <<"type">> => <<"BankCardDestinationResource">>,
-            <<"token">> => wapi_utils:map_to_base64url(#{
-                <<"token">> => ?STRING,
-                <<"bin">> => <<"424242">>,
-                <<"lastDigits">> => <<"4242">>
-            })
+            <<"token">> => Token
         }
     },
     {ok, Destination} = call_api(

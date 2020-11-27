@@ -77,8 +77,8 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
 create_transfer_decode_resources(Params, HandlerContext) ->
     case decode_resources(Params) of
         {ok, NewParams} ->
-            % OldParams is need for create_transfer_continue_genid_old
-            % Remove the parameter & create_transfer_continue_genid_old after deploy
+            % OldParams is need for create_transfer_generate_id_legacy
+            % Remove the parameter & create_transfer_generate_id_legacy after deploy
             create_transfer_generate_id(NewParams, Params, HandlerContext);
         {error, {Type, Error}} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),

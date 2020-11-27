@@ -27,44 +27,44 @@
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            create_continue_decode(Params, HandlerContext);
+            create_decode_resources(Params, HandlerContext);
         {error, unauthorized} ->
             {error, {identity, unauthorized}}
     end.
 
-create_continue_decode(Params, HandlerContext) ->
+create_decode_resources(Params, HandlerContext) ->
     case wapi_backend_utils:decode_resource(maps:get(<<"resource">>, Params)) of
         {ok, Resource} ->
-            % OldParams is need for create_continue_genid_old
-            % Remove the parameter & create_continue_genid_old after deploy
+            % OldParams is need for create_generate_id_legacy
+            % Remove the parameter & create_generate_id_legacy after deploy
             NewParams = Params#{<<"resource">> => Resource},
-            create_continue_generate_id(NewParams, Params, HandlerContext);
+            create_generate_id(NewParams, Params, HandlerContext);
         {error, {Type, Error}} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
     end.
 
-create_continue_generate_id(Params, OldParams, HandlerContext) ->
+create_generate_id(Params, OldParams, HandlerContext) ->
     case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
         {ok, ID} ->
-            create_continue_request(Params#{<<"id">> => ID}, HandlerContext);
+            create_request(Params#{<<"id">> => ID}, HandlerContext);
         {error, {external_id_conflict, ID}} ->
             % Replace this call by error report after deploy
             ExternalID = maps:get(<<"externalID">>, Params, undefined),
             logger:warning("external_id_conflict: ~p. try old hashing", [{ID, ExternalID}]),
-            create_continue_genid_old(Params, OldParams, HandlerContext)
+            create_generate_id_legacy(Params, OldParams, HandlerContext)
     end.
 
-create_continue_genid_old(Params, OldParams, HandlerContext) ->
+create_generate_id_legacy(Params, OldParams, HandlerContext) ->
     case wapi_backend_utils:gen_id(destination, OldParams, HandlerContext) of
         {ok, ID} ->
-            create_continue_request(Params#{<<"id">> => ID}, HandlerContext);
+            create_request(Params#{<<"id">> => ID}, HandlerContext);
         {error, {external_id_conflict, ID}} ->
             ExternalID = maps:get(<<"externalID">>, Params, undefined),
             {error, {external_id_conflict, {ID, ExternalID}}}
     end.
 
-create_continue_request(Params, HandlerContext) ->
+create_request(Params, HandlerContext) ->
     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
     MarshaledParams = marshal(destination_params, Params),
     Request = {fistful_destination, 'Create', [MarshaledParams, marshal(context, Context)]},

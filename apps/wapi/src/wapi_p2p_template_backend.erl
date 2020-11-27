@@ -158,14 +158,14 @@ issue_transfer_ticket(ID, WishExpiration, HandlerContext) ->
 quote_transfer(ID, Params, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
         ok ->
-            quote_transfer_prepare_params(ID, Params, HandlerContext);
+            quote_transfer_decode_resources(ID, Params, HandlerContext);
         {error, unauthorized} ->
             {error, {p2p_template, unauthorized}};
         {error, notfound} ->
             {error, {p2p_template, notfound}}
     end.
 
-quote_transfer_prepare_params(ID, Params, HandlerContext) ->
+quote_transfer_decode_resources(ID, Params, HandlerContext) ->
     case decode_resources(Params) of
         {ok, NewParams} ->
             QuoteParams = marshal_quote_params(NewParams),
@@ -239,8 +239,8 @@ create_transfer_prepare_quote(TemplateID, Params, HandlerContext) ->
 create_transfer_decode_resources(TemplateID, Params, HandlerContext) ->
     case decode_resources(Params) of
         {ok, NewParams} ->
-            % OldParams is need for create_transfer_continue_genid_old
-            % Remove the parameter & create_transfer_continue_genid_old after deploy
+            % OldParams is need for create_transfer_generate_id_legacy
+            % Remove the parameter & create_transfer_generate_id_legacy after deploy
             create_transfer_generate_id(TemplateID, NewParams, Params, HandlerContext);
         {error, {Type, Error}} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),

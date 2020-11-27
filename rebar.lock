@@ -139,7 +139,7 @@
   0},
  {<<"party_client">>,
   {git,"git@github.com:rbkmoney/party_client_erlang.git",
-       {ref,"31defb8725a666198f98e50d9b4cbccd09676816"}},
+       {ref,"d05c5f7b7797f914070b4e8b15870d915764eab0"}},
   0},
  {<<"payproc_errors">>,
   {git,"git@github.com:rbkmoney/payproc-errors-erlang.git",

@@ -362,19 +362,13 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
     {external_id_conflict, id(), external_id()} |
     {illegal_pattern, _}
 ).
-create_destination(Params, Context) ->
-    case wapi_backend_utils:decrypt_params([<<"resource">>], Params, fun decrypt_token/1) of
-        {ok, Params0} ->
-            create_destination_continue(Params0, Context);
-        Error ->
-            Error
-    end.
-create_destination_continue(Params = #{<<"identity">> := IdenityId}, Context) ->
+create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         do(fun() ->
             _ = check_resource(identity, IdenityId, Context),
+            DecryptedResource = unwrap(decode_resource(maps:get(<<"resource">>, Params))),
+            Resource = unwrap(construct_resource(DecryptedResource)),
             DestinationParams = from_swag(destination_params, Params),
-            Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
             unwrap(ff_destination_machine:create(
                 DestinationParams#{id => ID, resource => Resource},
                 add_meta_to_ctx([], Params, EntityCtx)
@@ -626,23 +620,16 @@ list_deposits(Params, Context) ->
     p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer(Params, Context) ->
-    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params, fun decrypt_token/1) of
-        {ok, Params0} ->
-            quote_p2p_transfer_continue(Params0, Context);
-        Error ->
-            Error
-    end.
-quote_p2p_transfer_continue(Params, Context) ->
     do(fun () ->
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
+        SenderResource = unwrap(construct_resource(Sender)),
+        ReceiverResource = unwrap(construct_resource(Receiver)),
         #{
-            sender := Sender,
-            receiver := Receiver,
             identity_id := IdentityID,
             body := Body
         } = from_swag(quote_p2p_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
-        SenderResource = unwrap(construct_resource(Sender)),
-        ReceiverResource = unwrap(construct_resource(Receiver)),
         Quote = unwrap(p2p_quote:get(#{
             body => Body,
             identity_id => IdentityID,
@@ -667,23 +654,18 @@ quote_p2p_transfer_continue(Params, Context) ->
         {not_verified, identity_mismatch}
     }
 ).
-create_p2p_transfer(Params, Context) ->
-    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params, fun decrypt_token/1) of
-        {ok, Params0} ->
-            create_p2p_transfer_continue(Params0, Context);
-        Error ->
-            Error
-    end.
-create_p2p_transfer_continue(Params = #{<<"identityID">> := IdentityId}, Context) ->
+create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
     CreateFun =
         fun(ID, EntityCtx) ->
             do(fun() ->
                 _ = check_resource(identity, IdentityId, Context),
+                Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+                Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
+                SenderResource = unwrap(construct_resource(Sender)),
+                ReceiverResource = unwrap(construct_resource(Receiver)),
                 ParsedParams = unwrap(maybe_add_p2p_quote_token(
                     from_swag(create_p2p_params, Params)
                 )),
-                SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
-                ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
                 RawSenderResource = {raw, #{
                     resource_params => SenderResource,
                     contact_info => maps:get(contact_info, ParsedParams)
@@ -831,14 +813,7 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
         {not_verified, identity_mismatch}
     }
 ).
-create_p2p_transfer_with_template(ID, Params, Context) ->
-    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params, fun decrypt_token/1) of
-        {ok, Params0} ->
-            create_p2p_transfer_with_template_continue(ID, Params0, Context);
-        Error ->
-            Error
-    end.
-create_p2p_transfer_with_template_continue(ID, Params, Context = #{woody_context := WoodyCtx}) ->
+create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := WoodyCtx}) ->
     do(fun () ->
         {_, _, Claims} = wapi_handler_utils:get_auth_context(Context),
         Data = maps:get(<<"data">>, Claims),
@@ -848,11 +823,13 @@ create_p2p_transfer_with_template_continue(ID, Params, Context = #{woody_context
         IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
         case bender_client:gen_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
             {ok, {TransferID, _}} ->
+                Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+                Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
+                SenderResource = unwrap(construct_resource(Sender)),
+                ReceiverResource = unwrap(construct_resource(Receiver)),
                 ParsedParams = unwrap(maybe_add_p2p_template_quote_token(
                     ID, from_swag(create_p2p_with_template_params, Params)
                 )),
-                SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
-                ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
                 RawSenderResource = {raw, #{
                     resource_params => SenderResource,
                     contact_info => maps:get(contact_info, ParsedParams)
@@ -876,22 +853,15 @@ create_p2p_transfer_with_template_continue(ID, Params, Context = #{woody_context
     p2p_quote:get_quote_error()
 ).
 quote_p2p_transfer_with_template(ID, Params, Context) ->
-    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params, fun decrypt_token/1) of
-        {ok, Params0} ->
-            quote_p2p_transfer_with_template_continue(ID, Params0, Context);
-        Error ->
-            Error
-    end.
-quote_p2p_transfer_with_template_continue(ID, Params, Context) ->
     do(fun () ->
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
+        SenderResource = unwrap(construct_resource(Sender)),
+        ReceiverResource = unwrap(construct_resource(Receiver)),
         #{
-            sender := Sender,
-            receiver := Receiver,
             body := Body
         } = from_swag(quote_p2p_with_template_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
-        SenderResource = unwrap(construct_resource(Sender)),
-        ReceiverResource = unwrap(construct_resource(Receiver)),
         Quote = unwrap(p2p_template_machine:get_quote(ID, #{
             body => Body,
             sender => SenderResource,
@@ -958,7 +928,7 @@ when Type =:= <<"CryptoWalletDestinationResource">> ->
         currency => from_swag(crypto_wallet_currency, Resource)
     })}}}.
 
-decrypt_token(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
+decode_resource(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         {ok, Resource} ->
             {ok, maps:remove(<<"token">>, Object#{
@@ -972,7 +942,7 @@ decrypt_token(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
             logger:warning("~s token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
     end;
-decrypt_token(Object) ->
+decode_resource(Object) ->
     {ok, Object}.
 
 encode_bank_card(BankCard) ->

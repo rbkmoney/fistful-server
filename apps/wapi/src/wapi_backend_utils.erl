@@ -33,8 +33,7 @@
 -export([get_idempotent_key/3]).
 -export([issue_grant_token/3]).
 -export([create_params_hash/1]).
--export([decrypt_params/2]).
--export([decrypt_params/3]).
+-export([decode_resource/1]).
 
 %% Pipeline
 
@@ -130,29 +129,10 @@ create_params_hash(Value) ->
 %% sender and receiver
 %%
 
--spec decrypt_params([binary()], params()) ->
-    {ok, params()} | {error, {binary(), lechiffre:decoding_error()}}.
+-spec decode_resource(map()) ->
+    {ok, map()} | {error, {binary(), lechiffre:decoding_error()}}.
 
-decrypt_params(List, Params) ->
-    decrypt_params(List, Params, fun decrypt_object/1).
-
--spec decrypt_params([binary()], params(), function()) ->
-    {ok, params()} | {error, {binary(), lechiffre:decoding_error()}}.
-
-decrypt_params(List, Params, ObjectDecoder) ->
-    lists:foldl(fun
-        (_Key, {error, Error}) ->
-            {error, Error};
-        (Key, {ok, AccParams}) ->
-            case ObjectDecoder(maps:get(Key, AccParams)) of
-                {ok, Object} ->
-                    {ok, AccParams#{Key => Object}};
-                {error, Error} ->
-                    {error, Error}
-            end
-    end, {ok, Params}, List).
-
-decrypt_object(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
+decode_resource(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         {ok, Resource} ->
             {ok, maps:remove(<<"token">>, Object#{
@@ -164,7 +144,7 @@ decrypt_object(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
         {error, Error} ->
             {error, {Type, Error}}
     end;
-decrypt_object(Object) ->
+decode_resource(Object) ->
     {ok, Object}.
 
 -spec issue_grant_token(_, binary(), handler_context()) ->
@@ -192,9 +172,9 @@ get_expiration_deadline(Expiration) ->
 
 -spec test() -> _.
 
--spec decrypt_params_test_() ->
+-spec decode_resource_test_() ->
     _.
-decrypt_params_test_() ->
+decode_resource_test_() ->
     {setup,
         fun() ->
             Resource = #'BankCard'{bin = <<"424242">>, masked_pan = <<"4242">>},
@@ -206,28 +186,25 @@ decrypt_params_test_() ->
             meck:unload()
         end,
         fun(Resource) ->
-            Params = #{
-                <<"hello">> => world,
-                <<"any0">> => #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>, <<"token">> => <<"v1.000000">>},
-                <<"any1">> => #{<<"k">> => <<"v">>, <<"token">> => <<"v1.000000">>},
-                <<"any2">> => #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>},
-                <<"sender">> => #{<<"k1">> => v1, <<"type">> => <<"Type1">>, <<"token">> => <<"v1.AAAAAAA">>},
-                <<"receiver">> => #{<<"k2">> => v2, <<"type">> => <<"Type2">>, <<"token">> => <<"v1.BBBBBB">>},
-                <<"resource">> => #{<<"k3">> => v3, <<"type">> => <<"Type3">>, <<"token">> => <<"v1.CCCCCC">>}
-            },
-            Missed = #{
-                <<"hello">> => world,
-                <<"any0">> => #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>, <<"decryptedResource">> => Resource},
-                <<"any1">> => #{<<"k">> => <<"v">>, <<"token">> => <<"v1.000000">>},
-                <<"any2">> => #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>},
-                <<"sender">> => #{<<"k1">> => v1, <<"type">> => <<"Type1">>, <<"decryptedResource">> => Resource},
-                <<"receiver">> => #{<<"k2">> => v2, <<"type">> => <<"Type2">>, <<"decryptedResource">> => Resource},
-                <<"resource">> => #{<<"k3">> => v3, <<"type">> => <<"Type3">>, <<"decryptedResource">> => Resource}
-            },
-            {ok, Result} = decrypt_params([
-                <<"any0">>, <<"any1">>, <<"any2">>, <<"sender">>, <<"receiver">>, <<"resource">>
-            ], Params),
-            ?_assertEqual(Missed, Result)
+            Objects = [
+                #{<<"hello">> => world},
+                #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>, <<"token">> => <<"v1.000000">>},
+                #{<<"k">> => <<"v">>, <<"token">> => <<"v1.000000">>},
+                #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>},
+                #{<<"k1">> => v1, <<"type">> => <<"Type1">>, <<"token">> => <<"v1.AAAAAAA">>},
+                #{<<"k2">> => v2, <<"type">> => <<"Type2">>, <<"token">> => <<"v1.BBBBBB">>},
+                #{<<"k3">> => v3, <<"type">> => <<"Type3">>, <<"token">> => <<"v1.CCCCCC">>}
+            ],
+            Results = [
+                #{<<"hello">> => world},
+                #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>, <<"decryptedResource">> => Resource},
+                #{<<"k">> => <<"v">>, <<"token">> => <<"v1.000000">>},
+                #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>},
+                #{<<"k1">> => v1, <<"type">> => <<"Type1">>, <<"decryptedResource">> => Resource},
+                #{<<"k2">> => v2, <<"type">> => <<"Type2">>, <<"decryptedResource">> => Resource},
+                #{<<"k3">> => v3, <<"type">> => <<"Type3">>, <<"decryptedResource">> => Resource}
+            ],
+            [?_assertEqual({ok, Result}, decode_resource(Object)) || {Object, Result} <- lists:zip(Objects, Results)]
         end
     }.
 

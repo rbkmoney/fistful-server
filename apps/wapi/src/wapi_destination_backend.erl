@@ -27,23 +27,24 @@
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            create_continue_decrypt(Params, HandlerContext);
+            create_continue_decode(Params, HandlerContext);
         {error, unauthorized} ->
             {error, {identity, unauthorized}}
     end.
 
-create_continue_decrypt(Params, HandlerContext) ->
-    case wapi_backend_utils:decrypt_params([<<"resource">>], Params) of
-        {ok, NewParams} ->
+create_continue_decode(Params, HandlerContext) ->
+    case wapi_backend_utils:decode_resource(maps:get(<<"resource">>, Params)) of
+        {ok, Resource} ->
             % OldParams is need for create_continue_genid_old
             % Remove the parameter & create_continue_genid_old after deploy
-            create_continue_genid(NewParams, Params, HandlerContext);
+            NewParams = Params#{<<"resource">> => Resource},
+            create_continue_generate_id(NewParams, Params, HandlerContext);
         {error, {Type, Error}} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
     end.
 
-create_continue_genid(Params, OldParams, HandlerContext) ->
+create_continue_generate_id(Params, OldParams, HandlerContext) ->
     case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
         {ok, ID} ->
             create_continue_request(Params#{<<"id">> => ID}, HandlerContext);
@@ -142,14 +143,14 @@ marshal(destination_params, Params = #{
     };
 
 marshal(resource, #{
-    <<"type">> := Type,
+    <<"type">> := <<"BankCardDestinationResource">>,
     <<"decryptedResource">> := BankCard
-}) when Type =:= <<"BankCardDestinationResource">> ->
+}) ->
     {bank_card, #'ResourceBankCard'{bank_card = BankCard}};
 marshal(resource, #{
-    <<"type">> := Type,
+    <<"type">> := <<"CryptoWalletDestinationResource">>,
     <<"id">> := CryptoWalletID
-} = Resource) when Type =:= <<"CryptoWalletDestinationResource">> ->
+} = Resource) ->
     CostructedResource = {crypto_wallet, #{crypto_wallet => genlib_map:compact(#{
         id => CryptoWalletID,
         currency => marshal_crypto_currency_data(Resource)

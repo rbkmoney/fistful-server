@@ -67,25 +67,25 @@
 create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            create_transfer_continue_decrypt(Params, HandlerContext);
+            create_transfer_decode_resources(Params, HandlerContext);
         {error, unauthorized} ->
             {error, {identity, unauthorized}};
         {error, notfound} ->
             {error, {identity, notfound}}
     end.
 
-create_transfer_continue_decrypt(Params, HandlerContext) ->
-    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params) of
+create_transfer_decode_resources(Params, HandlerContext) ->
+    case decode_resources(Params) of
         {ok, NewParams} ->
             % OldParams is need for create_transfer_continue_genid_old
             % Remove the parameter & create_transfer_continue_genid_old after deploy
-            create_transfer_continue_genid(NewParams, Params, HandlerContext);
+            create_transfer_generate_id(NewParams, Params, HandlerContext);
         {error, {Type, Error}} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
     end.
 
-create_transfer_continue_genid(Params, OldParams, HandlerContext) ->
+create_transfer_generate_id(Params, OldParams, HandlerContext) ->
     case wapi_backend_utils:gen_id(p2p_transfer, Params, HandlerContext) of
         {ok, ID} ->
             do_create_transfer(ID, Params, HandlerContext);
@@ -93,10 +93,10 @@ create_transfer_continue_genid(Params, OldParams, HandlerContext) ->
             % Replace this call by error report after deploy
             ExternalID = maps:get(<<"externalID">>, Params, undefined),
             logger:warning("external_id_conflict: ~p. try old hashing", [{ID, ExternalID}]),
-            create_transfer_continue_genid_old(Params, OldParams, HandlerContext)
+            create_transfer_generate_id_legacy(Params, OldParams, HandlerContext)
     end.
 
-create_transfer_continue_genid_old(Params, OldParams, HandlerContext) ->
+create_transfer_generate_id_legacy(Params, OldParams, HandlerContext) ->
     case wapi_backend_utils:gen_id(p2p_transfer, OldParams, HandlerContext) of
         {ok, ID} ->
             do_create_transfer(ID, Params, HandlerContext);
@@ -127,15 +127,15 @@ get_transfer(ID, HandlerContext) ->
 quote_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            quote_transfer_continue_decrypt(Params, HandlerContext);
+            quote_transfer_decode_resources(Params, HandlerContext);
         {error, unauthorized} ->
             {error, {identity, unauthorized}};
         {error, notfound} ->
             {error, {identity, notfound}}
     end.
 
-quote_transfer_continue_decrypt(Params, HandlerContext) ->
-    case wapi_backend_utils:decrypt_params([<<"sender">>, <<"receiver">>], Params) of
+quote_transfer_decode_resources(Params, HandlerContext) ->
+    case decode_resources(Params) of
         {ok, NewParams} ->
             do_quote_transfer(NewParams, HandlerContext);
         {error, {Type, Error}} ->
@@ -233,6 +233,22 @@ authorize_p2p_quote_token(#p2p_transfer_Quote{identity_id = IdentityID}, Identit
     ok;
 authorize_p2p_quote_token(_Quote, _IdentityID) ->
     {error, {token, {not_verified, identity_mismatch}}}.
+
+
+%% Decode and validate param resources
+
+decode_resources(Params) ->
+    lists:foldl(fun
+        (_Key, {error, Error}) ->
+            {error, Error};
+        (Key, {ok, AccParams}) ->
+            case wapi_backend_utils:decode_resource(maps:get(Key, AccParams)) of
+                {ok, Object} ->
+                    {ok, AccParams#{Key => Object}};
+                {error, Error} ->
+                    {error, Error}
+            end
+    end, {ok, Params}, [<<"sender">>, <<"receiver">>]).
 
 service_call(Params, HandlerContext) ->
     wapi_handler_utils:service_call(Params, HandlerContext).

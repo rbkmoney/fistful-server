@@ -35,8 +35,8 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
 create_decode_resources(Params, HandlerContext) ->
     case wapi_backend_utils:decode_resource(maps:get(<<"resource">>, Params)) of
         {ok, Resource} ->
-            % OldParams is need for create_generate_id_legacy
-            % Remove the parameter & create_generate_id_legacy after deploy
+            % OldParams is need for support legacy params hash  with old lechiffre token
+            % Remove the parameter after deploy
             NewParams = Params#{<<"resource">> => Resource},
             create_generate_id(NewParams, Params, HandlerContext);
         {error, {Type, Error}} ->
@@ -49,19 +49,15 @@ create_generate_id(Params, OldParams, HandlerContext) ->
         {ok, ID} ->
             create_request(Params#{<<"id">> => ID}, HandlerContext);
         {error, {external_id_conflict, ID}} ->
-            % Replace this call by error report after deploy
+            % Delete after deploy
             ExternalID = maps:get(<<"externalID">>, Params, undefined),
             logger:warning("external_id_conflict: ~p. try old hashing", [{ID, ExternalID}]),
-            create_generate_id_legacy(Params, OldParams, HandlerContext)
-    end.
-
-create_generate_id_legacy(Params, OldParams, HandlerContext) ->
-    case wapi_backend_utils:gen_id(destination, OldParams, HandlerContext) of
-        {ok, ID} ->
-            create_request(Params#{<<"id">> => ID}, HandlerContext);
-        {error, {external_id_conflict, ID}} ->
-            ExternalID = maps:get(<<"externalID">>, Params, undefined),
-            {error, {external_id_conflict, {ID, ExternalID}}}
+            case wapi_backend_utils:gen_id(destination, OldParams, HandlerContext) of
+                {ok, ID0} ->
+                    create_request(Params#{<<"id">> => ID0}, HandlerContext);
+                {error, {external_id_conflict, ID0}} ->
+                    {error, {external_id_conflict, {ID0, ExternalID}}}
+            end
     end.
 
 create_request(Params, HandlerContext) ->

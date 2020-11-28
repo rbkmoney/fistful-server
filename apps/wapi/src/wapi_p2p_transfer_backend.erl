@@ -77,8 +77,8 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
 create_transfer_decode_resources(Params, HandlerContext) ->
     case decode_resources(Params) of
         {ok, NewParams} ->
-            % OldParams is need for create_transfer_generate_id_legacy
-            % Remove the parameter & create_transfer_generate_id_legacy after deploy
+            % OldParams is need for support legacy params hash  with old lechiffre token
+            % Remove the parameter after deploy
             create_transfer_generate_id(NewParams, Params, HandlerContext);
         {error, {Type, Error}} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),
@@ -90,19 +90,15 @@ create_transfer_generate_id(Params, OldParams, HandlerContext) ->
         {ok, ID} ->
             do_create_transfer(ID, Params, HandlerContext);
         {error, {external_id_conflict, ID}} ->
-            % Replace this call by error report after deploy
             ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            % Delete after deploy
             logger:warning("external_id_conflict: ~p. try old hashing", [{ID, ExternalID}]),
-            create_transfer_generate_id_legacy(Params, OldParams, HandlerContext)
-    end.
-
-create_transfer_generate_id_legacy(Params, OldParams, HandlerContext) ->
-    case wapi_backend_utils:gen_id(p2p_transfer, OldParams, HandlerContext) of
-        {ok, ID} ->
-            do_create_transfer(ID, Params, HandlerContext);
-        {error, {external_id_conflict, ID}} ->
-            ExternalID = maps:get(<<"externalID">>, Params, undefined),
-            {error, {external_id_conflict, {ID, ExternalID}}}
+            case wapi_backend_utils:gen_id(p2p_transfer, OldParams, HandlerContext) of
+                {ok, ID0} ->
+                    do_create_transfer(ID0, Params, HandlerContext);
+                {error, {external_id_conflict, ID0}} ->
+                    {error, {external_id_conflict, {ID0, ExternalID}}}
+            end
     end.
 
 -spec get_transfer(req_data(), handler_context()) ->

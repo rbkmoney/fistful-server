@@ -239,8 +239,8 @@ create_transfer_prepare_quote(TemplateID, Params, HandlerContext) ->
 create_transfer_decode_resources(TemplateID, Params, HandlerContext) ->
     case decode_resources(Params) of
         {ok, NewParams} ->
-            % OldParams is need for create_transfer_generate_id_legacy
-            % Remove the parameter & create_transfer_generate_id_legacy after deploy
+            % OldParams is need for support legacy params hash  with old lechiffre token
+            % Remove the parameter after deploy
             create_transfer_generate_id(TemplateID, NewParams, Params, HandlerContext);
         {error, {Type, Error}} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),
@@ -252,17 +252,14 @@ create_transfer_generate_id(TemplateID, #{<<"id">> := TransferID} = Params, OldP
         ok ->
             create_transfer_request(TemplateID, Params, HandlerContext);
         {error, {external_id_conflict, ID}} ->
-            % Replace this call by error report after deploy
+            % Delete after deploy
             logger:warning("external_id_conflict: ~p. try old hashing", [ID]),
-            create_transfer_generate_id_legacy(TemplateID, Params, OldParams, HandlerContext)
-    end.
-
-create_transfer_generate_id_legacy(TemplateID, #{<<"id">> := TransferID} = Params, OldParams, HandlerContext) ->
-    case validate_transfer_id(TransferID, OldParams, HandlerContext) of
-        ok ->
-            create_transfer_request(TemplateID, Params, HandlerContext);
-        {error, {external_id_conflict, ID}} ->
-            {error, {external_id_conflict, ID}}
+            case validate_transfer_id(TransferID, OldParams, HandlerContext) of
+                ok ->
+                    create_transfer_request(TemplateID, Params, HandlerContext);
+                {error, {external_id_conflict, ID0}} ->
+                    {error, {external_id_conflict, ID0}}
+            end
     end.
 
 create_transfer_request(TemplateID, Params, HandlerContext) ->

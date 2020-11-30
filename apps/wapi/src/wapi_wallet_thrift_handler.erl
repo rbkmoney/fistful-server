@@ -769,12 +769,13 @@ process_request('QuoteP2PTransferWithTemplate', #{
         {error, {operation_not_permitted, Details}} ->
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(Details));
-        {error, {invalid_resource_token, Type}} ->
+        {error, {_, {invalid_resource_token, Type}}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"InvalidResourceToken">>,
                 <<"name">>        => Type,
-                <<"description">> => <<"Specified resource token is invalid">>});
-        {error, {invalid_resource, Type}} ->
+                <<"description">> => <<"Specified resource token is invalid">>
+            });
+        {error, {Type, invalid_resource}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(io_lib:format(<<"Invalid ~p resource">>, [Type])))
 
@@ -799,12 +800,13 @@ process_request('CreateP2PTransferWithTemplate', #{
         {error, {operation_not_permitted, Details}} ->
             wapi_handler_utils:reply_error(422,
                 wapi_handler_utils:get_error_msg(Details));
-        {error, {invalid_resource_token, Type}} ->
+        {error, {_, {invalid_resource_token, Type}}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">>   => <<"InvalidResourceToken">>,
                 <<"name">>        => Type,
-                <<"description">> => <<"Specified resource token is invalid">>});
-        {error, {invalid_resource, Type}} ->
+                <<"description">> => <<"Specified resource token is invalid">>
+            });
+        {error, {Type, invalid_resource}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(io_lib:format(<<"Invalid ~p resource">>, [Type])));
         {error, {token, expired}} ->

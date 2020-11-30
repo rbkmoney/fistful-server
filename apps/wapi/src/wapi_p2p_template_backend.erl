@@ -8,6 +8,8 @@
 -export([quote_transfer/3]).
 -export([create_transfer/3]).
 
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_p2p_template_thrift.hrl").
@@ -37,7 +39,7 @@ create(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
                     TemplateParams = marshal_template_params(Params#{<<"id">> => ID}),
                     Request = {fistful_p2p_template, 'Create', [TemplateParams, marshal_context(Context)]},
-                    create_call(Request, HandlerContext);
+                    create_request(Request, HandlerContext);
                 {error, {external_id_conflict, ID}} ->
                     ExternalID = maps:get(<<"externalID">>, Params, undefined),
                     {error, {external_id_conflict, ID, ExternalID}}
@@ -48,7 +50,7 @@ create(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
             {error, {identity, notfound}}
     end.
 
-create_call(Request, HandlerContext) ->
+create_request(Request, HandlerContext) ->
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, Template} ->
             {ok, unmarshal_template(Template)};
@@ -152,31 +154,23 @@ issue_transfer_ticket(ID, WishExpiration, HandlerContext) ->
     {error, {forbidden_currency, _}} |
     {error, {forbidden_amount, _}} |
     {error, {operation_not_permitted, _}} |
-    {error, {invalid_resource, sender | receiver}} |
-    {error, {invalid_resource_token, binary()}}.
+    {error, {sender | receiver, invalid_resource}} |
+    {error, {sender | receiver, {invalid_resource_token, binary()}}}.
 
 quote_transfer(ID, Params, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
-        ok ->
-            quote_transfer_decode_resources(ID, Params, HandlerContext);
-        {error, unauthorized} ->
-            {error, {p2p_template, unauthorized}};
-        {error, notfound} ->
-            {error, {p2p_template, notfound}}
-    end.
+    do(fun() ->
+        unwrap(p2p_template, wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext)),
+        SenderResource = unwrap(sender, decode_resource(maps:get(<<"sender">>, Params))),
+        ReceiverResource = unwrap(receiver, decode_resource(maps:get(<<"receiver">>, Params))),
+        QuoteParams = Params#{
+            <<"sender">> => SenderResource,
+            <<"receiver">> => ReceiverResource
+        },
+        Request = {fistful_p2p_template, 'GetQuote', [ID, marshal_quote_params(QuoteParams)]},
+        unwrap(quote_transfer_request(Request, HandlerContext))
+    end).
 
-quote_transfer_decode_resources(ID, Params, HandlerContext) ->
-    case decode_resources(Params) of
-        {ok, NewParams} ->
-            QuoteParams = marshal_quote_params(NewParams),
-            Request = {fistful_p2p_template, 'GetQuote', [ID, QuoteParams]},
-            quote_transfer_call(Request, HandlerContext);
-    {error, {Type, Error}} ->
-        logger:warning("~p token decryption failed: ~p", [Type, Error]),
-        {error, {invalid_resource_token, Type}}
-end.
-
-quote_transfer_call(Request, HandlerContext) ->
+quote_transfer_request(Request, HandlerContext) ->
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, Quote} ->
             PartyID = wapi_handler_utils:get_owner(HandlerContext),
@@ -203,67 +197,49 @@ quote_transfer_call(Request, HandlerContext) ->
     {error, {forbidden_currency, _}} |
     {error, {forbidden_amount, _}} |
     {error, {operation_not_permitted, _}} |
-    {error, {invalid_resource, sender | receiver}} |
-    {error, {invalid_resource_token, binary()}} |
+    {error, {sender | receiver, invalid_resource}} |
+    {error, {sender | receiver, {invalid_resource_token, binary()}}} |
     {error, {token, _}} |
     {error, {external_id_conflict, _}}.
 
-create_transfer(TemplateID, Params, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(p2p_template, TemplateID, HandlerContext) of
-        ok ->
-            TransferID = context_transfer_id(HandlerContext),
-            create_transfer_prepare_quote(TemplateID, Params#{<<"id">> => TransferID}, HandlerContext);
-        {error, unauthorized} ->
-            {error, {p2p_template, unauthorized}};
-        {error, notfound} ->
-            {error, {p2p_template, notfound}}
-    end.
+create_transfer(TemplateID, Params0, HandlerContext) ->
+    do(fun() ->
+        unwrap(p2p_template, wapi_access_backend:check_resource_by_id(p2p_template, TemplateID, HandlerContext)),
+        SenderResource = unwrap(sender, decode_resource(maps:get(<<"sender">>, Params0))),
+        ReceiverResource = unwrap(receiver, decode_resource(maps:get(<<"receiver">>, Params0))),
+        TransferID = context_transfer_id(HandlerContext),
+        Params1 = Params0#{<<"id">> => TransferID},
+        unwrap(validate_transfer_id(SenderResource, ReceiverResource, Params1, HandlerContext)),
+        Params2 = case get_quote_token(Params1) of
+            ok ->
+                Params1;
+            {ok, Quote} ->
+                Template = unwrap(get(TemplateID, HandlerContext)),
+                unwrap(validate_token_payload(Quote, Template)),
+                Params1#{<<"quote">> => Quote};
+            {error, Error} ->
+                throw(Error)
+        end,
+        unwrap(create_transfer_request(TemplateID, Params2#{
+            <<"sender">> => SenderResource,
+            <<"receiver">> => ReceiverResource
+        }, HandlerContext))
+    end).
 
-create_transfer_prepare_quote(TemplateID, #{quote_token := Token} = Params, HandlerContext) ->
+get_quote_token(#{<<"quoteToken">> := Token}) ->
     case uac_authorizer_jwt:verify(Token, #{}) of
         {ok, {_, _, VerifiedToken}} ->
-            case decode_and_validate_token_payload(VerifiedToken, TemplateID, HandlerContext) of
+            case wapi_p2p_quote:decode_token_payload(VerifiedToken) of
                 {ok, Quote} ->
-                    create_transfer_decode_resources(TemplateID, Params#{<<"quote">> => Quote}, HandlerContext);
-                {error, token_expired} ->
-                    {error, {token, expired}};
-                {error, Error} ->
-                    {error, {token, {not_verified, Error}}}
+                    {ok, Quote};
+                Error ->
+                    Error
             end;
         {error, Error} ->
             {error, {token, {not_verified, Error}}}
     end;
-create_transfer_prepare_quote(TemplateID, Params, HandlerContext) ->
-    create_transfer_decode_resources(TemplateID, Params, HandlerContext).
-
-create_transfer_decode_resources(TemplateID, Params, HandlerContext) ->
-    case decode_resources(Params) of
-        {ok, NewParams} ->
-            % OldParams is need for create_transfer_generate_id_legacy
-            % Remove the parameter & create_transfer_generate_id_legacy after deploy
-            create_transfer_generate_id(TemplateID, NewParams, Params, HandlerContext);
-        {error, {Type, Error}} ->
-            logger:warning("~p token decryption failed: ~p", [Type, Error]),
-            {error, {invalid_resource_token, Type}}
-    end.
-
-create_transfer_generate_id(TemplateID, #{<<"id">> := TransferID} = Params, OldParams, HandlerContext) ->
-    case validate_transfer_id(TransferID, Params, HandlerContext) of
-        ok ->
-            create_transfer_request(TemplateID, Params, HandlerContext);
-        {error, {external_id_conflict, ID}} ->
-            % Replace this call by error report after deploy
-            logger:warning("external_id_conflict: ~p. try old hashing", [ID]),
-            create_transfer_generate_id_legacy(TemplateID, Params, OldParams, HandlerContext)
-    end.
-
-create_transfer_generate_id_legacy(TemplateID, #{<<"id">> := TransferID} = Params, OldParams, HandlerContext) ->
-    case validate_transfer_id(TransferID, OldParams, HandlerContext) of
-        ok ->
-            create_transfer_request(TemplateID, Params, HandlerContext);
-        {error, {external_id_conflict, ID}} ->
-            {error, {external_id_conflict, ID}}
-    end.
+get_quote_token(_Params) ->
+    ok.
 
 create_transfer_request(TemplateID, Params, HandlerContext) ->
     MarshaledContext = marshal_context(wapi_backend_utils:make_ctx(Params, HandlerContext)),
@@ -336,6 +312,25 @@ gen_transfer_id(#{woody_context := WoodyContext} = HandlerContext) ->
 
 %% Validate transfer_id by Params hash
 
+validate_transfer_id(SenderResource, ReceiverResource, #{<<"id">> := TransferID} = Params, HandlerContext) ->
+    NewParams = Params#{<<"sender">> => SenderResource, <<"receiver">> => ReceiverResource},
+    case validate_transfer_id(TransferID, NewParams, HandlerContext) of
+        ok ->
+            ok;
+        {error, {external_id_conflict, ID}} ->
+            % Replace this call by error report after deploy
+            logger:warning("external_id_conflict: ~p. try old hashing", [ID]),
+            validate_transfer_id_legacy(Params, HandlerContext)
+    end.
+
+validate_transfer_id_legacy(#{<<"id">> := TransferID} = Params, HandlerContext) ->
+    case validate_transfer_id(TransferID, Params, HandlerContext) of
+        ok ->
+            ok;
+        {error, {external_id_conflict, ID}} ->
+            {error, {external_id_conflict, ID}}
+    end.
+
 validate_transfer_id(TransferID, Params, #{woody_context := WoodyContext} = HandlerContext) ->
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
     Hash = wapi_backend_utils:create_params_hash(Params),
@@ -347,48 +342,23 @@ validate_transfer_id(TransferID, Params, #{woody_context := WoodyContext} = Hand
             Error
     end.
 
-%% Validate Quote identity_id by template
+%% Validate identity id from the quote
 
-validate_identity_id(IdentityID, TemplateID, HandlerContext) ->
-    case get(TemplateID, HandlerContext) of
-        {ok, #{<<"identityID">> := IdentityID}} ->
-            ok;
-        {ok, _Template} ->
-            {error, identity_mismatch};
-        Error ->
-            Error
+validate_token_payload(#p2p_transfer_Quote{identity_id = IdentityID}, #{<<"identityID">> := IdentityID}) ->
+    ok;
+validate_token_payload(_Quote, _template) ->
+    {error, identity_mismatch}.
+
+decode_resource(EncodedResource) ->
+    case wapi_backend_utils:decode_resource(EncodedResource) of
+        {ok, Resource} ->
+            % OldParams is need for create_continue_genid_old
+            % Remove the parameter & create_continue_genid_old after deploy
+            {ok, Resource};
+        {error, {Type, Error}} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
     end.
-
-%% Decode QuoteToken, then validate identity id from the quote
-
-decode_and_validate_token_payload(Token, TemplateID, HandlerContext) ->
-    case wapi_p2p_quote:decode_token_payload(Token) of
-        {ok, Quote} ->
-            IdentityID = Quote#p2p_transfer_Quote.identity_id,
-            case validate_identity_id(IdentityID, TemplateID, HandlerContext) of
-                ok ->
-                    {ok, Quote};
-                Error ->
-                    Error
-            end;
-        Error ->
-            Error
-    end.
-
-%% Decode and validate param resources
-
-decode_resources(Params) ->
-    lists:foldl(fun
-        (_Key, {error, Error}) ->
-            {error, Error};
-        (Key, {ok, AccParams}) ->
-            case wapi_backend_utils:decode_resource(maps:get(Key, AccParams)) of
-                {ok, Object} ->
-                    {ok, AccParams#{Key => Object}};
-                {error, Error} ->
-                    {error, Error}
-            end
-    end, {ok, Params}, [<<"sender">>, <<"receiver">>]).
 
 %% Convert swag maps to thrift records
 

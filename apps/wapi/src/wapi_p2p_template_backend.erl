@@ -188,7 +188,7 @@ quote_transfer_request(Request, HandlerContext) ->
         {exception, #fistful_OperationNotPermitted{details = Details}} ->
             {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
         {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
-            {error, {invalid_resource, Type}}
+            {error, {Type, invalid_resource}}
     end.
 
 -spec create_transfer(id(), req_data(), handler_context()) ->
@@ -257,7 +257,7 @@ create_transfer_request(TemplateID, Params, HandlerContext) ->
         {exception, #fistful_OperationNotPermitted{details = Details}} ->
             {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
         {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
-            {error, {invalid_resource, Type}}
+            {error, {Type, invalid_resource}}
     end.
 
 %% Create quoteToken from Quote

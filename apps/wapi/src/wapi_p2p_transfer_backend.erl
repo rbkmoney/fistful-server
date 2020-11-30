@@ -26,7 +26,6 @@
      | {p2p_transfer,           forbidden_currency}
      | {p2p_transfer,           cash_range_exceeded}
      | {p2p_transfer,           operation_not_permitted}
-     | {invalid_resource,       sender | receiver}
      | {sender | receiver,      invalid_resource}
      | {sender | receiver,      {invalid_resource_token, binary()}}
      .
@@ -84,8 +83,6 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
 decode_resource(EncodedResource) ->
     case wapi_backend_utils:decode_resource(EncodedResource) of
         {ok, Resource} ->
-            % OldParams is need for create_continue_genid_old
-            % Remove the parameter & create_continue_genid_old after deploy
             {ok, Resource};
         {error, {Type, Error}} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),
@@ -932,7 +929,7 @@ events_collect_test_() ->
                 Collect(produce_reject, <<>>, events_range(0, 4),  [],
                     {ok, {[Event(1), Event(3), Event(5), Event(7)], 7}}
                 ),
-                % Accumulate
+                % accumulate
                 Collect(produce_range, <<>>, events_range(1, 2),  [Event(0)],
                     {ok, {[Event(0), Event(2), Event(3)], 3}}
                 ),

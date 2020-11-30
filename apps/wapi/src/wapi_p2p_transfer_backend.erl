@@ -98,8 +98,8 @@ generate_id(SenderResource, ReceiverResource, Params, HandlerContext) ->
         {ok, ID} ->
             {ok, ID};
         {error, {external_id_conflict, ID}} ->
-            % Replace this call by error report after deploy
             ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            % Delete after deploy
             logger:warning("external_id_conflict: ~p. try old hashing", [{ID, ExternalID}]),
             generate_id_legacy(Params, HandlerContext)
     end.
@@ -351,38 +351,38 @@ events_collect(EventService, EntityID, EventRange, HandlerContext, Acc) ->
     #'EventRange'{'after' = Cursor, limit = Limit} = EventRange,
     Request = {EventService, 'GetEvents', [EntityID, EventRange]},
     case events_request(Request, HandlerContext) of
-        {ok, {_Received, [], undefined}} ->
+        {ok, []} ->
             % the service has not returned any events, the previous cursor must be kept
             {ok, {Acc, Cursor}};
-        {ok, {Received, Events, NewCursor}} when Received < Limit ->
+        {ok, Events} when length(Events) < Limit ->
             % service returned less events than requested
             % or Limit is 'undefined' and service returned all events
-            {ok, {Acc ++ Events, NewCursor}};
-        {ok, {_Received, Events, NewCursor}} ->
+            NewCursor = events_cursor(lists:last(Events)),
+            Accepted = lists:filter(fun events_filter/1, Events),
+            {ok, {Acc ++ Accepted, NewCursor}};
+        {ok, Events} ->
             % Limit is reached but some events can be filtered out
-            NewEventRange = events_range(NewCursor, Limit - length(Events)),
-            events_collect(EventService, EntityID, NewEventRange, HandlerContext, Acc ++ Events);
+            NewCursor = events_cursor(lists:last(Events)),
+            Accepted = lists:filter(fun events_filter/1, Events),
+            NewEventRange = events_range(NewCursor, Limit - length(Accepted)),
+            events_collect(EventService, EntityID, NewEventRange, HandlerContext, Acc ++ Accepted);
         {error, _} = Error ->
             Error
     end.
 
 -spec events_request(Request, handler_context()) ->
-    {ok, {integer(), [] | [event()], event_id()}} | {error, {p2p_transfer, notfound}} when
+    {ok, [] | [event()]} | {error, {p2p_transfer, notfound}} when
         Request :: {event_service(), 'GetEvents', [id() | event_range()]}.
 
 events_request(Request, HandlerContext) ->
     case service_call(Request, HandlerContext) of
-        {ok, []} ->
-            {ok, {0, [], undefined}};
-        {ok, EventsThrift} ->
-            Cursor = events_cursor(lists:last(EventsThrift)),
-            Events = lists:filter(fun events_filter/1, EventsThrift),
-            {ok, {length(EventsThrift), Events, Cursor}};
+        {ok, Events} ->
+            {ok, Events};
         {exception, #fistful_P2PNotFound{}} ->
             {error, {p2p_transfer, notfound}};
         {exception, #fistful_P2PSessionNotFound{}} ->
             % P2PSessionNotFound not found - not error
-            {ok, {0, [], undefined}}
+            {ok, []}
     end.
 
 events_filter(#p2p_transfer_Event{change = {status_changed, _}}) ->

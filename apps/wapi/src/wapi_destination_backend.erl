@@ -51,7 +51,7 @@ generate_id(Resource, Params, HandlerContext) ->
         {ok, ID} ->
             {ok, ID};
         {error, {external_id_conflict, ID}} ->
-            % Replace this call by error report after deploy
+            % Delete after deploy
             ExternalID = maps:get(<<"externalID">>, Params, undefined),
             logger:warning("external_id_conflict: ~p. try old hashing", [{ID, ExternalID}]),
             generate_id_legacy(Params, HandlerContext)

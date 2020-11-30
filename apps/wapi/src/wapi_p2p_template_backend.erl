@@ -352,8 +352,6 @@ validate_token_payload(_Quote, _template) ->
 decode_resource(EncodedResource) ->
     case wapi_backend_utils:decode_resource(EncodedResource) of
         {ok, Resource} ->
-            % OldParams is need for create_continue_genid_old
-            % Remove the parameter & create_continue_genid_old after deploy
             {ok, Resource};
         {error, {Type, Error}} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),

@@ -136,7 +136,6 @@ decode_resource(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         {ok, Resource} ->
             {ok, maps:remove(<<"token">>, Object#{
-                <<"type">> => Type,
                 <<"decryptedResource">> => Resource
             })};
         unrecognized ->

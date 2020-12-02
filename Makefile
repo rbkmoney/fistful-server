@@ -24,7 +24,7 @@ BUILD_IMAGE_TAG := 442c2c274c1d8e484e5213089906a4271641d95e
 
 REGISTRY := dr2.rbkmoney.com
 
-CALL_ANYWHERE := all submodules compile xref lint dialyze release clean distclean
+CALL_ANYWHERE := all submodules compile xref lint format check_format dialyze release clean distclean
 CALL_ANYWHERE += generate regenerate
 
 CALL_W_CONTAINER := $(CALL_ANYWHERE) test
@@ -50,6 +50,12 @@ xref: submodules
 
 lint:
 	elvis rock
+
+check_format:
+	$(REBAR) fmt -c
+
+format:
+	$(REBAR) fmt -w
 
 dialyze: submodules generate
 	$(REBAR) dialyzer

@@ -7,20 +7,21 @@
 -include_lib("fistful_proto/include/ff_proto_eventsink_thrift.hrl").
 
 -type options() :: #{
-    schema      := module(),
-    client      := woody_client:options(),
-    ns          := binary(),
-    publisher   := module()
+    schema := module(),
+    client := woody_client:options(),
+    ns := binary(),
+    publisher := module()
 }.
 
 %%
 %% ff_woody_wrapper callbacks
 %%
 
--spec handle_function(woody:func(), woody:args(), options()) ->
-    {ok, woody:result()} | no_return().
+-spec handle_function(woody:func(), woody:args(), options()) -> {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(eventsink_handler, #{},
+    scoper:scope(
+        eventsink_handler,
+        #{},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -36,8 +37,12 @@ handle_function_('GetEvents', [#'evsink_EventRange'{'after' = After0, limit = Li
     } = Options,
     After = erlang:max(After0, StartEvent),
     WoodyContext = ff_context:get_woody_context(ff_context:load()),
-    {ok, Events} = machinery_mg_eventsink:get_events(NS, After, Limit,
-        #{client => {Client, WoodyContext}, schema => Schema}),
+    {ok, Events} = machinery_mg_eventsink:get_events(
+        NS,
+        After,
+        Limit,
+        #{client => {Client, WoodyContext}, schema => Schema}
+    ),
     ff_eventsink_publisher:publish_events(Events, #{publisher => Publisher});
 handle_function_('GetLastEventID', _Params, #{schema := Schema, client := Client, ns := NS}) ->
     WoodyContext = ff_context:get_woody_context(ff_context:load()),

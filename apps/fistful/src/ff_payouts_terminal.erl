@@ -37,21 +37,15 @@
 
 %%
 
--spec adapter_opts(terminal()) ->
-    map().
-
+-spec adapter_opts(terminal()) -> map().
 adapter_opts(Terminal) ->
     maps:get(options, Terminal, #{}).
 
--spec terms(terminal()) ->
-    term_set() | undefined.
-
+-spec terms(terminal()) -> term_set() | undefined.
 terms(Terminal) ->
     maps:get(terms, Terminal, undefined).
 
--spec provision_terms(terminal()) ->
-    provision_terms() | undefined.
-
+-spec provision_terms(terminal()) -> provision_terms() | undefined.
 provision_terms(Terminal) ->
     case terms(Terminal) of
         Terms when Terms =/= undefined ->
@@ -68,16 +62,14 @@ provision_terms(Terminal) ->
 %%
 
 -spec ref(id()) -> terminal_ref().
-
 ref(ID) ->
     #domain_TerminalRef{id = ID}.
 
 -spec get(id()) ->
-    {ok, terminal()} |
-    {error, notfound}.
-
+    {ok, terminal()}
+    | {error, notfound}.
 get(ID) ->
-    do(fun () ->
+    do(fun() ->
         WithdrawalTerminal = unwrap(ff_domain_config:object({terminal, ref(ID)})),
         decode(ID, WithdrawalTerminal)
     end).

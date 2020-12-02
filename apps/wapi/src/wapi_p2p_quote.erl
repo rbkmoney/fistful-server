@@ -6,11 +6,11 @@
 -export([decode_token_payload/1]).
 
 -type token_payload() ::
-    integer() |
-    binary() |
-    float() |
-    [token_payload()] |
-    #{binary() => token_payload()}.
+    integer()
+    | binary()
+    | float()
+    | [token_payload()]
+    | #{binary() => token_payload()}.
 
 -export_type([token_payload/0]).
 
@@ -21,8 +21,7 @@
 
 %% API
 
--spec create_token_payload(quote(), party_id()) ->
-    token_payload().
+-spec create_token_payload(quote(), party_id()) -> token_payload().
 create_token_payload(Quote, PartyID) ->
     Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'Quote'}},
     Bin = ff_proto_utils:serialize(Type, Quote),
@@ -33,8 +32,7 @@ create_token_payload(Quote, PartyID) ->
         <<"quote">> => EncodedQuote
     }).
 
--spec decode_token_payload(token_payload()) ->
-    {ok, quote()} | {error, token_expired}.
+-spec decode_token_payload(token_payload()) -> {ok, quote()} | {error, token_expired}.
 decode_token_payload(#{<<"version">> := 2} = Payload) ->
     #{
         <<"version">> := 2,
@@ -52,9 +50,11 @@ decode_token_payload(#{<<"version">> := 1}) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
 -spec test() -> _.
 
 -spec payload_symmetry_test() -> _.
+
 payload_symmetry_test() ->
     Quote = #p2p_transfer_Quote{
         identity_id = <<"identity">>,
@@ -62,26 +62,32 @@ payload_symmetry_test() ->
         expires_on = <<"1970-01-01T00:00:00.321Z">>,
         party_revision = 1,
         domain_revision = 2,
-        fees = #'Fees'{fees = #{surplus => #'Cash'{
-            amount = 1000000,
-            currency = #'CurrencyRef'{
-                symbolic_code = <<"RUB">>
+        fees = #'Fees'{
+            fees = #{
+                surplus => #'Cash'{
+                    amount = 1000000,
+                    currency = #'CurrencyRef'{
+                        symbolic_code = <<"RUB">>
+                    }
+                }
             }
-        }}},
+        },
         body = #'Cash'{
             amount = 1000000,
             currency = #'CurrencyRef'{
                 symbolic_code = <<"RUB">>
             }
         },
-        sender = {bank_card, #'ResourceBankCard'{
-            bank_card = #'BankCard'{token = <<"very long token">>},
-            auth_data = {session_data, #'SessionAuthData'{id = <<"1">>}}
-        }},
-        receiver = {bank_card, #'ResourceBankCard'{
-            bank_card = #'BankCard'{token = <<"another very long token">>},
-            auth_data = {session_data, #'SessionAuthData'{id = <<"2">>}}
-        }}
+        sender =
+            {bank_card, #'ResourceBankCard'{
+                bank_card = #'BankCard'{token = <<"very long token">>},
+                auth_data = {session_data, #'SessionAuthData'{id = <<"1">>}}
+            }},
+        receiver =
+            {bank_card, #'ResourceBankCard'{
+                bank_card = #'BankCard'{token = <<"another very long token">>},
+                auth_data = {session_data, #'SessionAuthData'{id = <<"2">>}}
+            }}
     },
     Payload = create_token_payload(Quote, <<"party">>),
     {ok, Decoded} = decode_token_payload(Payload),
@@ -95,30 +101,36 @@ payload_v2_decoding_test() ->
         expires_on = <<"1970-01-01T00:00:00.321Z">>,
         party_revision = 1,
         domain_revision = 2,
-        fees = #'Fees'{fees = #{surplus => #'Cash'{
-            amount = 1000,
-            currency = #'CurrencyRef'{
-                symbolic_code = <<"RUB">>
+        fees = #'Fees'{
+            fees = #{
+                surplus => #'Cash'{
+                    amount = 1000,
+                    currency = #'CurrencyRef'{
+                        symbolic_code = <<"RUB">>
+                    }
+                }
             }
-        }}},
+        },
         body = #'Cash'{
             amount = 1000000,
             currency = #'CurrencyRef'{
                 symbolic_code = <<"RUB">>
             }
         },
-        sender = {bank_card, #'ResourceBankCard'{
-            bank_card = #'BankCard'{
-                token = <<"very long token">>,
-                bin_data_id = {nl, #msgp_Nil{}}
-            }
-        }},
-        receiver = {bank_card, #'ResourceBankCard'{
-            bank_card = #'BankCard'{
-                token = <<"another very long token">>,
-                bin_data_id = {obj, #{{arr, [{nl, #msgp_Nil{}}]} => {arr, [{nl, #msgp_Nil{}}]}}}
-            }
-        }}
+        sender =
+            {bank_card, #'ResourceBankCard'{
+                bank_card = #'BankCard'{
+                    token = <<"very long token">>,
+                    bin_data_id = {nl, #msgp_Nil{}}
+                }
+            }},
+        receiver =
+            {bank_card, #'ResourceBankCard'{
+                bank_card = #'BankCard'{
+                    token = <<"another very long token">>,
+                    bin_data_id = {obj, #{{arr, [{nl, #msgp_Nil{}}]} => {arr, [{nl, #msgp_Nil{}}]}}}
+                }
+            }}
     },
     Payload = #{
         <<"partyID">> => <<"party">>,

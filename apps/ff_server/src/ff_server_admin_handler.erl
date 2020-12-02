@@ -1,4 +1,5 @@
 -module(ff_server_admin_handler).
+
 -behaviour(ff_woody_wrapper).
 
 -include_lib("fistful_proto/include/ff_proto_fistful_admin_thrift.hrl").
@@ -10,10 +11,11 @@
 %% ff_woody_wrapper callbacks
 %%
 
--spec handle_function(woody:func(), woody:args(), woody:options()) ->
-    {ok, woody:result()} | no_return().
+-spec handle_function(woody:func(), woody:args(), woody:options()) -> {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(fistful_admin, #{},
+    scoper:scope(
+        fistful_admin,
+        #{},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -25,13 +27,17 @@ handle_function(Func, Args, Opts) ->
 
 handle_function_('CreateSource', [Params], Opts) ->
     SourceID = Params#ff_admin_SourceParams.id,
-    case ff_source_machine:create(#{
-            id       => SourceID,
-            identity => Params#ff_admin_SourceParams.identity_id,
-            name     => Params#ff_admin_SourceParams.name,
-            currency => ff_codec:unmarshal(currency_ref, Params#ff_admin_SourceParams.currency),
-            resource => ff_source_codec:unmarshal(resource, Params#ff_admin_SourceParams.resource)
-        }, ff_entity_context:new())
+    case
+        ff_source_machine:create(
+            #{
+                id => SourceID,
+                identity => Params#ff_admin_SourceParams.identity_id,
+                name => Params#ff_admin_SourceParams.name,
+                currency => ff_codec:unmarshal(currency_ref, Params#ff_admin_SourceParams.currency),
+                resource => ff_source_codec:unmarshal(resource, Params#ff_admin_SourceParams.resource)
+            },
+            ff_entity_context:new()
+        )
     of
         ok ->
             handle_function_('GetSource', [SourceID], Opts);
@@ -53,10 +59,10 @@ handle_function_('GetSource', [ID], _Opts) ->
 handle_function_('CreateDeposit', [Params], Opts) ->
     DepositID = Params#ff_admin_DepositParams.id,
     DepositParams = #{
-        id          => DepositID,
-        source_id   => Params#ff_admin_DepositParams.source,
-        wallet_id   => Params#ff_admin_DepositParams.destination,
-        body        => ff_codec:unmarshal(cash, Params#ff_admin_DepositParams.body)
+        id => DepositID,
+        source_id => Params#ff_admin_DepositParams.source,
+        wallet_id => Params#ff_admin_DepositParams.destination,
+        body => ff_codec:unmarshal(cash, Params#ff_admin_DepositParams.body)
     },
     case handle_create_result(ff_deposit_machine:create(DepositParams, ff_entity_context:new())) of
         ok ->
@@ -91,4 +97,3 @@ handle_create_result({error, exists}) ->
     ok;
 handle_create_result({error, _Reason} = Error) ->
     Error.
-

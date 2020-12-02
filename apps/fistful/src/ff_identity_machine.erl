@@ -29,8 +29,8 @@
     machinery:id().
 
 -type start_challenge_error() ::
-    {challenge, {pending, challenge_id()}} |
-    {challenge, ff_identity:start_challenge_error()}.
+    {challenge, {pending, challenge_id()}}
+    | {challenge, ff_identity:start_challenge_error()}.
 
 -type repair_error() :: ff_repair:repair_error().
 -type repair_response() :: ff_repair:repair_response().
@@ -52,6 +52,7 @@
 
 -export([identity/1]).
 -export([ctx/1]).
+
 %% Machinery
 
 -behaviour(machinery).
@@ -70,55 +71,48 @@
 -type params() :: ff_identity:params().
 
 -spec create(params(), ctx()) ->
-    ok |
-    {error,
-        ff_identity:create_error() |
-        exists
-    }.
-
+    ok
+    | {error,
+        ff_identity:create_error()
+        | exists}.
 create(Params = #{id := ID}, Ctx) ->
-    do(fun () ->
+    do(fun() ->
         Events = unwrap(ff_identity:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
-    {ok, st()}        |
-    {error, notfound}.
-
+    {ok, st()}
+    | {error, notfound}.
 get(ID) ->
     ff_machine:get(ff_identity, ?NS, ID).
 
 -spec get(id(), event_range()) ->
-    {ok, st()}        |
-    {error, notfound}.
-
+    {ok, st()}
+    | {error, notfound}.
 get(ID, {After, Limit}) ->
     ff_machine:get(ff_identity, ?NS, ID, {After, Limit, forward}).
 
 -spec events(id(), event_range()) ->
-    {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
-    {error, notfound}.
-
+    {ok, [{integer(), ff_machine:timestamped_event(event())}]}
+    | {error, notfound}.
 events(ID, {After, Limit}) ->
-    do(fun () ->
+    do(fun() ->
         #{history := History} = unwrap(machinery:get(?NS, ID, {After, Limit, forward}, backend())),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 
 -type challenge_params() :: #{
-    id     := challenge_id(),
-    class  := ff_identity_class:challenge_class_id(),
+    id := challenge_id(),
+    class := ff_identity_class:challenge_class_id(),
     proofs := [ff_identity_challenge:proof()]
 }.
 
 -spec start_challenge(id(), challenge_params()) ->
-    ok |
-    {error,
-        notfound |
-        start_challenge_error()
-    }.
-
+    ok
+    | {error,
+        notfound
+        | start_challenge_error()}.
 start_challenge(ID, Params) ->
     case machinery:call(?NS, ID, {start_challenge, Params}, backend()) of
         {ok, Reply} ->
@@ -132,42 +126,34 @@ backend() ->
 
 %% Accessors
 
--spec identity(st()) ->
-    identity().
-
+-spec identity(st()) -> identity().
 identity(St) ->
     ff_machine:model(St).
 
 -spec ctx(st()) -> ctx().
-
 ctx(St) ->
     ff_machine:ctx(St).
-
 
 %% Machinery
 
 -type event() ::
     ff_identity:event().
 
--type machine()      :: ff_machine:machine(event()).
--type result()       :: ff_machine:result(event()).
+-type machine() :: ff_machine:machine(event()).
+-type result() :: ff_machine:result(event()).
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
--spec init({[event()], ctx()}, machine(), _, handler_opts()) ->
-    result().
-
+-spec init({[event()], ctx()}, machine(), _, handler_opts()) -> result().
 init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => ff_machine:emit_events(Events),
+        events => ff_machine:emit_events(Events),
         aux_state => #{ctx => Ctx}
     }.
 
 %%
 
--spec process_timeout(machine(), _, handler_opts()) ->
-    result().
-
+-spec process_timeout(machine(), _, handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
     St = ff_machine:collapse(ff_identity, Machine),
     process_activity(deduce_activity(identity(St)), St).
@@ -194,7 +180,6 @@ set_poll_timer(St) ->
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) ->
     {ok | {error, start_challenge_error()}, result()}.
-
 process_call({start_challenge, Params}, Machine, _Args, _Opts) ->
     St = ff_machine:collapse(ff_identity, Machine),
     case deduce_activity(identity(St)) of
@@ -206,24 +191,25 @@ process_call({start_challenge, Params}, Machine, _Args, _Opts) ->
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     {ok, {repair_response(), result()}} | {error, repair_error()}.
-
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_identity, Machine, Scenario).
 
 do_start_challenge(Params, St) ->
     Identity = identity(St),
-    handle_result(do(challenge, fun () ->
-        #{
-            id     := ChallengeID,
-            class  := ChallengeClassID,
-            proofs := Proofs
-        } = Params,
-        Events = unwrap(ff_identity:start_challenge(ChallengeID, ChallengeClassID, Proofs, Identity)),
-        #{
-            events => ff_machine:emit_events(Events),
-            action => continue
-        }
-    end)).
+    handle_result(
+        do(challenge, fun() ->
+            #{
+                id := ChallengeID,
+                class := ChallengeClassID,
+                proofs := Proofs
+            } = Params,
+            Events = unwrap(ff_identity:start_challenge(ChallengeID, ChallengeClassID, Proofs, Identity)),
+            #{
+                events => ff_machine:emit_events(Events),
+                action => continue
+            }
+        end)
+    ).
 
 handle_result({ok, R}) ->
     {ok, R};
@@ -233,7 +219,7 @@ handle_result({error, _} = Error) ->
 %%
 
 deduce_activity(#{challenges := Challenges}) ->
-    Filter = fun (_, Challenge) -> ff_identity_challenge:status(Challenge) == pending end,
+    Filter = fun(_, Challenge) -> ff_identity_challenge:status(Challenge) == pending end,
     case maps:keys(maps:filter(Filter, Challenges)) of
         [ChallengeID] ->
             {challenge, ChallengeID};

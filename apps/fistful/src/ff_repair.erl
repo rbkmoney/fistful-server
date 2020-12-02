@@ -6,8 +6,8 @@
 %% Types
 
 -type scenario() ::
-    scenario_id() |
-    {scenario_id(), scenario_args()}.
+    scenario_id()
+    | {scenario_id(), scenario_args()}.
 
 -type scenario_id() :: atom().
 -type scenario_args() :: any().
@@ -17,21 +17,21 @@
 -type scenario_response() :: machinery:response(any()).
 
 -type processor() :: fun(
-    (scenario_args(), machine()) ->
-        {ok, {scenario_response(), scenario_result()}} | {error, scenario_error()}
+    (scenario_args(), machine()) -> {ok, {scenario_response(), scenario_result()}} | {error, scenario_error()}
 ).
+
 -type processors() :: #{
     scenario_id() := processor()
 }.
 
 -type repair_error() ::
-    unknown_scenario_error() |
-    invalid_result_error() |
-    scenario_error().
+    unknown_scenario_error()
+    | invalid_result_error()
+    | scenario_error().
 
 -type repair_response() ::
-    ok |
-    scenario_response().
+    ok
+    | scenario_response().
 
 -type invalid_result_error() ::
     {invalid_result, unexpected_failure}.
@@ -65,8 +65,7 @@
 
 %% API
 
--spec apply_scenario(module(), machine(), scenario()) ->
-    {ok, {repair_response(), result()}} | {error, repair_error()}.
+-spec apply_scenario(module(), machine(), scenario()) -> {ok, {repair_response(), result()}} | {error, repair_error()}.
 apply_scenario(Mod, Machine, Scenario) ->
     apply_scenario(Mod, Machine, Scenario, #{}).
 
@@ -84,8 +83,7 @@ apply_scenario(Mod, Machine, Scenario, ScenarioProcessors) ->
 
 %% Internals
 
--spec get_processor(scenario_id(), processors()) ->
-    {ok, processor()} | {error, unknown_scenario_error()}.
+-spec get_processor(scenario_id(), processors()) -> {ok, processor()} | {error, unknown_scenario_error()}.
 get_processor(ScenarioID, Processors) ->
     case maps:find(ScenarioID, Processors) of
         {ok, _Processor} = Result ->
@@ -94,15 +92,13 @@ get_processor(ScenarioID, Processors) ->
             {unknown_scenario, {ScenarioID, maps:keys(Processors)}}
     end.
 
--spec unwrap_scenario(scenario()) ->
-    {scenario_id(), scenario_args()}.
+-spec unwrap_scenario(scenario()) -> {scenario_id(), scenario_args()}.
 unwrap_scenario(ScenarioID) when is_atom(ScenarioID) ->
     {ScenarioID, undefined};
 unwrap_scenario({ScenarioID, ScenarioArgs}) when is_atom(ScenarioID) ->
     {ScenarioID, ScenarioArgs}.
 
--spec add_default_processors(processors()) ->
-    processors().
+-spec add_default_processors(processors()) -> processors().
 add_default_processors(Processor) ->
     Default = #{
         add_events => fun add_events/2
@@ -117,8 +113,7 @@ apply_processor(Processor, Args, Machine) ->
         {Response, Result#{events => ff_machine:emit_events(Events)}}
     end).
 
--spec validate_result(module(), machine(), result()) ->
-    {ok, valid} | {error, invalid_result_error()}.
+-spec validate_result(module(), machine(), result()) -> {ok, valid} | {error, invalid_result_error()}.
 validate_result(Mod, #{history := History} = Machine, #{events := NewEvents}) ->
     HistoryLen = erlang:length(History),
     NewEventsLen = erlang:length(NewEvents),
@@ -137,7 +132,6 @@ validate_result(Mod, #{history := History} = Machine, #{events := NewEvents}) ->
             {error, unexpected_failure}
     end.
 
--spec add_events(scenario_result(), machine()) ->
-    {ok, {ok, scenario_result()}}.
+-spec add_events(scenario_result(), machine()) -> {ok, {ok, scenario_result()}}.
 add_events(Result, _Machine) ->
     {ok, {ok, Result}}.

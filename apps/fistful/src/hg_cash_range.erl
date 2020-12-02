@@ -1,21 +1,22 @@
 %% TODO merge with ff_range
 
 -module(hg_cash_range).
+
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([is_inside/2]).
 
 -type cash_range() :: dmsl_domain_thrift:'CashRange'().
--type cash()       :: dmsl_domain_thrift:'Cash'().
+-type cash() :: dmsl_domain_thrift:'Cash'().
 
--spec is_inside(cash(), cash_range()) ->
-    within | {exceeds, lower | upper}.
-
+-spec is_inside(cash(), cash_range()) -> within | {exceeds, lower | upper}.
 is_inside(Cash, CashRange = #domain_CashRange{lower = Lower, upper = Upper}) ->
-    case {
-        compare_cash(fun erlang:'>'/2, Cash, Lower),
-        compare_cash(fun erlang:'<'/2, Cash, Upper)
-    } of
+    case
+        {
+            compare_cash(fun erlang:'>'/2, Cash, Lower),
+            compare_cash(fun erlang:'<'/2, Cash, Upper)
+        }
+    of
         {true, true} ->
             within;
         {false, true} ->
@@ -26,11 +27,10 @@ is_inside(Cash, CashRange = #domain_CashRange{lower = Lower, upper = Upper}) ->
             error({misconfiguration, {'Invalid cash range specified', CashRange, Cash}})
     end.
 
--define(cash(Amount, SymCode),
-    #domain_Cash{
-        amount = Amount,
-        currency = #domain_CurrencyRef{symbolic_code = SymCode}
-    }).
+-define(cash(Amount, SymCode), #domain_Cash{
+    amount = Amount,
+    currency = #domain_CurrencyRef{symbolic_code = SymCode}
+}).
 
 compare_cash(_, V, {inclusive, V}) ->
     true;

@@ -30,10 +30,10 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
@@ -65,10 +65,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -83,6 +86,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -115,11 +119,11 @@ adjustment_can_change_status_to_failed_test(C) ->
     ?assertMatch(succeeded, get_adjustment_status(DepositID, RevertID, AdjustmentID)),
     ExternalID = ff_adjustment:external_id(get_adjustment(DepositID, RevertID, AdjustmentID)),
     ?assertEqual(<<"true_unique_id">>, ExternalID),
-    ?assertEqual({failed, Failure},  get_revert_status(DepositID, RevertID)),
+    ?assertEqual({failed, Failure}, get_revert_status(DepositID, RevertID)),
     assert_adjustment_same_revisions(DepositID, RevertID, AdjustmentID),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(-100, <<"RUB">>), get_source_balance(SourceID)),
-    _ = process_revert(DepositID, #{body   => {100, <<"RUB">>}}).
+    _ = process_revert(DepositID, #{body => {100, <<"RUB">>}}).
 
 -spec adjustment_can_change_failure_test(config()) -> test_return().
 adjustment_can_change_failure_test(C) ->
@@ -135,7 +139,7 @@ adjustment_can_change_failure_test(C) ->
     AdjustmentID1 = process_adjustment(DepositID, RevertID, #{
         change => {change_status, {failed, Failure1}}
     }),
-    ?assertEqual({failed, Failure1},  get_revert_status(DepositID, RevertID)),
+    ?assertEqual({failed, Failure1}, get_revert_status(DepositID, RevertID)),
     assert_adjustment_same_revisions(DepositID, RevertID, AdjustmentID1),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(-100, <<"RUB">>), get_source_balance(SourceID)),
@@ -143,7 +147,7 @@ adjustment_can_change_failure_test(C) ->
     AdjustmentID2 = process_adjustment(DepositID, RevertID, #{
         change => {change_status, {failed, Failure2}}
     }),
-    ?assertEqual({failed, Failure2},  get_revert_status(DepositID, RevertID)),
+    ?assertEqual({failed, Failure2}, get_revert_status(DepositID, RevertID)),
     assert_adjustment_same_revisions(DepositID, RevertID, AdjustmentID2),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(-100, <<"RUB">>), get_source_balance(SourceID)).
@@ -357,7 +361,7 @@ process_deposit(DepositParams) ->
     ok = ff_deposit_machine:create(DepositParams#{id => DepositID}, ff_entity_context:new()),
     succeeded = ct_helper:await(
         succeeded,
-        fun () ->
+        fun() ->
             ff_deposit:status(get_deposit(DepositID))
         end,
         genlib_retry:linear(15, 1000)
@@ -387,7 +391,7 @@ get_adjustment_status(DepositID, RevertID, AdjustmentID) ->
 await_final_revert_status(DepositID, RevertID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_deposit_machine:get(DepositID),
             Deposit = ff_deposit_machine:deposit(Machine),
             {ok, Revert} = ff_deposit:find_revert(RevertID, Deposit),
@@ -405,7 +409,7 @@ await_final_revert_status(DepositID, RevertID) ->
 await_final_adjustment_status(DepositID, RevertID, AdjustmentID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_deposit_machine:get(DepositID),
             Deposit = ff_deposit_machine:deposit(Machine),
             {ok, Revert} = ff_deposit:find_revert(RevertID, Deposit),
@@ -463,7 +467,7 @@ await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
-        fun () -> get_wallet_balance(ID) end,
+        fun() -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
     ok.
@@ -506,7 +510,7 @@ create_source(IID, _C) ->
     ok = ff_source_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, SrcM} = ff_source_machine:get(ID),
             Source = ff_source_machine:source(SrcM),
             ff_source:status(Source)

@@ -47,26 +47,23 @@
 
 -define(CALLBACK(Tag, Payload), #p2p_adapter_Callback{tag = Tag, payload = Payload}).
 
--type test_case_name()  :: atom().
--type config()          :: [{atom(), any()}].
--type group_name()      :: atom().
+-type test_case_name() :: atom().
+-type config() :: [{atom(), any()}].
+-type group_name() :: atom().
 
 -behaviour(supervisor).
 
--spec init([]) ->
-    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() ->
-    [test_case_name()].
+-spec all() -> [test_case_name()].
 all() ->
     [
         {group, p2p}
     ].
 
--spec groups() ->
-    [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
         {p2p, [parallel], [
@@ -96,34 +93,36 @@ groups() ->
 %%
 %% starting/stopping
 %%
--spec init_per_suite(config()) ->
-    config().
+-spec init_per_suite(config()) -> config().
 init_per_suite(Config) ->
     %% TODO remove this after cut off wapi
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup(#{
-            optional_apps => [
-                bender_client,
-                wapi_woody_client,
-                wapi
-            ]
-        })
-    ], Config).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup(#{
+                optional_apps => [
+                    bender_client,
+                    wapi_woody_client,
+                    wapi
+                ]
+            })
+        ],
+        Config
+    ).
 
--spec end_per_suite(config()) ->
-    _.
+-spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
     %% TODO remove this after cut off wapi
     ok = ct_payment_system:shutdown(C).
 
--spec init_per_group(group_name(), config()) ->
-    config().
+-spec init_per_group(group_name(), config()) -> config().
 init_per_group(Group, Config) when Group =:= p2p ->
-    ok = ff_context:save(ff_context:create(#{
-        party_client => party_client:create_client(),
-        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
-    })),
+    ok = ff_context:save(
+        ff_context:create(#{
+            party_client => party_client:create_client(),
+            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
+        })
+    ),
     Party = create_party(Config),
     BasePermissions = [
         {[party], write},
@@ -136,26 +135,23 @@ init_per_group(Group, Config) when Group =:= p2p ->
     [
         {wapi_context, wapi_ct_helper:get_context(WapiToken)},
         {context, wapi_ct_helper:get_context(Token)},
-        {context_pcidss, ContextPcidss} |
-        Config1
+        {context_pcidss, ContextPcidss}
+        | Config1
     ];
 init_per_group(_, Config) ->
     Config.
 
--spec end_per_group(group_name(), config()) ->
-    _.
+-spec end_per_group(group_name(), config()) -> _.
 end_per_group(_Group, _C) ->
     ok.
 
--spec init_per_testcase(test_case_name(), config()) ->
-    config().
+-spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) ->
-    config().
+-spec end_per_testcase(test_case_name(), config()) -> config().
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
@@ -175,11 +171,10 @@ issue_wapi_token(Party) ->
 
 %%% Tests
 
--spec quote_p2p_transfer_ok_test(config()) ->
-    _.
+-spec quote_p2p_transfer_ok_test(config()) -> _.
 quote_p2p_transfer_ok_test(C) ->
-    SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     IdentityID = create_identity(C),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
@@ -203,11 +198,10 @@ quote_p2p_transfer_ok_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec create_p2p_transfer_ok_test(config()) ->
-    _.
+-spec create_p2p_transfer_ok_test(config()) -> _.
 create_p2p_transfer_ok_test(C) ->
-    SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     IdentityID = create_identity(C),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
@@ -236,11 +230,10 @@ create_p2p_transfer_ok_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec create_p2p_transfer_fail_test(config()) ->
-    _.
+-spec create_p2p_transfer_fail_test(config()) -> _.
 create_p2p_transfer_fail_test(C) ->
-    SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken   = <<"v1.kek_token">>,
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = <<"v1.kek_token">>,
     IdentityID = create_identity(C),
     {error, {400, #{<<"name">> := <<"BankCardReceiverResourceParams">>}}} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
@@ -269,11 +262,10 @@ create_p2p_transfer_fail_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec create_p2p_transfer_conflict_test(config()) ->
-    _.
+-spec create_p2p_transfer_conflict_test(config()) -> _.
 create_p2p_transfer_conflict_test(C) ->
-    SenderToken     = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     IdentityID = create_identity(C),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
@@ -330,10 +322,9 @@ create_p2p_transfer_conflict_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec create_p2p_transfer_with_token_ok_test(config()) ->
-    _.
+-spec create_p2p_transfer_with_token_ok_test(config()) -> _.
 create_p2p_transfer_with_token_ok_test(C) ->
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>),
     IdentityID = create_identity(C),
     {ok, _} = ff_identity_machine:get(IdentityID),
@@ -386,11 +377,9 @@ create_p2p_transfer_with_token_ok_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec create_p2p_transfer_with_token_fail_test(config()) ->
-    _.
-
+-spec create_p2p_transfer_with_token_fail_test(config()) -> _.
 create_p2p_transfer_with_token_fail_test(C) ->
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>),
     IdentityID = create_identity(C),
     {ok, _} = ff_identity_machine:get(IdentityID),
@@ -416,7 +405,7 @@ create_p2p_transfer_with_token_fail_test(C) ->
         ct_helper:cfg(context, C)
     ),
     DifferentReceiverToken = store_bank_card(C, <<"4242424242424242">>),
-    {error, {422, _}}  = call_api(
+    {error, {422, _}} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
             body => #{
@@ -444,10 +433,9 @@ create_p2p_transfer_with_token_fail_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec get_p2p_transfer_ok_test(config()) ->
-    _.
+-spec get_p2p_transfer_ok_test(config()) -> _.
 get_p2p_transfer_ok_test(C) ->
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     IdentityID = create_identity(C),
     {ok, #{<<"id">> := TransferID}} = call_api(
@@ -486,8 +474,7 @@ get_p2p_transfer_ok_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec get_p2p_transfer_not_found_test(config()) ->
-    _.
+-spec get_p2p_transfer_not_found_test(config()) -> _.
 get_p2p_transfer_not_found_test(C) ->
     {error, {404, _}} = call_api(
         fun swag_client_wallet_p2_p_api:get_p2_p_transfer/3,
@@ -499,10 +486,9 @@ get_p2p_transfer_not_found_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec get_p2p_transfer_events_ok_test(config()) ->
-    _.
+-spec get_p2p_transfer_events_ok_test(config()) -> _.
 get_p2p_transfer_events_ok_test(C) ->
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     IdentityID = create_identity(C),
     {ok, #{<<"id">> := TransferID}} = call_api(
@@ -531,15 +517,14 @@ get_p2p_transfer_events_ok_test(C) ->
         },
         ct_helper:cfg(context, C)
     ),
-%%    Callback = ?CALLBACK(Token, <<"payload">>),
+    %%    Callback = ?CALLBACK(Token, <<"payload">>),
     ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(get), C),
-%%    _ = call_p2p_adapter(Callback),
+    %%    _ = call_p2p_adapter(Callback),
     ok = await_successful_transfer_events(TransferID, user_interaction_redirect(get), C).
 
--spec get_p2p_transfer_failure_events_ok_test(config()) ->
-    _.
+-spec get_p2p_transfer_failure_events_ok_test(config()) -> _.
 get_p2p_transfer_failure_events_ok_test(C) ->
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     IdentityID = create_identity(C),
     {ok, #{<<"id">> := TransferID}} = call_api(
@@ -571,8 +556,7 @@ get_p2p_transfer_failure_events_ok_test(C) ->
     ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(post), C),
     ok = await_successful_transfer_events(TransferID, user_interaction_redirect(post), C).
 
--spec create_p2p_template_ok_test(config()) ->
-    _.
+-spec create_p2p_template_ok_test(config()) -> _.
 create_p2p_template_ok_test(C) ->
     IdentityID = create_identity(C),
     {ok, _} = call_api(
@@ -599,8 +583,7 @@ create_p2p_template_ok_test(C) ->
     ),
     ok.
 
--spec get_p2p_template_ok_test(config()) ->
-    _.
+-spec get_p2p_template_ok_test(config()) -> _.
 get_p2p_template_ok_test(C) ->
     IdentityID = create_identity(C),
     TemplateID = create_p2p_template(IdentityID, C),
@@ -614,8 +597,7 @@ get_p2p_template_ok_test(C) ->
         ct_helper:cfg(wapi_context, C)
     ).
 
--spec block_p2p_template_ok_test(config()) ->
-    _.
+-spec block_p2p_template_ok_test(config()) -> _.
 block_p2p_template_ok_test(C) ->
     IdentityID = create_identity(C),
     TemplateID = create_p2p_template(IdentityID, C),
@@ -629,8 +611,7 @@ block_p2p_template_ok_test(C) ->
         ct_helper:cfg(wapi_context, C)
     ).
 
--spec issue_p2p_template_access_token_ok_test(config()) ->
-    _.
+-spec issue_p2p_template_access_token_ok_test(config()) -> _.
 issue_p2p_template_access_token_ok_test(C) ->
     IdentityID = create_identity(C),
     TemplateID = create_p2p_template(IdentityID, C),
@@ -648,8 +629,7 @@ issue_p2p_template_access_token_ok_test(C) ->
         ct_helper:cfg(wapi_context, C)
     ).
 
--spec issue_p2p_transfer_ticket_ok_test(config()) ->
-    _.
+-spec issue_p2p_transfer_ticket_ok_test(config()) -> _.
 issue_p2p_transfer_ticket_ok_test(C) ->
     IdentityID = create_identity(C),
     TemplateID = create_p2p_template(IdentityID, C),
@@ -668,8 +648,7 @@ issue_p2p_transfer_ticket_ok_test(C) ->
         wapi_ct_helper:get_context(TemplateToken)
     ).
 
--spec issue_p2p_transfer_ticket_with_access_expiration_ok_test(config()) ->
-    _.
+-spec issue_p2p_transfer_ticket_with_access_expiration_ok_test(config()) -> _.
 issue_p2p_transfer_ticket_with_access_expiration_ok_test(C) ->
     IdentityID = create_identity(C),
     TemplateID = create_p2p_template(IdentityID, C),
@@ -689,10 +668,9 @@ issue_p2p_transfer_ticket_with_access_expiration_ok_test(C) ->
         wapi_ct_helper:get_context(TemplateToken)
     ).
 
--spec create_p2p_transfer_with_template_ok_test(config()) ->
-    _.
+-spec create_p2p_transfer_with_template_ok_test(config()) -> _.
 create_p2p_transfer_with_template_ok_test(C) ->
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     IdentityID = create_identity(C),
     TemplateID = create_p2p_template(IdentityID, C),
@@ -729,10 +707,9 @@ create_p2p_transfer_with_template_ok_test(C) ->
     ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(get), C),
     ok = await_successful_transfer_events(TransferID, user_interaction_redirect(get), C).
 
--spec create_p2p_transfer_with_template_conflict_test(config()) ->
-    _.
+-spec create_p2p_transfer_with_template_conflict_test(config()) -> _.
 create_p2p_transfer_with_template_conflict_test(C) ->
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     IdentityID = create_identity(C),
     TemplateID = create_p2p_template(IdentityID, C),
@@ -795,10 +772,9 @@ create_p2p_transfer_with_template_conflict_test(C) ->
         wapi_ct_helper:get_context(Ticket)
     ).
 
--spec create_p2p_transfer_with_template_and_quote_ok_test(config()) ->
-    _.
+-spec create_p2p_transfer_with_template_and_quote_ok_test(config()) -> _.
 create_p2p_transfer_with_template_and_quote_ok_test(C) ->
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     IdentityID = create_identity(C),
     TemplateID = create_p2p_template(IdentityID, C),
@@ -859,11 +835,9 @@ create_p2p_transfer_with_template_and_quote_ok_test(C) ->
     ok = await_user_interaction_created_events(TransferID, user_interaction_redirect(get), C),
     ok = await_successful_transfer_events(TransferID, user_interaction_redirect(get), C).
 
-
 %%
 
--spec call_api(function(), map(), wapi_client_lib:context()) ->
-    {ok, term()} | {error, term()}.
+-spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
 call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
@@ -877,29 +851,34 @@ create_party(_C) ->
 create_identity(C) ->
     {ok, Identity} = call_api(
         fun swag_client_wallet_identities_api:create_identity/3,
-        #{body => #{
-            <<"name">>     => <<"Keyn Fawkes">>,
-            <<"provider">> => <<"quote-owner">>,
-            <<"class">>    => <<"person">>,
-            <<"metadata">> => #{
-                ?STRING => ?STRING
+        #{
+            body => #{
+                <<"name">> => <<"Keyn Fawkes">>,
+                <<"provider">> => <<"quote-owner">>,
+                <<"class">> => <<"person">>,
+                <<"metadata">> => #{
+                    ?STRING => ?STRING
+                }
             }
-        }},
+        },
         ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, Identity).
 
 store_bank_card(C, Pan) ->
     store_bank_card(C, Pan, undefined, undefined).
+
 store_bank_card(C, Pan, ExpDate, CardHolder) ->
     {ok, Res} = call_api(
         fun swag_client_payres_payment_resources_api:store_bank_card/3,
-        #{body => genlib_map:compact(#{
-            <<"type">>       => <<"BankCard">>,
-            <<"cardNumber">> => Pan,
-            <<"expDate">>    => ExpDate,
-            <<"cardHolder">> => CardHolder
-        })},
+        #{
+            body => genlib_map:compact(#{
+                <<"type">> => <<"BankCard">>,
+                <<"cardNumber">> => Pan,
+                <<"expDate">> => ExpDate,
+                <<"cardHolder">> => CardHolder
+            })
+        },
         ct_helper:cfg(context_pcidss, C)
     ),
     maps:get(<<"token">>, Res).
@@ -907,7 +886,7 @@ store_bank_card(C, Pan, ExpDate, CardHolder) ->
 await_user_interaction_created_events(TransferID, UserInteraction, C) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             Result = call_api(
                 fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
                 #{
@@ -919,17 +898,21 @@ await_user_interaction_created_events(TransferID, UserInteraction, C) ->
             ),
 
             case Result of
-                {ok, #{<<"result">> := [
-                    #{
-                        <<"change">> := #{
-                            <<"changeType">> := <<"P2PTransferInteractionChanged">>,
-                            <<"userInteractionChange">> := #{
-                                <<"changeType">> := <<"UserInteractionCreated">>,
-                                <<"userInteraction">> := UserInteraction
-                            },
-                            <<"userInteractionID">> := <<"test_user_interaction">>
+                {ok, #{
+                    <<"result">> := [
+                        #{
+                            <<"change">> := #{
+                                <<"changeType">> := <<"P2PTransferInteractionChanged">>,
+                                <<"userInteractionChange">> := #{
+                                    <<"changeType">> := <<"UserInteractionCreated">>,
+                                    <<"userInteraction">> := UserInteraction
+                                },
+                                <<"userInteractionID">> := <<"test_user_interaction">>
+                            }
                         }
-                    } | _]}} ->
+                        | _
+                    ]
+                }} ->
                     finished;
                 {ok, #{<<"result">> := FinalWrongResult}} ->
                     {not_finished, FinalWrongResult}
@@ -942,7 +925,7 @@ await_user_interaction_created_events(TransferID, UserInteraction, C) ->
 await_successful_transfer_events(TransferID, UserInteraction, C) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             Result = call_api(
                 fun swag_client_wallet_p2_p_api:get_p2_p_transfer_events/3,
                 #{
@@ -953,33 +936,35 @@ await_successful_transfer_events(TransferID, UserInteraction, C) ->
                 ct_helper:cfg(context, C)
             ),
             case Result of
-                {ok, #{<<"result">> := [
-                    #{
-                        <<"change">> := #{
-                            <<"changeType">> := <<"P2PTransferInteractionChanged">>,
-                            <<"userInteractionChange">> := #{
-                                <<"changeType">> := <<"UserInteractionCreated">>,
-                                <<"userInteraction">> := UserInteraction
-                            },
-                            <<"userInteractionID">> := <<"test_user_interaction">>
+                {ok, #{
+                    <<"result">> := [
+                        #{
+                            <<"change">> := #{
+                                <<"changeType">> := <<"P2PTransferInteractionChanged">>,
+                                <<"userInteractionChange">> := #{
+                                    <<"changeType">> := <<"UserInteractionCreated">>,
+                                    <<"userInteraction">> := UserInteraction
+                                },
+                                <<"userInteractionID">> := <<"test_user_interaction">>
+                            }
+                        },
+                        #{
+                            <<"change">> := #{
+                                <<"changeType">> := <<"P2PTransferInteractionChanged">>,
+                                <<"userInteractionChange">> := #{
+                                    <<"changeType">> := <<"UserInteractionFinished">>
+                                },
+                                <<"userInteractionID">> := <<"test_user_interaction">>
+                            }
+                        },
+                        #{
+                            <<"change">> := #{
+                                <<"changeType">> := <<"P2PTransferStatusChanged">>,
+                                <<"status">> := <<"Succeeded">>
+                            }
                         }
-                    },
-                    #{
-                        <<"change">> := #{
-                            <<"changeType">> := <<"P2PTransferInteractionChanged">>,
-                            <<"userInteractionChange">> := #{
-                                <<"changeType">> := <<"UserInteractionFinished">>
-                            },
-                            <<"userInteractionID">> := <<"test_user_interaction">>
-                        }
-                    },
-                    #{
-                        <<"change">> := #{
-                            <<"changeType">> := <<"P2PTransferStatusChanged">>,
-                            <<"status">> := <<"Succeeded">>
-                        }
-                    }
-                    ]}} ->
+                    ]
+                }} ->
                     finished;
                 {ok, #{<<"result">> := FinalWrongResult}} ->
                     {not_finished, FinalWrongResult}
@@ -1003,10 +988,12 @@ user_interaction_redirect(post) ->
         <<"request">> => #{
             <<"requestType">> => <<"BrowserPostRequest">>,
             <<"uriTemplate">> => <<"https://test-bank.ru/handler?id=1">>,
-            <<"form">> => [#{
-                <<"key">> => <<"TermUrl">>,
-                <<"template">> => <<"https://checkout.rbk.money/v1/finish-interaction.html">>
-            }]
+            <<"form">> => [
+                #{
+                    <<"key">> => <<"TermUrl">>,
+                    <<"template">> => <<"https://checkout.rbk.money/v1/finish-interaction.html">>
+                }
+            ]
         }
     }.
 

@@ -13,13 +13,13 @@
 %% Data transform
 
 -define(to_session_event(SessionID, Payload),
-    {session, #{id => SessionID, payload => Payload}}).
+    {session, #{id => SessionID, payload => Payload}}
+).
 
 %% API
 
 -spec marshal_w2w_transfer_state(w2w_transfer:w2w_transfer_state(), ff_entity_context:context()) ->
     ff_proto_w2w_transfer_thrift:'W2WTransferState'().
-
 marshal_w2w_transfer_state(W2WTransferState, Ctx) ->
     CashFlow = w2w_transfer:effective_final_cash_flow(W2WTransferState),
     Adjustments = w2w_transfer:adjustments(W2WTransferState),
@@ -41,7 +41,6 @@ marshal_w2w_transfer_state(W2WTransferState, Ctx) ->
 
 -spec unmarshal_w2w_transfer_params(ff_proto_w2w_transfer_thrift:'W2WTransferParams'()) ->
     w2w_transfer_machine:params().
-
 unmarshal_w2w_transfer_params(#w2w_transfer_W2WTransferParams{
     id = ID,
     body = Body,
@@ -59,25 +58,20 @@ unmarshal_w2w_transfer_params(#w2w_transfer_W2WTransferParams{
         metadata => maybe_unmarshal(ctx, Metadata)
     }).
 
--spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
-    ff_codec:encoded_value().
-
+-spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
-
 marshal(timestamped_change, {ev, Timestamp, Change}) ->
     #w2w_transfer_TimestampedChange{
         change = marshal(change, Change),
         occured_at = ff_codec:marshal(timestamp, Timestamp)
     };
-
 marshal(event, {EventID, {ev, Timestamp, Change}}) ->
     #w2w_transfer_Event{
         event_id = ff_codec:marshal(event_id, EventID),
         occured_at = ff_codec:marshal(timestamp, Timestamp),
         change = marshal(change, Change)
     };
-
 marshal(change, {created, W2WTransfer}) ->
     {created, #w2w_transfer_CreatedChange{w2w_transfer = marshal(w2w_transfer, W2WTransfer)}};
 marshal(change, {status_changed, Status}) ->
@@ -91,7 +85,6 @@ marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
         id = marshal(id, ID),
         payload = ff_w2w_transfer_adjustment_codec:marshal(change, Payload)
     }};
-
 marshal(w2w_transfer, W2WTransfer) ->
     #w2w_transfer_W2WTransfer{
         id = marshal(id, w2w_transfer:id(W2WTransfer)),
@@ -105,34 +98,26 @@ marshal(w2w_transfer, W2WTransfer) ->
         created_at = maybe_marshal(timestamp_ms, w2w_transfer:created_at(W2WTransfer)),
         metadata = maybe_marshal(ctx, w2w_transfer:metadata(W2WTransfer))
     };
-
 marshal(status, Status) ->
     ff_w2w_transfer_status_codec:marshal(status, Status);
-
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
-
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-
--spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
-    ff_codec:decoded_value().
-
+-spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) -> ff_codec:decoded_value().
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
-
 unmarshal(timestamped_change, TimestampedChange) ->
     Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#w2w_transfer_TimestampedChange.occured_at),
     Change = unmarshal(change, TimestampedChange#w2w_transfer_TimestampedChange.change),
     {ev, Timestamp, Change};
-
 unmarshal(repair_scenario, {add_events, #w2w_transfer_AddEventsRepair{events = Events, action = Action}}) ->
-    {add_events, genlib_map:compact(#{
-        events => unmarshal({list, change}, Events),
-        action => maybe_unmarshal(complex_action, Action)
-    })};
-
+    {add_events,
+        genlib_map:compact(#{
+            events => unmarshal({list, change}, Events),
+            action => maybe_unmarshal(complex_action, Action)
+        })};
 unmarshal(change, {created, #w2w_transfer_CreatedChange{w2w_transfer = W2WTransfer}}) ->
     {created, unmarshal(w2w_transfer, W2WTransfer)};
 unmarshal(change, {status_changed, #w2w_transfer_StatusChange{status = W2WTransferStatus}}) ->
@@ -146,10 +131,8 @@ unmarshal(change, {adjustment, Change}) ->
         id => unmarshal(id, Change#w2w_transfer_AdjustmentChange.id),
         payload => ff_w2w_transfer_adjustment_codec:unmarshal(change, Change#w2w_transfer_AdjustmentChange.payload)
     }};
-
 unmarshal(status, Status) ->
     ff_w2w_transfer_status_codec:unmarshal(status, Status);
-
 unmarshal(w2w_transfer, W2WTransfer) ->
     genlib_map:compact(#{
         version => 1,
@@ -164,10 +147,8 @@ unmarshal(w2w_transfer, W2WTransfer) ->
         created_at => maybe_unmarshal(timestamp_ms, W2WTransfer#w2w_transfer_W2WTransfer.created_at),
         metadata => maybe_unmarshal(ctx, W2WTransfer#w2w_transfer_W2WTransfer.metadata)
     });
-
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);
-
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
@@ -187,14 +168,16 @@ maybe_marshal(Type, Value) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
 -spec test() -> _.
 
 -spec w2w_transfer_symmetry_test() -> _.
+
 w2w_transfer_symmetry_test() ->
     Encoded = #w2w_transfer_W2WTransfer{
         body = #'Cash'{
             amount = 10101,
-            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+            currency = #'CurrencyRef'{symbolic_code = <<"Banana Republic">>}
         },
         wallet_from_id = genlib:unique(),
         wallet_to_id = genlib:unique(),

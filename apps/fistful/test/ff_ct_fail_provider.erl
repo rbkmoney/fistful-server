@@ -50,6 +50,7 @@
 -type callback() :: ff_withdrawal_callback:callback().
 
 -record(state, {}).
+
 -type state() :: #state{}.
 
 -type transaction_info() :: ff_adapter:transaction_info().
@@ -77,18 +78,18 @@ start(Opts) ->
 -spec process_withdrawal(withdrawal(), state(), map()) ->
     {ok, #{
         intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
-        next_state  => state(),
+        next_state => state(),
         transaction_info => transaction_info()
-    }} when
-        CallbackTag :: binary().
+    }}
+when
+    CallbackTag :: binary().
 process_withdrawal(_Withdrawal, State, _Options) ->
     {ok, #{
         intent => {finish, {failure, <<"authorization_error">>}},
         next_state => State
     }}.
 
--spec get_quote(quote_params(), map()) ->
-    {ok, quote()}.
+-spec get_quote(quote_params(), map()) -> {ok, quote()}.
 get_quote(_Quote, _Options) ->
     erlang:error(not_implemented).
 
@@ -96,9 +97,10 @@ get_quote(_Quote, _Options) ->
     {ok, #{
         intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
         response := any(),
-        next_state  => state(),
+        next_state => state(),
         transaction_info => transaction_info()
-    }} when
-        CallbackTag :: binary().
+    }}
+when
+    CallbackTag :: binary().
 handle_callback(_Callback, _Withdrawal, _State, _Options) ->
     erlang:error(not_implemented).

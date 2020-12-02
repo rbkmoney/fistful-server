@@ -28,28 +28,32 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
 -define(CALLBACK(Tag, Payload), #p2p_adapter_Callback{tag = Tag, payload = Payload}).
 
--define(PROCESS_CALLBACK_SUCCESS(Payload), {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
-    response = #p2p_adapter_CallbackResponse{
-        payload = Payload
-    }
-}}).
-
--define(PROCESS_CALLBACK_FINISHED(AdapterState), {finished, #p2p_adapter_ProcessCallbackFinished{
-    response = #p2p_adapter_Context{
-        session = #p2p_adapter_Session{
-            state = AdapterState
+-define(PROCESS_CALLBACK_SUCCESS(Payload),
+    {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
+        response = #p2p_adapter_CallbackResponse{
+            payload = Payload
         }
-    }
-}}).
+    }}
+).
+
+-define(PROCESS_CALLBACK_FINISHED(AdapterState),
+    {finished, #p2p_adapter_ProcessCallbackFinished{
+        response = #p2p_adapter_Context{
+            session = #p2p_adapter_Session{
+                state = AdapterState
+            }
+        }
+    }}
+).
 
 %% API
 
@@ -75,10 +79,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -93,6 +100,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -206,13 +214,14 @@ prepare_standard_environment(TransferCash, C) ->
     prepare_standard_environment(undefined, TransferCash, C).
 
 prepare_standard_environment(TokenPrefix, TransferCash, C) ->
-    Token = case TokenPrefix of
-        undefined ->
-            undefined;
-        _ ->
-            TokenRandomised = generate_id(),
-            <<TokenPrefix/binary, TokenRandomised/binary>>
-    end,
+    Token =
+        case TokenPrefix of
+            undefined ->
+                undefined;
+            _ ->
+                TokenRandomised = generate_id(),
+                <<TokenPrefix/binary, TokenRandomised/binary>>
+        end,
     PartyID = create_party(C),
     ResourceSender = create_resource_raw(Token, C),
     ResourceReceiver = create_resource_raw(Token, C),
@@ -245,9 +254,10 @@ prepare_resource(#{token := Token} = RawBankCard) ->
     ExtendData = maps:with(KeyList, BinData),
     {bank_card, #{
         bank_card => maps:merge(RawBankCard, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),
-        auth_data => {session, #{
-            session_id => <<"ID">>
-        }}
+        auth_data =>
+            {session, #{
+                session_id => <<"ID">>
+            }}
     }}.
 
 get_p2p_session(SessionID) ->
@@ -269,7 +279,7 @@ get_p2p_session_adapter_state(SessionID) ->
 await_final_p2p_session_status(SessionID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             Session = get_p2p_session(SessionID),
             case p2p_session:is_finished(Session) of
                 false ->
@@ -300,8 +310,8 @@ create_party(_C) ->
     ID.
 
 call_host(Callback) ->
-    Service  = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
+    Service = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
     Function = 'ProcessCallback',
-    Args     = [Callback],
-    Request  = {Service, Function, Args},
+    Args = [Callback],
+    Request = {Service, Function, Args},
     ff_woody_client:call(ff_p2p_adapter_host, Request).

@@ -20,10 +20,10 @@
 -type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
 -type cash() :: dmsl_domain_thrift:'Cash'().
 -type cash_range() :: dmsl_domain_thrift:'CashRange'().
--type validate_terms_error() :: {terms_violation,
-                                    {not_allowed_currency, {currency_ref(), [currency_ref()]}} |
-                                    {cash_range, {cash(), cash_range()}}
-                                }.
+-type validate_terms_error() ::
+    {terms_violation,
+        {not_allowed_currency, {currency_ref(), [currency_ref()]}}
+        | {cash_range, {cash(), cash_range()}}}.
 
 -export_type([id/0]).
 -export_type([provider/0]).
@@ -68,29 +68,25 @@ adapter_opts(#{adapter_opts := AdapterOpts}) ->
 %%
 
 -spec ref(id()) -> provider_ref().
-
 ref(ID) ->
     #domain_ProviderRef{id = ID}.
 
 -spec get(id()) ->
-    {ok, provider()} |
-    {error, notfound}.
-
+    {ok, provider()}
+    | {error, notfound}.
 get(ID) ->
     get(head, ID).
 
 -spec get(head | ff_domain_config:revision(), id()) ->
-    {ok, provider()} |
-    {error, notfound}.
-
+    {ok, provider()}
+    | {error, notfound}.
 get(Revision, ID) ->
-    do(fun () ->
+    do(fun() ->
         P2PProvider = unwrap(ff_domain_config:object(Revision, {provider, ref(ID)})),
         decode(ID, P2PProvider)
     end).
 
 -spec compute_fees(provider(), hg_selector:varset()) -> ff_cash_flow:cash_flow_fee().
-
 compute_fees(#{terms := Terms}, VS) ->
     #domain_ProvisionTermSet{wallet = WalletTerms} = Terms,
     #domain_WalletProvisionTerms{p2p = P2PTerms} = WalletTerms,
@@ -101,9 +97,8 @@ compute_fees(#{terms := Terms}, VS) ->
     }.
 
 -spec validate_terms(provider(), hg_selector:varset()) ->
-    {ok, valid} |
-    {error, validate_terms_error()}.
-
+    {ok, valid}
+    | {error, validate_terms_error()}.
 validate_terms(#{terms := Terms}, VS) ->
     #domain_ProvisionTermSet{wallet = WalletTerms} = Terms,
     #domain_WalletProvisionTerms{p2p = P2PTerms} = WalletTerms,
@@ -112,7 +107,7 @@ validate_terms(#{terms := Terms}, VS) ->
         fees = FeeSelector,
         cash_limit = CashLimitSelector
     } = P2PTerms,
-    do(fun () ->
+    do(fun() ->
         valid = unwrap(validate_currencies(CurrenciesSelector, VS)),
         valid = unwrap(validate_fee_term_is_reduced(FeeSelector, VS)),
         valid = unwrap(validate_cash_limit(CashLimitSelector, VS))
@@ -138,7 +133,7 @@ validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
     case hg_cash_range:is_inside(Cash, CashRange) of
         within ->
             {ok, valid};
-        _NotInRange  ->
+        _NotInRange ->
             {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
     end.
 
@@ -150,10 +145,10 @@ decode(ID, #domain_Provider{
 }) ->
     maps:merge(
         #{
-            id               => ID,
-            identity         => Identity,
-            terms            => Terms,
-            accounts         => decode_accounts(Identity, Accounts)
+            id => ID,
+            identity => Identity,
+            terms => Terms,
+            accounts => decode_accounts(Identity, Accounts)
         },
         decode_adapter(Proxy)
     ).
@@ -189,4 +184,3 @@ decode_adapter(#domain_Proxy{ref = ProxyRef, additional = ProviderOpts}) ->
         adapter => ff_woody_client:new(URL),
         adapter_opts => maps:merge(ProviderOpts, ProxyOpts)
     }.
-

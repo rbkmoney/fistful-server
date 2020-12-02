@@ -34,30 +34,27 @@
 %%
 
 -spec cfg(atom(), config()) -> term().
-
 cfg(Key, Config) ->
     case lists:keyfind(Key, 1, Config) of
         {Key, V} -> V;
-        _        -> error({'ct config entry missing', Key})
+        _ -> error({'ct config entry missing', Key})
     end.
 
 -spec cfg(atom(), _, config()) -> config().
-
 cfg(Key, Value, Config) ->
     lists:keystore(Key, 1, Config, {Key, Value}).
 
 %%
 
--type app_name()     :: atom().
--type app_env()      :: [{atom(), term()}].
+-type app_name() :: atom().
+-type app_env() :: [{atom(), term()}].
 -type app_with_env() :: {app_name(), app_env()}.
--type startup_ctx()  :: #{atom() => _}.
+-type startup_ctx() :: #{atom() => _}.
 
 -spec start_apps([app_name() | app_with_env()]) -> {[Started :: app_name()], startup_ctx()}.
-
 start_apps(AppNames) ->
     lists:foldl(
-        fun (AppName, {SAcc, CtxAcc}) ->
+        fun(AppName, {SAcc, CtxAcc}) ->
             {Started, Ctx} = start_app(AppName),
             {SAcc ++ Started, maps:merge(CtxAcc, Ctx)}
         end,
@@ -66,153 +63,144 @@ start_apps(AppNames) ->
     ).
 
 -spec start_app(app_name() | app_with_env()) -> {[Started :: app_name()], startup_ctx()}.
-
 start_app(scoper = AppName) ->
     {start_app_with(AppName, [
-        {storage, scoper_storage_logger}
-    ]), #{}};
-
+            {storage, scoper_storage_logger}
+        ]), #{}};
 start_app(woody = AppName) ->
     {start_app_with(AppName, [
-        {acceptors_pool_size, 4}
-    ]), #{}};
-
+            {acceptors_pool_size, 4}
+        ]), #{}};
 start_app(dmt_client = AppName) ->
     {start_app_with(AppName, [
-        {cache_update_interval, 500}, % milliseconds
-        {max_cache_size, #{
-            elements => 1,
-            memory => 52428800 % 50Mb
-        }},
-        {woody_event_handlers, [
-            {scoper_woody_event_handler, #{}}
-        ]},
-        {service_urls, #{
-            'Repository'       => <<"http://dominant:8022/v1/domain/repository">>,
-            'RepositoryClient' => <<"http://dominant:8022/v1/domain/repository_client">>
-        }}
-    ]), #{}};
-
+            % milliseconds
+            {cache_update_interval, 500},
+            {max_cache_size, #{
+                elements => 1,
+                % 50Mb
+                memory => 52428800
+            }},
+            {woody_event_handlers, [
+                {scoper_woody_event_handler, #{}}
+            ]},
+            {service_urls, #{
+                'Repository' => <<"http://dominant:8022/v1/domain/repository">>,
+                'RepositoryClient' => <<"http://dominant:8022/v1/domain/repository_client">>
+            }}
+        ]), #{}};
 start_app(wapi = AppName) ->
     {start_app_with(AppName, [
-        {ip, "::"},
-        {port, 8080},
-        {realm, <<"external">>},
-        {public_endpoint, <<"localhost:8080">>},
-        {access_conf, #{
-            jwt => #{
-                keyset => #{
-                    wapi     => {pem_file, "/opt/wapi/config/private.pem"}
+            {ip, "::"},
+            {port, 8080},
+            {realm, <<"external">>},
+            {public_endpoint, <<"localhost:8080">>},
+            {access_conf, #{
+                jwt => #{
+                    keyset => #{
+                        wapi => {pem_file, "/opt/wapi/config/private.pem"}
+                    }
                 }
-            }
-        }},
-        {signee, wapi},
-        {lechiffre_opts,  #{
-            encryption_key_path => "/opt/wapi/config/jwk.json",
-            decryption_key_paths => [
-                "/opt/wapi/config/jwk.json"
-            ]
-        }},
-        {swagger_handler_opts, #{
-            validation_opts => #{
-                custom_validator => wapi_swagger_validator
-            }
-        }},
-        {events_fetch_limit, 32}
-    ]), #{}};
-
+            }},
+            {signee, wapi},
+            {lechiffre_opts, #{
+                encryption_key_path => "/opt/wapi/config/jwk.json",
+                decryption_key_paths => [
+                    "/opt/wapi/config/jwk.json"
+                ]
+            }},
+            {swagger_handler_opts, #{
+                validation_opts => #{
+                    custom_validator => wapi_swagger_validator
+                }
+            }},
+            {events_fetch_limit, 32}
+        ]), #{}};
 start_app(wapi_woody_client = AppName) ->
     {start_app_with(AppName, [
-        {service_urls, #{
-            cds_storage => "http://cds:8022/v1/storage",
-            identdoc_storage => "http://cds:8022/v1/identity_document_storage",
-            fistful_stat => "http://fistful-magista:8022/stat",
-            fistful_wallet => "http://localhost:8022/v1/wallet",
-            fistful_identity => "http://localhost:8022/v1/identity",
-            fistful_destination => "http://localhost:8022/v1/destination",
-            fistful_withdrawal => "http://localhost:8022/v1/withdrawal",
-            fistful_w2w_transfer => "http://localhost:8022/v1/w2w_transfer",
-            fistful_p2p_template => "http://localhost:8022/v1/p2p_template",
-            fistful_p2p_transfer => "http://localhost:8022/v1/p2p_transfer",
-            fistful_p2p_session => "http://localhost:8022/v1/p2p_transfer/session"
-        }},
-        {service_retries, #{
-            fistful_stat    => #{
-                'GetWallets'   => {linear, 3, 1000},
-                '_'            => finish
-            }
-        }},
-        {api_deadlines, #{
-            fistful_stat => 5000
-        }}
-    ]), #{}};
-
+            {service_urls, #{
+                cds_storage => "http://cds:8022/v1/storage",
+                identdoc_storage => "http://cds:8022/v1/identity_document_storage",
+                fistful_stat => "http://fistful-magista:8022/stat",
+                fistful_wallet => "http://localhost:8022/v1/wallet",
+                fistful_identity => "http://localhost:8022/v1/identity",
+                fistful_destination => "http://localhost:8022/v1/destination",
+                fistful_withdrawal => "http://localhost:8022/v1/withdrawal",
+                fistful_w2w_transfer => "http://localhost:8022/v1/w2w_transfer",
+                fistful_p2p_template => "http://localhost:8022/v1/p2p_template",
+                fistful_p2p_transfer => "http://localhost:8022/v1/p2p_transfer",
+                fistful_p2p_session => "http://localhost:8022/v1/p2p_transfer/session"
+            }},
+            {service_retries, #{
+                fistful_stat => #{
+                    'GetWallets' => {linear, 3, 1000},
+                    '_' => finish
+                }
+            }},
+            {api_deadlines, #{
+                fistful_stat => 5000
+            }}
+        ]), #{}};
 start_app(ff_server = AppName) ->
     {start_app_with(AppName, [
-        {ip, "::"},
-        {port, 8022},
-        {admin, #{
-            path => <<"/v1/admin">>
-        }},
-        {eventsink, #{
-            identity => #{
-                namespace => 'ff/identity'
-            },
-            wallet => #{
-                namespace => 'ff/wallet_v2'
-            },
-            withdrawal => #{
-                namespace => 'ff/withdrawal_v2'
-            },
-            deposit => #{
-                namespace => 'ff/deposit_v1'
-            },
-            destination => #{
-                namespace => 'ff/destination_v2'
-            },
-            source => #{
-                namespace => 'ff/source_v1'
-            },
-            withdrawal_session => #{
-                namespace => 'ff/withdrawal/session_v2'
-            },
-            p2p_transfer => #{
-                namespace => 'ff/p2p_transfer_v1'
-            },
-            p2p_session => #{
-                namespace => 'ff/p2p_transfer/session_v1'
-            },
-            w2w_transfer => #{
-                namespace => 'ff/w2w_transfer_v1'
-            },
-            p2p_template => #{
-                namespace => 'ff/p2p_template_v1'
-            }
-        }}
-    ]), #{}};
-
+            {ip, "::"},
+            {port, 8022},
+            {admin, #{
+                path => <<"/v1/admin">>
+            }},
+            {eventsink, #{
+                identity => #{
+                    namespace => 'ff/identity'
+                },
+                wallet => #{
+                    namespace => 'ff/wallet_v2'
+                },
+                withdrawal => #{
+                    namespace => 'ff/withdrawal_v2'
+                },
+                deposit => #{
+                    namespace => 'ff/deposit_v1'
+                },
+                destination => #{
+                    namespace => 'ff/destination_v2'
+                },
+                source => #{
+                    namespace => 'ff/source_v1'
+                },
+                withdrawal_session => #{
+                    namespace => 'ff/withdrawal/session_v2'
+                },
+                p2p_transfer => #{
+                    namespace => 'ff/p2p_transfer_v1'
+                },
+                p2p_session => #{
+                    namespace => 'ff/p2p_transfer/session_v1'
+                },
+                w2w_transfer => #{
+                    namespace => 'ff/w2w_transfer_v1'
+                },
+                p2p_template => #{
+                    namespace => 'ff/p2p_template_v1'
+                }
+            }}
+        ]), #{}};
 start_app(bender_client = AppName) ->
     {start_app_with(AppName, [
-        {services, #{
-            'Bender' => <<"http://bender:8022/v1/bender">>,
-            'Generator' => <<"http://bender:8022/v1/generator">>
-        }},
-        {deadline, 60000}
-    ]), #{}};
-
+            {services, #{
+                'Bender' => <<"http://bender:8022/v1/bender">>,
+                'Generator' => <<"http://bender:8022/v1/generator">>
+            }},
+            {deadline, 60000}
+        ]), #{}};
 start_app(p2p = AppName) ->
     {start_app_with(AppName, [
-        {score_id, <<"fraud">>}
-    ]), #{}};
-
+            {score_id, <<"fraud">>}
+        ]), #{}};
 start_app({AppName, AppEnv}) ->
     {start_app_with(AppName, AppEnv), #{}};
-
 start_app(AppName) ->
     {start_app_with(AppName, []), #{}}.
 
 -spec start_app_with(app_name(), app_env()) -> [app_name()].
-
 start_app_with(AppName, Env) ->
     _ = application:load(AppName),
     _ = set_app_env(AppName, Env),
@@ -225,19 +213,17 @@ start_app_with(AppName, Env) ->
 
 set_app_env(AppName, Env) ->
     lists:foreach(
-        fun ({K, V}) ->
+        fun({K, V}) ->
             ok = application:set_env(AppName, K, V)
         end,
         Env
     ).
 
 -spec stop_apps([app_name()]) -> ok.
-
 stop_apps(AppNames) ->
     lists:foreach(fun stop_app/1, lists:reverse(AppNames)).
 
 -spec stop_app(app_name()) -> ok.
-
 stop_app(AppName) ->
     case application:stop(AppName) of
         ok ->
@@ -252,15 +238,15 @@ stop_app(AppName) ->
     end.
 
 -spec set_context(config()) -> ok.
-
 set_context(C) ->
-    ok = ff_context:save(ff_context:create(#{
-        party_client => party_client:create_client(),
-        woody_context => cfg('$woody_ctx', C)
-    })).
+    ok = ff_context:save(
+        ff_context:create(#{
+            party_client => party_client:create_client(),
+            woody_context => cfg('$woody_ctx', C)
+        })
+    ).
 
 -spec unset_context() -> ok.
-
 unset_context() ->
     ok = ff_context:cleanup().
 
@@ -269,14 +255,12 @@ unset_context() ->
 -type config_mut_fun() :: fun((config()) -> config()).
 
 -spec makeup_cfg([config_mut_fun()], config()) -> config().
-
 makeup_cfg(CMFs, C0) ->
-    lists:foldl(fun (CMF, C) -> CMF(C) end, C0, CMFs).
+    lists:foldl(fun(CMF, C) -> CMF(C) end, C0, CMFs).
 
 -spec woody_ctx() -> config_mut_fun().
-
 woody_ctx() ->
-    fun (C) -> cfg('$woody_ctx', construct_woody_ctx(C), C) end.
+    fun(C) -> cfg('$woody_ctx', construct_woody_ctx(C), C) end.
 
 construct_woody_ctx(C) ->
     woody_context:new(construct_rpc_id(get_test_case_name(C))).
@@ -289,33 +273,26 @@ construct_rpc_id(TestCaseName) ->
     ).
 
 -spec get_woody_ctx(config()) -> woody_context:ctx().
-
 get_woody_ctx(C) ->
     cfg('$woody_ctx', C).
 
 %%
 
 -spec test_case_name(test_case_name()) -> config_mut_fun().
-
 test_case_name(TestCaseName) ->
-    fun (C) -> cfg('$test_case_name', TestCaseName, C) end.
+    fun(C) -> cfg('$test_case_name', TestCaseName, C) end.
 
 -spec get_test_case_name(config()) -> test_case_name().
-
 get_test_case_name(C) ->
     cfg('$test_case_name', C).
 
 %%
 
--spec await(Expect, fun(() -> Expect | _)) ->
-    Expect.
-
+-spec await(Expect, fun(() -> Expect | _)) -> Expect.
 await(Expect, Compute) ->
     await(Expect, Compute, genlib_retry:linear(3, 1000)).
 
--spec await(Expect, fun(() -> Expect | _), genlib_retry:strategy()) ->
-    Expect.
-
+-spec await(Expect, fun(() -> Expect | _), genlib_retry:strategy()) -> Expect.
 await(Expect, Compute, Retry0) ->
     case Compute() of
         Expect ->

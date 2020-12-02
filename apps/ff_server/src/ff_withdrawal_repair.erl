@@ -12,8 +12,7 @@
 %% ff_woody_wrapper callbacks
 %%
 
--spec handle_function(woody:func(), woody:args(), options()) ->
-    {ok, woody:result()} | no_return().
+-spec handle_function(woody:func(), woody:args(), options()) -> {ok, woody:result()} | no_return().
 handle_function('Repair', [ID, Scenario], _Opts) ->
     DecodedScenario = ff_withdrawal_codec:unmarshal(repair_scenario, Scenario),
     case ff_withdrawal_machine:repair(ID, DecodedScenario) of

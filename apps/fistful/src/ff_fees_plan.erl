@@ -19,13 +19,11 @@
 
 -import(ff_pipeline, [do/1, unwrap/2]).
 
--spec surplus(fees()) ->
-    cash_volume() | undefined.
+-spec surplus(fees()) -> cash_volume() | undefined.
 surplus(#{fees := Fees}) ->
     maps:get(surplus, Fees, undefined).
 
--spec unmarshal(dmsl_domain_thrift:'Fees'()) ->
-    fees().
+-spec unmarshal(dmsl_domain_thrift:'Fees'()) -> fees().
 unmarshal(#domain_Fees{fees = Fees}) ->
     DecodedFees = maps:map(
         fun(_Key, Value) ->
@@ -35,8 +33,7 @@ unmarshal(#domain_Fees{fees = Fees}) ->
     ),
     #{fees => DecodedFees}.
 
--spec compute(fees(), cash()) ->
-    {ok, ff_fees_final:fees()} | {error, computation_error()}.
+-spec compute(fees(), cash()) -> {ok, ff_fees_final:fees()} | {error, computation_error()}.
 compute(#{fees := Fees}, Cash) ->
     Constants = #{operation_amount => Cash},
     do(fun() ->

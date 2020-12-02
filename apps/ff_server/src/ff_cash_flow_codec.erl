@@ -9,12 +9,9 @@
 
 %% API
 
--spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
-    ff_codec:encoded_value().
-
+-spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
-
 marshal(final_cash_flow, #{postings := Postings}) ->
     #cashflow_FinalCashFlow{
         postings = marshal({list, postings}, Postings)
@@ -27,10 +24,10 @@ marshal(postings, Posting) ->
     } = Posting,
     Details = maps:get(details, Posting, undefined),
     #cashflow_FinalCashFlowPosting{
-        source      = marshal(final_cash_flow_account, Sender),
+        source = marshal(final_cash_flow_account, Sender),
         destination = marshal(final_cash_flow_account, Receiver),
-        volume      = marshal(cash, Cash),
-        details     = marshal(string, Details)
+        volume = marshal(cash, Cash),
+        details = marshal(string, Details)
     };
 marshal(final_cash_flow_account, #{
     account := Account,
@@ -38,25 +35,20 @@ marshal(final_cash_flow_account, #{
 }) ->
     #{id := AccountID} = Account,
     #cashflow_FinalCashFlowAccount{
-        account_type   = marshal(account_type, AccountType),
-        account_id     = marshal(id, AccountID), % for compatability, deprecate
-        account        = ff_codec:marshal(account, Account)
+        account_type = marshal(account_type, AccountType),
+        % for compatability, deprecate
+        account_id = marshal(id, AccountID),
+        account = ff_codec:marshal(account, Account)
     };
-
 marshal(account_type, CashflowAccount) ->
     % Mapped to thrift type WalletCashFlowAccount as is
     CashflowAccount;
-
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-
--spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
-    ff_codec:decoded_value().
-
+-spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) -> ff_codec:decoded_value().
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
-
 unmarshal(final_cash_flow, #cashflow_FinalCashFlow{
     postings = Postings
 }) ->
@@ -70,24 +62,22 @@ unmarshal(postings, #cashflow_FinalCashFlowPosting{
     details = Details
 }) ->
     genlib_map:compact(#{
-        sender      => unmarshal(final_cash_flow_account, Source),
-        receiver    => unmarshal(final_cash_flow_account, Destination),
-        volume      => unmarshal(cash, Cash),
-        details     => maybe_unmarshal(string, Details)
+        sender => unmarshal(final_cash_flow_account, Source),
+        receiver => unmarshal(final_cash_flow_account, Destination),
+        volume => unmarshal(cash, Cash),
+        details => maybe_unmarshal(string, Details)
     });
 unmarshal(final_cash_flow_account, #cashflow_FinalCashFlowAccount{
     account_type = AccountType,
-    account      = Account
+    account = Account
 }) ->
     #{
         account => ff_codec:unmarshal(account, Account),
-        type    => unmarshal(account_type, AccountType)
+        type => unmarshal(account_type, AccountType)
     };
-
 unmarshal(account_type, CashflowAccount) ->
     % Mapped to thrift type WalletCashFlowAccount as is
     CashflowAccount;
-
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
@@ -102,9 +92,11 @@ maybe_unmarshal(Type, Value) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
 -spec test() -> _.
 
 -spec final_cash_flow_symmetry_test() -> _.
+
 final_cash_flow_symmetry_test() ->
     PostingFn = fun() ->
         #{

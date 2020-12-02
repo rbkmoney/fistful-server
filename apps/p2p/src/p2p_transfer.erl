@@ -86,33 +86,33 @@
 }.
 
 -type status() ::
-    pending         |
-    succeeded       |
-    {failed, failure()} .
+    pending
+    | succeeded
+    | {failed, failure()}.
 
 -type event() ::
-    {created, p2p_transfer()} |
-    {resource_got, resource(), resource()} |
-    {risk_score_changed, risk_score()} |
-    {route_changed, route()} |
-    {p_transfer, ff_postings_transfer:event()} |
-    {session, session_event()} |
-    {status_changed, status()} |
-    wrapped_adjustment_event().
+    {created, p2p_transfer()}
+    | {resource_got, resource(), resource()}
+    | {risk_score_changed, risk_score()}
+    | {route_changed, route()}
+    | {p_transfer, ff_postings_transfer:event()}
+    | {session, session_event()}
+    | {status_changed, status()}
+    | wrapped_adjustment_event().
 
 -type session_event() :: {session_id(), session_event_payload()}.
 
 -type session_event_payload() ::
-    started |
-    {finished, session_result()}.
+    started
+    | {finished, session_result()}.
 
 -type resource_owner() :: sender | receiver.
 
 -type create_error() ::
-    {identity, notfound} |
-    {terms, ff_party:validate_p2p_error()} |
-    {resource_owner(), {bin_data, ff_bin_data:bin_data_error()}} |
-    {resource_owner(), different_resource}.
+    {identity, notfound}
+    | {terms, ff_party:validate_p2p_error()}
+    | {resource_owner(), {bin_data, ff_bin_data:bin_data_error()}}
+    | {resource_owner(), different_resource}.
 
 -type route() :: #{
     version := 1,
@@ -129,16 +129,16 @@
     {change_status, status()}.
 
 -type start_adjustment_error() ::
-    invalid_p2p_transfer_status_error() |
-    invalid_status_change_error() |
-    {another_adjustment_in_progress, adjustment_id()} |
-    ff_adjustment:create_error().
+    invalid_p2p_transfer_status_error()
+    | invalid_status_change_error()
+    | {another_adjustment_in_progress, adjustment_id()}
+    | ff_adjustment:create_error().
 
 -type unknown_adjustment_error() :: ff_adjustment_utils:unknown_adjustment_error().
 
 -type invalid_status_change_error() ::
-    {invalid_status_change, {unavailable_status, status()}} |
-    {invalid_status_change, {already_has_status, status()}}.
+    {invalid_status_change, {unavailable_status, status()}}
+    | {invalid_status_change, {already_has_status, status()}}.
 
 -type invalid_p2p_transfer_status_error() ::
     {invalid_p2p_transfer_status, status()}.
@@ -230,7 +230,7 @@
 -type resource() :: ff_resource:resource().
 -type contract_params() :: p2p_party:contract_params().
 -type deadline() :: p2p_session:deadline().
--type metadata()    :: ff_entity_context:md().
+-type metadata() :: ff_entity_context:md().
 
 -type wrapped_adjustment_event() :: ff_adjustment_utils:wrapped_event().
 
@@ -244,41 +244,37 @@
 }.
 
 -type activity() ::
-    risk_scoring |
-    routing |
-    p_transfer_start |
-    p_transfer_prepare |
-    session_starting |
-    session_polling |
-    p_transfer_commit |
-    p_transfer_cancel |
-    {fail, fail_type()} |
-    adjustment |
-    finish.
+    risk_scoring
+    | routing
+    | p_transfer_start
+    | p_transfer_prepare
+    | session_starting
+    | session_polling
+    | p_transfer_commit
+    | p_transfer_cancel
+    | {fail, fail_type()}
+    | adjustment
+    | finish.
 
 -type fail_type() ::
-    route_not_found |
-    session.
+    route_not_found
+    | session.
 
 %% Accessors
 
--spec sender(p2p_transfer_state()) ->
-    participant().
+-spec sender(p2p_transfer_state()) -> participant().
 sender(#{sender := Sender}) ->
     Sender.
 
--spec receiver(p2p_transfer_state()) ->
-    participant().
+-spec receiver(p2p_transfer_state()) -> participant().
 receiver(#{receiver := Receiver}) ->
     Receiver.
 
--spec sender_resource(p2p_transfer_state()) ->
-    resource() | undefined.
+-spec sender_resource(p2p_transfer_state()) -> resource() | undefined.
 sender_resource(T) ->
     maps:get(sender_resource, T, undefined).
 
--spec receiver_resource(p2p_transfer_state()) ->
-    resource() | undefined.
+-spec receiver_resource(p2p_transfer_state()) -> resource() | undefined.
 receiver_resource(T) ->
     maps:get(receiver_resource, T, undefined).
 
@@ -340,9 +336,7 @@ deadline(T) ->
 client_info(T) ->
     maps:get(client_info, T, undefined).
 
--spec metadata(p2p_transfer_state()) ->
-    metadata() | undefined.
-
+-spec metadata(p2p_transfer_state()) -> metadata() | undefined.
 metadata(T) ->
     maps:get(metadata, T, undefined).
 
@@ -360,8 +354,7 @@ create_varset(Identity, P2PTransferState) ->
     },
     p2p_party:create_varset(Params).
 
--spec merge_contract_params(p2p_quote:quote() | undefined, contract_params()) ->
-    contract_params().
+-spec merge_contract_params(p2p_quote:quote() | undefined, contract_params()) -> contract_params().
 merge_contract_params(undefined, Params) ->
     Params;
 merge_contract_params(Quote, Params) ->
@@ -374,8 +367,8 @@ merge_contract_params(Quote, Params) ->
 %% API
 
 -spec create(params()) ->
-    {ok, [event()]} |
-    {error, create_error()}.
+    {ok, [event()]}
+    | {error, create_error()}.
 create(TransferParams) ->
     do(fun() ->
         #{
@@ -410,51 +403,51 @@ create(TransferParams) ->
         valid = unwrap(terms, ff_party:validate_p2p(Terms, Body)),
 
         [
-            {created, genlib_map:compact(#{
-                version => ?ACTUAL_FORMAT_VERSION,
-                id => ID,
-                owner => IdentityID,
-                body => Body,
-                created_at => CreatedAt,
-                operation_timestamp => OperationTimestamp,
-                external_id => ExternalID,
-                sender => Sender,
-                receiver => Receiver,
-                domain_revision => DomainRevision,
-                party_revision => PartyRevision,
-                quote => build_quote_state(Quote),
-                client_info => ClientInfo,
-                status => pending,
-                deadline => Deadline,
-                metadata => Metadata
-            })},
+            {created,
+                genlib_map:compact(#{
+                    version => ?ACTUAL_FORMAT_VERSION,
+                    id => ID,
+                    owner => IdentityID,
+                    body => Body,
+                    created_at => CreatedAt,
+                    operation_timestamp => OperationTimestamp,
+                    external_id => ExternalID,
+                    sender => Sender,
+                    receiver => Receiver,
+                    domain_revision => DomainRevision,
+                    party_revision => PartyRevision,
+                    quote => build_quote_state(Quote),
+                    client_info => ClientInfo,
+                    status => pending,
+                    deadline => Deadline,
+                    metadata => Metadata
+                })},
             {resource_got, SenderResource, ReceiverResource}
         ]
     end).
 
 validate_transfer_participants(_Sender, _Receiver, undefined) ->
     {ok, valid};
-
 validate_transfer_participants(Sender, Receiver, Quote) ->
     do(fun() ->
-        valid = unwrap(sender,   validate_transfer_participant(Sender,   maps:get(sender, Quote))),
+        valid = unwrap(sender, validate_transfer_participant(Sender, maps:get(sender, Quote))),
         valid = unwrap(receiver, validate_transfer_participant(Receiver, maps:get(receiver, Quote)))
     end).
 
 validate_transfer_participant(Participant, {bank_card, QuotedParticipant}) ->
     Params = get_participant_resource_params(Participant),
-    Token  = maps:get(token, maps:get(bank_card, Params)),
+    Token = maps:get(token, maps:get(bank_card, Params)),
     case maps:get(token, QuotedParticipant) of
         Token -> {ok, valid};
-        _     -> {error, different_resource}
+        _ -> {error, different_resource}
     end.
 
 get_participant_resource_params({raw, #{resource_params := {bank_card, Params}}}) ->
     Params.
 
 -spec start_adjustment(adjustment_params(), p2p_transfer_state()) ->
-    {ok, process_result()} |
-    {error, start_adjustment_error()}.
+    {ok, process_result()}
+    | {error, start_adjustment_error()}.
 start_adjustment(Params, P2PTransferState) ->
     #{id := AdjustmentID} = Params,
     case find_adjustment(AdjustmentID, P2PTransferState) of
@@ -494,8 +487,7 @@ is_finished(#{status := pending}) ->
 
 %% Transfer callbacks
 
--spec process_transfer(p2p_transfer_state()) ->
-    process_result().
+-spec process_transfer(p2p_transfer_state()) -> process_result().
 process_transfer(P2PTransferState) ->
     Activity = deduce_activity(P2PTransferState),
     do_process_transfer(Activity, P2PTransferState).
@@ -503,8 +495,8 @@ process_transfer(P2PTransferState) ->
 %% Internals
 
 -spec do_start_adjustment(adjustment_params(), p2p_transfer_state()) ->
-    {ok, process_result()} |
-    {error, start_adjustment_error()}.
+    {ok, process_result()}
+    | {error, start_adjustment_error()}.
 do_start_adjustment(Params, P2PTransferState) ->
     do(fun() ->
         valid = unwrap(validate_adjustment_start(Params, P2PTransferState)),
@@ -517,9 +509,8 @@ do_start_adjustment(Params, P2PTransferState) ->
 %% Internal getters
 
 -spec prepare_resource(sender | receiver, p2p_participant:participant(), p2p_quote:quote() | undefined) ->
-    {ok, resource()} |
-    {error, {bin_data, ff_bin_data:bin_data_error()}}.
-
+    {ok, resource()}
+    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
 prepare_resource(sender, Params, undefined) ->
     p2p_participant:get_resource(Params);
 prepare_resource(sender, Params, Quote) ->
@@ -584,8 +575,7 @@ effective_final_cash_flow(P2PTransferState) ->
 
 %% Processing helpers
 
--spec deduce_activity(p2p_transfer_state()) ->
-    activity().
+-spec deduce_activity(p2p_transfer_state()) -> activity().
 deduce_activity(P2PTransferState) ->
     Params = #{
         risk_score => risk_score_status(P2PTransferState),
@@ -628,8 +618,7 @@ do_pending_activity(#{p_transfer := cancelled, session := failed}) ->
 do_finished_activity(#{active_adjustment := true}) ->
     adjustment.
 
--spec do_process_transfer(activity(), p2p_transfer_state()) ->
-    process_result().
+-spec do_process_transfer(activity(), p2p_transfer_state()) -> process_result().
 do_process_transfer(risk_scoring, P2PTransferState) ->
     process_risk_scoring(P2PTransferState);
 do_process_transfer(routing, P2PTransferState) ->
@@ -656,16 +645,14 @@ do_process_transfer(finish, P2PTransferState) ->
 do_process_transfer(adjustment, P2PTransferState) ->
     process_adjustment(P2PTransferState).
 
--spec process_risk_scoring(p2p_transfer_state()) ->
-    process_result().
+-spec process_risk_scoring(p2p_transfer_state()) -> process_result().
 process_risk_scoring(P2PTransferState) ->
     RiskScore = do_risk_scoring(P2PTransferState),
     {continue, [
         {risk_score_changed, RiskScore}
     ]}.
 
--spec do_risk_scoring(p2p_transfer_state()) ->
-    risk_score().
+-spec do_risk_scoring(p2p_transfer_state()) -> risk_score().
 do_risk_scoring(P2PTransferState) ->
     DomainRevision = domain_revision(P2PTransferState),
     {ok, Identity} = get_identity(owner(P2PTransferState)),
@@ -674,20 +661,21 @@ do_risk_scoring(P2PTransferState) ->
     PartyVarset = create_varset(Identity, P2PTransferState),
     {ok, InspectorRef} = ff_payment_institution:compute_p2p_inspector(PaymentInstitution, PartyVarset),
     {ok, Inspector} = ff_domain_config:object(
-        DomainRevision, {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}
+        DomainRevision,
+        {p2p_inspector, #domain_P2PInspectorRef{id = InspectorRef}}
     ),
-    Score = case genlib_app:env(p2p, score_id, undefined) of
-        undefined ->
-            _ = logger:warning("Fail to get env RiskScoreID set RiskScore to low"),
-            high;
-        ScoreID ->
-            Scores = p2p_inspector:inspect(P2PTransferState, DomainRevision, [ScoreID], Inspector),
-            maps:get(ScoreID, Scores)
-    end,
+    Score =
+        case genlib_app:env(p2p, score_id, undefined) of
+            undefined ->
+                _ = logger:warning("Fail to get env RiskScoreID set RiskScore to low"),
+                high;
+            ScoreID ->
+                Scores = p2p_inspector:inspect(P2PTransferState, DomainRevision, [ScoreID], Inspector),
+                maps:get(ScoreID, Scores)
+        end,
     ff_dmsl_codec:unmarshal(risk_score, Score).
 
--spec process_routing(p2p_transfer_state()) ->
-    process_result().
+-spec process_routing(p2p_transfer_state()) -> process_result().
 process_routing(P2PTransferState) ->
     case do_process_routing(P2PTransferState) of
         {ok, ProviderID} ->
@@ -701,8 +689,7 @@ process_routing(P2PTransferState) ->
             process_transfer_fail(route_not_found, P2PTransferState)
     end.
 
--spec do_process_routing(p2p_transfer_state()) ->
-    {ok, provider_id()} | {error, route_not_found}.
+-spec do_process_routing(p2p_transfer_state()) -> {ok, provider_id()} | {error, route_not_found}.
 do_process_routing(P2PTransferState) ->
     DomainRevision = domain_revision(P2PTransferState),
     {ok, Identity} = get_identity(owner(P2PTransferState)),
@@ -712,17 +699,14 @@ do_process_routing(P2PTransferState) ->
         unwrap(prepare_route(VarSet, Identity, DomainRevision))
     end).
 
--spec prepare_route(party_varset(), identity(), domain_revision()) ->
-    {ok, provider_id()} | {error, route_not_found}.
-
+-spec prepare_route(party_varset(), identity(), domain_revision()) -> {ok, provider_id()} | {error, route_not_found}.
 prepare_route(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     {ok, Providers} = ff_payment_institution:compute_p2p_transfer_providers(PaymentInstitution, PartyVarset),
     choose_provider(Providers, PartyVarset).
 
--spec choose_provider([provider_id()], party_varset()) ->
-    {ok, provider_id()} | {error, route_not_found}.
+-spec choose_provider([provider_id()], party_varset()) -> {ok, provider_id()} | {error, route_not_found}.
 choose_provider(Providers, VS) ->
     case lists:filter(fun(P) -> validate_p2p_transfers_terms(P, VS) end, Providers) of
         [ProviderID | _] ->
@@ -731,8 +715,7 @@ choose_provider(Providers, VS) ->
             {error, route_not_found}
     end.
 
--spec validate_p2p_transfers_terms(provider_id(), party_varset()) ->
-    boolean().
+-spec validate_p2p_transfers_terms(provider_id(), party_varset()) -> boolean().
 validate_p2p_transfers_terms(ID, VS) ->
     {ok, Provider} = ff_p2p_provider:get(ID),
     case ff_p2p_provider:validate_terms(Provider, VS) of
@@ -742,16 +725,14 @@ validate_p2p_transfers_terms(ID, VS) ->
             false
     end.
 
--spec process_p_transfer_creation(p2p_transfer_state()) ->
-    process_result().
+-spec process_p_transfer_creation(p2p_transfer_state()) -> process_result().
 process_p_transfer_creation(P2PTransferState) ->
     FinalCashFlow = make_final_cash_flow(P2PTransferState),
     PTransferID = construct_p_transfer_id(id(P2PTransferState)),
     {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
     {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
 
--spec process_session_creation(p2p_transfer_state()) ->
-    process_result().
+-spec process_session_creation(p2p_transfer_state()) -> process_result().
 process_session_creation(P2PTransferState) ->
     ID = construct_session_id(id(P2PTransferState)),
     {ProviderFees, MerchantFees} = get_fees(P2PTransferState),
@@ -786,8 +767,7 @@ construct_session_id(ID) ->
 construct_p_transfer_id(ID) ->
     <<"ff/p2p_transfer/", ID/binary>>.
 
--spec get_fees(p2p_transfer_state()) ->
-    {ff_fees_final:fees() | undefined, ff_fees_final:fees() | undefined}.
+-spec get_fees(p2p_transfer_state()) -> {ff_fees_final:fees() | undefined, ff_fees_final:fees() | undefined}.
 get_fees(P2PTransferState) ->
     Route = route(P2PTransferState),
     #{provider_id := ProviderID} = Route,
@@ -806,7 +786,12 @@ get_fees(P2PTransferState) ->
     PartyRevision = party_revision(P2PTransferState),
     DomainRevision = domain_revision(P2PTransferState),
     {ok, Terms} = ff_party:get_contract_terms(
-        PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
+        PartyID,
+        ContractID,
+        PartyVarset,
+        Timestamp,
+        PartyRevision,
+        DomainRevision
     ),
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
@@ -832,22 +817,19 @@ get_provider_fees(Terms, Body, PartyVarset) ->
             undefined
     end.
 
--spec get_merchant_fees(dmsl_domain_thrift:'P2PServiceTerms'(), body()) ->
-    ff_fees_final:fees() | undefined.
+-spec get_merchant_fees(dmsl_domain_thrift:'P2PServiceTerms'(), body()) -> ff_fees_final:fees() | undefined.
 get_merchant_fees(#domain_P2PServiceTerms{fees = undefined}, _Body) ->
     undefined;
 get_merchant_fees(#domain_P2PServiceTerms{fees = {value, MerchantFees}}, Body) ->
     compute_fees(MerchantFees, Body).
 
--spec compute_fees(dmsl_domain_thrift:'Fees'(), body()) ->
-    ff_fees_final:fees().
+-spec compute_fees(dmsl_domain_thrift:'Fees'(), body()) -> ff_fees_final:fees().
 compute_fees(Fees, Body) ->
     DecodedFees = ff_fees_plan:unmarshal(Fees),
     {ok, ComputedFees} = ff_fees_plan:compute(DecodedFees, Body),
     ComputedFees.
 
--spec process_session_poll(p2p_transfer_state()) ->
-    process_result().
+-spec process_session_poll(p2p_transfer_state()) -> process_result().
 process_session_poll(P2PTransferState) ->
     SessionID = session_id(P2PTransferState),
     {ok, SessionMachine} = p2p_session_machine:get(SessionID),
@@ -860,13 +842,11 @@ process_session_poll(P2PTransferState) ->
             {continue, [{session, {SessionID, {finished, Result}}}]}
     end.
 
--spec process_transfer_finish(p2p_transfer_state()) ->
-    process_result().
+-spec process_transfer_finish(p2p_transfer_state()) -> process_result().
 process_transfer_finish(_P2PTransfer) ->
     {undefined, [{status_changed, succeeded}]}.
 
--spec process_transfer_fail(fail_type(), p2p_transfer_state()) ->
-    process_result().
+-spec process_transfer_fail(fail_type(), p2p_transfer_state()) -> process_result().
 process_transfer_fail(FailType, P2PTransferState) ->
     Failure = build_failure(FailType, P2PTransferState),
     {undefined, [{status_changed, {failed, Failure}}]}.
@@ -887,8 +867,7 @@ handle_child_result({_OtherAction, _Events} = Result, _P2PTransfer) ->
 is_childs_active(P2PTransferState) ->
     ff_adjustment_utils:is_active(adjustments_index(P2PTransferState)).
 
--spec make_final_cash_flow(p2p_transfer_state()) ->
-    final_cash_flow().
+-spec make_final_cash_flow(p2p_transfer_state()) -> final_cash_flow().
 make_final_cash_flow(P2PTransferState) ->
     Body = body(P2PTransferState),
     Route = route(P2PTransferState),
@@ -916,7 +895,12 @@ make_final_cash_flow(P2PTransferState) ->
     ProviderFee = ff_p2p_provider:compute_fees(Provider, PartyVarset),
 
     {ok, Terms} = ff_party:get_contract_terms(
-        PartyID, ContractID, PartyVarset, Timestamp, PartyRevision, DomainRevision
+        PartyID,
+        ContractID,
+        PartyVarset,
+        Timestamp,
+        PartyRevision,
+        DomainRevision
     ),
     {ok, P2PCashFlowPlan} = ff_party:get_p2p_cash_flow_plan(Terms),
     {ok, CashFlowPlan} = ff_cash_flow:add_fee(P2PCashFlowPlan, ProviderFee),
@@ -931,16 +915,14 @@ make_final_cash_flow(P2PTransferState) ->
     {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
     FinalCashFlow.
 
--spec get_identity(identity_id()) ->
-    {ok, identity()} | {error, notfound}.
+-spec get_identity(identity_id()) -> {ok, identity()} | {error, notfound}.
 get_identity(IdentityID) ->
     do(fun() ->
         IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
         ff_identity_machine:identity(IdentityMachine)
     end).
 
--spec build_quote_state(quote() | undefined) ->
-    quote_state() | undefined.
+-spec build_quote_state(quote() | undefined) -> quote_state() | undefined.
 build_quote_state(undefined) ->
     undefined;
 build_quote_state(Quote) ->
@@ -987,8 +969,7 @@ session_result(P2PTransferState) ->
             unknown
     end.
 
--spec session_processing_status(p2p_transfer_state()) ->
-    undefined | pending | succeeded | failed.
+-spec session_processing_status(p2p_transfer_state()) -> undefined | pending | succeeded | failed.
 session_processing_status(P2PTransferState) ->
     case session_result(P2PTransferState) of
         undefined ->
@@ -1004,8 +985,8 @@ session_processing_status(P2PTransferState) ->
 %% Adjustment validators
 
 -spec validate_adjustment_start(adjustment_params(), p2p_transfer_state()) ->
-    {ok, valid} |
-    {error, start_adjustment_error()}.
+    {ok, valid}
+    | {error, start_adjustment_error()}.
 validate_adjustment_start(Params, P2PTransferState) ->
     do(fun() ->
         valid = unwrap(validate_no_pending_adjustment(P2PTransferState)),
@@ -1014,8 +995,8 @@ validate_adjustment_start(Params, P2PTransferState) ->
     end).
 
 -spec validate_p2p_transfer_finish(p2p_transfer_state()) ->
-    {ok, valid} |
-    {error, {invalid_p2p_transfer_status, status()}}.
+    {ok, valid}
+    | {error, {invalid_p2p_transfer_status, status()}}.
 validate_p2p_transfer_finish(P2PTransferState) ->
     case is_finished(P2PTransferState) of
         true ->
@@ -1025,8 +1006,8 @@ validate_p2p_transfer_finish(P2PTransferState) ->
     end.
 
 -spec validate_no_pending_adjustment(p2p_transfer_state()) ->
-    {ok, valid} |
-    {error, {another_adjustment_in_progress, adjustment_id()}}.
+    {ok, valid}
+    | {error, {another_adjustment_in_progress, adjustment_id()}}.
 validate_no_pending_adjustment(P2PTransferState) ->
     case ff_adjustment_utils:get_not_finished(adjustments_index(P2PTransferState)) of
         error ->
@@ -1036,8 +1017,8 @@ validate_no_pending_adjustment(P2PTransferState) ->
     end.
 
 -spec validate_status_change(adjustment_params(), p2p_transfer_state()) ->
-    {ok, valid} |
-    {error, invalid_status_change_error()}.
+    {ok, valid}
+    | {error, invalid_status_change_error()}.
 validate_status_change(#{change := {change_status, Status}}, P2PTransferState) ->
     do(fun() ->
         valid = unwrap(invalid_status_change, validate_target_status(Status)),
@@ -1047,8 +1028,8 @@ validate_status_change(_Params, _P2PTransfer) ->
     {ok, valid}.
 
 -spec validate_target_status(status()) ->
-    {ok, valid} |
-    {error, {unavailable_status, status()}}.
+    {ok, valid}
+    | {error, {unavailable_status, status()}}.
 validate_target_status(succeeded) ->
     {ok, valid};
 validate_target_status({failed, _Failure}) ->
@@ -1057,8 +1038,8 @@ validate_target_status(Status) ->
     {error, {unavailable_status, Status}}.
 
 -spec validate_change_same_status(status(), status()) ->
-    {ok, valid} |
-    {error, {already_has_status, status()}}.
+    {ok, valid}
+    | {error, {already_has_status, status()}}.
 validate_change_same_status(NewStatus, OldStatus) when NewStatus =/= OldStatus ->
     {ok, valid};
 validate_change_same_status(Status, Status) ->
@@ -1072,8 +1053,7 @@ apply_adjustment_event(WrappedEvent, P2PTransferState) ->
     Adjustments1 = ff_adjustment_utils:apply_event(WrappedEvent, Adjustments0),
     set_adjustments_index(Adjustments1, P2PTransferState).
 
--spec make_adjustment_params(adjustment_params(), p2p_transfer_state()) ->
-    ff_adjustment:params().
+-spec make_adjustment_params(adjustment_params(), p2p_transfer_state()) -> ff_adjustment:params().
 make_adjustment_params(Params, P2PTransferState) ->
     #{id := ID, change := Change} = Params,
     genlib_map:compact(#{
@@ -1085,14 +1065,12 @@ make_adjustment_params(Params, P2PTransferState) ->
         operation_timestamp => created_at(P2PTransferState)
     }).
 
--spec make_adjustment_change(adjustment_change(), p2p_transfer_state()) ->
-    ff_adjustment:changes().
+-spec make_adjustment_change(adjustment_change(), p2p_transfer_state()) -> ff_adjustment:changes().
 make_adjustment_change({change_status, NewStatus}, P2PTransferState) ->
     CurrentStatus = status(P2PTransferState),
     make_change_status_params(CurrentStatus, NewStatus, P2PTransferState).
 
--spec make_change_status_params(status(), status(), p2p_transfer_state()) ->
-    ff_adjustment:changes().
+-spec make_change_status_params(status(), status(), p2p_transfer_state()) -> ff_adjustment:changes().
 make_change_status_params(succeeded, {failed, _} = NewStatus, P2PTransferState) ->
     CurrentCashFlow = effective_final_cash_flow(P2PTransferState),
     NewCashFlow = ff_cash_flow:make_empty_final(),
@@ -1124,8 +1102,7 @@ make_change_status_params({failed, _}, {failed, _} = NewStatus, _P2PTransfer) ->
         }
     }.
 
--spec process_adjustment(p2p_transfer_state()) ->
-    process_result().
+-spec process_adjustment(p2p_transfer_state()) -> process_result().
 process_adjustment(P2PTransferState) ->
     #{
         action := Action,
@@ -1135,14 +1112,12 @@ process_adjustment(P2PTransferState) ->
     Events1 = Events0 ++ handle_adjustment_changes(Changes),
     handle_child_result({Action, Events1}, P2PTransferState).
 
--spec handle_adjustment_changes(ff_adjustment:changes()) ->
-    [event()].
+-spec handle_adjustment_changes(ff_adjustment:changes()) -> [event()].
 handle_adjustment_changes(Changes) ->
     StatusChange = maps:get(new_status, Changes, undefined),
     handle_adjustment_status_change(StatusChange).
 
--spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) ->
-    [event()].
+-spec handle_adjustment_status_change(ff_adjustment:status_change() | undefined) -> [event()].
 handle_adjustment_status_change(undefined) ->
     [];
 handle_adjustment_status_change(#{new_status := Status}) ->
@@ -1181,15 +1156,13 @@ validate_definition(_Tag, Value) ->
 
 %%
 
--spec apply_event(event() | legacy_event(), ff_maybe:maybe(p2p_transfer_state())) ->
-    p2p_transfer_state().
+-spec apply_event(event() | legacy_event(), ff_maybe:maybe(p2p_transfer_state())) -> p2p_transfer_state().
 apply_event(Ev, T0) ->
     T1 = apply_event_(Ev, T0),
     T2 = save_adjustable_info(Ev, T1),
     T2.
 
--spec apply_event_(event(), ff_maybe:maybe(p2p_transfer_state())) ->
-    p2p_transfer_state().
+-spec apply_event_(event(), ff_maybe:maybe(p2p_transfer_state())) -> p2p_transfer_state().
 apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, Status}, T) ->

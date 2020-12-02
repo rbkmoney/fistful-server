@@ -25,9 +25,7 @@
 -type result(T, E) ::
     {ok, T} | {error, E}.
 
--spec do(fun(() -> ok | T | thrown(E))) ->
-    ok | result(T, E).
-
+-spec do(fun(() -> ok | T | thrown(E))) -> ok | result(T, E).
 do(Fun) ->
     try Fun() of
         ok ->
@@ -38,17 +36,14 @@ do(Fun) ->
         Thrown -> {error, Thrown}
     end.
 
--spec do(Tag, fun(() -> ok | T | thrown(E))) ->
-    ok | result(T, {Tag, E}).
-
+-spec do(Tag, fun(() -> ok | T | thrown(E))) -> ok | result(T, {Tag, E}).
 do(Tag, Fun) ->
-    do(fun () -> unwrap(Tag, do(Fun)) end).
+    do(fun() -> unwrap(Tag, do(Fun)) end).
 
 -spec unwrap
-    (ok)         -> ok;
-    ({ok, V})    -> V;
+    (ok) -> ok;
+    ({ok, V}) -> V;
     ({error, E}) -> thrown(E).
-
 unwrap(ok) ->
     ok;
 unwrap({ok, V}) ->
@@ -57,10 +52,9 @@ unwrap({error, E}) ->
     throw(E).
 
 -spec expect
-    (_E, ok)         -> ok;
-    (_E, {ok, V})    -> V;
-    ( E, {error, _}) -> thrown(E).
-
+    (_E, ok) -> ok;
+    (_E, {ok, V}) -> V;
+    (E, {error, _}) -> thrown(E).
 expect(_, ok) ->
     ok;
 expect(_, {ok, V}) ->
@@ -68,19 +62,16 @@ expect(_, {ok, V}) ->
 expect(E, {error, _}) ->
     throw(E).
 
--spec flip(result(T, E)) ->
-    result(E, T).
-
+-spec flip(result(T, E)) -> result(E, T).
 flip({ok, T}) ->
     {error, T};
 flip({error, E}) ->
     {ok, E}.
 
 -spec unwrap
-    (_Tag, ok)         -> ok;
-    (_Tag, {ok, V})    -> V;
-    ( Tag, {error, E}) -> thrown({Tag, E}).
-
+    (_Tag, ok) -> ok;
+    (_Tag, {ok, V}) -> V;
+    (Tag, {error, E}) -> thrown({Tag, E}).
 unwrap(_, ok) ->
     ok;
 unwrap(_, {ok, V}) ->
@@ -88,9 +79,7 @@ unwrap(_, {ok, V}) ->
 unwrap(Tag, {error, E}) ->
     throw({Tag, E}).
 
--spec valid(T, T) ->
-    ok | {error, T}.
-
+-spec valid(T, T) -> ok | {error, T}.
 valid(V, V) ->
     ok;
 valid(_, V) ->
@@ -103,12 +92,10 @@ valid(_, V) ->
 -type outcome(E, R) ::
     {ok, [E]} | {error, R}.
 
--spec with(Sub, St, fun((SubSt | undefined) -> outcome(SubEv, Reason))) ->
-    outcome({Sub, SubEv}, {Sub, Reason}) when
-        Sub   :: atom(),
-        St    :: #{Sub => SubSt},
-        SubSt :: _.
-
+-spec with(Sub, St, fun((SubSt | undefined) -> outcome(SubEv, Reason))) -> outcome({Sub, SubEv}, {Sub, Reason}) when
+    Sub :: atom(),
+    St :: #{Sub => SubSt},
+    SubSt :: _.
 with(Model, St, F) ->
     case F(maps:get(Model, St, undefined)) of
         {ok, Events0} when is_list(Events0) ->

@@ -27,14 +27,12 @@
 -export([latest_clock/0]).
 
 -spec latest_clock() -> clock().
-
 latest_clock() ->
     new(?TYPE_LATEST).
 
 -spec marshal(kind(), clock()) ->
-    ff_proto_transfer_thrift:'Clock'() |
-    shumpune_shumpune_thrift:'Clock'().
-
+    ff_proto_transfer_thrift:'Clock'()
+    | shumpune_shumpune_thrift:'Clock'().
 marshal(transfer, #{type := ?TYPE_LATEST = Type}) ->
     {Type, #transfer_LatestClock{}};
 marshal(transfer, #{type := ?TYPE_VECTOR = Type, state := State}) ->
@@ -44,10 +42,10 @@ marshal(shumpune, #{type := ?TYPE_LATEST = Type}) ->
 marshal(shumpune, #{type := ?TYPE_VECTOR = Type, state := State}) ->
     {Type, #shumpune_VectorClock{state = State}}.
 
--spec unmarshal(kind(), Clock) -> clock()
-    when Clock :: ff_proto_transfer_thrift:'Clock'() |
-                  shumpune_shumpune_thrift:'Clock'().
-
+-spec unmarshal(kind(), Clock) -> clock() when
+    Clock ::
+        ff_proto_transfer_thrift:'Clock'()
+        | shumpune_shumpune_thrift:'Clock'().
 unmarshal(transfer, {?TYPE_LATEST = Type, #transfer_LatestClock{}}) ->
     new(Type);
 unmarshal(transfer, {?TYPE_VECTOR = Type, #transfer_VectorClock{state = State}}) ->
@@ -66,5 +64,5 @@ unmarshal(shumpune, {?TYPE_VECTOR = Type, #shumpune_VectorClock{state = State}})
 new(Type) ->
     #{
         version => ?VERSION,
-        type    => Type
+        type => Type
     }.

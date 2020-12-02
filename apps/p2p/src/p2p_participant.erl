@@ -29,13 +29,11 @@
 
 -import(ff_pipeline, [do/1, unwrap/1]).
 
--spec contact_info(participant()) ->
-    contact_info().
+-spec contact_info(participant()) -> contact_info().
 contact_info({raw, Raw}) ->
     maps:get(contact_info, Raw).
 
--spec create(raw, resource_params(), contact_info()) ->
-    participant().
+-spec create(raw, resource_params(), contact_info()) -> participant().
 create(raw, ResourceParams, ContactInfo) ->
     {raw, #{
         resource_params => ResourceParams,
@@ -43,14 +41,14 @@ create(raw, ResourceParams, ContactInfo) ->
     }}.
 
 -spec get_resource(participant()) ->
-    {ok, resource()} |
-    {error, {bin_data, ff_bin_data:bin_data_error()}}.
+    {ok, resource()}
+    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
 get_resource(Participant) ->
     get_resource(Participant, undefined).
 
 -spec get_resource(participant(), resource_descriptor() | undefined) ->
-    {ok, resource()} |
-    {error, {bin_data, ff_bin_data:bin_data_error()}}.
+    {ok, resource()}
+    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
 get_resource({raw, #{resource_params := ResourceParams}}, ResourceID) ->
     do(fun() ->
         unwrap(ff_resource:create_resource(ResourceParams, ResourceID))

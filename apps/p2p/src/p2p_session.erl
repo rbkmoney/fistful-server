@@ -68,26 +68,26 @@
 }.
 
 -type status() ::
-    active |
-    {finished, session_result()}.
+    active
+    | {finished, session_result()}.
 
 -type event() ::
-    {created, session()} |
-    {next_state, adapter_state()} |
-    {transaction_bound, transaction_info()} |
-    {finished, session_result()} |
-    wrapped_callback_event() |
-    wrapped_user_interaction_event().
+    {created, session()}
+    | {next_state, adapter_state()}
+    | {transaction_bound, transaction_info()}
+    | {finished, session_result()}
+    | wrapped_callback_event()
+    | wrapped_user_interaction_event().
 
 -type wrapped_callback_event() :: p2p_callback_utils:wrapped_event().
 -type wrapped_user_interaction_event() :: p2p_user_interaction_utils:wrapped_event().
 
 -type transfer_params() :: #{
-    id            := id(),
-    body          := body(),
-    sender        := ff_resource:resource(),
-    receiver      := ff_resource:resource(),
-    deadline      => deadline(),
+    id := id(),
+    body := body(),
+    sender := ff_resource:resource(),
+    receiver := ff_resource:resource(),
+    deadline => deadline(),
     merchant_fees => ff_fees_final:fees(),
     provider_fees => ff_fees_final:fees()
 }.
@@ -151,19 +151,16 @@
 -type user_interactions_index() :: p2p_user_interaction_utils:index().
 -type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
+
 %%
 %% API
 %%
 
--spec id(session_state()) ->
-    id().
-
+-spec id(session_state()) -> id().
 id(#{id := V}) ->
     V.
 
--spec status(session_state()) ->
-    status().
-
+-spec status(session_state()) -> status().
 status(#{status := V}) ->
     V.
 
@@ -187,7 +184,6 @@ domain_revision(#{domain_revision := DomainRevision}) ->
 route(#{route := Route}) ->
     Route.
 
-
 %% Сущность завершила свою основную задачу по переводу денег. Дальше её состояние будет меняться только
 %% изменением дочерних сущностей, например запуском adjustment.
 -spec is_finished(session_state()) -> boolean().
@@ -204,8 +200,7 @@ transfer_params(#{transfer_params := V}) ->
 
 %%
 
--spec create(id(), transfer_params(), params()) ->
-    {ok, [event()]}.
+-spec create(id(), transfer_params(), params()) -> {ok, [event()]}.
 create(ID, TransferParams, #{
     route := Route,
     domain_revision := DomainRevision,
@@ -225,7 +220,7 @@ create(ID, TransferParams, #{
 -spec get_adapter_with_opts(session_state()) -> adapter_with_opts().
 get_adapter_with_opts(SessionState) ->
     #{provider_id := ProviderID} = route(SessionState),
-    {ok, Provider} =  ff_p2p_provider:get(head, ProviderID),
+    {ok, Provider} = ff_p2p_provider:get(head, ProviderID),
     {ff_p2p_provider:adapter(Provider), ff_p2p_provider:adapter_opts(Provider)}.
 
 -spec process_session(session_state()) -> result().
@@ -304,8 +299,7 @@ maybe_add_tag_action(undefined, Actions) ->
 maybe_add_tag_action(Tag, Actions) ->
     [{tag, Tag} | Actions].
 
--spec set_session_result(session_result(), session_state()) ->
-    result().
+-spec set_session_result(session_result(), session_state()) -> result().
 set_session_result(Result, #{status := active}) ->
     #{
         events => [{finished, Result}],
@@ -313,13 +307,13 @@ set_session_result(Result, #{status := active}) ->
     }.
 
 -spec process_callback(p2p_callback_params(), session_state()) ->
-    {ok, {process_callback_response(), result()}} |
-    {error, {process_callback_error(), result()}}.
+    {ok, {process_callback_response(), result()}}
+    | {error, {process_callback_error(), result()}}.
 process_callback(#{tag := CallbackTag} = Params, SessionState) ->
     {ok, Callback} = find_callback(CallbackTag, SessionState),
     case p2p_callback:status(Callback) of
         succeeded ->
-           {ok, {p2p_callback:response(Callback), #{}}};
+            {ok, {p2p_callback:response(Callback), #{}}};
         pending ->
             case status(SessionState) of
                 active ->
@@ -338,7 +332,6 @@ find_callback(CallbackTag, SessionState) ->
 
 -spec do_process_callback(p2p_callback_params(), p2p_callback(), session_state()) ->
     {ok, {process_callback_response(), result()}}.
-
 do_process_callback(Params, Callback, SessionState) ->
     {Adapter, _AdapterOpts} = get_adapter_with_opts(SessionState),
     Context = p2p_adapter:build_context(collect_build_context_params(SessionState)),
@@ -376,17 +369,16 @@ user_interactions_index(SessionState) ->
             p2p_user_interaction_utils:new_index()
     end.
 
--spec collect_build_context_params(session_state()) ->
-    p2p_adapter:build_context_params().
+-spec collect_build_context_params(session_state()) -> p2p_adapter:build_context_params().
 collect_build_context_params(SessionState) ->
     {_Adapter, AdapterOpts} = get_adapter_with_opts(SessionState),
     #{
-        id              => id(SessionState),
-        adapter_state   => adapter_state(SessionState),
+        id => id(SessionState),
+        adapter_state => adapter_state(SessionState),
         transfer_params => transfer_params(SessionState),
-        adapter_opts    => AdapterOpts,
+        adapter_opts => AdapterOpts,
         domain_revision => domain_revision(SessionState),
-        party_revision  => party_revision(SessionState)
+        party_revision => party_revision(SessionState)
     }.
 
 %% Only one static TransactionInfo within one session
@@ -400,9 +392,7 @@ assert_transaction_info(NewTrxInfo, _TrxInfo) ->
 
 %% Events apply
 
--spec apply_event(event(), undefined | session_state()) ->
-    session_state().
-
+-spec apply_event(event(), undefined | session_state()) -> session_state().
 apply_event({created, SessionState}, undefined) ->
     SessionState;
 apply_event({next_state, AdapterState}, SessionState) ->
@@ -440,9 +430,7 @@ set_user_interactions_index(UserInteractions, SessionState) ->
 set_session_status(Status, SessionState) ->
     SessionState#{status => Status}.
 
--spec init(session_state(), action()) ->
-    {list(event()), action() | undefined}.
-
+-spec init(session_state(), action()) -> {list(event()), action() | undefined}.
 init(SessionState, Action) ->
     case to_timeout(maps:get(deadline, transfer_params(SessionState), undefined)) of
         {ok, _Timeout} ->
@@ -451,8 +439,7 @@ init(SessionState, Action) ->
             {[{finished, {failure, build_failure(Error)}}], undefined}
     end.
 
--spec to_timeout(deadline() | undefined) ->
-    {ok, timeout() | infinity} | {error, timeout_error()}.
+-spec to_timeout(deadline() | undefined) -> {ok, timeout() | infinity} | {error, timeout_error()}.
 to_timeout(undefined) ->
     {ok, infinity};
 to_timeout(Deadline) ->

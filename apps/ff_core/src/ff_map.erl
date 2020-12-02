@@ -5,8 +5,8 @@
 -module(ff_map).
 
 -type result(T) ::
-    {ok, T}           |
-    {error, notfound} .
+    {ok, T}
+    | {error, notfound}.
 
 -export_type([result/1]).
 
@@ -14,9 +14,7 @@
 
 %%
 
--spec find(Key, #{Key => Value}) ->
-    result(Value).
-
+-spec find(Key, #{Key => Value}) -> result(Value).
 find(Key, Map) ->
     case Map of
         #{Key := Value} ->

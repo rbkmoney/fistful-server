@@ -6,24 +6,24 @@
 -spec serialize(thrift_type(), term()) -> binary().
 
 -type thrift_type() ::
-    thrift_base_type() |
-    thrift_collection_type() |
-    thrift_enum_type() |
-    thrift_struct_type().
+    thrift_base_type()
+    | thrift_collection_type()
+    | thrift_enum_type()
+    | thrift_struct_type().
 
 -type thrift_base_type() ::
-    bool   |
-    double |
-    i8     |
-    i16    |
-    i32    |
-    i64    |
-    string.
+    bool
+    | double
+    | i8
+    | i16
+    | i32
+    | i64
+    | string.
 
 -type thrift_collection_type() ::
-    {list, thrift_type()} |
-    {set, thrift_type()} |
-    {map, thrift_type(), thrift_type()}.
+    {list, thrift_type()}
+    | {set, thrift_type()}
+    | {map, thrift_type(), thrift_type()}.
 
 -type thrift_enum_type() ::
     {enum, thrift_type_ref()}.
@@ -54,9 +54,7 @@ serialize(Type, Data) ->
             erlang:error({thrift, {protocol, Reason}})
     end.
 
--spec deserialize(thrift_type(), binary()) ->
-    term().
-
+-spec deserialize(thrift_type(), binary()) -> term().
 deserialize(Type, Data) ->
     {ok, Trans} = thrift_membuffer_transport:new(Data),
     {ok, Proto} = new_protocol(Trans),

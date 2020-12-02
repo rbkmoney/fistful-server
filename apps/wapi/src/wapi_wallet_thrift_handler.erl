@@ -25,13 +25,7 @@
 
 -spec map_error(atom(), swag_server_wallet_validation:error()) -> swag_server_wallet:error_reason().
 map_error(validation_error, Error) ->
-    Type =
-        case maps:get(type, Error) of
-            schema_violated ->
-                <<"SchemaViolated">>;
-            Other ->
-                genlib:to_binary(Other)
-        end,
+    Type = map_error_type(maps:get(type, Error)),
     Name = genlib:to_binary(maps:get(param_name, Error)),
     Message =
         case maps:get(description, Error, undefined) of
@@ -47,6 +41,16 @@ map_error(validation_error, Error) ->
         <<"name">> => Name,
         <<"description">> => Message
     }).
+
+-spec map_error_type(swag_server_wallet_validation:error_type()) -> binary().
+map_error_type(no_match) -> <<"NoMatch">>;
+map_error_type(not_found) -> <<"NotFound">>;
+map_error_type(not_in_range) -> <<"NotInRange">>;
+map_error_type(wrong_length) -> <<"WrongLength">>;
+map_error_type(wrong_size) -> <<"WrongSize">>;
+map_error_type(schema_violated) -> <<"SchemaViolated">>;
+map_error_type(wrong_type) -> <<"WrongType">>;
+map_error_type(wrong_array) -> <<"WrongArray">>.
 
 -spec authorize_api_key(operation_id(), api_key(), handler_opts()) -> false | {true, wapi_auth:context()}.
 authorize_api_key(OperationID, ApiKey, _Opts) ->

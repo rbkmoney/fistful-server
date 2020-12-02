@@ -25,7 +25,13 @@
 
 -spec map_error(atom(), swag_server_wallet_validation:error()) -> swag_server_wallet:error_reason().
 map_error(validation_error, Error) ->
-    Type = genlib:to_binary(maps:get(type, Error)),
+    Type =
+        case maps:get(type, Error) of
+            schema_violated ->
+                <<"SchemaViolated">>;
+            Other ->
+                genlib:to_binary(Other)
+        end,
     Name = genlib:to_binary(maps:get(param_name, Error)),
     Message =
         case maps:get(description, Error, undefined) of

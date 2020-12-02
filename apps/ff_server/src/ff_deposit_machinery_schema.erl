@@ -805,10 +805,12 @@ created_1_decoding_test() ->
     LegacyEvent =
         {bin,
             base64:decode(
-                <<"CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAA",
+                <<
+                    "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAA",
                     "gwAAQwAAQsABQAAAAdkZXBvc2l0CwABAAAACXdhbGxldF9pZAsAAgAAAAlzb3VyY2VfaWQMAAMKAAEAAAA",
                     "AAAAAewwAAgsAAQAAAANSVUIAAAwABgwAAQAACwAEAAAAC2V4dGVybmFsX2lkCwAHAAAAGDIwMjAtMDUtM",
-                    "jVUMTc6MTI6NTcuOTg1WgoACAAAAAAAAAB7CgAJAAAAAAAAAUENAAoLDAAAAAAAAAAA">>
+                    "jVUMTc6MTI6NTcuOTg1WgoACAAAAAAAAAB7CgAJAAAAAAAAAUENAAoLDAAAAAAAAAAA"
+                >>
             )},
 
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
@@ -830,8 +832,10 @@ p_transfer_1_decoding_test() ->
     LegacyEvent =
         {bin,
             base64:decode(
-                <<"CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAA",
-                    "wwAAQwAAQwAAQsAAgAAAAtleHRlcm5hbF9pZAwAAQ8AAQwAAAAAAAAAAAAAAA==">>
+                <<
+                    "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAA",
+                    "wwAAQwAAQwAAQsAAgAAAAtleHRlcm5hbF9pZAwAAQ8AAQwAAAAAAAAAAAAAAA=="
+                >>
             )},
 
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
@@ -875,10 +879,12 @@ revert_1_decoding_test() ->
     LegacyEvent =
         {bin,
             base64:decode(
-                <<"CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwABAs",
+                <<
+                    "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwABAs",
                     "AAQAAAAJpZAwAAgwAAQwAAQsAAQAAAA5kZXBvc2l0X3JldmVydAsAAgAAAAl3YWxsZXRfaWQLAAMAAAAJc291cm",
                     "NlX2lkDAAEDAABAAAMAAUKAAEAAAAAAAAAewwAAgsAAQAAAANSVUIAAAsABgAAABgyMDIwLTA1LTI1VDE3OjEyO",
-                    "jU3Ljk4NVoKAAcAAAAAAAAAewoACAAAAAAAAAFBCwAKAAAAC2V4dGVybmFsX2lkAAAAAAAA">>
+                    "jU3Ljk4NVoKAAcAAAAAAAAAewoACAAAAAAAAAFBCwAKAAAAC2V4dGVybmFsX2lkAAAAAAAA"
+                >>
             )},
 
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
@@ -919,10 +925,12 @@ adjustment_1_decoding_test() ->
     LegacyEvent =
         {bin,
             base64:decode(
-                <<"CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwABQsAA",
+                <<
+                    "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwABQsAA",
                     "QAAAAphZGp1c3RtZW50DAACDAABDAABCwABAAAACmFkanVzdG1lbnQMAAIMAAEAAAwAAwwAAQwAAQ8AAQwAAAAAAA",
                     "wAAg8AAQwAAAAAAAAMAAIMAAEMAAIAAAAACwAEAAAAGDIwMjAtMDUtMjVUMTc6MTI6NTcuOTg1WgoABQAAAAAAAAB",
-                    "7CgAGAAAAAAAAAUELAAcAAAALZXh0ZXJuYWxfaWQLAAgAAAAYMjAyMC0wNS0yNVQxNzoxMjo1Ny45ODZaAAAAAAAA">>
+                    "7CgAGAAAAAAAAAUELAAcAAAALZXh0ZXJuYWxfaWQLAAgAAAAYMjAyMC0wNS0yNVQxNzoxMjo1Ny45ODZaAAAAAAAA"
+                >>
             )},
 
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),

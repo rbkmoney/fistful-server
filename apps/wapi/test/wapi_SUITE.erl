@@ -200,16 +200,18 @@ create_destination_failed_test(C) ->
     DestinationName0 = <<"abc4242424242424242">>,
     CardToken = store_bank_card(C),
     Resource1 = make_bank_card_resource(CardToken),
-    {error,{400, #{
-        <<"errorType">> := <<"SchemaViolated">>,
-        <<"name">> := <<"Destination">>
-    }}} = create_destination(DestinationName0, IdentityID, Resource1, C),
+    {error,
+        {400, #{
+            <<"errorType">> := <<"SchemaViolated">>,
+            <<"name">> := <<"Destination">>
+        }}} = create_destination(DestinationName0, IdentityID, Resource1, C),
     DestinationName1 = <<"abc1231241241241244">>,
     IdentityID1 = <<"4242424242424242">>,
-    {error,{400, #{
-        <<"errorType">> := <<"SchemaViolated">>,
-        <<"name">> := <<"Destination">>
-    }}} = create_destination(DestinationName1, IdentityID1, Resource1, C),
+    {error,
+        {400, #{
+            <<"errorType">> := <<"SchemaViolated">>,
+            <<"name">> := <<"Destination">>
+        }}} = create_destination(DestinationName1, IdentityID1, Resource1, C),
     DestinationName2 = <<"1231241241241244">>,
     {ok, _} = create_destination(DestinationName2, IdentityID, Resource1, C).
 

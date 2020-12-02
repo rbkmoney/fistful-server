@@ -51,7 +51,7 @@
 
 -type state() :: any().
 
--type transaction_info()      :: ff_adapter:transaction_info().
+-type transaction_info() :: ff_adapter:transaction_info().
 -type status() :: {success, transaction_info()} | {failure, failure()}.
 -type timer() :: {deadline, binary()} | {timeout, integer()}.
 
@@ -80,10 +80,11 @@ start(Opts) ->
 -spec process_withdrawal(withdrawal(), state(), map()) ->
     {ok, #{
         intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
-        next_state  => state(),
+        next_state => state(),
         transaction_info => transaction_info()
-    }} when
-        CallbackTag :: binary().
+    }}
+when
+    CallbackTag :: binary().
 process_withdrawal(#{id := WithdrawalID}, _State, _Options) ->
     CallbackTag = <<"cb_", WithdrawalID/binary>>,
     NextStateStr = <<"callback_processing">>,
@@ -93,8 +94,7 @@ process_withdrawal(#{id := WithdrawalID}, _State, _Options) ->
         transaction_info => #{id => <<"SleepyID">>, extra => #{}}
     }}.
 
--spec get_quote(quote_params(), map()) ->
-    {ok, quote()}.
+-spec get_quote(quote_params(), map()) -> {ok, quote()}.
 get_quote(_Quote, _Options) ->
     erlang:error(not_implemented).
 
@@ -102,10 +102,11 @@ get_quote(_Quote, _Options) ->
     {ok, #{
         intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
         response := any(),
-        next_state  => state(),
+        next_state => state(),
         transaction_info => transaction_info()
-    }} when
-        CallbackTag :: binary().
+    }}
+when
+    CallbackTag :: binary().
 handle_callback(_Callback, #{quote := #wthadpt_Quote{quote_data = QuoteData}}, _State, _Options) when
     QuoteData =:= ?DUMMY_QUOTE_ERROR_FATAL
 ->
@@ -113,7 +114,7 @@ handle_callback(_Callback, #{quote := #wthadpt_Quote{quote_data = QuoteData}}, _
 handle_callback(#{payload := Payload}, _Withdrawal, _State, _Options) ->
     {ok, #{
         intent => {finish, success},
-        next_state  => {str, <<"callback_finished">>},
-        response  => #{payload => Payload},
+        next_state => {str, <<"callback_finished">>},
+        response => #{payload => Payload},
         transaction_info => #{id => <<"SleepyID">>, extra => #{}}
     }}.

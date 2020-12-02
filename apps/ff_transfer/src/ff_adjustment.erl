@@ -2,7 +2,7 @@
 
 -define(ACTUAL_FORMAT_VERSION, 1).
 
--type id()       :: binary().
+-type id() :: binary().
 
 -opaque adjustment() :: #{
     version := ?ACTUAL_FORMAT_VERSION,
@@ -28,7 +28,7 @@
 
 -type changes() :: #{
     new_cash_flow => cash_flow_change(),
-    new_status    => status_change()
+    new_status => status_change()
 }.
 
 -type cash_flow_change() :: #{
@@ -41,13 +41,13 @@
 }.
 
 -type status() ::
-    pending |
-    succeeded.
+    pending
+    | succeeded.
 
 -type event() ::
-    {created, adjustment()} |
-    {p_transfer, ff_postings_transfer:event()} |
-    {status_changed, status()}.
+    {created, adjustment()}
+    | {p_transfer, ff_postings_transfer:event()}
+    | {status_changed, status()}.
 
 -type create_error() :: none().
 
@@ -90,21 +90,21 @@
 
 %% Internal types
 
--type target_status()   :: term().
+-type target_status() :: term().
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
--type p_transfer()      :: ff_postings_transfer:transfer().
--type action()          :: machinery:action() | undefined.
--type process_result()  :: {action(), [event()]}.
--type legacy_event()    :: any().
--type external_id()     :: id().
--type party_revision()  :: ff_party:revision().
+-type p_transfer() :: ff_postings_transfer:transfer().
+-type action() :: machinery:action() | undefined.
+-type process_result() :: {action(), [event()]}.
+-type legacy_event() :: any().
+-type external_id() :: id().
+-type party_revision() :: ff_party:revision().
 -type domain_revision() :: ff_domain_config:revision().
 
 -type activity() ::
-    p_transfer_start |
-    p_transfer_prepare |
-    p_transfer_commit |
-    finish.
+    p_transfer_start
+    | p_transfer_prepare
+    | p_transfer_commit
+    | finish.
 
 %% Accessors
 
@@ -146,9 +146,7 @@ operation_timestamp(#{operation_timestamp := V}) ->
 
 %% API
 
--spec create(params()) ->
-    {ok, process_result()}.
-
+-spec create(params()) -> {ok, process_result()}.
 create(Params) ->
     #{
         id := ID,
@@ -172,8 +170,7 @@ create(Params) ->
 
 %% Transfer logic callbacks
 
--spec process_transfer(adjustment()) ->
-    process_result().
+-spec process_transfer(adjustment()) -> process_result().
 process_transfer(Adjustment) ->
     Activity = deduce_activity(Adjustment),
     do_process_transfer(Activity, Adjustment).
@@ -194,13 +191,11 @@ is_finished(#{status := pending}) ->
 
 %% Events utils
 
--spec apply_event(event() | legacy_event(), adjustment() | undefined) ->
-    adjustment().
+-spec apply_event(event() | legacy_event(), adjustment() | undefined) -> adjustment().
 apply_event(Ev, T) ->
     apply_event_(maybe_migrate(Ev), T).
 
--spec apply_event_(event(), adjustment() | undefined) ->
-    adjustment().
+-spec apply_event_(event(), adjustment() | undefined) -> adjustment().
 apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
@@ -208,15 +203,13 @@ apply_event_({status_changed, S}, T) ->
 apply_event_({p_transfer, Ev}, T) ->
     T#{p_transfer => ff_postings_transfer:apply_event(Ev, p_transfer(T))}.
 
--spec maybe_migrate(event() | legacy_event()) ->
-    event().
+-spec maybe_migrate(event() | legacy_event()) -> event().
 maybe_migrate(Ev) ->
     Ev.
 
 %% Internals
 
--spec p_transfer_status(adjustment()) ->
-    ff_postings_transfer:status() | undefined.
+-spec p_transfer_status(adjustment()) -> ff_postings_transfer:status() | undefined.
 p_transfer_status(Adjustment) ->
     case p_transfer(Adjustment) of
         undefined ->
@@ -225,8 +218,7 @@ p_transfer_status(Adjustment) ->
             ff_postings_transfer:status(Transfer)
     end.
 
--spec deduce_activity(adjustment()) ->
-    activity().
+-spec deduce_activity(adjustment()) -> activity().
 deduce_activity(Adjustment) ->
     Params = #{
         p_transfer => p_transfer_status(Adjustment),
@@ -257,8 +249,7 @@ do_process_transfer(p_transfer_commit, Adjustment) ->
 do_process_transfer(finish, Adjustment) ->
     process_transfer_finish(Adjustment).
 
--spec create_p_transfer(adjustment()) ->
-    process_result().
+-spec create_p_transfer(adjustment()) -> process_result().
 create_p_transfer(Adjustment) ->
     #{new_cash_flow := CashFlowChange} = changes_plan(Adjustment),
     #{
@@ -270,8 +261,7 @@ create_p_transfer(Adjustment) ->
     {ok, PostingsTransferEvents} = ff_postings_transfer:create(PTransferID, FinalCashFlow),
     {continue, [{p_transfer, Ev} || Ev <- PostingsTransferEvents]}.
 
--spec process_transfer_finish(adjustment()) ->
-    process_result().
+-spec process_transfer_finish(adjustment()) -> process_result().
 process_transfer_finish(_Adjustment) ->
     {undefined, [{status_changed, succeeded}]}.
 

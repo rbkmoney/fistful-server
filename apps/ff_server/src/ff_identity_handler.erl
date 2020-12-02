@@ -1,4 +1,5 @@
 -module(ff_identity_handler).
+
 -behaviour(ff_woody_wrapper).
 
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
@@ -9,11 +10,12 @@
 %%
 %% ff_woody_wrapper callbacks
 %%
--spec handle_function(woody:func(), woody:args(), woody:options()) ->
-    {ok, woody:result()} | no_return().
+-spec handle_function(woody:func(), woody:args(), woody:options()) -> {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    [IdentityID| _ ] = Args,
-    scoper:scope(identity, #{identity_id => IdentityID},
+    [IdentityID | _] = Args,
+    scoper:scope(
+        identity,
+        #{identity_id => IdentityID},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -45,7 +47,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
     case ff_identity_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             Identity = ff_identity:set_blocking(ff_identity_machine:identity(Machine)),
-            Context  = ff_identity_machine:ctx(Machine),
+            Context = ff_identity_machine:ctx(Machine),
             Response = ff_identity_codec:marshal_identity_state(Identity, Context),
             {ok, Response};
         {error, notfound} ->
@@ -66,8 +68,8 @@ handle_function_('StartChallenge', [IdentityID, Params], _Opts) ->
     case ff_identity_machine:start_challenge(IdentityID, ChallengeParams) of
         ok ->
             ChallengeID = maps:get(id, ChallengeParams),
-            {ok, Machine}   = ff_identity_machine:get(IdentityID),
-            Identity        = ff_identity_machine:identity(Machine),
+            {ok, Machine} = ff_identity_machine:get(IdentityID),
+            Identity = ff_identity_machine:identity(Machine),
             {ok, Challenge} = ff_identity:challenge(ChallengeID, Identity),
             {ok, ff_identity_codec:marshal_challenge_state(Challenge)};
         {error, notfound} ->
@@ -96,7 +98,6 @@ handle_function_('GetChallenges', [ID], _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_IdentityNotFound{})
     end;
-
 handle_function_('GetEvents', [IdentityID, EventRange], _Opts) ->
     case ff_identity_machine:events(IdentityID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, EventList} ->

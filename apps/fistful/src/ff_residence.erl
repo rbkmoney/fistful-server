@@ -9,11 +9,11 @@
 
 %%
 
--type id()        :: dmsl_domain_thrift:'Residence'().
+-type id() :: dmsl_domain_thrift:'Residence'().
 -type residence() :: #{
-    id            := id(),
-    name          := binary(),
-    flag          => binary()
+    id := id(),
+    name := binary(),
+    flag => binary()
 }.
 
 -export_type([id/0]).
@@ -23,12 +23,10 @@
 
 %%
 
--spec get(id()) ->
-    ff_map:result(residence()).
-
+-spec get(id()) -> ff_map:result(residence()).
 get(ID = 'rus') ->
     {ok, #{
-        id   => ID,
+        id => ID,
         name => <<"Российская федерация"/utf8>>,
         flag => <<"🇷🇺"/utf8>>
     }};

@@ -1,6 +1,7 @@
 %% P2P adapter host
 
 -module(ff_p2p_adapter_host).
+
 -behaviour(ff_woody_wrapper).
 
 -include_lib("damsel/include/dmsl_base_thrift.hrl").
@@ -18,8 +19,7 @@
 
 %% Handler
 
--spec handle_function(woody:func(), woody:args(), woody:options()) ->
-    {ok, woody:result()} | no_return().
+-spec handle_function(woody:func(), woody:args(), woody:options()) -> {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
     scoper:scope(ff_p2p_adapter_host, #{}, fun() -> handle_function_(Func, Args, Opts) end).
 

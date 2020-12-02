@@ -74,13 +74,13 @@
 
 %% Types
 
--type ctx()         :: wapi_handler:context().
--type params()      :: map().
--type id()          :: binary() | undefined.
+-type ctx() :: wapi_handler:context().
+-type params() :: map().
+-type id() :: binary() | undefined.
 -type external_id() :: binary().
--type result()      :: result(map()).
--type result(T)     :: result(T, notfound).
--type result(T, E)  :: {ok, T} | {error, E}.
+-type result() :: result(map()).
+-type result(T) :: result(T, notfound).
+-type result(T, E) :: {ok, T} | {error, E}.
 -type result_stat() :: {200 | 400, list(), map()}.
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
@@ -100,12 +100,13 @@
 -spec get_providers([binary()], ctx()) -> [map()].
 get_providers(Residences, _Context) ->
     ResidenceSet = ordsets:from_list(from_swag({list, residence}, Residences)),
-    to_swag({list, provider}, [P ||
-        P <- ff_provider:list(),
-        ordsets:is_subset(
-            ResidenceSet,
-            ordsets:from_list(ff_provider:residences(P))
-        )
+    to_swag({list, provider}, [
+        P
+        || P <- ff_provider:list(),
+           ordsets:is_subset(
+               ResidenceSet,
+               ordsets:from_list(ff_provider:residences(P))
+           )
     ]).
 
 -spec get_provider(id(), ctx()) -> result().
@@ -143,21 +144,25 @@ get_provider_identity_class_level(_ProviderId, _ClassId, _LevelId, _Context) ->
 get_identities(_Params, _Context) ->
     not_implemented().
 
--spec get_identity(id(), ctx()) -> result(map(),
-    {identity, notfound}     |
-    {identity, unauthorized}
-).
+-spec get_identity(id(), ctx()) ->
+    result(
+        map(),
+        {identity, notfound}
+        | {identity, unauthorized}
+    ).
 get_identity(IdentityId, Context) ->
     do(fun() -> to_swag(identity, get_state(identity, IdentityId, Context)) end).
 
--spec create_identity(params(), ctx()) -> result(map(),
-    {provider, notfound}       |
-    {identity_class, notfound} |
-    {inaccessible, ff_party:inaccessibility()} |
-    {email, notfound}          |
-    {external_id_conflict, id(), external_id()} |
-    {party, notfound}
-).
+-spec create_identity(params(), ctx()) ->
+    result(
+        map(),
+        {provider, notfound}
+        | {identity_class, notfound}
+        | {inaccessible, ff_party:inaccessibility()}
+        | {email, notfound}
+        | {external_id_conflict, id(), external_id()}
+        | {party, notfound}
+    ).
 create_identity(Params, Context) ->
     IdentityParams = from_swag(identity_params, Params),
     CreateFun = fun(ID, EntityCtx) ->
@@ -168,71 +173,91 @@ create_identity(Params, Context) ->
     end,
     do(fun() -> unwrap(create_entity(identity, Params, CreateFun, Context)) end).
 
--spec get_identity_challenges(id(), [binary()], ctx()) -> result(map(),
-    {identity, notfound}     |
-    {identity, unauthorized}
-).
+-spec get_identity_challenges(id(), [binary()], ctx()) ->
+    result(
+        map(),
+        {identity, notfound}
+        | {identity, unauthorized}
+    ).
 get_identity_challenges(IdentityId, Statuses, Context) ->
     do(fun() ->
-        Challenges0 = maps:to_list(ff_identity:challenges(
-            ff_identity_machine:identity(get_state(identity, IdentityId, Context))
-        )),
+        Challenges0 = maps:to_list(
+            ff_identity:challenges(
+                ff_identity_machine:identity(get_state(identity, IdentityId, Context))
+            )
+        ),
         to_swag({list, identity_challenge}, [
-            {Id, C, enrich_proofs(ff_identity_challenge:proofs(C), Context)} ||
-                {Id, C} <- Challenges0,
-                Status  <- [ff_identity_challenge:status(C)],
-                lists:all(
-                    fun (F) -> filter_identity_challenge_status(F, Status) end,
-                    Statuses
-                )
+            {Id, C, enrich_proofs(ff_identity_challenge:proofs(C), Context)}
+            || {Id, C} <- Challenges0,
+               Status <- [ff_identity_challenge:status(C)],
+               lists:all(
+                   fun(F) -> filter_identity_challenge_status(F, Status) end,
+                   Statuses
+               )
         ])
     end).
 
--spec create_identity_challenge(id(), params(), ctx()) -> result(map(),
-    {identity, notfound}               |
-    {identity, unauthorized}           |
-    {challenge, {pending, _}}          |
-    {challenge, {class, notfound}}     |
-    {challenge, {proof, notfound}}     |
-    {challenge, {proof, insufficient}} |
-    {challenge, {level, _}}            |
-    {challenge, conflict}
-).
+-spec create_identity_challenge(id(), params(), ctx()) ->
+    result(
+        map(),
+        {identity, notfound}
+        | {identity, unauthorized}
+        | {challenge, {pending, _}}
+        | {challenge, {class, notfound}}
+        | {challenge, {proof, notfound}}
+        | {challenge, {proof, insufficient}}
+        | {challenge, {level, _}}
+        | {challenge, conflict}
+    ).
 create_identity_challenge(IdentityId, Params, Context) ->
-    Type          = identity_challenge,
-    Hash          = erlang:phash2(Params),
+    Type = identity_challenge,
+    Hash = erlang:phash2(Params),
     {ok, ChallengeID} = gen_id(Type, undefined, Hash, Context),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
-        ok = unwrap(ff_identity_machine:start_challenge(IdentityId,
-            maps:merge(#{id => ChallengeID}, from_swag(identity_challenge_params, Params)
-        ))),
+        ok = unwrap(
+            ff_identity_machine:start_challenge(
+                IdentityId,
+                maps:merge(#{id => ChallengeID}, from_swag(identity_challenge_params, Params))
+            )
+        ),
         unwrap(get_identity_challenge(IdentityId, ChallengeID, Context))
     end).
 
--spec get_identity_challenge(id(), id(), ctx()) -> result(map(),
-    {identity, notfound}     |
-    {identity, unauthorized} |
-    {challenge, notfound}
-).
+-spec get_identity_challenge(id(), id(), ctx()) ->
+    result(
+        map(),
+        {identity, notfound}
+        | {identity, unauthorized}
+        | {challenge, notfound}
+    ).
 get_identity_challenge(IdentityId, ChallengeId, Context) ->
     do(fun() ->
-        Challenge = unwrap(challenge, ff_identity:challenge(
-            ChallengeId, ff_identity_machine:identity(get_state(identity, IdentityId, Context))
-        )),
+        Challenge = unwrap(
+            challenge,
+            ff_identity:challenge(
+                ChallengeId,
+                ff_identity_machine:identity(get_state(identity, IdentityId, Context))
+            )
+        ),
         Proofs = enrich_proofs(ff_identity_challenge:proofs(Challenge), Context),
         to_swag(identity_challenge, {ChallengeId, Challenge, Proofs})
     end).
 
--spec get_identity_challenge_events(params(), ctx()) -> result([map()],
-    {identity, notfound}     |
-    {identity, unauthorized}
-).
-get_identity_challenge_events(Params = #{
-    'identityID'  := IdentityId,
-    'challengeID' := ChallengeId,
-    'limit'  := Limit
-}, Context) ->
+-spec get_identity_challenge_events(params(), ctx()) ->
+    result(
+        [map()],
+        {identity, notfound}
+        | {identity, unauthorized}
+    ).
+get_identity_challenge_events(
+    Params = #{
+        'identityID' := IdentityId,
+        'challengeID' := ChallengeId,
+        'limit' := Limit
+    },
+    Context
+) ->
     Cursor = genlib_map:get('eventCursor', Params),
     Filter = fun
         ({ID, {ev, Ts, {{challenge, I}, Body = {status_changed, _}}}}) when I =:= ChallengeId ->
@@ -242,16 +267,21 @@ get_identity_challenge_events(Params = #{
     end,
     get_swag_events({identity, challenge_event}, IdentityId, Limit, Cursor, Filter, Context).
 
--spec get_identity_challenge_event(params(), ctx()) -> result(map(),
-    {identity, notfound}     |
-    {identity, unauthorized} |
-    {event, notfound}
-).
-get_identity_challenge_event(#{
-    'identityID'  := IdentityId,
-    'challengeID' := ChallengeId,
-    'eventID'     := EventId
-}, Context) ->
+-spec get_identity_challenge_event(params(), ctx()) ->
+    result(
+        map(),
+        {identity, notfound}
+        | {identity, unauthorized}
+        | {event, notfound}
+    ).
+get_identity_challenge_event(
+    #{
+        'identityID' := IdentityId,
+        'challengeID' := ChallengeId,
+        'eventID' := EventId
+    },
+    Context
+) ->
     Mapper = fun
         ({ID, {ev, Ts, {{challenge, I}, Body = {status_changed, _}}}}) when I =:= ChallengeId andalso ID =:= EventId ->
             {true, {ID, Ts, Body}};
@@ -262,17 +292,21 @@ get_identity_challenge_event(#{
 
 %% Wallets
 
--spec get_wallet(id(), ctx()) -> result(map(),
-    {wallet, notfound}     |
-    {wallet, unauthorized}
-).
+-spec get_wallet(id(), ctx()) ->
+    result(
+        map(),
+        {wallet, notfound}
+        | {wallet, unauthorized}
+    ).
 get_wallet(WalletID, Context) ->
     do(fun() -> to_swag(wallet, get_state(wallet, WalletID, Context)) end).
 
--spec get_wallet_by_external_id(external_id(), ctx()) -> result(map(),
-    {wallet, notfound}     |
-    {wallet, unauthorized}
-).
+-spec get_wallet_by_external_id(external_id(), ctx()) ->
+    result(
+        map(),
+        {wallet, notfound}
+        | {wallet, unauthorized}
+    ).
 get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context) ->
     AuthContext = wapi_handler_utils:get_auth_context(Context),
     PartyID = uac_authorizer_jwt:get_subject_id(AuthContext),
@@ -282,40 +316,45 @@ get_wallet_by_external_id(ExternalID, #{woody_context := WoodyContext} = Context
         {error, internal_id_not_found} -> {error, {wallet, notfound}}
     end.
 
--spec create_wallet(params(), ctx()) -> result(map(),
-    invalid                                     |
-    {identity, unauthorized}                    |
-    {external_id_conflict, id(), external_id()} |
-    {inaccessible, _}                           |
-    ff_wallet:create_error()
-).
+-spec create_wallet(params(), ctx()) ->
+    result(
+        map(),
+        invalid
+        | {identity, unauthorized}
+        | {external_id_conflict, id(), external_id()}
+        | {inaccessible, _}
+        | ff_wallet:create_error()
+    ).
 create_wallet(Params = #{<<"identity">> := IdenityId}, Context) ->
     WalletParams = from_swag(wallet_params, Params),
     CreateFun = fun(ID, EntityCtx) ->
-            _ = check_resource(identity, IdenityId, Context),
-            ff_wallet_machine:create(
-                WalletParams#{id => ID},
-                add_meta_to_ctx([], Params, EntityCtx)
-            )
+        _ = check_resource(identity, IdenityId, Context),
+        ff_wallet_machine:create(
+            WalletParams#{id => ID},
+            add_meta_to_ctx([], Params, EntityCtx)
+        )
     end,
     do(fun() -> unwrap(create_entity(wallet, Params, CreateFun, Context)) end).
 
--spec get_wallet_account(id(), ctx()) -> result(map(),
-    {wallet, notfound}     |
-    {wallet, unauthorized}
-).
+-spec get_wallet_account(id(), ctx()) ->
+    result(
+        map(),
+        {wallet, notfound}
+        | {wallet, unauthorized}
+    ).
 get_wallet_account(WalletID, Context) ->
-    do(fun () ->
+    do(fun() ->
         Account = ff_wallet:account(ff_wallet_machine:wallet(get_state(wallet, WalletID, Context))),
-        {Amounts, Currency} = unwrap(ff_transaction:balance(
-            Account,
-            ff_clock:latest_clock()
-        )),
+        {Amounts, Currency} = unwrap(
+            ff_transaction:balance(
+                Account,
+                ff_clock:latest_clock()
+            )
+        ),
         to_swag(wallet_account, {ff_indef:current(Amounts), ff_indef:expmin(Amounts), Currency})
     end).
 
--spec list_wallets(params(), ctx()) ->
-    {ok, result_stat()} | {error, result_stat()}.
+-spec list_wallets(params(), ctx()) -> {ok, result_stat()} | {error, result_stat()}.
 list_wallets(Params, Context) ->
     StatType = wallet_stat,
     Dsl = create_stat_dsl(StatType, Params, Context),
@@ -330,18 +369,22 @@ list_wallets(Params, Context) ->
 get_destinations(_Params, _Context) ->
     not_implemented().
 
--spec get_destination(id(), ctx()) -> result(map(),
-    {destination, notfound}     |
-    {destination, unauthorized}
-).
+-spec get_destination(id(), ctx()) ->
+    result(
+        map(),
+        {destination, notfound}
+        | {destination, unauthorized}
+    ).
 get_destination(DestinationID, Context) ->
     do(fun() -> to_swag(destination, get_state(destination, DestinationID, Context)) end).
 
--spec get_destination_by_external_id(id(), ctx()) -> result(map(),
-    {destination, unauthorized} |
-    {destination, notfound}     |
-    {external_id, {unknown_external_id, id()}}
-).
+-spec get_destination_by_external_id(id(), ctx()) ->
+    result(
+        map(),
+        {destination, unauthorized}
+        | {destination, notfound}
+        | {external_id, {unknown_external_id, id()}}
+    ).
 get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
     PartyID = wapi_handler_utils:get_owner(Context),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(destination, PartyID, ExternalID),
@@ -352,75 +395,89 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
             {error, {external_id, {unknown_external_id, ExternalID}}}
     end.
 
--spec create_destination(params(), ctx()) -> result(map(),
-    invalid                                     |
-    {invalid_resource_token, _}                 |
-    {identity, unauthorized}                    |
-    {identity, notfound}                        |
-    {currency, notfound}                        |
-    {inaccessible, _}                           |
-    {external_id_conflict, id(), external_id()} |
-    {illegal_pattern, _}
-).
+-spec create_destination(params(), ctx()) ->
+    result(
+        map(),
+        invalid
+        | {invalid_resource_token, _}
+        | {identity, unauthorized}
+        | {identity, notfound}
+        | {currency, notfound}
+        | {inaccessible, _}
+        | {external_id_conflict, id(), external_id()}
+        | {illegal_pattern, _}
+    ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         do(fun() ->
             _ = check_resource(identity, IdenityId, Context),
             DestinationParams = from_swag(destination_params, Params),
             Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
-            unwrap(ff_destination_machine:create(
-                DestinationParams#{id => ID, resource => Resource},
-                add_meta_to_ctx([], Params, EntityCtx)
-            ))
+            unwrap(
+                ff_destination_machine:create(
+                    DestinationParams#{id => ID, resource => Resource},
+                    add_meta_to_ctx([], Params, EntityCtx)
+                )
+            )
         end)
     end,
     do(fun() -> unwrap(create_entity(destination, Params, CreateFun, Context)) end).
 
--spec create_withdrawal(params(), ctx()) -> result(map(),
-    {source, notfound}            |
-    {destination, notfound}       |
-    {destination, unauthorized}   |
-    {external_id_conflict, id(), external_id()} |
-    {provider, notfound}          |
-    {wallet, {inaccessible, _}}   |
-    {wallet, {currency, invalid}} |
-    {wallet, {provider, invalid}} |
-    {quote_invalid_party, _}      |
-    {quote_invalid_wallet, _}     |
-    {quote, {invalid_body, _}}    |
-    {quote, {invalid_destination, _}} |
-    {terms, {terms_violation, _}} |
-    {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}} |
-    {destination_resource, {bin_data, ff_bin_data:bin_data_error()}} |
-    {quote, token_expired} |
-    {Resource, {unauthorized, _}}
-) when Resource :: wallet | destination.
+-spec create_withdrawal(params(), ctx()) ->
+    result(
+        map(),
+        {source, notfound}
+        | {destination, notfound}
+        | {destination, unauthorized}
+        | {external_id_conflict, id(), external_id()}
+        | {provider, notfound}
+        | {wallet, {inaccessible, _}}
+        | {wallet, {currency, invalid}}
+        | {wallet, {provider, invalid}}
+        | {quote_invalid_party, _}
+        | {quote_invalid_wallet, _}
+        | {quote, {invalid_body, _}}
+        | {quote, {invalid_destination, _}}
+        | {terms, {terms_violation, _}}
+        | {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}}
+        | {destination_resource, {bin_data, ff_bin_data:bin_data_error()}}
+        | {quote, token_expired}
+        | {Resource, {unauthorized, _}}
+    )
+when
+    Resource :: wallet | destination.
 create_withdrawal(Params, Context) ->
     CreateFun = fun(ID, EntityCtx) ->
         do(fun() ->
             _ = authorize_withdrawal(Params, Context),
             Quote = unwrap(maybe_check_quote_token(Params, Context)),
             WithdrawalParams = from_swag(withdrawal_params, Params),
-            unwrap(ff_withdrawal_machine:create(
-                genlib_map:compact(WithdrawalParams#{id => ID, quote => Quote}),
-                add_meta_to_ctx([], Params, EntityCtx)
-            ))
+            unwrap(
+                ff_withdrawal_machine:create(
+                    genlib_map:compact(WithdrawalParams#{id => ID, quote => Quote}),
+                    add_meta_to_ctx([], Params, EntityCtx)
+                )
+            )
         end)
     end,
     do(fun() -> unwrap(create_entity(withdrawal, Params, CreateFun, Context)) end).
 
--spec get_withdrawal(id(), ctx()) -> result(map(),
-    {withdrawal, unauthorized} |
-    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}}
-).
+-spec get_withdrawal(id(), ctx()) ->
+    result(
+        map(),
+        {withdrawal, unauthorized}
+        | {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}}
+    ).
 get_withdrawal(WithdrawalId, Context) ->
     do(fun() -> to_swag(withdrawal, get_state(withdrawal, WithdrawalId, Context)) end).
 
--spec get_withdrawal_by_external_id(id(), ctx()) -> result(map(),
-    {withdrawal, unauthorized} |
-    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}} |
-    {external_id, {unknown_external_id, id()}}
-).
+-spec get_withdrawal_by_external_id(id(), ctx()) ->
+    result(
+        map(),
+        {withdrawal, unauthorized}
+        | {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}}
+        | {external_id, {unknown_external_id, id()}}
+    ).
 get_withdrawal_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}) ->
     PartyID = wapi_handler_utils:get_owner(Context),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(withdrawal, PartyID, ExternalID),
@@ -431,10 +488,12 @@ get_withdrawal_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx}
             {error, {external_id, {unknown_external_id, ExternalID}}}
     end.
 
--spec get_withdrawal_events(params(), ctx()) -> result([map()],
-    {withdrawal, unauthorized} |
-    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}}
-).
+-spec get_withdrawal_events(params(), ctx()) ->
+    result(
+        [map()],
+        {withdrawal, unauthorized}
+        | {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}}
+    ).
 get_withdrawal_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, Context) ->
     Cursor = genlib_map:get('eventCursor', Params),
     Filter = fun
@@ -445,11 +504,13 @@ get_withdrawal_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limi
     end,
     get_swag_events({withdrawal, event}, WithdrawalId, Limit, Cursor, Filter, Context).
 
--spec get_withdrawal_event(id(), integer(), ctx()) -> result(map(),
-    {withdrawal, unauthorized} |
-    {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}} |
-    {event, notfound}
-).
+-spec get_withdrawal_event(id(), integer(), ctx()) ->
+    result(
+        map(),
+        {withdrawal, unauthorized}
+        | {withdrawal, {unknown_withdrawal, ff_withdrawal:id()}}
+        | {event, notfound}
+    ).
 get_withdrawal_event(WithdrawalId, EventId, Context) ->
     Mapper = fun
         ({ID, {ev, Ts, Body = {status_changed, _}}}) when ID =:= EventId ->
@@ -459,8 +520,7 @@ get_withdrawal_event(WithdrawalId, EventId, Context) ->
     end,
     get_swag_event({withdrawal, event}, WithdrawalId, EventId, Mapper, Context).
 
--spec list_withdrawals(params(), ctx()) ->
-    {ok, result_stat()} | {error, result_stat()}.
+-spec list_withdrawals(params(), ctx()) -> {ok, result_stat()} | {error, result_stat()}.
 list_withdrawals(Params, Context) ->
     StatType = withdrawal_stat,
     Dsl = create_stat_dsl(StatType, Params, Context),
@@ -469,15 +529,17 @@ list_withdrawals(Params, Context) ->
     Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', [Req]}, Context),
     process_stat_result(StatType, Result).
 
--spec create_quote(params(), ctx()) -> result(map(),
-    {destination, notfound}       |
-    {destination, unauthorized}   |
-    {route, _Reason}              |
-    {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}} |
-    {wallet, notfound}
-).
+-spec create_quote(params(), ctx()) ->
+    result(
+        map(),
+        {destination, notfound}
+        | {destination, unauthorized}
+        | {route, _Reason}
+        | {identity_providers_mismatch, {ff_provider:id(), ff_provider:id()}}
+        | {wallet, notfound}
+    ).
 create_quote(#{'WithdrawalQuoteParams' := Params}, Context) ->
-    do(fun () ->
+    do(fun() ->
         CreateQuoteParams = from_swag(create_quote_params, Params),
         Quote = unwrap(ff_withdrawal:get_quote(CreateQuoteParams)),
         Token = create_quote_token(
@@ -493,7 +555,7 @@ create_quote(#{'WithdrawalQuoteParams' := Params}, Context) ->
 
 -spec get_residence(binary(), ctx()) -> result().
 get_residence(Residence, _Context) ->
-    do(fun () ->
+    do(fun() ->
         to_swag(residence_object, unwrap(ff_residence:get(from_swag(residence, Residence))))
     end).
 
@@ -501,29 +563,34 @@ get_residence(Residence, _Context) ->
 
 -spec get_currency(binary(), ctx()) -> result().
 get_currency(CurrencyId, _Context) ->
-    do(fun () ->
+    do(fun() ->
         to_swag(currency_object, unwrap(ff_currency:get(from_swag(currency, CurrencyId))))
     end).
 
 %% Reports
 
--spec create_report(params(), ctx()) -> result(map(),
-    {identity, unauthorized}    |
-    {identity, notfound}        |
-    invalid_request             |
-    invalid_contract
-).
-create_report(#{
-    identityID     := IdentityID,
-    'ReportParams' := ReportParams
-}, Context) ->
-    do(fun () ->
+-spec create_report(params(), ctx()) ->
+    result(
+        map(),
+        {identity, unauthorized}
+        | {identity, notfound}
+        | invalid_request
+        | invalid_contract
+    ).
+create_report(
+    #{
+        identityID := IdentityID,
+        'ReportParams' := ReportParams
+    },
+    Context
+) ->
+    do(fun() ->
         ContractID = get_contract_id_from_identity(IdentityID, Context),
         Req = create_report_request(#{
-            party_id     => wapi_handler_utils:get_owner(Context),
-            contract_id  => ContractID,
-            from_time    => get_time(<<"fromTime">>, ReportParams),
-            to_time      => get_time(<<"toTime">>, ReportParams)
+            party_id => wapi_handler_utils:get_owner(Context),
+            contract_id => ContractID,
+            from_time => get_time(<<"fromTime">>, ReportParams),
+            to_time => get_time(<<"toTime">>, ReportParams)
         }),
         Call = {fistful_report, 'GenerateReport', [Req, maps:get(<<"reportType">>, ReportParams)]},
         case wapi_handler_utils:service_call(Call, Context) of
@@ -536,21 +603,23 @@ create_report(#{
         end
     end).
 
--spec get_report(integer(), binary(), ctx()) -> result(map(),
-    {identity, unauthorized}    |
-    {identity, notfound}        |
-    notfound
-).
+-spec get_report(integer(), binary(), ctx()) ->
+    result(
+        map(),
+        {identity, unauthorized}
+        | {identity, notfound}
+        | notfound
+    ).
 get_report(ReportID, IdentityID, Context) ->
     get_report(identityID, ReportID, IdentityID, Context).
 
 get_report(identityID, ReportID, IdentityID, Context) ->
-    do(fun () ->
+    do(fun() ->
         ContractID = get_contract_id_from_identity(IdentityID, Context),
         unwrap(get_report(contractID, ReportID, ContractID, Context))
     end);
 get_report(contractID, ReportID, ContractID, Context) ->
-    do(fun () ->
+    do(fun() ->
         PartyID = wapi_handler_utils:get_owner(Context),
         Call = {fistful_report, 'GetReport', [PartyID, ContractID, ReportID]},
         case wapi_handler_utils:service_call(Call, Context) of
@@ -561,22 +630,27 @@ get_report(contractID, ReportID, ContractID, Context) ->
         end
     end).
 
--spec get_reports(params(), ctx()) -> result(map(),
-    {identity, unauthorized}    |
-    {identity, notfound}        |
-    invalid_request             |
-    {dataset_too_big, integer()}
-).
-get_reports(#{
-    identityID   := IdentityID
-} = Params, Context) ->
-    do(fun () ->
+-spec get_reports(params(), ctx()) ->
+    result(
+        map(),
+        {identity, unauthorized}
+        | {identity, notfound}
+        | invalid_request
+        | {dataset_too_big, integer()}
+    ).
+get_reports(
+    #{
+        identityID := IdentityID
+    } = Params,
+    Context
+) ->
+    do(fun() ->
         ContractID = get_contract_id_from_identity(IdentityID, Context),
         Req = create_report_request(#{
-            party_id     => wapi_handler_utils:get_owner(Context),
-            contract_id  => ContractID,
-            from_time    => get_time(fromTime, Params),
-            to_time      => get_time(toTime, Params)
+            party_id => wapi_handler_utils:get_owner(Context),
+            contract_id => ContractID,
+            from_time => get_time(fromTime, Params),
+            to_time => get_time(toTime, Params)
         }),
         Call = {fistful_report, 'GetReports', [Req, [genlib:to_binary(maps:get(type, Params))]]},
         case wapi_handler_utils:service_call(Call, Context) of
@@ -596,14 +670,13 @@ download_file(FileID, ExpiresAt, Context) ->
     case wapi_handler_utils:service_call(Call, Context) of
         {exception, #file_storage_FileNotFound{}} ->
             {error, notfound};
-        Result->
+        Result ->
             Result
     end.
 
 %% Deposits
 
--spec list_deposits(params(), ctx()) ->
-    {ok, result_stat()} | {error, result_stat()}.
+-spec list_deposits(params(), ctx()) -> {ok, result_stat()} | {error, result_stat()}.
 list_deposits(Params, Context) ->
     StatType = deposit_stat,
     Dsl = create_stat_dsl(StatType, Params, Context),
@@ -614,12 +687,14 @@ list_deposits(Params, Context) ->
 
 %% P2P
 
--spec quote_p2p_transfer(params(), ctx()) -> result(map(),
-    {invalid_resource_token, _} |
-    p2p_quote:get_quote_error()
-).
+-spec quote_p2p_transfer(params(), ctx()) ->
+    result(
+        map(),
+        {invalid_resource_token, _}
+        | p2p_quote:get_quote_error()
+    ).
 quote_p2p_transfer(Params, Context) ->
-    do(fun () ->
+    do(fun() ->
         #{
             sender := Sender,
             receiver := Receiver,
@@ -629,77 +704,87 @@ quote_p2p_transfer(Params, Context) ->
         PartyID = wapi_handler_utils:get_owner(Context),
         SenderResource = unwrap(construct_resource(Sender)),
         ReceiverResource = unwrap(construct_resource(Receiver)),
-        Quote = unwrap(p2p_quote:get(#{
-            body => Body,
-            identity_id => IdentityID,
-            sender => SenderResource,
-            receiver => ReceiverResource
-        })),
+        Quote = unwrap(
+            p2p_quote:get(#{
+                body => Body,
+                identity_id => IdentityID,
+                sender => SenderResource,
+                receiver => ReceiverResource
+            })
+        ),
         Token = create_p2p_quote_token(Quote, PartyID),
         ExpiresOn = p2p_quote:expires_on(Quote),
         SurplusCash = get_p2p_quote_surplus(Quote),
         to_swag(p2p_transfer_quote, {SurplusCash, Token, ExpiresOn})
     end).
 
--spec create_p2p_transfer(params(), ctx()) -> result(map(),
-    p2p_transfer:create_error() |
-    {identity, unauthorized} |
-    {external_id_conflict, id(), external_id()} |
-    {invalid_resource_token, _} |
-    {quote, token_expired} |
-    {token,
-        {unsupported_version, integer() | undefined} |
-        {not_verified, invalid_signature} |
-        {not_verified, identity_mismatch}
-    }
-).
+-spec create_p2p_transfer(params(), ctx()) ->
+    result(
+        map(),
+        p2p_transfer:create_error()
+        | {identity, unauthorized}
+        | {external_id_conflict, id(), external_id()}
+        | {invalid_resource_token, _}
+        | {quote, token_expired}
+        | {token,
+            {unsupported_version, integer() | undefined}
+            | {not_verified, invalid_signature}
+            | {not_verified, identity_mismatch}}
+    ).
 create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
-    CreateFun =
-        fun(ID, EntityCtx) ->
-            do(fun() ->
-                _ = check_resource(identity, IdentityId, Context),
-                ParsedParams = unwrap(maybe_add_p2p_quote_token(
+    CreateFun = fun(ID, EntityCtx) ->
+        do(fun() ->
+            _ = check_resource(identity, IdentityId, Context),
+            ParsedParams = unwrap(
+                maybe_add_p2p_quote_token(
                     from_swag(create_p2p_params, Params)
-                )),
-                SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
-                ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
-                RawSenderResource = {raw, #{
+                )
+            ),
+            SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
+            ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
+            RawSenderResource =
+                {raw, #{
                     resource_params => SenderResource,
                     contact_info => maps:get(contact_info, ParsedParams)
                 }},
-                RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
-                unwrap(p2p_transfer_machine:create(
+            RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
+            unwrap(
+                p2p_transfer_machine:create(
                     genlib_map:compact(ParsedParams#{
                         id => ID,
                         sender => RawSenderResource,
                         receiver => RawReceiverResource
                     }),
                     add_meta_to_ctx([], Params, EntityCtx)
-                ))
-            end)
-        end,
-    do(fun () -> unwrap(create_entity(p2p_transfer, Params, CreateFun, Context)) end).
+                )
+            )
+        end)
+    end,
+    do(fun() -> unwrap(create_entity(p2p_transfer, Params, CreateFun, Context)) end).
 
--spec get_p2p_transfer(params(), ctx()) -> result(map(),
-    {p2p_transfer, unauthorized} |
-    {p2p_transfer, {unknown_p2p_transfer, binary()}}
-).
+-spec get_p2p_transfer(params(), ctx()) ->
+    result(
+        map(),
+        {p2p_transfer, unauthorized}
+        | {p2p_transfer, {unknown_p2p_transfer, binary()}}
+    ).
 get_p2p_transfer(ID, Context) ->
-    do(fun () ->
+    do(fun() ->
         State = get_state(p2p_transfer, ID, Context),
         to_swag(p2p_transfer, State)
     end).
 
--spec get_p2p_transfer_events({id(), binary() | undefined}, ctx()) -> result(map(),
-    {p2p_transfer, unauthorized} |
-    {p2p_transfer, not_found} |
-    {token,
-        {unsupported_version, integer() | undefined} |
-        {not_verified, invalid_signature}
-    }
-).
+-spec get_p2p_transfer_events({id(), binary() | undefined}, ctx()) ->
+    result(
+        map(),
+        {p2p_transfer, unauthorized}
+        | {p2p_transfer, not_found}
+        | {token,
+            {unsupported_version, integer() | undefined}
+            | {not_verified, invalid_signature}}
+    ).
 get_p2p_transfer_events({ID, CT}, Context) ->
-    do(fun () ->
+    do(fun() ->
         PartyID = wapi_handler_utils:get_owner(Context),
         DecodedCT = unwrap(prepare_p2p_transfer_event_continuation_token(PartyID, CT)),
         P2PTransferEventID = maps:get(p2p_transfer_event_id, DecodedCT, undefined),
@@ -710,83 +795,89 @@ get_p2p_transfer_events({ID, CT}, Context) ->
         {P2PTransferEvents, P2PTransferEventsLastID} =
             unwrap(maybe_get_transfer_events(ID, Limit, P2PTransferEventID, Context)),
         MixedEvents = mix_events([P2PTransferEvents, P2PSessionEvents]),
-        ContinuationToken = create_p2p_transfer_events_continuation_token(#{
-            p2p_transfer_event_id => max_event_id(P2PTransferEventsLastID, P2PTransferEventID),
-            p2p_session_event_id => max_event_id(P2PSessionEventsLastID, P2PSessionEventID)
-        }, Context),
+        ContinuationToken = create_p2p_transfer_events_continuation_token(
+            #{
+                p2p_transfer_event_id => max_event_id(P2PTransferEventsLastID, P2PTransferEventID),
+                p2p_session_event_id => max_event_id(P2PSessionEventsLastID, P2PSessionEventID)
+            },
+            Context
+        ),
         to_swag(p2p_transfer_events, {MixedEvents, ContinuationToken})
     end).
 
 %% P2P Templates
 
--spec create_p2p_template(params(), ctx()) -> result(map(),
-    p2p_template:create_error() |
-    {external_id_conflict, id(), external_id()} |
-    {identity, unauthorized}
-).
+-spec create_p2p_template(params(), ctx()) ->
+    result(
+        map(),
+        p2p_template:create_error()
+        | {external_id_conflict, id(), external_id()}
+        | {identity, unauthorized}
+    ).
 create_p2p_template(Params = #{<<"identityID">> := IdentityId}, Context) ->
-    CreateFun =
-        fun(ID, EntityCtx) ->
-            do(fun() ->
-                _ = check_resource(identity, IdentityId, Context),
-                ParsedParams = from_swag(p2p_template_create_params, Params),
-                unwrap(p2p_template_machine:create(
+    CreateFun = fun(ID, EntityCtx) ->
+        do(fun() ->
+            _ = check_resource(identity, IdentityId, Context),
+            ParsedParams = from_swag(p2p_template_create_params, Params),
+            unwrap(
+                p2p_template_machine:create(
                     genlib_map:compact(ParsedParams#{
                         id => ID
                     }),
                     add_meta_to_ctx([], Params, EntityCtx)
-                ))
-            end)
-        end,
-    do(fun () -> unwrap(create_entity(p2p_template, Params, CreateFun, Context)) end).
+                )
+            )
+        end)
+    end,
+    do(fun() -> unwrap(create_entity(p2p_template, Params, CreateFun, Context)) end).
 
--spec get_p2p_template(params(), ctx()) -> result(map(),
-    p2p_template_machine:unknown_p2p_template_error()
-).
+-spec get_p2p_template(params(), ctx()) ->
+    result(
+        map(),
+        p2p_template_machine:unknown_p2p_template_error()
+    ).
 get_p2p_template(ID, Context) ->
-    do(fun () ->
+    do(fun() ->
         State = get_state(p2p_template, ID, Context),
         to_swag(p2p_template, State)
     end).
 
 -spec block_p2p_template(params(), ctx()) ->
-    ok | {error,
-    {p2p_template, unauthorized} |
-    p2p_template_machine:unknown_p2p_template_error()
-}.
+    ok
+    | {error,
+        {p2p_template, unauthorized}
+        | p2p_template_machine:unknown_p2p_template_error()}.
 block_p2p_template(ID, Context) ->
-    do(fun () ->
+    do(fun() ->
         _ = check_resource(p2p_template, ID, Context),
         p2p_template_machine:set_blocking(ID, blocked)
     end).
 
 -spec issue_p2p_template_access_token(params(), binary(), ctx()) ->
-    {ok, binary()} |
-    {error,
-        expired |
-        {p2p_template, unauthorized} |
-        p2p_template_machine:unknown_p2p_template_error()
-}.
+    {ok, binary()}
+    | {error,
+        expired
+        | {p2p_template, unauthorized}
+        | p2p_template_machine:unknown_p2p_template_error()}.
 issue_p2p_template_access_token(ID, Expiration, Context) ->
-    do(fun () ->
+    do(fun() ->
         _ = check_resource(p2p_template, ID, Context),
         Data = #{<<"expiration">> => Expiration},
         unwrap(wapi_backend_utils:issue_grant_token({p2p_templates, ID, Data}, Expiration, Context))
     end).
 
 -spec issue_p2p_transfer_ticket(params(), binary(), ctx()) ->
-    {ok, {binary(), binary()}} |
-    {error,
-        expired |
-        p2p_template_machine:unknown_p2p_template_error()
-}.
+    {ok, {binary(), binary()}}
+    | {error,
+        expired
+        | p2p_template_machine:unknown_p2p_template_error()}.
 issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx}) ->
-    do(fun () ->
+    do(fun() ->
         {_, _, Claims} = wapi_handler_utils:get_auth_context(Context),
         AccessData = maps:get(<<"data">>, Claims),
         AccessExpiration = maps:get(<<"expiration">>, AccessData),
         PartyID = wapi_handler_utils:get_owner(Context),
-        Key  = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID, undefined),
+        Key = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID, undefined),
         {ok, {TransferID, _}} = bender_client:gen_snowflake(Key, 0, WoodyCtx),
         Data = #{<<"transferID">> => TransferID},
         Expiration1 = choose_token_expiration(Expiration0, AccessExpiration),
@@ -798,20 +889,21 @@ issue_p2p_transfer_ticket(ID, Expiration0, Context = #{woody_context := WoodyCtx
         end
     end).
 
--spec create_p2p_transfer_with_template(id(), params(), ctx()) -> result(map(),
-    p2p_template_machine:unknown_p2p_template_error() |
-    p2p_transfer:create_error() |
-    {external_id_conflict, id(), external_id()} |
-    {invalid_resource_token, _} |
-    {quote, token_expired} |
-    {token,
-        {unsupported_version, integer() | undefined} |
-        {not_verified, invalid_signature} |
-        {not_verified, identity_mismatch}
-    }
-).
+-spec create_p2p_transfer_with_template(id(), params(), ctx()) ->
+    result(
+        map(),
+        p2p_template_machine:unknown_p2p_template_error()
+        | p2p_transfer:create_error()
+        | {external_id_conflict, id(), external_id()}
+        | {invalid_resource_token, _}
+        | {quote, token_expired}
+        | {token,
+            {unsupported_version, integer() | undefined}
+            | {not_verified, invalid_signature}
+            | {not_verified, identity_mismatch}}
+    ).
 create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := WoodyCtx}) ->
-    do(fun () ->
+    do(fun() ->
         {_, _, Claims} = wapi_handler_utils:get_auth_context(Context),
         Data = maps:get(<<"data">>, Claims),
         TransferID = maps:get(<<"transferID">>, Data),
@@ -820,15 +912,19 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
         IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
         case bender_client:gen_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
             {ok, {TransferID, _}} ->
-                ParsedParams = unwrap(maybe_add_p2p_template_quote_token(
-                    ID, from_swag(create_p2p_with_template_params, Params)
-                )),
+                ParsedParams = unwrap(
+                    maybe_add_p2p_template_quote_token(
+                        ID,
+                        from_swag(create_p2p_with_template_params, Params)
+                    )
+                ),
                 SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
                 ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
-                RawSenderResource = {raw, #{
-                    resource_params => SenderResource,
-                    contact_info => maps:get(contact_info, ParsedParams)
-                }},
+                RawSenderResource =
+                    {raw, #{
+                        resource_params => SenderResource,
+                        contact_info => maps:get(contact_info, ParsedParams)
+                    }},
                 RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
                 Result = p2p_template_machine:create_transfer(ID, ParsedParams#{
                     id => TransferID,
@@ -842,13 +938,15 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
         end
     end).
 
--spec quote_p2p_transfer_with_template(id(), params(), ctx()) -> result(map(),
-    p2p_template_machine:unknown_p2p_template_error() |
-    {invalid_resource_token, _} |
-    p2p_quote:get_quote_error()
-).
+-spec quote_p2p_transfer_with_template(id(), params(), ctx()) ->
+    result(
+        map(),
+        p2p_template_machine:unknown_p2p_template_error()
+        | {invalid_resource_token, _}
+        | p2p_quote:get_quote_error()
+    ).
 quote_p2p_transfer_with_template(ID, Params, Context) ->
-    do(fun () ->
+    do(fun() ->
         #{
             sender := Sender,
             receiver := Receiver,
@@ -857,11 +955,13 @@ quote_p2p_transfer_with_template(ID, Params, Context) ->
         PartyID = wapi_handler_utils:get_owner(Context),
         SenderResource = unwrap(construct_resource(Sender)),
         ReceiverResource = unwrap(construct_resource(Receiver)),
-        Quote = unwrap(p2p_template_machine:get_quote(ID, #{
-            body => Body,
-            sender => SenderResource,
-            receiver => ReceiverResource
-        })),
+        Quote = unwrap(
+            p2p_template_machine:get_quote(ID, #{
+                body => Body,
+                sender => SenderResource,
+                receiver => ReceiverResource
+            })
+        ),
         Token = create_p2p_quote_token(Quote, PartyID),
         ExpiresOn = p2p_quote:expires_on(Quote),
         SurplusCash = get_p2p_quote_surplus(Quote),
@@ -873,22 +973,23 @@ quote_p2p_transfer_with_template(ID, Params, Context) ->
 -spec create_w2w_transfer(params(), ctx()) -> result(map(), w2w_transfer:create_error()).
 create_w2w_transfer(Params = #{<<"sender">> := WalletFromID}, Context) ->
     _ = check_resource(wallet, WalletFromID, Context),
-    CreateFun =
-        fun(ID, EntityCtx) ->
-            ParsedParams = from_swag(create_w2w_params, Params),
-            w2w_transfer_machine:create(
-                genlib_map:compact(ParsedParams#{id => ID}),
-                EntityCtx
-            )
-        end,
-    do(fun () -> unwrap(create_entity(w2w_transfer, Params, CreateFun, Context)) end).
+    CreateFun = fun(ID, EntityCtx) ->
+        ParsedParams = from_swag(create_w2w_params, Params),
+        w2w_transfer_machine:create(
+            genlib_map:compact(ParsedParams#{id => ID}),
+            EntityCtx
+        )
+    end,
+    do(fun() -> unwrap(create_entity(w2w_transfer, Params, CreateFun, Context)) end).
 
--spec get_w2w_transfer(params(), ctx()) -> result(map(),
-    {w2w_transfer, unauthorized} |
-    {w2w_transfer, {unknown_w2w_transfer, binary()}}
-).
+-spec get_w2w_transfer(params(), ctx()) ->
+    result(
+        map(),
+        {w2w_transfer, unauthorized}
+        | {w2w_transfer, {unknown_w2w_transfer, binary()}}
+    ).
 get_w2w_transfer(ID, Context) ->
-    do(fun () ->
+    do(fun() ->
         State = get_state(w2w_transfer, ID, Context),
         to_swag(w2w_transfer, State)
     end).
@@ -905,8 +1006,9 @@ choose_token_expiration(TicketExpiration, AccessExpiration) ->
             TicketExpiration
     end.
 
-construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource)
-when Type =:= <<"BankCardDestinationResource">> ->
+construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource) when
+    Type =:= <<"BankCardDestinationResource">>
+->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         unrecognized ->
             {ok, from_swag(destination_resource, Resource)};
@@ -916,8 +1018,9 @@ when Type =:= <<"BankCardDestinationResource">> ->
             logger:warning("~s token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
     end;
-construct_resource(#{<<"type">> := Type, <<"token">> := Token, <<"authData">> := AuthData})
-when   Type =:= <<"BankCardSenderResourceParams">>  ->
+construct_resource(#{<<"type">> := Type, <<"token">> := Token, <<"authData">> := AuthData}) when
+    Type =:= <<"BankCardSenderResourceParams">>
+->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         {ok, BankCard} ->
             {ok, encode_resource_bank_card(BankCard, AuthData)};
@@ -928,10 +1031,11 @@ when   Type =:= <<"BankCardSenderResourceParams">>  ->
             logger:warning("~s token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
     end;
-construct_resource(#{<<"type">> := Type, <<"token">> := Token})
-when   Type =:= <<"BankCardSenderResource">>
-orelse Type =:= <<"BankCardReceiverResource">>
-orelse Type =:= <<"BankCardReceiverResourceParams">> ->
+construct_resource(#{<<"type">> := Type, <<"token">> := Token}) when
+    Type =:= <<"BankCardSenderResource">> orelse
+        Type =:= <<"BankCardReceiverResource">> orelse
+        Type =:= <<"BankCardReceiverResourceParams">>
+->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         {ok, BankCard} ->
             {ok, {bank_card, encode_bank_card(BankCard)}};
@@ -942,12 +1046,16 @@ orelse Type =:= <<"BankCardReceiverResourceParams">> ->
             logger:warning("~s token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
     end;
-construct_resource(#{<<"type">> := Type, <<"id">> := CryptoWalletID} = Resource)
-when Type =:= <<"CryptoWalletDestinationResource">> ->
-    {ok, {crypto_wallet, #{crypto_wallet => genlib_map:compact(#{
-        id       => CryptoWalletID,
-        currency => from_swag(crypto_wallet_currency, Resource)
-    })}}}.
+construct_resource(#{<<"type">> := Type, <<"id">> := CryptoWalletID} = Resource) when
+    Type =:= <<"CryptoWalletDestinationResource">>
+->
+    {ok,
+        {crypto_wallet, #{
+            crypto_wallet => genlib_map:compact(#{
+                id => CryptoWalletID,
+                currency => from_swag(crypto_wallet_currency, Resource)
+            })
+        }}}.
 
 encode_resource_bank_card(BankCard, AuthData) ->
     EncodedBankCard = encode_bank_card(BankCard),
@@ -956,13 +1064,13 @@ encode_resource_bank_card(BankCard, AuthData) ->
 encode_bank_card(BankCard) ->
     #{
         bank_card => genlib_map:compact(#{
-            token           => BankCard#'BankCard'.token,
-            bin             => BankCard#'BankCard'.bin,
-            masked_pan      => BankCard#'BankCard'.masked_pan,
+            token => BankCard#'BankCard'.token,
+            bin => BankCard#'BankCard'.bin,
+            masked_pan => BankCard#'BankCard'.masked_pan,
             cardholder_name => BankCard#'BankCard'.cardholder_name,
             %% ExpDate is optional in swag_wallets 'StoreBankCard'. But some adapters waiting exp_date.
             %% Add error, somethink like BankCardReject.exp_date_required
-            exp_date        => encode_exp_date(BankCard#'BankCard'.exp_date)
+            exp_date => encode_exp_date(BankCard#'BankCard'.exp_date)
         })
     }.
 
@@ -979,16 +1087,20 @@ maybe_check_quote_token(Params = #{<<"quoteToken">> := QuoteToken}, Context) ->
     {ok, {_, _, Data}} = uac_authorizer_jwt:verify(QuoteToken, #{}),
     {ThriftQuote, WalletID, DestinationID, PartyID} = unwrap(quote, wapi_withdrawal_quote:decode_token_payload(Data)),
     Quote = ff_withdrawal_codec:unmarshal(quote, ThriftQuote),
-    unwrap(quote_invalid_party,
+    unwrap(
+        quote_invalid_party,
         valid(
             PartyID,
             wapi_handler_utils:get_owner(Context)
-    )),
-    unwrap(quote_invalid_wallet,
+        )
+    ),
+    unwrap(
+        quote_invalid_wallet,
         valid(
             WalletID,
             maps:get(<<"wallet">>, Params)
-    )),
+        )
+    ),
     check_quote_destination(
         DestinationID,
         maps:get(<<"destination">>, Params)
@@ -1066,14 +1178,17 @@ max_event_id(NewEventID, OldEventID) when is_integer(NewEventID) andalso is_inte
 max_event_id(NewEventID, OldEventID) ->
     genlib:define(NewEventID, OldEventID).
 
-create_p2p_transfer_events_continuation_token(#{
-    p2p_transfer_event_id := P2PTransferEventID,
-    p2p_session_event_id := P2PSessionEventID
-}, Context) ->
+create_p2p_transfer_events_continuation_token(
+    #{
+        p2p_transfer_event_id := P2PTransferEventID,
+        p2p_session_event_id := P2PSessionEventID
+    },
+    Context
+) ->
     DecodedToken = genlib_map:compact(#{
-        <<"version">>               => 1,
+        <<"version">> => 1,
         <<"p2p_transfer_event_id">> => P2PTransferEventID,
-        <<"p2p_session_event_id">>  => P2PSessionEventID
+        <<"p2p_session_event_id">> => P2PSessionEventID
     }),
     PartyID = wapi_handler_utils:get_owner(Context),
     {ok, SignedToken} = issue_quote_token(PartyID, DecodedToken),
@@ -1142,8 +1257,8 @@ maybe_get_transfer_events(TransferID, Limit, P2PTransferEventID, Context) ->
     Filter = fun transfer_events_filter/1,
     get_events({p2p_transfer, event}, TransferID, Limit, P2PTransferEventID, Filter, Context).
 
-session_events_filter({_ID, {ev, _Timestamp, {user_interaction, #{payload := Payload}}}})
-    when Payload =/= {status_changed, pending}
+session_events_filter({_ID, {ev, _Timestamp, {user_interaction, #{payload := Payload}}}}) when
+    Payload =/= {status_changed, pending}
 ->
     true;
 session_events_filter(_) ->
@@ -1156,8 +1271,8 @@ transfer_events_filter(_) ->
 
 get_swag_event(Type, ResourceId, EventId, Filter, Context) ->
     case get_swag_events(Type, ResourceId, 1, EventId - 1, Filter, Context) of
-        {ok, [Event]}      -> {ok, Event};
-        {ok, []}           -> {error, {event, notfound}};
+        {ok, [Event]} -> {ok, Event};
+        {ok, []} -> {error, {event, notfound}};
         Error = {error, _} -> Error
     end.
 
@@ -1180,7 +1295,7 @@ get_events(Type = {Resource, _}, ResourceId, Limit, Cursor, Filter, Context) ->
     end).
 
 get_event_type({identity, challenge_event}) -> identity_challenge_event;
-get_event_type({withdrawal, event})         -> withdrawal_event.
+get_event_type({withdrawal, event}) -> withdrawal_event.
 
 get_collector({identity, challenge_event}, Id) ->
     fun(C, L) -> unwrap(ff_identity_machine:events(Id, {C, L})) end;
@@ -1226,13 +1341,13 @@ enrich_proof({_, Token}, Context) ->
 
 get_state(Resource, Id, Context) ->
     State = unwrap(Resource, do_get_state(Resource, Id)),
-    ok    = unwrap(Resource, check_resource_access(Context, State)),
+    ok = unwrap(Resource, check_resource_access(Context, State)),
     State.
 
-do_get_state(identity,     Id) -> ff_identity_machine:get(Id);
-do_get_state(wallet,       Id) -> ff_wallet_machine:get(Id);
-do_get_state(destination,  Id) -> ff_destination_machine:get(Id);
-do_get_state(withdrawal,   Id) -> ff_withdrawal_machine:get(Id);
+do_get_state(identity, Id) -> ff_identity_machine:get(Id);
+do_get_state(wallet, Id) -> ff_wallet_machine:get(Id);
+do_get_state(destination, Id) -> ff_destination_machine:get(Id);
+do_get_state(withdrawal, Id) -> ff_withdrawal_machine:get(Id);
 do_get_state(p2p_transfer, Id) -> p2p_transfer_machine:get(Id);
 do_get_state(p2p_template, Id) -> p2p_template_machine:get(Id);
 do_get_state(w2w_transfer, Id) -> w2w_transfer_machine:get(Id).
@@ -1245,10 +1360,12 @@ make_ctx(Context) ->
     #{?CTX_NS => #{<<"owner">> => wapi_handler_utils:get_owner(Context)}}.
 
 add_meta_to_ctx(WapiKeys, Params, Context = #{?CTX_NS := Ctx}) ->
-    Context#{?CTX_NS => maps:merge(
-        Ctx,
-        maps:with(WapiKeys, Params)
-    )}.
+    Context#{
+        ?CTX_NS => maps:merge(
+            Ctx,
+            maps:with(WapiKeys, Params)
+        )
+    }.
 
 add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
     Context#{?CTX_NS => Ctx#{Key => Value}}.
@@ -1265,12 +1382,12 @@ is_resource_owner(HandlerCtx, State) ->
 check_resource_access(HandlerCtx, State) ->
     check_resource_access(is_resource_owner(HandlerCtx, State)).
 
-check_resource_access(true)  -> ok;
+check_resource_access(true) -> ok;
 check_resource_access(false) -> {error, unauthorized}.
 
 create_entity(Type, Params, CreateFun, Context) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
-    Hash       = erlang:phash2(Params),
+    Hash = erlang:phash2(Params),
     case gen_id(Type, ExternalID, Hash, Context) of
         {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
@@ -1279,10 +1396,7 @@ create_entity(Type, Params, CreateFun, Context) ->
             {error, {external_id_conflict, ID, ExternalID}}
     end.
 
-handle_create_entity_result(Result, Type, ID, Context) when
-    Result =:= ok;
-    Result =:= {error, exists}
-->
+handle_create_entity_result(Result, Type, ID, Context) when Result =:= ok; Result =:= {error, exists} ->
     St = get_state(Type, ID, Context),
     do(fun() -> to_swag(Type, St) end);
 handle_create_entity_result({error, E}, _Type, _ID, _Context) ->
@@ -1296,15 +1410,15 @@ do(Fun) ->
     ff_pipeline:do(Fun).
 
 -spec unwrap
-    (ok)         -> ok;
-    ({ok, V})    -> V;
+    (ok) -> ok;
+    ({ok, V}) -> V;
     ({error, _E}) -> no_return().
 unwrap(Res) ->
     ff_pipeline:unwrap(Res).
 
 -spec unwrap
-    (_Tag, ok)         -> ok;
-    (_Tag, {ok, V})    -> V;
+    (_Tag, ok) -> ok;
+    (_Tag, {ok, V}) -> V;
     (_Tag, {error, _E}) -> no_return().
 unwrap(Tag, Res) ->
     ff_pipeline:unwrap(Tag, Res).
@@ -1336,62 +1450,63 @@ gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
 gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
     case bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx) of
-        {ok, {ID, _IntegerID}} -> {ok, ID}; % No need for IntegerID at this project so far
+        % No need for IntegerID at this project so far
+        {ok, {ID, _IntegerID}} -> {ok, ID};
         {error, {external_id_conflict, {ID, _IntegerID}}} -> {error, {external_id_conflict, ID}}
     end.
 
 create_report_request(#{
-    party_id     := PartyID,
-    contract_id  := ContractID,
-    from_time    := FromTime,
-    to_time      := ToTime
+    party_id := PartyID,
+    contract_id := ContractID,
+    from_time := FromTime,
+    to_time := ToTime
 }) ->
     #'ff_reports_ReportRequest'{
-        party_id    = PartyID,
+        party_id = PartyID,
         contract_id = ContractID,
-        time_range  = #'ff_reports_ReportTimeRange'{
+        time_range = #'ff_reports_ReportTimeRange'{
             from_time = FromTime,
-            to_time   = ToTime
+            to_time = ToTime
         }
     }.
 
 create_stat_dsl(withdrawal_stat, Req, Context) ->
     Query = #{
-        <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
-        <<"wallet_id"       >> => genlib_map:get(walletID, Req),
-        <<"identity_id"     >> => genlib_map:get(identityID, Req),
-        <<"withdrawal_id"   >> => genlib_map:get(withdrawalID, Req),
-        <<"destination_id"  >> => genlib_map:get(destinationID, Req),
-        <<"status"          >> => genlib_map:get(status, Req),
-        <<"from_time"       >> => get_time(createdAtFrom, Req),
-        <<"to_time"         >> => get_time(createdAtTo, Req),
-        <<"amount_from"     >> => genlib_map:get(amountFrom, Req),
-        <<"amount_to"       >> => genlib_map:get(amountTo, Req),
-        <<"currency_code"   >> => genlib_map:get(currencyID, Req)
+        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"wallet_id">> => genlib_map:get(walletID, Req),
+        <<"identity_id">> => genlib_map:get(identityID, Req),
+        <<"withdrawal_id">> => genlib_map:get(withdrawalID, Req),
+        <<"destination_id">> => genlib_map:get(destinationID, Req),
+        <<"status">> => genlib_map:get(status, Req),
+        <<"from_time">> => get_time(createdAtFrom, Req),
+        <<"to_time">> => get_time(createdAtTo, Req),
+        <<"amount_from">> => genlib_map:get(amountFrom, Req),
+        <<"amount_to">> => genlib_map:get(amountTo, Req),
+        <<"currency_code">> => genlib_map:get(currencyID, Req)
     },
     QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
     jsx:encode(create_dsl(withdrawals, Query, QueryParams));
 create_stat_dsl(deposit_stat, Req, Context) ->
     Query = #{
-        <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
-        <<"wallet_id"       >> => genlib_map:get(walletID, Req),
-        <<"identity_id"     >> => genlib_map:get(identityID, Req),
-        <<"deposit_id"      >> => genlib_map:get(depositID, Req),
-        <<"source_id"       >> => genlib_map:get(sourceID, Req),
-        <<"status"          >> => genlib_map:get(status, Req),
-        <<"from_time"       >> => get_time(createdAtFrom, Req),
-        <<"to_time"         >> => get_time(createdAtTo, Req),
-        <<"amount_from"     >> => genlib_map:get(amountFrom, Req),
-        <<"amount_to"       >> => genlib_map:get(amountTo, Req),
-        <<"currency_code"   >> => genlib_map:get(currencyID, Req)
+        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"wallet_id">> => genlib_map:get(walletID, Req),
+        <<"identity_id">> => genlib_map:get(identityID, Req),
+        <<"deposit_id">> => genlib_map:get(depositID, Req),
+        <<"source_id">> => genlib_map:get(sourceID, Req),
+        <<"status">> => genlib_map:get(status, Req),
+        <<"from_time">> => get_time(createdAtFrom, Req),
+        <<"to_time">> => get_time(createdAtTo, Req),
+        <<"amount_from">> => genlib_map:get(amountFrom, Req),
+        <<"amount_to">> => genlib_map:get(amountTo, Req),
+        <<"currency_code">> => genlib_map:get(currencyID, Req)
     },
     QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
     jsx:encode(create_dsl(deposits, Query, QueryParams));
 create_stat_dsl(wallet_stat, Req, Context) ->
     Query = #{
-        <<"party_id"        >> => wapi_handler_utils:get_owner(Context),
-        <<"identity_id"     >> => genlib_map:get(identityID, Req),
-        <<"currency_code"   >> => genlib_map:get(currencyID, Req)
+        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"identity_id">> => genlib_map:get(identityID, Req),
+        <<"currency_code">> => genlib_map:get(currencyID, Req)
     },
     QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
     jsx:encode(create_dsl(wallets, Query, QueryParams)).
@@ -1430,10 +1545,12 @@ get_time(Key, Req) ->
     end.
 
 create_dsl(StatTag, Query, QueryParams) ->
-    #{<<"query">> => merge_and_compact(
-        maps:put(genlib:to_binary(StatTag), genlib_map:compact(Query), #{}),
-        QueryParams
-    )}.
+    #{
+        <<"query">> => merge_and_compact(
+            maps:put(genlib:to_binary(StatTag), genlib_map:compact(Query), #{}),
+            QueryParams
+        )
+    }.
 
 merge_and_compact(M1, M2) ->
     genlib_map:compact(maps:merge(M1, M2)).
@@ -1441,47 +1558,53 @@ merge_and_compact(M1, M2) ->
 bad_request_error(Type, Name) ->
     #{<<"errorType">> => genlib:to_binary(Type), <<"name">> => genlib:to_binary(Name)}.
 
-format_request_errors([]    ) -> <<>>;
+format_request_errors([]) -> <<>>;
 format_request_errors(Errors) -> genlib_string:join(<<"\n">>, Errors).
 
 decode_stat(withdrawal_stat, Response) ->
-    merge_and_compact(#{
-        <<"id"          >> => Response#fistfulstat_StatWithdrawal.id,
-        <<"createdAt"   >> => Response#fistfulstat_StatWithdrawal.created_at,
-        <<"wallet"      >> => Response#fistfulstat_StatWithdrawal.source_id,
-        <<"destination" >> => Response#fistfulstat_StatWithdrawal.destination_id,
-        <<"externalID"  >> => Response#fistfulstat_StatWithdrawal.external_id,
-        <<"body"        >> => decode_stat_cash(
-            Response#fistfulstat_StatWithdrawal.amount,
-            Response#fistfulstat_StatWithdrawal.currency_symbolic_code
-        ),
-        <<"fee"         >> => decode_stat_cash(
-            Response#fistfulstat_StatWithdrawal.fee,
-            Response#fistfulstat_StatWithdrawal.currency_symbolic_code
-        )
-    }, decode_withdrawal_stat_status(Response#fistfulstat_StatWithdrawal.status));
+    merge_and_compact(
+        #{
+            <<"id">> => Response#fistfulstat_StatWithdrawal.id,
+            <<"createdAt">> => Response#fistfulstat_StatWithdrawal.created_at,
+            <<"wallet">> => Response#fistfulstat_StatWithdrawal.source_id,
+            <<"destination">> => Response#fistfulstat_StatWithdrawal.destination_id,
+            <<"externalID">> => Response#fistfulstat_StatWithdrawal.external_id,
+            <<"body">> => decode_stat_cash(
+                Response#fistfulstat_StatWithdrawal.amount,
+                Response#fistfulstat_StatWithdrawal.currency_symbolic_code
+            ),
+            <<"fee">> => decode_stat_cash(
+                Response#fistfulstat_StatWithdrawal.fee,
+                Response#fistfulstat_StatWithdrawal.currency_symbolic_code
+            )
+        },
+        decode_withdrawal_stat_status(Response#fistfulstat_StatWithdrawal.status)
+    );
 decode_stat(deposit_stat, Response) ->
-    merge_and_compact(#{
-        <<"id"          >> => Response#fistfulstat_StatDeposit.id,
-        <<"createdAt"   >> => Response#fistfulstat_StatDeposit.created_at,
-        <<"wallet"      >> => Response#fistfulstat_StatDeposit.destination_id,
-        <<"source"      >> => Response#fistfulstat_StatDeposit.source_id,
-        <<"body"        >> => decode_stat_cash(
-            Response#fistfulstat_StatDeposit.amount,
-            Response#fistfulstat_StatDeposit.currency_symbolic_code
-        ),
-        <<"fee"         >> => decode_stat_cash(
-            Response#fistfulstat_StatDeposit.fee,
-            Response#fistfulstat_StatDeposit.currency_symbolic_code
-        )
-    }, decode_deposit_stat_status(Response#fistfulstat_StatDeposit.status));
+    merge_and_compact(
+        #{
+            <<"id">> => Response#fistfulstat_StatDeposit.id,
+            <<"createdAt">> => Response#fistfulstat_StatDeposit.created_at,
+            <<"wallet">> => Response#fistfulstat_StatDeposit.destination_id,
+            <<"source">> => Response#fistfulstat_StatDeposit.source_id,
+            <<"body">> => decode_stat_cash(
+                Response#fistfulstat_StatDeposit.amount,
+                Response#fistfulstat_StatDeposit.currency_symbolic_code
+            ),
+            <<"fee">> => decode_stat_cash(
+                Response#fistfulstat_StatDeposit.fee,
+                Response#fistfulstat_StatDeposit.currency_symbolic_code
+            )
+        },
+        decode_deposit_stat_status(Response#fistfulstat_StatDeposit.status)
+    );
 decode_stat(wallet_stat, Response) ->
     genlib_map:compact(#{
-        <<"id"          >> => Response#fistfulstat_StatWallet.id,
-        <<"name"        >> => Response#fistfulstat_StatWallet.name,
-        <<"identity"    >> => Response#fistfulstat_StatWallet.identity_id,
-        <<"createdAt"   >> => Response#fistfulstat_StatWallet.created_at,
-        <<"currency"    >> => Response#fistfulstat_StatWallet.currency_symbolic_code
+        <<"id">> => Response#fistfulstat_StatWallet.id,
+        <<"name">> => Response#fistfulstat_StatWallet.name,
+        <<"identity">> => Response#fistfulstat_StatWallet.identity_id,
+        <<"createdAt">> => Response#fistfulstat_StatWallet.created_at,
+        <<"currency">> => Response#fistfulstat_StatWallet.currency_symbolic_code
     }).
 
 decode_stat_cash(Amount, Currency) ->
@@ -1515,34 +1638,42 @@ add_external_id(Params, _) ->
     Params.
 
 -type swag_term() ::
-    #{binary() => swag_term()} |
-    [swag_term()]              |
-    number()                   |
-    binary()                   |
-    boolean()                  .
+    #{binary() => swag_term()}
+    | [swag_term()]
+    | number()
+    | binary()
+    | boolean().
 
--spec from_swag(_Type, swag_term()) ->
-    _Term.
-
+-spec from_swag(_Type, swag_term()) -> _Term.
 from_swag(create_quote_params, Params) ->
-    genlib_map:compact(add_external_id(#{
-        wallet_id       => maps:get(<<"walletID">>, Params),
-        currency_from   => from_swag(currency, maps:get(<<"currencyFrom">>, Params)),
-        currency_to     => from_swag(currency, maps:get(<<"currencyTo">>, Params)),
-        body            => from_swag(body, maps:get(<<"cash">>, Params)),
-        destination_id  => maps:get(<<"destinationID">>, Params, undefined)
-    }, Params));
+    genlib_map:compact(
+        add_external_id(
+            #{
+                wallet_id => maps:get(<<"walletID">>, Params),
+                currency_from => from_swag(currency, maps:get(<<"currencyFrom">>, Params)),
+                currency_to => from_swag(currency, maps:get(<<"currencyTo">>, Params)),
+                body => from_swag(body, maps:get(<<"cash">>, Params)),
+                destination_id => maps:get(<<"destinationID">>, Params, undefined)
+            },
+            Params
+        )
+    );
 from_swag(identity_params, Params) ->
-    genlib_map:compact(add_external_id(#{
-        name     => maps:get(<<"name">>, Params),
-        provider => maps:get(<<"provider">>, Params),
-        class    => maps:get(<<"class">>   , Params),
-        metadata => maps:get(<<"metadata">>, Params, undefined)
-    }, Params));
+    genlib_map:compact(
+        add_external_id(
+            #{
+                name => maps:get(<<"name">>, Params),
+                provider => maps:get(<<"provider">>, Params),
+                class => maps:get(<<"class">>, Params),
+                metadata => maps:get(<<"metadata">>, Params, undefined)
+            },
+            Params
+        )
+    );
 from_swag(identity_challenge_params, Params) ->
     #{
-       class  => maps:get(<<"type">>, Params),
-       proofs => from_swag(proofs, maps:get(<<"proofs">>, Params))
+        class => maps:get(<<"type">>, Params),
+        proofs => from_swag(proofs, maps:get(<<"proofs">>, Params))
     };
 from_swag(proofs, Proofs) ->
     from_swag({list, proof}, Proofs);
@@ -1552,78 +1683,103 @@ from_swag(proof, #{<<"token">> := WapiToken}) ->
         {from_swag(proof_type, Type), Token}
     catch
         error:badarg ->
-            wapi_handler:throw_result(wapi_handler_utils:reply_error(
-                422,
-                wapi_handler_utils:get_error_msg(io_lib:format("Invalid proof token: ~p", [WapiToken]))
-            ))
+            wapi_handler:throw_result(
+                wapi_handler_utils:reply_error(
+                    422,
+                    wapi_handler_utils:get_error_msg(io_lib:format("Invalid proof token: ~p", [WapiToken]))
+                )
+            )
     end;
 from_swag(proof_type, <<"RUSDomesticPassport">>) ->
     rus_domestic_passport;
 from_swag(proof_type, <<"RUSRetireeInsuranceCertificate">>) ->
     rus_retiree_insurance_cert;
-
 from_swag(wallet_params, Params) ->
-    genlib_map:compact(add_external_id(#{
-        identity => maps:get(<<"identity">>, Params),
-        currency => maps:get(<<"currency">>, Params),
-        name     => maps:get(<<"name">>    , Params),
-        metadata => maps:get(<<"metadata">>, Params, undefined)
-    }, Params));
+    genlib_map:compact(
+        add_external_id(
+            #{
+                identity => maps:get(<<"identity">>, Params),
+                currency => maps:get(<<"currency">>, Params),
+                name => maps:get(<<"name">>, Params),
+                metadata => maps:get(<<"metadata">>, Params, undefined)
+            },
+            Params
+        )
+    );
 from_swag(destination_params, Params) ->
-    genlib_map:compact(add_external_id(#{
-        identity => maps:get(<<"identity">>, Params),
-        currency => maps:get(<<"currency">>, Params),
-        name     => maps:get(<<"name">>    , Params),
-        resource => maps:get(<<"resource">>, Params),
-        metadata => maps:get(<<"metadata">>, Params, undefined)
-    }, Params));
+    genlib_map:compact(
+        add_external_id(
+            #{
+                identity => maps:get(<<"identity">>, Params),
+                currency => maps:get(<<"currency">>, Params),
+                name => maps:get(<<"name">>, Params),
+                resource => maps:get(<<"resource">>, Params),
+                metadata => maps:get(<<"metadata">>, Params, undefined)
+            },
+            Params
+        )
+    );
 %% TODO delete this code, after add encrypted token
 from_swag(destination_resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
     <<"token">> := WapiToken
 }) ->
     BankCard = wapi_utils:base64url_to_map(WapiToken),
-    {bank_card, #{bank_card => #{
-        token          => maps:get(<<"token">>, BankCard),
-        bin            => maps:get(<<"bin">>, BankCard),
-        masked_pan     => maps:get(<<"lastDigits">>, BankCard)
-    }}};
-from_swag(destination_resource, Resource = #{
-    <<"type">>     := <<"CryptoWalletDestinationResource">>,
-    <<"id">>       := CryptoWalletID,
-    <<"currency">> := CryptoWalletCurrency
-}) ->
+    {bank_card, #{
+        bank_card => #{
+            token => maps:get(<<"token">>, BankCard),
+            bin => maps:get(<<"bin">>, BankCard),
+            masked_pan => maps:get(<<"lastDigits">>, BankCard)
+        }
+    }};
+from_swag(
+    destination_resource,
+    Resource = #{
+        <<"type">> := <<"CryptoWalletDestinationResource">>,
+        <<"id">> := CryptoWalletID,
+        <<"currency">> := CryptoWalletCurrency
+    }
+) ->
     Tag = maps:get(<<"tag">>, Resource, undefined),
-    {crypto_wallet, #{crypto_wallet => genlib_map:compact(#{
-        id       => CryptoWalletID,
-        currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
-        tag      => Tag
-    })}};
+    {crypto_wallet, #{
+        crypto_wallet => genlib_map:compact(#{
+            id => CryptoWalletID,
+            currency => from_swag(crypto_wallet_currency, CryptoWalletCurrency),
+            tag => Tag
+        })
+    }};
 from_swag(quote_p2p_params, Params) ->
-    add_external_id(#{
-        sender      => maps:get(<<"sender">>, Params),
-        receiver    => maps:get(<<"receiver">>, Params),
-        identity_id => maps:get(<<"identityID">>, Params),
-        body        => from_swag(body, maps:get(<<"body">>, Params))
-    }, Params);
+    add_external_id(
+        #{
+            sender => maps:get(<<"sender">>, Params),
+            receiver => maps:get(<<"receiver">>, Params),
+            identity_id => maps:get(<<"identityID">>, Params),
+            body => from_swag(body, maps:get(<<"body">>, Params))
+        },
+        Params
+    );
 from_swag(quote_p2p_with_template_params, Params) ->
-    add_external_id(#{
-        sender      => maps:get(<<"sender">>, Params),
-        receiver    => maps:get(<<"receiver">>, Params),
-        body        => from_swag(body, maps:get(<<"body">>, Params))
-    }, Params);
-
+    add_external_id(
+        #{
+            sender => maps:get(<<"sender">>, Params),
+            receiver => maps:get(<<"receiver">>, Params),
+            body => from_swag(body, maps:get(<<"body">>, Params))
+        },
+        Params
+    );
 from_swag(create_p2p_params, Params) ->
-    add_external_id(#{
-        sender => maps:get(<<"sender">>, Params),
-        receiver => maps:get(<<"receiver">>, Params),
-        identity_id => maps:get(<<"identityID">>, Params),
-        body => from_swag(body, maps:get(<<"body">>, Params)),
-        quote_token => maps:get(<<"quoteToken">>, Params, undefined),
-        metadata => maps:get(<<"metadata">>, Params, #{}),
-        contact_info => from_swag(contact_info, maps:get(<<"contactInfo">>, Params))
-    }, Params);
-
+    add_external_id(
+        #{
+            sender => maps:get(<<"sender">>, Params),
+            receiver => maps:get(<<"receiver">>, Params),
+            identity_id => maps:get(<<"identityID">>, Params),
+            body => from_swag(body, maps:get(<<"body">>, Params)),
+            quote_token => maps:get(<<"quoteToken">>, Params, undefined),
+            metadata => maps:get(<<"metadata">>, Params, #{}),
+            contact_info => from_swag(contact_info, maps:get(<<"contactInfo">>, Params))
+        },
+        Params
+    );
 from_swag(create_p2p_with_template_params, Params) ->
     #{
         sender => maps:get(<<"sender">>, Params),
@@ -1633,74 +1789,89 @@ from_swag(create_p2p_with_template_params, Params) ->
         metadata => maps:get(<<"metadata">>, Params, #{}),
         contact_info => from_swag(contact_info, maps:get(<<"contactInfo">>, Params))
     };
-
 from_swag(p2p_template_create_params, Params) ->
-    add_external_id(#{
-        identity_id => maps:get(<<"identityID">>, Params),
-        details => from_swag(p2p_template_details, maps:get(<<"details">>, Params))
-    }, Params);
-
+    add_external_id(
+        #{
+            identity_id => maps:get(<<"identityID">>, Params),
+            details => from_swag(p2p_template_details, maps:get(<<"details">>, Params))
+        },
+        Params
+    );
 from_swag(p2p_template_details, Details) ->
     genlib_map:compact(#{
         body => from_swag(p2p_template_body, maps:get(<<"body">>, Details)),
         metadata => maybe_from_swag(p2p_template_metadata, maps:get(<<"metadata">>, Details, undefined))
     });
-
 from_swag(p2p_template_body, #{<<"value">> := Body}) ->
-    #{value => genlib_map:compact(#{
-        currency => from_swag(currency, maps:get(<<"currency">>, Body)),
-        amount => maybe_from_swag(amount, maps:get(<<"amount">>, Body, undefined))
-    })};
-
+    #{
+        value => genlib_map:compact(#{
+            currency => from_swag(currency, maps:get(<<"currency">>, Body)),
+            amount => maybe_from_swag(amount, maps:get(<<"amount">>, Body, undefined))
+        })
+    };
 from_swag(p2p_template_metadata, #{<<"defaultMetadata">> := Metadata}) ->
     #{value => Metadata};
-
 from_swag(create_w2w_params, Params) ->
-    genlib_map:compact(add_external_id(#{
-        wallet_from_id => maps:get(<<"sender">>, Params),
-        wallet_to_id => maps:get(<<"receiver">>, Params),
-        body => from_swag(body, maps:get(<<"body">>, Params)),
-        metadata => maps:get(<<"metadata">>, Params, undefined)
-    }, Params));
-
-from_swag(destination_resource, Resource = #{
-    <<"type">>     := <<"CryptoWalletDestinationResource">>,
-    <<"id">>       := CryptoWalletID
-}) ->
-    {crypto_wallet, genlib_map:compact(#{
-        id       => CryptoWalletID,
-        currency => from_swag(crypto_wallet_currency, Resource)
-    })};
-
+    genlib_map:compact(
+        add_external_id(
+            #{
+                wallet_from_id => maps:get(<<"sender">>, Params),
+                wallet_to_id => maps:get(<<"receiver">>, Params),
+                body => from_swag(body, maps:get(<<"body">>, Params)),
+                metadata => maps:get(<<"metadata">>, Params, undefined)
+            },
+            Params
+        )
+    );
+from_swag(
+    destination_resource,
+    Resource = #{
+        <<"type">> := <<"CryptoWalletDestinationResource">>,
+        <<"id">> := CryptoWalletID
+    }
+) ->
+    {crypto_wallet,
+        genlib_map:compact(#{
+            id => CryptoWalletID,
+            currency => from_swag(crypto_wallet_currency, Resource)
+        })};
 from_swag(crypto_wallet_currency, #{<<"currency">> := <<"Ripple">>} = Resource) ->
     Currency = from_swag(crypto_wallet_currency_name, <<"Ripple">>),
     Data = genlib_map:compact(#{tag => maps:get(<<"tag">>, Resource, undefined)}),
     {Currency, Data};
 from_swag(crypto_wallet_currency, #{<<"currency">> := Currency}) ->
     {from_swag(crypto_wallet_currency_name, Currency), #{}};
-
-from_swag(crypto_wallet_currency_name, <<"Bitcoin">>)     -> bitcoin;
-from_swag(crypto_wallet_currency_name, <<"Litecoin">>)    -> litecoin;
-from_swag(crypto_wallet_currency_name, <<"BitcoinCash">>) -> bitcoin_cash;
-from_swag(crypto_wallet_currency_name, <<"Ethereum">>)    -> ethereum;
-from_swag(crypto_wallet_currency_name, <<"Zcash">>)       -> zcash;
-from_swag(crypto_wallet_currency_name, <<"Ripple">>)      -> ripple;
-from_swag(crypto_wallet_currency_name, <<"USDT">>)        -> usdt;
-
+from_swag(crypto_wallet_currency_name, <<"Bitcoin">>) ->
+    bitcoin;
+from_swag(crypto_wallet_currency_name, <<"Litecoin">>) ->
+    litecoin;
+from_swag(crypto_wallet_currency_name, <<"BitcoinCash">>) ->
+    bitcoin_cash;
+from_swag(crypto_wallet_currency_name, <<"Ethereum">>) ->
+    ethereum;
+from_swag(crypto_wallet_currency_name, <<"Zcash">>) ->
+    zcash;
+from_swag(crypto_wallet_currency_name, <<"Ripple">>) ->
+    ripple;
+from_swag(crypto_wallet_currency_name, <<"USDT">>) ->
+    usdt;
 from_swag(withdrawal_params, Params) ->
-    genlib_map:compact(add_external_id(#{
-        wallet_id      => maps:get(<<"wallet">>     , Params),
-        destination_id => maps:get(<<"destination">>, Params),
-        body           => from_swag(body , maps:get(<<"body">>, Params)),
-        metadata       => maps:get(<<"metadata">>, Params, undefined)
-    }, Params));
-
+    genlib_map:compact(
+        add_external_id(
+            #{
+                wallet_id => maps:get(<<"wallet">>, Params),
+                destination_id => maps:get(<<"destination">>, Params),
+                body => from_swag(body, maps:get(<<"body">>, Params)),
+                metadata => maps:get(<<"metadata">>, Params, undefined)
+            },
+            Params
+        )
+    );
 from_swag(contact_info, ContactInfo) ->
     genlib_map:compact(#{
         phone_number => maps:get(<<"phoneNumber">>, ContactInfo, undefined),
         email => maps:get(<<"email">>, ContactInfo, undefined)
     });
-
 %% TODO
 %%  - remove this clause when we fix negative accounts and turn on validation in swag
 from_swag(body, #{<<"amount">> := Amount}) when Amount < 0 ->
@@ -1712,7 +1883,9 @@ from_swag(amount, Amount) ->
 from_swag(currency, V) ->
     V;
 from_swag(residence, V) ->
-    try erlang:binary_to_existing_atom(genlib_string:to_lower(V), latin1) catch
+    try
+        erlang:binary_to_existing_atom(genlib_string:to_lower(V), latin1)
+    catch
         error:badarg ->
             % TODO
             %  - Essentially this is incorrect, we should reply with 400 instead
@@ -1726,26 +1899,25 @@ maybe_from_swag(_T, undefined) ->
 maybe_from_swag(T, V) ->
     from_swag(T, V).
 
--spec to_swag(_Type, _Value) ->
-    swag_term() | undefined.
-
+-spec to_swag(_Type, _Value) -> swag_term() | undefined.
 to_swag(_, undefined) ->
     undefined;
 to_swag(providers, Providers) ->
     to_swag({list, provider}, Providers);
 to_swag(provider, Provider) ->
     to_swag(map, #{
-       <<"id">> => ff_provider:id(Provider),
-       <<"name">> => ff_provider:name(Provider),
-       <<"residences">> => to_swag({list, residence},
-           ordsets:to_list(ff_provider:residences(Provider))
-       )
-     });
+        <<"id">> => ff_provider:id(Provider),
+        <<"name">> => ff_provider:name(Provider),
+        <<"residences">> => to_swag(
+            {list, residence},
+            ordsets:to_list(ff_provider:residences(Provider))
+        )
+    });
 to_swag(residence, Residence) ->
     genlib_string:to_upper(genlib:to_binary(Residence));
 to_swag(residence_object, V) ->
     to_swag(map, #{
-        <<"id">>   => to_swag(residence, maps:get(id, V)),
+        <<"id">> => to_swag(residence, maps:get(id, V)),
         <<"name">> => maps:get(name, V),
         <<"flag">> => maps:get(flag, V, undefined)
     });
@@ -1753,18 +1925,18 @@ to_swag(identity_class, Class) ->
     to_swag(map, maps:with([id, name], Class));
 to_swag(identity, State) ->
     Identity = ff_identity_machine:identity(State),
-    WapiCtx  = get_ctx(State),
+    WapiCtx = get_ctx(State),
     to_swag(map, #{
-        <<"id">>                 => ff_identity:id(Identity),
-        <<"name">>               => maps:get(<<"name">>, WapiCtx),
-        <<"createdAt">>          => to_swag(timestamp, ff_machine:created(State)),
-        <<"provider">>           => ff_identity:provider(Identity),
-        <<"class">>              => ff_identity:class(Identity),
-        <<"level">>              => ff_identity:level(Identity),
+        <<"id">> => ff_identity:id(Identity),
+        <<"name">> => maps:get(<<"name">>, WapiCtx),
+        <<"createdAt">> => to_swag(timestamp, ff_machine:created(State)),
+        <<"provider">> => ff_identity:provider(Identity),
+        <<"class">> => ff_identity:class(Identity),
+        <<"level">> => ff_identity:level(Identity),
         <<"effectiveChallenge">> => to_swag(identity_effective_challenge, ff_identity:effective_challenge(Identity)),
-        <<"isBlocked">>          => to_swag(is_blocked, ff_identity:is_accessible(Identity)),
-        <<"metadata">>           => ff_identity:metadata(Identity),
-        ?EXTERNAL_ID             => ff_identity:external_id(Identity)
+        <<"isBlocked">> => to_swag(is_blocked, ff_identity:is_accessible(Identity)),
+        <<"metadata">> => ff_identity:metadata(Identity),
+        ?EXTERNAL_ID => ff_identity:external_id(Identity)
     });
 to_swag(identity_effective_challenge, {ok, ChallegeId}) ->
     ChallegeId;
@@ -1772,76 +1944,86 @@ to_swag(identity_effective_challenge, {error, notfound}) ->
     undefined;
 to_swag(identity_challenge, {ChallengeId, Challenge, Proofs}) ->
     ChallengeClass = ff_identity_challenge:class(Challenge),
-    to_swag(map, maps:merge(#{
-        <<"id">>            => ChallengeId,
-        %% TODO add createdAt when it is available on the backend
-        %% <<"createdAt">>     => _,
-        <<"type">>          => ChallengeClass,
-        <<"proofs">>        => Proofs
-    }, to_swag(challenge_status, ff_identity_challenge:status(Challenge))));
+    to_swag(
+        map,
+        maps:merge(
+            #{
+                <<"id">> => ChallengeId,
+                %% TODO add createdAt when it is available on the backend
+                %% <<"createdAt">>     => _,
+                <<"type">> => ChallengeClass,
+                <<"proofs">> => Proofs
+            },
+            to_swag(challenge_status, ff_identity_challenge:status(Challenge))
+        )
+    );
 to_swag(challenge_status, pending) ->
-    #{<<"status">>  => <<"Pending">>};
+    #{<<"status">> => <<"Pending">>};
 to_swag(challenge_status, cancelled) ->
-    #{<<"status">>  => <<"Cancelled">>};
+    #{<<"status">> => <<"Cancelled">>};
 to_swag(challenge_status, {completed, C = #{resolution := approved}}) ->
     to_swag(map, #{
-        <<"status">>        => <<"Completed">>,
-        <<"validUntil">>    => to_swag(timestamp, genlib_map:get(valid_until, C))
+        <<"status">> => <<"Completed">>,
+        <<"validUntil">> => to_swag(timestamp, genlib_map:get(valid_until, C))
     });
 to_swag(challenge_status, {completed, #{resolution := denied}}) ->
     to_swag(challenge_status, {failed, <<"Denied">>});
 to_swag(challenge_status, {failed, Reason}) ->
     #{
-        <<"status">>        => <<"Failed">>,
+        <<"status">> => <<"Failed">>,
         <<"failureReason">> => to_swag(challenge_failure_reason, Reason)
     };
 to_swag(challenge_failure_reason, Reason) ->
     genlib:to_binary(Reason);
 to_swag(identity_challenge_event, {ID, Ts, V}) ->
     #{
-        <<"eventID">>   => ID,
+        <<"eventID">> => ID,
         <<"occuredAt">> => to_swag(timestamp, Ts),
-        <<"changes">>   => [to_swag(identity_challenge_event_change, V)]
+        <<"changes">> => [to_swag(identity_challenge_event_change, V)]
     };
-
 to_swag(identity_challenge_event_change, {status_changed, S}) ->
-    to_swag(map, maps:merge(
-        #{<<"type">> => <<"IdentityChallengeStatusChanged">>},
-        to_swag(challenge_status, S)
-    ));
-
+    to_swag(
+        map,
+        maps:merge(
+            #{<<"type">> => <<"IdentityChallengeStatusChanged">>},
+            to_swag(challenge_status, S)
+        )
+    );
 to_swag(p2p_transfer_events, {Events, ContinuationToken}) ->
     #{
         <<"continuationToken">> => ContinuationToken,
         <<"result">> => to_swag({list, p2p_transfer_event}, Events)
     };
-
 to_swag(p2p_transfer_event, {_ID, {ev, Ts, V}}) ->
     #{
         <<"createdAt">> => to_swag(timestamp, Ts),
-        <<"change">>    => to_swag(p2p_transfer_event_change, V)
+        <<"change">> => to_swag(p2p_transfer_event_change, V)
     };
-
 to_swag(p2p_transfer_event_change, {status_changed, Status}) ->
     ChangeType = #{
         <<"changeType">> => <<"P2PTransferStatusChanged">>
     },
     TransferChange = to_swag(p2p_transfer_status, Status),
     maps:merge(ChangeType, TransferChange);
-to_swag(p2p_transfer_event_change, {user_interaction, #{
-    id := ID,
-    payload := Payload
-}}) ->
+to_swag(
+    p2p_transfer_event_change,
+    {user_interaction, #{
+        id := ID,
+        payload := Payload
+    }}
+) ->
     #{
         <<"changeType">> => <<"P2PTransferInteractionChanged">>,
         <<"userInteractionID">> => ID,
         <<"userInteractionChange">> => to_swag(p2p_transfer_user_interaction_change, Payload)
     };
-
-to_swag(p2p_transfer_user_interaction_change, {created, #{
-    version := 1,
-    content := Content
-}}) ->
+to_swag(
+    p2p_transfer_user_interaction_change,
+    {created, #{
+        version := 1,
+        content := Content
+    }}
+) ->
     #{
         <<"changeType">> => <<"UserInteractionCreated">>,
         <<"userInteraction">> => to_swag(p2p_transfer_user_interaction, Content)
@@ -1850,15 +2032,16 @@ to_swag(p2p_transfer_user_interaction_change, {status_changed, finished}) ->
     #{
         <<"changeType">> => <<"UserInteractionFinished">>
     };
-
-to_swag(p2p_transfer_user_interaction, {redirect, #{
-    content := Redirect
-}}) ->
+to_swag(
+    p2p_transfer_user_interaction,
+    {redirect, #{
+        content := Redirect
+    }}
+) ->
     #{
         <<"interactionType">> => <<"Redirect">>,
         <<"request">> => to_swag(browser_request, Redirect)
     };
-
 to_swag(browser_request, {get, URI}) ->
     #{
         <<"requestType">> => <<"BrowserGetRequest">>,
@@ -1870,59 +2053,61 @@ to_swag(browser_request, {post, URI, Form}) ->
         <<"uriTemplate">> => URI,
         <<"form">> => to_swag(user_interaction_form, Form)
     };
-
 to_swag(user_interaction_form, Form) ->
     maps:fold(
-        fun (Key, Template, AccIn) ->
+        fun(Key, Template, AccIn) ->
             FormField = #{
                 <<"key">> => Key,
                 <<"template">> => Template
             },
             [FormField | AccIn]
         end,
-        [], Form
+        [],
+        Form
     );
-
 to_swag(wallet, State) ->
     Wallet = ff_wallet_machine:wallet(State),
     to_swag(map, #{
-        <<"id">>         => ff_wallet:id(Wallet),
-        <<"name">>       => ff_wallet:name(Wallet),
-        <<"createdAt">>  => to_swag(timestamp, ff_machine:created(State)),
-        <<"isBlocked">>  => to_swag(is_blocked, ff_wallet:is_accessible(Wallet)),
-        <<"identity">>   => ff_wallet:identity(Wallet),
-        <<"currency">>   => to_swag(currency, ff_wallet:currency(Wallet)),
-        <<"metadata">>   => ff_wallet:metadata(Wallet),
-        ?EXTERNAL_ID     => ff_wallet:external_id(Wallet)
+        <<"id">> => ff_wallet:id(Wallet),
+        <<"name">> => ff_wallet:name(Wallet),
+        <<"createdAt">> => to_swag(timestamp, ff_machine:created(State)),
+        <<"isBlocked">> => to_swag(is_blocked, ff_wallet:is_accessible(Wallet)),
+        <<"identity">> => ff_wallet:identity(Wallet),
+        <<"currency">> => to_swag(currency, ff_wallet:currency(Wallet)),
+        <<"metadata">> => ff_wallet:metadata(Wallet),
+        ?EXTERNAL_ID => ff_wallet:external_id(Wallet)
     });
 to_swag(wallet_account, {OwnAmount, AvailableAmount, Currency}) ->
     EncodedCurrency = to_swag(currency, Currency),
     #{
         <<"own">> => #{
-            <<"amount">>   => OwnAmount,
+            <<"amount">> => OwnAmount,
             <<"currency">> => EncodedCurrency
         },
         <<"available">> => #{
-            <<"amount">>   => AvailableAmount,
+            <<"amount">> => AvailableAmount,
             <<"currency">> => EncodedCurrency
         }
     };
 to_swag(destination, State) ->
     Destination = ff_destination_machine:destination(State),
-    to_swag(map, maps:merge(
-        #{
-            <<"id">>         => ff_destination:id(Destination),
-            <<"name">>       => ff_destination:name(Destination),
-            <<"createdAt">>  => to_swag(timestamp, ff_machine:created(State)),
-            <<"isBlocked">>  => to_swag(is_blocked, ff_destination:is_accessible(Destination)),
-            <<"identity">>   => ff_destination:identity(Destination),
-            <<"currency">>   => to_swag(currency, ff_destination:currency(Destination)),
-            <<"resource">>   => to_swag(destination_resource, ff_destination:resource(Destination)),
-            <<"metadata">>   => ff_destination:metadata(Destination),
-            ?EXTERNAL_ID     => ff_destination:external_id(Destination)
-        },
-        to_swag(destination_status, ff_destination:status(Destination))
-    ));
+    to_swag(
+        map,
+        maps:merge(
+            #{
+                <<"id">> => ff_destination:id(Destination),
+                <<"name">> => ff_destination:name(Destination),
+                <<"createdAt">> => to_swag(timestamp, ff_machine:created(State)),
+                <<"isBlocked">> => to_swag(is_blocked, ff_destination:is_accessible(Destination)),
+                <<"identity">> => ff_destination:identity(Destination),
+                <<"currency">> => to_swag(currency, ff_destination:currency(Destination)),
+                <<"resource">> => to_swag(destination_resource, ff_destination:resource(Destination)),
+                <<"metadata">> => ff_destination:metadata(Destination),
+                ?EXTERNAL_ID => ff_destination:external_id(Destination)
+            },
+            to_swag(destination_status, ff_destination:status(Destination))
+        )
+    );
 %% TODO: add validUntil when it is supported by the ff_destination
 %% to_swag(destination_status, {authorized, Timeout}) ->
 %%     #{
@@ -1935,62 +2120,76 @@ to_swag(destination_status, unauthorized) ->
     #{<<"status">> => <<"Unauthorized">>};
 to_swag(destination_resource, {bank_card, #{bank_card := BankCard}}) ->
     to_swag(map, #{
-        <<"type">>          => <<"BankCardDestinationResource">>,
-        <<"token">>         => maps:get(token, BankCard),
-        <<"bin">>           => genlib_map:get(bin, BankCard),
-        <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
+        <<"type">> => <<"BankCardDestinationResource">>,
+        <<"token">> => maps:get(token, BankCard),
+        <<"bin">> => genlib_map:get(bin, BankCard),
+        <<"lastDigits">> => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
 to_swag(destination_resource, {crypto_wallet, #{crypto_wallet := CryptoWallet}}) ->
-    to_swag(map, maps:merge(#{
-        <<"type">>     => <<"CryptoWalletDestinationResource">>,
-        <<"id">>       => maps:get(id, CryptoWallet)
-    }, to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet))));
+    to_swag(
+        map,
+        maps:merge(
+            #{
+                <<"type">> => <<"CryptoWalletDestinationResource">>,
+                <<"id">> => maps:get(id, CryptoWallet)
+            },
+            to_swag(crypto_wallet_currency, maps:get(currency, CryptoWallet))
+        )
+    );
 to_swag(sender_resource, {bank_card, #{bank_card := BankCard}}) ->
     to_swag(map, #{
-        <<"type">>          => <<"BankCardSenderResource">>,
-        <<"token">>         => maps:get(token, BankCard),
+        <<"type">> => <<"BankCardSenderResource">>,
+        <<"token">> => maps:get(token, BankCard),
         <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
-        <<"bin">>           => genlib_map:get(bin, BankCard),
-        <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
+        <<"bin">> => genlib_map:get(bin, BankCard),
+        <<"lastDigits">> => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
 to_swag(receiver_resource, {bank_card, #{bank_card := BankCard}}) ->
     to_swag(map, #{
-        <<"type">>          => <<"BankCardReceiverResource">>,
-        <<"token">>         => maps:get(token, BankCard),
+        <<"type">> => <<"BankCardReceiverResource">>,
+        <<"token">> => maps:get(token, BankCard),
         <<"paymentSystem">> => genlib:to_binary(genlib_map:get(payment_system, BankCard)),
-        <<"bin">>           => genlib_map:get(bin, BankCard),
-        <<"lastDigits">>    => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
+        <<"bin">> => genlib_map:get(bin, BankCard),
+        <<"lastDigits">> => to_swag(pan_last_digits, genlib_map:get(masked_pan, BankCard))
     });
-
 to_swag(pan_last_digits, MaskedPan) ->
     wapi_utils:get_last_pan_digits(MaskedPan);
-
-to_swag(crypto_wallet_currency, {bitcoin, #{}})          -> #{<<"currency">> => <<"Bitcoin">>};
-to_swag(crypto_wallet_currency, {litecoin, #{}})         -> #{<<"currency">> => <<"Litecoin">>};
-to_swag(crypto_wallet_currency, {bitcoin_cash, #{}})     -> #{<<"currency">> => <<"BitcoinCash">>};
-to_swag(crypto_wallet_currency, {ethereum, #{}})         -> #{<<"currency">> => <<"Ethereum">>};
-to_swag(crypto_wallet_currency, {zcash, #{}})            -> #{<<"currency">> => <<"Zcash">>};
-to_swag(crypto_wallet_currency, {usdt, #{}})             -> #{<<"currency">> => <<"USDT">>};
-to_swag(crypto_wallet_currency, {ripple, #{tag := Tag}}) -> #{<<"currency">> => <<"Ripple">>, <<"tag">> => Tag};
-to_swag(crypto_wallet_currency, {ripple, #{}})           -> #{<<"currency">> => <<"Ripple">>};
-
+to_swag(crypto_wallet_currency, {bitcoin, #{}}) ->
+    #{<<"currency">> => <<"Bitcoin">>};
+to_swag(crypto_wallet_currency, {litecoin, #{}}) ->
+    #{<<"currency">> => <<"Litecoin">>};
+to_swag(crypto_wallet_currency, {bitcoin_cash, #{}}) ->
+    #{<<"currency">> => <<"BitcoinCash">>};
+to_swag(crypto_wallet_currency, {ethereum, #{}}) ->
+    #{<<"currency">> => <<"Ethereum">>};
+to_swag(crypto_wallet_currency, {zcash, #{}}) ->
+    #{<<"currency">> => <<"Zcash">>};
+to_swag(crypto_wallet_currency, {usdt, #{}}) ->
+    #{<<"currency">> => <<"USDT">>};
+to_swag(crypto_wallet_currency, {ripple, #{tag := Tag}}) ->
+    #{<<"currency">> => <<"Ripple">>, <<"tag">> => Tag};
+to_swag(crypto_wallet_currency, {ripple, #{}}) ->
+    #{<<"currency">> => <<"Ripple">>};
 to_swag(withdrawal, State) ->
     Withdrawal = ff_withdrawal_machine:withdrawal(State),
-    to_swag(map, maps:merge(
-        #{
-            <<"id">>          => ff_withdrawal:id(Withdrawal),
-            <<"createdAt">>   => to_swag(timestamp, ff_machine:created(State)),
-            <<"wallet">>      => ff_withdrawal:wallet_id(Withdrawal),
-            <<"destination">> => ff_withdrawal:destination_id(Withdrawal),
-            <<"body">>        => to_swag(body, ff_withdrawal:body(Withdrawal)),
-            <<"metadata">>    => ff_withdrawal:metadata(Withdrawal),
-            ?EXTERNAL_ID      => ff_withdrawal:external_id(Withdrawal)
-        },
-        to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))
-    ));
+    to_swag(
+        map,
+        maps:merge(
+            #{
+                <<"id">> => ff_withdrawal:id(Withdrawal),
+                <<"createdAt">> => to_swag(timestamp, ff_machine:created(State)),
+                <<"wallet">> => ff_withdrawal:wallet_id(Withdrawal),
+                <<"destination">> => ff_withdrawal:destination_id(Withdrawal),
+                <<"body">> => to_swag(body, ff_withdrawal:body(Withdrawal)),
+                <<"metadata">> => ff_withdrawal:metadata(Withdrawal),
+                ?EXTERNAL_ID => ff_withdrawal:external_id(Withdrawal)
+            },
+            to_swag(withdrawal_status, ff_withdrawal:status(Withdrawal))
+        )
+    );
 to_swag(body, {Amount, Currency}) ->
     to_swag(map, #{
-        <<"amount">>   => Amount,
+        <<"amount">> => Amount,
         <<"currency">> => to_swag(currency, Currency)
     });
 to_swag(withdrawal_status, pending) ->
@@ -2005,12 +2204,13 @@ to_swag(withdrawal_event, {EventId, Ts, {status_changed, Status}}) ->
     to_swag(map, #{
         <<"eventID">> => EventId,
         <<"occuredAt">> => to_swag(timestamp, Ts),
-        <<"changes">> => [maps:merge(
-            #{<<"type">>    => <<"WithdrawalStatusChanged">>},
-            to_swag(withdrawal_status, Status)
-        )]
+        <<"changes">> => [
+            maps:merge(
+                #{<<"type">> => <<"WithdrawalStatusChanged">>},
+                to_swag(withdrawal_status, Status)
+            )
+        ]
     });
-
 to_swag(timestamp, {DateTime, USec}) ->
     DateTimeSeconds = genlib_time:daytime_to_unixtime(DateTime),
     Micros = erlang:convert_time_unit(DateTimeSeconds, second, microsecond),
@@ -2021,11 +2221,11 @@ to_swag(currency, Currency) ->
     genlib_string:to_upper(genlib:to_binary(Currency));
 to_swag(currency_object, V) ->
     to_swag(map, #{
-        <<"id">>          => to_swag(currency, maps:get(id, V)),
-        <<"name">>        => maps:get(name, V),
+        <<"id">> => to_swag(currency, maps:get(id, V)),
+        <<"name">> => maps:get(name, V),
         <<"numericCode">> => genlib:to_binary(maps:get(numcode, V)),
-        <<"exponent">>    => maps:get(exponent, V),
-        <<"sign">>        => maps:get(sign, V, undefined)
+        <<"exponent">> => maps:get(exponent, V),
+        <<"sign">> => maps:get(sign, V, undefined)
     });
 to_swag(is_blocked, {ok, accessible}) ->
     false;
@@ -2044,13 +2244,13 @@ to_swag(report_object, #ff_reports_Report{
     file_data_ids = Files
 }) ->
     to_swag(map, #{
-        <<"id">>        => ReportID,
-        <<"fromTime">>  => to_swag(timestamp, TimeRange#ff_reports_ReportTimeRange.from_time),
-        <<"toTime">>    => to_swag(timestamp, TimeRange#ff_reports_ReportTimeRange.to_time),
+        <<"id">> => ReportID,
+        <<"fromTime">> => to_swag(timestamp, TimeRange#ff_reports_ReportTimeRange.from_time),
+        <<"toTime">> => to_swag(timestamp, TimeRange#ff_reports_ReportTimeRange.to_time),
         <<"createdAt">> => to_swag(timestamp, CreatedAt),
-        <<"status">>    => to_swag(report_status, Status),
-        <<"type">>      => Type,
-        <<"files">>     => to_swag(report_files, {files, Files})
+        <<"status">> => to_swag(report_status, Status),
+        <<"type">> => Type,
+        <<"files">> => to_swag(report_files, {files, Files})
     });
 to_swag(report_status, pending) ->
     <<"pending">>;
@@ -2064,28 +2264,29 @@ to_swag(report_files, {files, Files}) ->
     to_swag({list, report_file}, Files);
 to_swag(report_file, File) ->
     #{<<"id">> => File};
-
-to_swag(quote, {#{
-    cash_from   := CashFrom,
-    cash_to     := CashTo,
-    created_at  := CreatedAt,
-    expires_on  := ExpiresOn
-}, Token}) ->
+to_swag(
+    quote,
+    {#{
+            cash_from := CashFrom,
+            cash_to := CashTo,
+            created_at := CreatedAt,
+            expires_on := ExpiresOn
+        },
+        Token}
+) ->
     #{
-        <<"cashFrom">>      => to_swag(body, CashFrom),
-        <<"cashTo">>        => to_swag(body, CashTo),
-        <<"createdAt">>     => to_swag(timestamp, CreatedAt),
-        <<"expiresOn">>     => to_swag(timestamp, ExpiresOn),
-        <<"quoteToken">>    => Token
+        <<"cashFrom">> => to_swag(body, CashFrom),
+        <<"cashTo">> => to_swag(body, CashTo),
+        <<"createdAt">> => to_swag(timestamp, CreatedAt),
+        <<"expiresOn">> => to_swag(timestamp, ExpiresOn),
+        <<"quoteToken">> => Token
     };
-
 to_swag(p2p_transfer_quote, {Cash, Token, ExpiresOn}) ->
     #{
         <<"customerFee">> => to_swag(body, Cash),
-        <<"expiresOn">>   => to_swag(timestamp_ms, ExpiresOn),
-        <<"token">>       => Token
+        <<"expiresOn">> => to_swag(timestamp_ms, ExpiresOn),
+        <<"token">> => Token
     };
-
 to_swag(p2p_transfer, P2PTransferState) ->
     #{
         version := 3,
@@ -2111,7 +2312,6 @@ to_swag(p2p_transfer, P2PTransferState) ->
         <<"externalID">> => maps:get(external_id, P2PTransfer, undefined),
         <<"metadata">> => Metadata
     });
-
 to_swag(p2p_transfer_status, pending) ->
     #{
         <<"status">> => <<"Pending">>
@@ -2122,13 +2322,11 @@ to_swag(p2p_transfer_status, succeeded) ->
     };
 to_swag(p2p_transfer_status, {failed, P2PTransferFailure}) ->
     map_failure(P2PTransferFailure);
-
 to_swag(contact_info, ContactInfo) ->
     genlib_map:compact(#{
         <<"phoneNumber">> => maps:get(phone_number, ContactInfo, undefined),
         <<"email">> => maps:get(email, ContactInfo, undefined)
     });
-
 to_swag(p2p_template, P2PTemplateState) ->
     #{
         id := ID,
@@ -2145,22 +2343,20 @@ to_swag(p2p_template, P2PTemplateState) ->
         <<"createdAt">> => to_swag(timestamp_ms, CreatedAt),
         <<"externalID">> => maps:get(external_id, P2PTemplate, undefined)
     });
-
 to_swag(p2p_template_details, Details) ->
     to_swag(map, #{
         <<"body">> => to_swag(p2p_template_body, maps:get(body, Details)),
         <<"metadata">> => maybe_to_swag(p2p_template_metadata, maps:get(metadata, Details, undefined))
     });
-
 to_swag(p2p_template_body, #{value := Body}) ->
-    #{<<"value">> => to_swag(map, #{
-        <<"currency">> => to_swag(currency, maps:get(currency, Body)),
-        <<"amount">> => maybe_to_swag(amount, maps:get(amount, Body, undefined))
-    })};
-
+    #{
+        <<"value">> => to_swag(map, #{
+            <<"currency">> => to_swag(currency, maps:get(currency, Body)),
+            <<"amount">> => maybe_to_swag(amount, maps:get(amount, Body, undefined))
+        })
+    };
 to_swag(p2p_template_metadata, #{value := Metadata}) ->
     #{<<"defaultMetadata">> => Metadata};
-
 to_swag(w2w_transfer, W2WTransferState) ->
     #{
         version := 1,
@@ -2180,7 +2376,6 @@ to_swag(w2w_transfer, W2WTransferState) ->
         <<"status">> => to_swag(w2w_transfer_status, Status),
         <<"externalID">> => maps:get(external_id, W2WTransfer, undefined)
     });
-
 to_swag(w2w_transfer_status, pending) ->
     #{
         <<"status">> => <<"Pending">>
@@ -2191,16 +2386,18 @@ to_swag(w2w_transfer_status, succeeded) ->
     };
 to_swag(w2w_transfer_status, {failed, W2WTransferFailure}) ->
     map_failure(W2WTransferFailure);
-to_swag(sub_failure, #{
-    code := Code
-} = SubError) ->
+to_swag(
+    sub_failure,
+    #{
+        code := Code
+    } = SubError
+) ->
     to_swag(map, #{
         <<"code">> => Code,
         <<"subError">> => to_swag(sub_failure, maps:get(failure, SubError, undefined))
     });
 to_swag(sub_failure, undefined) ->
     undefined;
-
 to_swag(boolean, true) ->
     true;
 to_swag(boolean, false) ->
@@ -2233,7 +2430,6 @@ map_fistful_stat_error(_Reason) ->
 
 map_subfailure(undefined) ->
     undefined;
-
 map_subfailure(#{code := Code} = Subfailure) ->
     to_swag(map, #{
         <<"code">> => Code,
@@ -2259,14 +2455,14 @@ authorize_resource_by_bearer(Resource, Params, Context) ->
     ok.
 
 authorize_resource_by_grant(R = destination, #{
-    <<"destination">>      := ID,
+    <<"destination">> := ID,
     <<"destinationGrant">> := Grant
 }) ->
     authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), undefined);
 authorize_resource_by_grant(R = wallet, #{
-    <<"wallet">>      := ID,
+    <<"wallet">> := ID,
     <<"walletGrant">> := Grant,
-    <<"body">>        := WithdrawalBody
+    <<"body">> := WithdrawalBody
 }) ->
     authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), WithdrawalBody);
 authorize_resource_by_grant(_, _) ->
@@ -2287,25 +2483,29 @@ get_resource_accesses(wallet, ID) ->
 
 verify_access(Access, #{<<"resource_access">> := #{?DOMAIN := ACL}}) ->
     do_verify_access(Access, ACL);
-verify_access(Access, #{<<"resource_access">> := #{<<"common-api">> := ACL}}) -> % Legacy grants support
+% Legacy grants support
+verify_access(Access, #{<<"resource_access">> := #{<<"common-api">> := ACL}}) ->
     do_verify_access(Access, ACL);
 verify_access(_, _) ->
     {error, {unauthorized, {grant, insufficient_access}}}.
 
 do_verify_access(Access, ACL) ->
-    case lists:all(
-        fun ({Scope, Permission}) -> lists:member(Permission, uac_acl:match(Scope, ACL)) end,
-        Access
-    ) of
-        true  -> ok;
+    case
+        lists:all(
+            fun({Scope, Permission}) -> lists:member(Permission, uac_acl:match(Scope, ACL)) end,
+            Access
+        )
+    of
+        true -> ok;
         false -> {error, {unauthorized, {grant, insufficient_access}}}
     end.
 
 verify_claims(destination, _Claims, _) ->
     ok;
-verify_claims(wallet,
+verify_claims(
+    wallet,
     #{<<"amount">> := GrantAmount, <<"currency">> := Currency},
-    #{<<"amount">> := ReqAmount,   <<"currency">> := Currency}
+    #{<<"amount">> := ReqAmount, <<"currency">> := Currency}
 ) when GrantAmount >= ReqAmount ->
     ok;
 verify_claims(_, _, _) ->
@@ -2314,8 +2514,7 @@ verify_claims(_, _, _) ->
 issue_quote_token(PartyID, Data) ->
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).
 
--spec get_p2p_quote_surplus(p2p_quote:quote()) ->
-    ff_cash:cash().
+-spec get_p2p_quote_surplus(p2p_quote:quote()) -> ff_cash:cash().
 get_p2p_quote_surplus(Quote) ->
     Fees = p2p_quote:fees(Quote),
     case ff_fees_final:surplus(Fees) of
@@ -2332,6 +2531,7 @@ get_p2p_quote_surplus(Quote) ->
 -spec test() -> _.
 
 -spec date_time_convertion_test() -> _.
+
 date_time_convertion_test() ->
     ?assertEqual(<<"2020-05-25T12:34:56.123456Z">>, to_swag(timestamp, {{{2020, 05, 25}, {12, 34, 56}}, 123456})).
 

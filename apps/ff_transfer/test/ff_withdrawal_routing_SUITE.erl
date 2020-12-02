@@ -41,20 +41,22 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
 -define(final_balance(Cash), {
     element(1, Cash),
     {
-        {inclusive, element(1, Cash)}, {inclusive, element(1, Cash)}
+        {inclusive, element(1, Cash)},
+        {inclusive, element(1, Cash)}
     },
     element(2, Cash)
 }).
+
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
 
 %% Common test API implementation
@@ -79,10 +81,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -97,6 +102,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -177,19 +183,19 @@ adapter_unreachable_quote_test(C) ->
         body => Cash,
         external_id => WithdrawalID,
         quote => #{
-            cash_from   => Cash,
-            cash_to     => {2120, <<"USD">>},
-            created_at  => <<"2020-03-22T06:12:27Z">>,
-            expires_on  => <<"2020-03-22T06:12:27Z">>,
-            route       => ff_withdrawal_routing:make_route(4, 1),
-            quote_data  => #{<<"test">> => <<"test">>}
+            cash_from => Cash,
+            cash_to => {2120, <<"USD">>},
+            created_at => <<"2020-03-22T06:12:27Z">>,
+            expires_on => <<"2020-03-22T06:12:27Z">>,
+            route => ff_withdrawal_routing:make_route(4, 1),
+            quote_data => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(
         {failed, #{code => <<"authorization_error">>}},
-        await_final_withdrawal_status(WithdrawalID)).
-
+        await_final_withdrawal_status(WithdrawalID)
+    ).
 
 -spec attempt_limit_test(config()) -> test_return().
 attempt_limit_test(C) ->
@@ -210,7 +216,8 @@ attempt_limit_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(
         {failed, #{code => <<"authorization_error">>}},
-        await_final_withdrawal_status(WithdrawalID)).
+        await_final_withdrawal_status(WithdrawalID)
+    ).
 
 -spec termial_priority_test(config()) -> test_return().
 termial_priority_test(C) ->
@@ -233,7 +240,8 @@ termial_priority_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     ?assertEqual(
         {failed, #{code => <<"not_expected_error">>}},
-        await_final_withdrawal_status(WithdrawalID)),
+        await_final_withdrawal_status(WithdrawalID)
+    ),
     _ = set_retryable_errors(PartyID, []).
 
 %% Utils
@@ -254,7 +262,7 @@ get_withdrawal_status(WithdrawalID) ->
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
             Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
             case ff_withdrawal:is_finished(Withdrawal) of
@@ -316,7 +324,7 @@ await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
-        fun () -> get_wallet_balance(ID) end,
+        fun() -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
     ok.
@@ -341,7 +349,7 @@ create_destination(IID, Currency, C) ->
     ok = ff_destination_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_destination_machine:get(ID),
             Destination = ff_destination_machine:destination(Machine),
             ff_destination:status(Destination)

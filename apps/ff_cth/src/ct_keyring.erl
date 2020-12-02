@@ -1,4 +1,5 @@
 -module(ct_keyring).
+
 -include_lib("cds_proto/include/cds_proto_keyring_thrift.hrl").
 
 -include_lib("jose/include/jose_jwk.hrl").
@@ -15,7 +16,6 @@
 }.
 
 -spec init(_) -> ok.
-
 init(Config) ->
     case get_state(Config) of
         not_initialized ->
@@ -77,15 +77,11 @@ call(Fun, Args, C) ->
 
 %% DECODE
 
--spec decode_encrypted_shares([cds_proto_keyring_thrift:'EncryptedMasterKeyShare'()]) ->
-    [encrypted_master_key_share()].
-
+-spec decode_encrypted_shares([cds_proto_keyring_thrift:'EncryptedMasterKeyShare'()]) -> [encrypted_master_key_share()].
 decode_encrypted_shares(EncryptedMasterKeyShares) ->
     lists:map(fun decode_encrypted_share/1, EncryptedMasterKeyShares).
 
--spec decode_encrypted_share(cds_proto_keyring_thrift:'EncryptedMasterKeyShare'()) ->
-    encrypted_master_key_share().
-
+-spec decode_encrypted_share(cds_proto_keyring_thrift:'EncryptedMasterKeyShare'()) -> encrypted_master_key_share().
 decode_encrypted_share(#cds_EncryptedMasterKeyShare{
     id = Id,
     owner = Owner,

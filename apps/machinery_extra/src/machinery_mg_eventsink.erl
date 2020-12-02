@@ -9,29 +9,27 @@
     schema := machinery_mg_schema:schema()
 ).
 
--type eventsink_id()   :: binary().
--type event_id()       :: integer().
+-type eventsink_id() :: binary().
+-type event_id() :: integer().
 -type eventsink_opts() :: #{
     client := machinery_mg_client:client(),
     ?EVENTSINK_CORE_OPTS
 }.
 
--type evsink_event(T)  :: #{
-    id          := event_id(),
-    ns          := binary(),
-    source_id   := machinery:id(),
-    event       := machinery:event(T)
+-type evsink_event(T) :: #{
+    id := event_id(),
+    ns := binary(),
+    source_id := machinery:id(),
+    event := machinery:event(T)
 }.
 
 -export_type([evsink_event/1]).
 
--spec get_events(eventsink_id(), event_id(), integer(), eventsink_opts()) ->
-    {ok, list(evsink_event(_))}.
+-spec get_events(eventsink_id(), event_id(), integer(), eventsink_opts()) -> {ok, list(evsink_event(_))}.
 get_events(EventSinkID, After, Limit, Opts) ->
     {ok, get_history_range(EventSinkID, After, Limit, Opts)}.
 
--spec get_last_event_id(eventsink_id(), eventsink_opts()) ->
-    {ok, event_id()} | {error, no_last_event}.
+-spec get_last_event_id(eventsink_id(), eventsink_opts()) -> {ok, event_id()} | {error, no_last_event}.
 get_last_event_id(EventSinkID, Opts) ->
     case get_history_range(EventSinkID, undefined, 1, backward, Opts) of
         [#{id := ID}] ->
@@ -44,8 +42,12 @@ get_history_range(EventSinkID, After, Limit, Opts) ->
     get_history_range(EventSinkID, After, Limit, forward, Opts).
 
 get_history_range(EventSinkID, After, Limit, Direction, #{client := Client, schema := Schema}) ->
-    {ok, Events} = call_eventsink('GetHistory', marshal(id, EventSinkID),
-        [marshal(history_range, {After, Limit, Direction})], Client),
+    {ok, Events} = call_eventsink(
+        'GetHistory',
+        marshal(id, EventSinkID),
+        [marshal(history_range, {After, Limit, Direction})],
+        Client
+    ),
     unmarshal({list, {evsink_event, Schema}}, Events).
 
 call_eventsink(Function, EventSinkID, Args, {Client, Context}) ->
@@ -58,8 +60,8 @@ marshal(id, V) ->
     marshal(string, V);
 marshal(history_range, {After, Limit, Direction}) ->
     #'mg_stateproc_HistoryRange'{
-        'after'     = After,
-        'limit'     = Limit,
+        'after' = After,
+        'limit' = Limit,
         'direction' = Direction
     };
 marshal(string, V) when is_binary(V) ->
@@ -86,16 +88,16 @@ unmarshal(timestamp, V) when is_binary(V) ->
                 {DateTime, USec}
         end
     catch
-        error:Reason:St  ->
+        error:Reason:St ->
             erlang:raise(error, {timestamp, V, Reason}, St)
     end;
 unmarshal(
     {evsink_event, Schema},
     #'mg_stateproc_SinkEvent'{
-        'id'            = ID,
-        'source_ns'     = NS0,
-        'source_id'     = SourceID0,
-        'event'         = Event
+        'id' = ID,
+        'source_ns' = NS0,
+        'source_id' = SourceID0,
+        'event' = Event
     }
 ) ->
     #mg_stateproc_Event{id = EventID, created_at = CreatedAt0, format_version = Format, data = Data0} = Event,
@@ -109,16 +111,15 @@ unmarshal(
     },
     {Data1, Context} = unmarshal({schema, Schema, {event, Format}, Context}, Data0),
     #{
-        id          => unmarshal(event_id, ID),
-        ns          => NS1,
-        source_id   => SourceID1,
-        event       => {
+        id => unmarshal(event_id, ID),
+        ns => NS1,
+        source_id => SourceID1,
+        event => {
             unmarshal(event_id, EventID),
             CreatedAt1,
             Data1
         }
     };
-
 unmarshal({list, T}, V) when is_list(V) ->
     [unmarshal(T, E) || E <- V];
 unmarshal({schema, Schema, T, Context}, V) ->

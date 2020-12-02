@@ -2,14 +2,14 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--type id()       :: dmsl_domain_thrift:'ObjectID'().
+-type id() :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: #{
-    id                   := id(),
-    system_accounts      := dmsl_domain_thrift:'SystemAccountSetSelector'(),
-    identity             := binary(),
+    id := id(),
+    system_accounts := dmsl_domain_thrift:'SystemAccountSetSelector'(),
+    identity := binary(),
     withdrawal_providers := dmsl_domain_thrift:'ProviderSelector'(),
-    p2p_providers        := dmsl_domain_thrift:'ProviderSelector'(),
-    p2p_inspector        := dmsl_domain_thrift:'P2PInspectorSelector'()
+    p2p_providers := dmsl_domain_thrift:'ProviderSelector'(),
+    p2p_inspector := dmsl_domain_thrift:'P2PInspectorSelector'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -19,8 +19,8 @@
 }.
 
 -type system_account() :: #{
-    settlement  => ff_account:account(),
-    subagent    => ff_account:account()
+    settlement => ff_account:account(),
+    subagent => ff_account:account()
 }.
 
 -export_type([id/0]).
@@ -42,30 +42,26 @@
 %%
 
 -spec id(payment_institution()) -> id().
-
 id(#{id := ID}) ->
     ID.
 
 %%
 
 -spec ref(id()) -> payinst_ref().
-
 ref(ID) ->
     #domain_PaymentInstitutionRef{id = ID}.
 
 -spec get(id(), ff_domain_config:revision()) ->
-    {ok, payment_institution()} |
-    {error, notfound}.
-
+    {ok, payment_institution()}
+    | {error, notfound}.
 get(ID, DomainRevision) ->
-    do(fun () ->
+    do(fun() ->
         PaymentInstitution = unwrap(ff_domain_config:object(DomainRevision, {payment_institution, ref(ID)})),
         decode(ID, PaymentInstitution)
     end).
 
 -spec compute_withdrawal_providers(payment_institution(), hg_selector:varset()) ->
     {ok, [ff_payouts_provider:id()]} | {error, term()}.
-
 compute_withdrawal_providers(#{withdrawal_providers := ProviderSelector}, VS) ->
     case hg_selector:reduce_to_value(ProviderSelector, VS) of
         {ok, Providers} ->
@@ -76,7 +72,6 @@ compute_withdrawal_providers(#{withdrawal_providers := ProviderSelector}, VS) ->
 
 -spec compute_p2p_transfer_providers(payment_institution(), hg_selector:varset()) ->
     {ok, [ff_payouts_provider:id()]} | {error, term()}.
-
 compute_p2p_transfer_providers(#{p2p_providers := ProviderSelector}, VS) ->
     case hg_selector:reduce_to_value(ProviderSelector, VS) of
         {ok, Providers} ->
@@ -85,8 +80,7 @@ compute_p2p_transfer_providers(#{p2p_providers := ProviderSelector}, VS) ->
             Error
     end.
 
--spec compute_p2p_inspector(payment_institution(), hg_selector:varset()) ->
-    {ok, p2p_inspector:id()} | {error, term()}.
+-spec compute_p2p_inspector(payment_institution(), hg_selector:varset()) -> {ok, p2p_inspector:id()} | {error, term()}.
 compute_p2p_inspector(#{p2p_inspector := InspectorSelector} = PS, _VS) when InspectorSelector =:= undefined ->
     {error, {misconfiguration, {'No p2p inspector in a given payment_institution', PS}}};
 compute_p2p_inspector(#{p2p_inspector := InspectorSelector}, VS) ->
@@ -97,9 +91,7 @@ compute_p2p_inspector(#{p2p_inspector := InspectorSelector}, VS) ->
             Error
     end.
 
--spec compute_system_accounts(payment_institution(), hg_selector:varset()) ->
-    {ok, system_accounts()} | {error, term()}.
-
+-spec compute_system_accounts(payment_institution(), hg_selector:varset()) -> {ok, system_accounts()} | {error, term()}.
 compute_system_accounts(PaymentInstitution, VS) ->
     #{
         identity := Identity,
@@ -110,6 +102,7 @@ compute_system_accounts(PaymentInstitution, VS) ->
         SystemAccountSet = unwrap(ff_domain_config:object({system_account_set, SystemAccountSetRef})),
         decode_system_account_set(Identity, SystemAccountSet)
     end).
+
 %%
 
 decode(ID, #domain_PaymentInstitution{
@@ -120,12 +113,12 @@ decode(ID, #domain_PaymentInstitution{
     p2p_inspector = P2PInspector
 }) ->
     #{
-        id                   => ID,
-        system_accounts      => SystemAccounts,
-        identity             => Identity,
+        id => ID,
+        system_accounts => SystemAccounts,
+        identity => Identity,
         withdrawal_providers => WithdrawalProviders,
-        p2p_providers        => P2PProviders,
-        p2p_inspector        => P2PInspector
+        p2p_providers => P2PProviders,
+        p2p_inspector => P2PInspector
     }.
 
 decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts}) ->
@@ -144,12 +137,12 @@ decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts
 
 decode_system_account(SystemAccount, CurrencyID, Identity) ->
     #domain_SystemAccount{
-        settlement  = SettlementAccountID,
-        subagent    = SubagentAccountID
+        settlement = SettlementAccountID,
+        subagent = SubagentAccountID
     } = SystemAccount,
     #{
-        settlement  => decode_account(SettlementAccountID, CurrencyID, Identity),
-        subagent    => decode_account(SubagentAccountID, CurrencyID, Identity)
+        settlement => decode_account(SettlementAccountID, CurrencyID, Identity),
+        subagent => decode_account(SubagentAccountID, CurrencyID, Identity)
     }.
 
 decode_account(AccountID, CurrencyID, Identity) when AccountID =/= undefined ->

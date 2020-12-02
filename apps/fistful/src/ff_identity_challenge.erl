@@ -12,44 +12,44 @@
 
 %% API
 
--type id(T)       :: T.
+-type id(T) :: T.
 -type claimant() :: id(binary()).
 -type timestamp() :: machinery:timestamp().
--type provider()     :: ff_provider:id().
+-type provider() :: ff_provider:id().
 -type identity_class() :: ff_identity_class:id().
 -type challenge_class_id() :: ff_identity_class:challenge_class_id().
 -type master_id() :: id(binary()).
--type claim_id()  :: id(binary()).
+-type claim_id() :: id(binary()).
 
 -type challenge_state() :: #{
-    id              := id(_),
-    claimant        := claimant(),
-    provider        := provider(),
-    identity_class  := identity_class(),
+    id := id(_),
+    claimant := claimant(),
+    provider := provider(),
+    identity_class := identity_class(),
     challenge_class := challenge_class_id(),
-    proofs          := [proof()],
-    master_id       := master_id(),
-    claim_id        := claim_id(),
-    status          := status()
+    proofs := [proof()],
+    master_id := master_id(),
+    claim_id := claim_id(),
+    status := status()
 }.
 
 -type challenge() :: #{
-    id              := id(_),
-    claimant        := claimant(),
-    provider        := provider(),
-    identity_class  := identity_class(),
+    id := id(_),
+    claimant := claimant(),
+    provider := provider(),
+    identity_class := identity_class(),
     challenge_class := challenge_class_id(),
-    proofs          := [proof()],
-    master_id       := master_id(),
-    claim_id        := claim_id()
+    proofs := [proof()],
+    master_id := master_id(),
+    claim_id := claim_id()
 }.
 
 -type level_id() :: ff_identity_class:level_id().
 
 -type challenge_class() :: #{
-    id           := challenge_class_id(),
-    name         := binary(),
-    base_level   := level_id(),
+    id := challenge_class_id(),
+    name := binary(),
+    base_level := level_id(),
     target_level := level_id()
 }.
 
@@ -57,38 +57,38 @@
     {proof_type(), identdoc_token()}.
 
 -type proof_type() ::
-    rus_domestic_passport |
-    rus_retiree_insurance_cert.
+    rus_domestic_passport
+    | rus_retiree_insurance_cert.
 
 -type identdoc_token() ::
     binary().
 
 -type status() ::
-    pending                    |
-    {completed , completion()} |
-    {failed    , failure()}    |
-    cancelled                  .
+    pending
+    | {completed, completion()}
+    | {failed, failure()}
+    | cancelled.
 
 -type completion() :: #{
-    resolution  := resolution(),
+    resolution := resolution(),
     valid_until => timestamp()
 }.
 
 -type resolution() ::
-    approved |
-    denied   .
+    approved
+    | denied.
 
 -type failure() ::
     _TODO.
 
 -type event() ::
-    {created, challenge()} |
-    {status_changed, status()}.
+    {created, challenge()}
+    | {status_changed, status()}.
 
 -type create_error() ::
-    {proof, notfound | insufficient} |
-    pending |
-    conflict.
+    {proof, notfound | insufficient}
+    | pending
+    | conflict.
 
 -export_type([challenge/0]).
 -export_type([challenge_state/0]).
@@ -120,40 +120,29 @@
 
 %%
 
--spec id(challenge_state()) ->
-    id(_).
-
+-spec id(challenge_state()) -> id(_).
 id(#{id := V}) ->
     V.
 
--spec status(challenge_state()) ->
-    status() | undefined.
-
+-spec status(challenge_state()) -> status() | undefined.
 status(Challenge) ->
     maps:get(status, Challenge, undefined).
 
--spec claimant(challenge_state()) ->
-    claimant().
-
+-spec claimant(challenge_state()) -> claimant().
 claimant(#{claimant := V}) ->
     V.
 
--spec class(challenge_state()) ->
-    challenge_class_id().
-
+-spec class(challenge_state()) -> challenge_class_id().
 class(#{challenge_class := V}) ->
     V.
 
--spec proofs(challenge_state()) ->
-    [proof()].
-
+-spec proofs(challenge_state()) -> [proof()].
 proofs(#{proofs := V}) ->
     V.
 
 -spec resolution(challenge_state()) ->
-    {ok, resolution()} |
-    {error, undefined} .
-
+    {ok, resolution()}
+    | {error, undefined}.
 resolution(Challenge) ->
     case status(Challenge) of
         {completed, #{resolution := Resolution}} ->
@@ -162,26 +151,21 @@ resolution(Challenge) ->
             {error, undefined}
     end.
 
--spec master_id(challenge_state()) ->
-    id(_).
-
+-spec master_id(challenge_state()) -> id(_).
 master_id(#{master_id := V}) ->
     V.
 
--spec claim_id(challenge_state()) ->
-    id(_).
-
+-spec claim_id(challenge_state()) -> id(_).
 claim_id(#{claim_id := V}) ->
     V.
 
 %%
 
 -spec create(id(_), claimant(), provider(), identity_class(), challenge_class_id(), [proof()]) ->
-    {ok, [event()]} |
-    {error, create_error()}.
-
+    {ok, [event()]}
+    | {error, create_error()}.
 create(ID, Claimant, ProviderID, IdentityClassID, ChallengeClassID, Proofs) ->
-    do(fun () ->
+    do(fun() ->
         {ok, Provider} = ff_provider:get(ProviderID),
         {ok, IdentityClass} = ff_provider:get_identity_class(IdentityClassID, Provider),
         {ok, ChallengeClass} = ff_identity_class:challenge_class(ChallengeClassID, IdentityClass),
@@ -191,30 +175,26 @@ create(ID, Claimant, ProviderID, IdentityClassID, ChallengeClassID, Proofs) ->
         ClaimID = unwrap(create_claim(MasterID, TargetLevel, Claimant, Proofs)),
         [
             {created, #{
-                id              => ID,
-                claimant        => Claimant,
-                provider        => ProviderID,
-                identity_class  => IdentityClassID,
+                id => ID,
+                claimant => Claimant,
+                provider => ProviderID,
+                identity_class => IdentityClassID,
                 challenge_class => ChallengeClassID,
-                proofs          => Proofs,
-                master_id       => MasterID,
-                claim_id        => ClaimID
+                proofs => Proofs,
+                master_id => MasterID,
+                claim_id => ClaimID
             }},
-            {status_changed,
-                pending
-            }
+            {status_changed, pending}
         ]
     end).
 
 -spec poll_completion(challenge_state()) ->
-    {ok, [event()]} |
-    {error,
-        notfound |
-        status()
-    }.
-
+    {ok, [event()]}
+    | {error,
+        notfound
+        | status()}.
 poll_completion(Challenge) ->
-    do(fun () ->
+    do(fun() ->
         ok = unwrap(valid(pending, status(Challenge))),
         Status = unwrap(get_claim_status(claim_id(Challenge))),
         case Status of
@@ -233,9 +213,7 @@ poll_completion(Challenge) ->
 
 %%
 
--spec apply_event(event(), ff_maybe:maybe(challenge_state())) ->
-    challenge_state().
-
+-spec apply_event(event(), ff_maybe:maybe(challenge_state())) -> challenge_state().
 apply_event({created, Challenge}, undefined) ->
     Challenge;
 apply_event({status_changed, S}, Challenge) ->
@@ -279,32 +257,29 @@ get_claim_status(ClaimID) ->
 
 encode(identity_claim_params, {MasterID, TargetLevel, Claimant, Proofs}) ->
     #identity_IdentityClaimParams{
-        identity_id  = encode(identity_id, MasterID),
+        identity_id = encode(identity_id, MasterID),
         target_level = encode(level, ff_identity_class:contractor_level(TargetLevel)),
-        claimant     = encode(claimant, Claimant),
-        proof        = encode({list, identity_document}, Proofs)
+        claimant = encode(claimant, Claimant),
+        proof = encode({list, identity_document}, Proofs)
     };
 encode(level, Level) ->
     % TODO
     Level;
-
 encode(identity_document, {Type, Token}) ->
     #identity_IdentityDocument{
-        type  = encode(identity_document_type, Type),
+        type = encode(identity_document_type, Type),
         token = encode(string, Token)
     };
 encode(identity_document_type, rus_domestic_passport) ->
     {rus_domestic_passport, #identity_RUSDomesticPassport{}};
 encode(identity_document_type, rus_retiree_insurance_cert) ->
     {rus_retiree_insurance_cert, #identity_RUSRetireeInsuranceCert{}};
-
 encode(identity_claim_id, V) ->
     encode(string, V);
 encode(identity_id, V) ->
     encode(string, V);
 encode(claimant, V) ->
     encode(string, V);
-
 encode({list, T}, V) when is_list(V) ->
     [encode(T, E) || E <- V];
 encode(string, V) when is_binary(V) ->
@@ -324,12 +299,10 @@ decode(identity_claim_status, {cancelled, _}) ->
     cancelled;
 decode(identity_claim_status, {failed, Failure}) ->
     {failed, Failure};
-
 decode(identity_claim_id, V) ->
     decode(string, V);
 decode(identity_id, V) ->
     decode(string, V);
-
 decode(string, V) when is_binary(V) ->
     V.
 

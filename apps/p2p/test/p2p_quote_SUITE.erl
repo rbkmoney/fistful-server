@@ -2,6 +2,7 @@
 
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("damsel/include/dmsl_accounter_thrift.hrl").
+
 %% Common test API
 
 -export([all/0]).
@@ -18,18 +19,19 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% API
 
 -spec all() -> [test_case_name() | {group, group_name()}].
-all() -> [
+all() ->
+    [
         get_fee_ok_test,
         visa_to_nspkmir_not_allow_test
-].
+    ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
@@ -37,10 +39,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -95,11 +100,14 @@ visa_to_nspkmir_not_allow_test(C) ->
         sender := CardSender
     } = prepare_standard_environment(C),
     Sender = {bank_card, #{bank_card => CardSender}},
-    Receiver = {bank_card, #{bank_card => #{
-        bin => Bin,
-        masked_pan => Pan,
-        token => <<"NSPK MIR">>
-    }}},
+    Receiver =
+        {bank_card, #{
+            bank_card => #{
+                bin => Bin,
+                masked_pan => Pan,
+                token => <<"NSPK MIR">>
+            }
+        }},
     Result = p2p_quote:get(#{
         body => Cash,
         identity_id => Identity,

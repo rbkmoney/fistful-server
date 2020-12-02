@@ -10,7 +10,7 @@
 
 %%
 
--type service()      :: woody:service().
+-type service() :: woody:service().
 -type service_name() :: atom().
 -type service_spec() :: {Path :: string(), service()}.
 

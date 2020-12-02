@@ -1,4 +1,5 @@
 -module(ff_p2p_transfer_handler).
+
 -behaviour(ff_woody_wrapper).
 
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
@@ -10,11 +11,11 @@
 %%
 %% ff_woody_wrapper callbacks
 %%
--spec handle_function(woody:func(), woody:args(), woody:options()) ->
-    {ok, woody:result()} | no_return().
-
+-spec handle_function(woody:func(), woody:args(), woody:options()) -> {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(p2p_transfer, #{},
+    scoper:scope(
+        p2p_transfer,
+        #{},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -85,7 +86,6 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-
 handle_function_('Get', [ID, EventRange], _Opts) ->
     {After, Limit} = ff_codec:unmarshal(event_range, EventRange),
     ok = scoper:add_meta(#{id => ID}),
@@ -98,7 +98,6 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
         {error, {unknown_p2p_transfer, _Ref}} ->
             woody_error:raise(business, #fistful_P2PNotFound{})
     end;
-
 handle_function_('GetContext', [ID], _Opts) ->
     case p2p_transfer_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
@@ -108,7 +107,6 @@ handle_function_('GetContext', [ID], _Opts) ->
         {error, {unknown_p2p_transfer, _Ref}} ->
             woody_error:raise(business, #fistful_P2PNotFound{})
     end;
-
 handle_function_('GetEvents', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case p2p_transfer_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
@@ -117,15 +115,16 @@ handle_function_('GetEvents', [ID, EventRange], _Opts) ->
         {error, {unknown_p2p_transfer, ID}} ->
             woody_error:raise(business, #fistful_P2PNotFound{})
     end;
-
 handle_function_('CreateAdjustment', [ID, MarshaledParams], _Opts) ->
     Params = ff_p2p_transfer_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
-    ok = scoper:add_meta(genlib_map:compact(#{
-        id => ID,
-        adjustment_id => AdjustmentID,
-        external_id => maps:get(external_id, Params, undefined)
-    })),
+    ok = scoper:add_meta(
+        genlib_map:compact(#{
+            id => ID,
+            adjustment_id => AdjustmentID,
+            external_id => maps:get(external_id, Params, undefined)
+        })
+    ),
     case p2p_transfer_machine:start_adjustment(ID, Params) of
         ok ->
             {ok, Machine} = p2p_transfer_machine:get(ID),

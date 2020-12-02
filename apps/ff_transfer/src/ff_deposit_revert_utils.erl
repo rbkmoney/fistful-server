@@ -10,13 +10,14 @@
     % Остальные реверты могут быть как завершенными, так и нет. Элементы могут повторяться.
     % На практике, если машина не подвергалась починке, в стеке будут идентификаторы
     % только активных возвратов без повторений.
-    active  := [id()]
+    active := [id()]
 }.
 
--type wrapped_event() :: {revert, #{
-    id      := id(),
-    payload := event()
-}}.
+-type wrapped_event() ::
+    {revert, #{
+        id := id(),
+        payload := event()
+    }}.
 
 -type unknown_revert_error() :: {unknown_revert, id()}.
 
@@ -41,10 +42,10 @@
 
 %% Internal types
 
--type id()              :: ff_adjustment:id().
--type revert()          :: ff_deposit_revert:revert().
--type event()           :: ff_deposit_revert:event().
--type action()          :: machinery:action() | undefined.
+-type id() :: ff_adjustment:id().
+-type revert() :: ff_deposit_revert:revert().
+-type event() :: ff_deposit_revert:event().
+-type action() :: machinery:action() | undefined.
 
 %% API
 
@@ -110,20 +111,20 @@ maybe_migrate(Event) ->
     Migrated = ff_deposit_revert:maybe_migrate(RevertEvent),
     wrap_event(ID, Migrated).
 
--spec process_reverts(index()) ->
-    {action(), [wrapped_event()]}.
+-spec process_reverts(index()) -> {action(), [wrapped_event()]}.
 process_reverts(Index) ->
     RevertID = active_revert_id(Index),
     #{reverts := #{RevertID := Revert}} = Index,
     {RevertAction, Events} = ff_deposit_revert:process_transfer(Revert),
     WrappedEvents = wrap_events(RevertID, Events),
     NextIndex = lists:foldl(fun(E, Acc) -> ff_deposit_revert_utils:apply_event(E, Acc) end, Index, WrappedEvents),
-    Action = case {RevertAction, ff_deposit_revert_utils:is_active(NextIndex)} of
-        {undefined, true} ->
-            continue;
-        _Other ->
-            RevertAction
-    end,
+    Action =
+        case {RevertAction, ff_deposit_revert_utils:is_active(NextIndex)} of
+            {undefined, true} ->
+                continue;
+            _Other ->
+                RevertAction
+        end,
     {Action, WrappedEvents}.
 
 %% Internals
@@ -133,16 +134,17 @@ update_active(Revert, Index) ->
     #{active := Active} = Index,
     IsRevertActive = ff_deposit_revert:is_active(Revert),
     RevertID = ff_deposit_revert:id(Revert),
-    NewActive = case {IsRevertActive, RevertID, Active} of
-        {false, RevertID, [RevertID | ActiveTail]} ->
-            drain_inactive_revert(ActiveTail, Index);
-        {false, _RevertID, _} ->
-            Active;
-        {true, RevertID, [RevertID | _]} ->
-            Active;
-        {true, RevertID, _} ->
-            [RevertID | Active]
-    end,
+    NewActive =
+        case {IsRevertActive, RevertID, Active} of
+            {false, RevertID, [RevertID | ActiveTail]} ->
+                drain_inactive_revert(ActiveTail, Index);
+            {false, _RevertID, _} ->
+                Active;
+            {true, RevertID, [RevertID | _]} ->
+                Active;
+            {true, RevertID, _} ->
+                [RevertID | Active]
+        end,
     Index#{active => NewActive}.
 
 -spec drain_inactive_revert([id()], index()) -> [id()].

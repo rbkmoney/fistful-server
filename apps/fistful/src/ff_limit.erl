@@ -52,41 +52,41 @@
 
 %% Types
 
--type limit(T)    :: {id(), range(T), timespan()}.
--type range(T)    :: ff_range:range(T).
--type timespan()  :: day | week | month | year.
--type trxid()     :: binary().
--type delta(T)    :: ord(T).
--type trx(T)      :: {trxid(), timestamp(), delta(T)}.
--type record(T)   :: ff_indef:indef(T).
+-type limit(T) :: {id(), range(T), timespan()}.
+-type range(T) :: ff_range:range(T).
+-type timespan() :: day | week | month | year.
+-type trxid() :: binary().
+-type delta(T) :: ord(T).
+-type trx(T) :: {trxid(), timestamp(), delta(T)}.
+-type record(T) :: ff_indef:indef(T).
 
 -type timestamp() :: machinery:timestamp().
--type ord(T)      :: T. % totally ordered
+% totally ordered
+-type ord(T) :: T.
 
 %% API
 
--type namespace()     :: machinery:namespace().
--type id()            :: machinery:id().
--type backend()       :: machinery:backend(_).
+-type namespace() :: machinery:namespace().
+-type id() :: machinery:id().
+-type backend() :: machinery:backend(_).
 
 -spec account(namespace(), limit(T), trx(T), backend()) ->
-    {ok, record(T)}                |
-    {error, {exceeded, record(T)}} |
-    {error, {conflict, trx(T)}}    .
+    {ok, record(T)}
+    | {error, {exceeded, record(T)}}
+    | {error, {conflict, trx(T)}}.
 
 -spec confirm(namespace(), limit(T), trx(T), backend()) ->
-    {ok, record(T)}                |
-    {error, {conflict, trx(T)}}    .
+    {ok, record(T)}
+    | {error, {conflict, trx(T)}}.
 
 -spec reject(namespace(), limit(T), trx(T), backend()) ->
-    {ok, record(T)}                |
-    {error, {conflict, trx(T)}}    .
+    {ok, record(T)}
+    | {error, {conflict, trx(T)}}.
 
--spec get(namespace(), limit(T), timestamp(), backend()) ->
-    {ok, record(T)} | {error, notfound}.
+-spec get(namespace(), limit(T), timestamp(), backend()) -> {ok, record(T)} | {error, notfound}.
 
 account(NS, Limit, Trx, Backend) ->
-    ID    = construct_limit_machine_id(Limit, Trx),
+    ID = construct_limit_machine_id(Limit, Trx),
     Range = get_limit_range(Limit),
     lazycall(NS, ID, {account, Trx, Range}, Backend).
 
@@ -120,8 +120,8 @@ construct_limit_machine_id(Limit, Trx) ->
     construct_limit_machine_id_(Limit, get_trx_ts(Trx)).
 
 construct_limit_machine_id_(Limit, Ts) ->
-    ID     = get_limit_id(Limit),
-    Span   = get_limit_span(Limit),
+    ID = get_limit_id(Limit),
+    Span = get_limit_span(Limit),
     Bucket = find_bucket(Ts, Span),
     ff_string:join($/, [
         limit,
@@ -132,7 +132,6 @@ construct_limit_machine_id_(Limit, Ts) ->
 
 find_bucket({{Date, _Time}, _USec}, Span) ->
     find_bucket(Date, Span);
-
 find_bucket(Date, day) ->
     calendar:date_to_gregorian_days(Date);
 find_bucket(Date, week) ->
@@ -146,46 +145,42 @@ find_bucket({Y, _, _}, year) ->
 %% Machinery
 
 -type ev(T) ::
-    {seed    , ord(T)} |
-    {account , trx(T)} |
-    {confirm , trx(T)} |
-    {reject  , trx(T)} .
+    {seed, ord(T)}
+    | {account, trx(T)}
+    | {confirm, trx(T)}
+    | {reject, trx(T)}.
 
--type auxst(T) ::
-    #{
-        head := ff_indef:indef(T),
-        trxs := #{trxid() => trx(T)}
-    }.
+-type auxst(T) :: #{
+    head := ff_indef:indef(T),
+    trxs := #{trxid() => trx(T)}
+}.
 
--type machine(T)      :: machinery:machine(ev(T), auxst(T)).
--type result(T)       :: machinery:result(ev(T), auxst(T)).
--type handler_opts()  :: machinery:handler_opts(_).
--type handler_args()  :: machinery:handler_args(_).
+-type machine(T) :: machinery:machine(ev(T), auxst(T)).
+-type result(T) :: machinery:result(ev(T), auxst(T)).
+-type handler_opts() :: machinery:handler_opts(_).
+-type handler_args() :: machinery:handler_args(_).
 
--spec init(ord(T), machine(T), _, handler_opts()) ->
-    result(T).
+-spec init(ord(T), machine(T), _, handler_opts()) -> result(T).
 
--spec process_timeout(machine(T), _, handler_opts()) ->
-    result(T).
+-spec process_timeout(machine(T), _, handler_opts()) -> result(T).
 
 -type call(T) ::
-    {account , trx(T), limit(T)} |
-    {confirm , trx(T)}           |
-    {reject  , trx(T)}           .
+    {account, trx(T), limit(T)}
+    | {confirm, trx(T)}
+    | {reject, trx(T)}.
 
 -spec process_call(call(T), machine(T), _, handler_opts()) ->
     {
-        {ok, record(T)}             |
-        {error, {conflict, ord(T)}} ,
+        {ok, record(T)}
+        | {error, {conflict, ord(T)}},
         result(T)
     }.
 
--spec process_repair(ff_repair:scenario(), machine(_), handler_args(), handler_opts()) ->
-    no_return().
+-spec process_repair(ff_repair:scenario(), machine(_), handler_args(), handler_opts()) -> no_return().
 
 init(Seed, #{}, _, _Opts) ->
     #{
-        events    => [{seed, Seed}],
+        events => [{seed, Seed}],
         aux_state => new_st(Seed)
     }.
 
@@ -210,7 +205,7 @@ process_account(Trx, Range, St0) ->
             case ff_range:contains(Range, ff_indef:to_range(Head1)) of
                 true ->
                     {{ok, Head1}, #{
-                        events    => [{account, Trx}],
+                        events => [{account, Trx}],
                         aux_state => St1
                     }};
                 false ->
@@ -227,7 +222,7 @@ process_confirm(Trx, St0) ->
         {ok, Trx} ->
             St1 = confirm_trx(Trx, St0),
             {{ok, head(St1)}, #{
-                events    => [{confirm, Trx}],
+                events => [{confirm, Trx}],
                 aux_state => St1
             }};
         {ok, TrxWas} ->
@@ -241,7 +236,7 @@ process_reject(Trx, St0) ->
         {ok, Trx} ->
             St1 = reject_trx(Trx, St0),
             {{ok, head(St1)}, #{
-                events    => [{reject, Trx}],
+                events => [{reject, Trx}],
                 aux_state => St1
             }};
         {ok, TrxWas} ->
@@ -286,14 +281,18 @@ reject_trx(Trx, St = #{head := Head, trxs := Trxs}) ->
 
 get_trx_id({ID, _Ts, _Dv}) ->
     ID.
+
 get_trx_ts({_ID, Ts, _Dv}) ->
     Ts.
+
 get_trx_dv({_ID, _Ts, Dv}) ->
     Dv.
 
 get_limit_id({ID, _Range, _Span}) ->
     ID.
+
 get_limit_range({_ID, Range, _Span}) ->
     Range.
+
 get_limit_span({_ID, _Range, Span}) ->
     Span.

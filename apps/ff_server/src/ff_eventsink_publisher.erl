@@ -19,16 +19,13 @@
 -export_type([sinkevent/1]).
 -export_type([options/0]).
 
--callback publish_events(list(event(_))) ->
-    list(sinkevent(_)).
+-callback publish_events(list(event(_))) -> list(sinkevent(_)).
 
 %% API
 
 -export([publish_events/2]).
 
--spec publish_events(list(event(_)), options()) ->
-    {ok, list(sinkevent(_))}.
-
+-spec publish_events(list(event(_)), options()) -> {ok, list(sinkevent(_))}.
 publish_events(Events, Opts) ->
     {ok, handler_publish_events(Events, Opts)}.
 

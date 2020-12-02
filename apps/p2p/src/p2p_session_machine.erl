@@ -3,6 +3,7 @@
 %%%
 
 -module(p2p_session_machine).
+
 -behaviour(machinery).
 
 -define(NS, 'ff/p2p_transfer/session_v1').
@@ -31,14 +32,15 @@
 %%
 
 -type process_callback_error() ::
-    p2p_session:process_callback_error() |
-    unknown_p2p_session_error().
+    p2p_session:process_callback_error()
+    | unknown_p2p_session_error().
 
 -type unknown_p2p_session_error() ::
     {unknown_p2p_session, ref()}.
 
--type process_callback_result()     :: {succeeded, p2p_callback:response()}
-                                     | {finished,  p2p_adapter:context()}.
+-type process_callback_result() ::
+    {succeeded, p2p_callback:response()}
+    | {finished, p2p_adapter:context()}.
 
 -type repair_error() :: ff_repair:repair_error().
 -type repair_response() :: ff_repair:repair_response().
@@ -85,9 +87,8 @@
 %%
 
 -spec get(ref()) ->
-    {ok, st()}        |
-    {error, unknown_p2p_session_error()}.
-
+    {ok, st()}
+    | {error, unknown_p2p_session_error()}.
 get(Ref) ->
     case ff_machine:get(p2p_session, ?NS, Ref) of
         {ok, _Machine} = Result ->
@@ -97,9 +98,8 @@ get(Ref) ->
     end.
 
 -spec get(ref(), event_range()) ->
-    {ok, st()} |
-    {error,  unknown_p2p_session_error()}.
-
+    {ok, st()}
+    | {error, unknown_p2p_session_error()}.
 get(Ref, {After, Limit}) ->
     case ff_machine:get(p2p_session, ?NS, Ref, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
@@ -109,30 +109,25 @@ get(Ref, {After, Limit}) ->
     end.
 
 -spec session(st()) -> session().
-
 session(St) ->
     ff_machine:model(St).
 
--spec ctx(st()) ->
-    ctx().
-
+-spec ctx(st()) -> ctx().
 ctx(St) ->
     ff_machine:ctx(St).
 
 %%
 
--spec create(id(), transfer_params(), params()) ->
-    ok | {error, exists}.
+-spec create(id(), transfer_params(), params()) -> ok | {error, exists}.
 create(ID, TransferParams, Params) ->
-    do(fun () ->
+    do(fun() ->
         Events = unwrap(p2p_session:create(ID, TransferParams, Params)),
         unwrap(machinery:start(?NS, ID, Events, backend()))
     end).
 
 -spec events(id(), event_range()) ->
-    {ok, events()} |
-    {error, unknown_p2p_session_error()}.
-
+    {ok, events()}
+    | {error, unknown_p2p_session_error()}.
 events(Ref, {After, Limit}) ->
     case ff_machine:history(p2p_session, ?NS, Ref, {After, Limit, forward}) of
         {ok, History} ->
@@ -143,9 +138,8 @@ events(Ref, {After, Limit}) ->
     end.
 
 -spec process_callback(callback_params()) ->
-    {ok, process_callback_response()} |
-    {error, process_callback_error()}.
-
+    {ok, process_callback_response()}
+    | {error, process_callback_error()}.
 process_callback(#{tag := Tag} = Params) ->
     call({tag, Tag}, {process_callback, Params}).
 
@@ -156,10 +150,9 @@ repair(Ref, Scenario) ->
 
 %% machinery callbacks
 
--spec init([event()], machine(), handler_args(), handler_opts()) ->
-    result().
+-spec init([event()], machine(), handler_args(), handler_opts()) -> result().
 init(Events, #{}, _, _Opts) ->
-    Session = lists:foldl(fun (Ev, St) -> p2p_session:apply_event(Ev, St) end, undefined, Events),
+    Session = lists:foldl(fun(Ev, St) -> p2p_session:apply_event(Ev, St) end, undefined, Events),
     {InitEvents, NewAction} = p2p_session:init(Session, continue),
     genlib_map:compact(#{
         events => ff_machine:emit_events(Events ++ InitEvents),
@@ -167,8 +160,7 @@ init(Events, #{}, _, _Opts) ->
         aux_state => #{ctx => ff_entity_context:new()}
     }).
 
--spec process_timeout(machine(), handler_args(), handler_opts()) ->
-    result().
+-spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
     State = ff_machine:collapse(p2p_session, Machine),
     #{events := Events} = Result = p2p_session:process_session(session(State)),
@@ -176,12 +168,10 @@ process_timeout(Machine, _, _Opts) ->
         events => ff_machine:emit_events(Events)
     }.
 
--spec process_call(any(), machine(), handler_args(), handler_opts()) ->
-    {Response, result()} | no_return() when
+-spec process_call(any(), machine(), handler_args(), handler_opts()) -> {Response, result()} | no_return() when
     Response ::
-        {ok, process_callback_response()} |
-        {error, p2p_session:process_callback_error()}.
-
+        {ok, process_callback_response()}
+        | {error, p2p_session:process_callback_error()}.
 process_call({process_callback, Params}, Machine, _, _Opts) ->
     do_process_callback(Params, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
@@ -215,9 +205,8 @@ call(Ref, Call) ->
 
 -spec do_process_callback(callback_params(), machine()) -> {Response, result()} when
     Response ::
-        {ok, process_callback_response()} |
-        {error, p2p_session:process_callback_error()}.
-
+        {ok, process_callback_response()}
+        | {error, p2p_session:process_callback_error()}.
 do_process_callback(Params, Machine) ->
     St = ff_machine:collapse(p2p_session, Machine),
     case p2p_session:process_callback(Params, session(St)) of

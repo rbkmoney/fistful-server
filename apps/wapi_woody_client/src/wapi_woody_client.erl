@@ -13,15 +13,11 @@
 
 -export_type([service_name/0]).
 
--spec call_service(service_name(), woody:func(), [term()], woody_context:ctx()) ->
-    woody:result().
-
+-spec call_service(service_name(), woody:func(), [term()], woody_context:ctx()) -> woody:result().
 call_service(ServiceName, Function, Args, Context) ->
     call_service(ServiceName, Function, Args, Context, scoper_woody_event_handler).
 
--spec call_service(service_name(), woody:func(), [term()], woody_context:ctx(), woody:ev_handler()) ->
-    woody:result().
-
+-spec call_service(service_name(), woody:func(), [term()], woody_context:ctx(), woody:ev_handler()) -> woody:result().
 call_service(ServiceName, Function, Args, Context0, EventHandler) ->
     Deadline = get_service_deadline(ServiceName),
     Context1 = set_deadline(Deadline, Context0),
@@ -39,8 +35,8 @@ call_service(ServiceName, Function, Args, Context, EventHandler, Retry) ->
             Context
         )
     catch
-        error:{woody_error, {_Source, Class, _Details}} = Error
-        when Class =:= resource_unavailable orelse Class =:= result_unknown
+        error:{woody_error, {_Source, Class, _Details}} = Error when
+            Class =:= resource_unavailable orelse Class =:= result_unknown
         ->
             NextRetry = apply_retry_strategy(Retry, Error, Context),
             call_service(ServiceName, Function, Args, Context, EventHandler, NextRetry)
@@ -71,7 +67,6 @@ get_service_url(ServiceName) ->
     maps:get(ServiceName, genlib_app:env(?APP, service_urls)).
 
 -spec get_service_modname(service_name()) -> woody:service().
-
 get_service_modname(cds_storage) ->
     {dmsl_cds_thrift, 'Storage'};
 get_service_modname(identdoc_storage) ->
@@ -104,7 +99,6 @@ get_service_modname(fistful_w2w_transfer) ->
     {ff_proto_w2w_transfer_thrift, 'Management'}.
 
 -spec get_service_deadline(service_name()) -> undefined | woody_deadline:deadline().
-
 get_service_deadline(ServiceName) ->
     ServiceDeadlines = genlib_app:env(?APP, api_deadlines, #{}),
     case maps:get(ServiceName, ServiceDeadlines, undefined) of

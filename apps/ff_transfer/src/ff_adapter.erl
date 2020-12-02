@@ -6,15 +6,18 @@
 %%
 
 -type adapter() :: ff_woody_client:client().
--type state()   :: %% as stolen from `machinery_msgpack`
-    nil                |
-    boolean()          |
-    integer()          |
-    float()            |
-    binary()           | %% string
-    {binary, binary()} | %% binary
-    [state()]     |
-    #{state() => state()}.
+%% as stolen from `machinery_msgpack`
+-type state() ::
+    nil
+    | boolean()
+    | integer()
+    | float()
+    %% string
+    | binary()
+    %% binary
+    | {binary, binary()}
+    | [state()]
+    | #{state() => state()}.
 
 -type opts() :: #{binary() => binary()}.
 
@@ -25,7 +28,7 @@
     additional_info => additional_transaction_info()
 }.
 
--type additional_transaction_info()   :: #{
+-type additional_transaction_info() :: #{
     rrn => binary(),
     approval_code => binary(),
     acs_url => binary(),

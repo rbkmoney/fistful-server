@@ -9,20 +9,18 @@
 %%
 
 -type fragment() ::
-    iodata() |
-    char()   |
-    atom()   |
-    number() .
+    iodata()
+    | char()
+    | atom()
+    | number().
 
 -spec join([fragment()]) -> binary().
-
 join(Fragments) ->
     join(<<>>, Fragments).
 
 -spec join(Delim, [fragment()]) -> binary() when
     Delim ::
-        char()   |
-        iodata() .
-
+        char()
+        | iodata().
 join(Delim, Fragments) ->
     genlib_string:join(Delim, lists:map(fun genlib:to_binary/1, Fragments)).

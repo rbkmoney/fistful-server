@@ -20,14 +20,13 @@
 %% P2PTemplate interface
 
 -spec create(req_data(), handler_context()) ->
-    {ok, response_data()} |
-    {error, {external_id_conflict, id()}} |
-    {error, {identity, unauthorized}} |
-    {error, {identity, notfound}} |
-    {error, {currency, notfound}} |
-    {error, inaccessible} |
-    {error, invalid_operation_amount}.
-
+    {ok, response_data()}
+    | {error, {external_id_conflict, id()}}
+    | {error, {identity, unauthorized}}
+    | {error, {identity, notfound}}
+    | {error, {currency, notfound}}
+    | {error, inaccessible}
+    | {error, invalid_operation_amount}.
 create(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
@@ -36,7 +35,7 @@ create(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
                     create(ID, Params, Context, HandlerContext);
                 {error, {external_id_conflict, _}} = Error ->
-                        Error
+                    Error
             end;
         {error, unauthorized} ->
             {error, {identity, unauthorized}};
@@ -61,9 +60,8 @@ create(ID, Params, Context, HandlerContext) ->
     end.
 
 -spec get(id(), handler_context()) ->
-    {ok, response_data()} |
-    {error, {p2p_template, notfound | unauthorized}}.
-
+    {ok, response_data()}
+    | {error, {p2p_template, notfound | unauthorized}}.
 get(ID, HandlerContext) ->
     Request = {fistful_p2p_template, 'Get', [ID, #'EventRange'{}]},
     case wapi_handler_utils:service_call(Request, HandlerContext) of
@@ -79,9 +77,8 @@ get(ID, HandlerContext) ->
     end.
 
 -spec block(id(), handler_context()) ->
-    ok |
-    {error, {p2p_template, notfound | unauthorized}}.
-
+    ok
+    | {error, {p2p_template, notfound | unauthorized}}.
 block(ID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
         ok ->
@@ -99,16 +96,16 @@ block(ID, HandlerContext) ->
     end.
 
 -spec issue_access_token(id(), binary(), handler_context()) ->
-    {ok, binary()} |
-    {error, expired} |
-    {error, {p2p_template, notfound | unauthorized}}.
-
+    {ok, binary()}
+    | {error, expired}
+    | {error, {p2p_template, notfound | unauthorized}}.
 issue_access_token(ID, Expiration, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
         ok ->
             wapi_backend_utils:issue_grant_token(
                 {p2p_templates, ID, #{<<"expiration">> => Expiration}},
-                Expiration, HandlerContext
+                Expiration,
+                HandlerContext
             );
         {error, unauthorized} ->
             {error, {p2p_template, unauthorized}};
@@ -117,21 +114,22 @@ issue_access_token(ID, Expiration, HandlerContext) ->
     end.
 
 -spec issue_transfer_ticket(id(), binary(), handler_context()) ->
-    {ok, {binary(), binary()}} |
-    {error, expired} |
-    {error, {p2p_template, notfound | unauthorized}}.
-
+    {ok, {binary(), binary()}}
+    | {error, expired}
+    | {error, {p2p_template, notfound | unauthorized}}.
 issue_transfer_ticket(ID, WishExpiration, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
         ok ->
-            TransferID =  gen_transfer_id(HandlerContext),
+            TransferID = gen_transfer_id(HandlerContext),
             AccessExpiration = context_access_expiration(HandlerContext),
             Expiration = choose_tiket_expiration(WishExpiration, AccessExpiration),
-            case wapi_backend_utils:issue_grant_token(
-                {p2p_template_transfers, ID, #{<<"transferID">> => TransferID}},
-                Expiration,
-                HandlerContext
-            ) of
+            case
+                wapi_backend_utils:issue_grant_token(
+                    {p2p_template_transfers, ID, #{<<"transferID">> => TransferID}},
+                    Expiration,
+                    HandlerContext
+                )
+            of
                 {ok, Token} ->
                     {ok, {Token, Expiration}};
                 Error = {error, _} ->
@@ -144,54 +142,52 @@ issue_transfer_ticket(ID, WishExpiration, HandlerContext) ->
     end.
 
 -spec quote_transfer(id(), req_data(), handler_context()) ->
-    {ok, response_data()} |
-    {error, {p2p_template, notfound | unauthorized}} |
-    {error, {identity, notfound}} |
-    {error, {forbidden_currency, _}} |
-    {error, {forbidden_amount, _}} |
-    {error, {operation_not_permitted, _}} |
-    {error, {invalid_resource, sender | receiver}}.
-
+    {ok, response_data()}
+    | {error, {p2p_template, notfound | unauthorized}}
+    | {error, {identity, notfound}}
+    | {error, {forbidden_currency, _}}
+    | {error, {forbidden_amount, _}}
+    | {error, {operation_not_permitted, _}}
+    | {error, {invalid_resource, sender | receiver}}.
 quote_transfer(ID, Params, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
-    ok ->
-        QuoteParams = marshal_quote_params(Params),
-        Request = {fistful_p2p_template, 'GetQuote', [ID, QuoteParams]},
-        case wapi_handler_utils:service_call(Request, HandlerContext) of
-            {ok, Quote} ->
-                PartyID = wapi_handler_utils:get_owner(HandlerContext),
-                Token = create_quote_token(Quote, PartyID),
-                QuoteWapi = unmarshal_quote(Quote),
-                {ok, QuoteWapi#{ <<"token">> => Token }};
-            {exception, #fistful_P2PTemplateNotFound{}} ->
-                {error, {p2p_template, notfound}};
-            {exception, #fistful_IdentityNotFound{}} ->
-                {error, {identity, notfound}};
-            {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
-                {error, {forbidden_currency, unmarshal(currency_ref, Currency)}};
-            {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
-                {error, {forbidden_amount, unmarshal(cash, Amount)}};
-            {exception, #fistful_OperationNotPermitted{details = Details}} ->
-                {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
-            {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
-                {error, {invalid_resource, Type}}
-        end;
-    {error, unauthorized} ->
-        {error, {p2p_template, unauthorized}};
-    {error, notfound} ->
-        {error, {p2p_template, notfound}}
+        ok ->
+            QuoteParams = marshal_quote_params(Params),
+            Request = {fistful_p2p_template, 'GetQuote', [ID, QuoteParams]},
+            case wapi_handler_utils:service_call(Request, HandlerContext) of
+                {ok, Quote} ->
+                    PartyID = wapi_handler_utils:get_owner(HandlerContext),
+                    Token = create_quote_token(Quote, PartyID),
+                    QuoteWapi = unmarshal_quote(Quote),
+                    {ok, QuoteWapi#{<<"token">> => Token}};
+                {exception, #fistful_P2PTemplateNotFound{}} ->
+                    {error, {p2p_template, notfound}};
+                {exception, #fistful_IdentityNotFound{}} ->
+                    {error, {identity, notfound}};
+                {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
+                    {error, {forbidden_currency, unmarshal(currency_ref, Currency)}};
+                {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
+                    {error, {forbidden_amount, unmarshal(cash, Amount)}};
+                {exception, #fistful_OperationNotPermitted{details = Details}} ->
+                    {error, {operation_not_permitted, maybe_unmarshal(string, Details)}};
+                {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
+                    {error, {invalid_resource, Type}}
+            end;
+        {error, unauthorized} ->
+            {error, {p2p_template, unauthorized}};
+        {error, notfound} ->
+            {error, {p2p_template, notfound}}
     end.
 
 -spec create_transfer(id(), req_data(), handler_context()) ->
-    {ok, response_data()} |
-    {error, {p2p_template, notfound | unauthorized}} |
-    {error, {forbidden_currency, _}} |
-    {error, {forbidden_amount, _}} |
-    {error, {operation_not_permitted, _}} |
-    {error, {invalid_resource, sender | receiver}} |
-    {error, {token, _}} |
-    {error, {external_id_conflict, _}}.
-
+    {ok, response_data()}
+    | {error, {p2p_template, notfound | unauthorized}}
+    | {error, {forbidden_currency, _}}
+    | {error, {forbidden_amount, _}}
+    | {error, {operation_not_permitted, _}}
+    | {error, {invalid_resource, sender | receiver}}
+    | {error, {token, _}}
+    | {error, {external_id_conflict, _}}.
 create_transfer(ID, #{<<"quoteToken">> := Token} = Params, HandlerContext) ->
     case uac_authorizer_jwt:verify(Token, #{}) of
         {ok, {_, _, VerifiedToken}} ->
@@ -256,12 +252,12 @@ unmarshal_template(#p2p_template_P2PTemplateState{
     context = _Context
 }) ->
     genlib_map:compact(#{
-        <<"id">>            => unmarshal(id, ID),
-        <<"identityID">>    => unmarshal(id, IdentityID),
-        <<"createdAt">>     => unmarshal(string, CreatedAt),
-        <<"isBlocked">>     => unmarshal_blocking(Blocking),
-        <<"details">>       => unmarshal_template_details(Details),
-        <<"externalID">>    => maybe_unmarshal(id, ExternalID)
+        <<"id">> => unmarshal(id, ID),
+        <<"identityID">> => unmarshal(id, IdentityID),
+        <<"createdAt">> => unmarshal(string, CreatedAt),
+        <<"isBlocked">> => unmarshal_blocking(Blocking),
+        <<"details">> => unmarshal_template_details(Details),
+        <<"externalID">> => maybe_unmarshal(id, ExternalID)
     }).
 
 unmarshal_template_details(#p2p_template_P2PTemplateDetails{
@@ -269,8 +265,8 @@ unmarshal_template_details(#p2p_template_P2PTemplateDetails{
     metadata = Metadata
 }) ->
     genlib_map:compact(#{
-        <<"body">>      => unmarshal_template_body(Body),
-        <<"metadata">>  => unmarshal_template_metadata(Metadata)
+        <<"body">> => unmarshal_template_body(Body),
+        <<"metadata">> => unmarshal_template_metadata(Metadata)
     }).
 
 unmarshal_template_body(#p2p_template_P2PTemplateBody{
@@ -287,7 +283,7 @@ unmarshal_template_body(#p2p_template_P2PTemplateBody{
     }.
 
 unmarshal_body(#'Cash'{
-    amount   = Amount,
+    amount = Amount,
     currency = Currency
 }) ->
     #{
@@ -354,32 +350,38 @@ unmarshal_transfer_status({failed, #p2p_status_Failed{failure = Failure}}) ->
         <<"failure">> => unmarshal(failure, Failure)
     }.
 
-unmarshal_sender({resource, #p2p_transfer_RawResource{
-    contact_info = ContactInfo,
-    resource = {bank_card, #'ResourceBankCard'{
-        bank_card = BankCard
+unmarshal_sender(
+    {resource, #p2p_transfer_RawResource{
+        contact_info = ContactInfo,
+        resource =
+            {bank_card, #'ResourceBankCard'{
+                bank_card = BankCard
+            }}
     }}
-}}) ->
+) ->
     genlib_map:compact(#{
-        <<"type">>          => <<"BankCardSenderResource">>,
-        <<"contactInfo">>   => unmarshal_contact_info(ContactInfo),
-        <<"token">>         => BankCard#'BankCard'.token,
+        <<"type">> => <<"BankCardSenderResource">>,
+        <<"contactInfo">> => unmarshal_contact_info(ContactInfo),
+        <<"token">> => BankCard#'BankCard'.token,
         <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
-        <<"bin">>           => BankCard#'BankCard'.bin,
-        <<"lastDigits">>    => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
+        <<"bin">> => BankCard#'BankCard'.bin,
+        <<"lastDigits">> => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
     }).
 
-unmarshal_receiver({resource, #p2p_transfer_RawResource{
-    resource = {bank_card, #'ResourceBankCard'{
-        bank_card = BankCard
+unmarshal_receiver(
+    {resource, #p2p_transfer_RawResource{
+        resource =
+            {bank_card, #'ResourceBankCard'{
+                bank_card = BankCard
+            }}
     }}
-}}) ->
+) ->
     genlib_map:compact(#{
-        <<"type">>          => <<"BankCardReceiverResource">>,
-        <<"token">>         => BankCard#'BankCard'.token,
-        <<"bin">>           => BankCard#'BankCard'.bin,
+        <<"type">> => <<"BankCardReceiverResource">>,
+        <<"token">> => BankCard#'BankCard'.token,
+        <<"bin">> => BankCard#'BankCard'.bin,
         <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
-        <<"lastDigits">>    => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
+        <<"lastDigits">> => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
     }).
 
 unmarshal_contact_info(ContactInfo) ->
@@ -452,7 +454,7 @@ gen_transfer_id(#{woody_context := WoodyContext} = HandlerContext) ->
     Key = bender_client:get_idempotent_key(<<"issue_p2p_transfer_ticket">>, ticket, PartyID, undefined),
 
     %% TODO: {ok, TransferID} = wapi_backend_utils:gen_id_by_type(ticket, Key, 0, HandlerContext),
-    {ok, {TransferID, _}} =  bender_client:gen_snowflake(Key, 0, WoodyContext),
+    {ok, {TransferID, _}} = bender_client:gen_snowflake(Key, 0, WoodyContext),
     TransferID.
 
 %% Validate transfer_id by Params hash
@@ -498,22 +500,26 @@ decode_and_validate_token_payload(Token, TemplateID, HandlerContext) ->
 
 %% Convert swag maps to thrift records
 
-marshal_template_params(Params = #{
-    <<"id">> := ID,
-    <<"identityID">> := IdentityID,
-    <<"details">> := Details
-}) ->
+marshal_template_params(
+    Params = #{
+        <<"id">> := ID,
+        <<"identityID">> := IdentityID,
+        <<"details">> := Details
+    }
+) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #p2p_template_P2PTemplateParams{
         id = marshal(id, ID),
-        identity_id  = marshal(id, IdentityID),
+        identity_id = marshal(id, IdentityID),
         template_details = marshal_template_details(Details),
         external_id = maybe_marshal(id, ExternalID)
     }.
 
-marshal_template_details(Details = #{
-    <<"body">> := Body
-}) ->
+marshal_template_details(
+    Details = #{
+        <<"body">> := Body
+    }
+) ->
     Metadata = maps:get(<<"metadata">>, Details, undefined),
     #p2p_template_P2PTemplateDetails{
         body = marshal_template_body(Body),
@@ -566,8 +572,8 @@ marshal_quote_participant(#{
             BankCard = wapi_utils:base64url_to_map(Token),
             {bank_card, #'ResourceBankCard'{
                 bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
+                    token = maps:get(<<"token">>, BankCard),
+                    bin = maps:get(<<"bin">>, BankCard),
                     masked_pan = maps:get(<<"lastDigits">>, BankCard)
                 }
             }};
@@ -575,14 +581,17 @@ marshal_quote_participant(#{
             {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
     end.
 
-marshal_transfer_params(#{
-    <<"id">> := TransferID,
-    <<"sender">> := Sender,
-    <<"receiver">> := Receiver,
-    <<"body">> := Body,
-    <<"contactInfo">> := ContactInfo
-} = Params) ->
-    Quote = maps:get(<<"quote">>, Params, undefined), %% decrypted from quoteToken
+marshal_transfer_params(
+    #{
+        <<"id">> := TransferID,
+        <<"sender">> := Sender,
+        <<"receiver">> := Receiver,
+        <<"body">> := Body,
+        <<"contactInfo">> := ContactInfo
+    } = Params
+) ->
+    %% decrypted from quoteToken
+    Quote = maps:get(<<"quote">>, Params, undefined),
     Metadata = maps:get(<<"metadata">>, Params, undefined),
     #p2p_template_P2PTemplateTransferParams{
         id = TransferID,
@@ -600,19 +609,20 @@ marshal_sender(#{
     <<"authData">> := AuthData,
     <<"contactInfo">> := ContactInfo
 }) ->
-    ResourceBankCard = case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            };
-        {ok, BankCard} ->
-            #'ResourceBankCard'{bank_card = BankCard}
-    end,
+    ResourceBankCard =
+        case wapi_crypto:decrypt_bankcard_token(Token) of
+            unrecognized ->
+                BankCard = wapi_utils:base64url_to_map(Token),
+                #'ResourceBankCard'{
+                    bank_card = #'BankCard'{
+                        token = maps:get(<<"token">>, BankCard),
+                        bin = maps:get(<<"bin">>, BankCard),
+                        masked_pan = maps:get(<<"lastDigits">>, BankCard)
+                    }
+                };
+            {ok, BankCard} ->
+                #'ResourceBankCard'{bank_card = BankCard}
+        end,
     ResourceBankCardAuth = ResourceBankCard#'ResourceBankCard'{
         auth_data = {session_data, #'SessionAuthData'{id = AuthData}}
     },
@@ -624,19 +634,20 @@ marshal_sender(#{
 marshal_receiver(#{
     <<"token">> := Token
 }) ->
-    Resource = case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            {bank_card, #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            }};
-        {ok, BankCard} ->
-            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
-    end,
+    Resource =
+        case wapi_crypto:decrypt_bankcard_token(Token) of
+            unrecognized ->
+                BankCard = wapi_utils:base64url_to_map(Token),
+                {bank_card, #'ResourceBankCard'{
+                    bank_card = #'BankCard'{
+                        token = maps:get(<<"token">>, BankCard),
+                        bin = maps:get(<<"bin">>, BankCard),
+                        masked_pan = maps:get(<<"lastDigits">>, BankCard)
+                    }
+                }};
+            {ok, BankCard} ->
+                {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
+        end,
     {resource, #p2p_transfer_RawResource{
         resource = Resource,
         contact_info = #'ContactInfo'{}
@@ -660,4 +671,3 @@ maybe_marshal(_, undefined) ->
     undefined;
 maybe_marshal(T, V) ->
     marshal(T, V).
-

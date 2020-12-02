@@ -1,4 +1,5 @@
 -module(ff_p2p_template_handler).
+
 -behaviour(ff_woody_wrapper).
 
 -include_lib("fistful_proto/include/ff_proto_p2p_template_thrift.hrl").
@@ -10,11 +11,11 @@
 %%
 %% ff_woody_wrapper callbacks
 %%
--spec handle_function(woody:func(), woody:args(), woody:options()) ->
-    {ok, woody:result()} | no_return().
-
+-spec handle_function(woody:func(), woody:args(), woody:options()) -> {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(p2p_template, #{},
+    scoper:scope(
+        p2p_template,
+        #{},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -40,7 +41,6 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-
 handle_function_('Get', [ID, MarshaledEventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     EventRange = ff_codec:unmarshal(event_range, MarshaledEventRange),
@@ -53,7 +53,6 @@ handle_function_('Get', [ID, MarshaledEventRange], _Opts) ->
         {error, {unknown_p2p_template, _Ref}} ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{})
     end;
-
 handle_function_('GetContext', [ID], _Opts) ->
     case p2p_template_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
@@ -63,7 +62,6 @@ handle_function_('GetContext', [ID], _Opts) ->
         {error, {unknown_p2p_template, _Ref}} ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{})
     end;
-
 handle_function_('SetBlocking', [ID, MarshaledBlocking], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     Blocking = ff_p2p_template_codec:unmarshal(blocking, MarshaledBlocking),
@@ -73,7 +71,6 @@ handle_function_('SetBlocking', [ID, MarshaledBlocking], _Opts) ->
         {error, {unknown_p2p_template, _Ref}} ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{})
     end;
-
 handle_function_('GetQuote', [ID, MarshaledParams], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     Params = ff_p2p_template_codec:unmarshal_p2p_quote_params(MarshaledParams),
@@ -108,9 +105,7 @@ handle_function_('GetQuote', [ID, MarshaledParams], _Opts) ->
             woody_error:raise(business, #p2p_transfer_NoResourceInfo{type = Type});
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
-
     end;
-
 handle_function_('CreateTransfer', [ID, MarshaledParams, MarshaledContext], Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     TransferID = MarshaledParams#p2p_template_P2PTemplateTransferParams.id,

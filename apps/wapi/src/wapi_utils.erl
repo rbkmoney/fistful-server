@@ -23,9 +23,10 @@
 -export([get_unique_id/0]).
 
 -type binding_value() :: binary().
--type url()           :: binary().
--type path()          :: binary().
--type route_match()   :: '_' | iodata(). % cowoby_router:route_match()
+-type url() :: binary().
+-type path() :: binary().
+% cowoby_router:route_match()
+-type route_match() :: '_' | iodata().
 
 -export_type([route_match/0]).
 
@@ -33,7 +34,8 @@
 
 -spec base64url_to_map(binary()) -> map() | no_return().
 base64url_to_map(Base64) when is_binary(Base64) ->
-    try jsx:decode(base64url:decode(Base64), [return_maps])
+    try
+        jsx:decode(base64url:decode(Base64), [return_maps])
     catch
         Class:Reason ->
             _ = logger:debug("decoding base64 ~p to map failed with ~p:~p", [Base64, Class, Reason]),
@@ -42,7 +44,8 @@ base64url_to_map(Base64) when is_binary(Base64) ->
 
 -spec map_to_base64url(map()) -> binary() | no_return().
 map_to_base64url(Map) when is_map(Map) ->
-    try base64url:encode(jsx:encode(Map))
+    try
+        base64url:encode(jsx:encode(Map))
     catch
         Class:Reason ->
             _ = logger:debug("encoding map ~p to base64 failed with ~p:~p", [Map, Class, Reason]),
@@ -78,8 +81,7 @@ redact_match([Capture], Message) ->
 %%         string:pad(string:slice(Str, KeepStart, KeepLen), string:length(Str), Dir, MaskChar)
 %%     ).
 
--spec mask_and_keep(leading|trailing, non_neg_integer(), char(), binary()) ->
-    binary().
+-spec mask_and_keep(leading | trailing, non_neg_integer(), char(), binary()) -> binary().
 mask_and_keep(trailing, KeepLen, MaskChar, Chardata) ->
     StrLen = erlang:length(unicode:characters_to_list(Chardata)),
     mask(leading, StrLen - KeepLen, MaskChar, Chardata);
@@ -87,8 +89,7 @@ mask_and_keep(leading, KeepLen, MaskChar, Chardata) ->
     StrLen = erlang:length(unicode:characters_to_list(Chardata)),
     mask(trailing, StrLen - KeepLen, MaskChar, Chardata).
 
--spec mask(leading|trailing, non_neg_integer(), char(), binary()) ->
-    binary().
+-spec mask(leading | trailing, non_neg_integer(), char(), binary()) -> binary().
 mask(trailing, MaskLen, MaskChar, Chardata) ->
     Str = unicode:characters_to_list(Chardata),
     unicode:characters_to_binary(
@@ -105,8 +106,7 @@ to_universal_time(Timestamp) ->
     TimestampMS = genlib_rfc3339:parse(Timestamp, microsecond),
     genlib_rfc3339:format_relaxed(TimestampMS, microsecond).
 
--spec unwrap(ok | {ok, Value} | {error, _Error}) ->
-    Value | no_return().
+-spec unwrap(ok | {ok, Value} | {error, _Error}) -> Value | no_return().
 unwrap(ok) ->
     ok;
 unwrap({ok, Value}) ->
@@ -120,43 +120,39 @@ define(undefined, V) ->
 define(V, _Default) ->
     V.
 
--spec get_path(route_match(), [binding_value()]) ->
-    path().
+-spec get_path(route_match(), [binding_value()]) -> path().
 get_path(PathSpec, Params) when is_list(PathSpec) ->
     get_path(genlib:to_binary(PathSpec), Params);
 get_path(Path, []) ->
     Path;
 get_path(PathSpec, [Value | Rest]) ->
     [P1, P2] = split(PathSpec),
-    P3       = get_next(P2),
+    P3 = get_next(P2),
     get_path(<<P1/binary, Value/binary, P3/binary>>, Rest).
 
 split(PathSpec) ->
     case binary:split(PathSpec, <<":">>) of
         Res = [_, _] -> Res;
-        [_]          -> erlang:error(param_mismatch)
+        [_] -> erlang:error(param_mismatch)
     end.
 
 get_next(PathSpec) ->
     case binary:split(PathSpec, <<"/">>) of
         [_, Next] -> <<"/", Next/binary>>;
-        [_]       -> <<>>
+        [_] -> <<>>
     end.
 
--spec get_url(url(), path()) ->
-    url().
+-spec get_url(url(), path()) -> url().
 get_url(BaseUrl, Path) ->
     <<BaseUrl/binary, Path/binary>>.
 
--spec get_url(url(), route_match(), [binding_value()]) ->
-    url().
+-spec get_url(url(), route_match(), [binding_value()]) -> url().
 get_url(BaseUrl, PathSpec, Params) ->
     get_url(BaseUrl, get_path(PathSpec, Params)).
 
 -define(MASKED_PAN_MAX_LENGTH, 4).
 
--spec get_last_pan_digits(binary()) ->
-    binary().
+-spec get_last_pan_digits(binary()) -> binary().
 get_last_pan_digits(MaskedPan) when byte_size(MaskedPan) > ?MASKED_PAN_MAX_LENGTH ->
     binary:part(MaskedPan, {byte_size(MaskedPan), -?MASKED_PAN_MAX_LENGTH});
 get_last_pan_digits(MaskedPan) ->
@@ -186,6 +182,7 @@ try_parse_deadline(DeadlineStr, [P | Parsers]) ->
         {error, bad_deadline} ->
             try_parse_deadline(DeadlineStr, Parsers)
     end.
+
 try_parse_woody_default(DeadlineStr) ->
     try
         Deadline = woody_deadline:from_binary(to_universal_time(DeadlineStr)),
@@ -199,6 +196,7 @@ try_parse_woody_default(DeadlineStr) ->
         error:deadline_reached ->
             {error, bad_deadline}
     end.
+
 try_parse_relative(DeadlineStr) ->
     %% deadline string like '1ms', '30m', '2.6h' etc
     case re:split(DeadlineStr, <<"^(\\d+\\.\\d+|\\d+)([a-z]+)$">>) of
@@ -208,6 +206,7 @@ try_parse_relative(DeadlineStr) ->
         _Other ->
             {error, bad_deadline}
     end.
+
 try_parse_relative(Number, Unit) ->
     case unit_factor(Unit) of
         {ok, Factor} ->
@@ -216,6 +215,7 @@ try_parse_relative(Number, Unit) ->
         {error, _Reason} ->
             {error, bad_deadline}
     end.
+
 unit_factor(<<"ms">>) ->
     {ok, 1};
 unit_factor(<<"s">>) ->
@@ -225,9 +225,10 @@ unit_factor(<<"m">>) ->
 unit_factor(_Other) ->
     {error, unknown_unit}.
 
--define(MAX_REQUEST_DEADLINE_TIME, timer:minutes(1)). % 1 min
+% 1 min
+-define(MAX_REQUEST_DEADLINE_TIME, timer:minutes(1)).
 
-clamp_max_request_deadline(Value) when is_integer(Value)->
+clamp_max_request_deadline(Value) when is_integer(Value) ->
     MaxDeadline = genlib_app:env(wapi, max_request_deadline, ?MAX_REQUEST_DEADLINE_TIME),
     case Value > MaxDeadline of
         true ->
@@ -239,6 +240,7 @@ clamp_max_request_deadline(Value) when is_integer(Value)->
 -spec get_unique_id() -> binary().
 get_unique_id() ->
     ff_id:generate_snowflake_id().
+
 %%
 
 -ifdef(TEST).
@@ -247,6 +249,7 @@ get_unique_id() ->
 -spec test() -> _.
 
 -spec to_universal_time_test() -> _.
+
 to_universal_time_test() ->
     ?assertEqual(<<"2017-04-19T13:56:07Z">>, to_universal_time(<<"2017-04-19T13:56:07Z">>)),
     ?assertEqual(<<"2017-04-19T13:56:07.530Z">>, to_universal_time(<<"2017-04-19T13:56:07.53Z">>)),
@@ -257,19 +260,31 @@ to_universal_time_test() ->
 redact_test() ->
     P1 = <<"^\\+\\d(\\d{1,10}?)\\d{2,4}$">>,
     ?assertEqual(<<"+7******3210">>, redact(<<"+79876543210">>, P1)),
-    ?assertEqual(       <<"+1*11">>, redact(<<"+1111">>, P1)).
+    ?assertEqual(<<"+1*11">>, redact(<<"+1111">>, P1)).
 
 -spec get_path_test() -> _.
 get_path_test() ->
-    ?assertEqual(<<"/wallet/v0/deposits/11/events/42">>, get_path(
-        <<"/wallet/v0/deposits/:depositID/events/:eventID">>, [<<"11">>, <<"42">>]
-    )),
-    ?assertEqual(<<"/wallet/v0/deposits/11/events/42">>, get_path(
-        "/wallet/v0/deposits/:depositID/events/:eventID", [<<"11">>, <<"42">>]
-    )),
-    ?assertError(param_mismatch, get_path(
-        "/wallet/v0/deposits/:depositID/events/:eventID", [<<"11">>, <<"42">>, <<"0">>]
-    )).
+    ?assertEqual(
+        <<"/wallet/v0/deposits/11/events/42">>,
+        get_path(
+            <<"/wallet/v0/deposits/:depositID/events/:eventID">>,
+            [<<"11">>, <<"42">>]
+        )
+    ),
+    ?assertEqual(
+        <<"/wallet/v0/deposits/11/events/42">>,
+        get_path(
+            "/wallet/v0/deposits/:depositID/events/:eventID",
+            [<<"11">>, <<"42">>]
+        )
+    ),
+    ?assertError(
+        param_mismatch,
+        get_path(
+            "/wallet/v0/deposits/:depositID/events/:eventID",
+            [<<"11">>, <<"42">>, <<"0">>]
+        )
+    ).
 
 -spec mask_test() -> _.
 mask_test() ->

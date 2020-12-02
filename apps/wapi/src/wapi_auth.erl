@@ -14,12 +14,12 @@
 
 -export([create_wapi_context/1]).
 
--type context () :: uac_authorizer_jwt:t().
--type claims  () :: uac_authorizer_jwt:claims().
+-type context() :: uac_authorizer_jwt:t().
+-type claims() :: uac_authorizer_jwt:claims().
 -type consumer() :: client | merchant | provider.
 
--export_type([context /0]).
--export_type([claims  /0]).
+-export_type([context/0]).
+-export_type([claims/0]).
 -export_type([consumer/0]).
 
 -type operation_id() :: wapi_handler:operation_id().
@@ -29,28 +29,24 @@
 % TODO
 % We need shared type here, exported somewhere in swagger app
 -type request_data() :: #{atom() | binary() => term()}.
--type auth_method()  :: bearer_token | grant.
--type resource()     :: wallet | destination.
+-type auth_method() :: bearer_token | grant.
+-type resource() :: wallet | destination.
 -type auth_details() :: auth_method() | [{resource(), auth_details()}].
 
 -define(DOMAIN, <<"wallet-api">>).
 
--spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) ->
-    ok  | {error, unauthorized}.
-
+-spec authorize_operation(operation_id(), request_data(), wapi_handler:context()) -> ok | {error, unauthorized}.
 authorize_operation(OperationID, Req, #{swagger_context := #{auth_context := AuthContext}}) ->
     OperationACL = get_operation_access(OperationID, Req),
     uac:authorize_operation(OperationACL, AuthContext).
 
 -type token_spec() ::
-    {p2p_templates, P2PTemplateID :: binary(), Data :: map()} |
-    {p2p_template_transfers, P2PTemplateID :: binary(), Data :: map()} |
-    {destinations, DestinationID :: binary()} |
-    {wallets, WalletID :: binary(), Asset :: map()}.
+    {p2p_templates, P2PTemplateID :: binary(), Data :: map()}
+    | {p2p_template_transfers, P2PTemplateID :: binary(), Data :: map()}
+    | {destinations, DestinationID :: binary()}
+    | {wallets, WalletID :: binary(), Asset :: map()}.
 
-
--spec issue_access_token(wapi_handler_utils:owner(), token_spec()) ->
-    uac_authorizer_jwt:token().
+-spec issue_access_token(wapi_handler_utils:owner(), token_spec()) -> uac_authorizer_jwt:token().
 issue_access_token(PartyID, TokenSpec) ->
     issue_access_token(PartyID, TokenSpec, unlimited).
 
@@ -59,46 +55,58 @@ issue_access_token(PartyID, TokenSpec) ->
 issue_access_token(PartyID, TokenSpec, Expiration) ->
     Claims0 = resolve_token_spec(TokenSpec),
     Claims = Claims0#{<<"exp">> => Expiration},
-    wapi_utils:unwrap(uac_authorizer_jwt:issue(
-        wapi_utils:get_unique_id(),
-        PartyID,
-        Claims,
-        get_signee()
-    )).
+    wapi_utils:unwrap(
+        uac_authorizer_jwt:issue(
+            wapi_utils:get_unique_id(),
+            PartyID,
+            Claims,
+            get_signee()
+        )
+    ).
 
--spec resolve_token_spec(token_spec()) ->
-    claims().
+-spec resolve_token_spec(token_spec()) -> claims().
 resolve_token_spec({p2p_templates, P2PTemplateID, #{<<"expiration">> := Expiration}}) ->
     #{
         <<"data">> => #{<<"expiration">> => Expiration},
-        <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
-            [{[{p2p_templates, P2PTemplateID}, p2p_template_tickets], write}, {[{p2p_templates, P2PTemplateID}], read}]
-        )}
+        <<"resource_access">> => #{
+            ?DOMAIN => uac_acl:from_list(
+                [
+                    {[{p2p_templates, P2PTemplateID}, p2p_template_tickets], write},
+                    {[{p2p_templates, P2PTemplateID}], read}
+                ]
+            )
+        }
     };
 resolve_token_spec({p2p_template_transfers, P2PTemplateID, #{<<"transferID">> := TransferID}}) ->
     #{
         <<"data">> => #{<<"transferID">> => TransferID},
-        <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
-            [
-                {[{p2p_templates, P2PTemplateID}, p2p_template_transfers], write},
-                {[{p2p_templates, P2PTemplateID}, p2p_template_quotes], write},
-                {[{p2p, TransferID}], read}
-            ]
-        )}
+        <<"resource_access">> => #{
+            ?DOMAIN => uac_acl:from_list(
+                [
+                    {[{p2p_templates, P2PTemplateID}, p2p_template_transfers], write},
+                    {[{p2p_templates, P2PTemplateID}, p2p_template_quotes], write},
+                    {[{p2p, TransferID}], read}
+                ]
+            )
+        }
     };
 resolve_token_spec({destinations, DestinationId}) ->
     #{
-        <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
-            [{[party, {destinations, DestinationId}], write}]
-        )}
+        <<"resource_access">> => #{
+            ?DOMAIN => uac_acl:from_list(
+                [{[party, {destinations, DestinationId}], write}]
+            )
+        }
     };
 resolve_token_spec({wallets, WalletId, #{<<"amount">> := Amount, <<"currency">> := Currency}}) ->
     #{
         <<"amount">> => Amount,
         <<"currency">> => Currency,
-        <<"resource_access">> => #{?DOMAIN => uac_acl:from_list(
-            [{[party, {wallets, WalletId}], write}]
-        )}
+        <<"resource_access">> => #{
+            ?DOMAIN => uac_acl:from_list(
+                [{[party, {wallets, WalletId}], write}]
+            )
+        }
     }.
 
 %%
@@ -217,7 +225,6 @@ get_operation_access('GetW2WTransfer', _) ->
     [{[w2w], read}].
 
 -spec get_access_config() -> map().
-
 get_access_config() ->
     #{
         domain_name => ?DOMAIN,
@@ -225,7 +232,6 @@ get_access_config() ->
     }.
 
 -spec get_resource_hierarchy() -> #{atom() => map()}.
-
 %% TODO put some sense in here
 % This resource hierarchy refers to wallet api actaully
 get_resource_hierarchy() ->

@@ -30,10 +30,10 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
@@ -67,10 +67,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -85,6 +88,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -116,7 +120,7 @@ adjustment_can_change_status_to_failed_test(C) ->
     ?assertMatch(succeeded, get_adjustment_status(W2WTransferID, AdjustmentID)),
     ExternalID = ff_adjustment:external_id(get_adjustment(W2WTransferID, AdjustmentID)),
     ?assertEqual(<<"true_unique_id">>, ExternalID),
-    ?assertEqual({failed, Failure},  get_w2w_transfer_status(W2WTransferID)),
+    ?assertEqual({failed, Failure}, get_w2w_transfer_status(W2WTransferID)),
     assert_adjustment_same_revisions(W2WTransferID, AdjustmentID),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletFromID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletToID)).
@@ -134,7 +138,7 @@ adjustment_can_change_failure_test(C) ->
     AdjustmentID1 = process_adjustment(W2WTransferID, #{
         change => {change_status, {failed, Failure1}}
     }),
-    ?assertEqual({failed, Failure1},  get_w2w_transfer_status(W2WTransferID)),
+    ?assertEqual({failed, Failure1}, get_w2w_transfer_status(W2WTransferID)),
     assert_adjustment_same_revisions(W2WTransferID, AdjustmentID1),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletFromID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletToID)),
@@ -142,7 +146,7 @@ adjustment_can_change_failure_test(C) ->
     AdjustmentID2 = process_adjustment(W2WTransferID, #{
         change => {change_status, {failed, Failure2}}
     }),
-    ?assertEqual({failed, Failure2},  get_w2w_transfer_status(W2WTransferID)),
+    ?assertEqual({failed, Failure2}, get_w2w_transfer_status(W2WTransferID)),
     assert_adjustment_same_revisions(W2WTransferID, AdjustmentID2),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletFromID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletToID)).
@@ -296,7 +300,6 @@ unknown_w2w_transfer_test(_C) ->
     ?assertMatch({error, {unknown_w2w_transfer, W2WTransferID}}, Result).
 
 -spec consume_eventsinks(config()) -> test_return().
-
 consume_eventsinks(_) ->
     EventSinks = [w2w_transfer_event_sink],
     [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
@@ -355,7 +358,7 @@ get_adjustment_status(W2WTransferID, AdjustmentID) ->
 await_final_w2w_transfer_status(W2WTransferID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = w2w_transfer_machine:get(W2WTransferID),
             W2WTransfer = w2w_transfer_machine:w2w_transfer(Machine),
             case w2w_transfer:is_finished(W2WTransfer) of
@@ -372,7 +375,7 @@ await_final_w2w_transfer_status(W2WTransferID) ->
 await_final_adjustment_status(W2WTransferID, AdjustmentID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = w2w_transfer_machine:get(W2WTransferID),
             W2WTransfer = w2w_transfer_machine:w2w_transfer(Machine),
             {ok, Adjustment} = w2w_transfer:find_adjustment(AdjustmentID, W2WTransfer),
@@ -421,7 +424,7 @@ await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
-        fun () -> get_wallet_balance(ID) end,
+        fun() -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
     ok.

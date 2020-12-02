@@ -15,26 +15,31 @@
     content := content(),
     status => status()
 }.
+
 -type intent() :: finish | {create, content()}.
 -type content() :: redirect() | receipt() | crypto() | qr_code().
 
--type redirect() :: {redirect, #{
-    content := redirect_get() | redirect_post()
-}}.
+-type redirect() ::
+    {redirect, #{
+        content := redirect_get() | redirect_post()
+    }}.
 
--type receipt() :: {payment_terminal_receipt, #{
-    payment_id := payment_id(),
-    timestamp  := timestamp()
-}}.
+-type receipt() ::
+    {payment_terminal_receipt, #{
+        payment_id := payment_id(),
+        timestamp := timestamp()
+    }}.
 
--type crypto() :: {crypto_currency_transfer_request, #{
-    crypto_address := crypto_address(),
-    crypto_cash    := crypto_cash()
-}}.
+-type crypto() ::
+    {crypto_currency_transfer_request, #{
+        crypto_address := crypto_address(),
+        crypto_cash := crypto_cash()
+    }}.
 
--type qr_code() :: {qr_code_show_request, #{
-    payload := qr_code_payload()
-}}.
+-type qr_code() ::
+    {qr_code_show_request, #{
+        payload := qr_code_payload()
+    }}.
 
 -type redirect_get() :: {get, uri()}.
 -type redirect_post() :: {post, uri(), form()}.
@@ -58,13 +63,13 @@
 }.
 
 -type status() ::
-    pending |
-    finished.
+    pending
+    | finished.
 
 -type legacy_event() :: any().
 -type event() ::
-    {created, user_interaction()} |
-    {status_changed, status()}.
+    {created, user_interaction()}
+    | {status_changed, status()}.
 
 -export_type([id/0]).
 -export_type([event/0]).
@@ -107,9 +112,7 @@ status(#{status := V}) ->
 
 %% API
 
--spec create(params()) ->
-    {ok, process_result()}.
-
+-spec create(params()) -> {ok, process_result()}.
 create(#{id := ID, content := Content}) ->
     UserInteraction = #{
         version => ?ACTUAL_FORMAT_VERSION,
@@ -132,8 +135,7 @@ is_finished(#{status := finished}) ->
 is_finished(#{status := pending}) ->
     false.
 
--spec finish(user_interaction()) ->
-    process_result().
+-spec finish(user_interaction()) -> process_result().
 finish(#{status := pending}) ->
     [{status_changed, finished}];
 finish(#{status := finished, id := ID}) ->
@@ -147,19 +149,16 @@ update_status(Status, UserInteraction) ->
 
 %% Events utils
 
--spec apply_event(event() | legacy_event(), user_interaction() | undefined) ->
-    user_interaction().
+-spec apply_event(event() | legacy_event(), user_interaction() | undefined) -> user_interaction().
 apply_event(Ev, T) ->
     apply_event_(maybe_migrate(Ev), T).
 
--spec apply_event_(event(), user_interaction() | undefined) ->
-    user_interaction().
+-spec apply_event_(event(), user_interaction() | undefined) -> user_interaction().
 apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
     update_status(S, T).
 
--spec maybe_migrate(event() | legacy_event()) ->
-    event().
+-spec maybe_migrate(event() | legacy_event()) -> event().
 maybe_migrate(Ev) ->
     Ev.

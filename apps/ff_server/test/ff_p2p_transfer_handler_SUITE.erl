@@ -26,18 +26,16 @@
 -export([unknown_session_test/1]).
 -export([unknown_test/1]).
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 -spec all() -> [test_case_name() | {group, group_name()}].
-
 all() ->
     [{group, default}].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
-
 groups() ->
     [
         {default, [parallel], [
@@ -55,40 +53,38 @@ groups() ->
     ].
 
 -spec init_per_suite(config()) -> config().
-
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
-
 end_per_suite(C) ->
     ok = ct_payment_system:shutdown(C).
 
 %%
 
 -spec init_per_group(group_name(), config()) -> config().
-
 init_per_group(_, C) ->
     C.
 
 -spec end_per_group(group_name(), config()) -> _.
-
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
-
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
-
 end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
@@ -125,9 +121,10 @@ create_adjustment_ok_test(C) ->
     ExternalID = generate_id(),
     Params = #p2p_adj_AdjustmentParams{
         id = AdjustmentID,
-        change = {change_status, #p2p_adj_ChangeStatusRequest{
-            new_status = {failed, #p2p_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
-        }},
+        change =
+            {change_status, #p2p_adj_ChangeStatusRequest{
+                new_status = {failed, #p2p_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+            }},
         external_id = ExternalID
     },
     {ok, AdjustmentState} = call_p2p('CreateAdjustment', [ID, Params]),
@@ -234,7 +231,7 @@ unknown_test(_C) ->
 await_final_p2p_transfer_status(P2PTransferID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
             P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
             case p2p_transfer:is_finished(P2PTransfer) of
@@ -267,19 +264,21 @@ make_cash({Amount, Currency}) ->
 
 create_resource_raw(C) ->
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    Resource = {bank_card, #{
-        bank_card => StoreSource,
-        auth_data => {session, #{
-            session_id => <<"ID">>
-        }}
-    }},
+    Resource =
+        {bank_card, #{
+            bank_card => StoreSource,
+            auth_data =>
+                {session, #{
+                    session_id => <<"ID">>
+                }}
+        }},
     ff_p2p_transfer_codec:marshal(participant, p2p_participant:create(raw, Resource, #{})).
 
 call_p2p_session(Fun, Args) ->
     ServiceName = p2p_session_management,
     Service = ff_services:get_service(ServiceName),
     Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
+    Client = ff_woody_client:new(#{
         url => "http://localhost:8022" ++ ff_services:get_service_path(ServiceName)
     }),
     ff_woody_client:call(Client, Request).
@@ -288,11 +287,10 @@ call_p2p(Fun, Args) ->
     ServiceName = p2p_transfer_management,
     Service = ff_services:get_service(ServiceName),
     Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
+    Client = ff_woody_client:new(#{
         url => "http://localhost:8022" ++ ff_services:get_service_path(ServiceName)
     }),
     ff_woody_client:call(Client, Request).
-
 
 prepare_standard_environment(C) ->
     Party = create_party(C),

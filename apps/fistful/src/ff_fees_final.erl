@@ -9,7 +9,6 @@
 -type cash_flow_constant() :: ff_cash_flow:plan_constant().
 -type cash() :: ff_cash:cash().
 
--spec surplus(fees()) ->
-    cash() | undefined.
+-spec surplus(fees()) -> cash() | undefined.
 surplus(#{fees := Fees}) ->
     maps:get(surplus, Fees, undefined).

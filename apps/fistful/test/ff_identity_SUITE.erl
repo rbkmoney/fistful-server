@@ -15,13 +15,12 @@
 
 -import(ff_pipeline, [unwrap/1]).
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 -spec all() -> [test_case_name() | {group, group_name()}].
-
 all() ->
     [
         get_missing_fails,
@@ -38,13 +37,15 @@ all() ->
 -spec init_per_suite(config()) -> config().
 
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
-
 end_per_suite(C) ->
     ok = ct_payment_system:shutdown(C),
     ok.
@@ -52,14 +53,12 @@ end_per_suite(C) ->
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
-
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
-
 end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
@@ -75,21 +74,21 @@ create_missing_fails(C) ->
     Name = <<"Identity Name">>,
     {error, {provider, notfound}} = ff_identity_machine:create(
         #{
-            id       => ID,
-            name     => Name,
-            party    => Party,
+            id => ID,
+            name => Name,
+            party => Party,
             provider => <<"who">>,
-            class    => <<"person">>
+            class => <<"person">>
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
     {error, {identity_class, notfound}} = ff_identity_machine:create(
         #{
-            id       => ID,
-            name     => Name,
-            party    => Party,
+            id => ID,
+            name => Name,
+            party => Party,
             provider => <<"good-one">>,
-            class    => <<"nosrep">>
+            class => <<"nosrep">>
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ).
@@ -100,11 +99,11 @@ create_ok(C) ->
     Name = <<"Identity Name">>,
     ok = ff_identity_machine:create(
         #{
-            id       => ID,
-            name     => Name,
-            party    => Party,
+            id => ID,
+            name => Name,
+            party => Party,
             provider => <<"good-one">>,
-            class    => <<"person">>
+            class => <<"person">>
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
@@ -119,11 +118,11 @@ identify_ok(C) ->
     Name = <<"Identity Name">>,
     ok = ff_identity_machine:create(
         #{
-            id       => ID,
-            name     => Name,
-            party    => Party,
+            id => ID,
+            name => Name,
+            party => Party,
             provider => <<"good-one">>,
-            class    => <<"person">>
+            class => <<"person">>
         },
         #{<<"com.rbkmoney.wapi">> => #{<<"name">> => Name}}
     ),
@@ -134,30 +133,34 @@ identify_ok(C) ->
     D1 = ct_identdocstore:rus_retiree_insurance_cert(genlib:unique(), C),
     D2 = ct_identdocstore:rus_domestic_passport(C),
     ChallengeParams = #{
-        id     => ICID,
-        class  => <<"sword-initiation">>
+        id => ICID,
+        class => <<"sword-initiation">>
     },
     {error, {challenge, {proof, insufficient}}} = ff_identity_machine:start_challenge(
-        ID, ChallengeParams#{proofs => []}
+        ID,
+        ChallengeParams#{proofs => []}
     ),
     {error, {challenge, {proof, insufficient}}} = ff_identity_machine:start_challenge(
-        ID, ChallengeParams#{proofs => [D1]}
+        ID,
+        ChallengeParams#{proofs => [D1]}
     ),
     ok = ff_identity_machine:start_challenge(
-        ID, ChallengeParams#{proofs => [D1, D2]}
+        ID,
+        ChallengeParams#{proofs => [D1, D2]}
     ),
     {error, {challenge, {pending, ICID}}} = ff_identity_machine:start_challenge(
-        ID, ChallengeParams#{proofs => [D1, D2]}
+        ID,
+        ChallengeParams#{proofs => [D1, D2]}
     ),
     {completed, _} = ct_helper:await(
         {completed, #{resolution => approved}},
-        fun () ->
-            {ok, S}  = ff_identity_machine:get(ID),
+        fun() ->
+            {ok, S} = ff_identity_machine:get(ID),
             {ok, IC} = ff_identity:challenge(ICID, ff_identity_machine:identity(S)),
             ff_identity_challenge:status(IC)
         end
     ),
-    {ok, S3}  = ff_identity_machine:get(ID),
+    {ok, S3} = ff_identity_machine:get(ID),
     I3 = ff_identity_machine:identity(S3),
     {ok, ICID} = ff_identity:effective_challenge(I3).
 

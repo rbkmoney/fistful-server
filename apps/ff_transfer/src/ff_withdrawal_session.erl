@@ -67,7 +67,8 @@
 -type session_result() :: success | {success, transaction_info()} | {failed, ff_adapter_withdrawal:failure()}.
 -type status() :: active | {finished, success | {failed, ff_adapter_withdrawal:failure()}}.
 
--type event() :: {created, session()}
+-type event() ::
+    {created, session()}
     | {next_state, ff_adapter:state()}
     | {transaction_bound, transaction_info()}
     | {finished, session_result()}
@@ -76,10 +77,10 @@
 -type wrapped_callback_event() :: ff_withdrawal_callback_utils:wrapped_event().
 
 -type data() :: #{
-    id         := id(),
-    cash       := ff_transaction:body(),
-    sender     := ff_identity:identity_state(),
-    receiver   := ff_identity:identity_state(),
+    id := id(),
+    cash := ff_transaction:body(),
+    sender := ff_identity:identity_state(),
+    receiver := ff_identity:identity_state(),
     quote_data => ff_adapter_withdrawal:quote_data()
 }.
 
@@ -90,7 +91,6 @@
     route := route(),
     withdrawal_id := ff_withdrawal:id()
 }.
-
 
 -type callback_params() :: ff_withdrawal_callback:process_params().
 -type process_callback_response() :: ff_withdrawal_callback:response().
@@ -105,12 +105,12 @@
 -type id() :: machinery:id().
 
 -type action() ::
-    undefined |
-    continue |
-    {setup_callback, machinery:tag(), machinery:timer()} |
-    {setup_timer, machinery:timer()} |
-    retry |
-    finish.
+    undefined
+    | continue
+    | {setup_callback, machinery:tag(), machinery:timer()}
+    | {setup_timer, machinery:timer()}
+    | retry
+    | finish.
 
 -type process_result() :: {action(), [event()]}.
 
@@ -140,32 +140,23 @@
 %% Accessors
 %%
 
--spec id(session_state()) ->
-    id().
-
+-spec id(session_state()) -> id().
 id(#{id := V}) ->
     V.
 
--spec status(session_state()) ->
-    status().
-
+-spec status(session_state()) -> status().
 status(#{status := V}) ->
     V.
 
--spec route(session_state()) ->
-    route().
-
+-spec route(session_state()) -> route().
 route(#{route := V}) ->
     V.
 
--spec withdrawal(session_state()) ->
-    withdrawal().
-
+-spec withdrawal(session_state()) -> withdrawal().
 withdrawal(#{withdrawal := V}) ->
     V.
 
 -spec adapter_state(session_state()) -> ff_adapter:state().
-
 adapter_state(Session) ->
     maps:get(adapter_state, Session, undefined).
 
@@ -178,17 +169,13 @@ callbacks_index(Session) ->
             ff_withdrawal_callback_utils:new_index()
     end.
 
--spec result(session_state()) ->
-    session_result() | undefined.
-
+-spec result(session_state()) -> session_result() | undefined.
 result(#{result := Result}) ->
     Result;
 result(_) ->
     undefined.
 
--spec transaction_info(session_state()) ->
-    transaction_info() | undefined.
-
+-spec transaction_info(session_state()) -> transaction_info() | undefined.
 transaction_info(Session = #{}) ->
     maps:get(transaction_info, Session, undefined).
 
@@ -196,15 +183,12 @@ transaction_info(Session = #{}) ->
 %% API
 %%
 
--spec create(id(), data(), params()) ->
-    {ok, [event()]}.
+-spec create(id(), data(), params()) -> {ok, [event()]}.
 create(ID, Data, Params) ->
     Session = create_session(ID, Data, Params),
     {ok, [{created, Session}]}.
 
--spec apply_event(event(), undefined | session_state()) ->
-    session_state().
-
+-spec apply_event(event(), undefined | session_state()) -> session_state().
 apply_event({created, Session}, undefined) ->
     Session;
 apply_event({next_state, AdapterState}, Session) ->
@@ -260,19 +244,18 @@ assert_transaction_info(TrxInfo, TrxInfo) ->
 assert_transaction_info(NewTrxInfo, _TrxInfo) ->
     erlang:error({transaction_info_is_different, NewTrxInfo}).
 
--spec set_session_result(session_result(), session_state()) ->
-    process_result().
+-spec set_session_result(session_result(), session_state()) -> process_result().
 set_session_result(Result, Session = #{status := active}) ->
     process_adapter_intent({finish, Result}, Session).
 
 -spec process_callback(callback_params(), session_state()) ->
-    {ok, {process_callback_response(), process_result()}} |
-    {error, {process_callback_error(), process_result()}}.
+    {ok, {process_callback_response(), process_result()}}
+    | {error, {process_callback_error(), process_result()}}.
 process_callback(#{tag := CallbackTag} = Params, Session) ->
     {ok, Callback} = find_callback(CallbackTag, Session),
     case ff_withdrawal_callback:status(Callback) of
         succeeded ->
-           {ok, {ff_withdrawal_callback:response(Callback), {undefined, []}}};
+            {ok, {ff_withdrawal_callback:response(Callback), {undefined, []}}};
         pending ->
             case status(Session) of
                 active ->
@@ -294,7 +277,11 @@ do_process_callback(CallbackParams, Callback, Session) ->
     Withdrawal = withdrawal(Session),
     AdapterState = adapter_state(Session),
     {ok, HandleCallbackResult} = ff_adapter_withdrawal:handle_callback(
-        Adapter, CallbackParams, Withdrawal, AdapterState, AdapterOpts
+        Adapter,
+        CallbackParams,
+        Withdrawal,
+        AdapterState,
+        AdapterOpts
     ),
     #{intent := Intent, response := Response} = HandleCallbackResult,
     Events0 = ff_withdrawal_callback_utils:process_response(Response, Callback),
@@ -333,15 +320,14 @@ process_adapter_intent({sleep, #{timer := Timer}}, _Session) ->
 
 %%
 
--spec create_session(id(), data(), params()) ->
-    session().
+-spec create_session(id(), data(), params()) -> session().
 create_session(ID, Data, #{withdrawal_id := WdthID, resource := Res, route := Route}) ->
     #{
-        version    => ?ACTUAL_FORMAT_VERSION,
-        id         => ID,
+        version => ?ACTUAL_FORMAT_VERSION,
+        id => ID,
         withdrawal => create_adapter_withdrawal(Data, Res, WdthID),
-        route      => Route,
-        status     => active
+        route => Route,
+        status => active
     }.
 
 create_callback(Tag, Session) ->
@@ -353,9 +339,7 @@ create_callback(Tag, Session) ->
             erlang:error({callback_already_exists, Callback})
     end.
 
--spec convert_identity_state_to_adapter_identity(ff_identity:identity_state()) ->
-    ff_adapter_withdrawal:identity().
-
+-spec convert_identity_state_to_adapter_identity(ff_identity:identity_state()) -> ff_adapter_withdrawal:identity().
 convert_identity_state_to_adapter_identity(IdentityState) ->
     Identity = #{
         id => ff_identity:id(IdentityState)
@@ -364,10 +348,12 @@ convert_identity_state_to_adapter_identity(IdentityState) ->
         {ok, ChallengeID} ->
             case ff_identity:challenge(ChallengeID, IdentityState) of
                 {ok, Challenge} ->
-                    Identity#{effective_challenge => #{
-                        id => ChallengeID,
-                        proofs => ff_identity_challenge:proofs(Challenge)
-                    }};
+                    Identity#{
+                        effective_challenge => #{
+                            id => ChallengeID,
+                            proofs => ff_identity_challenge:proofs(Challenge)
+                        }
+                    };
                 _ ->
                     Identity
             end;
@@ -375,8 +361,7 @@ convert_identity_state_to_adapter_identity(IdentityState) ->
             Identity
     end.
 
--spec get_adapter_with_opts(ff_withdrawal_routing:route()) ->
-    adapter_with_opts().
+-spec get_adapter_with_opts(ff_withdrawal_routing:route()) -> adapter_with_opts().
 get_adapter_with_opts(Route) ->
     ProviderID = ff_withdrawal_routing:get_provider(Route),
     TerminalID = ff_withdrawal_routing:get_terminal(Route),

@@ -1,11 +1,11 @@
 -module(p2p_inspector).
 
--type risk_score()      :: low | high | fatal.
--type id()              :: integer().
--type score_id()        :: binary().
--type scores()          :: #{score_id() => risk_score()}.
--type inspector()       :: dmsl_domain_thrift:'P2PInspector'().
--type transfer()        :: p2p_transfer:p2p_transfer_state().
+-type risk_score() :: low | high | fatal.
+-type id() :: integer().
+-type score_id() :: binary().
+-type scores() :: #{score_id() => risk_score()}.
+-type inspector() :: dmsl_domain_thrift:'P2PInspector'().
+-type transfer() :: p2p_transfer:p2p_transfer_state().
 -type domain_revision() :: ff_domain_config:revision().
 -type payment_resource_payer() :: #{
     resource := ff_resource:resource(),
@@ -55,15 +55,16 @@ issue_call(Client, Request, undefined) ->
     end;
 issue_call(Client, Request, Default) ->
     try ff_woody_client:call(Client, Request) of
-        {ok, InspectResult}  ->
+        {ok, InspectResult} ->
             {ok, decode_inspect_result(InspectResult)};
         {exception, Error} ->
             _ = logger:error("Fail to get RiskScore with error ~p", [Error]),
             {ok, Default}
     catch
-        error:{woody_error, {_Source, Class, _Details}} = Reason
-            when Class =:= resource_unavailable orelse
-                 Class =:= result_unknown ->
+        error:{woody_error, {_Source, Class, _Details}} = Reason when
+            Class =:= resource_unavailable orelse
+                Class =:= result_unknown
+        ->
             _ = logger:warning("Fail to get RiskScore with error ~p:~p", [error, Reason]),
             {ok, Default};
         error:{woody_error, {_Source, result_unexpected, _Details}} = Reason ->

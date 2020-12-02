@@ -12,17 +12,14 @@
 
 -include_lib("fistful_proto/include/ff_proto_w2w_transfer_thrift.hrl").
 
--spec create_transfer(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, CreateError}
-when
+-spec create_transfer(req_data(), handler_context()) -> {ok, response_data()} | {error, CreateError} when
     CreateError ::
-        {external_id_conflict, external_id()} |
-        {wallet_from, unauthorized} |
-        {wallet_from | wallet_to, notfound | inaccessible} |
-        bad_w2w_transfer_amount |
-        not_allowed_currency |
-        inconsistent_currency.
-
+        {external_id_conflict, external_id()}
+        | {wallet_from, unauthorized}
+        | {wallet_from | wallet_to, notfound | inaccessible}
+        | bad_w2w_transfer_amount
+        | not_allowed_currency
+        | inconsistent_currency.
 create_transfer(Params = #{<<"sender">> := SenderID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(wallet, SenderID, HandlerContext) of
         ok ->
@@ -55,13 +52,10 @@ create_transfer(ID, Params, Context, HandlerContext) ->
             {error, bad_w2w_transfer_amount}
     end.
 
--spec get_transfer(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, GetError}
-when
+-spec get_transfer(req_data(), handler_context()) -> {ok, response_data()} | {error, GetError} when
     GetError ::
-        {w2w_transfer, unauthorized} |
-        {w2w_transfer, {unknown_w2w_transfer, id()}}.
-
+        {w2w_transfer, unauthorized}
+        | {w2w_transfer, {unknown_w2w_transfer, id()}}.
 get_transfer(ID, HandlerContext) ->
     EventRange = #'EventRange'{},
     Request = {fistful_w2w_transfer, 'Get', [ID, EventRange]},
@@ -96,12 +90,15 @@ wallet_inaccessible_error(WalletID, #{<<"receiver">> := WalletID}) ->
 
 %% Marshaling
 
-marshal(transfer_params, #{
-    <<"id">> := ID,
-    <<"sender">> := SenderID,
-    <<"receiver">> := ReceiverID,
-    <<"body">> := Body
-} = Params) ->
+marshal(
+    transfer_params,
+    #{
+        <<"id">> := ID,
+        <<"sender">> := SenderID,
+        <<"receiver">> := ReceiverID,
+        <<"body">> := Body
+    } = Params
+) ->
     #w2w_transfer_W2WTransferParams{
         id = marshal(id, ID),
         wallet_from_id = marshal(id, SenderID),
@@ -109,19 +106,16 @@ marshal(transfer_params, #{
         body = marshal(body, Body),
         external_id = maps:get(<<"externalId">>, Params, undefined)
     };
-
 marshal(body, #{
     <<"amount">> := Amount,
     <<"currency">> := Currency
 }) ->
     #'Cash'{
-        amount   = marshal(amount, Amount),
+        amount = marshal(amount, Amount),
         currency = marshal(currency_ref, Currency)
     };
-
 marshal(context, Ctx) ->
     ff_codec:marshal(context, Ctx);
-
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -143,16 +137,14 @@ unmarshal(transfer, #w2w_transfer_W2WTransferState{
         <<"status">> => unmarshal(transfer_status, Status),
         <<"externalID">> => maybe_unmarshal(id, ExternalID)
     });
-
 unmarshal(body, #'Cash'{
-    amount   = Amount,
+    amount = Amount,
     currency = Currency
 }) ->
     #{
         <<"amount">> => unmarshal(amount, Amount),
         <<"currency">> => unmarshal(currency_ref, Currency)
     };
-
 unmarshal(transfer_status, {pending, _}) ->
     #{<<"status">> => <<"Pending">>};
 unmarshal(transfer_status, {succeeded, _}) ->
@@ -162,7 +154,6 @@ unmarshal(transfer_status, {failed, #w2w_status_Failed{failure = Failure}}) ->
         <<"status">> => <<"Failed">>,
         <<"failure">> => unmarshal(failure, Failure)
     };
-
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 

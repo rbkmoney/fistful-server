@@ -20,13 +20,13 @@
     accounter_account_id := accounter_account_id()
 }.
 
--type amount()   :: dmsl_domain_thrift:'Amount'().
+-type amount() :: dmsl_domain_thrift:'Amount'().
 
 -type account_balance() :: #{
-    id           := id(),
-    currency     := ff_currency:id(),
+    id := id(),
+    currency := ff_currency:id(),
     expected_min := amount(),
-    current      := amount(),
+    current := amount(),
     expected_max := amount()
 }.
 
@@ -34,8 +34,8 @@
     {created, account()}.
 
 -type create_error() ::
-    {terms, ff_party:validate_account_creation_error()} |
-    {party, ff_party:inaccessibility()}.
+    {terms, ff_party:validate_account_creation_error()}
+    | {party, ff_party:inaccessibility()}.
 
 -export_type([id/0]).
 -export_type([accounter_account_id/0]).
@@ -67,31 +67,28 @@
 
 %% Accessors
 
--spec id(account()) ->
-    id().
--spec identity(account()) ->
-    identity_id().
--spec currency(account()) ->
-    currency_id().
--spec accounter_account_id(account()) ->
-    accounter_account_id().
+-spec id(account()) -> id().
+-spec identity(account()) -> identity_id().
+-spec currency(account()) -> currency_id().
+-spec accounter_account_id(account()) -> accounter_account_id().
 
 id(#{id := ID}) ->
     ID.
+
 identity(#{identity := IdentityID}) ->
     IdentityID.
+
 currency(#{currency := CurrencyID}) ->
     CurrencyID.
+
 accounter_account_id(#{accounter_account_id := AccounterID}) ->
     AccounterID.
 
 %% Actuators
 
--spec create(id(), identity(), currency()) ->
-    {ok, [event()]} | {error, create_error()}.
-
+-spec create(id(), identity(), currency()) -> {ok, [event()]} | {error, create_error()}.
 create(ID, Identity, Currency) ->
-    do(fun () ->
+    do(fun() ->
         ContractID = ff_identity:contract(Identity),
         PartyID = ff_identity:party(Identity),
         accessible = unwrap(party, ff_party:is_accessible(PartyID)),
@@ -102,26 +99,32 @@ create(ID, Identity, Currency) ->
         {ok, PartyRevision} = ff_party:get_revision(PartyID),
         DomainRevision = ff_domain_config:head(),
         {ok, Terms} = ff_party:get_contract_terms(
-            PartyID, ContractID, TermVarset, ff_time:now(), PartyRevision, DomainRevision
+            PartyID,
+            ContractID,
+            TermVarset,
+            ff_time:now(),
+            PartyRevision,
+            DomainRevision
         ),
         CurrencyID = ff_currency:id(Currency),
         valid = unwrap(terms, ff_party:validate_account_creation(Terms, CurrencyID)),
         {ok, AccounterID} = create_account(ID, Currency),
-        [{created, #{
-            id       => ID,
-            identity => ff_identity:id(Identity),
-            currency => CurrencyID,
-            accounter_account_id => AccounterID
-        }}]
+        [
+            {created, #{
+                id => ID,
+                identity => ff_identity:id(Identity),
+                currency => CurrencyID,
+                accounter_account_id => AccounterID
+            }}
+        ]
     end).
 
 -spec is_accessible(account()) ->
-    {ok, accessible} |
-    {error, ff_party:inaccessibility()}.
-
+    {ok, accessible}
+    | {error, ff_party:inaccessibility()}.
 is_accessible(Account) ->
-    do(fun () ->
-        Identity   = get_identity(Account),
+    do(fun() ->
+        Identity = get_identity(Account),
         accessible = unwrap(ff_identity:is_accessible(Identity))
     end).
 
@@ -131,18 +134,15 @@ get_identity(Account) ->
 
 %% State
 
--spec apply_event(event(), ff_maybe:maybe(account())) ->
-    account().
-
+-spec apply_event(event(), ff_maybe:maybe(account())) -> account().
 apply_event({created, Account}, undefined) ->
     Account.
 
 %% Accounter client
 
 -spec create_account(id(), currency()) ->
-    {ok, accounter_account_id()} |
-    {error, {exception, any()}}.
-
+    {ok, accounter_account_id()}
+    | {error, {exception, any()}}.
 create_account(ID, Currency) ->
     CurrencyCode = ff_currency:symcode(Currency),
     Description = ff_string:join($/, [<<"ff/account">>, ID]),

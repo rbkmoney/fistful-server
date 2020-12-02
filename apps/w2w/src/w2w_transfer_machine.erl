@@ -18,12 +18,12 @@
 
 -type params() :: w2w_transfer:params().
 -type create_error() ::
-    w2w_transfer:create_error() |
-    exists.
+    w2w_transfer:create_error()
+    | exists.
 
 -type start_adjustment_error() ::
-    w2w_transfer:start_adjustment_error() |
-    unknown_w2w_transfer_error().
+    w2w_transfer:start_adjustment_error()
+    | unknown_w2w_transfer_error().
 
 -type unknown_w2w_transfer_error() ::
     {unknown_w2w_transfer, id()}.
@@ -72,8 +72,8 @@
 
 %% Internal types
 
--type ctx()           :: ff_entity_context:context().
--type adjustment_params()        :: w2w_transfer:adjustment_params().
+-type ctx() :: ff_entity_context:context().
+-type adjustment_params() :: w2w_transfer:adjustment_params().
 
 -type call() ::
     {start_adjustment, adjustment_params()}.
@@ -83,27 +83,24 @@
 %% API
 
 -spec create(params(), ctx()) ->
-    ok |
-    {error, w2w_transfer:create_error() | exists}.
-
+    ok
+    | {error, w2w_transfer:create_error() | exists}.
 create(Params, Ctx) ->
-    do(fun () ->
+    do(fun() ->
         #{id := ID} = Params,
         Events = unwrap(w2w_transfer:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
-    {ok, st()} |
-    {error, unknown_w2w_transfer_error()}.
-
+    {ok, st()}
+    | {error, unknown_w2w_transfer_error()}.
 get(ID) ->
     get(ID, {undefined, undefined}).
 
 -spec get(id(), event_range()) ->
-    {ok, st()} |
-    {error, unknown_w2w_transfer_error()}.
-
+    {ok, st()}
+    | {error, unknown_w2w_transfer_error()}.
 get(ID, {After, Limit}) ->
     case ff_machine:get(w2w_transfer, ?NS, ID, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
@@ -113,9 +110,8 @@ get(ID, {After, Limit}) ->
     end.
 
 -spec events(id(), event_range()) ->
-    {ok, [event()]} |
-    {error, unknown_w2w_transfer_error()}.
-
+    {ok, [event()]}
+    | {error, unknown_w2w_transfer_error()}.
 events(ID, {After, Limit}) ->
     case machinery:get(?NS, ID, {After, Limit, forward}, backend()) of
         {ok, #{history := History}} ->
@@ -130,46 +126,37 @@ repair(ID, Scenario) ->
     machinery:repair(?NS, ID, Scenario, backend()).
 
 -spec start_adjustment(id(), adjustment_params()) ->
-    ok |
-    {error, start_adjustment_error()}.
-
+    ok
+    | {error, start_adjustment_error()}.
 start_adjustment(W2WTransferID, Params) ->
     call(W2WTransferID, {start_adjustment, Params}).
 
 %% Accessors
 
--spec w2w_transfer(st()) ->
-    w2w_transfer().
-
+-spec w2w_transfer(st()) -> w2w_transfer().
 w2w_transfer(St) ->
     ff_machine:model(St).
 
--spec ctx(st()) ->
-    ctx().
-
+-spec ctx(st()) -> ctx().
 ctx(St) ->
     ff_machine:ctx(St).
 
 %% Machinery
 
--type machine()      :: ff_machine:machine(event()).
--type result()       :: ff_machine:result(event()).
+-type machine() :: ff_machine:machine(event()).
+-type result() :: ff_machine:result(event()).
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
--spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) ->
-    result().
-
+-spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) -> result().
 init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => ff_machine:emit_events(Events),
-        action    => continue,
+        events => ff_machine:emit_events(Events),
+        action => continue,
         aux_state => #{ctx => Ctx}
     }.
 
--spec process_timeout(machine(), handler_args(), handler_opts()) ->
-    result().
-
+-spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
     St = ff_machine:collapse(w2w_transfer, Machine),
     W2WTransfer = w2w_transfer(St),
@@ -177,7 +164,6 @@ process_timeout(Machine, _, _Opts) ->
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) -> {Response, result()} when
     Response :: ok | {error, w2w_transfer:start_adjustment_error()}.
-
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
     do_start_adjustment(Params, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
@@ -185,7 +171,6 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     {ok, {repair_response(), result()}} | {error, repair_error()}.
-
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(w2w_transfer, Machine, Scenario).
 
@@ -196,7 +181,6 @@ backend() ->
 
 -spec do_start_adjustment(adjustment_params(), machine()) -> {Response, result()} when
     Response :: ok | {error, w2w_transfer:start_adjustment_error()}.
-
 do_start_adjustment(Params, Machine) ->
     St = ff_machine:collapse(w2w_transfer, Machine),
     case w2w_transfer:start_adjustment(Params, w2w_transfer(St)) of

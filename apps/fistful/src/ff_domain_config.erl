@@ -8,9 +8,9 @@
 -export([object/2]).
 -export([head/0]).
 
--type revision()    :: pos_integer().
+-type revision() :: pos_integer().
 -type object_data() :: any().
--type object_ref()  :: dmsl_domain_thrift:'Reference'().
+-type object_ref() :: dmsl_domain_thrift:'Reference'().
 
 -export_type([revision/0]).
 -export_type([object_data/0]).
@@ -20,14 +20,11 @@
 
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
-
--spec object(object_ref()) ->
-    {ok, object_data()} | {error, notfound}.
+-spec object(object_ref()) -> {ok, object_data()} | {error, notfound}.
 object(ObjectRef) ->
     object(head(), ObjectRef).
 
--spec object(head | revision() | dmt_client:ref(), object_ref()) ->
-    {ok, object_data()} | {error, notfound}.
+-spec object(head | revision() | dmt_client:ref(), object_ref()) -> {ok, object_data()} | {error, notfound}.
 object(head, ObjectRef) ->
     object({head, #'Head'{}}, ObjectRef);
 object(Revision, ObjectRef) when is_integer(Revision) ->
@@ -42,7 +39,6 @@ object(Ref, {Type, ObjectRef}) ->
             {error, notfound}
     end.
 
--spec head() ->
-    revision().
+-spec head() -> revision().
 head() ->
     dmt_client:get_last_version().

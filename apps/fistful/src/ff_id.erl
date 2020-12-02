@@ -13,8 +13,7 @@
 
 %% API
 
--spec generate_snowflake_id() ->
-    binary_id().
+-spec generate_snowflake_id() -> binary_id().
 generate_snowflake_id() ->
     <<ID:64>> = snowflake:new(),
     genlib_format:format_int_base(ID, 62).

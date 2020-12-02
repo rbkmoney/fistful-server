@@ -3,11 +3,12 @@
 
 -module(ff_range).
 
--type range(T)    :: {maybe(bound(T)), maybe(bound(T))}.
--type bound(T)    :: {exclusive | inclusive, ord(T)}.
+-type range(T) :: {maybe(bound(T)), maybe(bound(T))}.
+-type bound(T) :: {exclusive | inclusive, ord(T)}.
 
--type maybe(T)    :: infinity | T.
--type ord(T)      :: T. % totally ordered
+-type maybe(T) :: infinity | T.
+% totally ordered
+-type ord(T) :: T.
 
 -export_type([range/1]).
 -export_type([bound/1]).
@@ -17,9 +18,7 @@
 
 %%
 
--spec intersect(range(T), range(T)) ->
-    range(T) | undefined.
-
+-spec intersect(range(T), range(T)) -> range(T) | undefined.
 intersect(R1, R2) ->
     B1 = max_bound(lower(R1), lower(R2)),
     B2 = min_bound(upper(R1), upper(R2)),
@@ -30,9 +29,7 @@ intersect(R1, R2) ->
             from_bounds(B1, B2)
     end.
 
--spec contains(range(T), range(T)) ->
-    boolean().
-
+-spec contains(range(T), range(T)) -> boolean().
 contains(R1, R2) ->
     intersect(R1, R2) =:= R2.
 
@@ -59,13 +56,13 @@ compare_bounds(B1, B2) ->
 max_bound(B1, B2) ->
     case compare_bounds(B1, B2) of
         gt -> B1;
-        _  -> B2
+        _ -> B2
     end.
 
 min_bound(B1, B2) ->
     case compare_bounds(B1, B2) of
         lt -> B1;
-        _  -> B2
+        _ -> B2
     end.
 
 %%

@@ -10,14 +10,14 @@
 
 %%
 
--type id()       :: shumpune_shumpune_thrift:'PlanID'().
--type account()  :: ff_account:account().
--type account_id()  :: ff_account:accounter_account_id().
--type clock()    :: ff_clock:clock().
--type amount()   :: dmsl_domain_thrift:'Amount'().
--type body()     :: ff_cash:cash().
--type posting()  :: {account_id(), account_id(), body()}.
--type balance()  :: {ff_indef:indef(amount()), ff_currency:id()}.
+-type id() :: shumpune_shumpune_thrift:'PlanID'().
+-type account() :: ff_account:account().
+-type account_id() :: ff_account:accounter_account_id().
+-type clock() :: ff_clock:clock().
+-type amount() :: dmsl_domain_thrift:'Amount'().
+-type body() :: ff_cash:cash().
+-type posting() :: {account_id(), account_id(), body()}.
+-type balance() :: {ff_indef:indef(amount()), ff_currency:id()}.
 
 -export_type([id/0]).
 -export_type([body/0]).
@@ -35,30 +35,22 @@
 
 %%
 
--spec balance(account(), clock()) ->
-    {ok, balance()}.
-
+-spec balance(account(), clock()) -> {ok, balance()}.
 balance(Account, Clock) ->
     AccountID = ff_account:accounter_account_id(Account),
     Currency = ff_account:currency(Account),
     {ok, Balance} = get_balance_by_id(AccountID, Clock),
     {ok, build_account_balance(Balance, Currency)}.
 
--spec prepare(id(), [posting()]) ->
-    {ok, clock()}.
-
+-spec prepare(id(), [posting()]) -> {ok, clock()}.
 prepare(ID, Postings) ->
     hold(encode_plan_change(ID, Postings)).
 
--spec commit(id(), [posting()]) ->
-    {ok, clock()}.
-
+-spec commit(id(), [posting()]) -> {ok, clock()}.
 commit(ID, Postings) ->
     commit_plan(encode_plan(ID, Postings)).
 
--spec cancel(id(), [posting()]) ->
-    {ok, clock()}.
-
+-spec cancel(id(), [posting()]) -> {ok, clock()}.
 cancel(ID, Postings) ->
     rollback_plan(encode_plan(ID, Postings)).
 
@@ -102,32 +94,33 @@ call(Function, Args) ->
 
 encode_plan_change(ID, Postings) ->
     #shumpune_PostingPlanChange{
-        id    = ID,
+        id = ID,
         batch = encode_batch(Postings)
     }.
 
 encode_plan(ID, Postings) ->
     #shumpune_PostingPlan{
-        id         = ID,
+        id = ID,
         batch_list = [encode_batch(Postings)]
     }.
 
 encode_batch(Postings) ->
     #shumpune_PostingBatch{
-        id       = 1, % TODO
+        % TODO
+        id = 1,
         postings = [
             encode_posting(Source, Destination, Body)
-                || {Source, Destination, Body} <- Postings
+            || {Source, Destination, Body} <- Postings
         ]
     }.
 
 encode_posting(Source, Destination, {Amount, Currency}) ->
     #shumpune_Posting{
-        from_id           = Source,
-        to_id             = Destination,
-        amount            = Amount,
+        from_id = Source,
+        to_id = Destination,
+        amount = Amount,
         currency_sym_code = Currency,
-        description       = <<"TODO">>
+        description = <<"TODO">>
     }.
 
 build_account_balance(
@@ -136,5 +129,6 @@ build_account_balance(
         max_available_amount = MaxAvail,
         min_available_amount = MinAvail
     },
-    Currency) ->
+    Currency
+) ->
     {ff_indef:new(MinAvail, Own, MaxAvail), Currency}.

@@ -12,11 +12,9 @@
 
 %%
 
--spec date() ->
-    calendar:date().
+-spec date() -> calendar:date().
 
--spec time() ->
-    calendar:time().
+-spec time() -> calendar:time().
 
 date() ->
     Y = from_range(1970, 9999),
@@ -32,12 +30,11 @@ time() ->
 
 %%
 
--type choice(T)     :: {probability(), T}.
--type probability() :: number(). % >= 0
+-type choice(T) :: {probability(), T}.
+% >= 0
+-type probability() :: number().
 
--spec from_choices([choice(T)]) ->
-    T.
-
+-spec from_choices([choice(T)]) -> T.
 from_choices(Choices) ->
     Psum = lists:sum([assert_probability(P) || {P, _} <- Choices]),
     Roll = rand:uniform() * Psum,
@@ -60,14 +57,12 @@ assert_probability(P) when is_number(P), P >= 0 ->
 assert_probability(_) ->
     error(badarg).
 
--spec from_list([T, ...]) ->
-    T.
-
+-spec from_list([T, ...]) -> T.
 from_list(List) ->
     from_choices([{1, E} || E <- List]).
 
 -spec from_range(M :: integer(), N :: integer()) ->
-    integer(). % from [M; N]
-
+    % from [M; N]
+    integer().
 from_range(M, N) when M < N ->
     rand:uniform(N - M + 1) - 1 + M.

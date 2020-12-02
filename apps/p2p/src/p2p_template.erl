@@ -69,8 +69,8 @@
 }.
 
 -type event() ::
-    {created, template()} |
-    {blocking_changed, blocking()}.
+    {created, template()}
+    | {blocking_changed, blocking()}.
 
 -type amount() :: integer().
 -type body() :: #{
@@ -94,8 +94,8 @@
 }.
 
 -type create_error() ::
-    {identity, notfound} |
-    {terms, ff_party:validate_p2p_template_creation_error()}.
+    {identity, notfound}
+    | {terms, ff_party:validate_p2p_template_creation_error()}.
 
 -type transfer_params() :: #{
     id := id(),
@@ -145,27 +145,19 @@
 
 %% Accessors
 
--spec id(template_state()) ->
-    id().
-
+-spec id(template_state()) -> id().
 id(#{id := V}) ->
     V.
 
--spec identity_id(template_state()) ->
-    identity_id().
-
+-spec identity_id(template_state()) -> identity_id().
 identity_id(#{identity_id := V}) ->
     V.
 
--spec blocking(template_state()) ->
-    blocking() | undefined.
-
+-spec blocking(template_state()) -> blocking() | undefined.
 blocking(T) ->
     maps:get(blocking, T, undefined).
 
--spec details(template_state()) ->
-    details().
-
+-spec details(template_state()) -> details().
 details(#{details := V}) ->
     V.
 
@@ -177,27 +169,19 @@ party_revision(#{party_revision := PartyRevision}) ->
 domain_revision(#{domain_revision := DomainRevision}) ->
     DomainRevision.
 
--spec created_at(template_state()) ->
-    timestamp().
-
+-spec created_at(template_state()) -> timestamp().
 created_at(#{created_at := V}) ->
     V.
 
--spec external_id(template_state()) ->
-    id() | undefined.
-
+-spec external_id(template_state()) -> id() | undefined.
 external_id(T) ->
     maps:get(external_id, T, undefined).
 
--spec template_body(template_state()) ->
-    template_cash().
-
+-spec template_body(template_state()) -> template_cash().
 template_body(#{details := #{body := #{value := Body}}}) ->
     template_body_to_cash(Body).
 
--spec template_metadata(template_state()) ->
-    metadata() | undefined.
-
+-spec template_metadata(template_state()) -> metadata() | undefined.
 template_metadata(#{details := V}) ->
     case maps:get(metadata, V, undefined) of
         undefined ->
@@ -209,13 +193,15 @@ template_metadata(#{details := V}) ->
 %% API
 
 -spec create(params()) ->
-    {ok, [event()]} |
-    {error, create_error()}.
-create(Params = #{
-    id := ID,
-    identity_id := IdentityID,
-    details := Details = #{body := #{value := Body}}
-}) ->
+    {ok, [event()]}
+    | {error, create_error()}.
+create(
+    Params = #{
+        id := ID,
+        identity_id := IdentityID,
+        details := Details = #{body := #{value := Body}}
+    }
+) ->
     do(fun() ->
         Identity = unwrap(identity, get_identity(IdentityID)),
         {ok, PartyRevision} = ff_party:get_revision(ff_identity:party(Identity)),
@@ -225,9 +211,14 @@ create(Params = #{
         DomainRevision = ff_domain_config:head(),
         Varset = create_party_varset(Details),
         {ok, Terms} = ff_party:get_contract_terms(
-            PartyID, ContractID, Varset, CreatedAt, PartyRevision, DomainRevision
+            PartyID,
+            ContractID,
+            Varset,
+            CreatedAt,
+            PartyRevision,
+            DomainRevision
         ),
-        valid =  unwrap(terms, ff_party:validate_p2p_template_creation(Terms, template_body_to_cash(Body))),
+        valid = unwrap(terms, ff_party:validate_p2p_template_creation(Terms, template_body_to_cash(Body))),
         Template = genlib_map:compact(#{
             version => ?ACTUAL_FORMAT_VERSION,
             id => ID,
@@ -241,23 +232,23 @@ create(Params = #{
         [{created, Template}, {blocking_changed, unblocked}]
     end).
 
--spec set_blocking(blocking(), template_state()) ->
-    {ok, process_result()}.
+-spec set_blocking(blocking(), template_state()) -> {ok, process_result()}.
 set_blocking(Blocking, #{blocking := Blocking}) ->
     {ok, {undefined, []}};
 set_blocking(Blocking, _State) ->
     {ok, {undefined, [{blocking_changed, Blocking}]}}.
 
-
--spec create_transfer(transfer_params(), template_state()) ->
-    ok | {error, p2p_transfer:create_error() | exists}.
-create_transfer(Params = #{
-    id := ID,
-    body := Body,
-    sender := Sender,
-    receiver := Receiver,
-    context := Context
-}, Template) ->
+-spec create_transfer(transfer_params(), template_state()) -> ok | {error, p2p_transfer:create_error() | exists}.
+create_transfer(
+    Params = #{
+        id := ID,
+        body := Body,
+        sender := Sender,
+        receiver := Receiver,
+        context := Context
+    },
+    Template
+) ->
     Quote = maps:get(quote, Params, undefined),
     ClientInfo = maps:get(client_info, Params, undefined),
     Deadline = maps:get(deadline, Params, undefined),
@@ -307,8 +298,7 @@ template_body_to_cash(Body = #{currency := Currency}) ->
 
 %% P2PTemplate validators
 
--spec get_identity(identity_id()) ->
-    {ok, identity()} | {error, notfound}.
+-spec get_identity(identity_id()) -> {ok, identity()} | {error, notfound}.
 get_identity(IdentityID) ->
     do(fun() ->
         IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
@@ -317,9 +307,7 @@ get_identity(IdentityID) ->
 
 %% Events apply
 
--spec apply_event(event(), undefined | template_state()) ->
-    template_state().
-
+-spec apply_event(event(), undefined | template_state()) -> template_state().
 apply_event({created, Template}, undefined) ->
     Template;
 apply_event({blocking_changed, Blocking}, Template) ->

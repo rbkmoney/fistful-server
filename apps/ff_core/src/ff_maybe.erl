@@ -18,37 +18,29 @@
 
 %%
 
--spec from_result({ok, T} | {error, _}) ->
-    maybe(T).
-
+-spec from_result({ok, T} | {error, _}) -> maybe(T).
 from_result({ok, T}) ->
     T;
 from_result({error, _}) ->
     undefined.
 
--spec to_list(maybe(T)) ->
-    [T].
-
+-spec to_list(maybe(T)) -> [T].
 to_list(undefined) ->
     [];
 to_list(T) ->
     [T].
 
--spec apply(fun(), Arg :: undefined | term()) ->
-    term().
+-spec apply(fun(), Arg :: undefined | term()) -> term().
 apply(Fun, Arg) ->
     ff_maybe:apply(Fun, Arg, undefined).
 
--spec apply(fun(), Arg :: undefined | term(), Default :: term()) ->
-    term().
+-spec apply(fun(), Arg :: undefined | term(), Default :: term()) -> term().
 apply(Fun, Arg, _Default) when Arg =/= undefined ->
     Fun(Arg);
 apply(_Fun, undefined, Default) ->
     Default.
 
--spec get_defined([maybe(T)]) ->
-    T.
-
+-spec get_defined([maybe(T)]) -> T.
 get_defined([]) ->
     erlang:error(badarg);
 get_defined([Value | _Tail]) when Value =/= undefined ->
@@ -56,9 +48,6 @@ get_defined([Value | _Tail]) when Value =/= undefined ->
 get_defined([undefined | Tail]) ->
     get_defined(Tail).
 
-
--spec get_defined(maybe(T), maybe(T)) ->
-    T.
-
+-spec get_defined(maybe(T), maybe(T)) -> T.
 get_defined(V1, V2) ->
     get_defined([V1, V2]).

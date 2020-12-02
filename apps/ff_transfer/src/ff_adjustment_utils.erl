@@ -5,16 +5,17 @@
 -module(ff_adjustment_utils).
 
 -opaque index() :: #{
-    adjustments       := #{id() => adjustment()},
-    inversed_order    := [id()],
-    active            => id(),
-    cash_flow         => final_cash_flow()
+    adjustments := #{id() => adjustment()},
+    inversed_order := [id()],
+    active => id(),
+    cash_flow => final_cash_flow()
 }.
 
--type wrapped_event() :: {adjustment, #{
-    id      := id(),
-    payload := event()
-}}.
+-type wrapped_event() ::
+    {adjustment, #{
+        id := id(),
+        payload := event()
+    }}.
 
 -type process_result() :: #{
     action := action(),
@@ -51,13 +52,13 @@
 
 %% Internal types
 
--type id()              :: ff_adjustment:id().
--type target_id()       :: binary().
--type adjustment()      :: ff_adjustment:adjustment().
--type event()           :: ff_adjustment:event().
+-type id() :: ff_adjustment:id().
+-type target_id() :: binary().
+-type adjustment() :: ff_adjustment:adjustment().
+-type event() :: ff_adjustment:event().
 -type final_cash_flow() :: ff_cash_flow:final_cash_flow().
--type action()          :: machinery:action() | undefined.
--type changes()         :: ff_adjustment:changes().
+-type action() :: machinery:action() | undefined.
+-type changes() :: ff_adjustment:changes().
 
 %% API
 
@@ -108,8 +109,7 @@ unwrap_event({adjustment, #{id := ID, payload := Event}}) ->
 wrap_event(ID, Event) ->
     {adjustment, #{id => ID, payload => Event}}.
 
--spec get_by_id(id(), index()) ->
-    {ok, adjustment()} | {error, unknown_adjustment_error()}.
+-spec get_by_id(id(), index()) -> {ok, adjustment()} | {error, unknown_adjustment_error()}.
 get_by_id(AdjustmentID, Index) ->
     #{adjustments := Adjustments} = Index,
     case maps:find(AdjustmentID, Adjustments) of
@@ -137,8 +137,7 @@ maybe_migrate(Event) ->
     Migrated = ff_adjustment:maybe_migrate(AdjustmentEvent),
     wrap_event(ID, Migrated).
 
--spec process_adjustments(index()) ->
-    process_result().
+-spec process_adjustments(index()) -> process_result().
 process_adjustments(Index) ->
     #{
         adjustments := Adjustments,
@@ -174,7 +173,7 @@ update_active(_OtherEvent, Adjustment, Index) when is_map_key(active, Index) ->
 -spec update_target_data(event(), adjustment(), index()) -> index().
 update_target_data({status_changed, succeeded}, Adjustment, Index0) ->
     Changes = ff_adjustment:changes_plan(Adjustment),
-    Index1= update_target_cash_flow(Changes, Index0),
+    Index1 = update_target_cash_flow(Changes, Index0),
     Index1;
 update_target_data(_OtherEvent, _Adjustment, Index) ->
     Index.
@@ -197,8 +196,7 @@ do_get_not_finished([Adjustment | Tail]) ->
             {ok, ff_adjustment:id(Adjustment)}
     end.
 
--spec detect_changes(adjustment(), [event()]) ->
-    changes().
+-spec detect_changes(adjustment(), [event()]) -> changes().
 detect_changes(Adjustment, Events) ->
     case lists:any(fun is_succeeded_status_change/1, Events) of
         true ->
@@ -207,8 +205,7 @@ detect_changes(Adjustment, Events) ->
             #{}
     end.
 
--spec is_succeeded_status_change(event()) ->
-    boolean().
+-spec is_succeeded_status_change(event()) -> boolean().
 is_succeeded_status_change({status_changed, succeeded}) ->
     true;
 is_succeeded_status_change(_Other) ->

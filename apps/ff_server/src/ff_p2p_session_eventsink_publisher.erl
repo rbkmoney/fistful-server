@@ -16,32 +16,28 @@
 %% Internals
 %%
 
--spec publish_events(list(event())) ->
-    list(sinkevent()).
-
+-spec publish_events(list(event())) -> list(sinkevent()).
 publish_events(Events) ->
     [publish_event(Event) || Event <- Events].
 
--spec publish_event(event()) ->
-    sinkevent().
-
+-spec publish_event(event()) -> sinkevent().
 publish_event(#{
-    id          := ID,
-    source_id   := SourceID,
-    event       := {
+    id := ID,
+    source_id := SourceID,
+    event := {
         EventID,
         Dt,
         {ev, EventDt, Payload}
     }
 }) ->
     #p2p_session_SinkEvent{
-        id            = marshal(event_id, ID),
-        created_at    = marshal(timestamp, Dt),
-        source        = marshal(id, SourceID),
-        payload       = #p2p_session_EventSinkPayload{
-            sequence   = marshal(event_id, EventID),
+        id = marshal(event_id, ID),
+        created_at = marshal(timestamp, Dt),
+        source = marshal(id, SourceID),
+        payload = #p2p_session_EventSinkPayload{
+            sequence = marshal(event_id, EventID),
             occured_at = marshal(timestamp, EventDt),
-            changes    = [marshal(change, Payload)]
+            changes = [marshal(change, Payload)]
         }
     }.
 

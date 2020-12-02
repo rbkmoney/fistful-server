@@ -7,29 +7,32 @@
 -type iso_country_code() :: atom().
 -type payment_system() :: atom().
 -type bin_data() :: #{
-    token               := token(),
-    id                  := bin_data_id(),
-    payment_system      := payment_system(),
-    bank_name           => binary(),
-    iso_country_code    => iso_country_code(),
-    card_type           => charge_card | credit | debit | credit_or_debit,
-    version             := integer()
+    token := token(),
+    id := bin_data_id(),
+    payment_system := payment_system(),
+    bank_name => binary(),
+    iso_country_code => iso_country_code(),
+    card_type => charge_card | credit | debit | credit_or_debit,
+    version := integer()
 }.
 
--type bin_data_id()     :: %% as stolen from `machinery_msgpack`
-    nil                |
-    boolean()          |
-    integer()          |
-    float()            |
-    binary()           | %% string
-    {binary, binary()} | %% binary
-    [bin_data_id()]     |
-    #{bin_data_id() => bin_data_id()}.
+%% as stolen from `machinery_msgpack`
+-type bin_data_id() ::
+    nil
+    | boolean()
+    | integer()
+    | float()
+    %% string
+    | binary()
+    %% binary
+    | {binary, binary()}
+    | [bin_data_id()]
+    | #{bin_data_id() => bin_data_id()}.
 
 -type bin_data_error() ::
-    not_found |
-    {unknown_payment_system, binary()} |
-    {unknown_residence, binary()}.
+    not_found
+    | {unknown_payment_system, binary()}
+    | {unknown_residence, binary()}.
 
 -export_type([bin_data/0]).
 -export_type([bin_data_id/0]).
@@ -46,9 +49,7 @@
 
 %% API
 
--spec get(token(), bin_data_id() | undefined) ->
-    {ok, bin_data()} | {error, bin_data_error()}.
-
+-spec get(token(), bin_data_id() | undefined) -> {ok, bin_data()} | {error, bin_data_error()}.
 get(Token, undefined) ->
     case call_binbase('GetByCardToken', [Token]) of
         {ok, Result} ->
@@ -64,19 +65,23 @@ get(Token, ID) ->
             {error, not_found}
     end.
 
--spec id(bin_data()) ->
-    bin_data_id().
-
+-spec id(bin_data()) -> bin_data_id().
 id(Data) ->
     maps:get(id, Data).
 
 %%
 
-encode_msgpack(nil)                  -> {nl, #'binbase_Nil'{}};
-encode_msgpack(V) when is_boolean(V) -> {b, V};
-encode_msgpack(V) when is_integer(V) -> {i, V};
-encode_msgpack(V) when is_float(V)   -> V;
-encode_msgpack(V) when is_binary(V)  -> {str, V}; % Assuming well-formed UTF-8 bytestring.
+encode_msgpack(nil) ->
+    {nl, #'binbase_Nil'{}};
+encode_msgpack(V) when is_boolean(V) ->
+    {b, V};
+encode_msgpack(V) when is_integer(V) ->
+    {i, V};
+encode_msgpack(V) when is_float(V) ->
+    V;
+% Assuming well-formed UTF-8 bytestring.
+encode_msgpack(V) when is_binary(V) ->
+    {str, V};
 encode_msgpack({binary, V}) when is_binary(V) ->
     {bin, V};
 encode_msgpack(V) when is_list(V) ->
@@ -97,44 +102,51 @@ decode_result(Token, #'binbase_ResponseData'{bin_data = Bindata, version = Versi
     } = Bindata,
     do(fun() ->
         genlib_map:compact(#{
-            token               => Token,
-            id                  => decode_msgpack(BinDataID),
-            payment_system      => unwrap(decode_payment_system(PaymentSystem)),
-            bank_name           => BankName,
-            iso_country_code    => unwrap(decode_residence(IsoCountryCode)),
-            card_type           => decode_card_type(CardType),
-            category            => Category,
-            version             => Version
+            token => Token,
+            id => decode_msgpack(BinDataID),
+            payment_system => unwrap(decode_payment_system(PaymentSystem)),
+            bank_name => BankName,
+            iso_country_code => unwrap(decode_residence(IsoCountryCode)),
+            card_type => decode_card_type(CardType),
+            category => Category,
+            version => Version
         })
     end).
 
-decode_msgpack({nl, #'binbase_Nil'{}})      -> nil;
-decode_msgpack({b,   V}) when is_boolean(V) -> V;
-decode_msgpack({i,   V}) when is_integer(V) -> V;
-decode_msgpack({flt, V}) when is_float(V)   -> V;
-decode_msgpack({str, V}) when is_binary(V)  -> V; % Assuming well-formed UTF-8 bytestring.
-decode_msgpack({bin, V}) when is_binary(V)  -> {binary, V};
-decode_msgpack({arr, V}) when is_list(V)    -> [decode_msgpack(ListItem) || ListItem <- V];
-decode_msgpack({obj, V}) when is_map(V)     ->
+decode_msgpack({nl, #'binbase_Nil'{}}) ->
+    nil;
+decode_msgpack({b, V}) when is_boolean(V) ->
+    V;
+decode_msgpack({i, V}) when is_integer(V) ->
+    V;
+decode_msgpack({flt, V}) when is_float(V) ->
+    V;
+% Assuming well-formed UTF-8 bytestring.
+decode_msgpack({str, V}) when is_binary(V) ->
+    V;
+decode_msgpack({bin, V}) when is_binary(V) ->
+    {binary, V};
+decode_msgpack({arr, V}) when is_list(V) ->
+    [decode_msgpack(ListItem) || ListItem <- V];
+decode_msgpack({obj, V}) when is_map(V) ->
     maps:fold(fun(Key, Value, Map) -> Map#{decode_msgpack(Key) => decode_msgpack(Value)} end, #{}, V).
 
-decode_payment_system(<<"VISA">>)                      -> {ok, visa};
-decode_payment_system(<<"VISA/DANKORT">>)              -> {ok, visa};
-decode_payment_system(<<"MASTERCARD">>)                -> {ok, mastercard};
-decode_payment_system(<<"MAESTRO">>)                   -> {ok, maestro};
-decode_payment_system(<<"DANKORT">>)                   -> {ok, dankort};
-decode_payment_system(<<"AMERICAN EXPRESS">>)          -> {ok, amex};
+decode_payment_system(<<"VISA">>) -> {ok, visa};
+decode_payment_system(<<"VISA/DANKORT">>) -> {ok, visa};
+decode_payment_system(<<"MASTERCARD">>) -> {ok, mastercard};
+decode_payment_system(<<"MAESTRO">>) -> {ok, maestro};
+decode_payment_system(<<"DANKORT">>) -> {ok, dankort};
+decode_payment_system(<<"AMERICAN EXPRESS">>) -> {ok, amex};
 decode_payment_system(<<"DINERS CLUB INTERNATIONAL">>) -> {ok, dinersclub};
-decode_payment_system(<<"DISCOVER">>)                  -> {ok, discover};
-decode_payment_system(<<"UNIONPAY">>)                  -> {ok, unionpay};
-decode_payment_system(<<"CHINA UNION PAY">>)           -> {ok, unionpay};
-decode_payment_system(<<"JCB">>)                       -> {ok, jcb};
-decode_payment_system(<<"NSPK MIR">>)                  -> {ok, nspkmir};
-decode_payment_system(<<"ELO">>)                       -> {ok, elo};
-decode_payment_system(<<"RUPAY">>)                     -> {ok, rupay};
-decode_payment_system(<<"EBT">>)                       -> {ok, ebt};
-decode_payment_system(PaymentSystem) ->
-    {error, {unknown_payment_system, PaymentSystem}}.
+decode_payment_system(<<"DISCOVER">>) -> {ok, discover};
+decode_payment_system(<<"UNIONPAY">>) -> {ok, unionpay};
+decode_payment_system(<<"CHINA UNION PAY">>) -> {ok, unionpay};
+decode_payment_system(<<"JCB">>) -> {ok, jcb};
+decode_payment_system(<<"NSPK MIR">>) -> {ok, nspkmir};
+decode_payment_system(<<"ELO">>) -> {ok, elo};
+decode_payment_system(<<"RUPAY">>) -> {ok, rupay};
+decode_payment_system(<<"EBT">>) -> {ok, ebt};
+decode_payment_system(PaymentSystem) -> {error, {unknown_payment_system, PaymentSystem}}.
 
 decode_card_type(undefined) ->
     undefined;

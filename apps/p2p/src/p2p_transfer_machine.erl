@@ -22,12 +22,12 @@
 
 -type params() :: p2p_transfer:params().
 -type create_error() ::
-    p2p_transfer:create_error() |
-    exists.
+    p2p_transfer:create_error()
+    | exists.
 
 -type start_adjustment_error() ::
-    p2p_transfer:start_adjustment_error() |
-    unknown_p2p_transfer_error().
+    p2p_transfer:start_adjustment_error()
+    | unknown_p2p_transfer_error().
 
 -type unknown_p2p_transfer_error() ::
     {unknown_p2p_transfer, id()}.
@@ -89,20 +89,18 @@
 %% API
 
 -spec create(params(), ctx()) ->
-    ok |
-    {error, p2p_transfer:create_error() | exists}.
-
+    ok
+    | {error, p2p_transfer:create_error() | exists}.
 create(Params, Ctx) ->
-    do(fun () ->
+    do(fun() ->
         #{id := ID} = Params,
         Events = unwrap(p2p_transfer:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
-    {ok, st()} |
-    {error, unknown_p2p_transfer_error()}.
-
+    {ok, st()}
+    | {error, unknown_p2p_transfer_error()}.
 get(ID) ->
     case ff_machine:get(p2p_transfer, ?NS, ID) of
         {ok, _Machine} = Result ->
@@ -112,9 +110,8 @@ get(ID) ->
     end.
 
 -spec get(id(), event_range()) ->
-    {ok, st()} |
-    {error, unknown_p2p_transfer_error()}.
-
+    {ok, st()}
+    | {error, unknown_p2p_transfer_error()}.
 get(Ref, {After, Limit}) ->
     case ff_machine:get(p2p_transfer, ?NS, Ref, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
@@ -124,9 +121,8 @@ get(Ref, {After, Limit}) ->
     end.
 
 -spec events(id(), event_range()) ->
-    {ok, events()} |
-    {error, unknown_p2p_transfer_error()}.
-
+    {ok, events()}
+    | {error, unknown_p2p_transfer_error()}.
 events(ID, {After, Limit}) ->
     case ff_machine:history(p2p_transfer, ?NS, ID, {After, Limit, forward}) of
         {ok, History} ->
@@ -136,9 +132,8 @@ events(ID, {After, Limit}) ->
     end.
 
 -spec start_adjustment(id(), adjustment_params()) ->
-    ok |
-    {error, start_adjustment_error()}.
-
+    ok
+    | {error, start_adjustment_error()}.
 start_adjustment(P2PTransferID, Params) ->
     call(P2PTransferID, {start_adjustment, Params}).
 
@@ -149,15 +144,11 @@ repair(Ref, Scenario) ->
 
 %% Accessors
 
--spec p2p_transfer(st()) ->
-    p2p_transfer().
-
+-spec p2p_transfer(st()) -> p2p_transfer().
 p2p_transfer(St) ->
     ff_machine:model(St).
 
--spec ctx(st()) ->
-    ctx().
-
+-spec ctx(st()) -> ctx().
 ctx(St) ->
     ff_machine:ctx(St).
 
@@ -173,28 +164,22 @@ ctx(St) ->
 backend() ->
     fistful:backend(?NS).
 
--spec init({[change()], ctx()}, machine(), handler_args(), handler_opts()) ->
-    result().
-
+-spec init({[change()], ctx()}, machine(), handler_args(), handler_opts()) -> result().
 init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => ff_machine:emit_events(Events),
-        action    => continue,
+        events => ff_machine:emit_events(Events),
+        action => continue,
         aux_state => #{ctx => Ctx}
     }.
 
--spec process_timeout(machine(), handler_args(), handler_opts()) ->
-    result().
-
+-spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
     St = ff_machine:collapse(p2p_transfer, Machine),
     P2PTransfer = p2p_transfer(St),
     process_result(p2p_transfer:process_transfer(P2PTransfer), St).
 
--spec process_call(call(), machine(), handler_args(), handler_opts()) ->
-    {Response, result()} | no_return() when
+-spec process_call(call(), machine(), handler_args(), handler_opts()) -> {Response, result()} | no_return() when
     Response :: ok | {error, p2p_transfer:start_adjustment_error()}.
-
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
     do_start_adjustment(Params, Machine);
 process_call(CallArgs, _Machine, _, _Opts) ->
@@ -202,13 +187,11 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     {ok, {repair_response(), result()}} | {error, repair_error()}.
-
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(p2p_transfer, Machine, Scenario).
 
 -spec do_start_adjustment(adjustment_params(), machine()) -> {Response, result()} when
     Response :: ok | {error, p2p_transfer:start_adjustment_error()}.
-
 do_start_adjustment(Params, Machine) ->
     St = ff_machine:collapse(p2p_transfer, Machine),
     case p2p_transfer:start_adjustment(Params, p2p_transfer(St)) of

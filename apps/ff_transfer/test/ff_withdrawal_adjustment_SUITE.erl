@@ -29,10 +29,10 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
@@ -63,10 +63,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -81,6 +84,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -112,7 +116,7 @@ adjustment_can_change_status_to_failed_test(C) ->
     ?assertMatch(succeeded, get_adjustment_status(WithdrawalID, AdjustmentID)),
     ExternalID = ff_adjustment:external_id(get_adjustment(WithdrawalID, AdjustmentID)),
     ?assertEqual(<<"true_unique_id">>, ExternalID),
-    ?assertEqual({failed, Failure},  get_withdrawal_status(WithdrawalID)),
+    ?assertEqual({failed, Failure}, get_withdrawal_status(WithdrawalID)),
     assert_adjustment_same_revisions(WithdrawalID, AdjustmentID),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_destination_balance(DestinationID)).
@@ -130,7 +134,7 @@ adjustment_can_change_failure_test(C) ->
     AdjustmentID1 = process_adjustment(WithdrawalID, #{
         change => {change_status, {failed, Failure1}}
     }),
-    ?assertEqual({failed, Failure1},  get_withdrawal_status(WithdrawalID)),
+    ?assertEqual({failed, Failure1}, get_withdrawal_status(WithdrawalID)),
     assert_adjustment_same_revisions(WithdrawalID, AdjustmentID1),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_destination_balance(DestinationID)),
@@ -138,7 +142,7 @@ adjustment_can_change_failure_test(C) ->
     AdjustmentID2 = process_adjustment(WithdrawalID, #{
         change => {change_status, {failed, Failure2}}
     }),
-    ?assertEqual({failed, Failure2},  get_withdrawal_status(WithdrawalID)),
+    ?assertEqual({failed, Failure2}, get_withdrawal_status(WithdrawalID)),
     assert_adjustment_same_revisions(WithdrawalID, AdjustmentID2),
     ?assertEqual(?final_balance(100, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_destination_balance(DestinationID)).
@@ -344,7 +348,7 @@ get_adjustment_status(WithdrawalID, AdjustmentID) ->
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
             Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
             case ff_withdrawal:is_finished(Withdrawal) of
@@ -361,7 +365,7 @@ await_final_withdrawal_status(WithdrawalID) ->
 await_final_adjustment_status(WithdrawalID, AdjustmentID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
             Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
             {ok, Adjustment} = ff_withdrawal:find_adjustment(AdjustmentID, Withdrawal),
@@ -410,7 +414,7 @@ await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
-        fun () -> get_wallet_balance(ID) end,
+        fun() -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
     ok.
@@ -449,7 +453,7 @@ create_destination(IID, C) ->
     ok = ff_destination_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_destination_machine:get(ID),
             Destination = ff_destination_machine:destination(Machine),
             ff_destination:status(Destination)

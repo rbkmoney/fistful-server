@@ -16,8 +16,7 @@
 -define(DEFAULT_PORT, 8080).
 -define(RANCH_REF, ?MODULE).
 
--spec child_spec(cowboy_router:routes(), logic_handlers(), swagger_handler_opts()) ->
-    supervisor:child_spec().
+-spec child_spec(cowboy_router:routes(), logic_handlers(), swagger_handler_opts()) -> supervisor:child_spec().
 child_spec(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts) ->
     {Transport, TransportOpts} = get_socket_transport(),
     CowboyOpts = get_cowboy_config(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts),
@@ -34,19 +33,21 @@ child_spec(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts) ->
 
 get_socket_transport() ->
     {ok, IP} = inet:parse_address(genlib_app:env(?APP, ip, ?DEFAULT_IP_ADDR)),
-    Port     = genlib_app:env(?APP, port, ?DEFAULT_PORT),
+    Port = genlib_app:env(?APP, port, ?DEFAULT_PORT),
     AcceptorsPool = genlib_app:env(?APP, acceptors_poolsize, ?DEFAULT_ACCEPTORS_POOLSIZE),
     {ranch_tcp, #{socket_opts => [{ip, IP}, {port, Port}], num_acceptors => AcceptorsPool}}.
 
 get_cowboy_config(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts) ->
     Dispatch =
-        cowboy_router:compile(squash_routes(
-            AdditionalRoutes ++
-            swag_server_wallet_router:get_paths(
-                maps:get(wallet, LogicHandlers),
-                SwaggerHandlerOpts
+        cowboy_router:compile(
+            squash_routes(
+                AdditionalRoutes ++
+                    swag_server_wallet_router:get_paths(
+                        maps:get(wallet, LogicHandlers),
+                        SwaggerHandlerOpts
+                    )
             )
-        )),
+        ),
     CowboyOpts = #{
         env => #{
             dispatch => Dispatch,
@@ -58,7 +59,9 @@ get_cowboy_config(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts) ->
             cowboy_handler
         ],
         stream_handlers => [
-            cowboy_access_log_h, wapi_stream_h, cowboy_stream_h
+            cowboy_access_log_h,
+            wapi_stream_h,
+            cowboy_stream_h
         ]
     },
     cowboy_access_log_h:set_extra_info_fun(
@@ -67,14 +70,16 @@ get_cowboy_config(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts) ->
     ).
 
 squash_routes(Routes) ->
-    orddict:to_list(lists:foldl(
-        fun ({K, V}, D) -> orddict:update(K, fun (V0) -> V0 ++ V end, V, D) end,
-        orddict:new(),
-        Routes
-    )).
+    orddict:to_list(
+        lists:foldl(
+            fun({K, V}, D) -> orddict:update(K, fun(V0) -> V0 ++ V end, V, D) end,
+            orddict:new(),
+            Routes
+        )
+    ).
 
 mk_operation_id_getter(#{env := Env}) ->
-    fun (Req) ->
+    fun(Req) ->
         get_operation_id(Req, Env)
     end.
 
@@ -82,7 +87,7 @@ mk_operation_id_getter(#{env := Env}) ->
 %% cowboy_router:execute/2.
 %% NOTE: Be careful when upgrade cowboy in this project
 %% because cowboy_router:execute/2 call can change.
-get_operation_id(Req=#{host := _Host, path := _Path}, Env) ->
+get_operation_id(Req = #{host := _Host, path := _Path}, Env) ->
     case cowboy_router:execute(Req, Env) of
         {ok, _, #{handler_opts := {_Operations, _LogicHandler, _SwaggerHandlerOpts} = HandlerOpts}} ->
             case swag_server_wallet_utils:get_operation_id(Req, HandlerOpts) of

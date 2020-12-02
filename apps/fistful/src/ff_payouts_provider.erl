@@ -12,7 +12,7 @@
     terminal => dmsl_domain_thrift:'TerminalSelector'()
 }.
 
--type id()       :: dmsl_domain_thrift:'ObjectID'().
+-type id() :: dmsl_domain_thrift:'ObjectID'().
 -type accounts() :: #{ff_currency:id() => ff_account:account()}.
 
 -type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
@@ -57,15 +57,11 @@ adapter(#{adapter := Adapter}) ->
 adapter_opts(#{adapter_opts := AdapterOpts}) ->
     AdapterOpts.
 
--spec terms(provider()) ->
-    term_set() | undefined.
-
+-spec terms(provider()) -> term_set() | undefined.
 terms(Provider) ->
     maps:get(terms, Provider, undefined).
 
--spec provision_terms(provider()) ->
-    provision_terms() | undefined.
-
+-spec provision_terms(provider()) -> provision_terms() | undefined.
 provision_terms(Provider) ->
     case terms(Provider) of
         Terms when Terms =/= undefined ->
@@ -82,23 +78,19 @@ provision_terms(Provider) ->
 %%
 
 -spec ref(id()) -> provider_ref().
-
 ref(ID) ->
     #domain_ProviderRef{id = ID}.
 
 -spec get(id()) ->
-    {ok, provider()} |
-    {error, notfound}.
-
+    {ok, provider()}
+    | {error, notfound}.
 get(ID) ->
-    do(fun () ->
+    do(fun() ->
         Provider = unwrap(ff_domain_config:object({provider, ref(ID)})),
         decode(ID, Provider)
     end).
 
--spec compute_fees(provider(), hg_selector:varset()) ->
-    {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
-
+-spec compute_fees(provider(), hg_selector:varset()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
 compute_fees(WithdrawalProvider, VS) ->
     case provision_terms(WithdrawalProvider) of
         Terms when Terms =/= undefined ->
@@ -115,7 +107,6 @@ compute_fees_(#domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector}, VS
 
 -spec compute_withdrawal_terminals_with_priority(provider(), hg_selector:varset()) ->
     {ok, [{ff_payouts_terminal:id(), ff_payouts_terminal:terminal_priority()}]} | {error, term()}.
-
 compute_withdrawal_terminals_with_priority(Provider, VS) ->
     case maps:get(terminal, Provider, undefined) of
         Selector when Selector =/= undefined ->
@@ -127,8 +118,10 @@ compute_withdrawal_terminals_with_priority(Provider, VS) ->
 compute_withdrawal_terminals_(TerminalSelector, VS) ->
     case hg_selector:reduce_to_value(TerminalSelector, VS) of
         {ok, Terminals} ->
-            {ok, [{TerminalID, Priority}
-                || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals]};
+            {ok, [
+                {TerminalID, Priority}
+                || #domain_ProviderTerminalRef{id = TerminalID, priority = Priority} <- Terminals
+            ]};
         Error ->
             Error
     end.
@@ -142,16 +135,18 @@ decode(ID, #domain_Provider{
     accounts = Accounts,
     terminal = TerminalSelector
 }) ->
-    genlib_map:compact(maps:merge(
-        #{
-            id               => ID,
-            identity         => Identity,
-            terms            => Terms,
-            accounts         => decode_accounts(Identity, Accounts),
-            terminal         => TerminalSelector
-        },
-        decode_adapter(Proxy)
-    )).
+    genlib_map:compact(
+        maps:merge(
+            #{
+                id => ID,
+                identity => Identity,
+                terms => Terms,
+                accounts => decode_accounts(Identity, Accounts),
+                terminal => TerminalSelector
+            },
+            decode_adapter(Proxy)
+        )
+    ).
 
 decode_accounts(Identity, Accounts) ->
     maps:fold(
@@ -184,4 +179,3 @@ decode_adapter(#domain_Proxy{ref = ProxyRef, additional = ProviderOpts}) ->
         adapter => ff_woody_client:new(URL),
         adapter_opts => maps:merge(ProviderOpts, ProxyOpts)
     }.
-

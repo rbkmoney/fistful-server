@@ -8,10 +8,11 @@
     user_interactions := #{id() => user_interaction()}
 }.
 
--type wrapped_event() :: {user_interaction, #{
-    id := id(),
-    payload := event()
-}}.
+-type wrapped_event() ::
+    {user_interaction, #{
+        id := id(),
+        payload := event()
+    }}.
 
 -type unknown_user_interaction_error() :: {unknown_user_interaction, id()}.
 
@@ -56,8 +57,7 @@ unwrap_event({user_interaction, #{id := ID, payload := Event}}) ->
 wrap_event(ID, Event) ->
     {user_interaction, #{id => ID, payload => Event}}.
 
--spec get_by_id(id(), index()) ->
-    {ok, user_interaction()} | {error, unknown_user_interaction_error()}.
+-spec get_by_id(id(), index()) -> {ok, user_interaction()} | {error, unknown_user_interaction_error()}.
 get_by_id(ID, #{user_interactions := UserInteractions}) ->
     case maps:find(ID, UserInteractions) of
         {ok, UserInteraction} ->
@@ -79,8 +79,7 @@ maybe_migrate(Event) ->
     Migrated = p2p_user_interaction:maybe_migrate(UserInteractionEvent),
     wrap_event(ID, Migrated).
 
--spec finish(id(), user_interaction()) ->
-    [wrapped_event()].
+-spec finish(id(), user_interaction()) -> [wrapped_event()].
 finish(ID, UserInteraction) ->
     Events = p2p_user_interaction:finish(UserInteraction),
     WrappedEvents = wrap_events(ID, Events),

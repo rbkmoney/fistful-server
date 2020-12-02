@@ -53,9 +53,10 @@
 -type callback() :: ff_withdrawal_callback:callback().
 
 -record(state, {}).
+
 -type state() :: #state{}.
 
--type transaction_info()      :: ff_adapter:transaction_info().
+-type transaction_info() :: ff_adapter:transaction_info().
 -type status() :: {success, transaction_info()} | {failure, failure()}.
 -type timer() :: {deadline, binary()} | {timeout, integer()}.
 
@@ -80,10 +81,11 @@ start(Opts) ->
 -spec process_withdrawal(withdrawal(), state(), map()) ->
     {ok, #{
         intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
-        next_state  => state(),
+        next_state => state(),
         transaction_info => transaction_info()
-    }} when
-        CallbackTag :: binary().
+    }}
+when
+    CallbackTag :: binary().
 process_withdrawal(#{quote := #wthadpt_Quote{quote_data = QuoteData}}, State, _Options) when
     QuoteData =:= ?DUMMY_QUOTE_ERROR
 ->
@@ -104,18 +106,20 @@ process_withdrawal(_Withdrawal, State, _Options) ->
         next_state => State
     }}.
 
--spec get_quote(quote_params(), map()) ->
-    {ok, quote()}.
-get_quote(#{
-    currency_from := CurrencyFrom,
-    currency_to := CurrencyTo,
-    exchange_cash := #wthadpt_Cash{amount = Amount, currency = Currency}
-}, _Options) ->
+-spec get_quote(quote_params(), map()) -> {ok, quote()}.
+get_quote(
+    #{
+        currency_from := CurrencyFrom,
+        currency_to := CurrencyTo,
+        exchange_cash := #wthadpt_Cash{amount = Amount, currency = Currency}
+    },
+    _Options
+) ->
     {ok, #{
         cash_from => calc_cash(CurrencyFrom, Currency, Amount),
         cash_to => calc_cash(CurrencyTo, Currency, Amount),
         created_at => ff_time:to_rfc3339(ff_time:now()),
-        expires_on => ff_time:to_rfc3339(ff_time:now() + 15*3600*1000),
+        expires_on => ff_time:to_rfc3339(ff_time:now() + 15 * 3600 * 1000),
         quote_data => ?DUMMY_QUOTE
     }}.
 
@@ -123,10 +127,11 @@ get_quote(#{
     {ok, #{
         intent := {finish, status()} | {sleep, timer()} | {sleep, timer(), CallbackTag},
         response := any(),
-        next_state  => state(),
+        next_state => state(),
         transaction_info => transaction_info()
-    }} when
-        CallbackTag :: binary().
+    }}
+when
+    CallbackTag :: binary().
 handle_callback(_Callback, _Withdrawal, _State, _Options) ->
     erlang:error(not_implemented).
 

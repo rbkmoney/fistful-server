@@ -1,4 +1,5 @@
 -module(ff_destination_handler).
+
 -behaviour(ff_woody_wrapper).
 
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
@@ -9,10 +10,11 @@
 %%
 %% ff_woody_wrapper callbacks
 %%
--spec handle_function(woody:func(), woody:args(), woody:options()) ->
-    {ok, woody:result()} | no_return().
+-spec handle_function(woody:func(), woody:args(), woody:options()) -> {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(destination, #{},
+    scoper:scope(
+        destination,
+        #{},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -23,9 +25,11 @@ handle_function(Func, Args, Opts) ->
 %%
 handle_function_('Create', [Params, Ctx], Opts) ->
     ID = Params#dst_DestinationParams.id,
-    case ff_destination_machine:create(
-        ff_destination_codec:unmarshal_destination_params(Params),
-        ff_destination_codec:unmarshal(ctx, Ctx))
+    case
+        ff_destination_machine:create(
+            ff_destination_codec:unmarshal_destination_params(Params),
+            ff_destination_codec:unmarshal(ctx, Ctx)
+        )
     of
         ok ->
             handle_function_('Get', [ID, #'EventRange'{}], Opts);

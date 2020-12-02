@@ -5,22 +5,22 @@
 
 %%
 
--type url()            :: woody:url().
--type event_handler()  :: woody:ev_handler().
+-type url() :: woody:url().
+-type event_handler() :: woody:ev_handler().
 -type transport_opts() :: woody_client_thrift_http_transport:transport_options().
--type context()        :: woody_context:ctx().
+-type context() :: woody_context:ctx().
 
--type service_id()     :: atom().
+-type service_id() :: atom().
 
 -type client() :: #{
-    url            := url(),
-    event_handler  := event_handler(),
+    url := url(),
+    event_handler := event_handler(),
     transport_opts => transport_opts()
 }.
 
 -type caller() :: #{
-    client         := client(),
-    context        => context()
+    client := client(),
+    context => context()
 }.
 
 -export_type([client/0]).
@@ -33,14 +33,12 @@
 %%
 
 -type opts() :: #{
-    url            := url(),
-    event_handler  => event_handler(),
+    url := url(),
+    event_handler => event_handler(),
     transport_opts => transport_opts()
 }.
 
--spec new(woody:url() | opts()) ->
-    client().
-
+-spec new(woody:url() | opts()) -> client().
 new(Opts = #{url := _}) ->
     EventHandlerOpts = genlib_app:env(ff_server, scoper_event_handler_options, #{}),
     maps:merge(
@@ -55,16 +53,14 @@ new(Url) when is_binary(Url); is_list(Url) ->
     }).
 
 -spec call(service_id() | client(), woody:request()) ->
-    {ok, woody:result()}                      |
-    {exception, woody_error:business_error()}.
-
+    {ok, woody:result()}
+    | {exception, woody_error:business_error()}.
 call(ServiceIdOrClient, Request) ->
     call(ServiceIdOrClient, Request, ff_context:get_woody_context(ff_context:load())).
 
 -spec call(service_id() | client(), woody:request(), woody_context:ctx()) ->
-    {ok, woody:result()}                      |
-    {exception, woody_error:business_error()}.
-
+    {ok, woody:result()}
+    | {exception, woody_error:business_error()}.
 call(ServiceID, Request, Context) when is_atom(ServiceID) ->
     call(get_service_client(ServiceID), Request, Context);
 call(Client, Request, Context) when is_map(Client) ->

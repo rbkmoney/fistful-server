@@ -13,7 +13,7 @@
 -type hash() :: integer().
 -type params() :: map().
 -type gen_type() ::
-      identity
+    identity
     | identity_challenge
     | wallet
     | destination
@@ -34,15 +34,11 @@
 
 %% Pipeline
 
--spec get_idempotent_key(gen_type(), id(), id() | undefined) ->
-    binary().
-
+-spec get_idempotent_key(gen_type(), id(), id() | undefined) -> binary().
 get_idempotent_key(Type, PartyID, ExternalID) ->
     bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID).
 
--spec gen_id(gen_type(), params(), handler_context()) ->
-    {ok, id()} | {error, {external_id_conflict, id()}}.
-
+-spec gen_id(gen_type(), params(), handler_context()) -> {ok, id()} | {error, {external_id_conflict, id()}}.
 gen_id(Type, Params, Context) ->
     ExternalID = maps:get(?EXTERNAL_ID, Params, undefined),
     Hash = create_params_hash(Params),
@@ -50,7 +46,6 @@ gen_id(Type, Params, Context) ->
 
 -spec gen_id(gen_type(), id() | undefined, hash(), handler_context()) ->
     {ok, id()} | {error, {external_id_conflict, id()}}.
-
 gen_id(Type, ExternalID, Hash, Context) ->
     PartyID = wapi_handler_utils:get_owner(Context),
     IdempotentKey = bender_client:get_idempotent_key(?BENDER_DOMAIN, Type, PartyID, ExternalID),
@@ -68,23 +63,22 @@ gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
 gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
     case bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx) of
-        {ok, {ID, _IntegerID}} -> {ok, ID}; % No need for IntegerID at this project so far
+        % No need for IntegerID at this project so far
+        {ok, {ID, _IntegerID}} -> {ok, ID};
         {error, {external_id_conflict, {ID, _IntegerID}}} -> {error, {external_id_conflict, ID}}
     end.
 
--spec make_ctx(params(), handler_context()) ->
-    context().
-
+-spec make_ctx(params(), handler_context()) -> context().
 make_ctx(Params, Context) ->
-    #{?CTX_NS => genlib_map:compact(#{
-        <<"owner">> => wapi_handler_utils:get_owner(Context),
-        <<"metadata">> => maps:get(<<"metadata">>, Params, undefined),
-        ?PARAMS_HASH => create_params_hash(Params)
-    })}.
+    #{
+        ?CTX_NS => genlib_map:compact(#{
+            <<"owner">> => wapi_handler_utils:get_owner(Context),
+            <<"metadata">> => maps:get(<<"metadata">>, Params, undefined),
+            ?PARAMS_HASH => create_params_hash(Params)
+        })
+    }.
 
--spec add_to_ctx({md(), md() | undefined} | list() | map(), context()) ->
-    context().
-
+-spec add_to_ctx({md(), md() | undefined} | list() | map(), context()) -> context().
 add_to_ctx({Key, Value}, Context) ->
     add_to_ctx(Key, Value, Context);
 add_to_ctx(Map, Context = #{?CTX_NS := Ctx}) when is_map(Map) ->
@@ -96,29 +90,21 @@ add_to_ctx(KVList, Context) when is_list(KVList) ->
         KVList
     ).
 
--spec add_to_ctx(md(), md() | undefined, context()) ->
-    context().
-
+-spec add_to_ctx(md(), md() | undefined, context()) -> context().
 add_to_ctx(_Key, undefined, Context) ->
     Context;
 add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
     Context#{?CTX_NS => Ctx#{Key => Value}}.
 
--spec get_from_ctx(md(), context()) ->
-    md().
-
+-spec get_from_ctx(md(), context()) -> md().
 get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
     maps:get(Key, Ctx, undefined).
 
--spec create_params_hash(term()) ->
-    integer().
-
+-spec create_params_hash(term()) -> integer().
 create_params_hash(Value) ->
     erlang:phash2(Value).
 
--spec issue_grant_token(_, binary(), handler_context()) ->
-    {ok, binary()} | {error, expired}.
-
+-spec issue_grant_token(_, binary(), handler_context()) -> {ok, binary()} | {error, expired}.
 issue_grant_token(TokenSpec, Expiration, Context) ->
     case get_expiration_deadline(Expiration) of
         {ok, Deadline} ->

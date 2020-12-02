@@ -2,6 +2,7 @@
 %% @end
 
 -module(wapi_sup).
+
 -behaviour(supervisor).
 
 %% API
@@ -13,14 +14,12 @@
 %%
 
 -spec start_link() -> {ok, pid()} | {error, {already_started, pid()}}.
-
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %%
 
 -spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
-
 init([]) ->
     LechiffreOpts = genlib_app:env(wapi, lechiffre_opts),
     LechiffreSpec = lechiffre:child_spec(lechiffre, LechiffreOpts),
@@ -33,28 +32,25 @@ init([]) ->
     ok = uac:configure(UacConf),
     {ok, {
         {one_for_all, 0, 1},
-            [LechiffreSpec] ++
+        [LechiffreSpec] ++
             LogicHandlerSpecs ++ [SwaggerSpec]
     }}.
 
--spec get_logic_handler_info() ->
-    {wapi_swagger_server:logic_handlers(), [supervisor:child_spec()]}.
-
+-spec get_logic_handler_info() -> {wapi_swagger_server:logic_handlers(), [supervisor:child_spec()]}.
 get_logic_handler_info() ->
     HandlerOptions = #{
         %% TODO: Remove after fistful and wapi split
         party_client => party_client:create_client()
     },
     {#{
-        wallet  => {wapi_wallet_handler, HandlerOptions}
-    }, []}.
+            wallet => {wapi_wallet_handler, HandlerOptions}
+        },
+        []}.
 
--spec enable_health_logging(erl_health:check()) ->
-    erl_health:check().
-
+-spec enable_health_logging(erl_health:check()) -> erl_health:check().
 enable_health_logging(Check) ->
     EvHandler = {erl_health_event_handler, []},
-    maps:map(fun (_, V = {_, _, _}) -> #{runner => V, event_handler => EvHandler} end, Check).
+    maps:map(fun(_, V = {_, _, _}) -> #{runner => V, event_handler => EvHandler} end, Check).
 
 get_uac_config() ->
     maps:merge(

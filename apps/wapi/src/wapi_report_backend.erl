@@ -15,18 +15,19 @@
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
 
--spec create_report(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, Error}
-    when Error ::
-        {identity, unauthorized}    |
-        {identity, notfound}        |
-        invalid_request             |
-        invalid_contract.
-
-create_report(#{
-    identityID := IdentityID,
-    'ReportParams' := ReportParams
-}, HandlerContext) ->
+-spec create_report(req_data(), handler_context()) -> {ok, response_data()} | {error, Error} when
+    Error ::
+        {identity, unauthorized}
+        | {identity, notfound}
+        | invalid_request
+        | invalid_contract.
+create_report(
+    #{
+        identityID := IdentityID,
+        'ReportParams' := ReportParams
+    },
+    HandlerContext
+) ->
     case get_contract_id_from_identity(IdentityID, HandlerContext) of
         {ok, ContractID} ->
             Req = create_report_request(#{
@@ -48,13 +49,11 @@ create_report(#{
             Error
     end.
 
--spec get_report(integer(), binary(), handler_context()) ->
-    {ok, response_data()} | {error, Error}
-    when Error ::
-        {identity, unauthorized}    |
-        {identity, notfound}        |
-        notfound.
-
+-spec get_report(integer(), binary(), handler_context()) -> {ok, response_data()} | {error, Error} when
+    Error ::
+        {identity, unauthorized}
+        | {identity, notfound}
+        | notfound.
 get_report(ReportID, IdentityID, HandlerContext) ->
     get_report(identityID, ReportID, IdentityID, HandlerContext).
 
@@ -75,14 +74,12 @@ get_report(contractID, ReportID, ContractID, HandlerContext) ->
             {error, notfound}
     end.
 
--spec get_reports(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, Error}
-    when Error ::
-        {identity, unauthorized}    |
-        {identity, notfound}        |
-        invalid_request             |
-        {dataset_too_big, integer()}.
-
+-spec get_reports(req_data(), handler_context()) -> {ok, response_data()} | {error, Error} when
+    Error ::
+        {identity, unauthorized}
+        | {identity, notfound}
+        | invalid_request
+        | {dataset_too_big, integer()}.
 get_reports(#{identityID := IdentityID} = Params, HandlerContext) ->
     case get_contract_id_from_identity(IdentityID, HandlerContext) of
         {ok, ContractID} ->
@@ -105,9 +102,8 @@ get_reports(#{identityID := IdentityID} = Params, HandlerContext) ->
             Error
     end.
 
--spec download_file(binary(), binary(), handler_context()) ->
-    {ok, response_data()} | {error, Error}
-    when Error ::
+-spec download_file(binary(), binary(), handler_context()) -> {ok, response_data()} | {error, Error} when
+    Error ::
         notfound.
 download_file(FileID, ExpiresAt, HandlerContext) ->
     Timestamp = wapi_utils:to_universal_time(ExpiresAt),
@@ -115,18 +111,16 @@ download_file(FileID, ExpiresAt, HandlerContext) ->
     case wapi_handler_utils:service_call(Call, HandlerContext) of
         {exception, #file_storage_FileNotFound{}} ->
             {error, notfound};
-        Result->
+        Result ->
             Result
     end.
 
 %% Internal
 
--spec get_contract_id_from_identity(id(), handler_context()) ->
-    {ok, id()} | {error, Error}
-    when Error ::
-        {identity, unauthorized} |
-        {identity, notfound}.
-
+-spec get_contract_id_from_identity(id(), handler_context()) -> {ok, id()} | {error, Error} when
+    Error ::
+        {identity, unauthorized}
+        | {identity, notfound}.
 get_contract_id_from_identity(IdentityID, HandlerContext) ->
     case wapi_identity_backend:get_thrift_identity(IdentityID, HandlerContext) of
         {ok, #idnt_IdentityState{contract_id = ContractID}} ->
@@ -136,17 +130,17 @@ get_contract_id_from_identity(IdentityID, HandlerContext) ->
     end.
 
 create_report_request(#{
-    party_id     := PartyID,
-    contract_id  := ContractID,
-    from_time    := FromTime,
-    to_time      := ToTime
+    party_id := PartyID,
+    contract_id := ContractID,
+    from_time := FromTime,
+    to_time := ToTime
 }) ->
     #'ff_reports_ReportRequest'{
-        party_id    = PartyID,
+        party_id = PartyID,
         contract_id = ContractID,
-        time_range  = #'ff_reports_ReportTimeRange'{
+        time_range = #'ff_reports_ReportTimeRange'{
             from_time = FromTime,
-            to_time   = ToTime
+            to_time = ToTime
         }
     }.
 
@@ -172,13 +166,13 @@ unmarshal_report(#ff_reports_Report{
     file_data_ids = Files
 }) ->
     genlib_map:compact(#{
-        <<"id">>        => ReportID,
-        <<"fromTime">>  => TimeRange#ff_reports_ReportTimeRange.from_time,
-        <<"toTime">>    => TimeRange#ff_reports_ReportTimeRange.to_time,
+        <<"id">> => ReportID,
+        <<"fromTime">> => TimeRange#ff_reports_ReportTimeRange.from_time,
+        <<"toTime">> => TimeRange#ff_reports_ReportTimeRange.to_time,
         <<"createdAt">> => CreatedAt,
-        <<"status">>    => unmarshal_report_status(Status),
-        <<"type">>      => Type,
-        <<"files">>     => unmarshal_report_files(Files)
+        <<"status">> => unmarshal_report_status(Status),
+        <<"type">> => Type,
+        <<"files">> => unmarshal_report_files(Files)
     }).
 
 unmarshal_report_status(pending) ->

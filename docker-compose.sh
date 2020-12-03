@@ -48,7 +48,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:3bdc2a01f9b8664e08dca08c656fc4c88d6553fc
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:0a2b81adbb25ef33b749f3b218df191aa7bc35a5
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -88,7 +88,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr2.rbkmoney.com/rbkmoney/dominant:6896d15357e87eb3de47d3e1aabcb1444e9c4f90
+    image: dr2.rbkmoney.com/rbkmoney/dominant:26ad62b181b362e121f147c2631df456fed655b2
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -137,7 +137,7 @@ services:
       retries: 10
 
   cds:
-    image: dr2.rbkmoney.com/rbkmoney/cds:7d970e3de3bfc02431b64d17157dca887fbedfce
+    image: dr2.rbkmoney.com/rbkmoney/cds:c0661c4d5abb85f7728bd0e816760670aa248251
     command: /opt/cds/bin/cds foreground
     volumes:
       - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config
@@ -154,7 +154,7 @@ services:
         condition: service_healthy
 
   kds:
-    image: dr2.rbkmoney.com/rbkmoney/kds:0045e9875723c9e6c06d392311b9e6bab5d564d4
+    image: dr2.rbkmoney.com/rbkmoney/kds:281462a3a9088cec5b46b3c999885d0edc8d3a61
     command: /opt/kds/bin/kds foreground
     volumes:
       - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro
@@ -174,7 +174,7 @@ services:
       - cds
 
   machinegun:
-    image: dr2.rbkmoney.com/rbkmoney/machinegun:b366973cec80a4d326840660405e50a3cac6cded
+    image: dr2.rbkmoney.com/rbkmoney/machinegun:c35e8a08500fbc2f0f0fa376a145a7324d18a062
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml
@@ -187,7 +187,7 @@ services:
       retries: 10
 
   bender:
-    image: dr2.rbkmoney.com/rbkmoney/bender:112656937fe66c43229d18a070fa6c96cfede70b
+    image: dr2.rbkmoney.com/rbkmoney/bender:cd0ee8faae41f22a40ea119337be2a842e3e9cd8
     command: /opt/bender/bin/bender foreground
     volumes:
       - ./test/log/bender:/var/log/bender

@@ -2,7 +2,7 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--export([prepare_routes/3]).
+-export([prepare_route/3]).
 -export([make_route/2]).
 -export([get_provider/1]).
 -export([get_terminal/1]).
@@ -35,21 +35,37 @@
 
 %%
 
--spec prepare_routes(party_varset(), identity(), domain_revision()) ->
-    {ok, [route()]} | {error, route_not_found}.
-
-prepare_routes(PartyVarset, Identity, DomainRevision) ->
+-spec prepare_route(party_varset(), identity(), domain_revision()) ->
+    {ok, route()} | {error, route_not_found}.
+prepare_route(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
-        {ok, Providers}  ->
-            filter_routes(Providers, PartyVarset);
-        {error, {misconfiguration, _Details} = Error} ->
-            %% TODO: Do not interpret such error as an empty route list.
-            %% The current implementation is made for compatibility reasons.
-            %% Try to remove and follow the tests.
-            _ = logger:warning("Route search failed: ~p", [Error]),
+    {Routes, _RejectedContext} = ff_routing_rule:gather_routes(PaymentInstitution, PartyVarset, DomainRevision, withdrawal_routing_rules),
+    TermsValidatedRoutes = lists:filter(fun(R) -> validate_withdrawal_terms(R, PartyVarset) end, Routes),
+    case ff_routing_rule:choose_route(TermsValidatedRoutes) of
+        {ok, Route0} ->
+            {{ProviderID, _, _}, _} = Route0,
+            case filter_routes([ProviderID], PartyVarset) of
+                {ok, [Route1 | _]} ->
+                    {ok, Route1};
+                {error, _} ->
+                    {error, route_not_found}
+            end;
+        _ ->
             {error, route_not_found}
+    end.
+
+-spec validate_withdrawal_terms(ff_routing_rule:route(), party_varset()) ->
+    boolean().
+validate_withdrawal_terms(Route, PartyVarset) ->
+    {{ProviderID, _, _}, _} = Route,
+    Provider = unwrap(ff_payouts_provider:get(ProviderID)),
+    {ok, TerminalsWithPriority} = get_provider_terminals_with_priority(Provider, PartyVarset),
+    case get_valid_terminals_with_priority(TerminalsWithPriority, Provider, PartyVarset, []) of
+        [] ->
+            false;
+        [_ValidatedTerminal | _] ->
+            true
     end.
 
 -spec make_route(provider_id(), terminal_id() | undefined) ->
@@ -236,7 +252,7 @@ merge_withdrawal_terms(ProviderTerms, TerminalTerms) ->
 convert_to_route(ProviderTerminalMap) ->
     lists:foldl(
         fun({_, Data}, Acc) ->
-            SortedRoutes = [make_route(P, T) || {P, T} <- lists:sort(Data)],
+            SortedRoutes = [make_route(ProviderID, TerminalID) || {ProviderID, TerminalID} <- lists:sort(Data)],
             SortedRoutes ++ Acc
         end,
         [],

@@ -4,12 +4,14 @@
 
 -type id()       :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: #{
-    id                   := id(),
-    system_accounts      := dmsl_domain_thrift:'SystemAccountSetSelector'(),
-    identity             := binary(),
-    withdrawal_providers := dmsl_domain_thrift:'ProviderSelector'(),
-    p2p_providers        := dmsl_domain_thrift:'ProviderSelector'(),
-    p2p_inspector        := dmsl_domain_thrift:'P2PInspectorSelector'()
+    id                          := id(),
+    system_accounts             := dmsl_domain_thrift:'SystemAccountSetSelector'(),
+    identity                    := binary(),
+    withdrawal_providers        := dmsl_domain_thrift:'ProviderSelector'(),
+    p2p_providers               := dmsl_domain_thrift:'ProviderSelector'(),
+    p2p_inspector               := dmsl_domain_thrift:'P2PInspectorSelector'(),
+    withdrawal_routing_rules    => dmsl_domain_thrift:'ProviderSelector'() | undefined,
+    p2p_transfer_routing_rules  => dmsl_domain_thrift:'ProviderSelector'() | undefined
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -115,17 +117,21 @@ compute_system_accounts(PaymentInstitution, VS) ->
 decode(ID, #domain_PaymentInstitution{
     wallet_system_account_set = SystemAccounts,
     identity = Identity,
-    withdrawal_providers = WithdrawalProviders,
-    p2p_providers = P2PProviders,
-    p2p_inspector = P2PInspector
+    withdrawal_providers_legacy = WithdrawalProvidersLegacy,
+    p2p_providers_legacy = P2PProviders,
+    p2p_inspector = P2PInspector,
+    withdrawal_routing_rules = WithdrawalRoutingRules,
+    p2p_transfer_routing_rules = P2PTransferRoutingRules
 }) ->
     #{
-        id                   => ID,
-        system_accounts      => SystemAccounts,
-        identity             => Identity,
-        withdrawal_providers => WithdrawalProviders,
-        p2p_providers        => P2PProviders,
-        p2p_inspector        => P2PInspector
+        id                          => ID,
+        system_accounts             => SystemAccounts,
+        identity                    => Identity,
+        withdrawal_providers_legacy => WithdrawalProvidersLegacy,
+        p2p_providers_legacy        => P2PProviders,
+        p2p_inspector               => P2PInspector,
+        withdrawal_routing_rules    => WithdrawalRoutingRules,
+        p2p_transfer_routing_rules  => P2PTransferRoutingRules
     }.
 
 decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts}) ->

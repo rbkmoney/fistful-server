@@ -27,14 +27,14 @@
 }.
 
 -type status() ::
-    pending |
-    succeeded.
+    pending
+    | succeeded.
 
 -type legacy_event() :: any().
 -type event() ::
-    {created, callback()} |
-    {finished, response()} |
-    {status_changed, status()}.
+    {created, callback()}
+    | {finished, response()}
+    | {status_changed, status()}.
 
 -export_type([tag/0]).
 -export_type([event/0]).
@@ -82,9 +82,7 @@ response(C) ->
 
 %% API
 
--spec create(params()) ->
-    {ok, process_result()}.
-
+-spec create(params()) -> {ok, process_result()}.
 create(#{tag := Tag}) ->
     Callback = #{
         version => ?ACTUAL_FORMAT_VERSION,
@@ -106,8 +104,7 @@ is_finished(#{status := succeeded}) ->
 is_finished(#{status := pending}) ->
     false.
 
--spec process_response(response(), callback()) ->
-    process_result().
+-spec process_response(response(), callback()) -> process_result().
 process_response(Response, Callback) ->
     case status(Callback) of
         pending ->
@@ -129,13 +126,11 @@ update_response(Response, Callback) ->
 
 %% Events utils
 
--spec apply_event(event() | legacy_event(), callback() | undefined) ->
-    callback().
+-spec apply_event(event() | legacy_event(), callback() | undefined) -> callback().
 apply_event(Ev, T) ->
     apply_event_(maybe_migrate(Ev), T).
 
--spec apply_event_(event(), callback() | undefined) ->
-    callback().
+-spec apply_event_(event(), callback() | undefined) -> callback().
 apply_event_({created, T}, undefined) ->
     T;
 apply_event_({status_changed, S}, T) ->
@@ -143,7 +138,6 @@ apply_event_({status_changed, S}, T) ->
 apply_event_({finished, R}, T) ->
     update_response(R, T).
 
--spec maybe_migrate(event() | legacy_event()) ->
-    event().
+-spec maybe_migrate(event() | legacy_event()) -> event().
 maybe_migrate(Ev) ->
     Ev.

@@ -57,73 +57,63 @@
 -define(NS, 'ff/source_v1').
 
 -spec create(params(), ctx()) ->
-    ok |
-    {error, ff_source:create_error() | exists}.
-
+    ok
+    | {error, ff_source:create_error() | exists}.
 create(#{id := ID} = Params, Ctx) ->
-    do(fun () ->
+    do(fun() ->
         Events = unwrap(ff_source:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
-    {ok, st()}      |
-    {error, notfound}.
+    {ok, st()}
+    | {error, notfound}.
 get(ID) ->
     ff_machine:get(ff_source, ?NS, ID).
 
 -spec get(id(), event_range()) ->
-    {ok, st()}      |
-    {error, notfound} .
+    {ok, st()}
+    | {error, notfound}.
 get(ID, {After, Limit}) ->
     ff_machine:get(ff_source, ?NS, ID, {After, Limit, forward}).
 
 -spec events(id(), event_range()) ->
-    {ok, events()} |
-    {error, notfound}.
-
+    {ok, events()}
+    | {error, notfound}.
 events(ID, {After, Limit}) ->
-    do(fun () ->
+    do(fun() ->
         History = unwrap(ff_machine:history(ff_source, ?NS, ID, {After, Limit, forward})),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
 
 %% Accessors
 
--spec source(st()) ->
-    source().
-
+-spec source(st()) -> source().
 source(St) ->
     ff_machine:model(St).
 
--spec ctx(st()) ->
-    ctx().
-
+-spec ctx(st()) -> ctx().
 ctx(St) ->
     ff_machine:ctx(St).
 
 %% Machinery
 
--type machine()      :: ff_machine:machine(change()).
--type result()       :: ff_machine:result(change()).
+-type machine() :: ff_machine:machine(change()).
+-type result() :: ff_machine:result(change()).
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
--spec init({[change()], ctx()}, machine(), _, handler_opts()) ->
-    result().
-
+-spec init({[change()], ctx()}, machine(), _, handler_opts()) -> result().
 init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => ff_machine:emit_events(Events),
-        action    => continue,
+        events => ff_machine:emit_events(Events),
+        action => continue,
         aux_state => #{ctx => Ctx}
     }.
 
 %%
 
--spec process_timeout(machine(), handler_args(), handler_opts()) ->
-    result().
-
+-spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
     St = ff_machine:collapse(ff_source, Machine),
     process_timeout(deduce_activity(ff_machine:model(St)), St).
@@ -144,15 +134,12 @@ deduce_activity(#{}) ->
 
 %%
 
--spec process_call(_CallArgs, machine(), handler_args(), handler_opts()) ->
-    {ok, result()}.
-
+-spec process_call(_CallArgs, machine(), handler_args(), handler_opts()) -> {ok, result()}.
 process_call(_CallArgs, #{}, _, _Opts) ->
     {ok, #{}}.
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     {ok, {repair_response(), result()}} | {error, repair_error()}.
-
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_source, Machine, Scenario).
 

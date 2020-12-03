@@ -2,41 +2,43 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--define(LIFETIME_MS_DEFAULT, 900000). %% 15min in milliseconds
+%% 15min in milliseconds
+-define(LIFETIME_MS_DEFAULT, 900000).
 
--type sender()                    :: ff_resource:resource_params().
--type receiver()                  :: ff_resource:resource_params().
--type cash()                      :: ff_cash:cash().
--type terms()                     :: ff_party:terms().
--type identity()                  :: ff_identity:identity_state().
--type identity_id()               :: ff_identity:id().
--type compact_resource()          :: compact_bank_card_resource().
--type get_contract_terms_error()  :: ff_party:get_contract_terms_error().
--type validate_p2p_error()        :: ff_party:validate_p2p_error().
--type volume_finalize_error()     :: ff_cash_flow:volume_finalize_error().
+-type sender() :: ff_resource:resource_params().
+-type receiver() :: ff_resource:resource_params().
+-type cash() :: ff_cash:cash().
+-type terms() :: ff_party:terms().
+-type identity() :: ff_identity:identity_state().
+-type identity_id() :: ff_identity:id().
+-type compact_resource() :: compact_bank_card_resource().
+-type get_contract_terms_error() :: ff_party:get_contract_terms_error().
+-type validate_p2p_error() :: ff_party:validate_p2p_error().
+-type volume_finalize_error() :: ff_cash_flow:volume_finalize_error().
 
 -type get_quote_error() ::
-    {identity, not_found} |
-    {party, get_contract_terms_error()} |
-    {fees, ff_fees_plan:computation_error()} |
-    {p2p_transfer:resource_owner(), {bin_data, ff_bin_data:bin_data_error()}} |
-    {terms, validate_p2p_error()}.
+    {identity, not_found}
+    | {party, get_contract_terms_error()}
+    | {fees, ff_fees_plan:computation_error()}
+    | {p2p_transfer:resource_owner(), {bin_data, ff_bin_data:bin_data_error()}}
+    | {terms, validate_p2p_error()}.
 
--type compact_bank_card_resource() :: {bank_card, #{
-    token := binary(),
-    bin_data_id := ff_bin_data:bin_data_id()
-}}.
+-type compact_bank_card_resource() ::
+    {bank_card, #{
+        token := binary(),
+        bin_data_id := ff_bin_data:bin_data_id()
+    }}.
 
 -type quote() :: #{
-    fees              := ff_fees_final:fees(),
-    amount            := cash(),
-    party_revision    := ff_party:revision(),
-    domain_revision   := ff_domain_config:revision(),
-    created_at        := ff_time:timestamp_ms(),
-    expires_on        := ff_time:timestamp_ms(),
-    identity_id       := identity_id(),
-    sender            := compact_resource(),
-    receiver          := compact_resource()
+    fees := ff_fees_final:fees(),
+    amount := cash(),
+    party_revision := ff_party:revision(),
+    domain_revision := ff_domain_config:revision(),
+    created_at := ff_time:timestamp_ms(),
+    expires_on := ff_time:timestamp_ms(),
+    identity_id := identity_id(),
+    sender := compact_resource(),
+    receiver := compact_resource()
 }.
 
 -type params() :: #{
@@ -70,67 +72,56 @@
 %% API
 
 -export([get/1]).
+
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 %% Accessors
 
--spec fees(quote()) ->
-    ff_fees_final:fees().
+-spec fees(quote()) -> ff_fees_final:fees().
 fees(#{fees := Fees}) ->
     Fees.
 
--spec amount(quote()) ->
-    cash().
+-spec amount(quote()) -> cash().
 amount(#{amount := Amount}) ->
     Amount.
 
--spec created_at(quote()) ->
-    ff_time:timestamp_ms().
+-spec created_at(quote()) -> ff_time:timestamp_ms().
 created_at(#{created_at := Time}) ->
     Time.
 
--spec expires_on(quote()) ->
-    ff_time:timestamp_ms().
+-spec expires_on(quote()) -> ff_time:timestamp_ms().
 expires_on(#{expires_on := Time}) ->
     Time.
 
--spec domain_revision(quote()) ->
-    ff_domain_config:revision().
+-spec domain_revision(quote()) -> ff_domain_config:revision().
 domain_revision(#{domain_revision := Revision}) ->
     Revision.
 
--spec party_revision(quote()) ->
-    ff_party:revision().
+-spec party_revision(quote()) -> ff_party:revision().
 party_revision(#{party_revision := Revision}) ->
     Revision.
 
--spec identity_id(quote()) ->
-    identity_id().
+-spec identity_id(quote()) -> identity_id().
 identity_id(#{identity_id := IdentityID}) ->
     IdentityID.
 
--spec sender(quote()) ->
-    compact_resource().
+-spec sender(quote()) -> compact_resource().
 sender(#{sender := Sender}) ->
     Sender.
 
--spec receiver(quote()) ->
-    compact_resource().
+-spec receiver(quote()) -> compact_resource().
 receiver(#{receiver := Receiver}) ->
     Receiver.
 
--spec sender_descriptor(quote()) ->
-    ff_resource:resource_descriptor().
+-spec sender_descriptor(quote()) -> ff_resource:resource_descriptor().
 sender_descriptor(#{sender := {bank_card, #{bin_data_id := BinDataID}}}) ->
     {bank_card, BinDataID}.
 
--spec receiver_descriptor(quote()) ->
-    ff_resource:resource_descriptor().
+-spec receiver_descriptor(quote()) -> ff_resource:resource_descriptor().
 receiver_descriptor(#{receiver := {bank_card, #{bin_data_id := BinDataID}}}) ->
     {bank_card, BinDataID}.
 
--spec compact(ff_resource:resource()) ->
-    compact_resource().
+-spec compact(ff_resource:resource()) -> compact_resource().
 compact({bank_card, #{bank_card := BankCard}}) ->
     {bank_card, #{
         token => ff_resource:token(BankCard),
@@ -140,8 +131,8 @@ compact({bank_card, #{bank_card := BankCard}}) ->
 %%
 
 -spec get(params()) ->
-    {ok, quote()} |
-    {error, get_quote_error()}.
+    {ok, quote()}
+    | {error, get_quote_error()}.
 get(#{
     body := Cash,
     identity_id := IdentityID,
@@ -183,16 +174,14 @@ get(#{
 
 %%
 
--spec get_identity(identity_id()) ->
-    {ok, identity()} | {error, notfound}.
+-spec get_identity(identity_id()) -> {ok, identity()} | {error, notfound}.
 get_identity(IdentityID) ->
     do(fun() ->
         IdentityMachine = unwrap(ff_identity_machine:get(IdentityID)),
         ff_identity_machine:identity(IdentityMachine)
     end).
 
--spec get_fees_from_terms(terms()) ->
-    ff_fees_plan:fees().
+-spec get_fees_from_terms(terms()) -> ff_fees_plan:fees().
 get_fees_from_terms(Terms) ->
     #domain_TermSet{
         wallets = #domain_WalletServiceTerms{
@@ -203,15 +192,14 @@ get_fees_from_terms(Terms) ->
     } = Terms,
     decode_domain_fees(FeeTerm).
 
--spec decode_domain_fees(dmsl_domain_thrift:'FeeSelector'() | undefined) ->
-    ff_fees_plan:fees().
+-spec decode_domain_fees(dmsl_domain_thrift:'FeeSelector'() | undefined) -> ff_fees_plan:fees().
 decode_domain_fees(undefined) ->
     #{fees => #{}};
-decode_domain_fees({value, Fees}) -> % must be reduced before
+% must be reduced before
+decode_domain_fees({value, Fees}) ->
     ff_fees_plan:unmarshal(Fees).
 
--spec get_expire_time(terms(), ff_time:timestamp_ms()) ->
-    ff_time:timestamp_ms().
+-spec get_expire_time(terms(), ff_time:timestamp_ms()) -> ff_time:timestamp_ms().
 get_expire_time(Terms, CreatedAt) ->
     #domain_TermSet{wallets = WalletTerms} = Terms,
     #domain_WalletServiceTerms{p2p = P2PServiceTerms} = WalletTerms,

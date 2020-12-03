@@ -38,29 +38,33 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
 -define(final_balance(Cash), {
     element(1, Cash),
     {
-        {inclusive, element(1, Cash)}, {inclusive, element(1, Cash)}
+        {inclusive, element(1, Cash)},
+        {inclusive, element(1, Cash)}
     },
     element(2, Cash)
 }).
+
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
 
 -define(CALLBACK(Tag, Payload), #p2p_adapter_Callback{tag = Tag, payload = Payload}).
 
--define(PROCESS_CALLBACK_SUCCESS(Payload), {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
-    response = #p2p_adapter_CallbackResponse{
-        payload = Payload
-    }
-}}).
+-define(PROCESS_CALLBACK_SUCCESS(Payload),
+    {succeeded, #p2p_adapter_ProcessCallbackSucceeded{
+        response = #p2p_adapter_CallbackResponse{
+            payload = Payload
+        }
+    }}
+).
 
 %% API
 
@@ -101,10 +105,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -486,7 +493,8 @@ unknown_test(_C) ->
 
 -spec fees_passed(config()) -> test_return().
 fees_passed(C) ->
-    Cash = {1002, <<"RUB">>}, % see p2p_ct_provider_handler:handle_function_/4
+    % see p2p_ct_provider_handler:handle_function_/4
+    Cash = {1002, <<"RUB">>},
     #{
         identity_id := IdentityID,
         sender := ResourceSender,
@@ -511,8 +519,8 @@ fees_passed(C) ->
 -spec consume_eventsinks(config()) -> test_return().
 consume_eventsinks(_) ->
     EventSinks = [
-          p2p_transfer_event_sink,
-          p2p_session_event_sink
+        p2p_transfer_event_sink,
+        p2p_session_event_sink
     ],
     [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
 
@@ -528,7 +536,7 @@ get_p2p_transfer_status(P2PTransferID) ->
 await_final_p2p_transfer_status(P2PTransferID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
             P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
             case p2p_transfer:is_finished(P2PTransfer) of
@@ -558,7 +566,7 @@ get_account_balance(AccountID, Currency) ->
 await_p2p_session_adapter_state(P2PTransferID, State) ->
     State = ct_helper:await(
         State,
-        fun () ->
+        fun() ->
             {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
             P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
             case maps:get(session, P2PTransfer, undefined) of
@@ -580,8 +588,8 @@ get_p2p_session_adapter_state(SessionID) ->
     p2p_session:adapter_state(Session).
 
 call_host(Callback) ->
-    Service  = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
+    Service = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
     Function = 'ProcessCallback',
-    Args     = [Callback],
-    Request  = {Service, Function, Args},
+    Args = [Callback],
+    Request = {Service, Function, Args},
     ff_woody_client:call(ff_p2p_adapter_host, Request).

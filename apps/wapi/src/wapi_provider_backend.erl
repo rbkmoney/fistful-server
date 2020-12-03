@@ -22,12 +22,13 @@ get_providers(Residences, HandlerContext) ->
     ResidenceSet = ordsets:from_list(Residences),
     Request = {fistful_provider, 'ListProviders', []},
     {ok, Providers} = wapi_handler_utils:service_call(Request, HandlerContext),
-    [P ||
-        P <- unmarshal_providers(Providers),
-        ordsets:is_subset(
-            ResidenceSet,
-            ordsets:from_list(maps:get(<<"residences">>, P))
-        )
+    [
+        P
+        || P <- unmarshal_providers(Providers),
+           ordsets:is_subset(
+               ResidenceSet,
+               ordsets:from_list(maps:get(<<"residences">>, P))
+           )
     ].
 
 -spec get_provider(id(), handler_context()) -> {ok, response_data()} | {error, notfound}.
@@ -99,10 +100,10 @@ unmarshal_provider(#provider_Provider{
     residences = Residences
 }) ->
     genlib_map:compact(#{
-       <<"id">> => ID,
-       <<"name">> => Name,
-       <<"residences">> => Residences
-     }).
+        <<"id">> => ID,
+        <<"name">> => Name,
+        <<"residences">> => Residences
+    }).
 
 unmarshal_identity_class(#provider_IdentityClass{
     id = ID,

@@ -19,25 +19,25 @@
 }.
 
 -spec prepare_standard_environment(cash(), config()) -> prepared_ids().
-
 prepare_standard_environment(P2PTransferCash, C) ->
     prepare_standard_environment(P2PTransferCash, undefined, C).
 
 -spec prepare_standard_environment(cash(), token(), config()) -> prepared_ids().
-
 prepare_standard_environment(_P2PTransferCash, Token, C) ->
     PartyID = create_party(C),
     IdentityID = create_person_identity(PartyID, C, <<"quote-owner">>),
     {ResourceSender, ResourceReceiver} =
         case Token of
-            {missing, sender} -> {
-                create_resource_raw(<<"TEST_NOTFOUND_SENDER">>, C),
-                create_resource_raw(undefined, C)
-            };
-            {missing, receiver} -> {
-                create_resource_raw(undefined, C),
-                create_resource_raw(<<"TEST_NOTFOUND_RECEIVER">>, C)
-            };
+            {missing, sender} ->
+                {
+                    create_resource_raw(<<"TEST_NOTFOUND_SENDER">>, C),
+                    create_resource_raw(undefined, C)
+                };
+            {missing, receiver} ->
+                {
+                    create_resource_raw(undefined, C),
+                    create_resource_raw(<<"TEST_NOTFOUND_RECEIVER">>, C)
+                };
             {with_prefix, Prefix} ->
                 TokenRandomised = generate_id(),
                 TokenWithPrefix = <<Prefix/binary, TokenRandomised/binary>>,
@@ -45,7 +45,8 @@ prepare_standard_environment(_P2PTransferCash, Token, C) ->
                     create_resource_raw(TokenWithPrefix, C),
                     create_resource_raw(TokenWithPrefix, C)
                 };
-            Other -> {create_resource_raw(Other, C), create_resource_raw(Other, C)}
+            Other ->
+                {create_resource_raw(Other, C), create_resource_raw(Other, C)}
         end,
     #{
         identity_id => IdentityID,
@@ -56,18 +57,21 @@ prepare_standard_environment(_P2PTransferCash, Token, C) ->
 
 create_resource_raw(Token, C) ->
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    NewStoreResource = case Token of
-        undefined ->
-            StoreSource;
-        Token ->
-            StoreSource#{token => Token}
-    end,
-    Resource = {bank_card, #{
-        bank_card => NewStoreResource,
-        auth_data => {session, #{
-            session_id => <<"ID">>
-        }}
-    }},
+    NewStoreResource =
+        case Token of
+            undefined ->
+                StoreSource;
+            Token ->
+                StoreSource#{token => Token}
+        end,
+    Resource =
+        {bank_card, #{
+            bank_card => NewStoreResource,
+            auth_data =>
+                {session, #{
+                    session_id => <<"ID">>
+                }}
+        }},
     p2p_participant:create(raw, Resource, #{}).
 
 create_person_identity(Party, C, ProviderID) ->

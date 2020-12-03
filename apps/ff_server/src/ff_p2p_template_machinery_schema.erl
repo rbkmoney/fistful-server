@@ -21,67 +21,62 @@
 -type value_type() :: machinery_mg_schema:vt().
 -type context() :: machinery_mg_schema:context().
 
--type event()   :: ff_machine:timestamped_event(p2p_template:event()).
+-type event() :: ff_machine:timestamped_event(p2p_template:event()).
 -type aux_state() :: ff_machine:auxst().
 -type call_args() :: term().
 -type call_response() :: term().
 
 -type data() ::
-    aux_state() |
-    event() |
-    call_args() |
-    call_response().
+    aux_state()
+    | event()
+    | call_args()
+    | call_response().
 
 %% machinery_mg_schema callbacks
 
--spec get_version(value_type()) ->
-    machinery_mg_schema:version().
+-spec get_version(value_type()) -> machinery_mg_schema:version().
 get_version(event) ->
     ?CURRENT_EVENT_FORMAT_VERSION;
 get_version(aux_state) ->
     undefined.
 
--spec marshal(type(), value(data()), context()) ->
-    {machinery_msgpack:t(), context()}.
+-spec marshal(type(), value(data()), context()) -> {machinery_msgpack:t(), context()}.
 marshal({event, Format}, TimestampedChange, Context) ->
     marshal_event(Format, TimestampedChange, Context);
 marshal(T, V, C) when
     T =:= {args, init} orelse
-    T =:= {args, call} orelse
-    T =:= {args, repair} orelse
-    T =:= {aux_state, undefined} orelse
-    T =:= {response, call} orelse
-    T =:= {response, {repair, success}} orelse
-    T =:= {response, {repair, failure}}
+        T =:= {args, call} orelse
+        T =:= {args, repair} orelse
+        T =:= {aux_state, undefined} orelse
+        T =:= {response, call} orelse
+        T =:= {response, {repair, success}} orelse
+        T =:= {response, {repair, failure}}
 ->
     machinery_mg_schema_generic:marshal(T, V, C).
 
--spec unmarshal(type(), machinery_msgpack:t(), context()) ->
-    {data(), context()}.
+-spec unmarshal(type(), machinery_msgpack:t(), context()) -> {data(), context()}.
 unmarshal({event, FormatVersion}, EncodedChange, Context) ->
     unmarshal_event(FormatVersion, EncodedChange, Context);
 unmarshal(T, V, C) when
     T =:= {args, init} orelse
-    T =:= {args, call} orelse
-    T =:= {args, repair} orelse
-    T =:= {aux_state, undefined} orelse
-    T =:= {response, call} orelse
-    T =:= {response, {repair, success}} orelse
-    T =:= {response, {repair, failure}}
+        T =:= {args, call} orelse
+        T =:= {args, repair} orelse
+        T =:= {aux_state, undefined} orelse
+        T =:= {response, call} orelse
+        T =:= {response, {repair, success}} orelse
+        T =:= {response, {repair, failure}}
 ->
     machinery_mg_schema_generic:unmarshal(T, V, C).
 
 %% Internals
 
--spec marshal_event(machinery_mg_schema:version(), event(), context()) ->
-    {machinery_msgpack:t(), context()}.
+-spec marshal_event(machinery_mg_schema:version(), event(), context()) -> {machinery_msgpack:t(), context()}.
 marshal_event(1, TimestampedChange, Context) ->
     ThriftChange = ff_p2p_template_codec:marshal(timestamped_change, TimestampedChange),
     Type = {struct, struct, {ff_proto_p2p_template_thrift, 'TimestampedChange'}},
     {{bin, ff_proto_utils:serialize(Type, ThriftChange)}, Context}.
 
--spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) ->
-    {event(), context()}.
+-spec unmarshal_event(machinery_mg_schema:version(), machinery_msgpack:t(), context()) -> {event(), context()}.
 unmarshal_event(1, EncodedChange, Context) ->
     {bin, EncodedThriftChange} = EncodedChange,
     Type = {struct, struct, {ff_proto_p2p_template_thrift, 'TimestampedChange'}},
@@ -92,18 +87,18 @@ unmarshal_event(1, EncodedChange, Context) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
 -spec test() -> _.
 
 % tests helpers
 
--spec marshal(type(), value(data())) ->
-    machinery_msgpack:t().
+-spec marshal(type(), value(data())) -> machinery_msgpack:t().
+
 marshal(Type, Value) ->
     {Result, _Context} = marshal(Type, Value, #{}),
     Result.
 
--spec unmarshal(type(), machinery_msgpack:t()) ->
-    data().
+-spec unmarshal(type(), machinery_msgpack:t()) -> data().
 unmarshal(Type, Value) ->
     {Result, _Context} = unmarshal(Type, Value, #{}),
     Result.
@@ -129,11 +124,13 @@ created_v1_decoding_test() ->
     },
     Change = {created, P2PTemplate},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
-    LegacyEvent = {bin, base64:decode(<<
-        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQwAAQsAAQAAAAh0cmFuc2Zlc"
-        "gsAAgAAAAtpZGVudGl0eV9pZAsAAwAAABgyMDIwLTA1LTI1VDE3OjEyOjU3Ljk4NVoKAAQAAAAAAA"
-        "AAewoABQAAAAAAAAFBDAAGDAABDAABCgABAAAAAAAAAHsMAAILAAEAAAADUlVCAAAAAAsABwAAAAtleHRlcm5hbF9pZAAAAAA="
-    >>)},
+    LegacyEvent =
+        {bin,
+            base64:decode(<<
+                "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAQwAAQsAAQAAAAh0cmFuc2Zlc"
+                "gsAAgAAAAtpZGVudGl0eV9pZAsAAwAAABgyMDIwLTA1LTI1VDE3OjEyOjU3Ljk4NVoKAAQAAAAAAA"
+                "AAewoABQAAAAAAAAFBDAAGDAABDAABCgABAAAAAAAAAHsMAAILAAEAAAADUlVCAAAAAAsABwAAAAtleHRlcm5hbF9pZAAAAAA="
+            >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),
@@ -143,9 +140,11 @@ created_v1_decoding_test() ->
 blocking_v1_decoding_test() ->
     Change = {blocking_changed, unblocked},
     Event = {ev, {{{2020, 5, 25}, {19, 19, 10}}, 293305}, Change},
-    LegacyEvent = {bin, base64:decode(<<
-        "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAggAAQAAAAAAAAA="
-    >>)},
+    LegacyEvent =
+        {bin,
+            base64:decode(<<
+                "CwABAAAAGzIwMjAtMDUtMjVUMTk6MTk6MTAuMjkzMzA1WgwAAgwAAggAAQAAAAAAAAA="
+            >>)},
     DecodedLegacy = unmarshal({event, 1}, LegacyEvent),
     ModernizedBinary = marshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, DecodedLegacy),
     Decoded = unmarshal({event, ?CURRENT_EVENT_FORMAT_VERSION}, ModernizedBinary),

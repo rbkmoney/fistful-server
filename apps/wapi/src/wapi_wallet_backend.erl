@@ -15,15 +15,13 @@
 
 %% Pipeline
 
--spec create(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, WalletError}
-    when WalletError ::
-        {identity, unauthorized} |
-        {identity, notfound} |
-        {currency, notfound} |
-        inaccessible |
-        {external_id_conflict, id()}.
-
+-spec create(req_data(), handler_context()) -> {ok, response_data()} | {error, WalletError} when
+    WalletError ::
+        {identity, unauthorized}
+        | {identity, notfound}
+        | {currency, notfound}
+        | inaccessible
+        | {external_id_conflict, id()}.
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
@@ -57,11 +55,10 @@ create(WalletID, Params, Context, HandlerContext) ->
     end.
 
 -spec get_by_external_id(external_id(), handler_context()) ->
-    {ok, response_data()} |
-    {error, {wallet, notfound}} |
-    {error, {wallet, unauthorized}} |
-    {error, {external_id, {unknown_external_id, external_id()}}}.
-
+    {ok, response_data()}
+    | {error, {wallet, notfound}}
+    | {error, {wallet, unauthorized}}
+    | {error, {external_id, {unknown_external_id, external_id()}}}.
 get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext) ->
     AuthContext = wapi_handler_utils:get_auth_context(HandlerContext),
     PartyID = uac_authorizer_jwt:get_subject_id(AuthContext),
@@ -74,10 +71,9 @@ get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext
     end.
 
 -spec get(id(), handler_context()) ->
-    {ok, response_data()} |
-    {error, {wallet, notfound}} |
-    {error, {wallet, unauthorized}}.
-
+    {ok, response_data()}
+    | {error, {wallet, notfound}}
+    | {error, {wallet, unauthorized}}.
 get(WalletID, HandlerContext) ->
     Request = {fistful_wallet, 'Get', [WalletID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
@@ -93,10 +89,9 @@ get(WalletID, HandlerContext) ->
     end.
 
 -spec get_account(id(), handler_context()) ->
-    {ok, response_data()} |
-    {error, {wallet, notfound}} |
-    {error, {wallet, unauthorized}}.
-
+    {ok, response_data()}
+    | {error, {wallet, notfound}}
+    | {error, {wallet, unauthorized}}.
 get_account(WalletID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext) of
         ok ->
@@ -122,12 +117,15 @@ service_call(Params, Ctx) ->
 
 %% Marshaling
 
-marshal(wallet_params, Params = #{
-    <<"id">> := ID,
-    <<"name">> := Name,
-    <<"identity">> := IdentityID,
-    <<"currency">> := CurrencyID
-}) ->
+marshal(
+    wallet_params,
+    Params = #{
+        <<"id">> := ID,
+        <<"name">> := Name,
+        <<"identity">> := IdentityID,
+        <<"currency">> := CurrencyID
+    }
+) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #wlt_WalletParams{
         id = marshal(id, ID),
@@ -135,16 +133,13 @@ marshal(wallet_params, Params = #{
         account_params = marshal(account_params, {IdentityID, CurrencyID}),
         external_id = marshal(id, ExternalID)
     };
-
 marshal(account_params, {IdentityID, CurrencyID}) ->
     #account_AccountParams{
         identity_id = marshal(id, IdentityID),
         symbolic_code = marshal(string, CurrencyID)
     };
-
 marshal(context, Ctx) ->
     ff_codec:marshal(context, Ctx);
-
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -174,13 +169,10 @@ unmarshal(wallet, #wlt_WalletState{
         <<"externalID">> => maybe_unmarshal(id, ExternalID),
         <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
     });
-
 unmarshal(blocking, unblocked) ->
     false;
 unmarshal(blocking, blocked) ->
     true;
-
-
 unmarshal(wallet_account_balance, #account_AccountBalance{
     current = OwnAmount,
     expected_min = AvailableAmount,
@@ -189,18 +181,16 @@ unmarshal(wallet_account_balance, #account_AccountBalance{
     EncodedCurrency = unmarshal(currency_ref, Currency),
     #{
         <<"own">> => #{
-            <<"amount">>   => OwnAmount,
+            <<"amount">> => OwnAmount,
             <<"currency">> => EncodedCurrency
         },
         <<"available">> => #{
-            <<"amount">>   => AvailableAmount,
+            <<"amount">> => AvailableAmount,
             <<"currency">> => EncodedCurrency
         }
     };
-
 unmarshal(context, Ctx) ->
     ff_codec:unmarshal(context, Ctx);
-
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 

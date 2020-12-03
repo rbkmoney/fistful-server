@@ -6,17 +6,17 @@
 
 -module(machinery_gensrv_backend).
 
--type namespace()       :: machinery:namespace().
--type id()              :: machinery:id().
--type range()           :: machinery:range().
--type machine(E, A)     :: machinery:machine(E, A).
--type args(T)           :: machinery:args(T).
--type response(T)       :: machinery:response(T).
--type logic_handler(T)  :: machinery:logic_handler(T).
--type timestamp()       :: machinery:timestamp().
+-type namespace() :: machinery:namespace().
+-type id() :: machinery:id().
+-type range() :: machinery:range().
+-type machine(E, A) :: machinery:machine(E, A).
+-type args(T) :: machinery:args(T).
+-type response(T) :: machinery:response(T).
+-type logic_handler(T) :: machinery:logic_handler(T).
+-type timestamp() :: machinery:timestamp().
 
--type backend_opts()    :: machinery:backend_opts(#{
-    name                := atom()
+-type backend_opts() :: machinery:backend_opts(#{
+    name := atom()
 }).
 
 -type backend() :: {?MODULE, backend_opts()}.
@@ -53,26 +53,23 @@
 
 %% API
 
--spec new(backend_opts()) ->
-    backend().
+-spec new(backend_opts()) -> backend().
 new(Opts = #{name := _}) ->
     {?MODULE, Opts}.
 
--spec child_spec(logic_handler(_), backend_opts()) ->
-    supervisor:child_spec().
+-spec child_spec(logic_handler(_), backend_opts()) -> supervisor:child_spec().
 child_spec(Handler0, Opts) ->
     Handler = machinery_utils:get_handler(Handler0),
     MFA = {?MODULE, start_machine_link, [Handler]},
     #{
-        id    => get_sup_name(Opts),
+        id => get_sup_name(Opts),
         start => {machinery_gensrv_backend_sup, start_link, [get_sup_ref(Opts), MFA]},
-        type  => supervisor
+        type => supervisor
     }.
 
 %% Machinery backend
 
--spec start(namespace(), id(), args(_), backend_opts()) ->
-    ok | {error, exists}.
+-spec start(namespace(), id(), args(_), backend_opts()) -> ok | {error, exists}.
 start(NS, ID, Args, Opts) ->
     _ = logger:debug("[machinery/gensrv][client][~s:~s] starting with args: ~p", [NS, ID, Args]),
     case supervisor:start_child(get_sup_ref(Opts), [NS, ID, Args]) of
@@ -85,8 +82,7 @@ start(NS, ID, Args, Opts) ->
             report_exists(NS, ID)
     end.
 
--spec call(namespace(), id(), range(), args(_), backend_opts()) ->
-    {ok, response(_)} | {error, notfound}.
+-spec call(namespace(), id(), range(), args(_), backend_opts()) -> {ok, response(_)} | {error, notfound}.
 call(NS, ID, Range, Args, _Opts) ->
     _ = logger:debug("[machinery/gensrv][client][~s:~s] calling with range ~p and args: ~p", [NS, ID, Range, Args]),
     try gen_server:call(get_machine_ref(NS, ID), {call, Range, Args}) of
@@ -100,14 +96,12 @@ call(NS, ID, Range, Args, _Opts) ->
             report_notfound(NS, ID)
     end.
 
--spec repair(namespace(), id(), range(), args(_), backend_opts()) ->
-    no_return().
+-spec repair(namespace(), id(), range(), args(_), backend_opts()) -> no_return().
 repair(_NS, _ID, _Range, _Args, _Opts) ->
     % Machine state has been removed after machine process failed. Nothing to repair.
     erlang:error({not_implemented, repair}).
 
--spec get(namespace(), id(), range(), backend_opts()) ->
-    {ok, machine(_, _)} | {error, notfound}.
+-spec get(namespace(), id(), range(), backend_opts()) -> {ok, machine(_, _)} | {error, notfound}.
 get(NS, ID, Range, _Opts) ->
     _ = logger:debug("[machinery/gensrv][client][~s:~s] getting with range: ~p", [NS, ID, Range]),
     try gen_server:call(get_machine_ref(NS, ID), {get, Range}) of
@@ -131,25 +125,23 @@ report_notfound(NS, ID) ->
 
 %% Gen Server + Supervisor
 
--spec start_machine_link(logic_handler(_), namespace(), id(), args(_)) ->
-    {ok, pid()}.
-
+-spec start_machine_link(logic_handler(_), namespace(), id(), args(_)) -> {ok, pid()}.
 start_machine_link(Handler, NS, ID, Args) ->
     gen_server:start_link(get_machine_ref(NS, ID), ?MODULE, {machine, Handler, NS, ID, Args}, []).
 
 %%
 
 -type st(E, Aux, Args) :: #{
-    machine  := machine(E, Aux),
-    handler  := logic_handler(Args),
+    machine := machine(E, Aux),
+    handler := logic_handler(Args),
     deadline => timestamp()
 }.
 
 -spec init({machine, logic_handler(Args), namespace(), id(), args(_)}) ->
-    ignore |
-    {ok, st(_, _, Args), timeout()}.
-
-init({machine, Handler, NS, ID, Args}) -> % Gen Server
+    ignore
+    | {ok, st(_, _, Args), timeout()}.
+% Gen Server
+init({machine, Handler, NS, ID, Args}) ->
     St0 = #{machine => construct_machine(NS, ID), handler => Handler},
     _ = logger:debug("[machinery/gensrv][server][~s:~s] dispatching init: ~p with state: ~p", [NS, ID, Args, St0]),
     Result = dispatch_signal({init, Args}, St0),
@@ -165,15 +157,14 @@ init({machine, Handler, NS, ID, Args}) -> % Gen Server
 construct_machine(NS, ID) ->
     #{
         namespace => NS,
-        id        => ID,
-        history   => [],
+        id => ID,
+        history => [],
         aux_state => undefined
     }.
 
 -spec handle_call({call, range(), args(_)}, {pid(), reference()}, st(E, Aux, Args)) ->
-    {reply, response(_), st(E, Aux, Args), timeout()} |
-    {stop, normal, st(E, Aux, Args)}.
-
+    {reply, response(_), st(E, Aux, Args), timeout()}
+    | {stop, normal, st(E, Aux, Args)}.
 handle_call({call, Range, Args}, _From, St0 = #{machine := #{namespace := NS, id := ID}}) ->
     St1 = apply_range(Range, St0),
     _ = logger:debug("[machinery/gensrv][server][~s:~s] dispatching call: ~p with state: ~p", [NS, ID, Args, St1]),
@@ -191,16 +182,13 @@ handle_call({get, Range}, _From, St = #{machine := M}) ->
 handle_call(Call, _From, _St) ->
     error({badcall, Call}).
 
--spec handle_cast(_Cast, st(_, _, _)) ->
-    no_return().
-
+-spec handle_cast(_Cast, st(_, _, _)) -> no_return().
 handle_cast(Cast, _St) ->
     error({badcast, Cast}).
 
 -spec handle_info(timeout, st(E, Aux, Args)) ->
-    {noreply, st(E, Aux, Args), timeout()} |
-    {stop, normal, st(E, Aux, Args)}.
-
+    {noreply, st(E, Aux, Args), timeout()}
+    | {stop, normal, st(E, Aux, Args)}.
 handle_info(timeout, St0 = #{machine := #{namespace := NS, id := ID}}) ->
     _ = logger:debug("[machinery/gensrv][server][~s:~s] dispatching timeout with state: ~p", [NS, ID, St0]),
     Result = dispatch_signal(timeout, St0),
@@ -215,15 +203,11 @@ handle_info(timeout, St0 = #{machine := #{namespace := NS, id := ID}}) ->
 handle_info(Info, _St) ->
     error({badinfo, Info}).
 
--spec terminate(_Reason, st(_, _, _)) ->
-    ok.
-
+-spec terminate(_Reason, st(_, _, _)) -> ok.
 terminate(_Reason, _St) ->
     ok.
 
--spec code_change(_OldVsn, st(E, Aux, Args), _Extra) ->
-    {ok, st(E, Aux, Args)}.
-
+-spec code_change(_OldVsn, st(E, Aux, Args), _Extra) -> {ok, st(E, Aux, Args)}.
 code_change(_OldVsn, St, _Extra) ->
     {ok, St}.
 
@@ -269,10 +253,13 @@ apply_action(remove, _St) ->
 apply_events(Es, M = #{history := Hs}) ->
     Ts = machinery_time:now(),
     Hl = length(Hs),
-    M#{history := Hs ++ [
-        {ID, Ts, Eb} ||
-            {ID, Eb} <- lists:zip(lists:seq(Hl + 1, Hl + length(Es)), Es)
-    ]}.
+    M#{
+        history := Hs ++
+            [
+                {ID, Ts, Eb}
+                || {ID, Eb} <- lists:zip(lists:seq(Hl + 1, Hl + length(Es)), Es)
+            ]
+    }.
 
 apply_auxst(Aux, M = #{}) ->
     M#{aux_state := Aux}.

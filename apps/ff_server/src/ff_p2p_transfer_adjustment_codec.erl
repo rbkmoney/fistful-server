@@ -9,16 +9,13 @@
 
 %% API
 
--spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
-    ff_codec:encoded_value().
-
+-spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
 marshal(change, {created, Adjustment}) ->
     {created, #p2p_adj_CreatedChange{adjustment = marshal(adjustment, Adjustment)}};
 marshal(change, {status_changed, Status}) ->
     {status_changed, #p2p_adj_StatusChange{status = marshal(status, Status)}};
 marshal(change, {p_transfer, TransferChange}) ->
     {transfer, #p2p_adj_TransferChange{payload = ff_p_transfer_codec:marshal(change, TransferChange)}};
-
 marshal(adjustment, Adjustment) ->
     #p2p_adj_Adjustment{
         id = marshal(id, ff_adjustment:id(Adjustment)),
@@ -47,12 +44,10 @@ marshal(adjustment_state, Adjustment) ->
         operation_timestamp = marshal(timestamp_ms, ff_adjustment:operation_timestamp(Adjustment)),
         external_id = maybe_marshal(id, ff_adjustment:external_id(Adjustment))
     };
-
 marshal(status, pending) ->
     {pending, #p2p_adj_Pending{}};
 marshal(status, succeeded) ->
     {succeeded, #p2p_adj_Succeeded{}};
-
 marshal(changes_plan, Plan) ->
     #p2p_adj_ChangesPlan{
         new_cash_flow = maybe_marshal(cash_flow_change_plan, maps:get(new_cash_flow, Plan, undefined)),
@@ -69,26 +64,20 @@ marshal(status_change_plan, Plan) ->
     #p2p_adj_StatusChangePlan{
         new_status = ff_p2p_transfer_status_codec:marshal(status, maps:get(new_status, Plan))
     };
-
 marshal(change_request, {change_status, Status}) ->
     {change_status, #p2p_adj_ChangeStatusRequest{
         new_status = ff_p2p_transfer_status_codec:marshal(status, Status)
     }};
-
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-
--spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
-    ff_codec:decoded_value().
-
+-spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) -> ff_codec:decoded_value().
 unmarshal(change, {created, #p2p_adj_CreatedChange{adjustment = Adjustment}}) ->
     {created, unmarshal(adjustment, Adjustment)};
 unmarshal(change, {status_changed, #p2p_adj_StatusChange{status = Status}}) ->
     {status_changed, unmarshal(status, Status)};
 unmarshal(change, {transfer, #p2p_adj_TransferChange{payload = TransferChange}}) ->
     {p_transfer, ff_p_transfer_codec:unmarshal(change, TransferChange)};
-
 unmarshal(adjustment, Adjustment) ->
     #{
         id => unmarshal(id, Adjustment#p2p_adj_Adjustment.id),
@@ -100,19 +89,16 @@ unmarshal(adjustment, Adjustment) ->
         operation_timestamp => unmarshal(timestamp_ms, Adjustment#p2p_adj_Adjustment.operation_timestamp),
         external_id => maybe_unmarshal(id, Adjustment#p2p_adj_Adjustment.external_id)
     };
-
 unmarshal(adjustment_params, Params) ->
     genlib_map:compact(#{
         id => unmarshal(id, Params#p2p_adj_AdjustmentParams.id),
         change => unmarshal(change_request, Params#p2p_adj_AdjustmentParams.change),
         external_id => maybe_unmarshal(id, Params#p2p_adj_AdjustmentParams.external_id)
     });
-
 unmarshal(status, {pending, #p2p_adj_Pending{}}) ->
     pending;
 unmarshal(status, {succeeded, #p2p_adj_Succeeded{}}) ->
     succeeded;
-
 unmarshal(changes_plan, Plan) ->
     genlib_map:compact(#{
         new_cash_flow => maybe_unmarshal(cash_flow_change_plan, Plan#p2p_adj_ChangesPlan.new_cash_flow),
@@ -130,11 +116,9 @@ unmarshal(status_change_plan, Plan) ->
     #{
         new_status => ff_p2p_transfer_status_codec:unmarshal(status, Status)
     };
-
 unmarshal(change_request, {change_status, Request}) ->
     Status = Request#p2p_adj_ChangeStatusRequest.new_status,
     {change_status, ff_p2p_transfer_status_codec:unmarshal(status, Status)};
-
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
@@ -154,9 +138,11 @@ maybe_marshal(Type, Value) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
 -spec test() -> _.
 
 -spec adjustment_codec_test() -> _.
+
 adjustment_codec_test() ->
     FinalCashFlow = #{
         postings => [

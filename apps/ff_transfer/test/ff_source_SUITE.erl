@@ -22,10 +22,10 @@
 -export([get_source_ok_test/1]).
 -export([get_source_notfound_fail_test/1]).
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 -spec all() -> [test_case_name() | {group, group_name()}].
 all() ->
@@ -47,10 +47,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -65,6 +68,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -164,16 +168,17 @@ create_source(IID, _C) ->
     SrcID = create_source(IID, <<"XSource">>, <<"RUB">>, SrcResource),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, SrcM} = ff_source_machine:get(SrcID),
             Source = ff_source_machine:source(SrcM),
             ff_source:status(Source)
         end
     ),
     SrcID.
+
 create_source(IdentityID, Name, Currency, Resource) ->
     ID = genlib:unique(),
-    ok =  ff_source_machine:create(
+    ok = ff_source_machine:create(
         #{id => ID, identity => IdentityID, name => Name, currency => Currency, resource => Resource},
         ff_entity_context:new()
     ),

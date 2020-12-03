@@ -9,6 +9,7 @@
 %%%
 
 -module(ff_withdrawal_session_machine).
+
 -behaviour(machinery).
 
 -define(NS, 'ff/withdrawal/session_v2').
@@ -50,12 +51,12 @@
 -type data() :: ff_withdrawal_session:data().
 -type params() :: ff_withdrawal_session:params().
 
--type machine()      :: ff_machine:machine(event()).
--type result()       :: ff_machine:result(event()).
+-type machine() :: ff_machine:machine(event()).
+-type result() :: ff_machine:result(event()).
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
--type st()        :: ff_machine:st(session()).
+-type st() :: ff_machine:st(session()).
 -type session() :: ff_withdrawal_session:session_state().
 -type event() :: ff_withdrawal_session:event().
 -type action() :: ff_withdrawal_session:action().
@@ -64,8 +65,8 @@
 -type callback_params() :: ff_withdrawal_session:callback_params().
 -type process_callback_response() :: ff_withdrawal_session:process_callback_response().
 -type process_callback_error() ::
-    {unknown_session, {tag, id()}} |
-    ff_withdrawal_session:process_callback_error().
+    {unknown_session, {tag, id()}}
+    | ff_withdrawal_session:process_callback_error().
 
 -type process_result() :: ff_withdrawal_session:process_result().
 
@@ -83,45 +84,39 @@
 -define(MAX_SESSION_RETRY_TIMEOUT, 4 * 60 * 60).
 
 -spec session(st()) -> session().
-
 session(St) ->
     ff_machine:model(St).
 
--spec ctx(st()) ->
-    ctx().
-
+-spec ctx(st()) -> ctx().
 ctx(St) ->
     ff_machine:ctx(St).
 
 %%
 
--spec create(id(), data(), params()) ->
-    ok | {error, exists}.
+-spec create(id(), data(), params()) -> ok | {error, exists}.
 create(ID, Data, Params) ->
-    do(fun () ->
+    do(fun() ->
         Events = unwrap(ff_withdrawal_session:create(ID, Data, Params)),
         unwrap(machinery:start(?NS, ID, Events, backend()))
     end).
 
 -spec get(id()) ->
-    {ok, st()}        |
-    {error, notfound} .
+    {ok, st()}
+    | {error, notfound}.
 get(ID) ->
     ff_machine:get(ff_withdrawal_session, ?NS, ID).
 
 -spec get(id(), event_range()) ->
-    {ok, st()} |
-    {error, notfound}.
-
+    {ok, st()}
+    | {error, notfound}.
 get(ID, {After, Limit}) ->
     ff_machine:get(ff_withdrawal_session, ?NS, ID, {After, Limit, forward}).
 
 -spec events(id(), event_range()) ->
-    {ok, [{integer(), ff_machine:timestamped_event(event())}]} |
-    {error, notfound}.
-
+    {ok, [{integer(), ff_machine:timestamped_event(event())}]}
+    | {error, notfound}.
 events(ID, {After, Limit}) ->
-    do(fun () ->
+    do(fun() ->
         History = unwrap(ff_machine:history(ff_withdrawal_session, ?NS, ID, {After, Limit, forward})),
         [{EventID, TsEv} || {EventID, _, TsEv} <- History]
     end).
@@ -132,16 +127,14 @@ repair(ID, Scenario) ->
     machinery:repair(?NS, ID, Scenario, backend()).
 
 -spec process_callback(callback_params()) ->
-    {ok, process_callback_response()} |
-    {error, process_callback_error()}.
-
+    {ok, process_callback_response()}
+    | {error, process_callback_error()}.
 process_callback(#{tag := Tag} = Params) ->
     call({tag, Tag}, {process_callback, Params}).
 
 %% machinery callbacks
 
--spec init([event()], machine(), handler_args(), handler_opts()) ->
-    result().
+-spec init([event()], machine(), handler_args(), handler_opts()) -> result().
 init(Events, #{}, _, _Opts) ->
     #{
         events => ff_machine:emit_events(Events),
@@ -149,15 +142,13 @@ init(Events, #{}, _, _Opts) ->
         aux_state => #{ctx => ff_entity_context:new()}
     }.
 
--spec process_timeout(machine(), handler_args(), handler_opts()) ->
-    result().
+-spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
     State = ff_machine:collapse(ff_withdrawal_session, Machine),
     Session = session(State),
     process_result(ff_withdrawal_session:process_session(Session), State).
 
--spec process_call(any(), machine(), handler_args(), handler_opts()) ->
-    {ok, result()}.
+-spec process_call(any(), machine(), handler_args(), handler_opts()) -> {ok, result()}.
 process_call({process_callback, Params}, Machine, _, _Opts) ->
     do_process_callback(Params, Machine);
 process_call(_CallArgs, #{}, _, _Opts) ->
@@ -179,23 +170,20 @@ process_repair(Scenario, Machine, _Args, _Opts) ->
 %% Internals
 %%
 
--spec process_result(process_result(), st()) ->
-    result().
+-spec process_result(process_result(), st()) -> result().
 process_result({Action, Events}, St) ->
     genlib_map:compact(#{
         events => set_events(Events),
         action => set_action(Action, St)
     }).
 
--spec set_events([event()]) ->
-    undefined | ff_machine:timestamped_event(event()).
+-spec set_events([event()]) -> undefined | ff_machine:timestamped_event(event()).
 set_events([]) ->
     undefined;
 set_events(Events) ->
     ff_machine:emit_events(Events).
 
--spec set_action(action(), st()) ->
-    undefined | machinery:action() | [machinery:action()].
+-spec set_action(action(), st()) -> undefined | machinery:action() | [machinery:action()].
 set_action(continue, _St) ->
     continue;
 set_action(undefined, _St) ->
@@ -216,8 +204,7 @@ set_action(finish, _St) ->
 
 %%
 
--spec compute_retry_timer(st()) ->
-    {ok, machinery:timer()} | {error, deadline_reached}.
+-spec compute_retry_timer(st()) -> {ok, machinery:timer()} | {error, deadline_reached}.
 compute_retry_timer(St) ->
     Now = machinery_time:now(),
     Updated = ff_machine:updated(St),
@@ -225,14 +212,12 @@ compute_retry_timer(St) ->
     Timeout = compute_next_timeout(Now, Updated),
     check_next_timeout(Timeout, Now, Deadline).
 
--spec compute_retry_deadline(machinery:timestamp()) ->
-    machinery:timestamp().
+-spec compute_retry_deadline(machinery:timestamp()) -> machinery:timestamp().
 compute_retry_deadline(Updated) ->
     RetryTimeLimit = genlib_app:env(ff_transfer, session_retry_time_limit, ?SESSION_RETRY_TIME_LIMIT),
     machinery_time:add_seconds(RetryTimeLimit, Updated).
 
--spec compute_next_timeout(machinery:timestamp(), machinery:timestamp()) ->
-    timeout().
+-spec compute_next_timeout(machinery:timestamp(), machinery:timestamp()) -> timeout().
 compute_next_timeout(Now, Updated) ->
     MaxTimeout = genlib_app:env(ff_transfer, max_session_retry_timeout, ?MAX_SESSION_RETRY_TIMEOUT),
     Timeout0 = machinery_time:interval(Now, Updated) div 1000,
@@ -248,16 +233,14 @@ check_next_timeout(Timeout, Now, Deadline) ->
             Error
     end.
 
--spec check_deadline(machinery:timestamp(), machinery:timestamp()) ->
-    ok | {error, deadline_reached}.
+-spec check_deadline(machinery:timestamp(), machinery:timestamp()) -> ok | {error, deadline_reached}.
 check_deadline({Now, _}, {Deadline, _}) ->
     check_deadline_(
         calendar:datetime_to_gregorian_seconds(Now),
         calendar:datetime_to_gregorian_seconds(Deadline)
     ).
 
--spec check_deadline_(integer(), integer()) ->
-    ok | {error, deadline_reached}.
+-spec check_deadline_(integer(), integer()) -> ok | {error, deadline_reached}.
 check_deadline_(Now, Deadline) when Now < Deadline ->
     ok;
 check_deadline_(Now, Deadline) when Now >= Deadline ->
@@ -265,13 +248,11 @@ check_deadline_(Now, Deadline) when Now >= Deadline ->
 
 %%
 
--spec timer_action(machinery:timer()) ->
-    machinery:action().
+-spec timer_action(machinery:timer()) -> machinery:action().
 timer_action(Timer) ->
     {set_timer, Timer}.
 
--spec tag_action(machinery:tag()) ->
-    machinery:action().
+-spec tag_action(machinery:tag()) -> machinery:action().
 tag_action(Tag) ->
     {tag, Tag}.
 
@@ -288,11 +269,10 @@ call(Ref, Call) ->
 
 -spec do_process_callback(callback_params(), machine()) -> {Response, result()} when
     Response ::
-        {ok, process_callback_response()} |
-        {error, ff_withdrawal_session:process_callback_error()}.
-
+        {ok, process_callback_response()}
+        | {error, ff_withdrawal_session:process_callback_error()}.
 do_process_callback(Params, Machine) ->
-    St= ff_machine:collapse(ff_withdrawal_session, Machine),
+    St = ff_machine:collapse(ff_withdrawal_session, Machine),
     case ff_withdrawal_session:process_callback(Params, session(St)) of
         {ok, {Response, Result}} ->
             {{ok, Response}, process_result(Result, St)};

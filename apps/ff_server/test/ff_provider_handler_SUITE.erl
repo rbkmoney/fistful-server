@@ -16,18 +16,16 @@
 -export([get_provider_fail_notfound/1]).
 -export([list_providers_ok/1]).
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 -spec all() -> [test_case_name() | {group, group_name()}].
-
 all() ->
     [{group, default}].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
-
 groups() ->
     [
         {default, [parallel], [
@@ -38,45 +36,42 @@ groups() ->
     ].
 
 -spec init_per_suite(config()) -> config().
-
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
-
 end_per_suite(C) ->
     ok = ct_payment_system:shutdown(C).
 
 %%
 
 -spec init_per_group(group_name(), config()) -> config().
-
 init_per_group(_, C) ->
     C.
 
 -spec end_per_group(group_name(), config()) -> _.
-
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
-
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
-
 end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
 -spec get_provider_ok(config()) -> test_return().
-
 get_provider_ok(_C) ->
     {ok, Provider} = call_service('GetProvider', [<<"good-one">>]),
     ?assertEqual(<<"good-one">>, Provider#provider_Provider.id),
@@ -84,12 +79,10 @@ get_provider_ok(_C) ->
     ?assertEqual([<<"RUS">>], Provider#provider_Provider.residences).
 
 -spec get_provider_fail_notfound(config()) -> test_return().
-
 get_provider_fail_notfound(_C) ->
     {exception, #fistful_ProviderNotFound{}} = call_service('GetProvider', [<<"unknown-provider">>]).
 
 -spec list_providers_ok(config()) -> test_return().
-
 list_providers_ok(_C) ->
     {ok, [_Provider | _Rest]} = call_service('ListProviders', []).
 
@@ -99,8 +92,8 @@ call_service(Fun, Args) ->
     Service = ff_services:get_service(fistful_provider),
     Path = erlang:list_to_binary(ff_services:get_service_path(fistful_provider)),
     Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
-        url           => <<"http://localhost:8022", Path/binary>>,
+    Client = ff_woody_client:new(#{
+        url => <<"http://localhost:8022", Path/binary>>,
         event_handler => scoper_woody_event_handler
     }),
     ff_woody_client:call(Client, Request).

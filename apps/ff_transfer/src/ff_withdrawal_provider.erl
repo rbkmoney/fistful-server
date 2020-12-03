@@ -20,13 +20,15 @@
 %% Types
 
 -type id() :: binary().
+
 -opaque provider() :: #{
-    id           := id(),
-    adapter      := adapter(),
-    accounts     := accounts(),
-    fee          := provider_fees(),
+    id := id(),
+    adapter := adapter(),
+    accounts := accounts(),
+    fee := provider_fees(),
     adapter_opts => adapter_opts()
 }.
+
 -type adapter() :: ff_adapter:adapter().
 -type accounts() :: #{currency_id() => account()}.
 -type adapter_opts() :: map().
@@ -46,36 +48,29 @@
 
 %% Accessors
 
--spec id(provider()) ->
-    id().
+-spec id(provider()) -> id().
 id(#{id := V}) ->
     V.
 
--spec adapter(provider()) ->
-    adapter().
+-spec adapter(provider()) -> adapter().
 adapter(#{adapter := V}) ->
     V.
 
--spec accounts(provider()) ->
-    accounts().
+-spec accounts(provider()) -> accounts().
 accounts(#{accounts := V}) ->
     V.
 
--spec adapter_opts(provider()) ->
-    adapter_opts().
+-spec adapter_opts(provider()) -> adapter_opts().
 adapter_opts(P) ->
     maps:get(adapter_opts, P, #{}).
 
--spec fee(provider(), currency_id()) ->
-    provider_fee().
+-spec fee(provider(), currency_id()) -> provider_fee().
 fee(#{fee := V}, CurrencyID) ->
     maps:get(CurrencyID, V).
 
 %% API
 
--spec get(id()) ->
-    ff_map:result(provider()).
-
+-spec get(id()) -> ff_map:result(provider()).
 get(ID) ->
     case genlib_map:get(ID, genlib_map:get(provider, genlib_app:env(ff_transfer, withdrawal, #{}))) of
         V when V /= undefined ->
@@ -85,13 +80,12 @@ get(ID) ->
     end.
 
 -spec choose(ff_destination:destination_state(), ff_transaction:body()) ->
-    {ok, id()} |
-    {error, notfound}.
-
+    {ok, id()}
+    | {error, notfound}.
 choose(Destination, Body) ->
     ID = route(Destination, Body),
     case ?MODULE:get(ID) of
-        {ok, _}        -> {ok, ID};
+        {ok, _} -> {ok, ID};
         E = {error, _} -> E
     end.
 

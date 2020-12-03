@@ -12,36 +12,32 @@
 -export([check_resource_by_id/3]).
 
 -type id() :: binary().
--type resource_type() :: identity
-                       | wallet
-                       | destination
-                       | withdrawal
-                       | w2w_transfer
-                       | p2p_transfer
-                       | p2p_template
-                       .
+-type resource_type() ::
+    identity
+    | wallet
+    | destination
+    | withdrawal
+    | w2w_transfer
+    | p2p_transfer
+    | p2p_template.
 
 -type handler_context() :: wapi_handler:context().
 -type data() ::
-    ff_proto_identity_thrift:'IdentityState'() |
-    ff_proto_wallet_thrift:'WalletState'() |
-    ff_proto_p2p_transfer_thrift:'P2PTransferState'() |
-    ff_proto_p2p_template_thrift:'P2PTemplateState'().
+    ff_proto_identity_thrift:'IdentityState'()
+    | ff_proto_wallet_thrift:'WalletState'()
+    | ff_proto_p2p_transfer_thrift:'P2PTransferState'()
+    | ff_proto_p2p_template_thrift:'P2PTemplateState'().
 
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 
 %% Pipeline
 
--spec check_resource(resource_type(), data(), handler_context()) ->
-    ok | {error, unauthorized}.
-
+-spec check_resource(resource_type(), data(), handler_context()) -> ok | {error, unauthorized}.
 check_resource(Resource, Data, HandlerContext) ->
     Owner = get_owner(get_context_from_state(Resource, Data)),
     check_resource_access(is_resource_owner(Owner, HandlerContext)).
 
--spec check_resource_by_id(resource_type(), id(), handler_context()) ->
-    ok | {error, notfound | unauthorized}.
-
+-spec check_resource_by_id(resource_type(), id(), handler_context()) -> ok | {error, notfound | unauthorized}.
 check_resource_by_id(Resource, ID, HandlerContext) ->
     case get_context_by_id(Resource, ID, HandlerContext) of
         {error, notfound} = Error ->
@@ -112,7 +108,7 @@ get_context_by_id(withdrawal, WithdrawalID, WoodyCtx) ->
             {error, notfound}
     end.
 
-get_context_from_state(identity, #idnt_IdentityState{context = Context} ) ->
+get_context_from_state(identity, #idnt_IdentityState{context = Context}) ->
     Context;
 get_context_from_state(wallet, #wlt_WalletState{context = Context}) ->
     Context;
@@ -134,5 +130,5 @@ get_owner(ContextThrift) ->
 is_resource_owner(Owner, HandlerCtx) ->
     Owner =:= wapi_handler_utils:get_owner(HandlerCtx).
 
-check_resource_access(true)  -> ok;
+check_resource_access(true) -> ok;
 check_resource_access(false) -> {error, unauthorized}.

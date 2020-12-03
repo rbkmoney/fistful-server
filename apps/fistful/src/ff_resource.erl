@@ -50,10 +50,13 @@
 }.
 
 -type resource_descriptor() :: {bank_card, bin_data_id()}.
--type resource_params() :: {bank_card,  resource_bank_card_params()} |
-                           {crypto_wallet, resource_crypto_wallet_params()}.
--type resource() :: {bank_card, resource_bank_card()} |
-                    {crypto_wallet, resource_crypto_wallet()}.
+-type resource_params() ::
+    {bank_card, resource_bank_card_params()}
+    | {crypto_wallet, resource_crypto_wallet_params()}.
+
+-type resource() ::
+    {bank_card, resource_bank_card()}
+    | {crypto_wallet, resource_crypto_wallet()}.
 
 -type resource_bank_card() :: #{
     bank_card := bank_card(),
@@ -65,19 +68,18 @@
 }.
 
 -type crypto_wallet() :: #{
-    id       := binary(),
+    id := binary(),
     currency := crypto_currency()
 }.
 
--type crypto_currency()
-    :: {bitcoin,      #{}}
-     | {bitcoin_cash, #{}}
-     | {litecoin,     #{}}
-     | {ethereum,     #{}}
-     | {zcash,        #{}}
-     | {usdt,         #{}}
-     | {ripple,       #{tag => binary()}}
-     .
+-type crypto_currency() ::
+    {bitcoin, #{}}
+    | {bitcoin_cash, #{}}
+    | {litecoin, #{}}
+    | {ethereum, #{}}
+    | {zcash, #{}}
+    | {usdt, #{}}
+    | {ripple, #{tag => binary()}}.
 
 -type token() :: binary().
 -type bin() :: binary().
@@ -120,88 +122,82 @@
 
 -import(ff_pipeline, [do/1, unwrap/2]).
 
--spec token(bank_card()) ->
-    token().
+-spec token(bank_card()) -> token().
 token(#{token := Token}) ->
     Token.
 
--spec bin(bank_card()) ->
-    bin().
+-spec bin(bank_card()) -> bin().
 bin(BankCard) ->
     maps:get(bin, BankCard, undefined).
 
--spec bin_data_id(bank_card()) ->
-    bin_data_id().
+-spec bin_data_id(bank_card()) -> bin_data_id().
 bin_data_id(#{bin_data_id := BinDataID}) ->
     BinDataID.
 
-
--spec masked_pan(bank_card()) ->
-    masked_pan().
+-spec masked_pan(bank_card()) -> masked_pan().
 masked_pan(BankCard) ->
     maps:get(masked_pan, BankCard, undefined).
 
--spec payment_system(bank_card()) ->
-    payment_system().
+-spec payment_system(bank_card()) -> payment_system().
 payment_system(#{payment_system := PaymentSystem}) ->
     PaymentSystem.
 
--spec country_code(bank_card()) ->
-    iso_country_code().
+-spec country_code(bank_card()) -> iso_country_code().
 country_code(BankCard) ->
     maps:get(iso_country_code, BankCard, undefined).
 
--spec category(bank_card()) ->
-    category().
+-spec category(bank_card()) -> category().
 category(BankCard) ->
     maps:get(category, BankCard, undefined).
 
--spec bank_name(bank_card()) ->
-    bank_name().
+-spec bank_name(bank_card()) -> bank_name().
 bank_name(BankCard) ->
     maps:get(bank_name, BankCard, undefined).
 
--spec exp_date(bank_card()) ->
-    exp_date().
+-spec exp_date(bank_card()) -> exp_date().
 exp_date(BankCard) ->
     maps:get(exp_date, BankCard, undefined).
 
--spec cardholder_name(bank_card()) ->
-    cardholder_name().
+-spec cardholder_name(bank_card()) -> cardholder_name().
 cardholder_name(BankCard) ->
     maps:get(cardholder_name, BankCard, undefined).
 
 -spec create_resource(resource_params()) ->
-    {ok, resource()} |
-    {error, {bin_data, ff_bin_data:bin_data_error()}}.
-
+    {ok, resource()}
+    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
 create_resource(Resource) ->
     create_resource(Resource, undefined).
 
 -spec create_resource(resource_params(), resource_descriptor() | undefined) ->
-    {ok, resource()} |
-    {error, {bin_data, ff_bin_data:bin_data_error()}}.
-
+    {ok, resource()}
+    | {error, {bin_data, ff_bin_data:bin_data_error()}}.
 create_resource({bank_card, #{bank_card := #{token := Token} = BankCardParams} = Params}, ResourceID) ->
     do(fun() ->
         BinData = unwrap(bin_data, get_bin_data(Token, ResourceID)),
         KeyList = [payment_system, bank_name, iso_country_code, card_type, category],
         ExtendData = maps:with(KeyList, BinData),
-        {bank_card, genlib_map:compact(#{
-            bank_card => maps:merge(BankCardParams, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),
-            auth_data => maps:get(auth_data, Params, undefined)
-        })}
+        {bank_card,
+            genlib_map:compact(#{
+                bank_card => maps:merge(BankCardParams, ExtendData#{bin_data_id => ff_bin_data:id(BinData)}),
+                auth_data => maps:get(auth_data, Params, undefined)
+            })}
     end);
-create_resource({crypto_wallet, #{crypto_wallet := #{
-    id := ID,
-    currency := Currency
-}}}, _ResourceID) ->
-    {ok, {crypto_wallet, #{
-        crypto_wallet => #{
-            id => ID,
-            currency => Currency
+create_resource(
+    {crypto_wallet, #{
+        crypto_wallet := #{
+            id := ID,
+            currency := Currency
         }
-    }}}.
+    }},
+    _ResourceID
+) ->
+    {ok,
+        {crypto_wallet, #{
+            crypto_wallet => #{
+                id => ID,
+                currency => Currency
+            }
+        }}}.
 
 get_bin_data(Token, undefined) ->
     ff_bin_data:get(Token, undefined);

@@ -7,15 +7,18 @@
 -type context() :: #{namespace() => md()}.
 
 -type namespace() :: binary().
--type md()        :: %% as stolen from `machinery_msgpack`
-    nil                |
-    boolean()          |
-    integer()          |
-    float()            |
-    binary()           | %% string
-    {binary, binary()} | %% binary
-    [md()]             |
-    #{md() => md()}    .
+%% as stolen from `machinery_msgpack`
+-type md() ::
+    nil
+    | boolean()
+    | integer()
+    | float()
+    %% string
+    | binary()
+    %% binary
+    | {binary, binary()}
+    | [md()]
+    | #{md() => md()}.
 
 -export_type([context/0]).
 -export_type([md/0]).
@@ -26,19 +29,17 @@
 
 %%
 
--spec new() ->
-    context().
+-spec new() -> context().
 new() ->
     #{}.
 
 -spec get(namespace(), context()) ->
-    {ok, md()}       |
-    {error, notfound}.
+    {ok, md()}
+    | {error, notfound}.
 get(Ns, Ctx) ->
     ff_map:find(Ns, Ctx).
 
--spec try_get_legacy_metadata(context() | undefined) ->
-    md() | undefined.
+-spec try_get_legacy_metadata(context() | undefined) -> md() | undefined.
 try_get_legacy_metadata(#{<<"com.rbkmoney.wapi">> := #{<<"metadata">> := Metadata}}) ->
     Metadata;
 try_get_legacy_metadata(_) ->

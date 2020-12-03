@@ -2,6 +2,7 @@
 %% @end
 
 -module(wapi).
+
 -behaviour(application).
 
 %% Application callbacks
@@ -11,11 +12,9 @@
 %%
 
 -spec start(normal, any()) -> {ok, pid()} | {error, any()}.
-
 start(_StartType, _StartArgs) ->
     wapi_sup:start_link().
 
 -spec stop(any()) -> ok.
-
 stop(_State) ->
     ok.

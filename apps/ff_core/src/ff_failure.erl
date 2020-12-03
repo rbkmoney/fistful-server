@@ -7,14 +7,14 @@
 -type reason() :: binary().
 
 -type failure() :: #{
-    code   := code(),
+    code := code(),
     reason => reason(),
-    sub    => sub_failure()
+    sub => sub_failure()
 }.
 
 -type sub_failure() :: #{
     code := code(),
-    sub  => sub_failure()
+    sub => sub_failure()
 }.
 
 -export_type([code/0]).

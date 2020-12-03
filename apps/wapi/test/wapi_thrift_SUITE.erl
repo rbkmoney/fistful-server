@@ -33,14 +33,12 @@
 -type test_return() :: _ | no_return().
 
 -spec all() -> [test_case_name() | {group, group_name()}].
-
 all() ->
     [
         {group, default}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
-
 groups() ->
     [
         {default, [sequence], [
@@ -56,33 +54,35 @@ groups() ->
     ].
 
 -spec init_per_suite(config()) -> config().
-
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup(#{
-            optional_apps => [
-                bender_client,
-                wapi_woody_client,
-                wapi
-            ]
-        })
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup(#{
+                optional_apps => [
+                    bender_client,
+                    wapi_woody_client,
+                    wapi
+                ]
+            })
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
-
 end_per_suite(C) ->
     ok = ct_payment_system:shutdown(C).
 
 %%
 
 -spec init_per_group(group_name(), config()) -> config().
-
 init_per_group(G, C) ->
-    ok = ff_context:save(ff_context:create(#{
-        party_client => party_client:create_client(),
-        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
-    })),
+    ok = ff_context:save(
+        ff_context:create(#{
+            party_client => party_client:create_client(),
+            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(G, utf8))/binary>>)
+        })
+    ),
     Party = create_party(C),
     % Token = issue_token(Party, [{[party], write}], unlimited),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], {deadline, 10}, ?DOMAIN),
@@ -91,13 +91,12 @@ init_per_group(G, C) ->
     [{context, Context}, {context_pcidss, ContextPcidss}, {party, Party} | C].
 
 -spec end_per_group(group_name(), config()) -> _.
-
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
-
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
@@ -105,7 +104,6 @@ init_per_testcase(Name, C) ->
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
-
 end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
@@ -114,7 +112,6 @@ end_per_testcase(_Name, _C) ->
 -define(ID_CLASS, <<"person">>).
 
 -spec identity_check_test(config()) -> test_return().
-
 identity_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
     Provider = ?ID_PROVIDER,
@@ -128,7 +125,6 @@ identity_check_test(C) ->
     ?assertEqual(Keys, maps:keys(get_identity(IdentityID2, C))).
 
 -spec identity_challenge_check_test(config()) -> test_return().
-
 identity_challenge_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
     Provider = ?ID_PROVIDER,
@@ -144,7 +140,6 @@ identity_challenge_check_test(C) ->
     ?assertEqual(Keys, maps:keys(get_identity_challenge(IdentityID2, IdentityChallengeID2, C))).
 
 -spec wallet_check_test(config()) -> test_return().
-
 wallet_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
     Provider = ?ID_PROVIDER,
@@ -160,7 +155,6 @@ wallet_check_test(C) ->
     ?assertEqual(Keys, maps:keys(get_wallet(WalletID2, C))).
 
 -spec destination_check_test(config()) -> test_return().
-
 destination_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
     Provider = ?ID_PROVIDER,
@@ -174,7 +168,6 @@ destination_check_test(C) ->
     ?assertEqual(Keys, maps:keys(get_destination(DestinationID2, C))).
 
 -spec w2w_transfer_check_test(config()) -> test_return().
-
 w2w_transfer_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
     Provider = ?ID_PROVIDER,
@@ -192,7 +185,6 @@ w2w_transfer_check_test(C) ->
     ?assertEqual(Keys, maps:keys(get_w2w_transfer(W2WTransferID2, C))).
 
 -spec p2p_transfer_check_test(config()) -> test_return().
-
 p2p_transfer_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
     Provider = <<"quote-owner">>,
@@ -211,11 +203,12 @@ p2p_transfer_check_test(C) ->
     P2PTransferEventsThrift = get_p2p_transfer_events(P2PTransferIDThrift, C),
     ?assertEqual(maps:keys(P2PTransferEvents), maps:keys(P2PTransferEventsThrift)),
     ?assertEqual(maps:keys(P2PTransfer), maps:keys(P2PTransferThrift)),
-    ?assertEqual(maps:without([<<"id">>, <<"createdAt">>], P2PTransfer),
-                 maps:without([<<"id">>, <<"createdAt">>], P2PTransferThrift)).
+    ?assertEqual(
+        maps:without([<<"id">>, <<"createdAt">>], P2PTransfer),
+        maps:without([<<"id">>, <<"createdAt">>], P2PTransferThrift)
+    ).
 
 -spec withdrawal_check_test(config()) -> test_return().
-
 withdrawal_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
     Provider = <<"quote-owner">>,
@@ -233,12 +226,11 @@ withdrawal_check_test(C) ->
     ?assertEqual(Keys, maps:keys(get_withdrawal(WithdrawalID2, C))).
 
 -spec p2p_template_check_test(config()) -> test_return().
-
 p2p_template_check_test(C) ->
     Name = <<"Keyn Fawkes">>,
     Provider = <<"quote-owner">>,
     Class = ?ID_CLASS,
-    Metadata = #{ <<"some key">> => <<"some value">> },
+    Metadata = #{<<"some key">> => <<"some value">>},
     ok = application:set_env(wapi, transport, thrift),
     IdentityID = create_identity(Name, Provider, Class, C),
     P2PTemplate = create_p2p_template(IdentityID, Metadata, C),
@@ -266,8 +258,7 @@ p2p_template_check_test(C) ->
 
 %%
 
--spec call_api(function(), map(), wapi_client_lib:context()) ->
-    {ok, term()} | {error, term()}.
+-spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
 call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
@@ -288,12 +279,14 @@ get_context(Endpoint, Token) ->
 store_bank_card(C, Pan, ExpDate, CardHolder) ->
     {ok, Res} = call_api(
         fun swag_client_payres_payment_resources_api:store_bank_card/3,
-        #{body => genlib_map:compact(#{
-            <<"type">>       => <<"BankCard">>,
-            <<"cardNumber">> => Pan,
-            <<"expDate">>    => ExpDate,
-            <<"cardHolder">> => CardHolder
-        })},
+        #{
+            body => genlib_map:compact(#{
+                <<"type">> => <<"BankCard">>,
+                <<"cardNumber">> => Pan,
+                <<"expDate">> => ExpDate,
+                <<"cardHolder">> => CardHolder
+            })
+        },
         ct_helper:cfg(context_pcidss, C)
     ),
     maps:get(<<"token">>, Res).
@@ -303,14 +296,16 @@ store_bank_card(C, Pan, ExpDate, CardHolder) ->
 create_identity(Name, Provider, Class, C) ->
     {ok, Identity} = call_api(
         fun swag_client_wallet_identities_api:create_identity/3,
-        #{body => #{
-            <<"name">>     => Name,
-            <<"provider">> => Provider,
-            <<"class">>    => Class,
-            <<"metadata">> => #{
-                ?STRING => ?STRING
+        #{
+            body => #{
+                <<"name">> => Name,
+                <<"provider">> => Provider,
+                <<"class">> => Class,
+                <<"metadata">> => #{
+                    ?STRING => ?STRING
+                }
             }
-        }},
+        },
         ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, Identity).
@@ -318,16 +313,21 @@ create_identity(Name, Provider, Class, C) ->
 check_identity(Name, IdentityID, Provider, Class, C) ->
     Identity = get_identity(IdentityID, C),
     #{
-        <<"name">>     := Name,
+        <<"name">> := Name,
         <<"provider">> := Provider,
-        <<"class">>    := Class,
+        <<"class">> := Class,
         <<"metadata">> := #{
             ?STRING := ?STRING
         }
-    } = maps:with([<<"name">>,
-                   <<"provider">>,
-                   <<"class">>,
-                   <<"metadata">>], Identity),
+    } = maps:with(
+        [
+            <<"name">>,
+            <<"provider">>,
+            <<"class">>,
+            <<"metadata">>
+        ],
+        Identity
+    ),
     ok.
 
 get_identity(IdentityID, C) ->
@@ -382,12 +382,12 @@ create_wallet(IdentityID, C) ->
 
 create_wallet(IdentityID, Params, C) ->
     DefaultParams = #{
-            <<"name">>     => <<"Worldwide PHP Awareness Initiative">>,
-            <<"identity">> => IdentityID,
-            <<"currency">> => <<"RUB">>,
-            <<"metadata">> => #{
-                ?STRING => ?STRING
-            }
+        <<"name">> => <<"Worldwide PHP Awareness Initiative">>,
+        <<"identity">> => IdentityID,
+        <<"currency">> => <<"RUB">>,
+        <<"metadata">> => #{
+            ?STRING => ?STRING
+        }
     },
     {ok, Wallet} = call_api(
         fun swag_client_wallet_wallets_api:create_wallet/3,
@@ -520,18 +520,20 @@ get_quote_token(SenderToken, ReceiverToken, IdentityID, C) ->
                 symbolic_code = ?RUB
             }
         },
-        sender = {bank_card, #'ResourceBankCard'{
-            bank_card = #'BankCard'{
-                token = SenderBankCard#'BankCard'.token,
-                bin_data_id = {i, 123}
-            }
-        }},
-        receiver = {bank_card, #'ResourceBankCard'{
-            bank_card = #'BankCard'{
-                token = ReceiverBankCard#'BankCard'.token,
-                bin_data_id = {i, 123}
-            }
-        }}
+        sender =
+            {bank_card, #'ResourceBankCard'{
+                bank_card = #'BankCard'{
+                    token = SenderBankCard#'BankCard'.token,
+                    bin_data_id = {i, 123}
+                }
+            }},
+        receiver =
+            {bank_card, #'ResourceBankCard'{
+                bank_card = #'BankCard'{
+                    token = ReceiverBankCard#'BankCard'.token,
+                    bin_data_id = {i, 123}
+                }
+            }}
     },
     Payload = wapi_p2p_quote:create_token_payload(Quote, PartyID),
     {ok, QuoteToken} = uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Payload, wapi_auth:get_signee()),
@@ -556,7 +558,7 @@ get_p2p_transfer_events(P2PTransferID, C) ->
 await_p2p_transfer(P2PTransferID, C) ->
     <<"Succeeded">> = ct_helper:await(
         <<"Succeeded">>,
-        fun () ->
+        fun() ->
             Reply = get_p2p_transfer(P2PTransferID, C),
             #{<<"status">> := #{<<"status">> := Status}} = Reply,
             Status
@@ -567,7 +569,7 @@ await_p2p_transfer(P2PTransferID, C) ->
 await_destination(DestID) ->
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, DestM} = ff_destination_machine:get(DestID),
             Destination = ff_destination_machine:destination(DestM),
             ff_destination:status(Destination)
@@ -584,7 +586,8 @@ get_quote(CashFrom, WalletID, DestID, C) ->
                 <<"currencyFrom">> => <<"RUB">>,
                 <<"currencyTo">> => <<"USD">>,
                 <<"cash">> => CashFrom
-        }},
+            }
+        },
         ct_helper:cfg(context, C)
     ),
     Quote.
@@ -606,17 +609,19 @@ create_withdrawal(WalletID, DestID, C, QuoteToken, Amount) ->
 create_withdrawal(WalletID, DestID, C, QuoteToken, Amount, WalletGrant, DestinationGrant) ->
     {ok, Withdrawal} = call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
-        #{body => genlib_map:compact(#{
-            <<"wallet">> => WalletID,
-            <<"destination">> => DestID,
-            <<"body">> => #{
-                <<"amount">> => Amount,
-                <<"currency">> => <<"RUB">>
-            },
-            <<"quoteToken">> => QuoteToken,
-            <<"walletGrant">> => WalletGrant,
-            <<"destinationGrant">> => DestinationGrant
-        })},
+        #{
+            body => genlib_map:compact(#{
+                <<"wallet">> => WalletID,
+                <<"destination">> => DestID,
+                <<"body">> => #{
+                    <<"amount">> => Amount,
+                    <<"currency">> => <<"RUB">>
+                },
+                <<"quoteToken">> => QuoteToken,
+                <<"walletGrant">> => WalletGrant,
+                <<"destinationGrant">> => DestinationGrant
+            })
+        },
         ct_helper:cfg(context, C)
     ),
     maps:get(<<"id">>, Withdrawal).
@@ -712,7 +717,7 @@ get_p2p_template_ticket(P2PTemplateID, TemplateToken, ValidUntil, C) ->
 call_p2p_template_quote(P2PTemplateID, C) ->
     Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     call_api(
-    fun swag_client_wallet_p2_p_templates_api:quote_p2_p_transfer_with_template/3,
+        fun swag_client_wallet_p2_p_templates_api:quote_p2_p_transfer_with_template/3,
         #{
             binding => #{
                 <<"p2pTransferTemplateID">> => P2PTemplateID

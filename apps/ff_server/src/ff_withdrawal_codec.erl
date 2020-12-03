@@ -17,49 +17,42 @@
 
 %% API
 
--spec unmarshal_quote_params(ff_proto_withdrawal_thrift:'QuoteParams'()) ->
-    ff_withdrawal:quote_params().
-
+-spec unmarshal_quote_params(ff_proto_withdrawal_thrift:'QuoteParams'()) -> ff_withdrawal:quote_params().
 unmarshal_quote_params(Params) ->
     genlib_map:compact(#{
-        wallet_id      => unmarshal(id, Params#wthd_QuoteParams.wallet_id),
-        currency_from  => unmarshal(currency_ref, Params#wthd_QuoteParams.currency_from),
-        currency_to    => unmarshal(currency_ref, Params#wthd_QuoteParams.currency_to),
-        body           => unmarshal(cash, Params#wthd_QuoteParams.body),
+        wallet_id => unmarshal(id, Params#wthd_QuoteParams.wallet_id),
+        currency_from => unmarshal(currency_ref, Params#wthd_QuoteParams.currency_from),
+        currency_to => unmarshal(currency_ref, Params#wthd_QuoteParams.currency_to),
+        body => unmarshal(cash, Params#wthd_QuoteParams.body),
         destination_id => maybe_unmarshal(id, Params#wthd_QuoteParams.destination_id),
-        external_id    => maybe_unmarshal(id, Params#wthd_QuoteParams.external_id)
+        external_id => maybe_unmarshal(id, Params#wthd_QuoteParams.external_id)
     }).
 
--spec marshal_withdrawal_params(ff_withdrawal:params()) ->
-    ff_proto_withdrawal_thrift:'WithdrawalParams'().
-
+-spec marshal_withdrawal_params(ff_withdrawal:params()) -> ff_proto_withdrawal_thrift:'WithdrawalParams'().
 marshal_withdrawal_params(Params) ->
     #wthd_WithdrawalParams{
-        id             = marshal(id, maps:get(id, Params)),
-        wallet_id      = marshal(id, maps:get(wallet_id, Params)),
+        id = marshal(id, maps:get(id, Params)),
+        wallet_id = marshal(id, maps:get(wallet_id, Params)),
         destination_id = marshal(id, maps:get(destination_id, Params)),
-        body           = marshal(cash, maps:get(body, Params)),
-        external_id    = maybe_marshal(id, maps:get(external_id, Params, undefined)),
-        metadata       = maybe_marshal(ctx, maps:get(metadata, Params, undefined))
+        body = marshal(cash, maps:get(body, Params)),
+        external_id = maybe_marshal(id, maps:get(external_id, Params, undefined)),
+        metadata = maybe_marshal(ctx, maps:get(metadata, Params, undefined))
     }.
 
--spec unmarshal_withdrawal_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) ->
-    ff_withdrawal:params().
-
+-spec unmarshal_withdrawal_params(ff_proto_withdrawal_thrift:'WithdrawalParams'()) -> ff_withdrawal:params().
 unmarshal_withdrawal_params(Params) ->
     genlib_map:compact(#{
-        id             => unmarshal(id, Params#wthd_WithdrawalParams.id),
-        wallet_id      => unmarshal(id, Params#wthd_WithdrawalParams.wallet_id),
+        id => unmarshal(id, Params#wthd_WithdrawalParams.id),
+        wallet_id => unmarshal(id, Params#wthd_WithdrawalParams.wallet_id),
         destination_id => unmarshal(id, Params#wthd_WithdrawalParams.destination_id),
-        body           => unmarshal(cash, Params#wthd_WithdrawalParams.body),
-        quote          => maybe_unmarshal(quote, Params#wthd_WithdrawalParams.quote),
-        external_id    => maybe_unmarshal(id, Params#wthd_WithdrawalParams.external_id),
-        metadata       => maybe_unmarshal(ctx, Params#wthd_WithdrawalParams.metadata)
+        body => unmarshal(cash, Params#wthd_WithdrawalParams.body),
+        quote => maybe_unmarshal(quote, Params#wthd_WithdrawalParams.quote),
+        external_id => maybe_unmarshal(id, Params#wthd_WithdrawalParams.external_id),
+        metadata => maybe_unmarshal(ctx, Params#wthd_WithdrawalParams.metadata)
     }).
 
 -spec marshal_withdrawal_state(ff_withdrawal:withdrawal_state(), ff_entity_context:context()) ->
     ff_proto_withdrawal_thrift:'WithdrawalState'().
-
 marshal_withdrawal_state(WithdrawalState, Context) ->
     CashFlow = ff_withdrawal:effective_final_cash_flow(WithdrawalState),
     Adjustments = ff_withdrawal:adjustments(WithdrawalState),
@@ -84,9 +77,7 @@ marshal_withdrawal_state(WithdrawalState, Context) ->
         quote = maybe_marshal(quote_state, ff_withdrawal:quote(WithdrawalState))
     }.
 
--spec marshal_event(ff_withdrawal_machine:event()) ->
-    ff_proto_withdrawal_thrift:'Event'().
-
+-spec marshal_event(ff_withdrawal_machine:event()) -> ff_proto_withdrawal_thrift:'Event'().
 marshal_event({EventID, {ev, Timestamp, Change}}) ->
     #wthd_Event{
         event_id = ff_codec:marshal(event_id, EventID),
@@ -94,18 +85,14 @@ marshal_event({EventID, {ev, Timestamp, Change}}) ->
         change = marshal(change, Change)
     }.
 
--spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
-    ff_codec:encoded_value().
-
+-spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
 marshal({list, T}, V) ->
     [marshal(T, E) || E <- V];
-
 marshal(timestamped_change, {ev, Timestamp, Change}) ->
     #wthd_TimestampedChange{
         change = marshal(change, Change),
         occured_at = ff_codec:marshal(timestamp, Timestamp)
     };
-
 marshal(change, {created, Withdrawal}) ->
     {created, #wthd_CreatedChange{withdrawal = marshal(withdrawal, Withdrawal)}};
 marshal(change, {status_changed, Status}) ->
@@ -127,7 +114,6 @@ marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
         id = marshal(id, ID),
         payload = ff_withdrawal_adjustment_codec:marshal(change, Payload)
     }};
-
 marshal(withdrawal, Withdrawal) ->
     #wthd_Withdrawal{
         id = marshal(id, ff_withdrawal:id(Withdrawal)),
@@ -142,7 +128,6 @@ marshal(withdrawal, Withdrawal) ->
         metadata = maybe_marshal(ctx, ff_withdrawal:metadata(Withdrawal)),
         quote = maybe_marshal(quote_state, ff_withdrawal:quote(Withdrawal))
     };
-
 marshal(route, Route) ->
     #{
         version := 1,
@@ -153,15 +138,12 @@ marshal(route, Route) ->
         terminal_id = maybe_marshal(terminal_id, genlib_map:get(terminal_id, Route)),
         provider_id_legacy = marshal(string, get_legacy_provider_id(Route))
     };
-
 marshal(status, Status) ->
     ff_withdrawal_status_codec:marshal(status, Status);
-
 marshal(session_event, started) ->
     {started, #wthd_SessionStarted{}};
 marshal(session_event, {finished, Result}) ->
     {finished, #wthd_SessionFinished{result = marshal(session_result, Result)}};
-
 marshal(session_result, success) ->
     {succeeded, #wthd_SessionSucceeded{}};
 marshal(session_result, {success, TransactionInfo}) ->
@@ -170,21 +152,19 @@ marshal(session_result, {success, TransactionInfo}) ->
     {succeeded, #wthd_SessionSucceeded{trx_info = marshal(transaction_info, TransactionInfo)}};
 marshal(session_result, {failed, Failure}) ->
     {failed, #wthd_SessionFailed{failure = ff_codec:marshal(failure, Failure)}};
-
 marshal(transaction_info, TrxInfo) ->
     ff_withdrawal_session_codec:marshal(transaction_info, TrxInfo);
-
 marshal(session_state, Session) ->
     #wthd_SessionState{
         id = marshal(id, maps:get(id, Session)),
         result = maybe_marshal(session_result, maps:get(result, Session, undefined))
     };
-
 marshal(quote_state, Quote) ->
     #wthd_QuoteState{
-        cash_from  = marshal(cash, maps:get(cash_from, Quote)),
-        cash_to    = marshal(cash, maps:get(cash_to, Quote)),
-        created_at = maps:get(created_at, Quote), % already formatted
+        cash_from = marshal(cash, maps:get(cash_from, Quote)),
+        cash_to = marshal(cash, maps:get(cash_to, Quote)),
+        % already formatted
+        created_at = maps:get(created_at, Quote),
         expires_on = maps:get(expires_on, Quote),
         quote_data = maybe_marshal(msgpack, maps:get(quote_data, Quote, undefined)),
         route = maybe_marshal(route, maps:get(route, Quote, undefined)),
@@ -193,9 +173,10 @@ marshal(quote_state, Quote) ->
     };
 marshal(quote, Quote) ->
     #wthd_Quote{
-        cash_from  = marshal(cash, maps:get(cash_from, Quote)),
-        cash_to    = marshal(cash, maps:get(cash_to, Quote)),
-        created_at = maps:get(created_at, Quote), % already formatted
+        cash_from = marshal(cash, maps:get(cash_from, Quote)),
+        cash_to = marshal(cash, maps:get(cash_to, Quote)),
+        % already formatted
+        created_at = maps:get(created_at, Quote),
         expires_on = maps:get(expires_on, Quote),
         quote_data = maybe_marshal(msgpack, genlib_map:get(quote_data, Quote)),
         route = maybe_marshal(route, genlib_map:get(route, Quote)),
@@ -204,31 +185,24 @@ marshal(quote, Quote) ->
         domain_revision = maybe_marshal(domain_revision, genlib_map:get(domain_revision, Quote)),
         operation_timestamp = maybe_marshal(timestamp_ms, genlib_map:get(operation_timestamp, Quote))
     };
-
 marshal(ctx, Ctx) ->
     maybe_marshal(context, Ctx);
-
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-
--spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
-    ff_codec:decoded_value().
-
+-spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) -> ff_codec:decoded_value().
 unmarshal({list, T}, V) ->
     [unmarshal(T, E) || E <- V];
-
 unmarshal(timestamped_change, TimestampedChange) ->
     Timestamp = ff_codec:unmarshal(timestamp, TimestampedChange#wthd_TimestampedChange.occured_at),
     Change = unmarshal(change, TimestampedChange#wthd_TimestampedChange.change),
     {ev, Timestamp, Change};
-
 unmarshal(repair_scenario, {add_events, #wthd_AddEventsRepair{events = Events, action = Action}}) ->
-    {add_events, genlib_map:compact(#{
-        events => unmarshal({list, change}, Events),
-        action => maybe_unmarshal(complex_action, Action)
-    })};
-
+    {add_events,
+        genlib_map:compact(#{
+            events => unmarshal({list, change}, Events),
+            action => maybe_unmarshal(complex_action, Action)
+        })};
 unmarshal(change, {created, #wthd_CreatedChange{withdrawal = Withdrawal}}) ->
     {created, unmarshal(withdrawal, Withdrawal)};
 unmarshal(change, {status_changed, #wthd_StatusChange{status = Status}}) ->
@@ -248,7 +222,6 @@ unmarshal(change, {adjustment, Change}) ->
         id => unmarshal(id, Change#wthd_AdjustmentChange.id),
         payload => ff_withdrawal_adjustment_codec:unmarshal(change, Change#wthd_AdjustmentChange.payload)
     }};
-
 unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
     ff_withdrawal:gen(#{
         id => unmarshal(id, Withdrawal#wthd_Withdrawal.id),
@@ -266,7 +239,6 @@ unmarshal(withdrawal, Withdrawal = #wthd_Withdrawal{}) ->
         transfer_type => withdrawal,
         metadata => maybe_unmarshal(ctx, Withdrawal#wthd_Withdrawal.metadata)
     });
-
 unmarshal(route, Route) ->
     genlib_map:compact(#{
         version => 1,
@@ -274,17 +246,13 @@ unmarshal(route, Route) ->
         terminal_id => maybe_unmarshal(terminal_id, Route#wthd_Route.terminal_id),
         provider_id_legacy => maybe_unmarshal(string, Route#wthd_Route.provider_id_legacy)
     });
-
 unmarshal(status, Status) ->
     ff_withdrawal_status_codec:unmarshal(status, Status);
-
 unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {started, #wthd_SessionStarted{}}}) ->
     {session_started, unmarshal(id, ID)};
 unmarshal(session_event, #wthd_SessionChange{id = ID, payload = {finished, Finished}}) ->
     #wthd_SessionFinished{result = Result} = Finished,
     {session_finished, {unmarshal(id, ID), unmarshal(session_result, Result)}};
-
-
 unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = undefined}}) ->
     success;
 unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = TransactionInfo}}) ->
@@ -293,31 +261,27 @@ unmarshal(session_result, {succeeded, #wthd_SessionSucceeded{trx_info = Transact
     {success, unmarshal(transaction_info, TransactionInfo)};
 unmarshal(session_result, {failed, #wthd_SessionFailed{failure = Failure}}) ->
     {failed, ff_codec:unmarshal(failure, Failure)};
-
 unmarshal(transaction_info, TrxInfo) ->
     ff_withdrawal_session_codec:unmarshal(transaction_info, TrxInfo);
-
 unmarshal(session_state, Session) ->
     genlib_map:compact(#{
         id => unmarshal(id, Session#wthd_SessionState.id),
         result => maybe_unmarshal(session_result, Session#wthd_SessionState.result)
     });
-
 unmarshal(quote_state, Quote) ->
     genlib_map:compact(#{
         cash_from => unmarshal(cash, Quote#wthd_QuoteState.cash_from),
-        cash_to   => unmarshal(cash, Quote#wthd_QuoteState.cash_to),
+        cash_to => unmarshal(cash, Quote#wthd_QuoteState.cash_to),
         created_at => Quote#wthd_QuoteState.created_at,
         expires_on => Quote#wthd_QuoteState.expires_on,
         route => maybe_unmarshal(route, Quote#wthd_QuoteState.route),
         resource_descriptor => maybe_unmarshal(resource_descriptor, Quote#wthd_QuoteState.resource),
         quote_data => maybe_unmarshal(msgpack, Quote#wthd_QuoteState.quote_data)
     });
-
 unmarshal(quote, Quote) ->
     genlib_map:compact(#{
         cash_from => unmarshal(cash, Quote#wthd_Quote.cash_from),
-        cash_to   => unmarshal(cash, Quote#wthd_Quote.cash_to),
+        cash_to => unmarshal(cash, Quote#wthd_Quote.cash_to),
         created_at => Quote#wthd_Quote.created_at,
         expires_on => Quote#wthd_Quote.expires_on,
         route => maybe_unmarshal(route, Quote#wthd_Quote.route),
@@ -327,10 +291,8 @@ unmarshal(quote, Quote) ->
         party_revision => maybe_unmarshal(party_revision, Quote#wthd_Quote.party_revision),
         operation_timestamp => maybe_unmarshal(timestamp_ms, Quote#wthd_Quote.operation_timestamp)
     });
-
 unmarshal(ctx, Ctx) ->
     maybe_unmarshal(context, Ctx);
-
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
@@ -355,15 +317,17 @@ get_legacy_provider_id(#{provider_id := Provider}) when is_integer(Provider) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
 -spec test() -> _.
 
 -spec withdrawal_symmetry_test() -> _.
+
 withdrawal_symmetry_test() ->
     In = #wthd_Withdrawal{
         id = genlib:unique(),
         body = #'Cash'{
             amount = 10101,
-            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+            currency = #'CurrencyRef'{symbolic_code = <<"Banana Republic">>}
         },
         wallet_id = genlib:unique(),
         destination_id = genlib:unique(),
@@ -385,7 +349,7 @@ withdrawal_params_symmetry_test() ->
         id = genlib:unique(),
         body = #'Cash'{
             amount = 10101,
-            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+            currency = #'CurrencyRef'{symbolic_code = <<"Banana Republic">>}
         },
         wallet_id = genlib:unique(),
         destination_id = genlib:unique(),
@@ -396,13 +360,13 @@ withdrawal_params_symmetry_test() ->
 -spec quote_state_symmetry_test() -> _.
 quote_state_symmetry_test() ->
     In = #wthd_QuoteState{
-        cash_from  = #'Cash'{
+        cash_from = #'Cash'{
             amount = 10101,
-            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+            currency = #'CurrencyRef'{symbolic_code = <<"Banana Republic">>}
         },
-        cash_to    = #'Cash'{
+        cash_to = #'Cash'{
             amount = 20202,
-            currency = #'CurrencyRef'{ symbolic_code = <<"Pineapple Empire">> }
+            currency = #'CurrencyRef'{symbolic_code = <<"Pineapple Empire">>}
         },
         created_at = genlib:unique(),
         expires_on = genlib:unique(),
@@ -420,13 +384,13 @@ quote_state_symmetry_test() ->
 -spec quote_symmetry_test() -> _.
 quote_symmetry_test() ->
     In = #wthd_Quote{
-        cash_from  = #'Cash'{
+        cash_from = #'Cash'{
             amount = 10101,
-            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+            currency = #'CurrencyRef'{symbolic_code = <<"Banana Republic">>}
         },
-        cash_to    = #'Cash'{
+        cash_to = #'Cash'{
             amount = 20202,
-            currency = #'CurrencyRef'{ symbolic_code = <<"Pineapple Empire">> }
+            currency = #'CurrencyRef'{symbolic_code = <<"Pineapple Empire">>}
         },
         created_at = genlib:unique(),
         expires_on = genlib:unique(),
@@ -443,10 +407,9 @@ quote_symmetry_test() ->
     },
     ?assertEqual(In, marshal(quote, unmarshal(quote, In))).
 
-
--spec marshal_session_result_test_() ->  _.
+-spec marshal_session_result_test_() -> _.
 marshal_session_result_test_() ->
-    TransactionInfo = #{ id => <<"ID">>, extra => #{<<"Hello">> => <<"World">>} },
+    TransactionInfo = #{id => <<"ID">>, extra => #{<<"Hello">> => <<"World">>}},
     TransactionInfoThrift = marshal(transaction_info, TransactionInfo),
     Results = [
         {success, TransactionInfo},

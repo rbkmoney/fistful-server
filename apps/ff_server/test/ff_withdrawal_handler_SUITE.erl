@@ -34,18 +34,16 @@
 -export([create_adjustment_already_has_status_error_test/1]).
 -export([withdrawal_state_content_test/1]).
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 -spec all() -> [test_case_name() | {group, group_name()}].
-
 all() ->
     [{group, default}].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
-
 groups() ->
     [
         {default, [parallel], [
@@ -71,40 +69,38 @@ groups() ->
     ].
 
 -spec init_per_suite(config()) -> config().
-
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
-
 end_per_suite(C) ->
     ok = ct_payment_system:shutdown(C).
 
 %%
 
 -spec init_per_group(group_name(), config()) -> config().
-
 init_per_group(_, C) ->
     C.
 
 -spec end_per_group(group_name(), config()) -> _.
-
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
-
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
     C1.
 
 -spec end_per_testcase(test_case_name(), config()) -> _.
-
 end_per_testcase(_Name, _C) ->
     ok = ct_helper:unset_context().
 
@@ -369,9 +365,10 @@ create_adjustment_ok_test(C) ->
     ExternalID = generate_id(),
     Params = #wthd_adj_AdjustmentParams{
         id = AdjustmentID,
-        change = {change_status, #wthd_adj_ChangeStatusRequest{
-            new_status = {failed, #wthd_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
-        }},
+        change =
+            {change_status, #wthd_adj_ChangeStatusRequest{
+                new_status = {failed, #wthd_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+            }},
         external_id = ExternalID
     },
     {ok, AdjustmentState} = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
@@ -403,9 +400,10 @@ create_adjustment_unavailable_status_error_test(C) ->
     } = prepare_standard_environment_with_withdrawal(C),
     Params = #wthd_adj_AdjustmentParams{
         id = generate_id(),
-        change = {change_status, #wthd_adj_ChangeStatusRequest{
-            new_status = {pending, #wthd_status_Pending{}}
-        }}
+        change =
+            {change_status, #wthd_adj_ChangeStatusRequest{
+                new_status = {pending, #wthd_status_Pending{}}
+            }}
     },
     Result = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
     ExpectedError = #wthd_ForbiddenStatusChange{
@@ -420,9 +418,10 @@ create_adjustment_already_has_status_error_test(C) ->
     } = prepare_standard_environment_with_withdrawal(C),
     Params = #wthd_adj_AdjustmentParams{
         id = generate_id(),
-        change = {change_status, #wthd_adj_ChangeStatusRequest{
-            new_status = {succeeded, #wthd_status_Succeeded{}}
-        }}
+        change =
+            {change_status, #wthd_adj_ChangeStatusRequest{
+                new_status = {succeeded, #wthd_status_Succeeded{}}
+            }}
     },
     Result = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
     ExpectedError = #wthd_AlreadyHasStatus{
@@ -437,9 +436,10 @@ withdrawal_state_content_test(C) ->
     } = prepare_standard_environment_with_withdrawal(C),
     Params = #wthd_adj_AdjustmentParams{
         id = generate_id(),
-        change = {change_status, #wthd_adj_ChangeStatusRequest{
-            new_status = {failed, #wthd_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
-        }}
+        change =
+            {change_status, #wthd_adj_ChangeStatusRequest{
+                new_status = {failed, #wthd_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+            }}
     },
     {ok, _AdjustmentState} = call_withdrawal('CreateAdjustment', [WithdrawalID, Params]),
     {ok, WithdrawalState} = call_withdrawal('Get', [WithdrawalID, #'EventRange'{}]),
@@ -458,7 +458,7 @@ call_withdrawal_session(Fun, Args) ->
     ServiceName = withdrawal_session_management,
     Service = ff_services:get_service(ServiceName),
     Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
+    Client = ff_woody_client:new(#{
         url => "http://localhost:8022" ++ ff_services:get_service_path(ServiceName)
     }),
     ff_woody_client:call(Client, Request).
@@ -467,7 +467,7 @@ call_withdrawal(Fun, Args) ->
     ServiceName = withdrawal_management,
     Service = ff_services:get_service(ServiceName),
     Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
+    Client = ff_woody_client:new(#{
         url => "http://localhost:8022" ++ ff_services:get_service_path(ServiceName)
     }),
     ff_woody_client:call(Client, Request).
@@ -536,7 +536,7 @@ get_adjustment(WithdrawalID, AdjustmentID) ->
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
             Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
             case ff_withdrawal:is_finished(Withdrawal) of
@@ -584,7 +584,7 @@ await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
-        fun () -> get_wallet_balance(ID) end,
+        fun() -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
     ok.
@@ -611,18 +611,19 @@ create_destination(IID, Token, C) ->
 create_destination(IID, Currency, Token, C) ->
     ID = generate_id(),
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    NewStoreResource = case Token of
-        undefined ->
-            StoreSource;
-        Token ->
-            StoreSource#{token => Token}
+    NewStoreResource =
+        case Token of
+            undefined ->
+                StoreSource;
+            Token ->
+                StoreSource#{token => Token}
         end,
     Resource = {bank_card, #{bank_card => NewStoreResource}},
     Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
     ok = ff_destination_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_destination_machine:get(ID),
             Destination = ff_destination_machine:destination(Machine),
             ff_destination:status(Destination)

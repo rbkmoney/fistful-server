@@ -21,10 +21,10 @@
 -export([get_destination_ok_test/1]).
 -export([get_destination_notfound_fail_test/1]).
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 -spec all() -> [test_case_name() | {group, group_name()}].
 all() ->
@@ -46,10 +46,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -64,6 +67,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -80,7 +84,7 @@ end_per_testcase(_Name, _C) ->
 
 -spec create_destination_ok_test(config()) -> test_return().
 create_destination_ok_test(C) ->
-    Party  = create_party(C),
+    Party = create_party(C),
     IID = create_person_identity(Party, C),
     _DestinationID = create_destination(IID, C),
     ok.
@@ -95,7 +99,8 @@ create_destination_identity_notfound_fail_test(C) ->
                 <<"4150399999000900">>,
                 {12, 2025},
                 C
-        )}
+            )
+        }
     },
     Params = #{
         id => genlib:unique(),
@@ -133,7 +138,7 @@ create_destination_currency_notfound_fail_test(C) ->
 
 -spec get_destination_ok_test(config()) -> test_return().
 get_destination_ok_test(C) ->
-    Party  = create_party(C),
+    Party = create_party(C),
     IID = create_person_identity(Party, C),
     DestinationID = create_destination(IID, C),
     {ok, DestinationMachine} = ff_destination_machine:get(DestinationID),
@@ -189,7 +194,7 @@ create_destination(IID, C) ->
     DestID = create_destination(IID, <<"XDestination">>, <<"RUB">>, DestResource),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, DestM} = ff_destination_machine:get(DestID),
             Destination = ff_destination_machine:destination(DestM),
             ff_destination:status(Destination)

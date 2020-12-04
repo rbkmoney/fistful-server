@@ -1,6 +1,7 @@
 %%% Payment tools
 
 -module(hg_payment_tool).
+
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 %%
@@ -14,7 +15,6 @@
 %%
 
 -spec test_condition(condition(), t()) -> boolean() | undefined.
-
 test_condition({bank_card, C}, {bank_card, V = #domain_BankCard{}}) ->
     test_bank_card_condition(C, V);
 test_condition({payment_terminal, C}, {payment_terminal, V = #domain_PaymentTerminal{}}) ->
@@ -39,7 +39,6 @@ test_bank_card_condition_def(
     true;
 test_bank_card_condition_def({payment_system_is, _Ps}, #domain_BankCard{}) ->
     false;
-
 test_bank_card_condition_def({payment_system, PaymentSystem}, V) ->
     test_payment_system_condition(PaymentSystem, V);
 test_bank_card_condition_def({issuer_country_is, IssuerCountry}, V) ->
@@ -69,7 +68,8 @@ test_issuer_bank_condition(BankRef, #domain_BankCard{bank_name = BankName, bin =
             test_bank_card_patterns(Patterns, BankName);
         % TODO т.к. BinBase не обладает полным объемом данных, при их отсутствии мы возвращаемся к проверкам по бинам.
         %      B будущем стоит избавиться от этого.
-        {_, _} -> test_bank_card_bins(BIN, BINs)
+        {_, _} ->
+            test_bank_card_bins(BIN, BINs)
     end.
 
 test_bank_card_bins(BIN, BINs) ->

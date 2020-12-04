@@ -19,12 +19,12 @@
 
 -type params() :: ff_withdrawal:params().
 -type create_error() ::
-    ff_withdrawal:create_error() |
-    exists.
+    ff_withdrawal:create_error()
+    | exists.
 
 -type start_adjustment_error() ::
-    ff_withdrawal:start_adjustment_error() |
-    unknown_withdrawal_error().
+    ff_withdrawal:start_adjustment_error()
+    | unknown_withdrawal_error().
 
 -type unknown_withdrawal_error() ::
     {unknown_withdrawal, id()}.
@@ -83,35 +83,32 @@
 -type session_result() :: ff_withdrawal_session:session_result().
 
 -type call() ::
-    {start_adjustment, adjustment_params()} |
-    {session_finished, session_id(), session_result()}.
+    {start_adjustment, adjustment_params()}
+    | {session_finished, session_id(), session_result()}.
 
 -define(NS, 'ff/withdrawal_v2').
 
 %% API
 
 -spec create(params(), ctx()) ->
-    ok |
-    {error, ff_withdrawal:create_error() | exists}.
-
+    ok
+    | {error, ff_withdrawal:create_error() | exists}.
 create(Params, Ctx) ->
-    do(fun () ->
+    do(fun() ->
         #{id := ID} = Params,
         Events = unwrap(ff_withdrawal:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
-    {ok, st()} |
-    {error, unknown_withdrawal_error()}.
-
+    {ok, st()}
+    | {error, unknown_withdrawal_error()}.
 get(ID) ->
     get(ID, {undefined, undefined}).
 
 -spec get(id(), event_range()) ->
-    {ok, st()} |
-    {error, unknown_withdrawal_error()}.
-
+    {ok, st()}
+    | {error, unknown_withdrawal_error()}.
 get(ID, {After, Limit}) ->
     case ff_machine:get(ff_withdrawal, ?NS, ID, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
@@ -121,9 +118,8 @@ get(ID, {After, Limit}) ->
     end.
 
 -spec events(id(), event_range()) ->
-    {ok, [event()]} |
-    {error, unknown_withdrawal_error()}.
-
+    {ok, [event()]}
+    | {error, unknown_withdrawal_error()}.
 events(ID, {After, Limit}) ->
     case ff_machine:history(ff_withdrawal, ?NS, ID, {After, Limit, forward}) of
         {ok, History} ->
@@ -138,9 +134,8 @@ repair(ID, Scenario) ->
     machinery:repair(?NS, ID, Scenario, backend()).
 
 -spec start_adjustment(id(), adjustment_params()) ->
-    ok |
-    {error, start_adjustment_error()}.
-
+    ok
+    | {error, start_adjustment_error()}.
 start_adjustment(WithdrawalID, Params) ->
     call(WithdrawalID, {start_adjustment, Params}).
 
@@ -151,49 +146,39 @@ notify_session_finished(WithdrawalID, SessionID, SessionResult) ->
 
 %% Accessors
 
--spec withdrawal(st()) ->
-    withdrawal().
-
+-spec withdrawal(st()) -> withdrawal().
 withdrawal(St) ->
     ff_machine:model(St).
 
--spec ctx(st()) ->
-    ctx().
-
+-spec ctx(st()) -> ctx().
 ctx(St) ->
     ff_machine:ctx(St).
 
 %% Machinery
 
--type machine()      :: ff_machine:machine(event()).
--type result()       :: ff_machine:result(event()).
+-type machine() :: ff_machine:machine(event()).
+-type result() :: ff_machine:result(event()).
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
 backend() ->
     fistful:backend(?NS).
 
--spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) ->
-    result().
-
+-spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) -> result().
 init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => ff_machine:emit_events(Events),
-        action    => continue,
+        events => ff_machine:emit_events(Events),
+        action => continue,
         aux_state => #{ctx => Ctx}
     }.
 
--spec process_timeout(machine(), handler_args(), handler_opts()) ->
-    result().
-
+-spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
     St = ff_machine:collapse(ff_withdrawal, Machine),
     Withdrawal = withdrawal(St),
     process_result(ff_withdrawal:process_transfer(Withdrawal), St).
 
--spec process_call(call(), machine(), handler_args(), handler_opts()) ->
-    no_return().
-
+-spec process_call(call(), machine(), handler_args(), handler_opts()) -> no_return().
 process_call({start_adjustment, Params}, Machine, _, _Opts) ->
     do_start_adjustment(Params, Machine);
 process_call({session_finished, SessionID, SessionResult}, Machine, _, _Opts) ->
@@ -203,13 +188,11 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     {ok, {repair_response(), result()}} | {error, repair_error()}.
-
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_withdrawal, Machine, Scenario).
 
 -spec do_start_adjustment(adjustment_params(), machine()) -> {Response, result()} when
     Response :: ok | {error, ff_withdrawal:start_adjustment_error()}.
-
 do_start_adjustment(Params, Machine) ->
     St = ff_machine:collapse(ff_withdrawal, Machine),
     case ff_withdrawal:start_adjustment(Params, withdrawal(St)) of

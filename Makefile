@@ -17,14 +17,15 @@ SERVICE_IMAGE_PUSH_TAG ?= $(SERVICE_IMAGE_TAG)
 
 # Base image for the service
 BASE_IMAGE_NAME := service-erlang
-BASE_IMAGE_TAG := da0ab769f01b650b389d18fc85e7418e727cbe96
+BASE_IMAGE_TAG := 54a794b4875ad79f90dba0a7708190b3b37d584f
 
 # Build image tag to be used
-BUILD_IMAGE_TAG := 442c2c274c1d8e484e5213089906a4271641d95e
+BUILD_IMAGE_NAME := build-erlang
+BUILD_IMAGE_TAG := d3f205d7a03d1cd5fa402704b97c87ca03744f4b
 
 REGISTRY := dr2.rbkmoney.com
 
-CALL_ANYWHERE := all submodules compile xref lint dialyze release clean distclean
+CALL_ANYWHERE := all submodules compile xref lint format check_format dialyze release clean distclean
 CALL_ANYWHERE += generate regenerate
 
 CALL_W_CONTAINER := $(CALL_ANYWHERE) test
@@ -50,6 +51,12 @@ xref: submodules
 
 lint:
 	elvis rock
+
+check_format:
+	$(REBAR) fmt -c
+
+format:
+	$(REBAR) fmt -w
 
 dialyze: submodules generate
 	$(REBAR) dialyzer

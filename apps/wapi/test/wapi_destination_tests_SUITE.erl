@@ -43,26 +43,23 @@
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
--type test_case_name()  :: atom().
--type config()          :: [{atom(), any()}].
--type group_name()      :: atom().
+-type test_case_name() :: atom().
+-type config() :: [{atom(), any()}].
+-type group_name() :: atom().
 
 -behaviour(supervisor).
 
--spec init([]) ->
-    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() ->
-    [test_case_name()].
+-spec all() -> [test_case_name()].
 all() ->
     [
         {group, default}
     ].
 
--spec groups() ->
-    [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
         {default, [], [
@@ -87,36 +84,38 @@ groups() ->
 %%
 %% starting/stopping
 %%
--spec init_per_suite(config()) ->
-    config().
+-spec init_per_suite(config()) -> config().
 init_per_suite(Config0) ->
     %% TODO remove this after cut off wapi
     ok = application:set_env(wapi, transport, thrift),
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup(#{
-            optional_apps => [
-                bender_client,
-                wapi_woody_client,
-                wapi
-            ]
-        })
-    ], Config0).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup(#{
+                optional_apps => [
+                    bender_client,
+                    wapi_woody_client,
+                    wapi
+                ]
+            })
+        ],
+        Config0
+    ).
 
--spec end_per_suite(config()) ->
-    _.
+-spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
     %% TODO remove this after cut off wapi
     ok = application:unset_env(wapi, transport),
     ok = ct_payment_system:shutdown(C).
 
--spec init_per_group(group_name(), config()) ->
-    config().
+-spec init_per_group(group_name(), config()) -> config().
 init_per_group(default = Group, Config) ->
-    ok = ff_context:save(ff_context:create(#{
-        party_client => party_client:create_client(),
-        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
-    })),
+    ok = ff_context:save(
+        ff_context:create(#{
+            party_client => party_client:create_client(),
+            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
+        })
+    ),
     Party = create_party(Config),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], {deadline, 10}, ?DOMAIN),
     Config1 = [{party, Party} | Config],
@@ -124,20 +123,17 @@ init_per_group(default = Group, Config) ->
 init_per_group(_, Config) ->
     Config.
 
--spec end_per_group(group_name(), config()) ->
-    _.
+-spec end_per_group(group_name(), config()) -> _.
 end_per_group(_Group, _C) ->
     ok.
 
--spec init_per_testcase(test_case_name(), config()) ->
-    config().
+-spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
     ok = ct_helper:set_context(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) ->
-    config().
+-spec end_per_testcase(test_case_name(), config()) -> config().
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
@@ -159,10 +155,11 @@ create_destination_fail_resource_token_invalid_test(C) ->
     Destination = make_destination(C, bank_card),
     create_destination_start_mocks(C, fun() -> {ok, Destination} end),
     ?assertMatch(
-        {error, {400, #{
-            <<"errorType">>  := <<"InvalidResourceToken">>,
-            <<"name">>       := <<"BankCardDestinationResource">>
-        }}},
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardDestinationResource">>
+            }}},
         create_destination_call_api(C, Destination, <<"v1.InvalidResourceToken">>)
     ).
 
@@ -248,12 +245,15 @@ ripple_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(ripple, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Ripple">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
-        id = ID,
-        data = {ripple, #'CryptoDataRipple'{
-            tag = Tag
-        }}
-    }}} = Resource,
+    {crypto_wallet, #'ResourceCryptoWallet'{
+        crypto_wallet = #'CryptoWallet'{
+            id = ID,
+            data =
+                {ripple, #'CryptoDataRipple'{
+                    tag = Tag
+                }}
+        }
+    }} = Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)),
     ?assertEqual(Tag, maps:get(<<"tag">>, SwagResource)).
 
@@ -288,8 +288,7 @@ create_party(_C) ->
     _ = ff_party:create(ID),
     ID.
 
--spec call_api(function(), map(), wapi_client_lib:context()) ->
-    {ok, term()} | {error, term()}.
+-spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
 call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
@@ -301,15 +300,16 @@ do_destination_lifecycle(ResourceType, C) ->
     Resource = generate_resource(ResourceType),
     Context = generate_context(PartyID),
     Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
-    wapi_ct_helper:mock_services([
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_destination,
-            fun
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_destination, fun
                 ('Create', _) -> {ok, Destination};
                 ('Get', _) -> {ok, Destination}
-            end
-        }
-    ], C),
+            end}
+        ],
+        C
+    ),
     {ok, CreateResult} = call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{
@@ -411,20 +411,21 @@ generate_identity(PartyID) ->
 
 generate_context(PartyID) ->
     #{
-        <<"com.rbkmoney.wapi">> => {obj, #{
-            {str, <<"owner">>} => {str, PartyID},
-            {str, <<"name">>} => {str, uniq()},
-            {str, <<"metadata">>} => {obj, #{{str, <<"key">>} => {str, <<"val">>}}}
-        }}
+        <<"com.rbkmoney.wapi">> =>
+            {obj, #{
+                {str, <<"owner">>} => {str, PartyID},
+                {str, <<"name">>} => {str, uniq()},
+                {str, <<"metadata">>} => {obj, #{{str, <<"key">>} => {str, <<"val">>}}}
+            }}
     }.
 
 generate_destination(IdentityID, Resource, Context) ->
     ID = uniq(),
     #dst_DestinationState{
-        id          = ID,
-        name        = uniq(),
-        status      = {authorized, #dst_Authorized{}},
-        account     = #account_Account{
+        id = ID,
+        name = uniq(),
+        status = {authorized, #dst_Authorized{}},
+        account = #account_Account{
             id = ID,
             identity = IdentityID,
             currency = #'CurrencyRef'{
@@ -432,35 +433,39 @@ generate_destination(IdentityID, Resource, Context) ->
             },
             accounter_account_id = 123
         },
-        resource    = Resource,
+        resource = Resource,
         external_id = uniq(),
-        created_at  = <<"2016-03-22T06:12:27Z">>,
-        blocking    = unblocked,
-        metadata    = #{<<"key">> => {str, <<"val">>}},
-        context     = Context
+        created_at = <<"2016-03-22T06:12:27Z">>,
+        blocking = unblocked,
+        metadata = #{<<"key">> => {str, <<"val">>}},
+        context = Context
     }.
 
 generate_resource(bank_card) ->
-    {bank_card, #'ResourceBankCard'{bank_card = #'BankCard'{
-        token = uniq(),
-        bin = <<"424242">>,
-        masked_pan = <<"4242">>,
-        bank_name = uniq(),
-        payment_system = visa,
-        issuer_country = rus,
-        card_type = debit,
-        exp_date = #'BankCardExpDate'{
-            month = 12,
-            year = 2200
+    {bank_card, #'ResourceBankCard'{
+        bank_card = #'BankCard'{
+            token = uniq(),
+            bin = <<"424242">>,
+            masked_pan = <<"4242">>,
+            bank_name = uniq(),
+            payment_system = visa,
+            issuer_country = rus,
+            card_type = debit,
+            exp_date = #'BankCardExpDate'{
+                month = 12,
+                year = 2200
+            }
         }
-    }}};
+    }};
 generate_resource(ResourceType) ->
     {Currency, Params} = generate_wallet_data(ResourceType),
-    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
-        id = uniq(),
-        data = {Currency, Params},
-        currency = Currency
-    }}}.
+    {crypto_wallet, #'ResourceCryptoWallet'{
+        crypto_wallet = #'CryptoWallet'{
+            id = uniq(),
+            data = {Currency, Params},
+            currency = Currency
+        }
+    }}.
 
 generate_wallet_data(bitcoin) ->
     {bitcoin, #'CryptoDataBitcoin'{}};
@@ -479,7 +484,6 @@ generate_wallet_data(usdt) ->
 generate_wallet_data(zcash) ->
     {zcash, #'CryptoDataZcash'{}}.
 
-
 make_destination(C, ResourceType) ->
     PartyID = ?config(party, C),
     Identity = generate_identity(PartyID),
@@ -489,18 +493,25 @@ make_destination(C, ResourceType) ->
 
 create_destination_start_mocks(C, CreateDestinationResultFun) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_destination, fun('Create', _) -> CreateDestinationResultFun() end}
-    ], C).
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_destination, fun('Create', _) -> CreateDestinationResultFun() end}
+        ],
+        C
+    ).
 
 get_destination_start_mocks(C, GetDestinationResultFun) ->
-    wapi_ct_helper:mock_services([
-        {fistful_destination, fun('Get', _) -> GetDestinationResultFun() end}
-    ], C).
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_destination, fun('Get', _) -> GetDestinationResultFun() end}
+        ],
+        C
+    ).
 
 create_destination_call_api(C, Destination) ->
     create_destination_call_api(C, Destination, undefined).
+
 create_destination_call_api(C, Destination, Resource) ->
     call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,

@@ -16,31 +16,39 @@
 
 -import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
 
--spec create(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, DestinationError}
-    when DestinationError ::
-        {invalid_resource_token, binary()} |
-        {identity, unauthorized}    |
-        {identity, notfound}        |
-        {currency, notfound}        |
-        inaccessible                |
-        {external_id_conflict, {id(), external_id()}}.
-
+-spec create(req_data(), handler_context()) -> {ok, response_data()} | {error, DestinationError} when
+    DestinationError ::
+        {invalid_resource_token, binary()}
+        | {identity, unauthorized}
+        | {identity, notfound}
+        | {currency, notfound}
+        | inaccessible
+        | {external_id_conflict, {id(), external_id()}}.
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     do(fun() ->
         unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
         Resource = maps:get(<<"resource">>, Params),
         ResourceThrift = unwrap(resource_decode(Resource)),
-        ID = unwrap(generate_id(Params#{
-            <<"resource">> => Resource#{
-                <<"token">> => undefined,
-                <<"resourceEssence">> => wapi_backend_utils:resource_essence(ResourceThrift)
-            }
-        }, HandlerContext)),
-        unwrap(create_request(Params#{
-            <<"id">> => ID,
-            <<"resource">> => Resource#{<<"resourceThrift">> => ResourceThrift}
-        }, HandlerContext))
+        ID = unwrap(
+            generate_id(
+                Params#{
+                    <<"resource">> => Resource#{
+                        <<"token">> => undefined,
+                        <<"resourceEssence">> => wapi_backend_utils:resource_essence(ResourceThrift)
+                    }
+                },
+                HandlerContext
+            )
+        ),
+        unwrap(
+            create_request(
+                Params#{
+                    <<"id">> => ID,
+                    <<"resource">> => Resource#{<<"resourceThrift">> => ResourceThrift}
+                },
+                HandlerContext
+            )
+        )
     end).
 
 resource_decode(#{<<"token">> := Token, <<"type">> := Type}) ->
@@ -92,10 +100,9 @@ create_request(Params, HandlerContext) ->
     end.
 
 -spec get(id(), handler_context()) ->
-    {ok, response_data()} |
-    {error, {destination, notfound}} |
-    {error, {destination, unauthorized}}.
-
+    {ok, response_data()}
+    | {error, {destination, notfound}}
+    | {error, {destination, unauthorized}}.
 get(DestinationID, HandlerContext) ->
     Request = {fistful_destination, 'Get', [DestinationID, #'EventRange'{}]},
     case service_call(Request, HandlerContext) of
@@ -111,11 +118,10 @@ get(DestinationID, HandlerContext) ->
     end.
 
 -spec get_by_external_id(external_id(), handler_context()) ->
-    {ok, response_data()} |
-    {error, {destination, notfound}} |
-    {error, {destination, unauthorized}} |
-    {error, {external_id, {unknown_external_id, external_id()}}}.
-
+    {ok, response_data()}
+    | {error, {destination, notfound}}
+    | {error, {destination, unauthorized}}
+    | {error, {external_id, {unknown_external_id, external_id()}}}.
 get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}) ->
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(destination, PartyID, ExternalID),
@@ -135,13 +141,16 @@ service_call(Params, Context) ->
 
 %% Marshaling
 
-marshal(destination_params, Params = #{
-    <<"id">> := ID,
-    <<"identity">> := IdentityID,
-    <<"currency">> := CurrencyID,
-    <<"name">> := Name,
-    <<"resource">> := Resource
-}) ->
+marshal(
+    destination_params,
+    Params = #{
+        <<"id">> := ID,
+        <<"identity">> := IdentityID,
+        <<"currency">> := CurrencyID,
+        <<"name">> := Name,
+        <<"resource">> := Resource
+    }
+) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #dst_DestinationParams{
         id = marshal(id, ID),
@@ -151,26 +160,29 @@ marshal(destination_params, Params = #{
         external_id = maybe_marshal(id, ExternalID),
         resource = marshal(resource, Resource)
     };
-
 marshal(resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
     <<"resourceThrift">> := Resource
 }) ->
     BankCard = Resource,
     {bank_card, #'ResourceBankCard'{bank_card = BankCard}};
-marshal(resource, #{
-    <<"type">> := <<"CryptoWalletDestinationResource">>,
-    <<"id">> := CryptoWalletID
-} = Resource) ->
-    CostructedResource = {crypto_wallet, #{crypto_wallet => genlib_map:compact(#{
-        id => CryptoWalletID,
-        currency => marshal_crypto_currency_data(Resource)
-    })}},
+marshal(
+    resource,
+    #{
+        <<"type">> := <<"CryptoWalletDestinationResource">>,
+        <<"id">> := CryptoWalletID
+    } = Resource
+) ->
+    CostructedResource =
+        {crypto_wallet, #{
+            crypto_wallet => genlib_map:compact(#{
+                id => CryptoWalletID,
+                currency => marshal_crypto_currency_data(Resource)
+            })
+        }},
     ff_codec:marshal(resource, CostructedResource);
-
 marshal(context, Context) ->
     ff_codec:marshal(context, Context);
-
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
@@ -207,32 +219,39 @@ unmarshal(destination, #dst_DestinationState{
         <<"externalID">> => maybe_unmarshal(id, ExternalID),
         <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, UnmarshaledContext)
     });
-
 unmarshal(blocking, unblocked) ->
     false;
 unmarshal(blocking, blocked) ->
     true;
-
 unmarshal(status, {authorized, #dst_Authorized{}}) ->
     <<"Authorized">>;
 unmarshal(status, {unauthorized, #dst_Unauthorized{}}) ->
     <<"Unauthorized">>;
-
-unmarshal(resource, {bank_card, #'ResourceBankCard'{bank_card = #'BankCard'{
-    token = Token,
-    bin = Bin,
-    masked_pan = MaskedPan
-}}}) ->
+unmarshal(
+    resource,
+    {bank_card, #'ResourceBankCard'{
+        bank_card = #'BankCard'{
+            token = Token,
+            bin = Bin,
+            masked_pan = MaskedPan
+        }
+    }}
+) ->
     genlib_map:compact(#{
         <<"type">> => <<"BankCardDestinationResource">>,
         <<"token">> => unmarshal(string, Token),
         <<"bin">> => unmarshal(string, Bin),
         <<"lastDigits">> => wapi_utils:get_last_pan_digits(MaskedPan)
     });
-unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
-    id = CryptoWalletID,
-    data = Data
-}}}) ->
+unmarshal(
+    resource,
+    {crypto_wallet, #'ResourceCryptoWallet'{
+        crypto_wallet = #'CryptoWallet'{
+            id = CryptoWalletID,
+            data = Data
+        }
+    }}
+) ->
     {Currency, Params} = unmarshal_crypto_currency_data(Data),
     genlib_map:compact(#{
         <<"type">> => <<"CryptoWalletDestinationResource">>,
@@ -240,10 +259,8 @@ unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'Cr
         <<"currency">> => Currency,
         <<"tag">> => genlib_map:get(tag, Params)
     });
-
 unmarshal(context, Context) ->
     ff_codec:unmarshal(context, Context);
-
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 

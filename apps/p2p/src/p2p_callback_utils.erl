@@ -8,10 +8,11 @@
     callbacks := #{tag() => callback()}
 }.
 
--type wrapped_event() :: {callback, #{
-    tag := tag(),
-    payload := event()
-}}.
+-type wrapped_event() ::
+    {callback, #{
+        tag := tag(),
+        payload := event()
+    }}.
 
 -type unknown_callback_error() :: {unknown_callback, tag()}.
 
@@ -57,8 +58,7 @@ unwrap_event({callback, #{tag := Tag, payload := Event}}) ->
 wrap_event(Tag, Event) ->
     {callback, #{tag => Tag, payload => Event}}.
 
--spec get_by_tag(tag(), index()) ->
-    {ok, callback()} | {error, unknown_callback_error()}.
+-spec get_by_tag(tag(), index()) -> {ok, callback()} | {error, unknown_callback_error()}.
 get_by_tag(Tag, #{callbacks := Callbacks}) ->
     case maps:find(Tag, Callbacks) of
         {ok, Callback} ->
@@ -80,8 +80,7 @@ maybe_migrate(Event) ->
     Migrated = p2p_callback:maybe_migrate(P2PCallbackEvent),
     wrap_event(Tag, Migrated).
 
--spec process_response(response(), callback()) ->
-    [wrapped_event()].
+-spec process_response(response(), callback()) -> [wrapped_event()].
 process_response(Response, Callback) ->
     Tag = p2p_callback:tag(Callback),
     Events = p2p_callback:process_response(Response, Callback),

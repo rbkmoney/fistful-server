@@ -3,6 +3,7 @@
 %%%
 
 -module(p2p_template_machine).
+
 -behaviour(machinery).
 
 -define(NS, 'ff/p2p_template_v1').
@@ -73,16 +74,14 @@
 %%
 
 -spec get(ref()) ->
-    {ok, st()}        |
-    {error, unknown_p2p_template_error()}.
-
+    {ok, st()}
+    | {error, unknown_p2p_template_error()}.
 get(Ref) ->
     get(Ref, {undefined, undefined}).
 
 -spec get(ref(), event_range()) ->
-    {ok, st()}        |
-    {error, unknown_p2p_template_error()}.
-
+    {ok, st()}
+    | {error, unknown_p2p_template_error()}.
 get(Ref, {After, Limit}) ->
     case ff_machine:get(p2p_template, ?NS, Ref, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
@@ -92,20 +91,17 @@ get(Ref, {After, Limit}) ->
     end.
 
 -spec p2p_template(st()) -> template().
-
 p2p_template(St) ->
     ff_machine:model(St).
 
--spec ctx(st()) ->
-    ctx().
-
+-spec ctx(st()) -> ctx().
 ctx(St) ->
     ff_machine:ctx(St).
 
 -spec get_quote(id(), p2p_template:quote_params()) ->
-    {ok, p2p_quote:quote()} |
-    {error, p2p_quote:get_quote_error() | unknown_p2p_template_error()} |
-    {error, p2p_template_blocked}.
+    {ok, p2p_quote:quote()}
+    | {error, p2p_quote:get_quote_error() | unknown_p2p_template_error()}
+    | {error, p2p_template_blocked}.
 get_quote(ID, #{
     body := Body,
     sender := Sender,
@@ -116,17 +112,20 @@ get_quote(ID, #{
         State = p2p_template(Machine),
         % throw error if P2PTemplate is blocked. See blockP2PTransferTemplate
         unwrap(check_template_blocking(State)),
-        unwrap(p2p_quote:get(#{
-            body => Body,
-            identity_id => p2p_template:identity_id(State),
-            sender => Sender,
-            receiver => Receiver
-        }))
+        unwrap(
+            p2p_quote:get(#{
+                body => Body,
+                identity_id => p2p_template:identity_id(State),
+                sender => Sender,
+                receiver => Receiver
+            })
+        )
     end).
 
 -spec create_transfer(id(), p2p_template:transfer_params()) ->
-    ok | {error, p2p_transfer:create_error() | exists | unknown_p2p_template_error()} |
-    {error, p2p_template_blocked}.
+    ok
+    | {error, p2p_transfer:create_error() | exists | unknown_p2p_template_error()}
+    | {error, p2p_template_blocked}.
 create_transfer(ID, Params) ->
     do(fun() ->
         Machine = unwrap(p2p_template_machine:get(ID)),
@@ -138,23 +137,20 @@ create_transfer(ID, Params) ->
 
 %%
 
--spec set_blocking(id(), blocking()) ->
-    ok | {error, unknown_p2p_template_error()}.
+-spec set_blocking(id(), blocking()) -> ok | {error, unknown_p2p_template_error()}.
 set_blocking(ID, Blocking) ->
     call(ID, {set_blocking, Blocking}).
 
--spec create(params(), ctx()) ->
-    ok | {error, exists | create_error()}.
+-spec create(params(), ctx()) -> ok | {error, exists | create_error()}.
 create(Params = #{id := ID}, Ctx) ->
-    do(fun () ->
+    do(fun() ->
         Events = unwrap(p2p_template:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec events(id(), event_range()) ->
-    {ok, events()} |
-    {error, unknown_p2p_template_error()}.
-
+    {ok, events()}
+    | {error, unknown_p2p_template_error()}.
 events(Ref, {After, Limit}) ->
     case ff_machine:history(p2p_template, ?NS, Ref, {After, Limit, forward}) of
         {ok, History} ->
@@ -171,21 +167,18 @@ repair(Ref, Scenario) ->
 
 %% machinery callbacks
 
--spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) ->
-    result().
+-spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) -> result().
 init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => ff_machine:emit_events(Events),
+        events => ff_machine:emit_events(Events),
         aux_state => #{ctx => Ctx}
     }.
 
--spec process_timeout(machine(), handler_args(), handler_opts()) ->
-    no_return().
+-spec process_timeout(machine(), handler_args(), handler_opts()) -> no_return().
 process_timeout(Machine, _, _Opts) ->
     erlang:error({unexpected_timeout, Machine}).
 
--spec process_call(any(), machine(), handler_args(), handler_opts()) ->
-    {Response, result()} | no_return() when
+-spec process_call(any(), machine(), handler_args(), handler_opts()) -> {Response, result()} | no_return() when
     Response :: ok.
 process_call({set_blocking, Blocking}, Machine, _, _Opts) ->
     do_set_blocking(Blocking, Machine);
@@ -226,9 +219,7 @@ call(ID, Call) ->
 backend() ->
     fistful:backend(?NS).
 
--spec check_template_blocking(template()) ->
-    ok | {error, p2p_template_blocked}.
-
+-spec check_template_blocking(template()) -> ok | {error, p2p_template_blocked}.
 check_template_blocking(State) ->
     case p2p_template:blocking(State) of
         unblocked ->

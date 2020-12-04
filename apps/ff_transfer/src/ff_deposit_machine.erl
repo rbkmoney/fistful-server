@@ -18,19 +18,20 @@
 
 -type params() :: ff_deposit:params().
 -type create_error() ::
-    ff_deposit:create_error() |
-    exists.
+    ff_deposit:create_error()
+    | exists.
+
 -type start_revert_error() ::
-    ff_deposit:start_revert_error() |
-    unknown_deposit_error().
+    ff_deposit:start_revert_error()
+    | unknown_deposit_error().
 
 -type start_revert_adjustment_error() ::
-    ff_deposit:start_revert_adjustment_error() |
-    unknown_deposit_error().
+    ff_deposit:start_revert_adjustment_error()
+    | unknown_deposit_error().
 
 -type start_adjustment_error() ::
-    ff_deposit:start_adjustment_error() |
-    unknown_deposit_error().
+    ff_deposit:start_adjustment_error()
+    | unknown_deposit_error().
 
 -type repair_error() :: ff_repair:repair_error().
 -type repair_response() :: ff_repair:repair_response().
@@ -83,44 +84,41 @@
 
 %% Internal types
 
--type ctx()           :: ff_entity_context:context().
+-type ctx() :: ff_entity_context:context().
 -type revert_params() :: ff_deposit:revert_params().
--type revert_id()     :: ff_deposit_revert:id().
+-type revert_id() :: ff_deposit_revert:id().
 
--type adjustment_params()        :: ff_deposit:adjustment_params().
+-type adjustment_params() :: ff_deposit:adjustment_params().
 -type revert_adjustment_params() :: ff_deposit:revert_adjustment_params().
 
 -type call() ::
-    {start_revert, revert_params()} |
-    {start_revert_adjustment, revert_adjustment_params()} |
-    {start_adjustment, adjustment_params()}.
+    {start_revert, revert_params()}
+    | {start_revert_adjustment, revert_adjustment_params()}
+    | {start_adjustment, adjustment_params()}.
 
 -define(NS, 'ff/deposit_v1').
 
 %% API
 
 -spec create(params(), ctx()) ->
-    ok |
-    {error, ff_deposit:create_error() | exists}.
-
+    ok
+    | {error, ff_deposit:create_error() | exists}.
 create(Params, Ctx) ->
-    do(fun () ->
+    do(fun() ->
         #{id := ID} = Params,
         Events = unwrap(ff_deposit:create(Params)),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 
 -spec get(id()) ->
-    {ok, st()} |
-    {error, unknown_deposit_error()}.
-
+    {ok, st()}
+    | {error, unknown_deposit_error()}.
 get(ID) ->
     get(ID, {undefined, undefined}).
 
 -spec get(id(), event_range()) ->
-    {ok, st()} |
-    {error, unknown_deposit_error()}.
-
+    {ok, st()}
+    | {error, unknown_deposit_error()}.
 get(ID, {After, Limit}) ->
     case ff_machine:get(ff_deposit, ?NS, ID, {After, Limit, forward}) of
         {ok, _Machine} = Result ->
@@ -130,9 +128,8 @@ get(ID, {After, Limit}) ->
     end.
 
 -spec events(id(), event_range()) ->
-    {ok, [event()]} |
-    {error, unknown_deposit_error()}.
-
+    {ok, [event()]}
+    | {error, unknown_deposit_error()}.
 events(ID, {After, Limit}) ->
     case ff_machine:history(ff_deposit, ?NS, ID, {After, Limit, forward}) of
         {ok, History} ->
@@ -147,60 +144,49 @@ repair(ID, Scenario) ->
     machinery:repair(?NS, ID, Scenario, backend()).
 
 -spec start_revert(id(), revert_params()) ->
-    ok |
-    {error, start_revert_error()}.
-
+    ok
+    | {error, start_revert_error()}.
 start_revert(ID, Params) ->
     call(ID, {start_revert, Params}).
 
 -spec start_revert_adjustment(id(), revert_id(), revert_adjustment_params()) ->
-    ok |
-    {error, start_revert_adjustment_error()}.
-
+    ok
+    | {error, start_revert_adjustment_error()}.
 start_revert_adjustment(DepositID, RevertID, Params) ->
     call(DepositID, {start_revert_adjustment, RevertID, Params}).
 
 -spec start_adjustment(id(), adjustment_params()) ->
-    ok |
-    {error, start_adjustment_error()}.
-
+    ok
+    | {error, start_adjustment_error()}.
 start_adjustment(DepositID, Params) ->
     call(DepositID, {start_adjustment, Params}).
 
 %% Accessors
 
--spec deposit(st()) ->
-    deposit().
-
+-spec deposit(st()) -> deposit().
 deposit(St) ->
     ff_machine:model(St).
 
--spec ctx(st()) ->
-    ctx().
-
+-spec ctx(st()) -> ctx().
 ctx(St) ->
     ff_machine:ctx(St).
 
 %% Machinery
 
--type machine()      :: ff_machine:machine(event()).
--type result()       :: ff_machine:result(event()).
+-type machine() :: ff_machine:machine(event()).
+-type result() :: ff_machine:result(event()).
 -type handler_opts() :: machinery:handler_opts(_).
 -type handler_args() :: machinery:handler_args(_).
 
--spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) ->
-    result().
-
+-spec init({[event()], ctx()}, machine(), handler_args(), handler_opts()) -> result().
 init({Events, Ctx}, #{}, _, _Opts) ->
     #{
-        events    => ff_machine:emit_events(Events),
-        action    => continue,
+        events => ff_machine:emit_events(Events),
+        action => continue,
         aux_state => #{ctx => Ctx}
     }.
 
--spec process_timeout(machine(), handler_args(), handler_opts()) ->
-    result().
-
+-spec process_timeout(machine(), handler_args(), handler_opts()) -> result().
 process_timeout(Machine, _, _Opts) ->
     St = ff_machine:collapse(ff_deposit, Machine),
     Deposit = deposit(St),
@@ -208,7 +194,6 @@ process_timeout(Machine, _, _Opts) ->
 
 -spec process_call(call(), machine(), handler_args(), handler_opts()) -> {Response, result()} when
     Response :: ok | {error, ff_deposit:start_revert_error()}.
-
 process_call({start_revert, Params}, Machine, _, _Opts) ->
     do_start_revert(Params, Machine);
 process_call({start_revert_adjustment, RevertID, Params}, Machine, _, _Opts) ->
@@ -220,7 +205,6 @@ process_call(CallArgs, _Machine, _, _Opts) ->
 
 -spec process_repair(ff_repair:scenario(), machine(), handler_args(), handler_opts()) ->
     {ok, {repair_response(), result()}} | {error, repair_error()}.
-
 process_repair(Scenario, Machine, _Args, _Opts) ->
     ff_repair:apply_scenario(ff_deposit, Machine, Scenario).
 
@@ -231,7 +215,6 @@ backend() ->
 
 -spec do_start_revert(revert_params(), machine()) -> {Response, result()} when
     Response :: ok | {error, ff_deposit:start_revert_error()}.
-
 do_start_revert(Params, Machine) ->
     St = ff_machine:collapse(ff_deposit, Machine),
     case ff_deposit:start_revert(Params, deposit(St)) of
@@ -243,7 +226,6 @@ do_start_revert(Params, Machine) ->
 
 -spec do_start_revert_adjustment(revert_id(), revert_adjustment_params(), machine()) -> {Response, result()} when
     Response :: ok | {error, ff_deposit:start_revert_adjustment_error()}.
-
 do_start_revert_adjustment(RevertID, Params, Machine) ->
     St = ff_machine:collapse(ff_deposit, Machine),
     case ff_deposit:start_revert_adjustment(RevertID, Params, deposit(St)) of
@@ -255,7 +237,6 @@ do_start_revert_adjustment(RevertID, Params, Machine) ->
 
 -spec do_start_adjustment(adjustment_params(), machine()) -> {Response, result()} when
     Response :: ok | {error, ff_deposit:start_adjustment_error()}.
-
 do_start_adjustment(Params, Machine) ->
     St = ff_machine:collapse(ff_deposit, Machine),
     case ff_deposit:start_adjustment(Params, deposit(St)) of

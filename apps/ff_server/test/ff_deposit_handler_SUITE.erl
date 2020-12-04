@@ -41,10 +41,10 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
@@ -85,10 +85,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -103,6 +106,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -125,10 +129,10 @@ create_bad_amount_test(C) ->
         source_id := SourceID
     } = prepare_standard_environment(Body, C),
     Params = #deposit_DepositParams{
-        id            = generate_id(),
-        body          = Body,
-        source_id     = SourceID,
-        wallet_id     = WalletID
+        id = generate_id(),
+        body = Body,
+        source_id = SourceID,
+        wallet_id = WalletID
     },
     Result = call_deposit('Create', [Params, #{}]),
     ExpectedError = #fistful_InvalidOperationAmount{
@@ -144,10 +148,10 @@ create_currency_validation_error_test(C) ->
         source_id := SourceID
     } = prepare_standard_environment(Body, C),
     Params = #deposit_DepositParams{
-        id            = generate_id(),
-        body          = make_cash({5000, <<"EUR">>}),
-        source_id     = SourceID,
-        wallet_id     = WalletID
+        id = generate_id(),
+        body = make_cash({5000, <<"EUR">>}),
+        source_id = SourceID,
+        wallet_id = WalletID
     },
     Result = call_deposit('Create', [Params, #{}]),
     ExpectedError = #fistful_ForbiddenOperationCurrency{
@@ -166,10 +170,10 @@ create_source_notfound_test(C) ->
         wallet_id := WalletID
     } = prepare_standard_environment(Body, C),
     Params = #deposit_DepositParams{
-        id            = generate_id(),
-        body          = Body,
-        source_id     = <<"unknown_source">>,
-        wallet_id     = WalletID
+        id = generate_id(),
+        body = Body,
+        source_id = <<"unknown_source">>,
+        wallet_id = WalletID
     },
     Result = call_deposit('Create', [Params, #{}]),
     ExpectedError = #fistful_SourceNotFound{},
@@ -182,15 +186,14 @@ create_wallet_notfound_test(C) ->
         source_id := SourceID
     } = prepare_standard_environment(Body, C),
     Params = #deposit_DepositParams{
-        id            = generate_id(),
-        body          = Body,
-        source_id     = SourceID,
-        wallet_id     = <<"unknown_wallet">>
+        id = generate_id(),
+        body = Body,
+        source_id = SourceID,
+        wallet_id = <<"unknown_wallet">>
     },
     Result = call_deposit('Create', [Params, #{}]),
     ExpectedError = #fistful_WalletNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
-
 
 -spec create_ok_test(config()) -> test_return().
 create_ok_test(C) ->
@@ -204,12 +207,12 @@ create_ok_test(C) ->
     Context = #{<<"NS">> => #{generate_id() => generate_id()}},
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = #deposit_DepositParams{
-        id            = DepositID,
-        body          = Body,
-        source_id     = SourceID,
-        wallet_id     = WalletID,
-        metadata      = Metadata,
-        external_id   = ExternalID
+        id = DepositID,
+        body = Body,
+        source_id = SourceID,
+        wallet_id = WalletID,
+        metadata = Metadata,
+        external_id = ExternalID
     },
     {ok, DepositState} = call_deposit('Create', [Params, ff_entity_context_codec:marshal(Context)]),
     Expected = get_deposit(DepositID),
@@ -269,9 +272,10 @@ create_adjustment_ok_test(C) ->
     ExternalID = generate_id(),
     Params = #dep_adj_AdjustmentParams{
         id = AdjustmentID,
-        change = {change_status, #dep_adj_ChangeStatusRequest{
-            new_status = {failed, #dep_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
-        }},
+        change =
+            {change_status, #dep_adj_ChangeStatusRequest{
+                new_status = {failed, #dep_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+            }},
         external_id = ExternalID
     },
     {ok, AdjustmentState} = call_deposit('CreateAdjustment', [DepositID, Params]),
@@ -303,9 +307,10 @@ create_adjustment_unavailable_status_error_test(C) ->
     } = prepare_standard_environment_with_deposit(C),
     Params = #dep_adj_AdjustmentParams{
         id = generate_id(),
-        change = {change_status, #dep_adj_ChangeStatusRequest{
-            new_status = {pending, #dep_status_Pending{}}
-        }}
+        change =
+            {change_status, #dep_adj_ChangeStatusRequest{
+                new_status = {pending, #dep_status_Pending{}}
+            }}
     },
     Result = call_deposit('CreateAdjustment', [DepositID, Params]),
     ExpectedError = #deposit_ForbiddenStatusChange{
@@ -320,9 +325,10 @@ create_adjustment_already_has_status_error_test(C) ->
     } = prepare_standard_environment_with_deposit(C),
     Params = #dep_adj_AdjustmentParams{
         id = generate_id(),
-        change = {change_status, #dep_adj_ChangeStatusRequest{
-            new_status = {succeeded, #dep_status_Succeeded{}}
-        }}
+        change =
+            {change_status, #dep_adj_ChangeStatusRequest{
+                new_status = {succeeded, #dep_status_Succeeded{}}
+            }}
     },
     Result = call_deposit('CreateAdjustment', [DepositID, Params]),
     ExpectedError = #deposit_AlreadyHasStatus{
@@ -439,9 +445,10 @@ create_revert_adjustment_ok_test(C) ->
     ExternalID = generate_id(),
     Params = #dep_rev_adj_AdjustmentParams{
         id = AdjustmentID,
-        change = {change_status, #dep_rev_adj_ChangeStatusRequest{
-            new_status = {failed, #dep_rev_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
-        }},
+        change =
+            {change_status, #dep_rev_adj_ChangeStatusRequest{
+                new_status = {failed, #dep_rev_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+            }},
         external_id = ExternalID
     },
     {ok, AdjustmentState} = call_deposit('CreateRevertAdjustment', [DepositID, RevertID, Params]),
@@ -474,9 +481,10 @@ create_revert_adjustment_unavailable_status_error_test(C) ->
     } = prepare_standard_environment_with_revert(C),
     Params = #dep_rev_adj_AdjustmentParams{
         id = generate_id(),
-        change = {change_status, #dep_rev_adj_ChangeStatusRequest{
-            new_status = {pending, #dep_rev_status_Pending{}}
-        }}
+        change =
+            {change_status, #dep_rev_adj_ChangeStatusRequest{
+                new_status = {pending, #dep_rev_status_Pending{}}
+            }}
     },
     Result = call_deposit('CreateRevertAdjustment', [DepositID, RevertID, Params]),
     ExpectedError = #deposit_ForbiddenRevertStatusChange{
@@ -492,9 +500,10 @@ create_revert_adjustment_already_has_status_error_test(C) ->
     } = prepare_standard_environment_with_revert(C),
     Params = #dep_rev_adj_AdjustmentParams{
         id = generate_id(),
-        change = {change_status, #dep_rev_adj_ChangeStatusRequest{
-            new_status = {succeeded, #dep_rev_status_Succeeded{}}
-        }}
+        change =
+            {change_status, #dep_rev_adj_ChangeStatusRequest{
+                new_status = {succeeded, #dep_rev_status_Succeeded{}}
+            }}
     },
     Result = call_deposit('CreateRevertAdjustment', [DepositID, RevertID, Params]),
     ExpectedError = #deposit_RevertAlreadyHasStatus{
@@ -510,16 +519,18 @@ deposit_state_content_test(C) ->
     } = prepare_standard_environment_with_revert(C),
     AdjustmentParams = #dep_adj_AdjustmentParams{
         id = generate_id(),
-        change = {change_status, #dep_adj_ChangeStatusRequest{
-            new_status = {failed, #dep_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
-        }}
+        change =
+            {change_status, #dep_adj_ChangeStatusRequest{
+                new_status = {failed, #dep_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+            }}
     },
     {ok, _} = call_deposit('CreateAdjustment', [DepositID, AdjustmentParams]),
     RevertAdjustmentParams = #dep_rev_adj_AdjustmentParams{
         id = generate_id(),
-        change = {change_status, #dep_rev_adj_ChangeStatusRequest{
-            new_status = {failed, #dep_rev_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
-        }}
+        change =
+            {change_status, #dep_rev_adj_ChangeStatusRequest{
+                new_status = {failed, #dep_rev_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
+            }}
     },
     {ok, _} = call_deposit('CreateRevertAdjustment', [DepositID, RevertID, RevertAdjustmentParams]),
 
@@ -541,7 +552,7 @@ call_deposit(Fun, Args) ->
     ServiceName = deposit_management,
     Service = ff_services:get_service(ServiceName),
     Request = {Service, Fun, Args},
-    Client  = ff_woody_client:new(#{
+    Client = ff_woody_client:new(#{
         url => "http://localhost:8022" ++ ff_services:get_service_path(ServiceName)
     }),
     ff_woody_client:call(Client, Request).
@@ -638,7 +649,7 @@ get_revert_adjustment(DepositID, RevertID, AdjustmentID) ->
 await_final_deposit_status(DepositID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_deposit_machine:get(DepositID),
             Deposit = ff_deposit_machine:deposit(Machine),
             case ff_deposit:is_finished(Deposit) of
@@ -655,7 +666,7 @@ await_final_deposit_status(DepositID) ->
 await_final_revert_status(DepositID, RevertID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_deposit_machine:get(DepositID),
             Deposit = ff_deposit_machine:deposit(Machine),
             {ok, Revert} = ff_deposit:find_revert(RevertID, Deposit),
@@ -705,7 +716,7 @@ await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
-        fun () -> get_wallet_balance(ID) end,
+        fun() -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
     ok.
@@ -743,7 +754,7 @@ create_source(IID, _C) ->
     ok = ff_source_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, SrcM} = ff_source_machine:get(ID),
             Source = ff_source_machine:source(SrcM),
             ff_source:status(Source)

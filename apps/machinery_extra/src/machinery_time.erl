@@ -11,22 +11,16 @@
 
 %%
 
--spec now() ->
-    timestamp().
-
+-spec now() -> timestamp().
 now() ->
     Now = {_, _, USec} = os:timestamp(),
     {calendar:now_to_universal_time(Now), USec}.
 
--spec add_seconds(integer(), timestamp()) ->
-    timestamp().
-
+-spec add_seconds(integer(), timestamp()) -> timestamp().
 add_seconds(V, {Dt, USec}) ->
     {gs2dt(dt2gs(Dt) + V), USec}.
 
--spec interval(timestamp(), timestamp()) ->
-    timeout().
-
+-spec interval(timestamp(), timestamp()) -> timeout().
 interval({Dt1, USec1}, {Dt2, USec2}) ->
     (dt2gs(Dt1) - dt2gs(Dt2)) * 1000 + (USec1 - USec2) div 1000.
 

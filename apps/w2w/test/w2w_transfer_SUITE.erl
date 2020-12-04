@@ -28,10 +28,10 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
@@ -60,10 +60,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -78,6 +81,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -110,12 +114,15 @@ limit_check_fail_test(C) ->
     ?assertEqual(?final_balance(50000, <<"RUB">>), get_wallet_balance(WalletFromID)),
     ok = w2w_transfer_machine:create(W2WTransferParams, ff_entity_context:new()),
     Result = await_final_w2w_transfer_status(W2WTransferID),
-    ?assertMatch({failed, #{
-        code := <<"account_limit_exceeded">>,
-        sub := #{
-            code := <<"amount">>
-        }
-    }}, Result),
+    ?assertMatch(
+        {failed, #{
+            code := <<"account_limit_exceeded">>,
+            sub := #{
+                code := <<"amount">>
+            }
+        }},
+        Result
+    ),
     ?assertEqual(?final_balance(50000, <<"RUB">>), get_wallet_balance(WalletFromID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletToID)).
 
@@ -277,7 +284,7 @@ get_w2w_transfer_status(W2WTransferID) ->
 await_final_w2w_transfer_status(W2WTransferID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = w2w_transfer_machine:get(W2WTransferID),
             W2WTransfer = w2w_transfer_machine:w2w_transfer(Machine),
             case w2w_transfer:is_finished(W2WTransfer) of
@@ -325,7 +332,7 @@ await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
-        fun () -> get_wallet_balance(ID) end,
+        fun() -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
     ok.

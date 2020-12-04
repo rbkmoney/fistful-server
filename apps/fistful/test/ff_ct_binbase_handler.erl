@@ -1,4 +1,5 @@
 -module(ff_ct_binbase_handler).
+
 -behaviour(woody_server_thrift_handler).
 
 -include_lib("binbase_proto/include/binbase_binbase_thrift.hrl").
@@ -58,4 +59,3 @@ handle_function('GetByBinDataId', [ID], _Context, _Opts) ->
         },
         version = 1
     }}.
-

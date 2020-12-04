@@ -13,19 +13,22 @@
 -define(MD5, <<"033BD94B1168D7E4F0D644C3C95E35BF">>).
 -define(SHA256, <<"94EE059335E587E501CC4BF90613E0814F00A7B08BC7C648FD865A2AF6A22CC2">>).
 -define(DEFAULT_CONTEXT(PartyID), #{
-    <<"com.rbkmoney.wapi">> => {obj, #{
-        {str, <<"owner">>} => {str, PartyID},
-        {str, <<"name">>} => {str, ?STRING},
-        {str, <<"metadata">>} => {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}
-    }}
+    <<"com.rbkmoney.wapi">> =>
+        {obj, #{
+            {str, <<"owner">>} => {str, PartyID},
+            {str, <<"name">>} => {str, ?STRING},
+            {str, <<"metadata">>} => {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}
+        }}
 }).
+
 -define(BOOLEAN, true).
 
 -define(DEFAULT_CONTEXT_NO_NAME(PartyID), #{
-    <<"com.rbkmoney.wapi">> => {obj, #{
-        {str, <<"owner">>} => {str, PartyID},
-        {str, <<"metadata">>} => {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}
-    }}
+    <<"com.rbkmoney.wapi">> =>
+        {obj, #{
+            {str, <<"owner">>} => {str, PartyID},
+            {str, <<"metadata">>} => {obj, #{{str, <<"somedata">>} => {str, ?STRING}}}
+        }}
 }).
 
 -define(DEFAULT_METADATA(), #{<<"somedata">> => {str, ?STRING}}).
@@ -144,25 +147,25 @@
 -define(DESTINATION_STATUS, {authorized, #dst_Authorized{}}).
 
 -define(DESTINATION(PartyID), #dst_DestinationState{
-    id          = ?STRING,
-    name        = ?STRING,
-    status      = ?DESTINATION_STATUS,
-    account     = ?ACCOUNT,
-    resource    = ?RESOURCE,
+    id = ?STRING,
+    name = ?STRING,
+    status = ?DESTINATION_STATUS,
+    account = ?ACCOUNT,
+    resource = ?RESOURCE,
     external_id = ?STRING,
-    created_at  = ?TIMESTAMP,
-    context     = ?DEFAULT_CONTEXT(PartyID)
+    created_at = ?TIMESTAMP,
+    context = ?DEFAULT_CONTEXT(PartyID)
 }).
 
 -define(WALLET(PartyID), #wlt_WalletState{
-    id          = ?STRING,
-    name        = ?STRING,
-    blocking    = ?BLOCKING,
-    account     = ?ACCOUNT,
+    id = ?STRING,
+    name = ?STRING,
+    blocking = ?BLOCKING,
+    account = ?ACCOUNT,
     external_id = ?STRING,
-    created_at  = ?TIMESTAMP,
-    metadata    = ?DEFAULT_METADATA(),
-    context     = ?DEFAULT_CONTEXT(PartyID)
+    created_at = ?TIMESTAMP,
+    metadata = ?DEFAULT_METADATA(),
+    context = ?DEFAULT_CONTEXT(PartyID)
 }).
 
 -define(IDENTITY(PartyID),
@@ -181,21 +184,23 @@
 }).
 
 -define(IDENTITY_CHALLENGE(Status), #idnt_ChallengeState{
-    cls         = ?STRING,
-    proofs      = [
+    cls = ?STRING,
+    proofs = [
         #idnt_ChallengeProof{
             type = rus_domestic_passport,
             token = ?STRING
         }
     ],
-    id          = ?STRING,
-    status      = Status
+    id = ?STRING,
+    status = Status
 }).
 
--define(IDENTITY_CHALLENGE_STATUS_COMPLETED, {completed, #idnt_ChallengeCompleted{
-    resolution = approved,
-    valid_until = ?TIMESTAMP
-}}).
+-define(IDENTITY_CHALLENGE_STATUS_COMPLETED,
+    {completed, #idnt_ChallengeCompleted{
+        resolution = approved,
+        valid_until = ?TIMESTAMP
+    }}
+).
 
 -define(IDENTITY_CHALLENGE_EVENT(Change), #idnt_Event{
     change = Change,
@@ -203,85 +208,109 @@
     sequence = ?INTEGER
 }).
 
--define(CHALLENGE_STATUS_CHANGE, {identity_challenge, #idnt_ChallengeChange{
-    id = ?STRING,
-    payload = {status_changed, ?IDENTITY_CHALLENGE_STATUS_COMPLETED}
-}}).
+-define(CHALLENGE_STATUS_CHANGE,
+    {identity_challenge, #idnt_ChallengeChange{
+        id = ?STRING,
+        payload = {status_changed, ?IDENTITY_CHALLENGE_STATUS_COMPLETED}
+    }}
+).
 
 -define(STAT_INVALID_EXCEPTION(Errors), #fistfulstat_InvalidRequest{errors = Errors}).
 -define(STAT_BADTOKEN_EXCEPTION, #fistfulstat_BadToken{reason = ?STRING}).
 
 -define(STAT_RESPONCE(Data), #fistfulstat_StatResponse{data = Data}).
 
--define(STAT_WALLETS, {wallets, [#fistfulstat_StatWallet{
-    id = ?STRING,
-    identity_id = ?STRING,
-    name = ?STRING,
-    created_at = ?TIMESTAMP,
-    currency_symbolic_code = ?RUB
-}]}).
+-define(STAT_WALLETS,
+    {wallets, [
+        #fistfulstat_StatWallet{
+            id = ?STRING,
+            identity_id = ?STRING,
+            name = ?STRING,
+            created_at = ?TIMESTAMP,
+            currency_symbolic_code = ?RUB
+        }
+    ]}
+).
 
--define(STAT_WITHDRAWALS, {withdrawals, [#fistfulstat_StatWithdrawal{
-    id = ?STRING,
-    created_at = ?TIMESTAMP,
-    identity_id = ?STRING,
-    source_id = ?STRING,
-    destination_id = ?STRING,
-    external_id = ?STRING,
-    amount = ?INTEGER,
-    fee = ?INTEGER,
-    currency_symbolic_code = ?RUB,
-    status = {pending, #fistfulstat_WithdrawalPending{}}
-}]}).
+-define(STAT_WITHDRAWALS,
+    {withdrawals, [
+        #fistfulstat_StatWithdrawal{
+            id = ?STRING,
+            created_at = ?TIMESTAMP,
+            identity_id = ?STRING,
+            source_id = ?STRING,
+            destination_id = ?STRING,
+            external_id = ?STRING,
+            amount = ?INTEGER,
+            fee = ?INTEGER,
+            currency_symbolic_code = ?RUB,
+            status = {pending, #fistfulstat_WithdrawalPending{}}
+        }
+    ]}
+).
 
--define(STAT_DEPOSITS, {deposits, [#fistfulstat_StatDeposit{
-    id = ?STRING,
-    created_at = ?TIMESTAMP,
-    identity_id = ?STRING,
-    source_id = ?STRING,
-    destination_id = ?STRING,
-    amount = ?INTEGER,
-    fee = ?INTEGER,
-    currency_symbolic_code = ?RUB,
-    status = {pending, #fistfulstat_DepositPending{}}
-}]}).
+-define(STAT_DEPOSITS,
+    {deposits, [
+        #fistfulstat_StatDeposit{
+            id = ?STRING,
+            created_at = ?TIMESTAMP,
+            identity_id = ?STRING,
+            source_id = ?STRING,
+            destination_id = ?STRING,
+            amount = ?INTEGER,
+            fee = ?INTEGER,
+            currency_symbolic_code = ?RUB,
+            status = {pending, #fistfulstat_DepositPending{}}
+        }
+    ]}
+).
 
--define(STAT_DESTINATIONS, {destinations, [#fistfulstat_StatDestination{
-    id = ?STRING,
-    name = ?STRING,
-    created_at = ?TIMESTAMP,
-    is_blocked = ?BOOLEAN,
-    identity = ?STRING,
-    currency_symbolic_code = ?RUB,
-    resource = ?RESOURCE,
-    external_id = ?STRING,
-    status = {unauthorized, #fistfulstat_Unauthorized{}}
-}]}).
+-define(STAT_DESTINATIONS,
+    {destinations, [
+        #fistfulstat_StatDestination{
+            id = ?STRING,
+            name = ?STRING,
+            created_at = ?TIMESTAMP,
+            is_blocked = ?BOOLEAN,
+            identity = ?STRING,
+            currency_symbolic_code = ?RUB,
+            resource = ?RESOURCE,
+            external_id = ?STRING,
+            status = {unauthorized, #fistfulstat_Unauthorized{}}
+        }
+    ]}
+).
 
--define(STAT_IDENTITIES, {identities, [#fistfulstat_StatIdentity{
-    id = ?STRING,
-    name = ?STRING,
-    created_at = ?TIMESTAMP,
-    provider = ?STRING,
-    identity_class = ?STRING,
-    identity_level = ?STRING,
-    effective_challenge = ?STRING,
-    is_blocked = ?BOOLEAN,
-    external_id = ?STRING
-}]}).
+-define(STAT_IDENTITIES,
+    {identities, [
+        #fistfulstat_StatIdentity{
+            id = ?STRING,
+            name = ?STRING,
+            created_at = ?TIMESTAMP,
+            provider = ?STRING,
+            identity_class = ?STRING,
+            identity_level = ?STRING,
+            effective_challenge = ?STRING,
+            is_blocked = ?BOOLEAN,
+            external_id = ?STRING
+        }
+    ]}
+).
 
--define(IDENT_DOC, {russian_domestic_passport, #'identdocstore_RussianDomesticPassport'{
-    issuer = ?STRING,
-    issuer_code = ?STRING,
-    issued_at = ?TIMESTAMP,
-    birth_date = ?TIMESTAMP,
-    birth_place = ?STRING,
-    series = ?STRING,
-    number = ?STRING,
-    first_name = ?STRING,
-    family_name = ?STRING,
-    patronymic = ?STRING
-}}).
+-define(IDENT_DOC,
+    {russian_domestic_passport, #'identdocstore_RussianDomesticPassport'{
+        issuer = ?STRING,
+        issuer_code = ?STRING,
+        issued_at = ?TIMESTAMP,
+        birth_date = ?TIMESTAMP,
+        birth_place = ?STRING,
+        series = ?STRING,
+        number = ?STRING,
+        first_name = ?STRING,
+        family_name = ?STRING,
+        patronymic = ?STRING
+    }}
+).
 
 -define(REPORT_ID, ?INTEGER).
 
@@ -297,17 +326,16 @@
     file_data_ids = FilesList
 }).
 
--define(REPORT_WITH_STATUS(Status), ?REPORT_EXT(Status, [?STRING, ?STRING,?STRING])).
+-define(REPORT_WITH_STATUS(Status), ?REPORT_EXT(Status, [?STRING, ?STRING, ?STRING])).
 
 -define(REPORT, ?REPORT_WITH_STATUS(created)).
 
--define(WITHDRAWAL_EVENT_FILTER,
-    #webhooker_EventFilter{
-        types = ordsets:from_list([
-            {withdrawal, {started, #webhooker_WithdrawalStarted{}}},
-            {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}},
-            {withdrawal, {failed, #webhooker_WithdrawalFailed{}}}
-        ])
+-define(WITHDRAWAL_EVENT_FILTER, #webhooker_EventFilter{
+    types = ordsets:from_list([
+        {withdrawal, {started, #webhooker_WithdrawalStarted{}}},
+        {withdrawal, {succeeded, #webhooker_WithdrawalSucceeded{}}},
+        {withdrawal, {failed, #webhooker_WithdrawalFailed{}}}
+    ])
 }).
 
 -define(DESTINATION_EVENT_FILTER, #webhooker_EventFilter{
@@ -338,7 +366,7 @@
     party_revision = ?INTEGER,
     status = {pending, #w2w_status_Pending{}},
     external_id = ?STRING,
-    metadata    = ?DEFAULT_METADATA(),
+    metadata = ?DEFAULT_METADATA(),
     context = ?DEFAULT_CONTEXT(PartyID),
     effective_final_cash_flow = #cashflow_FinalCashFlow{
         postings = []
@@ -350,56 +378,56 @@
     version = ?INTEGER,
     domain = #{
         {category, #domain_CategoryRef{id = ?INTEGER}} =>
-        {category, #domain_CategoryObject{
-            ref = #domain_CategoryRef{id = ?INTEGER},
-            data = #domain_Category{
-                name = ?STRING,
-                description = ?STRING
-            }
-        }},
-        {business_schedule, #domain_BusinessScheduleRef{id = ?INTEGER}} =>
-        {business_schedule, #domain_BusinessScheduleObject{
-            ref = #domain_BusinessScheduleRef{id = ?INTEGER},
-            data = #domain_BusinessSchedule{
-                name = ?STRING,
-                description = ?STRING,
-                schedule = #'Schedule'{
-                    year = {every, #'ScheduleEvery'{}},
-                    month = {every, #'ScheduleEvery'{}},
-                    day_of_month = {every, #'ScheduleEvery'{}},
-                    day_of_week = {every, #'ScheduleEvery'{}},
-                    hour = {every, #'ScheduleEvery'{}},
-                    minute = {every, #'ScheduleEvery'{}},
-                    second = {every, #'ScheduleEvery'{}}
-                },
-                delay = #'TimeSpan'{},
-                policy = #domain_PayoutCompilationPolicy{
-                    assets_freeze_for = #'TimeSpan'{}
+            {category, #domain_CategoryObject{
+                ref = #domain_CategoryRef{id = ?INTEGER},
+                data = #domain_Category{
+                    name = ?STRING,
+                    description = ?STRING
                 }
-            }
-        }},
+            }},
+        {business_schedule, #domain_BusinessScheduleRef{id = ?INTEGER}} =>
+            {business_schedule, #domain_BusinessScheduleObject{
+                ref = #domain_BusinessScheduleRef{id = ?INTEGER},
+                data = #domain_BusinessSchedule{
+                    name = ?STRING,
+                    description = ?STRING,
+                    schedule = #'Schedule'{
+                        year = {every, #'ScheduleEvery'{}},
+                        month = {every, #'ScheduleEvery'{}},
+                        day_of_month = {every, #'ScheduleEvery'{}},
+                        day_of_week = {every, #'ScheduleEvery'{}},
+                        hour = {every, #'ScheduleEvery'{}},
+                        minute = {every, #'ScheduleEvery'{}},
+                        second = {every, #'ScheduleEvery'{}}
+                    },
+                    delay = #'TimeSpan'{},
+                    policy = #domain_PayoutCompilationPolicy{
+                        assets_freeze_for = #'TimeSpan'{}
+                    }
+                }
+            }},
         {globals, #domain_GlobalsRef{}} =>
-        {globals, #domain_GlobalsObject{
-            ref = #domain_GlobalsRef{},
-            data = #domain_Globals{
-                external_account_set = {value, #domain_ExternalAccountSetRef{id = ?INTEGER}},
-                payment_institutions = [#domain_PaymentInstitutionRef{id = ?INTEGER}]
-            }
-        }},
+            {globals, #domain_GlobalsObject{
+                ref = #domain_GlobalsRef{},
+                data = #domain_Globals{
+                    external_account_set = {value, #domain_ExternalAccountSetRef{id = ?INTEGER}},
+                    payment_institutions = [#domain_PaymentInstitutionRef{id = ?INTEGER}]
+                }
+            }},
         {payment_institution, #domain_PaymentInstitutionRef{id = ?INTEGER}} =>
-        {payment_institution, #domain_PaymentInstitutionObject{
-            ref = #domain_PaymentInstitutionRef{id = ?INTEGER},
-            data = #domain_PaymentInstitution{
-                name = ?STRING,
-                description = ?STRING,
-                system_account_set = {value, #domain_SystemAccountSetRef{id = ?INTEGER}},
-                default_contract_template = {value, #domain_ContractTemplateRef{id = ?INTEGER}},
-                providers = {value, []},
-                inspector = {value, #domain_InspectorRef{id = ?INTEGER}},
-                realm = test,
-                residences = [rus]
-            }
-        }}
+            {payment_institution, #domain_PaymentInstitutionObject{
+                ref = #domain_PaymentInstitutionRef{id = ?INTEGER},
+                data = #domain_PaymentInstitution{
+                    name = ?STRING,
+                    description = ?STRING,
+                    system_account_set = {value, #domain_SystemAccountSetRef{id = ?INTEGER}},
+                    default_contract_template = {value, #domain_ContractTemplateRef{id = ?INTEGER}},
+                    providers = {value, []},
+                    inspector = {value, #domain_InspectorRef{id = ?INTEGER}},
+                    realm = test,
+                    residences = [rus]
+                }
+            }}
     }
 }).
 
@@ -411,38 +439,44 @@
 -define(PAYOUTS_SERVICE_TERMS, #domain_PayoutsServiceTerms{}).
 
 -define(PAYMENTS_SERVICE_TERMS, #domain_PaymentsServiceTerms{
-    payment_methods = {value,
-        ordsets:from_list([
-            #domain_PaymentMethodRef{
-                id = {bank_card_deprecated, mastercard}
-            },
-            #domain_PaymentMethodRef{
-                id = {bank_card_deprecated, visa}
-            },
-            #domain_PaymentMethodRef{
-                id = {tokenized_bank_card_deprecated, #domain_TokenizedBankCard{
-                    payment_system = mastercard,
-                    token_provider = applepay
-                }}
-            },
-            #domain_PaymentMethodRef{
-                id = {tokenized_bank_card_deprecated, #domain_TokenizedBankCard{
-                    payment_system = visa,
-                    token_provider = applepay
-                }}
-            }
-        ])
-    }
+    payment_methods =
+        {value,
+            ordsets:from_list([
+                #domain_PaymentMethodRef{
+                    id = {bank_card_deprecated, mastercard}
+                },
+                #domain_PaymentMethodRef{
+                    id = {bank_card_deprecated, visa}
+                },
+                #domain_PaymentMethodRef{
+                    id =
+                        {tokenized_bank_card_deprecated, #domain_TokenizedBankCard{
+                            payment_system = mastercard,
+                            token_provider = applepay
+                        }}
+                },
+                #domain_PaymentMethodRef{
+                    id =
+                        {tokenized_bank_card_deprecated, #domain_TokenizedBankCard{
+                            payment_system = visa,
+                            token_provider = applepay
+                        }}
+                }
+            ])}
 }).
 
--define(RESOURCE_BANK_CARD, {bank_card, #'ResourceBankCard'{
-    bank_card = ?BANK_CARD
-}}).
+-define(RESOURCE_BANK_CARD,
+    {bank_card, #'ResourceBankCard'{
+        bank_card = ?BANK_CARD
+    }}
+).
 
--define(RAW_RESOURCE, {resource, #'p2p_transfer_RawResource'{
-    contact_info = #'ContactInfo'{},
-    resource = ?RESOURCE_BANK_CARD
-}}).
+-define(RAW_RESOURCE,
+    {resource, #'p2p_transfer_RawResource'{
+        contact_info = #'ContactInfo'{},
+        resource = ?RESOURCE_BANK_CARD
+    }}
+).
 
 -define(P2P_TEMPLATE(PartyID), #p2p_template_P2PTemplateState{
     id = ?STRING,
@@ -493,7 +527,7 @@
     party_revision = ?INTEGER,
     operation_timestamp = ?TIMESTAMP,
     external_id = ?STRING,
-    metadata    = ?DEFAULT_METADATA(),
+    metadata = ?DEFAULT_METADATA(),
     context = ?DEFAULT_CONTEXT(PartyID),
     effective_final_cash_flow = #cashflow_FinalCashFlow{
         postings = []
@@ -514,7 +548,7 @@
     party_revision = ?INTEGER,
     operation_timestamp = ?TIMESTAMP,
     external_id = ?STRING,
-    metadata    = ?DEFAULT_METADATA(),
+    metadata = ?DEFAULT_METADATA(),
     context = ?DEFAULT_CONTEXT(PartyID),
     effective_final_cash_flow = #cashflow_FinalCashFlow{
         postings = []
@@ -530,25 +564,30 @@
 -define(P2P_TRANSFER_EVENT(EventID), #p2p_transfer_Event{
     event = EventID,
     occured_at = ?TIMESTAMP,
-    change = {status_changed, #p2p_transfer_StatusChange{
-        status = {succeeded, #p2p_status_Succeeded{}}
-    }}
+    change =
+        {status_changed, #p2p_transfer_StatusChange{
+            status = {succeeded, #p2p_status_Succeeded{}}
+        }}
 }).
 
 -define(P2P_SESSION_EVENT(EventID), #p2p_session_Event{
     event = EventID,
     occured_at = ?TIMESTAMP,
-    change = {ui, #p2p_session_UserInteractionChange{
-        id = ?STRING,
-        payload = {created, #p2p_session_UserInteractionCreatedChange{
-            ui = #p2p_session_UserInteraction{
-                id = ?STRING,
-                user_interaction = {redirect, {get_request, #ui_BrowserGetRequest{
-                    uri = ?STRING
-                }}}
-            }
+    change =
+        {ui, #p2p_session_UserInteractionChange{
+            id = ?STRING,
+            payload =
+                {created, #p2p_session_UserInteractionCreatedChange{
+                    ui = #p2p_session_UserInteraction{
+                        id = ?STRING,
+                        user_interaction =
+                            {redirect,
+                                {get_request, #ui_BrowserGetRequest{
+                                    uri = ?STRING
+                                }}}
+                    }
+                }}
         }}
-    }}
 }).
 
 -define(FEES, #'Fees'{fees = #{operation_amount => ?CASH}}).
@@ -564,4 +603,3 @@
     receiver = ?RESOURCE_BANK_CARD,
     fees = ?FEES
 }).
-

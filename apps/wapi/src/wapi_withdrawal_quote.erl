@@ -6,11 +6,11 @@
 -export([decode_token_payload/1]).
 
 -type token_payload() ::
-    integer() |
-    binary() |
-    float() |
-    [token_payload()] |
-    #{binary() => token_payload()}.
+    integer()
+    | binary()
+    | float()
+    | [token_payload()]
+    | #{binary() => token_payload()}.
 
 -export_type([token_payload/0]).
 
@@ -23,8 +23,7 @@
 
 %% API
 
--spec create_token_payload(quote(), wallet_id(), destination_id(), party_id()) ->
-    token_payload().
+-spec create_token_payload(quote(), wallet_id(), destination_id(), party_id()) -> token_payload().
 create_token_payload(Quote, WalletID, DestinationID, PartyID) ->
     do_create_token_payload(encode_quote(Quote), WalletID, DestinationID, PartyID).
 
@@ -54,15 +53,13 @@ decode_token_payload(#{<<"version">> := 1}) ->
 
 %% Internals
 
--spec encode_quote(quote()) ->
-    token_payload().
+-spec encode_quote(quote()) -> token_payload().
 encode_quote(Quote) ->
     Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
     Bin = ff_proto_utils:serialize(Type, Quote),
     base64:encode(Bin).
 
--spec decode_quote(token_payload()) ->
-    quote().
+-spec decode_quote(token_payload()) -> quote().
 decode_quote(Encoded) ->
     Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
     Bin = base64:decode(Encoded),
@@ -70,9 +67,11 @@ decode_quote(Encoded) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
 -spec test() -> _.
 
 -spec payload_symmetry_test() -> _.
+
 payload_symmetry_test() ->
     PartyID = <<"party">>,
     WalletID = <<"wallet">>,
@@ -97,9 +96,10 @@ payload_symmetry_test() ->
             provider_id = 100,
             terminal_id = 2
         },
-        resource = {bank_card, #'ResourceDescriptorBankCard'{
-            bin_data_id = {obj, #{{arr, [{nl, {msgp_Nil}}]} => {arr, [{nl, {msgp_Nil}}]}}}
-        }},
+        resource =
+            {bank_card, #'ResourceDescriptorBankCard'{
+                bin_data_id = {obj, #{{arr, [{nl, {msgp_Nil}}]} => {arr, [{nl, {msgp_Nil}}]}}}
+            }},
         operation_timestamp = <<"1970-01-01T00:00:00.234Z">>,
         domain_revision = 1,
         party_revision = 2
@@ -134,9 +134,10 @@ payload_v2_decoding_test() ->
             terminal_id = 2,
             provider_id_legacy = <<"700">>
         },
-        resource = {bank_card, #'ResourceDescriptorBankCard'{
-            bin_data_id = {obj, #{{arr, [{nl, {msgp_Nil}}]} => {arr, [{nl, {msgp_Nil}}]}}}
-        }},
+        resource =
+            {bank_card, #'ResourceDescriptorBankCard'{
+                bin_data_id = {obj, #{{arr, [{nl, {msgp_Nil}}]} => {arr, [{nl, {msgp_Nil}}]}}}
+            }},
         operation_timestamp = <<"1970-01-01T00:00:00.234Z">>,
         domain_revision = 1,
         party_revision = 2

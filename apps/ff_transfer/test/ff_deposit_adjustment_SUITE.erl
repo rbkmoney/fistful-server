@@ -28,10 +28,10 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
@@ -62,10 +62,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -80,6 +83,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -111,7 +115,7 @@ adjustment_can_change_status_to_failed_test(C) ->
     ?assertMatch(succeeded, get_adjustment_status(DepositID, AdjustmentID)),
     ExternalID = ff_adjustment:external_id(get_adjustment(DepositID, AdjustmentID)),
     ?assertEqual(<<"true_unique_id">>, ExternalID),
-    ?assertEqual({failed, Failure},  get_deposit_status(DepositID)),
+    ?assertEqual({failed, Failure}, get_deposit_status(DepositID)),
     assert_adjustment_same_revisions(DepositID, AdjustmentID),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_source_balance(SourceID)).
@@ -129,7 +133,7 @@ adjustment_can_change_failure_test(C) ->
     AdjustmentID1 = process_adjustment(DepositID, #{
         change => {change_status, {failed, Failure1}}
     }),
-    ?assertEqual({failed, Failure1},  get_deposit_status(DepositID)),
+    ?assertEqual({failed, Failure1}, get_deposit_status(DepositID)),
     assert_adjustment_same_revisions(DepositID, AdjustmentID1),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_source_balance(SourceID)),
@@ -137,7 +141,7 @@ adjustment_can_change_failure_test(C) ->
     AdjustmentID2 = process_adjustment(DepositID, #{
         change => {change_status, {failed, Failure2}}
     }),
-    ?assertEqual({failed, Failure2},  get_deposit_status(DepositID)),
+    ?assertEqual({failed, Failure2}, get_deposit_status(DepositID)),
     assert_adjustment_same_revisions(DepositID, AdjustmentID2),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(0, <<"RUB">>), get_source_balance(SourceID)).
@@ -342,7 +346,7 @@ get_adjustment_status(DepositID, AdjustmentID) ->
 await_final_deposit_status(DepositID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_deposit_machine:get(DepositID),
             Deposit = ff_deposit_machine:deposit(Machine),
             case ff_deposit:is_finished(Deposit) of
@@ -359,7 +363,7 @@ await_final_deposit_status(DepositID) ->
 await_final_adjustment_status(DepositID, AdjustmentID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_deposit_machine:get(DepositID),
             Deposit = ff_deposit_machine:deposit(Machine),
             {ok, Adjustment} = ff_deposit:find_adjustment(AdjustmentID, Deposit),
@@ -408,7 +412,7 @@ await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
-        fun () -> get_wallet_balance(ID) end,
+        fun() -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
     ok.
@@ -447,7 +451,7 @@ create_source(IID, _C) ->
     ok = ff_source_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, SrcM} = ff_source_machine:get(ID),
             Source = ff_source_machine:source(SrcM),
             ff_source:status(Source)

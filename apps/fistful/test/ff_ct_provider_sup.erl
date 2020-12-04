@@ -1,4 +1,5 @@
 -module(ff_ct_provider_sup).
+
 -behaviour(supervisor).
 
 %% Supervisor callbacks
@@ -17,10 +18,10 @@ init(Opts) ->
             handlers => [
                 {Path, {{dmsl_withdrawals_provider_adapter_thrift, 'Adapter'}, {ff_ct_provider_thrift, []}}}
             ],
-            event_handler     => scoper_woody_event_handler,
-            ip                => proplists:get_value(ip, Opts, "::"),
-            port              => proplists:get_value(port, Opts, 8022),
-            net_opts          => proplists:get_value(net_opts, Opts, [])
+            event_handler => scoper_woody_event_handler,
+            ip => proplists:get_value(ip, Opts, "::"),
+            port => proplists:get_value(port, Opts, 8022),
+            net_opts => proplists:get_value(net_opts, Opts, [])
         }
     ),
     {ok, {{one_for_one, 1, 5}, [Service]}}.

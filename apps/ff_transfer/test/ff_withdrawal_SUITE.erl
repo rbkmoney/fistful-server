@@ -42,20 +42,22 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
 -define(final_balance(Cash), {
     element(1, Cash),
     {
-        {inclusive, element(1, Cash)}, {inclusive, element(1, Cash)}
+        {inclusive, element(1, Cash)},
+        {inclusive, element(1, Cash)}
     },
     element(2, Cash)
 }).
+
 -define(final_balance(Amount, Currency), ?final_balance({Amount, Currency})).
 
 %% API
@@ -100,10 +102,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -118,6 +123,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -149,12 +155,12 @@ session_fail_test(C) ->
         wallet_id => WalletID,
         body => WithdrawalCash,
         quote => #{
-            cash_from   => {4240, <<"RUB">>},
-            cash_to     => {2120, <<"USD">>},
-            created_at  => <<"2016-03-22T06:12:27Z">>,
-            expires_on  => <<"2016-03-22T06:12:27Z">>,
-            route       => ff_withdrawal_routing:make_route(3, 1),
-            quote_data  => #{<<"test">> => <<"error">>}
+            cash_from => {4240, <<"RUB">>},
+            cash_to => {2120, <<"USD">>},
+            created_at => <<"2016-03-22T06:12:27Z">>,
+            expires_on => <<"2016-03-22T06:12:27Z">>,
+            route => ff_withdrawal_routing:make_route(3, 1),
+            quote_data => #{<<"test">> => <<"error">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -176,12 +182,12 @@ quote_fail_test(C) ->
         wallet_id => WalletID,
         body => Cash,
         quote => #{
-            cash_from   => {4240, <<"RUB">>},
-            cash_to     => {2120, <<"USD">>},
-            created_at  => <<"2016-03-22T06:12:27Z">>,
-            expires_on  => <<"2016-03-22T06:12:27Z">>,
-            route       => ff_withdrawal_routing:make_route(10, 10),
-            quote_data  => #{<<"test">> => <<"test">>}
+            cash_from => {4240, <<"RUB">>},
+            cash_to => {2120, <<"USD">>},
+            created_at => <<"2016-03-22T06:12:27Z">>,
+            expires_on => <<"2016-03-22T06:12:27Z">>,
+            route => ff_withdrawal_routing:make_route(10, 10),
+            quote_data => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -206,7 +212,6 @@ route_not_found_fail_test(C) ->
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
     ?assertMatch({failed, #{code := <<"no_route_found">>}}, Result).
-
 
 -spec provider_operations_forbidden_fail_test(config()) -> test_return().
 provider_operations_forbidden_fail_test(C) ->
@@ -260,12 +265,15 @@ limit_check_fail_test(C) ->
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
     Result = await_final_withdrawal_status(WithdrawalID),
-    ?assertMatch({failed, #{
-        code := <<"account_limit_exceeded">>,
-        sub := #{
-            code := <<"amount">>
-        }
-    }}, Result),
+    ?assertMatch(
+        {failed, #{
+            code := <<"account_limit_exceeded">>,
+            sub := #{
+                code := <<"amount">>
+            }
+        }},
+        Result
+    ),
     ?assertEqual(?final_balance(Cash), get_wallet_balance(WalletID)).
 
 -spec create_cashlimit_validation_error_test(config()) -> test_return().
@@ -347,7 +355,6 @@ create_currency_validation_error_test(C) ->
     ?assertMatch({error, {terms, {terms_violation, {not_allowed_currency, Details}}}}, Result).
 
 -spec create_identity_providers_mismatch_error_test(config()) -> test_return().
-
 create_identity_providers_mismatch_error_test(C) ->
     Cash = {100, <<"RUB">>},
     #{
@@ -453,12 +460,12 @@ quota_ok_test(C) ->
         wallet_id => WalletID,
         body => Cash,
         quote => #{
-            cash_from   => Cash,
-            cash_to     => {2120, <<"USD">>},
-            created_at  => <<"2016-03-22T06:12:27Z">>,
-            expires_on  => <<"2016-03-22T06:12:27Z">>,
-            route       => ff_withdrawal_routing:make_route(1, 1),
-            quote_data  => #{<<"test">> => <<"test">>}
+            cash_from => Cash,
+            cash_to => {2120, <<"USD">>},
+            created_at => <<"2016-03-22T06:12:27Z">>,
+            expires_on => <<"2016-03-22T06:12:27Z">>,
+            route => ff_withdrawal_routing:make_route(1, 1),
+            quote_data => #{<<"test">> => <<"test">>}
         }
     },
     ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
@@ -474,10 +481,10 @@ crypto_quota_ok_test(C) ->
     ok = await_wallet_balance({0, Currency}, WalletID),
     DestinationID = create_crypto_destination(IdentityID, C),
     Params = #{
-        wallet_id      => WalletID,
-        currency_from  => <<"RUB">>,
-        currency_to    => <<"BTC">>,
-        body           => Cash,
+        wallet_id => WalletID,
+        currency_from => <<"RUB">>,
+        currency_to => <<"BTC">>,
+        body => Cash,
         destination_id => DestinationID
     },
     {ok, _Quote} = ff_withdrawal:get_quote(Params).
@@ -600,12 +607,12 @@ session_repair_test(C) ->
         wallet_id => WalletID,
         body => Cash,
         quote => #{
-            cash_from   => {700700, <<"RUB">>},
-            cash_to     => {700700, <<"RUB">>},
-            created_at  => <<"2016-03-22T06:12:27Z">>,
-            expires_on  => <<"2016-03-22T06:12:27Z">>,
-            route       => ff_withdrawal_routing:make_route(11, 1),
-            quote_data  => #{<<"test">> => <<"fatal">>}
+            cash_from => {700700, <<"RUB">>},
+            cash_to => {700700, <<"RUB">>},
+            created_at => <<"2016-03-22T06:12:27Z">>,
+            expires_on => <<"2016-03-22T06:12:27Z">>,
+            route => ff_withdrawal_routing:make_route(11, 1),
+            quote_data => #{<<"test">> => <<"fatal">>}
         }
     },
     Callback = #{
@@ -679,7 +686,7 @@ get_session_id(WithdrawalID) ->
 await_final_withdrawal_status(WithdrawalID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_withdrawal_machine:get(WithdrawalID),
             Withdrawal = ff_withdrawal_machine:withdrawal(Machine),
             case ff_withdrawal:is_finished(Withdrawal) of
@@ -731,7 +738,7 @@ await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
-        fun () -> get_wallet_balance(ID) end,
+        fun() -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
     ok.
@@ -758,18 +765,19 @@ create_destination(IID, Token, C) ->
 create_destination(IID, Currency, Token, C) ->
     ID = generate_id(),
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    NewStoreResource = case Token of
-        undefined ->
-            StoreSource;
-        Token ->
-            StoreSource#{token => Token}
+    NewStoreResource =
+        case Token of
+            undefined ->
+                StoreSource;
+            Token ->
+                StoreSource#{token => Token}
         end,
     Resource = {bank_card, #{bank_card => NewStoreResource}},
     Params = #{id => ID, identity => IID, name => <<"XDesination">>, currency => Currency, resource => Resource},
     ok = ff_destination_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_destination_machine:get(ID),
             Destination = ff_destination_machine:destination(Machine),
             ff_destination:status(Destination)
@@ -779,15 +787,18 @@ create_destination(IID, Currency, Token, C) ->
 
 create_crypto_destination(IID, _C) ->
     ID = generate_id(),
-    Resource = {crypto_wallet, #{crypto_wallet => #{
-        id => <<"a30e277c07400c9940628828949efd48">>,
-        currency => {litecoin, #{}}
-    }}},
+    Resource =
+        {crypto_wallet, #{
+            crypto_wallet => #{
+                id => <<"a30e277c07400c9940628828949efd48">>,
+                currency => {litecoin, #{}}
+            }
+        }},
     Params = #{id => ID, identity => IID, name => <<"CryptoDestination">>, currency => <<"RUB">>, resource => Resource},
     ok = ff_destination_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_destination_machine:get(ID),
             Destination = ff_destination_machine:destination(Machine),
             ff_destination:status(Destination)
@@ -826,12 +837,11 @@ call_accounter(Function, Args) ->
     Service = {shumpune_shumpune_thrift, 'Accounter'},
     ff_woody_client:call(accounter, {Service, Function, Args}, woody_context:new()).
 
-
 make_dummy_party_change(PartyID) ->
     {ok, _ContractID} = ff_party:create_contract(PartyID, #{
-        payinst           => #domain_PaymentInstitutionRef{id = 1},
+        payinst => #domain_PaymentInstitutionRef{id = 1},
         contract_template => #domain_ContractTemplateRef{id = 1},
-        contractor_level  => full
+        contractor_level => full
     }),
     ok.
 
@@ -839,22 +849,26 @@ call_process_callback(Callback) ->
     ff_withdrawal_session_machine:process_callback(Callback).
 
 repair_withdrawal_session(WithdrawalID) ->
-   SessionID = get_session_id(WithdrawalID),
-   {ok, ok} = call_session_repair(SessionID, {set_session_result, #wthd_session_SetResultRepair{
-       result = {success, #wthd_session_SessionResultSuccess{
-           trx_info = #'TransactionInfo'{
-               id = SessionID,
-               extra = #{}
-           }
-       }}
-   }}),
-   ok.
+    SessionID = get_session_id(WithdrawalID),
+    {ok, ok} = call_session_repair(
+        SessionID,
+        {set_session_result, #wthd_session_SetResultRepair{
+            result =
+                {success, #wthd_session_SessionResultSuccess{
+                    trx_info = #'TransactionInfo'{
+                        id = SessionID,
+                        extra = #{}
+                    }
+                }}
+        }}
+    ),
+    ok.
 
 call_session_repair(SessionID, Scenario) ->
-   Service = {ff_proto_withdrawal_session_thrift, 'Repairer'},
-   Request = {Service, 'Repair', [SessionID, Scenario]},
-   Client  = ff_woody_client:new(#{
-       url           => <<"http://localhost:8022/v1/repair/withdrawal/session">>,
-       event_handler => scoper_woody_event_handler
-   }),
-   ff_woody_client:call(Client, Request).
+    Service = {ff_proto_withdrawal_session_thrift, 'Repairer'},
+    Request = {Service, 'Repair', [SessionID, Scenario]},
+    Client = ff_woody_client:new(#{
+        url => <<"http://localhost:8022/v1/repair/withdrawal/session">>,
+        event_handler => scoper_woody_event_handler
+    }),
+    ff_woody_client:call(Client, Request).

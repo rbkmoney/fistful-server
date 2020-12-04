@@ -31,10 +31,10 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
@@ -67,10 +67,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -85,6 +88,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -108,7 +112,7 @@ revert_ok_test(C) ->
         source_id := SourceID
     } = prepare_standard_environment({10000, <<"RUB">>}, C),
     RevertID = process_revert(DepositID, #{
-        body   => {5000, <<"RUB">>}
+        body => {5000, <<"RUB">>}
     }),
     ?assertEqual(?final_balance(5000, <<"RUB">>), get_wallet_balance(WalletID)),
     ?assertEqual(?final_balance(-5000, <<"RUB">>), get_source_balance(SourceID)),
@@ -162,8 +166,8 @@ idempotency_test(C) ->
     } = prepare_standard_environment({10000, <<"RUB">>}, C),
     RevertID = generate_id(),
     Params = #{
-        id     => RevertID,
-        body   => {5000, <<"RUB">>}
+        id => RevertID,
+        body => {5000, <<"RUB">>}
     },
     ok = ff_deposit_machine:start_revert(DepositID, Params),
     ok = ff_deposit_machine:start_revert(DepositID, Params),
@@ -214,7 +218,7 @@ insufficient_amount_multiple_reverts_test(C) ->
     #{
         deposit_id := DepositID
     } = prepare_standard_environment({100, <<"RUB">>}, C),
-    _ = process_revert(DepositID, #{body   => {90, <<"RUB">>}}),
+    _ = process_revert(DepositID, #{body => {90, <<"RUB">>}}),
     RevertID = generate_id(),
     Result = ff_deposit_machine:start_revert(DepositID, #{
         id => RevertID,
@@ -227,7 +231,7 @@ invalid_revert_amount_test(C) ->
     #{
         deposit_id := DepositID
     } = prepare_standard_environment({100, <<"RUB">>}, C),
-    _ = process_revert(DepositID, #{body   => {1, <<"RUB">>}}),
+    _ = process_revert(DepositID, #{body => {1, <<"RUB">>}}),
     RevertID = generate_id(),
     Result = ff_deposit_machine:start_revert(DepositID, #{
         id => RevertID,
@@ -327,12 +331,13 @@ prepare_standard_environment({_Amount, Currency} = Cash, C) ->
 
 process_deposit(DepositParams) ->
     DepositID = generate_id(),
-    ok = ff_deposit_machine:create(DepositParams#{id => DepositID},
+    ok = ff_deposit_machine:create(
+        DepositParams#{id => DepositID},
         ff_entity_context:new()
     ),
     succeeded = ct_helper:await(
         succeeded,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_deposit_machine:get(DepositID),
             ff_deposit:status(ff_deposit_machine:deposit(Machine))
         end,
@@ -350,7 +355,7 @@ process_revert(DepositID, RevertParams0) ->
 await_final_revert_status(RevertID, DepositID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = ff_deposit_machine:get(DepositID),
             Deposit = ff_deposit_machine:deposit(Machine),
             {ok, Revert} = ff_deposit:find_revert(RevertID, Deposit),
@@ -413,7 +418,7 @@ await_wallet_balance({Amount, Currency}, ID) ->
     Balance = {Amount, {{inclusive, Amount}, {inclusive, Amount}}, Currency},
     Balance = ct_helper:await(
         Balance,
-        fun () -> get_wallet_balance(ID) end,
+        fun() -> get_wallet_balance(ID) end,
         genlib_retry:linear(3, 500)
     ),
     ok.
@@ -456,7 +461,7 @@ create_source(IID, _C) ->
     ok = ff_source_machine:create(Params, ff_entity_context:new()),
     authorized = ct_helper:await(
         authorized,
-        fun () ->
+        fun() ->
             {ok, SrcM} = ff_source_machine:get(ID),
             Source = ff_source_machine:source(SrcM),
             ff_source:status(Source)

@@ -10,13 +10,12 @@
 %% Data transform
 
 -define(to_session_event(SessionID, Payload),
-    {session, #{id => SessionID, payload => Payload}}).
+    {session, #{id => SessionID, payload => Payload}}
+).
 
 %% API
 
--spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) ->
-    ff_codec:encoded_value().
-
+-spec marshal(ff_codec:type_name(), ff_codec:decoded_value()) -> ff_codec:encoded_value().
 marshal(change, {created, Revert}) ->
     {created, #deposit_revert_CreatedChange{revert = marshal(revert, Revert)}};
 marshal(change, {status_changed, Status}) ->
@@ -31,7 +30,6 @@ marshal(change, {adjustment, #{id := ID, payload := Payload}}) ->
         id = marshal(id, ID),
         payload = ff_deposit_revert_adjustment_codec:marshal(change, Payload)
     }};
-
 marshal(revert, Revert) ->
     #deposit_revert_Revert{
         id = marshal(id, ff_deposit_revert:id(Revert)),
@@ -69,17 +67,12 @@ marshal(revert_state, Revert) ->
         effective_final_cash_flow = ff_cash_flow_codec:marshal(final_cash_flow, CashFlow),
         adjustments = [ff_deposit_revert_adjustment_codec:marshal(adjustment_state, A) || A <- Adjustments]
     };
-
 marshal(status, Status) ->
     ff_deposit_revert_status_codec:marshal(status, Status);
-
 marshal(T, V) ->
     ff_codec:marshal(T, V).
 
-
--spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) ->
-    ff_codec:decoded_value().
-
+-spec unmarshal(ff_codec:type_name(), ff_codec:encoded_value()) -> ff_codec:decoded_value().
 unmarshal(change, {created, #deposit_revert_CreatedChange{revert = Revert}}) ->
     {created, unmarshal(revert, Revert)};
 unmarshal(change, {status_changed, #deposit_revert_StatusChange{status = Status}}) ->
@@ -97,10 +90,8 @@ unmarshal(change, {adjustment, Change}) ->
         id => unmarshal(id, ID),
         payload => ff_deposit_revert_adjustment_codec:unmarshal(change, Payload)
     }};
-
 unmarshal(status, Status) ->
     ff_deposit_revert_status_codec:unmarshal(status, Status);
-
 unmarshal(revert, Revert) ->
     genlib_map:compact(#{
         id => unmarshal(id, Revert#deposit_revert_Revert.id),
@@ -114,7 +105,6 @@ unmarshal(revert, Revert) ->
         reason => maybe_unmarshal(string, Revert#deposit_revert_Revert.reason),
         external_id => maybe_unmarshal(id, Revert#deposit_revert_Revert.external_id)
     });
-
 unmarshal(revert_params, Params) ->
     genlib_map:compact(#{
         id => unmarshal(id, Params#deposit_revert_RevertParams.id),
@@ -122,7 +112,6 @@ unmarshal(revert_params, Params) ->
         external_id => maybe_unmarshal(id, Params#deposit_revert_RevertParams.external_id),
         reason => maybe_unmarshal(string, Params#deposit_revert_RevertParams.reason)
     });
-
 unmarshal(T, V) ->
     ff_codec:unmarshal(T, V).
 
@@ -142,14 +131,16 @@ maybe_marshal(Type, Value) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
 -spec test() -> _.
 
 -spec revert_symmetry_test() -> _.
+
 revert_symmetry_test() ->
     Encoded = #deposit_revert_Revert{
         body = #'Cash'{
             amount = 10101,
-            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+            currency = #'CurrencyRef'{symbolic_code = <<"Banana Republic">>}
         },
         source_id = genlib:unique(),
         wallet_id = genlib:unique(),
@@ -168,7 +159,7 @@ revert_params_symmetry_test() ->
     Encoded = #deposit_revert_RevertParams{
         body = #'Cash'{
             amount = 10101,
-            currency = #'CurrencyRef'{ symbolic_code = <<"Banana Republic">> }
+            currency = #'CurrencyRef'{symbolic_code = <<"Banana Republic">>}
         },
         external_id = undefined,
         reason = <<"why not">>,
@@ -178,26 +169,28 @@ revert_params_symmetry_test() ->
 
 -spec change_adjustment_symmetry_test() -> _.
 change_adjustment_symmetry_test() ->
-    Encoded = {adjustment, #deposit_revert_AdjustmentChange{
-        id = genlib:unique(),
-        payload = {created, #dep_rev_adj_CreatedChange{
-            adjustment = #dep_rev_adj_Adjustment{
-                id = genlib:unique(),
-                status = {pending, #dep_rev_adj_Pending{}},
-                changes_plan = #dep_rev_adj_ChangesPlan{
-                    new_cash_flow = #dep_rev_adj_CashFlowChangePlan{
-                        old_cash_flow_inverted = #cashflow_FinalCashFlow{postings = []},
-                        new_cash_flow = #cashflow_FinalCashFlow{postings = []}
+    Encoded =
+        {adjustment, #deposit_revert_AdjustmentChange{
+            id = genlib:unique(),
+            payload =
+                {created, #dep_rev_adj_CreatedChange{
+                    adjustment = #dep_rev_adj_Adjustment{
+                        id = genlib:unique(),
+                        status = {pending, #dep_rev_adj_Pending{}},
+                        changes_plan = #dep_rev_adj_ChangesPlan{
+                            new_cash_flow = #dep_rev_adj_CashFlowChangePlan{
+                                old_cash_flow_inverted = #cashflow_FinalCashFlow{postings = []},
+                                new_cash_flow = #cashflow_FinalCashFlow{postings = []}
+                            }
+                        },
+                        created_at = <<"2000-01-01T00:00:00Z">>,
+                        domain_revision = 123,
+                        party_revision = 321,
+                        operation_timestamp = <<"2000-01-01T00:00:00Z">>,
+                        external_id = genlib:unique()
                     }
-                },
-                created_at = <<"2000-01-01T00:00:00Z">>,
-                domain_revision = 123,
-                party_revision = 321,
-                operation_timestamp = <<"2000-01-01T00:00:00Z">>,
-                external_id = genlib:unique()
-            }
-        }}
-    }},
+                }}
+        }},
     ?assertEqual(Encoded, marshal(change, unmarshal(change, Encoded))).
 
 -endif.

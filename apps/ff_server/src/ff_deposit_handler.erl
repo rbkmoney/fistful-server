@@ -1,4 +1,5 @@
 -module(ff_deposit_handler).
+
 -behaviour(ff_woody_wrapper).
 
 -include_lib("fistful_proto/include/ff_proto_deposit_thrift.hrl").
@@ -10,10 +11,11 @@
 %% ff_woody_wrapper callbacks
 %%
 
--spec handle_function(woody:func(), woody:args(), woody:options()) ->
-    {ok, woody:result()} | no_return().
+-spec handle_function(woody:func(), woody:args(), woody:options()) -> {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(deposit, #{},
+    scoper:scope(
+        deposit,
+        #{},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -87,11 +89,13 @@ handle_function_('GetEvents', [ID, EventRange], _Opts) ->
 handle_function_('CreateAdjustment', [ID, MarshaledParams], _Opts) ->
     Params = ff_deposit_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
-    ok = scoper:add_meta(genlib_map:compact(#{
-        id => ID,
-        adjustment_id => AdjustmentID,
-        external_id => maps:get(external_id, Params, undefined)
-    })),
+    ok = scoper:add_meta(
+        genlib_map:compact(#{
+            id => ID,
+            adjustment_id => AdjustmentID,
+            external_id => maps:get(external_id, Params, undefined)
+        })
+    ),
     case ff_deposit_machine:start_adjustment(ID, Params) of
         ok ->
             {ok, Machine} = ff_deposit_machine:get(ID),
@@ -120,11 +124,13 @@ handle_function_('CreateAdjustment', [ID, MarshaledParams], _Opts) ->
 handle_function_('CreateRevert', [ID, MarshaledParams], _Opts) ->
     Params = ff_deposit_revert_codec:unmarshal(revert_params, MarshaledParams),
     RevertID = maps:get(id, Params),
-    ok = scoper:add_meta(genlib_map:compact(#{
-        id => ID,
-        revert_id => RevertID,
-        external_id => maps:get(external_id, Params, undefined)
-    })),
+    ok = scoper:add_meta(
+        genlib_map:compact(#{
+            id => ID,
+            revert_id => RevertID,
+            external_id => maps:get(external_id, Params, undefined)
+        })
+    ),
     case ff_deposit_machine:start_revert(ID, Params) of
         ok ->
             {ok, Machine} = ff_deposit_machine:get(ID),
@@ -155,12 +161,14 @@ handle_function_('CreateRevert', [ID, MarshaledParams], _Opts) ->
 handle_function_('CreateRevertAdjustment', [ID, RevertID, MarshaledParams], _Opts) ->
     Params = ff_deposit_revert_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
-    ok = scoper:add_meta(genlib_map:compact(#{
-        id => ID,
-        revert_id => RevertID,
-        adjustment_id => AdjustmentID,
-        external_id => maps:get(external_id, Params, undefined)
-    })),
+    ok = scoper:add_meta(
+        genlib_map:compact(#{
+            id => ID,
+            revert_id => RevertID,
+            adjustment_id => AdjustmentID,
+            external_id => maps:get(external_id, Params, undefined)
+        })
+    ),
     case ff_deposit_machine:start_revert_adjustment(ID, RevertID, Params) of
         ok ->
             {ok, Machine} = ff_deposit_machine:get(ID),

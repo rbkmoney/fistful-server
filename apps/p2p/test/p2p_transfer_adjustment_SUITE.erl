@@ -31,10 +31,10 @@
 
 %% Internal types
 
--type config()         :: ct_helper:config().
+-type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
--type group_name()     :: ct_helper:group_name().
--type test_return()    :: _ | no_return().
+-type group_name() :: ct_helper:group_name().
+-type test_return() :: _ | no_return().
 
 %% Macro helpers
 
@@ -43,10 +43,11 @@
 %% API
 
 -spec all() -> [test_case_name() | {group, group_name()}].
-all() ->[
-    {group, default},
-    {group, eventsink}
-].
+all() ->
+    [
+        {group, default},
+        {group, eventsink}
+    ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
@@ -70,10 +71,13 @@ groups() ->
 
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup()
-    ], C).
+    ct_helper:makeup_cfg(
+        [
+            ct_helper:test_case_name(init),
+            ct_payment_system:setup()
+        ],
+        C
+    ).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -88,6 +92,7 @@ init_per_group(_, C) ->
 -spec end_per_group(group_name(), config()) -> _.
 end_per_group(_, _) ->
     ok.
+
 %%
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
@@ -115,7 +120,7 @@ adjustment_can_change_status_to_failed_test(C) ->
     ?assertMatch(succeeded, get_adjustment_status(P2PTransferID, AdjustmentID)),
     ExternalID = ff_adjustment:external_id(get_adjustment(P2PTransferID, AdjustmentID)),
     ?assertEqual(<<"true_unique_id">>, ExternalID),
-    ?assertEqual({failed, Failure},  get_p2p_transfer_status(P2PTransferID)),
+    ?assertEqual({failed, Failure}, get_p2p_transfer_status(P2PTransferID)),
     assert_adjustment_same_revisions(P2PTransferID, AdjustmentID).
 
 -spec adjustment_can_change_failure_test(config()) -> test_return().
@@ -127,13 +132,13 @@ adjustment_can_change_failure_test(C) ->
     AdjustmentID1 = process_adjustment(P2PTransferID, #{
         change => {change_status, {failed, Failure1}}
     }),
-    ?assertEqual({failed, Failure1},  get_p2p_transfer_status(P2PTransferID)),
+    ?assertEqual({failed, Failure1}, get_p2p_transfer_status(P2PTransferID)),
     assert_adjustment_same_revisions(P2PTransferID, AdjustmentID1),
     Failure2 = #{code => <<"two">>},
     AdjustmentID2 = process_adjustment(P2PTransferID, #{
         change => {change_status, {failed, Failure2}}
     }),
-    ?assertEqual({failed, Failure2},  get_p2p_transfer_status(P2PTransferID)),
+    ?assertEqual({failed, Failure2}, get_p2p_transfer_status(P2PTransferID)),
     assert_adjustment_same_revisions(P2PTransferID, AdjustmentID2).
 
 -spec adjustment_can_change_status_to_succeeded_test(config()) -> test_return().
@@ -289,8 +294,8 @@ unknown_p2p_transfer_test(_C) ->
 -spec consume_eventsinks(config()) -> test_return().
 consume_eventsinks(_) ->
     EventSinks = [
-          p2p_transfer_event_sink,
-          p2p_session_event_sink
+        p2p_transfer_event_sink,
+        p2p_session_event_sink
     ],
     [_Events = ct_eventsink:consume(1000, Sink) || Sink <- EventSinks].
 
@@ -352,7 +357,7 @@ get_adjustment(P2PTransferID, AdjustmentID) ->
 await_final_p2p_transfer_status(P2PTransferID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
             P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
             case p2p_transfer:is_finished(P2PTransfer) of
@@ -390,18 +395,20 @@ generate_id() ->
 
 create_resource_raw(C) ->
     StoreSource = ct_cardstore:bank_card(<<"4150399999000900">>, {12, 2025}, C),
-    Resource = {bank_card, #{
-        bank_card => StoreSource,
-        auth_data => {session, #{
-            session_id => <<"ID">>
-        }}
-    }},
+    Resource =
+        {bank_card, #{
+            bank_card => StoreSource,
+            auth_data =>
+                {session, #{
+                    session_id => <<"ID">>
+                }}
+        }},
     p2p_participant:create(raw, Resource, #{email => <<"test@example.com">>}).
 
 await_final_adjustment_status(P2PTransferID, AdjustmentID) ->
     finished = ct_helper:await(
         finished,
-        fun () ->
+        fun() ->
             {ok, Machine} = p2p_transfer_machine:get(P2PTransferID),
             P2PTransfer = p2p_transfer_machine:p2p_transfer(Machine),
             {ok, Adjustment} = p2p_transfer:find_adjustment(AdjustmentID, P2PTransfer),

@@ -41,7 +41,7 @@
 
 -type p_transfer() :: ff_postings_transfer:transfer().
 -type limit_check_details() :: ff_withdrawal:limit_check_details().
--type account()  :: ff_account:account().
+-type account() :: ff_account:account().
 -type route() :: ff_withdrawal_routing:route().
 -type route_key() :: {ff_payouts_provider:id(), ff_payouts_terminal:id()}.
 -type session() :: ff_withdrawal:session().
@@ -55,8 +55,7 @@
 
 %% API
 
--spec new_route(route(), attempts()) ->
-    attempts().
+-spec new_route(route(), attempts()) -> attempts().
 new_route(Route, undefined) ->
     new_route(Route, init());
 new_route(Route, Existing) ->
@@ -75,8 +74,9 @@ new_route(Route, Existing) ->
 
 -spec next_route([route()], attempts(), attempt_limit()) ->
     {ok, route()} | {error, route_not_found | attempt_limit_exceeded}.
-next_route(_Routes, #{attempt := Attempt}, AttemptLimit)
-    when is_integer(AttemptLimit) andalso Attempt == AttemptLimit ->
+next_route(_Routes, #{attempt := Attempt}, AttemptLimit) when
+    is_integer(AttemptLimit) andalso Attempt == AttemptLimit
+->
     {error, attempt_limit_exceeded};
 next_route(Routes, #{attempts := Existing}, _AttemptLimit) ->
     PendingRoutes =
@@ -93,7 +93,7 @@ next_route(Routes, #{attempts := Existing}, _AttemptLimit) ->
             {error, route_not_found}
     end.
 
--spec get_current_session(attempts()) ->  undefined | session().
+-spec get_current_session(attempts()) -> undefined | session().
 get_current_session(Attempts) ->
     Attempt = current(Attempts),
     maps:get(session, Attempt, undefined).

@@ -1,4 +1,5 @@
 -module(ff_p2p_session_handler).
+
 -behaviour(ff_woody_wrapper).
 
 -include_lib("fistful_proto/include/ff_proto_p2p_session_thrift.hrl").
@@ -9,11 +10,11 @@
 %%
 %% ff_woody_wrapper callbacks
 %%
--spec handle_function(woody:func(), woody:args(), woody:options()) ->
-    {ok, woody:result()} | no_return().
-
+-spec handle_function(woody:func(), woody:args(), woody:options()) -> {ok, woody:result()} | no_return().
 handle_function(Func, Args, Opts) ->
-    scoper:scope(p2p_session, #{},
+    scoper:scope(
+        p2p_session,
+        #{},
         fun() ->
             handle_function_(Func, Args, Opts)
         end
@@ -33,7 +34,6 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
         {error, {unknown_p2p_session, _Ref}} ->
             woody_error:raise(business, #fistful_P2PSessionNotFound{})
     end;
-
 handle_function_('GetContext', [ID], _Opts) ->
     case p2p_session_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
@@ -42,7 +42,6 @@ handle_function_('GetContext', [ID], _Opts) ->
         {error, {unknown_p2p_session, _Ref}} ->
             woody_error:raise(business, #fistful_P2PSessionNotFound{})
     end;
-
 handle_function_('GetEvents', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case p2p_session_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of

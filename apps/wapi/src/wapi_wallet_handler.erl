@@ -4,7 +4,6 @@
 -behaviour(wapi_handler).
 
 %% swag_server_wallet_logic_handler callbacks
--export([map_error/2]).
 -export([authorize_api_key/3]).
 -export([handle_request/4]).
 
@@ -22,35 +21,6 @@
 -type handler_opts() :: swag_server_wallet:handler_opts(_).
 
 %% API
-
--spec map_error(atom(), swag_server_wallet_validation:error()) -> swag_server_wallet:error_reason().
-map_error(validation_error, Error) ->
-    Type = map_error_type(maps:get(type, Error)),
-    Name = genlib:to_binary(maps:get(param_name, Error)),
-    Message =
-        case maps:get(description, Error, undefined) of
-            undefined ->
-                <<"Request parameter: ", Name/binary, ", error type: ", Type/binary>>;
-            Description ->
-                DescriptionBin = genlib:to_binary(Description),
-                <<"Request parameter: ", Name/binary, ", error type: ", Type/binary, ", description: ",
-                    DescriptionBin/binary>>
-        end,
-    jsx:encode(#{
-        <<"errorType">> => Type,
-        <<"name">> => Name,
-        <<"description">> => Message
-    }).
-
--spec map_error_type(swag_server_wallet_validation:error_type()) -> binary().
-map_error_type(no_match) -> <<"NoMatch">>;
-map_error_type(not_found) -> <<"NotFound">>;
-map_error_type(not_in_range) -> <<"NotInRange">>;
-map_error_type(wrong_length) -> <<"WrongLength">>;
-map_error_type(wrong_size) -> <<"WrongSize">>;
-map_error_type(schema_violated) -> <<"SchemaViolated">>;
-map_error_type(wrong_type) -> <<"WrongType">>;
-map_error_type(wrong_array) -> <<"WrongArray">>.
 
 -spec authorize_api_key(operation_id(), api_key(), handler_opts()) -> false | {true, wapi_auth:context()}.
 authorize_api_key(OperationID, ApiKey, _Opts) ->

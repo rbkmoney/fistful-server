@@ -23,6 +23,15 @@
     | p2p_template
     | p2p_transfer_with_template
     | w2w_transfer.
+-type bank_card_essence() :: #{
+    token := binary(),
+    bin => binary(),
+    masked_pan => binary(),
+    cardholder_name => binary(),
+    exp_date => {1..12, pos_integer()}
+}.
+
+-export_type([bank_card_essence/0]).
 
 -export([gen_id/3]).
 -export([gen_id/4]).
@@ -34,6 +43,7 @@
 -export([issue_grant_token/3]).
 -export([create_params_hash/1]).
 -export([decode_resource/1]).
+-export([resource_essence/1]).
 
 %% Pipeline
 
@@ -129,22 +139,41 @@ create_params_hash(Value) ->
 %% sender and receiver
 %%
 
--spec decode_resource(map()) ->
-    {ok, map()} | {error, {binary(), lechiffre:decoding_error()}}.
+-spec decode_resource(binary()) ->
+    {ok, wapi_crypto:resource()} |
+    {error, unrecognized} |
+    {error, lechiffre:decoding_error()}.
 
-decode_resource(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
+decode_resource(Token) ->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         {ok, Resource} ->
-            {ok, maps:remove(<<"token">>, Object#{
-                <<"decryptedResource">> => Resource
-            })};
+            {ok, Resource};
         unrecognized ->
-            {error, {Type, unrecognized}};
+            {error, unrecognized};
         {error, Error} ->
-            {error, {Type, Error}}
-    end;
-decode_resource(Object) ->
-    {ok, Object}.
+            {error, Error}
+    end.
+
+-spec resource_essence(undefined | wapi_crypto:resource()) ->
+    undefined | #{bank_card => bank_card_essence()}.
+
+resource_essence(undefined) ->
+    undefined;
+resource_essence(#'BankCard'{} = BankCard) ->
+    #{
+        bank_card => genlib_map:compact(#{
+            token           => BankCard#'BankCard'.token,
+            bin             => BankCard#'BankCard'.bin,
+            masked_pan      => BankCard#'BankCard'.masked_pan,
+            cardholder_name => BankCard#'BankCard'.cardholder_name,
+            %% ExpDate is optional in swag_wallets 'StoreBankCard'. But some adapters waiting exp_date.
+            %% Add error, somethink like BankCardReject.exp_date_required
+            exp_date        => case BankCard#'BankCard'.exp_date of
+                undefined -> undefined;
+                #'BankCardExpDate'{month = Month, year = Year} -> {Month, Year}
+            end
+        })
+    }.
 
 -spec issue_grant_token(_, binary(), handler_context()) ->
     {ok, binary()} | {error, expired}.
@@ -165,46 +194,3 @@ get_expiration_deadline(Expiration) ->
         false ->
             {error, expired}
     end.
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
-
--spec test() -> _.
-
--spec decode_resource_test_() ->
-    _.
-decode_resource_test_() ->
-    {setup,
-        fun() ->
-            Resource = #'BankCard'{bin = <<"424242">>, masked_pan = <<"4242">>},
-            meck:new([wapi_crypto], [passthrough]),
-            meck:expect(wapi_crypto, decrypt_bankcard_token, 1, {ok, Resource}),
-            Resource
-        end,
-        fun(_) ->
-            meck:unload()
-        end,
-        fun(Resource) ->
-            Objects = [
-                #{<<"hello">> => world},
-                #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>, <<"token">> => <<"v1.000000">>},
-                #{<<"k">> => <<"v">>, <<"token">> => <<"v1.000000">>},
-                #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>},
-                #{<<"k1">> => v1, <<"type">> => <<"Type1">>, <<"token">> => <<"v1.AAAAAAA">>},
-                #{<<"k2">> => v2, <<"type">> => <<"Type2">>, <<"token">> => <<"v1.BBBBBB">>},
-                #{<<"k3">> => v3, <<"type">> => <<"Type3">>, <<"token">> => <<"v1.CCCCCC">>}
-            ],
-            Results = [
-                #{<<"hello">> => world},
-                #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>, <<"decryptedResource">> => Resource},
-                #{<<"k">> => <<"v">>, <<"token">> => <<"v1.000000">>},
-                #{<<"k">> => <<"v">>, <<"type">> => <<"Type0">>},
-                #{<<"k1">> => v1, <<"type">> => <<"Type1">>, <<"decryptedResource">> => Resource},
-                #{<<"k2">> => v2, <<"type">> => <<"Type2">>, <<"decryptedResource">> => Resource},
-                #{<<"k3">> => v3, <<"type">> => <<"Type3">>, <<"decryptedResource">> => Resource}
-            ],
-            [?_assertEqual({ok, Result}, decode_resource(Object)) || {Object, Result} <- lists:zip(Objects, Results)]
-        end
-    }.
-
--endif.

@@ -160,13 +160,15 @@ issue_transfer_ticket(ID, WishExpiration, HandlerContext) ->
 quote_transfer(ID, Params, HandlerContext) ->
     do(fun() ->
         unwrap(p2p_template, wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext)),
-        SenderResource = unwrap(sender, decode_resource(maps:get(<<"sender">>, Params))),
-        ReceiverResource = unwrap(receiver, decode_resource(maps:get(<<"receiver">>, Params))),
-        QuoteParams = Params#{
-            <<"sender">> => SenderResource,
-            <<"receiver">> => ReceiverResource
-        },
-        Request = {fistful_p2p_template, 'GetQuote', [ID, marshal_quote_params(QuoteParams)]},
+        Sender = maps:get(<<"sender">>, Params),
+        Receiver = maps:get(<<"receiver">>, Params),
+        SenderResource = unwrap(sender, resource_decode(Sender)),
+        ReceiverResource = unwrap(receiver, resource_decode(Receiver)),
+        QuoteParams = marshal_quote_params(Params#{
+            <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
+            <<"receiver">> => Receiver#{<<"resourceThrift">> => ReceiverResource}
+        }),
+        Request = {fistful_p2p_template, 'GetQuote', [ID, QuoteParams]},
         unwrap(quote_transfer_request(Request, HandlerContext))
     end).
 
@@ -202,27 +204,42 @@ quote_transfer_request(Request, HandlerContext) ->
     {error, {token, _}} |
     {error, {external_id_conflict, _}}.
 
-create_transfer(TemplateID, Params0, HandlerContext) ->
+create_transfer(TemplateID, Params, HandlerContext) ->
     do(fun() ->
         unwrap(p2p_template, wapi_access_backend:check_resource_by_id(p2p_template, TemplateID, HandlerContext)),
-        SenderResource = unwrap(sender, decode_resource(maps:get(<<"sender">>, Params0))),
-        ReceiverResource = unwrap(receiver, decode_resource(maps:get(<<"receiver">>, Params0))),
         TransferID = context_transfer_id(HandlerContext),
-        Params1 = Params0#{<<"id">> => TransferID},
-        unwrap(validate_transfer_id(SenderResource, ReceiverResource, Params1, HandlerContext)),
-        Params2 = case get_quote_token(Params1) of
+        Sender = maps:get(<<"sender">>, Params),
+        Receiver = maps:get(<<"receiver">>, Params),
+        SenderResource = unwrap(sender, resource_decode(Sender)),
+        ReceiverResource = unwrap(receiver, resource_decode(Receiver)),
+        % replacing token with an resource essence is need for
+        % naive idempotent algo (params hashing).
+        unwrap(validate_transfer_id(Params#{
+            <<"id">> => TransferID,
+            <<"sender">> => Sender#{
+                <<"token">> => undefined,
+                <<"resourceEssence">> => wapi_backend_utils:resource_essence(SenderResource)
+            },
+            <<"receiver">> => Receiver#{
+                <<"token">> => undefined,
+                <<"resourceEssence">> => wapi_backend_utils:resource_essence(ReceiverResource)
+            }
+        }, HandlerContext)),
+        Quote = unwrap(case get_quote_token(Params) of
             ok ->
-                Params1;
-            {ok, Quote} ->
+                undefined;
+            {ok, P2PQuote} ->
                 Template = unwrap(get(TemplateID, HandlerContext)),
-                unwrap(validate_token_payload(Quote, Template)),
-                Params1#{<<"quote">> => Quote};
-            {error, Error} ->
-                throw(Error)
-        end,
-        unwrap(create_transfer_request(TemplateID, Params2#{
-            <<"sender">> => SenderResource,
-            <<"receiver">> => ReceiverResource
+                unwrap(validate_token_payload(P2PQuote, Template)),
+                {ok, P2PQuote};
+            {error, _ } = Error ->
+                Error
+        end),
+        unwrap(create_transfer_request(TemplateID, Params#{
+            <<"id">> => TransferID,
+            <<"quote">> => Quote,
+            <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
+            <<"receiver">> => Receiver#{<<"resourceThrift">> => ReceiverResource}
         }, HandlerContext))
     end).
 
@@ -312,9 +329,8 @@ gen_transfer_id(#{woody_context := WoodyContext} = HandlerContext) ->
 
 %% Validate transfer_id by Params hash
 
-validate_transfer_id(SenderResource, ReceiverResource, #{<<"id">> := TransferID} = Params, HandlerContext) ->
-    NewParams = Params#{<<"sender">> => SenderResource, <<"receiver">> => ReceiverResource},
-    case validate_transfer_id(TransferID, NewParams, HandlerContext) of
+validate_transfer_id(#{<<"id">> := TransferID} = Params, HandlerContext) ->
+    case validate_transfer_id(TransferID, Params, HandlerContext) of
         ok ->
             ok;
         {error, {external_id_conflict, ID}} ->
@@ -349,14 +365,16 @@ validate_token_payload(#p2p_transfer_Quote{identity_id = IdentityID}, #{<<"ident
 validate_token_payload(_Quote, _template) ->
     {error, identity_mismatch}.
 
-decode_resource(EncodedResource) ->
-    case wapi_backend_utils:decode_resource(EncodedResource) of
+resource_decode(#{<<"token">> := Token, <<"type">> := Type}) ->
+    case wapi_backend_utils:decode_resource(Token) of
         {ok, Resource} ->
             {ok, Resource};
-        {error, {Type, Error}} ->
+        {error, Error} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
-    end.
+    end;
+resource_decode(_Object) ->
+    {ok, undefined}.
 
 %% Convert swag maps to thrift records
 
@@ -421,9 +439,10 @@ marshal_quote_params(#{
     }.
 
 marshal_quote_participant(#{
-    <<"decryptedResource">> := Resource
+    <<"resourceThrift">> := Resource
 }) ->
-    {bank_card, #'ResourceBankCard'{bank_card = Resource}}.
+    BankCard = Resource,
+    {bank_card, #'ResourceBankCard'{bank_card = BankCard}}.
 
 marshal_transfer_params(#{
     <<"id">> := TransferID,
@@ -448,7 +467,7 @@ marshal_transfer_params(#{
 marshal_sender(#{
     <<"authData">> := AuthData,
     <<"contactInfo">> := ContactInfo,
-    <<"decryptedResource">> := Resource
+    <<"resourceThrift">> := Resource
 }) ->
     ResourceBankCard = #'ResourceBankCard'{
         bank_card = Resource,
@@ -460,7 +479,7 @@ marshal_sender(#{
     }}.
 
 marshal_receiver(#{
-    <<"decryptedResource">> := Resource
+    <<"resourceThrift">> := Resource
 }) ->
     {resource, #p2p_transfer_RawResource{
         resource = {bank_card, #'ResourceBankCard'{bank_card = Resource}},

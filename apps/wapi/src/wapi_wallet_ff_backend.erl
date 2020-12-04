@@ -910,13 +910,13 @@ choose_token_expiration(TicketExpiration, AccessExpiration) ->
             TicketExpiration
     end.
 
-construct_resource(#{<<"type">> := Type, <<"decryptedResource">> := BankCard})
+construct_resource(#{<<"type">> := Type, <<"resourceEssence">> := BankCard})
 when Type =:= <<"BankCardDestinationResource">> ->
     {bank_card, BankCard};
-construct_resource(#{<<"type">> := Type, <<"decryptedResource">> := BankCard, <<"authData">> := AuthData})
+construct_resource(#{<<"type">> := Type, <<"resourceEssence">> := BankCard, <<"authData">> := AuthData})
 when   Type =:= <<"BankCardSenderResourceParams">>  ->
     {bank_card, BankCard#{auth_data => {session, #{session_id => AuthData}}}};
-construct_resource(#{<<"type">> := Type, <<"decryptedResource">> := BankCard})
+construct_resource(#{<<"type">> := Type, <<"resourceEssence">> := BankCard})
 when   Type =:= <<"BankCardSenderResource">>
 orelse Type =:= <<"BankCardReceiverResource">>
 orelse Type =:= <<"BankCardReceiverResourceParams">> ->
@@ -933,7 +933,7 @@ decode_resource(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
         {ok, Resource} ->
             {ok, maps:remove(<<"token">>, Object#{
                 <<"type">> => Type,
-                <<"decryptedResource">> => encode_bank_card(Resource)
+                <<"resourceEssence">> => encode_bank_card(Resource)
             })};
          unrecognized  ->
             logger:warning("~s token unrecognized", [Type]),

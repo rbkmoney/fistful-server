@@ -29,23 +29,33 @@
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     do(fun() ->
         unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
-        Resource = unwrap(decode_resource(maps:get(<<"resource">>, Params))),
-        ID = unwrap(generate_id(Resource, Params, HandlerContext)),
-        unwrap(create_request(Params#{<<"id">> => ID, <<"resource">> => Resource}, HandlerContext))
+        Resource = maps:get(<<"resource">>, Params),
+        ResourceThrift = unwrap(resource_decode(Resource)),
+        ID = unwrap(generate_id(Params#{
+            <<"resource">> => Resource#{
+                <<"token">> => undefined,
+                <<"resourceEssence">> => wapi_backend_utils:resource_essence(ResourceThrift)
+            }
+        }, HandlerContext)),
+        unwrap(create_request(Params#{
+            <<"id">> => ID,
+            <<"resource">> => Resource#{<<"resourceThrift">> => ResourceThrift}
+        }, HandlerContext))
     end).
 
-decode_resource(EncodedResource) ->
-    case wapi_backend_utils:decode_resource(EncodedResource) of
+resource_decode(#{<<"token">> := Token, <<"type">> := Type}) ->
+    case wapi_backend_utils:decode_resource(Token) of
         {ok, Resource} ->
             {ok, Resource};
-        {error, {Type, Error}} ->
+        {error, Error} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
-    end.
+    end;
+resource_decode(_Object) ->
+    {ok, undefined}.
 
-generate_id(Resource, Params, HandlerContext) ->
-    NewParams = Params#{<<"resource">> => Resource},
-    case wapi_backend_utils:gen_id(destination, NewParams, HandlerContext) of
+generate_id(Params, HandlerContext) ->
+    case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
         {ok, ID} ->
             {ok, ID};
         {error, {external_id_conflict, ID}} ->
@@ -144,8 +154,9 @@ marshal(destination_params, Params = #{
 
 marshal(resource, #{
     <<"type">> := <<"BankCardDestinationResource">>,
-    <<"decryptedResource">> := BankCard
+    <<"resourceThrift">> := Resource
 }) ->
+    BankCard = Resource,
     {bank_card, #'ResourceBankCard'{bank_card = BankCard}};
 marshal(resource, #{
     <<"type">> := <<"CryptoWalletDestinationResource">>,

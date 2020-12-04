@@ -412,15 +412,14 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
         Resource = unwrap(decode_resource(maps:get(<<"resource">>, Params))),
         DestinationParams = from_swag(destination_params, Params),
         CreateFun = fun(ID, EntityCtx) ->
-            do(fun() ->
-                _ = check_resource(identity, IdenityId, Context),
-                unwrap(
-                    ff_destination_machine:create(
-                        DestinationParams#{id => ID, resource => construct_resource(Resource)},
-                        add_meta_to_ctx([], Params, EntityCtx)
-                    )
-                )
-            end)
+            _ = check_resource(identity, IdenityId, Context),
+            ff_destination_machine:create(
+                DestinationParams#{id => ID, resource => construct_resource(Resource)},
+                add_meta_to_ctx([], Params, EntityCtx)
+            )
+        end,
+        CreateFunUnwrap = fun(ID, EntityCtx) ->
+            unwrap(CreateFun(ID, EntityCtx))
         end,
         unwrap(
             create_entity(
@@ -428,7 +427,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
                 Params#{
                     <<"resource">> => Resource
                 },
-                CreateFun,
+                CreateFunUnwrap,
                 Context
             )
         )
@@ -745,30 +744,31 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
         Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
         Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
         CreateFun = fun(ID, EntityCtx) ->
-            do(fun() ->
-                _ = check_resource(identity, IdentityId, Context),
-                ParsedParams = unwrap(
-                    maybe_add_p2p_quote_token(
-                        from_swag(create_p2p_params, Params)
-                    )
-                ),
-                RawSenderResource =
-                    {raw, #{
-                        resource_params => construct_resource(Sender),
-                        contact_info => maps:get(contact_info, ParsedParams)
-                    }},
-                RawReceiverResource = {raw, #{resource_params => construct_resource(Receiver), contact_info => #{}}},
-                unwrap(
-                    p2p_transfer_machine:create(
-                        genlib_map:compact(ParsedParams#{
-                            id => ID,
-                            sender => RawSenderResource,
-                            receiver => RawReceiverResource
-                        }),
-                        add_meta_to_ctx([], Params, EntityCtx)
-                    )
+            _ = check_resource(identity, IdentityId, Context),
+            ParsedParams = unwrap(
+                maybe_add_p2p_quote_token(
+                    from_swag(create_p2p_params, Params)
                 )
-            end)
+            ),
+            RawSenderResource =
+                {raw, #{
+                    resource_params => construct_resource(Sender),
+                    contact_info => maps:get(contact_info, ParsedParams)
+                }},
+            RawReceiverResource = {raw, #{resource_params => construct_resource(Receiver), contact_info => #{}}},
+            unwrap(
+                p2p_transfer_machine:create(
+                    genlib_map:compact(ParsedParams#{
+                        id => ID,
+                        sender => RawSenderResource,
+                        receiver => RawReceiverResource
+                    }),
+                    add_meta_to_ctx([], Params, EntityCtx)
+                )
+            )
+        end,
+        CreateFunUnwrap = fun(ID, EntityCtx) ->
+            unwrap(CreateFun(ID, EntityCtx))
         end,
         unwrap(
             create_entity(
@@ -777,7 +777,7 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                     <<"sender">> => Sender,
                     <<"receiver">> => Receiver
                 },
-                CreateFun,
+                CreateFunUnwrap,
                 Context
             )
         )

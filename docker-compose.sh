@@ -31,7 +31,7 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:7be8e9a8870e79689903205b60065f5600bfadc8
+    image: dr2.rbkmoney.com/rbkmoney/wapi:00082b382f84450221ba297b5f32daf7b1be80f7
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config
@@ -88,7 +88,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr2.rbkmoney.com/rbkmoney/dominant:26ad62b181b362e121f147c2631df456fed655b2
+    image: dr2.rbkmoney.com/rbkmoney/dominant:ce9486ee2ae9b32a7df88a0e71464658febd99e6
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -123,7 +123,7 @@ services:
       retries: 30
 
   identification:
-    image: dr2.rbkmoney.com/rbkmoney/identification:f83f6e1952fe77b9adc7b69c511d7e8ed1ae1f83
+    image: dr2.rbkmoney.com/rbkmoney/identification:1d23c0fa422d2bd0542a08f70cca292f1d6c91eb
     command: /opt/identification/bin/identification foreground
     volumes:
       - ./test/identification/sys.config:/opt/identification/releases/0.1/sys.config

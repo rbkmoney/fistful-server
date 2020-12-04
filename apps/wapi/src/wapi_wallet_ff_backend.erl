@@ -408,21 +408,31 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
         | {illegal_pattern, _}
     ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
-    CreateFun = fun(ID, EntityCtx) ->
-        do(fun() ->
-            _ = check_resource(identity, IdenityId, Context),
-            DecryptedResource = unwrap(decode_resource(maps:get(<<"resource">>, Params))),
-            Resource = construct_resource(DecryptedResource),
-            DestinationParams = from_swag(destination_params, Params),
-            unwrap(
-                ff_destination_machine:create(
-                    DestinationParams#{id => ID, resource => Resource},
-                    add_meta_to_ctx([], Params, EntityCtx)
+    do(fun() ->
+        Resource = unwrap(decode_resource(maps:get(<<"resource">>, Params))),
+        DestinationParams = from_swag(destination_params, Params),
+        CreateFun = fun(ID, EntityCtx) ->
+            do(fun() ->
+                _ = check_resource(identity, IdenityId, Context),
+                unwrap(
+                    ff_destination_machine:create(
+                        DestinationParams#{id => ID, resource => construct_resource(Resource)},
+                        add_meta_to_ctx([], Params, EntityCtx)
+                    )
                 )
+            end)
+        end,
+        unwrap(
+            create_entity(
+                destination,
+                Params#{
+                    <<"resource">> => Resource
+                },
+                CreateFun,
+                Context
             )
-        end)
-    end,
-    do(fun() -> unwrap(create_entity(destination, Params, CreateFun, Context)) end).
+        )
+    end).
 
 -spec create_withdrawal(params(), ctx()) ->
     result(
@@ -696,21 +706,19 @@ list_deposits(Params, Context) ->
     ).
 quote_p2p_transfer(Params, Context) ->
     do(fun() ->
-        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
-        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
-        SenderResource = construct_resource(Sender),
-        ReceiverResource = construct_resource(Receiver),
         #{
             identity_id := IdentityID,
             body := Body
         } = from_swag(quote_p2p_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
         Quote = unwrap(
             p2p_quote:get(#{
                 body => Body,
                 identity_id => IdentityID,
-                sender => SenderResource,
-                receiver => ReceiverResource
+                sender => construct_resource(Sender),
+                receiver => construct_resource(Receiver)
             })
         ),
         Token = create_p2p_quote_token(Quote, PartyID),
@@ -733,37 +741,47 @@ quote_p2p_transfer(Params, Context) ->
             | {not_verified, identity_mismatch}}
     ).
 create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
-    CreateFun = fun(ID, EntityCtx) ->
-        do(fun() ->
-            _ = check_resource(identity, IdentityId, Context),
-            Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
-            Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
-            SenderResource = construct_resource(Sender),
-            ReceiverResource = construct_resource(Receiver),
-            ParsedParams = unwrap(
-                maybe_add_p2p_quote_token(
-                    from_swag(create_p2p_params, Params)
+    do(fun() ->
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
+        CreateFun = fun(ID, EntityCtx) ->
+            do(fun() ->
+                _ = check_resource(identity, IdentityId, Context),
+                ParsedParams = unwrap(
+                    maybe_add_p2p_quote_token(
+                        from_swag(create_p2p_params, Params)
+                    )
+                ),
+                RawSenderResource =
+                    {raw, #{
+                        resource_params => construct_resource(Sender),
+                        contact_info => maps:get(contact_info, ParsedParams)
+                    }},
+                RawReceiverResource = {raw, #{resource_params => construct_resource(Receiver), contact_info => #{}}},
+                unwrap(
+                    p2p_transfer_machine:create(
+                        genlib_map:compact(ParsedParams#{
+                            id => ID,
+                            sender => RawSenderResource,
+                            receiver => RawReceiverResource
+                        }),
+                        add_meta_to_ctx([], Params, EntityCtx)
+                    )
                 )
-            ),
-            RawSenderResource =
-                {raw, #{
-                    resource_params => SenderResource,
-                    contact_info => maps:get(contact_info, ParsedParams)
-                }},
-            RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
-            unwrap(
-                p2p_transfer_machine:create(
-                    genlib_map:compact(ParsedParams#{
-                        id => ID,
-                        sender => RawSenderResource,
-                        receiver => RawReceiverResource
-                    }),
-                    add_meta_to_ctx([], Params, EntityCtx)
-                )
+            end)
+        end,
+        unwrap(
+            create_entity(
+                p2p_transfer,
+                Params#{
+                    <<"sender">> => Sender,
+                    <<"receiver">> => Receiver
+                },
+                CreateFun,
+                Context
             )
-        end)
-    end,
-    do(fun() -> unwrap(create_entity(p2p_transfer, Params, CreateFun, Context)) end).
+        )
+    end).
 
 -spec get_p2p_transfer(params(), ctx()) ->
     result(
@@ -911,14 +929,15 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
         Data = maps:get(<<"data">>, Claims),
         TransferID = maps:get(<<"transferID">>, Data),
         PartyID = wapi_handler_utils:get_owner(Context),
-        Hash = wapi_backend_utils:create_params_hash(Params),
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
+        Hash = wapi_backend_utils:create_params_hash(Params#{
+            <<"sender">> => Sender,
+            <<"receiver">> => Receiver
+        }),
         IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
         case bender_client:gen_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
             {ok, {TransferID, _}} ->
-                Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
-                Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
-                SenderResource = construct_resource(Sender),
-                ReceiverResource = construct_resource(Receiver),
                 ParsedParams = unwrap(
                     maybe_add_p2p_template_quote_token(
                         ID,
@@ -927,10 +946,14 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
                 ),
                 RawSenderResource =
                     {raw, #{
-                        resource_params => SenderResource,
+                        resource_params => construct_resource(Sender),
                         contact_info => maps:get(contact_info, ParsedParams)
                     }},
-                RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
+                RawReceiverResource =
+                    {raw, #{
+                        resource_params => construct_resource(Receiver),
+                        contact_info => #{}
+                    }},
                 Result = p2p_template_machine:create_transfer(ID, ParsedParams#{
                     id => TransferID,
                     sender => RawSenderResource,
@@ -952,19 +975,17 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
     ).
 quote_p2p_transfer_with_template(ID, Params, Context) ->
     do(fun() ->
-        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
-        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
-        SenderResource = construct_resource(Sender),
-        ReceiverResource = construct_resource(Receiver),
         #{
             body := Body
         } = from_swag(quote_p2p_with_template_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
         Quote = unwrap(
             p2p_template_machine:get_quote(ID, #{
                 body => Body,
-                sender => SenderResource,
-                receiver => ReceiverResource
+                sender => construct_resource(Sender),
+                receiver => construct_resource(Receiver)
             })
         ),
         Token = create_p2p_quote_token(Quote, PartyID),

@@ -418,15 +418,16 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
                 add_meta_to_ctx([], Params, EntityCtx)
             )
         end,
+        CreateFunDo = fun(ID, EntityCtx) ->
+            do(fun() -> unwrap(CreateFun(ID, EntityCtx)) end)
+        end,
         unwrap(
             create_entity(
                 destination,
                 Params#{
                     <<"resource">> => Resource
                 },
-                fun(ID, EntityCtx) ->
-                    do(fun() -> unwrap(CreateFun(ID, EntityCtx)) end)
-                end,
+                fun CreateFunDo/2,
                 Context
             )
         )
@@ -766,6 +767,9 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                 )
             )
         end,
+        CreateFunDo = fun(ID, EntityCtx) ->
+            do(fun() -> unwrap(CreateFun(ID, EntityCtx)) end)
+        end,
         unwrap(
             create_entity(
                 p2p_transfer,
@@ -773,9 +777,7 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                     <<"sender">> => Sender,
                     <<"receiver">> => Receiver
                 },
-                fun(ID, EntityCtx) ->
-                    do(fun() -> unwrap(CreateFun(ID, EntityCtx)) end)
-                end,
+                fun CreateFunDo/2,
                 Context
             )
         )

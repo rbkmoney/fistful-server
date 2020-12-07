@@ -427,7 +427,7 @@ create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
                 Params#{
                     <<"resource">> => Resource
                 },
-                fun CreateFunDo/2,
+                CreateFunDo,
                 Context
             )
         )
@@ -777,7 +777,7 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                     <<"sender">> => Sender,
                     <<"receiver">> => Receiver
                 },
-                fun CreateFunDo/2,
+                CreateFunDo,
                 Context
             )
         )

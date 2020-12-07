@@ -408,26 +408,29 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
         | {illegal_pattern, _}
     ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
+    CreateFun = fun(Resource, ID, EntityCtx) ->
+        do(fun() ->
+            _ = check_resource(identity, IdenityId, Context),
+            DestinationParams = from_swag(destination_params, Params),
+            unwrap(
+                ff_destination_machine:create(
+                    DestinationParams#{id => ID, resource => construct_resource(Resource)},
+                    add_meta_to_ctx([], Params, EntityCtx)
+                )
+            )
+        end)
+    end,
     do(fun() ->
         Resource = unwrap(decode_resource(maps:get(<<"resource">>, Params))),
-        DestinationParams = from_swag(destination_params, Params),
-        CreateFun = fun(ID, EntityCtx) ->
-            _ = check_resource(identity, IdenityId, Context),
-            ff_destination_machine:create(
-                DestinationParams#{id => ID, resource => construct_resource(Resource)},
-                add_meta_to_ctx([], Params, EntityCtx)
-            )
-        end,
-        CreateFunDo = fun(ID, EntityCtx) ->
-            do(fun() -> unwrap(CreateFun(ID, EntityCtx)) end)
-        end,
         unwrap(
             create_entity(
                 destination,
                 Params#{
                     <<"resource">> => Resource
                 },
-                CreateFunDo,
+                fun(ID, EntityCtx) ->
+                    CreateFun(Resource, ID, EntityCtx)
+                end,
                 Context
             )
         )
@@ -740,10 +743,8 @@ quote_p2p_transfer(Params, Context) ->
             | {not_verified, identity_mismatch}}
     ).
 create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
-    do(fun() ->
-        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
-        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
-        CreateFun = fun(ID, EntityCtx) ->
+    CreateFun = fun(Sender, Receiver, ID, EntityCtx) ->
+        do(fun() ->
             _ = check_resource(identity, IdentityId, Context),
             ParsedParams = unwrap(
                 maybe_add_p2p_quote_token(
@@ -766,10 +767,11 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                     add_meta_to_ctx([], Params, EntityCtx)
                 )
             )
-        end,
-        CreateFunDo = fun(ID, EntityCtx) ->
-            do(fun() -> unwrap(CreateFun(ID, EntityCtx)) end)
-        end,
+        end)
+    end,
+    do(fun() ->
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
         unwrap(
             create_entity(
                 p2p_transfer,
@@ -777,7 +779,9 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                     <<"sender">> => Sender,
                     <<"receiver">> => Receiver
                 },
-                CreateFunDo,
+                fun(ID, EntityCtx) ->
+                    CreateFun(Sender, Receiver, ID, EntityCtx)
+                end,
                 Context
             )
         )

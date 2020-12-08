@@ -28,42 +28,35 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     do(fun() ->
         unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
         Resource = maps:get(<<"resource">>, Params),
-        ResourceThrift = unwrap(resource_decode(Resource)),
+        ResourceThrift = unwrap(wapi_resource:decode_swag(Resource)),
         ID = unwrap(
             generate_id(
-                Params#{
-                    <<"resource">> => Resource#{
-                        <<"token">> => undefined,
-                        <<"resourceEssence">> => wapi_backend_utils:resource_essence(ResourceThrift)
-                    }
-                },
+                Params,
+                ResourceThrift,
                 HandlerContext
             )
         ),
         unwrap(
             create_request(
-                Params#{
-                    <<"id">> => ID,
-                    <<"resource">> => Resource#{<<"resourceThrift">> => ResourceThrift}
-                },
+                ID,
+                Params,
+                ResourceThrift,
                 HandlerContext
             )
         )
     end).
 
-resource_decode(#{<<"token">> := Token, <<"type">> := Type}) ->
-    case wapi_backend_utils:decode_resource(Token) of
-        {ok, Resource} ->
-            {ok, Resource};
-        {error, Error} ->
-            logger:warning("~p token decryption failed: ~p", [Type, Error]),
-            {error, {invalid_resource_token, Type}}
-    end;
-resource_decode(_Object) ->
-    {ok, undefined}.
-
-generate_id(Params, HandlerContext) ->
-    case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
+generate_id(Params, ResourceThrift, HandlerContext) ->
+    Resource = maps:get(<<"resource">>, Params),
+    % replacing token with an resourceHash is need for
+    % naive idempotent algo.
+    NewParams = Params#{
+        <<"resource">> => Resource#{
+            <<"token">> => undefined,
+            <<"resourceHash">> => wapi_resource:create_hash(ResourceThrift)
+        }
+    },
+    case wapi_backend_utils:gen_id(destination, NewParams, HandlerContext) of
         {ok, ID} ->
             {ok, ID};
         {error, {external_id_conflict, ID}} ->
@@ -82,9 +75,16 @@ generate_id_legacy(Params, HandlerContext) ->
             {error, {external_id_conflict, {ID, ExternalID}}}
     end.
 
-create_request(Params, HandlerContext) ->
-    Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-    MarshaledParams = marshal(destination_params, Params),
+create_request(ID, Params, ResourceThrift, HandlerContext) ->
+    Resource = maps:get(<<"resource">>, Params),
+    NewParams = Params#{
+        <<"id">> => ID,
+        <<"resource">> => Resource#{
+            <<"resourceThrift">> => ResourceThrift
+        }
+    },
+    Context = wapi_backend_utils:make_ctx(NewParams, HandlerContext),
+    MarshaledParams = marshal(destination_params, NewParams),
     Request = {fistful_destination, 'Create', [MarshaledParams, marshal(context, Context)]},
     case service_call(Request, HandlerContext) of
         {ok, Destination} ->

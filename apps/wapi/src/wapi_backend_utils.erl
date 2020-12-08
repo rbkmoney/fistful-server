@@ -1,7 +1,5 @@
 -module(wapi_backend_utils).
 
--include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
-
 -define(EXTERNAL_ID, <<"externalID">>).
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 -define(BENDER_DOMAIN, <<"wapi">>).
@@ -24,16 +22,6 @@
     | p2p_transfer_with_template
     | w2w_transfer.
 
--type bank_card_essence() :: #{
-    token := binary(),
-    bin => binary(),
-    masked_pan => binary(),
-    cardholder_name => binary(),
-    exp_date => {1..12, pos_integer()}
-}.
-
--export_type([bank_card_essence/0]).
-
 -export([gen_id/3]).
 -export([gen_id/4]).
 -export([make_ctx/2]).
@@ -43,8 +31,6 @@
 -export([get_idempotent_key/3]).
 -export([issue_grant_token/3]).
 -export([create_params_hash/1]).
--export([decode_resource/1]).
--export([resource_essence/1]).
 
 %% Pipeline
 
@@ -116,51 +102,6 @@ get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
 -spec create_params_hash(term()) -> integer().
 create_params_hash(Value) ->
     erlang:phash2(Value).
-
-%% @doc
-%%
-%% The new lechiffre encryption algorithm returns a non-deterministic pcidss token for the same data.
-%% The id generation is based on the fact that the params hash is the same.
-%% To do this, the token is replaced with its decrypted content.
-%%
-%% Resource token is contained in the methods createDestination, quoteP2PTransfer, createP2PTransfer,
-%% quoteP2PTransferWithTemplate, createP2PTransferWithTemplate - as attribute <<"token">> of parameters resource,
-%% sender and receiver
-%%
-
--spec decode_resource(binary()) ->
-    {ok, wapi_crypto:resource()}
-    | {error, unrecognized}
-    | {error, lechiffre:decoding_error()}.
-decode_resource(Token) ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        {ok, Resource} ->
-            {ok, Resource};
-        unrecognized ->
-            {error, unrecognized};
-        {error, Error} ->
-            {error, Error}
-    end.
-
--spec resource_essence(undefined | wapi_crypto:resource()) -> undefined | #{bank_card => bank_card_essence()}.
-resource_essence(undefined) ->
-    undefined;
-resource_essence(#'BankCard'{} = BankCard) ->
-    #{
-        bank_card => genlib_map:compact(#{
-            token => BankCard#'BankCard'.token,
-            bin => BankCard#'BankCard'.bin,
-            masked_pan => BankCard#'BankCard'.masked_pan,
-            cardholder_name => BankCard#'BankCard'.cardholder_name,
-            %% ExpDate is optional in swag_wallets 'StoreBankCard'. But some adapters waiting exp_date.
-            %% Add error, somethink like BankCardReject.exp_date_required
-            exp_date =>
-                case BankCard#'BankCard'.exp_date of
-                    undefined -> undefined;
-                    #'BankCardExpDate'{month = Month, year = Year} -> {Month, Year}
-                end
-        })
-    }.
 
 -spec issue_grant_token(_, binary(), handler_context()) -> {ok, binary()} | {error, expired}.
 issue_grant_token(TokenSpec, Expiration, Context) ->

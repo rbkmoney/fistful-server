@@ -159,8 +159,8 @@ quote_transfer(ID, Params, HandlerContext) ->
         unwrap(p2p_template, wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext)),
         Sender = maps:get(<<"sender">>, Params),
         Receiver = maps:get(<<"receiver">>, Params),
-        SenderResource = unwrap(sender, resource_decode(Sender)),
-        ReceiverResource = unwrap(receiver, resource_decode(Receiver)),
+        SenderResource = unwrap(sender, wapi_resource:decode_swag(Sender)),
+        ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(Receiver)),
         QuoteParams = marshal_quote_params(Params#{
             <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
             <<"receiver">> => Receiver#{<<"resourceThrift">> => ReceiverResource}
@@ -206,23 +206,16 @@ create_transfer(TemplateID, Params, HandlerContext) ->
         TransferID = context_transfer_id(HandlerContext),
         Sender = maps:get(<<"sender">>, Params),
         Receiver = maps:get(<<"receiver">>, Params),
-        SenderResource = unwrap(sender, resource_decode(Sender)),
-        ReceiverResource = unwrap(receiver, resource_decode(Receiver)),
-        % replacing token with an resource essence is need for
-        % naive idempotent algo (params hashing).
+        SenderResource = unwrap(sender, wapi_resource:decode_swag(Sender)),
+        ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(Receiver)),
+        % replacing token with an resourceHash is need for
+        % naive idempotent algo.
         unwrap(
             validate_transfer_id(
-                Params#{
-                    <<"id">> => TransferID,
-                    <<"sender">> => Sender#{
-                        <<"token">> => undefined,
-                        <<"resourceEssence">> => wapi_backend_utils:resource_essence(SenderResource)
-                    },
-                    <<"receiver">> => Receiver#{
-                        <<"token">> => undefined,
-                        <<"resourceEssence">> => wapi_backend_utils:resource_essence(ReceiverResource)
-                    }
-                },
+                TransferID,
+                Params,
+                SenderResource,
+                ReceiverResource,
                 HandlerContext
             )
         ),
@@ -338,22 +331,29 @@ gen_transfer_id(#{woody_context := WoodyContext} = HandlerContext) ->
 
 %% Validate transfer_id by Params hash
 
-validate_transfer_id(#{<<"id">> := TransferID} = Params, HandlerContext) ->
-    case validate_transfer_id(TransferID, Params, HandlerContext) of
+validate_transfer_id(TransferID, Params, SenderResource, ReceiverResource, HandlerContext) ->
+    Sender = maps:get(<<"sender">>, Params),
+    Receiver = maps:get(<<"receiver">>, Params),
+    % replacing token with an resourceHash is need for
+    % naive idempotent algo.
+    NewParams = Params#{
+        <<"id">> => TransferID,
+        <<"sender">> => Sender#{
+            <<"token">> => undefined,
+            <<"resourceHash">> => wapi_resource:create_hash(SenderResource)
+        },
+        <<"receiver">> => Receiver#{
+            <<"token">> => undefined,
+            <<"resourceHash">> => wapi_resource:create_hash(ReceiverResource)
+        }
+    },
+    case validate_transfer_id(TransferID, NewParams, HandlerContext) of
         ok ->
             ok;
         {error, {external_id_conflict, ID}} ->
             % Replace this call by error report after deploy
             logger:warning("external_id_conflict: ~p. try old hashing", [ID]),
-            validate_transfer_id_legacy(Params, HandlerContext)
-    end.
-
-validate_transfer_id_legacy(#{<<"id">> := TransferID} = Params, HandlerContext) ->
-    case validate_transfer_id(TransferID, Params, HandlerContext) of
-        ok ->
-            ok;
-        {error, {external_id_conflict, ID}} ->
-            {error, {external_id_conflict, ID}}
+            validate_transfer_id(TransferID, Params, HandlerContext)
     end.
 
 validate_transfer_id(TransferID, Params, #{woody_context := WoodyContext} = HandlerContext) ->
@@ -373,17 +373,6 @@ validate_token_payload(#p2p_transfer_Quote{identity_id = IdentityID}, #{<<"ident
     ok;
 validate_token_payload(_Quote, _template) ->
     {error, {token, {not_verified, identity_mismatch}}}.
-
-resource_decode(#{<<"token">> := Token, <<"type">> := Type}) ->
-    case wapi_backend_utils:decode_resource(Token) of
-        {ok, Resource} ->
-            {ok, Resource};
-        {error, Error} ->
-            logger:warning("~p token decryption failed: ~p", [Type, Error]),
-            {error, {invalid_resource_token, Type}}
-    end;
-resource_decode(_Object) ->
-    {ok, undefined}.
 
 %% Convert swag maps to thrift records
 
@@ -485,8 +474,9 @@ marshal_sender(#{
     <<"contactInfo">> := ContactInfo,
     <<"resourceThrift">> := Resource
 }) ->
+    BankCard = Resource,
     ResourceBankCard = #'ResourceBankCard'{
-        bank_card = Resource,
+        bank_card = BankCard,
         auth_data = {session_data, #'SessionAuthData'{id = AuthData}}
     },
     {resource, #p2p_transfer_RawResource{
@@ -497,8 +487,9 @@ marshal_sender(#{
 marshal_receiver(#{
     <<"resourceThrift">> := Resource
 }) ->
+    BankCard = Resource,
     {resource, #p2p_transfer_RawResource{
-        resource = {bank_card, #'ResourceBankCard'{bank_card = Resource}},
+        resource = {bank_card, #'ResourceBankCard'{bank_card = BankCard}},
         contact_info = #'ContactInfo'{}
     }}.
 

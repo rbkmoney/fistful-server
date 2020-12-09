@@ -204,9 +204,13 @@ quote_transfer_request(Request, HandlerContext) ->
 create_transfer(TemplateID, Params, HandlerContext) ->
     do(fun() ->
         unwrap(p2p_template, wapi_access_backend:check_resource_by_id(p2p_template, TemplateID, HandlerContext)),
+        Template = unwrap(get(TemplateID, HandlerContext)),
+        IdentityID = maps:get(<<"identityID">>, Template),
         TransferID = context_transfer_id(HandlerContext),
-        SenderResource = unwrap(sender, wapi_resource:decode_swag(maps:get(<<"sender">>, Params))),
-        ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(maps:get(<<"receiver">>, Params))),
+        Sender = maps:get(<<"sender">>, Params),
+        Receiver = maps:get(<<"receiver">>, Params),
+        SenderResource = unwrap(sender, wapi_resource:decode_swag(Sender)),
+        ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(Receiver)),
         unwrap(
             validate_transfer_id(
                 TransferID,
@@ -216,66 +220,42 @@ create_transfer(TemplateID, Params, HandlerContext) ->
                 HandlerContext
             )
         ),
-        Quote = unwrap(
-            case get_quote_token(Params) of
-                ok ->
-                    {ok, undefined};
-                {ok, P2PQuote} ->
-                    Template = unwrap(get(TemplateID, HandlerContext)),
-                    unwrap(validate_token_payload(P2PQuote, Template)),
-                    {ok, P2PQuote};
-                {error, _} = Error ->
-                    Error
-            end
-        ),
-        unwrap(
-            create_transfer_request(
-                TemplateID,
-                Params,
-                TransferID,
-                SenderResource,
-                ReceiverResource,
-                Quote,
-                HandlerContext
-            )
-        )
+        Quote = unwrap(decode_quote(maps:get(<<"quoteToken">>, Params, undefined), IdentityID)),
+        % mixing the attributes needed for marshaling
+        MarshaledParams = marshal_transfer_params(Params#{
+            <<"transferID">> => TransferID,
+            <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
+            <<"receiver">> => Receiver#{<<"resourceThrift">> => ReceiverResource},
+            <<"quoteThrift">> => Quote
+        }),
+        MarshaledContext = marshal_context(wapi_backend_utils:make_ctx(Params, HandlerContext)),
+        Request = {fistful_p2p_template, 'CreateTransfer', [TemplateID, MarshaledParams, MarshaledContext]},
+        unwrap(create_transfer_request(Request, HandlerContext))
     end).
 
-get_quote_token(#{<<"quoteToken">> := Token}) ->
+decode_quote(undefined, _IdentityID) ->
+    {ok, undefined};
+decode_quote(Token, IdentityID) ->
+    do(fun() ->
+        VerifiedToken = unwrap(verify_quote_token(Token)),
+        Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
+        unwrap(authorize_quote(Quote, IdentityID))
+    end).
+
+verify_quote_token(Token) ->
     case uac_authorizer_jwt:verify(Token, #{}) of
         {ok, {_, _, VerifiedToken}} ->
-            case wapi_p2p_quote:decode_token_payload(VerifiedToken) of
-                {ok, Quote} ->
-                    {ok, Quote};
-                Error ->
-                    Error
-            end;
+            {ok, VerifiedToken};
         {error, Error} ->
             {error, {token, {not_verified, Error}}}
-    end;
-get_quote_token(_Params) ->
-    ok.
+    end.
 
-create_transfer_request(
-    TemplateID,
-    Params,
-    TransferID,
-    SenderResource,
-    ReceiverResource,
-    Quote,
-    HandlerContext
-) ->
-    Sender = maps:get(<<"sender">>, Params),
-    Receiver = maps:get(<<"receiver">>, Params),
-    % mixing the attributes needed for marshaling
-    MarshaledParams = marshal_transfer_params(Params#{
-        <<"transferID">> => TransferID,
-        <<"quote">> => Quote,
-        <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
-        <<"receiver">> => Receiver#{<<"resourceThrift">> => ReceiverResource}
-    }),
-    MarshaledContext = marshal_context(wapi_backend_utils:make_ctx(Params, HandlerContext)),
-    Request = {fistful_p2p_template, 'CreateTransfer', [TemplateID, MarshaledParams, MarshaledContext]},
+authorize_quote(#p2p_transfer_Quote{identity_id = IdentityID} = Quote, IdentityID) ->
+    {ok, Quote};
+authorize_quote(_Quote, _IdentityID) ->
+    {error, {token, {not_verified, identity_mismatch}}}.
+
+create_transfer_request(Request, HandlerContext) ->
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, Transfer} ->
             {ok, unmarshal_transfer(Transfer)};
@@ -378,13 +358,6 @@ validate_transfer_id(TransferID, Params, #{woody_context := WoodyContext} = Hand
             Error
     end.
 
-%% Validate identity id from the quote
-
-validate_token_payload(#p2p_transfer_Quote{identity_id = IdentityID}, #{<<"identityID">> := IdentityID}) ->
-    ok;
-validate_token_payload(_Quote, _template) ->
-    {error, {token, {not_verified, identity_mismatch}}}.
-
 %% Convert swag maps to thrift records
 
 marshal_template_params(
@@ -463,11 +436,10 @@ marshal_transfer_params(
         <<"sender">> := Sender,
         <<"receiver">> := Receiver,
         <<"body">> := Body,
-        <<"contactInfo">> := ContactInfo
+        <<"contactInfo">> := ContactInfo,
+        <<"quoteThrift">> := Quote
     } = Params
 ) ->
-    %% decrypted from quoteToken
-    Quote = maps:get(<<"quote">>, Params, undefined),
     Metadata = maps:get(<<"metadata">>, Params, undefined),
     #p2p_template_P2PTemplateTransferParams{
         id = TransferID,

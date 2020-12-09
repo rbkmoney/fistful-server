@@ -27,8 +27,7 @@
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     do(fun() ->
         unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
-        Resource = maps:get(<<"resource">>, Params),
-        ResourceThrift = unwrap(wapi_resource:decode_swag(Resource)),
+        ResourceThrift = unwrap(wapi_resource:decode_swag(maps:get(<<"resource">>, Params))),
         ID = unwrap(
             generate_id(
                 Params,
@@ -76,15 +75,15 @@ generate_id_legacy(Params, HandlerContext) ->
 
 create_request(ID, Params, ResourceThrift, HandlerContext) ->
     Resource = maps:get(<<"resource">>, Params),
-    NewParams = Params#{
+    % mixing the attributes needed for marshaling
+    MarshaledParams = marshal(destination_params, Params#{
         <<"id">> => ID,
         <<"resource">> => Resource#{
             <<"resourceThrift">> => ResourceThrift
         }
-    },
-    Context = wapi_backend_utils:make_ctx(NewParams, HandlerContext),
-    MarshaledParams = marshal(destination_params, NewParams),
-    Request = {fistful_destination, 'Create', [MarshaledParams, marshal(context, Context)]},
+    }),
+    MarshaledContext = marshal(context, wapi_backend_utils:make_ctx(Params, HandlerContext)),
+    Request = {fistful_destination, 'Create', [MarshaledParams, MarshaledContext]},
     case service_call(Request, HandlerContext) of
         {ok, Destination} ->
             {ok, unmarshal(destination, Destination)};

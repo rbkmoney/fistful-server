@@ -354,7 +354,10 @@ create_transfer_fail_resource_token_invalid_test(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services(
         [
-            {fistful_p2p_template, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
+            {fistful_p2p_template, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?P2P_TEMPLATE(PartyID)}
+            end}
         ],
         C
     ),

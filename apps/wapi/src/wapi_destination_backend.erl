@@ -48,8 +48,7 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
 
 generate_id(Params, ResourceThrift, HandlerContext) ->
     Resource = maps:get(<<"resource">>, Params),
-    % replacing token with an resourceHash is need for
-    % naive idempotent algo.
+    % replacing token with an resourceHash is need for naive idempotent algo.
     NewParams = Params#{
         <<"resource">> => Resource#{
             <<"token">> => undefined,

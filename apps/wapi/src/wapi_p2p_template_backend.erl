@@ -208,8 +208,6 @@ create_transfer(TemplateID, Params, HandlerContext) ->
         Receiver = maps:get(<<"receiver">>, Params),
         SenderResource = unwrap(sender, wapi_resource:decode_swag(Sender)),
         ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(Receiver)),
-        % replacing token with an resourceHash is need for
-        % naive idempotent algo.
         unwrap(
             validate_transfer_id(
                 TransferID,
@@ -334,8 +332,7 @@ gen_transfer_id(#{woody_context := WoodyContext} = HandlerContext) ->
 validate_transfer_id(TransferID, Params, SenderResource, ReceiverResource, HandlerContext) ->
     Sender = maps:get(<<"sender">>, Params),
     Receiver = maps:get(<<"receiver">>, Params),
-    % replacing token with an resourceHash is need for
-    % naive idempotent algo.
+    % replacing token with an resourceHash is need for naive idempotent algo.
     NewParams = Params#{
         <<"id">> => TransferID,
         <<"sender">> => Sender#{

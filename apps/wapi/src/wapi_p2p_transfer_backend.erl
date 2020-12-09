@@ -88,8 +88,7 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
 generate_id(Params, SenderResource, ReceiverResource, HandlerContext) ->
     Sender = maps:get(<<"sender">>, Params),
     Receiver = maps:get(<<"receiver">>, Params),
-    % replacing token with an resourceHash is need for
-    % naive idempotent algo.
+    % replacing token with an resourceHash is need for naive idempotent algo.
     NewParams = Params#{
         <<"sender">> => Sender#{
             <<"token">> => undefined,

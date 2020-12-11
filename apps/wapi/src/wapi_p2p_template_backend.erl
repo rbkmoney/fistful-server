@@ -211,15 +211,7 @@ create_transfer(TemplateID, Params, HandlerContext) ->
         Receiver = maps:get(<<"receiver">>, Params),
         SenderResource = unwrap(sender, wapi_resource:decode_swag(Sender)),
         ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(Receiver)),
-        unwrap(
-            validate_transfer_id(
-                TransferID,
-                Params,
-                SenderResource,
-                ReceiverResource,
-                HandlerContext
-            )
-        ),
+        unwrap(validate_transfer_id(TransferID, Params, SenderResource, ReceiverResource, HandlerContext)),
         Quote = unwrap(decode_quote(maps:get(<<"quoteToken">>, Params, undefined), IdentityID)),
         % mixing the attributes needed for marshaling
         MarshaledParams = marshal_transfer_params(Params#{

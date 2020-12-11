@@ -64,8 +64,10 @@ gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
     case bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx) of
         % No need for IntegerID at this project so far
-        {ok, {ID, _IntegerID}} -> {ok, ID};
-        {error, {external_id_conflict, {ID, _IntegerID}}} -> {error, {external_id_conflict, ID}}
+        {ok, {ID, _IntegerID}} ->
+            {ok, ID};
+        {error, {external_id_conflict, {ID, _IntegerID}}} ->
+            {error, {external_id_conflict, ID}}
     end.
 
 -spec make_ctx(params(), handler_context()) -> context().

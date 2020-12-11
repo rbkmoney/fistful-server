@@ -65,16 +65,8 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
         Receiver = maps:get(<<"receiver">>, Params),
         SenderResource = unwrap(sender, wapi_resource:decode_swag(Sender)),
         ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(Receiver)),
-        ID = unwrap(
-            generate_id(
-                Params,
-                SenderResource,
-                ReceiverResource,
-                HandlerContext
-            )
-        ),
+        ID = unwrap(generate_id(Params, SenderResource, ReceiverResource, HandlerContext)),
         Quote = unwrap(decode_quote(maps:get(<<"quoteToken">>, Params, undefined), IdentityID)),
-        logger:warning("Quote: ~p", [Quote]),
         % mixing the attributes needed for marshaling
         MarshaledParams = marshal_transfer_params(
             Params#{
@@ -119,7 +111,7 @@ generate_id_legacy(Params, HandlerContext) ->
             {ok, ID};
         {error, {external_id_conflict, ID}} ->
             ExternalID = maps:get(<<"externalID">>, Params, undefined),
-            {error, {external_id_conflict, {ID, ExternalID}}}
+            {error, {external_id_conflict, ID, ExternalID}}
     end.
 
 -spec get_transfer(req_data(), handler_context()) -> {ok, response_data()} | {error, error_get()}.

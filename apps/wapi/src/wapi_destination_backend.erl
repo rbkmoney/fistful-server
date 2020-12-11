@@ -28,21 +28,8 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     do(fun() ->
         unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
         ResourceThrift = unwrap(wapi_resource:decode_swag(maps:get(<<"resource">>, Params))),
-        ID = unwrap(
-            generate_id(
-                Params,
-                ResourceThrift,
-                HandlerContext
-            )
-        ),
-        unwrap(
-            create_request(
-                ID,
-                Params,
-                ResourceThrift,
-                HandlerContext
-            )
-        )
+        ID = unwrap(generate_id(Params, ResourceThrift, HandlerContext)),
+        unwrap(create_request(ID, Params, ResourceThrift, HandlerContext))
     end).
 
 generate_id(Params, ResourceThrift, HandlerContext) ->

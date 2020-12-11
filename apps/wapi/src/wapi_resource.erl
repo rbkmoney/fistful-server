@@ -14,8 +14,7 @@
     | boolean().
 
 -spec decode_swag(swag_term()) ->
-    {ok, wapi_crypto:resource()}
-    | {error, {invalid_resource_token, binary()}}.
+    {ok, undefined | wapi_crypto:resource()} | {error, {invalid_resource_token, binary()}}.
 decode_swag(#{<<"token">> := Token, <<"type">> := Type}) ->
     case decode_token(Token) of
         {ok, Resource} ->

@@ -27,9 +27,7 @@ decode_swag(_Object) ->
     {ok, undefined}.
 
 -spec decode_token(binary()) ->
-    {ok, wapi_crypto:resource()}
-    | {error, unrecognized}
-    | {error, lechiffre:decoding_error()}.
+    {ok, wapi_crypto:resource()} | {error, unrecognized} | {error, lechiffre:decoding_error()}.
 decode_token(Token) ->
     case wapi_crypto:decrypt_bankcard_token(Token) of
         {ok, Resource} ->

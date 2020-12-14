@@ -139,7 +139,7 @@ decode_resource(Token) ->
             {error, Error}
     end.
 
--spec tokenize_resource(wapi_crypto:resource() | term()) -> binary().
+-spec tokenize_resource(wapi_crypto:resource() | term()) -> integer().
 tokenize_resource(#'BankCard'{} = BankCard) ->
     Map = genlib_map:compact(#{
         token => BankCard#'BankCard'.token,

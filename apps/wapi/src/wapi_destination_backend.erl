@@ -62,12 +62,10 @@ generate_id_legacy(Params, HandlerContext) ->
 
 create_request(ID, Params, ResourceThrift, HandlerContext) ->
     % mixing the attributes needed for marshaling
-    MarshaledParams0 = marshal(destination_params, Params#{
-        <<"id">> => ID
+    MarshaledParams = marshal(destination_params, Params#{
+        <<"id">> => ID,
+        <<"resourceThrift">> => ResourceThrift
     }),
-    MarshaledParams = MarshaledParams0#dst_DestinationParams{
-        resource = ResourceThrift
-    },
     MarshaledContext = marshal(context, wapi_backend_utils:make_ctx(Params, HandlerContext)),
     Request = {fistful_destination, 'Create', [MarshaledParams, MarshaledContext]},
     case service_call(Request, HandlerContext) of
@@ -163,7 +161,8 @@ marshal(
         <<"id">> := ID,
         <<"identity">> := IdentityID,
         <<"currency">> := CurrencyID,
-        <<"name">> := Name
+        <<"name">> := Name,
+        <<"resourceThrift">> := Resource
     }
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
@@ -172,7 +171,8 @@ marshal(
         identity = marshal(id, IdentityID),
         name = marshal(string, Name),
         currency = marshal(string, CurrencyID),
-        external_id = maybe_marshal(id, ExternalID)
+        external_id = maybe_marshal(id, ExternalID),
+        resource = Resource
     };
 marshal(context, Context) ->
     ff_codec:marshal(context, Context);

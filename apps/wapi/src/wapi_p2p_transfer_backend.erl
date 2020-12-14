@@ -63,8 +63,8 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
         unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
         Sender = maps:get(<<"sender">>, Params),
         Receiver = maps:get(<<"receiver">>, Params),
-        SenderResource = unwrap(sender, wapi_resource:decode_swag(Sender)),
-        ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(Receiver)),
+        SenderResource = unwrap(sender, decode_token(Sender)),
+        ReceiverResource = unwrap(receiver, decode_token(Receiver)),
         ID = unwrap(generate_id(Params, SenderResource, ReceiverResource, HandlerContext)),
         Quote = unwrap(decode_quote(maps:get(<<"quoteToken">>, Params, undefined), IdentityID)),
         % mixing the attributes needed for marshaling
@@ -84,15 +84,15 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
 generate_id(Params, SenderResource, ReceiverResource, HandlerContext) ->
     Sender = maps:get(<<"sender">>, Params),
     Receiver = maps:get(<<"receiver">>, Params),
-    % replacing token with an resourceHash is need for naive idempotent algo.
+    % replacing token with an tokenizedResource is need for naive idempotent algo.
     NewParams = Params#{
         <<"sender">> => Sender#{
             <<"token">> => undefined,
-            <<"resourceHash">> => wapi_resource:create_hash(SenderResource)
+            <<"tokenizedResource">> => wapi_backend_utils:tokenize_resource(SenderResource)
         },
         <<"receiver">> => Receiver#{
             <<"token">> => undefined,
-            <<"resourceHash">> => wapi_resource:create_hash(ReceiverResource)
+            <<"tokenizedResource">> => wapi_backend_utils:tokenize_resource(ReceiverResource)
         }
     },
     case wapi_backend_utils:gen_id(p2p_transfer, NewParams, HandlerContext) of
@@ -135,8 +135,8 @@ quote_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
         unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
         Sender = maps:get(<<"sender">>, Params),
         Receiver = maps:get(<<"receiver">>, Params),
-        SenderResource = unwrap(sender, wapi_resource:decode_swag(Sender)),
-        ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(Receiver)),
+        SenderResource = unwrap(sender, decode_token(Sender)),
+        ReceiverResource = unwrap(receiver, decode_token(Receiver)),
         % mixing the attributes needed for marshaling
         QuoteParams = marshal_quote_params(Params#{
             <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
@@ -224,6 +224,19 @@ authorize_quote(#p2p_transfer_Quote{identity_id = IdentityID} = Quote, IdentityI
     {ok, Quote};
 authorize_quote(_Quote, _IdentityID) ->
     {error, {token, {not_verified, identity_mismatch}}}.
+
+%% resources
+
+decode_token(#{<<"token">> := Token, <<"type">> := Type}) ->
+    case wapi_backend_utils:decode_resource(Token) of
+        {ok, Resource} ->
+            {ok, Resource};
+        {error, Error} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end.
+
+%
 
 service_call(Params, HandlerContext) ->
     wapi_handler_utils:service_call(Params, HandlerContext).
@@ -465,7 +478,7 @@ marshal_transfer_params(
         receiver = marshal_receiver(Receiver),
         body = marshal_body(Body),
         quote = Quote,
-        metadata = marshal(context, Metadata)
+        metadata = marshal_context(Metadata)
     }.
 
 marshal_sender(#{
@@ -510,8 +523,16 @@ marshal_body(#{
 marshal_currency(Currency) ->
     #'CurrencyRef'{symbolic_code = Currency}.
 
+marshal_context(Context) ->
+    maybe_marshal(context, Context).
+
 marshal(T, V) ->
     ff_codec:marshal(T, V).
+
+maybe_marshal(_, undefined) ->
+    undefined;
+maybe_marshal(T, V) ->
+    marshal(T, V).
 
 %% Unmarshal
 
@@ -535,7 +556,8 @@ unmarshal_transfer(#p2p_transfer_P2PTransferState{
     body = Body,
     created_at = CreatedAt,
     status = Status,
-    external_id = ExternalID
+    external_id = ExternalID,
+    metadata = Metadata
 }) ->
     Sender = unmarshal_sender(SenderResource),
     ContactInfo = maps:get(<<"contactInfo">>, Sender),
@@ -548,7 +570,8 @@ unmarshal_transfer(#p2p_transfer_P2PTransferState{
         <<"sender">> => maps:remove(<<"contactInfo">>, Sender),
         <<"receiver">> => unmarshal_receiver(ReceiverResource),
         <<"status">> => unmarshal_transfer_status(Status),
-        <<"externalID">> => maybe_unmarshal(id, ExternalID)
+        <<"externalID">> => maybe_unmarshal(id, ExternalID),
+        <<"metadata">> => maybe_unmarshal(context, Metadata)
     }).
 
 unmarshal_body(#'Cash'{

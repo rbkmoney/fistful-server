@@ -159,8 +159,8 @@ quote_transfer(ID, Params, HandlerContext) ->
         unwrap(p2p_template, wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext)),
         Sender = maps:get(<<"sender">>, Params),
         Receiver = maps:get(<<"receiver">>, Params),
-        SenderResource = unwrap(sender, wapi_resource:decode_swag(Sender)),
-        ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(Receiver)),
+        SenderResource = unwrap(sender, decode_token(Sender)),
+        ReceiverResource = unwrap(receiver, decode_token(Receiver)),
         % mixing the attributes needed for marshaling
         MarshaledParams = marshal_quote_params(Params#{
             <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
@@ -209,8 +209,8 @@ create_transfer(TemplateID, Params, HandlerContext) ->
         TransferID = context_transfer_id(HandlerContext),
         Sender = maps:get(<<"sender">>, Params),
         Receiver = maps:get(<<"receiver">>, Params),
-        SenderResource = unwrap(sender, wapi_resource:decode_swag(Sender)),
-        ReceiverResource = unwrap(receiver, wapi_resource:decode_swag(Receiver)),
+        SenderResource = unwrap(sender, decode_token(Sender)),
+        ReceiverResource = unwrap(receiver, decode_token(Receiver)),
         unwrap(validate_transfer_id(TransferID, Params, SenderResource, ReceiverResource, HandlerContext)),
         Quote = unwrap(decode_quote(maps:get(<<"quoteToken">>, Params, undefined), IdentityID)),
         % mixing the attributes needed for marshaling
@@ -318,16 +318,16 @@ gen_transfer_id(#{woody_context := WoodyContext} = HandlerContext) ->
 validate_transfer_id(TransferID, Params, SenderResource, ReceiverResource, HandlerContext) ->
     Sender = maps:get(<<"sender">>, Params),
     Receiver = maps:get(<<"receiver">>, Params),
-    % replacing token with an resourceHash is need for naive idempotent algo.
+    % replacing token with an tokenizedResource is need for naive idempotent algo.
     NewParams = Params#{
         <<"id">> => TransferID,
         <<"sender">> => Sender#{
             <<"token">> => undefined,
-            <<"resourceHash">> => wapi_resource:create_hash(SenderResource)
+            <<"tokenizedResource">> => wapi_backend_utils:tokenize_resource(SenderResource)
         },
         <<"receiver">> => Receiver#{
             <<"token">> => undefined,
-            <<"resourceHash">> => wapi_resource:create_hash(ReceiverResource)
+            <<"tokenizedResource">> => wapi_backend_utils:tokenize_resource(ReceiverResource)
         }
     },
     case validate_transfer_id(TransferID, NewParams, HandlerContext) of
@@ -340,14 +340,26 @@ validate_transfer_id(TransferID, Params, SenderResource, ReceiverResource, Handl
     end.
 
 validate_transfer_id(TransferID, Params, #{woody_context := WoodyContext} = HandlerContext) ->
+    logger:warning("Params: ~p", [Params]),
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
     Hash = wapi_backend_utils:create_params_hash(Params),
     Key = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
     case bender_client:gen_constant(Key, TransferID, Hash, WoodyContext) of
-        {ok, {TransferID, _}} ->
+        {ok, {TransferID, _IntegerID}} ->
             ok;
-        {error, {external_id_conflict, _ID}} = Error ->
-            Error
+        {error, {external_id_conflict, {ID, _IntegerID}}} ->
+            {error, {external_id_conflict, ID}}
+    end.
+
+%% resources
+
+decode_token(#{<<"token">> := Token, <<"type">> := Type}) ->
+    case wapi_backend_utils:decode_resource(Token) of
+        {ok, Resource} ->
+            {ok, Resource};
+        {error, Error} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
     end.
 
 %% Convert swag maps to thrift records
@@ -375,7 +387,7 @@ marshal_template_details(
     Metadata = maps:get(<<"metadata">>, Details, undefined),
     #p2p_template_P2PTemplateDetails{
         body = marshal_template_body(Body),
-        metadata = marshal_template_metadata(Metadata)
+        metadata = marshal_metadata(Metadata)
     }.
 
 marshal_template_body(#{
@@ -390,9 +402,9 @@ marshal_template_body(#{
         }
     }.
 
-marshal_template_metadata(undefined) ->
+marshal_metadata(undefined) ->
     undefined;
-marshal_template_metadata(#{
+marshal_metadata(#{
     <<"defaultMetadata">> := Metadata
 }) ->
     #p2p_template_P2PTemplateMetadata{
@@ -513,7 +525,7 @@ unmarshal_template_details(#p2p_template_P2PTemplateDetails{
 }) ->
     genlib_map:compact(#{
         <<"body">> => unmarshal_template_body(Body),
-        <<"metadata">> => unmarshal_template_metadata(Metadata)
+        <<"metadata">> => unmarshal_metadata(Metadata)
     }).
 
 unmarshal_template_body(#p2p_template_P2PTemplateBody{
@@ -538,9 +550,9 @@ unmarshal_body(#'Cash'{
         <<"currency">> => unmarshal(currency_ref, Currency)
     }.
 
-unmarshal_template_metadata(undefined) ->
+unmarshal_metadata(undefined) ->
     undefined;
-unmarshal_template_metadata(#p2p_template_P2PTemplateMetadata{
+unmarshal_metadata(#p2p_template_P2PTemplateMetadata{
     value = Metadata
 }) ->
     genlib_map:compact(#{

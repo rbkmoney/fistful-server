@@ -978,7 +978,10 @@ process_request(
                 <<"description">> => Error
             });
         {error, {external_id_conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
+            wapi_handler_utils:reply_error(409, #{
+                <<"id">> => ID,
+                <<"message">> => <<"This 'P2PTransferTicket' has been used by another request">>
+            })
     end;
 %% Reports
 

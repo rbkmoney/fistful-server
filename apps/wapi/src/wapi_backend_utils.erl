@@ -1,5 +1,7 @@
 -module(wapi_backend_utils).
 
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
+
 -define(EXTERNAL_ID, <<"externalID">>).
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 -define(BENDER_DOMAIN, <<"wapi">>).
@@ -31,6 +33,8 @@
 -export([get_idempotent_key/3]).
 -export([issue_grant_token/3]).
 -export([create_params_hash/1]).
+-export([decode_resource/1]).
+-export([tokenize_resource/1]).
 
 %% Pipeline
 
@@ -101,10 +105,6 @@ add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
 get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
     maps:get(Key, Ctx, undefined).
 
--spec create_params_hash(term()) -> integer().
-create_params_hash(Value) ->
-    erlang:phash2(Value).
-
 -spec issue_grant_token(_, binary(), handler_context()) -> {ok, binary()} | {error, expired}.
 issue_grant_token(TokenSpec, Expiration, Context) ->
     case get_expiration_deadline(Expiration) of
@@ -122,3 +122,38 @@ get_expiration_deadline(Expiration) ->
         false ->
             {error, expired}
     end.
+
+-spec create_params_hash(term()) -> integer().
+create_params_hash(Value) ->
+    erlang:phash2(Value).
+
+-spec decode_resource(binary()) ->
+    {ok, wapi_crypto:resource()} | {error, unrecognized} | {error, lechiffre:decoding_error()}.
+decode_resource(Token) ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        {ok, Resource} ->
+            {ok, Resource};
+        unrecognized ->
+            {error, unrecognized};
+        {error, Error} ->
+            {error, Error}
+    end.
+
+-spec tokenize_resource(wapi_crypto:resource() | term()) -> binary().
+tokenize_resource(#'BankCard'{} = BankCard) ->
+    Map = genlib_map:compact(#{
+        token => BankCard#'BankCard'.token,
+        bin => BankCard#'BankCard'.bin,
+        masked_pan => BankCard#'BankCard'.masked_pan,
+        cardholder_name => BankCard#'BankCard'.cardholder_name,
+        %% ExpDate is optional in swag_wallets 'StoreBankCard'. But some adapters waiting exp_date.
+        %% Add error, somethink like BankCardReject.exp_date_required
+        exp_date =>
+            case BankCard#'BankCard'.exp_date of
+                undefined -> undefined;
+                #'BankCardExpDate'{month = Month, year = Year} -> {Month, Year}
+            end
+    }),
+    create_params_hash(Map);
+tokenize_resource(Value) ->
+    create_params_hash(Value).

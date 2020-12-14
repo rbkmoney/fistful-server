@@ -243,21 +243,27 @@ p2p_template_check_test(C) ->
     #{<<"id">> := P2PTemplateID} = P2PTemplate,
     P2PTemplateCopy = get_p2p_template(P2PTemplateID, C),
     ?assertEqual(maps:keys(P2PTemplate), maps:keys(P2PTemplateCopy)),
+    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
     TemplateToken = get_p2p_template_token(P2PTemplateID, ValidUntil, C),
     TemplateTicket = get_p2p_template_ticket(P2PTemplateID, TemplateToken, ValidUntil, C),
     {ok, #{<<"token">> := QuoteToken}} = call_p2p_template_quote(P2PTemplateID, C),
-    {ok, P2PTransfer} = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
-    ?assertMatch(#{<<"identityID">> := IdentityID}, P2PTransfer),
-    #{<<"id">> := P2PTransferID} = P2PTransfer,
+    P2PTransferID = create_p2p_transfer_with_template(P2PTemplateID, Token, TemplateTicket, QuoteToken, C),
     ok = await_p2p_transfer(P2PTransferID, C),
+    P2PTransfer = get_p2p_transfer(P2PTransferID, C),
     ?assertMatch(#{<<"metadata">> := Metadata}, P2PTransfer),
     ok = block_p2p_template(P2PTemplateID, C),
     P2PTemplateBlocked = get_p2p_template(P2PTemplateID, C),
     ?assertMatch(#{<<"isBlocked">> := true}, P2PTemplateBlocked),
     QuoteBlockedError = call_p2p_template_quote(P2PTemplateID, C),
     ?assertMatch({error, {422, _}}, QuoteBlockedError),
-    P2PTransferBlockedError = call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C),
+    P2PTransferBlockedError = create_p2p_transfer_with_template_call(
+        P2PTemplateID,
+        Token,
+        TemplateTicket,
+        QuoteToken,
+        C
+    ),
     ?assertMatch({error, {422, _}}, P2PTransferBlockedError),
     Quote404Error = call_p2p_template_quote(<<"404">>, C),
     ?assertMatch({error, {404, _}}, Quote404Error).
@@ -269,15 +275,15 @@ idempotency_destination_test(C) ->
     Class = ?ID_CLASS,
     ok = application:set_env(wapi, transport, thrift),
     IdentityID = create_identity(Name, Provider, Class, C),
-    Token1 = bank_card_token(),
-    Token2 = bank_card_token(<<"CoolBank">>),
-    Token3 = bank_card_token(<<"FakeBank">>),
     ExternalID = genlib:unique(),
+    Token1 = create_resource_token(?BANK_CARD),
+    Token2 = create_resource_token(?BANK_CARD#'BankCard'{bank_name = <<"FakeBank">>}),
+    Token3 = create_resource_token(?BANK_CARD_PAN(<<"4150399999000900">>)),
     ID1 = create_destination(Token1, ExternalID, IdentityID, C),
     ID2 = create_destination(Token2, ExternalID, IdentityID, C),
-    ID3 = create_destination(Token3, ExternalID, IdentityID, C),
-    ?assertEqual(3, sets:size(sets:from_list([Token1, Token2, Token3]))),
-    ?assertEqual(1, sets:size(sets:from_list([ID1, ID2, ID3]))).
+    Error = create_destination_call(Token3, ExternalID, IdentityID, C),
+    ?assertEqual(ID1, ID2),
+    ?assertMatch({error, {409, #{<<"externalID">> := ExternalID, <<"id">> := ID1}}}, Error).
 
 -spec idempotency_p2p_transfer_test(config()) -> test_return().
 idempotency_p2p_transfer_test(C) ->
@@ -286,15 +292,15 @@ idempotency_p2p_transfer_test(C) ->
     Class = ?ID_CLASS,
     ok = application:set_env(wapi, transport, thrift),
     IdentityID = create_identity(Name, Provider, Class, C),
-    Token1 = bank_card_token(),
-    Token2 = bank_card_token(<<"CoolBank">>),
-    Token3 = bank_card_token(<<"FakeBank">>),
     ExternalID = genlib:unique(),
+    Token1 = create_resource_token(?BANK_CARD),
+    Token2 = create_resource_token(?BANK_CARD#'BankCard'{bank_name = <<"FakeBank">>}),
+    Token3 = create_resource_token(?BANK_CARD_PAN(<<"4150399999000900">>)),
     ID1 = create_p2p_transfer(Token1, ExternalID, undefined, IdentityID, C),
     ID2 = create_p2p_transfer(Token2, ExternalID, undefined, IdentityID, C),
-    ID3 = create_p2p_transfer(Token3, ExternalID, undefined, IdentityID, C),
-    ?assertEqual(3, sets:size(sets:from_list([Token1, Token2, Token3]))),
-    ?assertEqual(1, sets:size(sets:from_list([ID1, ID2, ID3]))).
+    Error = create_p2p_transfer_call(Token3, ExternalID, undefined, IdentityID, C),
+    ?assertEqual(ID1, ID2),
+    ?assertMatch({error, {409, #{<<"externalID">> := ExternalID, <<"id">> := ID1}}}, Error).
 
 -spec idempotency_p2p_template_test(config()) -> test_return().
 idempotency_p2p_template_test(C) ->
@@ -304,17 +310,17 @@ idempotency_p2p_template_test(C) ->
     ok = application:set_env(wapi, transport, thrift),
     IdentityID = create_identity(Name, Provider, Class, C),
     #{<<"id">> := P2PTemplateID} = create_p2p_template(IdentityID, #{}, C),
-    Token1 = bank_card_token(),
-    Token2 = bank_card_token(<<"CoolBank">>),
-    Token3 = bank_card_token(<<"FakeBank">>),
+    Token1 = create_resource_token(?BANK_CARD),
+    Token2 = create_resource_token(?BANK_CARD#'BankCard'{bank_name = <<"FakeBank">>}),
+    Token3 = create_resource_token(?BANK_CARD_PAN(<<"4150399999000900">>)),
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
     TemplateToken = get_p2p_template_token(P2PTemplateID, ValidUntil, C),
     TemplateTicket = get_p2p_template_ticket(P2PTemplateID, TemplateToken, ValidUntil, C),
-    {ok, #{<<"id">> := ID1}} = call_p2p_template_transfer(P2PTemplateID, Token1, TemplateTicket, undefined, C),
-    {ok, #{<<"id">> := ID2}} = call_p2p_template_transfer(P2PTemplateID, Token2, TemplateTicket, undefined, C),
-    {ok, #{<<"id">> := ID3}} = call_p2p_template_transfer(P2PTemplateID, Token3, TemplateTicket, undefined, C),
-    ?assertEqual(3, sets:size(sets:from_list([Token1, Token2, Token3]))),
-    ?assertEqual(1, sets:size(sets:from_list([ID1, ID2, ID3]))).
+    ID1 = create_p2p_transfer_with_template(P2PTemplateID, Token1, TemplateTicket, C),
+    ID2 = create_p2p_transfer_with_template(P2PTemplateID, Token2, TemplateTicket, C),
+    Error = create_p2p_transfer_with_template_call(P2PTemplateID, Token3, TemplateTicket, undefined, C),
+    ?assertEqual(ID1, ID2),
+    ?assertMatch({error, {409, #{<<"id">> := ID1}}}, Error).
 
 %%
 
@@ -335,24 +341,6 @@ get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).
 
 %%
-
-bank_card_token() ->
-    bank_card_token(?STRING).
-
-bank_card_token(BankName) ->
-    Pan = <<"4150399999000900">>,
-    {MM, YYYY} = {12, 2025},
-    create_resource_token(?BANK_CARD#'BankCard'{
-        token = ?STRING,
-        bin = ?BIN(Pan),
-        masked_pan = ?LAST_DIGITS(Pan),
-        cardholder_name = <<"ct_cardholder_name">>,
-        exp_date = #'BankCardExpDate'{
-            month = MM,
-            year = YYYY
-        },
-        bank_name = BankName
-    }).
 
 create_resource_token(Resource) ->
     wapi_crypto:encrypt_bankcard_token(Resource).
@@ -501,6 +489,12 @@ create_destination(IdentityID, C) ->
     create_destination(Token, undefined, IdentityID, C).
 
 create_destination(Token, ExternalID, IdentityID, C) ->
+    {ok, Destination} = create_destination_call(Token, ExternalID, IdentityID, C),
+    DestinationID = maps:get(<<"id">>, Destination),
+    await_destination(DestinationID),
+    DestinationID.
+
+create_destination_call(Token, ExternalID, IdentityID, C) ->
     DefaultParams = #{
         <<"name">> => ?STRING,
         <<"identity">> => IdentityID,
@@ -511,14 +505,11 @@ create_destination(Token, ExternalID, IdentityID, C) ->
         },
         <<"externalID">> => ExternalID
     },
-    {ok, Destination} = call_api(
+    call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{body => genlib_map:compact(DefaultParams)},
         ct_helper:cfg(context, C)
-    ),
-    DestinationID = maps:get(<<"id">>, Destination),
-    await_destination(DestinationID),
-    DestinationID.
+    ).
 
 get_destination(DestinationID, C) ->
     {ok, Destination} = call_api(
@@ -557,6 +548,10 @@ create_p2p_transfer(Token, IdentityID, C) ->
     create_p2p_transfer(Token, undefined, QuoteToken, IdentityID, C).
 
 create_p2p_transfer(Token, ExternalID, QuoteToken, IdentityID, C) ->
+    {ok, P2PTransfer} = create_p2p_transfer_call(Token, ExternalID, QuoteToken, IdentityID, C),
+    maps:get(<<"id">>, P2PTransfer).
+
+create_p2p_transfer_call(Token, ExternalID, QuoteToken, IdentityID, C) ->
     DefaultParams = genlib_map:compact(#{
         <<"identityID">> => IdentityID,
         <<"sender">> => #{
@@ -579,12 +574,11 @@ create_p2p_transfer(Token, ExternalID, QuoteToken, IdentityID, C) ->
         },
         <<"externalID">> => ExternalID
     }),
-    {ok, P2PTransfer} = call_api(
+    call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{body => DefaultParams},
         ct_helper:cfg(context, C)
-    ),
-    maps:get(<<"id">>, P2PTransfer).
+    ).
 
 get_quote_token(SenderToken, ReceiverToken, IdentityID, C) ->
     PartyID = ct_helper:cfg(party, C),
@@ -825,11 +819,14 @@ call_p2p_template_quote(P2PTemplateID, C) ->
         ct_helper:cfg(context, C)
     ).
 
-call_p2p_template_transfer(P2PTemplateID, TemplateTicket, QuoteToken, C) ->
-    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    call_p2p_template_transfer(P2PTemplateID, Token, TemplateTicket, QuoteToken, C).
+create_p2p_transfer_with_template(P2PTemplateID, Token, TemplateTicket, C) ->
+    create_p2p_transfer_with_template(P2PTemplateID, Token, TemplateTicket, undefined, C).
 
-call_p2p_template_transfer(P2PTemplateID, Token, TemplateTicket, QuoteToken, C) ->
+create_p2p_transfer_with_template(P2PTemplateID, Token, TemplateTicket, QuoteToken, C) ->
+    {ok, P2PTransfer} = create_p2p_transfer_with_template_call(P2PTemplateID, Token, TemplateTicket, QuoteToken, C),
+    maps:get(<<"id">>, P2PTransfer).
+
+create_p2p_transfer_with_template_call(P2PTemplateID, Token, TemplateTicket, QuoteToken, C) ->
     Context = maps:merge(ct_helper:cfg(context, C), #{token => TemplateTicket}),
     call_api(
         fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,

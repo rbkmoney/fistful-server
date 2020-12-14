@@ -27,18 +27,18 @@
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
     do(fun() ->
         unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
-        ResourceThrift = unwrap(wapi_resource:decode_swag(maps:get(<<"resource">>, Params))),
+        ResourceThrift = unwrap(construct_resource(maps:get(<<"resource">>, Params))),
         ID = unwrap(generate_id(Params, ResourceThrift, HandlerContext)),
         unwrap(create_request(ID, Params, ResourceThrift, HandlerContext))
     end).
 
 generate_id(Params, ResourceThrift, HandlerContext) ->
     Resource = maps:get(<<"resource">>, Params),
-    % replacing token with an resourceHash is need for naive idempotent algo.
+    % replacing token with an tokenizedResource is need for naive idempotent algo.
     NewParams = Params#{
         <<"resource">> => Resource#{
             <<"token">> => undefined,
-            <<"resourceHash">> => wapi_resource:create_hash(ResourceThrift)
+            <<"tokenizedResource">> => tokenize_resource(ResourceThrift)
         }
     },
     case wapi_backend_utils:gen_id(destination, NewParams, HandlerContext) of
@@ -61,14 +61,13 @@ generate_id_legacy(Params, HandlerContext) ->
     end.
 
 create_request(ID, Params, ResourceThrift, HandlerContext) ->
-    Resource = maps:get(<<"resource">>, Params),
     % mixing the attributes needed for marshaling
-    MarshaledParams = marshal(destination_params, Params#{
-        <<"id">> => ID,
-        <<"resource">> => Resource#{
-            <<"resourceThrift">> => ResourceThrift
-        }
+    MarshaledParams0 = marshal(destination_params, Params#{
+        <<"id">> => ID
     }),
+    MarshaledParams = MarshaledParams0#dst_DestinationParams{
+        resource = ResourceThrift
+    },
     MarshaledContext = marshal(context, wapi_backend_utils:make_ctx(Params, HandlerContext)),
     Request = {fistful_destination, 'Create', [MarshaledParams, MarshaledContext]},
     case service_call(Request, HandlerContext) of
@@ -121,38 +120,19 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
 %% Internal
 %%
 
-service_call(Params, Context) ->
-    wapi_handler_utils:service_call(Params, Context).
-
-%% Marshaling
-
-marshal(
-    destination_params,
-    Params = #{
-        <<"id">> := ID,
-        <<"identity">> := IdentityID,
-        <<"currency">> := CurrencyID,
-        <<"name">> := Name,
-        <<"resource">> := Resource
-    }
-) ->
-    ExternalID = maps:get(<<"externalID">>, Params, undefined),
-    #dst_DestinationParams{
-        id = marshal(id, ID),
-        identity = marshal(id, IdentityID),
-        name = marshal(string, Name),
-        currency = marshal(string, CurrencyID),
-        external_id = maybe_marshal(id, ExternalID),
-        resource = marshal(resource, Resource)
-    };
-marshal(resource, #{
-    <<"type">> := <<"BankCardDestinationResource">>,
-    <<"resourceThrift">> := Resource
+construct_resource(#{
+    <<"token">> := Token,
+    <<"type">> := Type
 }) ->
-    BankCard = Resource,
-    {bank_card, #'ResourceBankCard'{bank_card = BankCard}};
-marshal(
-    resource,
+    case wapi_backend_utils:decode_resource(Token) of
+        {ok, Resource} ->
+            BankCard = Resource,
+            {ok, {bank_card, #'ResourceBankCard'{bank_card = BankCard}}};
+        {error, Error} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end;
+construct_resource(
     #{
         <<"type">> := <<"CryptoWalletDestinationResource">>,
         <<"id">> := CryptoWalletID
@@ -165,7 +145,35 @@ marshal(
                 currency => marshal_crypto_currency_data(Resource)
             })
         }},
-    ff_codec:marshal(resource, CostructedResource);
+    {ok, ff_codec:marshal(resource, CostructedResource)}.
+
+tokenize_resource({bank_card, #'ResourceBankCard'{bank_card = BankCard}}) ->
+    wapi_backend_utils:tokenize_resource(BankCard);
+tokenize_resource(Value) ->
+    wapi_backend_utils:tokenize_resource(Value).
+
+service_call(Params, Context) ->
+    wapi_handler_utils:service_call(Params, Context).
+
+%% Marshaling
+
+marshal(
+    destination_params,
+    Params = #{
+        <<"id">> := ID,
+        <<"identity">> := IdentityID,
+        <<"currency">> := CurrencyID,
+        <<"name">> := Name
+    }
+) ->
+    ExternalID = maps:get(<<"externalID">>, Params, undefined),
+    #dst_DestinationParams{
+        id = marshal(id, ID),
+        identity = marshal(id, IdentityID),
+        name = marshal(string, Name),
+        currency = marshal(string, CurrencyID),
+        external_id = maybe_marshal(id, ExternalID)
+    };
 marshal(context, Context) ->
     ff_codec:marshal(context, Context);
 marshal(T, V) ->

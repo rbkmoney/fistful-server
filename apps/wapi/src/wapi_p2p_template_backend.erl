@@ -340,7 +340,6 @@ validate_transfer_id(TransferID, Params, SenderResource, ReceiverResource, Handl
     end.
 
 validate_transfer_id(TransferID, Params, #{woody_context := WoodyContext} = HandlerContext) ->
-    logger:warning("Params: ~p", [Params]),
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
     Hash = wapi_backend_utils:create_params_hash(Params),
     Key = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),

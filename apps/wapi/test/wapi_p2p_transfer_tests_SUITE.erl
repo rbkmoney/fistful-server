@@ -25,6 +25,7 @@
 
 -export([
     create_ok_test/1,
+    create_fail_resource_token_invalid_test/1,
     create_fail_unauthorized_test/1,
     create_fail_identity_notfound_test/1,
     create_fail_forbidden_operation_currency_test/1,
@@ -32,6 +33,7 @@
     create_fail_operation_not_permitted_test/1,
     create_fail_no_resource_info_test/1,
     create_quote_ok_test/1,
+    create_quote_fail_resource_token_invalid_test/1,
     create_with_quote_token_ok_test/1,
     create_with_bad_quote_token_fail_test/1,
     get_quote_fail_identity_not_found_test/1,
@@ -72,6 +74,7 @@ groups() ->
     [
         {base, [], [
             create_ok_test,
+            create_fail_resource_token_invalid_test,
             create_fail_unauthorized_test,
             create_fail_identity_notfound_test,
             create_fail_forbidden_operation_currency_test,
@@ -79,6 +82,7 @@ groups() ->
             create_fail_operation_not_permitted_test,
             create_fail_no_resource_info_test,
             create_quote_ok_test,
+            create_quote_fail_resource_token_invalid_test,
             create_with_quote_token_ok_test,
             create_with_bad_quote_token_fail_test,
             get_quote_fail_identity_not_found_test,
@@ -166,6 +170,28 @@ create_ok_test(C) ->
     create_ok_start_mocks(C),
     {ok, _} = create_p2p_transfer_call_api(C).
 
+-spec create_fail_resource_token_invalid_test(config()) -> _.
+create_fail_resource_token_invalid_test(C) ->
+    create_ok_start_mocks(C),
+    InvalidToken = <<"v1.InvalidToken">>,
+    ValidToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardSenderResourceParams">>
+            }}},
+        create_p2p_transfer_call_api(C, InvalidToken, ValidToken)
+    ),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardReceiverResourceParams">>
+            }}},
+        create_p2p_transfer_call_api(C, ValidToken, InvalidToken)
+    ).
+
 -spec create_fail_unauthorized_test(config()) -> _.
 create_fail_unauthorized_test(C) ->
     WrongPartyID = <<"SomeWrongPartyID">>,
@@ -235,31 +261,32 @@ create_fail_no_resource_info_test(C) ->
 create_quote_ok_test(C) ->
     IdentityID = <<"id">>,
     get_quote_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end),
-    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    {ok, #{<<"token">> := Token}} = call_api(
-        fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
-        #{
-            body => #{
-                <<"identityID">> => IdentityID,
-                <<"body">> => #{
-                    <<"amount">> => ?INTEGER,
-                    <<"currency">> => ?RUB
-                },
-                <<"sender">> => #{
-                    <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => SenderToken
-                },
-                <<"receiver">> => #{
-                    <<"type">> => <<"BankCardReceiverResource">>,
-                    <<"token">> => ReceiverToken
-                }
-            }
-        },
-        ct_helper:cfg(context, C)
-    ),
+    {ok, #{<<"token">> := Token}} = quote_p2p_transfer_call_api(C, IdentityID),
     {ok, {_, _, Payload}} = uac_authorizer_jwt:verify(Token, #{}),
     {ok, #p2p_transfer_Quote{identity_id = IdentityID}} = wapi_p2p_quote:decode_token_payload(Payload).
+
+-spec create_quote_fail_resource_token_invalid_test(config()) -> _.
+create_quote_fail_resource_token_invalid_test(C) ->
+    IdentityID = <<"id">>,
+    get_quote_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end),
+    InvalidToken = <<"v1.InvalidToken">>,
+    ValidToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardSenderResource">>
+            }}},
+        quote_p2p_transfer_call_api(C, IdentityID, InvalidToken, ValidToken)
+    ),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardReceiverResource">>
+            }}},
+        quote_p2p_transfer_call_api(C, IdentityID, ValidToken, InvalidToken)
+    ).
 
 -spec create_with_quote_token_ok_test(config()) -> _.
 create_with_quote_token_ok_test(C) ->
@@ -281,27 +308,7 @@ create_with_quote_token_ok_test(C) ->
     ),
     SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    {ok, #{<<"token">> := QuoteToken}} = call_api(
-        fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
-        #{
-            body => #{
-                <<"identityID">> => IdentityID,
-                <<"body">> => #{
-                    <<"amount">> => ?INTEGER,
-                    <<"currency">> => ?RUB
-                },
-                <<"sender">> => #{
-                    <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => SenderToken
-                },
-                <<"receiver">> => #{
-                    <<"type">> => <<"BankCardReceiverResource">>,
-                    <<"token">> => ReceiverToken
-                }
-            }
-        },
-        ct_helper:cfg(context, C)
-    ),
+    {ok, #{<<"token">> := QuoteToken}} = quote_p2p_transfer_call_api(C, IdentityID, SenderToken, ReceiverToken),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
@@ -508,8 +515,10 @@ get_events_call_api(C) ->
     ).
 
 create_p2p_transfer_call_api(C) ->
-    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    create_p2p_transfer_call_api(C, Token, Token).
+
+create_p2p_transfer_call_api(C, SenderToken, ReceiverToken) ->
     call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
@@ -538,8 +547,10 @@ create_p2p_transfer_call_api(C) ->
     ).
 
 quote_p2p_transfer_call_api(C, IdentityID) ->
-    SenderToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    Token = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    quote_p2p_transfer_call_api(C, IdentityID, Token, Token).
+
+quote_p2p_transfer_call_api(C, IdentityID, SenderToken, ReceiverToken) ->
     call_api(
         fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
         #{

@@ -113,7 +113,7 @@
  {<<"jsx">>,{pkg,<<"jsx">>,<<"2.8.2">>},0},
  {<<"lechiffre">>,
   {git,"git@github.com:rbkmoney/lechiffre.git",
-       {ref,"da3ca720b1f226a0e4811d4b205a6085ff31b150"}},
+       {ref,"d6b11b2420b91c5660b0c445f87ef84da47f5096"}},
   0},
  {<<"libdecaf">>,
   {git,"https://github.com/ndiezel0/erlang-libdecaf.git",

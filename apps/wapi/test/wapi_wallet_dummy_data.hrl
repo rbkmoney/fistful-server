@@ -138,7 +138,16 @@
     card_type = debit
 }).
 
+-define(BANK_CARD_PAN(Pan), ?BANK_CARD#'BankCard'{
+    bin = ?BIN(Pan),
+    masked_pan = ?LAST_DIGITS(Pan)
+}).
+
 -define(RESOURCE, {bank_card, ?BANK_CARD}).
+
+-define(BIN(CardNumber), string:slice(CardNumber, 0, 6)).
+
+-define(LAST_DIGITS(CardNumber), string:slice(CardNumber, 12)).
 
 -define(DESTINATION_STATUS, {authorized, #dst_Authorized{}}).
 

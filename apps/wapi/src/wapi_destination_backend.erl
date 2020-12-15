@@ -14,51 +14,71 @@
 
 %% Pipeline
 
+-import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+
 -spec create(req_data(), handler_context()) -> {ok, response_data()} | {error, DestinationError} when
     DestinationError ::
-        invalid_resource_token
+        {invalid_resource_token, binary()}
         | {identity, unauthorized}
         | {identity, notfound}
         | {currency, notfound}
         | inaccessible
         | {external_id_conflict, {id(), external_id()}}.
 create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
-                {ok, ID} ->
-                    Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-                    create(ID, Params, Context, HandlerContext);
-                {error, {external_id_conflict, ID}} ->
-                    ExternalID = maps:get(<<"externalID">>, Params, undefined),
-                    {error, {external_id_conflict, {ID, ExternalID}}}
-            end;
-        {error, unauthorized} ->
-            {error, {identity, unauthorized}}
+    do(fun() ->
+        unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
+        ResourceThrift = unwrap(construct_resource(maps:get(<<"resource">>, Params))),
+        ID = unwrap(generate_id(Params, ResourceThrift, HandlerContext)),
+        unwrap(create_request(ID, Params, ResourceThrift, HandlerContext))
+    end).
+
+generate_id(Params, ResourceThrift, HandlerContext) ->
+    Resource = maps:get(<<"resource">>, Params),
+    % replacing token with an tokenizedResource is need for naive idempotent algo.
+    NewParams = Params#{
+        <<"resource">> => Resource#{
+            <<"token">> => undefined,
+            <<"tokenizedResource">> => tokenize_resource(ResourceThrift)
+        }
+    },
+    case wapi_backend_utils:gen_id(destination, NewParams, HandlerContext) of
+        {ok, ID} ->
+            {ok, ID};
+        {error, {external_id_conflict, ID}} ->
+            % Delete after deploy
+            ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            logger:warning("external_id_conflict: ~p. try old hashing", [{ID, ExternalID}]),
+            generate_id_legacy(Params, HandlerContext)
     end.
 
-create(DestinationID, Params = #{<<"resource">> := Resource}, Context, HandlerContext) ->
-    case construct_resource(Resource) of
-        {ok, ConstructedResource} ->
-            DestinationParams = marshal(destination_params, Params#{
-                <<"id">> => DestinationID,
-                <<"resource">> => ConstructedResource
-            }),
-            Request = {fistful_destination, 'Create', [DestinationParams, marshal(context, Context)]},
-            case service_call(Request, HandlerContext) of
-                {ok, Destination} ->
-                    {ok, unmarshal(destination, Destination)};
-                {exception, #fistful_IdentityNotFound{}} ->
-                    {error, {identity, notfound}};
-                {exception, #fistful_CurrencyNotFound{}} ->
-                    {error, {currency, notfound}};
-                {exception, #fistful_PartyInaccessible{}} ->
-                    {error, inaccessible};
-                {exception, Details} ->
-                    {error, Details}
-            end;
-        {error, invalid_resource_token} = Error ->
-            Error
+generate_id_legacy(Params, HandlerContext) ->
+    case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
+        {ok, ID} ->
+            {ok, ID};
+        {error, {external_id_conflict, ID}} ->
+            ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            {error, {external_id_conflict, {ID, ExternalID}}}
+    end.
+
+create_request(ID, Params, ResourceThrift, HandlerContext) ->
+    % mixing the attributes needed for marshaling
+    MarshaledParams = marshal(destination_params, Params#{
+        <<"id">> => ID,
+        <<"resourceThrift">> => ResourceThrift
+    }),
+    MarshaledContext = marshal(context, wapi_backend_utils:make_ctx(Params, HandlerContext)),
+    Request = {fistful_destination, 'Create', [MarshaledParams, MarshaledContext]},
+    case service_call(Request, HandlerContext) of
+        {ok, Destination} ->
+            {ok, unmarshal(destination, Destination)};
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}};
+        {exception, #fistful_CurrencyNotFound{}} ->
+            {error, {currency, notfound}};
+        {exception, #fistful_PartyInaccessible{}} ->
+            {error, inaccessible};
+        {exception, Details} ->
+            {error, Details}
     end.
 
 -spec get(id(), handler_context()) ->
@@ -98,36 +118,24 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
 %% Internal
 %%
 
-construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource) when
-    Type =:= <<"BankCardDestinationResource">>
-->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            {ok, marshal(resource, Resource)};
-        {ok, BankCard} ->
-            #'BankCardExpDate'{
-                month = Month,
-                year = Year
-            } = BankCard#'BankCard'.exp_date,
-            CostructedResource =
-                {bank_card, #{
-                    bank_card => #{
-                        token => BankCard#'BankCard'.token,
-                        bin => BankCard#'BankCard'.bin,
-                        masked_pan => BankCard#'BankCard'.masked_pan,
-                        cardholder_name => BankCard#'BankCard'.cardholder_name,
-                        exp_date => {Month, Year}
-                    }
-                }},
-            {ok, ff_codec:marshal(resource, CostructedResource)};
-        {error, {decryption_failed, _} = Error} ->
-            logger:warning("Resource token decryption failed: ~p", [Error]),
-            {error, invalid_resource_token}
+construct_resource(#{
+    <<"token">> := Token,
+    <<"type">> := Type
+}) ->
+    case wapi_backend_utils:decode_resource(Token) of
+        {ok, Resource} ->
+            BankCard = Resource,
+            {ok, {bank_card, #'ResourceBankCard'{bank_card = BankCard}}};
+        {error, Error} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
     end;
-construct_resource(#{<<"type">> := Type} = Resource) when Type =:= <<"CryptoWalletDestinationResource">> ->
+construct_resource(
     #{
+        <<"type">> := <<"CryptoWalletDestinationResource">>,
         <<"id">> := CryptoWalletID
-    } = Resource,
+    } = Resource
+) ->
     CostructedResource =
         {crypto_wallet, #{
             crypto_wallet => genlib_map:compact(#{
@@ -136,6 +144,11 @@ construct_resource(#{<<"type">> := Type} = Resource) when Type =:= <<"CryptoWall
             })
         }},
     {ok, ff_codec:marshal(resource, CostructedResource)}.
+
+tokenize_resource({bank_card, #'ResourceBankCard'{bank_card = BankCard}}) ->
+    wapi_backend_utils:tokenize_resource(BankCard);
+tokenize_resource(Value) ->
+    wapi_backend_utils:tokenize_resource(Value).
 
 service_call(Params, Context) ->
     wapi_handler_utils:service_call(Params, Context).
@@ -149,7 +162,7 @@ marshal(
         <<"identity">> := IdentityID,
         <<"currency">> := CurrencyID,
         <<"name">> := Name,
-        <<"resource">> := Resource
+        <<"resourceThrift">> := Resource
     }
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
@@ -158,23 +171,9 @@ marshal(
         identity = marshal(id, IdentityID),
         name = marshal(string, Name),
         currency = marshal(string, CurrencyID),
-        resource = Resource,
-        external_id = maybe_marshal(id, ExternalID)
+        external_id = maybe_marshal(id, ExternalID),
+        resource = Resource
     };
-marshal(resource, #{
-    <<"type">> := <<"BankCardDestinationResource">>,
-    <<"token">> := Token
-}) ->
-    BankCard = wapi_utils:base64url_to_map(Token),
-    Resource =
-        {bank_card, #{
-            bank_card => #{
-                token => maps:get(<<"token">>, BankCard),
-                bin => maps:get(<<"bin">>, BankCard),
-                masked_pan => maps:get(<<"lastDigits">>, BankCard)
-            }
-        }},
-    ff_codec:marshal(resource, Resource);
 marshal(context, Context) ->
     ff_codec:marshal(context, Context);
 marshal(T, V) ->

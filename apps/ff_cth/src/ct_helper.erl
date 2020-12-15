@@ -103,9 +103,10 @@ start_app(wapi = AppName) ->
             }},
             {signee, wapi},
             {lechiffre_opts, #{
-                encryption_key_path => "/opt/wapi/config/jwk.json",
-                decryption_key_paths => [
-                    "/opt/wapi/config/jwk.json"
+                encryption_source => {json, {file, "/opt/wapi/config/jwk.publ.json"}},
+                decryption_sources => [
+                    {json, {file, "/opt/wapi/config/jwk.priv.json"}},
+                    {json, {file, "/opt/wapi/config/jwk.json"}}
                 ]
             }},
             {swagger_handler_opts, #{

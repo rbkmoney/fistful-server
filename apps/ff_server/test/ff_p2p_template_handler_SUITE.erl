@@ -20,6 +20,8 @@
 -export([create_p2p_template_ok_test/1]).
 -export([unknown_test/1]).
 
+-define(CASH_AMOUNT, 256).
+
 -type config() :: ct_helper:config().
 -type test_case_name() :: ct_helper:test_case_name().
 -type group_name() :: ct_helper:group_name().
@@ -86,7 +88,7 @@ block_p2p_template_ok_test(C) ->
     P2PTemplateID = generate_id(),
     ExternalID = generate_id(),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-    Details = make_template_details({1000, <<"RUB">>}),
+    Details = make_template_details({?CASH_AMOUNT, <<"RUB">>}),
     Params = #p2p_template_P2PTemplateParams{
         id = P2PTemplateID,
         identity_id = IdentityID,
@@ -108,7 +110,7 @@ get_context_test(C) ->
     P2PTemplateID = generate_id(),
     ExternalID = generate_id(),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-    Details = make_template_details({1000, <<"RUB">>}),
+    Details = make_template_details({?CASH_AMOUNT, <<"RUB">>}),
     Params = #p2p_template_P2PTemplateParams{
         id = P2PTemplateID,
         identity_id = IdentityID,
@@ -127,7 +129,7 @@ create_p2p_template_ok_test(C) ->
     P2PTemplateID = generate_id(),
     ExternalID = generate_id(),
     Ctx = ff_entity_context_codec:marshal(#{<<"NS">> => #{}}),
-    Details = make_template_details({1000, <<"RUB">>}),
+    Details = make_template_details({?CASH_AMOUNT, <<"RUB">>}),
     Params = #p2p_template_P2PTemplateParams{
         id = P2PTemplateID,
         identity_id = IdentityID,

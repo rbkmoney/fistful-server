@@ -3,6 +3,7 @@
 -behaviour(supervisor).
 
 -include_lib("common_test/include/ct.hrl").
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("fistful_proto/include/ff_proto_p2p_template_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
@@ -25,7 +26,9 @@
 -export([issue_transfer_ticket_ok_test/1]).
 -export([issue_transfer_ticket_with_access_expiration_ok_test/1]).
 -export([quote_transfer_ok_test/1]).
--export([create_p2p_transfer_with_template_ok_test/1]).
+-export([quote_transfer_fail_resource_token_invalid_test/1]).
+-export([create_transfer_ok_test/1]).
+-export([create_transfer_fail_resource_token_invalid_test/1]).
 
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
@@ -62,7 +65,9 @@ groups() ->
             issue_transfer_ticket_ok_test,
             issue_transfer_ticket_with_access_expiration_ok_test,
             quote_transfer_ok_test,
-            create_p2p_transfer_with_template_ok_test
+            quote_transfer_fail_resource_token_invalid_test,
+            create_transfer_ok_test,
+            create_transfer_fail_resource_token_invalid_test
         ]}
     ].
 
@@ -289,7 +294,6 @@ quote_transfer_ok_test(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services(
         [
-            {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end},
             {fistful_p2p_template, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('GetQuote', _) -> {ok, ?P2P_TEMPLATE_QUOTE}
@@ -297,9 +301,102 @@ quote_transfer_ok_test(C) ->
         ],
         C
     ),
-    SenderToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    {ok, #{<<"token">> := _QuoteToken}} = call_api(
+    ?assertMatch({ok, #{<<"token">> := _QuoteToken}}, quote_p2p_transfer_with_template_call_api(C)).
+
+-spec quote_transfer_fail_resource_token_invalid_test(config()) -> _.
+quote_transfer_fail_resource_token_invalid_test(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_p2p_template, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
+        ],
+        C
+    ),
+    InvalidResourceToken = <<"v1.InvalidResourceToken">>,
+    ValidResourceToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardSenderResource">>
+            }}},
+        quote_p2p_transfer_with_template_call_api(C, InvalidResourceToken, ValidResourceToken)
+    ),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardReceiverResource">>
+            }}},
+        quote_p2p_transfer_with_template_call_api(C, ValidResourceToken, InvalidResourceToken)
+    ).
+
+-spec create_transfer_ok_test(config()) -> _.
+create_transfer_ok_test(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_p2p_template, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?P2P_TEMPLATE(PartyID)};
+                ('CreateTransfer', _) -> {ok, ?P2P_TEMPLATE_TRANSFER(PartyID)}
+            end}
+        ],
+        C
+    ),
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    TemplateToken = create_template_token(PartyID, ValidUntil),
+    Ticket = create_transfer_ticket(TemplateToken),
+    ?assertMatch({ok, #{<<"id">> := ?STRING}}, create_p2p_transfer_with_template_call_api(C, Ticket)).
+
+-spec create_transfer_fail_resource_token_invalid_test(config()) -> _.
+create_transfer_fail_resource_token_invalid_test(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_p2p_template, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?P2P_TEMPLATE(PartyID)}
+            end}
+        ],
+        C
+    ),
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    TemplateToken = create_template_token(PartyID, ValidUntil),
+    Ticket = create_transfer_ticket(TemplateToken),
+    InvalidResourceToken = <<"v1.InvalidResourceToken">>,
+    ValidResourceToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardSenderResourceParams">>
+            }}},
+        create_p2p_transfer_with_template_call_api(C, Ticket, InvalidResourceToken, ValidResourceToken)
+    ),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardReceiverResourceParams">>
+            }}},
+        create_p2p_transfer_with_template_call_api(C, Ticket, ValidResourceToken, InvalidResourceToken)
+    ).
+
+%% Utility
+
+-spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
+call_api(F, Params, Context) ->
+    {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
+    Response = F(Url, PreparedParams, Opts),
+    wapi_client_lib:handle_response(Response).
+
+quote_p2p_transfer_with_template_call_api(C) ->
+    ResourceToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    quote_p2p_transfer_with_template_call_api(C, ResourceToken, ResourceToken).
+
+quote_p2p_transfer_with_template_call_api(C, SenderToken, ReceiverToken) ->
+    call_api(
         fun swag_client_wallet_p2_p_templates_api:quote_p2_p_transfer_with_template/3,
         #{
             binding => #{
@@ -323,26 +420,13 @@ quote_transfer_ok_test(C) ->
         ct_helper:cfg(context, C)
     ).
 
--spec create_p2p_transfer_with_template_ok_test(config()) -> _.
-create_p2p_transfer_with_template_ok_test(C) ->
-    PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
-        [
-            {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end},
-            {fistful_p2p_template, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?P2P_TEMPLATE(PartyID)};
-                ('CreateTransfer', _) -> {ok, ?P2P_TEMPLATE_TRANSFER(PartyID)}
-            end}
-        ],
-        C
-    ),
-    SenderToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
-    TemplateToken = create_template_token(PartyID, ValidUntil),
-    Ticket = create_transfer_ticket(TemplateToken),
-    {ok, #{<<"id">> := _TransferID}} = call_api(
+create_p2p_transfer_with_template_call_api(C, Ticket) ->
+    ResourceToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    create_p2p_transfer_with_template_call_api(C, Ticket, ResourceToken, ResourceToken).
+
+create_p2p_transfer_with_template_call_api(C, Ticket, SenderToken, ReceiverToken) ->
+    Context = maps:merge(ct_helper:cfg(context, C), #{token => Ticket}),
+    call_api(
         fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
         #{
             binding => #{
@@ -350,7 +434,7 @@ create_p2p_transfer_with_template_ok_test(C) ->
             },
             body => #{
                 <<"body">> => #{
-                    <<"amount">> => 101,
+                    <<"amount">> => ?INTEGER,
                     <<"currency">> => ?RUB
                 },
                 <<"sender">> => #{
@@ -368,16 +452,8 @@ create_p2p_transfer_with_template_ok_test(C) ->
                 }
             }
         },
-        wapi_ct_helper:get_context(Ticket)
+        Context
     ).
-
-%% Utility
-
--spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
-call_api(F, Params, Context) ->
-    {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
-    Response = F(Url, PreparedParams, Opts),
-    wapi_client_lib:handle_response(Response).
 
 create_party(_C) ->
     ID = genlib:bsuuid(),

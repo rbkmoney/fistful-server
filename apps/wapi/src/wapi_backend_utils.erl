@@ -1,8 +1,9 @@
 -module(wapi_backend_utils).
 
+-include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
+
 -define(EXTERNAL_ID, <<"externalID">>).
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
--define(PARAMS_HASH, <<"params_hash">>).
 -define(BENDER_DOMAIN, <<"wapi">>).
 
 %% Context
@@ -31,6 +32,9 @@
 -export([get_from_ctx/2]).
 -export([get_idempotent_key/3]).
 -export([issue_grant_token/3]).
+-export([create_params_hash/1]).
+-export([decode_resource/1]).
+-export([tokenize_resource/1]).
 
 %% Pipeline
 
@@ -64,8 +68,10 @@ gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
     case bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx) of
         % No need for IntegerID at this project so far
-        {ok, {ID, _IntegerID}} -> {ok, ID};
-        {error, {external_id_conflict, {ID, _IntegerID}}} -> {error, {external_id_conflict, ID}}
+        {ok, {ID, _IntegerID}} ->
+            {ok, ID};
+        {error, {external_id_conflict, {ID, _IntegerID}}} ->
+            {error, {external_id_conflict, ID}}
     end.
 
 -spec make_ctx(params(), handler_context()) -> context().
@@ -73,8 +79,7 @@ make_ctx(Params, Context) ->
     #{
         ?CTX_NS => genlib_map:compact(#{
             <<"owner">> => wapi_handler_utils:get_owner(Context),
-            <<"metadata">> => maps:get(<<"metadata">>, Params, undefined),
-            ?PARAMS_HASH => create_params_hash(Params)
+            <<"metadata">> => maps:get(<<"metadata">>, Params, undefined)
         })
     }.
 
@@ -100,10 +105,6 @@ add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
 get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
     maps:get(Key, Ctx, undefined).
 
--spec create_params_hash(term()) -> integer().
-create_params_hash(Value) ->
-    erlang:phash2(Value).
-
 -spec issue_grant_token(_, binary(), handler_context()) -> {ok, binary()} | {error, expired}.
 issue_grant_token(TokenSpec, Expiration, Context) ->
     case get_expiration_deadline(Expiration) of
@@ -121,3 +122,38 @@ get_expiration_deadline(Expiration) ->
         false ->
             {error, expired}
     end.
+
+-spec create_params_hash(term()) -> integer().
+create_params_hash(Value) ->
+    erlang:phash2(Value).
+
+-spec decode_resource(binary()) ->
+    {ok, wapi_crypto:resource()} | {error, unrecognized} | {error, lechiffre:decoding_error()}.
+decode_resource(Token) ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        {ok, Resource} ->
+            {ok, Resource};
+        unrecognized ->
+            {error, unrecognized};
+        {error, Error} ->
+            {error, Error}
+    end.
+
+-spec tokenize_resource(wapi_crypto:resource() | term()) -> integer().
+tokenize_resource(#'BankCard'{} = BankCard) ->
+    Map = genlib_map:compact(#{
+        token => BankCard#'BankCard'.token,
+        bin => BankCard#'BankCard'.bin,
+        masked_pan => BankCard#'BankCard'.masked_pan,
+        cardholder_name => BankCard#'BankCard'.cardholder_name,
+        %% ExpDate is optional in swag_wallets 'StoreBankCard'. But some adapters waiting exp_date.
+        %% Add error, somethink like BankCardReject.exp_date_required
+        exp_date =>
+            case BankCard#'BankCard'.exp_date of
+                undefined -> undefined;
+                #'BankCardExpDate'{month = Month, year = Year} -> {Month, Year}
+            end
+    }),
+    create_params_hash(Map);
+tokenize_resource(Value) ->
+    create_params_hash(Value).

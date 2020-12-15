@@ -111,8 +111,8 @@
 
 -type quote_params() :: #{
     body := body(),
-    sender := participant(),
-    receiver := participant()
+    sender := ff_resource:resource_params(),
+    receiver := ff_resource:resource_params()
 }.
 
 -export_type([event/0]).

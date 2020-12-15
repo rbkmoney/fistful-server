@@ -9,6 +9,8 @@ services:
       - .:$PWD
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/config/private.pem
       - ./apps/wapi/var/keys/wapi/jwk.json:/opt/wapi/config/jwk.json
+      - ./apps/wapi/var/keys/wapi/jwk.publ.json:/opt/wapi/config/jwk.publ.json
+      - ./apps/wapi/var/keys/wapi/jwk.priv.json:/opt/wapi/config/jwk.priv.json
       - ./apps/wapi/var/keys/wapi/enc.1.priv.json:/opt/wapi/config/enc.1.priv.json
       - ./apps/wapi/var/keys/wapi/sig.1.priv.json:/opt/wapi/config/sig.1.priv.json
       - $HOME/.cache:/home/$UNAME/.cache

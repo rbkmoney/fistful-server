@@ -22,6 +22,7 @@
 -export([init/1]).
 
 -export([create_destination_ok_test/1]).
+-export([create_destination_fail_resource_token_invalid_test/1]).
 -export([create_destination_fail_identity_notfound_test/1]).
 -export([create_destination_fail_currency_notfound_test/1]).
 -export([create_destination_fail_party_inaccessible_test/1]).
@@ -63,6 +64,7 @@ groups() ->
     [
         {default, [], [
             create_destination_ok_test,
+            create_destination_fail_resource_token_invalid_test,
             create_destination_fail_identity_notfound_test,
             create_destination_fail_currency_notfound_test,
             create_destination_fail_party_inaccessible_test,
@@ -146,6 +148,19 @@ create_destination_ok_test(C) ->
     ?assertMatch(
         {ok, _},
         create_destination_call_api(C, Destination)
+    ).
+
+-spec create_destination_fail_resource_token_invalid_test(config()) -> _.
+create_destination_fail_resource_token_invalid_test(C) ->
+    Destination = make_destination(C, bank_card),
+    create_destination_start_mocks(C, fun() -> {ok, Destination} end),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardDestinationResource">>
+            }}},
+        create_destination_call_api(C, Destination, <<"v1.InvalidResourceToken">>)
     ).
 
 -spec create_destination_fail_identity_notfound_test(config()) -> _.
@@ -298,7 +313,7 @@ do_destination_lifecycle(ResourceType, C) ->
     {ok, CreateResult} = call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{
-            body => build_destination_spec(Destination)
+            body => build_destination_spec(Destination, undefined)
         },
         ct_helper:cfg(context, C)
     ),
@@ -335,13 +350,15 @@ do_destination_lifecycle(ResourceType, C) ->
     ?assertEqual(#{<<"key">> => <<"val">>}, maps:get(<<"metadata">>, CreateResult)),
     {ok, Resource, maps:get(<<"resource">>, CreateResult)}.
 
-build_destination_spec(D) ->
+build_destination_spec(D, undefined) ->
+    build_destination_spec(D, D#dst_DestinationState.resource);
+build_destination_spec(D, Resource) ->
     #{
         <<"name">> => D#dst_DestinationState.name,
         <<"identity">> => (D#dst_DestinationState.account)#account_Account.identity,
         <<"currency">> => ((D#dst_DestinationState.account)#account_Account.currency)#'CurrencyRef'.symbolic_code,
         <<"externalID">> => D#dst_DestinationState.external_id,
-        <<"resource">> => build_resource_spec(D#dst_DestinationState.resource)
+        <<"resource">> => build_resource_spec(Resource)
     }.
 
 build_resource_spec({bank_card, R}) ->
@@ -354,6 +371,11 @@ build_resource_spec({crypto_wallet, R}) ->
     Spec#{
         <<"type">> => <<"CryptoWalletDestinationResource">>,
         <<"id">> => (R#'ResourceCryptoWallet'.crypto_wallet)#'CryptoWallet'.id
+    };
+build_resource_spec(Token) ->
+    #{
+        <<"type">> => <<"BankCardDestinationResource">>,
+        <<"token">> => Token
     }.
 
 build_crypto_cyrrency_spec({bitcoin, #'CryptoDataBitcoin'{}}) ->
@@ -488,10 +510,13 @@ get_destination_start_mocks(C, GetDestinationResultFun) ->
     ).
 
 create_destination_call_api(C, Destination) ->
+    create_destination_call_api(C, Destination, undefined).
+
+create_destination_call_api(C, Destination, Resource) ->
     call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{
-            body => build_destination_spec(Destination)
+            body => build_destination_spec(Destination, Resource)
         },
         ct_helper:cfg(context, C)
     ).

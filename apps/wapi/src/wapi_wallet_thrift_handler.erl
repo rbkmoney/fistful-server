@@ -329,10 +329,10 @@ process_request('CreateDestination', #{'Destination' := Params}, Context, Opts) 
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
         {error, {external_id_conflict, {ID, ExternalID}}} ->
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
-        {error, invalid_resource_token} ->
+        {error, {invalid_resource_token, Type}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">> => <<"InvalidResourceToken">>,
-                <<"name">> => <<"BankCardDestinationResource">>,
+                <<"name">> => Type,
                 <<"description">> => <<"Specified resource token is invalid">>
             })
     end;
@@ -638,15 +638,16 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters' := Params}, Context, _Op
                 422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>)
             );
-        {error, {sender, invalid_resource}} ->
+        {error, {_, {invalid_resource_token, Type}}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">> => <<"InvalidResourceToken">>,
+                <<"name">> => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            });
+        {error, {Type, invalid_resource}} ->
             wapi_handler_utils:reply_ok(
                 422,
-                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>)
-            );
-        {error, {receiver, invalid_resource}} ->
-            wapi_handler_utils:reply_ok(
-                422,
-                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>)
+                wapi_handler_utils:get_error_msg(io_lib:format(<<"Invalid ~p resource">>, [Type]))
             );
         {error, {p2p_transfer, forbidden_currency}} ->
             wapi_handler_utils:reply_ok(
@@ -680,15 +681,16 @@ process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Conte
                 422,
                 wapi_handler_utils:get_error_msg(<<"No such identity">>)
             );
-        {error, {sender, invalid_resource}} ->
+        {error, {_, {invalid_resource_token, Type}}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">> => <<"InvalidResourceToken">>,
+                <<"name">> => Type,
+                <<"description">> => <<"Specified resource token is invalid">>
+            });
+        {error, {Type, invalid_resource}} ->
             wapi_handler_utils:reply_ok(
                 422,
-                wapi_handler_utils:get_error_msg(<<"Invalid sender resource">>)
-            );
-        {error, {receiver, invalid_resource}} ->
-            wapi_handler_utils:reply_ok(
-                422,
-                wapi_handler_utils:get_error_msg(<<"Invalid receiver resource">>)
+                wapi_handler_utils:get_error_msg(io_lib:format(<<"Invalid ~p resource">>, [Type]))
             );
         {error, {token, {not_verified, _}}} ->
             wapi_handler_utils:reply_ok(
@@ -804,8 +806,8 @@ process_request('CreateP2PTransferTemplate', #{'P2PTransferTemplateParameters' :
             wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
         {error, inaccessible} ->
             wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
-        {error, {external_id_conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID});
+        {error, {external_id_conflict, ID, ExternalID}} ->
+            wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {currency, notfound}} ->
             wapi_handler_utils:reply_error(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
         {error, invalid_operation_amount} ->
@@ -909,12 +911,17 @@ process_request(
                 422,
                 wapi_handler_utils:get_error_msg(Details)
             );
-        {error, {invalid_resource, Type}} ->
+        {error, {_, {invalid_resource_token, Type}}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">> => <<"InvalidResourceToken">>,
                 <<"name">> => Type,
                 <<"description">> => <<"Specified resource token is invalid">>
-            })
+            });
+        {error, {Type, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(
+                422,
+                wapi_handler_utils:get_error_msg(io_lib:format(<<"Invalid ~p resource">>, [Type]))
+            )
     end;
 process_request(
     'CreateP2PTransferWithTemplate',
@@ -947,12 +954,17 @@ process_request(
                 422,
                 wapi_handler_utils:get_error_msg(Details)
             );
-        {error, {invalid_resource, Type}} ->
+        {error, {_, {invalid_resource_token, Type}}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">> => <<"InvalidResourceToken">>,
                 <<"name">> => Type,
                 <<"description">> => <<"Specified resource token is invalid">>
             });
+        {error, {Type, invalid_resource}} ->
+            wapi_handler_utils:reply_ok(
+                422,
+                wapi_handler_utils:get_error_msg(io_lib:format(<<"Invalid ~p resource">>, [Type]))
+            );
         {error, {token, expired}} ->
             wapi_handler_utils:reply_error(400, #{
                 <<"errorType">> => <<"InvalidToken">>,
@@ -966,7 +978,10 @@ process_request(
                 <<"description">> => Error
             });
         {error, {external_id_conflict, ID}} ->
-            wapi_handler_utils:reply_error(409, #{<<"id">> => ID})
+            wapi_handler_utils:reply_error(409, #{
+                <<"id">> => ID,
+                <<"message">> => <<"This 'P2PTransferTicket' has been used by another request">>
+            })
     end;
 %% Reports
 

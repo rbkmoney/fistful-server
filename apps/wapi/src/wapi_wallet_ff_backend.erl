@@ -211,7 +211,7 @@ get_identity_challenges(IdentityId, Statuses, Context) ->
     ).
 create_identity_challenge(IdentityId, Params, Context) ->
     Type = identity_challenge,
-    Hash = erlang:phash2(Params),
+    Hash = wapi_backend_utils:create_params_hash(Params),
     {ok, ChallengeID} = gen_id(Type, undefined, Hash, Context),
     do(fun() ->
         _ = check_resource(identity, IdentityId, Context),
@@ -408,20 +408,33 @@ get_destination_by_external_id(ExternalID, Context = #{woody_context := WoodyCtx
         | {illegal_pattern, _}
     ).
 create_destination(Params = #{<<"identity">> := IdenityId}, Context) ->
-    CreateFun = fun(ID, EntityCtx) ->
+    CreateFun = fun(Resource, ID, EntityCtx) ->
         do(fun() ->
             _ = check_resource(identity, IdenityId, Context),
             DestinationParams = from_swag(destination_params, Params),
-            Resource = unwrap(construct_resource(maps:get(resource, DestinationParams))),
             unwrap(
                 ff_destination_machine:create(
-                    DestinationParams#{id => ID, resource => Resource},
+                    DestinationParams#{id => ID, resource => construct_resource(Resource)},
                     add_meta_to_ctx([], Params, EntityCtx)
                 )
             )
         end)
     end,
-    do(fun() -> unwrap(create_entity(destination, Params, CreateFun, Context)) end).
+    do(fun() ->
+        Resource = unwrap(decode_resource(maps:get(<<"resource">>, Params))),
+        unwrap(
+            create_entity(
+                destination,
+                Params#{
+                    <<"resource">> => Resource
+                },
+                fun(ID, EntityCtx) ->
+                    CreateFun(Resource, ID, EntityCtx)
+                end,
+                Context
+            )
+        )
+    end).
 
 -spec create_withdrawal(params(), ctx()) ->
     result(
@@ -696,20 +709,18 @@ list_deposits(Params, Context) ->
 quote_p2p_transfer(Params, Context) ->
     do(fun() ->
         #{
-            sender := Sender,
-            receiver := Receiver,
             identity_id := IdentityID,
             body := Body
         } = from_swag(quote_p2p_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
-        SenderResource = unwrap(construct_resource(Sender)),
-        ReceiverResource = unwrap(construct_resource(Receiver)),
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
         Quote = unwrap(
             p2p_quote:get(#{
                 body => Body,
                 identity_id => IdentityID,
-                sender => SenderResource,
-                receiver => ReceiverResource
+                sender => construct_resource(Sender),
+                receiver => construct_resource(Receiver)
             })
         ),
         Token = create_p2p_quote_token(Quote, PartyID),
@@ -732,7 +743,7 @@ quote_p2p_transfer(Params, Context) ->
             | {not_verified, identity_mismatch}}
     ).
 create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
-    CreateFun = fun(ID, EntityCtx) ->
+    CreateFun = fun(Sender, Receiver, ID, EntityCtx) ->
         do(fun() ->
             _ = check_resource(identity, IdentityId, Context),
             ParsedParams = unwrap(
@@ -740,14 +751,12 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
                     from_swag(create_p2p_params, Params)
                 )
             ),
-            SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
-            ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
             RawSenderResource =
                 {raw, #{
-                    resource_params => SenderResource,
+                    resource_params => construct_resource(Sender),
                     contact_info => maps:get(contact_info, ParsedParams)
                 }},
-            RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
+            RawReceiverResource = {raw, #{resource_params => construct_resource(Receiver), contact_info => #{}}},
             unwrap(
                 p2p_transfer_machine:create(
                     genlib_map:compact(ParsedParams#{
@@ -760,7 +769,23 @@ create_p2p_transfer(Params = #{<<"identityID">> := IdentityId}, Context) ->
             )
         end)
     end,
-    do(fun() -> unwrap(create_entity(p2p_transfer, Params, CreateFun, Context)) end).
+    do(fun() ->
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
+        unwrap(
+            create_entity(
+                p2p_transfer,
+                Params#{
+                    <<"sender">> => Sender,
+                    <<"receiver">> => Receiver
+                },
+                fun(ID, EntityCtx) ->
+                    CreateFun(Sender, Receiver, ID, EntityCtx)
+                end,
+                Context
+            )
+        )
+    end).
 
 -spec get_p2p_transfer(params(), ctx()) ->
     result(
@@ -908,7 +933,12 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
         Data = maps:get(<<"data">>, Claims),
         TransferID = maps:get(<<"transferID">>, Data),
         PartyID = wapi_handler_utils:get_owner(Context),
-        Hash = erlang:phash2(Params),
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
+        Hash = wapi_backend_utils:create_params_hash(Params#{
+            <<"sender">> => Sender,
+            <<"receiver">> => Receiver
+        }),
         IdempotentKey = wapi_backend_utils:get_idempotent_key(p2p_transfer_with_template, PartyID, TransferID),
         case bender_client:gen_constant(IdempotentKey, TransferID, Hash, WoodyCtx) of
             {ok, {TransferID, _}} ->
@@ -918,14 +948,16 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
                         from_swag(create_p2p_with_template_params, Params)
                     )
                 ),
-                SenderResource = unwrap(construct_resource(maps:get(sender, ParsedParams))),
-                ReceiverResource = unwrap(construct_resource(maps:get(receiver, ParsedParams))),
                 RawSenderResource =
                     {raw, #{
-                        resource_params => SenderResource,
+                        resource_params => construct_resource(Sender),
                         contact_info => maps:get(contact_info, ParsedParams)
                     }},
-                RawReceiverResource = {raw, #{resource_params => ReceiverResource, contact_info => #{}}},
+                RawReceiverResource =
+                    {raw, #{
+                        resource_params => construct_resource(Receiver),
+                        contact_info => #{}
+                    }},
                 Result = p2p_template_machine:create_transfer(ID, ParsedParams#{
                     id => TransferID,
                     sender => RawSenderResource,
@@ -948,18 +980,16 @@ create_p2p_transfer_with_template(ID, Params, Context = #{woody_context := Woody
 quote_p2p_transfer_with_template(ID, Params, Context) ->
     do(fun() ->
         #{
-            sender := Sender,
-            receiver := Receiver,
             body := Body
         } = from_swag(quote_p2p_with_template_params, Params),
         PartyID = wapi_handler_utils:get_owner(Context),
-        SenderResource = unwrap(construct_resource(Sender)),
-        ReceiverResource = unwrap(construct_resource(Receiver)),
+        Sender = unwrap(decode_resource(maps:get(<<"sender">>, Params))),
+        Receiver = unwrap(decode_resource(maps:get(<<"receiver">>, Params))),
         Quote = unwrap(
             p2p_template_machine:get_quote(ID, #{
                 body => Body,
-                sender => SenderResource,
-                receiver => ReceiverResource
+                sender => construct_resource(Sender),
+                receiver => construct_resource(Receiver)
             })
         ),
         Token = create_p2p_quote_token(Quote, PartyID),
@@ -1006,60 +1036,47 @@ choose_token_expiration(TicketExpiration, AccessExpiration) ->
             TicketExpiration
     end.
 
-construct_resource(#{<<"type">> := Type, <<"token">> := Token} = Resource) when
+construct_resource(#{<<"type">> := Type, <<"resourceEssence">> := BankCard}) when
     Type =:= <<"BankCardDestinationResource">>
 ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            {ok, from_swag(destination_resource, Resource)};
-        {ok, BankCard} ->
-            {ok, {bank_card, encode_bank_card(BankCard)}};
-        {error, {decryption_failed, _} = Error} ->
-            logger:warning("~s token decryption failed: ~p", [Type, Error]),
-            {error, {invalid_resource_token, Type}}
-    end;
-construct_resource(#{<<"type">> := Type, <<"token">> := Token, <<"authData">> := AuthData}) when
+    {bank_card, BankCard};
+construct_resource(#{<<"type">> := Type, <<"resourceEssence">> := BankCard, <<"authData">> := AuthData}) when
     Type =:= <<"BankCardSenderResourceParams">>
 ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        {ok, BankCard} ->
-            {ok, encode_resource_bank_card(BankCard, AuthData)};
-        unrecognized ->
-            logger:warning("~s token unrecognized", [Type]),
-            {error, {invalid_resource_token, Type}};
-        {error, {decryption_failed, _} = Error} ->
-            logger:warning("~s token decryption failed: ~p", [Type, Error]),
-            {error, {invalid_resource_token, Type}}
-    end;
-construct_resource(#{<<"type">> := Type, <<"token">> := Token}) when
+    {bank_card, BankCard#{auth_data => {session, #{session_id => AuthData}}}};
+construct_resource(#{<<"type">> := Type, <<"resourceEssence">> := BankCard}) when
     Type =:= <<"BankCardSenderResource">> orelse
         Type =:= <<"BankCardReceiverResource">> orelse
         Type =:= <<"BankCardReceiverResourceParams">>
 ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        {ok, BankCard} ->
-            {ok, {bank_card, encode_bank_card(BankCard)}};
-        unrecognized ->
-            logger:warning("~s token unrecognized", [Type]),
-            {error, {invalid_resource_token, Type}};
-        {error, {decryption_failed, _} = Error} ->
-            logger:warning("~s token decryption failed: ~p", [Type, Error]),
-            {error, {invalid_resource_token, Type}}
-    end;
+    {bank_card, BankCard};
 construct_resource(#{<<"type">> := Type, <<"id">> := CryptoWalletID} = Resource) when
     Type =:= <<"CryptoWalletDestinationResource">>
 ->
-    {ok,
-        {crypto_wallet, #{
-            crypto_wallet => genlib_map:compact(#{
-                id => CryptoWalletID,
-                currency => from_swag(crypto_wallet_currency, Resource)
-            })
-        }}}.
+    {crypto_wallet, #{
+        crypto_wallet => genlib_map:compact(#{
+            id => CryptoWalletID,
+            currency => from_swag(crypto_wallet_currency, Resource)
+        })
+    }}.
 
-encode_resource_bank_card(BankCard, AuthData) ->
-    EncodedBankCard = encode_bank_card(BankCard),
-    {bank_card, EncodedBankCard#{auth_data => {session, #{session_id => AuthData}}}}.
+decode_resource(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
+    case wapi_crypto:decrypt_bankcard_token(Token) of
+        {ok, Resource} ->
+            {ok,
+                maps:remove(<<"token">>, Object#{
+                    <<"type">> => Type,
+                    <<"resourceEssence">> => encode_bank_card(Resource)
+                })};
+        unrecognized ->
+            logger:warning("~s token unrecognized", [Type]),
+            {error, {invalid_resource_token, Type}};
+        {error, Error} ->
+            logger:warning("~s token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end;
+decode_resource(Object) ->
+    {ok, Object}.
 
 encode_bank_card(BankCard) ->
     #{
@@ -1387,7 +1404,7 @@ check_resource_access(false) -> {error, unauthorized}.
 
 create_entity(Type, Params, CreateFun, Context) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
-    Hash = erlang:phash2(Params),
+    Hash = wapi_backend_utils:create_params_hash(Params),
     case gen_id(Type, ExternalID, Hash, Context) of
         {ok, ID} ->
             Result = CreateFun(ID, add_to_ctx(?PARAMS_HASH, Hash, make_ctx(Context))),
@@ -1719,19 +1736,6 @@ from_swag(destination_params, Params) ->
             Params
         )
     );
-%% TODO delete this code, after add encrypted token
-from_swag(destination_resource, #{
-    <<"type">> := <<"BankCardDestinationResource">>,
-    <<"token">> := WapiToken
-}) ->
-    BankCard = wapi_utils:base64url_to_map(WapiToken),
-    {bank_card, #{
-        bank_card => #{
-            token => maps:get(<<"token">>, BankCard),
-            bin => maps:get(<<"bin">>, BankCard),
-            masked_pan => maps:get(<<"lastDigits">>, BankCard)
-        }
-    }};
 from_swag(
     destination_resource,
     Resource = #{
@@ -1748,6 +1752,18 @@ from_swag(
             tag => Tag
         })
     }};
+from_swag(
+    destination_resource,
+    Resource = #{
+        <<"type">> := <<"CryptoWalletDestinationResource">>,
+        <<"id">> := CryptoWalletID
+    }
+) ->
+    {crypto_wallet,
+        genlib_map:compact(#{
+            id => CryptoWalletID,
+            currency => from_swag(crypto_wallet_currency, Resource)
+        })};
 from_swag(quote_p2p_params, Params) ->
     add_external_id(
         #{
@@ -1823,18 +1839,6 @@ from_swag(create_w2w_params, Params) ->
             Params
         )
     );
-from_swag(
-    destination_resource,
-    Resource = #{
-        <<"type">> := <<"CryptoWalletDestinationResource">>,
-        <<"id">> := CryptoWalletID
-    }
-) ->
-    {crypto_wallet,
-        genlib_map:compact(#{
-            id => CryptoWalletID,
-            currency => from_swag(crypto_wallet_currency, Resource)
-        })};
 from_swag(crypto_wallet_currency, #{<<"currency">> := <<"Ripple">>} = Resource) ->
     Currency = from_swag(crypto_wallet_currency_name, <<"Ripple">>),
     Data = genlib_map:compact(#{tag => maps:get(<<"tag">>, Resource, undefined)}),

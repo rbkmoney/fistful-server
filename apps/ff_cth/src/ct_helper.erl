@@ -105,8 +105,7 @@ start_app(wapi = AppName) ->
             {lechiffre_opts, #{
                 encryption_source => {json, {file, "/opt/wapi/config/jwk.publ.json"}},
                 decryption_sources => [
-                    {json, {file, "/opt/wapi/config/jwk.priv.json"}},
-                    {json, {file, "/opt/wapi/config/jwk.json"}}
+                    {json, {file, "/opt/wapi/config/jwk.priv.json"}}
                 ]
             }},
             {swagger_handler_opts, #{

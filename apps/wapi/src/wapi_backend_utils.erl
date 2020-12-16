@@ -130,9 +130,14 @@ create_params_hash(Value) ->
 -spec decode_resource(binary()) ->
     {ok, wapi_crypto:resource()} | {error, unrecognized} | {error, lechiffre:decoding_error()}.
 decode_resource(Token) ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        {ok, Resource} ->
-            {ok, Resource};
+    case wapi_crypto:decrypt_resource_token(Token) of
+        {ok, {Resource, Deadline}} ->
+            case wapi_utils:deadline_is_reached(Deadline) of
+                true ->
+                    {error, expired};
+                _ ->
+                    {ok, Resource}
+            end;
         unrecognized ->
             {error, unrecognized};
         {error, Error} ->
@@ -140,7 +145,7 @@ decode_resource(Token) ->
     end.
 
 -spec tokenize_resource(wapi_crypto:resource() | term()) -> integer().
-tokenize_resource(#'BankCard'{} = BankCard) ->
+tokenize_resource({bank_card, BankCard}) ->
     Map = genlib_map:compact(#{
         token => BankCard#'BankCard'.token,
         bin => BankCard#'BankCard'.bin,

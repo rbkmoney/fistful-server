@@ -168,14 +168,14 @@ idempotency_destination_ok(C) ->
     {ok, #{<<"id">> := ID}} =
         wapi_wallet_ff_backend:create_destination(
             Params#{
-                <<"resource">> => Resource#{<<"token">> => create_resource_token(BankCard)}
+                <<"resource">> => Resource#{<<"token">> => create_resource_token({bank_card, BankCard})}
             },
             Context
         ),
     {ok, #{<<"id">> := ID}} =
         wapi_wallet_ff_backend:create_destination(
             Params#{
-                <<"resource">> => Resource#{<<"token">> => create_resource_token(NewBankCard)}
+                <<"resource">> => Resource#{<<"token">> => create_resource_token({bank_card, NewBankCard})}
             },
             Context
         ),
@@ -194,7 +194,7 @@ idempotency_destination_conflict(C) ->
         <<"name">> => <<"XDesination">>,
         <<"resource">> => #{
             <<"type">> => <<"BankCardDestinationResource">>,
-            <<"token">> => create_resource_token(BankCard)
+            <<"token">> => create_resource_token({bank_card, BankCard})
         },
         <<"externalID">> => ExternalID
     },
@@ -275,7 +275,7 @@ create_destination_legacy(IdentityID, Party, C) ->
         <<"name">> => <<"XDesination">>,
         <<"resource">> => #{
             <<"type">> => <<"BankCardDestinationResource">>,
-            <<"token">> => create_resource_token(BankCard)
+            <<"token">> => create_resource_token({bank_card, BankCard})
         }
     },
     wapi_wallet_ff_backend:create_destination(Params, create_context(Party, C)).
@@ -326,4 +326,4 @@ make_bank_card(Pan, {MM, YYYY} = _ExpDate, BankName) ->
     }.
 
 create_resource_token(Resource) ->
-    wapi_crypto:encrypt_bankcard_token(Resource).
+    wapi_crypto:create_resource_token(Resource, undefined).

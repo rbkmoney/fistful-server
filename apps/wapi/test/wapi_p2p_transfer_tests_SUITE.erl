@@ -26,6 +26,7 @@
 -export([
     create_ok_test/1,
     create_fail_resource_token_invalid_test/1,
+    create_fail_resource_token_expire_test/1,
     create_fail_unauthorized_test/1,
     create_fail_identity_notfound_test/1,
     create_fail_forbidden_operation_currency_test/1,
@@ -34,6 +35,7 @@
     create_fail_no_resource_info_test/1,
     create_quote_ok_test/1,
     create_quote_fail_resource_token_invalid_test/1,
+    create_quote_fail_resource_token_expire_test/1,
     create_with_quote_token_ok_test/1,
     create_with_bad_quote_token_fail_test/1,
     get_quote_fail_identity_not_found_test/1,
@@ -75,6 +77,7 @@ groups() ->
         {base, [], [
             create_ok_test,
             create_fail_resource_token_invalid_test,
+            create_fail_resource_token_expire_test,
             create_fail_unauthorized_test,
             create_fail_identity_notfound_test,
             create_fail_forbidden_operation_currency_test,
@@ -83,6 +86,7 @@ groups() ->
             create_fail_no_resource_info_test,
             create_quote_ok_test,
             create_quote_fail_resource_token_invalid_test,
+            create_quote_fail_resource_token_expire_test,
             create_with_quote_token_ok_test,
             create_with_bad_quote_token_fail_test,
             get_quote_fail_identity_not_found_test,
@@ -192,6 +196,28 @@ create_fail_resource_token_invalid_test(C) ->
         create_p2p_transfer_call_api(C, ValidToken, InvalidToken)
     ).
 
+-spec create_fail_resource_token_expire_test(config()) -> _.
+create_fail_resource_token_expire_test(C) ->
+    create_ok_start_mocks(C),
+    InvalidToken = store_bank_card(wapi_utils:deadline_from_timeout(0)),
+    ValidToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardSenderResourceParams">>
+            }}},
+        create_p2p_transfer_call_api(C, InvalidToken, ValidToken)
+    ),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardReceiverResourceParams">>
+            }}},
+        create_p2p_transfer_call_api(C, ValidToken, InvalidToken)
+    ).
+
 -spec create_fail_unauthorized_test(config()) -> _.
 create_fail_unauthorized_test(C) ->
     WrongPartyID = <<"SomeWrongPartyID">>,
@@ -270,6 +296,29 @@ create_quote_fail_resource_token_invalid_test(C) ->
     IdentityID = <<"id">>,
     get_quote_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end),
     InvalidToken = <<"v1.InvalidToken">>,
+    ValidToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardSenderResource">>
+            }}},
+        quote_p2p_transfer_call_api(C, IdentityID, InvalidToken, ValidToken)
+    ),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardReceiverResource">>
+            }}},
+        quote_p2p_transfer_call_api(C, IdentityID, ValidToken, InvalidToken)
+    ).
+
+-spec create_quote_fail_resource_token_expire_test(config()) -> _.
+create_quote_fail_resource_token_expire_test(C) ->
+    IdentityID = <<"id">>,
+    get_quote_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end),
+    InvalidToken = store_bank_card(wapi_utils:deadline_from_timeout(0)),
     ValidToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
     ?assertMatch(
         {error,
@@ -638,6 +687,9 @@ get_start_mocks(C, GetResultFun) ->
         ],
         C
     ).
+
+store_bank_card(TokenDeadline) ->
+    wapi_crypto:create_resource_token(?RESOURCE, TokenDeadline).
 
 store_bank_card(C, Pan, ExpDate, CardHolder) ->
     {ok, Res} = call_api(

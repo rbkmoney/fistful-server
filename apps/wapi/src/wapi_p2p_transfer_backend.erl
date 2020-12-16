@@ -456,7 +456,7 @@ marshal_quote_params(#{
 marshal_quote_participant(#{
     <<"resourceThrift">> := Resource
 }) ->
-    BankCard = Resource,
+    {bank_card, BankCard} = Resource,
     {bank_card, #'ResourceBankCard'{bank_card = BankCard}}.
 
 marshal_transfer_params(
@@ -486,7 +486,7 @@ marshal_sender(#{
     <<"contactInfo">> := ContactInfo,
     <<"resourceThrift">> := Resource
 }) ->
-    BankCard = Resource,
+    {bank_card, BankCard} = Resource,
     ResourceBankCard = #'ResourceBankCard'{
         bank_card = BankCard,
         auth_data = {session_data, #'SessionAuthData'{id = AuthData}}
@@ -499,7 +499,7 @@ marshal_sender(#{
 marshal_receiver(#{
     <<"resourceThrift">> := Resource
 }) ->
-    BankCard = Resource,
+    {bank_card, BankCard} = Resource,
     {resource, #p2p_transfer_RawResource{
         resource = {bank_card, #'ResourceBankCard'{bank_card = BankCard}},
         contact_info = #'ContactInfo'{}

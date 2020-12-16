@@ -23,6 +23,7 @@
 
 -export([create_destination_ok_test/1]).
 -export([create_destination_fail_resource_token_invalid_test/1]).
+-export([create_destination_fail_resource_token_expire_test/1]).
 -export([create_destination_fail_identity_notfound_test/1]).
 -export([create_destination_fail_currency_notfound_test/1]).
 -export([create_destination_fail_party_inaccessible_test/1]).
@@ -65,6 +66,7 @@ groups() ->
         {default, [], [
             create_destination_ok_test,
             create_destination_fail_resource_token_invalid_test,
+            create_destination_fail_resource_token_expire_test,
             create_destination_fail_identity_notfound_test,
             create_destination_fail_currency_notfound_test,
             create_destination_fail_party_inaccessible_test,
@@ -161,6 +163,20 @@ create_destination_fail_resource_token_invalid_test(C) ->
                 <<"name">> := <<"BankCardDestinationResource">>
             }}},
         create_destination_call_api(C, Destination, <<"v1.InvalidResourceToken">>)
+    ).
+
+-spec create_destination_fail_resource_token_expire_test(config()) -> _.
+create_destination_fail_resource_token_expire_test(C) ->
+    InvalidResourceToken = wapi_crypto:create_resource_token(?RESOURCE, wapi_utils:deadline_from_timeout(0)),
+    Destination = make_destination(C, bank_card),
+    create_destination_start_mocks(C, fun() -> {ok, Destination} end),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardDestinationResource">>
+            }}},
+        create_destination_call_api(C, Destination, InvalidResourceToken)
     ).
 
 -spec create_destination_fail_identity_notfound_test(config()) -> _.
@@ -364,7 +380,7 @@ build_destination_spec(D, Resource) ->
 build_resource_spec({bank_card, R}) ->
     #{
         <<"type">> => <<"BankCardDestinationResource">>,
-        <<"token">> => wapi_crypto:encrypt_bankcard_token(R#'ResourceBankCard'.bank_card)
+        <<"token">> => wapi_crypto:create_resource_token({bank_card, R#'ResourceBankCard'.bank_card}, undefined)
     };
 build_resource_spec({crypto_wallet, R}) ->
     Spec = build_crypto_cyrrency_spec((R#'ResourceCryptoWallet'.crypto_wallet)#'CryptoWallet'.data),

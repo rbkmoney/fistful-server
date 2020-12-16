@@ -26,6 +26,9 @@
 -export([idempotency_p2p_transfer_test/1]).
 -export([idempotency_p2p_template_test/1]).
 
+-export([decrypt_resource_v1_test/1]).
+-export([decrypt_resource_v2_test/1]).
+
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
 -define(DOMAIN, <<"common-api">>).
@@ -55,7 +58,9 @@ groups() ->
             p2p_template_check_test,
             idempotency_destination_test,
             idempotency_p2p_transfer_test,
-            idempotency_p2p_template_test
+            idempotency_p2p_template_test,
+            decrypt_resource_v1_test,
+            decrypt_resource_v2_test
         ]}
     ].
 
@@ -322,6 +327,51 @@ idempotency_p2p_template_test(C) ->
     ?assertEqual(ID1, ID2),
     ?assertMatch({error, {409, #{<<"id">> := ID1}}}, Error).
 
+-spec decrypt_resource_v1_test(config()) -> test_return().
+decrypt_resource_v1_test(_C) ->
+    ResourceToken = <<
+        "v1.eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOEdDTSIsImVwayI6eyJhbGciOiJFQ0RILUVTIiwiY3J2IjoiUC0yNTYiLCJrdHkiOi"
+        "JFQyIsInVzZSI6ImVuYyIsIngiOiJwR1pNcElHTThtZUQyWEh2bU1FeXJqTjNsejhLNE1mSzI2VFVwRGRISUZNIiwieSI6InRlMDVibGt"
+        "WbW1XR2QtWS1XaWJ4VlpDS0d4Wmc1UDhGd195eFN5djFQVU0ifSwia2lkIjoia3hkRDBvclZQR29BeFdycUFNVGVRMFU1TVJvSzQ3dVp4"
+        "V2lTSmRnbzB0MCJ9..7_tqUgEfQS_KKThT.wpmnJt5uE3BmzLaXjrg6J3MXImmSstRXnRVxfjMdv_BlOzUT5I9Ch6iTLHYL-UCtxydhXI"
+        "cbZcxYajwrhTzQCh3y7Q.vTJANYFPJic13meDWAMMxA"
+    >>,
+    {ok, {Resource, undefined}} = wapi_crypto:decrypt_resource_token(ResourceToken),
+    ?assertEqual(
+        {bank_card, #'BankCard'{
+            token = ?STRING,
+            bin = ?BIN(<<"415039">>),
+            masked_pan = ?LAST_DIGITS(<<"4150399999000900">>),
+            payment_system = visa,
+            exp_date = #'BankCardExpDate'{month = 1, year = 2021},
+            cardholder_name = ?STRING
+        }},
+        Resource
+    ).
+
+-spec decrypt_resource_v2_test(config()) -> test_return().
+decrypt_resource_v2_test(_C) ->
+    ResourceToken = <<
+        "v2.eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOEdDTSIsImVwayI6eyJhbGciOiJFQ0RILUVTIiwiY3J2IjoiUC0yNTYiLCJrdHkiOi"
+        "JFQyIsInVzZSI6ImVuYyIsIngiOiJmVU5NQjBCSE9WaGVuNW90VmRtam9NVFBRSURjU05aNldJTTdWNXNSN2VFIiwieSI6InZXYTBESUV"
+        "reFh0emMtcGxWNWwxVUZCWlJtZ1dKMUhNWFM5WEFKRmlWZlkifSwia2lkIjoia3hkRDBvclZQR29BeFdycUFNVGVRMFU1TVJvSzQ3dVp4"
+        "V2lTSmRnbzB0MCJ9..eT0dW5EScdCNt3FI.aVLGfY3Fc8j4pw-imH1i1-ZZpQFirI-47TBecRtRSMxjshMBPmQeHBUjJf2fLU648EBgN7"
+        "iqJoycqfc_6zwKBTb28u2YyqJOnR8ElSU0W1a7RoiojN7Z4RpIZvbeTVtATMHHXUCK68DTz6mBfIQ.SHYwxvU1GBWAOpaDS8TUJQ"
+    >>,
+    {ok, {Resource, ValidUntil}} = wapi_crypto:decrypt_resource_token(ResourceToken),
+    ?assertEqual(
+        {bank_card, #'BankCard'{
+            token = ?STRING,
+            bin = ?BIN(<<"4150399999000900">>),
+            masked_pan = ?LAST_DIGITS(<<"4150399999000900">>),
+            payment_system = visa,
+            exp_date = #'BankCardExpDate'{month = 1, year = 2021},
+            cardholder_name = ?STRING
+        }},
+        Resource
+    ),
+    ?assertEqual(<<"2020-11-16T07:35:00.736Z">>, wapi_utils:deadline_to_binary(ValidUntil)).
+
 %%
 
 -spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
@@ -342,8 +392,8 @@ get_context(Endpoint, Token) ->
 
 %%
 
-create_resource_token(Resource) ->
-    wapi_crypto:encrypt_bankcard_token(Resource).
+create_resource_token(#'BankCard'{} = Resource) ->
+    wapi_crypto:create_resource_token({bank_card, Resource}, undefined).
 
 store_bank_card(C, Pan, ExpDate, CardHolder) ->
     {ok, Res} = call_api(
@@ -582,8 +632,8 @@ create_p2p_transfer_call(Token, ExternalID, QuoteToken, IdentityID, C) ->
 
 get_quote_token(SenderToken, ReceiverToken, IdentityID, C) ->
     PartyID = ct_helper:cfg(party, C),
-    {ok, SenderBankCard} = wapi_crypto:decrypt_bankcard_token(SenderToken),
-    {ok, ReceiverBankCard} = wapi_crypto:decrypt_bankcard_token(ReceiverToken),
+    {ok, {{bank_card, SenderBankCard}, _Deadline}} = wapi_crypto:decrypt_resource_token(SenderToken),
+    {ok, {{bank_card, ReceiverBankCard}, _Deadline}} = wapi_crypto:decrypt_resource_token(ReceiverToken),
     {ok, PartyRevision} = ff_party:get_revision(PartyID),
     Quote = #p2p_transfer_Quote{
         identity_id = IdentityID,

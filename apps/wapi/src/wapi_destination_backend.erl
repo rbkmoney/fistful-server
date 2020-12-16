@@ -124,7 +124,7 @@ construct_resource(#{
 }) ->
     case wapi_backend_utils:decode_resource(Token) of
         {ok, Resource} ->
-            BankCard = Resource,
+            {bank_card, BankCard} = Resource,
             {ok, {bank_card, #'ResourceBankCard'{bank_card = BankCard}}};
         {error, Error} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),
@@ -146,7 +146,7 @@ construct_resource(
     {ok, ff_codec:marshal(resource, CostructedResource)}.
 
 tokenize_resource({bank_card, #'ResourceBankCard'{bank_card = BankCard}}) ->
-    wapi_backend_utils:tokenize_resource(BankCard);
+    wapi_backend_utils:tokenize_resource({bank_card, BankCard});
 tokenize_resource(Value) ->
     wapi_backend_utils:tokenize_resource(Value).
 

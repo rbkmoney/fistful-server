@@ -1061,13 +1061,19 @@ construct_resource(#{<<"type">> := Type, <<"id">> := CryptoWalletID} = Resource)
     }}.
 
 decode_resource(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        {ok, Resource} ->
-            {ok,
-                maps:remove(<<"token">>, Object#{
-                    <<"type">> => Type,
-                    <<"resourceEssence">> => encode_bank_card(Resource)
-                })};
+    case wapi_crypto:decrypt_resource_token(Token) of
+        {ok, {Resource, Deadline}} ->
+            case wapi_utils:deadline_is_reached(Deadline) of
+                false ->
+                    {ok,
+                        maps:remove(<<"token">>, Object#{
+                            <<"type">> => Type,
+                            <<"resourceEssence">> => encode_bank_card(Resource)
+                        })};
+                true ->
+                    logger:warning("~s token expired", [Type]),
+                    {error, {invalid_resource_token, Type}}
+            end;
         unrecognized ->
             logger:warning("~s token unrecognized", [Type]),
             {error, {invalid_resource_token, Type}};
@@ -1078,7 +1084,7 @@ decode_resource(#{<<"token">> := Token, <<"type">> := Type} = Object) ->
 decode_resource(Object) ->
     {ok, Object}.
 
-encode_bank_card(BankCard) ->
+encode_bank_card({bank_card, BankCard}) ->
     #{
         bank_card => genlib_map:compact(#{
             token => BankCard#'BankCard'.token,

@@ -90,8 +90,5 @@ decode_deadline(Deadline) ->
     wapi_utils:deadline_from_binary(Deadline).
 
 -spec decode_resource_payload(resource_payload()) -> resource().
-decode_resource_payload(ResourcePayload) ->
-    case ResourcePayload of
-        {bank_card_payload, Payload} ->
-            {bank_card, Payload#rst_BankCardPayload.bank_card}
-    end.
+decode_resource_payload({bank_card_payload, Payload}) ->
+    {bank_card, Payload#rst_BankCardPayload.bank_card}.

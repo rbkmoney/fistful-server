@@ -8,7 +8,6 @@ services:
     volumes:
       - .:$PWD
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/config/private.pem
-      - ./apps/wapi/var/keys/wapi/jwk.json:/opt/wapi/config/jwk.json
       - ./apps/wapi/var/keys/wapi/jwk.publ.json:/opt/wapi/config/jwk.publ.json
       - ./apps/wapi/var/keys/wapi/jwk.priv.json:/opt/wapi/config/jwk.priv.json
       - ./apps/wapi/var/keys/wapi/enc.1.priv.json:/opt/wapi/config/enc.1.priv.json
@@ -33,12 +32,13 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:007ea0caa93174a02c2054f2bfc6a7f9d5bd68aa
+    image: dr2.rbkmoney.com/rbkmoney/wapi:3478cd452570990284736927f3a43de0508b686f
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config
       - ./apps/wapi/var/keys/wapi/private.pem:/opt/wapi/var/keys/wapi/private.pem
-      - ./apps/wapi/var/keys/wapi/jwk.json:/opt/wapi/var/keys/wapi/jwk.json
+      - ./apps/wapi/var/keys/wapi/jwk.publ.json:/opt/wapi/var/keys/wapi/jwk.publ.json
+      - ./apps/wapi/var/keys/wapi/jwk.priv.json:/opt/wapi/var/keys/wapi/jwk.priv.json
       - ./test/log/wapi:/var/log/wapi
     depends_on:
       cds:

@@ -96,6 +96,8 @@
 -export([get_w2w_cash_flow_plan/1]).
 -export([validate_p2p/2]).
 -export([get_identity_payment_institution_id/1]).
+-export([compute_routing_ruleset/3]).
+-export([compute_provider_terminal_terms/4]).
 
 %% Internal types
 -type cash() :: ff_cash:cash().
@@ -103,6 +105,7 @@
 -type withdrawal_terms() :: dmsl_domain_thrift:'WithdrawalServiceTerms'().
 -type p2p_terms() :: dmsl_domain_thrift:'P2PServiceTerms'().
 -type w2w_terms() :: dmsl_domain_thrift:'W2WServiceTerms'().
+-type provision_term_set() :: dmsl_domain_thrift:'ProvisionTermSet'().
 -type currency_id() :: ff_currency:id().
 -type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
 -type domain_cash() :: dmsl_domain_thrift:'Cash'().
@@ -110,6 +113,10 @@
 -type domain_revision() :: ff_domain_config:revision().
 -type timestamp() :: ff_time:timestamp_ms().
 -type wallet() :: ff_wallet:wallet_state().
+-type routing_ruleset_ref() :: dmsl_domain_thrift:'RoutingRulesetRef'().
+-type routing_ruleset() :: dmsl_domain_thrift:'RoutingRuleset'().
+-type provider_ref() :: ff_routing_rule:provider_ref().
+-type terminal_ref() :: ff_routing_rule:terminal_ref().
 -type payment_institution_id() :: ff_payment_institution:id().
 -type bound_type() :: 'exclusive' | 'inclusive'.
 -type cash_range() :: {{bound_type(), cash()}, {bound_type(), cash()}}.
@@ -251,6 +258,46 @@ get_identity_payment_institution_id(Identity) ->
         #domain_PaymentInstitutionRef{id = ID} = Contract#domain_Contract.payment_institution,
         ID
     end).
+
+-spec compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) -> Result when
+    RoutingRulesetRef :: routing_ruleset_ref(),
+    Varset :: hg_selector:varset(),
+    DomainRevision :: domain_revision(),
+    Result :: {ok, routing_ruleset()}.%% TODO: | {error, Error},
+    %% Error :: ... ().
+
+compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
+    DomainVarset = encode_varset(Varset),
+    {Client, Context} = get_party_client(),
+    Result = party_client_thrift:compute_payment_routing_ruleset(
+        RoutingRulesetRef,
+        DomainRevision,
+        DomainVarset,
+        Client,
+        Context
+    ),
+    Result.
+
+-spec compute_provider_terminal_terms(ProviderRef, TerminalRef, Varset, DomainRevision) -> Result when
+    ProviderRef :: provider_ref(),
+    TerminalRef :: terminal_ref(),
+    Varset :: hg_selector:varset(),
+    DomainRevision :: domain_revision(),
+    Result :: {ok, provision_term_set()}.%% TODO: | {error, Error},
+    %% Error :: ... ().
+
+compute_provider_terminal_terms(ProviderRef, TerminalRef, Varset, DomainRevision) ->
+    DomainVarset = encode_varset(Varset),
+    {Client, Context} = get_party_client(),
+    Result = party_client_thrift:compute_provider_terminal_terms(
+        ProviderRef,
+        TerminalRef,
+        DomainRevision,
+        DomainVarset,
+        Client,
+        Context
+    ),
+    Result.
 
 -spec get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, DomainRevision) -> Result when
     PartyID :: id(),

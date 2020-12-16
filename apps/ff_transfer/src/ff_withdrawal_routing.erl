@@ -2,7 +2,7 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--export([prepare_route/3]).
+-export([prepare_routes/3]).
 -export([make_route/2]).
 -export([get_provider/1]).
 -export([get_terminal/1]).
@@ -35,38 +35,56 @@
 
 %%
 
--spec prepare_route(party_varset(), identity(), domain_revision()) ->
-    {ok, route()} | {error, route_not_found}.
-prepare_route(PartyVarset, Identity, DomainRevision) ->
+-spec prepare_routes(party_varset(), identity(), domain_revision()) ->
+    {ok, [route()]} | {error, route_not_found}.
+
+prepare_routes(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {Routes, _RejectedContext} = ff_routing_rule:gather_routes(PaymentInstitution, PartyVarset, DomainRevision, withdrawal_routing_rules),
-    TermsValidatedRoutes = lists:filter(fun(R) -> validate_withdrawal_terms(R, PartyVarset) end, Routes),
-    case ff_routing_rule:choose_route(TermsValidatedRoutes) of
-        {ok, Route0} ->
-            {{ProviderID, _, _}, _} = Route0,
-            case filter_routes([ProviderID], PartyVarset) of
-                {ok, [Route1 | _]} ->
-                    {ok, Route1};
-                {error, _} ->
+    Routes = ff_routing_rule:gather_routes(PaymentInstitution, PartyVarset, DomainRevision, withdrawal_routing_rules),
+    case Routes of
+        {[_Route | _], _} ->
+            ValidatedRoutes = lists:filter(fun(R) -> validate_withdrawal_terms(R, PartyVarset) end, Routes),
+            case ff_routing_rule:get_providers(ValidatedRoutes) of
+                [ProviderID | _] ->
+                    {ok, ProviderID};
+                [] ->
                     {error, route_not_found}
             end;
-        _ ->
-            {error, route_not_found}
+        {[], _RejectContext} ->
+            %% TODO: routing rules reject context logging
+            case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
+                {ok, Providers}  ->
+                    filter_routes(Providers, PartyVarset);
+                {error, {misconfiguration, _Details} = Error} ->
+                    %% TODO: Do not interpret such error as an empty route list.
+                    %% The current implementation is made for compatibility reasons.
+                    %% Try to remove and follow the tests.
+                    _ = logger:warning("Route search failed: ~p", [Error]),
+                    {error, route_not_found}
+            end
     end.
 
 -spec validate_withdrawal_terms(ff_routing_rule:route(), party_varset()) ->
-    boolean().
+    {ok, valid} |
+    {error, Error :: term()}.
+
 validate_withdrawal_terms(Route, PartyVarset) ->
-    {{ProviderID, _, _}, _} = Route,
-    Provider = unwrap(ff_payouts_provider:get(ProviderID)),
-    {ok, TerminalsWithPriority} = get_provider_terminals_with_priority(Provider, PartyVarset),
-    case get_valid_terminals_with_priority(TerminalsWithPriority, Provider, PartyVarset, []) of
-        [] ->
-            false;
-        [_ValidatedTerminal | _] ->
-            true
-    end.
+    #{
+        provider_id := ProviderID,
+        terminal_id := TerminalID
+    } = Route,
+    %% TODO: как и в p2p вопрос - нужно ли отдельно выгружать термсы, или достаточно взять провайдера и терминал и в нем будут они же
+    % Terms = ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision),
+    {ok, Provider} = ff_payouts_provider:get(ProviderID),
+    {ok, Terminal} = ff_payouts_terminal:get(TerminalID),
+    do(fun () ->
+        ProviderTerms = ff_payouts_provider:provision_terms(Provider),
+        TerminalTerms = ff_payouts_terminal:provision_terms(Terminal),
+        _ = unwrap(assert_terms_defined(TerminalTerms, ProviderTerms)),
+        CombinedTerms = merge_withdrawal_terms(ProviderTerms, TerminalTerms),
+        unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
+    end).
 
 -spec make_route(provider_id(), terminal_id() | undefined) ->
     route().

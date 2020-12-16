@@ -748,7 +748,7 @@ do_process_transfer(stop, _Withdrawal) ->
     process_result().
 process_routing(Withdrawal) ->
     case do_process_routing(Withdrawal) of
-        {ok, [Route]} ->
+        {ok, [Route | _]} ->
             {continue, [
                 {route_changed, Route}
             ]};
@@ -780,20 +780,22 @@ do_process_routing(Withdrawal) ->
 
     do(fun() ->
         PartyVarset = build_party_varset(VarsetParams),
-        Route = unwrap(prepare_route(PartyVarset, Identity, DomainRevision)),
+        Routes = unwrap(prepare_routes(PartyVarset, Identity, DomainRevision)),
         case quote(Withdrawal) of
             undefined ->
-                [Route];
+                Routes;
             Quote ->
+                Route = hd(Routes),
                 valid = unwrap(validate_quote_route(Route, Quote)),
                 [Route]
         end
     end).
 
--spec prepare_route(party_varset(), identity(), domain_revision()) ->
-    {ok, route()} | {error, route_not_found}.
-prepare_route(PartyVarset, Identity, DomainRevision) ->
-    ff_withdrawal_routing:prepare_route(PartyVarset, Identity, DomainRevision).
+-spec prepare_routes(party_varset(), identity(), domain_revision()) ->
+    {ok, [route()]} | {error, route_not_found}.
+
+prepare_routes(PartyVarset, Identity, DomainRevision) ->
+    ff_withdrawal_routing:prepare_routes(PartyVarset, Identity, DomainRevision).
 
 -spec validate_quote_route(route(), quote_state()) -> {ok, valid} | {error, InconsistentQuote} when
     InconsistentQuote :: {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}.
@@ -1188,7 +1190,7 @@ get_quote_(Params) ->
         } = Params,
         Resource = maps:get(resource, Params, undefined),
 
-        Route = unwrap(route, prepare_route(Varset, Identity, DomainRevision)),
+        [Route | _] = unwrap(route, prepare_routes(Varset, Identity, DomainRevision)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(Route),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),

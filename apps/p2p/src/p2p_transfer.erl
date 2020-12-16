@@ -714,25 +714,60 @@ do_process_routing(P2PTransferState) ->
 
 -spec prepare_route(party_varset(), identity(), domain_revision()) ->
     {ok, provider_id()} | {error, route_not_found}.
+
 prepare_route(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {Routes, _RejectedContext} = ff_routing_rule:gather_routes(PaymentInstitution, PartyVarset, DomainRevision, p2p_transfer_routing_rules),
-    TermsValidatedRoutes = lists:filter(fun(R) -> validate_p2p_transfers_terms(R, PartyVarset) end, Routes),
-    case ff_routing_rule:choose_route(TermsValidatedRoutes) of
-        {ok, Route} ->
-            {{ProviderID, _, _}, _} = Route,
+    Routes = ff_routing_rule:gather_routes(PaymentInstitution, PartyVarset, DomainRevision, p2p_transfer_routing_rules),
+    case Routes of
+        {[_Route | _], _} ->
+            ValidatedRoutes = lists:filter(fun(R) -> validate_p2p_provider_terms(R, PartyVarset) end, Routes),
+            case ff_routing_rule:get_providers(ValidatedRoutes) of
+                [ProviderID | _] ->
+                    {ok, ProviderID};
+                [] ->
+                    {error, route_not_found}
+            end;
+        {[], _RejectContext} ->
+            %% TODO: routing rules reject context logging
+            {ok, Providers} = ff_payment_institution:compute_p2p_transfer_providers(PaymentInstitution, PartyVarset),
+            choose_provider(Providers, PartyVarset)
+    end.
+
+-spec validate_p2p_provider_terms(ff_routing_rule:route(), party_varset()) ->
+    boolean().
+validate_p2p_provider_terms(Route, PartyVarset) ->
+    #{
+        provider := Provider
+        % provider_ref := ProviderRef,
+        % terminal_ref := TerminalRef
+    } = Route,
+    % Terms = ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision),
+    % Provider1 = Provider0#{
+    %     terms => Terms %% TODO: а нужно ли отдельно выгружать с подменой термсы через вызов ff_party? Или это и есть те самые термсы
+    % },
+    case ff_p2p_provider:validate_terms(Provider, PartyVarset) of
+        {ok, valid} ->
+            true;
+        {error, _Error} ->
+            false
+    end.
+
+-spec choose_provider([provider_id()], party_varset()) ->
+    {ok, provider_id()} | {error, route_not_found}.
+choose_provider(Providers, VS) ->
+    case lists:filter(fun(P) -> validate_p2p_transfers_terms(P, VS) end, Providers) of
+        [ProviderID | _] ->
             {ok, ProviderID};
-        _ ->
+        [] ->
             {error, route_not_found}
     end.
 
--spec validate_p2p_transfers_terms(ff_routing_rule:route(), party_varset()) ->
+-spec validate_p2p_transfers_terms(provider_id(), party_varset()) ->
     boolean().
-validate_p2p_transfers_terms(Route, PartyVarset) ->
-    {{ProviderID, _, _}, _} = Route,
-    {ok, Provider} = ff_p2p_provider:get(ProviderID),
-    case ff_p2p_provider:validate_terms(Provider, PartyVarset) of
+validate_p2p_transfers_terms(ID, VS) ->
+    {ok, Provider} = ff_p2p_provider:get(ID),
+    case ff_p2p_provider:validate_terms(Provider, VS) of
         {ok, valid} ->
             true;
         {error, _Error} ->

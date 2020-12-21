@@ -32,7 +32,7 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:3478cd452570990284736927f3a43de0508b686f
+    image: dr2.rbkmoney.com/rbkmoney/wapi:9ae84a966a29937ed3440fe773ef8bf6c280301c
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config

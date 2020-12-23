@@ -13,6 +13,7 @@
 -type revision() :: ff_domain_config:revision().
 -type routing_rule_tag() :: p2p_transfer_routing_rules | withdrawal_routing_rules.
 -type candidate() :: dmsl_domain_thrift:'RoutingCandidate'().
+-type candidate_description() :: binary() | undefined.
 
 -type route() :: #{
     provider        => dmsl_domain_thrift:'Provider'(),
@@ -101,9 +102,11 @@ prohibited_candidates_filter(Candidates, ProhibitedCandidates, VS, Revision) ->
         Candidates
     ).
 
+-spec get_terminal_ref(candidate()) -> terminal_ref().
 get_terminal_ref(Candidate) ->
     Candidate#domain_RoutingCandidate.terminal.
 
+-spec get_description(candidate()) -> candidate_description().
 get_description(Candidate) ->
     Candidate#domain_RoutingCandidate.description.
 

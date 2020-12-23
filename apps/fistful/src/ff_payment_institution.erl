@@ -10,8 +10,8 @@
     withdrawal_providers        := dmsl_domain_thrift:'ProviderSelector'(),
     p2p_providers               := dmsl_domain_thrift:'ProviderSelector'(),
     p2p_inspector               := dmsl_domain_thrift:'P2PInspectorSelector'(),
-    withdrawal_routing_rules    => dmsl_domain_thrift:'RoutingRules'() | undefined,
-    p2p_transfer_routing_rules  => dmsl_domain_thrift:'RoutingRules'() | undefined
+    withdrawal_routing_rules    => dmsl_domain_thrift:'RoutingRules'(),
+    p2p_transfer_routing_rules  => dmsl_domain_thrift:'RoutingRules'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().

@@ -47,12 +47,12 @@
 -spec gather_routes(payment_institution(), varset(), revision(), routing_rule_tag()) ->
     {[route()], reject_context()}.
 gather_routes(PaymentInstitution, VS, Revision, RoutingRuleTag) ->
-    #{RoutingRuleTag := RoutingRules} = PaymentInstitution,
     RejectedContext = #{
         varset => VS,
         rejected_providers => [],
         rejected_routes => []
     },
+    RoutingRules = maps:get(RoutingRuleTag, PaymentInstitution, undefined),
     case RoutingRules of
         undefined ->
             {[], RejectedContext};
@@ -85,11 +85,11 @@ prohibited_candidates_filter(Candidates, ProhibitedCandidates, VS, Revision) ->
     ),
     lists:foldl(
         fun(C, {Accepted, Rejected}) ->
-            Route = make_route(C, VS, Revision),
+            Route = decode(C, VS, Revision),
             #{
                 terminal_ref := TerminalRef,
                 provider_ref := ProviderRef
-            } = C,
+            } = Route,
             case maps:find(TerminalRef, ProhibitionTable) of
                 error ->
                     {[Route | Accepted], Rejected};
@@ -119,9 +119,9 @@ get_providers(Routes) ->
         Routes
     ).
 
--spec make_route(candidate(), varset(), revision()) ->
+-spec decode(candidate(), varset(), revision()) ->
     route().
-make_route(Candidate, _VS, Revision) ->
+decode(Candidate, _VS, Revision) ->
     #domain_RoutingCandidate{
         terminal = TerminalRef
     } = Candidate,

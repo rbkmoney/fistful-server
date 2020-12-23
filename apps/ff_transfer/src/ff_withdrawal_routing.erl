@@ -41,9 +41,9 @@
 prepare_routes(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    Routes = ff_routing_rule:gather_routes(PaymentInstitution, PartyVarset, DomainRevision, withdrawal_routing_rules),
+    {Routes, _RejectContext} = ff_routing_rule:gather_routes(PaymentInstitution, PartyVarset, DomainRevision, withdrawal_routing_rules),
     case Routes of
-        {[_Route | _], _} ->
+        [_Route | _] ->
             ValidatedRoutes = lists:filter(fun(R) -> validate_withdrawal_terms(R, PartyVarset) end, Routes),
             case ff_routing_rule:get_providers(ValidatedRoutes) of
                 [ProviderID | _] ->
@@ -51,7 +51,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
                 [] ->
                     {error, route_not_found}
             end;
-        {[], _RejectContext} ->
+        [] ->
             %% TODO: routing rules reject context logging
             case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
                 {ok, Providers}  ->

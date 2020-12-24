@@ -41,7 +41,12 @@
 prepare_routes(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {Routes, _RejectContext} = ff_routing_rule:gather_routes(PaymentInstitution, PartyVarset, DomainRevision, withdrawal_routing_rules),
+    {Routes, _RejectContext} = ff_routing_rule:gather_routes(
+        PaymentInstitution,
+        PartyVarset,
+        DomainRevision,
+        withdrawal_routing_rules
+    ),
     case Routes of
         [_Route | _] ->
             ValidatedRoutes = lists:filter(fun(R) -> validate_withdrawal_terms(R, PartyVarset) end, Routes),
@@ -74,17 +79,11 @@ validate_withdrawal_terms(Route, PartyVarset) ->
         provider_id := ProviderID,
         terminal_id := TerminalID
     } = Route,
-    %% TODO: как и в p2p вопрос - нужно ли отдельно выгружать термсы, или достаточно взять провайдера и терминал и в нем будут они же
+    %% TODO: нужно ли выгружать термсы через party management?
     % Terms = ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision),
     {ok, Provider} = ff_payouts_provider:get(ProviderID),
     {ok, Terminal} = ff_payouts_terminal:get(TerminalID),
-    do(fun () ->
-        ProviderTerms = ff_payouts_provider:provision_terms(Provider),
-        TerminalTerms = ff_payouts_terminal:provision_terms(Terminal),
-        _ = unwrap(assert_terms_defined(TerminalTerms, ProviderTerms)),
-        CombinedTerms = merge_withdrawal_terms(ProviderTerms, TerminalTerms),
-        unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
-    end).
+    validate_terms(Provider, Terminal, PartyVarset).
 
 -spec make_route(provider_id(), terminal_id() | undefined) ->
     route().

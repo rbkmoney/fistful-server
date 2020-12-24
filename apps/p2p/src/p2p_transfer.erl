@@ -718,7 +718,12 @@ do_process_routing(P2PTransferState) ->
 prepare_route(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {Routes, _RejectContext} = ff_routing_rule:gather_routes(PaymentInstitution, PartyVarset, DomainRevision, p2p_transfer_routing_rules),
+    {Routes, _RejectContext} = ff_routing_rule:gather_routes(
+        PaymentInstitution,
+        PartyVarset,
+        DomainRevision,
+        p2p_transfer_routing_rules
+    ),
     case Routes of
         [_Route | _] ->
             ValidatedRoutes = lists:filter(fun(R) -> validate_p2p_provider_terms(R, PartyVarset) end, Routes),
@@ -743,9 +748,10 @@ validate_p2p_provider_terms(Route, PartyVarset) ->
         % terminal_ref := TerminalRef
     } = Route,
     Provider = ff_p2p_provider:get(ProviderID),
+    %% TODO: нужно ли выгружать термсы через party management?
     % Terms = ff_party:compute_provider_terminal_terms(ProviderRef, TerminalRef, PartyVarset, DomainRevision),
     % Provider1 = Provider0#{
-    %     terms => Terms %% TODO: а нужно ли отдельно выгружать с подменой термсы через вызов ff_party? Или это и есть те самые термсы
+    %     terms => Terms
     % },
     case ff_p2p_provider:validate_terms(Provider, PartyVarset) of
         {ok, valid} ->

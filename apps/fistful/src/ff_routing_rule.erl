@@ -70,7 +70,12 @@ gather_routes(PaymentInstitution, VS, Revision, RoutingRuleTag) ->
             #domain_RoutingRuleset{
                 decisions = ProhibitedCandidates
             } = DenyRuleSet,
-            {AcceptedRoutes, RejectedRoutes}  = prohibited_candidates_filter(Candidates, ProhibitedCandidates, VS, Revision),
+            {AcceptedRoutes, RejectedRoutes}  = prohibited_candidates_filter(
+                Candidates,
+                ProhibitedCandidates,
+                VS,
+                Revision
+            ),
             {AcceptedRoutes, RejectedContext#{rejected_routes => RejectedRoutes}}
     end.
 

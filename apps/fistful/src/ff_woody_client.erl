@@ -23,6 +23,8 @@
     context => context()
 }.
 
+-type request_legacy() :: {woody:service(), woody:func(), [any()]}.
+
 -export_type([client/0]).
 -export_type([caller/0]).
 
@@ -52,18 +54,24 @@ new(Url) when is_binary(Url); is_list(Url) ->
         url => genlib:to_binary(Url)
     }).
 
--spec call(service_id() | client(), woody:request()) ->
+-spec call(service_id() | client(), request_legacy()) ->
     {ok, woody:result()}
     | {exception, woody_error:business_error()}.
 call(ServiceIdOrClient, Request) ->
     call(ServiceIdOrClient, Request, ff_context:get_woody_context(ff_context:load())).
 
--spec call(service_id() | client(), woody:request(), woody_context:ctx()) ->
+-spec call(service_id() | client(), request_legacy(), woody_context:ctx()) ->
     {ok, woody:result()}
     | {exception, woody_error:business_error()}.
 call(ServiceID, Request, Context) when is_atom(ServiceID) ->
     call(get_service_client(ServiceID), Request, Context);
 call(Client, Request, Context) when is_map(Client) ->
+    do_woody_call(Request, Client, Context).
+
+do_woody_call({Service, Func, Args}, Client, Context) when is_list(Args) ->
+    ArgsTuple = list_to_tuple(Args),
+    do_woody_call({Service, Func, ArgsTuple}, Client, Context);
+do_woody_call(Request, Client, Context) ->
     woody_client:call(Request, Client, Context).
 
 %%

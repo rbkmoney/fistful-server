@@ -22,7 +22,7 @@ handle_function(Func, Args, Opts) ->
 
 -spec handle_function_('ProcessCallback', woody:args(), woody:options()) ->
     {ok, process_callback_result()} | no_return().
-handle_function_('ProcessCallback', [Callback], _Opts) ->
+handle_function_('ProcessCallback', {Callback}, _Opts) ->
     DecodedCallback = unmarshal(callback, Callback),
     case ff_withdrawal_session_machine:process_callback(DecodedCallback) of
         {ok, CallbackResponse} ->

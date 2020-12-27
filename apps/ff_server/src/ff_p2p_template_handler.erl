@@ -24,7 +24,7 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
+handle_function_('Create', {MarshaledParams, MarshaledContext}, Opts) ->
     ID = MarshaledParams#p2p_template_P2PTemplateParams.id,
     Params = ff_p2p_template_codec:unmarshal_p2p_template_params(MarshaledParams),
     Context = ff_p2p_template_codec:unmarshal(ctx, MarshaledContext),
@@ -113,9 +113,9 @@ handle_function_('CreateTransfer', [ID, MarshaledParams, MarshaledContext], Opts
     Context = ff_p2p_template_codec:unmarshal(ctx, MarshaledContext),
     case p2p_template_machine:create_transfer(ID, Params#{context => Context}) of
         ok ->
-            ff_p2p_transfer_handler:handle_function('Get', [TransferID, #'EventRange'{}], Opts);
+            ff_p2p_transfer_handler:handle_function('Get', {TransferID, #'EventRange'{}}, Opts);
         {error, exists} ->
-            ff_p2p_transfer_handler:handle_function('Get', [TransferID, #'EventRange'{}], Opts);
+            ff_p2p_transfer_handler:handle_function('Get', {TransferID, #'EventRange'{}}, Opts);
         {error, p2p_template_blocked} ->
             woody_error:raise(business, #fistful_OperationNotPermitted{
                 details = ff_codec:marshal(string, <<"P2PTransferTemplate inaccessible">>)

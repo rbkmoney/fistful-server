@@ -34,11 +34,11 @@ init(Config) ->
     end.
 
 get_state(Config) ->
-    {ok, #cds_KeyringState{status = Status}} = call('GetState', [], Config),
+    {ok, #cds_KeyringState{status = Status}} = call('GetState', {}, Config),
     Status.
 
 start_init(Threshold, Config) ->
-    case call('StartInit', [Threshold], Config) of
+    case call('StartInit', {Threshold}, Config) of
         {ok, EncryptedShares} ->
             {ok, decode_encrypted_shares(EncryptedShares)};
         {exception, #cds_InvalidStatus{status = Status}} ->
@@ -54,7 +54,7 @@ validate_init(ID, DecryptedMasterKeyShare, Config) ->
         id = ID,
         signed_share = DecryptedMasterKeyShare
     },
-    case call('ValidateInit', [SignedShareKey], Config) of
+    case call('ValidateInit', {SignedShareKey}, Config) of
         {ok, {success, #cds_Success{}}} ->
             ok;
         {ok, {more_keys_needed, More}} ->

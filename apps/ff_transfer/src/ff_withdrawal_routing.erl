@@ -39,15 +39,27 @@
 prepare_routes(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
-        {ok, Providers} ->
-            filter_routes(Providers, PartyVarset);
-        {error, {misconfiguration, _Details} = Error} ->
-            %% TODO: Do not interpret such error as an empty route list.
-            %% The current implementation is made for compatibility reasons.
-            %% Try to remove and follow the tests.
-            _ = logger:warning("Route search failed: ~p", [Error]),
-            {error, route_not_found}
+    {Routes, _RejectedContext} = ff_routing_rule:gather_routes(
+        PaymentInstitution,
+        p2p_transfer_routing_rules,
+        PartyVarset,
+        DomainRevision
+    ),
+    case Routes of
+        [] ->
+            case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
+                {ok, Providers} ->
+                    filter_routes(Providers, PartyVarset);
+                {error, {misconfiguration, _Details} = Error} ->
+                    %% TODO: Do not interpret such error as an empty route list.
+                    %% The current implementation is made for compatibility reasons.
+                    %% Try to remove and follow the tests.
+                    _ = logger:warning("Route search failed: ~p", [Error]),
+                    {error, route_not_found}
+            end;
+        [_Route | _] ->
+            Providers = ff_routing_rule:get_providers(Routes),
+            filter_routes(Providers, PartyVarset)
     end.
 
 -spec make_route(provider_id(), terminal_id() | undefined) -> route().

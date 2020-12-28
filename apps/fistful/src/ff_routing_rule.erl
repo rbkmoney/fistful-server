@@ -16,12 +16,12 @@
 -type candidate_description() :: binary() | undefined.
 
 -type route() :: #{
-    provider        => dmsl_domain_thrift:'Provider'(),
-    provider_ref    => provider_ref(),
-    provider_id     => id(),
-    terminal        => dmsl_domain_thrift:'Terminal'(),
-    terminal_ref    => terminal_ref(),
-    terminal_id     => id()
+    provider        := dmsl_domain_thrift:'Provider'(),
+    provider_ref    := provider_ref(),
+    provider_id     := id(),
+    terminal        := dmsl_domain_thrift:'Terminal'(),
+    terminal_ref    := terminal_ref(),
+    terminal_id     := id()
 }.
 
 -type reject_context() :: #{

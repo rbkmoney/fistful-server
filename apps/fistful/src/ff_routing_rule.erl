@@ -2,12 +2,13 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
+-export([gather_routes/4]).
+-export([get_providers/1]).
+
 -type id() :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: ff_payment_institution:payment_institution().
-
 -type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
 -type terminal_ref() :: dmsl_domain_thrift:'TerminalRef'().
-
 -type varset() :: hg_selector:varset().
 -type revision() :: ff_domain_config:revision().
 -type routing_rule_tag() :: p2p_transfer_routing_rules | withdrawal_routing_rules.
@@ -31,9 +32,6 @@
 
 -type rejected_provider() :: {provider_ref(), Reason :: term()}.
 -type rejected_route() :: {provider_ref(), terminal_ref(), Reason :: term()}.
-
--export([gather_routes/4]).
--export([get_providers/1]).
 
 %% Pipeline
 

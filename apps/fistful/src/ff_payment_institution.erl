@@ -9,7 +9,9 @@
     identity := binary(),
     withdrawal_providers := dmsl_domain_thrift:'ProviderSelector'(),
     p2p_providers := dmsl_domain_thrift:'ProviderSelector'(),
-    p2p_inspector := dmsl_domain_thrift:'P2PInspectorSelector'()
+    p2p_inspector := dmsl_domain_thrift:'P2PInspectorSelector'(),
+    withdrawal_routing_rules := dmsl_domain_thrift:'RoutingRules'(),
+    p2p_transfer_routing_rules := dmsl_domain_thrift:'RoutingRules'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -110,7 +112,9 @@ decode(ID, #domain_PaymentInstitution{
     identity = Identity,
     withdrawal_providers = WithdrawalProviders,
     p2p_providers = P2PProviders,
-    p2p_inspector = P2PInspector
+    p2p_inspector = P2PInspector,
+    withdrawal_routing_rules = WithdrawalRoutingRules,
+    p2p_transfer_routing_rules = P2PTransferRoutingRules
 }) ->
     #{
         id => ID,
@@ -118,7 +122,9 @@ decode(ID, #domain_PaymentInstitution{
         identity => Identity,
         withdrawal_providers => WithdrawalProviders,
         p2p_providers => P2PProviders,
-        p2p_inspector => P2PInspector
+        p2p_inspector => P2PInspector,
+        withdrawal_routing_rules => WithdrawalRoutingRules,
+        p2p_transfer_routing_rules => P2PTransferRoutingRules
     }.
 
 decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts}) ->

@@ -705,6 +705,7 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     {Routes, _RejectedContext} = ff_routing_rule:gather_routes(
         PaymentInstitution,
+        p2p_transfer_routing_rules,
         PartyVarset,
         DomainRevision
     ),

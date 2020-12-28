@@ -25,7 +25,7 @@ handle_function(Func, Args, Opts) ->
 %% Internals
 %%
 
-handle_function_('CreateSource', [Params], Opts) ->
+handle_function_('CreateSource', {Params}, Opts) ->
     SourceID = Params#ff_admin_SourceParams.id,
     case
         ff_source_machine:create(
@@ -40,7 +40,7 @@ handle_function_('CreateSource', [Params], Opts) ->
         )
     of
         ok ->
-            handle_function_('GetSource', [SourceID], Opts);
+            handle_function_('GetSource', {SourceID}, Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {currency, notfound}} ->
@@ -48,7 +48,7 @@ handle_function_('CreateSource', [Params], Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('GetSource', [ID], _Opts) ->
+handle_function_('GetSource', {ID}, _Opts) ->
     case ff_source_machine:get(ID) of
         {ok, Machine} ->
             Source = ff_source_machine:source(Machine),
@@ -56,7 +56,7 @@ handle_function_('GetSource', [ID], _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_SourceNotFound{})
     end;
-handle_function_('CreateDeposit', [Params], Opts) ->
+handle_function_('CreateDeposit', {Params}, Opts) ->
     DepositID = Params#ff_admin_DepositParams.id,
     DepositParams = #{
         id => DepositID,
@@ -66,7 +66,7 @@ handle_function_('CreateDeposit', [Params], Opts) ->
     },
     case handle_create_result(ff_deposit_machine:create(DepositParams, ff_entity_context:new())) of
         ok ->
-            handle_function_('GetDeposit', [DepositID], Opts);
+            handle_function_('GetDeposit', {DepositID}, Opts);
         {error, {source, notfound}} ->
             woody_error:raise(business, #fistful_SourceNotFound{});
         {error, {source, unauthorized}} ->
@@ -82,7 +82,7 @@ handle_function_('CreateDeposit', [Params], Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('GetDeposit', [ID], _Opts) ->
+handle_function_('GetDeposit', {ID}, _Opts) ->
     case ff_deposit_machine:get(ID) of
         {ok, Machine} ->
             Deposit = ff_deposit_machine:deposit(Machine),

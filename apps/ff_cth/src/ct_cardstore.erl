@@ -14,10 +14,9 @@
         exp_date => {integer(), integer()},
         cardholder_name => binary()
     }.
-bank_card(PAN, {MM, YYYY} = ExpDate, C) ->
+bank_card(PAN, ExpDate, C) ->
     CardData = #cds_PutCardData{
-        pan = PAN,
-        exp_date = #cds_ExpDate{month = MM, year = YYYY}
+        pan = PAN
     },
     Client = ff_woody_client:new(maps:get('cds', ct_helper:cfg(services, C))),
     WoodyCtx = ct_helper:get_woody_ctx(C),

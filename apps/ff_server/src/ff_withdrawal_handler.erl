@@ -23,7 +23,7 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('GetQuote', [MarshaledParams], _Opts) ->
+handle_function_('GetQuote', {MarshaledParams}, _Opts) ->
     Params = ff_withdrawal_codec:unmarshal_quote_params(MarshaledParams),
     ok = scoper:add_meta(maps:with([wallet_id, destination_id, external_id], Params)),
     case ff_withdrawal:get_quote(Params) of
@@ -62,15 +62,15 @@ handle_function_('GetQuote', [MarshaledParams], _Opts) ->
         {error, {destination_resource, {bin_data, _}}} ->
             woody_error:raise(business, #wthd_NoDestinationResourceInfo{})
     end;
-handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
+handle_function_('Create', {MarshaledParams, MarshaledContext}, Opts) ->
     Params = ff_withdrawal_codec:unmarshal_withdrawal_params(MarshaledParams),
     Context = ff_withdrawal_codec:unmarshal(ctx, MarshaledContext),
     ok = scoper:add_meta(maps:with([id, wallet_id, destination_id, external_id], Params)),
     case ff_withdrawal_machine:create(Params, Context) of
         ok ->
-            handle_function_('Get', [maps:get(id, Params), #'EventRange'{}], Opts);
+            handle_function_('Get', {maps:get(id, Params), #'EventRange'{}}, Opts);
         {error, exists} ->
-            handle_function_('Get', [maps:get(id, Params), #'EventRange'{}], Opts);
+            handle_function_('Get', {maps:get(id, Params), #'EventRange'{}}, Opts);
         {error, {wallet, notfound}} ->
             woody_error:raise(business, #fistful_WalletNotFound{});
         {error, {destination, notfound}} ->
@@ -107,7 +107,7 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
         {error, {destination_resource, {bin_data, not_found}}} ->
             woody_error:raise(business, #wthd_NoDestinationResourceInfo{})
     end;
-handle_function_('Get', [ID, EventRange], _Opts) ->
+handle_function_('Get', {ID, EventRange}, _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_withdrawal_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
@@ -118,7 +118,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
         {error, {unknown_withdrawal, ID}} ->
             woody_error:raise(business, #fistful_WithdrawalNotFound{})
     end;
-handle_function_('GetContext', [ID], _Opts) ->
+handle_function_('GetContext', {ID}, _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_withdrawal_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
@@ -127,7 +127,7 @@ handle_function_('GetContext', [ID], _Opts) ->
         {error, {unknown_withdrawal, ID}} ->
             woody_error:raise(business, #fistful_WithdrawalNotFound{})
     end;
-handle_function_('GetEvents', [ID, EventRange], _Opts) ->
+handle_function_('GetEvents', {ID, EventRange}, _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_withdrawal_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Events} ->
@@ -135,7 +135,7 @@ handle_function_('GetEvents', [ID, EventRange], _Opts) ->
         {error, {unknown_withdrawal, ID}} ->
             woody_error:raise(business, #fistful_WithdrawalNotFound{})
     end;
-handle_function_('CreateAdjustment', [ID, MarshaledParams], _Opts) ->
+handle_function_('CreateAdjustment', {ID, MarshaledParams}, _Opts) ->
     Params = ff_withdrawal_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
     ok = scoper:add_meta(

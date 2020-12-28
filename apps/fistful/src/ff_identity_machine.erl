@@ -78,6 +78,7 @@
 create(Params = #{id := ID}, Ctx) ->
     do(fun() ->
         Events = unwrap(ff_identity:create(Params)),
+        logger:warning("create: ~p", [{?NS, ID, Events, Events}]),
         unwrap(machinery:start(?NS, ID, {Events, Ctx}, backend()))
     end).
 

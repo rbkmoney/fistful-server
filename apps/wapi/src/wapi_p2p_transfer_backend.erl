@@ -244,16 +244,12 @@ service_call(Params, HandlerContext) ->
 %% @doc
 %% The function returns the list of events for the specified Transfer.
 %%
-%% First get Transfer for extract the Session ID.
-%%
-%% Then, the Continuation Token is verified.  Latest EventIDs of Transfer and
-%% Session are stored in the token for possibility partial load of events.
-%%
-%% The events are retrieved no lesser ID than those stored in the token, and count
-%% is limited by wapi.events_fetch_limit option or ?DEFAULT_EVENTS_LIMIT
-%%
-%% The received events are then mixed and ordered by the time of occurrence.
-%% The resulting set is returned to the client.
+%% - get Transfer for extract the Session ID.
+%% - verify Continuation Token
+%% - take latest EventIDs of Transfer and Session from Continuation Token
+%% - event count is limited by wapi.events_fetch_limit option or ?DEFAULT_EVENTS_LIMIT
+%% - received events are then mixed and ordered by the time of occurrence
+%% - resulting set is returned to the client.
 %%
 %% @todo Now there is always only zero or one session. But there may be more than one
 %% session in the future, so the code of polling sessions and mixing results

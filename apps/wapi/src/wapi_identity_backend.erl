@@ -60,7 +60,7 @@ create_identity(ID, Params, HandlerContext) ->
         Params#{<<"id">> => ID},
         wapi_handler_utils:get_owner(HandlerContext)
     }),
-    Request = {fistful_identity, 'Create', [IdentityParams, marshal(context, create_context(Params, HandlerContext))]},
+    Request = {fistful_identity, 'Create', {IdentityParams, marshal(context, create_context(Params, HandlerContext))}},
 
     case service_call(Request, HandlerContext) of
         {ok, Identity} ->
@@ -104,7 +104,7 @@ create_identity_challenge(ChallengeID, IdentityID, Params, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             ChallengeParams = marshal(challenge_params, {ChallengeID, Params}),
-            Request = {fistful_identity, 'StartChallenge', [IdentityID, ChallengeParams]},
+            Request = {fistful_identity, 'StartChallenge', {IdentityID, ChallengeParams}},
             case service_call(Request, HandlerContext) of
                 {ok, Challenge} ->
                     {ok, unmarshal(challenge, {Challenge, HandlerContext})};
@@ -139,7 +139,7 @@ create_identity_challenge(ChallengeID, IdentityID, Params, HandlerContext) ->
 get_identity_challenge(IdentityID, ChallengeID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            Request = {fistful_identity, 'GetChallenges', [IdentityID]},
+            Request = {fistful_identity, 'GetChallenges', {IdentityID}},
             case service_call(Request, HandlerContext) of
                 {ok, Challenges} ->
                     get_challenge_by_id(ChallengeID, Challenges, HandlerContext);
@@ -162,7 +162,7 @@ get_identity_challenge(IdentityID, ChallengeID, HandlerContext) ->
 get_identity_challenges(IdentityID, Status, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            Request = {fistful_identity, 'GetChallenges', [IdentityID]},
+            Request = {fistful_identity, 'GetChallenges', {IdentityID}},
             case service_call(Request, HandlerContext) of
                 {ok, Challenges} ->
                     Filtered = filter_challenges_by_status(Status, Challenges, HandlerContext, []),
@@ -194,7 +194,7 @@ get_identity_challenge_events(
         ok ->
             Cursor = maps:get('eventCursor', Params, undefined),
             EventRange = marshal(event_range, {Cursor, Limit}),
-            Request = {fistful_identity, 'GetEvents', [IdentityID, EventRange]},
+            Request = {fistful_identity, 'GetEvents', {IdentityID, EventRange}},
             case service_call(Request, HandlerContext) of
                 {ok, Events} ->
                     Filtered = filter_events_by_challenge_id(ChallengeID, Events, []),
@@ -237,7 +237,7 @@ get_identity_challenge_event_(
     HandlerContext
 ) ->
     EventRange = marshal(event_range, {EventId - 1, 1}),
-    Request = {fistful_identity, 'GetEvents', [IdentityID, EventRange]},
+    Request = {fistful_identity, 'GetEvents', {IdentityID, EventRange}},
     case service_call(Request, HandlerContext) of
         {ok, []} ->
             {error, {event, notfound}};
@@ -259,7 +259,7 @@ get_identity_challenge_event_(
     | {error, {identity, notfound}}
     | {error, {identity, unauthorized}}.
 get_thrift_identity(IdentityID, HandlerContext) ->
-    Request = {fistful_identity, 'Get', [IdentityID, #'EventRange'{}]},
+    Request = {fistful_identity, 'Get', {IdentityID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, IdentityThrift} ->
             case wapi_access_backend:check_resource(identity, IdentityThrift, HandlerContext) of

@@ -95,10 +95,10 @@ block_p2p_template_ok_test(C) ->
         external_id = ExternalID,
         template_details = Details
     },
-    {ok, _P2PTemplateState} = call_p2p_template('Create', [Params, Ctx]),
+    {ok, _P2PTemplateState} = call_p2p_template('Create', {Params, Ctx}),
     Expected0 = get_p2p_template(P2PTemplateID),
     ?assertEqual(unblocked, p2p_template:blocking(Expected0)),
-    {ok, ok} = call_p2p_template('SetBlocking', [P2PTemplateID, blocked]),
+    {ok, ok} = call_p2p_template('SetBlocking', {P2PTemplateID, blocked}),
     Expected1 = get_p2p_template(P2PTemplateID),
     ?assertEqual(blocked, p2p_template:blocking(Expected1)).
 
@@ -117,8 +117,8 @@ get_context_test(C) ->
         external_id = ExternalID,
         template_details = Details
     },
-    {ok, _P2PTemplateState} = call_p2p_template('Create', [Params, Ctx]),
-    {ok, EncodedContext} = call_p2p_template('GetContext', [P2PTemplateID]),
+    {ok, _P2PTemplateState} = call_p2p_template('Create', {Params, Ctx}),
+    {ok, EncodedContext} = call_p2p_template('GetContext', {P2PTemplateID}),
     ?assertEqual(Ctx, EncodedContext).
 
 -spec create_p2p_template_ok_test(config()) -> test_return().
@@ -136,7 +136,7 @@ create_p2p_template_ok_test(C) ->
         external_id = ExternalID,
         template_details = Details
     },
-    {ok, P2PTemplateState} = call_p2p_template('Create', [Params, Ctx]),
+    {ok, P2PTemplateState} = call_p2p_template('Create', {Params, Ctx}),
 
     Expected = get_p2p_template(P2PTemplateID),
     ?assertEqual(P2PTemplateID, P2PTemplateState#p2p_template_P2PTemplateState.id),
@@ -156,7 +156,7 @@ create_p2p_template_ok_test(C) ->
         ff_codec:unmarshal(timestamp_ms, P2PTemplateState#p2p_template_P2PTemplateState.created_at)
     ),
 
-    {ok, FinalP2PTemplateState} = call_p2p_template('Get', [P2PTemplateID, #'EventRange'{}]),
+    {ok, FinalP2PTemplateState} = call_p2p_template('Get', {P2PTemplateID, #'EventRange'{}}),
     ?assertMatch(
         unblocked,
         FinalP2PTemplateState#p2p_template_P2PTemplateState.blocking
@@ -165,7 +165,7 @@ create_p2p_template_ok_test(C) ->
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
     P2PTemplateID = <<"unknown_p2p_template">>,
-    Result = call_p2p_template('Get', [P2PTemplateID, #'EventRange'{}]),
+    Result = call_p2p_template('Get', {P2PTemplateID, #'EventRange'{}}),
     ExpectedError = #fistful_P2PTemplateNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 

@@ -15,7 +15,8 @@
         fistful,
         ff_transfer,
         p2p,
-        fistful_proto
+        fistful_proto,
+        thrift
     ]},
     {env, []},
     {modules, []},

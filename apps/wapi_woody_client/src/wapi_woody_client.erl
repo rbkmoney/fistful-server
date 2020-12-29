@@ -13,20 +13,17 @@
 
 -export_type([service_name/0]).
 
--spec call_service(service_name(), woody:func(), [term()], woody_context:ctx()) -> woody:result().
+-spec call_service(service_name(), woody:func(), woody:args(), woody_context:ctx()) -> woody:result().
 call_service(ServiceName, Function, Args, Context) ->
     call_service(ServiceName, Function, Args, Context, scoper_woody_event_handler).
 
--spec call_service(service_name(), woody:func(), [term()], woody_context:ctx(), woody:ev_handler()) -> woody:result().
+-spec call_service(service_name(), woody:func(), woody:args(), woody_context:ctx(), woody:ev_handler()) -> woody:result().
 call_service(ServiceName, Function, Args, Context0, EventHandler) ->
     Deadline = get_service_deadline(ServiceName),
     Context1 = set_deadline(Deadline, Context0),
     Retry = get_service_retry(ServiceName, Function),
     call_service(ServiceName, Function, Args, Context1, EventHandler, Retry).
 
-call_service(ServiceName, Function, Args, Context, EventHandler, Retry) when is_list(Args) ->
-    ArgsTuple = list_to_tuple(Args),
-    call_service(ServiceName, Function, ArgsTuple, Context, EventHandler, Retry);
 call_service(ServiceName, Function, Args, Context, EventHandler, Retry) ->
     Url = get_service_url(ServiceName),
     Service = get_service_modname(ServiceName),

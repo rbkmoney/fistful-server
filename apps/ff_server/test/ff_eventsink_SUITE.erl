@@ -265,11 +265,7 @@ get_shifted_create_identity_events_ok(C) ->
             }
         )
     ),
-    {ok, Events} = call_route_handler(
-        'GetEvents',
-        Service,
-        [#'evsink_EventRange'{'after' = 0, limit = 1}]
-    ),
+    {ok, Events} = call_route_handler('GetEvents', Service, {#'evsink_EventRange'{'after' = 0, limit = 1}}),
     MaxID = ct_eventsink:get_max_event_id(Events),
     MaxID = StartEventNum + 1.
 

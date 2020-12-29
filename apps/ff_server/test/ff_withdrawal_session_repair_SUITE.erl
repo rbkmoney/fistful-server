@@ -81,7 +81,7 @@ repair_failed_session_with_success(C) ->
     ?assertEqual(active, get_session_status(SessionID)),
     timer:sleep(3000),
     ?assertEqual(active, get_session_status(SessionID)),
-    {ok, ok} = call_repair([
+    {ok, ok} = call_repair({
         SessionID,
         {set_session_result, #wthd_session_SetResultRepair{
             result =
@@ -92,7 +92,7 @@ repair_failed_session_with_success(C) ->
                     }
                 }}
         }}
-    ]),
+    }),
     ?assertMatch({finished, success}, get_session_status(SessionID)).
 
 -spec repair_failed_session_with_failure(config()) -> test_return().
@@ -104,7 +104,7 @@ repair_failed_session_with_failure(C) ->
     ?assertEqual(active, get_session_status(SessionID)),
     timer:sleep(3000),
     ?assertEqual(active, get_session_status(SessionID)),
-    {ok, ok} = call_repair([
+    {ok, ok} = call_repair({
         SessionID,
         {set_session_result, #wthd_session_SetResultRepair{
             result =
@@ -114,7 +114,7 @@ repair_failed_session_with_failure(C) ->
                     }
                 }}
         }}
-    ]),
+    }),
     Expected =
         {failed, #{
             code => SessionID

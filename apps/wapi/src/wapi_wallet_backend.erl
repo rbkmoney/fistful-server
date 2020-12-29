@@ -40,7 +40,7 @@ create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
 
 create(WalletID, Params, Context, HandlerContext) ->
     WalletParams = marshal(wallet_params, Params#{<<"id">> => WalletID}),
-    Request = {fistful_wallet, 'Create', [WalletParams, marshal(context, Context)]},
+    Request = {fistful_wallet, 'Create', {WalletParams, marshal(context, Context)}},
     case service_call(Request, HandlerContext) of
         {ok, Wallet} ->
             {ok, unmarshal(wallet, Wallet)};
@@ -75,7 +75,7 @@ get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext
     | {error, {wallet, notfound}}
     | {error, {wallet, unauthorized}}.
 get(WalletID, HandlerContext) ->
-    Request = {fistful_wallet, 'Get', [WalletID, #'EventRange'{}]},
+    Request = {fistful_wallet, 'Get', {WalletID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, WalletThrift} ->
             case wapi_access_backend:check_resource(wallet, WalletThrift, HandlerContext) of
@@ -95,7 +95,7 @@ get(WalletID, HandlerContext) ->
 get_account(WalletID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext) of
         ok ->
-            Request = {fistful_wallet, 'GetAccountBalance', [WalletID]},
+            Request = {fistful_wallet, 'GetAccountBalance', {WalletID}},
             case service_call(Request, HandlerContext) of
                 {ok, AccountBalanceThrift} ->
                     {ok, unmarshal(wallet_account_balance, AccountBalanceThrift)};

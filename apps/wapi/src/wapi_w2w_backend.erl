@@ -36,7 +36,7 @@ create_transfer(Params = #{<<"sender">> := SenderID}, HandlerContext) ->
 
 create_transfer(ID, Params, Context, HandlerContext) ->
     TransferParams = marshal(transfer_params, Params#{<<"id">> => ID}),
-    Request = {fistful_w2w_transfer, 'Create', [TransferParams, marshal(context, Context)]},
+    Request = {fistful_w2w_transfer, 'Create', {TransferParams, marshal(context, Context)}},
     case service_call(Request, HandlerContext) of
         {ok, Transfer} ->
             {ok, unmarshal(transfer, Transfer)};
@@ -58,7 +58,7 @@ create_transfer(ID, Params, Context, HandlerContext) ->
         | {w2w_transfer, {unknown_w2w_transfer, id()}}.
 get_transfer(ID, HandlerContext) ->
     EventRange = #'EventRange'{},
-    Request = {fistful_w2w_transfer, 'Get', [ID, EventRange]},
+    Request = {fistful_w2w_transfer, 'Get', {ID, EventRange}},
     case service_call(Request, HandlerContext) of
         {ok, TransferThrift} ->
             case wapi_access_backend:check_resource(w2w_transfer, TransferThrift, HandlerContext) of

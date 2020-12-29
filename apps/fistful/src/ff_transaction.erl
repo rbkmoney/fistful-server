@@ -57,7 +57,7 @@ cancel(ID, Postings) ->
 %% Woody stuff
 
 get_balance_by_id(ID, Clock) ->
-    case call('GetBalanceByID', [ID, ff_clock:marshal(shumpune, Clock)]) of
+    case call('GetBalanceByID', {ID, ff_clock:marshal(shumpune, Clock)}) of
         {ok, Balance} ->
             {ok, Balance};
         {exception, Unexpected} ->
@@ -65,7 +65,7 @@ get_balance_by_id(ID, Clock) ->
     end.
 
 hold(PlanChange) ->
-    case call('Hold', [PlanChange]) of
+    case call('Hold', {PlanChange}) of
         {ok, Clock} ->
             {ok, ff_clock:unmarshal(shumpune, Clock)};
         {exception, Unexpected} ->
@@ -73,7 +73,7 @@ hold(PlanChange) ->
     end.
 
 commit_plan(Plan) ->
-    case call('CommitPlan', [Plan]) of
+    case call('CommitPlan', {Plan}) of
         {ok, Clock} ->
             {ok, ff_clock:unmarshal(shumpune, Clock)};
         {exception, Unexpected} ->
@@ -81,7 +81,7 @@ commit_plan(Plan) ->
     end.
 
 rollback_plan(Plan) ->
-    case call('RollbackPlan', [Plan]) of
+    case call('RollbackPlan', {Plan}) of
         {ok, Clock} ->
             {ok, ff_clock:unmarshal(shumpune, Clock)};
         {exception, Unexpected} ->

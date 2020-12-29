@@ -18,7 +18,7 @@
 list_wallets(Params, Context) ->
     Dsl = create_dsl(wallets, Params, Context),
     Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWallets', [Req]}, Context),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWallets', {Req}}, Context),
     process_result(Result).
 
 -spec list_withdrawals(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
@@ -27,7 +27,7 @@ list_wallets(Params, Context) ->
 list_withdrawals(Params, Context) ->
     Dsl = create_dsl(withdrawals, Params, Context),
     Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', [Req]}, Context),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', {Req}}, Context),
     process_result(Result).
 
 -spec list_deposits(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
@@ -36,7 +36,7 @@ list_withdrawals(Params, Context) ->
 list_deposits(Params, Context) ->
     Dsl = create_dsl(deposits, Params, Context),
     Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', [Req]}, Context),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', {Req}}, Context),
     process_result(Result).
 
 -spec list_destinations(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
@@ -45,7 +45,7 @@ list_deposits(Params, Context) ->
 list_destinations(Params, Context) ->
     Dsl = create_dsl(destinations, Params, Context),
     Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDestinations', [Req]}, Context),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDestinations', {Req}}, Context),
     process_result(Result).
 
 -spec list_identities(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
@@ -54,7 +54,7 @@ list_destinations(Params, Context) ->
 list_identities(Params, Context) ->
     Dsl = create_dsl(identities, Params, Context),
     Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetIdentities', [Req]}, Context),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetIdentities', {Req}}, Context),
     process_result(Result).
 
 create_dsl(StatTag, Req, Context) ->

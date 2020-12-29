@@ -105,7 +105,7 @@ deposit_via_admin_ok(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', [
+    {ok, Src1} = call_admin('CreateSource', {
         #ff_admin_SourceParams{
             id = SrcID,
             name = <<"HAHA NO">>,
@@ -113,19 +113,19 @@ deposit_via_admin_ok(C) ->
             currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
             resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
         }
-    ]),
+    }),
 
     SrcID = Src1#src_Source.id,
     {authorized, #src_Authorized{}} = ct_helper:await(
         {authorized, #src_Authorized{}},
         fun() ->
-            {ok, Src} = call_admin('GetSource', [SrcID]),
+            {ok, Src} = call_admin('GetSource', {SrcID}),
             Src#src_Source.status
         end
     ),
 
     % Process deposit
-    {ok, Dep1} = call_admin('CreateDeposit', [
+    {ok, Dep1} = call_admin('CreateDeposit', {
         #ff_admin_DepositParams{
             id = DepID,
             source = SrcID,
@@ -135,13 +135,13 @@ deposit_via_admin_ok(C) ->
                 currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
             }
         }
-    ]),
+    }),
     DepID = Dep1#deposit_Deposit.id,
     {pending, _} = Dep1#deposit_Deposit.status,
     succeeded = ct_helper:await(
         succeeded,
         fun() ->
-            {ok, Dep} = call_admin('GetDeposit', [DepID]),
+            {ok, Dep} = call_admin('GetDeposit', {DepID}),
             {Status, _} = Dep#deposit_Deposit.status,
             Status
         end,
@@ -157,7 +157,7 @@ deposit_via_admin_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', [
+    {ok, Src1} = call_admin('CreateSource', {
         #ff_admin_SourceParams{
             id = SrcID,
             name = <<"HAHA NO">>,
@@ -165,18 +165,18 @@ deposit_via_admin_fails(C) ->
             currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
             resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
         }
-    ]),
+    }),
 
     SrcID = Src1#src_Source.id,
     {authorized, #src_Authorized{}} = ct_helper:await(
         {authorized, #src_Authorized{}},
         fun() ->
-            {ok, Src} = call_admin('GetSource', [SrcID]),
+            {ok, Src} = call_admin('GetSource', {SrcID}),
             Src#src_Source.status
         end
     ),
 
-    {ok, Dep1} = call_admin('CreateDeposit', [
+    {ok, Dep1} = call_admin('CreateDeposit', {
         #ff_admin_DepositParams{
             id = DepID,
             source = SrcID,
@@ -186,14 +186,14 @@ deposit_via_admin_fails(C) ->
                 currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
             }
         }
-    ]),
+    }),
 
     DepID = Dep1#deposit_Deposit.id,
     {pending, _} = Dep1#deposit_Deposit.status,
     failed = ct_helper:await(
         failed,
         fun() ->
-            {ok, Dep} = call_admin('GetDeposit', [DepID]),
+            {ok, Dep} = call_admin('GetDeposit', {DepID}),
             {Status, _} = Dep#deposit_Deposit.status,
             Status
         end,
@@ -210,7 +210,7 @@ deposit_via_admin_amount_fails(C) ->
     DepID = genlib:unique(),
     % Create source
 
-    {ok, _Src1} = call_admin('CreateSource', [
+    {ok, _Src1} = call_admin('CreateSource', {
         #ff_admin_SourceParams{
             id = SrcID,
             name = <<"HAHA NO">>,
@@ -218,17 +218,17 @@ deposit_via_admin_amount_fails(C) ->
             currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
             resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
         }
-    ]),
+    }),
 
     {authorized, #src_Authorized{}} = ct_helper:await(
         {authorized, #src_Authorized{}},
         fun() ->
-            {ok, Src} = call_admin('GetSource', [SrcID]),
+            {ok, Src} = call_admin('GetSource', {SrcID}),
             Src#src_Source.status
         end
     ),
 
-    {exception, #ff_admin_DepositAmountInvalid{}} = call_admin('CreateDeposit', [
+    {exception, #ff_admin_DepositAmountInvalid{}} = call_admin('CreateDeposit', {
         #ff_admin_DepositParams{
             id = DepID,
             source = SrcID,
@@ -238,7 +238,7 @@ deposit_via_admin_amount_fails(C) ->
                 currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
             }
         }
-    ]),
+    }),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID).
 
 deposit_via_admin_currency_fails(C) ->
@@ -249,7 +249,7 @@ deposit_via_admin_currency_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', [
+    {ok, Src1} = call_admin('CreateSource', {
         #ff_admin_SourceParams{
             id = SrcID,
             name = <<"HAHA NO">>,
@@ -257,18 +257,18 @@ deposit_via_admin_currency_fails(C) ->
             currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
             resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
         }
-    ]),
+    }),
 
     SrcID = Src1#src_Source.id,
     {authorized, #src_Authorized{}} = ct_helper:await(
         {authorized, #src_Authorized{}},
         fun() ->
-            {ok, Src} = call_admin('GetSource', [SrcID]),
+            {ok, Src} = call_admin('GetSource', {SrcID}),
             Src#src_Source.status
         end
     ),
     BadCurrency = <<"CAT">>,
-    {exception, #ff_admin_DepositCurrencyInvalid{}} = call_admin('CreateDeposit', [
+    {exception, #ff_admin_DepositCurrencyInvalid{}} = call_admin('CreateDeposit', {
         #ff_admin_DepositParams{
             id = DepID,
             source = SrcID,
@@ -278,7 +278,7 @@ deposit_via_admin_currency_fails(C) ->
                 currency = #'CurrencyRef'{symbolic_code = BadCurrency}
             }
         }
-    ]),
+    }),
 
     ok = await_wallet_balance({0, <<"RUB">>}, WalID).
 
@@ -549,7 +549,7 @@ process_withdrawal(WalID, DestID, Params) ->
 
 get_withdrawal_events(WdrID) ->
     Service = {{ff_proto_withdrawal_thrift, 'Management'}, <<"/v1/withdrawal">>},
-    {ok, Events} = call('GetEvents', Service, [WdrID, #'EventRange'{'after' = 0, limit = 1000}]),
+    {ok, Events} = call('GetEvents', Service, {WdrID, #'EventRange'{'after' = 0, limit = 1000}}),
     Events.
 
 call(Function, Service, Args) ->

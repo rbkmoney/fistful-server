@@ -95,21 +95,21 @@ get_p2p_session_events_ok_test(C) ->
     #{
         session_id := ID
     } = prepare_standard_environment(C),
-    {ok, [#p2p_session_Event{change = {created, _}} | _Rest]} = call_p2p_session('GetEvents', [ID, #'EventRange'{}]).
+    {ok, [#p2p_session_Event{change = {created, _}} | _Rest]} = call_p2p_session('GetEvents', {ID, #'EventRange'{}}).
 
 -spec get_p2p_session_context_ok_test(config()) -> test_return().
 get_p2p_session_context_ok_test(C) ->
     #{
         session_id := ID
     } = prepare_standard_environment(C),
-    {ok, _Context} = call_p2p_session('GetContext', [ID]).
+    {ok, _Context} = call_p2p_session('GetContext', {ID}).
 
 -spec get_p2p_session_ok_test(config()) -> test_return().
 get_p2p_session_ok_test(C) ->
     #{
         session_id := ID
     } = prepare_standard_environment(C),
-    {ok, P2PSessionState} = call_p2p_session('Get', [ID, #'EventRange'{}]),
+    {ok, P2PSessionState} = call_p2p_session('Get', {ID, #'EventRange'{}}),
     ?assertEqual(ID, P2PSessionState#p2p_session_SessionState.id).
 
 -spec create_adjustment_ok_test(config()) -> test_return().
@@ -127,7 +127,7 @@ create_adjustment_ok_test(C) ->
             }},
         external_id = ExternalID
     },
-    {ok, AdjustmentState} = call_p2p('CreateAdjustment', [ID, Params]),
+    {ok, AdjustmentState} = call_p2p('CreateAdjustment', {ID, Params}),
     ExpectedAdjustment = get_adjustment(ID, AdjustmentID),
 
     ?assertEqual(AdjustmentID, AdjustmentState#p2p_adj_AdjustmentState.id),
@@ -154,7 +154,7 @@ get_p2p_transfer_events_ok_test(C) ->
     #{
         p2p_transfer_id := ID
     } = prepare_standard_environment(C),
-    {ok, [#p2p_transfer_Event{change = {created, _}} | _Rest]} = call_p2p('GetEvents', [ID, #'EventRange'{}]).
+    {ok, [#p2p_transfer_Event{change = {created, _}} | _Rest]} = call_p2p('GetEvents', {ID, #'EventRange'{}}).
 
 -spec get_p2p_transfer_context_ok_test(config()) -> test_return().
 get_p2p_transfer_context_ok_test(C) ->
@@ -162,7 +162,7 @@ get_p2p_transfer_context_ok_test(C) ->
         p2p_transfer_id := ID,
         context := Ctx
     } = prepare_standard_environment(C),
-    {ok, Context} = call_p2p('GetContext', [ID]),
+    {ok, Context} = call_p2p('GetContext', {ID}),
     ?assertEqual(Ctx, Context).
 
 -spec get_p2p_transfer_ok_test(config()) -> test_return().
@@ -170,7 +170,7 @@ get_p2p_transfer_ok_test(C) ->
     #{
         p2p_transfer_id := ID
     } = prepare_standard_environment(C),
-    {ok, P2PTransferState} = call_p2p('Get', [ID, #'EventRange'{}]),
+    {ok, P2PTransferState} = call_p2p('Get', {ID, #'EventRange'{}}),
     ?assertEqual(ID, P2PTransferState#p2p_transfer_P2PTransferState.id).
 
 -spec create_p2p_transfer_ok_test(config()) -> test_return().
@@ -192,7 +192,7 @@ create_p2p_transfer_ok_test(C) ->
         external_id = ExternalID,
         metadata = Metadata
     },
-    {ok, P2PTransferState} = call_p2p('Create', [Params, Ctx]),
+    {ok, P2PTransferState} = call_p2p('Create', {Params, Ctx}),
 
     Expected = get_p2p_transfer(P2PTransferID),
     ?assertEqual(P2PTransferID, P2PTransferState#p2p_transfer_P2PTransferState.id),
@@ -215,14 +215,14 @@ create_p2p_transfer_ok_test(C) ->
 -spec unknown_session_test(config()) -> test_return().
 unknown_session_test(_C) ->
     P2PSessionID = <<"unknown_p2p_session">>,
-    Result = call_p2p_session('Get', [P2PSessionID, #'EventRange'{}]),
+    Result = call_p2p_session('Get', {P2PSessionID, #'EventRange'{}}),
     ExpectedError = #fistful_P2PSessionNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
     ID = <<"unknown_id">>,
-    Result = call_p2p('Get', [ID, #'EventRange'{}]),
+    Result = call_p2p('Get', {ID, #'EventRange'{}}),
     ExpectedError = #fistful_P2PNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
@@ -307,9 +307,9 @@ prepare_standard_environment(C) ->
         client_info = #'ClientInfo'{ip_address = <<"some ip_address">>, fingerprint = <<"some fingerprint">>},
         external_id = ExternalID
     },
-    {ok, _State} = call_p2p('Create', [Params, Ctx]),
+    {ok, _State} = call_p2p('Create', {Params, Ctx}),
     succeeded = await_final_p2p_transfer_status(P2PTransferID),
-    {ok, P2PTransferState} = call_p2p('Get', [P2PTransferID, #'EventRange'{}]),
+    {ok, P2PTransferState} = call_p2p('Get', {P2PTransferID, #'EventRange'{}}),
     [#p2p_transfer_SessionState{id = SessionID} | _Rest] = P2PTransferState#p2p_transfer_P2PTransferState.sessions,
     #{
         identity_id => IdentityID,

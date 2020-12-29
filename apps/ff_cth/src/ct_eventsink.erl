@@ -43,7 +43,7 @@
 
 -spec last_id(sink()) -> event_id() | 0.
 last_id(Sink) ->
-    case call_handler('GetLastEventID', Sink, []) of
+    case call_handler('GetLastEventID', Sink, {}) of
         {ok, EventID} ->
             EventID;
         {exception, #'evsink_NoLastEvent'{}} ->
@@ -53,7 +53,7 @@ last_id(Sink) ->
 -spec events(_After :: event_id() | undefined, limit(), sink()) -> {[event()], _Last :: event_id()}.
 events(After, Limit, Sink) ->
     Range = #'evsink_EventRange'{'after' = After, limit = Limit},
-    {ok, Events} = call_handler('GetEvents', Sink, [Range]),
+    {ok, Events} = call_handler('GetEvents', Sink, {Range}),
     {Events, get_max_event_id(Events)}.
 
 -spec consume(_ChunkSize :: limit(), sink()) -> [event()].

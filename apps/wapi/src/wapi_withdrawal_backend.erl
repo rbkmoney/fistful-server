@@ -67,7 +67,7 @@ create(Params0, HandlerContext) ->
     end.
 
 create(Params, Context, HandlerContext) ->
-    Request = {fistful_withdrawal, 'Create', [Params, Context]},
+    Request = {fistful_withdrawal, 'Create', {Params, Context}},
     case service_call(Request, HandlerContext) of
         {ok, Withdrawal} ->
             {ok, unmarshal(withdrawal, Withdrawal)};
@@ -110,7 +110,7 @@ create(Params, Context, HandlerContext) ->
     | {error, {withdrawal, notfound}}
     | {error, {withdrawal, unauthorized}}.
 get(WithdrawalID, HandlerContext) ->
-    Request = {fistful_withdrawal, 'Get', [WithdrawalID, #'EventRange'{}]},
+    Request = {fistful_withdrawal, 'Get', {WithdrawalID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, WithdrawalThrift} ->
             case wapi_access_backend:check_resource(withdrawal, WithdrawalThrift, HandlerContext) of
@@ -149,7 +149,7 @@ create_quote(#{'WithdrawalQuoteParams' := Params}, HandlerContext) ->
 
 create_quote_(Params, HandlerContext) ->
     CreateQuoteParams = marshal(create_quote_params, Params),
-    Request = {fistful_withdrawal, 'GetQuote', [CreateQuoteParams]},
+    Request = {fistful_withdrawal, 'GetQuote', {CreateQuoteParams}},
     case service_call(Request, HandlerContext) of
         {ok, QuoteThrift} ->
             Token = create_quote_token(
@@ -263,7 +263,7 @@ get_events_(WithdrawalId, EventRange, HandlerContext) ->
     end.
 
 collect_events(WithdrawalId, {Cursor, Limit}, HandlerContext, AccEvents) ->
-    Request = {fistful_withdrawal, 'GetEvents', [WithdrawalId, marshal_event_range(Cursor, Limit)]},
+    Request = {fistful_withdrawal, 'GetEvents', {WithdrawalId, marshal_event_range(Cursor, Limit)}},
     case service_call(Request, HandlerContext) of
         {exception, _} = Exception ->
             Exception;

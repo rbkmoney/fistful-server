@@ -18,7 +18,7 @@
 
 -spec get_proof(binary(), handler_context()) -> map().
 get_proof(Token, Context) ->
-    {ok, DocData} = wapi_handler_utils:service_call({identdoc_storage, 'Get', [Token]}, Context),
+    {ok, DocData} = wapi_handler_utils:service_call({identdoc_storage, 'Get', {Token}}, Context),
     to_swag(doc_data, {DocData, Token}).
 
 to_swag(doc_data, {{russian_domestic_passport, D}, Token}) ->

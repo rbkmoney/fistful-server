@@ -126,7 +126,7 @@ create_destination_ok(Resource, C) ->
         external_id = ExternalId,
         metadata = Metadata
     },
-    {ok, Dst} = call_service('Create', [Params, Ctx]),
+    {ok, Dst} = call_service('Create', {Params, Ctx}),
     DstName = Dst#dst_DestinationState.name,
     ID = Dst#dst_DestinationState.id,
     Resource = Dst#dst_DestinationState.resource,
@@ -144,13 +144,13 @@ create_destination_ok(Resource, C) ->
         {authorized, #dst_Authorized{}},
         fun() ->
             {ok, #dst_DestinationState{status = Status}} =
-                call_service('Get', [ID, #'EventRange'{}]),
+                call_service('Get', {ID, #'EventRange'{}}),
             Status
         end,
         genlib_retry:linear(15, 1000)
     ),
 
-    {ok, #dst_DestinationState{}} = call_service('Get', [ID, #'EventRange'{}]).
+    {ok, #dst_DestinationState{}} = call_service('Get', {ID, #'EventRange'{}}).
 
 call_service(Fun, Args) ->
     Service = {ff_proto_destination_thrift, 'Management'},

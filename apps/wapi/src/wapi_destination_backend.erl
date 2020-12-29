@@ -67,7 +67,7 @@ create_request(ID, Params, ResourceThrift, HandlerContext) ->
         <<"resourceThrift">> => ResourceThrift
     }),
     MarshaledContext = marshal(context, wapi_backend_utils:make_ctx(Params, HandlerContext)),
-    Request = {fistful_destination, 'Create', [MarshaledParams, MarshaledContext]},
+    Request = {fistful_destination, 'Create', {MarshaledParams, MarshaledContext}},
     case service_call(Request, HandlerContext) of
         {ok, Destination} ->
             {ok, unmarshal(destination, Destination)};
@@ -86,7 +86,7 @@ create_request(ID, Params, ResourceThrift, HandlerContext) ->
     | {error, {destination, notfound}}
     | {error, {destination, unauthorized}}.
 get(DestinationID, HandlerContext) ->
-    Request = {fistful_destination, 'Get', [DestinationID, #'EventRange'{}]},
+    Request = {fistful_destination, 'Get', {DestinationID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, DestinationThrift} ->
             case wapi_access_backend:check_resource(destination, DestinationThrift, HandlerContext) of

@@ -820,7 +820,7 @@ set_wallet_balance({Amount, Currency}, ID) ->
 
 create_account(CurrencyCode) ->
     Description = <<"ff_test">>,
-    case call_accounter('CreateAccount', [construct_account_prototype(CurrencyCode, Description)]) of
+    case call_accounter('CreateAccount', {construct_account_prototype(CurrencyCode, Description)}) of
         {ok, Result} ->
             {ok, Result};
         {exception, Exception} ->
@@ -866,7 +866,7 @@ repair_withdrawal_session(WithdrawalID) ->
 
 call_session_repair(SessionID, Scenario) ->
     Service = {ff_proto_withdrawal_session_thrift, 'Repairer'},
-    Request = {Service, 'Repair', [SessionID, Scenario]},
+    Request = {Service, 'Repair', {SessionID, Scenario}},
     Client = ff_woody_client:new(#{
         url => <<"http://localhost:8022/v1/repair/withdrawal/session">>,
         event_handler => scoper_woody_event_handler

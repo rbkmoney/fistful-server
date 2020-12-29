@@ -51,14 +51,14 @@
 
 -spec get(token(), bin_data_id() | undefined) -> {ok, bin_data()} | {error, bin_data_error()}.
 get(Token, undefined) ->
-    case call_binbase('GetByCardToken', [Token]) of
+    case call_binbase('GetByCardToken', {Token}) of
         {ok, Result} ->
             decode_result(Token, Result);
         {exception, #binbase_BinNotFound{}} ->
             {error, not_found}
     end;
 get(Token, ID) ->
-    case call_binbase('GetByBinDataId', [encode_msgpack(ID)]) of
+    case call_binbase('GetByBinDataId', {encode_msgpack(ID)}) of
         {ok, Result} ->
             decode_result(Token, Result);
         {exception, #binbase_BinNotFound{}} ->

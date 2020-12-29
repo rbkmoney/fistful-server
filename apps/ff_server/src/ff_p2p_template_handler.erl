@@ -24,16 +24,16 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
+handle_function_('Create', {MarshaledParams, MarshaledContext}, Opts) ->
     ID = MarshaledParams#p2p_template_P2PTemplateParams.id,
     Params = ff_p2p_template_codec:unmarshal_p2p_template_params(MarshaledParams),
     Context = ff_p2p_template_codec:unmarshal(ctx, MarshaledContext),
     ok = scoper:add_meta(maps:with([id, identity_id, external_id], Params)),
     case p2p_template_machine:create(Params, Context) of
         ok ->
-            handle_function_('Get', [ID, #'EventRange'{}], Opts);
+            handle_function_('Get', {ID, #'EventRange'{}}, Opts);
         {error, exists} ->
-            handle_function_('Get', [ID, #'EventRange'{}], Opts);
+            handle_function_('Get', {ID, #'EventRange'{}}, Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {terms, {bad_p2p_template_amount, Cash}}} ->
@@ -41,7 +41,7 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Get', [ID, MarshaledEventRange], _Opts) ->
+handle_function_('Get', {ID, MarshaledEventRange}, _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     EventRange = ff_codec:unmarshal(event_range, MarshaledEventRange),
     case p2p_template_machine:get(ID, EventRange) of
@@ -53,7 +53,7 @@ handle_function_('Get', [ID, MarshaledEventRange], _Opts) ->
         {error, {unknown_p2p_template, _Ref}} ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{})
     end;
-handle_function_('GetContext', [ID], _Opts) ->
+handle_function_('GetContext', {ID}, _Opts) ->
     case p2p_template_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
             Ctx = p2p_template_machine:ctx(Machine),
@@ -62,7 +62,7 @@ handle_function_('GetContext', [ID], _Opts) ->
         {error, {unknown_p2p_template, _Ref}} ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{})
     end;
-handle_function_('SetBlocking', [ID, MarshaledBlocking], _Opts) ->
+handle_function_('SetBlocking', {ID, MarshaledBlocking}, _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     Blocking = ff_p2p_template_codec:unmarshal(blocking, MarshaledBlocking),
     case p2p_template_machine:set_blocking(ID, Blocking) of
@@ -71,7 +71,7 @@ handle_function_('SetBlocking', [ID, MarshaledBlocking], _Opts) ->
         {error, {unknown_p2p_template, _Ref}} ->
             woody_error:raise(business, #fistful_P2PTemplateNotFound{})
     end;
-handle_function_('GetQuote', [ID, MarshaledParams], _Opts) ->
+handle_function_('GetQuote', {ID, MarshaledParams}, _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     Params = ff_p2p_template_codec:unmarshal_p2p_quote_params(MarshaledParams),
     case p2p_template_machine:get_quote(ID, Params) of
@@ -106,16 +106,16 @@ handle_function_('GetQuote', [ID, MarshaledParams], _Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('CreateTransfer', [ID, MarshaledParams, MarshaledContext], Opts) ->
+handle_function_('CreateTransfer', {ID, MarshaledParams, MarshaledContext}, Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     TransferID = MarshaledParams#p2p_template_P2PTemplateTransferParams.id,
     Params = ff_p2p_template_codec:unmarshal_p2p_transfer_params(MarshaledParams),
     Context = ff_p2p_template_codec:unmarshal(ctx, MarshaledContext),
     case p2p_template_machine:create_transfer(ID, Params#{context => Context}) of
         ok ->
-            ff_p2p_transfer_handler:handle_function('Get', [TransferID, #'EventRange'{}], Opts);
+            ff_p2p_transfer_handler:handle_function('Get', {TransferID, #'EventRange'{}}, Opts);
         {error, exists} ->
-            ff_p2p_transfer_handler:handle_function('Get', [TransferID, #'EventRange'{}], Opts);
+            ff_p2p_transfer_handler:handle_function('Get', {TransferID, #'EventRange'{}}, Opts);
         {error, p2p_template_blocked} ->
             woody_error:raise(business, #fistful_OperationNotPermitted{
                 details = ff_codec:marshal(string, <<"P2PTransferTemplate inaccessible">>)

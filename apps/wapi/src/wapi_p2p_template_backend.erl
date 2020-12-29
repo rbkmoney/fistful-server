@@ -37,7 +37,7 @@ create(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
                 {ok, ID} ->
                     Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
                     TemplateParams = marshal_template_params(Params#{<<"id">> => ID}),
-                    Request = {fistful_p2p_template, 'Create', [TemplateParams, marshal_context(Context)]},
+                    Request = {fistful_p2p_template, 'Create', {TemplateParams, marshal_context(Context)}},
                     create_request(Request, HandlerContext);
                 {error, {external_id_conflict, ID}} ->
                     ExternalID = maps:get(<<"externalID">>, Params, undefined),
@@ -67,7 +67,7 @@ create_request(Request, HandlerContext) ->
     {ok, response_data()}
     | {error, {p2p_template, notfound | unauthorized}}.
 get(ID, HandlerContext) ->
-    Request = {fistful_p2p_template, 'Get', [ID, #'EventRange'{}]},
+    Request = {fistful_p2p_template, 'Get', {ID, #'EventRange'{}}},
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, Template} ->
             case wapi_access_backend:check_resource(p2p_template, Template, HandlerContext) of
@@ -86,7 +86,7 @@ get(ID, HandlerContext) ->
 block(ID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_template, ID, HandlerContext) of
         ok ->
-            Request = {fistful_p2p_template, 'SetBlocking', [ID, blocked]},
+            Request = {fistful_p2p_template, 'SetBlocking', {ID, blocked}},
             case wapi_handler_utils:service_call(Request, HandlerContext) of
                 {ok, _} ->
                     ok;
@@ -166,7 +166,7 @@ quote_transfer(ID, Params, HandlerContext) ->
             <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
             <<"receiver">> => Receiver#{<<"resourceThrift">> => ReceiverResource}
         }),
-        Request = {fistful_p2p_template, 'GetQuote', [ID, MarshaledParams]},
+        Request = {fistful_p2p_template, 'GetQuote', {ID, MarshaledParams}},
         unwrap(quote_transfer_request(Request, HandlerContext))
     end).
 
@@ -221,7 +221,7 @@ create_transfer(TemplateID, Params, HandlerContext) ->
             <<"quoteThrift">> => Quote
         }),
         MarshaledContext = marshal_context(wapi_backend_utils:make_ctx(Params, HandlerContext)),
-        Request = {fistful_p2p_template, 'CreateTransfer', [TemplateID, MarshaledParams, MarshaledContext]},
+        Request = {fistful_p2p_template, 'CreateTransfer', {TemplateID, MarshaledParams, MarshaledContext}},
         unwrap(create_transfer_request(Request, HandlerContext))
     end).
 

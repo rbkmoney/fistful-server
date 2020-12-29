@@ -146,7 +146,7 @@ apply_event({created, Account}, undefined) ->
 create_account(ID, Currency) ->
     CurrencyCode = ff_currency:symcode(Currency),
     Description = ff_string:join($/, [<<"ff/account">>, ID]),
-    case call_accounter('CreateAccount', [construct_prototype(CurrencyCode, Description)]) of
+    case call_accounter('CreateAccount', {construct_prototype(CurrencyCode, Description)}) of
         {ok, Result} ->
             {ok, Result};
         {exception, Exception} ->

@@ -134,7 +134,7 @@ create_bad_amount_test(C) ->
         source_id = SourceID,
         wallet_id = WalletID
     },
-    Result = call_deposit('Create', [Params, #{}]),
+    Result = call_deposit('Create', {Params, #{}}),
     ExpectedError = #fistful_InvalidOperationAmount{
         amount = Body
     },
@@ -153,7 +153,7 @@ create_currency_validation_error_test(C) ->
         source_id = SourceID,
         wallet_id = WalletID
     },
-    Result = call_deposit('Create', [Params, #{}]),
+    Result = call_deposit('Create', {Params, #{}}),
     ExpectedError = #fistful_ForbiddenOperationCurrency{
         currency = #'CurrencyRef'{symbolic_code = <<"EUR">>},
         allowed_currencies = [
@@ -175,7 +175,7 @@ create_source_notfound_test(C) ->
         source_id = <<"unknown_source">>,
         wallet_id = WalletID
     },
-    Result = call_deposit('Create', [Params, #{}]),
+    Result = call_deposit('Create', {Params, #{}}),
     ExpectedError = #fistful_SourceNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
@@ -191,7 +191,7 @@ create_wallet_notfound_test(C) ->
         source_id = SourceID,
         wallet_id = <<"unknown_wallet">>
     },
-    Result = call_deposit('Create', [Params, #{}]),
+    Result = call_deposit('Create', {Params, #{}}),
     ExpectedError = #fistful_WalletNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
@@ -214,7 +214,7 @@ create_ok_test(C) ->
         metadata = Metadata,
         external_id = ExternalID
     },
-    {ok, DepositState} = call_deposit('Create', [Params, ff_entity_context_codec:marshal(Context)]),
+    {ok, DepositState} = call_deposit('Create', {Params, ff_entity_context_codec:marshal(Context)}),
     Expected = get_deposit(DepositID),
     ?assertEqual(DepositID, DepositState#deposit_DepositState.id),
     ?assertEqual(WalletID, DepositState#deposit_DepositState.wallet_id),
@@ -238,7 +238,7 @@ create_ok_test(C) ->
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
     DepositID = <<"unknown_deposit">>,
-    Result = call_deposit('Get', [DepositID, #'EventRange'{}]),
+    Result = call_deposit('Get', {DepositID, #'EventRange'{}}),
     ExpectedError = #fistful_DepositNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
@@ -248,7 +248,7 @@ get_context_test(C) ->
         deposit_id := DepositID,
         context := Context
     } = prepare_standard_environment_with_deposit(C),
-    {ok, EncodedContext} = call_deposit('GetContext', [DepositID]),
+    {ok, EncodedContext} = call_deposit('GetContext', {DepositID}),
     ?assertEqual(Context, ff_entity_context_codec:unmarshal(EncodedContext)).
 
 -spec get_events_test(config()) -> test_return().
@@ -258,7 +258,7 @@ get_events_test(C) ->
     } = prepare_standard_environment_with_deposit(C),
     Range = {undefined, undefined},
     EncodedRange = ff_codec:marshal(event_range, Range),
-    {ok, Events} = call_deposit('GetEvents', [DepositID, EncodedRange]),
+    {ok, Events} = call_deposit('GetEvents', {DepositID, EncodedRange}),
     {ok, ExpectedEvents} = ff_deposit_machine:events(DepositID, Range),
     EncodedEvents = [ff_deposit_codec:marshal(event, E) || E <- ExpectedEvents],
     ?assertEqual(EncodedEvents, Events).
@@ -278,7 +278,7 @@ create_adjustment_ok_test(C) ->
             }},
         external_id = ExternalID
     },
-    {ok, AdjustmentState} = call_deposit('CreateAdjustment', [DepositID, Params]),
+    {ok, AdjustmentState} = call_deposit('CreateAdjustment', {DepositID, Params}),
     ExpectedAdjustment = get_adjustment(DepositID, AdjustmentID),
 
     ?assertEqual(AdjustmentID, AdjustmentState#dep_adj_AdjustmentState.id),
@@ -312,7 +312,7 @@ create_adjustment_unavailable_status_error_test(C) ->
                 new_status = {pending, #dep_status_Pending{}}
             }}
     },
-    Result = call_deposit('CreateAdjustment', [DepositID, Params]),
+    Result = call_deposit('CreateAdjustment', {DepositID, Params}),
     ExpectedError = #deposit_ForbiddenStatusChange{
         target_status = {pending, #dep_status_Pending{}}
     },
@@ -330,7 +330,7 @@ create_adjustment_already_has_status_error_test(C) ->
                 new_status = {succeeded, #dep_status_Succeeded{}}
             }}
     },
-    Result = call_deposit('CreateAdjustment', [DepositID, Params]),
+    Result = call_deposit('CreateAdjustment', {DepositID, Params}),
     ExpectedError = #deposit_AlreadyHasStatus{
         deposit_status = {succeeded, #dep_status_Succeeded{}}
     },
@@ -351,7 +351,7 @@ create_revert_ok_test(C) ->
         external_id = ExternalID,
         reason = Reason
     },
-    {ok, RevertState} = call_deposit('CreateRevert', [DepositID, Params]),
+    {ok, RevertState} = call_deposit('CreateRevert', {DepositID, Params}),
     Expected = get_revert(DepositID, RevertID),
 
     ?assertEqual(RevertID, RevertState#deposit_revert_RevertState.id),
@@ -380,7 +380,7 @@ create_revert_inconsistent_revert_currency_error_test(C) ->
         id = generate_id(),
         body = make_cash({1, <<"USD">>})
     },
-    Result = call_deposit('CreateRevert', [DepositID, Params]),
+    Result = call_deposit('CreateRevert', {DepositID, Params}),
     ExpectedError = #deposit_InconsistentRevertCurrency{
         deposit_currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
         revert_currency = #'CurrencyRef'{symbolic_code = <<"USD">>}
@@ -398,7 +398,7 @@ create_revert_insufficient_deposit_amount_error_test(C) ->
         id = generate_id(),
         body = RevertBody
     },
-    Result = call_deposit('CreateRevert', [DepositID, Params]),
+    Result = call_deposit('CreateRevert', {DepositID, Params}),
     ExpectedError = #deposit_InsufficientDepositAmount{
         revert_body = RevertBody,
         deposit_amount = DepositBody
@@ -416,7 +416,7 @@ create_revert_invalid_revert_amount_error_test(C) ->
         id = generate_id(),
         body = RevertBody
     },
-    Result = call_deposit('CreateRevert', [DepositID, Params]),
+    Result = call_deposit('CreateRevert', {DepositID, Params}),
     ExpectedError = #fistful_InvalidOperationAmount{
         amount = RevertBody
     },
@@ -431,7 +431,7 @@ create_revert_unknown_deposit_error_test(C) ->
         id = generate_id(),
         body = Body
     },
-    Result = call_deposit('CreateRevert', [<<"unknown_deposit">>, Params]),
+    Result = call_deposit('CreateRevert', {<<"unknown_deposit">>, Params}),
     ExpectedError = #fistful_DepositNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
@@ -451,7 +451,7 @@ create_revert_adjustment_ok_test(C) ->
             }},
         external_id = ExternalID
     },
-    {ok, AdjustmentState} = call_deposit('CreateRevertAdjustment', [DepositID, RevertID, Params]),
+    {ok, AdjustmentState} = call_deposit('CreateRevertAdjustment', {DepositID, RevertID, Params}),
     ExpectedAdjustment = get_revert_adjustment(DepositID, RevertID, AdjustmentID),
 
     ?assertEqual(AdjustmentID, AdjustmentState#dep_rev_adj_AdjustmentState.id),
@@ -486,7 +486,7 @@ create_revert_adjustment_unavailable_status_error_test(C) ->
                 new_status = {pending, #dep_rev_status_Pending{}}
             }}
     },
-    Result = call_deposit('CreateRevertAdjustment', [DepositID, RevertID, Params]),
+    Result = call_deposit('CreateRevertAdjustment', {DepositID, RevertID, Params}),
     ExpectedError = #deposit_ForbiddenRevertStatusChange{
         target_status = {pending, #dep_rev_status_Pending{}}
     },
@@ -505,7 +505,7 @@ create_revert_adjustment_already_has_status_error_test(C) ->
                 new_status = {succeeded, #dep_rev_status_Succeeded{}}
             }}
     },
-    Result = call_deposit('CreateRevertAdjustment', [DepositID, RevertID, Params]),
+    Result = call_deposit('CreateRevertAdjustment', {DepositID, RevertID, Params}),
     ExpectedError = #deposit_RevertAlreadyHasStatus{
         revert_status = {succeeded, #dep_rev_status_Succeeded{}}
     },
@@ -524,7 +524,7 @@ deposit_state_content_test(C) ->
                 new_status = {failed, #dep_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
             }}
     },
-    {ok, _} = call_deposit('CreateAdjustment', [DepositID, AdjustmentParams]),
+    {ok, _} = call_deposit('CreateAdjustment', {DepositID, AdjustmentParams}),
     RevertAdjustmentParams = #dep_rev_adj_AdjustmentParams{
         id = generate_id(),
         change =
@@ -532,9 +532,9 @@ deposit_state_content_test(C) ->
                 new_status = {failed, #dep_rev_status_Failed{failure = #'Failure'{code = <<"Ooops">>}}}
             }}
     },
-    {ok, _} = call_deposit('CreateRevertAdjustment', [DepositID, RevertID, RevertAdjustmentParams]),
+    {ok, _} = call_deposit('CreateRevertAdjustment', {DepositID, RevertID, RevertAdjustmentParams}),
 
-    {ok, DepositState} = call_deposit('Get', [DepositID, #'EventRange'{}]),
+    {ok, DepositState} = call_deposit('Get', {DepositID, #'EventRange'{}}),
     ?assertMatch([_], DepositState#deposit_DepositState.reverts),
     ?assertMatch([_], DepositState#deposit_DepositState.adjustments),
     ?assertNotEqual(undefined, DepositState#deposit_DepositState.effective_final_cash_flow),
@@ -592,7 +592,7 @@ prepare_standard_environment_with_deposit(Body, C) ->
         body = Body,
         external_id = ExternalID
     },
-    {ok, _DepositState} = call_deposit('Create', [Params, EncodedContext]),
+    {ok, _DepositState} = call_deposit('Create', {Params, EncodedContext}),
     succeeded = await_final_deposit_status(DepositID),
     Env#{
         deposit_id => DepositID,
@@ -618,7 +618,7 @@ prepare_standard_environment_with_revert(Body, C) ->
         external_id = ExternalID,
         reason = Reason
     },
-    {ok, _RevertState} = call_deposit('CreateRevert', [DepositID, Params]),
+    {ok, _RevertState} = call_deposit('CreateRevert', {DepositID, Params}),
     succeeded = await_final_revert_status(DepositID, RevertID),
     Env#{
         revert_id => RevertID,

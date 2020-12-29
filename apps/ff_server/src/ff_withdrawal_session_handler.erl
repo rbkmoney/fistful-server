@@ -24,7 +24,7 @@ handle_function(Func, Args, Opts) ->
 %% Internals
 %%
 
-handle_function_('Get', [ID, EventRange], _Opts) ->
+handle_function_('Get', {ID, EventRange}, _Opts) ->
     case ff_withdrawal_session_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             State = ff_withdrawal_session_machine:session(Machine),
@@ -34,7 +34,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_WithdrawalSessionNotFound{})
     end;
-handle_function_('GetContext', [ID], _Opts) ->
+handle_function_('GetContext', {ID}, _Opts) ->
     case ff_withdrawal_session_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
             Ctx = ff_withdrawal_session_machine:ctx(Machine),

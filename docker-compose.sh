@@ -50,7 +50,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:0a2b81adbb25ef33b749f3b218df191aa7bc35a5
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:983ba4d48b47cd5216f75cb3e30ab14f1dd99f46
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -71,7 +71,7 @@ services:
   adapter-mocketbank:
     depends_on:
       - cds
-    image: dr2.rbkmoney.com/rbkmoney/proxy-mocketbank:e4a10c63a25e12cbc149f48a555eabe1cb60fae1
+    image: dr2.rbkmoney.com/rbkmoney/proxy-mocketbank:91953e1e9874a851816474b47ad0f123c7c936d1
     command: |
       java
       -Xms64m -Xmx256m
@@ -83,6 +83,8 @@ services:
       --cds.url.idStorage=http://cds:8022/v1/identity_document_storage
       --hellgate.url=http://hellgate:8022/v1/proxyhost/provider
     working_dir: /opt/proxy-mocketbank
+    volumes:
+        - ./test/log/proxy-mocketbank:/var/log/proxy-mocketbank
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s
@@ -90,7 +92,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr2.rbkmoney.com/rbkmoney/dominant:ce9486ee2ae9b32a7df88a0e71464658febd99e6
+    image: dr2.rbkmoney.com/rbkmoney/dominant:1313973ee38e30116d14aa007cdf551f702900f5
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -105,7 +107,7 @@ services:
       retries: 10
 
   shumway:
-    image: dr2.rbkmoney.com/rbkmoney/shumway:d36bcf5eb8b1dbba634594cac11c97ae9c66db9f
+    image: dr2.rbkmoney.com/rbkmoney/shumway:658c9aec229b5a70d745a49cb938bb1a132b5ca2
     restart: unless-stopped
     entrypoint:
       - java
@@ -170,7 +172,7 @@ services:
       retries: 20
 
   holmes:
-    image: dr2.rbkmoney.com/rbkmoney/holmes:bfa6fc0428a75c9f179b89b9278ed1aedbb8b649
+    image: dr2.rbkmoney.com/rbkmoney/holmes:55e745b7c020c367bff202036af84726d66755f7
     command: /opt/holmes/scripts/cds/keyring.py init
     depends_on:
       - cds
@@ -219,7 +221,7 @@ services:
       retries: 10
 
   fistful-magista:
-    image: dr2.rbkmoney.com/rbkmoney/fistful-magista:1b87307648dc94ad956f7c803546a68f87c0c016
+    image: dr2.rbkmoney.com/rbkmoney/fistful-magista:ae8a1ccdddcf75827251d9011f4f340baaaeafa8
     restart: always
     entrypoint:
       - java

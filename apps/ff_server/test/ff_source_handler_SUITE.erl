@@ -81,7 +81,7 @@ get_source_events_ok_test(C) ->
         }},
     State = create_source_ok(Resource, C),
     ID = State#src_SourceState.id,
-    {ok, [_Event | _Rest]} = call_service('GetEvents', [ID, #'EventRange'{}]).
+    {ok, [_Event | _Rest]} = call_service('GetEvents', {ID, #'EventRange'{}}).
 
 -spec get_source_context_ok_test(config()) -> test_return().
 get_source_context_ok_test(C) ->
@@ -91,7 +91,7 @@ get_source_context_ok_test(C) ->
         }},
     State = create_source_ok(Resource, C),
     ID = State#src_SourceState.id,
-    {ok, _Context} = call_service('GetContext', [ID]).
+    {ok, _Context} = call_service('GetContext', {ID}).
 
 -spec create_source_ok_test(config()) -> test_return().
 create_source_ok_test(C) ->
@@ -104,7 +104,7 @@ create_source_ok_test(C) ->
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
     ID = <<"unknown_id">>,
-    Result = call_service('Get', [ID, #'EventRange'{}]),
+    Result = call_service('Get', {ID, #'EventRange'{}}),
     ExpectedError = #fistful_SourceNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
@@ -130,7 +130,7 @@ create_source_ok(Resource, C) ->
         external_id = ExternalId,
         metadata = Metadata
     },
-    {ok, Src} = call_service('Create', [Params, Ctx]),
+    {ok, Src} = call_service('Create', {Params, Ctx}),
     Name = Src#src_SourceState.name,
     ID = Src#src_SourceState.id,
     Resource = Src#src_SourceState.resource,
@@ -148,13 +148,13 @@ create_source_ok(Resource, C) ->
         {authorized, #src_Authorized{}},
         fun() ->
             {ok, #src_SourceState{status = Status}} =
-                call_service('Get', [ID, #'EventRange'{}]),
+                call_service('Get', {ID, #'EventRange'{}}),
             Status
         end,
         genlib_retry:linear(15, 1000)
     ),
 
-    {ok, #src_SourceState{} = State} = call_service('Get', [ID, #'EventRange'{}]),
+    {ok, #src_SourceState{} = State} = call_service('Get', {ID, #'EventRange'{}}),
     State.
 
 call_service(Fun, Args) ->

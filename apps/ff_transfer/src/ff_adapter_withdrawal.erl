@@ -140,7 +140,7 @@ id(Withdrawal) ->
     AOpt :: map().
 process_withdrawal(Adapter, Withdrawal, ASt, AOpt) ->
     DomainWithdrawal = marshal(withdrawal, Withdrawal),
-    {ok, Result} = call(Adapter, 'ProcessWithdrawal', [DomainWithdrawal, marshal(adapter_state, ASt), AOpt]),
+    {ok, Result} = call(Adapter, 'ProcessWithdrawal', {DomainWithdrawal, marshal(adapter_state, ASt), AOpt}),
     % rebind trx field
     RebindedResult = rebind_transaction_info(Result),
     decode_result(RebindedResult).
@@ -155,7 +155,7 @@ handle_callback(Adapter, Callback, Withdrawal, ASt, AOpt) ->
     DWithdrawal = marshal(withdrawal, Withdrawal),
     DCallback = marshal(callback, Callback),
     DASt = marshal(adapter_state, ASt),
-    {ok, Result} = call(Adapter, 'HandleCallback', [DCallback, DWithdrawal, DASt, AOpt]),
+    {ok, Result} = call(Adapter, 'HandleCallback', {DCallback, DWithdrawal, DASt, AOpt}),
     % rebind trx field
     RebindedResult = rebind_transaction_info(Result),
     decode_result(RebindedResult).
@@ -163,7 +163,7 @@ handle_callback(Adapter, Callback, Withdrawal, ASt, AOpt) ->
 -spec get_quote(adapter(), quote_params(), map()) -> {ok, quote()}.
 get_quote(Adapter, Params, AOpt) ->
     QuoteParams = marshal(quote_params, Params),
-    {ok, Result} = call(Adapter, 'GetQuote', [QuoteParams, AOpt]),
+    {ok, Result} = call(Adapter, 'GetQuote', {QuoteParams, AOpt}),
     decode_result(Result).
 
 %%

@@ -94,8 +94,8 @@ create_ok(C) ->
     Ctx = #{<<"TEST_NS">> => {obj, #{{str, <<"KEY">>} => {b, true}}}},
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = construct_wallet_params(ID, IdentityID, Currency, ExternalID, Metadata),
-    CreateResult = call_service('Create', [Params, Ctx]),
-    GetResult = call_service('Get', [ID, #'EventRange'{}]),
+    CreateResult = call_service('Create', {Params, Ctx}),
+    GetResult = call_service('Get', {ID, #'EventRange'{}}),
     {ok, Wallet} = GetResult,
     Account = Wallet#wlt_WalletState.account,
     CurrencyRef = Account#account_Account.currency,
@@ -114,7 +114,7 @@ create_error_identity_not_found(_C) ->
     ExternalID = genlib:unique(),
     IdentityID = genlib:unique(),
     Params = construct_wallet_params(ID, IdentityID, Currency, ExternalID),
-    Result = call_service('Create', [Params, #{}]),
+    Result = call_service('Create', {Params, #{}}),
     ?assertMatch({exception, #fistful_IdentityNotFound{}}, Result).
 
 create_error_currency_not_found(C) ->
@@ -123,7 +123,7 @@ create_error_currency_not_found(C) ->
     ID = genlib:unique(),
     IdentityID = create_person_identity(Party, C),
     Params = construct_wallet_params(ID, IdentityID, Currency),
-    Result = call_service('Create', [Params, #{}]),
+    Result = call_service('Create', {Params, #{}}),
     ?assertMatch({exception, #fistful_CurrencyNotFound{}}, Result).
 
 create_error_party_blocked(C) ->
@@ -133,7 +133,7 @@ create_error_party_blocked(C) ->
     IdentityID = create_person_identity(Party, C),
     ok = block_party(Party, C),
     Params = construct_wallet_params(ID, IdentityID, Currency),
-    Result = call_service('Create', [Params, #{}]),
+    Result = call_service('Create', {Params, #{}}),
     ?assertMatch({exception, #fistful_PartyInaccessible{}}, Result).
 
 create_error_party_suspended(C) ->
@@ -143,7 +143,7 @@ create_error_party_suspended(C) ->
     IdentityID = create_person_identity(Party, C),
     ok = suspend_party(Party, C),
     Params = construct_wallet_params(ID, IdentityID, Currency),
-    Result = call_service('Create', [Params, #{}]),
+    Result = call_service('Create', {Params, #{}}),
     ?assertMatch({exception, #fistful_PartyInaccessible{}}, Result).
 
 get_account_balance(C) ->
@@ -155,9 +155,9 @@ get_account_balance(C) ->
     Ctx = #{<<"TEST_NS">> => {obj, #{{str, <<"KEY">>} => {b, true}}}},
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Params = construct_wallet_params(ID, IdentityID, Currency, ExternalID, Metadata),
-    {ok, Wallet} = call_service('Create', [Params, Ctx]),
+    {ok, Wallet} = call_service('Create', {Params, Ctx}),
     WalletID = Wallet#wlt_WalletState.id,
-    {ok, AccountBalance} = call_service('GetAccountBalance', [WalletID]),
+    {ok, AccountBalance} = call_service('GetAccountBalance', {WalletID}),
     CurrencyRef = AccountBalance#account_AccountBalance.currency,
     Account = Wallet#wlt_WalletState.account,
     AccountID = Account#account_Account.id,
@@ -206,14 +206,14 @@ construct_usertype() ->
 
 suspend_party(Party, C) ->
     Service = {dmsl_payment_processing_thrift, 'PartyManagement'},
-    Args = [construct_userinfo(), Party],
+    Args = {construct_userinfo(), Party},
     Request = {Service, 'Suspend', Args},
     _ = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
     ok.
 
 block_party(Party, C) ->
     Service = {dmsl_payment_processing_thrift, 'PartyManagement'},
-    Args = [construct_userinfo(), Party, <<"BECAUSE">>],
+    Args = {construct_userinfo(), Party, <<"BECAUSE">>},
     Request = {Service, 'Block', Args},
     _ = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
     ok.

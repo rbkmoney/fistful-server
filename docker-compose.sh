@@ -43,6 +43,8 @@ services:
     depends_on:
       cds:
         condition: service_healthy
+      binbase:
+        condition: service_healthy
     healthcheck:
       test: "curl http://localhost:8080/"
       interval: 5s
@@ -214,7 +216,7 @@ services:
       - SERVICE_NAME=shumway-db
 
   binbase:
-    image: dr2.rbkmoney.com/rbkmoney/binbase:cb174f9ef488ba9015054377fe06495f999b191d
+    image: dr2.rbkmoney.com/rbkmoney/binbase-data:fe5b954414e5ca7b07f1cbc1d24b231b307f2cfb
     restart: always
     healthcheck:
       test: "curl http://localhost:8022/"

@@ -105,15 +105,18 @@ deposit_via_admin_ok(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', {
-        #ff_admin_SourceParams{
-            id = SrcID,
-            name = <<"HAHA NO">>,
-            identity_id = IID,
-            currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
-            resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
+    {ok, Src1} = call_admin(
+        'CreateSource',
+        {
+            #ff_admin_SourceParams{
+                id = SrcID,
+                name = <<"HAHA NO">>,
+                identity_id = IID,
+                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
+                resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
+            }
         }
-    }),
+    ),
 
     SrcID = Src1#src_Source.id,
     {authorized, #src_Authorized{}} = ct_helper:await(
@@ -125,17 +128,20 @@ deposit_via_admin_ok(C) ->
     ),
 
     % Process deposit
-    {ok, Dep1} = call_admin('CreateDeposit', {
-        #ff_admin_DepositParams{
-            id = DepID,
-            source = SrcID,
-            destination = WalID,
-            body = #'Cash'{
-                amount = 20000,
-                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+    {ok, Dep1} = call_admin(
+        'CreateDeposit',
+        {
+            #ff_admin_DepositParams{
+                id = DepID,
+                source = SrcID,
+                destination = WalID,
+                body = #'Cash'{
+                    amount = 20000,
+                    currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+                }
             }
         }
-    }),
+    ),
     DepID = Dep1#deposit_Deposit.id,
     {pending, _} = Dep1#deposit_Deposit.status,
     succeeded = ct_helper:await(
@@ -157,15 +163,18 @@ deposit_via_admin_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', {
-        #ff_admin_SourceParams{
-            id = SrcID,
-            name = <<"HAHA NO">>,
-            identity_id = IID,
-            currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
-            resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
+    {ok, Src1} = call_admin(
+        'CreateSource',
+        {
+            #ff_admin_SourceParams{
+                id = SrcID,
+                name = <<"HAHA NO">>,
+                identity_id = IID,
+                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
+                resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
+            }
         }
-    }),
+    ),
 
     SrcID = Src1#src_Source.id,
     {authorized, #src_Authorized{}} = ct_helper:await(
@@ -176,17 +185,20 @@ deposit_via_admin_fails(C) ->
         end
     ),
 
-    {ok, Dep1} = call_admin('CreateDeposit', {
-        #ff_admin_DepositParams{
-            id = DepID,
-            source = SrcID,
-            destination = WalID,
-            body = #'Cash'{
-                amount = 10000002,
-                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+    {ok, Dep1} = call_admin(
+        'CreateDeposit',
+        {
+            #ff_admin_DepositParams{
+                id = DepID,
+                source = SrcID,
+                destination = WalID,
+                body = #'Cash'{
+                    amount = 10000002,
+                    currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+                }
             }
         }
-    }),
+    ),
 
     DepID = Dep1#deposit_Deposit.id,
     {pending, _} = Dep1#deposit_Deposit.status,
@@ -210,15 +222,18 @@ deposit_via_admin_amount_fails(C) ->
     DepID = genlib:unique(),
     % Create source
 
-    {ok, _Src1} = call_admin('CreateSource', {
-        #ff_admin_SourceParams{
-            id = SrcID,
-            name = <<"HAHA NO">>,
-            identity_id = IID,
-            currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
-            resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
+    {ok, _Src1} = call_admin(
+        'CreateSource',
+        {
+            #ff_admin_SourceParams{
+                id = SrcID,
+                name = <<"HAHA NO">>,
+                identity_id = IID,
+                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
+                resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
+            }
         }
-    }),
+    ),
 
     {authorized, #src_Authorized{}} = ct_helper:await(
         {authorized, #src_Authorized{}},
@@ -228,17 +243,20 @@ deposit_via_admin_amount_fails(C) ->
         end
     ),
 
-    {exception, #ff_admin_DepositAmountInvalid{}} = call_admin('CreateDeposit', {
-        #ff_admin_DepositParams{
-            id = DepID,
-            source = SrcID,
-            destination = WalID,
-            body = #'Cash'{
-                amount = -1,
-                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+    {exception, #ff_admin_DepositAmountInvalid{}} = call_admin(
+        'CreateDeposit',
+        {
+            #ff_admin_DepositParams{
+                id = DepID,
+                source = SrcID,
+                destination = WalID,
+                body = #'Cash'{
+                    amount = -1,
+                    currency = #'CurrencyRef'{symbolic_code = <<"RUB">>}
+                }
             }
         }
-    }),
+    ),
     ok = await_wallet_balance({0, <<"RUB">>}, WalID).
 
 deposit_via_admin_currency_fails(C) ->
@@ -249,15 +267,18 @@ deposit_via_admin_currency_fails(C) ->
     SrcID = genlib:unique(),
     DepID = genlib:unique(),
     % Create source
-    {ok, Src1} = call_admin('CreateSource', {
-        #ff_admin_SourceParams{
-            id = SrcID,
-            name = <<"HAHA NO">>,
-            identity_id = IID,
-            currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
-            resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
+    {ok, Src1} = call_admin(
+        'CreateSource',
+        {
+            #ff_admin_SourceParams{
+                id = SrcID,
+                name = <<"HAHA NO">>,
+                identity_id = IID,
+                currency = #'CurrencyRef'{symbolic_code = <<"RUB">>},
+                resource = {internal, #src_Internal{details = <<"Infinite source of cash">>}}
+            }
         }
-    }),
+    ),
 
     SrcID = Src1#src_Source.id,
     {authorized, #src_Authorized{}} = ct_helper:await(
@@ -268,17 +289,20 @@ deposit_via_admin_currency_fails(C) ->
         end
     ),
     BadCurrency = <<"CAT">>,
-    {exception, #ff_admin_DepositCurrencyInvalid{}} = call_admin('CreateDeposit', {
-        #ff_admin_DepositParams{
-            id = DepID,
-            source = SrcID,
-            destination = WalID,
-            body = #'Cash'{
-                amount = 1000,
-                currency = #'CurrencyRef'{symbolic_code = BadCurrency}
+    {exception, #ff_admin_DepositCurrencyInvalid{}} = call_admin(
+        'CreateDeposit',
+        {
+            #ff_admin_DepositParams{
+                id = DepID,
+                source = SrcID,
+                destination = WalID,
+                body = #'Cash'{
+                    amount = 1000,
+                    currency = #'CurrencyRef'{symbolic_code = BadCurrency}
+                }
             }
         }
-    }),
+    ),
 
     ok = await_wallet_balance({0, <<"RUB">>}, WalID).
 

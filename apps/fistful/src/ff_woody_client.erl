@@ -66,12 +66,6 @@ call(ServiceIdOrClient, Request) ->
 call(ServiceID, Request, Context) when is_atom(ServiceID) ->
     call(get_service_client(ServiceID), Request, Context);
 call(Client, Request, Context) when is_map(Client) ->
-    do_woody_call(Request, Client, Context).
-
-do_woody_call({Service, Func, Args}, Client, Context) when is_list(Args) ->
-    ArgsTuple = list_to_tuple(Args),
-    do_woody_call({Service, Func, ArgsTuple}, Client, Context);
-do_woody_call(Request, Client, Context) ->
     woody_client:call(Request, Client, Context).
 
 %%

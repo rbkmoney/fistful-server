@@ -514,7 +514,7 @@ prepare_standard_environment_with_withdrawal(Cash, C) ->
         body = Cash,
         external_id = ExternalID
     },
-    {ok, _WithdrawalState} = call_withdrawal('Create', [Params, EncodedContext]),
+    {ok, _WithdrawalState} = call_withdrawal('Create', {Params, EncodedContext}),
     succeeded = await_final_withdrawal_status(WithdrawalID),
     Env#{
         withdrawal_id => WithdrawalID,

@@ -60,15 +60,14 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
             {AcceptedRoutes, RejectedRoutes} = prohibited_candidates_filter(
                 PermittedCandidates,
                 ProhibitedCandidates,
-                VS,
                 Revision
             ),
             {AcceptedRoutes, RejectedContext#{rejected_routes => RejectedRoutes}}
     end.
 
--spec prohibited_candidates_filter([candidate()], [candidate()], varset(), revision()) ->
+-spec prohibited_candidates_filter([candidate()], [candidate()], revision()) ->
     {[route()], [rejected_route()]}.
-prohibited_candidates_filter(Candidates, ProhibitedCandidates, VS, Revision) ->
+prohibited_candidates_filter(Candidates, ProhibitedCandidates, Revision) ->
     ProhibitionTable = lists:foldl(
         fun(C, Acc) ->
             Acc#{get_terminal_ref(C) => get_description(C)}
@@ -78,7 +77,7 @@ prohibited_candidates_filter(Candidates, ProhibitedCandidates, VS, Revision) ->
     ),
     lists:foldl(
         fun(C, {Accepted, Rejected}) ->
-            Route = decode_candidate(C, VS, Revision),
+            Route = decode_candidate(C, Revision),
             #{
                 terminal_ref := TerminalRef,
                 provider_ref := ProviderRef
@@ -113,8 +112,8 @@ get_providers(Routes) ->
         Routes
     ).
 
--spec decode_candidate(candidate(), varset(), revision()) -> route().
-decode_candidate(Candidate, _VS, Revision) ->
+-spec decode_candidate(candidate(), revision()) -> route().
+decode_candidate(Candidate, Revision) ->
     TerminalRef = Candidate#domain_RoutingCandidate.terminal,
     TerminalID = TerminalRef#domain_TerminalRef.id,
     Terminal = unwrap(ff_domain_config:object(Revision, {terminal, TerminalRef})),

@@ -16,12 +16,12 @@
 -type candidate_description() :: binary() | undefined.
 
 -type route() :: #{
-    provider        := dmsl_domain_thrift:'Provider'(),
-    provider_ref    := provider_ref(),
-    provider_id     := id(),
-    terminal        := dmsl_domain_thrift:'Terminal'(),
-    terminal_ref    := terminal_ref(),
-    terminal_id     := id()
+    provider := dmsl_domain_thrift:'Provider'(),
+    provider_ref := provider_ref(),
+    provider_id := id(),
+    terminal := dmsl_domain_thrift:'Terminal'(),
+    terminal_ref := terminal_ref(),
+    terminal_id := id()
 }.
 
 -type reject_context() :: #{
@@ -39,8 +39,7 @@
 
 %%
 
--spec gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) ->
-    {[route()], reject_context()}.
+-spec gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) -> {[route()], reject_context()}.
 gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     RejectedContext = #{
         varset => VS,
@@ -58,7 +57,7 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
             {ok, DenyRuleSet} = ff_party:compute_routing_ruleset(Prohibitions, VS, Revision),
             {candidates, PermittedCandidates} = PermitRuleSet#domain_RoutingRuleset.decisions,
             {candidates, ProhibitedCandidates} = DenyRuleSet#domain_RoutingRuleset.decisions,
-            {AcceptedRoutes, RejectedRoutes}  = prohibited_candidates_filter(
+            {AcceptedRoutes, RejectedRoutes} = prohibited_candidates_filter(
                 PermittedCandidates,
                 ProhibitedCandidates,
                 VS,
@@ -103,8 +102,7 @@ get_terminal_ref(Candidate) ->
 get_description(Candidate) ->
     Candidate#domain_RoutingCandidate.description.
 
--spec get_providers([route()]) ->
-    [id()].
+-spec get_providers([route()]) -> [id()].
 get_providers(Routes) ->
     lists:foldl(
         fun(R, Acc) ->
@@ -115,8 +113,7 @@ get_providers(Routes) ->
         Routes
     ).
 
--spec decode_candidate(candidate(), varset(), revision()) ->
-    route().
+-spec decode_candidate(candidate(), varset(), revision()) -> route().
 decode_candidate(Candidate, _VS, Revision) ->
     TerminalRef = Candidate#domain_RoutingCandidate.terminal,
     TerminalID = TerminalRef#domain_TerminalRef.id,
@@ -125,10 +122,10 @@ decode_candidate(Candidate, _VS, Revision) ->
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Provider = unwrap(ff_domain_config:object(Revision, {provider, ProviderRef})),
     #{
-        provider        => Provider,
-        provider_ref    => ProviderRef,
-        provider_id     => ProviderID,
-        terminal        => Terminal,
-        terminal_ref    => TerminalRef,
-        terminal_id     => TerminalID
+        provider => Provider,
+        provider_ref => ProviderRef,
+        provider_id => ProviderID,
+        terminal => Terminal,
+        terminal_ref => TerminalRef,
+        terminal_id => TerminalID
     }.

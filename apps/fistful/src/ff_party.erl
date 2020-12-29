@@ -287,8 +287,9 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, Domain
     RoutingRulesetRef :: routing_ruleset_ref(),
     Varset :: hg_selector:varset(),
     DomainRevision :: domain_revision(),
-    Result :: {ok, routing_ruleset()}.%% TODO: | {error, Error},
-    %% Error :: ... ().
+    %% TODO: | {error, Error},
+    Result :: {ok, routing_ruleset()}.
+%% Error :: ... ().
 
 compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
     DomainVarset = encode_varset(Varset),

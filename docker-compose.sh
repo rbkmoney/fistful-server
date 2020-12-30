@@ -43,6 +43,8 @@ services:
     depends_on:
       cds:
         condition: service_healthy
+      binbase:
+        condition: service_healthy
     healthcheck:
       test: "curl http://localhost:8080/"
       interval: 5s
@@ -71,17 +73,19 @@ services:
   adapter-mocketbank:
     depends_on:
       - cds
-    image: dr2.rbkmoney.com/rbkmoney/proxy-mocketbank:91953e1e9874a851816474b47ad0f123c7c936d1
+    image: dr2.rbkmoney.com/rbkmoney/proxy-mocketbank:39131ebc714c9a97c692e8c6b656a5938b6ba545
     command: |
       java
-      -Xms64m -Xmx256m
-      -jar /opt/proxy-mocketbank/proxy-mocketbank.jar
-      --logging.file=/var/log/proxy-mocketbank/proxy-mocketbank.json
-      --server.secondary.ports=8080
-      --server.port=8022
-      --cds.url.storage=http://cds:8022/v1/storage
-      --cds.url.idStorage=http://cds:8022/v1/identity_document_storage
-      --hellgate.url=http://hellgate:8022/v1/proxyhost/provider
+        -Xms64m -Xmx256m
+        -jar /opt/proxy-mocketbank/proxy-mocketbank.jar
+        --logging.file=/var/log/proxy-mocketbank/proxy-mocketbank.json
+        --server.rest.port=8080
+        --server.port=8022
+        --cds.client.storage.url=http://cds:8022/v2/storage
+        --cds.client.identity-document-storage.url=http://cds:8022/v1/identity_document_storage
+        --hellgate.client.adapter.url=http://hellgate:8022/v1/proxyhost/provider
+        --fistful.client.adapter.url=http://wapi:8022/v1/ff_p2p_adapter_host
+
     working_dir: /opt/proxy-mocketbank
     volumes:
         - ./test/log/proxy-mocketbank:/var/log/proxy-mocketbank
@@ -212,7 +216,7 @@ services:
       - SERVICE_NAME=shumway-db
 
   binbase:
-    image: dr2.rbkmoney.com/rbkmoney/binbase:cb174f9ef488ba9015054377fe06495f999b191d
+    image: dr2.rbkmoney.com/rbkmoney/binbase-data:fe5b954414e5ca7b07f1cbc1d24b231b307f2cfb
     restart: always
     healthcheck:
       test: "curl http://localhost:8022/"

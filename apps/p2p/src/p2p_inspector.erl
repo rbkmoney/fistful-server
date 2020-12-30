@@ -88,7 +88,7 @@ create_request(P2PTransfer, RiskTypes, Options) ->
         info = encode_transfer_info(P2PTransfer),
         options = Options
     },
-    Args = [Context, RiskTypes],
+    Args = {Context, RiskTypes},
     {{dmsl_proxy_inspector_p2p_thrift, 'InspectorProxy'}, 'InspectTransfer', Args}.
 
 encode_transfer_info(P2PTransfer) ->

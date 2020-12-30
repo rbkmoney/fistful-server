@@ -36,7 +36,7 @@ create_report(
                 from_time => get_time(<<"fromTime">>, ReportParams),
                 to_time => get_time(<<"toTime">>, ReportParams)
             }),
-            Call = {fistful_report, 'GenerateReport', [Req, maps:get(<<"reportType">>, ReportParams)]},
+            Call = {fistful_report, 'GenerateReport', {Req, maps:get(<<"reportType">>, ReportParams)}},
             case wapi_handler_utils:service_call(Call, HandlerContext) of
                 {ok, ReportID} ->
                     get_report(contractID, ReportID, ContractID, HandlerContext);
@@ -66,7 +66,7 @@ get_report(identityID, ReportID, IdentityID, HandlerContext) ->
     end;
 get_report(contractID, ReportID, ContractID, HandlerContext) ->
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
-    Call = {fistful_report, 'GetReport', [PartyID, ContractID, ReportID]},
+    Call = {fistful_report, 'GetReport', {PartyID, ContractID, ReportID}},
     case wapi_handler_utils:service_call(Call, HandlerContext) of
         {ok, Report} ->
             {ok, unmarshal_report(Report)};
@@ -89,7 +89,7 @@ get_reports(#{identityID := IdentityID} = Params, HandlerContext) ->
                 from_time => get_time(fromTime, Params),
                 to_time => get_time(toTime, Params)
             }),
-            Call = {fistful_report, 'GetReports', [Req, [genlib:to_binary(maps:get(type, Params))]]},
+            Call = {fistful_report, 'GetReports', {Req, [genlib:to_binary(maps:get(type, Params))]}},
             case wapi_handler_utils:service_call(Call, HandlerContext) of
                 {ok, ReportList} ->
                     {ok, unmarshal_reports(ReportList)};
@@ -107,7 +107,7 @@ get_reports(#{identityID := IdentityID} = Params, HandlerContext) ->
         notfound.
 download_file(FileID, ExpiresAt, HandlerContext) ->
     Timestamp = wapi_utils:to_universal_time(ExpiresAt),
-    Call = {file_storage, 'GenerateDownloadUrl', [FileID, Timestamp]},
+    Call = {file_storage, 'GenerateDownloadUrl', {FileID, Timestamp}},
     case wapi_handler_utils:service_call(Call, HandlerContext) of
         {exception, #file_storage_FileNotFound{}} ->
             {error, notfound};

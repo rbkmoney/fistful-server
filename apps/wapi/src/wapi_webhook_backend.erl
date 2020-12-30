@@ -27,7 +27,7 @@ create_webhook(#{'Webhook' := Params}, HandlerContext) ->
         ok ->
             case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
                 ok ->
-                    Call = {webhook_manager, 'Create', [WebhookParams]},
+                    Call = {webhook_manager, 'Create', {WebhookParams}},
                     Result = wapi_handler_utils:service_call(Call, HandlerContext),
                     process_create_webhook_result(Result);
                 {error, Error} ->
@@ -44,7 +44,7 @@ create_webhook(#{'Webhook' := Params}, HandlerContext) ->
 get_webhooks(IdentityID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            Call = {webhook_manager, 'GetList', [IdentityID]},
+            Call = {webhook_manager, 'GetList', {IdentityID}},
             Result = wapi_handler_utils:service_call(Call, HandlerContext),
             process_get_webhooks_result(Result);
         {error, Error} ->
@@ -64,7 +64,7 @@ get_webhook(WebhookID, IdentityID, HandlerContext) ->
                 {error, notfound} ->
                     {error, {webhook, notfound}};
                 EncodedID ->
-                    Call = {webhook_manager, 'Get', [EncodedID]},
+                    Call = {webhook_manager, 'Get', {EncodedID}},
                     Result = wapi_handler_utils:service_call(Call, HandlerContext),
                     process_get_webhook_result(Result)
             end;
@@ -84,7 +84,7 @@ delete_webhook(WebhookID, IdentityID, HandlerContext) ->
                 {error, notfound} ->
                     {error, {webhook, notfound}};
                 EncodedID ->
-                    Call = {webhook_manager, 'Delete', [EncodedID]},
+                    Call = {webhook_manager, 'Delete', {EncodedID}},
                     Result = wapi_handler_utils:service_call(Call, HandlerContext),
                     process_delete_webhook_result(Result)
             end;

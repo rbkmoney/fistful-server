@@ -97,7 +97,7 @@ create_adjustment_ok_test(C) ->
             }},
         external_id = ExternalID
     },
-    {ok, AdjustmentState} = call_w2w('CreateAdjustment', [ID, Params]),
+    {ok, AdjustmentState} = call_w2w('CreateAdjustment', {ID, Params}),
     ExpectedAdjustment = get_adjustment(ID, AdjustmentID),
 
     ?assertEqual(AdjustmentID, AdjustmentState#w2w_adj_AdjustmentState.id),
@@ -126,7 +126,7 @@ get_w2w_transfer_context_ok_test(C) ->
         w2w_transfer_id := ID,
         context := Ctx
     } = prepare_standard_environment(Cash, C),
-    {ok, Context} = call_w2w('GetContext', [ID]),
+    {ok, Context} = call_w2w('GetContext', {ID}),
     ?assertEqual(Ctx, Context).
 
 -spec check_balance_w2w_transfer_ok_test(config()) -> test_return().
@@ -136,7 +136,7 @@ check_balance_w2w_transfer_ok_test(C) ->
         w2w_transfer_id := ID,
         wallet_to_id := WalletID2
     } = prepare_standard_environment(Cash, C),
-    {ok, _W2WTransferState} = call_w2w('Get', [ID, #'EventRange'{}]),
+    {ok, _W2WTransferState} = call_w2w('Get', {ID, #'EventRange'{}}),
     ok = await_wallet_balance({200, <<"RUB">>}, WalletID2).
 
 -spec get_w2w_transfer_ok_test(config()) -> test_return().
@@ -145,7 +145,7 @@ get_w2w_transfer_ok_test(C) ->
     #{
         w2w_transfer_id := ID
     } = prepare_standard_environment(Cash, C),
-    {ok, W2WTransferState} = call_w2w('Get', [ID, #'EventRange'{}]),
+    {ok, W2WTransferState} = call_w2w('Get', {ID, #'EventRange'{}}),
     ?assertEqual(ID, W2WTransferState#w2w_transfer_W2WTransferState.id).
 
 -spec create_w2w_transfer_ok_test(config()) -> test_return().
@@ -167,7 +167,7 @@ create_w2w_transfer_ok_test(C) ->
         external_id = ExternalID,
         metadata = Metadata
     },
-    {ok, W2WTransferState} = call_w2w('Create', [Params, Ctx]),
+    {ok, W2WTransferState} = call_w2w('Create', {Params, Ctx}),
 
     Expected = get_w2w_transfer(W2WTransferID),
     ?assertEqual(W2WTransferID, W2WTransferState#w2w_transfer_W2WTransferState.id),
@@ -190,7 +190,7 @@ create_w2w_transfer_ok_test(C) ->
 -spec unknown_test(config()) -> test_return().
 unknown_test(_C) ->
     ID = <<"unknown_id">>,
-    Result = call_w2w('Get', [ID, #'EventRange'{}]),
+    Result = call_w2w('Get', {ID, #'EventRange'{}}),
     ExpectedError = #fistful_W2WNotFound{},
     ?assertEqual({exception, ExpectedError}, Result).
 
@@ -264,7 +264,7 @@ prepare_standard_environment(Body, C) ->
         external_id = ExternalID,
         metadata = Metadata
     },
-    {ok, _State} = call_w2w('Create', [Params, Ctx]),
+    {ok, _State} = call_w2w('Create', {Params, Ctx}),
     succeeded = await_final_w2w_transfer_status(W2WTransferID),
     #{
         identity_id => IdentityID,
@@ -327,7 +327,7 @@ set_wallet_balance({Amount, Currency}, ID) ->
 
 create_account(CurrencyCode) ->
     Description = <<"ff_test">>,
-    case call_accounter('CreateAccount', [construct_account_prototype(CurrencyCode, Description)]) of
+    case call_accounter('CreateAccount', {construct_account_prototype(CurrencyCode, Description)}) of
         {ok, Result} ->
             {ok, Result};
         {exception, Exception} ->

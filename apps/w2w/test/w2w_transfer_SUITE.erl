@@ -371,7 +371,7 @@ generate_id() ->
 
 create_account(CurrencyCode) ->
     Description = <<"ff_test">>,
-    case call_accounter('CreateAccount', [construct_account_prototype(CurrencyCode, Description)]) of
+    case call_accounter('CreateAccount', {construct_account_prototype(CurrencyCode, Description)}) of
         {ok, Result} ->
             {ok, Result};
         {exception, Exception} ->

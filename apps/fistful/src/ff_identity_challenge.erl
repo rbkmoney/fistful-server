@@ -224,7 +224,7 @@ apply_event({status_changed, S}, Challenge) ->
 -include_lib("id_proto/include/id_proto_identification_thrift.hrl").
 
 deduce_identity_id(Proofs) ->
-    case call('GetIdentityID', [encode({list, identity_document}, Proofs)]) of
+    case call('GetIdentityID', {encode({list, identity_document}, Proofs)}) of
         {ok, IdentityID} ->
             {ok, decode(identity_id, IdentityID)};
         {exception, #identity_IdentityDocumentNotFound{}} ->
@@ -234,7 +234,7 @@ deduce_identity_id(Proofs) ->
     end.
 
 create_claim(MasterID, TargetLevel, Claimant, Proofs) ->
-    case call('CreateClaim', [encode(identity_claim_params, {MasterID, TargetLevel, Claimant, Proofs})]) of
+    case call('CreateClaim', {encode(identity_claim_params, {MasterID, TargetLevel, Claimant, Proofs})}) of
         {ok, #identity_IdentityClaim{id = ID}} ->
             {ok, decode(identity_claim_id, ID)};
         {exception, #identity_ClaimPending{}} ->
@@ -248,7 +248,7 @@ create_claim(MasterID, TargetLevel, Claimant, Proofs) ->
     end.
 
 get_claim_status(ClaimID) ->
-    case call('GetClaim', [encode(identity_claim_id, ClaimID)]) of
+    case call('GetClaim', {encode(identity_claim_id, ClaimID)}) of
         {ok, #identity_IdentityClaim{status = Status}} ->
             {ok, decode(identity_claim_status, Status)};
         {exception, #identity_ClaimNotFound{}} ->

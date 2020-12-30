@@ -23,7 +23,7 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [Params, Ctx], Opts) ->
+handle_function_('Create', {Params, Ctx}, Opts) ->
     ID = Params#src_SourceParams.id,
     ok = scoper:add_meta(#{id => ID}),
     case
@@ -33,7 +33,7 @@ handle_function_('Create', [Params, Ctx], Opts) ->
         )
     of
         ok ->
-            handle_function_('Get', [ID, #'EventRange'{}], Opts);
+            handle_function_('Get', {ID, #'EventRange'{}}, Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {currency, notfound}} ->
@@ -41,11 +41,11 @@ handle_function_('Create', [Params, Ctx], Opts) ->
         {error, {party, _Inaccessible}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
         {error, exists} ->
-            handle_function_('Get', [ID, #'EventRange'{}], Opts);
+            handle_function_('Get', {ID, #'EventRange'{}}, Opts);
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Get', [ID, EventRange], _Opts) ->
+handle_function_('Get', {ID, EventRange}, _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_source_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
@@ -56,7 +56,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_SourceNotFound{})
     end;
-handle_function_('GetContext', [ID], _Opts) ->
+handle_function_('GetContext', {ID}, _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_source_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
@@ -65,7 +65,7 @@ handle_function_('GetContext', [ID], _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_SourceNotFound{})
     end;
-handle_function_('GetEvents', [ID, EventRange], _Opts) ->
+handle_function_('GetEvents', {ID, EventRange}, _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_source_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Events} ->

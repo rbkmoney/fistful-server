@@ -24,16 +24,16 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
+handle_function_('Create', {MarshaledParams, MarshaledContext}, Opts) ->
     W2WTransferID = MarshaledParams#w2w_transfer_W2WTransferParams.id,
     Params = ff_w2w_transfer_codec:unmarshal_w2w_transfer_params(MarshaledParams),
     Context = ff_w2w_transfer_codec:unmarshal(ctx, MarshaledContext),
     ok = scoper:add_meta(maps:with([id, wallet_from_id, wallet_to_id, external_id], Params)),
     case w2w_transfer_machine:create(Params, Context) of
         ok ->
-            handle_function_('Get', [W2WTransferID, #'EventRange'{}], Opts);
+            handle_function_('Get', {W2WTransferID, #'EventRange'{}}, Opts);
         {error, exists} ->
-            handle_function_('Get', [W2WTransferID, #'EventRange'{}], Opts);
+            handle_function_('Get', {W2WTransferID, #'EventRange'{}}, Opts);
         {error, {wallet_from, notfound}} ->
             woody_error:raise(business, #fistful_WalletNotFound{
                 id = MarshaledParams#w2w_transfer_W2WTransferParams.wallet_from_id
@@ -70,7 +70,7 @@ handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Get', [ID, EventRange], _Opts) ->
+handle_function_('Get', {ID, EventRange}, _Opts) ->
     {After, Limit} = ff_codec:unmarshal(event_range, EventRange),
     ok = scoper:add_meta(#{id => ID}),
     case w2w_transfer_machine:get(ID, {After, Limit}) of
@@ -82,7 +82,7 @@ handle_function_('Get', [ID, EventRange], _Opts) ->
         {error, {unknown_w2w_transfer, _Ref}} ->
             woody_error:raise(business, #fistful_W2WNotFound{})
     end;
-handle_function_('GetContext', [ID], _Opts) ->
+handle_function_('GetContext', {ID}, _Opts) ->
     case w2w_transfer_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
             Ctx = w2w_transfer_machine:ctx(Machine),
@@ -91,7 +91,7 @@ handle_function_('GetContext', [ID], _Opts) ->
         {error, {unknown_w2w_transfer, _Ref}} ->
             woody_error:raise(business, #fistful_W2WNotFound{})
     end;
-handle_function_('CreateAdjustment', [ID, MarshaledParams], _Opts) ->
+handle_function_('CreateAdjustment', {ID, MarshaledParams}, _Opts) ->
     Params = ff_w2w_transfer_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
     ok = scoper:add_meta(

@@ -81,7 +81,7 @@ create_identity_ok(_C) ->
     Metadata = ff_entity_context_codec:marshal(#{<<"metadata">> => #{<<"some key">> => <<"some data">>}}),
     Identity = create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx, Metadata),
     IID = Identity#idnt_IdentityState.id,
-    {ok, Identity_} = call_api('Get', [IID, #'EventRange'{}]),
+    {ok, Identity_} = call_api('Get', {IID, #'EventRange'{}}),
 
     ProvID = Identity_#idnt_IdentityState.provider_id,
     IID = Identity_#idnt_IdentityState.id,
@@ -109,7 +109,7 @@ run_challenge_ok(C) ->
 
     IID = IdentityState#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
-    {ok, Challenge} = call_api('StartChallenge', [IID, Params2]),
+    {ok, Challenge} = call_api('StartChallenge', {IID, Params2}),
 
     ChallengeID = Challenge#idnt_ChallengeState.id,
     ChlClassID = Challenge#idnt_ChallengeState.cls,
@@ -129,7 +129,7 @@ get_challenge_event_ok(C) ->
 
     IID = Identity#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, IID, C),
-    {ok, _} = call_api('StartChallenge', [IID, Params2]),
+    {ok, _} = call_api('StartChallenge', {IID, Params2}),
     Range = #'EventRange'{
         limit = 1000,
         'after' = undefined
@@ -148,12 +148,12 @@ get_challenge_event_ok(C) ->
     {completed, #idnt_ChallengeCompleted{resolution = approved}} = ct_helper:await(
         {completed, #idnt_ChallengeCompleted{resolution = approved}},
         fun() ->
-            {ok, Events} = call_api('GetEvents', [IID, Range]),
+            {ok, Events} = call_api('GetEvents', {IID, Range}),
             lists:foldl(FindStatusChanged, undefined, Events)
         end,
         genlib_retry:linear(10, 1000)
     ),
-    {ok, Identity2} = call_api('Get', [IID, #'EventRange'{}]),
+    {ok, Identity2} = call_api('Get', {IID, #'EventRange'{}}),
     ?assertNotEqual(undefined, Identity2#idnt_IdentityState.effective_challenge_id),
     ?assertNotEqual(undefined, Identity2#idnt_IdentityState.level_id).
 
@@ -169,7 +169,7 @@ get_event_unknown_identity_ok(_C) ->
         limit = 1,
         'after' = undefined
     },
-    {exception, {fistful_IdentityNotFound}} = call_api('GetEvents', [<<"bad id">>, Range]).
+    {exception, {fistful_IdentityNotFound}} = call_api('GetEvents', {<<"bad id">>, Range}).
 
 start_challenge_token_fail(C) ->
     Ctx = #{<<"NS">> => #{}},
@@ -193,7 +193,7 @@ start_challenge_token_fail(C) ->
         proofs = Proofs
     },
     {exception, #fistful_ProofNotFound{}} =
-        call_api('StartChallenge', [IID, Params]).
+        call_api('StartChallenge', {IID, Params}).
 
 get_challenges_ok(C) ->
     Context = #{<<"NS">> => nil},
@@ -208,8 +208,8 @@ get_challenges_ok(C) ->
 
     IID = Identity#idnt_IdentityState.id,
     Params2 = gen_challenge_param(ChlClassID, ChallengeID, C),
-    {ok, Challenge} = call_api('StartChallenge', [IID, Params2]),
-    {ok, Challenges} = call_api('GetChallenges', [IID]),
+    {ok, Challenge} = call_api('StartChallenge', {IID, Params2}),
+    {ok, Challenges} = call_api('GetChallenges', {IID}),
     CID = Challenge#idnt_ChallengeState.id,
     [Chl] = lists:filter(
         fun(Item) ->
@@ -239,7 +239,7 @@ create_identity(EID, Name, PartyID, ProvID, ClassID, Ctx, Metadata) ->
     Context = ff_entity_context_codec:marshal(Ctx#{
         <<"com.rbkmoney.wapi">> => #{<<"name">> => Name}
     }),
-    {ok, IdentityState} = call_api('Create', [Params, Context]),
+    {ok, IdentityState} = call_api('Create', {Params, Context}),
     IdentityState.
 
 gen_challenge_param(ClgClassID, ChallengeID, C) ->

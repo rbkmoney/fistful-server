@@ -590,6 +590,6 @@ get_p2p_session_adapter_state(SessionID) ->
 call_host(Callback) ->
     Service = {dmsl_p2p_adapter_thrift, 'P2PAdapterHost'},
     Function = 'ProcessCallback',
-    Args = [Callback],
+    Args = {Callback},
     Request = {Service, Function, Args},
     ff_woody_client:call(ff_p2p_adapter_host, Request).

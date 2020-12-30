@@ -13,13 +13,13 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function('GetByCardToken', [<<"TEST_NOTFOUND">>], _Context, _Opts) ->
+handle_function('GetByCardToken', {<<"TEST_NOTFOUND">>}, _Context, _Opts) ->
     woody_error:raise(business, #binbase_BinNotFound{});
-handle_function('GetByCardToken', [<<"TEST_NOTFOUND_SENDER">>], _Context, _Opts) ->
+handle_function('GetByCardToken', {<<"TEST_NOTFOUND_SENDER">>}, _Context, _Opts) ->
     woody_error:raise(business, #binbase_BinNotFound{});
-handle_function('GetByCardToken', [<<"TEST_NOTFOUND_RECEIVER">>], _Context, _Opts) ->
+handle_function('GetByCardToken', {<<"TEST_NOTFOUND_RECEIVER">>}, _Context, _Opts) ->
     woody_error:raise(business, #binbase_BinNotFound{});
-handle_function('GetByCardToken', [<<"USD_COUNTRY">>], _Context, _Opts) ->
+handle_function('GetByCardToken', {<<"USD_COUNTRY">>}, _Context, _Opts) ->
     {ok, #binbase_ResponseData{
         bin_data = #binbase_BinData{
             payment_system = <<"VISA">>,
@@ -29,7 +29,7 @@ handle_function('GetByCardToken', [<<"USD_COUNTRY">>], _Context, _Opts) ->
         },
         version = 1
     }};
-handle_function('GetByCardToken', [<<"NSPK MIR">>], _Context, _Opts) ->
+handle_function('GetByCardToken', {<<"NSPK MIR">>}, _Context, _Opts) ->
     {ok, #binbase_ResponseData{
         bin_data = #binbase_BinData{
             payment_system = <<"NSPK MIR">>,
@@ -39,7 +39,7 @@ handle_function('GetByCardToken', [<<"NSPK MIR">>], _Context, _Opts) ->
         },
         version = 1
     }};
-handle_function('GetByCardToken', [_Token], _Context, _Opts) ->
+handle_function('GetByCardToken', {_Token}, _Context, _Opts) ->
     {ok, #binbase_ResponseData{
         bin_data = #binbase_BinData{
             payment_system = <<"VISA">>,
@@ -49,7 +49,7 @@ handle_function('GetByCardToken', [_Token], _Context, _Opts) ->
         },
         version = 1
     }};
-handle_function('GetByBinDataId', [ID], _Context, _Opts) ->
+handle_function('GetByBinDataId', {ID}, _Context, _Opts) ->
     {ok, #binbase_ResponseData{
         bin_data = #binbase_BinData{
             payment_system = <<"VISA">>,

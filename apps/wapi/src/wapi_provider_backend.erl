@@ -20,7 +20,7 @@
 -spec get_providers([binary()], handler_context()) -> [map()].
 get_providers(Residences, HandlerContext) ->
     ResidenceSet = ordsets:from_list(Residences),
-    Request = {fistful_provider, 'ListProviders', []},
+    Request = {fistful_provider, 'ListProviders', {}},
     {ok, Providers} = wapi_handler_utils:service_call(Request, HandlerContext),
     [
         P
@@ -71,7 +71,7 @@ get_provider_identity_class_level(_ProviderID, _ClassID, _LevelID, _HandlerConte
 %% Internal
 
 get_provider_thrift(ProviderID, HandlerContext) ->
-    Request = {fistful_provider, 'GetProvider', [ProviderID]},
+    Request = {fistful_provider, 'GetProvider', {ProviderID}},
     case wapi_handler_utils:service_call(Request, HandlerContext) of
         {ok, _} = Result ->
             Result;

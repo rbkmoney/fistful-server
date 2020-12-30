@@ -52,7 +52,7 @@ check_resource_by_id(Resource, ID, HandlerContext) ->
 %%
 
 get_context_by_id(identity, IdentityID, WoodyCtx) ->
-    Request = {fistful_identity, 'GetContext', [IdentityID]},
+    Request = {fistful_identity, 'GetContext', {IdentityID}},
     case wapi_handler_utils:service_call(Request, WoodyCtx) of
         {ok, Context} ->
             Context;
@@ -60,7 +60,7 @@ get_context_by_id(identity, IdentityID, WoodyCtx) ->
             {error, notfound}
     end;
 get_context_by_id(wallet, WalletID, WoodyCtx) ->
-    Request = {fistful_wallet, 'GetContext', [WalletID]},
+    Request = {fistful_wallet, 'GetContext', {WalletID}},
     case wapi_handler_utils:service_call(Request, WoodyCtx) of
         {ok, Context} ->
             Context;
@@ -68,7 +68,7 @@ get_context_by_id(wallet, WalletID, WoodyCtx) ->
             {error, notfound}
     end;
 get_context_by_id(destination, DestinationID, WoodyCtx) ->
-    Request = {fistful_destination, 'GetContext', [DestinationID]},
+    Request = {fistful_destination, 'GetContext', {DestinationID}},
     case wapi_handler_utils:service_call(Request, WoodyCtx) of
         {ok, Context} ->
             Context;
@@ -76,7 +76,7 @@ get_context_by_id(destination, DestinationID, WoodyCtx) ->
             {error, notfound}
     end;
 get_context_by_id(p2p_template, TemplateID, WoodyCtx) ->
-    Request = {fistful_p2p_template, 'GetContext', [TemplateID]},
+    Request = {fistful_p2p_template, 'GetContext', {TemplateID}},
     case wapi_handler_utils:service_call(Request, WoodyCtx) of
         {ok, Context} ->
             Context;
@@ -84,7 +84,7 @@ get_context_by_id(p2p_template, TemplateID, WoodyCtx) ->
             {error, notfound}
     end;
 get_context_by_id(w2w_transfer, W2WTransferID, WoodyCtx) ->
-    Request = {fistful_w2w_transfer, 'GetContext', [W2WTransferID]},
+    Request = {fistful_w2w_transfer, 'GetContext', {W2WTransferID}},
     case wapi_handler_utils:service_call(Request, WoodyCtx) of
         {ok, Context} ->
             Context;
@@ -92,7 +92,7 @@ get_context_by_id(w2w_transfer, W2WTransferID, WoodyCtx) ->
             {error, notfound}
     end;
 get_context_by_id(p2p_transfer, P2PTransferID, WoodyCtx) ->
-    Request = {fistful_p2p_transfer, 'GetContext', [P2PTransferID]},
+    Request = {fistful_p2p_transfer, 'GetContext', {P2PTransferID}},
     case wapi_handler_utils:service_call(Request, WoodyCtx) of
         {ok, Context} ->
             Context;
@@ -100,7 +100,7 @@ get_context_by_id(p2p_transfer, P2PTransferID, WoodyCtx) ->
             {error, notfound}
     end;
 get_context_by_id(withdrawal, WithdrawalID, WoodyCtx) ->
-    Request = {fistful_withdrawal, 'GetContext', [WithdrawalID]},
+    Request = {fistful_withdrawal, 'GetContext', {WithdrawalID}},
     case wapi_handler_utils:service_call(Request, WoodyCtx) of
         {ok, Context} ->
             Context;

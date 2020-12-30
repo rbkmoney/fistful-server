@@ -140,14 +140,14 @@
 -spec process(adapter(), context()) -> {ok, process_result()}.
 process(Adapter, Context) ->
     EncodedContext = p2p_adapter_codec:marshal(context, Context),
-    {ok, Result} = call(Adapter, 'Process', [EncodedContext]),
+    {ok, Result} = call(Adapter, 'Process', {EncodedContext}),
     {ok, p2p_adapter_codec:unmarshal(process_result, Result)}.
 
 -spec handle_callback(adapter(), callback(), context()) -> {ok, handle_callback_result()}.
 handle_callback(Adapter, Callback, Context) ->
     EncodedCallback = p2p_adapter_codec:marshal(callback, Callback),
     EncodedContext = p2p_adapter_codec:marshal(context, Context),
-    {ok, Result} = call(Adapter, 'HandleCallback', [EncodedCallback, EncodedContext]),
+    {ok, Result} = call(Adapter, 'HandleCallback', {EncodedCallback, EncodedContext}),
     {ok, p2p_adapter_codec:unmarshal(handle_callback_result, Result)}.
 
 -spec build_context(build_context_params()) -> context().
@@ -170,8 +170,8 @@ build_context(
 %% Implementation
 
 -spec call
-    (adapter(), 'Process', [any()]) -> {ok, p2p_process_result()} | no_return();
-    (adapter(), 'HandleCallback', [any()]) -> {ok, p2p_callback_result()} | no_return().
+    (adapter(), 'Process', tuple()) -> {ok, p2p_process_result()} | no_return();
+    (adapter(), 'HandleCallback', tuple()) -> {ok, p2p_callback_result()} | no_return().
 call(Adapter, Function, Args) ->
     Request = {?SERVICE, Function, Args},
     ff_woody_client:call(Adapter, Request).

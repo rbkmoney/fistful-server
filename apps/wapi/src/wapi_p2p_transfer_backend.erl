@@ -77,7 +77,7 @@ create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
             }
         ),
         MarshaledContext = marshal(context, wapi_backend_utils:make_ctx(Params, HandlerContext)),
-        Request = {fistful_p2p_transfer, 'Create', [MarshaledParams, MarshaledContext]},
+        Request = {fistful_p2p_transfer, 'Create', {MarshaledParams, MarshaledContext}},
         unwrap(create_request(Request, HandlerContext))
     end).
 
@@ -116,7 +116,7 @@ generate_id_legacy(Params, HandlerContext) ->
 
 -spec get_transfer(req_data(), handler_context()) -> {ok, response_data()} | {error, error_get()}.
 get_transfer(ID, HandlerContext) ->
-    Request = {fistful_p2p_transfer, 'Get', [ID, #'EventRange'{}]},
+    Request = {fistful_p2p_transfer, 'Get', {ID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, TransferThrift} ->
             case wapi_access_backend:check_resource(p2p_transfer, TransferThrift, HandlerContext) of
@@ -142,7 +142,7 @@ quote_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
             <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
             <<"receiver">> => Receiver#{<<"resourceThrift">> => ReceiverResource}
         }),
-        Request = {fistful_p2p_transfer, 'GetQuote', [QuoteParams]},
+        Request = {fistful_p2p_transfer, 'GetQuote', {QuoteParams}},
         unwrap(quote_transfer_request(Request, HandlerContext))
     end).
 
@@ -244,16 +244,12 @@ service_call(Params, HandlerContext) ->
 %% @doc
 %% The function returns the list of events for the specified Transfer.
 %%
-%% First get Transfer for extract the Session ID.
-%%
-%% Then, the Continuation Token is verified.  Latest EventIDs of Transfer and
-%% Session are stored in the token for possibility partial load of events.
-%%
-%% The events are retrieved no lesser ID than those stored in the token, and count
-%% is limited by wapi.events_fetch_limit option or ?DEFAULT_EVENTS_LIMIT
-%%
-%% The received events are then mixed and ordered by the time of occurrence.
-%% The resulting set is returned to the client.
+%% - get Transfer for extract the Session ID.
+%% - verify Continuation Token
+%% - take latest EventIDs of Transfer and Session from Continuation Token
+%% - event count is limited by wapi.events_fetch_limit option or ?DEFAULT_EVENTS_LIMIT
+%% - received events are then mixed and ordered by the time of occurrence
+%% - resulting set is returned to the client.
 %%
 %% @todo Now there is always only zero or one session. But there may be more than one
 %% session in the future, so the code of polling sessions and mixing results
@@ -302,7 +298,7 @@ do_get_events(ID, Token, HandlerContext) ->
 
 -spec request_session_id(id(), handler_context()) -> {ok, undefined | id()} | {error, {p2p_transfer, notfound}}.
 request_session_id(ID, HandlerContext) ->
-    Request = {fistful_p2p_transfer, 'Get', [ID, #'EventRange'{}]},
+    Request = {fistful_p2p_transfer, 'Get', {ID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, #p2p_transfer_P2PTransferState{sessions = []}} ->
             {ok, undefined};
@@ -363,7 +359,7 @@ events_collect(_EventService, _EntityID, #'EventRange'{'after' = Cursor, 'limit'
     {ok, {Acc, Cursor}};
 events_collect(EventService, EntityID, EventRange, HandlerContext, Acc) ->
     #'EventRange'{'after' = Cursor, limit = Limit} = EventRange,
-    Request = {EventService, 'GetEvents', [EntityID, EventRange]},
+    Request = {EventService, 'GetEvents', {EntityID, EventRange}},
     case events_request(Request, HandlerContext) of
         {ok, []} ->
             % the service has not returned any events, the previous cursor must be kept
@@ -385,7 +381,7 @@ events_collect(EventService, EntityID, EventRange, HandlerContext, Acc) ->
     end.
 
 -spec events_request(Request, handler_context()) -> {ok, [event()]} | {error, {p2p_transfer, notfound}} when
-    Request :: {event_service(), 'GetEvents', [id() | event_range()]}.
+    Request :: {event_service(), 'GetEvents', {id(), event_range()}}.
 events_request(Request, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Events} ->
@@ -926,10 +922,10 @@ events_collect_test_() ->
                     {ok, []};
                 ({produce_triple, 'GetEvents', _Params}, _Context) ->
                     {ok, [Event(N) || N <- lists:seq(1, 3)]};
-                ({produce_even, 'GetEvents', [_, EventRange]}, _Context) ->
+                ({produce_even, 'GetEvents', {_, EventRange}}, _Context) ->
                     #'EventRange'{'after' = After, limit = Limit} = EventRange,
                     {ok, [Event(N) || N <- lists:seq(After + 1, After + Limit), N rem 2 =:= 0]};
-                ({produce_reject, 'GetEvents', [_, EventRange]}, _Context) ->
+                ({produce_reject, 'GetEvents', {_, EventRange}}, _Context) ->
                     #'EventRange'{'after' = After, limit = Limit} = EventRange,
                     {ok, [
                         case N rem 2 of
@@ -938,7 +934,7 @@ events_collect_test_() ->
                         end
                         || N <- lists:seq(After + 1, After + Limit)
                     ]};
-                ({produce_range, 'GetEvents', [_, EventRange]}, _Context) ->
+                ({produce_range, 'GetEvents', {_, EventRange}}, _Context) ->
                     #'EventRange'{'after' = After, limit = Limit} = EventRange,
                     {ok, [Event(N) || N <- lists:seq(After + 1, After + Limit)]};
                 ({transfer_not_found, 'GetEvents', _Params}, _Context) ->

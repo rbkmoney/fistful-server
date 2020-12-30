@@ -26,7 +26,7 @@ rus_domestic_passport(C) ->
     },
     Client = ff_woody_client:new(maps:get('identdocstore', ct_helper:cfg(services, C))),
     WoodyCtx = ct_helper:get_woody_ctx(C),
-    Request = {{identdocstore_identity_document_storage_thrift, 'IdentityDocumentStorage'}, 'Put', [Document]},
+    Request = {{identdocstore_identity_document_storage_thrift, 'IdentityDocumentStorage'}, 'Put', {Document}},
     case woody_client:call(Request, Client, WoodyCtx) of
         {ok, Token} ->
             {rus_domestic_passport, Token}
@@ -42,7 +42,7 @@ rus_retiree_insurance_cert(Number, C) ->
     },
     Client = ff_woody_client:new(maps:get('identdocstore', ct_helper:cfg(services, C))),
     WoodyCtx = ct_helper:get_woody_ctx(C),
-    Request = {{identdocstore_identity_document_storage_thrift, 'IdentityDocumentStorage'}, 'Put', [Document]},
+    Request = {{identdocstore_identity_document_storage_thrift, 'IdentityDocumentStorage'}, 'Put', {Document}},
     case woody_client:call(Request, Client, WoodyCtx) of
         {ok, Token} ->
             {rus_retiree_insurance_cert, Token}

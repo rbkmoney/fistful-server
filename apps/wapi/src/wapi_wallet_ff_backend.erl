@@ -360,7 +360,7 @@ list_wallets(Params, Context) ->
     Dsl = create_stat_dsl(StatType, Params, Context),
     ContinuationToken = maps:get(continuationToken, Params, undefined),
     Req = create_stat_request(Dsl, ContinuationToken),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWallets', [Req]}, Context),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWallets', {Req}}, Context),
     process_stat_result(StatType, Result).
 
 %% Withdrawals
@@ -539,7 +539,7 @@ list_withdrawals(Params, Context) ->
     Dsl = create_stat_dsl(StatType, Params, Context),
     ContinuationToken = maps:get(continuationToken, Params, undefined),
     Req = create_stat_request(Dsl, ContinuationToken),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', [Req]}, Context),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', {Req}}, Context),
     process_stat_result(StatType, Result).
 
 -spec create_quote(params(), ctx()) ->
@@ -605,7 +605,7 @@ create_report(
             from_time => get_time(<<"fromTime">>, ReportParams),
             to_time => get_time(<<"toTime">>, ReportParams)
         }),
-        Call = {fistful_report, 'GenerateReport', [Req, maps:get(<<"reportType">>, ReportParams)]},
+        Call = {fistful_report, 'GenerateReport', {Req, maps:get(<<"reportType">>, ReportParams)}},
         case wapi_handler_utils:service_call(Call, Context) of
             {ok, ReportID} ->
                 unwrap(get_report(contractID, ReportID, ContractID, Context));
@@ -634,7 +634,7 @@ get_report(identityID, ReportID, IdentityID, Context) ->
 get_report(contractID, ReportID, ContractID, Context) ->
     do(fun() ->
         PartyID = wapi_handler_utils:get_owner(Context),
-        Call = {fistful_report, 'GetReport', [PartyID, ContractID, ReportID]},
+        Call = {fistful_report, 'GetReport', {PartyID, ContractID, ReportID}},
         case wapi_handler_utils:service_call(Call, Context) of
             {ok, Report} ->
                 to_swag(report_object, Report);
@@ -665,7 +665,7 @@ get_reports(
             from_time => get_time(fromTime, Params),
             to_time => get_time(toTime, Params)
         }),
-        Call = {fistful_report, 'GetReports', [Req, [genlib:to_binary(maps:get(type, Params))]]},
+        Call = {fistful_report, 'GetReports', {Req, [genlib:to_binary(maps:get(type, Params))]}},
         case wapi_handler_utils:service_call(Call, Context) of
             {ok, ReportList} ->
                 to_swag({list, report_object}, ReportList);
@@ -679,7 +679,7 @@ get_reports(
 -spec download_file(binary(), binary(), ctx()) -> result().
 download_file(FileID, ExpiresAt, Context) ->
     Timestamp = wapi_utils:to_universal_time(ExpiresAt),
-    Call = {file_storage, 'GenerateDownloadUrl', [FileID, Timestamp]},
+    Call = {file_storage, 'GenerateDownloadUrl', {FileID, Timestamp}},
     case wapi_handler_utils:service_call(Call, Context) of
         {exception, #file_storage_FileNotFound{}} ->
             {error, notfound};
@@ -695,7 +695,7 @@ list_deposits(Params, Context) ->
     Dsl = create_stat_dsl(StatType, Params, Context),
     ContinuationToken = maps:get(continuationToken, Params, undefined),
     Req = create_stat_request(Dsl, ContinuationToken),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', [Req]}, Context),
+    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', {Req}}, Context),
     process_stat_result(StatType, Result).
 
 %% P2P

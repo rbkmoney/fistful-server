@@ -206,14 +206,14 @@ construct_usertype() ->
 
 suspend_party(Party, C) ->
     Service = {dmsl_payment_processing_thrift, 'PartyManagement'},
-    Args = [construct_userinfo(), Party],
+    Args = {construct_userinfo(), Party},
     Request = {Service, 'Suspend', Args},
     _ = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
     ok.
 
 block_party(Party, C) ->
     Service = {dmsl_payment_processing_thrift, 'PartyManagement'},
-    Args = [construct_userinfo(), Party, <<"BECAUSE">>],
+    Args = {construct_userinfo(), Party, <<"BECAUSE">>},
     Request = {Service, 'Block', Args},
     _ = ff_woody_client:call(partymgmt, Request, ct_helper:get_woody_ctx(C)),
     ok.

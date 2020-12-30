@@ -52,8 +52,7 @@ get_history_range(EventSinkID, After, Limit, Direction, #{client := Client, sche
 
 call_eventsink(Function, EventSinkID, Args, {Client, Context}) ->
     Service = {mg_proto_state_processing_thrift, 'EventSink'},
-    ArgsTuple = list_to_tuple([EventSinkID | Args]),
-    woody_client:call({Service, Function, ArgsTuple}, Client, Context).
+    woody_client:call({Service, Function, [EventSinkID | Args]}, Client, Context).
 
 %%
 

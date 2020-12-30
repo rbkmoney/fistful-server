@@ -27,7 +27,7 @@ handle_function(Func, Args, Opts) ->
 
 -spec handle_function_('ProcessCallback', woody:args(), woody:options()) ->
     {ok, p2p_process_callback_result()} | no_return().
-handle_function_('ProcessCallback', {Callback}, _Opts) ->
+handle_function_('ProcessCallback', [Callback], _Opts) ->
     DecodedCallback = p2p_adapter_codec:unmarshal(callback, Callback),
     case p2p_session_machine:process_callback(DecodedCallback) of
         {ok, CallbackResponse} ->

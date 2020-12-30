@@ -488,7 +488,7 @@ account(SymCode, C) ->
         description = <<>>,
         creation_time = timestamp()
     },
-    Request = {{shumpune_shumpune_thrift, 'Accounter'}, 'CreateAccount', {Prototype}},
+    Request = {{shumpune_shumpune_thrift, 'Accounter'}, 'CreateAccount', [Prototype]},
     case woody_client:call(Request, Client, WoodyCtx) of
         {ok, ID} ->
             ID

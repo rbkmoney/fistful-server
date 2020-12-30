@@ -24,9 +24,6 @@ call_service(ServiceName, Function, Args, Context0, EventHandler) ->
     Retry = get_service_retry(ServiceName, Function),
     call_service(ServiceName, Function, Args, Context1, EventHandler, Retry).
 
-call_service(ServiceName, Function, Args, Context, EventHandler, Retry) when is_list(Args) ->
-    ArgsTuple = list_to_tuple(Args),
-    call_service(ServiceName, Function, ArgsTuple, Context, EventHandler, Retry);
 call_service(ServiceName, Function, Args, Context, EventHandler, Retry) ->
     Url = get_service_url(ServiceName),
     Service = get_service_modname(ServiceName),

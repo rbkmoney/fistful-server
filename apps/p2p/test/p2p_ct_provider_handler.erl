@@ -116,7 +116,7 @@ handle_function(Func, Args, Ctx, Opts) ->
 
 handle_function_(
     'Process',
-    {
+    [
         ?ADAPTER_CONTEXT(
             _Amount,
             _Token,
@@ -125,7 +125,7 @@ handle_function_(
             undefined,
             _CardholderName
         )
-    },
+    ],
     _Ctx,
     _Opts
 ) ->
@@ -136,7 +136,7 @@ handle_function_(
         )};
 handle_function_(
     'Process',
-    {
+    [
         ?ADAPTER_CONTEXT(
             _Amount,
             _Token,
@@ -145,7 +145,7 @@ handle_function_(
             _ExpDate,
             undefined
         )
-    },
+    ],
     _Ctx,
     _Opts
 ) ->
@@ -156,7 +156,7 @@ handle_function_(
         )};
 handle_function_(
     'Process',
-    {
+    [
         ?ADAPTER_CONTEXT(
             _Amount,
             _Token,
@@ -165,7 +165,7 @@ handle_function_(
             _ExpDate,
             _CardholderName
         )
-    },
+    ],
     _Ctx,
     _Opts
 ) ->
@@ -174,7 +174,7 @@ handle_function_(
             ?ADAPTER_FINISH_INTENT({failure, #domain_Failure{code = <<"unknown session id">>}}),
             undefined
         )};
-handle_function_('Process', {?ADAPTER_CONTEXT(101, _Token, State)}, _Ctx, _Opts) ->
+handle_function_('Process', [?ADAPTER_CONTEXT(101, _Token, State)], _Ctx, _Opts) ->
     case State of
         undefined ->
             {ok,
@@ -209,7 +209,7 @@ handle_function_('Process', {?ADAPTER_CONTEXT(101, _Token, State)}, _Ctx, _Opts)
                     <<"user_sleep_finished">>
                 )}
     end;
-handle_function_('Process', {?ADAPTER_CONTEXT(102, _Token, State)}, _Ctx, _Opts) ->
+handle_function_('Process', [?ADAPTER_CONTEXT(102, _Token, State)], _Ctx, _Opts) ->
     case State of
         undefined ->
             {ok,
@@ -244,7 +244,7 @@ handle_function_('Process', {?ADAPTER_CONTEXT(102, _Token, State)}, _Ctx, _Opts)
                     <<"user_sleep_finished">>
                 )}
     end;
-handle_function_('Process', {?ADAPTER_CONTEXT(99, Token, State)}, _Ctx, _Opts) ->
+handle_function_('Process', [?ADAPTER_CONTEXT(99, Token, State)], _Ctx, _Opts) ->
     case State of
         undefined ->
             {ok,
@@ -259,7 +259,7 @@ handle_function_('Process', {?ADAPTER_CONTEXT(99, Token, State)}, _Ctx, _Opts) -
                     <<"wrong_finished">>
                 )}
     end;
-handle_function_('Process', {?ADAPTER_CONTEXT(999, Token, State)}, _Ctx, _Opts) ->
+handle_function_('Process', [?ADAPTER_CONTEXT(999, Token, State)], _Ctx, _Opts) ->
     case State of
         undefined ->
             {ok,
@@ -280,13 +280,13 @@ handle_function_('Process', {?ADAPTER_CONTEXT(999, Token, State)}, _Ctx, _Opts) 
                     <<"sleep_finished">>
                 )}
     end;
-handle_function_('Process', {?ADAPTER_CONTEXT(1001)}, _Ctx, _Opts) ->
+handle_function_('Process', [?ADAPTER_CONTEXT(1001)], _Ctx, _Opts) ->
     {ok,
         ?ADAPTER_PROCESS_RESULT(
             ?ADAPTER_FINISH_INTENT({failure, #domain_Failure{code = <<"test_failure">>}}),
             undefined
         )};
-handle_function_('Process', {?ADAPTER_CONTEXT(1002 = Amount) = Context}, _Ctx, _Opts) ->
+handle_function_('Process', [?ADAPTER_CONTEXT(1002 = Amount) = Context], _Ctx, _Opts) ->
     #p2p_adapter_Context{
         operation =
             {process, #p2p_adapter_ProcessOperationInfo{
@@ -307,13 +307,13 @@ handle_function_('Process', {?ADAPTER_CONTEXT(1002 = Amount) = Context}, _Ctx, _
             ?ADAPTER_FINISH_INTENT({success, #p2p_adapter_Success{}}),
             undefined
         )};
-handle_function_('Process', {_Context}, _Ctx, _Opts) ->
+handle_function_('Process', [_Context], _Ctx, _Opts) ->
     {ok,
         ?ADAPTER_PROCESS_RESULT(
             ?ADAPTER_FINISH_INTENT({success, #p2p_adapter_Success{}}),
             undefined
         )};
-handle_function_('HandleCallback', {?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_, Token, State)}, _Ctx, _Opts) ->
+handle_function_('HandleCallback', [?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_, Token, State)], _Ctx, _Opts) ->
     case State of
         <<"simple_sleep">> ->
             {ok, #p2p_adapter_CallbackResult{
@@ -325,7 +325,7 @@ handle_function_('HandleCallback', {?ADAPTER_CALLBACK(Token), ?ADAPTER_CONTEXT(_
                 next_state = <<"simple_callback">>
             }}
     end;
-handle_function_('HandleCallback', {_Callback, _Context}, _Ctx, _Opts) ->
+handle_function_('HandleCallback', [_Callback, _Context], _Ctx, _Opts) ->
     {ok, #p2p_adapter_CallbackResult{
         response = #p2p_adapter_CallbackResponse{payload = <<"handle_payload">>},
         intent =

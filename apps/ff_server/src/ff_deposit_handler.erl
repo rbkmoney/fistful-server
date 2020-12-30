@@ -25,15 +25,15 @@ handle_function(Func, Args, Opts) ->
 %% Internals
 %%
 
-handle_function_('Create', {MarshaledParams, MarshaledContext}, Opts) ->
+handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
     Params = ff_deposit_codec:unmarshal(deposit_params, MarshaledParams),
     Context = ff_deposit_codec:unmarshal(context, MarshaledContext),
     ok = scoper:add_meta(maps:with([id, wallet_id, source_id, external_id], Params)),
     case ff_deposit_machine:create(Params, Context) of
         ok ->
-            handle_function_('Get', {maps:get(id, Params), #'EventRange'{}}, Opts);
+            handle_function_('Get', [maps:get(id, Params), #'EventRange'{}], Opts);
         {error, exists} ->
-            handle_function_('Get', {maps:get(id, Params), #'EventRange'{}}, Opts);
+            handle_function_('Get', [maps:get(id, Params), #'EventRange'{}], Opts);
         {error, {wallet, notfound}} ->
             woody_error:raise(business, #fistful_WalletNotFound{});
         {error, {source, notfound}} ->
@@ -58,7 +58,7 @@ handle_function_('Create', {MarshaledParams, MarshaledContext}, Opts) ->
                 amount = ff_codec:marshal(cash, Amount)
             })
     end;
-handle_function_('Get', {ID, EventRange}, _Opts) ->
+handle_function_('Get', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_deposit_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
@@ -69,7 +69,7 @@ handle_function_('Get', {ID, EventRange}, _Opts) ->
         {error, {unknown_deposit, ID}} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end;
-handle_function_('GetContext', {ID}, _Opts) ->
+handle_function_('GetContext', [ID], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_deposit_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
@@ -78,7 +78,7 @@ handle_function_('GetContext', {ID}, _Opts) ->
         {error, {unknown_deposit, ID}} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end;
-handle_function_('GetEvents', {ID, EventRange}, _Opts) ->
+handle_function_('GetEvents', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_deposit_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Events} ->
@@ -86,7 +86,7 @@ handle_function_('GetEvents', {ID, EventRange}, _Opts) ->
         {error, {unknown_deposit, ID}} ->
             woody_error:raise(business, #fistful_DepositNotFound{})
     end;
-handle_function_('CreateAdjustment', {ID, MarshaledParams}, _Opts) ->
+handle_function_('CreateAdjustment', [ID, MarshaledParams], _Opts) ->
     Params = ff_deposit_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
     ok = scoper:add_meta(
@@ -121,7 +121,7 @@ handle_function_('CreateAdjustment', {ID, MarshaledParams}, _Opts) ->
                 another_adjustment_id = ff_codec:marshal(id, AnotherID)
             })
     end;
-handle_function_('CreateRevert', {ID, MarshaledParams}, _Opts) ->
+handle_function_('CreateRevert', [ID, MarshaledParams], _Opts) ->
     Params = ff_deposit_revert_codec:unmarshal(revert_params, MarshaledParams),
     RevertID = maps:get(id, Params),
     ok = scoper:add_meta(
@@ -158,7 +158,7 @@ handle_function_('CreateRevert', {ID, MarshaledParams}, _Opts) ->
                 amount = ff_codec:marshal(cash, Amount)
             })
     end;
-handle_function_('CreateRevertAdjustment', {ID, RevertID, MarshaledParams}, _Opts) ->
+handle_function_('CreateRevertAdjustment', [ID, RevertID, MarshaledParams], _Opts) ->
     Params = ff_deposit_revert_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
     ok = scoper:add_meta(

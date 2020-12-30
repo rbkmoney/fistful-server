@@ -27,7 +27,7 @@ handle_function(Func, Args, Opts) ->
         end
     ).
 
-handle_function_('GetEvents', {#'evsink_EventRange'{'after' = After0, limit = Limit}}, Options) ->
+handle_function_('GetEvents', [#'evsink_EventRange'{'after' = After0, limit = Limit}], Options) ->
     #{
         schema := Schema,
         client := Client,

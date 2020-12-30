@@ -13,7 +13,7 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function('ProcessWithdrawal', {Withdrawal, InternalState, Options}, _Context, Opts) ->
+handle_function('ProcessWithdrawal', [Withdrawal, InternalState, Options], _Context, Opts) ->
     Handler = get_handler(Opts),
     DWithdrawal = decode_withdrawal(Withdrawal),
     DState = decode_state(InternalState),
@@ -27,13 +27,13 @@ handle_function('ProcessWithdrawal', {Withdrawal, InternalState, Options}, _Cont
         next_state = encode_state(NewState),
         trx = encode_trx(TransactionInfo)
     }};
-handle_function('GetQuote', {QuoteParams, Options}, _Context, Opts) ->
+handle_function('GetQuote', [QuoteParams, Options], _Context, Opts) ->
     Handler = get_handler(Opts),
     Params = decode_quote_params(QuoteParams),
     DOptions = decode_options(Options),
     {ok, Quote} = Handler:get_quote(Params, DOptions),
     {ok, encode_quote(Quote)};
-handle_function('HandleCallback', {Callback, Withdrawal, InternalState, Options}, _Context, Opts) ->
+handle_function('HandleCallback', [Callback, Withdrawal, InternalState, Options], _Context, Opts) ->
     Handler = get_handler(Opts),
     DCallback = decode_callback(Callback),
     DWithdrawal = decode_withdrawal(Withdrawal),

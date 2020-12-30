@@ -24,7 +24,7 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('GetQuote', {MarshaledParams}, _Opts) ->
+handle_function_('GetQuote', [MarshaledParams], _Opts) ->
     Params = ff_p2p_transfer_codec:unmarshal_p2p_quote_params(MarshaledParams),
     ok = scoper:add_meta(maps:with([identity_id], Params)),
     case p2p_quote:get(Params) of
@@ -51,16 +51,16 @@ handle_function_('GetQuote', {MarshaledParams}, _Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Create', {MarshaledParams, MarshaledContext}, Opts) ->
+handle_function_('Create', [MarshaledParams, MarshaledContext], Opts) ->
     P2PTransferID = MarshaledParams#p2p_transfer_P2PTransferParams.id,
     Params = ff_p2p_transfer_codec:unmarshal_p2p_transfer_params(MarshaledParams),
     Context = ff_p2p_transfer_codec:unmarshal(ctx, MarshaledContext),
     ok = scoper:add_meta(maps:with([id, identity_id, external_id], Params)),
     case p2p_transfer_machine:create(Params, Context) of
         ok ->
-            handle_function_('Get', {P2PTransferID, #'EventRange'{}}, Opts);
+            handle_function_('Get', [P2PTransferID, #'EventRange'{}], Opts);
         {error, exists} ->
-            handle_function_('Get', {P2PTransferID, #'EventRange'{}}, Opts);
+            handle_function_('Get', [P2PTransferID, #'EventRange'{}], Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {sender, {bin_data, _}}} ->
@@ -86,7 +86,7 @@ handle_function_('Create', {MarshaledParams, MarshaledContext}, Opts) ->
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Get', {ID, EventRange}, _Opts) ->
+handle_function_('Get', [ID, EventRange], _Opts) ->
     {After, Limit} = ff_codec:unmarshal(event_range, EventRange),
     ok = scoper:add_meta(#{id => ID}),
     case p2p_transfer_machine:get(ID, {After, Limit}) of
@@ -98,7 +98,7 @@ handle_function_('Get', {ID, EventRange}, _Opts) ->
         {error, {unknown_p2p_transfer, _Ref}} ->
             woody_error:raise(business, #fistful_P2PNotFound{})
     end;
-handle_function_('GetContext', {ID}, _Opts) ->
+handle_function_('GetContext', [ID], _Opts) ->
     case p2p_transfer_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
             Ctx = p2p_transfer_machine:ctx(Machine),
@@ -107,7 +107,7 @@ handle_function_('GetContext', {ID}, _Opts) ->
         {error, {unknown_p2p_transfer, _Ref}} ->
             woody_error:raise(business, #fistful_P2PNotFound{})
     end;
-handle_function_('GetEvents', {ID, EventRange}, _Opts) ->
+handle_function_('GetEvents', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case p2p_transfer_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Events} ->
@@ -115,7 +115,7 @@ handle_function_('GetEvents', {ID, EventRange}, _Opts) ->
         {error, {unknown_p2p_transfer, ID}} ->
             woody_error:raise(business, #fistful_P2PNotFound{})
     end;
-handle_function_('CreateAdjustment', {ID, MarshaledParams}, _Opts) ->
+handle_function_('CreateAdjustment', [ID, MarshaledParams], _Opts) ->
     Params = ff_p2p_transfer_adjustment_codec:unmarshal(adjustment_params, MarshaledParams),
     AdjustmentID = maps:get(id, Params),
     ok = scoper:add_meta(

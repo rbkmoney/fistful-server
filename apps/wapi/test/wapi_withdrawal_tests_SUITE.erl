@@ -562,7 +562,7 @@ get_events_start_mocks(C, GetEventRangeResultFun) ->
         [
             {fistful_withdrawal, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('GetEvents', {_, #'EventRange'{limit = 0}}) -> GetEventRangeResultFun();
+                ('GetEvents', [_, #'EventRange'{limit = 0}]) -> GetEventRangeResultFun();
                 ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
             end}
         ],

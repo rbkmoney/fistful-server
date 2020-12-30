@@ -507,10 +507,10 @@ get_events_ok(C) ->
                     {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) ->
                     {ok, ?P2P_TRANSFER_SESSIONS(PartyID)};
-                ('GetEvents', {_ID, #'EventRange'{limit = Limit}}) ->
+                ('GetEvents', [_ID, #'EventRange'{limit = Limit}]) ->
                     {ok, [?P2P_TRANSFER_EVENT(EventID) || EventID <- lists:seq(1, Limit)]}
             end},
-            {fistful_p2p_session, fun('GetEvents', {_ID, #'EventRange'{limit = Limit}}) ->
+            {fistful_p2p_session, fun('GetEvents', [_ID, #'EventRange'{limit = Limit}]) ->
                 {ok, [?P2P_SESSION_EVENT(EventID) || EventID <- lists:seq(1, Limit)]}
             end}
         ],

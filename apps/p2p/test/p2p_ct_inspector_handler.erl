@@ -14,19 +14,19 @@
     {ok, woody:result()} | no_return().
 handle_function(
     'InspectTransfer',
-    {
+    [
         #p2p_insp_Context{
             info = #p2p_insp_TransferInfo{
                 transfer = #p2p_insp_Transfer{cost = #domain_Cash{amount = 199}}
             }
         },
         _RiskTypes
-    },
+    ],
     _Context,
     _Opts
 ) ->
     erlang:error({test, inspector_failed});
-handle_function('InspectTransfer', {_Params, _RiskTypes}, _Context, _Opts) ->
+handle_function('InspectTransfer', [_Params, _RiskTypes], _Context, _Opts) ->
     {ok, encode_result()}.
 
 encode_result() ->

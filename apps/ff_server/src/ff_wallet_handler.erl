@@ -23,7 +23,7 @@ handle_function(Func, Args, Opts) ->
 %%
 %% Internals
 %%
-handle_function_('Create', {Params, Context}, Opts) ->
+handle_function_('Create', [Params, Context], Opts) ->
     WalletID = Params#wlt_WalletParams.id,
     case
         ff_wallet_machine:create(
@@ -32,7 +32,7 @@ handle_function_('Create', {Params, Context}, Opts) ->
         )
     of
         ok ->
-            handle_function_('Get', {WalletID, #'EventRange'{}}, Opts);
+            handle_function_('Get', [WalletID, #'EventRange'{}], Opts);
         {error, {identity, notfound}} ->
             woody_error:raise(business, #fistful_IdentityNotFound{});
         {error, {currency, notfound}} ->
@@ -40,11 +40,11 @@ handle_function_('Create', {Params, Context}, Opts) ->
         {error, {party, _Inaccessible}} ->
             woody_error:raise(business, #fistful_PartyInaccessible{});
         {error, exists} ->
-            handle_function_('Get', {WalletID, #'EventRange'{}}, Opts);
+            handle_function_('Get', [WalletID, #'EventRange'{}], Opts);
         {error, Error} ->
             woody_error:raise(system, {internal, result_unexpected, woody_error:format_details(Error)})
     end;
-handle_function_('Get', {ID, EventRange}, _Opts) ->
+handle_function_('Get', [ID, EventRange], _Opts) ->
     case ff_wallet_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             Wallet = ff_wallet_machine:wallet(Machine),
@@ -54,7 +54,7 @@ handle_function_('Get', {ID, EventRange}, _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_WalletNotFound{})
     end;
-handle_function_('GetContext', {ID}, _Opts) ->
+handle_function_('GetContext', [ID], _Opts) ->
     case ff_wallet_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
             Ctx = ff_wallet_machine:ctx(Machine),
@@ -63,7 +63,7 @@ handle_function_('GetContext', {ID}, _Opts) ->
         {error, notfound} ->
             woody_error:raise(business, #fistful_WalletNotFound{})
     end;
-handle_function_('GetAccountBalance', {ID}, _Opts) ->
+handle_function_('GetAccountBalance', [ID], _Opts) ->
     case ff_wallet_machine:get(ID) of
         {ok, Machine} ->
             Wallet = ff_wallet_machine:wallet(Machine),

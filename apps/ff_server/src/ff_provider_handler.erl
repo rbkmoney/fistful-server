@@ -24,7 +24,7 @@ handle_function(Func, Args, Opts) ->
 %% Internals
 %%
 
-handle_function_('GetProvider', {ID}, _Opts) ->
+handle_function_('GetProvider', [ID], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case ff_provider:get(ID) of
         {ok, Provider} ->

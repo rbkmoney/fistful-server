@@ -24,7 +24,7 @@ handle_function(Func, Args, Opts) ->
 %% Internals
 %%
 
-handle_function_('Get', {ID, EventRange}, _Opts) ->
+handle_function_('Get', [ID, EventRange], _Opts) ->
     case p2p_session_machine:get(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Machine} ->
             State = p2p_session_machine:session(Machine),
@@ -34,7 +34,7 @@ handle_function_('Get', {ID, EventRange}, _Opts) ->
         {error, {unknown_p2p_session, _Ref}} ->
             woody_error:raise(business, #fistful_P2PSessionNotFound{})
     end;
-handle_function_('GetContext', {ID}, _Opts) ->
+handle_function_('GetContext', [ID], _Opts) ->
     case p2p_session_machine:get(ID, {undefined, 0}) of
         {ok, Machine} ->
             Context = p2p_session_machine:ctx(Machine),
@@ -42,7 +42,7 @@ handle_function_('GetContext', {ID}, _Opts) ->
         {error, {unknown_p2p_session, _Ref}} ->
             woody_error:raise(business, #fistful_P2PSessionNotFound{})
     end;
-handle_function_('GetEvents', {ID, EventRange}, _Opts) ->
+handle_function_('GetEvents', [ID, EventRange], _Opts) ->
     ok = scoper:add_meta(#{id => ID}),
     case p2p_session_machine:events(ID, ff_codec:unmarshal(event_range, EventRange)) of
         {ok, Events} ->

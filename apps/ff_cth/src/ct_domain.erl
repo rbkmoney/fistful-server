@@ -225,7 +225,7 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
     }}.
 
 -spec withdrawal_terminal(?dtp('TerminalRef')) -> object().
-withdrawal_terminal(?trm(1) = Ref) ->
+withdrawal_terminal(?trm(N) = Ref) when N > 0, N < 6 ->
     {terminal, #domain_TerminalObject{
         ref = Ref,
         data = #domain_Terminal{

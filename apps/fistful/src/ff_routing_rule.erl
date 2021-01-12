@@ -53,7 +53,10 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
         _ ->
             Policies = RoutingRules#domain_RoutingRules.policies,
             Prohibitions = RoutingRules#domain_RoutingRules.prohibitions,
+            logger:warning("Policies: ~p", [Policies]),
+            logger:warning("VS: ~p", [VS]),
             {ok, PermitRuleSet} = ff_party:compute_routing_ruleset(Policies, VS, Revision),
+            logger:warning("PermitRuleset: ~p", [PermitRuleSet]),
             {ok, DenyRuleSet} = ff_party:compute_routing_ruleset(Prohibitions, VS, Revision),
             {candidates, PermittedCandidates} = PermitRuleSet#domain_RoutingRuleset.decisions,
             {candidates, ProhibitedCandidates} = DenyRuleSet#domain_RoutingRuleset.decisions,
@@ -65,8 +68,7 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
             {AcceptedRoutes, RejectedContext#{rejected_routes => RejectedRoutes}}
     end.
 
--spec prohibited_candidates_filter([candidate()], [candidate()], revision()) ->
-    {[route()], [rejected_route()]}.
+-spec prohibited_candidates_filter([candidate()], [candidate()], revision()) -> {[route()], [rejected_route()]}.
 prohibited_candidates_filter(Candidates, ProhibitedCandidates, Revision) ->
     ProhibitionTable = lists:foldl(
         fun(C, Acc) ->

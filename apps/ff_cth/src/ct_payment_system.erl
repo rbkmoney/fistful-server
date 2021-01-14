@@ -376,7 +376,8 @@ domain_config(Options, C) ->
 
     Decision1 =
         {delegates, [
-            delegate(condition(party, <<"12345">>), ?ruleset(2))
+            delegate({constant, true}, ?ruleset(2))
+            % delegate(condition(party, <<"12345">>), ?ruleset(2))
             % delegate(condition(party, <<"67890">>), ?ruleset(3)),
             % delegate(predicate(true), ?ruleset(4))
         ]},
@@ -1232,8 +1233,8 @@ routing_ruleset(Ref, Name, Decisions) ->
 %                 {inclusive, ?cash(Min, Cur)},
 %                 {exclusive, ?cash(Max, Cur)}
 %             )}};
-condition(party, ID) ->
-    {condition, {party, #domain_PartyCondition{id = ID}}}.
+% condition(party, ID) ->
+%     {condition, {party, #domain_PartyCondition{id = ID}}}.
 
 % condition(payment_terminal, Provider) ->
 %     {condition,

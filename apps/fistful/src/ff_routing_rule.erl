@@ -7,6 +7,8 @@
 
 -type id() :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: ff_payment_institution:payment_institution().
+-type routing_rules() :: dmsl_domain_thrift:'RoutingRules'().
+-type routing_ruleset_ref() :: dmsl_domain_thrift:'RoutingRulesetRef'().
 -type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
 -type terminal_ref() :: dmsl_domain_thrift:'TerminalRef'().
 -type varset() :: hg_selector:varset().
@@ -16,9 +18,9 @@
 -type candidate_description() :: binary() | undefined.
 
 -type route() :: #{
-    provider := dmsl_domain_thrift:'Provider'(),
-    provider_ref := provider_ref(),
-    provider_id := id(),
+    provider => dmsl_domain_thrift:'Provider'(),
+    provider_ref => provider_ref(),
+    provider_id => id(),
     terminal := dmsl_domain_thrift:'Terminal'(),
     terminal_ref := terminal_ref(),
     terminal_id := id()
@@ -35,7 +37,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [unwrap/1]).
+-import(ff_pipeline, [do/1, unwrap/1]).
 
 %%
 
@@ -46,26 +48,55 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
         rejected_providers => [],
         rejected_routes => []
     },
+    case do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) of
+        {ok, {AcceptedRoutes, RejectedRoutes}} ->
+            {AcceptedRoutes, RejectedContext#{rejected_routes => RejectedRoutes}};
+        {error, not_found} ->
+            {[], RejectedContext};
+        {error, unreduced} ->
+            {[], RejectedContext}
+    end.
+
+-spec do_gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) ->
+    {ok, {[route()], [route()]}}
+    | {error, not_found}
+    | {error, unreduced}.
+do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
+    do(fun() ->
+        RoutingRules = unwrap(get_routing_rules(PaymentInstitution, RoutingRuleTag)),
+        Policies = RoutingRules#domain_RoutingRules.policies,
+        Prohibitions = RoutingRules#domain_RoutingRules.prohibitions,
+        PermitCandidates = unwrap(compute_routing_ruleset(Policies, VS, Revision)),
+        DenyCandidates = unwrap(compute_routing_ruleset(Prohibitions, VS, Revision)),
+        {AcceptedRoutes, RejectedRoutes} = prohibited_candidates_filter(
+            PermitCandidates,
+            DenyCandidates,
+            Revision
+        ),
+        {AcceptedRoutes, RejectedRoutes}
+    end).
+
+-spec get_routing_rules(payment_institution(), routing_rule_tag()) ->
+    {ok, routing_rules()} | {error, not_found}.
+get_routing_rules(PaymentInstitution, RoutingRuleTag) ->
     RoutingRules = maps:get(RoutingRuleTag, PaymentInstitution, undefined),
     case RoutingRules of
         undefined ->
-            {[], RejectedContext};
-        _ ->
-            Policies = RoutingRules#domain_RoutingRules.policies,
-            Prohibitions = RoutingRules#domain_RoutingRules.prohibitions,
-            logger:warning("Policies: ~p", [Policies]),
-            logger:warning("VS: ~p", [VS]),
-            {ok, PermitRuleSet} = ff_party:compute_routing_ruleset(Policies, VS, Revision),
-            logger:warning("PermitRuleset: ~p", [PermitRuleSet]),
-            {ok, DenyRuleSet} = ff_party:compute_routing_ruleset(Prohibitions, VS, Revision),
-            {candidates, PermittedCandidates} = PermitRuleSet#domain_RoutingRuleset.decisions,
-            {candidates, ProhibitedCandidates} = DenyRuleSet#domain_RoutingRuleset.decisions,
-            {AcceptedRoutes, RejectedRoutes} = prohibited_candidates_filter(
-                PermittedCandidates,
-                ProhibitedCandidates,
-                Revision
-            ),
-            {AcceptedRoutes, RejectedContext#{rejected_routes => RejectedRoutes}}
+            {error, not_found};
+        RoutingRules ->
+            {ok, RoutingRules}
+    end.
+
+-spec compute_routing_ruleset(routing_ruleset_ref(), varset(), revision()) ->
+    {ok, [candidate()]} | {error, unreduced}.
+compute_routing_ruleset(RulesetRef, VS, Revision) ->
+    {ok, RuleSet} = ff_party:compute_routing_ruleset(RulesetRef, VS, Revision),
+    case RuleSet#domain_RoutingRuleset.decisions of
+        {candidates, Candidates} ->
+            {ok, Candidates};
+        {delegates, Delegates} ->
+            logger:warning("Got unreduced policies decision. Decision: ~p~n",[{delegates, Delegates}]),
+            {error, unreduced}
     end.
 
 -spec prohibited_candidates_filter([candidate()], [candidate()], revision()) -> {[route()], [rejected_route()]}.
@@ -77,17 +108,15 @@ prohibited_candidates_filter(Candidates, ProhibitedCandidates, Revision) ->
         #{},
         ProhibitedCandidates
     ),
-    lists:foldl(
+    lists:foldr(
         fun(C, {Accepted, Rejected}) ->
             Route = decode_candidate(C, Revision),
-            #{
-                terminal_ref := TerminalRef,
-                provider_ref := ProviderRef
-            } = Route,
+            TerminalRef = maps:get(terminal_ref, Route),
             case maps:find(TerminalRef, ProhibitionTable) of
                 error ->
                     {[Route | Accepted], Rejected};
                 {ok, Description} ->
+                    ProviderRef = maps:get(provider_ref, Route, undefined),
                     {Accepted, [{ProviderRef, TerminalRef, {'RoutingRule', Description}} | Rejected]}
             end
         end,
@@ -105,10 +134,14 @@ get_description(Candidate) ->
 
 -spec get_providers([route()]) -> [id()].
 get_providers(Routes) ->
-    lists:foldl(
+    lists:foldr(
         fun(R, Acc) ->
-            #{provider_id := ProviderID} = R,
-            [ProviderID | Acc]
+            case maps:get(provider_id, R, undefined) of
+                undefined ->
+                    Acc;
+                ProviderID ->
+                    [ProviderID | Acc]
+            end
         end,
         [],
         Routes
@@ -119,14 +152,20 @@ decode_candidate(Candidate, Revision) ->
     TerminalRef = Candidate#domain_RoutingCandidate.terminal,
     TerminalID = TerminalRef#domain_TerminalRef.id,
     Terminal = unwrap(ff_domain_config:object(Revision, {terminal, TerminalRef})),
-    ProviderRef = Terminal#domain_Terminal.provider_ref,
-    ProviderID = ProviderRef#domain_ProviderRef.id,
-    Provider = unwrap(ff_domain_config:object(Revision, {provider, ProviderRef})),
-    #{
-        provider => Provider,
-        provider_ref => ProviderRef,
-        provider_id => ProviderID,
+    Route = #{
         terminal => Terminal,
         terminal_ref => TerminalRef,
         terminal_id => TerminalID
-    }.
+    },
+    case Terminal#domain_Terminal.provider_ref of
+        undefined ->
+            Route;
+        ProviderRef ->
+            ProviderID = ProviderRef#domain_ProviderRef.id,
+            Provider = unwrap(ff_domain_config:object(Revision, {provider, ProviderRef})),
+            Route#{
+                provider => Provider,
+                provider_ref => ProviderRef,
+                provider_id => ProviderID
+            }
+    end.

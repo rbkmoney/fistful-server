@@ -17,7 +17,11 @@
 
 %% Tests
 
--export([gather_routes_ok_test/1]).
+-export([routes_found_test/1]).
+-export([no_routes_found_test/1]).
+-export([rejected_by_prohibitions_table_test/1]).
+-export([ruleset_misconfig_test/1]).
+-export([rules_not_found_test/1]).
 
 %% Internal types
 
@@ -40,7 +44,11 @@ all() ->
 groups() ->
     [
         {default, [
-            gather_routes_ok_test
+            routes_found_test,
+            no_routes_found_test,
+            rejected_by_prohibitions_table_test,
+            ruleset_misconfig_test,
+            rules_not_found_test
         ]}
     ].
 
@@ -82,34 +90,90 @@ end_per_testcase(_Name, _C) ->
 
 %% Tests
 
--spec gather_routes_ok_test(config()) -> test_return().
-gather_routes_ok_test(_C) ->
-    VS = #{
-        category => ?cat(1),
+-spec routes_found_test(config()) -> test_return().
+routes_found_test(_C) ->
+    VS = make_varset(?cash(999, <<"RUB">>), <<"12345">>),
+    ?assertMatch(
+        {
+            [
+                #{terminal_ref := ?trm(1)},
+                #{terminal_ref := ?trm(2)}
+            ],
+            #{rejected_routes := []}
+        },
+        gather_routes(VS, 1)
+    ).
+
+-spec no_routes_found_test(config()) -> test_return().
+no_routes_found_test(_C) ->
+    VS = make_varset(?cash(1000, <<"RUB">>), <<"12345">>),
+    ?assertMatch(
+        {
+            [],
+            #{rejected_routes := []}
+        },
+        gather_routes(VS, 1)
+    ).
+
+-spec rejected_by_prohibitions_table_test(config()) -> test_return().
+rejected_by_prohibitions_table_test(_C) ->
+    VS = make_varset(?cash(1000, <<"RUB">>), <<"67890">>),
+    ?assertMatch(
+        {
+            [
+                #{terminal_ref := ?trm(3)},
+                #{terminal_ref := ?trm(5)}
+            ],
+            #{
+                rejected_routes := [
+                    {_, ?trm(4), {'RoutingRule', <<"Candidate description">>}}
+                ]
+            }
+        },
+        gather_routes(VS, 1)
+    ).
+
+-spec ruleset_misconfig_test(config()) -> test_return().
+ruleset_misconfig_test(_C) ->
+    VS = #{party_id => <<"12345">>},
+    ?assertMatch(
+        {
+            [],
+            #{rejected_routes := []}
+        },
+        gather_routes(VS, 1)
+    ).
+
+-spec rules_not_found_test(config()) -> test_return().
+rules_not_found_test(_C) ->
+    VS = make_varset(?cash(1000, <<"RUB">>), <<"12345">>),
+    ?assertMatch(
+        {
+            [],
+            #{rejected_routes := []}
+        },
+        gather_routes(VS, 2)
+    ).
+
+%%
+
+make_varset(Cash, PartyID) ->
+    #{
         currency => ?cur(<<"RUB">>),
-        cost => ?cash(1000, <<"RUB">>),
+        cost => Cash,
         payment_tool =>
             {bank_card, #domain_BankCard{
                 payment_system = visa
             }},
-        party_id => <<"12345">>,
-        flow => instant
-    },
+        party_id => PartyID
+    }.
 
+gather_routes(Varset, PaymentInstitutionID) ->
     Revision = ff_domain_config:head(),
-    {ok, PaymentInstitution} = ff_payment_institution:get(1, Revision),
-
-    {Routes, _RejectedContext} = ff_routing_rule:gather_routes(
+    {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, Revision),
+    ff_routing_rule:gather_routes(
         PaymentInstitution,
         withdrawal_routing_rules,
-        VS,
+        Varset,
         Revision
-    ),
-    ?assertMatch(
-        [
-            #{terminal_ref := ?trm(1)},
-            #{terminal_ref := ?trm(2)}
-            % #{terminal_ref := ?trm(4)}
-        ],
-        Routes
     ).

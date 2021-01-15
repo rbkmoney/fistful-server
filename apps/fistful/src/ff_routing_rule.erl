@@ -76,26 +76,27 @@ do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
         {AcceptedRoutes, RejectedRoutes}
     end).
 
--spec get_routing_rules(payment_institution(), routing_rule_tag()) ->
-    {ok, routing_rules()} | {error, not_found}.
+-spec get_routing_rules(payment_institution(), routing_rule_tag()) -> {ok, routing_rules()} | {error, not_found}.
 get_routing_rules(PaymentInstitution, RoutingRuleTag) ->
     RoutingRules = maps:get(RoutingRuleTag, PaymentInstitution, undefined),
     case RoutingRules of
         undefined ->
+            logger:warning("Routing rules not found. Routing rule tag: ~p~n, institution: ~p~n", [
+                RoutingRuleTag,
+                PaymentInstitution
+            ]),
             {error, not_found};
         RoutingRules ->
             {ok, RoutingRules}
     end.
 
--spec compute_routing_ruleset(routing_ruleset_ref(), varset(), revision()) ->
-    {ok, [candidate()]} | {error, unreduced}.
+-spec compute_routing_ruleset(routing_ruleset_ref(), varset(), revision()) -> {ok, [candidate()]} | {error, unreduced}.
 compute_routing_ruleset(RulesetRef, VS, Revision) ->
     {ok, RuleSet} = ff_party:compute_routing_ruleset(RulesetRef, VS, Revision),
     case RuleSet#domain_RoutingRuleset.decisions of
         {candidates, Candidates} ->
             {ok, Candidates};
-        {delegates, Delegates} ->
-            logger:warning("Got unreduced policies decision. Decision: ~p~n",[{delegates, Delegates}]),
+        {delegates, _} ->
             {error, unreduced}
     end.
 

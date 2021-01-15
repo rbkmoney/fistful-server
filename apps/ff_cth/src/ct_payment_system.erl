@@ -376,27 +376,28 @@ domain_config(Options, C) ->
 
     Decision1 =
         {delegates, [
-            delegate({constant, true}, ?ruleset(2))
-            % delegate(condition(party, <<"12345">>), ?ruleset(2))
-            % delegate(condition(party, <<"67890">>), ?ruleset(3)),
-            % delegate(predicate(true), ?ruleset(4))
+            delegate(condition(party, <<"12345">>), ?ruleset(2)),
+            delegate(condition(party, <<"67890">>), ?ruleset(4)),
+            delegate(condition(cost_in, {0, 500, <<"RUB">>}), ?ruleset(6))
         ]},
     Decision2 =
+        {delegates, [
+            delegate(condition(cost_in, {0, 1000, <<"RUB">>}), ?ruleset(3))
+        ]},
+    Decision3 =
         {candidates, [
             candidate({constant, true}, ?trm(1)),
             candidate({constant, true}, ?trm(2))
         ]},
-    Decision3 =
-        {candidates, [
-            candidate({constant, true}, ?trm(3))
-        ]},
     Decision4 =
         {candidates, [
-            candidate({constant, true}, ?trm(4))
+            candidate({constant, true}, ?trm(3)),
+            candidate({constant, true}, ?trm(4)),
+            candidate({constant, true}, ?trm(5))
         ]},
     Decision5 =
         {candidates, [
-            candidate({constant, true}, ?trm(5))
+            candidate({constant, true}, ?trm(4))
         ]},
 
     Default = [
@@ -1226,15 +1227,15 @@ routing_ruleset(Ref, Name, Decisions) ->
 % predicate(Constant) when is_boolean(Constant) ->
 %     {constant, Constant}.
 
-% condition(cost_in, {Min, Max, Cur}) ->
-%     {condition,
-%         {cost_in,
-%             ?cashrng(
-%                 {inclusive, ?cash(Min, Cur)},
-%                 {exclusive, ?cash(Max, Cur)}
-%             )}};
-% condition(party, ID) ->
-%     {condition, {party, #domain_PartyCondition{id = ID}}}.
+condition(cost_in, {Min, Max, Cur}) ->
+    {condition,
+        {cost_in,
+            ?cashrng(
+                {inclusive, ?cash(Min, Cur)},
+                {exclusive, ?cash(Max, Cur)}
+            )}};
+condition(party, ID) ->
+    {condition, {party, #domain_PartyCondition{id = ID}}}.
 
 % condition(payment_terminal, Provider) ->
 %     {condition,

@@ -888,7 +888,8 @@ encode_varset(Varset) ->
         amount = genlib_map:get(cost, Varset),
         wallet_id = genlib_map:get(wallet_id, Varset),
         payment_method = encode_payment_method(genlib_map:get(payment_tool, Varset)),
-        p2p_tool = genlib_map:get(p2p_tool, Varset)
+        p2p_tool = genlib_map:get(p2p_tool, Varset),
+        party_id = genlib_map:get(party_id, Varset)
     }.
 
 -spec encode_payment_method(ff_destination:resource() | undefined) ->

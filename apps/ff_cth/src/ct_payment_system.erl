@@ -377,8 +377,7 @@ domain_config(Options, C) ->
     Decision1 =
         {delegates, [
             delegate(condition(party, <<"12345">>), ?ruleset(2)),
-            delegate(condition(party, <<"67890">>), ?ruleset(4)),
-            delegate(condition(cost_in, {0, 500, <<"RUB">>}), ?ruleset(6))
+            delegate(condition(party, <<"67890">>), ?ruleset(4))
         ]},
     Decision2 =
         {delegates, [

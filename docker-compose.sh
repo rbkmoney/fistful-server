@@ -162,7 +162,7 @@ services:
         condition: service_healthy
 
   kds:
-    image: dr2.rbkmoney.com/rbkmoney/kds:281462a3a9088cec5b46b3c999885d0edc8d3a61
+    image: dr2.rbkmoney.com/rbkmoney/kds:2f62c8b8e6e32a7d76d7f1ef251bcda419eb9e1f
     command: /opt/kds/bin/kds foreground
     volumes:
       - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro

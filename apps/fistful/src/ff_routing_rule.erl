@@ -92,11 +92,15 @@ get_routing_rules(PaymentInstitution, RoutingRuleTag) ->
 
 -spec compute_routing_ruleset(routing_ruleset_ref(), varset(), revision()) -> {ok, [candidate()]} | {error, unreduced}.
 compute_routing_ruleset(RulesetRef, VS, Revision) ->
-    {ok, RuleSet} = ff_party:compute_routing_ruleset(RulesetRef, VS, Revision),
-    case RuleSet#domain_RoutingRuleset.decisions of
-        {candidates, Candidates} ->
-            {ok, Candidates};
-        {delegates, _} ->
+    case ff_party:compute_routing_ruleset(RulesetRef, VS, Revision) of
+        {ok, Ruleset} ->
+            case Ruleset#domain_RoutingRuleset.decisions of
+                {candidates, Candidates} ->
+                    {ok, Candidates};
+                {delegates, _} ->
+                    {error, unreduced}
+            end;
+        {error, _} ->
             {error, unreduced}
     end.
 

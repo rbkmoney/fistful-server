@@ -287,10 +287,7 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, Domain
     RoutingRulesetRef :: routing_ruleset_ref(),
     Varset :: hg_selector:varset(),
     DomainRevision :: domain_revision(),
-    %% TODO: | {error, Error},
-    Result :: {ok, routing_ruleset()}.
-%% Error :: ... ().
-
+    Result :: {ok, routing_ruleset()} | {error, ruleset_not_found}.
 compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
     DomainVarset = encode_varset(Varset),
     {Client, Context} = get_party_client(),
@@ -301,7 +298,12 @@ compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
         Client,
         Context
     ),
-    Result.
+    case Result of
+        {ok, RoutingRuleset} ->
+            {ok, RoutingRuleset};
+        {error, #payproc_RuleSetNotFound{}} ->
+            {error, ruleset_not_found}
+    end.
 
 -spec validate_account_creation(terms(), currency_id()) -> Result when
     Result :: {ok, valid} | {error, Error},

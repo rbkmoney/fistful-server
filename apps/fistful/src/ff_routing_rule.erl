@@ -81,10 +81,6 @@ get_routing_rules(PaymentInstitution, RoutingRuleTag) ->
     RoutingRules = maps:get(RoutingRuleTag, PaymentInstitution, undefined),
     case RoutingRules of
         undefined ->
-            logger:warning("Routing rules not found. Routing rule tag: ~p~n, institution: ~p~n", [
-                RoutingRuleTag,
-                PaymentInstitution
-            ]),
             {error, not_found};
         RoutingRules ->
             {ok, RoutingRules}

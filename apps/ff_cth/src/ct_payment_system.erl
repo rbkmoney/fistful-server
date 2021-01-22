@@ -1223,9 +1223,6 @@ routing_ruleset(Ref, Name, Decisions) ->
         }
     }}.
 
-% predicate(Constant) when is_boolean(Constant) ->
-%     {constant, Constant}.
-
 condition(cost_in, {Min, Max, Cur}) ->
     {condition,
         {cost_in,
@@ -1235,13 +1232,6 @@ condition(cost_in, {Min, Max, Cur}) ->
             )}};
 condition(party, ID) ->
     {condition, {party, #domain_PartyCondition{id = ID}}}.
-
-% condition(payment_terminal, Provider) ->
-%     {condition,
-%         {payment_tool,
-%             {payment_terminal, #domain_PaymentTerminalCondition{
-%                 definition = {provider_is, Provider}
-%             }}}}.
 
 delegate(Allowed, RuleSetRef) ->
     #domain_RoutingDelegate{

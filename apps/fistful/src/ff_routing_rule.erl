@@ -51,19 +51,17 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     case do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) of
         {ok, {AcceptedRoutes, RejectedRoutes}} ->
             {AcceptedRoutes, RejectedContext#{rejected_routes => RejectedRoutes}};
-        {error, not_found} ->
-            {[], RejectedContext};
-        {error, unreduced} ->
+        {error, _} ->
             {[], RejectedContext}
+
     end.
 
 -spec do_gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) ->
     {ok, {[route()], [route()]}}
-    | {error, not_found}
     | {error, unreduced}.
 do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     do(fun() ->
-        RoutingRules = unwrap(get_routing_rules(PaymentInstitution, RoutingRuleTag)),
+        RoutingRules = maps:get(RoutingRuleTag, PaymentInstitution),
         Policies = RoutingRules#domain_RoutingRules.policies,
         Prohibitions = RoutingRules#domain_RoutingRules.prohibitions,
         PermitCandidates = unwrap(compute_routing_ruleset(Policies, VS, Revision)),
@@ -75,16 +73,6 @@ do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
         ),
         {AcceptedRoutes, RejectedRoutes}
     end).
-
--spec get_routing_rules(payment_institution(), routing_rule_tag()) -> {ok, routing_rules()} | {error, not_found}.
-get_routing_rules(PaymentInstitution, RoutingRuleTag) ->
-    RoutingRules = maps:get(RoutingRuleTag, PaymentInstitution, undefined),
-    case RoutingRules of
-        undefined ->
-            {error, not_found};
-        RoutingRules ->
-            {ok, RoutingRules}
-    end.
 
 -spec compute_routing_ruleset(routing_ruleset_ref(), varset(), revision()) -> {ok, [candidate()]} | {error, unreduced}.
 compute_routing_ruleset(RulesetRef, VS, Revision) ->
@@ -152,7 +140,7 @@ get_providers(Routes) ->
 make_route(Candidate, Revision) ->
     TerminalRef = Candidate#domain_RoutingCandidate.terminal,
     TerminalID = TerminalRef#domain_TerminalRef.id,
-    Terminal = unwrap(ff_domain_config:object(Revision, {terminal, TerminalRef})),
+    {ok, Terminal} = ff_domain_config:object(Revision, {terminal, TerminalRef}),
     Route = #{
         terminal => Terminal,
         terminal_ref => TerminalRef,
@@ -163,7 +151,7 @@ make_route(Candidate, Revision) ->
             Route;
         ProviderRef ->
             ProviderID = ProviderRef#domain_ProviderRef.id,
-            Provider = unwrap(ff_domain_config:object(Revision, {provider, ProviderRef})),
+            Provider = ff_domain_config:object(Revision, {provider, ProviderRef}),
             Route#{
                 provider => Provider,
                 provider_ref => ProviderRef,

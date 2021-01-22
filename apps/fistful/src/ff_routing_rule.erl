@@ -111,7 +111,7 @@ prohibited_candidates_filter(Candidates, ProhibitedCandidates, Revision) ->
     ),
     lists:foldr(
         fun(C, {Accepted, Rejected}) ->
-            Route = decode_candidate(C, Revision),
+            Route = make_route(C, Revision),
             TerminalRef = maps:get(terminal_ref, Route),
             case maps:find(TerminalRef, ProhibitionTable) of
                 error ->
@@ -148,8 +148,8 @@ get_providers(Routes) ->
         Routes
     ).
 
--spec decode_candidate(candidate(), revision()) -> route().
-decode_candidate(Candidate, Revision) ->
+-spec make_route(candidate(), revision()) -> route().
+make_route(Candidate, Revision) ->
     TerminalRef = Candidate#domain_RoutingCandidate.terminal,
     TerminalID = TerminalRef#domain_TerminalRef.id,
     Terminal = unwrap(ff_domain_config:object(Revision, {terminal, TerminalRef})),

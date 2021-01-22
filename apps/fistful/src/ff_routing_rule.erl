@@ -7,7 +7,6 @@
 
 -type id() :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: ff_payment_institution:payment_institution().
--type routing_rules() :: dmsl_domain_thrift:'RoutingRules'().
 -type routing_ruleset_ref() :: dmsl_domain_thrift:'RoutingRulesetRef'().
 -type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
 -type terminal_ref() :: dmsl_domain_thrift:'TerminalRef'().

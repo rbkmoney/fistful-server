@@ -52,7 +52,6 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
             {AcceptedRoutes, RejectedContext#{rejected_routes => RejectedRoutes}};
         {error, _} ->
             {[], RejectedContext}
-
     end.
 
 -spec do_gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) ->

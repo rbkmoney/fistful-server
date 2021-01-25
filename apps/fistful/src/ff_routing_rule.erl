@@ -9,7 +9,10 @@
 -type payment_institution() :: ff_payment_institution:payment_institution().
 -type routing_ruleset_ref() :: dmsl_domain_thrift:'RoutingRulesetRef'().
 -type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
+-type provider() :: dmsl_domain_thrift:'Provider'().
 -type terminal_ref() :: dmsl_domain_thrift:'TerminalRef'().
+-type terminal() :: dmsl_domain_thrift:'Terminal'().
+-type priority() :: integer().
 -type varset() :: hg_selector:varset().
 -type revision() :: ff_domain_config:revision().
 -type routing_rule_tag() :: p2p_transfer_routing_rules | withdrawal_routing_rules.
@@ -17,12 +20,13 @@
 -type candidate_description() :: binary() | undefined.
 
 -type route() :: #{
-    provider => dmsl_domain_thrift:'Provider'(),
+    provider => provider(),
     provider_ref => provider_ref(),
     provider_id => id(),
-    terminal := dmsl_domain_thrift:'Terminal'(),
+    terminal := terminal(),
     terminal_ref := terminal_ref(),
-    terminal_id := id()
+    terminal_id := id(),
+    priority => priority()
 }.
 
 -type reject_context() :: #{
@@ -141,12 +145,14 @@ get_providers(Routes) ->
 -spec make_route(candidate(), revision()) -> route().
 make_route(Candidate, Revision) ->
     TerminalRef = Candidate#domain_RoutingCandidate.terminal,
+    Priority = Candidate#domain_RoutingCandidate.priority,
     TerminalID = TerminalRef#domain_TerminalRef.id,
     {ok, Terminal} = ff_domain_config:object(Revision, {terminal, TerminalRef}),
     Route = #{
         terminal => Terminal,
         terminal_ref => TerminalRef,
-        terminal_id => TerminalID
+        terminal_id => TerminalID,
+        priority => Priority
     },
     case Terminal#domain_Terminal.provider_ref of
         undefined ->

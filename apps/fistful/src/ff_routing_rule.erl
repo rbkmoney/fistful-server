@@ -59,17 +59,21 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     | {error, unreduced}.
 do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     do(fun() ->
-        RoutingRules = maps:get(RoutingRuleTag, PaymentInstitution),
-        Policies = RoutingRules#domain_RoutingRules.policies,
-        Prohibitions = RoutingRules#domain_RoutingRules.prohibitions,
-        PermitCandidates = unwrap(compute_routing_ruleset(Policies, VS, Revision)),
-        DenyCandidates = unwrap(compute_routing_ruleset(Prohibitions, VS, Revision)),
-        {AcceptedRoutes, RejectedRoutes} = prohibited_candidates_filter(
-            PermitCandidates,
-            DenyCandidates,
-            Revision
-        ),
-        {AcceptedRoutes, RejectedRoutes}
+        case maps:get(RoutingRuleTag, PaymentInstitution, undefined) of
+            undefined ->
+                {error, {misconfiguration, routing_rules_not_found}};
+            RoutingRules ->
+                Policies = RoutingRules#domain_RoutingRules.policies,
+                Prohibitions = RoutingRules#domain_RoutingRules.prohibitions,
+                PermitCandidates = unwrap(compute_routing_ruleset(Policies, VS, Revision)),
+                DenyCandidates = unwrap(compute_routing_ruleset(Prohibitions, VS, Revision)),
+                {AcceptedRoutes, RejectedRoutes} = prohibited_candidates_filter(
+                    PermitCandidates,
+                    DenyCandidates,
+                    Revision
+                ),
+                {AcceptedRoutes, RejectedRoutes}
+        end
     end).
 
 -spec compute_routing_ruleset(routing_ruleset_ref(), varset(), revision()) -> {ok, [candidate()]} | {error, unreduced}.

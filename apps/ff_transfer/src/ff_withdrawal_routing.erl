@@ -58,8 +58,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
                     {error, route_not_found}
             end;
         [_Route | _] ->
-            Providers = ff_routing_rule:get_providers(Routes),
-            filter_routes(Providers, PartyVarset)
+            filter_routing_rules_routes(Routes, PartyVarset)
     end.
 
 -spec make_route(provider_id(), terminal_id() | undefined) -> route().
@@ -79,6 +78,49 @@ get_terminal(Route) ->
     maps:get(terminal_id, Route, undefined).
 
 %%
+
+filter_routing_rules_routes(Routes, PartyVarset) ->
+    do(fun() ->
+        CorrectRoutes = filter_correct_routes(Routes),
+        unwrap(filter_valid_routes(CorrectRoutes, PartyVarset, #{}))
+    end).
+
+filter_valid_routes([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
+    {error, route_not_found};
+filter_valid_routes([], _PartyVarset, Acc) ->
+    {ok, convert_to_route(Acc)};
+filter_valid_routes([Route | Rest], PartyVarset, Acc0) ->
+    #{
+        provider_id := ProviderID,
+        provider := Provider,
+        terminal_id := TerminalID,
+        terminal := Terminal
+    } = Route,
+    Priority = maps:get(priority, Route, undefined),
+    Acc1 =
+        case validate_terms(Provider, Terminal, PartyVarset) of
+            {ok, valid} ->
+                Terms = maps:get(Priority, Acc0, []),
+                maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc0);
+            {error, _} ->
+                Acc0
+        end,
+    filter_valid_routes(Rest, PartyVarset, Acc1).
+
+-spec filter_correct_routes([ff_routing_rule:route()]) -> [ff_routing_rule:route()].
+filter_correct_routes(Routes) ->
+    lists:foldr(
+        fun(Route, Acc) ->
+            case Route of
+                #{provider_id := _, terminal_id := _} ->
+                    [Route | Acc];
+                _ ->
+                    Acc
+            end
+        end,
+        [],
+        Routes
+    ).
 
 -spec filter_routes([provider_id()], party_varset()) -> {ok, [route()]} | {error, route_not_found}.
 filter_routes(Providers, PartyVarset) ->

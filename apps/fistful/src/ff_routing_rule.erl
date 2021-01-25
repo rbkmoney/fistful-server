@@ -29,6 +29,8 @@
     priority => priority()
 }.
 
+-export_type([route/0]).
+
 -type reject_context() :: #{
     varset := varset(),
     rejected_providers := [rejected_provider()],

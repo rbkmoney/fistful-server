@@ -79,6 +79,8 @@ get_terminal(Route) ->
 
 %%
 
+-spec filter_routing_rules_routes([ff_routing_rule:route()], party_varset()) ->
+    {ok, [route()]} | {error, route_not_found}.
 filter_routing_rules_routes(Routes, PartyVarset) ->
     do(fun() ->
         CorrectRoutes = filter_correct_routes(Routes),
@@ -90,12 +92,10 @@ filter_valid_routes([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
 filter_valid_routes([], _PartyVarset, Acc) ->
     {ok, convert_to_route(Acc)};
 filter_valid_routes([Route | Rest], PartyVarset, Acc0) ->
-    #{
-        provider_id := ProviderID,
-        provider := Provider,
-        terminal_id := TerminalID,
-        terminal := Terminal
-    } = Route,
+    ProviderID = maps:get(provider_id, Route),
+    Provider = unwrap(ff_payouts_provider:get(ProviderID)),
+    TerminalID = maps:get(terminal_id, Route),
+    Terminal = unwrap(ff_payouts_terminal:get(TerminalID)),
     Priority = maps:get(priority, Route, undefined),
     Acc1 =
         case validate_terms(Provider, Terminal, PartyVarset) of

@@ -61,7 +61,7 @@ do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     do(fun() ->
         case maps:get(RoutingRuleTag, PaymentInstitution, undefined) of
             undefined ->
-                {error, {misconfiguration, routing_rules_not_found}};
+                {[], []};
             RoutingRules ->
                 Policies = RoutingRules#domain_RoutingRules.policies,
                 Prohibitions = RoutingRules#domain_RoutingRules.prohibitions,

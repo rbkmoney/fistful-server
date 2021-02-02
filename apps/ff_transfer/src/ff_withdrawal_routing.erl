@@ -39,7 +39,7 @@
 prepare_routes(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {Routes, _RejectedContext} = ff_routing_rule:gather_routes(
+    {Routes, RejectedContext} = ff_routing_rule:gather_routes(
         PaymentInstitution,
         p2p_transfer_routing_rules,
         PartyVarset,
@@ -47,6 +47,8 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
     ),
     case Routes of
         [] ->
+            logger:log(info, "Fallback to legacy method of routes gathering"),
+            ff_routing_rule:log_reject_context(RejectedContext),
             case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
                 {ok, Providers} ->
                     filter_routes(Providers, PartyVarset);

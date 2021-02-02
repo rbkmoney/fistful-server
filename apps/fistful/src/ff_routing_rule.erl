@@ -4,6 +4,7 @@
 
 -export([gather_routes/4]).
 -export([get_providers/1]).
+-export([log_reject_context/1]).
 
 -type id() :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: ff_payment_institution:payment_institution().
@@ -168,3 +169,27 @@ make_route(Candidate, Revision) ->
                 provider_id => ProviderID
             }
     end.
+
+-spec log_reject_context(reject_context()) -> ok.
+log_reject_context(RejectContext) ->
+    Level = warning,
+    RejectReason = unknown,
+    _ = logger:log(
+        Level,
+        "No route found, reason = ~p, varset: ~p",
+        [RejectReason, maps:get(varset, RejectContext)],
+        logger:get_process_metadata()
+    ),
+    _ = logger:log(
+        Level,
+        "No route found, reason = ~p, rejected providers: ~p",
+        [RejectReason, maps:get(rejected_providers, RejectContext)],
+        logger:get_process_metadata()
+    ),
+    _ = logger:log(
+        Level,
+        "No route found, reason = ~p, rejected routes: ~p",
+        [RejectReason, maps:get(rejected_routes, RejectContext)],
+        logger:get_process_metadata()
+    ),
+    ok.

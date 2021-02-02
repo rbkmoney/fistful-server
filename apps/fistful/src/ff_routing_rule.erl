@@ -14,6 +14,7 @@
 -type terminal_ref() :: dmsl_domain_thrift:'TerminalRef'().
 -type terminal() :: dmsl_domain_thrift:'Terminal'().
 -type priority() :: integer().
+-type weight() :: integer().
 -type varset() :: hg_selector:varset().
 -type revision() :: ff_domain_config:revision().
 -type routing_rule_tag() :: p2p_transfer_routing_rules | withdrawal_routing_rules.
@@ -27,7 +28,8 @@
     terminal := terminal(),
     terminal_ref := terminal_ref(),
     terminal_id := id(),
-    priority => priority()
+    priority => priority(),
+    weight => weight()
 }.
 
 -export_type([route/0]).
@@ -176,26 +178,22 @@ get_providers(Routes) ->
 make_route(Candidate, Revision) ->
     TerminalRef = Candidate#domain_RoutingCandidate.terminal,
     Priority = Candidate#domain_RoutingCandidate.priority,
+    Weight = Candidate#domain_RoutingCandidate.weight,
     TerminalID = TerminalRef#domain_TerminalRef.id,
     {ok, Terminal} = ff_domain_config:object(Revision, {terminal, TerminalRef}),
-    Route = #{
+    ProviderRef = Terminal#domain_Terminal.provider_ref,
+    ProviderID = ProviderRef#domain_ProviderRef.id,
+    {ok, Provider} = ff_domain_config:object(Revision, {provider, ProviderRef}),
+    genlib_map:compact(#{
         terminal => Terminal,
         terminal_ref => TerminalRef,
         terminal_id => TerminalID,
-        priority => Priority
-    },
-    case Terminal#domain_Terminal.provider_ref of
-        undefined ->
-            Route;
-        ProviderRef ->
-            ProviderID = ProviderRef#domain_ProviderRef.id,
-            {ok, Provider} = ff_domain_config:object(Revision, {provider, ProviderRef}),
-            Route#{
-                provider => Provider,
-                provider_ref => ProviderRef,
-                provider_id => ProviderID
-            }
-    end.
+        priority => Priority,
+        weight => Weight,
+        provider => Provider,
+        provider_ref => ProviderRef,
+        provider_id => ProviderID
+    }).
 
 -spec log_reject_context(reject_context()) -> ok.
 log_reject_context(RejectContext) ->

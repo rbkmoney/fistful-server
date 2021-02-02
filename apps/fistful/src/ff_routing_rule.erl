@@ -74,10 +74,8 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     | {error, ruleset_not_found}.
 do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     do(fun() ->
-        case maps:get(RoutingRuleTag, PaymentInstitution, undefined) of
-            undefined ->
-                {[], []};
-            RoutingRules ->
+        case maps:find(RoutingRuleTag, PaymentInstitution) of
+            {ok, RoutingRules} ->
                 Policies = RoutingRules#domain_RoutingRules.policies,
                 Prohibitions = RoutingRules#domain_RoutingRules.prohibitions,
                 PermitCandidates = unwrap(compute_routing_ruleset(Policies, VS, Revision)),
@@ -87,7 +85,9 @@ do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
                     DenyCandidates,
                     Revision
                 ),
-                {AcceptedRoutes, RejectedRoutes}
+                {AcceptedRoutes, RejectedRoutes};
+            error ->
+                {[], []}
         end
     end).
 
@@ -173,7 +173,7 @@ make_route(Candidate, Revision) ->
             Route;
         ProviderRef ->
             ProviderID = ProviderRef#domain_ProviderRef.id,
-            Provider = ff_domain_config:object(Revision, {provider, ProviderRef}),
+            {ok, Provider} = ff_domain_config:object(Revision, {provider, ProviderRef}),
             Route#{
                 provider => Provider,
                 provider_ref => ProviderRef,

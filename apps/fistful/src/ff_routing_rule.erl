@@ -70,7 +70,7 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
 
 -spec do_gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) ->
     {ok, {[route()], [route()]}}
-    | {error, unreduced}
+    | {error, misconfiguration}
     | {error, ruleset_not_found}.
 do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     do(fun() ->
@@ -93,7 +93,7 @@ do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
 
 -spec compute_routing_ruleset(routing_ruleset_ref(), varset(), revision()) ->
     {ok, [candidate()]}
-    | {error, unreduced}
+    | {error, misconfiguration}
     | {error, ruleset_not_found}.
 compute_routing_ruleset(RulesetRef, VS, Revision) ->
     case ff_party:compute_routing_ruleset(RulesetRef, VS, Revision) of
@@ -102,7 +102,7 @@ compute_routing_ruleset(RulesetRef, VS, Revision) ->
                 {candidates, Candidates} ->
                     {ok, Candidates};
                 {delegates, _} ->
-                    {error, unreduced}
+                    {error, misconfiguration}
             end;
         {error, Error} ->
             {error, Error}

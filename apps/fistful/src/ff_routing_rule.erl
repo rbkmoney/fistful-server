@@ -47,23 +47,31 @@
 
 %%
 
--spec gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) -> {[route()], reject_context()}.
+-spec gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) -> [route()].
 gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
-    RejectedContext = #{
-        varset => VS,
-        rejected_providers => [],
-        rejected_routes => []
-    },
     case do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) of
         {ok, {AcceptedRoutes, RejectedRoutes}} ->
-            {AcceptedRoutes, RejectedContext#{rejected_routes => RejectedRoutes}};
-        {error, _} ->
-            {[], RejectedContext}
+            case AcceptedRoutes of
+                [] ->
+                    RejectedContext = #{
+                        varset => VS,
+                        rejected_providers => [],
+                        rejected_routes => RejectedRoutes
+                    },
+                    log_reject_context(RejectedContext),
+                    [];
+                [_Route | _] ->
+                    AcceptedRoutes
+            end;
+        {error, _Error} ->
+            %% TODO: errors logging, when new routing will be implemented
+            []
     end.
 
 -spec do_gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) ->
     {ok, {[route()], [route()]}}
-    | {error, unreduced}.
+    | {error, unreduced}
+    | {error, ruleset_not_found}.
 do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     do(fun() ->
         case maps:get(RoutingRuleTag, PaymentInstitution, undefined) of
@@ -83,7 +91,10 @@ do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
         end
     end).
 
--spec compute_routing_ruleset(routing_ruleset_ref(), varset(), revision()) -> {ok, [candidate()]} | {error, unreduced}.
+-spec compute_routing_ruleset(routing_ruleset_ref(), varset(), revision()) ->
+    {ok, [candidate()]}
+    | {error, unreduced}
+    | {error, ruleset_not_found}.
 compute_routing_ruleset(RulesetRef, VS, Revision) ->
     case ff_party:compute_routing_ruleset(RulesetRef, VS, Revision) of
         {ok, Ruleset} ->
@@ -93,8 +104,8 @@ compute_routing_ruleset(RulesetRef, VS, Revision) ->
                 {delegates, _} ->
                     {error, unreduced}
             end;
-        {error, _} ->
-            {error, unreduced}
+        {error, Error} ->
+            {error, Error}
     end.
 
 -spec prohibited_candidates_filter([candidate()], [candidate()], revision()) -> {[route()], [rejected_route()]}.

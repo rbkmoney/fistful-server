@@ -98,14 +98,30 @@ do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
 compute_routing_ruleset(RulesetRef, VS, Revision) ->
     case ff_party:compute_routing_ruleset(RulesetRef, VS, Revision) of
         {ok, Ruleset} ->
-            case Ruleset#domain_RoutingRuleset.decisions of
-                {candidates, Candidates} ->
-                    {ok, Candidates};
-                {delegates, _} ->
-                    {error, misconfiguration}
-            end;
+            check_ruleset_computing(Ruleset#domain_RoutingRuleset.decisions);
         {error, Error} ->
             {error, Error}
+    end.
+
+check_ruleset_computing({delegates, _}) ->
+    {error, misconfiguration};
+check_ruleset_computing({candidates, Candidates}) ->
+    CheckedCandidates = lists:takewhile(
+        fun(C) ->
+            case C#domain_RoutingCandidate.allowed of
+            {constant, _} ->
+                true;
+            _ ->
+                false
+            end
+        end,
+        Candidates
+    ),
+    case CheckedCandidates =:= Candidates of
+        true ->
+            {ok, Candidates};
+        false ->
+            {error, misconfiguration}
     end.
 
 -spec prohibited_candidates_filter([candidate()], [candidate()], revision()) -> {[route()], [rejected_route()]}.

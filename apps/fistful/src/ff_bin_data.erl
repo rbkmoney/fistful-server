@@ -146,6 +146,7 @@ decode_payment_system(<<"NSPK MIR">>) -> {ok, nspkmir};
 decode_payment_system(<<"ELO">>) -> {ok, elo};
 decode_payment_system(<<"RUPAY">>) -> {ok, rupay};
 decode_payment_system(<<"EBT">>) -> {ok, ebt};
+decode_payment_system(<<"DUMMY">>) -> {ok, dummy};
 decode_payment_system(<<"UZCARD">>) -> {ok, uzcard};
 decode_payment_system(PaymentSystem) -> {error, {unknown_payment_system, PaymentSystem}}.
 

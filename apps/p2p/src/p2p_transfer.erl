@@ -713,25 +713,66 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
         [] ->
             logger:log(info, "Fallback to legacy method of routes gathering"),
             {ok, Providers} = ff_payment_institution:compute_p2p_transfer_providers(PaymentInstitution, PartyVarset),
-            choose_provider(Providers, PartyVarset);
+            choose_provider_legacy(Providers, PartyVarset);
         [_Route | _] ->
-            Providers = ff_routing_rule:get_providers(Routes),
-            choose_provider(Providers, PartyVarset)
+            Routes = filter_correct_routes(Routes),
+            choose_provider(Routes, PartyVarset)
     end.
 
--spec choose_provider([provider_id()], party_varset()) -> {ok, provider_id()} | {error, route_not_found}.
-choose_provider(Providers, VS) ->
-    case lists:filter(fun(P) -> validate_p2p_transfers_terms(P, VS) end, Providers) of
+-spec filter_correct_routes([ff_routing_rule:route()]) -> [ff_routing_rule:route()].
+filter_correct_routes(Routes) ->
+    lists:foldr(
+        fun(Route, Acc) ->
+            case Route of
+                #{provider_id := _, terminal_id := _} ->
+                    [Route | Acc];
+                _ ->
+                    Acc
+            end
+        end,
+        [],
+        Routes
+    ).
+
+-spec choose_provider([ff_routing_rule:route()], party_varset()) -> {ok, provider_id()} | {error, route_not_found}.
+choose_provider(Routes, VS) ->
+    ValidatedRoutes = lists:filter(
+        fun(R) ->
+            #{provider := Provider} = R,
+            validate_p2p_transfers_terms(Provider, VS)
+        end,
+        Routes
+    ),
+    case ValidatedRoutes of
         [ProviderID | _] ->
             {ok, ProviderID};
         [] ->
             {error, route_not_found}
     end.
 
--spec validate_p2p_transfers_terms(provider_id(), party_varset()) -> boolean().
-validate_p2p_transfers_terms(ID, VS) ->
+-spec validate_p2p_transfers_terms(ff_routing_rule:provider(), party_varset()) -> boolean().
+validate_p2p_transfers_terms(Provider, VS) ->
+    Terms = Provider#domain_Provider.terms,
+    case ff_p2p_provider:validate_terms(Terms, VS) of
+        {ok, valid} ->
+            true;
+        {error, _Error} ->
+            false
+    end.
+
+-spec choose_provider_legacy([provider_id()], party_varset()) -> {ok, provider_id()} | {error, route_not_found}.
+choose_provider_legacy(Providers, VS) ->
+    case lists:filter(fun(P) -> validate_p2p_transfers_terms_legacy(P, VS) end, Providers) of
+        [ProviderID | _] ->
+            {ok, ProviderID};
+        [] ->
+            {error, route_not_found}
+    end.
+
+-spec validate_p2p_transfers_terms_legacy(provider_id(), party_varset()) -> boolean().
+validate_p2p_transfers_terms_legacy(ID, VS) ->
     {ok, Provider} = ff_p2p_provider:get(ID),
-    case ff_p2p_provider:validate_terms(Provider, VS) of
+    case ff_p2p_provider:validate_terms_legacy(Provider, VS) of
         {ok, valid} ->
             true;
         {error, _Error} ->

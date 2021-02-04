@@ -3,7 +3,6 @@
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([gather_routes/4]).
--export([get_providers/1]).
 -export([log_reject_context/1]).
 
 -type id() :: dmsl_domain_thrift:'ObjectID'().
@@ -33,6 +32,8 @@
 }.
 
 -export_type([route/0]).
+-export_type([provider/0]).
+-export_type([terminal/0]).
 
 -type reject_context() :: #{
     varset := varset(),
@@ -158,21 +159,6 @@ get_terminal_ref(Candidate) ->
 -spec get_description(candidate()) -> candidate_description().
 get_description(Candidate) ->
     Candidate#domain_RoutingCandidate.description.
-
--spec get_providers([route()]) -> [id()].
-get_providers(Routes) ->
-    lists:foldr(
-        fun(R, Acc) ->
-            case maps:get(provider_id, R, undefined) of
-                undefined ->
-                    Acc;
-                ProviderID ->
-                    [ProviderID | Acc]
-            end
-        end,
-        [],
-        Routes
-    ).
 
 -spec make_route(candidate(), revision()) -> route().
 make_route(Candidate, Revision) ->

@@ -41,7 +41,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
     Routes = ff_routing_rule:gather_routes(
         PaymentInstitution,
-        withdrawal_transfer_routing_rules,
+        withdrawal_routing_rules,
         PartyVarset,
         DomainRevision
     ),
@@ -50,7 +50,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
             logger:log(info, "Fallback to legacy method of routes gathering"),
             case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
                 {ok, Providers} ->
-                    filter_routes(Providers, PartyVarset);
+                    filter_routes_legacy(Providers, PartyVarset);
                 {error, {misconfiguration, _Details} = Error} ->
                     %% TODO: Do not interpret such error as an empty route list.
                     %% The current implementation is made for compatibility reasons.
@@ -59,7 +59,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
                     {error, route_not_found}
             end;
         [_Route | _] ->
-            filter_routing_rules_routes(Routes, PartyVarset)
+            filter_routes(Routes, PartyVarset)
     end.
 
 -spec make_route(provider_id(), terminal_id() | undefined) -> route().
@@ -80,33 +80,13 @@ get_terminal(Route) ->
 
 %%
 
--spec filter_routing_rules_routes([ff_routing_rule:route()], party_varset()) ->
+-spec filter_routes([ff_routing_rule:route()], party_varset()) ->
     {ok, [route()]} | {error, route_not_found}.
-filter_routing_rules_routes(Routes, PartyVarset) ->
+filter_routes(Routes, PartyVarset) ->
     do(fun() ->
         CorrectRoutes = filter_correct_routes(Routes),
         unwrap(filter_valid_routes(CorrectRoutes, PartyVarset, #{}))
     end).
-
-filter_valid_routes([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
-    {error, route_not_found};
-filter_valid_routes([], _PartyVarset, Acc) ->
-    {ok, convert_to_route(Acc)};
-filter_valid_routes([Route | Rest], PartyVarset, Acc0) ->
-    ProviderID = maps:get(provider_id, Route),
-    Provider = unwrap(ff_payouts_provider:get(ProviderID)),
-    TerminalID = maps:get(terminal_id, Route),
-    Terminal = unwrap(ff_payouts_terminal:get(TerminalID)),
-    Priority = maps:get(priority, Route, undefined),
-    Acc1 =
-        case validate_terms(Provider, Terminal, PartyVarset) of
-            {ok, valid} ->
-                Terms = maps:get(Priority, Acc0, []),
-                maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc0);
-            {error, _} ->
-                Acc0
-        end,
-    filter_valid_routes(Rest, PartyVarset, Acc1).
 
 -spec filter_correct_routes([ff_routing_rule:route()]) -> [ff_routing_rule:route()].
 filter_correct_routes(Routes) ->
@@ -123,17 +103,37 @@ filter_correct_routes(Routes) ->
         Routes
     ).
 
--spec filter_routes([provider_id()], party_varset()) -> {ok, [route()]} | {error, route_not_found}.
-filter_routes(Providers, PartyVarset) ->
+filter_valid_routes([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
+    {error, route_not_found};
+filter_valid_routes([], _PartyVarset, Acc) ->
+    {ok, convert_to_route(Acc)};
+filter_valid_routes([Route | Rest], PartyVarset, Acc0) ->
+    ProviderID = maps:get(provider_id, Route),
+    Provider = maps:get(provider, Route),
+    TerminalID = maps:get(terminal_id, Route),
+    Terminal = maps:get(terminal, Route),
+    Priority = maps:get(priority, Route, undefined),
+    Acc1 =
+        case validate_terms(Provider, Terminal, PartyVarset) of
+            {ok, valid} ->
+                Terms = maps:get(Priority, Acc0, []),
+                maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc0);
+            {error, _} ->
+                Acc0
+        end,
+    filter_valid_routes(Rest, PartyVarset, Acc1).
+
+-spec filter_routes_legacy([provider_id()], party_varset()) -> {ok, [route()]} | {error, route_not_found}.
+filter_routes_legacy(Providers, PartyVarset) ->
     do(fun() ->
-        unwrap(filter_routes_(Providers, PartyVarset, #{}))
+        unwrap(filter_routes_legacy_(Providers, PartyVarset, #{}))
     end).
 
-filter_routes_([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
+filter_routes_legacy_([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
     {error, route_not_found};
-filter_routes_([], _PartyVarset, Acc) ->
+filter_routes_legacy_([], _PartyVarset, Acc) ->
     {ok, convert_to_route(Acc)};
-filter_routes_([ProviderID | Rest], PartyVarset, Acc0) ->
+filter_routes_legacy_([ProviderID | Rest], PartyVarset, Acc0) ->
     Provider = unwrap(ff_payouts_provider:get(ProviderID)),
     {ok, TerminalsWithPriority} = get_provider_terminals_with_priority(Provider, PartyVarset),
     Acc =
@@ -150,7 +150,7 @@ filter_routes_([ProviderID | Rest], PartyVarset, Acc0) ->
                     TPL
                 )
         end,
-    filter_routes_(Rest, PartyVarset, Acc).
+    filter_routes_legacy_(Rest, PartyVarset, Acc).
 
 -spec get_provider_terminals_with_priority(provider(), party_varset()) -> {ok, [{terminal_id(), terminal_priority()}]}.
 get_provider_terminals_with_priority(Provider, VS) ->
@@ -167,7 +167,7 @@ get_valid_terminals_with_priority([], _Provider, _PartyVarset, Acc) ->
 get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, PartyVarset, Acc0) ->
     Terminal = unwrap(ff_payouts_terminal:get(TerminalID)),
     Acc =
-        case validate_terms(Provider, Terminal, PartyVarset) of
+        case validate_terms_legacy(Provider, Terminal, PartyVarset) of
             {ok, valid} ->
                 [{TerminalID, Priority} | Acc0];
             {error, _Error} ->
@@ -175,10 +175,39 @@ get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, Par
         end,
     get_valid_terminals_with_priority(Rest, Provider, PartyVarset, Acc).
 
--spec validate_terms(provider(), terminal(), hg_selector:varset()) ->
+-spec validate_terms(ff_routing_rule:provider(), ff_routing_rule:terminal(), hg_selector:varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
 validate_terms(Provider, Terminal, PartyVarset) ->
+    do(fun() ->
+        ProviderTerms = provision_terms(Provider),
+        TerminalTerms = provision_terms(Terminal),
+        _ = unwrap(assert_terms_defined(TerminalTerms, ProviderTerms)),
+        CombinedTerms = merge_withdrawal_terms(ProviderTerms, TerminalTerms),
+        unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
+    end).
+
+-spec provision_terms(ff_routing_rule:provider() | ff_routing_rule:terminal()) ->
+    withdrawal_provision_terms().
+provision_terms(#domain_Provider{} = Provider) ->
+    provision_terms_(Provider#domain_Provider.terms);
+provision_terms(#domain_Terminal{} = Terminal) ->
+    provision_terms_(Terminal#domain_Terminal.terms).
+
+provision_terms_(Terms) when Terms =/= undefined ->
+    case Terms#domain_ProvisionTermSet.wallet of
+        WalletTerms when WalletTerms =/= undefined ->
+            WalletTerms#domain_WalletProvisionTerms.withdrawals;
+        _ ->
+            undefined
+    end;
+provision_terms_(_) ->
+    undefined.
+
+-spec validate_terms_legacy(provider(), terminal(), hg_selector:varset()) ->
+    {ok, valid}
+    | {error, Error :: term()}.
+validate_terms_legacy(Provider, Terminal, PartyVarset) ->
     do(fun() ->
         ProviderTerms = ff_payouts_provider:provision_terms(Provider),
         TerminalTerms = ff_payouts_terminal:provision_terms(Terminal),

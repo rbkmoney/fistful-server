@@ -724,7 +724,7 @@ filter_correct_routes(Routes) ->
     lists:foldr(
         fun(Route, Acc) ->
             case Route of
-                #{provider_id := _, terminal_id := _} ->
+                #{provider_id := _} ->
                     [Route | Acc];
                 _ ->
                     Acc

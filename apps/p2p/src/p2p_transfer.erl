@@ -772,7 +772,7 @@ choose_provider_legacy(Providers, VS) ->
 -spec validate_p2p_transfers_terms_legacy(provider_id(), party_varset()) -> boolean().
 validate_p2p_transfers_terms_legacy(ID, VS) ->
     {ok, Provider} = ff_p2p_provider:get(ID),
-    case ff_p2p_provider:validate_terms_legacy(Provider, VS) of
+    case ff_p2p_provider:validate_terms(Provider, VS) of
         {ok, valid} ->
             true;
         {error, _Error} ->

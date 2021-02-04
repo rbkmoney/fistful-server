@@ -22,10 +22,8 @@
 
 -type route() :: #{
     provider => provider(),
-    provider_ref => provider_ref(),
     provider_id => id(),
     terminal := terminal(),
-    terminal_ref := terminal_ref(),
     terminal_id := id(),
     priority => priority(),
     weight => weight()
@@ -162,9 +160,9 @@ get_description(Candidate) ->
 
 -spec make_route(candidate(), revision()) -> route().
 make_route(Candidate, Revision) ->
-    TerminalRef = Candidate#domain_RoutingCandidate.terminal,
     Priority = Candidate#domain_RoutingCandidate.priority,
     Weight = Candidate#domain_RoutingCandidate.weight,
+    TerminalRef = Candidate#domain_RoutingCandidate.terminal,
     TerminalID = TerminalRef#domain_TerminalRef.id,
     {ok, Terminal} = ff_domain_config:object(Revision, {terminal, TerminalRef}),
     ProviderRef = Terminal#domain_Terminal.provider_ref,
@@ -172,13 +170,11 @@ make_route(Candidate, Revision) ->
     {ok, Provider} = ff_domain_config:object(Revision, {provider, ProviderRef}),
     genlib_map:compact(#{
         terminal => Terminal,
-        terminal_ref => TerminalRef,
         terminal_id => TerminalID,
-        priority => Priority,
-        weight => Weight,
         provider => Provider,
-        provider_ref => ProviderRef,
-        provider_id => ProviderID
+        provider_id => ProviderID,
+        priority => Priority,
+        weight => Weight
     }).
 
 -spec log_reject_context(reject_context()) -> ok.

@@ -80,8 +80,7 @@ get_terminal(Route) ->
 
 %%
 
--spec filter_routes([ff_routing_rule:route()], party_varset()) ->
-    {ok, [route()]} | {error, route_not_found}.
+-spec filter_routes([ff_routing_rule:route()], party_varset()) -> {ok, [route()]} | {error, route_not_found}.
 filter_routes(Routes, PartyVarset) ->
     do(fun() ->
         CorrectRoutes = filter_correct_routes(Routes),
@@ -187,8 +186,7 @@ validate_terms(Provider, Terminal, PartyVarset) ->
         unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
     end).
 
--spec provision_terms(ff_routing_rule:provider() | ff_routing_rule:terminal()) ->
-    withdrawal_provision_terms().
+-spec provision_terms(ff_routing_rule:provider() | ff_routing_rule:terminal()) -> withdrawal_provision_terms().
 provision_terms(#domain_Provider{} = Provider) ->
     provision_terms_(Provider#domain_Provider.terms);
 provision_terms(#domain_Terminal{} = Terminal) ->

@@ -117,14 +117,14 @@ decode(ID, #domain_PaymentInstitution{
     p2p_transfer_routing_rules = P2PTransferRoutingRules
 }) ->
     genlib_map:compact(#{
-            id => ID,
-            system_accounts => SystemAccounts,
-            identity => Identity,
-            withdrawal_providers => WithdrawalProviders,
-            p2p_providers => P2PProviders,
-            p2p_inspector => P2PInspector,
-            withdrawal_routing_rules => WithdrawalRoutingRules,
-            p2p_transfer_routing_rules => P2PTransferRoutingRules
+        id => ID,
+        system_accounts => SystemAccounts,
+        identity => Identity,
+        withdrawal_providers => WithdrawalProviders,
+        p2p_providers => P2PProviders,
+        p2p_inspector => P2PInspector,
+        withdrawal_routing_rules => WithdrawalRoutingRules,
+        p2p_transfer_routing_rules => P2PTransferRoutingRules
     }).
 
 decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts}) ->

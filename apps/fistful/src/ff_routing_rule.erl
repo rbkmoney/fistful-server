@@ -69,7 +69,8 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
                 misconfiguration ->
                     logger:warning("Routing rule misconfiguration. Varset:~n~p", [VS]);
                 _ ->
-                    Error = Error %% TODO: full logging, when new routing will be implemented
+                    %% TODO: full logging, when new routing will be implemented
+                    Error = Error
             end,
             []
     end.
@@ -115,10 +116,10 @@ check_ruleset_computing({candidates, Candidates}) ->
     CheckedCandidates = lists:takewhile(
         fun(C) ->
             case C#domain_RoutingCandidate.allowed of
-            {constant, _} ->
-                true;
-            _ ->
-                false
+                {constant, _} ->
+                    true;
+                _ ->
+                    false
             end
         end,
         Candidates

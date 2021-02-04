@@ -142,7 +142,7 @@ prohibited_candidates_filter(Candidates, ProhibitedCandidates, Revision) ->
     lists:foldr(
         fun(C, {Accepted, Rejected}) ->
             Route = make_route(C, Revision),
-            TerminalRef = maps:get(terminal_ref, Route),
+            TerminalRef = get_terminal_ref(C),
             case maps:find(TerminalRef, ProhibitionTable) of
                 error ->
                     {[Route | Accepted], Rejected};

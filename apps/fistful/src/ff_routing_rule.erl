@@ -64,8 +64,13 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
                 [_Route | _] ->
                     AcceptedRoutes
             end;
-        {error, _Error} ->
-            %% TODO: errors logging, when new routing will be implemented
+        {error, Error} ->
+            case Error of
+                misconfiguration ->
+                    logger:warning("Routing rule misconfiguration. Varset:~n~p", [VS]);
+                _ ->
+                    Error = Error %% TODO: full logging, when new routing will be implemented
+            end,
             []
     end.
 

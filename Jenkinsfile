@@ -21,5 +21,5 @@ build('fistful-server', 'docker-host', finalHook) {
     pipeErlangService = load("${env.JENKINS_LIB}/pipeErlangService.groovy")
   }
 
-  pipeErlangService.runPipe(true)
+  pipeErlangService.runPipe(true, true)
 }

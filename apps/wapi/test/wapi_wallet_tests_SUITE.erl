@@ -50,7 +50,7 @@
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() -> [test_case_name()].
+-spec all() -> [{group, test_case_name()}].
 all() ->
     [
         {group, base}
@@ -129,10 +129,10 @@ init_per_testcase(Name, C) ->
     ok = ct_helper:set_context(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> config().
+-spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
-    wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
+    _ = wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
 %%% Tests
@@ -140,12 +140,12 @@ end_per_testcase(_Name, C) ->
 -spec create_ok(config()) -> _.
 create_ok(C) ->
     PartyID = ?config(party, C),
-    create_wallet_start_mocks(C, fun() -> {ok, ?WALLET(PartyID)} end),
+    _ = create_wallet_start_mocks(C, fun() -> {ok, ?WALLET(PartyID)} end),
     {ok, _} = create_wallet_call_api(C).
 
 -spec create_fail_identity_notfound(config()) -> _.
 create_fail_identity_notfound(C) ->
-    create_wallet_start_mocks(C, fun() -> throw(#fistful_IdentityNotFound{}) end),
+    _ = create_wallet_start_mocks(C, fun() -> {throwing, #fistful_IdentityNotFound{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such identity">>}}},
         create_wallet_call_api(C)
@@ -153,7 +153,7 @@ create_fail_identity_notfound(C) ->
 
 -spec create_fail_currency_notfound(config()) -> _.
 create_fail_currency_notfound(C) ->
-    create_wallet_start_mocks(C, fun() -> throw(#fistful_CurrencyNotFound{}) end),
+    _ = create_wallet_start_mocks(C, fun() -> {throwing, #fistful_CurrencyNotFound{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Currency not supported">>}}},
         create_wallet_call_api(C)
@@ -161,7 +161,7 @@ create_fail_currency_notfound(C) ->
 
 -spec create_fail_party_inaccessible(config()) -> _.
 create_fail_party_inaccessible(C) ->
-    create_wallet_start_mocks(C, fun() -> throw(#fistful_PartyInaccessible{}) end),
+    _ = create_wallet_start_mocks(C, fun() -> {throwing, #fistful_PartyInaccessible{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Identity inaccessible">>}}},
         create_wallet_call_api(C)
@@ -170,12 +170,12 @@ create_fail_party_inaccessible(C) ->
 -spec get_ok(config()) -> _.
 get_ok(C) ->
     PartyID = ?config(party, C),
-    get_wallet_start_mocks(C, fun() -> {ok, ?WALLET(PartyID)} end),
+    _ = get_wallet_start_mocks(C, fun() -> {ok, ?WALLET(PartyID)} end),
     {ok, _} = get_wallet_call_api(C).
 
 -spec get_fail_wallet_notfound(config()) -> _.
 get_fail_wallet_notfound(C) ->
-    get_wallet_start_mocks(C, fun() -> throw(#fistful_WalletNotFound{}) end),
+    _ = get_wallet_start_mocks(C, fun() -> {throwing, #fistful_WalletNotFound{}} end),
     ?assertEqual(
         {error, {404, #{}}},
         get_wallet_call_api(C)
@@ -184,7 +184,7 @@ get_fail_wallet_notfound(C) ->
 -spec get_by_external_id_ok(config()) -> _.
 get_by_external_id_ok(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
             {fistful_wallet, fun('Get', _) -> {ok, ?WALLET(PartyID)} end}
@@ -204,7 +204,7 @@ get_by_external_id_ok(C) ->
 -spec get_account_ok(config()) -> _.
 get_account_ok(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_wallet, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
@@ -217,10 +217,10 @@ get_account_ok(C) ->
 
 -spec get_account_fail_get_context_wallet_notfound(config()) -> _.
 get_account_fail_get_context_wallet_notfound(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_wallet, fun
-                ('GetContext', _) -> throw(#fistful_WalletNotFound{});
+                ('GetContext', _) -> {throwing, #fistful_WalletNotFound{}};
                 ('GetAccountBalance', _) -> {ok, ?ACCOUNT_BALANCE}
             end}
         ],
@@ -234,11 +234,11 @@ get_account_fail_get_context_wallet_notfound(C) ->
 -spec get_account_fail_get_accountbalance_wallet_notfound(config()) -> _.
 get_account_fail_get_accountbalance_wallet_notfound(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_wallet, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('GetAccountBalance', _) -> throw(#fistful_WalletNotFound{})
+                ('GetAccountBalance', _) -> {throwing, #fistful_WalletNotFound{}}
             end}
         ],
         C

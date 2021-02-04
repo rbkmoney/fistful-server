@@ -46,7 +46,7 @@
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() -> [test_case_name()].
+-spec all() -> [{group, test_case_name()}].
 all() ->
     [
         {group, base}
@@ -116,10 +116,10 @@ init_per_testcase(Name, C) ->
     ok = ct_helper:set_context(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> config().
+-spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
-    wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
+    _ = wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
 %%% Tests
@@ -129,7 +129,7 @@ create_webhook_ok_test(C) ->
     {ok, Identity} = create_identity(C),
     IdentityID = maps:get(<<"id">>, Identity),
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?DESTINATION_EVENT_FILTER)} end},
             {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
@@ -157,7 +157,7 @@ create_withdrawal_webhook_ok_test(C) ->
     {ok, Identity} = create_identity(C),
     IdentityID = maps:get(<<"id">>, Identity),
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
             {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
@@ -187,7 +187,7 @@ get_webhooks_ok_test(C) ->
     PartyID = ?config(party, C),
     {ok, Identity} = create_identity(C),
     IdentityID = maps:get(<<"id">>, Identity),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {webhook_manager, fun('GetList', _) ->
                 {ok, [?WEBHOOK(?WITHDRAWAL_EVENT_FILTER), ?WEBHOOK(?DESTINATION_EVENT_FILTER)]}
@@ -211,7 +211,7 @@ get_webhook_ok_test(C) ->
     {ok, Identity} = create_identity(C),
     IdentityID = maps:get(<<"id">>, Identity),
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {webhook_manager, fun('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
             {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
@@ -236,7 +236,7 @@ delete_webhook_ok_test(C) ->
     {ok, Identity} = create_identity(C),
     IdentityID = maps:get(<<"id">>, Identity),
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {webhook_manager, fun('Delete', _) -> {ok, ok} end},
             {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}

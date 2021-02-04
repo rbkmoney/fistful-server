@@ -909,7 +909,9 @@ events_collect_test_() ->
                 #p2p_transfer_Event{
                     event = EventID,
                     occured_at = <<"2020-05-25T12:34:56.123456Z">>,
-                    change = {route, #p2p_transfer_RouteChange{}}
+                    change = {route, #p2p_transfer_RouteChange{route = #p2p_transfer_Route{
+                      provider_id = 0
+                    }}}
                 }
             end,
             meck:new([wapi_handler_utils], [passthrough]),

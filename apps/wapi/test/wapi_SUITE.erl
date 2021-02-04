@@ -232,7 +232,7 @@ withdrawal_to_bank_card_test(C) ->
     ok = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    await_destination(DestID),
+    _ = await_destination(DestID),
 
     WithdrawalID = create_withdrawal(WalletID, DestID, C),
     ok = check_withdrawal(WalletID, DestID, WithdrawalID, C).
@@ -252,7 +252,7 @@ withdrawal_to_crypto_wallet_test(C) ->
     ok = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    await_destination(DestID),
+    _ = await_destination(DestID),
 
     WithdrawalID = create_withdrawal(WalletID, DestID, C),
     ok = check_withdrawal(WalletID, DestID, WithdrawalID, C).
@@ -273,7 +273,7 @@ withdrawal_to_ripple_wallet_test(C) ->
     ok = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    await_destination(DestID),
+    _ = await_destination(DestID),
 
     WithdrawalID = create_withdrawal(WalletID, DestID, C),
     ok = check_withdrawal(WalletID, DestID, WithdrawalID, C).
@@ -293,7 +293,7 @@ withdrawal_to_ripple_wallet_with_tag_test(C) ->
     ok = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    await_destination(DestID),
+    _ = await_destination(DestID),
 
     WithdrawalID = create_withdrawal(WalletID, DestID, C),
     ok = check_withdrawal(WalletID, DestID, WithdrawalID, C).
@@ -315,7 +315,7 @@ check_withdrawal_limit_test(C) ->
     ok = check_destination(IdentityID, DestID, Resource, C),
     {ok, _Grants} = issue_destination_grants(DestID, C),
     % ожидаем выполнения асинхронного вызова выдачи прав на вывод
-    await_destination(DestID),
+    _ = await_destination(DestID),
 
     {error, {422, #{<<"message">> := <<"Invalid cash amount">>}}} = call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
@@ -353,7 +353,7 @@ check_withdrawal_limit_exceeded_test(C) ->
     await_destination(DestID),
 
     WithdrawalID = create_withdrawal(WalletID, DestID, C, undefined, 100000),
-    await_final_withdrawal_status(WithdrawalID),
+    _ = await_final_withdrawal_status(WithdrawalID),
     ok = check_withdrawal(WalletID, DestID, WithdrawalID, C, 100000),
     ?assertMatch(
         {ok, #{
@@ -548,7 +548,7 @@ quote_withdrawal_test(C) ->
     {ok, Dest} = create_destination(IdentityID, Resource, C),
     DestID = destination_id(Dest),
     % ожидаем авторизации назначения вывода
-    await_destination(DestID),
+    _ = await_destination(DestID),
 
     CashFrom = #{
         <<"amount">> => 100,
@@ -584,7 +584,7 @@ woody_retry_test(C) ->
     },
     Ctx = wapi_ct_helper:create_auth_ctx(<<"12332">>),
     T1 = erlang:monotonic_time(),
-    try
+    _ = try
         wapi_wallet_ff_backend:list_wallets(Params, Ctx#{woody_context => ct_helper:get_woody_ctx(C)})
     catch
         error:{woody_error, {_Source, Class, _Details}} = _Error when
@@ -928,7 +928,7 @@ check_withdrawal(WalletID, DestID, WithdrawalID, C, Amount) ->
                     Other
             end
         end,
-        {linear, 20, 1000}
+        genlib_retry:linear(20, 1000)
     ).
 
 get_withdrawal(WithdrawalID, C) ->
@@ -981,7 +981,7 @@ check_w2w_transfer(WalletFromID, WalletToID, W2WTransferID, C) ->
                     Other
             end
         end,
-        {linear, 20, 1000}
+        genlib_retry:linear(20, 1000)
     ).
 
 %%

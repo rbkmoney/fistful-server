@@ -62,7 +62,9 @@ deadline_from_timeout(Timeout) ->
 deadline_is_reached(Deadline) ->
     woody_deadline:is_reached(Deadline).
 
--spec parse_lifetime(binary()) -> {ok, timeout()} | {error, bad_lifetime}.
+-spec parse_lifetime
+    (undefined) -> {error, bad_lifetime};
+    (binary()) -> {ok, timeout()} | {error, bad_lifetime}.
 parse_lifetime(undefined) ->
     {error, bad_lifetime};
 parse_lifetime(Bin) ->
@@ -86,7 +88,8 @@ parse_lifetime(Bin) ->
 -spec base64url_to_map(binary()) -> map() | no_return().
 base64url_to_map(Base64) when is_binary(Base64) ->
     try
-        jsx:decode(base64url:decode(Base64), [return_maps])
+        {ok, Json} = jose_base64url:decode(Base64),
+        jsx:decode(Json, [return_maps])
     catch
         Class:Reason ->
             _ = logger:debug("decoding base64 ~p to map failed with ~p:~p", [Base64, Class, Reason]),
@@ -96,7 +99,7 @@ base64url_to_map(Base64) when is_binary(Base64) ->
 -spec map_to_base64url(map()) -> binary() | no_return().
 map_to_base64url(Map) when is_map(Map) ->
     try
-        base64url:encode(jsx:encode(Map))
+        jose_base64url:encode(jsx:encode(Map))
     catch
         Class:Reason ->
             _ = logger:debug("encoding map ~p to base64 failed with ~p:~p", [Map, Class, Reason]),

@@ -64,8 +64,8 @@ prepare_param(Param) ->
     case Param of
         {limit, P} -> #{<<"limit">> => genlib:to_binary(P)};
         {offset, P} -> #{<<"offset">> => genlib:to_binary(P)};
-        {from_time, P} -> #{<<"fromTime">> => genlib_format:format_datetime_iso8601(P)};
-        {to_time, P} -> #{<<"toTime">> => genlib_format:format_datetime_iso8601(P)};
+        {from_time, P} -> #{<<"fromTime">> => genlib_rfc3339:format(genlib_time:daytime_to_unixtime(P), second)};
+        {to_time, P} -> #{<<"toTime">> => genlib_rfc3339:format(genlib_time:daytime_to_unixtime(P), second)};
         {status, P} -> #{<<"status">> => genlib:to_binary(P)};
         {split_unit, P} -> #{<<"splitUnit">> => genlib:to_binary(P)};
         {split_size, P} -> #{<<"splitSize">> => genlib:to_binary(P)};

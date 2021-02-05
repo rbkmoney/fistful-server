@@ -98,15 +98,15 @@ compute_fees(#{terms := Terms}, VS) ->
         postings => ff_cash_flow:decode_domain_postings(CashFlow)
     }.
 
--spec validate_terms(terms() | provider(), hg_selector:varset()) ->
+-spec validate_terms(provider() | terms(), hg_selector:varset()) ->
     {ok, valid}
     | {error, validate_terms_error()}.
-validate_terms(Terms, VS) ->
-    do_validate_terms(Terms, VS);
 validate_terms(#{terms := Terms}, VS) ->
-    do_validate_terms(Terms, VS).
+    validate_terms_(Terms, VS);
+validate_terms(Terms, VS) ->
+    validate_terms_(Terms, VS).
 
-do_validate_terms(Terms, VS) ->
+validate_terms_(Terms, VS) ->
     #domain_ProvisionTermSet{wallet = WalletTerms} = Terms,
     #domain_WalletProvisionTerms{p2p = P2PTerms} = WalletTerms,
     #domain_P2PProvisionTerms{

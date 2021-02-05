@@ -83,34 +83,20 @@ get_terminal(Route) ->
 -spec filter_routes([ff_routing_rule:route()], party_varset()) -> {ok, [route()]} | {error, route_not_found}.
 filter_routes(Routes, PartyVarset) ->
     do(fun() ->
-        CorrectRoutes = filter_correct_routes(Routes),
-        unwrap(filter_valid_routes(CorrectRoutes, PartyVarset, #{}))
+        unwrap(filter_valid_routes(Routes, PartyVarset, #{}))
     end).
-
--spec filter_correct_routes([ff_routing_rule:route()]) -> [ff_routing_rule:route()].
-filter_correct_routes(Routes) ->
-    lists:foldr(
-        fun(Route, Acc) ->
-            case Route of
-                #{provider_id := _, terminal_id := _} ->
-                    [Route | Acc];
-                _ ->
-                    Acc
-            end
-        end,
-        [],
-        Routes
-    ).
 
 filter_valid_routes([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
     {error, route_not_found};
 filter_valid_routes([], _PartyVarset, Acc) ->
     {ok, convert_to_route(Acc)};
 filter_valid_routes([Route | Rest], PartyVarset, Acc0) ->
-    ProviderID = maps:get(provider_id, Route),
-    Provider = maps:get(provider, Route),
-    TerminalID = maps:get(terminal_id, Route),
     Terminal = maps:get(terminal, Route),
+    Provider = maps:get(provider, Route),
+    TerminalRef = maps:get(terminal_ref, Route),
+    TerminalID = TerminalRef#domain_TerminalRef.id,
+    ProviderRef = Terminal#domain_Terminal.provider_ref,
+    ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
     Acc1 =
         case validate_terms(Provider, Terminal, PartyVarset) of

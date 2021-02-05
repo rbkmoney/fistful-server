@@ -715,24 +715,8 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
             {ok, Providers} = ff_payment_institution:compute_p2p_transfer_providers(PaymentInstitution, PartyVarset),
             choose_provider_legacy(Providers, PartyVarset);
         [_Route | _] ->
-            Routes = filter_correct_routes(Routes),
             choose_provider(Routes, PartyVarset)
     end.
-
--spec filter_correct_routes([ff_routing_rule:route()]) -> [ff_routing_rule:route()].
-filter_correct_routes(Routes) ->
-    lists:foldr(
-        fun(Route, Acc) ->
-            case Route of
-                #{provider_id := _} ->
-                    [Route | Acc];
-                _ ->
-                    Acc
-            end
-        end,
-        [],
-        Routes
-    ).
 
 -spec choose_provider([ff_routing_rule:route()], party_varset()) -> {ok, provider_id()} | {error, route_not_found}.
 choose_provider(Routes, VS) ->
@@ -744,7 +728,10 @@ choose_provider(Routes, VS) ->
         Routes
     ),
     case ValidatedRoutes of
-        [ProviderID | _] ->
+        [Route | _] ->
+            #{terminal := Terminal} = Route,
+            ProviderRef = Terminal#domain_Terminal.provider_ref,
+            ProviderID = ProviderRef#domain_ProviderRef.id,
             {ok, ProviderID};
         [] ->
             {error, route_not_found}

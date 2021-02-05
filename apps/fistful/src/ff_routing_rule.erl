@@ -5,7 +5,6 @@
 -export([gather_routes/4]).
 -export([log_reject_context/1]).
 
--type id() :: dmsl_domain_thrift:'ObjectID'().
 -type payment_institution() :: ff_payment_institution:payment_institution().
 -type routing_ruleset_ref() :: dmsl_domain_thrift:'RoutingRulesetRef'().
 -type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
@@ -21,12 +20,11 @@
 -type candidate_description() :: binary() | undefined.
 
 -type route() :: #{
-    provider => provider(),
-    provider_id => id(),
+    terminal_ref := terminal_ref(),
     terminal := terminal(),
-    terminal_id := id(),
     priority => priority(),
-    weight => weight()
+    weight => weight(),
+    provider => provider()
 }.
 
 -export_type([route/0]).
@@ -143,12 +141,13 @@ prohibited_candidates_filter(Candidates, ProhibitedCandidates, Revision) ->
     lists:foldr(
         fun(C, {Accepted, Rejected}) ->
             Route = make_route(C, Revision),
-            TerminalRef = get_terminal_ref(C),
+            #{terminal_ref := TerminalRef} = Route,
             case maps:find(TerminalRef, ProhibitionTable) of
                 error ->
                     {[Route | Accepted], Rejected};
                 {ok, Description} ->
-                    ProviderRef = maps:get(provider_ref, Route, undefined),
+                    #{terminal := Terminal} = Route,
+                    ProviderRef = Terminal#domain_Terminal.provider_ref,
                     {Accepted, [{ProviderRef, TerminalRef, {'RoutingRule', Description}} | Rejected]}
             end
         end,
@@ -166,21 +165,18 @@ get_description(Candidate) ->
 
 -spec make_route(candidate(), revision()) -> route().
 make_route(Candidate, Revision) ->
+    TerminalRef = Candidate#domain_RoutingCandidate.terminal,
+    {ok, Terminal} = ff_domain_config:object(Revision, {terminal, TerminalRef}),
     Priority = Candidate#domain_RoutingCandidate.priority,
     Weight = Candidate#domain_RoutingCandidate.weight,
-    TerminalRef = Candidate#domain_RoutingCandidate.terminal,
-    TerminalID = TerminalRef#domain_TerminalRef.id,
-    {ok, Terminal} = ff_domain_config:object(Revision, {terminal, TerminalRef}),
     ProviderRef = Terminal#domain_Terminal.provider_ref,
-    ProviderID = ProviderRef#domain_ProviderRef.id,
     {ok, Provider} = ff_domain_config:object(Revision, {provider, ProviderRef}),
     genlib_map:compact(#{
+        terminal_ref => TerminalRef,
         terminal => Terminal,
-        terminal_id => TerminalID,
-        provider => Provider,
-        provider_id => ProviderID,
         priority => Priority,
-        weight => Weight
+        weight => Weight,
+        provider => Provider
     }).
 
 -spec log_reject_context(reject_context()) -> ok.

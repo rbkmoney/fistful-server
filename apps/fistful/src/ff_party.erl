@@ -291,8 +291,7 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, Domain
 compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
     DomainVarset = encode_varset(Varset),
     {Client, Context} = get_party_client(),
-    %% TODO: bump party_client_erlang, use party_client_thrift:compute_routing_ruleset
-    Result = party_client_thrift:compute_payment_routing_ruleset(
+    Result = party_client_thrift:compute_routing_ruleset(
         RoutingRulesetRef,
         DomainRevision,
         DomainVarset,

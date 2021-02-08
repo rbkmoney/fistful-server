@@ -224,7 +224,7 @@ apply_event({status_changed, S}, Challenge) ->
 -include_lib("id_proto/include/id_proto_identification_thrift.hrl").
 
 deduce_identity_id(Proofs) ->
-    case call('GetIdentityID', {encode({list, identity_document}, Proofs), undefined, undefined}) of
+    case call('GetIdentityID', {encode({list, identity_document}, Proofs)}) of
         {ok, IdentityID} ->
             {ok, decode(identity_id, IdentityID)};
         {exception, #identity_IdentityDocumentNotFound{}} ->

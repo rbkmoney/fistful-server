@@ -917,6 +917,11 @@ events_collect_test_() ->
                         }}
                 }
             end,
+            % Consturct
+            ConstructEvent = fun
+                (N) when (N rem 2) == 0 -> Reject(N);
+                (N) -> Event(N)
+            end,
             meck:new([wapi_handler_utils], [passthrough]),
             %
             % mock  Request: {Service, 'GetEvents', [EntityID, EventRange]},
@@ -932,13 +937,7 @@ events_collect_test_() ->
                     {ok, [Event(N) || N <- lists:seq(After + 1, After + Limit), N rem 2 =:= 0]};
                 ({produce_reject, 'GetEvents', {_, EventRange}}, _Context) ->
                     #'EventRange'{'after' = After, limit = Limit} = EventRange,
-                    {ok, [
-                        case N rem 2 of
-                            0 -> Reject(N);
-                            _ -> Event(N)
-                        end
-                        || N <- lists:seq(After + 1, After + Limit)
-                    ]};
+                    {ok, [ConstructEvent(N) || N <- lists:seq(After + 1, After + Limit)]};
                 ({produce_range, 'GetEvents', {_, EventRange}}, _Context) ->
                     #'EventRange'{'after' = After, limit = Limit} = EventRange,
                     {ok, [Event(N) || N <- lists:seq(After + 1, After + Limit)]};

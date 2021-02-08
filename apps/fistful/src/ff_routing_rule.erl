@@ -48,30 +48,23 @@
 
 -spec gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) -> {[route()], reject_context()}.
 gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
-    RejectedContext0 = #{
+    RejectedContext = #{
         varset => VS,
         rejected_providers => [],
         rejected_routes => []
     },
     case do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) of
         {ok, {AcceptedRoutes, RejectedRoutes}} ->
-            case AcceptedRoutes of
-                [] ->
-                    RejectedContext1 = RejectedContext0#{rejected_routes => RejectedRoutes},
-                    log_reject_context(RejectedContext1),
-                    {[], RejectedContext1};
-                [_Route | _] ->
-                    {AcceptedRoutes, RejectedContext0}
-            end;
+            {AcceptedRoutes, RejectedContext#{rejected_routes => RejectedRoutes}};
         {error, Error} ->
             case Error of
                 misconfiguration ->
                     logger:warning("Routing rule misconfiguration. Varset:~n~p", [VS]);
                 _ ->
                     %% TODO: full logging, when new routing will be implemented
-                    Error = Error
+                    ok
             end,
-            {[], RejectedContext0}
+            {[], RejectedContext}
     end.
 
 -spec do_gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) ->

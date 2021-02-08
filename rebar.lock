@@ -86,7 +86,7 @@
   1},
  {<<"id_proto">>,
   {git,"https://github.com/rbkmoney/identification-proto.git",
-       {ref,"d4f3e8731cff4c3d56b15a9684ba80760f070b1c"}},
+       {ref,"0b031c14b02cb304b308c09d0de9b286aae3a2ac"}},
   0},
  {<<"identdocstore_proto">>,
   {git,"https://github.com/rbkmoney/identdocstore-proto.git",

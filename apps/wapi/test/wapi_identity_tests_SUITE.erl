@@ -153,7 +153,6 @@ end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)).
 
-
 %%% Tests
 -spec create_identity(config()) -> _.
 create_identity(C) ->

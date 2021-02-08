@@ -584,15 +584,16 @@ woody_retry_test(C) ->
     },
     Ctx = wapi_ct_helper:create_auth_ctx(<<"12332">>),
     T1 = erlang:monotonic_time(),
-    _ = try
-        wapi_wallet_ff_backend:list_wallets(Params, Ctx#{woody_context => ct_helper:get_woody_ctx(C)})
-    catch
-        error:{woody_error, {_Source, Class, _Details}} = _Error when
-            Class =:= resource_unavailable orelse
-                Class =:= result_unknown
-        ->
-            ok
-    end,
+    _ =
+        try
+            wapi_wallet_ff_backend:list_wallets(Params, Ctx#{woody_context => ct_helper:get_woody_ctx(C)})
+        catch
+            error:{woody_error, {_Source, Class, _Details}} = _Error when
+                Class =:= resource_unavailable orelse
+                    Class =:= result_unknown
+            ->
+                ok
+        end,
     T2 = erlang:monotonic_time(),
     Time = erlang:convert_time_unit(T2 - T1, native, micro_seconds),
     ?assert(Time > 3000000).

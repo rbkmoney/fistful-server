@@ -35,13 +35,14 @@
 
 -type thrift_type_ref() :: {module(), Name :: atom()}.
 
--type thrift_struct_def() :: list({
-    Tag :: pos_integer(),
-    Requireness :: required | optional | undefined,
-    Type :: thrift_struct_type(),
-    Name :: atom(),
-    Default :: any()
-}).
+-type thrift_struct_def() ::
+    list({
+        Tag :: pos_integer(),
+        Requireness :: required | optional | undefined,
+        Type :: thrift_struct_type(),
+        Name :: atom(),
+        Default :: any()
+    }).
 
 serialize(Type, Data) ->
     {ok, Trans} = thrift_membuffer_transport:new(),

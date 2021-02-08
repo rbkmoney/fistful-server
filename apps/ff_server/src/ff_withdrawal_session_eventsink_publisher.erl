@@ -8,9 +8,10 @@
 -include_lib("mg_proto/include/mg_proto_state_processing_thrift.hrl").
 
 -type event() :: ff_eventsink_publisher:event(ff_withdrawal_session:event()).
--type sinkevent() :: ff_eventsink_publisher:sinkevent(
-    ff_proto_withdrawal_session_thrift:'SinkEvent'()
-).
+-type sinkevent() ::
+    ff_eventsink_publisher:sinkevent(
+        ff_proto_withdrawal_session_thrift:'SinkEvent'()
+    ).
 
 %%
 %% Internals

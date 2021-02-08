@@ -15,9 +15,10 @@
 -type logic_handler(T) :: machinery:logic_handler(T).
 -type timestamp() :: machinery:timestamp().
 
--type backend_opts() :: machinery:backend_opts(#{
-    name := atom()
-}).
+-type backend_opts() ::
+    machinery:backend_opts(#{
+        name := atom()
+    }).
 
 -type backend() :: {?MODULE, backend_opts()}.
 

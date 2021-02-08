@@ -6,9 +6,10 @@
 
 %% API
 
--type event(T) :: machinery_mg_eventsink:evsink_event(
-    ff_machine:timestamped_event(T)
-).
+-type event(T) ::
+    machinery_mg_eventsink:evsink_event(
+        ff_machine:timestamped_event(T)
+    ).
 
 -type sinkevent(T) :: T.
 -type options() :: #{publisher := module()}.

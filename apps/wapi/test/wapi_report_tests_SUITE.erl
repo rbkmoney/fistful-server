@@ -45,7 +45,7 @@
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() -> [test_case_name()].
+-spec all() -> [{group, test_case_name()}].
 all() ->
     [
         {group, base}
@@ -115,17 +115,17 @@ init_per_testcase(Name, C) ->
     ok = ct_helper:set_context(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> config().
+-spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
-    wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
+    _ = wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
 %%% Tests
 -spec create_report_ok_test(config()) -> _.
 create_report_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun
                 ('GenerateReport', _) -> {ok, ?REPORT_ID};
@@ -153,7 +153,7 @@ create_report_ok_test(C) ->
 -spec get_report_ok_test(config()) -> _.
 get_report_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun('GetReport', _) -> {ok, ?REPORT} end},
             {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
@@ -174,7 +174,7 @@ get_report_ok_test(C) ->
 -spec get_reports_ok_test(config()) -> _.
 get_reports_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun('GetReports', _) ->
                 {ok, [
@@ -205,14 +205,14 @@ get_reports_ok_test(C) ->
 -spec reports_with_wrong_identity_ok_test(config()) -> _.
 reports_with_wrong_identity_ok_test(C) ->
     IdentityID = <<"WrongIdentity">>,
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun
                 ('GenerateReport', _) -> {ok, ?REPORT_ID};
                 ('GetReport', _) -> {ok, ?REPORT};
                 ('GetReports', _) -> {ok, [?REPORT, ?REPORT, ?REPORT]}
             end},
-            {fistful_identity, fun('Get', _) -> throw(#fistful_IdentityNotFound{}) end}
+            {fistful_identity, fun('Get', _) -> {throwing, #fistful_IdentityNotFound{}} end}
         ],
         C
     ),
@@ -257,7 +257,7 @@ reports_with_wrong_identity_ok_test(C) ->
 
 -spec download_file_ok_test(config()) -> _.
 download_file_ok_test(C) ->
-    wapi_ct_helper:mock_services([{file_storage, fun('GenerateDownloadUrl', _) -> {ok, ?STRING} end}], C),
+    _ = wapi_ct_helper:mock_services([{file_storage, fun('GenerateDownloadUrl', _) -> {ok, ?STRING} end}], C),
     {ok, _} = call_api(
         fun swag_client_wallet_downloads_api:download_file/3,
         #{

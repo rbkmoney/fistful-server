@@ -57,7 +57,7 @@
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() -> [test_case_name()].
+-spec all() -> [{group, test_case_name()}].
 all() ->
     [
         {group, p2p}
@@ -151,7 +151,7 @@ init_per_testcase(Name, C) ->
     ok = ct_helper:set_context(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> config().
+-spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),

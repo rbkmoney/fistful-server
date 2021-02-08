@@ -49,7 +49,7 @@
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() -> [test_case_name()].
+-spec all() -> [{group, test_case_name()}].
 all() ->
     [
         {group, base}
@@ -127,10 +127,10 @@ init_per_testcase(Name, C) ->
     ok = ct_helper:set_context(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> config().
+-spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
-    wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
+    _ = wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
 %%% Tests
@@ -138,13 +138,13 @@ end_per_testcase(_Name, C) ->
 -spec create_ok_test(config()) -> _.
 create_ok_test(C) ->
     PartyID = ?config(party, C),
-    create_w2_w_transfer_start_mocks(C, fun() -> {ok, ?W2W_TRANSFER(PartyID)} end),
+    _ = create_w2_w_transfer_start_mocks(C, fun() -> {ok, ?W2W_TRANSFER(PartyID)} end),
     {ok, _} = create_w2_w_transfer_call_api(C).
 
 -spec create_fail_unauthorized_wallet_test(config()) -> _.
 create_fail_unauthorized_wallet_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(<<"someotherparty">>)} end},
@@ -162,7 +162,7 @@ create_fail_wallet_notfound_test(C) ->
     WalletNotFoundException = #fistful_WalletNotFound{
         id = ?STRING
     },
-    create_w2_w_transfer_start_mocks(C, fun() -> throw(WalletNotFoundException) end),
+    _ = create_w2_w_transfer_start_mocks(C, fun() -> {throwing, WalletNotFoundException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such wallet sender">>}}},
         create_w2_w_transfer_call_api(C)
@@ -173,7 +173,7 @@ create_fail_invalid_operation_amount_test(C) ->
     InvalidOperationAmountException = #fistful_InvalidOperationAmount{
         amount = ?CASH
     },
-    create_w2_w_transfer_start_mocks(C, fun() -> throw(InvalidOperationAmountException) end),
+    _ = create_w2_w_transfer_start_mocks(C, fun() -> {throwing, InvalidOperationAmountException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Bad transfer amount">>}}},
         create_w2_w_transfer_call_api(C)
@@ -187,7 +187,7 @@ create_fail_forbidden_operation_currency_test(C) ->
             #'CurrencyRef'{symbolic_code = ?RUB}
         ]
     },
-    create_w2_w_transfer_start_mocks(C, fun() -> throw(ForbiddenOperationCurrencyException) end),
+    _ = create_w2_w_transfer_start_mocks(C, fun() -> {throwing, ForbiddenOperationCurrencyException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Currency not allowed">>}}},
         create_w2_w_transfer_call_api(C)
@@ -206,7 +206,7 @@ create_fail_inconsistent_w2w_transfer_currency_test(C) ->
             symbolic_code = ?RUB
         }
     },
-    create_w2_w_transfer_start_mocks(C, fun() -> throw(InconsistentW2WCurrencyException) end),
+    _ = create_w2_w_transfer_start_mocks(C, fun() -> {throwing, InconsistentW2WCurrencyException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Inconsistent currency">>}}},
         create_w2_w_transfer_call_api(C)
@@ -217,7 +217,7 @@ create_fail_wallet_inaccessible_test(C) ->
     WalletInaccessibleException = #fistful_WalletInaccessible{
         id = ?STRING
     },
-    create_w2_w_transfer_start_mocks(C, fun() -> throw(WalletInaccessibleException) end),
+    _ = create_w2_w_transfer_start_mocks(C, fun() -> {throwing, WalletInaccessibleException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Wallet inaccessible">>}}},
         create_w2_w_transfer_call_api(C)
@@ -226,12 +226,12 @@ create_fail_wallet_inaccessible_test(C) ->
 -spec get_ok_test(config()) -> _.
 get_ok_test(C) ->
     PartyID = ?config(party, C),
-    get_w2_w_transfer_start_mocks(C, fun() -> {ok, ?W2W_TRANSFER(PartyID)} end),
+    _ = get_w2_w_transfer_start_mocks(C, fun() -> {ok, ?W2W_TRANSFER(PartyID)} end),
     {ok, _} = get_w2_w_transfer_call_api(C).
 
 -spec get_fail_w2w_notfound_test(config()) -> _.
 get_fail_w2w_notfound_test(C) ->
-    get_w2_w_transfer_start_mocks(C, fun() -> throw(#fistful_W2WNotFound{}) end),
+    _ = get_w2_w_transfer_start_mocks(C, fun() -> {throwing, #fistful_W2WNotFound{}} end),
     ?assertMatch(
         {error, {404, #{}}},
         get_w2_w_transfer_call_api(C)

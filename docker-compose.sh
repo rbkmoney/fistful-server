@@ -32,7 +32,7 @@ services:
         condition: service_healthy
 
   wapi-pcidss:
-    image: dr2.rbkmoney.com/rbkmoney/wapi:9ae84a966a29937ed3440fe773ef8bf6c280301c
+    image: dr2.rbkmoney.com/rbkmoney/wapi:9ad9bc94d13ad04a594963a64701226b51560f5b
     command: /opt/wapi/bin/wapi foreground
     volumes:
       - ./test/wapi/sys.config:/opt/wapi/releases/0.0.1/sys.config
@@ -52,7 +52,7 @@ services:
       retries: 10
 
   hellgate:
-    image: dr2.rbkmoney.com/rbkmoney/hellgate:983ba4d48b47cd5216f75cb3e30ab14f1dd99f46
+    image: dr2.rbkmoney.com/rbkmoney/hellgate:32e269ab4f9f51b87dcb5a14a478b829a9c15737
     command: /opt/hellgate/bin/hellgate foreground
     depends_on:
       machinegun:
@@ -96,7 +96,7 @@ services:
       retries: 20
 
   dominant:
-    image: dr2.rbkmoney.com/rbkmoney/dominant:1313973ee38e30116d14aa007cdf551f702900f5
+    image: dr2.rbkmoney.com/rbkmoney/dominant:0ee5a2b878152145412f4a3562ea552d4113a836
     command: /opt/dominant/bin/dominant foreground
     depends_on:
       machinegun:
@@ -111,7 +111,7 @@ services:
       retries: 10
 
   shumway:
-    image: dr2.rbkmoney.com/rbkmoney/shumway:658c9aec229b5a70d745a49cb938bb1a132b5ca2
+    image: dr2.rbkmoney.com/rbkmoney/shumway:e946e83703e02f4359cd536b15fb94457f9bfb20
     restart: unless-stopped
     entrypoint:
       - java
@@ -176,13 +176,13 @@ services:
       retries: 20
 
   holmes:
-    image: dr2.rbkmoney.com/rbkmoney/holmes:55e745b7c020c367bff202036af84726d66755f7
+    image: dr2.rbkmoney.com/rbkmoney/holmes:07f58e297c03bcd50dc4695ddbcfa4eb30c9928e
     command: /opt/holmes/scripts/cds/keyring.py init
     depends_on:
       - cds
 
   machinegun:
-    image: dr2.rbkmoney.com/rbkmoney/machinegun:c35e8a08500fbc2f0f0fa376a145a7324d18a062
+    image: dr2.rbkmoney.com/rbkmoney/machinegun:0da2ffc23221e1e3f8557b03d48d11d2dd18fac0
     command: /opt/machinegun/bin/machinegun foreground
     volumes:
       - ./test/machinegun/config.yaml:/opt/machinegun/etc/config.yaml

@@ -42,7 +42,7 @@
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() -> [test_case_name()].
+-spec all() -> [{group, test_case_name()}].
 all() ->
     [
         {group, base}
@@ -116,17 +116,17 @@ init_per_testcase(Name, C) ->
     ok = ct_helper:set_context(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> config().
+-spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, C) ->
     ok = ct_helper:unset_context(),
-    wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
+    _ = wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
 %%% Tests
 
 -spec get_provider_ok(config()) -> _.
 get_provider_ok(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
         ],
@@ -144,9 +144,9 @@ get_provider_ok(C) ->
 
 -spec get_provider_fail_notfound(config()) -> _.
 get_provider_fail_notfound(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
-            {fistful_provider, fun('GetProvider', _) -> throw(#fistful_ProviderNotFound{}) end}
+            {fistful_provider, fun('GetProvider', _) -> {throwing, #fistful_ProviderNotFound{}} end}
         ],
         C
     ),
@@ -162,7 +162,7 @@ get_provider_fail_notfound(C) ->
 
 -spec list_providers(config()) -> _.
 list_providers(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_provider, fun('ListProviders', _) -> {ok, [?PROVIDER, ?PROVIDER]} end}
         ],
@@ -180,7 +180,7 @@ list_providers(C) ->
 
 -spec get_provider_identity_classes(config()) -> _.
 get_provider_identity_classes(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
         ],
@@ -198,7 +198,7 @@ get_provider_identity_classes(C) ->
 
 -spec get_provider_identity_class(config()) -> _.
 get_provider_identity_class(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
         ],

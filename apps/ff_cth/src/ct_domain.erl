@@ -235,7 +235,8 @@ withdrawal_terminal(?trm(N) = Ref) when N > 0, N < 6 ->
                 wallet = #domain_WalletProvisionTerms{
                     withdrawals = #domain_WithdrawalProvisionTerms{}
                 }
-            }
+            },
+            provider_ref = ?prv(1)
         }
     }};
 withdrawal_terminal(?trm(6) = Ref) ->

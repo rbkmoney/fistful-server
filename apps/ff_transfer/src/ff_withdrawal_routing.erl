@@ -45,7 +45,8 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
         PartyVarset,
         DomainRevision
     ),
-    case Routes of
+    ValidatedRoutes = filter_routes(Routes, PartyVarset),
+    case ValidatedRoutes of
         [] ->
             ff_routing_rule:log_reject_context(RejectedContext),
             logger:log(info, "Fallback to legacy method of routes gathering"),
@@ -60,7 +61,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
                     {error, route_not_found}
             end;
         [_Route | _] ->
-            filter_routes(Routes, PartyVarset)
+            ValidatedRoutes
     end.
 
 -spec make_route(provider_id(), terminal_id() | undefined) -> route().
@@ -173,7 +174,8 @@ validate_terms(Provider, Terminal, PartyVarset) ->
         unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
     end).
 
--spec provision_terms(ff_routing_rule:provider() | ff_routing_rule:terminal()) -> withdrawal_provision_terms().
+-spec provision_terms(ff_routing_rule:provider() | ff_routing_rule:terminal()) ->
+    withdrawal_provision_terms() | undefined.
 provision_terms(#domain_Provider{} = Provider) ->
     provision_terms_(Provider#domain_Provider.terms);
 provision_terms(#domain_Terminal{} = Terminal) ->

@@ -45,7 +45,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
         PartyVarset,
         DomainRevision
     ),
-    ValidatedRoutes = filter_routes(Routes, PartyVarset),
+    ValidatedRoutes = filter_valid_routes(Routes, PartyVarset),
     case ValidatedRoutes of
         [] ->
             ff_routing_rule:log_reject_context(RejectedContext),
@@ -61,7 +61,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
                     {error, route_not_found}
             end;
         [_Route | _] ->
-            ValidatedRoutes
+            {ok, ValidatedRoutes}
     end.
 
 -spec make_route(provider_id(), terminal_id() | undefined) -> route().
@@ -82,17 +82,15 @@ get_terminal(Route) ->
 
 %%
 
--spec filter_routes([ff_routing_rule:route()], party_varset()) -> {ok, [route()]} | {error, route_not_found}.
-filter_routes(Routes, PartyVarset) ->
-    do(fun() ->
-        unwrap(filter_valid_routes(Routes, PartyVarset, #{}))
-    end).
+-spec filter_valid_routes([ff_routing_rule:route()], party_varset()) -> [route()].
+filter_valid_routes(Routes, PartyVarset) ->
+    filter_valid_routes_(Routes, PartyVarset, #{}).
 
-filter_valid_routes([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
-    {error, route_not_found};
-filter_valid_routes([], _PartyVarset, Acc) ->
-    {ok, convert_to_route(Acc)};
-filter_valid_routes([Route | Rest], PartyVarset, Acc0) ->
+filter_valid_routes_([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
+    [];
+filter_valid_routes_([], _PartyVarset, Acc) ->
+    convert_to_route(Acc);
+filter_valid_routes_([Route | Rest], PartyVarset, Acc0) ->
     Terminal = maps:get(terminal, Route),
     Provider = maps:get(provider, Route),
     TerminalRef = maps:get(terminal_ref, Route),
@@ -108,7 +106,7 @@ filter_valid_routes([Route | Rest], PartyVarset, Acc0) ->
             {error, _} ->
                 Acc0
         end,
-    filter_valid_routes(Rest, PartyVarset, Acc1).
+    filter_valid_routes_(Rest, PartyVarset, Acc1).
 
 -spec filter_routes_legacy([provider_id()], party_varset()) -> {ok, [route()]} | {error, route_not_found}.
 filter_routes_legacy(Providers, PartyVarset) ->

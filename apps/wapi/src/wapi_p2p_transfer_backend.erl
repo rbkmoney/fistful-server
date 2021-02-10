@@ -909,8 +909,18 @@ events_collect_test_() ->
                 #p2p_transfer_Event{
                     event = EventID,
                     occured_at = <<"2020-05-25T12:34:56.123456Z">>,
-                    change = {route, #p2p_transfer_RouteChange{}}
+                    change =
+                        {route, #p2p_transfer_RouteChange{
+                            route = #p2p_transfer_Route{
+                                provider_id = 0
+                            }
+                        }}
                 }
+            end,
+            % Consturct
+            ConstructEvent = fun
+                (N) when (N rem 2) == 0 -> Reject(N);
+                (N) -> Event(N)
             end,
             meck:new([wapi_handler_utils], [passthrough]),
             %
@@ -927,13 +937,7 @@ events_collect_test_() ->
                     {ok, [Event(N) || N <- lists:seq(After + 1, After + Limit), N rem 2 =:= 0]};
                 ({produce_reject, 'GetEvents', {_, EventRange}}, _Context) ->
                     #'EventRange'{'after' = After, limit = Limit} = EventRange,
-                    {ok, [
-                        case N rem 2 of
-                            0 -> Reject(N);
-                            _ -> Event(N)
-                        end
-                        || N <- lists:seq(After + 1, After + Limit)
-                    ]};
+                    {ok, [ConstructEvent(N) || N <- lists:seq(After + 1, After + Limit)]};
                 ({produce_range, 'GetEvents', {_, EventRange}}, _Context) ->
                     #'EventRange'{'after' = After, limit = Limit} = EventRange,
                     {ok, [Event(N) || N <- lists:seq(After + 1, After + Limit)]};

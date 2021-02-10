@@ -171,7 +171,7 @@ mock_services_(Services, SupPid) when is_pid(SupPid) ->
             handlers => lists:map(fun mock_service_handler/1, Services)
         }
     ),
-    {ok, _} = supervisor:start_child(SupPid, ChildSpec),
+    _ = supervisor:start_child(SupPid, ChildSpec),
 
     lists:foldl(
         fun(Service, Acc) ->
@@ -224,7 +224,7 @@ get_lifetime(YY, MM, DD) ->
         <<"days">> => DD
     }.
 
--spec create_auth_ctx(ff_party:id()) -> wapi_handler:context().
+-spec create_auth_ctx(ff_party:id()) -> map().
 create_auth_ctx(PartyID) ->
     #{
         swagger_context => #{auth_context => {?STRING, PartyID, #{}}}

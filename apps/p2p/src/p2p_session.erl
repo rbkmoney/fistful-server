@@ -229,13 +229,13 @@ process_session(SessionState) ->
     Context = p2p_adapter:build_context(collect_build_context_params(SessionState)),
     {ok, ProcessResult} = p2p_adapter:process(Adapter, Context),
     #{intent := Intent} = ProcessResult,
-    Events0 = process_next_state(ProcessResult, []),
+    Events0 = process_next_state(ProcessResult, [], adapter_state(SessionState)),
     Events1 = process_transaction_info(ProcessResult, Events0, SessionState),
     process_intent(Intent, Events1, SessionState).
 
-process_next_state(#{next_state := NextState}, Events) ->
+process_next_state(#{next_state := NextState}, Events, AdapterState) when NextState =/= AdapterState ->
     Events ++ [{next_state, NextState}];
-process_next_state(_, Events) ->
+process_next_state(_Result, Events, _AdapterState) ->
     Events.
 
 process_transaction_info(#{transaction_info := TrxInfo}, Events, SessionState) ->
@@ -338,7 +338,7 @@ do_process_callback(Params, Callback, SessionState) ->
     {ok, HandleCallbackResult} = p2p_adapter:handle_callback(Adapter, Params, Context),
     #{intent := Intent, response := Response} = HandleCallbackResult,
     Events0 = p2p_callback_utils:process_response(Response, Callback),
-    Events1 = process_next_state(HandleCallbackResult, Events0),
+    Events1 = process_next_state(HandleCallbackResult, Events0, adapter_state(SessionState)),
     Events2 = process_transaction_info(HandleCallbackResult, Events1, SessionState),
     {ok, {Response, process_intent(Intent, Events2, SessionState)}}.
 

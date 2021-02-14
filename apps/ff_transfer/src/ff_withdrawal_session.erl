@@ -99,7 +99,7 @@
 -type session_finished_params() :: #{
     withdrawal := withdrawal(),
     state := ff_adapter:state(),
-    opts := ff_withdrawal_provider:adapter_opts()
+    opts := ff_adapter:opts()
 }.
 
 -type id() :: machinery:id().
@@ -134,7 +134,7 @@
 %%
 -type withdrawal() :: ff_adapter_withdrawal:withdrawal().
 -type callbacks_index() :: ff_withdrawal_callback_utils:index().
--type adapter_with_opts() :: {ff_withdrawal_provider:adapter(), ff_withdrawal_provider:adapter_opts()}.
+-type adapter_with_opts() :: {ff_adapter:adapter(), ff_adapter:opts()}.
 
 %%
 %% Accessors

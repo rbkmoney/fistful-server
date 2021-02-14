@@ -29,6 +29,9 @@
 -type terminal() :: ff_payouts_terminal:terminal().
 -type terminal_priority() :: ff_payouts_terminal:terminal_priority().
 
+-type routing_rule_route() :: ff_routing_rule:route().
+-type reject_context() :: ff_routing_rule:reject_context().
+
 -type withdrawal_provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
 -type currency_selector() :: dmsl_domain_thrift:'CurrencySelector'().
 -type cash_limit_selector() :: dmsl_domain_thrift:'CashLimitSelector'().
@@ -39,16 +42,16 @@
 prepare_routes(PartyVarset, Identity, DomainRevision) ->
     {ok, PaymentInstitutionID} = ff_party:get_identity_payment_institution_id(Identity),
     {ok, PaymentInstitution} = ff_payment_institution:get(PaymentInstitutionID, DomainRevision),
-    {Routes, RejectedContext} = ff_routing_rule:gather_routes(
+    {Routes, RejectContext0} = ff_routing_rule:gather_routes(
         PaymentInstitution,
         withdrawal_routing_rules,
         PartyVarset,
         DomainRevision
     ),
-    ValidatedRoutes = filter_valid_routes(Routes, PartyVarset),
+    {ValidatedRoutes, RejectContext1} = filter_valid_routes(Routes, RejectContext0, PartyVarset),
     case ValidatedRoutes of
         [] ->
-            ff_routing_rule:log_reject_context(RejectedContext),
+            ff_routing_rule:log_reject_context(RejectContext1),
             logger:log(info, "Fallback to legacy method of routes gathering"),
             case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
                 {ok, Providers} ->
@@ -82,15 +85,15 @@ get_terminal(Route) ->
 
 %%
 
--spec filter_valid_routes([ff_routing_rule:route()], party_varset()) -> [route()].
-filter_valid_routes(Routes, PartyVarset) ->
-    filter_valid_routes_(Routes, PartyVarset, #{}).
+-spec filter_valid_routes([routing_rule_route()], reject_context(), party_varset()) -> {[route()], reject_context()}.
+filter_valid_routes(Routes, RejectContext, PartyVarset) ->
+    filter_valid_routes_(Routes, PartyVarset, {#{}, RejectContext}).
 
-filter_valid_routes_([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
-    [];
-filter_valid_routes_([], _PartyVarset, Acc) ->
-    convert_to_route(Acc);
-filter_valid_routes_([Route | Rest], PartyVarset, Acc0) ->
+filter_valid_routes_([], _, {Acc, RejectContext}) when map_size(Acc) == 0 ->
+    {[], RejectContext};
+filter_valid_routes_([], _, {Acc, RejectContext}) ->
+    {convert_to_route(Acc), RejectContext};
+filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
     Terminal = maps:get(terminal, Route),
     Provider = maps:get(provider, Route),
     TerminalRef = maps:get(terminal_ref, Route),
@@ -98,15 +101,19 @@ filter_valid_routes_([Route | Rest], PartyVarset, Acc0) ->
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
-    Acc1 =
+    {Acc, RejectConext} =
         case validate_terms(Provider, Terminal, PartyVarset) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
-                maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc0);
-            {error, _} ->
-                Acc0
+                Acc1 = maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc0),
+                {Acc1, RejectContext0};
+            {error, RejectReason} ->
+                RejectedRoutes0 = maps:get(rejected_routes, RejectContext0),
+                RejectedRoutes1 = [{ProviderRef, TerminalRef, RejectReason} | RejectedRoutes0],
+                RejectContext1 = maps:put(rejected_routes, RejectedRoutes1, RejectContext0),
+                {Acc0, RejectContext1}
         end,
-    filter_valid_routes_(Rest, PartyVarset, Acc1).
+    filter_valid_routes_(Rest, PartyVarset, {RejectConext, Acc}).
 
 -spec filter_routes_legacy([provider_id()], party_varset()) -> {ok, [route()]} | {error, route_not_found}.
 filter_routes_legacy(Providers, PartyVarset) ->

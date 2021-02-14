@@ -21,6 +21,7 @@
 
 -export_type([id/0]).
 -export_type([provider/0]).
+-export_type([provision_terms/0]).
 
 -export([id/1]).
 -export([accounts/1]).

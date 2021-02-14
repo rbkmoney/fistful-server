@@ -1000,7 +1000,7 @@ make_final_cash_flow(Withdrawal) ->
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-    {ok, ProviderFee} = ff_payouts_provider:compute_fees(Provider, PartyVarset),
+    {ok, RoutingFee} = ff_withdrawal_routing:compute_fees(Route, PartyVarset),
 
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID,
@@ -1011,7 +1011,7 @@ make_final_cash_flow(Withdrawal) ->
         DomainRevision
     ),
     {ok, WalletCashFlowPlan} = ff_party:get_withdrawal_cash_flow_plan(Terms),
-    {ok, CashFlowPlan} = ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee),
+    {ok, CashFlowPlan} = ff_cash_flow:add_fee(WalletCashFlowPlan, RoutingFee),
     Constants = #{
         operation_amount => Body
     },

@@ -31,7 +31,6 @@
 
 -export([ref/1]).
 -export([get/1]).
--export([compute_fees/2]).
 -export([compute_withdrawal_terminals_with_priority/2]).
 
 %% Pipeline
@@ -89,21 +88,6 @@ get(ID) ->
         Provider = unwrap(ff_domain_config:object({provider, ref(ID)})),
         decode(ID, Provider)
     end).
-
--spec compute_fees(provider(), hg_selector:varset()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
-compute_fees(WithdrawalProvider, VS) ->
-    case provision_terms(WithdrawalProvider) of
-        Terms when Terms =/= undefined ->
-            {ok, compute_fees_(Terms, VS)};
-        _ ->
-            {error, {misconfiguration, {missing, withdrawal_terms}}}
-    end.
-
-compute_fees_(#domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector}, VS) ->
-    CashFlow = unwrap(hg_selector:reduce_to_value(CashFlowSelector, VS)),
-    #{
-        postings => ff_cash_flow:decode_domain_postings(CashFlow)
-    }.
 
 -spec compute_withdrawal_terminals_with_priority(provider(), hg_selector:varset()) ->
     {ok, [{ff_payouts_terminal:id(), ff_payouts_terminal:terminal_priority()}]} | {error, term()}.

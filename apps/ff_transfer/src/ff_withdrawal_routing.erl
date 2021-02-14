@@ -6,6 +6,9 @@
 -export([make_route/2]).
 -export([get_provider/1]).
 -export([get_terminal/1]).
+-export([compute_fees/2]).
+-export([provision_terms/1]).
+-export([merge_withdrawal_terms/2]).
 
 -import(ff_pipeline, [do/1, unwrap/1]).
 
@@ -32,7 +35,7 @@
 -type withdrawal_provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
 -type currency_selector() :: dmsl_domain_thrift:'CurrencySelector'().
 -type cash_limit_selector() :: dmsl_domain_thrift:'CashLimitSelector'().
-
+-type provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
 %%
 
 -spec prepare_routes(party_varset(), identity(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.
@@ -65,6 +68,62 @@ get_provider(#{provider_id := ProviderID}) ->
 -spec get_terminal(route()) -> ff_maybe:maybe(terminal_id()).
 get_terminal(Route) ->
     maps:get(terminal_id, Route, undefined).
+
+-spec compute_fees(route(), party_varset()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
+compute_fees(Route, VS) ->
+    case provision_terms(Route) of
+        #domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector} ->
+            case hg_selector:reduce_to_value(CashFlowSelector, VS) of
+                {ok, CashFlow} ->
+                    {ok, #{
+                        postings => ff_cash_flow:decode_domain_postings(CashFlow)
+                    }};
+                {error, Error} ->
+                    {error, Error}
+            end;
+        _ ->
+            {error, {misconfiguration, {missing, withdrawal_terms}}}
+    end.
+
+-spec provision_terms(route()) -> ff_maybe:maybe(provision_terms()).
+provision_terms(Route) ->
+    {ok, Provider} = ff_payouts_provider:get(get_provider(Route)),
+    ProviderTerms = ff_payouts_provider:provision_terms(Provider),
+    TerminalTerms =
+        case ff_payouts_terminal:get(get_terminal(Route)) of
+            {ok, Terminal} ->
+                ff_payouts_terminal:provision_terms(Terminal);
+            _ ->
+                undefined
+        end,
+    merge_withdrawal_terms(ProviderTerms, TerminalTerms).
+
+-spec merge_withdrawal_terms(
+    ff_payouts_provider:provision_terms() | undefined,
+    ff_payouts_terminal:provision_terms() | undefined
+) -> ff_maybe:maybe(provision_terms()).
+merge_withdrawal_terms(
+    #domain_WithdrawalProvisionTerms{
+        currencies = PCurrencies,
+        payout_methods = PPayoutMethods,
+        cash_limit = PCashLimit,
+        cash_flow = PCashflow
+    },
+    #domain_WithdrawalProvisionTerms{
+        currencies = TCurrencies,
+        payout_methods = TPayoutMethods,
+        cash_limit = TCashLimit,
+        cash_flow = TCashflow
+    }
+) ->
+    #domain_WithdrawalProvisionTerms{
+        currencies = ff_maybe:get_defined(TCurrencies, PCurrencies),
+        payout_methods = ff_maybe:get_defined(TPayoutMethods, PPayoutMethods),
+        cash_limit = ff_maybe:get_defined(TCashLimit, PCashLimit),
+        cash_flow = ff_maybe:get_defined(TCashflow, PCashflow)
+    };
+merge_withdrawal_terms(ProviderTerms, TerminalTerms) ->
+    ff_maybe:get_defined(TerminalTerms, ProviderTerms).
 
 %%
 
@@ -194,29 +253,6 @@ validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
         _NotInRange ->
             {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
     end.
-
-merge_withdrawal_terms(
-    #domain_WithdrawalProvisionTerms{
-        currencies = PCurrencies,
-        payout_methods = PPayoutMethods,
-        cash_limit = PCashLimit,
-        cash_flow = PCashflow
-    },
-    #domain_WithdrawalProvisionTerms{
-        currencies = TCurrencies,
-        payout_methods = TPayoutMethods,
-        cash_limit = TCashLimit,
-        cash_flow = TCashflow
-    }
-) ->
-    #domain_WithdrawalProvisionTerms{
-        currencies = ff_maybe:get_defined(TCurrencies, PCurrencies),
-        payout_methods = ff_maybe:get_defined(TPayoutMethods, PPayoutMethods),
-        cash_limit = ff_maybe:get_defined(TCashLimit, PCashLimit),
-        cash_flow = ff_maybe:get_defined(TCashflow, PCashflow)
-    };
-merge_withdrawal_terms(ProviderTerms, TerminalTerms) ->
-    ff_maybe:get_defined(TerminalTerms, ProviderTerms).
 
 convert_to_route(ProviderTerminalMap) ->
     lists:foldl(

@@ -1000,7 +1000,7 @@ make_final_cash_flow(Withdrawal) ->
     SettlementAccount = maps:get(settlement, SystemAccount, undefined),
     SubagentAccount = maps:get(subagent, SystemAccount, undefined),
 
-    {ok, RoutingFee} = ff_withdrawal_routing:compute_fees(Route, PartyVarset),
+    {ok, ProviderFee} = compute_fees(Route, PartyVarset),
 
     {ok, Terms} = ff_party:get_contract_terms(
         PartyID,
@@ -1011,7 +1011,7 @@ make_final_cash_flow(Withdrawal) ->
         DomainRevision
     ),
     {ok, WalletCashFlowPlan} = ff_party:get_withdrawal_cash_flow_plan(Terms),
-    {ok, CashFlowPlan} = ff_cash_flow:add_fee(WalletCashFlowPlan, RoutingFee),
+    {ok, CashFlowPlan} = ff_cash_flow:add_fee(WalletCashFlowPlan, ProviderFee),
     Constants = #{
         operation_amount => Body
     },
@@ -1024,6 +1024,22 @@ make_final_cash_flow(Withdrawal) ->
     }),
     {ok, FinalCashFlow} = ff_cash_flow:finalize(CashFlowPlan, Accounts, Constants),
     FinalCashFlow.
+
+-spec compute_fees(route(), party_varset()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
+compute_fees(Route, VS) ->
+    case ff_withdrawal_routing:provision_terms(Route) of
+        #domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector} ->
+            case hg_selector:reduce_to_value(CashFlowSelector, VS) of
+                {ok, CashFlow} ->
+                    {ok, #{
+                        postings => ff_cash_flow:decode_domain_postings(CashFlow)
+                    }};
+                {error, Error} ->
+                    {error, Error}
+            end;
+        _ ->
+            {error, {misconfiguration, {missing, withdrawal_terms}}}
+    end.
 
 -spec ensure_domain_revision_defined(domain_revision() | undefined) -> domain_revision().
 ensure_domain_revision_defined(undefined) ->

@@ -6,7 +6,6 @@
 -export([make_route/2]).
 -export([get_provider/1]).
 -export([get_terminal/1]).
--export([compute_fees/2]).
 -export([provision_terms/1]).
 -export([merge_withdrawal_terms/2]).
 
@@ -69,32 +68,17 @@ get_provider(#{provider_id := ProviderID}) ->
 get_terminal(Route) ->
     maps:get(terminal_id, Route, undefined).
 
--spec compute_fees(route(), party_varset()) -> {ok, ff_cash_flow:cash_flow_fee()} | {error, term()}.
-compute_fees(Route, VS) ->
-    case provision_terms(Route) of
-        #domain_WithdrawalProvisionTerms{cash_flow = CashFlowSelector} ->
-            case hg_selector:reduce_to_value(CashFlowSelector, VS) of
-                {ok, CashFlow} ->
-                    {ok, #{
-                        postings => ff_cash_flow:decode_domain_postings(CashFlow)
-                    }};
-                {error, Error} ->
-                    {error, Error}
-            end;
-        _ ->
-            {error, {misconfiguration, {missing, withdrawal_terms}}}
-    end.
-
 -spec provision_terms(route()) -> ff_maybe:maybe(provision_terms()).
 provision_terms(Route) ->
     {ok, Provider} = ff_payouts_provider:get(get_provider(Route)),
     ProviderTerms = ff_payouts_provider:provision_terms(Provider),
     TerminalTerms =
-        case ff_payouts_terminal:get(get_terminal(Route)) of
-            {ok, Terminal} ->
-                ff_payouts_terminal:provision_terms(Terminal);
-            _ ->
-                undefined
+        case get_terminal(Route) of
+            undefined ->
+                undefined;
+            TerminalID ->
+                {ok, Terminal} = ff_payouts_terminal:get(TerminalID),
+                ff_payouts_terminal:provision_terms(Terminal)
         end,
     merge_withdrawal_terms(ProviderTerms, TerminalTerms).
 

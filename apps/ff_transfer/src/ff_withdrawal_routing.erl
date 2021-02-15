@@ -186,13 +186,13 @@ provision_terms(#domain_Provider{} = Provider) ->
 provision_terms(#domain_Terminal{} = Terminal) ->
     provision_terms_(Terminal#domain_Terminal.terms).
 
-provision_terms_(Terms) when Terms =/= undefined ->
-    case Terms#domain_ProvisionTermSet.wallet of
-        WalletTerms when WalletTerms =/= undefined ->
-            WalletTerms#domain_WalletProvisionTerms.withdrawals;
-        _ ->
-            undefined
-    end;
+provision_terms_(#domain_ProvisionTermSet{
+    wallet = #domain_WalletProvisionTerms{
+        withdrawals =
+            Withdrawals
+    }
+}) ->
+    Withdrawals;
 provision_terms_(_) ->
     undefined.
 

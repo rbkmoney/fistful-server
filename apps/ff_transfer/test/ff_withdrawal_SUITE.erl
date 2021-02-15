@@ -39,7 +39,7 @@
 -export([use_quote_revisions_test/1]).
 -export([unknown_test/1]).
 -export([provider_callback_test/1]).
--export([merge_provision_ok_test/1]).
+-export([provider_terminal_terms_merging_test/1]).
 
 %% Internal types
 
@@ -95,7 +95,7 @@ groups() ->
             preserve_revisions_test,
             unknown_test,
             provider_callback_test,
-            merge_provision_ok_test
+            provider_terminal_terms_merging_test
         ]},
         {non_parallel, [sequence], [
             use_quote_revisions_test
@@ -631,8 +631,8 @@ session_repair_test(C) ->
     ok = repair_withdrawal_session(WithdrawalID),
     ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
 
--spec merge_provision_ok_test(config()) -> test_return().
-merge_provision_ok_test(C) ->
+-spec provider_terminal_terms_merging_test(config()) -> test_return().
+provider_terminal_terms_merging_test(C) ->
     #{
         wallet_id := WalletID,
         destination_id := DestinationID

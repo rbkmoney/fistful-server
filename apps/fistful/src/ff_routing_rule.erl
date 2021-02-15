@@ -30,6 +30,7 @@
 -export_type([route/0]).
 -export_type([provider/0]).
 -export_type([terminal/0]).
+-export_type([reject_context/0]).
 
 -type reject_context() :: #{
     varset := varset(),

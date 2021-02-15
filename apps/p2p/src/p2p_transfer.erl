@@ -719,10 +719,7 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
             logger:log(info, "Fallback to legacy method of routes gathering"),
             {ok, Providers} = ff_payment_institution:compute_p2p_transfer_providers(PaymentInstitution, PartyVarset),
             choose_provider_legacy(Providers, PartyVarset);
-        [Route | _] ->
-            #{terminal := Terminal} = Route,
-            ProviderRef = Terminal#domain_Terminal.provider_ref,
-            ProviderID = ProviderRef#domain_ProviderRef.id,
+        [ProviderID | _] ->
             {ok, ProviderID}
     end.
 
@@ -757,8 +754,8 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
 
 convert_to_route(ProviderTerminalMap) ->
     lists:foldl(
-        fun({_Priority, ProviderID}, Acc) ->
-            lists:sort(ProviderID) ++ Acc
+        fun({_Priority, Providers}, Acc) ->
+            lists:sort(Providers) ++ Acc
         end,
         [],
         lists:keysort(1, maps:to_list(ProviderTerminalMap))

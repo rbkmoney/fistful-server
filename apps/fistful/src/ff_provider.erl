@@ -28,7 +28,7 @@
 
 -type payinst() :: dmsl_domain_thrift:'PaymentInstitution'().
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
--type routes() :: [ff_withdrawal_provider:id()].
+-type routes() :: [id()].
 -type identity_classes() :: #{ff_identity_class:id() => ff_identity_class:class()}.
 
 -export_type([id/0]).

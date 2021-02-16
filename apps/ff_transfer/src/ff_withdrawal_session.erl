@@ -222,10 +222,10 @@ process_session(#{status := {finished, _}, id := ID, result := Result, withdrawa
     end;
 process_session(#{status := active, withdrawal := Withdrawal, route := Route} = SessionState) ->
     {Adapter, AdapterOpts} = get_adapter_with_opts(Route),
-    ASt = maps:get(adapter_state, SessionState, undefined),
+    ASt = adapter_state(SessionState),
     {ok, ProcessResult} = ff_adapter_withdrawal:process_withdrawal(Adapter, Withdrawal, ASt, AdapterOpts),
     #{intent := Intent} = ProcessResult,
-    Events0 = process_next_state(ProcessResult, []),
+    Events0 = process_next_state(ProcessResult, [], ASt),
     Events1 = process_transaction_info(ProcessResult, Events0, SessionState),
     process_adapter_intent(Intent, SessionState, Events1).
 
@@ -285,7 +285,7 @@ do_process_callback(CallbackParams, Callback, Session) ->
     ),
     #{intent := Intent, response := Response} = HandleCallbackResult,
     Events0 = ff_withdrawal_callback_utils:process_response(Response, Callback),
-    Events1 = process_next_state(HandleCallbackResult, Events0),
+    Events1 = process_next_state(HandleCallbackResult, Events0, AdapterState),
     Events2 = process_transaction_info(HandleCallbackResult, Events1, Session),
     {ok, {Response, process_adapter_intent(Intent, Session, Events2)}}.
 
@@ -297,9 +297,9 @@ make_session_finish_params(Session) ->
         opts => AdapterOpts
     }.
 
-process_next_state(#{next_state := NextState}, Events) ->
+process_next_state(#{next_state := NextState}, Events, AdapterState) when NextState =/= AdapterState ->
     Events ++ [{next_state, NextState}];
-process_next_state(_, Events) ->
+process_next_state(_Result, Events, _AdapterState) ->
     Events.
 
 process_adapter_intent(Intent, Session, Events0) ->

@@ -34,11 +34,9 @@
 
 -type reject_context() :: #{
     varset := varset(),
-    rejected_providers := [rejected_provider()],
     rejected_routes := [rejected_route()]
 }.
 
--type rejected_provider() :: {provider_ref(), Reason :: term()}.
 -type rejected_route() :: {provider_ref(), terminal_ref(), Reason :: term()}.
 
 %% Pipeline
@@ -49,14 +47,13 @@
 
 -spec gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) -> {[route()], reject_context()}.
 gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
-    RejectedContext = #{
+    RejectContext = #{
         varset => VS,
-        rejected_providers => [],
         rejected_routes => []
     },
     case do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) of
         {ok, {AcceptedRoutes, RejectedRoutes}} ->
-            {AcceptedRoutes, RejectedContext#{rejected_routes => RejectedRoutes}};
+            {AcceptedRoutes, RejectContext#{rejected_routes => RejectedRoutes}};
         {error, Error} ->
             case Error of
                 misconfiguration ->
@@ -65,7 +62,7 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
                     %% TODO: full logging, when new routing will be implemented
                     ok
             end,
-            {[], RejectedContext}
+            {[], RejectContext}
     end.
 
 -spec do_gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) ->
@@ -182,12 +179,6 @@ log_reject_context(RejectContext) ->
         Level,
         "No route found, reason = ~p, varset: ~p",
         [RejectReason, maps:get(varset, RejectContext)],
-        logger:get_process_metadata()
-    ),
-    _ = logger:log(
-        Level,
-        "No route found, reason = ~p, rejected providers: ~p",
-        [RejectReason, maps:get(rejected_providers, RejectContext)],
         logger:get_process_metadata()
     ),
     _ = logger:log(

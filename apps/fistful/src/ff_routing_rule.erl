@@ -103,7 +103,7 @@ compute_routing_ruleset(RulesetRef, VS, Revision) ->
 check_ruleset_computing({delegates, _}) ->
     {error, misconfiguration};
 check_ruleset_computing({candidates, Candidates}) ->
-    CheckedCandidates = lists:takewhile(
+    AllReduced = lists:all(
         fun(C) ->
             case C#domain_RoutingCandidate.allowed of
                 {constant, _} ->
@@ -114,7 +114,7 @@ check_ruleset_computing({candidates, Candidates}) ->
         end,
         Candidates
     ),
-    case CheckedCandidates =:= Candidates of
+    case AllReduced of
         true ->
             {ok, Candidates};
         false ->

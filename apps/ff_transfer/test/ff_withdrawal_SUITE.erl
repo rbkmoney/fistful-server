@@ -39,6 +39,7 @@
 -export([use_quote_revisions_test/1]).
 -export([unknown_test/1]).
 -export([provider_callback_test/1]).
+-export([provider_terminal_terms_merging_test/1]).
 
 %% Internal types
 
@@ -93,7 +94,8 @@ groups() ->
             crypto_quota_ok_test,
             preserve_revisions_test,
             unknown_test,
-            provider_callback_test
+            provider_callback_test,
+            provider_terminal_terms_merging_test
         ]},
         {non_parallel, [sequence], [
             use_quote_revisions_test
@@ -628,6 +630,36 @@ session_repair_test(C) ->
     ?assertEqual(pending, await_session_processing_status(WithdrawalID, pending)),
     ok = repair_withdrawal_session(WithdrawalID),
     ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)).
+
+-spec provider_terminal_terms_merging_test(config()) -> test_return().
+provider_terminal_terms_merging_test(C) ->
+    #{
+        wallet_id := WalletID,
+        destination_id := DestinationID
+    } = prepare_standard_environment({601, <<"RUB">>}, C),
+    ProduceWithdrawal = fun(Cash) ->
+        WithdrawalID = generate_id(),
+        WithdrawalParams = #{
+            id => WithdrawalID,
+            destination_id => DestinationID,
+            wallet_id => WalletID,
+            body => Cash,
+            external_id => WithdrawalID
+        },
+        ok = ff_withdrawal_machine:create(WithdrawalParams, ff_entity_context:new()),
+        ?assertEqual(succeeded, await_final_withdrawal_status(WithdrawalID)),
+        Withdrawal = get_withdrawal(WithdrawalID),
+        Route = ff_withdrawal:route(Withdrawal),
+        #{postings := Postings} = ff_withdrawal:effective_final_cash_flow(Withdrawal),
+        VolumeEntries = [Volume || #{volume := {Volume, <<"RUB">>}} <- Postings],
+        {Route, VolumeEntries}
+    end,
+    {Route1, VolumeEntries1} = ProduceWithdrawal({300, <<"RUB">>}),
+    {Route2, VolumeEntries2} = ProduceWithdrawal({301, <<"RUB">>}),
+    ?assertMatch(#{provider_id := 17, terminal_id := 1}, Route1),
+    ?assertMatch(#{provider_id := 17, terminal_id := 8}, Route2),
+    ?assertEqual([300, 30, 30, 10], VolumeEntries1),
+    ?assertEqual([301, 30, 30, 16], VolumeEntries2).
 
 %% Utils
 

@@ -432,6 +432,16 @@ domain_config(Options, C) ->
                                 {condition,
                                     {cost_in,
                                         ?cashrng(
+                                            {inclusive, ?cash(300, <<"RUB">>)},
+                                            {inclusive, ?cash(301, <<"RUB">>)}
+                                        )}},
+                            then_ = {value, [?prv(17)]}
+                        },
+                        #domain_ProviderDecision{
+                            if_ =
+                                {condition,
+                                    {cost_in,
+                                        ?cashrng(
                                             {inclusive, ?cash(123123, <<"RUB">>)},
                                             {inclusive, ?cash(123123, <<"RUB">>)}
                                         )}},
@@ -452,6 +462,7 @@ domain_config(Options, C) ->
                                                 currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>}
                                             }}
                                     }}},
+                            % provider 4 will be discarded by proxy 6
                             then_ = {value, [?prv(4), ?prv(5)]}
                         },
                         #domain_ProviderDecision{
@@ -629,6 +640,8 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_provider(?prv(10), ?prx(6), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(11), ?prx(8), provider_identity_id(Options), C),
         ct_domain:withdrawal_provider(?prv(16), ?prx(2), provider_identity_id(Options), C),
+        ct_domain:withdrawal_provider(?prv(17), ?prx(2), provider_identity_id(Options), C),
+
         ct_domain:p2p_provider(?prv(101), ?prx(5), dummy_provider_identity_id(Options), C),
 
         ct_domain:contract_template(?tmpl(1), ?trms(1)),
@@ -643,6 +656,8 @@ domain_config(Options, C) ->
         ct_domain:withdrawal_terminal(?trm(5)),
         ct_domain:withdrawal_terminal(?trm(6)),
         ct_domain:withdrawal_terminal(?trm(7)),
+        % Provider 17 satellite
+        ct_domain:withdrawal_terminal(?trm(8)),
 
         ct_domain:currency(?cur(<<"RUB">>)),
         ct_domain:currency(?cur(<<"USD">>)),

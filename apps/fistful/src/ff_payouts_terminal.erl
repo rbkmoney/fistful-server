@@ -23,6 +23,7 @@
 -export_type([terminal/0]).
 -export_type([terminal_ref/0]).
 -export_type([terminal_priority/0]).
+-export_type([provision_terms/0]).
 
 -export([adapter_opts/1]).
 -export([terms/1]).

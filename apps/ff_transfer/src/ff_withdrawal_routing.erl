@@ -215,28 +215,29 @@ get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, Par
     | {error, Error :: term()}.
 validate_terms(Provider, Terminal, PartyVarset) ->
     do(fun() ->
-        ProviderTerms = provision_terms(Provider),
-        TerminalTerms = provision_terms(Terminal),
+        ProviderTerms = provider_terms(Provider),
+        TerminalTerms = terminal_terms(Terminal),
         _ = unwrap(assert_terms_defined(TerminalTerms, ProviderTerms)),
         CombinedTerms = merge_withdrawal_terms(ProviderTerms, TerminalTerms),
         unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
     end).
 
--spec provision_terms(ff_routing_rule:provider() | ff_routing_rule:terminal()) ->
-    withdrawal_provision_terms() | undefined.
-provision_terms(#domain_Provider{} = Provider) ->
-    provision_terms_(Provider#domain_Provider.terms);
-provision_terms(#domain_Terminal{} = Terminal) ->
-    provision_terms_(Terminal#domain_Terminal.terms).
+-spec provider_terms(ff_routing_rule:provider()) -> ff_maybe:maybe(withdrawal_provision_terms()).
+provider_terms(#domain_Provider{} = Provider) ->
+    withdrawal_terms(Provider#domain_Provider.terms).
 
-provision_terms_(#domain_ProvisionTermSet{
+-spec terminal_terms(ff_routing_rule:terminal()) -> ff_maybe:maybe(withdrawal_provision_terms()).
+terminal_terms(#domain_Terminal{} = Terminal) ->
+    withdrawal_terms(Terminal#domain_Terminal.terms).
+
+withdrawal_terms(#domain_ProvisionTermSet{
     wallet = #domain_WalletProvisionTerms{
         withdrawals =
             Withdrawals
     }
 }) ->
     Withdrawals;
-provision_terms_(_) ->
+withdrawal_terms(_) ->
     undefined.
 
 -spec validate_terms_legacy(provider(), terminal(), hg_selector:varset()) ->

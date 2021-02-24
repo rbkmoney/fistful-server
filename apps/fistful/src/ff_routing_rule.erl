@@ -90,15 +90,10 @@ do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
 
 -spec compute_routing_ruleset(routing_ruleset_ref(), varset(), revision()) ->
     {ok, [candidate()]}
-    | {error, misconfiguration}
-    | {error, ruleset_not_found}.
+    | {error, misconfiguration}.
 compute_routing_ruleset(RulesetRef, VS, Revision) ->
-    case ff_party:compute_routing_ruleset(RulesetRef, VS, Revision) of
-        {ok, Ruleset} ->
-            check_ruleset_computing(Ruleset#domain_RoutingRuleset.decisions);
-        {error, Error} ->
-            {error, Error}
-    end.
+    {ok, Ruleset} = ff_party:compute_routing_ruleset(RulesetRef, VS, Revision),
+    check_ruleset_computing(Ruleset#domain_RoutingRuleset.decisions).
 
 check_ruleset_computing({delegates, _}) ->
     {error, misconfiguration};

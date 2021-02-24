@@ -758,7 +758,7 @@ convert_to_route(ProviderTerminalMap) ->
             lists:sort(Providers) ++ Acc
         end,
         [],
-        maps:to_list(ProviderTerminalMap)
+        lists:keysort(1, maps:to_list(ProviderTerminalMap))
     ).
 
 -spec choose_provider_legacy([provider_id()], party_varset()) -> {ok, provider_id()} | {error, route_not_found}.

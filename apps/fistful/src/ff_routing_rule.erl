@@ -67,8 +67,7 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
 
 -spec do_gather_routes(payment_institution(), routing_rule_tag(), varset(), revision()) ->
     {ok, {[route()], [route()]}}
-    | {error, misconfiguration}
-    | {error, ruleset_not_found}.
+    | {error, misconfiguration}.
 do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     do(fun() ->
         case maps:find(RoutingRuleTag, PaymentInstitution) of

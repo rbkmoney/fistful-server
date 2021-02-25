@@ -1719,7 +1719,7 @@ apply_event(Ev, T0) ->
 
 -spec apply_event_(event(), ff_maybe:maybe(withdrawal_state())) -> withdrawal_state().
 apply_event_({created, T}, undefined) ->
-    T;
+    make_state(T);
 apply_event_({status_changed, Status}, T) ->
     maps:put(status, Status, T);
 apply_event_({resource_got, Resource}, T) ->
@@ -1752,6 +1752,14 @@ apply_event_({route_changed, Route}, T) ->
     };
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
+
+-spec make_state(withdrawal()) -> withdrawal_state().
+make_state(#{route := Route} = T) ->
+    T#{
+        attempts => ff_withdrawal_route_attempt_utils:new_route(Route, undefined)
+    };
+make_state(T) when not is_map_key(route, T) ->
+    T.
 
 get_attempt_limit(Withdrawal) ->
     #{

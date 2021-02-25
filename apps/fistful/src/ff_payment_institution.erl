@@ -10,8 +10,8 @@
     withdrawal_providers := dmsl_domain_thrift:'ProviderSelector'(),
     p2p_providers := dmsl_domain_thrift:'ProviderSelector'(),
     p2p_inspector := dmsl_domain_thrift:'P2PInspectorSelector'(),
-    withdrawal_routing_rules => dmsl_domain_thrift:'RoutingRules'(),
-    p2p_transfer_routing_rules => dmsl_domain_thrift:'RoutingRules'()
+    withdrawal_routing_rules := dmsl_domain_thrift:'RoutingRules'(),
+    p2p_transfer_routing_rules := dmsl_domain_thrift:'RoutingRules'()
 }.
 
 -type payinst_ref() :: dmsl_domain_thrift:'PaymentInstitutionRef'().
@@ -116,7 +116,7 @@ decode(ID, #domain_PaymentInstitution{
     withdrawal_routing_rules = WithdrawalRoutingRules,
     p2p_transfer_routing_rules = P2PTransferRoutingRules
 }) ->
-    genlib_map:compact(#{
+    #{
         id => ID,
         system_accounts => SystemAccounts,
         identity => Identity,
@@ -125,7 +125,7 @@ decode(ID, #domain_PaymentInstitution{
         p2p_inspector => P2PInspector,
         withdrawal_routing_rules => WithdrawalRoutingRules,
         p2p_transfer_routing_rules => P2PTransferRoutingRules
-    }).
+    }.
 
 decode_system_account_set(Identity, #domain_SystemAccountSet{accounts = Accounts}) ->
     maps:fold(

@@ -38,6 +38,7 @@
 -type currency_selector() :: dmsl_domain_thrift:'CurrencySelector'().
 -type cash_limit_selector() :: dmsl_domain_thrift:'CashLimitSelector'().
 -type provision_terms() :: dmsl_domain_thrift:'WithdrawalProvisionTerms'().
+
 %%
 
 -spec prepare_routes(party_varset(), identity(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.

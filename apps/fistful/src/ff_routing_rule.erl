@@ -70,8 +70,15 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     | {error, misconfiguration}.
 do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     do(fun() ->
-        case maps:find(RoutingRuleTag, PaymentInstitution) of
-            {ok, RoutingRules} ->
+        case maps:get(RoutingRuleTag, PaymentInstitution) of
+            undefined ->
+                logger:log(
+                    warning,
+                    "Payment routing rules is undefined, PaymentInstitution: ~p",
+                    [PaymentInstitution]
+                ),
+                {[], []};
+            RoutingRules ->
                 Policies = RoutingRules#domain_RoutingRules.policies,
                 Prohibitions = RoutingRules#domain_RoutingRules.prohibitions,
                 PermitCandidates = unwrap(compute_routing_ruleset(Policies, VS, Revision)),
@@ -81,9 +88,7 @@ do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
                     DenyCandidates,
                     Revision
                 ),
-                {AcceptedRoutes, RejectedRoutes};
-            error ->
-                {[], []}
+                {AcceptedRoutes, RejectedRoutes}
         end
     end).
 

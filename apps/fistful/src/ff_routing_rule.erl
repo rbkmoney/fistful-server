@@ -54,14 +54,8 @@ gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) ->
     case do_gather_routes(PaymentInstitution, RoutingRuleTag, VS, Revision) of
         {ok, {AcceptedRoutes, RejectedRoutes}} ->
             {AcceptedRoutes, RejectContext#{rejected_routes => RejectedRoutes}};
-        {error, Error} ->
-            case Error of
-                misconfiguration ->
-                    logger:warning("Routing rule misconfiguration. Varset:~n~p", [VS]);
-                _ ->
-                    %% TODO: full logging, when new routing will be implemented
-                    ok
-            end,
+        {error, misconfiguration} ->
+            logger:warning("Routing rule misconfiguration. Varset:~n~p", [VS]),
             {[], RejectContext}
     end.
 

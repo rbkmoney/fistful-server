@@ -595,16 +595,7 @@ params(#{params := V}) ->
 p_transfer(Withdrawal) ->
     ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)).
 
--spec p_transfer_status(withdrawal_state()) -> ff_postings_transfer:status() | undefined.
 p_transfer_status(Withdrawal) ->
-    case attempts(Withdrawal) of
-        undefined ->
-            undefined;
-        _ ->
-            p_transfer_status_(Withdrawal)
-    end.
-
-p_transfer_status_(Withdrawal) ->
     case p_transfer(Withdrawal) of
         undefined ->
             undefined;
@@ -1291,14 +1282,6 @@ get_session_result(Withdrawal) ->
 
 -spec get_current_session_status(withdrawal_state()) -> session_processing_status().
 get_current_session_status(Withdrawal) ->
-    case attempts(Withdrawal) of
-        undefined ->
-            undefined;
-        _ ->
-            get_current_session_status_(Withdrawal)
-    end.
-
-get_current_session_status_(Withdrawal) ->
     Session = get_current_session(Withdrawal),
     case Session of
         undefined ->

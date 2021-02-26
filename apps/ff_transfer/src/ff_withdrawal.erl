@@ -359,9 +359,11 @@ status(T) ->
 route(T) ->
     maps:get(route, T, undefined).
 
--spec attempts(withdrawal_state()) -> attempts() | undefined.
-attempts(T) ->
-    maps:get(attempts, T, undefined).
+-spec attempts(withdrawal_state()) -> attempts().
+attempts(#{attempts := Attempts}) ->
+    Attempts;
+attempts(T) when not is_map_key(attempts, T) ->
+    ff_withdrawal_route_attempt_utils:new().
 
 -spec external_id(withdrawal_state()) -> external_id() | undefined.
 external_id(T) ->
@@ -1755,8 +1757,9 @@ apply_event_({adjustment, _Ev} = Event, T) ->
 
 -spec make_state(withdrawal()) -> withdrawal_state().
 make_state(#{route := Route} = T) ->
+    Attempts = ff_withdrawal_route_attempt_utils:new(),
     T#{
-        attempts => ff_withdrawal_route_attempt_utils:new_route(Route, undefined)
+        attempts => ff_withdrawal_route_attempt_utils:new_route(Route, Attempts)
     };
 make_state(T) when not is_map_key(route, T) ->
     T.

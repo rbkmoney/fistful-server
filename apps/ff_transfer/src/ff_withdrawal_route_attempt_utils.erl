@@ -16,6 +16,7 @@
 
 -module(ff_withdrawal_route_attempt_utils).
 
+-export([new/0]).
 -export([new_route/2]).
 -export([next_route/3]).
 -export([get_current_session/1]).
@@ -55,9 +56,17 @@
 
 %% API
 
+-spec new() -> attempts().
+new() ->
+    #{
+        attempts => #{},
+        inversed_routes => [],
+        attempt => 0
+    }.
+
 -spec new_route(route(), attempts()) -> attempts().
 new_route(Route, undefined) ->
-    new_route(Route, init());
+    new_route(Route, new());
 new_route(Route, Existing) ->
     #{
         attempts := Attempts,
@@ -155,14 +164,6 @@ get_attempt(#{attempt := Attempt}) ->
     Attempt.
 
 %% Internal
-
--spec init() -> attempts().
-init() ->
-    #{
-        attempts => #{},
-        inversed_routes => [],
-        attempt => 0
-    }.
 
 -spec route_key(route()) -> route_key().
 route_key(Route) ->

@@ -739,7 +739,7 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
     Priority = maps:get(priority, Route, undefined),
     {ok, Provider} = ff_p2p_provider:get(ProviderID),
     {Acc, RejectConext} =
-        case ff_p2p_provider:validate_provider_terms(Provider, PartyVarset) of
+        case ff_p2p_provider:validate_terms(Provider, PartyVarset) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
                 Acc1 = maps:put(Priority, [ProviderID | Terms], Acc0),
@@ -773,7 +773,7 @@ choose_provider_legacy(Providers, VS) ->
 -spec validate_terms(provider_id(), party_varset()) -> boolean().
 validate_terms(ID, VS) ->
     {ok, Provider} = ff_p2p_provider:get(ID),
-    case ff_p2p_provider:validate_provider_terms(Provider, VS) of
+    case ff_p2p_provider:validate_terms(Provider, VS) of
         {ok, valid} ->
             true;
         {error, _Error} ->

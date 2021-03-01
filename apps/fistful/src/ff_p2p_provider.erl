@@ -2,12 +2,10 @@
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
--type terms() :: dmsl_domain_thrift:'ProvisionTermSet'().
-
 -type provider() :: #{
     id := id(),
     identity := ff_identity:id(),
-    terms := terms(),
+    terms := dmsl_domain_thrift:'ProvisionTermSet'(),
     accounts := accounts(),
     adapter := ff_adapter:adapter(),
     adapter_opts := map()
@@ -42,7 +40,6 @@
 -export([get/1]).
 -export([get/2]).
 -export([compute_fees/2]).
--export([validate_provider_terms/2]).
 -export([validate_terms/2]).
 
 %% Pipeline
@@ -99,16 +96,10 @@ compute_fees(#{terms := Terms}, VS) ->
         postings => ff_cash_flow:decode_domain_postings(CashFlow)
     }.
 
--spec validate_provider_terms(provider(), hg_selector:varset()) ->
-    {ok, valid}
-    | {error, validate_terms_error()}.
-validate_provider_terms(#{terms := Terms}, VS) ->
-    validate_terms(Terms, VS).
-
 -spec validate_terms(terms(), hg_selector:varset()) ->
     {ok, valid}
     | {error, validate_terms_error()}.
-validate_terms(Terms, VS) ->
+validate_terms(#{terms := Terms}, VS) ->
     #domain_ProvisionTermSet{wallet = WalletTerms} = Terms,
     #domain_WalletProvisionTerms{p2p = P2PTerms} = WalletTerms,
     #domain_P2PProvisionTerms{

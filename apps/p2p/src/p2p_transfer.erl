@@ -742,7 +742,7 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
     ProviderID = ProviderRef#domain_ProviderRef.id,
     {ok, Provider} = ff_p2p_provider:get(ProviderID),
     {Acc, RejectContext} =
-        case ff_p2p_provider:validate_provider_terms(Provider, PartyVarset) of
+        case ff_p2p_provider:validate_terms(Provider, PartyVarset) of
             {ok, valid} ->
                 {[ProviderID | Acc0], RejectContext0};
             {error, RejectReason} ->

@@ -42,7 +42,6 @@
 -export([get/1]).
 -export([get/2]).
 -export([compute_fees/2]).
--export([validate_provider_terms/2]).
 -export([validate_terms/2]).
 
 %% Pipeline

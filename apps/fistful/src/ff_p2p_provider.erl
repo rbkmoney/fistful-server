@@ -96,7 +96,7 @@ compute_fees(#{terms := Terms}, VS) ->
         postings => ff_cash_flow:decode_domain_postings(CashFlow)
     }.
 
--spec validate_terms(terms(), hg_selector:varset()) ->
+-spec validate_terms(provider(), hg_selector:varset()) ->
     {ok, valid}
     | {error, validate_terms_error()}.
 validate_terms(#{terms := Terms}, VS) ->

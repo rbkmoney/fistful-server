@@ -139,14 +139,15 @@ filter_valid_routes_([], _, {Acc, RejectContext}) ->
     {convert_to_route(Acc), RejectContext};
 filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
     Terminal = maps:get(terminal, Route),
-    Provider = maps:get(provider, Route),
     TerminalRef = maps:get(terminal_ref, Route),
     TerminalID = TerminalRef#domain_TerminalRef.id,
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
+    {ok, PayoutsTerminal} = ff_payouts_terminal:get(TerminalID),
+    {ok, PayoutsProvider} = ff_payouts_provider:get(ProviderID),
     {Acc, RejectConext} =
-        case validate_terms(Provider, Terminal, PartyVarset) of
+        case validate_terms(PayoutsProvider, PayoutsTerminal, PartyVarset) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
                 Acc1 = maps:put(Priority, [{ProviderID, TerminalID} | Terms], Acc0),
@@ -203,7 +204,7 @@ get_valid_terminals_with_priority([], _Provider, _PartyVarset, Acc) ->
 get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, PartyVarset, Acc0) ->
     Terminal = unwrap(ff_payouts_terminal:get(TerminalID)),
     Acc =
-        case validate_terms_legacy(Provider, Terminal, PartyVarset) of
+        case validate_terms(Provider, Terminal, PartyVarset) of
             {ok, valid} ->
                 [{TerminalID, Priority} | Acc0];
             {error, _Error} ->
@@ -211,40 +212,10 @@ get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, Par
         end,
     get_valid_terminals_with_priority(Rest, Provider, PartyVarset, Acc).
 
--spec validate_terms(ff_routing_rule:provider(), ff_routing_rule:terminal(), hg_selector:varset()) ->
+-spec validate_terms(provider(), terminal(), hg_selector:varset()) ->
     {ok, valid}
     | {error, Error :: term()}.
 validate_terms(Provider, Terminal, PartyVarset) ->
-    do(fun() ->
-        ProviderTerms = provider_terms(Provider),
-        TerminalTerms = terminal_terms(Terminal),
-        _ = unwrap(assert_terms_defined(TerminalTerms, ProviderTerms)),
-        CombinedTerms = merge_withdrawal_terms(ProviderTerms, TerminalTerms),
-        unwrap(validate_combined_terms(CombinedTerms, PartyVarset))
-    end).
-
--spec provider_terms(ff_routing_rule:provider()) -> ff_maybe:maybe(withdrawal_provision_terms()).
-provider_terms(#domain_Provider{} = Provider) ->
-    withdrawal_terms(Provider#domain_Provider.terms).
-
--spec terminal_terms(ff_routing_rule:terminal()) -> ff_maybe:maybe(withdrawal_provision_terms()).
-terminal_terms(#domain_Terminal{} = Terminal) ->
-    withdrawal_terms(Terminal#domain_Terminal.terms).
-
-withdrawal_terms(#domain_ProvisionTermSet{
-    wallet = #domain_WalletProvisionTerms{
-        withdrawals =
-            Withdrawals
-    }
-}) ->
-    Withdrawals;
-withdrawal_terms(_) ->
-    undefined.
-
--spec validate_terms_legacy(provider(), terminal(), hg_selector:varset()) ->
-    {ok, valid}
-    | {error, Error :: term()}.
-validate_terms_legacy(Provider, Terminal, PartyVarset) ->
     do(fun() ->
         ProviderTerms = ff_payouts_provider:provision_terms(Provider),
         TerminalTerms = ff_payouts_terminal:provision_terms(Terminal),

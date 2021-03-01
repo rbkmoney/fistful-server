@@ -712,46 +712,73 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
         PartyVarset,
         DomainRevision
     ),
-    {ValidatedRoutes, RejectContext1} = filter_valid_routes({Routes, RejectContext0}, PartyVarset),
+    {ValidatedRoutes, RejectContext1} = filter_valid_routes(Routes, RejectContext0, PartyVarset),
     case ValidatedRoutes of
         [] ->
             ff_routing_rule:log_reject_context(RejectContext1),
             logger:log(info, "Fallback to legacy method of routes gathering"),
             {ok, Providers} = ff_payment_institution:compute_p2p_transfer_providers(PaymentInstitution, PartyVarset),
-            case filter_valid_routes(Providers, PartyVarset) of
-                [] ->
-                    {error, route_not_found};
-                [ProviderID | _] ->
-                    {ok, ProviderID}
-            end;
+            choose_provider_legacy(Providers, PartyVarset);
         [ProviderID | _] ->
             {ok, ProviderID}
     end.
 
--spec filter_valid_routes({[routing_rule_route()], reject_context()}, party_varset()) ->
-    {[provider_id()], reject_context()}.
-filter_valid_routes({Routes, RejectContext}, PartyVarset) ->
-    filter_valid_routes_(Routes, PartyVarset, {[], RejectContext}).
+-spec filter_valid_routes([routing_rule_route()], reject_context(), party_varset()) -> {[route()], reject_context()}.
+filter_valid_routes(Routes, RejectContext, PartyVarset) ->
+    filter_valid_routes_(Routes, PartyVarset, {#{}, RejectContext}).
 
+filter_valid_routes_([], _, {Acc, RejectContext}) when map_size(Acc) == 0 ->
+    {[], RejectContext};
 filter_valid_routes_([], _, {Acc, RejectContext}) ->
-    {Acc, RejectContext};
+    {convert_to_route(Acc), RejectContext};
 filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
     Terminal = maps:get(terminal, Route),
+    Provider = maps:get(provider, Route),
     TerminalRef = maps:get(terminal_ref, Route),
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
-    {ok, Provider} = ff_p2p_provider:get(ProviderID),
-    {Acc, RejectContext} =
-        case ff_p2p_provider:validate_terms(Provider, PartyVarset) of
+    Priority = maps:get(priority, Route, undefined),
+    {Acc, RejectConext} =
+        case ff_p2p_provider:validate_terms(Provider#domain_Provider.terms, PartyVarset) of
             {ok, valid} ->
-                {[ProviderID | Acc0], RejectContext0};
+                Terms = maps:get(Priority, Acc0, []),
+                Acc1 = maps:put(Priority, [ProviderID | Terms], Acc0),
+                {Acc1, RejectContext0};
             {error, RejectReason} ->
                 RejectedRoutes0 = maps:get(rejected_routes, RejectContext0),
                 RejectedRoutes1 = [{ProviderRef, TerminalRef, RejectReason} | RejectedRoutes0],
                 RejectContext1 = maps:put(rejected_routes, RejectedRoutes1, RejectContext0),
                 {Acc0, RejectContext1}
         end,
-    filter_valid_routes_(Rest, PartyVarset, {RejectContext, Acc}).
+    filter_valid_routes_(Rest, PartyVarset, {RejectConext, Acc}).
+
+convert_to_route(ProviderTerminalMap) ->
+    lists:foldl(
+        fun({_Priority, Providers}, Acc) ->
+            lists:sort(Providers) ++ Acc
+        end,
+        [],
+        lists:keysort(1, maps:to_list(ProviderTerminalMap))
+    ).
+
+-spec choose_provider_legacy([provider_id()], party_varset()) -> {ok, provider_id()} | {error, route_not_found}.
+choose_provider_legacy(Providers, VS) ->
+    case lists:filter(fun(P) -> validate_p2p_transfers_terms_legacy(P, VS) end, Providers) of
+        [ProviderID | _] ->
+            {ok, ProviderID};
+        [] ->
+            {error, route_not_found}
+    end.
+
+-spec validate_p2p_transfers_terms_legacy(provider_id(), party_varset()) -> boolean().
+validate_p2p_transfers_terms_legacy(ID, VS) ->
+    {ok, Provider} = ff_p2p_provider:get(ID),
+    case ff_p2p_provider:validate_provider_terms(Provider, VS) of
+        {ok, valid} ->
+            true;
+        {error, _Error} ->
+            false
+    end.
 
 -spec process_p_transfer_creation(p2p_transfer_state()) -> process_result().
 process_p_transfer_creation(P2PTransferState) ->

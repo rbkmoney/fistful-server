@@ -181,4 +181,8 @@ update_current(Attempt, #{current := Route, attempts := Attempts} = R) ->
         attempts => Attempts#{
             Route => Attempt
         }
-    }.
+    };
+update_current(#{p_transfer := _PTransfer}, R) when not is_map_key(current, R) ->
+    % There are some legacy operations without a route in storage
+    % It looks like we can ignore some data in these cases
+    R.

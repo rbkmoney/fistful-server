@@ -728,8 +728,9 @@ prepare_route(PartyVarset, Identity, DomainRevision) ->
             {ok, ProviderID}
     end.
 
--spec filter_valid_routes({[routing_rule_route()], reject_context()}, party_varset()) -> {[provider_id()], reject_context()}.
-filter_valid_routes({Routes, RejectContext} , PartyVarset) ->
+-spec filter_valid_routes({[routing_rule_route()], reject_context()}, party_varset()) ->
+    {[provider_id()], reject_context()}.
+filter_valid_routes({Routes, RejectContext}, PartyVarset) ->
     filter_valid_routes_(Routes, PartyVarset, {[], RejectContext}).
 
 filter_valid_routes_([], _, {Acc, RejectContext}) ->
@@ -740,15 +741,16 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     {ok, Provider} = ff_p2p_provider:get(ProviderID),
-    {Acc, RejectContext} = case ff_p2p_provider:validate_provider_terms(Provider, PartyVarset) of
-        {ok, valid} ->
-            {[ProviderID | Acc0], RejectContext0};
-        {error, RejectReason} ->
-            RejectedRoutes0 = maps:get(rejected_routes, RejectContext0),
-            RejectedRoutes1 = [{ProviderRef, TerminalRef, RejectReason} | RejectedRoutes0],
-            RejectContext1 = maps:put(rejected_routes, RejectedRoutes1, RejectContext0),
-            {Acc0, RejectContext1}
-    end,
+    {Acc, RejectContext} =
+        case ff_p2p_provider:validate_provider_terms(Provider, PartyVarset) of
+            {ok, valid} ->
+                {[ProviderID | Acc0], RejectContext0};
+            {error, RejectReason} ->
+                RejectedRoutes0 = maps:get(rejected_routes, RejectContext0),
+                RejectedRoutes1 = [{ProviderRef, TerminalRef, RejectReason} | RejectedRoutes0],
+                RejectContext1 = maps:put(rejected_routes, RejectedRoutes1, RejectContext0),
+                {Acc0, RejectContext1}
+        end,
     filter_valid_routes_(Rest, PartyVarset, {RejectContext, Acc}).
 
 -spec process_p_transfer_creation(p2p_transfer_state()) -> process_result().

@@ -737,8 +737,9 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
+    {ok, Provider} = ff_p2p_provider:get(ProviderID),
     {Acc, RejectConext} =
-        case validate_terms(ProviderID, PartyVarset) of
+        case ff_p2p_provider:validate_provider_terms(Provider, PartyVarset) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
                 Acc1 = maps:put(Priority, [ProviderID | Terms], Acc0),

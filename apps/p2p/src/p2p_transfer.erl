@@ -733,13 +733,12 @@ filter_valid_routes_([], _, {Acc, RejectContext}) ->
     {convert_to_route(Acc), RejectContext};
 filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
     Terminal = maps:get(terminal, Route),
-    Provider = maps:get(provider, Route),
     TerminalRef = maps:get(terminal_ref, Route),
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
     {Acc, RejectConext} =
-        case ff_p2p_provider:validate_terms(Provider#domain_Provider.terms, PartyVarset) of
+        case validate_terms(ProviderID, PartyVarset) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
                 Acc1 = maps:put(Priority, [ProviderID | Terms], Acc0),
@@ -763,15 +762,15 @@ convert_to_route(ProviderTerminalMap) ->
 
 -spec choose_provider_legacy([provider_id()], party_varset()) -> {ok, provider_id()} | {error, route_not_found}.
 choose_provider_legacy(Providers, VS) ->
-    case lists:filter(fun(P) -> validate_p2p_transfers_terms_legacy(P, VS) end, Providers) of
+    case lists:filter(fun(P) -> validate_terms(P, VS) end, Providers) of
         [ProviderID | _] ->
             {ok, ProviderID};
         [] ->
             {error, route_not_found}
     end.
 
--spec validate_p2p_transfers_terms_legacy(provider_id(), party_varset()) -> boolean().
-validate_p2p_transfers_terms_legacy(ID, VS) ->
+-spec validate_terms(provider_id(), party_varset()) -> boolean().
+validate_terms(ID, VS) ->
     {ok, Provider} = ff_p2p_provider:get(ID),
     case ff_p2p_provider:validate_provider_terms(Provider, VS) of
         {ok, valid} ->

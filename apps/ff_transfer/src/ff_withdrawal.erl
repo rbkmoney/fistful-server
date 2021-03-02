@@ -359,9 +359,11 @@ status(T) ->
 route(T) ->
     maps:get(route, T, undefined).
 
--spec attempts(withdrawal_state()) -> attempts() | undefined.
-attempts(T) ->
-    maps:get(attempts, T, undefined).
+-spec attempts(withdrawal_state()) -> attempts().
+attempts(#{attempts := Attempts}) ->
+    Attempts;
+attempts(T) when not is_map_key(attempts, T) ->
+    ff_withdrawal_route_attempt_utils:new().
 
 -spec external_id(withdrawal_state()) -> external_id() | undefined.
 external_id(T) ->
@@ -593,16 +595,7 @@ params(#{params := V}) ->
 p_transfer(Withdrawal) ->
     ff_withdrawal_route_attempt_utils:get_current_p_transfer(attempts(Withdrawal)).
 
--spec p_transfer_status(withdrawal_state()) -> ff_postings_transfer:status() | undefined.
 p_transfer_status(Withdrawal) ->
-    case attempts(Withdrawal) of
-        undefined ->
-            undefined;
-        _ ->
-            p_transfer_status_(Withdrawal)
-    end.
-
-p_transfer_status_(Withdrawal) ->
     case p_transfer(Withdrawal) of
         undefined ->
             undefined;
@@ -1289,14 +1282,6 @@ get_session_result(Withdrawal) ->
 
 -spec get_current_session_status(withdrawal_state()) -> session_processing_status().
 get_current_session_status(Withdrawal) ->
-    case attempts(Withdrawal) of
-        undefined ->
-            undefined;
-        _ ->
-            get_current_session_status_(Withdrawal)
-    end.
-
-get_current_session_status_(Withdrawal) ->
     Session = get_current_session(Withdrawal),
     case Session of
         undefined ->
@@ -1719,7 +1704,7 @@ apply_event(Ev, T0) ->
 
 -spec apply_event_(event(), ff_maybe:maybe(withdrawal_state())) -> withdrawal_state().
 apply_event_({created, T}, undefined) ->
-    T;
+    make_state(T);
 apply_event_({status_changed, Status}, T) ->
     maps:put(status, Status, T);
 apply_event_({resource_got, Resource}, T) ->
@@ -1752,6 +1737,15 @@ apply_event_({route_changed, Route}, T) ->
     };
 apply_event_({adjustment, _Ev} = Event, T) ->
     apply_adjustment_event(Event, T).
+
+-spec make_state(withdrawal()) -> withdrawal_state().
+make_state(#{route := Route} = T) ->
+    Attempts = ff_withdrawal_route_attempt_utils:new(),
+    T#{
+        attempts => ff_withdrawal_route_attempt_utils:new_route(Route, Attempts)
+    };
+make_state(T) when not is_map_key(route, T) ->
+    T.
 
 get_attempt_limit(Withdrawal) ->
     #{

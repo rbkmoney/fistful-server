@@ -16,6 +16,7 @@
 
 -module(ff_withdrawal_route_attempt_utils).
 
+-export([new/0]).
 -export([new_route/2]).
 -export([next_route/3]).
 -export([get_current_session/1]).
@@ -43,7 +44,7 @@
 -type limit_check_details() :: ff_withdrawal:limit_check_details().
 -type account() :: ff_account:account().
 -type route() :: ff_withdrawal_routing:route().
--type route_key() :: {ff_payouts_provider:id(), ff_payouts_terminal:id()}.
+-type route_key() :: {ff_payouts_provider:id(), ff_payouts_terminal:id()} | unknown.
 -type session() :: ff_withdrawal:session().
 -type attempt_limit() :: ff_party:attempt_limit().
 
@@ -55,22 +56,20 @@
 
 %% API
 
+-spec new() -> attempts().
+new() ->
+    #{
+        attempts => #{},
+        inversed_routes => [],
+        attempt => 0
+    }.
+
 -spec new_route(route(), attempts()) -> attempts().
 new_route(Route, undefined) ->
-    new_route(Route, init());
+    new_route(Route, new());
 new_route(Route, Existing) ->
-    #{
-        attempts := Attempts,
-        inversed_routes := InvRoutes,
-        attempt := Attempt
-    } = Existing,
     RouteKey = route_key(Route),
-    Existing#{
-        current => RouteKey,
-        attempt => Attempt + 1,
-        inversed_routes => [RouteKey | InvRoutes],
-        attempts => Attempts#{RouteKey => #{}}
-    }.
+    add_route(RouteKey, Existing).
 
 -spec next_route([route()], attempts(), attempt_limit()) ->
     {ok, route()} | {error, route_not_found | attempt_limit_exceeded}.
@@ -156,17 +155,23 @@ get_attempt(#{attempt := Attempt}) ->
 
 %% Internal
 
--spec init() -> attempts().
-init() ->
-    #{
-        attempts => #{},
-        inversed_routes => [],
-        attempt => 0
-    }.
-
 -spec route_key(route()) -> route_key().
 route_key(Route) ->
     {ff_withdrawal_routing:get_provider(Route), ff_withdrawal_routing:get_terminal(Route)}.
+
+-spec add_route(route_key(), attempts()) -> attempts().
+add_route(RouteKey, R) ->
+    #{
+        attempts := Attempts,
+        inversed_routes := InvRoutes,
+        attempt := Attempt
+    } = R,
+    R#{
+        current => RouteKey,
+        attempt => Attempt + 1,
+        inversed_routes => [RouteKey | InvRoutes],
+        attempts => Attempts#{RouteKey => #{}}
+    }.
 
 %% @private
 current(#{current := Route, attempts := Attempts}) ->
@@ -180,4 +185,8 @@ update_current(Attempt, #{current := Route, attempts := Attempts} = R) ->
         attempts => Attempts#{
             Route => Attempt
         }
-    }.
+    };
+update_current(Attempt, R) when not is_map_key(current, R) ->
+    % There are some legacy operations without a route in storage
+    % It looks like we should save other data without route.
+    update_current(Attempt, add_route(unknown, R)).

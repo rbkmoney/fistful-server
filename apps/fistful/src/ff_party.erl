@@ -90,6 +90,7 @@
 -export([validate_p2p_template_creation/2]).
 -export([validate_wallet_limits/3]).
 -export([get_contract_terms/6]).
+-export([compute_routing_ruleset/3]).
 -export([get_withdrawal_cash_flow_plan/1]).
 -export([get_p2p_cash_flow_plan/1]).
 -export([get_w2w_cash_flow_plan/1]).
@@ -110,6 +111,8 @@
 -type timestamp() :: ff_time:timestamp_ms().
 -type wallet() :: ff_wallet:wallet_state().
 -type payment_institution_id() :: ff_payment_institution:id().
+-type routing_ruleset_ref() :: dmsl_domain_thrift:'RoutingRulesetRef'().
+-type routing_ruleset() :: dmsl_domain_thrift:'RoutingRuleset'().
 -type bound_type() :: 'exclusive' | 'inclusive'.
 -type cash_range() :: {{bound_type(), cash()}, {bound_type(), cash()}}.
 
@@ -278,6 +281,28 @@ get_contract_terms(PartyID, ContractID, Varset, Timestamp, PartyRevision, Domain
             {error, {party_not_exists_yet, PartyID}};
         {error, Unexpected} ->
             erlang:error({unexpected, Unexpected})
+    end.
+
+-spec compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) -> Result when
+    RoutingRulesetRef :: routing_ruleset_ref(),
+    Varset :: hg_selector:varset(),
+    DomainRevision :: domain_revision(),
+    Result :: {ok, routing_ruleset()} | {error, ruleset_not_found}.
+compute_routing_ruleset(RoutingRulesetRef, Varset, DomainRevision) ->
+    DomainVarset = encode_varset(Varset),
+    {Client, Context} = get_party_client(),
+    Result = party_client_thrift:compute_routing_ruleset(
+        RoutingRulesetRef,
+        DomainRevision,
+        DomainVarset,
+        Client,
+        Context
+    ),
+    case Result of
+        {ok, RoutingRuleset} ->
+            {ok, RoutingRuleset};
+        {error, #payproc_RuleSetNotFound{}} ->
+            {error, ruleset_not_found}
     end.
 
 -spec validate_account_creation(terms(), currency_id()) -> Result when
@@ -865,7 +890,8 @@ encode_varset(Varset) ->
         amount = genlib_map:get(cost, Varset),
         wallet_id = genlib_map:get(wallet_id, Varset),
         payment_method = encode_payment_method(genlib_map:get(payment_tool, Varset)),
-        p2p_tool = genlib_map:get(p2p_tool, Varset)
+        p2p_tool = genlib_map:get(p2p_tool, Varset),
+        party_id = genlib_map:get(party_id, Varset)
     }.
 
 -spec encode_payment_method(ff_destination:resource() | undefined) ->

@@ -373,9 +373,41 @@ dummy_provider_identity_id(Options) ->
 
 domain_config(Options, C) ->
     P2PAdapterAdr = maps:get(p2p_adapter_adr, genlib_app:env(fistful, test, #{})),
+
+    Decision1 =
+        {delegates, [
+            delegate(condition(party, <<"12345">>), ?ruleset(2)),
+            delegate(condition(party, <<"67890">>), ?ruleset(4))
+        ]},
+    Decision2 =
+        {delegates, [
+            delegate(condition(cost_in, {0, 1000, <<"RUB">>}), ?ruleset(3))
+        ]},
+    Decision3 =
+        {candidates, [
+            candidate({constant, true}, ?trm(1)),
+            candidate({constant, true}, ?trm(2))
+        ]},
+    Decision4 =
+        {candidates, [
+            candidate({constant, true}, ?trm(3)),
+            candidate({constant, true}, ?trm(4)),
+            candidate({constant, true}, ?trm(5))
+        ]},
+    Decision5 =
+        {candidates, [
+            candidate({constant, true}, ?trm(4))
+        ]},
+
     Default = [
         ct_domain:globals(?eas(1), [?payinst(1)]),
         ct_domain:external_account_set(?eas(1), <<"Default">>, ?cur(<<"RUB">>), C),
+
+        routing_ruleset(?ruleset(1), <<"Rule#1">>, Decision1),
+        routing_ruleset(?ruleset(2), <<"Rule#2">>, Decision2),
+        routing_ruleset(?ruleset(3), <<"Rule#3">>, Decision3),
+        routing_ruleset(?ruleset(4), <<"Rule#4">>, Decision4),
+        routing_ruleset(?ruleset(5), <<"Rule#5">>, Decision5),
 
         {payment_institution, #domain_PaymentInstitutionObject{
             ref = ?payinst(1),
@@ -384,6 +416,10 @@ domain_config(Options, C) ->
                 system_account_set = {value, ?sas(1)},
                 default_contract_template = {value, ?tmpl(1)},
                 providers = {value, ?ordset([])},
+                withdrawal_routing_rules = #domain_RoutingRules{
+                    policies = ?ruleset(1),
+                    prohibitions = ?ruleset(5)
+                },
                 inspector = {value, ?insp(1)},
                 residences = ['rus'],
                 realm = live,
@@ -614,6 +650,10 @@ domain_config(Options, C) ->
         ct_domain:term_set_hierarchy(?trms(2), [ct_domain:timed_term_set(company_termset(Options))]),
 
         ct_domain:withdrawal_terminal(?trm(1)),
+        ct_domain:withdrawal_terminal(?trm(2)),
+        ct_domain:withdrawal_terminal(?trm(3)),
+        ct_domain:withdrawal_terminal(?trm(4)),
+        ct_domain:withdrawal_terminal(?trm(5)),
         ct_domain:withdrawal_terminal(?trm(6)),
         ct_domain:withdrawal_terminal(?trm(7)),
         % Provider 17 satellite
@@ -1188,3 +1228,36 @@ company_termset(Options) ->
         }
     },
     maps:get(company_termset, Options, Default).
+
+routing_ruleset(Ref, Name, Decisions) ->
+    {routing_rules, #domain_RoutingRulesObject{
+        ref = Ref,
+        data = #domain_RoutingRuleset{
+            name = Name,
+            decisions = Decisions
+        }
+    }}.
+
+condition(cost_in, {Min, Max, Cur}) ->
+    {condition,
+        {cost_in,
+            ?cashrng(
+                {inclusive, ?cash(Min, Cur)},
+                {exclusive, ?cash(Max, Cur)}
+            )}};
+condition(party, ID) ->
+    {condition, {party, #domain_PartyCondition{id = ID}}}.
+
+delegate(Allowed, RuleSetRef) ->
+    #domain_RoutingDelegate{
+        description = <<"Delagate description">>,
+        allowed = Allowed,
+        ruleset = RuleSetRef
+    }.
+
+candidate(Allowed, Terminal) ->
+    #domain_RoutingCandidate{
+        description = <<"Candidate description">>,
+        allowed = Allowed,
+        terminal = Terminal
+    }.

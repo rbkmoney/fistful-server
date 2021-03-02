@@ -21,6 +21,7 @@
 -define(insp(ID), #domain_InspectorRef{id = ID}).
 -define(p2p_insp(ID), #domain_P2PInspectorRef{id = ID}).
 -define(payinst(ID), #domain_PaymentInstitutionRef{id = ID}).
+-define(ruleset(ID), #domain_RoutingRulesetRef{id = ID}).
 
 -define(cash(Amount, SymCode), #domain_Cash{amount = Amount, currency = ?cur(SymCode)}).
 

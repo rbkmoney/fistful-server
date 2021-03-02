@@ -248,35 +248,7 @@ withdrawal_provider(Ref, ProxyRef, IdentityID, C) ->
     }}.
 
 -spec withdrawal_terminal(?dtp('TerminalRef')) -> object().
-withdrawal_terminal(?trm(8) = Ref) ->
-    {terminal, #domain_TerminalObject{
-        ref = Ref,
-        data = #domain_Terminal{
-            name = <<"Terminal8">>,
-            description = <<"Override provider cashflow">>,
-            terms = #domain_ProvisionTermSet{
-                wallet = #domain_WalletProvisionTerms{
-                    withdrawals = #domain_WithdrawalProvisionTerms{
-                        cash_flow =
-                            {decisions, [
-                                #domain_CashFlowDecision{
-                                    if_ = {constant, true},
-                                    then_ =
-                                        {value, [
-                                            ?cfpost(
-                                                {system, settlement},
-                                                {provider, settlement},
-                                                ?fixed(16, <<"RUB">>)
-                                            )
-                                        ]}
-                                }
-                            ]}
-                    }
-                }
-            }
-        }
-    }};
-withdrawal_terminal(?trm(1) = Ref) ->
+withdrawal_terminal(?trm(N) = Ref) when N > 0, N < 6 ->
     {terminal, #domain_TerminalObject{
         ref = Ref,
         data = #domain_Terminal{
@@ -286,7 +258,8 @@ withdrawal_terminal(?trm(1) = Ref) ->
                 wallet = #domain_WalletProvisionTerms{
                     withdrawals = #domain_WithdrawalProvisionTerms{}
                 }
-            }
+            },
+            provider_ref = ?prv(1)
         }
     }};
 withdrawal_terminal(?trm(6) = Ref) ->
@@ -316,6 +289,34 @@ withdrawal_terminal(?trm(7) = Ref) ->
                                     {exclusive, ?cash(10000000, <<"BTC">>)}
                                 )},
                         cash_flow = {value, ?ordset([])}
+                    }
+                }
+            }
+        }
+    }};
+withdrawal_terminal(?trm(8) = Ref) ->
+    {terminal, #domain_TerminalObject{
+        ref = Ref,
+        data = #domain_Terminal{
+            name = <<"Terminal8">>,
+            description = <<"Override provider cashflow">>,
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    withdrawals = #domain_WithdrawalProvisionTerms{
+                        cash_flow =
+                            {decisions, [
+                                #domain_CashFlowDecision{
+                                    if_ = {constant, true},
+                                    then_ =
+                                        {value, [
+                                            ?cfpost(
+                                                {system, settlement},
+                                                {provider, settlement},
+                                                ?fixed(16, <<"RUB">>)
+                                            )
+                                        ]}
+                                }
+                            ]}
                     }
                 }
             }

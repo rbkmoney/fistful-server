@@ -8,6 +8,11 @@
 -export([list_destinations/2]).
 -export([list_identities/2]).
 
+-export([
+    list_deposit_reverts/2,
+    list_deposit_adjustments/2
+]).
+
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
@@ -56,6 +61,28 @@ list_identities(Params, Context) ->
     Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
     Result = wapi_handler_utils:service_call({fistful_stat, 'GetIdentities', {Req}}, Context),
     process_result(Result).
+
+-spec list_deposit_reverts(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+    StatError :: {invalid | bad_token, binary()}.
+list_deposit_reverts(Params, Context) ->
+    service_call(deposit_reverts, Params, Context).
+
+-spec list_deposit_adjustments(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+    StatError :: {invalid | bad_token, binary()}.
+list_deposit_adjustments(Params, Context) ->
+    service_call(deposit_adjustments, Params, Context).
+
+service_call(StatTag, Params, Context) ->
+    Req = create_request(
+        create_dsl(StatTag, Params, Context),
+        maps:get(continuationToken, Params, undefined)
+    ),
+    process_result(
+        wapi_handler_utils:service_call({fistful_stat, method(StatTag), {Req}}, Context)
+    ).
+
+method(deposit_reverts) -> 'GetDepositReverts';
+method(deposit_adjustments) -> 'GetDepositAdjustments'.
 
 create_dsl(StatTag, Req, Context) ->
     Query = create_query(StatTag, Req, Context),
@@ -113,6 +140,38 @@ create_query(identities, Req, Context) ->
         <<"provider_id">> => genlib_map:get(providerID, Req),
         <<"class">> => genlib_map:get(class, Req),
         <<"level">> => genlib_map:get(level, Req)
+    };
+create_query(deposit_reverts, Req, Context) ->
+    #{
+        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"identity_id">> => genlib_map:get(identityID, Req),
+        <<"source_id">> => genlib_map:get(sourceID, Req),
+        <<"wallet_id">> => genlib_map:get(walletID, Req),
+        <<"deposit_id">> => genlib_map:get(depositID, Req),
+        <<"revert_id">> => genlib_map:get(revertID, Req),
+        <<"amount_from">> => genlib_map:get(amountFrom, Req),
+        <<"amount_to">> => genlib_map:get(amountTo, Req),
+        <<"currency_code">> => genlib_map:get(currencyID, Req),
+        <<"status">> => genlib_map:get(status, Req),
+        <<"deposit_status">> => genlib_map:get(depositStatus, Req),
+        <<"from_time">> => get_time(createdAtFrom, Req),
+        <<"to_time">> => get_time(createdAtTo, Req)
+    };
+create_query(deposit_adjustments, Req, Context) ->
+    #{
+        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"identity_id">> => genlib_map:get(identityID, Req),
+        <<"source_id">> => genlib_map:get(sourceID, Req),
+        <<"wallet_id">> => genlib_map:get(walletID, Req),
+        <<"deposit_id">> => genlib_map:get(depositID, Req),
+        <<"adjustment_id">> => genlib_map:get(adjustmentID, Req),
+        <<"amount_from">> => genlib_map:get(amountFrom, Req),
+        <<"amount_to">> => genlib_map:get(amountTo, Req),
+        <<"currency_code">> => genlib_map:get(currencyID, Req),
+        <<"status">> => genlib_map:get(status, Req),
+        <<"deposit_status">> => genlib_map:get(depositStatus, Req),
+        <<"from_time">> => get_time(createdAtFrom, Req),
+        <<"to_time">> => get_time(createdAtTo, Req)
     }.
 
 create_request(Dsl, Token) ->

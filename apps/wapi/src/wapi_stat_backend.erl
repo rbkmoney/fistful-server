@@ -217,7 +217,9 @@ format_request_errors(Errors) -> genlib_string:join(<<"\n">>, Errors).
     (deposits, ff_proto_fistful_stat_thrift:'StatDeposit'()) -> map();
     (wallets, ff_proto_fistful_stat_thrift:'StatWallet'()) -> map();
     (destinations, ff_proto_fistful_stat_thrift:'StatDestination'()) -> map();
-    (identities, ff_proto_fistful_stat_thrift:'StatIdentity'()) -> map().
+    (identities, ff_proto_fistful_stat_thrift:'StatIdentity'()) -> map();
+    (deposit_reverts, ff_proto_fistful_stat_thrift:'StatDepositRevert'()) -> map();
+    (deposit_adjustments, ff_proto_fistful_stat_thrift:'StatDepositAdjustment'()) -> map().
 unmarshal_response(withdrawals, Response) ->
     merge_and_compact(
         #{
@@ -286,7 +288,55 @@ unmarshal_response(identities, Response) ->
         <<"effectiveChallenge">> => Response#fistfulstat_StatIdentity.effective_challenge,
         <<"isBlocked">> => Response#fistfulstat_StatIdentity.is_blocked,
         <<"externalID">> => Response#fistfulstat_StatIdentity.external_id
+    });
+unmarshal_response(deposit_reverts, Response) ->
+    genlib_map:compact(#{
+        <<"id">> => Response#fistfulstat_StatDepositRevert.id,
+        <<"walletId">> => Response#fistfulstat_StatDepositRevert.wallet_id,
+        <<"sourceId">> => Response#fistfulstat_StatDepositRevert.source_id,
+        <<"status">> => unmarshal_status(Response#fistfulstat_StatDepositRevert.status),
+        <<"body">> => unmarshal_cash(Response#fistfulstat_StatDepositRevert.body),
+        <<"createdAt">> => Response#fistfulstat_StatDepositRevert.created_at,
+        <<"domainRevision">> => Response#fistfulstat_StatDepositRevert.domain_revision,
+        <<"partyRevision">> => Response#fistfulstat_StatDepositRevert.party_revision,
+        <<"reason">> => Response#fistfulstat_StatDepositRevert.reason,
+        <<"externalId">> => Response#fistfulstat_StatDepositRevert.external_id
+    });
+unmarshal_response(deposit_adjustments, Response) ->
+    genlib_map:compact(#{
+        <<"id">> => Response#fistfulstat_StatDepositAdjustment.id,
+        <<"status">> => unmarshal_status(Response#fistfulstat_StatDepositAdjustment.status),
+        <<"changesPlan">> => unmarshal(Response#fistfulstat_StatDepositAdjustment.changes_plan),
+        <<"createdAt">> => Response#fistfulstat_StatDepositAdjustment.created_at,
+        <<"domainRevision">> => Response#fistfulstat_StatDepositAdjustment.domain_revision,
+        <<"partyRevision">> => Response#fistfulstat_StatDepositAdjustment.party_revision,
+        <<"externalId">> => Response#fistfulstat_StatDepositAdjustment.external_id,
+        <<"operationTimestamp">> => Response#fistfulstat_StatDepositAdjustment.operation_timestamp
     }).
+
+unmarshal_status({pending, _}) ->
+    #{<<"status">> => <<"Pending">>};
+unmarshal_status({succeeded, _}) ->
+    #{<<"status">> => <<"Succeeded">>};
+unmarshal_status({failed, _}) ->
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => #{<<"code">> => <<"failed">>}
+    }.
+
+unmarshal(undefined) ->
+    undefined;
+unmarshal(#fistfulstat_DepositAdjustmentChangesPlan{new_cash = Cash, new_status = Status}) ->
+    #{
+        <<"cash">> => unmarshal(Cash),
+        <<"status">> => unmarshal(Status)
+    };
+unmarshal(#fistfulstat_DepositAdjustmentCashChangePlan{amount = Amount, fee = Fee, provider_fee = ProviderFee}) ->
+    #{
+        <<"amount">> => unmarshal_cash(Amount),
+        <<"fee">> => unmarshal_cash(Fee),
+        <<"providerFee">> => unmarshal_cash(ProviderFee)
+    }.
 
 unmarshal_destination_stat_status(undefined) ->
     undefined;
@@ -297,6 +347,9 @@ unmarshal_destination_stat_status({authorized, _}) ->
 
 unmarshal_cash(Amount, Currency) ->
     #{<<"amount">> => Amount, <<"currency">> => Currency}.
+
+unmarshal_cash(#'Cash'{amount = Amount, currency = Currency}) ->
+    unmarshal_cash(Amount, Currency).
 
 unmarshal_withdrawal_stat_status({pending, #fistfulstat_WithdrawalPending{}}) ->
     #{<<"status">> => <<"Pending">>};

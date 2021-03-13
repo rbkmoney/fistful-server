@@ -133,6 +133,10 @@ get_operation_access('CreateIdentity', _) ->
     [{[party], write}];
 get_operation_access('GetIdentity', _) ->
     [{[party], read}];
+get_operation_access('ListReverts', _) ->
+    [{[party], read}];
+get_operation_access('ListAdjustments', _) ->
+    [{[party], read}];
 get_operation_access('ListIdentityChallenges', _) ->
     [{[party], read}];
 get_operation_access('StartIdentityChallenge', _) ->

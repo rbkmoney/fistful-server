@@ -314,7 +314,8 @@
             domain_revision = ?INTEGER,
             party_revision = ?INTEGER,
             reason = ?STRING,
-            external_id = ?STRING
+            external_id = ?STRING,
+            deposit_id = ?STRING
         }
     ]}
 ).
@@ -329,7 +330,8 @@
             domain_revision = ?INTEGER,
             party_revision = ?INTEGER,
             external_id = ?STRING,
-            operation_timestamp = ?TIMESTAMP
+            operation_timestamp = ?TIMESTAMP,
+            deposit_id = ?STRING
         }
     ]}
 ).

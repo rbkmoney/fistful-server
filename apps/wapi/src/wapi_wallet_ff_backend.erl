@@ -1687,6 +1687,25 @@ decode_stat(wallet_stat, Response) ->
         <<"identity">> => Response#fistfulstat_StatWallet.identity_id,
         <<"createdAt">> => Response#fistfulstat_StatWallet.created_at,
         <<"currency">> => Response#fistfulstat_StatWallet.currency_symbolic_code
+    });
+decode_stat(deposit_reverts_stat, Response) ->
+    genlib_map:compact(#{
+        <<"id">> => Response#fistfulstat_StatDepositRevert.id,
+        <<"walletID">> => Response#fistfulstat_StatDepositRevert.wallet_id,
+        <<"sourceID">> => Response#fistfulstat_StatDepositRevert.source_id,
+        <<"status">> => Response#fistfulstat_StatDepositRevert.status,
+        <<"body">> => Response#fistfulstat_StatDepositRevert.body,
+        <<"createdAt">> => Response#fistfulstat_StatDepositRevert.created_at,
+        <<"reason">> => Response#fistfulstat_StatDepositRevert.reason,
+        <<"externalID">> => Response#fistfulstat_StatDepositRevert.external_id
+    });
+decode_stat(deposit_adjustments_stat, Response) ->
+    genlib_map:compact(#{
+        <<"id">> => Response#fistfulstat_StatDepositAdjustment.id,
+        <<"status">> => Response#fistfulstat_StatDepositAdjustment.status,
+        <<"changesPlan">> => Response#fistfulstat_StatDepositAdjustment.changes_plan,
+        <<"createdAt">> => Response#fistfulstat_StatDepositAdjustment.created_at,
+        <<"externalID">> => Response#fistfulstat_StatDepositAdjustment.external_id
     }).
 
 decode_stat_cash(Amount, Currency) ->

@@ -297,8 +297,8 @@ unmarshal_response(deposit_reverts, Response) ->
         <<"status">> => unmarshal_status(Response#fistfulstat_StatDepositRevert.status),
         <<"body">> => unmarshal_cash(Response#fistfulstat_StatDepositRevert.body),
         <<"createdAt">> => Response#fistfulstat_StatDepositRevert.created_at,
-        <<"domainRevision">> => Response#fistfulstat_StatDepositRevert.domain_revision,
-        <<"partyRevision">> => Response#fistfulstat_StatDepositRevert.party_revision,
+        %%<<"domainRevision">> => Response#fistfulstat_StatDepositRevert.domain_revision,
+        %%<<"partyRevision">> => Response#fistfulstat_StatDepositRevert.party_revision,
         <<"reason">> => Response#fistfulstat_StatDepositRevert.reason,
         <<"externalId">> => Response#fistfulstat_StatDepositRevert.external_id
     });
@@ -308,10 +308,10 @@ unmarshal_response(deposit_adjustments, Response) ->
         <<"status">> => unmarshal_status(Response#fistfulstat_StatDepositAdjustment.status),
         <<"changesPlan">> => unmarshal(Response#fistfulstat_StatDepositAdjustment.changes_plan),
         <<"createdAt">> => Response#fistfulstat_StatDepositAdjustment.created_at,
-        <<"domainRevision">> => Response#fistfulstat_StatDepositAdjustment.domain_revision,
-        <<"partyRevision">> => Response#fistfulstat_StatDepositAdjustment.party_revision,
-        <<"externalId">> => Response#fistfulstat_StatDepositAdjustment.external_id,
-        <<"operationTimestamp">> => Response#fistfulstat_StatDepositAdjustment.operation_timestamp
+        %%<<"domainRevision">> => Response#fistfulstat_StatDepositAdjustment.domain_revision,
+        %%<<"partyRevision">> => Response#fistfulstat_StatDepositAdjustment.party_revision,
+        <<"externalId">> => Response#fistfulstat_StatDepositAdjustment.external_id
+        %%<<"operationTimestamp">> => Response#fistfulstat_StatDepositAdjustment.operation_timestamp
     }).
 
 unmarshal_status({pending, _}) ->

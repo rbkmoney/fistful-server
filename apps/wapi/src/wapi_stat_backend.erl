@@ -290,29 +290,33 @@ unmarshal_response(identities, Response) ->
         <<"externalID">> => Response#fistfulstat_StatIdentity.external_id
     });
 unmarshal_response(deposit_reverts, Response) ->
-    genlib_map:compact(#{
-        <<"id">> => Response#fistfulstat_StatDepositRevert.id,
-        <<"walletId">> => Response#fistfulstat_StatDepositRevert.wallet_id,
-        <<"sourceId">> => Response#fistfulstat_StatDepositRevert.source_id,
-        <<"status">> => unmarshal_status(Response#fistfulstat_StatDepositRevert.status),
-        <<"body">> => unmarshal_cash(Response#fistfulstat_StatDepositRevert.body),
-        <<"createdAt">> => Response#fistfulstat_StatDepositRevert.created_at,
-        %%<<"domainRevision">> => Response#fistfulstat_StatDepositRevert.domain_revision,
-        %%<<"partyRevision">> => Response#fistfulstat_StatDepositRevert.party_revision,
-        <<"reason">> => Response#fistfulstat_StatDepositRevert.reason,
-        <<"externalId">> => Response#fistfulstat_StatDepositRevert.external_id
-    });
+    merge_and_compact(
+        #{
+            <<"id">> => Response#fistfulstat_StatDepositRevert.id,
+            <<"wallet">> => Response#fistfulstat_StatDepositRevert.wallet_id,
+            <<"source">> => Response#fistfulstat_StatDepositRevert.source_id,
+            <<"body">> => unmarshal_cash(Response#fistfulstat_StatDepositRevert.body),
+            <<"createdAt">> => Response#fistfulstat_StatDepositRevert.created_at,
+            %%<<"domainRevision">> => Response#fistfulstat_StatDepositRevert.domain_revision,
+            %%<<"partyRevision">> => Response#fistfulstat_StatDepositRevert.party_revision,
+            <<"reason">> => Response#fistfulstat_StatDepositRevert.reason,
+            <<"externalId">> => Response#fistfulstat_StatDepositRevert.external_id
+        },
+        unmarshal_status(Response#fistfulstat_StatDepositRevert.status)
+    );
 unmarshal_response(deposit_adjustments, Response) ->
-    genlib_map:compact(#{
-        <<"id">> => Response#fistfulstat_StatDepositAdjustment.id,
-        <<"status">> => unmarshal_status(Response#fistfulstat_StatDepositAdjustment.status),
-        <<"changesPlan">> => unmarshal(Response#fistfulstat_StatDepositAdjustment.changes_plan),
-        <<"createdAt">> => Response#fistfulstat_StatDepositAdjustment.created_at,
-        %%<<"domainRevision">> => Response#fistfulstat_StatDepositAdjustment.domain_revision,
-        %%<<"partyRevision">> => Response#fistfulstat_StatDepositAdjustment.party_revision,
-        <<"externalId">> => Response#fistfulstat_StatDepositAdjustment.external_id
-        %%<<"operationTimestamp">> => Response#fistfulstat_StatDepositAdjustment.operation_timestamp
-    }).
+    merge_and_compact(
+        #{
+            <<"id">> => Response#fistfulstat_StatDepositAdjustment.id,
+            <<"changesPlan">> => unmarshal(Response#fistfulstat_StatDepositAdjustment.changes_plan),
+            <<"createdAt">> => Response#fistfulstat_StatDepositAdjustment.created_at,
+            %%<<"domainRevision">> => Response#fistfulstat_StatDepositAdjustment.domain_revision,
+            %%<<"partyRevision">> => Response#fistfulstat_StatDepositAdjustment.party_revision,
+            <<"externalId">> => Response#fistfulstat_StatDepositAdjustment.external_id
+            %%<<"operationTimestamp">> => Response#fistfulstat_StatDepositAdjustment.operation_timestamp
+        },
+        unmarshal_status(Response#fistfulstat_StatDepositAdjustment.status)
+    ).
 
 unmarshal_status({pending, _}) ->
     #{<<"status">> => <<"Pending">>};
@@ -345,8 +349,10 @@ unmarshal_destination_stat_status({unauthorized, _}) ->
 unmarshal_destination_stat_status({authorized, _}) ->
     <<"Authorized">>.
 
-unmarshal_cash(Amount, Currency) ->
-    #{<<"amount">> => Amount, <<"currency">> => Currency}.
+unmarshal_cash(Amount, Currency) when is_bitstring(Currency) ->
+    #{<<"amount">> => Amount, <<"currency">> => Currency};
+unmarshal_cash(Amount, #'CurrencyRef'{symbolic_code = Currency}) ->
+    unmarshal_cash(Amount, Currency).
 
 unmarshal_cash(#'Cash'{amount = Amount, currency = Currency}) ->
     unmarshal_cash(Amount, Currency).

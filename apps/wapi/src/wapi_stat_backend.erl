@@ -7,60 +7,37 @@
 -export([list_deposits/2]).
 -export([list_destinations/2]).
 -export([list_identities/2]).
-
--export([
-    list_deposit_reverts/2,
-    list_deposit_adjustments/2
-]).
+-export([list_deposit_reverts/2]).
+-export([list_deposit_adjustments/2]).
 
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
 
 -spec list_wallets(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
-    StatError ::
-        {invalid | bad_token, binary()}.
+    StatError :: {invalid | bad_token, binary()}.
 list_wallets(Params, Context) ->
-    Dsl = create_dsl(wallets, Params, Context),
-    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWallets', {Req}}, Context),
-    process_result(Result).
+    service_call(wallets, Params, Context).
 
 -spec list_withdrawals(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
-    StatError ::
-        {invalid | bad_token, binary()}.
+    StatError :: {invalid | bad_token, binary()}.
 list_withdrawals(Params, Context) ->
-    Dsl = create_dsl(withdrawals, Params, Context),
-    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', {Req}}, Context),
-    process_result(Result).
+    service_call(withdrawals, Params, Context).
 
 -spec list_deposits(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
-    StatError ::
-        {invalid | bad_token, binary()}.
+    StatError :: {invalid | bad_token, binary()}.
 list_deposits(Params, Context) ->
-    Dsl = create_dsl(deposits, Params, Context),
-    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', {Req}}, Context),
-    process_result(Result).
+    service_call(deposits, Params, Context).
 
 -spec list_destinations(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
-    StatError ::
-        {invalid | bad_token, binary()}.
+    StatError :: {invalid | bad_token, binary()}.
 list_destinations(Params, Context) ->
-    Dsl = create_dsl(destinations, Params, Context),
-    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDestinations', {Req}}, Context),
-    process_result(Result).
+    service_call(destinations, Params, Context).
 
 -spec list_identities(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
-    StatError ::
-        {invalid | bad_token, binary()}.
+    StatError :: {invalid | bad_token, binary()}.
 list_identities(Params, Context) ->
-    Dsl = create_dsl(identities, Params, Context),
-    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetIdentities', {Req}}, Context),
-    process_result(Result).
+    service_call(identities, Params, Context).
 
 -spec list_deposit_reverts(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
     StatError :: {invalid | bad_token, binary()}.
@@ -81,6 +58,11 @@ service_call(StatTag, Params, Context) ->
         wapi_handler_utils:service_call({fistful_stat, method(StatTag), {Req}}, Context)
     ).
 
+method(wallets) -> 'GetWallets';
+method(withdrawals) -> 'GetWithdrawals';
+method(deposits) -> 'GetDeposits';
+method(destinations) -> 'GetDestinations';
+method(identities) -> 'GetIdentities';
 method(deposit_reverts) -> 'GetDepositReverts';
 method(deposit_adjustments) -> 'GetDepositAdjustments'.
 

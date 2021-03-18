@@ -693,12 +693,7 @@ download_file(FileID, ExpiresAt, Context) ->
 
 -spec list_deposits(params(), ctx()) -> {ok, result_stat()} | {error, result_stat()}.
 list_deposits(Params, Context) ->
-    StatType = deposit_stat,
-    Dsl = create_stat_dsl(StatType, Params, Context),
-    ContinuationToken = maps:get(continuationToken, Params, undefined),
-    Req = create_stat_request(Dsl, ContinuationToken),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', {Req}}, Context),
-    process_stat_result(StatType, Result).
+    service_call(deposit_stat, Params, Context).
 
 -spec list_deposit_adjustments(params(), ctx()) -> {ok, result_stat()} | {error, result_stat()}.
 list_deposit_adjustments(Params, Context) ->
@@ -718,6 +713,7 @@ service_call(StatType, Params, Context) ->
         wapi_handler_utils:service_call({fistful_stat, method(StatType), {Req}}, Context)
     ).
 
+method(deposit_stat) -> 'GetDeposits';
 method(deposit_reverts_stat) -> 'GetDepositReverts';
 method(deposit_adjustments_stat) -> 'GetDepositAdjustments'.
 

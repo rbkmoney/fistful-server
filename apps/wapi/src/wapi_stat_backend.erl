@@ -279,8 +279,6 @@ unmarshal_response(deposit_reverts, Response) ->
             <<"source">> => Response#fistfulstat_StatDepositRevert.source_id,
             <<"body">> => unmarshal_cash(Response#fistfulstat_StatDepositRevert.body),
             <<"createdAt">> => Response#fistfulstat_StatDepositRevert.created_at,
-            %%<<"domainRevision">> => Response#fistfulstat_StatDepositRevert.domain_revision,
-            %%<<"partyRevision">> => Response#fistfulstat_StatDepositRevert.party_revision,
             <<"reason">> => Response#fistfulstat_StatDepositRevert.reason,
             <<"externalId">> => Response#fistfulstat_StatDepositRevert.external_id
         },
@@ -290,12 +288,9 @@ unmarshal_response(deposit_adjustments, Response) ->
     merge_and_compact(
         #{
             <<"id">> => Response#fistfulstat_StatDepositAdjustment.id,
-            <<"changesPlan">> => unmarshal(Response#fistfulstat_StatDepositAdjustment.changes_plan),
+            <<"changesPlan">> => unmarshal_changes_plan(Response#fistfulstat_StatDepositAdjustment.changes_plan),
             <<"createdAt">> => Response#fistfulstat_StatDepositAdjustment.created_at,
-            %%<<"domainRevision">> => Response#fistfulstat_StatDepositAdjustment.domain_revision,
-            %%<<"partyRevision">> => Response#fistfulstat_StatDepositAdjustment.party_revision,
             <<"externalId">> => Response#fistfulstat_StatDepositAdjustment.external_id
-            %%<<"operationTimestamp">> => Response#fistfulstat_StatDepositAdjustment.operation_timestamp
         },
         unmarshal_status(Response#fistfulstat_StatDepositAdjustment.status)
     ).
@@ -310,19 +305,26 @@ unmarshal_status({failed, _}) ->
         <<"failure">> => #{<<"code">> => <<"failed">>}
     }.
 
+unmarshal_changes_plan(#fistfulstat_DepositAdjustmentChangesPlan{new_cash = Cash, new_status = Status}) ->
+    Res = case Cash of
+        undefined -> #{};
+        Cash -> #{<<"cash">> => unmarshal(Cash)}
+    end,
+    case Status of
+        undefined -> Res;
+        Status -> maps:merge(Res, unmarshal(Status))
+    end.
+
 unmarshal(undefined) ->
     undefined;
-unmarshal(#fistfulstat_DepositAdjustmentChangesPlan{new_cash = Cash, new_status = Status}) ->
-    #{
-        <<"cash">> => unmarshal(Cash),
-        <<"status">> => unmarshal(Status)
-    };
 unmarshal(#fistfulstat_DepositAdjustmentCashChangePlan{amount = Amount, fee = Fee, provider_fee = ProviderFee}) ->
     #{
         <<"amount">> => unmarshal_cash(Amount),
         <<"fee">> => unmarshal_cash(Fee),
         <<"providerFee">> => unmarshal_cash(ProviderFee)
-    }.
+    };
+unmarshal(#fistfulstat_DepositAdjustmentStatusChangePlan{new_status = Status}) ->
+    unmarshal_status(Status).
 
 unmarshal_destination_stat_status(undefined) ->
     undefined;

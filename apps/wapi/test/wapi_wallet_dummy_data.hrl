@@ -320,12 +320,27 @@
     ]}
 ).
 
--define(STAT_DEPOSIT_ADJUSTMENTS,
+-define(STAT_DEPOSIT_ADJUSTMENTS_WO_CANGES_PLAN,
+    ?STAT_DEPOSIT_ADJUSTMENTS(#fistfulstat_DepositAdjustmentChangesPlan{})
+).
+
+-define(STAT_DEPOSIT_ADJUSTMENTS_WITH_CANGES_PLAN,
+    ?STAT_DEPOSIT_ADJUSTMENTS(
+        #fistfulstat_DepositAdjustmentChangesPlan{
+            new_cash = #fistfulstat_DepositAdjustmentCashChangePlan{amount = ?CASH, fee = ?CASH, provider_fee = ?CASH},
+            new_status = #fistfulstat_DepositAdjustmentStatusChangePlan{
+                new_status = {succeeded, #fistfulstat_DepositAdjustmentStatusChangePlanSucceeded{}}
+            }
+        }
+    )
+).
+
+-define(STAT_DEPOSIT_ADJUSTMENTS(ChangesPlan),
     {deposit_adjustments, [
         #fistfulstat_StatDepositAdjustment{
             id = ?STRING,
             status = {succeeded, #fistfulstat_DepositAdjustmentSucceeded{}},
-            changes_plan = #fistfulstat_DepositAdjustmentChangesPlan{},
+            changes_plan = ChangesPlan,
             created_at = ?TIMESTAMP,
             domain_revision = ?INTEGER,
             party_revision = ?INTEGER,

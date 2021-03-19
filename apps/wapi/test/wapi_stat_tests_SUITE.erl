@@ -36,7 +36,8 @@
     list_deposit_revert/1,
     list_deposit_revert_invalid_error/1,
     list_deposit_revert_bad_token_error/1,
-    list_deposit_adjustment/1,
+    list_deposit_adjustment_wo_changes_plan/1,
+    list_deposit_adjustment_with_changes_plan/1,
     list_deposit_adjustment_invalid_error/1,
     list_deposit_adjustment_bad_token_error/1
 ]).
@@ -85,7 +86,8 @@ groups() ->
             list_deposit_revert,
             list_deposit_revert_invalid_error,
             list_deposit_revert_bad_token_error,
-            list_deposit_adjustment,
+            list_deposit_adjustment_wo_changes_plan,
+            list_deposit_adjustment_with_changes_plan,
             list_deposit_adjustment_invalid_error,
             list_deposit_adjustment_bad_token_error
         ]}
@@ -335,11 +337,33 @@ list_deposit_revert_bad_token_error(Cfg) ->
     SwagFunc = fun swag_client_wallet_deposits_api:list_reverts/3,
     check_bad_token_error(MockFunc, SwagFunc, Cfg).
 
--spec list_deposit_adjustment(config) -> _.
-list_deposit_adjustment(Cfg) ->
+-spec list_deposit_adjustment_wo_changes_plan(config) -> _.
+list_deposit_adjustment_wo_changes_plan(Cfg) ->
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_stat, fun('GetDepositAdjustments', _) -> {ok, ?STAT_RESPONCE(?STAT_DEPOSIT_ADJUSTMENTS)} end}
+            {fistful_stat, fun('GetDepositAdjustments', _) ->
+                {ok, ?STAT_RESPONCE(?STAT_DEPOSIT_ADJUSTMENTS_WO_CANGES_PLAN)}
+            end}
+        ],
+        Cfg
+    ),
+    {ok, _} = call_api(
+        fun swag_client_wallet_deposits_api:list_adjustments/3,
+        #{
+            qs_val => #{
+                <<"limit">> => <<"123">>
+            }
+        },
+        ct_helper:cfg(context, Cfg)
+    ).
+
+-spec list_deposit_adjustment_with_changes_plan(config) -> _.
+list_deposit_adjustment_with_changes_plan(Cfg) ->
+    _ = wapi_ct_helper:mock_services(
+        [
+            {fistful_stat, fun('GetDepositAdjustments', _) ->
+                {ok, ?STAT_RESPONCE(?STAT_DEPOSIT_ADJUSTMENTS_WITH_CANGES_PLAN)}
+            end}
         ],
         Cfg
     ),

@@ -306,17 +306,10 @@ unmarshal_status({failed, _}) ->
     }.
 
 unmarshal_changes_plan(#fistfulstat_DepositAdjustmentChangesPlan{new_cash = Cash, new_status = Status}) ->
-    Res = case Cash of
-        undefined -> #{};
-        Cash -> #{<<"cash">> => unmarshal(Cash)}
-    end,
-    case Status of
-        undefined -> Res;
-        Status -> maps:merge(Res, unmarshal(Status))
-    end.
+    maps:merge(#{<<"cash">> => unmarshal(Cash)}, unmarshal(Status)).
 
 unmarshal(undefined) ->
-    undefined;
+    #{};
 unmarshal(#fistfulstat_DepositAdjustmentCashChangePlan{amount = Amount, fee = Fee, provider_fee = ProviderFee}) ->
     #{
         <<"amount">> => unmarshal_cash(Amount),

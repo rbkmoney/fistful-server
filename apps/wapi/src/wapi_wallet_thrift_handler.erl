@@ -567,13 +567,35 @@ process_request('ListDeposits', Params, Context, _Opts) ->
             })
     end;
 process_request('ListDepositReverts', Params, Context, _Opts) ->
-    on_stat_result(
-        wapi_stat_backend:list_deposit_reverts(Params, Context)
-    );
+    case wapi_stat_backend:list_deposit_reverts(Params, Context) of
+        {ok, List} ->
+            wapi_handler_utils:reply_ok(200, List);
+        {error, {invalid, Errors}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">> => <<"NoMatch">>,
+                <<"description">> => Errors
+            });
+        {error, {bad_token, Reason}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">> => <<"InvalidToken">>,
+                <<"description">> => Reason
+            })
+    end;
 process_request('ListDepositAdjustments', Params, Context, _Opts) ->
-    on_stat_result(
-        wapi_stat_backend:list_deposit_adjustments(Params, Context)
-    );
+    case wapi_stat_backend:list_deposit_adjustments(Params, Context) of
+        {ok, List} ->
+            wapi_handler_utils:reply_ok(200, List);
+        {error, {invalid, Errors}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">> => <<"NoMatch">>,
+                <<"description">> => Errors
+            });
+        {error, {bad_token, Reason}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">> => <<"InvalidToken">>,
+                <<"description">> => Reason
+            })
+    end;
 %% W2W
 
 process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Context, _Opts) ->
@@ -1092,19 +1114,6 @@ process_request(OperationID, Params, Context, Opts) ->
     wapi_wallet_handler:process_request(OperationID, Params, Context, Opts).
 
 %% Internal functions
-on_stat_result({ok, List}) ->
-    wapi_handler_utils:reply_ok(200, List);
-on_stat_result({error, {invalid, Errors}}) ->
-    wapi_handler_utils:reply_error(400, #{
-        <<"errorType">> => <<"NoMatch">>,
-        <<"description">> => Errors
-    });
-on_stat_result({error, {bad_token, Reason}}) ->
-    wapi_handler_utils:reply_error(400, #{
-        <<"errorType">> => <<"InvalidToken">>,
-        <<"description">> => Reason
-    }).
-
 get_location(OperationId, Params, Opts) ->
     #{path := PathSpec} = swag_server_wallet_router:get_operation(OperationId),
     wapi_handler_utils:get_location(PathSpec, Params, Opts).

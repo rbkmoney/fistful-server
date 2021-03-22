@@ -275,6 +275,7 @@ unmarshal_response(deposit_reverts, Response) ->
     merge_and_compact(
         #{
             <<"id">> => Response#fistfulstat_StatDepositRevert.id,
+            <<"depositId">> => Response#fistfulstat_StatDepositRevert.deposit_id,
             <<"wallet">> => Response#fistfulstat_StatDepositRevert.wallet_id,
             <<"source">> => Response#fistfulstat_StatDepositRevert.source_id,
             <<"body">> => unmarshal_cash(Response#fistfulstat_StatDepositRevert.body),
@@ -288,6 +289,7 @@ unmarshal_response(deposit_adjustments, Response) ->
     merge_and_compact(
         #{
             <<"id">> => Response#fistfulstat_StatDepositAdjustment.id,
+            <<"depositId">> => Response#fistfulstat_StatDepositAdjustment.deposit_id,
             <<"changesPlan">> => unmarshal_changes_plan(Response#fistfulstat_StatDepositAdjustment.changes_plan),
             <<"createdAt">> => Response#fistfulstat_StatDepositAdjustment.created_at,
             <<"externalId">> => Response#fistfulstat_StatDepositAdjustment.external_id

@@ -566,11 +566,11 @@ process_request('ListDeposits', Params, Context, _Opts) ->
                 <<"description">> => Reason
             })
     end;
-process_request('ListReverts', Params, Context, _Opts) ->
+process_request('ListDepositReverts', Params, Context, _Opts) ->
     on_stat_result(
         wapi_stat_backend:list_deposit_reverts(Params, Context)
     );
-process_request('ListAdjustments', Params, Context, _Opts) ->
+process_request('ListDepositAdjustments', Params, Context, _Opts) ->
     on_stat_result(
         wapi_stat_backend:list_deposit_adjustments(Params, Context)
     );

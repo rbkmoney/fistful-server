@@ -115,6 +115,10 @@ get_operation_access('GetCurrency', _) ->
     [{[party], read}];
 get_operation_access('ListDeposits', _) ->
     [{[party], read}];
+get_operation_access('ListDepositReverts', _) ->
+    [{[party], read}];
+get_operation_access('ListDepositAdjustments', _) ->
+    [{[party], read}];
 get_operation_access('ListDestinations', _) ->
     [{[party, destinations], read}];
 get_operation_access('CreateDestination', _) ->
@@ -132,10 +136,6 @@ get_operation_access('ListIdentities', _) ->
 get_operation_access('CreateIdentity', _) ->
     [{[party], write}];
 get_operation_access('GetIdentity', _) ->
-    [{[party], read}];
-get_operation_access('ListReverts', _) ->
-    [{[party], read}];
-get_operation_access('ListAdjustments', _) ->
     [{[party], read}];
 get_operation_access('ListIdentityChallenges', _) ->
     [{[party], read}];

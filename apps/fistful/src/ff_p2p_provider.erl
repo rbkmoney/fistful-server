@@ -17,19 +17,11 @@
 -type adapter_opts() :: map().
 
 -type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
--type currency_ref() :: dmsl_domain_thrift:'CurrencyRef'().
--type cash() :: dmsl_domain_thrift:'Cash'().
--type cash_range() :: dmsl_domain_thrift:'CashRange'().
--type validate_terms_error() ::
-    {terms_violation,
-        {not_allowed_currency, {currency_ref(), [currency_ref()]}}
-        | {cash_range, {cash(), cash_range()}}}.
 
 -export_type([id/0]).
 -export_type([provider/0]).
 -export_type([adapter/0]).
 -export_type([adapter_opts/0]).
--export_type([validate_terms_error/0]).
 
 -export([id/1]).
 -export([accounts/1]).
@@ -40,7 +32,6 @@
 -export([get/1]).
 -export([get/2]).
 -export([compute_fees/2]).
--export([validate_terms/2]).
 
 %% Pipeline
 
@@ -95,47 +86,6 @@ compute_fees(#{terms := Terms}, VS) ->
     #{
         postings => ff_cash_flow:decode_domain_postings(CashFlow)
     }.
-
--spec validate_terms(provider(), hg_selector:varset()) ->
-    {ok, valid}
-    | {error, validate_terms_error()}.
-validate_terms(#{terms := Terms}, VS) ->
-    #domain_ProvisionTermSet{wallet = WalletTerms} = Terms,
-    #domain_WalletProvisionTerms{p2p = P2PTerms} = WalletTerms,
-    #domain_P2PProvisionTerms{
-        currencies = CurrenciesSelector,
-        fees = FeeSelector,
-        cash_limit = CashLimitSelector
-    } = P2PTerms,
-    do(fun() ->
-        valid = unwrap(validate_currencies(CurrenciesSelector, VS)),
-        valid = unwrap(validate_fee_term_is_reduced(FeeSelector, VS)),
-        valid = unwrap(validate_cash_limit(CashLimitSelector, VS))
-    end).
-
-%%
-
-validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
-    {ok, Currencies} = hg_selector:reduce_to_value(CurrenciesSelector, VS),
-    case ordsets:is_element(CurrencyRef, Currencies) of
-        true ->
-            {ok, valid};
-        false ->
-            {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
-    end.
-
-validate_fee_term_is_reduced(FeeSelector, VS) ->
-    {ok, _Fees} = hg_selector:reduce_to_value(FeeSelector, VS),
-    {ok, valid}.
-
-validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
-    {ok, CashRange} = hg_selector:reduce_to_value(CashLimitSelector, VS),
-    case hg_cash_range:is_inside(Cash, CashRange) of
-        within ->
-            {ok, valid};
-        _NotInRange ->
-            {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
-    end.
 
 decode(ID, #domain_Provider{
     proxy = Proxy,

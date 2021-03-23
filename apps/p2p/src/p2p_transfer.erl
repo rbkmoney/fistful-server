@@ -737,9 +737,8 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
-    {ok, Provider} = ff_p2p_provider:get(ProviderID),
     {Acc, RejectConext} =
-        case ff_p2p_provider:validate_terms(Provider, PartyVarset) of
+        case validate_terms(ProviderID, PartyVarset) of
             {ok, valid} ->
                 Terms = maps:get(Priority, Acc0, []),
                 Acc1 = maps:put(Priority, [ProviderID | Terms], Acc0),
@@ -771,13 +770,50 @@ choose_provider_legacy(Providers, VS) ->
     end.
 
 -spec validate_terms(provider_id(), party_varset()) -> boolean().
-validate_terms(ID, VS) ->
-    {ok, Provider} = ff_p2p_provider:get(ID),
-    case ff_p2p_provider:validate_terms(Provider, VS) of
+validate_terms(ProviderID, VS) ->
+    {ok, Provider} = ff_p2p_provider:get(ProviderID),
+    #{terms := Terms} = Provider,
+    #domain_ProvisionTermSet{wallet = WalletTerms} = Terms,
+    #domain_WalletProvisionTerms{p2p = P2PTerms} = WalletTerms,
+    case do_validate_terms(P2PTerms, VS) of
         {ok, valid} ->
             true;
         {error, _Error} ->
             false
+    end.
+
+do_validate_terms(P2PTerms, VS) ->
+    #domain_P2PProvisionTerms{
+        currencies = CurrenciesSelector,
+        fees = FeeSelector,
+        cash_limit = CashLimitSelector
+    } = P2PTerms,
+    do(fun() ->
+        valid = unwrap(validate_currencies(CurrenciesSelector, VS)),
+        valid = unwrap(validate_fee_term_is_reduced(FeeSelector, VS)),
+        valid = unwrap(validate_cash_limit(CashLimitSelector, VS))
+    end).
+
+validate_currencies(CurrenciesSelector, #{currency := CurrencyRef} = VS) ->
+    {ok, Currencies} = hg_selector:reduce_to_value(CurrenciesSelector, VS),
+    case ordsets:is_element(CurrencyRef, Currencies) of
+        true ->
+            {ok, valid};
+        false ->
+            {error, {terms_violation, {not_allowed_currency, {CurrencyRef, Currencies}}}}
+    end.
+
+validate_fee_term_is_reduced(FeeSelector, VS) ->
+    {ok, _Fees} = hg_selector:reduce_to_value(FeeSelector, VS),
+    {ok, valid}.
+
+validate_cash_limit(CashLimitSelector, #{cost := Cash} = VS) ->
+    {ok, CashRange} = hg_selector:reduce_to_value(CashLimitSelector, VS),
+    case hg_cash_range:is_inside(Cash, CashRange) of
+        within ->
+            {ok, valid};
+        _NotInRange ->
+            {error, {terms_violation, {cash_range, {Cash, CashRange}}}}
     end.
 
 -spec process_p_transfer_creation(p2p_transfer_state()) -> process_result().

@@ -329,12 +329,10 @@ unmarshal_destination_stat_status({authorized, _}) ->
     <<"Authorized">>.
 
 unmarshal_cash(Amount, Currency) when is_bitstring(Currency) ->
-    #{<<"amount">> => Amount, <<"currency">> => Currency};
-unmarshal_cash(Amount, #'CurrencyRef'{symbolic_code = Currency}) ->
-    unmarshal_cash(Amount, Currency).
+    #{<<"amount">> => Amount, <<"currency">> => Currency}.
 
 unmarshal_cash(#'Cash'{amount = Amount, currency = Currency}) ->
-    unmarshal_cash(Amount, Currency).
+    unmarshal_cash(Amount, Currency#'CurrencyRef'.symbolic_code).
 
 unmarshal_withdrawal_stat_status({pending, #fistfulstat_WithdrawalPending{}}) ->
     #{<<"status">> => <<"Pending">>};

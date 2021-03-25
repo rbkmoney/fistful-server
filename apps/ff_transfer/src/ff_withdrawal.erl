@@ -733,8 +733,8 @@ do_process_transfer(session_starting, Withdrawal) ->
 do_process_transfer(session_sleeping, Withdrawal) ->
     process_session_sleep(Withdrawal);
 do_process_transfer({fail, Reason}, Withdrawal) ->
-    {ok, Providers} = do_process_routing(Withdrawal),
-    process_route_change(Providers, Withdrawal, Reason);
+    {ok, Route} = do_process_routing(Withdrawal),
+    process_route_change([Route], Withdrawal, Reason);
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
 do_process_transfer(adjustment, Withdrawal) ->
@@ -745,7 +745,7 @@ do_process_transfer(stop, _Withdrawal) ->
 -spec process_routing(withdrawal_state()) -> process_result().
 process_routing(Withdrawal) ->
     case do_process_routing(Withdrawal) of
-        {ok, [Route | _]} ->
+        {ok, Route} ->
             {continue, [
                 {route_changed, Route}
             ]};
@@ -755,7 +755,7 @@ process_routing(Withdrawal) ->
             process_transfer_fail(Reason, Withdrawal)
     end.
 
--spec do_process_routing(withdrawal_state()) -> {ok, [route()]} | {error, Reason} when
+-spec do_process_routing(withdrawal_state()) -> {ok, route()} | {error, Reason} when
     Reason :: route_not_found | InconsistentQuote,
     InconsistentQuote :: {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}.
 do_process_routing(Withdrawal) ->
@@ -776,20 +776,17 @@ do_process_routing(Withdrawal) ->
     }),
 
     do(fun() ->
-        Routes = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        Varset = build_party_varset(VarsetParams),
+        Routes = unwrap(ff_withdrawal_routing:prepare_routes(Varset, Identity, DomainRevision)),
+        Route = hd(Routes),
         case quote(Withdrawal) of
             undefined ->
-                Routes;
+                Route;
             Quote ->
-                Route = hd(Routes),
                 valid = unwrap(validate_quote_route(Route, Quote)),
-                [Route]
+                Route
         end
     end).
-
--spec prepare_route(party_varset(), identity(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.
-prepare_route(PartyVarset, Identity, DomainRevision) ->
-    ff_withdrawal_routing:prepare_routes(PartyVarset, Identity, DomainRevision).
 
 -spec validate_quote_route(route(), quote_state()) -> {ok, valid} | {error, InconsistentQuote} when
     InconsistentQuote :: {inconsistent_quote_route, {provider_id, provider_id()} | {terminal_id, terminal_id()}}.
@@ -1201,7 +1198,7 @@ get_quote_(Params) ->
         } = Params,
         Resource = maps:get(resource, Params, undefined),
 
-        [Route | _] = unwrap(route, prepare_route(Varset, Identity, DomainRevision)),
+        [Route | _] = unwrap(route, ff_withdrawal_routing:prepare_routes(Varset, Identity, DomainRevision)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(Route),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),

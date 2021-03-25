@@ -17,16 +17,21 @@
 -type adapter_opts() :: map().
 
 -type provider_ref() :: dmsl_domain_thrift:'ProviderRef'().
+-type term_set() :: dmsl_domain_thrift:'ProvisionTermSet'().
+-type provision_terms() :: dmsl_domain_thrift:'P2PProvisionTerms'().
 
 -export_type([id/0]).
 -export_type([provider/0]).
 -export_type([adapter/0]).
 -export_type([adapter_opts/0]).
+-export_type([provision_terms/0]).
 
 -export([id/1]).
 -export([accounts/1]).
 -export([adapter/1]).
 -export([adapter_opts/1]).
+-export([terms/1]).
+-export([provision_terms/1]).
 
 -export([ref/1]).
 -export([get/1]).
@@ -55,6 +60,24 @@ adapter(#{adapter := Adapter}) ->
 
 adapter_opts(#{adapter_opts := AdapterOpts}) ->
     AdapterOpts.
+
+-spec terms(provider()) -> term_set() | undefined.
+terms(Provider) ->
+    maps:get(terms, Provider, undefined).
+
+-spec provision_terms(provider()) -> provision_terms() | undefined.
+provision_terms(Provider) ->
+    case terms(Provider) of
+        Terms when Terms =/= undefined ->
+            case Terms#domain_ProvisionTermSet.wallet of
+                WalletTerms when WalletTerms =/= undefined ->
+                    WalletTerms#domain_WalletProvisionTerms.p2p;
+                _ ->
+                    undefined
+            end;
+        _ ->
+            undefined
+    end.
 
 %%
 

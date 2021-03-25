@@ -92,9 +92,7 @@
     provider_fees => ff_fees_final:fees()
 }.
 
--type route() :: #{
-    provider_id := ff_p2p_provider:id()
-}.
+-type route() :: p2p_transfer_routing:route().
 
 -type body() :: ff_transaction:body().
 
@@ -219,9 +217,25 @@ create(ID, TransferParams, #{
 
 -spec get_adapter_with_opts(session_state()) -> adapter_with_opts().
 get_adapter_with_opts(SessionState) ->
-    #{provider_id := ProviderID} = route(SessionState),
-    {ok, Provider} = ff_p2p_provider:get(head, ProviderID),
-    {ff_p2p_provider:adapter(Provider), ff_p2p_provider:adapter_opts(Provider)}.
+    Route = route(SessionState),
+    ProviderID = p2p_transfer_routing:get_provider(Route),
+    TerminalID = p2p_transfer_routing:get_terminal(Route),
+    get_adapter_with_opts(ProviderID, TerminalID).
+
+-spec get_adapter_with_opts(ProviderID, TerminalID) -> adapter_with_opts() when
+    ProviderID :: ff_p2p_provider:id(),
+    TerminalID :: ff_p2p_terminal:id() | undefined.
+get_adapter_with_opts(ProviderID, TerminalID) when is_integer(ProviderID) ->
+    {ok, Provider} = ff_p2p_provider:get(ProviderID),
+    ProviderOpts = ff_p2p_provider:adapter_opts(Provider),
+    TerminalOpts = get_adapter_terminal_opts(TerminalID),
+    {ff_p2p_provider:adapter(Provider), maps:merge(ProviderOpts, TerminalOpts)}.
+
+get_adapter_terminal_opts(undefined) ->
+    #{};
+get_adapter_terminal_opts(TerminalID) ->
+    {ok, Terminal} = ff_p2p_terminal:get(TerminalID),
+    ff_p2p_terminal:adapter_opts(Terminal).
 
 -spec process_session(session_state()) -> result().
 process_session(SessionState) ->

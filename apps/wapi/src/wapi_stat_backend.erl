@@ -308,17 +308,24 @@ unmarshal_status({failed, _}) ->
     }.
 
 unmarshal_changes_plan(#fistfulstat_DepositAdjustmentChangesPlan{new_cash = Cash, new_status = Status}) ->
-    maps:merge(#{<<"cash">> => unmarshal(Cash)}, unmarshal(Status)).
+    maps:merge(#{<<"cash">> => unmarshal_cash_change_plan(Cash)}, unmarshal_status_change_plan(Status)).
 
-unmarshal(undefined) ->
+unmarshal_cash_change_plan(undefined) ->
     #{};
-unmarshal(#fistfulstat_DepositAdjustmentCashChangePlan{amount = Amount, fee = Fee, provider_fee = ProviderFee}) ->
+unmarshal_cash_change_plan(#fistfulstat_DepositAdjustmentCashChangePlan{
+    amount = Amount,
+    fee = Fee,
+    provider_fee = ProviderFee
+}) ->
     #{
         <<"amount">> => unmarshal_cash(Amount),
         <<"fee">> => unmarshal_cash(Fee),
         <<"providerFee">> => unmarshal_cash(ProviderFee)
-    };
-unmarshal(#fistfulstat_DepositAdjustmentStatusChangePlan{new_status = Status}) ->
+    }.
+
+unmarshal_status_change_plan(undefined) ->
+    #{};
+unmarshal_status_change_plan(#fistfulstat_DepositAdjustmentStatusChangePlan{new_status = Status}) ->
     unmarshal_status(Status).
 
 unmarshal_destination_stat_status(undefined) ->

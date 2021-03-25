@@ -54,6 +54,8 @@
 -export([download_file/3]).
 
 -export([list_deposits/2]).
+-export([list_deposit_reverts/2]).
+-export([list_deposit_adjustments/2]).
 
 -export([quote_p2p_transfer/2]).
 -export([create_p2p_transfer/2]).
@@ -691,12 +693,29 @@ download_file(FileID, ExpiresAt, Context) ->
 
 -spec list_deposits(params(), ctx()) -> {ok, result_stat()} | {error, result_stat()}.
 list_deposits(Params, Context) ->
-    StatType = deposit_stat,
-    Dsl = create_stat_dsl(StatType, Params, Context),
-    ContinuationToken = maps:get(continuationToken, Params, undefined),
-    Req = create_stat_request(Dsl, ContinuationToken),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', {Req}}, Context),
-    process_stat_result(StatType, Result).
+    service_call(deposit_stat, Params, Context).
+
+-spec list_deposit_adjustments(params(), ctx()) -> {ok, result_stat()} | {error, result_stat()}.
+list_deposit_adjustments(Params, Context) ->
+    service_call(deposit_adjustments_stat, Params, Context).
+
+-spec list_deposit_reverts(params(), ctx()) -> {ok, result_stat()} | {error, result_stat()}.
+list_deposit_reverts(Params, Context) ->
+    service_call(deposit_reverts_stat, Params, Context).
+
+service_call(StatType, Params, Context) ->
+    Req = create_stat_request(
+        create_stat_dsl(StatType, Params, Context),
+        maps:get(continuationToken, Params, undefined)
+    ),
+    process_stat_result(
+        StatType,
+        wapi_handler_utils:service_call({fistful_stat, method(StatType), {Req}}, Context)
+    ).
+
+method(deposit_stat) -> 'GetDeposits';
+method(deposit_reverts_stat) -> 'GetDepositReverts';
+method(deposit_adjustments_stat) -> 'GetDepositAdjustments'.
 
 %% P2P
 
@@ -1532,7 +1551,43 @@ create_stat_dsl(wallet_stat, Req, Context) ->
         <<"currency_code">> => genlib_map:get(currencyID, Req)
     },
     QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
-    jsx:encode(create_dsl(wallets, Query, QueryParams)).
+    jsx:encode(create_dsl(wallets, Query, QueryParams));
+create_stat_dsl(deposit_reverts_stat, Req, Context) ->
+    Query = #{
+        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"identity_id">> => genlib_map:get(identityID, Req),
+        <<"source_id">> => genlib_map:get(sourceID, Req),
+        <<"wallet_id">> => genlib_map:get(walletID, Req),
+        <<"deposit_id">> => genlib_map:get(depositID, Req),
+        <<"revert_id">> => genlib_map:get(revertID, Req),
+        <<"amount_from">> => genlib_map:get(amountFrom, Req),
+        <<"amount_to">> => genlib_map:get(amountTo, Req),
+        <<"currency_code">> => genlib_map:get(currencyID, Req),
+        <<"status">> => genlib_map:get(status, Req),
+        <<"deposit_status">> => genlib_map:get(depositStatus, Req),
+        <<"from_time">> => get_time(createdAtFrom, Req),
+        <<"to_time">> => get_time(createdAtTo, Req)
+    },
+    QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
+    jsx:encode(create_dsl(deposit_reverts, Query, QueryParams));
+create_stat_dsl(deposit_adjustments_stat, Req, Context) ->
+    Query = #{
+        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"identity_id">> => genlib_map:get(identityID, Req),
+        <<"source_id">> => genlib_map:get(sourceID, Req),
+        <<"wallet_id">> => genlib_map:get(walletID, Req),
+        <<"deposit_id">> => genlib_map:get(depositID, Req),
+        <<"adjustment_id">> => genlib_map:get(adjustmentID, Req),
+        <<"amount_from">> => genlib_map:get(amountFrom, Req),
+        <<"amount_to">> => genlib_map:get(amountTo, Req),
+        <<"currency_code">> => genlib_map:get(currencyID, Req),
+        <<"status">> => genlib_map:get(status, Req),
+        <<"deposit_status">> => genlib_map:get(depositStatus, Req),
+        <<"from_time">> => get_time(createdAtFrom, Req),
+        <<"to_time">> => get_time(createdAtTo, Req)
+    },
+    QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
+    jsx:encode(create_dsl(deposit_adjustments, Query, QueryParams)).
 
 create_stat_request(Dsl, Token) ->
     #fistfulstat_StatRequest{
@@ -1628,6 +1683,25 @@ decode_stat(wallet_stat, Response) ->
         <<"identity">> => Response#fistfulstat_StatWallet.identity_id,
         <<"createdAt">> => Response#fistfulstat_StatWallet.created_at,
         <<"currency">> => Response#fistfulstat_StatWallet.currency_symbolic_code
+    });
+decode_stat(deposit_reverts_stat, Response) ->
+    genlib_map:compact(#{
+        <<"id">> => Response#fistfulstat_StatDepositRevert.id,
+        <<"walletID">> => Response#fistfulstat_StatDepositRevert.wallet_id,
+        <<"sourceID">> => Response#fistfulstat_StatDepositRevert.source_id,
+        <<"status">> => Response#fistfulstat_StatDepositRevert.status,
+        <<"body">> => Response#fistfulstat_StatDepositRevert.body,
+        <<"createdAt">> => Response#fistfulstat_StatDepositRevert.created_at,
+        <<"reason">> => Response#fistfulstat_StatDepositRevert.reason,
+        <<"externalID">> => Response#fistfulstat_StatDepositRevert.external_id
+    });
+decode_stat(deposit_adjustments_stat, Response) ->
+    genlib_map:compact(#{
+        <<"id">> => Response#fistfulstat_StatDepositAdjustment.id,
+        <<"status">> => Response#fistfulstat_StatDepositAdjustment.status,
+        <<"changesPlan">> => Response#fistfulstat_StatDepositAdjustment.changes_plan,
+        <<"createdAt">> => Response#fistfulstat_StatDepositAdjustment.created_at,
+        <<"externalID">> => Response#fistfulstat_StatDepositAdjustment.external_id
     }).
 
 decode_stat_cash(Amount, Currency) ->

@@ -7,55 +7,64 @@
 -export([list_deposits/2]).
 -export([list_destinations/2]).
 -export([list_identities/2]).
+-export([list_deposit_reverts/2]).
+-export([list_deposit_adjustments/2]).
 
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
 
 -spec list_wallets(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
-    StatError ::
-        {invalid | bad_token, binary()}.
+    StatError :: {invalid | bad_token, binary()}.
 list_wallets(Params, Context) ->
-    Dsl = create_dsl(wallets, Params, Context),
-    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWallets', {Req}}, Context),
-    process_result(Result).
+    service_call(wallets, Params, Context).
 
 -spec list_withdrawals(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
-    StatError ::
-        {invalid | bad_token, binary()}.
+    StatError :: {invalid | bad_token, binary()}.
 list_withdrawals(Params, Context) ->
-    Dsl = create_dsl(withdrawals, Params, Context),
-    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetWithdrawals', {Req}}, Context),
-    process_result(Result).
+    service_call(withdrawals, Params, Context).
 
 -spec list_deposits(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
-    StatError ::
-        {invalid | bad_token, binary()}.
+    StatError :: {invalid | bad_token, binary()}.
 list_deposits(Params, Context) ->
-    Dsl = create_dsl(deposits, Params, Context),
-    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDeposits', {Req}}, Context),
-    process_result(Result).
+    service_call(deposits, Params, Context).
 
 -spec list_destinations(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
-    StatError ::
-        {invalid | bad_token, binary()}.
+    StatError :: {invalid | bad_token, binary()}.
 list_destinations(Params, Context) ->
-    Dsl = create_dsl(destinations, Params, Context),
-    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetDestinations', {Req}}, Context),
-    process_result(Result).
+    service_call(destinations, Params, Context).
 
 -spec list_identities(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
-    StatError ::
-        {invalid | bad_token, binary()}.
+    StatError :: {invalid | bad_token, binary()}.
 list_identities(Params, Context) ->
-    Dsl = create_dsl(identities, Params, Context),
-    Req = create_request(Dsl, maps:get(continuationToken, Params, undefined)),
-    Result = wapi_handler_utils:service_call({fistful_stat, 'GetIdentities', {Req}}, Context),
-    process_result(Result).
+    service_call(identities, Params, Context).
+
+-spec list_deposit_reverts(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+    StatError :: {invalid | bad_token, binary()}.
+list_deposit_reverts(Params, Context) ->
+    service_call(deposit_reverts, Params, Context).
+
+-spec list_deposit_adjustments(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+    StatError :: {invalid | bad_token, binary()}.
+list_deposit_adjustments(Params, Context) ->
+    service_call(deposit_adjustments, Params, Context).
+
+service_call(StatTag, Params, Context) ->
+    Req = create_request(
+        create_dsl(StatTag, Params, Context),
+        maps:get(continuationToken, Params, undefined)
+    ),
+    process_result(
+        wapi_handler_utils:service_call({fistful_stat, method(StatTag), {Req}}, Context)
+    ).
+
+method(wallets) -> 'GetWallets';
+method(withdrawals) -> 'GetWithdrawals';
+method(deposits) -> 'GetDeposits';
+method(destinations) -> 'GetDestinations';
+method(identities) -> 'GetIdentities';
+method(deposit_reverts) -> 'GetDepositReverts';
+method(deposit_adjustments) -> 'GetDepositAdjustments'.
 
 create_dsl(StatTag, Req, Context) ->
     Query = create_query(StatTag, Req, Context),
@@ -113,6 +122,38 @@ create_query(identities, Req, Context) ->
         <<"provider_id">> => genlib_map:get(providerID, Req),
         <<"class">> => genlib_map:get(class, Req),
         <<"level">> => genlib_map:get(level, Req)
+    };
+create_query(deposit_reverts, Req, Context) ->
+    #{
+        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"identity_id">> => genlib_map:get(identityID, Req),
+        <<"source_id">> => genlib_map:get(sourceID, Req),
+        <<"wallet_id">> => genlib_map:get(walletID, Req),
+        <<"deposit_id">> => genlib_map:get(depositID, Req),
+        <<"revert_id">> => genlib_map:get(revertID, Req),
+        <<"amount_from">> => genlib_map:get(amountFrom, Req),
+        <<"amount_to">> => genlib_map:get(amountTo, Req),
+        <<"currency_code">> => genlib_map:get(currencyID, Req),
+        <<"status">> => genlib_map:get(status, Req),
+        <<"deposit_status">> => genlib_map:get(depositStatus, Req),
+        <<"from_time">> => get_time(createdAtFrom, Req),
+        <<"to_time">> => get_time(createdAtTo, Req)
+    };
+create_query(deposit_adjustments, Req, Context) ->
+    #{
+        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"identity_id">> => genlib_map:get(identityID, Req),
+        <<"source_id">> => genlib_map:get(sourceID, Req),
+        <<"wallet_id">> => genlib_map:get(walletID, Req),
+        <<"deposit_id">> => genlib_map:get(depositID, Req),
+        <<"adjustment_id">> => genlib_map:get(adjustmentID, Req),
+        <<"amount_from">> => genlib_map:get(amountFrom, Req),
+        <<"amount_to">> => genlib_map:get(amountTo, Req),
+        <<"currency_code">> => genlib_map:get(currencyID, Req),
+        <<"status">> => genlib_map:get(status, Req),
+        <<"deposit_status">> => genlib_map:get(depositStatus, Req),
+        <<"from_time">> => get_time(createdAtFrom, Req),
+        <<"to_time">> => get_time(createdAtTo, Req)
     }.
 
 create_request(Dsl, Token) ->
@@ -158,7 +199,9 @@ format_request_errors(Errors) -> genlib_string:join(<<"\n">>, Errors).
     (deposits, ff_proto_fistful_stat_thrift:'StatDeposit'()) -> map();
     (wallets, ff_proto_fistful_stat_thrift:'StatWallet'()) -> map();
     (destinations, ff_proto_fistful_stat_thrift:'StatDestination'()) -> map();
-    (identities, ff_proto_fistful_stat_thrift:'StatIdentity'()) -> map().
+    (identities, ff_proto_fistful_stat_thrift:'StatIdentity'()) -> map();
+    (deposit_reverts, ff_proto_fistful_stat_thrift:'StatDepositRevert'()) -> map();
+    (deposit_adjustments, ff_proto_fistful_stat_thrift:'StatDepositAdjustment'()) -> map().
 unmarshal_response(withdrawals, Response) ->
     merge_and_compact(
         #{
@@ -227,7 +270,63 @@ unmarshal_response(identities, Response) ->
         <<"effectiveChallenge">> => Response#fistfulstat_StatIdentity.effective_challenge,
         <<"isBlocked">> => Response#fistfulstat_StatIdentity.is_blocked,
         <<"externalID">> => Response#fistfulstat_StatIdentity.external_id
-    }).
+    });
+unmarshal_response(deposit_reverts, Response) ->
+    merge_and_compact(
+        #{
+            <<"id">> => Response#fistfulstat_StatDepositRevert.id,
+            <<"depositId">> => Response#fistfulstat_StatDepositRevert.deposit_id,
+            <<"wallet">> => Response#fistfulstat_StatDepositRevert.wallet_id,
+            <<"source">> => Response#fistfulstat_StatDepositRevert.source_id,
+            <<"body">> => unmarshal_cash(Response#fistfulstat_StatDepositRevert.body),
+            <<"createdAt">> => Response#fistfulstat_StatDepositRevert.created_at,
+            <<"reason">> => Response#fistfulstat_StatDepositRevert.reason,
+            <<"externalId">> => Response#fistfulstat_StatDepositRevert.external_id
+        },
+        unmarshal_status(Response#fistfulstat_StatDepositRevert.status)
+    );
+unmarshal_response(deposit_adjustments, Response) ->
+    merge_and_compact(
+        #{
+            <<"id">> => Response#fistfulstat_StatDepositAdjustment.id,
+            <<"depositId">> => Response#fistfulstat_StatDepositAdjustment.deposit_id,
+            <<"changesPlan">> => unmarshal_changes_plan(Response#fistfulstat_StatDepositAdjustment.changes_plan),
+            <<"createdAt">> => Response#fistfulstat_StatDepositAdjustment.created_at,
+            <<"externalId">> => Response#fistfulstat_StatDepositAdjustment.external_id
+        },
+        unmarshal_status(Response#fistfulstat_StatDepositAdjustment.status)
+    ).
+
+unmarshal_status({pending, _}) ->
+    #{<<"status">> => <<"Pending">>};
+unmarshal_status({succeeded, _}) ->
+    #{<<"status">> => <<"Succeeded">>};
+unmarshal_status({failed, _}) ->
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => #{<<"code">> => <<"failed">>}
+    }.
+
+unmarshal_changes_plan(#fistfulstat_DepositAdjustmentChangesPlan{new_cash = Cash, new_status = Status}) ->
+    maps:merge(#{<<"cash">> => unmarshal_cash_change_plan(Cash)}, unmarshal_status_change_plan(Status)).
+
+unmarshal_cash_change_plan(undefined) ->
+    #{};
+unmarshal_cash_change_plan(#fistfulstat_DepositAdjustmentCashChangePlan{
+    amount = Amount,
+    fee = Fee,
+    provider_fee = ProviderFee
+}) ->
+    #{
+        <<"amount">> => unmarshal_cash(Amount),
+        <<"fee">> => unmarshal_cash(Fee),
+        <<"providerFee">> => unmarshal_cash(ProviderFee)
+    }.
+
+unmarshal_status_change_plan(undefined) ->
+    #{};
+unmarshal_status_change_plan(#fistfulstat_DepositAdjustmentStatusChangePlan{new_status = Status}) ->
+    unmarshal_status(Status).
 
 unmarshal_destination_stat_status(undefined) ->
     undefined;
@@ -236,8 +335,11 @@ unmarshal_destination_stat_status({unauthorized, _}) ->
 unmarshal_destination_stat_status({authorized, _}) ->
     <<"Authorized">>.
 
-unmarshal_cash(Amount, Currency) ->
+unmarshal_cash(Amount, Currency) when is_bitstring(Currency) ->
     #{<<"amount">> => Amount, <<"currency">> => Currency}.
+
+unmarshal_cash(#'Cash'{amount = Amount, currency = Currency}) ->
+    unmarshal_cash(Amount, Currency#'CurrencyRef'.symbolic_code).
 
 unmarshal_withdrawal_stat_status({pending, #fistfulstat_WithdrawalPending{}}) ->
     #{<<"status">> => <<"Pending">>};

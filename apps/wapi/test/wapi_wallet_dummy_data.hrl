@@ -302,6 +302,55 @@
     ]}
 ).
 
+-define(STAT_DEPOSIT_REVERTS,
+    {deposit_reverts, [
+        #fistfulstat_StatDepositRevert{
+            id = ?STRING,
+            wallet_id = ?STRING,
+            source_id = ?STRING,
+            status = {succeeded, #fistfulstat_DepositRevertSucceeded{}},
+            body = ?CASH,
+            created_at = ?TIMESTAMP,
+            domain_revision = ?INTEGER,
+            party_revision = ?INTEGER,
+            reason = ?STRING,
+            external_id = ?STRING,
+            deposit_id = ?STRING
+        }
+    ]}
+).
+
+-define(STAT_DEPOSIT_ADJUSTMENTS_WO_CANGES_PLAN,
+    ?STAT_DEPOSIT_ADJUSTMENTS(#fistfulstat_DepositAdjustmentChangesPlan{})
+).
+
+-define(STAT_DEPOSIT_ADJUSTMENTS_WITH_CANGES_PLAN,
+    ?STAT_DEPOSIT_ADJUSTMENTS(
+        #fistfulstat_DepositAdjustmentChangesPlan{
+            new_cash = #fistfulstat_DepositAdjustmentCashChangePlan{amount = ?CASH, fee = ?CASH, provider_fee = ?CASH},
+            new_status = #fistfulstat_DepositAdjustmentStatusChangePlan{
+                new_status = {succeeded, #fistfulstat_DepositAdjustmentStatusChangePlanSucceeded{}}
+            }
+        }
+    )
+).
+
+-define(STAT_DEPOSIT_ADJUSTMENTS(ChangesPlan),
+    {deposit_adjustments, [
+        #fistfulstat_StatDepositAdjustment{
+            id = ?STRING,
+            status = {succeeded, #fistfulstat_DepositAdjustmentSucceeded{}},
+            changes_plan = ChangesPlan,
+            created_at = ?TIMESTAMP,
+            domain_revision = ?INTEGER,
+            party_revision = ?INTEGER,
+            external_id = ?STRING,
+            operation_timestamp = ?TIMESTAMP,
+            deposit_id = ?STRING
+        }
+    ]}
+).
+
 -define(IDENT_DOC,
     {russian_domestic_passport, #'identdocstore_RussianDomesticPassport'{
         issuer = ?STRING,

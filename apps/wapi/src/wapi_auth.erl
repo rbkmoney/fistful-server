@@ -115,6 +115,10 @@ get_operation_access('GetCurrency', _) ->
     [{[party], read}];
 get_operation_access('ListDeposits', _) ->
     [{[party], read}];
+get_operation_access('ListDepositReverts', _) ->
+    [{[party], read}];
+get_operation_access('ListDepositAdjustments', _) ->
+    [{[party], read}];
 get_operation_access('ListDestinations', _) ->
     [{[party, destinations], read}];
 get_operation_access('CreateDestination', _) ->

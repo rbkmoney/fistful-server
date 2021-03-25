@@ -678,6 +678,16 @@ process_request('ListDeposits', Params, Context, _Opts) ->
         {ok, {200, _, List}} -> wapi_handler_utils:reply_ok(200, List);
         {error, {Code, _, Error}} -> wapi_handler_utils:reply_error(Code, Error)
     end;
+process_request('ListDepositReverts', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:list_deposit_reverts(Params, Context) of
+        {ok, {200, _, List}} -> wapi_handler_utils:reply_ok(200, List);
+        {error, {Code, _, Error}} -> wapi_handler_utils:reply_error(Code, Error)
+    end;
+process_request('ListDepositAdjustments', Params, Context, _Opts) ->
+    case wapi_wallet_ff_backend:list_deposit_adjustments(Params, Context) of
+        {ok, {200, _, List}} -> wapi_handler_utils:reply_ok(200, List);
+        {error, {Code, _, Error}} -> wapi_handler_utils:reply_error(Code, Error)
+    end;
 %% Webhooks
 process_request('CreateWebhook', Params, Context, _Opts) ->
     case wapi_webhook_backend:create_webhook(Params, Context) of

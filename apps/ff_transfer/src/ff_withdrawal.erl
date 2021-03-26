@@ -733,8 +733,12 @@ do_process_transfer(session_starting, Withdrawal) ->
 do_process_transfer(session_sleeping, Withdrawal) ->
     process_session_sleep(Withdrawal);
 do_process_transfer({fail, Reason}, Withdrawal) ->
-    {ok, Providers} = do_process_routing(Withdrawal),
-    process_route_change(Providers, Withdrawal, Reason);
+    case do_process_routing(Withdrawal) of
+        {ok, Providers} ->
+            process_route_change(Providers, Withdrawal, Reason);
+        {error, Reason} ->
+            process_transfer_fail(Reason, Withdrawal)
+    end;
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
 do_process_transfer(adjustment, Withdrawal) ->

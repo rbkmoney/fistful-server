@@ -733,12 +733,7 @@ do_process_transfer(session_starting, Withdrawal) ->
 do_process_transfer(session_sleeping, Withdrawal) ->
     process_session_sleep(Withdrawal);
 do_process_transfer({fail, Reason}, Withdrawal) ->
-    case do_process_routing(Withdrawal) of
-        {ok, Providers} ->
-            process_route_change(Providers, Withdrawal, Reason);
-        {error, route_not_found} ->
-            process_transfer_fail(route_not_found, Withdrawal)
-    end;
+    process_route_change(Withdrawal, Reason);
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
 do_process_transfer(adjustment, Withdrawal) ->
@@ -1547,10 +1542,11 @@ process_adjustment(Withdrawal) ->
     Events1 = Events0 ++ handle_adjustment_changes(Changes),
     handle_child_result({Action, Events1}, Withdrawal).
 
--spec process_route_change([route()], withdrawal_state(), fail_type()) -> process_result().
-process_route_change(Providers, Withdrawal, Reason) ->
+-spec process_route_change(withdrawal_state(), fail_type()) -> process_result().
+process_route_change(Withdrawal, Reason) ->
     case is_failure_transient(Reason, Withdrawal) of
         true ->
+            {ok, Providers} = do_process_routing(Withdrawal),
             do_process_route_change(Providers, Withdrawal, Reason);
         false ->
             process_transfer_fail(Reason, Withdrawal)

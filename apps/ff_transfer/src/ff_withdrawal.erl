@@ -736,8 +736,8 @@ do_process_transfer({fail, Reason}, Withdrawal) ->
     case do_process_routing(Withdrawal) of
         {ok, Providers} ->
             process_route_change(Providers, Withdrawal, Reason);
-        {error, Reason} ->
-            process_transfer_fail(Reason, Withdrawal)
+        {error, route_not_found} ->
+            process_transfer_fail(route_not_found, Withdrawal)
     end;
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);

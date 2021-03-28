@@ -82,12 +82,6 @@
 
 -type attempts() :: ff_withdrawal_route_attempt_utils:attempts().
 
--type prepared_route() :: #{
-    route := route(),
-    party_revision := party_revision(),
-    domain_revision := domain_revision()
-}.
-
 -type quote_params() :: #{
     wallet_id := ff_wallet_machine:id(),
     currency_from := ff_currency:id(),
@@ -184,7 +178,6 @@
 -export_type([params/0]).
 -export_type([event/0]).
 -export_type([route/0]).
--export_type([prepared_route/0]).
 -export_type([quote/0]).
 -export_type([quote_params/0]).
 -export_type([session/0]).

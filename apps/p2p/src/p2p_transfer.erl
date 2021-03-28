@@ -688,7 +688,7 @@ do_process_routing(P2PTransferState) ->
         VarSet = create_varset(Identity, P2PTransferState),
         Routes = unwrap(p2p_transfer_routing:prepare_routes(VarSet, Identity, DomainRevision)),
         Route = hd(Routes),
-        {ok, Route}
+        Route
     end).
 
 -spec process_p_transfer_creation(p2p_transfer_state()) -> process_result().

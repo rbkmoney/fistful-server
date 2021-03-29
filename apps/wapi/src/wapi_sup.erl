@@ -15,11 +15,22 @@
 
 -spec start_link() -> {ok, pid()} | {error, {already_started, pid()}}.
 start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+    % TODO #ED-96 на период разделения отсутствие настройки wapi считаем признаком запуска fistful-server
+    case application:get_all_env(wapi) of
+        [] ->
+            _ = logger:warning("wapi is not configured - launch will be ignored"),
+            supervisor:start_link({local, ?MODULE}, ?MODULE, undefined);
+        _ ->
+            supervisor:start_link({local, ?MODULE}, ?MODULE, [])
+    end.
 
 %%
 
--spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+-spec init
+    (undefined) -> ignore;
+    ([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+init(undefined) ->
+    ignore;
 init([]) ->
     LechiffreOpts = genlib_app:env(wapi, lechiffre_opts),
     LechiffreSpec = lechiffre:child_spec(lechiffre, LechiffreOpts),

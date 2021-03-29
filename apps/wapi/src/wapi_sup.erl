@@ -25,13 +25,13 @@ start_link() ->
 %%
 
 -spec init
-    (undefined) -> ignore;
+    (undefined) -> {ok, {supervisor:sup_flags(), []}};
     ([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init(undefined) ->
     % TODO #ED-96 на период разделения отсутствие настройки wapi -
     % считаем признаком запуска только fistful-server
-    _ = logger:warning("wapi is not configured - launch will be ignored"),
-    ignore;
+    _ = logger:warning("wapi is not configured - init will be ignored"),
+    {ok, {{one_for_all, 0, 1}, []}};
 init([]) ->
     LechiffreOpts = genlib_app:env(wapi, lechiffre_opts),
     LechiffreSpec = lechiffre:child_spec(lechiffre, LechiffreOpts),

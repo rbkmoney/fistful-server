@@ -51,7 +51,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
         PartyVarset,
         DomainRevision
     ),
-    {ValidatedRoutes, RejectContext1} = filter_valid_routes(Routes, RejectContext0, PartyVarset),
+    {ValidatedRoutes, RejectContext1} = filter_valid_routes(Routes, RejectContext0, PartyVarset, DomainRevision),
     case ValidatedRoutes of
         [] ->
             ff_routing_rule:log_reject_context(RejectContext1),
@@ -129,23 +129,24 @@ merge_withdrawal_terms(ProviderTerms, TerminalTerms) ->
 
 %%
 
--spec filter_valid_routes([routing_rule_route()], reject_context(), party_varset()) -> {[route()], reject_context()}.
-filter_valid_routes(Routes, RejectContext, PartyVarset) ->
-    filter_valid_routes_(Routes, PartyVarset, {#{}, RejectContext}).
+-spec filter_valid_routes([routing_rule_route()], reject_context(), party_varset(), domain_revision()) ->
+    {[route()], reject_context()}.
+filter_valid_routes(Routes, RejectContext, PartyVarset, DomainRevision) ->
+    filter_valid_routes_(Routes, PartyVarset, {#{}, RejectContext}, DomainRevision).
 
-filter_valid_routes_([], _, {Acc, RejectContext}) when map_size(Acc) == 0 ->
+filter_valid_routes_([], _, {Acc, RejectContext}, _DomainRevision) when map_size(Acc) == 0 ->
     {[], RejectContext};
-filter_valid_routes_([], _, {Acc, RejectContext}) ->
+filter_valid_routes_([], _, {Acc, RejectContext}, _DomainRevision) ->
     {convert_to_route(Acc), RejectContext};
-filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
+filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}, DomainRevision) ->
     Terminal = maps:get(terminal, Route),
     TerminalRef = maps:get(terminal_ref, Route),
     TerminalID = TerminalRef#domain_TerminalRef.id,
     ProviderRef = Terminal#domain_Terminal.provider_ref,
     ProviderID = ProviderRef#domain_ProviderRef.id,
     Priority = maps:get(priority, Route, undefined),
-    {ok, PayoutsTerminal} = ff_payouts_terminal:get(TerminalID),
-    {ok, PayoutsProvider} = ff_payouts_provider:get(ProviderID),
+    {ok, PayoutsTerminal} = ff_payouts_terminal:get(TerminalID, DomainRevision),
+    {ok, PayoutsProvider} = ff_payouts_provider:get(ProviderID, DomainRevision),
     {Acc, RejectConext} =
         case validate_terms(PayoutsProvider, PayoutsTerminal, PartyVarset) of
             {ok, valid} ->
@@ -158,9 +159,10 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
                 RejectContext1 = maps:put(rejected_routes, RejectedRoutes1, RejectContext0),
                 {Acc0, RejectContext1}
         end,
-    filter_valid_routes_(Rest, PartyVarset, {RejectConext, Acc}).
+    filter_valid_routes_(Rest, PartyVarset, {RejectConext, Acc}, DomainRevision).
 
--spec filter_routes_legacy([provider_id()], party_varset(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.
+-spec filter_routes_legacy([provider_id()], party_varset(), domain_revision()) ->
+    {ok, [route()]} | {error, route_not_found}.
 filter_routes_legacy(Providers, PartyVarset, DomainRevision) ->
     do(fun() ->
         unwrap(filter_routes_legacy_(Providers, PartyVarset, DomainRevision, #{}))
@@ -174,7 +176,7 @@ filter_routes_legacy_([ProviderID | Rest], PartyVarset, DomainRevision, Acc0) ->
     Provider = unwrap(ff_payouts_provider:get(ProviderID, DomainRevision)),
     {ok, TerminalsWithPriority} = get_provider_terminals_with_priority(Provider, PartyVarset),
     Acc =
-        case get_valid_terminals_with_priority(TerminalsWithPriority, Provider, PartyVarset, []) of
+        case get_valid_terminals_with_priority(TerminalsWithPriority, Provider, PartyVarset, DomainRevision, []) of
             [] ->
                 Acc0;
             TPL ->
@@ -199,10 +201,10 @@ get_provider_terminals_with_priority(Provider, VS) ->
             {ok, []}
     end.
 
-get_valid_terminals_with_priority([], _Provider, _PartyVarset, Acc) ->
+get_valid_terminals_with_priority([], _Provider, _PartyVarset, _DomainRevision, Acc) ->
     Acc;
-get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, PartyVarset, Acc0) ->
-    Terminal = unwrap(ff_payouts_terminal:get(TerminalID)),
+get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, PartyVarset, DomainRevision, Acc0) ->
+    Terminal = unwrap(ff_payouts_terminal:get(TerminalID, DomainRevision)),
     Acc =
         case validate_terms(Provider, Terminal, PartyVarset) of
             {ok, valid} ->
@@ -210,7 +212,7 @@ get_valid_terminals_with_priority([{TerminalID, Priority} | Rest], Provider, Par
             {error, _Error} ->
                 Acc0
         end,
-    get_valid_terminals_with_priority(Rest, Provider, PartyVarset, Acc).
+    get_valid_terminals_with_priority(Rest, Provider, PartyVarset, DomainRevision, Acc).
 
 -spec validate_terms(provider(), terminal(), hg_selector:varset()) ->
     {ok, valid}

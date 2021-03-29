@@ -58,7 +58,7 @@ prepare_routes(PartyVarset, Identity, DomainRevision) ->
             logger:log(info, "Fallback to legacy method of routes gathering"),
             case ff_payment_institution:compute_withdrawal_providers(PaymentInstitution, PartyVarset) of
                 {ok, Providers} ->
-                    filter_routes_legacy(Providers, PartyVarset);
+                    filter_routes_legacy(Providers, PartyVarset, DomainRevision);
                 {error, {misconfiguration, _Details} = Error} ->
                     %% TODO: Do not interpret such error as an empty route list.
                     %% The current implementation is made for compatibility reasons.
@@ -160,18 +160,18 @@ filter_valid_routes_([Route | Rest], PartyVarset, {Acc0, RejectContext0}) ->
         end,
     filter_valid_routes_(Rest, PartyVarset, {RejectConext, Acc}).
 
--spec filter_routes_legacy([provider_id()], party_varset()) -> {ok, [route()]} | {error, route_not_found}.
-filter_routes_legacy(Providers, PartyVarset) ->
+-spec filter_routes_legacy([provider_id()], party_varset(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.
+filter_routes_legacy(Providers, PartyVarset, DomainRevision) ->
     do(fun() ->
-        unwrap(filter_routes_legacy_(Providers, PartyVarset, #{}))
+        unwrap(filter_routes_legacy_(Providers, PartyVarset, DomainRevision, #{}))
     end).
 
-filter_routes_legacy_([], _PartyVarset, Acc) when map_size(Acc) == 0 ->
+filter_routes_legacy_([], _PartyVarset, _DomainRevision, Acc) when map_size(Acc) == 0 ->
     {error, route_not_found};
-filter_routes_legacy_([], _PartyVarset, Acc) ->
+filter_routes_legacy_([], _PartyVarset, _DomainRevision, Acc) ->
     {ok, convert_to_route(Acc)};
-filter_routes_legacy_([ProviderID | Rest], PartyVarset, Acc0) ->
-    Provider = unwrap(ff_payouts_provider:get(ProviderID)),
+filter_routes_legacy_([ProviderID | Rest], PartyVarset, DomainRevision, Acc0) ->
+    Provider = unwrap(ff_payouts_provider:get(ProviderID, DomainRevision)),
     {ok, TerminalsWithPriority} = get_provider_terminals_with_priority(Provider, PartyVarset),
     Acc =
         case get_valid_terminals_with_priority(TerminalsWithPriority, Provider, PartyVarset, []) of
@@ -187,7 +187,7 @@ filter_routes_legacy_([ProviderID | Rest], PartyVarset, Acc0) ->
                     TPL
                 )
         end,
-    filter_routes_legacy_(Rest, PartyVarset, Acc).
+    filter_routes_legacy_(Rest, PartyVarset, DomainRevision, Acc).
 
 -spec get_provider_terminals_with_priority(provider(), party_varset()) -> {ok, [{terminal_id(), terminal_priority()}]}.
 get_provider_terminals_with_priority(Provider, VS) ->

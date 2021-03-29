@@ -15,7 +15,6 @@
 
 -spec start_link() -> {ok, pid()} | {error, {already_started, pid()}}.
 start_link() ->
-    % TODO #ED-96 на период разделения отсутствие настройки wapi считаем признаком запуска fistful-server
     case application:get_all_env(wapi) of
         [] ->
             supervisor:start_link({local, ?MODULE}, ?MODULE, undefined);
@@ -29,6 +28,8 @@ start_link() ->
     (undefined) -> ignore;
     ([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init(undefined) ->
+    % TODO #ED-96 на период разделения отсутствие настройки wapi -
+    % считаем признаком запуска только fistful-server
     _ = logger:warning("wapi is not configured - launch will be ignored"),
     ignore;
 init([]) ->

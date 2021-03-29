@@ -82,12 +82,6 @@
 
 -type attempts() :: ff_withdrawal_route_attempt_utils:attempts().
 
--type prepared_route() :: #{
-    route := route(),
-    party_revision := party_revision(),
-    domain_revision := domain_revision()
-}.
-
 -type quote_params() :: #{
     wallet_id := ff_wallet_machine:id(),
     currency_from := ff_currency:id(),
@@ -184,7 +178,6 @@
 -export_type([params/0]).
 -export_type([event/0]).
 -export_type([route/0]).
--export_type([prepared_route/0]).
 -export_type([quote/0]).
 -export_type([quote_params/0]).
 -export_type([session/0]).
@@ -733,8 +726,7 @@ do_process_transfer(session_starting, Withdrawal) ->
 do_process_transfer(session_sleeping, Withdrawal) ->
     process_session_sleep(Withdrawal);
 do_process_transfer({fail, Reason}, Withdrawal) ->
-    {ok, Providers} = do_process_routing(Withdrawal),
-    process_route_change(Providers, Withdrawal, Reason);
+    process_route_change(Withdrawal, Reason);
 do_process_transfer(finish, Withdrawal) ->
     process_transfer_finish(Withdrawal);
 do_process_transfer(adjustment, Withdrawal) ->
@@ -776,7 +768,7 @@ do_process_routing(Withdrawal) ->
     }),
 
     do(fun() ->
-        Routes = unwrap(prepare_route(build_party_varset(VarsetParams), Identity, DomainRevision)),
+        Routes = unwrap(prepare_routes(build_party_varset(VarsetParams), Identity, DomainRevision)),
         case quote(Withdrawal) of
             undefined ->
                 Routes;
@@ -787,8 +779,8 @@ do_process_routing(Withdrawal) ->
         end
     end).
 
--spec prepare_route(party_varset(), identity(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.
-prepare_route(PartyVarset, Identity, DomainRevision) ->
+-spec prepare_routes(party_varset(), identity(), domain_revision()) -> {ok, [route()]} | {error, route_not_found}.
+prepare_routes(PartyVarset, Identity, DomainRevision) ->
     ff_withdrawal_routing:prepare_routes(PartyVarset, Identity, DomainRevision).
 
 -spec validate_quote_route(route(), quote_state()) -> {ok, valid} | {error, InconsistentQuote} when
@@ -1201,7 +1193,7 @@ get_quote_(Params) ->
         } = Params,
         Resource = maps:get(resource, Params, undefined),
 
-        [Route | _] = unwrap(route, prepare_route(Varset, Identity, DomainRevision)),
+        [Route | _] = unwrap(route, prepare_routes(Varset, Identity, DomainRevision)),
         {Adapter, AdapterOpts} = ff_withdrawal_session:get_adapter_with_opts(Route),
         GetQuoteParams = #{
             external_id => maps:get(external_id, Params, undefined),
@@ -1543,10 +1535,11 @@ process_adjustment(Withdrawal) ->
     Events1 = Events0 ++ handle_adjustment_changes(Changes),
     handle_child_result({Action, Events1}, Withdrawal).
 
--spec process_route_change([route()], withdrawal_state(), fail_type()) -> process_result().
-process_route_change(Providers, Withdrawal, Reason) ->
+-spec process_route_change(withdrawal_state(), fail_type()) -> process_result().
+process_route_change(Withdrawal, Reason) ->
     case is_failure_transient(Reason, Withdrawal) of
         true ->
+            {ok, Providers} = do_process_routing(Withdrawal),
             do_process_route_change(Providers, Withdrawal, Reason);
         false ->
             process_transfer_fail(Reason, Withdrawal)

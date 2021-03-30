@@ -33,7 +33,6 @@
 -export([provision_terms/1]).
 
 -export([ref/1]).
--export([get/1]).
 -export([get/2]).
 -export([compute_withdrawal_terminals_with_priority/2]).
 
@@ -83,12 +82,6 @@ provision_terms(Provider) ->
 -spec ref(id()) -> provider_ref().
 ref(ID) ->
     #domain_ProviderRef{id = ID}.
-
--spec get(id()) ->
-    {ok, provider()}
-    | {error, notfound}.
-get(ID) ->
-    get(ID, ff_domain_config:head()).
 
 -spec get(id(), domain_revision()) ->
     {ok, provider()}

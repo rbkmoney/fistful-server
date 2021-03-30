@@ -32,7 +32,6 @@
 -export([provision_terms/1]).
 
 -export([ref/1]).
--export([get/1]).
 -export([get/2]).
 
 %% Pipeline
@@ -68,12 +67,6 @@ provision_terms(Terminal) ->
 -spec ref(id()) -> terminal_ref().
 ref(ID) ->
     #domain_TerminalRef{id = ID}.
-
--spec get(id()) ->
-    {ok, terminal()}
-    | {error, notfound}.
-get(ID) ->
-    get(ID, ff_domain_config:head()).
 
 -spec get(id(), domain_revision()) ->
     {ok, terminal()}

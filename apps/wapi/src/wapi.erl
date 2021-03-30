@@ -13,7 +13,14 @@
 
 -spec start(normal, any()) -> {ok, pid()} | {error, any()}.
 start(_StartType, _StartArgs) ->
-    wapi_sup:start_link().
+    case application:get_all_env(wapi) of
+        [] ->
+            % TODO #ED-96 на период разделения отсутствие настройки wapi - признак его отключения
+            _ = logger:warning("wapi is not configured - will not be start"),
+            {error, normal};
+        _ ->
+            wapi_sup:start_link()
+    end.
 
 -spec stop(any()) -> ok.
 stop(_State) ->

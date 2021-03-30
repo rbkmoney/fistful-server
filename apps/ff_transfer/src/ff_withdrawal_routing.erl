@@ -6,7 +6,7 @@
 -export([make_route/2]).
 -export([get_provider/1]).
 -export([get_terminal/1]).
--export([provision_terms/1]).
+-export([provision_terms/2]).
 -export([merge_withdrawal_terms/2]).
 
 -import(ff_pipeline, [do/1, unwrap/1]).
@@ -86,16 +86,16 @@ get_provider(#{provider_id := ProviderID}) ->
 get_terminal(Route) ->
     maps:get(terminal_id, Route, undefined).
 
--spec provision_terms(route()) -> ff_maybe:maybe(provision_terms()).
-provision_terms(Route) ->
-    {ok, Provider} = ff_payouts_provider:get(get_provider(Route)),
+-spec provision_terms(route(), domain_revision()) -> ff_maybe:maybe(provision_terms()).
+provision_terms(Route, DomainRevision) ->
+    {ok, Provider} = ff_payouts_provider:get(get_provider(Route), DomainRevision),
     ProviderTerms = ff_payouts_provider:provision_terms(Provider),
     TerminalTerms =
         case get_terminal(Route) of
             undefined ->
                 undefined;
             TerminalID ->
-                {ok, Terminal} = ff_payouts_terminal:get(TerminalID),
+                {ok, Terminal} = ff_payouts_terminal:get(TerminalID, DomainRevision),
                 ff_payouts_terminal:provision_terms(Terminal)
         end,
     merge_withdrawal_terms(ProviderTerms, TerminalTerms).
